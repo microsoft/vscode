@@ -13,7 +13,7 @@
   --vscode-font-family: 'Inter', 'SF Pro Display', system-ui, -apple-system, sans-serif !important;
   --vscode-editor-font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace !important;
   --monaco-monospace-font: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace !important;
-  
+
   /* Core Monochrome Palette */
   --vscode-editor-background: #000000 !important;
   --vscode-sideBar-background: #0a0a0a !important;
@@ -25,7 +25,7 @@
   --vscode-tab-activeBackground: #141414 !important;
   --vscode-tab-inactiveBackground: #0a0a0a !important;
   --vscode-editorGroupHeader-tabsBackground: #0a0a0a !important;
-  
+
   /* Text Colors */
   --vscode-foreground: #ffffff !important;
   --vscode-editor-foreground: #ffffff !important;
@@ -34,7 +34,7 @@
   --vscode-statusBar-foreground: #a0a0a0 !important;
   --vscode-tab-activeForeground: #ffffff !important;
   --vscode-tab-inactiveForeground: #707070 !important;
-  
+
   /* Borders - Subtle */
   --vscode-sideBar-border: rgba(255, 255, 255, 0.08) !important;
   --vscode-activityBar-border: rgba(255, 255, 255, 0.08) !important;
@@ -42,7 +42,7 @@
   --vscode-tab-border: rgba(255, 255, 255, 0.08) !important;
   --vscode-editorGroup-border: rgba(255, 255, 255, 0.08) !important;
   --vscode-statusBar-border: rgba(255, 255, 255, 0.08) !important;
-  
+
   /* Accent Colors - Minimal White */
   --vscode-focusBorder: rgba(255, 255, 255, 0.25) !important;
   --vscode-activityBarBadge-background: #ffffff !important;
@@ -50,34 +50,34 @@
   --vscode-button-background: #ffffff !important;
   --vscode-button-foreground: #000000 !important;
   --vscode-button-hoverBackground: #e0e0e0 !important;
-  
+
   /* Selection */
   --vscode-editor-selectionBackground: rgba(255, 255, 255, 0.15) !important;
   --vscode-editor-selectionHighlightBackground: rgba(255, 255, 255, 0.08) !important;
-  
+
   /* List/Tree */
   --vscode-list-activeSelectionBackground: rgba(255, 255, 255, 0.12) !important;
   --vscode-list-activeSelectionForeground: #ffffff !important;
   --vscode-list-hoverBackground: rgba(255, 255, 255, 0.06) !important;
   --vscode-list-focusBackground: rgba(255, 255, 255, 0.1) !important;
-  
+
   /* Input */
   --vscode-input-background: #141414 !important;
   --vscode-input-foreground: #ffffff !important;
   --vscode-input-border: rgba(255, 255, 255, 0.15) !important;
   --vscode-input-placeholderForeground: #606060 !important;
   --vscode-inputOption-activeBackground: rgba(255, 255, 255, 0.12) !important;
-  
+
   /* Dropdown */
   --vscode-dropdown-background: #141414 !important;
   --vscode-dropdown-foreground: #ffffff !important;
   --vscode-dropdown-border: rgba(255, 255, 255, 0.15) !important;
-  
+
   /* Scrollbar */
   --vscode-scrollbarSlider-background: rgba(255, 255, 255, 0.15) !important;
   --vscode-scrollbarSlider-hoverBackground: rgba(255, 255, 255, 0.25) !important;
   --vscode-scrollbarSlider-activeBackground: rgba(255, 255, 255, 0.35) !important;
-  
+
   /* Welcome Page */
   --vscode-welcomePage-background: #000000 !important;
   --vscode-welcomePage-tileBackground: #141414 !important;
@@ -349,13 +349,13 @@
 }
 
 @keyframes slideUp {
-  from { 
-    opacity: 0; 
-    transform: translateY(10px); 
+  from {
+    opacity: 0;
+    transform: translateY(10px);
   }
-  to { 
-    opacity: 1; 
-    transform: translateY(0); 
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 

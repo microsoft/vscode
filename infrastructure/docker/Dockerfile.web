@@ -58,6 +58,17 @@ RUN if [ -f /home/.openvscode-server/product.json ]; then \
     fi \
     && rm /tmp/logos-product.json
 
+# Patch hardcoded branding strings in workbench files
+# Replace "OpenVSCode Server" with "Logos" and "Editing evolved" with "A Bravo Zero platform"
+RUN find /home/.openvscode-server/out -type f -name "*.js" -exec \
+    sed -i 's/OpenVSCode Server/Logos/g' {} \; 2>/dev/null || true
+RUN find /home/.openvscode-server/out -type f -name "*.js" -exec \
+    sed -i 's/Editing evolved/A Bravo Zero platform/g' {} \; 2>/dev/null || true
+RUN find /home/.openvscode-server/out -type f -name "*.html" -exec \
+    sed -i 's/OpenVSCode Server/Logos/g' {} \; 2>/dev/null || true
+RUN find /home/.openvscode-server/out -type f -name "*.html" -exec \
+    sed -i 's/Editing evolved/A Bravo Zero platform/g' {} \; 2>/dev/null || true
+
 # Copy Hydra-styled theme CSS
 COPY --chown=openvscode-server:openvscode-server infrastructure/docker/logos-theme.css /home/.openvscode-server/logos-theme.css
 
