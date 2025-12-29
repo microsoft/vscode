@@ -1,0 +1,85 @@
+---
+# Logos ALB Ingress for AWS EKS
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: logos-ingress
+  namespace: logos
+  labels:
+    app.kubernetes.io/name: logos
+    app.kubernetes.io/part-of: logos
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    # TLS via AWS ACM (wildcard cert for *.bravozero.ai)
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:113513624033:certificate/5a10c11d-7556-4ba3-808f-114b8cbd951d
+    alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS13-1-2-2021-06
+    # Health checks
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: "15"
+    alb.ingress.kubernetes.io/healthcheck-timeout-seconds: "5"
+    alb.ingress.kubernetes.io/healthy-threshold-count: "2"
+    alb.ingress.kubernetes.io/unhealthy-threshold-count: "2"
+    # Timeouts for WebSocket support
+    alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=3600
+    # WAF (optional)
+    # alb.ingress.kubernetes.io/wafv2-acl-arn: ${WAF_ACL_ARN}
+    # Tags
+    alb.ingress.kubernetes.io/tags: Environment=production,Project=logos,Platform=bravozero
+spec:
+  ingressClassName: alb
+  rules:
+    - host: logos.bravozero.ai
+      http:
+        paths:
+          # Main IDE
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: logos-web
+                port:
+                  number: 8080
+          # Chat API and WebSocket
+          - path: /api/chat
+            pathType: Prefix
+            backend:
+              service:
+                name: logos-chat
+                port:
+                  number: 8081
+          - path: /ws
+            pathType: Prefix
+            backend:
+              service:
+                name: logos-chat
+                port:
+                  number: 8081
+          # Completion API
+          - path: /api/completion
+            pathType: Prefix
+            backend:
+              service:
+                name: logos-completion
+                port:
+                  number: 8082
+          # CA API
+          - path: /api/ca
+            pathType: Prefix
+            backend:
+              service:
+                name: logos-ca
+                port:
+                  number: 8083
+          # Audit API
+          - path: /api/audit
+            pathType: Prefix
+            backend:
+              service:
+                name: logos-audit
+                port:
+                  number: 8084
+

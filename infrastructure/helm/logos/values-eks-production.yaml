@@ -1,0 +1,231 @@
+# EKS Production values for Logos D3N-Native IDE
+# Domain: logos.bravozero.ai
+# Cluster: staging-persona (us-east-1)
+
+# -- Image configuration
+global:
+  image:
+    registry: ghcr.io/deepcreative/logos
+    tag: latest
+    pullPolicy: Always
+
+# -- Web server
+web:
+  replicaCount: 2
+  image:
+    repository: ghcr.io/deepcreative/logos/logos-web
+    tag: latest
+  service:
+    type: ClusterIP
+    port: 8080
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+    requests:
+      cpu: 200m
+      memory: 512Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+
+# -- Chat service
+chat:
+  replicaCount: 2
+  image:
+    repository: ghcr.io/deepcreative/logos/logos-chat
+    tag: latest
+  service:
+    type: ClusterIP
+    port: 8081
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+    requests:
+      cpu: 500m
+      memory: 1Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 20
+
+# -- Completion service
+completion:
+  replicaCount: 2
+  image:
+    repository: ghcr.io/deepcreative/logos/logos-completion
+    tag: latest
+  service:
+    type: ClusterIP
+    port: 8082
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+    requests:
+      cpu: 500m
+      memory: 1Gi
+  gpu:
+    enabled: false  # Enable when GPU nodes available
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 20
+
+# -- Cognitive Architect service
+ca:
+  replicaCount: 1
+  image:
+    repository: ghcr.io/deepcreative/logos/logos-ca
+    tag: latest
+  service:
+    type: ClusterIP
+    port: 8083
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+    requests:
+      cpu: 200m
+      memory: 512Mi
+  workspace:
+    maxInstances: 100
+    idleTimeout: 3600
+
+# -- Audit service
+audit:
+  replicaCount: 1
+  image:
+    repository: ghcr.io/deepcreative/logos/logos-audit
+    tag: latest
+  service:
+    type: ClusterIP
+    port: 8084
+  resources:
+    limits:
+      cpu: 500m
+      memory: 1Gi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  storage:
+    s3Bucket: logos-audit-logs
+    retentionDays: 365
+    encryptionEnabled: true
+
+# -- D3N Integration (cluster-internal endpoints)
+d3n:
+  apiEndpoint: "http://d3n-gateway.bravozero.svc:9090"
+  defaultTier: 2
+  maxTier: 3
+  flashApps:
+    enabled: true
+    cacheEnabled: true
+    cacheTTLSeconds: 300
+  bmu:
+    targetUSF: 0.85
+    latencyBudgetMs: 500
+
+# -- ARIA Integration
+aria:
+  conductorEndpoint: "http://aria-inference.aria-inference.svc:80"
+  apifEnabled: true
+  agentTimeoutMs: 30000
+
+# -- PERSONA Integration
+persona:
+  serviceEndpoint: "http://persona-api.persona-staging.svc:80"
+  pqcEnabled: false  # Enable when PQC ready
+  sessionTimeoutHours: 8
+
+# -- ALB Ingress (AWS)
+ingress:
+  enabled: true
+  className: alb
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:113513624033:certificate/5a10c11d-7556-4ba3-808f-114b8cbd951d
+    alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS13-1-2-2021-06
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+    alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=3600
+    alb.ingress.kubernetes.io/tags: Environment=production,Project=logos,Platform=bravozero
+  hosts:
+    - host: logos.bravozero.ai
+      paths:
+        - path: /
+          pathType: Prefix
+          service: web
+        - path: /api/chat
+          pathType: Prefix
+          service: chat
+        - path: /ws
+          pathType: Prefix
+          service: chat
+        - path: /api/completion
+          pathType: Prefix
+          service: completion
+        - path: /api/ca
+          pathType: Prefix
+          service: ca
+        - path: /api/audit
+          pathType: Prefix
+          service: audit
+  tls: []  # TLS handled by ALB/ACM
+
+# -- PostgreSQL (use external RDS in production)
+postgresql:
+  enabled: true  # For initial deploy; switch to external RDS
+  auth:
+    postgresPassword: "logos-pg-temp-password"
+    username: logos
+    password: "logos-pg-temp-password"
+    database: logos
+  primary:
+    persistence:
+      enabled: true
+      size: 20Gi
+      storageClass: gp3
+
+# -- Redis
+redis:
+  enabled: true
+  auth:
+    enabled: true
+    password: "logos-redis-temp-password"
+  master:
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: gp3
+
+# -- Monitoring
+monitoring:
+  serviceMonitor:
+    enabled: false  # Enable when Prometheus operator installed
+  dashboards:
+    enabled: false
+
+# -- Service account
+serviceAccount:
+  create: true
+  annotations:
+    eks.amazonaws.com/role-arn: ""  # Add IAM role for S3 access
+
+# -- Pod security
+podSecurityContext:
+  fsGroup: 1000
+
+securityContext:
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: false  # VSCode needs write access
+  runAsNonRoot: true
+  runAsUser: 1000
+

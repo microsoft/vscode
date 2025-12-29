@@ -1,0 +1,277 @@
+---
+# Minimal Logos deployment for infrastructure testing
+# Will be replaced by Helm once images are built
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: logos
+  labels:
+    app.kubernetes.io/name: logos
+    platform: bravozero
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: logos-config
+  namespace: logos
+data:
+  D3N_ENDPOINT: "http://d3n-gateway.bravozero.svc:9090"
+  ARIA_ENDPOINT: "http://aria-inference.aria-inference.svc:80"
+  PERSONA_ENDPOINT: "http://persona-api.persona-staging.svc:80"
+  NODE_ENV: "production"
+---
+# Logos Web - Placeholder with nginx until real images built
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: logos-web
+  namespace: logos
+  labels:
+    app: logos-web
+    app.kubernetes.io/name: logos
+    app.kubernetes.io/component: web
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: logos-web
+  template:
+    metadata:
+      labels:
+        app: logos-web
+        app.kubernetes.io/name: logos
+        app.kubernetes.io/component: web
+    spec:
+      containers:
+        - name: logos-web
+          image: nginx:alpine
+          ports:
+            - containerPort: 80
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: default.conf
+            - name: logos-html
+              mountPath: /usr/share/nginx/html
+      volumes:
+        - name: nginx-config
+          configMap:
+            name: logos-nginx-config
+        - name: logos-html
+          configMap:
+            name: logos-placeholder-html
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: logos-nginx-config
+  namespace: logos
+data:
+  default.conf: |
+    server {
+        listen 80;
+        server_name logos.bravozero.ai;
+        
+        location /health {
+            access_log off;
+            return 200 'healthy';
+            add_header Content-Type text/plain;
+        }
+        
+        location / {
+            root /usr/share/nginx/html;
+            index index.html;
+        }
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: logos-placeholder-html
+  namespace: logos
+data:
+  index.html: |
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Logos - D3N-Native IDE</title>
+        <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+                font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+                background: linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 50%, #16213e 100%);
+                min-height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: #e0e0e0;
+            }
+            .container {
+                text-align: center;
+                padding: 3rem;
+                background: rgba(255, 255, 255, 0.03);
+                border-radius: 24px;
+                border: 1px solid rgba(255, 255, 255, 0.08);
+                backdrop-filter: blur(20px);
+                max-width: 600px;
+            }
+            .logo {
+                font-size: 4rem;
+                margin-bottom: 1rem;
+            }
+            h1 {
+                font-size: 2.5rem;
+                font-weight: 700;
+                background: linear-gradient(135deg, #00d4ff, #7c3aed, #f472b6);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                margin-bottom: 0.5rem;
+            }
+            .subtitle {
+                font-size: 1.2rem;
+                color: #8b8b9a;
+                margin-bottom: 2rem;
+            }
+            .status {
+                display: inline-flex;
+                align-items: center;
+                gap: 0.5rem;
+                padding: 0.75rem 1.5rem;
+                background: rgba(124, 58, 237, 0.1);
+                border: 1px solid rgba(124, 58, 237, 0.3);
+                border-radius: 9999px;
+                font-size: 0.9rem;
+            }
+            .pulse {
+                width: 10px;
+                height: 10px;
+                background: #7c3aed;
+                border-radius: 50%;
+                animation: pulse 2s infinite;
+            }
+            @keyframes pulse {
+                0%, 100% { opacity: 1; transform: scale(1); }
+                50% { opacity: 0.5; transform: scale(1.2); }
+            }
+            .features {
+                margin-top: 2rem;
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 1rem;
+                text-align: left;
+            }
+            .feature {
+                padding: 1rem;
+                background: rgba(255, 255, 255, 0.02);
+                border-radius: 12px;
+                border: 1px solid rgba(255, 255, 255, 0.05);
+            }
+            .feature-icon { font-size: 1.5rem; margin-bottom: 0.5rem; }
+            .feature-title { font-weight: 600; margin-bottom: 0.25rem; }
+            .feature-desc { font-size: 0.8rem; color: #6b6b7a; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="logo">⚡</div>
+            <h1>Logos</h1>
+            <p class="subtitle">D3N-Native Cognitive Development Environment</p>
+            <div class="status">
+                <div class="pulse"></div>
+                <span>Deployment in Progress</span>
+            </div>
+            <div class="features">
+                <div class="feature">
+                    <div class="feature-icon">🤖</div>
+                    <div class="feature-title">Multi-Agent Chat</div>
+                    <div class="feature-desc">ARIA-powered conversations</div>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">⚡</div>
+                    <div class="feature-title">Flash Completions</div>
+                    <div class="feature-desc">Sub-10ms code completion</div>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">🧠</div>
+                    <div class="feature-title">Cognitive Architect</div>
+                    <div class="feature-desc">Per-workspace AI assistant</div>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">🔐</div>
+                    <div class="feature-title">PERSONA Auth</div>
+                    <div class="feature-desc">Zero-trust identity</div>
+                </div>
+            </div>
+        </div>
+    </body>
+    </html>
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: logos-web
+  namespace: logos
+  labels:
+    app: logos-web
+spec:
+  selector:
+    app: logos-web
+  ports:
+    - port: 8080
+      targetPort: 80
+      protocol: TCP
+  type: ClusterIP
+---
+# ALB Ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: logos-ingress
+  namespace: logos
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:113513624033:certificate/5a10c11d-7556-4ba3-808f-114b8cbd951d
+    alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS13-1-2-2021-06
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: "15"
+    alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=3600
+    alb.ingress.kubernetes.io/tags: Environment=production,Project=logos,Platform=bravozero
+spec:
+  ingressClassName: alb
+  rules:
+    - host: logos.bravozero.ai
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: logos-web
+                port:
+                  number: 8080
+
