@@ -6,10 +6,10 @@
 import { IAction } from '../../../common/actions.js';
 import { Codicon } from '../../../common/codicons.js';
 import { Emitter, Event } from '../../../common/event.js';
-import { IMarkdownString } from '../../../common/htmlContent.js';
+import { IMarkdownString, isMarkdownString } from '../../../common/htmlContent.js';
+import { getCodiconAriaLabel } from '../../../common/iconLabels.js';
 import { KeyCode } from '../../../common/keyCodes.js';
 import { ThemeIcon } from '../../../common/themables.js';
-import { hasKey } from '../../../common/types.js';
 import { $, addDisposableListener, EventType, isActiveElement } from '../../dom.js';
 import { IKeyboardEvent } from '../../keyboardEvent.js';
 import { BaseActionViewItem, IActionViewItemOptions } from '../actionbar/actionViewItems.js';
@@ -251,16 +251,9 @@ export class Toggle extends Widget {
 	setTitle(newTitle: string | IMarkdownString | HTMLElement): void {
 		this._title = newTitle;
 
-		let ariaLabel = '';
-		if (typeof newTitle === 'string') {
-			ariaLabel = newTitle;
-		} else if (hasKey(newTitle, { value: true })) {
-			ariaLabel = newTitle.value;
-		} else if (hasKey(newTitle, { textContent: true })) {
-			ariaLabel = newTitle.textContent;
-		}
+		const ariaLabel = typeof newTitle === 'string' ? newTitle : isMarkdownString(newTitle) ? newTitle.value : newTitle.textContent;
 
-		this.domNode.setAttribute('aria-label', ariaLabel);
+		this.domNode.setAttribute('aria-label', getCodiconAriaLabel(ariaLabel));
 	}
 
 	set visible(visible: boolean) {
