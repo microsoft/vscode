@@ -100,7 +100,26 @@ export class TerminalFindWidget extends SimpleFindWidget {
 			}
 		}));
 
+		this._setupSearchEventListeners();
 		this.updateResultCount();
+	}
+
+	private _setupSearchEventListeners(): void {
+		const xterm = this._instance.xterm;
+		if (!xterm) {
+			return;
+		}
+
+		// Disable copy-on-selection during search to prevent search result from overriding clipboard
+		this._register(xterm.onBeforeSearch(() => {
+			this._overrideCopyOnSelectionDisposable = TerminalClipboardContribution.get(this._instance)?.overrideCopyOnSelection(false);
+		}));
+
+		// Re-enable copy-on-selection after search completes
+		this._register(xterm.onAfterSearch(() => {
+			this._overrideCopyOnSelectionDisposable?.dispose();
+			this._overrideCopyOnSelectionDisposable = undefined;
+		}));
 	}
 
 	find(previous: boolean, update?: boolean) {
@@ -139,6 +158,9 @@ export class TerminalFindWidget extends SimpleFindWidget {
 	}
 
 	override hide() {
+		this._overrideCopyOnSelectionDisposable?.dispose();
+		this._overrideCopyOnSelectionDisposable = undefined;
+
 		super.hide();
 		this._findWidgetVisible.reset();
 		this._instance.focus(true);

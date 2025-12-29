@@ -1291,6 +1291,16 @@ export interface IXtermTerminal extends IDisposable {
 	readonly onDidChangeFocus: Event<boolean>;
 
 	/**
+	 * Fires after a search is performed.
+	 */
+	readonly onAfterSearch: Event<void>;
+
+	/**
+	 * Fires before a search is performed.
+	 */
+	readonly onBeforeSearch: Event<void>;
+
+	/**
 	 * Gets a view of the current texture atlas used by the renderers.
 	 */
 	readonly textureAtlas: Promise<ImageBitmap> | undefined;
