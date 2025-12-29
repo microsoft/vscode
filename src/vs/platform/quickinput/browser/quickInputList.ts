@@ -27,7 +27,6 @@ import { Emitter, Event, EventBufferer, IValueWithChangeEvent } from '../../../b
 import { IMatch } from '../../../base/common/filters.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
 import { IParsedLabelWithIcons, getCodiconAriaLabel, matchesFuzzyIconAware, parseLabelWithIcons } from '../../../base/common/iconLabels.js';
-import { KeyCode } from '../../../base/common/keyCodes.js';
 import { Lazy } from '../../../base/common/lazy.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { observableValue, observableValueOpts, transaction } from '../../../base/common/observable.js';
@@ -902,7 +901,6 @@ export class QuickInputList extends Disposable {
 	//#region register listeners
 
 	private _registerListeners() {
-		this._registerOnKeyDown();
 		this._registerOnContainerClick();
 		this._registerOnMouseMiddleClick();
 		this._registerOnTreeModelChanged();
@@ -911,20 +909,6 @@ export class QuickInputList extends Disposable {
 		this._registerHoverListeners();
 		this._registerSelectionChangeListener();
 		this._registerSeparatorActionShowingListeners();
-	}
-
-	private _registerOnKeyDown() {
-		// TODO: Should this be added at a higher level?
-		this._register(this._tree.onKeyDown(e => {
-			const event = new StandardKeyboardEvent(e);
-			switch (event.keyCode) {
-				case KeyCode.Space:
-					this.toggleCheckbox();
-					break;
-			}
-
-			this._onKeyDown.fire(event);
-		}));
 	}
 
 	private _registerOnContainerClick() {
