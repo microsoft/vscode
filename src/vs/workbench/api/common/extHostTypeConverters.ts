@@ -2467,6 +2467,8 @@ export namespace LanguageModelChatMessage2 {
 				return new types.LanguageModelDataPart(c.data.buffer, c.mimeType);
 			} else if (c.type === 'thinking') {
 				return new types.LanguageModelThinkingPart(c.value, c.id, c.metadata);
+			} else if (c.type === 'thoughtSignature') {
+				return new types.LanguageModelThoughtSignaturePart(c.signature);
 			} else {
 				return new types.LanguageModelToolCallPart(c.toolCallId, c.name, c.parameters);
 			}
@@ -2554,6 +2556,11 @@ export namespace LanguageModelChatMessage2 {
 					value: c.value,
 					id: c.id,
 					metadata: c.metadata
+				};
+			} else if (c instanceof types.LanguageModelThoughtSignaturePart) {
+				return {
+					type: 'thoughtSignature',
+					signature: c.signature
 				};
 
 			} else {
@@ -3391,6 +3398,8 @@ export namespace ChatAgentResult {
 				return new types.LanguageModelTextPart(value.value);
 			} else if (value.$mid === MarshalledId.LanguageModelThinkingPart) {
 				return new types.LanguageModelThinkingPart(value.value, value.id, value.metadata);
+			} else if (value.$mid === MarshalledId.LanguageModelThoughtSignaturePart) {
+				return new types.LanguageModelThoughtSignaturePart(value.signature);
 			} else if (value.$mid === MarshalledId.LanguageModelPromptTsxPart) {
 				return new types.LanguageModelPromptTsxPart(value.value);
 			}

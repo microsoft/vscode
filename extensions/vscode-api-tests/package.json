@@ -25,6 +25,7 @@
     "findTextInFiles",
     "fsChunks",
     "interactive",
+    "languageModelThinkingPart",
     "languageStatusText",
     "nativeWindowHandle",
     "notebookDeprecated",

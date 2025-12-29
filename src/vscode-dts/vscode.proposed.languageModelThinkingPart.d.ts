@@ -38,13 +38,32 @@ declare module 'vscode' {
 		 */
 		constructor(value: string | string[], id?: string, metadata?: { readonly [key: string]: any });
 	}
+	/**
+	 * Represents an encrypted thought signature from a language model response.
+	 * Thought signatures capture reasoning state that should be preserved and
+	 * passed back to the model in subsequent turns to maintain continuity.
+	 * This is provider-specific data - not all models support thought signatures.
+	 * The signature is typically a base64-encoded string representation of encrypted state.
+	 */
+	export class LanguageModelThoughtSignaturePart {
+		/**
+		 * The thought signature data, typically base64-encoded.
+		 */
+		signature: string;
 
+		/**
+		 * Create a new thought signature part.
+		 * @param signature The thought signature data (typically base64-encoded)
+		 */
+		constructor(signature: string);
+	}
 	export interface LanguageModelChatResponse {
 		/**
-		 * An async iterable that is a stream of text, thinking, and tool-call parts forming the overall response.
-		 * This includes {@link LanguageModelThinkingPart} which represents the model's internal reasoning process.
+		 * An async iterable that is a stream of text, thinking, thought signature, and tool-call parts forming the overall response.
+		 * This includes {@link LanguageModelThinkingPart} which represents the model's internal reasoning process
+		 * and {@link LanguageModelThoughtSignaturePart} which represents encrypted reasoning state.
 		 */
-		stream: AsyncIterable<LanguageModelTextPart | LanguageModelThinkingPart | LanguageModelToolCallPart | unknown>;
+		stream: AsyncIterable<LanguageModelTextPart | LanguageModelThinkingPart | LanguageModelThoughtSignaturePart | LanguageModelToolCallPart | unknown>;
 	}
 
 	export interface LanguageModelChat {
@@ -82,7 +101,7 @@ declare module 'vscode' {
 		 * A string or heterogeneous array of things that a message can contain as content. Some parts may be message-type
 		 * specific for some models.
 		 */
-		content: Array<LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart>;
+		content: Array<LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart | LanguageModelThoughtSignaturePart>;
 
 		/**
 		 * The optional name of a user for this message.
@@ -96,7 +115,7 @@ declare module 'vscode' {
 		 * @param content The content of the message.
 		 * @param name The optional name of a user for the message.
 		 */
-		constructor(role: LanguageModelChatMessageRole, content: string | Array<LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart>, name?: string);
+		constructor(role: LanguageModelChatMessageRole, content: string | Array<LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart | LanguageModelThoughtSignaturePart>, name?: string);
 	}
 
 	/**

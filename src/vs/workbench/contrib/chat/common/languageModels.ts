@@ -56,6 +56,11 @@ export interface IChatMessageThinkingPart {
 	metadata?: { readonly [key: string]: any };
 }
 
+export interface IChatMessageThoughtSignaturePart {
+	type: 'thoughtSignature';
+	signature: string;
+}
+
 export interface IChatMessageDataPart {
 	type: 'data';
 	mimeType: string;
@@ -102,7 +107,7 @@ export interface IChatMessageToolResultPart {
 	isError?: boolean;
 }
 
-export type IChatMessagePart = IChatMessageTextPart | IChatMessageToolResultPart | IChatResponseToolUsePart | IChatMessageImagePart | IChatMessageDataPart | IChatMessageThinkingPart;
+export type IChatMessagePart = IChatMessageTextPart | IChatMessageToolResultPart | IChatResponseToolUsePart | IChatMessageImagePart | IChatMessageDataPart | IChatMessageThinkingPart | IChatMessageThoughtSignaturePart;
 
 export interface IChatMessage {
 	readonly name?: string | undefined;
@@ -144,6 +149,11 @@ export interface IChatResponseThinkingPart {
 	metadata?: { readonly [key: string]: any };
 }
 
+export interface IChatResponseThoughtSignaturePart {
+	type: 'thoughtSignature';
+	signature: string;
+}
+
 export interface IChatResponsePullRequestPart {
 	type: 'pullRequest';
 	uri: URI;
@@ -153,7 +163,7 @@ export interface IChatResponsePullRequestPart {
 	linkTag: string;
 }
 
-export type IChatResponsePart = IChatResponseTextPart | IChatResponseToolUsePart | IChatResponseDataPart | IChatResponseThinkingPart;
+export type IChatResponsePart = IChatResponseTextPart | IChatResponseToolUsePart | IChatResponseDataPart | IChatResponseThinkingPart | IChatResponseThoughtSignaturePart;
 
 export type IExtendedChatResponsePart = IChatResponsePullRequestPart;
 

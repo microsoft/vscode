@@ -37,7 +37,7 @@ type LanguageModelProviderData = {
 	readonly provider: vscode.LanguageModelChatProvider;
 };
 
-type LMResponsePart = vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart | vscode.LanguageModelDataPart | vscode.LanguageModelThinkingPart;
+type LMResponsePart = vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart | vscode.LanguageModelDataPart | vscode.LanguageModelThinkingPart | vscode.LanguageModelThoughtSignaturePart;
 
 
 class LanguageModelResponse {
@@ -84,7 +84,8 @@ class LanguageModelResponse {
 				out = new extHostTypes.LanguageModelTextPart(part.value, part.audience);
 			} else if (part.type === 'thinking') {
 				out = new extHostTypes.LanguageModelThinkingPart(part.value, part.id, part.metadata);
-
+			} else if (part.type === 'thoughtSignature') {
+				out = new extHostTypes.LanguageModelThoughtSignaturePart(part.signature);
 			} else if (part.type === 'data') {
 				out = new extHostTypes.LanguageModelDataPart(part.data.buffer, part.mimeType, part.audience);
 			} else {
@@ -258,7 +259,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			}
 		};
 
-		const progress = new Progress<vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart | vscode.LanguageModelDataPart | vscode.LanguageModelThinkingPart>(async fragment => {
+		const progress = new Progress<vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart | vscode.LanguageModelDataPart | vscode.LanguageModelThinkingPart | vscode.LanguageModelThoughtSignaturePart>(async fragment => {
 			if (token.isCancellationRequested) {
 				this._logService.warn(`[CHAT](${data.extension.identifier.value}) CANNOT send progress because the REQUEST IS CANCELLED`);
 				return;
@@ -273,6 +274,8 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				part = { type: 'data', mimeType: fragment.mimeType, data: VSBuffer.wrap(fragment.data), audience: fragment.audience };
 			} else if (fragment instanceof extHostTypes.LanguageModelThinkingPart) {
 				part = { type: 'thinking', value: fragment.value, id: fragment.id, metadata: fragment.metadata };
+			} else if (fragment instanceof extHostTypes.LanguageModelThoughtSignaturePart) {
+				part = { type: 'thoughtSignature', signature: fragment.signature };
 			}
 
 			if (!part) {

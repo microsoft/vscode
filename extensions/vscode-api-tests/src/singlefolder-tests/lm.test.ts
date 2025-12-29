@@ -213,4 +213,98 @@ suite('lm', function () {
 		}
 		assert.strictEqual(output, '');
 	});
+
+	test('LanguageModelThinkingPart', async function () {
+
+		let p: vscode.Progress<unknown> | undefined;
+		const defer = new DeferredPromise<void>();
+
+		disposables.push(vscode.lm.registerLanguageModelChatProvider('test-lm-vendor', {
+			async provideLanguageModelChatInformation(_options, _token) {
+				return [testProviderOptions];
+			},
+			async provideLanguageModelChatResponse(_model, _messages, _options, progress, _token) {
+				p = progress;
+				return defer.p;
+			},
+			async provideTokenCount(_model, _text, _token) {
+				return 1;
+			},
+		}));
+
+		const models = await vscode.lm.selectChatModels({ id: 'test-lm' });
+		assert.strictEqual(models.length, 1);
+
+		const request = await models[0].sendRequest([vscode.LanguageModelChatMessage.User('Hello')]);
+
+		assert.ok(request);
+		assert.ok(p);
+
+		const parts: unknown[] = [];
+		const pp = (async () => {
+			for await (const chunk of request.stream) {
+				parts.push(chunk);
+			}
+		})();
+
+		const thinkingPart = new vscode.LanguageModelThinkingPart('reasoning step 1', 'think-1', { confidence: 0.9 });
+		p.report(thinkingPart);
+		p.report(new vscode.LanguageModelTextPart('Final answer'));
+		defer.complete();
+
+		await pp;
+
+		assert.strictEqual(parts.length, 2);
+		assert.ok(parts[0] instanceof vscode.LanguageModelThinkingPart);
+		assert.strictEqual((parts[0] as vscode.LanguageModelThinkingPart).value, 'reasoning step 1');
+		assert.strictEqual((parts[0] as vscode.LanguageModelThinkingPart).id, 'think-1');
+		assert.deepStrictEqual((parts[0] as vscode.LanguageModelThinkingPart).metadata, { confidence: 0.9 });
+		assert.ok(parts[1] instanceof vscode.LanguageModelTextPart);
+	});
+
+	test('LanguageModelThoughtSignaturePart', async function () {
+
+		let p: vscode.Progress<unknown> | undefined;
+		const defer = new DeferredPromise<void>();
+
+		disposables.push(vscode.lm.registerLanguageModelChatProvider('test-lm-vendor', {
+			async provideLanguageModelChatInformation(_options, _token) {
+				return [testProviderOptions];
+			},
+			async provideLanguageModelChatResponse(_model, _messages, _options, progress, _token) {
+				p = progress;
+				return defer.p;
+			},
+			async provideTokenCount(_model, _text, _token) {
+				return 1;
+			},
+		}));
+
+		const models = await vscode.lm.selectChatModels({ id: 'test-lm' });
+		assert.strictEqual(models.length, 1);
+
+		const request = await models[0].sendRequest([vscode.LanguageModelChatMessage.User('Hello')]);
+
+		assert.ok(request);
+		assert.ok(p);
+
+		const parts: unknown[] = [];
+		const pp = (async () => {
+			for await (const chunk of request.stream) {
+				parts.push(chunk);
+			}
+		})();
+
+		const signaturePart = new vscode.LanguageModelThoughtSignaturePart('base64encodedstate==');
+		p.report(signaturePart);
+		p.report(new vscode.LanguageModelTextPart('Response'));
+		defer.complete();
+
+		await pp;
+
+		assert.strictEqual(parts.length, 2);
+		assert.ok(parts[0] instanceof vscode.LanguageModelThoughtSignaturePart);
+		assert.strictEqual((parts[0] as vscode.LanguageModelThoughtSignaturePart).signature, 'base64encodedstate==');
+		assert.ok(parts[1] instanceof vscode.LanguageModelTextPart);
+	});
 });
