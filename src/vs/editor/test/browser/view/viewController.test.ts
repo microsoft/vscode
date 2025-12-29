@@ -21,7 +21,7 @@ import { TestLanguageConfigurationService } from '../../common/modes/testLanguag
 import { TestConfiguration } from '../config/testConfiguration.js';
 import { createCodeEditorServices } from '../testCodeEditor.js';
 
-suite('ViewController - Bracket and string selection', () => {
+suite('ViewController - Bracket content selection', () => {
 	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
 	let languageConfigurationService: ILanguageConfigurationService;
