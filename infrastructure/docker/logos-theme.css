@@ -1,0 +1,377 @@
+/* =====================================================
+   LOGOS - Hydra Design System Theme
+   Monochrome Black/White Palette
+   A Bravo Zero Platform
+   ===================================================== */
+
+/* Import fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+/* Global CSS Variables Override */
+:root {
+  /* Typography */
+  --vscode-font-family: 'Inter', 'SF Pro Display', system-ui, -apple-system, sans-serif !important;
+  --vscode-editor-font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace !important;
+  --monaco-monospace-font: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace !important;
+  
+  /* Core Monochrome Palette */
+  --vscode-editor-background: #000000 !important;
+  --vscode-sideBar-background: #0a0a0a !important;
+  --vscode-activityBar-background: #000000 !important;
+  --vscode-panel-background: #0a0a0a !important;
+  --vscode-statusBar-background: #000000 !important;
+  --vscode-titleBar-activeBackground: #000000 !important;
+  --vscode-titleBar-inactiveBackground: #000000 !important;
+  --vscode-tab-activeBackground: #141414 !important;
+  --vscode-tab-inactiveBackground: #0a0a0a !important;
+  --vscode-editorGroupHeader-tabsBackground: #0a0a0a !important;
+  
+  /* Text Colors */
+  --vscode-foreground: #ffffff !important;
+  --vscode-editor-foreground: #ffffff !important;
+  --vscode-sideBar-foreground: #a0a0a0 !important;
+  --vscode-activityBar-foreground: #ffffff !important;
+  --vscode-statusBar-foreground: #a0a0a0 !important;
+  --vscode-tab-activeForeground: #ffffff !important;
+  --vscode-tab-inactiveForeground: #707070 !important;
+  
+  /* Borders - Subtle */
+  --vscode-sideBar-border: rgba(255, 255, 255, 0.08) !important;
+  --vscode-activityBar-border: rgba(255, 255, 255, 0.08) !important;
+  --vscode-panel-border: rgba(255, 255, 255, 0.08) !important;
+  --vscode-tab-border: rgba(255, 255, 255, 0.08) !important;
+  --vscode-editorGroup-border: rgba(255, 255, 255, 0.08) !important;
+  --vscode-statusBar-border: rgba(255, 255, 255, 0.08) !important;
+  
+  /* Accent Colors - Minimal White */
+  --vscode-focusBorder: rgba(255, 255, 255, 0.25) !important;
+  --vscode-activityBarBadge-background: #ffffff !important;
+  --vscode-activityBarBadge-foreground: #000000 !important;
+  --vscode-button-background: #ffffff !important;
+  --vscode-button-foreground: #000000 !important;
+  --vscode-button-hoverBackground: #e0e0e0 !important;
+  
+  /* Selection */
+  --vscode-editor-selectionBackground: rgba(255, 255, 255, 0.15) !important;
+  --vscode-editor-selectionHighlightBackground: rgba(255, 255, 255, 0.08) !important;
+  
+  /* List/Tree */
+  --vscode-list-activeSelectionBackground: rgba(255, 255, 255, 0.12) !important;
+  --vscode-list-activeSelectionForeground: #ffffff !important;
+  --vscode-list-hoverBackground: rgba(255, 255, 255, 0.06) !important;
+  --vscode-list-focusBackground: rgba(255, 255, 255, 0.1) !important;
+  
+  /* Input */
+  --vscode-input-background: #141414 !important;
+  --vscode-input-foreground: #ffffff !important;
+  --vscode-input-border: rgba(255, 255, 255, 0.15) !important;
+  --vscode-input-placeholderForeground: #606060 !important;
+  --vscode-inputOption-activeBackground: rgba(255, 255, 255, 0.12) !important;
+  
+  /* Dropdown */
+  --vscode-dropdown-background: #141414 !important;
+  --vscode-dropdown-foreground: #ffffff !important;
+  --vscode-dropdown-border: rgba(255, 255, 255, 0.15) !important;
+  
+  /* Scrollbar */
+  --vscode-scrollbarSlider-background: rgba(255, 255, 255, 0.15) !important;
+  --vscode-scrollbarSlider-hoverBackground: rgba(255, 255, 255, 0.25) !important;
+  --vscode-scrollbarSlider-activeBackground: rgba(255, 255, 255, 0.35) !important;
+  
+  /* Welcome Page */
+  --vscode-welcomePage-background: #000000 !important;
+  --vscode-welcomePage-tileBackground: #141414 !important;
+  --vscode-welcomePage-tileBorder: rgba(255, 255, 255, 0.08) !important;
+  --vscode-welcomePage-tileHoverBackground: #1a1a1a !important;
+  --vscode-welcomePage-progress-foreground: #ffffff !important;
+}
+
+/* =====================================================
+   WELCOME PAGE BRANDING
+   ===================================================== */
+
+/* Hide original OpenVSCode Server branding */
+.monaco-workbench .gettingStartedContainer .gettingStartedSlideCategories .header .product-name,
+.monaco-workbench .gettingStartedContainer .gettingStartedSlideCategories .header .subtitle {
+  display: none !important;
+}
+
+/* Custom branding injection */
+.monaco-workbench .gettingStartedContainer .gettingStartedSlideCategories .header::before {
+  content: 'Logos';
+  display: block;
+  font-family: 'Inter', system-ui, sans-serif !important;
+  font-size: 42px !important;
+  font-weight: 600 !important;
+  color: #ffffff !important;
+  letter-spacing: -0.02em !important;
+  margin-bottom: 8px !important;
+}
+
+.monaco-workbench .gettingStartedContainer .gettingStartedSlideCategories .header::after {
+  content: 'A Bravo Zero platform';
+  display: block;
+  font-family: 'Inter', system-ui, sans-serif !important;
+  font-size: 18px !important;
+  font-weight: 400 !important;
+  color: #707070 !important;
+  letter-spacing: 0 !important;
+}
+
+/* =====================================================
+   ACTIVITY BAR STYLING
+   ===================================================== */
+
+.monaco-workbench .activitybar {
+  background: #000000 !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.monaco-workbench .activitybar .action-item .action-label {
+  transition: opacity 200ms ease-out, transform 200ms ease-out !important;
+}
+
+.monaco-workbench .activitybar .action-item:hover .action-label {
+  opacity: 1 !important;
+  transform: scale(1.05) !important;
+}
+
+/* =====================================================
+   SIDEBAR STYLING
+   ===================================================== */
+
+.monaco-workbench .part.sidebar {
+  background: #0a0a0a !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.monaco-workbench .sidebar .title {
+  font-family: 'Inter', system-ui, sans-serif !important;
+  font-weight: 600 !important;
+  font-size: 11px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+  color: #707070 !important;
+}
+
+/* =====================================================
+   EDITOR STYLING
+   ===================================================== */
+
+.monaco-workbench .editor-container {
+  background: #000000 !important;
+}
+
+.monaco-editor {
+  font-family: 'JetBrains Mono', 'SF Mono', monospace !important;
+}
+
+.monaco-editor .cursor {
+  background: #ffffff !important;
+}
+
+.monaco-editor .line-numbers {
+  color: #404040 !important;
+  font-family: 'JetBrains Mono', monospace !important;
+}
+
+.monaco-editor .current-line ~ .line-numbers {
+  color: #808080 !important;
+}
+
+/* =====================================================
+   TABS STYLING
+   ===================================================== */
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title {
+  background: #0a0a0a !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container .tab {
+  border-radius: 4px 4px 0 0 !important;
+  transition: background 100ms ease-out !important;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container .tab.active {
+  background: #141414 !important;
+  border-bottom: 2px solid #ffffff !important;
+}
+
+/* =====================================================
+   STATUS BAR STYLING
+   ===================================================== */
+
+.monaco-workbench .part.statusbar {
+  background: #000000 !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.monaco-workbench .part.statusbar .statusbar-item a {
+  font-family: 'Inter', system-ui, sans-serif !important;
+  font-size: 12px !important;
+  transition: background 100ms ease-out !important;
+}
+
+.monaco-workbench .part.statusbar .statusbar-item a:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* =====================================================
+   BUTTONS STYLING
+   ===================================================== */
+
+.monaco-workbench .monaco-button {
+  font-family: 'Inter', system-ui, sans-serif !important;
+  font-weight: 500 !important;
+  border-radius: 8px !important;
+  padding: 8px 16px !important;
+  transition: all 200ms ease-out !important;
+}
+
+.monaco-workbench .monaco-button.primary {
+  background: #ffffff !important;
+  color: #000000 !important;
+  border: none !important;
+}
+
+.monaco-workbench .monaco-button.primary:hover {
+  background: #e0e0e0 !important;
+  transform: translateY(-1px) !important;
+}
+
+.monaco-workbench .monaco-button.secondary {
+  background: transparent !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.25) !important;
+}
+
+.monaco-workbench .monaco-button.secondary:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.4) !important;
+}
+
+/* =====================================================
+   QUICK INPUT / COMMAND PALETTE
+   ===================================================== */
+
+.monaco-workbench .quick-input-widget {
+  background: #0a0a0a !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.7) !important;
+}
+
+.monaco-workbench .quick-input-widget .quick-input-header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.monaco-workbench .quick-input-widget .monaco-inputbox {
+  background: #141414 !important;
+  border-radius: 8px !important;
+}
+
+/* =====================================================
+   NOTIFICATIONS
+   ===================================================== */
+
+.monaco-workbench .notifications-toasts {
+  border-radius: 8px !important;
+  overflow: hidden !important;
+}
+
+.monaco-workbench .notification-toast {
+  background: #141414 !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 8px !important;
+}
+
+/* =====================================================
+   CONTEXT MENUS
+   ===================================================== */
+
+.monaco-workbench .context-view .monaco-menu {
+  background: #0a0a0a !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6) !important;
+}
+
+.monaco-workbench .context-view .monaco-menu .action-item {
+  transition: background 100ms ease-out !important;
+}
+
+.monaco-workbench .context-view .monaco-menu .action-item:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* =====================================================
+   TERMINAL
+   ===================================================== */
+
+.monaco-workbench .terminal {
+  font-family: 'JetBrains Mono', 'SF Mono', monospace !important;
+}
+
+.monaco-workbench .panel.terminal {
+  background: #000000 !important;
+}
+
+/* =====================================================
+   SCROLLBARS
+   ===================================================== */
+
+::-webkit-scrollbar {
+  width: 6px !important;
+  height: 6px !important;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15) !important;
+  border-radius: 3px !important;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25) !important;
+}
+
+/* =====================================================
+   ANIMATIONS
+   ===================================================== */
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { 
+    opacity: 0; 
+    transform: translateY(10px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0); 
+  }
+}
+
+.monaco-workbench .quick-input-widget {
+  animation: slideUp 150ms ease-out !important;
+}
+
+.monaco-workbench .notification-toast {
+  animation: slideUp 200ms ease-out !important;
+}
+
+/* =====================================================
+   ARIA CHAT PANEL STYLING
+   ===================================================== */
+
+.monaco-workbench [id="workbench.parts.panel"] .panel-viewlet[id*="aria"] {
+  font-family: 'Inter', system-ui, sans-serif !important;
+}
+

@@ -1,5 +1,6 @@
 # Logos Web IDE Dockerfile
 # Based on OpenVSCode Server with Logos customizations
+# Branding: Logos - A Bravo Zero Platform
 
 # Stage 1: Build ARIA Chat extension
 FROM node:20-alpine AS extension-builder
@@ -21,11 +22,13 @@ RUN apt-get update && apt-get install -y \
     git \
     python3 \
     python3-pip \
+    jq \
     && rm -rf /var/lib/apt/lists/*
 
 # Create extension directories
 RUN mkdir -p /home/.openvscode-server/extensions/logos-aria-chat \
     && mkdir -p /home/.openvscode-server/data/Machine \
+    && mkdir -p /home/.openvscode-server/data/User \
     && mkdir -p /home/workspace/.vscode
 
 # Copy compiled ARIA Chat extension from builder
@@ -42,6 +45,47 @@ COPY --chown=openvscode-server:openvscode-server .vscode/ /home/workspace/.vscod
 
 # Copy custom settings
 COPY --chown=openvscode-server:openvscode-server infrastructure/docker/settings.json /home/.openvscode-server/data/Machine/settings.json
+
+# Copy custom product.json for Logos branding (replaces OpenVSCode Server branding)
+COPY --chown=openvscode-server:openvscode-server infrastructure/docker/product.json /tmp/logos-product.json
+
+# Merge Logos branding into existing product.json
+RUN if [ -f /home/.openvscode-server/product.json ]; then \
+      jq -s '.[0] * .[1]' /home/.openvscode-server/product.json /tmp/logos-product.json > /tmp/merged-product.json \
+      && mv /tmp/merged-product.json /home/.openvscode-server/product.json; \
+    else \
+      cp /tmp/logos-product.json /home/.openvscode-server/product.json; \
+    fi \
+    && rm /tmp/logos-product.json
+
+# Copy Hydra-styled theme CSS
+COPY --chown=openvscode-server:openvscode-server infrastructure/docker/logos-theme.css /home/.openvscode-server/logos-theme.css
+
+# Inject custom CSS into workbench (for browsers that load the IDE)
+RUN mkdir -p /home/.openvscode-server/out/vs/workbench \
+    && echo '@import url("/logos-theme.css");' > /home/.openvscode-server/out/vs/workbench/logos-custom.css
+
+# Create custom startup script that injects CSS
+RUN echo '#!/bin/bash\n\
+# Logos IDE Startup Script\n\
+# Inject custom CSS into the HTML\n\
+\n\
+OPENVSCODE_ROOT="${OPENVSCODE_SERVER_ROOT:-/home/.openvscode-server}"\n\
+\n\
+# Find and patch workbench HTML to include custom CSS\n\
+for html_file in $(find "$OPENVSCODE_ROOT" -name "workbench.html" 2>/dev/null); do\n\
+  if ! grep -q "logos-theme.css" "$html_file" 2>/dev/null; then\n\
+    sed -i "s|</head>|<link rel=\"stylesheet\" href=\"/logos-theme.css\"></head>|g" "$html_file" 2>/dev/null || true\n\
+  fi\n\
+done\n\
+\n\
+exec "$OPENVSCODE_ROOT/bin/openvscode-server" \\\n\
+  --host 0.0.0.0 \\\n\
+  --port 3000 \\\n\
+  --without-connection-token \\\n\
+  --extensions-dir "$OPENVSCODE_ROOT/extensions"\n\
+' > /home/.openvscode-server/logos-start.sh \
+    && chmod +x /home/.openvscode-server/logos-start.sh
 
 # Set proper ownership
 RUN chown -R openvscode-server:openvscode-server /home/.openvscode-server \
@@ -70,5 +114,5 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:3000/ || exit 1
 
-# Start OpenVSCode Server with extensions directory
-ENTRYPOINT ["/bin/sh", "-c", "exec ${OPENVSCODE_SERVER_ROOT}/bin/openvscode-server --host 0.0.0.0 --port 3000 --without-connection-token --extensions-dir ${OPENVSCODE_SERVER_ROOT}/extensions"]
+# Start Logos IDE with custom startup script
+ENTRYPOINT ["/home/.openvscode-server/logos-start.sh"]

@@ -1,0 +1,41 @@
+{
+  "nameShort": "Logos",
+  "nameLong": "Logos",
+  "applicationName": "logos",
+  "dataFolderName": ".logos",
+  "win32MutexName": "logos",
+  "licenseName": "MIT",
+  "licenseUrl": "https://github.com/DeepCreative/Logos/blob/main/LICENSE.txt",
+  "serverLicenseUrl": "https://github.com/DeepCreative/Logos/blob/main/LICENSE.txt",
+  "serverGreeting": [],
+  "serverLicense": [],
+  "serverLicensePrompt": "",
+  "serverApplicationName": "logos-server",
+  "serverDataFolderName": ".logos-server",
+  "tunnelApplicationName": "logos-tunnel",
+  "win32DirName": "Logos",
+  "win32NameVersion": "Logos",
+  "win32RegValueName": "Logos",
+  "win32AppUserModelId": "DeepCreative.Logos",
+  "win32ShellNameShort": "L&ogos",
+  "darwinBundleIdentifier": "ai.bravozero.logos",
+  "linuxIconName": "logos",
+  "licenseFileName": "LICENSE.txt",
+  "reportIssueUrl": "https://github.com/DeepCreative/Logos/issues/new",
+  "urlProtocol": "logos",
+  "quality": "stable",
+  "extensionsGallery": {
+    "serviceUrl": "https://open-vsx.org/vscode/gallery",
+    "itemUrl": "https://open-vsx.org/vscode/item",
+    "resourceUrlTemplate": "https://open-vsx.org/vscode/asset/{publisher}/{name}/{version}/Microsoft.VisualStudio.Code.WebResources/{path}"
+  },
+  "linkProtectionTrustedDomains": [
+    "https://bravozero.ai",
+    "https://*.bravozero.ai",
+    "https://github.com",
+    "https://*.github.com"
+  ],
+  "welcomePageTitle": "Logos",
+  "welcomePageSubtitle": "A Bravo Zero platform"
+}
+
