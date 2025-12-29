@@ -379,7 +379,7 @@ export class QuickInputTreeController extends Disposable {
 
 	toggleCheckbox() {
 		for (const element of this.getActiveItems()) {
-			if (element.pickable !== false) {
+			if (element.pickable !== false && !element.disabled) {
 				this.updateCheckboxState(element, !(element.checked === true));
 			}
 		}
