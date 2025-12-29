@@ -333,7 +333,7 @@ registerTerminalAction({
 
 registerTerminalAction({
 	id: TerminalSuggestCommandId.DoNotShowOnType,
-	title: localize2('workbench.action.terminal.doNotShowSuggestOnType', 'Don\'t show IntelliSense unless triggered explicitly'),
+	title: localize2('workbench.action.terminal.doNotShowSuggestOnType', 'Don\'t show IntelliSense unless triggered explicitly. This disables the quick suggestions and suggest on trigger characters settings.'),
 	f1: false,
 	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
 	icon: Codicon.eye,
@@ -354,7 +354,7 @@ registerTerminalAction({
 
 registerTerminalAction({
 	id: TerminalSuggestCommandId.ShowOnType,
-	title: localize2('workbench.action.terminal.showSuggestOnType', 'Show IntelliSense while typing'),
+	title: localize2('workbench.action.terminal.showSuggestOnType', 'Show IntelliSense while typing. This enables the quick suggestions for commands and arguments, and suggest on trigger characters settings.'),
 	f1: false,
 	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
 	icon: Codicon.eyeClosed,
@@ -363,8 +363,8 @@ registerTerminalAction({
 		group: 'right',
 		order: 1,
 		when: ContextKeyExpr.or(
-			ContextKeyExpr.notEquals(`config.${TerminalSuggestSettingId.QuickSuggestions}`, true),
-			ContextKeyExpr.notEquals(`config.${TerminalSuggestSettingId.SuggestOnTriggerCharacters}`, true),
+			ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.QuickSuggestions}`, false),
+			ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.SuggestOnTriggerCharacters}`, false),
 		),
 	},
 	run: (c, accessor) => {
