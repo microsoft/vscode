@@ -13,23 +13,23 @@ data:
   D3N_CACHE_TTL: "{{ .Values.d3n.flashApps.cacheTTLSeconds }}"
   BMU_TARGET_USF: "{{ .Values.d3n.bmu.targetUSF }}"
   BMU_LATENCY_BUDGET_MS: "{{ .Values.d3n.bmu.latencyBudgetMs }}"
-  
+
   # ARIA Configuration
   ARIA_APIF_ENABLED: "{{ .Values.aria.apifEnabled }}"
   ARIA_AGENT_TIMEOUT_MS: "{{ .Values.aria.agentTimeoutMs }}"
-  
+
   # PERSONA Configuration
   PERSONA_PQC_ENABLED: "{{ .Values.persona.pqcEnabled }}"
   PERSONA_SESSION_TIMEOUT_HOURS: "{{ .Values.persona.sessionTimeoutHours }}"
-  
+
   # Workspace CA Configuration
   CA_MAX_INSTANCES: "{{ .Values.ca.workspace.maxInstances }}"
   CA_IDLE_TIMEOUT: "{{ .Values.ca.workspace.idleTimeout }}"
-  
+
   # Audit Configuration
   AUDIT_RETENTION_DAYS: "{{ .Values.audit.storage.retentionDays }}"
   AUDIT_ENCRYPTION_ENABLED: "{{ .Values.audit.storage.encryptionEnabled }}"
-  
+
   # Feature flags
   FEATURE_MULTI_AGENT_CHAT: "true"
   FEATURE_THREAD_BRANCHING: "true"

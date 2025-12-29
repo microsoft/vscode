@@ -11,16 +11,16 @@ global:
 # -- Logos Web Server
 web:
   replicaCount: 2
-  
+
   image:
     repository: deepcreative/logos-web
     pullPolicy: IfNotPresent
     tag: ""
-  
+
   service:
     type: ClusterIP
     port: 8080
-  
+
   resources:
     limits:
       cpu: 1000m
@@ -28,13 +28,13 @@ web:
     requests:
       cpu: 200m
       memory: 512Mi
-  
+
   autoscaling:
     enabled: true
     minReplicas: 2
     maxReplicas: 10
     targetCPUUtilizationPercentage: 70
-  
+
   nodeSelector: {}
   tolerations: []
   affinity: {}
@@ -42,16 +42,16 @@ web:
 # -- Logos Chat Service
 chat:
   replicaCount: 2
-  
+
   image:
     repository: deepcreative/logos-chat
     pullPolicy: IfNotPresent
     tag: ""
-  
+
   service:
     type: ClusterIP
     port: 8081
-  
+
   resources:
     limits:
       cpu: 2000m
@@ -59,7 +59,7 @@ chat:
     requests:
       cpu: 500m
       memory: 1Gi
-  
+
   autoscaling:
     enabled: true
     minReplicas: 2
@@ -69,16 +69,16 @@ chat:
 # -- Logos Completion Service
 completion:
   replicaCount: 3
-  
+
   image:
     repository: deepcreative/logos-completion
     pullPolicy: IfNotPresent
     tag: ""
-  
+
   service:
     type: ClusterIP
     port: 8082
-  
+
   resources:
     limits:
       cpu: 4000m
@@ -87,12 +87,12 @@ completion:
     requests:
       cpu: 1000m
       memory: 4Gi
-  
+
   # -- Enable GPU for completion service
   gpu:
     enabled: true
     type: nvidia-tesla-t4
-  
+
   autoscaling:
     enabled: true
     minReplicas: 2
@@ -102,16 +102,16 @@ completion:
 # -- Logos Cognitive Architect Service
 ca:
   replicaCount: 1
-  
+
   image:
     repository: deepcreative/logos-ca
     pullPolicy: IfNotPresent
     tag: ""
-  
+
   service:
     type: ClusterIP
     port: 8083
-  
+
   resources:
     limits:
       cpu: 2000m
@@ -119,7 +119,7 @@ ca:
     requests:
       cpu: 500m
       memory: 1Gi
-  
+
   # -- Per-workspace CA settings
   workspace:
     # -- Maximum concurrent CA instances
@@ -130,16 +130,16 @@ ca:
 # -- Logos Audit Service
 audit:
   replicaCount: 2
-  
+
   image:
     repository: deepcreative/logos-audit
     pullPolicy: IfNotPresent
     tag: ""
-  
+
   service:
     type: ClusterIP
     port: 8084
-  
+
   resources:
     limits:
       cpu: 1000m
@@ -147,7 +147,7 @@ audit:
     requests:
       cpu: 200m
       memory: 512Mi
-  
+
   # -- Audit storage configuration
   storage:
     # -- S3 bucket for audit logs
@@ -161,19 +161,19 @@ audit:
 d3n:
   # -- D3N API endpoint
   apiEndpoint: "http://d3n-gateway.d3n.svc:8080"
-  
+
   # -- Default tier for operations
   defaultTier: 2
-  
+
   # -- Maximum tier allowed
   maxTier: 3
-  
+
   # -- Flash Apps configuration
   flashApps:
     enabled: true
     cacheEnabled: true
     cacheTTLSeconds: 300
-  
+
   # -- BMU configuration
   bmu:
     targetUSF: 0.85
@@ -183,10 +183,10 @@ d3n:
 aria:
   # -- ARIA conductor endpoint
   conductorEndpoint: "http://aria-conductor.aria.svc:8080"
-  
+
   # -- Enable APIF enforcement
   apifEnabled: true
-  
+
   # -- Agent timeout (ms)
   agentTimeoutMs: 30000
 
@@ -194,10 +194,10 @@ aria:
 persona:
   # -- PERSONA service endpoint
   serviceEndpoint: "http://persona.persona.svc:8080"
-  
+
   # -- Enable PQC authentication
   pqcEnabled: true
-  
+
   # -- Session timeout (hours)
   sessionTimeoutHours: 8
 
@@ -210,7 +210,7 @@ ingress:
     nginx.ingress.kubernetes.io/proxy-body-size: "50m"
     nginx.ingress.kubernetes.io/websocket-services: "logos-chat"
   hosts:
-    - host: logos.example.com
+    - host: logos.bravozero.ai
       paths:
         - path: /
           pathType: Prefix
@@ -224,7 +224,7 @@ ingress:
   tls:
     - secretName: logos-tls
       hosts:
-        - logos.example.com
+        - logos.bravozero.ai
 
 # -- PostgreSQL configuration
 postgresql:
@@ -257,7 +257,7 @@ monitoring:
     enabled: true
     namespace: monitoring
     interval: 30s
-  
+
   # -- Enable Grafana dashboards
   dashboards:
     enabled: true

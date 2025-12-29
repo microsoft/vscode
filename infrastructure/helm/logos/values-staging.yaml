@@ -1,0 +1,122 @@
+# Staging values for Logos D3N-Native IDE
+# Domain: staging.logos.bravozero.ai
+
+# -- Reduced replicas for staging
+web:
+  replicaCount: 1
+  autoscaling:
+    enabled: false
+
+chat:
+  replicaCount: 1
+  autoscaling:
+    enabled: false
+
+completion:
+  replicaCount: 1
+  autoscaling:
+    enabled: false
+  gpu:
+    enabled: true
+    type: nvidia-tesla-t4
+
+ca:
+  replicaCount: 1
+  workspace:
+    maxInstances: 50
+    idleTimeout: 1800
+
+audit:
+  replicaCount: 1
+  storage:
+    s3Bucket: logos-audit-logs-staging
+    retentionDays: 30
+    encryptionEnabled: true
+
+# -- D3N Staging endpoints
+d3n:
+  apiEndpoint: "https://staging.d3n.bravozero.ai"
+  defaultTier: 1
+  maxTier: 2
+  flashApps:
+    enabled: true
+    cacheEnabled: true
+    cacheTTLSeconds: 60
+  bmu:
+    targetUSF: 0.80
+    latencyBudgetMs: 1000
+
+# -- ARIA Staging endpoints
+aria:
+  conductorEndpoint: "https://staging.aria.bravozero.ai"
+  apifEnabled: true
+  agentTimeoutMs: 60000
+
+# -- PERSONA Staging endpoints
+persona:
+  serviceEndpoint: "https://staging.persona.bravozero.ai"
+  pqcEnabled: false
+  sessionTimeoutHours: 24
+
+# -- Staging ingress
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-staging
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/websocket-services: "logos-chat"
+  hosts:
+    - host: staging.logos.bravozero.ai
+      paths:
+        - path: /
+          pathType: Prefix
+          service: web
+        - path: /api/chat
+          pathType: Prefix
+          service: chat
+        - path: /api/completion
+          pathType: Prefix
+          service: completion
+        - path: /api/ca
+          pathType: Prefix
+          service: ca
+        - path: /api/audit
+          pathType: Prefix
+          service: audit
+  tls:
+    - secretName: logos-staging-tls
+      hosts:
+        - staging.logos.bravozero.ai
+
+# -- Staging database (smaller)
+postgresql:
+  enabled: true
+  auth:
+    postgresPassword: staging-password
+    password: staging-password
+  primary:
+    persistence:
+      enabled: true
+      size: 20Gi
+
+# -- Staging Redis (smaller)
+redis:
+  enabled: true
+  auth:
+    enabled: true
+    password: staging-redis-password
+  master:
+    persistence:
+      enabled: true
+      size: 5Gi
+
+# -- Staging monitoring
+monitoring:
+  serviceMonitor:
+    enabled: true
+    namespace: monitoring
+    interval: 60s
+  dashboards:
+    enabled: false
+

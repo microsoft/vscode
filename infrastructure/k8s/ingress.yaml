@@ -17,18 +17,18 @@ metadata:
     cert-manager.io/cluster-issuer: "letsencrypt-prod"
     # CORS for IDE extensions
     nginx.ingress.kubernetes.io/enable-cors: "true"
-    nginx.ingress.kubernetes.io/cors-allow-origin: "https://logos.yankee.dev"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "https://logos.bravozero.ai"
     nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
     nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization,X-PERSONA-Token"
 spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        - logos.yankee.dev
-        - "*.logos.yankee.dev"
+        - logos.bravozero.ai
+        - "*.logos.bravozero.ai"
       secretName: logos-tls
   rules:
-    - host: logos.yankee.dev
+    - host: logos.bravozero.ai
       http:
         paths:
           # Main IDE
@@ -90,8 +90,8 @@ spec:
   issuerRef:
     name: letsencrypt-prod
     kind: ClusterIssuer
-  commonName: logos.yankee.dev
+  commonName: logos.bravozero.ai
   dnsNames:
-    - logos.yankee.dev
-    - "*.logos.yankee.dev"
+    - logos.bravozero.ai
+    - "*.logos.bravozero.ai"
 

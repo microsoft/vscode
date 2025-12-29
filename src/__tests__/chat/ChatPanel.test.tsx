@@ -81,7 +81,7 @@ describe('ChatPanel', () => {
     renderChatPanel();
     const input = screen.getByPlaceholderText(/message/i);
     await userEvent.type(input, 'Hello world');
-    
+
     const sendButton = screen.getByRole('button', { name: /send/i });
     expect(sendButton).not.toBeDisabled();
   });
@@ -95,10 +95,10 @@ describe('ChatPanel', () => {
     renderChatPanel();
     const input = screen.getByPlaceholderText(/message/i) as HTMLInputElement;
     await userEvent.type(input, 'Test message');
-    
+
     const sendButton = screen.getByRole('button', { name: /send/i });
     await userEvent.click(sendButton);
-    
+
     expect(input.value).toBe('');
   });
 });
@@ -108,7 +108,7 @@ describe('MessageInput', () => {
     renderChatPanel();
     const input = screen.getByPlaceholderText(/message/i);
     await userEvent.type(input, '@');
-    
+
     // Should show agent autocomplete
     await waitFor(() => {
       expect(screen.queryByText(/Conductor/)).toBeInTheDocument();
@@ -119,7 +119,7 @@ describe('MessageInput', () => {
     renderChatPanel();
     const input = screen.getByPlaceholderText(/message/i);
     await userEvent.type(input, '@swe');
-    
+
     await waitFor(() => {
       expect(screen.getByText(/Software Engineer/)).toBeInTheDocument();
       expect(screen.queryByText(/Conductor/)).not.toBeInTheDocument();

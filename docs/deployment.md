@@ -76,21 +76,21 @@ completion:
     maxReplicas: 100
 
 d3n:
-  apiEndpoint: "https://d3n.deepcreative.io"
+  apiEndpoint: "https://d3n.bravozero.ai"
   maxTier: 3
 
 aria:
-  conductorEndpoint: "https://aria.deepcreative.io"
+  conductorEndpoint: "https://aria.bravozero.ai"
 
 persona:
-  serviceEndpoint: "https://persona.deepcreative.io"
+  serviceEndpoint: "https://persona.bravozero.ai"
   pqcEnabled: true
 
 ingress:
   enabled: true
   className: nginx
   hosts:
-    - host: logos.deepcreative.io
+    - host: logos.bravozero.ai
       paths:
         - path: /
           pathType: Prefix
@@ -98,7 +98,7 @@ ingress:
   tls:
     - secretName: logos-tls
       hosts:
-        - logos.deepcreative.io
+        - logos.bravozero.ai
 
 postgresql:
   enabled: false

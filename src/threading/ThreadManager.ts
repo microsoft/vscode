@@ -217,7 +217,7 @@ export class ThreadManager {
       activeThreadId: this.activeThreadId,
       threads: Array.from(this.threads.values()),
     };
-    
+
     // Store in IndexedDB or local storage
     localStorage.setItem(
       `logos_threads_${this.workspaceId}`,

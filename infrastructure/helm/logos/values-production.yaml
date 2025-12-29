@@ -1,0 +1,134 @@
+# Production values for Logos D3N-Native IDE
+# Domain: logos.bravozero.ai
+
+# -- Replica counts for production
+web:
+  replicaCount: 3
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 70
+
+chat:
+  replicaCount: 3
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 30
+    targetCPUUtilizationPercentage: 60
+
+completion:
+  replicaCount: 4
+  autoscaling:
+    enabled: true
+    minReplicas: 4
+    maxReplicas: 40
+    targetCPUUtilizationPercentage: 50
+  gpu:
+    enabled: true
+    type: nvidia-a100
+
+ca:
+  replicaCount: 2
+  workspace:
+    maxInstances: 500
+    idleTimeout: 7200
+
+audit:
+  replicaCount: 3
+  storage:
+    s3Bucket: logos-audit-logs-production
+    retentionDays: 730
+    encryptionEnabled: true
+
+# -- D3N Production endpoints
+d3n:
+  apiEndpoint: "https://d3n.bravozero.ai"
+  defaultTier: 2
+  maxTier: 3
+  flashApps:
+    enabled: true
+    cacheEnabled: true
+    cacheTTLSeconds: 600
+  bmu:
+    targetUSF: 0.90
+    latencyBudgetMs: 300
+
+# -- ARIA Production endpoints
+aria:
+  conductorEndpoint: "https://aria.bravozero.ai"
+  apifEnabled: true
+  agentTimeoutMs: 45000
+
+# -- PERSONA Production endpoints
+persona:
+  serviceEndpoint: "https://persona.bravozero.ai"
+  pqcEnabled: true
+  sessionTimeoutHours: 12
+
+# -- Production ingress
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/websocket-services: "logos-chat"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+  hosts:
+    - host: logos.bravozero.ai
+      paths:
+        - path: /
+          pathType: Prefix
+          service: web
+        - path: /api/chat
+          pathType: Prefix
+          service: chat
+        - path: /api/completion
+          pathType: Prefix
+          service: completion
+        - path: /api/ca
+          pathType: Prefix
+          service: ca
+        - path: /api/audit
+          pathType: Prefix
+          service: audit
+  tls:
+    - secretName: logos-production-tls
+      hosts:
+        - logos.bravozero.ai
+
+# -- Production database
+postgresql:
+  enabled: true
+  auth:
+    existingSecret: logos-db-credentials
+  primary:
+    persistence:
+      enabled: true
+      size: 200Gi
+      storageClass: ssd-premium
+
+# -- Production Redis
+redis:
+  enabled: true
+  auth:
+    existingSecret: logos-redis-credentials
+  master:
+    persistence:
+      enabled: true
+      size: 50Gi
+      storageClass: ssd-premium
+
+# -- Production monitoring
+monitoring:
+  serviceMonitor:
+    enabled: true
+    namespace: monitoring
+    interval: 15s
+  dashboards:
+    enabled: true
+    namespace: monitoring
+

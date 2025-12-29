@@ -70,7 +70,7 @@ describe('MarkdownRenderer', () => {
     const table = `| Header 1 | Header 2 |
 |----------|----------|
 | Cell 1   | Cell 2   |`;
-    
+
     render(<MarkdownRenderer content={table} />);
     expect(screen.getByText('Header 1')).toBeInTheDocument();
     expect(screen.getByText('Cell 1')).toBeInTheDocument();
@@ -79,9 +79,9 @@ describe('MarkdownRenderer', () => {
   it('calls onCodeApply when code apply is triggered', () => {
     const onCodeApply = jest.fn();
     const code = "```typescript\nconst x = 1;\n```";
-    
+
     render(<MarkdownRenderer content={code} onCodeApply={onCodeApply} />);
-    
+
     // CodeBlock should render with Apply button
     const applyButton = screen.getByRole('button', { name: /apply/i });
     expect(applyButton).toBeInTheDocument();

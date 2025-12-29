@@ -152,9 +152,10 @@ npm run start-extension
 # Deploy to Kubernetes with Helm
 helm install logos ./infrastructure/helm/logos \
   --namespace logos \
-  --set d3n.apiEndpoint=https://d3n.deepcreative.io \
-  --set aria.conductorEndpoint=https://aria.deepcreative.io
+  --values ./infrastructure/helm/logos/values-production.yaml
 ```
+
+**Production URL:** https://logos.bravozero.ai
 
 See [Deployment Guide](docs/deployment.md) for detailed instructions.
 

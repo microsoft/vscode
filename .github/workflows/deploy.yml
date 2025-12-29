@@ -90,7 +90,7 @@ jobs:
     if: needs.prepare.outputs.environment == 'staging'
     environment:
       name: staging
-      url: https://logos-staging.deepcreative.io
+      url: https://staging.logos.bravozero.ai
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -123,7 +123,7 @@ jobs:
 
       - name: Run smoke tests
         run: |
-          STAGING_URL="https://logos-staging.deepcreative.io"
+          STAGING_URL="https://staging.logos.bravozero.ai"
           curl -f "$STAGING_URL/health" || exit 1
           curl -f "$STAGING_URL/api/health" || exit 1
 
@@ -134,7 +134,7 @@ jobs:
     if: needs.prepare.outputs.environment == 'production'
     environment:
       name: production
-      url: https://logos.deepcreative.io
+      url: https://logos.bravozero.ai
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -166,7 +166,7 @@ jobs:
 
       - name: Run smoke tests
         run: |
-          PROD_URL="https://logos.deepcreative.io"
+          PROD_URL="https://logos.bravozero.ai"
           curl -f "$PROD_URL/health" || exit 1
           curl -f "$PROD_URL/api/health" || exit 1
 
