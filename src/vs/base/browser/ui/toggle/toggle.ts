@@ -7,10 +7,10 @@ import { IAction } from '../../../common/actions.js';
 import { Codicon } from '../../../common/codicons.js';
 import { Emitter, Event } from '../../../common/event.js';
 import { IMarkdownString, isMarkdownString } from '../../../common/htmlContent.js';
-import { getCodiconAriaLabel } from '../../../common/iconLabels.js';
+import { getCodiconAriaLabel, stripIcons } from '../../../common/iconLabels.js';
 import { KeyCode } from '../../../common/keyCodes.js';
 import { ThemeIcon } from '../../../common/themables.js';
-import { $, addDisposableListener, EventType, isActiveElement } from '../../dom.js';
+import { $, addDisposableListener, EventType, isActiveElement, isHTMLElement } from '../../dom.js';
 import { IKeyboardEvent } from '../../keyboardEvent.js';
 import { BaseActionViewItem, IActionViewItemOptions } from '../actionbar/actionViewItems.js';
 import { IActionViewItemProvider } from '../actionbar/actionbar.js';
@@ -155,7 +155,7 @@ export class Toggle extends Widget {
 
 		this.domNode = document.createElement('div');
 		this._register(getBaseLayerHoverDelegate().setupDelayedHover(this.domNode, () => ({
-			content: this._title,
+			content: !isMarkdownString(this._title) && !isHTMLElement(this._title) ? stripIcons(this._title) : this._title,
 			style: HoverStyle.Pointer,
 		}), this._opts.hoverLifecycleOptions));
 		this.domNode.classList.add(...classes);
