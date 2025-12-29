@@ -119,7 +119,8 @@ class AriaChatViewProvider implements vscode.WebviewViewProvider {
 
     // Send to ARIA backend
     try {
-      const endpoint = vscode.workspace.getConfiguration('logos.aria').get('endpoint', '/api/chat');
+      // Use relative URL for browser context - ALB routes /api/chat/* to logos-chat service
+      const baseUrl = '/api/chat';
 
       // Get editor context
       const editor = vscode.window.activeTextEditor;
@@ -129,7 +130,7 @@ class AriaChatViewProvider implements vscode.WebviewViewProvider {
         selection: editor.document.getText(editor.selection),
       } : undefined;
 
-      const response = await fetch(`${endpoint}/api/conversations/${conversationId}/messages`, {
+      const response = await fetch(`${baseUrl}/conversations/${conversationId}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
