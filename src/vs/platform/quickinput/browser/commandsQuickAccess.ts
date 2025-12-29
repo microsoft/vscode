@@ -275,18 +275,13 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 		if (commandPick.type === 'separator') {
 			return commandPick;
 		}
-        if (!commandPick.tooltip) {
-	    const command = CommandsRegistry.getCommand(commandPick.commandId);
-			if (command?.metadata?.description) {
-				commandPick = {
-					...commandPick,
-					tooltip:
-						typeof command.metadata.description === 'string'
-							? command.metadata.description
-							: command.metadata.description.value
-				};
-			}
-        }
+		if (!commandPick.tooltip && commandPick.commandDescription) {
+			commandPick = {
+				...commandPick,
+				tooltip: commandPick.commandDescription.value
+			};
+		}
+
 		const keybinding = this.keybindingService.lookupKeybinding(commandPick.commandId);
 		const ariaLabel = keybinding ?
 			localize('commandPickAriaLabelWithKeybinding', "{0}, {1}", commandPick.label, keybinding.getAriaLabel()) :
