@@ -3,19 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .pane-body.integrated-terminal .terminal-initial-hint,
-.monaco-workbench .terminal-editor .terminal-initial-hint {
+.monaco-workbench .terminal-initial-hint {
 	color: var(--vscode-terminal-initialHintForeground);
 }
-.monaco-workbench .pane-body.integrated-terminal .terminal-initial-hint a,
-.monaco-workbench .terminal-editor .terminal-initial-hint a {
+
+.monaco-workbench .terminal-initial-hint a {
 	cursor: pointer;
 	color: var(--vscode-textLink-foreground);
 }
 
-.monaco-workbench .pane-body.integrated-terminal .terminal-initial-hint a,
-.monaco-workbench .pane-body.integrated-terminal .terminal-initial-hint .detail,
-.monaco-workbench .terminal-editor .terminal-initial-hint a,
-.monaco-workbench .terminal-editor .terminal-initial-hint .detail {
+.monaco-workbench .terminal-initial-hint a,
+.monaco-workbench .terminal-initial-hint .detail {
 	font-style: italic;
+}
+
+.monaco-workbench .terminal-initial-hint .detail {
+	display: inline;
 }

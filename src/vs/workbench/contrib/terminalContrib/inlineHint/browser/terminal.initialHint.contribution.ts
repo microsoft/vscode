@@ -333,7 +333,7 @@ class TerminalInitialHintWidget extends Disposable {
 			comment: [
 				'Preserve double-square brackets and their order',
 			]
-		}, 'Start typing to dismiss or [[don\'t show]] this again.');
+		}, ' Start typing to dismiss or [[don\'t show]] this again.');
 		const typeToDismissRendered = renderFormattedText(typeToDismiss, { actionHandler: dontShowHintHandler });
 		typeToDismissRendered.classList.add('detail');
 		hintElement.appendChild(typeToDismissRendered);
