@@ -6,8 +6,10 @@
 import { IAction } from '../../../common/actions.js';
 import { Codicon } from '../../../common/codicons.js';
 import { Emitter, Event } from '../../../common/event.js';
+import { IMarkdownString } from '../../../common/htmlContent.js';
 import { KeyCode } from '../../../common/keyCodes.js';
 import { ThemeIcon } from '../../../common/themables.js';
+import { hasKey } from '../../../common/types.js';
 import { $, addDisposableListener, EventType, isActiveElement } from '../../dom.js';
 import { IKeyboardEvent } from '../../keyboardEvent.js';
 import { BaseActionViewItem, IActionViewItemOptions } from '../actionbar/actionViewItems.js';
@@ -20,7 +22,7 @@ import './toggle.css';
 export interface IToggleOpts extends IToggleStyles {
 	readonly actionClassName?: string;
 	readonly icon?: ThemeIcon;
-	readonly title: string;
+	readonly title: string | IMarkdownString | HTMLElement;
 	readonly isChecked: boolean;
 	readonly notFocusable?: boolean;
 	readonly hoverLifecycleOptions?: IHoverLifecycleOptions;
@@ -126,7 +128,7 @@ export class Toggle extends Widget {
 	get onKeyDown(): Event<IKeyboardEvent> { return this._onKeyDown.event; }
 
 	private readonly _opts: IToggleOpts;
-	private _title: string;
+	private _title: string | IMarkdownString | HTMLElement;
 	private _icon: ThemeIcon | undefined;
 	readonly domNode: HTMLElement;
 
@@ -153,7 +155,7 @@ export class Toggle extends Widget {
 
 		this.domNode = document.createElement('div');
 		this._register(getBaseLayerHoverDelegate().setupDelayedHover(this.domNode, () => ({
-			content: { value: this._title, supportThemeIcons: true },
+			content: this._title,
 			style: HoverStyle.Pointer,
 		}), this._opts.hoverLifecycleOptions));
 		this.domNode.classList.add(...classes);
@@ -246,9 +248,19 @@ export class Toggle extends Widget {
 		this.domNode.classList.add('disabled');
 	}
 
-	setTitle(newTitle: string): void {
+	setTitle(newTitle: string | IMarkdownString | HTMLElement): void {
 		this._title = newTitle;
-		this.domNode.setAttribute('aria-label', newTitle);
+
+		let ariaLabel = '';
+		if (typeof newTitle === 'string') {
+			ariaLabel = newTitle;
+		} else if (hasKey(newTitle, { value: true })) {
+			ariaLabel = newTitle.value;
+		} else if (hasKey(newTitle, { textContent: true })) {
+			ariaLabel = newTitle.textContent;
+		}
+
+		this.domNode.setAttribute('aria-label', ariaLabel);
 	}
 
 	set visible(visible: boolean) {
