@@ -112,6 +112,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 
 		// Disable copy-on-selection during search to prevent search result from overriding clipboard
 		this._register(xterm.onBeforeSearch(() => {
+			this._overrideCopyOnSelectionDisposable?.dispose();
 			this._overrideCopyOnSelectionDisposable = TerminalClipboardContribution.get(this._instance)?.overrideCopyOnSelection(false);
 		}));
 
