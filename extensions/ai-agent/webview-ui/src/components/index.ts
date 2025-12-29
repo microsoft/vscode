@@ -7,3 +7,4 @@ export { ChatView } from './ChatView';
 export { MessageList } from './MessageList';
 export { InputArea } from './InputArea';
 export { PhaseSelector } from './PhaseSelector';
+export { HistoryButton, HistoryPanel, HistoryItem } from './History';

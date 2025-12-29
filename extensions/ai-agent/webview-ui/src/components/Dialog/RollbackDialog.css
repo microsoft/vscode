@@ -1,0 +1,64 @@
+/**
+ * Rollback Dialog Styles
+ */
+
+.rollback-dialog {
+    min-width: 300px;
+}
+
+.rollback-dialog__message {
+    margin: 0 0 16px;
+    font-size: 13px;
+    color: var(--vscode-foreground);
+    line-height: 1.5;
+}
+
+.rollback-dialog__list {
+    margin: 0 0 20px;
+    padding-left: 20px;
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+    line-height: 1.6;
+}
+
+.rollback-dialog__list li {
+    margin-bottom: 4px;
+}
+
+.rollback-dialog__list li::marker {
+    color: var(--vscode-descriptionForeground);
+}
+
+.rollback-dialog__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.rollback-dialog__button {
+    padding: 6px 14px;
+    font-size: 13px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.15s ease, opacity 0.15s ease;
+}
+
+.rollback-dialog__button--secondary {
+    background: transparent;
+    border: 1px solid var(--vscode-button-secondaryBackground, #3a3d41);
+    color: var(--vscode-foreground);
+}
+
+.rollback-dialog__button--secondary:hover {
+    background: var(--vscode-button-secondaryHoverBackground, #45494e);
+}
+
+.rollback-dialog__button--primary {
+    background: var(--vscode-button-background, #0e639c);
+    border: none;
+    color: var(--vscode-button-foreground, #ffffff);
+}
+
+.rollback-dialog__button--primary:hover {
+    background: var(--vscode-button-hoverBackground, #1177bb);
+}

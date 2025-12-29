@@ -44,7 +44,9 @@ export type {
     HandoverArtifact,
     TimelineEntry,
     Logbook,
-    StateOptions
+    StateOptions,
+    SessionMeta,
+    SessionIndex
 } from './state';
 
 export {
@@ -52,5 +54,7 @@ export {
     DEFAULT_STATE,
     createSessionId,
     createSessionState,
-    createTimelineEntry
+    createTimelineEntry,
+    createSessionMeta,
+    createSessionIndex
 } from './state';

@@ -95,6 +95,70 @@ export interface Logbook {
 }
 
 /**
+ * Session metadata for index file
+ * Lightweight info for listing sessions without loading full state
+ */
+export interface SessionMeta {
+    /** Unique session identifier */
+    sessionId: string;
+    /** Session title (auto-generated from first message or user-defined) */
+    title: string;
+    /** Creation timestamp (ISO 8601) */
+    createdAt: string;
+    /** Last update timestamp (ISO 8601) */
+    lastUpdated: string;
+    /** Number of messages in session */
+    messageCount: number;
+    /** Current phase of the session */
+    phase: Phase;
+}
+
+/**
+ * Session index file schema
+ * Stored at .codeship/index.json
+ */
+export interface SessionIndex {
+    /** Index schema version */
+    version: string;
+    /** Hash of workspace path for project identification */
+    projectId: string;
+    /** Currently active session ID */
+    currentSessionId: string;
+    /** List of all sessions */
+    sessions: SessionMeta[];
+}
+
+/**
+ * Creates a new SessionMeta from SessionState
+ */
+export function createSessionMeta(state: SessionState, title?: string): SessionMeta {
+    const autoTitle = state.chatHistory.length > 0
+        ? state.chatHistory[0].content.substring(0, 50) + (state.chatHistory[0].content.length > 50 ? '...' : '')
+        : 'New Chat';
+
+    return {
+        sessionId: state.sessionId,
+        title: title || autoTitle,
+        createdAt: state.lastUpdated,
+        lastUpdated: state.lastUpdated,
+        messageCount: state.chatHistory.length,
+        phase: state.phase
+    };
+}
+
+/**
+ * Creates a new SessionIndex
+ */
+export function createSessionIndex(projectId: string): SessionIndex {
+    return {
+        version: STATE_VERSION,
+        projectId,
+        currentSessionId: '',
+        sessions: []
+    };
+}
+
+/**
  * State manager options
  */
 export interface StateOptions {
@@ -113,7 +177,7 @@ export interface StateOptions {
  */
 export const DEFAULT_STATE: Omit<SessionState, 'sessionId' | 'lastUpdated'> = {
     version: STATE_VERSION,
-    phase: 'implementation',
+    phase: 'design',
     agentMemory: {
         shortTerm: '',
         todo: []
@@ -132,7 +196,7 @@ export function createSessionId(): string {
  * Creates a new session state
  * Note: Creates deep copies of mutable objects to ensure isolation
  */
-export function createSessionState(phase: Phase = 'implementation'): SessionState {
+export function createSessionState(phase: Phase = 'design'): SessionState {
     return {
         version: STATE_VERSION,
         sessionId: createSessionId(),

@@ -1,0 +1,70 @@
+/**
+ * Token Usage Styles
+ */
+
+.token-usage {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px;
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+}
+
+.token-usage__label {
+    font-weight: 500;
+}
+
+.token-usage__info {
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    background: transparent;
+    border: 1px solid var(--vscode-descriptionForeground);
+    border-radius: 50%;
+    color: var(--vscode-descriptionForeground);
+    cursor: help;
+    font-size: 10px;
+    font-style: italic;
+    line-height: 14px;
+    opacity: 0.7;
+    transition: opacity 0.15s ease;
+}
+
+.token-usage__info:hover {
+    opacity: 1;
+}
+
+.token-usage__bar {
+    flex: 1;
+    min-width: 60px;
+    max-width: 120px;
+    height: 6px;
+    background: var(--vscode-input-background);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.token-usage__fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.token-usage__fill--low {
+    background: var(--vscode-testing-iconPassed, #4caf50);
+}
+
+.token-usage__fill--medium {
+    background: var(--vscode-editorWarning-foreground, #ff9800);
+}
+
+.token-usage__fill--high {
+    background: var(--vscode-errorForeground, #f44336);
+}
+
+.token-usage__value {
+    min-width: 70px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}

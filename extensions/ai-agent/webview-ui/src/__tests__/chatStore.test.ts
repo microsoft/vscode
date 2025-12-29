@@ -13,7 +13,11 @@ describe('chatStore', () => {
             phase: 'implementation',
             isLoading: false,
             inputValue: '',
-            error: null
+            error: null,
+            progress: { type: 'idle' },
+            tokenUsage: null,
+            phaseHistory: [],
+            expandedPhases: []
         });
     });
 
@@ -182,6 +186,235 @@ describe('chatStore', () => {
             useChatStore.getState().setError(null);
 
             expect(useChatStore.getState().error).toBeNull();
+        });
+    });
+
+    describe('initial state - extended', () => {
+        it('should have idle progress state', () => {
+            expect(useChatStore.getState().progress).toEqual({ type: 'idle' });
+        });
+
+        it('should have null tokenUsage', () => {
+            expect(useChatStore.getState().tokenUsage).toBeNull();
+        });
+
+        it('should have empty phaseHistory', () => {
+            expect(useChatStore.getState().phaseHistory).toEqual([]);
+        });
+
+        it('should have empty expandedPhases', () => {
+            expect(useChatStore.getState().expandedPhases).toEqual([]);
+        });
+    });
+
+    describe('setProgress', () => {
+        it('should update progress to thinking state', () => {
+            useChatStore.getState().setProgress({ type: 'thinking', message: 'Analyzing...' });
+
+            expect(useChatStore.getState().progress).toEqual({
+                type: 'thinking',
+                message: 'Analyzing...'
+            });
+        });
+
+        it('should update progress to searching state', () => {
+            useChatStore.getState().setProgress({ type: 'searching', target: 'codebase' });
+
+            expect(useChatStore.getState().progress).toEqual({
+                type: 'searching',
+                target: 'codebase'
+            });
+        });
+
+        it('should update progress to reading state with files', () => {
+            useChatStore.getState().setProgress({ type: 'reading', files: ['file1.ts', 'file2.ts'] });
+
+            expect(useChatStore.getState().progress).toEqual({
+                type: 'reading',
+                files: ['file1.ts', 'file2.ts']
+            });
+        });
+
+        it('should update progress to idle state', () => {
+            useChatStore.setState({ progress: { type: 'thinking' } });
+
+            useChatStore.getState().setProgress({ type: 'idle' });
+
+            expect(useChatStore.getState().progress).toEqual({ type: 'idle' });
+        });
+
+        it('should update progress to error state', () => {
+            useChatStore.getState().setProgress({ type: 'error', message: 'Something failed' });
+
+            expect(useChatStore.getState().progress).toEqual({
+                type: 'error',
+                message: 'Something failed'
+            });
+        });
+    });
+
+    describe('setTokenUsage', () => {
+        it('should set token usage', () => {
+            useChatStore.getState().setTokenUsage({ used: 28000, limit: 80000 });
+
+            expect(useChatStore.getState().tokenUsage).toEqual({
+                used: 28000,
+                limit: 80000
+            });
+        });
+
+        it('should clear token usage with null', () => {
+            useChatStore.setState({ tokenUsage: { used: 1000, limit: 80000 } });
+
+            useChatStore.getState().setTokenUsage(null);
+
+            expect(useChatStore.getState().tokenUsage).toBeNull();
+        });
+    });
+
+    describe('updatePhaseHistory', () => {
+        it('should add new phase history entry', () => {
+            const entry = {
+                phase: 'design' as const,
+                milestones: [],
+                startedAt: '2024-01-01T00:00:00Z'
+            };
+
+            useChatStore.getState().updatePhaseHistory(entry);
+
+            expect(useChatStore.getState().phaseHistory).toHaveLength(1);
+            expect(useChatStore.getState().phaseHistory[0].phase).toBe('design');
+        });
+
+        it('should update existing phase history entry', () => {
+            useChatStore.setState({
+                phaseHistory: [{
+                    phase: 'design',
+                    milestones: [],
+                    startedAt: '2024-01-01T00:00:00Z'
+                }]
+            });
+
+            useChatStore.getState().updatePhaseHistory({
+                phase: 'design',
+                milestones: [{ id: 'm1', label: 'Test', status: 'complete' }],
+                startedAt: '2024-01-01T00:00:00Z',
+                completedAt: '2024-01-01T01:00:00Z'
+            });
+
+            expect(useChatStore.getState().phaseHistory).toHaveLength(1);
+            expect(useChatStore.getState().phaseHistory[0].milestones).toHaveLength(1);
+            expect(useChatStore.getState().phaseHistory[0].completedAt).toBe('2024-01-01T01:00:00Z');
+        });
+    });
+
+    describe('addMilestone', () => {
+        it('should add milestone to current phase', () => {
+            useChatStore.setState({ phase: 'implementation' });
+
+            useChatStore.getState().addMilestone({
+                id: 'm1',
+                label: 'Analyze code',
+                status: 'complete'
+            });
+
+            const history = useChatStore.getState().phaseHistory;
+            expect(history).toHaveLength(1);
+            expect(history[0].phase).toBe('implementation');
+            expect(history[0].milestones).toHaveLength(1);
+        });
+
+        it('should append milestone to existing phase', () => {
+            useChatStore.setState({
+                phase: 'design',
+                phaseHistory: [{
+                    phase: 'design',
+                    milestones: [{ id: 'm1', label: 'First', status: 'complete' }],
+                    startedAt: '2024-01-01T00:00:00Z'
+                }]
+            });
+
+            useChatStore.getState().addMilestone({
+                id: 'm2',
+                label: 'Second',
+                status: 'active'
+            });
+
+            expect(useChatStore.getState().phaseHistory[0].milestones).toHaveLength(2);
+        });
+    });
+
+    describe('updateMilestoneStatus', () => {
+        it('should update milestone status', () => {
+            useChatStore.setState({
+                phaseHistory: [{
+                    phase: 'implementation',
+                    milestones: [
+                        { id: 'm1', label: 'Task 1', status: 'active' },
+                        { id: 'm2', label: 'Task 2', status: 'pending' }
+                    ],
+                    startedAt: '2024-01-01T00:00:00Z'
+                }]
+            });
+
+            useChatStore.getState().updateMilestoneStatus('m1', 'complete');
+
+            expect(useChatStore.getState().phaseHistory[0].milestones[0].status).toBe('complete');
+            expect(useChatStore.getState().phaseHistory[0].milestones[1].status).toBe('pending');
+        });
+    });
+
+    describe('togglePhaseExpanded', () => {
+        it('should expand a phase', () => {
+            useChatStore.getState().togglePhaseExpanded('design');
+
+            expect(useChatStore.getState().expandedPhases).toContain('design');
+        });
+
+        it('should collapse an expanded phase', () => {
+            useChatStore.setState({ expandedPhases: ['design', 'implementation'] });
+
+            useChatStore.getState().togglePhaseExpanded('design');
+
+            expect(useChatStore.getState().expandedPhases).not.toContain('design');
+            expect(useChatStore.getState().expandedPhases).toContain('implementation');
+        });
+
+        it('should toggle multiple phases independently', () => {
+            useChatStore.getState().togglePhaseExpanded('design');
+            useChatStore.getState().togglePhaseExpanded('implementation');
+
+            expect(useChatStore.getState().expandedPhases).toContain('design');
+            expect(useChatStore.getState().expandedPhases).toContain('implementation');
+
+            useChatStore.getState().togglePhaseExpanded('design');
+
+            expect(useChatStore.getState().expandedPhases).not.toContain('design');
+            expect(useChatStore.getState().expandedPhases).toContain('implementation');
+        });
+    });
+
+    describe('setExpandedPhases', () => {
+        it('should set expanded phases', () => {
+            useChatStore.getState().setExpandedPhases(['design', 'review']);
+
+            expect(useChatStore.getState().expandedPhases).toEqual(['design', 'review']);
+        });
+
+        it('should replace existing expanded phases', () => {
+            useChatStore.setState({ expandedPhases: ['design', 'implementation'] });
+
+            useChatStore.getState().setExpandedPhases(['review']);
+
+            expect(useChatStore.getState().expandedPhases).toEqual(['review']);
+        });
+
+        it('should allow empty array', () => {
+            useChatStore.setState({ expandedPhases: ['design'] });
+
+            useChatStore.getState().setExpandedPhases([]);
+
+            expect(useChatStore.getState().expandedPhases).toEqual([]);
         });
     });
 });

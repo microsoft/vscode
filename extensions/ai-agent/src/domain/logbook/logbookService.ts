@@ -11,13 +11,18 @@ import type {
     ChatMessage,
     SessionState,
     StateOptions,
-    AgentMemory
+    AgentMemory,
+    SessionMeta,
+    SessionIndex
 } from '../../types';
 import {
     createSessionState,
     createChatMessage,
+    createSessionMeta,
+    createSessionIndex,
     STATE_VERSION
 } from '../../types';
+import * as crypto from 'crypto';
 
 /**
  * Default options
@@ -31,10 +36,11 @@ const DEFAULT_OPTIONS: Required<StateOptions> = {
 
 /**
  * LogbookService class
- * Manages persistent session state and chat history
+ * Manages persistent session state and chat history with multi-session support
  */
 export class LogbookService implements Disposable {
     private state: SessionState;
+    private sessionIndex: SessionIndex | null = null;
     private readonly options: Required<StateOptions>;
     private autoSaveTimer: NodeJS.Timeout | null = null;
     private isDirty: boolean = false;
@@ -42,6 +48,7 @@ export class LogbookService implements Disposable {
     private readonly _onStateChange = new EventEmitter<SessionState>();
     private readonly _onMessageAdded = new EventEmitter<ChatMessage>();
     private readonly _onPhaseChange = new EventEmitter<Phase>();
+    private readonly _onSessionsChange = new EventEmitter<SessionMeta[]>();
 
     /** Event fired when state changes */
     readonly onStateChange = this._onStateChange.event;
@@ -51,6 +58,9 @@ export class LogbookService implements Disposable {
 
     /** Event fired when phase changes */
     readonly onPhaseChange = this._onPhaseChange.event;
+
+    /** Event fired when sessions list changes */
+    readonly onSessionsChange = this._onSessionsChange.event;
 
     constructor(options: Partial<StateOptions> = {}) {
         this.options = { ...DEFAULT_OPTIONS, ...options };
@@ -97,16 +107,49 @@ export class LogbookService implements Disposable {
      * Loads existing state or creates new state
      */
     async initialize(): Promise<void> {
+        // Load session index first
+        await this.loadSessionIndex();
+        console.log('[LogbookService] sessionIndex initialized:',
+            this.sessionIndex ? `${this.sessionIndex.sessions.length} sessions` : 'null');
+
+        // Load state (from sessions dir or legacy location)
         await this.loadState();
+        console.log('[LogbookService] State loaded, sessionId:', this.state.sessionId);
+
+        // Ensure current session is in index
+        if (this.sessionIndex) {
+            this.updateSessionMetaInIndex();
+            await this.saveSessionIndex();
+        }
+
         this.startAutoSave();
     }
 
     /**
      * Load state from file
+     * Tries to load from sessions directory first, falls back to legacy state.json
      */
     async loadState(): Promise<boolean> {
         try {
+            // Try loading from session index first
+            if (this.sessionIndex && this.sessionIndex.currentSessionId) {
+                const sessionPath = this.getSessionFilePath(this.sessionIndex.currentSessionId);
+                if (sessionPath && fs.existsSync(sessionPath)) {
+                    const data = fs.readFileSync(sessionPath, 'utf-8');
+                    const loadedState = JSON.parse(data) as SessionState;
+                    this.state = loadedState;
+                    this._onStateChange.fire(this.state);
+                    return true;
+                }
+            }
+
+            // Fall back to legacy state.json
             const fullPath = this.getStatePath();
+
+            // No path configured (no workspace), skip loading
+            if (!fullPath) {
+                return false;
+            }
 
             if (!fs.existsSync(fullPath)) {
                 // No existing state, use default
@@ -124,6 +167,12 @@ export class LogbookService implements Disposable {
 
             this.state = loadedState;
             this._onStateChange.fire(this.state);
+
+            // Migrate legacy state to new sessions format
+            if (this.sessionIndex) {
+                await this.migrateToSessions();
+            }
+
             return true;
         } catch (error) {
             console.error('Failed to load state:', error);
@@ -132,11 +181,69 @@ export class LogbookService implements Disposable {
     }
 
     /**
+     * Migrate legacy state.json to new sessions format
+     */
+    private async migrateToSessions(): Promise<void> {
+        const sessionsDir = this.getSessionsDir();
+        if (!sessionsDir) {
+            return;
+        }
+
+        // Ensure sessions directory exists
+        if (!fs.existsSync(sessionsDir)) {
+            fs.mkdirSync(sessionsDir, { recursive: true });
+        }
+
+        // Save current state as a session file
+        const sessionPath = this.getSessionFilePath(this.state.sessionId);
+        if (sessionPath && !fs.existsSync(sessionPath)) {
+            fs.writeFileSync(sessionPath, JSON.stringify(this.state, null, 2), 'utf-8');
+            console.log('[LogbookService] Migrated legacy state to sessions format');
+        }
+    }
+
+    /**
      * Save state to file
+     * Saves to sessions directory if available, otherwise legacy location
      */
     async saveState(): Promise<boolean> {
         try {
+            // Update timestamp
+            this.state.lastUpdated = new Date().toISOString();
+
+            const data = JSON.stringify(this.state, null, 2);
+
+            // Try saving to sessions directory first
+            if (this.sessionIndex) {
+                const sessionsDir = this.getSessionsDir();
+                if (sessionsDir) {
+                    // Ensure sessions directory exists
+                    if (!fs.existsSync(sessionsDir)) {
+                        fs.mkdirSync(sessionsDir, { recursive: true });
+                    }
+
+                    const sessionPath = this.getSessionFilePath(this.state.sessionId);
+                    if (sessionPath) {
+                        fs.writeFileSync(sessionPath, data, 'utf-8');
+
+                        // Update index metadata
+                        this.updateSessionMetaInIndex();
+                        await this.saveSessionIndex();
+
+                        this.isDirty = false;
+                        return true;
+                    }
+                }
+            }
+
+            // Fallback to legacy state.json
             const fullPath = this.getStatePath();
+
+            // No path configured (no workspace), skip saving
+            if (!fullPath) {
+                return false;
+            }
+
             const dir = path.dirname(fullPath);
 
             // Ensure directory exists
@@ -144,10 +251,6 @@ export class LogbookService implements Disposable {
                 fs.mkdirSync(dir, { recursive: true });
             }
 
-            // Update timestamp
-            this.state.lastUpdated = new Date().toISOString();
-
-            const data = JSON.stringify(this.state, null, 2);
             fs.writeFileSync(fullPath, data, 'utf-8');
 
             this.isDirty = false;
@@ -191,12 +294,8 @@ export class LogbookService implements Disposable {
      */
     setPhase(phase: Phase): void {
         if (this.state.phase !== phase) {
-            const oldPhase = this.state.phase;
             this.state.phase = phase;
             this.markDirty();
-
-            // Add system message about phase change
-            this.addMessage('system', `Phase changed from ${oldPhase} to ${phase}`);
 
             this._onPhaseChange.fire(phase);
             this._onStateChange.fire(this.state);
@@ -294,6 +393,145 @@ export class LogbookService implements Disposable {
         }, null, 2);
     }
 
+    // ==================== Multi-Session Methods ====================
+
+    /**
+     * List all sessions for current project
+     */
+    listSessions(): SessionMeta[] {
+        if (!this.sessionIndex) {
+            return [];
+        }
+        return [...this.sessionIndex.sessions];
+    }
+
+    /**
+     * Get current session ID
+     */
+    getCurrentSessionId(): string {
+        return this.sessionIndex?.currentSessionId || this.state.sessionId;
+    }
+
+    /**
+     * Create a new session
+     * @returns New session ID
+     */
+    async createNewSession(): Promise<string> {
+        // 1. Save current session first
+        await this.saveState();
+        console.log('[LogbookService] Saved current session before creating new one');
+
+        // 2. Create new session state
+        const newState = createSessionState('design');
+        this.state = newState;
+        console.log('[LogbookService] Created new session:', this.state.sessionId);
+
+        // 3. Save new session file FIRST (before updating index)
+        this.markDirty();
+        await this.saveState();
+        console.log('[LogbookService] Saved new session file');
+
+        // 4. Update index AFTER session file exists
+        if (this.sessionIndex) {
+            this.updateSessionMetaInIndex();
+            await this.saveSessionIndex();
+            console.log('[LogbookService] Updated session index, total sessions:', this.sessionIndex.sessions.length);
+
+            // 5. Fire event LAST after everything is saved
+            this._onSessionsChange.fire(this.sessionIndex.sessions);
+        }
+
+        this._onStateChange.fire(this.state);
+
+        return this.state.sessionId;
+    }
+
+    /**
+     * Switch to a different session
+     * @param sessionId Target session ID
+     */
+    async switchSession(sessionId: string): Promise<void> {
+        if (!this.sessionIndex) {
+            throw new Error('Session index not initialized');
+        }
+
+        // Find session in index
+        const sessionMeta = this.sessionIndex.sessions.find(s => s.sessionId === sessionId);
+        if (!sessionMeta) {
+            throw new Error(`Session not found: ${sessionId}`);
+        }
+
+        // Save current session
+        await this.saveState();
+
+        // Load target session
+        const sessionPath = this.getSessionFilePath(sessionId);
+        if (!sessionPath || !fs.existsSync(sessionPath)) {
+            throw new Error(`Session file not found: ${sessionId}`);
+        }
+
+        const data = fs.readFileSync(sessionPath, 'utf-8');
+        this.state = JSON.parse(data) as SessionState;
+
+        // Update current session in index
+        this.sessionIndex.currentSessionId = sessionId;
+        await this.saveSessionIndex();
+
+        this._onStateChange.fire(this.state);
+    }
+
+    /**
+     * Delete a session
+     * @param sessionId Session ID to delete
+     */
+    async deleteSession(sessionId: string): Promise<void> {
+        if (!this.sessionIndex) {
+            throw new Error('Session index not initialized');
+        }
+
+        // Cannot delete current session
+        if (sessionId === this.state.sessionId) {
+            throw new Error('Cannot delete current session');
+        }
+
+        // Remove from index
+        const index = this.sessionIndex.sessions.findIndex(s => s.sessionId === sessionId);
+        if (index === -1) {
+            throw new Error(`Session not found: ${sessionId}`);
+        }
+
+        this.sessionIndex.sessions.splice(index, 1);
+
+        // Delete session file
+        const sessionPath = this.getSessionFilePath(sessionId);
+        if (sessionPath && fs.existsSync(sessionPath)) {
+            fs.unlinkSync(sessionPath);
+        }
+
+        await this.saveSessionIndex();
+        this._onSessionsChange.fire(this.sessionIndex.sessions);
+    }
+
+    /**
+     * Rename a session
+     * @param sessionId Session ID to rename
+     * @param title New title
+     */
+    async renameSession(sessionId: string, title: string): Promise<void> {
+        if (!this.sessionIndex) {
+            throw new Error('Session index not initialized');
+        }
+
+        const sessionMeta = this.sessionIndex.sessions.find(s => s.sessionId === sessionId);
+        if (!sessionMeta) {
+            throw new Error(`Session not found: ${sessionId}`);
+        }
+
+        sessionMeta.title = title;
+        await this.saveSessionIndex();
+        this._onSessionsChange.fire(this.sessionIndex.sessions);
+    }
+
     /**
      * Dispose of resources
      */
@@ -308,13 +546,151 @@ export class LogbookService implements Disposable {
         this._onStateChange.dispose();
         this._onMessageAdded.dispose();
         this._onPhaseChange.dispose();
+        this._onSessionsChange.dispose();
     }
 
     /**
-     * Get full state file path
+     * Get full state file path (legacy single-session)
+     * Returns null if no valid path is configured
      */
-    private getStatePath(): string {
+    private getStatePath(): string | null {
+        if (!this.options.statePath) {
+            return null;
+        }
         return path.resolve(this.options.statePath);
+    }
+
+    /**
+     * Get base directory for .codeship folder
+     */
+    private getBaseDir(): string | null {
+        const statePath = this.getStatePath();
+        if (!statePath) {
+            return null;
+        }
+        return path.dirname(statePath);
+    }
+
+    /**
+     * Get sessions directory path
+     */
+    private getSessionsDir(): string | null {
+        const baseDir = this.getBaseDir();
+        if (!baseDir) {
+            return null;
+        }
+        return path.join(baseDir, 'sessions');
+    }
+
+    /**
+     * Get session file path for a specific session
+     */
+    private getSessionFilePath(sessionId: string): string | null {
+        const sessionsDir = this.getSessionsDir();
+        if (!sessionsDir) {
+            return null;
+        }
+        return path.join(sessionsDir, `${sessionId}.json`);
+    }
+
+    /**
+     * Get index file path
+     */
+    private getIndexPath(): string | null {
+        const baseDir = this.getBaseDir();
+        if (!baseDir) {
+            return null;
+        }
+        return path.join(baseDir, 'index.json');
+    }
+
+    /**
+     * Generate project ID from state path
+     */
+    private generateProjectId(): string {
+        const statePath = this.getStatePath();
+        if (!statePath) {
+            return 'unknown';
+        }
+        return crypto.createHash('md5').update(path.dirname(statePath)).digest('hex').substring(0, 8);
+    }
+
+    /**
+     * Load session index from file
+     */
+    private async loadSessionIndex(): Promise<void> {
+        const indexPath = this.getIndexPath();
+        if (!indexPath) {
+            return;
+        }
+
+        if (fs.existsSync(indexPath)) {
+            try {
+                const data = fs.readFileSync(indexPath, 'utf-8');
+                this.sessionIndex = JSON.parse(data) as SessionIndex;
+            } catch (error) {
+                console.error('Failed to load session index:', error);
+                this.sessionIndex = createSessionIndex(this.generateProjectId());
+            }
+        } else {
+            // Create new index
+            this.sessionIndex = createSessionIndex(this.generateProjectId());
+        }
+    }
+
+    /**
+     * Save session index to file
+     */
+    private async saveSessionIndex(): Promise<boolean> {
+        if (!this.sessionIndex) {
+            return false;
+        }
+
+        const indexPath = this.getIndexPath();
+        if (!indexPath) {
+            return false;
+        }
+
+        try {
+            const dir = path.dirname(indexPath);
+            if (!fs.existsSync(dir)) {
+                fs.mkdirSync(dir, { recursive: true });
+            }
+
+            fs.writeFileSync(indexPath, JSON.stringify(this.sessionIndex, null, 2), 'utf-8');
+            return true;
+        } catch (error) {
+            console.error('Failed to save session index:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Update session metadata in index
+     */
+    private updateSessionMetaInIndex(): void {
+        if (!this.sessionIndex) {
+            return;
+        }
+
+        const existingIndex = this.sessionIndex.sessions.findIndex(
+            s => s.sessionId === this.state.sessionId
+        );
+
+        const meta = createSessionMeta(this.state);
+
+        if (existingIndex >= 0) {
+            // Preserve existing title if it was manually set
+            const existingMeta = this.sessionIndex.sessions[existingIndex];
+            if (existingMeta.title !== 'New Chat') {
+                meta.title = existingMeta.title;
+            }
+            this.sessionIndex.sessions[existingIndex] = meta;
+        } else {
+            this.sessionIndex.sessions.push(meta);
+        }
+
+        this.sessionIndex.currentSessionId = this.state.sessionId;
     }
 
     /**

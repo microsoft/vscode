@@ -1,0 +1,115 @@
+/**
+ * Milestones Styles
+ */
+
+.milestones {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px;
+}
+
+.milestones__phase {
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.milestones__phase-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 12px;
+    background: var(--vscode-editor-background);
+    border: none;
+    border-radius: 6px;
+    color: var(--vscode-foreground);
+    cursor: pointer;
+    font-size: 13px;
+    text-align: left;
+    transition: background 0.15s ease;
+}
+
+.milestones__phase-header:hover {
+    background: var(--vscode-input-background);
+}
+
+.milestones__phase-icon {
+    width: 16px;
+    text-align: center;
+}
+
+.milestones__phase-icon--complete {
+    color: var(--vscode-testing-iconPassed, #4caf50);
+}
+
+.milestones__phase-icon--active {
+    color: var(--vscode-progressBar-background, #0e70c0);
+}
+
+.milestones__phase-name {
+    flex: 1;
+    font-weight: 500;
+}
+
+.milestones__phase-count {
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+}
+
+.milestones__chevron {
+    width: 12px;
+    font-size: 10px;
+    color: var(--vscode-descriptionForeground);
+    text-align: center;
+}
+
+.milestones__list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px 0 4px 24px;
+    background: var(--vscode-editor-background);
+}
+
+/* Milestone item */
+.milestone {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px;
+    font-size: 12px;
+}
+
+.milestone__icon {
+    width: 14px;
+    text-align: center;
+    font-size: 10px;
+}
+
+.milestone--complete .milestone__icon {
+    color: var(--vscode-testing-iconPassed, #4caf50);
+}
+
+.milestone--active .milestone__icon {
+    color: var(--vscode-progressBar-background, #0e70c0);
+}
+
+.milestone--pending .milestone__icon {
+    color: var(--vscode-descriptionForeground);
+}
+
+.milestone__label {
+    flex: 1;
+    color: var(--vscode-foreground);
+}
+
+.milestone--pending .milestone__label {
+    color: var(--vscode-descriptionForeground);
+}
+
+.milestone__duration {
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+    font-variant-numeric: tabular-nums;
+}

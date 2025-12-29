@@ -19,6 +19,33 @@
     "codeShipAIAgent"
   ],
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "codeShip",
+          "title": "Code Ship",
+          "icon": "$(rocket)",
+          "order": 0
+        }
+      ]
+    },
+    "views": {
+      "codeShip": [
+        {
+          "id": "codeShip.chatView",
+          "name": "Chat",
+          "type": "webview",
+          "visibility": "visible"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "codeShip.chatView",
+        "contents": "Welcome to Code Ship AI Agent!\n\nStart your AI-assisted development workflow.\n\n[Open Chat](command:codeShip.focusChat)",
+        "when": "codeShip.noMessages"
+      }
+    ],
     "commands": [
       {
         "command": "codeShip.helloWorld",
@@ -27,8 +54,70 @@
       {
         "command": "codeShip.testIntercept",
         "title": "Code Ship: Test Command Interception"
+      },
+      {
+        "command": "codeShip.showChatView",
+        "title": "Code Ship: Show Chat View",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "codeShip.openChat",
+        "title": "Code Ship: Open Chat"
+      },
+      {
+        "command": "codeShip.sendMessage",
+        "title": "Code Ship: Send Message"
+      },
+      {
+        "command": "codeShip.switchPhase",
+        "title": "Code Ship: Switch Phase"
+      },
+      {
+        "command": "codeShip.cancel",
+        "title": "Code Ship: Cancel"
+      },
+      {
+        "command": "codeShip.clearHistory",
+        "title": "Clear Chat History"
+      },
+      {
+        "command": "codeShip.showHistory",
+        "title": "Code Ship: Show History",
+        "icon": "$(history)"
+      },
+      {
+        "command": "codeShip.newChat",
+        "title": "Code Ship: New Chat",
+        "icon": "$(add)"
+      },
+      {
+        "command": "codeShip.checkDependencies",
+        "title": "Code Ship: Check Dependencies"
+      },
+      {
+        "command": "codeShip.focusChat",
+        "title": "Code Ship: Focus Chat"
       }
-    ]
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "codeShip.showHistory",
+          "when": "view == codeShip.chatView",
+          "group": "navigation@1"
+        },
+        {
+          "command": "codeShip.newChat",
+          "when": "view == codeShip.chatView",
+          "group": "navigation@2"
+        },
+        {
+          "command": "codeShip.clearHistory",
+          "when": "view == codeShip.chatView",
+          "group": "2_clear"
+        }
+      ]
+    }
   },
   "scripts": {
     "compile": "node esbuild.config.js",

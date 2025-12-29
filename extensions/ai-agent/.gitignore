@@ -1,0 +1,15 @@
+# Mockups (development only)
+mockups/
+
+# Build outputs
+out/
+dist/
+
+# Dependencies
+node_modules/
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Test coverage
+coverage/

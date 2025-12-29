@@ -190,11 +190,19 @@ export class CommandRegistry implements vscode.Disposable {
     }
 
     /**
-     * Clear chat history
+     * Clear chat history with confirmation dialog
      */
-    private clearHistory(): void {
-        this.controller.clearHistory();
-        vscode.window.showInformationMessage('[Code Ship] Chat history cleared');
+    private async clearHistory(): Promise<void> {
+        const result = await vscode.window.showWarningMessage(
+            'Are you sure you want to clear all chat history? This action cannot be undone.',
+            { modal: true },
+            'Clear'
+        );
+
+        if (result === 'Clear') {
+            this.controller.clearHistory();
+            vscode.window.showInformationMessage('[Code Ship] Chat history cleared');
+        }
     }
 
     /**

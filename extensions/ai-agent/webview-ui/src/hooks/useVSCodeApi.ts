@@ -4,6 +4,7 @@
  */
 
 import { useCallback, useEffect } from 'react';
+import { ProgressState, TokenUsage, SessionMeta, Phase } from '../stores/chatStore';
 
 /**
  * VS Code API interface
@@ -24,7 +25,15 @@ export type ExtensionMessage =
     | { type: 'output'; data: string }
     | { type: 'error'; data: string }
     | { type: 'clear' }
-    | { type: 'ready' };
+    | { type: 'ready' }
+    | { type: 'locale'; data: string }
+    | { type: 'progress'; data: ProgressState }
+    | { type: 'token-usage'; data: TokenUsage }
+    | { type: 'sessions-list'; data: SessionMeta[] }
+    | { type: 'session-switched'; data: { sessionId: string; messages: Array<{ id: string; content: string; sender: string; timestamp: string; source?: string }>; phase: Phase } }
+    | { type: 'session-created'; data: { sessionId: string } }
+    | { type: 'session-deleted'; data: { sessionId: string } }
+    | { type: 'toggle-history' };
 
 /**
  * Message types from Webview to Extension
@@ -32,11 +41,17 @@ export type ExtensionMessage =
 export type WebviewMessage =
     | { type: 'send'; data: string }
     | { type: 'switch-phase'; data: string }
+    | { type: 'phase-rollback'; data: { from: string; to: string } }
     | { type: 'cancel' }
     | { type: 'retry' }
     | { type: 'get-history' }
     | { type: 'clear-history' }
-    | { type: 'ready' };
+    | { type: 'ready' }
+    | { type: 'get-sessions' }
+    | { type: 'create-session' }
+    | { type: 'switch-session'; data: string }
+    | { type: 'delete-session'; data: string }
+    | { type: 'rename-session'; data: { sessionId: string; title: string } };
 
 // VS Code API singleton
 let vsCodeApi: VSCodeApi | null = null;
@@ -122,15 +137,51 @@ export function useVSCodeApi(onMessage?: (message: ExtensionMessage) => void) {
         postMessage({ type: 'ready' });
     }, [postMessage]);
 
+    // Rollback to a previous phase
+    const rollbackPhase = useCallback((from: string, to: string) => {
+        postMessage({ type: 'phase-rollback', data: { from, to } });
+    }, [postMessage]);
+
+    // Get sessions list
+    const getSessions = useCallback(() => {
+        postMessage({ type: 'get-sessions' });
+    }, [postMessage]);
+
+    // Create a new session
+    const createSession = useCallback(() => {
+        postMessage({ type: 'create-session' });
+    }, [postMessage]);
+
+    // Switch to a different session
+    const switchSession = useCallback((sessionId: string) => {
+        postMessage({ type: 'switch-session', data: sessionId });
+    }, [postMessage]);
+
+    // Delete a session
+    const deleteSession = useCallback((sessionId: string) => {
+        postMessage({ type: 'delete-session', data: sessionId });
+    }, [postMessage]);
+
+    // Rename a session
+    const renameSession = useCallback((sessionId: string, title: string) => {
+        postMessage({ type: 'rename-session', data: { sessionId, title } });
+    }, [postMessage]);
+
     return {
         postMessage,
         sendMessage,
         switchPhase,
+        rollbackPhase,
         cancel,
         retry,
         getHistory,
         clearHistory,
         signalReady,
+        getSessions,
+        createSession,
+        switchSession,
+        deleteSession,
+        renameSession,
         isInVSCode: api !== null
     };
 }

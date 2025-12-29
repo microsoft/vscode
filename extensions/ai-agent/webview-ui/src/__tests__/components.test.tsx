@@ -85,7 +85,6 @@ describe('InputArea', () => {
     const mockOnChange = vi.fn();
     const mockOnSubmit = vi.fn();
     const mockOnCancel = vi.fn();
-    const mockOnClear = vi.fn();
 
     beforeEach(() => {
         vi.clearAllMocks();
@@ -188,34 +187,6 @@ describe('InputArea', () => {
         fireEvent.click(screen.getByText('Cancel'));
 
         expect(mockOnCancel).toHaveBeenCalled();
-    });
-
-    it('should show clear button when onClear provided', () => {
-        render(
-            <InputArea
-                value=""
-                onChange={mockOnChange}
-                onSubmit={mockOnSubmit}
-                onClear={mockOnClear}
-            />
-        );
-
-        expect(screen.getByText('Clear')).toBeInTheDocument();
-    });
-
-    it('should call onClear when clicking clear', () => {
-        render(
-            <InputArea
-                value=""
-                onChange={mockOnChange}
-                onSubmit={mockOnSubmit}
-                onClear={mockOnClear}
-            />
-        );
-
-        fireEvent.click(screen.getByText('Clear'));
-
-        expect(mockOnClear).toHaveBeenCalled();
     });
 
     it('should disable input when disabled prop is true', () => {

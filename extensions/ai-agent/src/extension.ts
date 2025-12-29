@@ -91,17 +91,61 @@ export async function activate(context: vscode.ExtensionContext) {
         webviewProvider?.showPanel();
     });
 
+    // Register command to focus chat view
+    const focusChatCmd = vscode.commands.registerCommand('codeShip.focusChat', async () => {
+        await vscode.commands.executeCommand('codeShip.chatView.focus');
+    });
+
+    // Register command to toggle history panel
+    const showHistoryCmd = vscode.commands.registerCommand('codeShip.showHistory', () => {
+        // Send sessions list first to ensure data is available
+        agentController?.sendSessions();
+        // Then toggle the history panel
+        webviewProvider?.postMessage({ type: 'toggle-history' });
+    });
+
+    // Register command to create new chat session
+    const newChatCmd = vscode.commands.registerCommand('codeShip.newChat', async () => {
+        await agentController?.createSession();
+    });
+
+    // Set initial context for welcome view (based on chat history)
+    const hasMessages = agentController.chatHistory.length > 0;
+    await vscode.commands.executeCommand('setContext', 'codeShip.noMessages', !hasMessages);
+
+    // Update context when messages are added
+    agentController.onMessage(() => {
+        vscode.commands.executeCommand('setContext', 'codeShip.noMessages', false);
+    });
+
     // Add to subscriptions
     context.subscriptions.push(
         webviewViewRegistration,
         showChatViewCmd,
+        focusChatCmd,
+        showHistoryCmd,
+        newChatCmd,
         { dispose: () => agentController?.dispose() },
         { dispose: () => commandRegistry?.dispose() },
         { dispose: () => webviewProvider?.dispose() }
     );
 
-    // Check dependencies on activation
-    await checkDependencies();
+    // Focus chat view on startup (after a short delay to ensure view is ready)
+    setTimeout(async () => {
+        try {
+            await vscode.commands.executeCommand('codeShip.chatView.focus');
+        } catch (error) {
+            console.log('[Code Ship] Could not focus chat view:', error);
+        }
+    }, 500);
+
+    // Check dependencies after activation completes (non-blocking)
+    // This allows webview resources to load without being blocked by the dependency dialog
+    setTimeout(() => {
+        checkDependencies().catch(err => {
+            console.error('[Code Ship] Dependency check failed:', err);
+        });
+    }, 2000);
 
     console.log('[Code Ship] AI Agent extension activated successfully.');
 }

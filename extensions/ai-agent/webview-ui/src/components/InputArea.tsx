@@ -14,8 +14,6 @@ interface InputAreaProps {
     onSubmit: (message: string) => void;
     /** Callback to cancel current operation */
     onCancel?: () => void;
-    /** Callback to clear history */
-    onClear?: () => void;
     /** Whether input is disabled */
     disabled?: boolean;
     /** Whether AI is currently loading */
@@ -48,7 +46,7 @@ const styles: Record<string, React.CSSProperties> = {
         color: 'var(--vscode-input-foreground, #cccccc)',
         fontSize: 'var(--vscode-font-size, 13px)',
         fontFamily: 'var(--vscode-font-family, inherit)',
-        resize: 'vertical',
+        resize: 'none',
         outline: 'none'
     },
     buttonColumn: {
@@ -81,10 +79,6 @@ const styles: Record<string, React.CSSProperties> = {
         display: 'flex',
         justifyContent: 'flex-end',
         gap: '8px'
-    },
-    smallButton: {
-        padding: '4px 8px',
-        fontSize: '0.9em'
     }
 };
 
@@ -93,7 +87,6 @@ export function InputArea({
     onChange,
     onSubmit,
     onCancel,
-    onClear,
     disabled,
     isLoading,
     placeholder = 'Type your message...'
@@ -107,8 +100,12 @@ export function InputArea({
     }, [value, disabled, isLoading, onSubmit, onChange]);
 
     const handleKeyDown = useCallback((e: KeyboardEvent<HTMLTextAreaElement>) => {
-        // Submit on Ctrl+Enter or Cmd+Enter
-        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        if (e.key === 'Enter') {
+            if (e.shiftKey) {
+                // Shift+Enter: allow newline (default behavior)
+                return;
+            }
+            // Enter: submit message
             e.preventDefault();
             handleSubmit();
         }
@@ -159,23 +156,8 @@ export function InputArea({
                 </div>
             </div>
             <div style={styles.actionRow}>
-                {onClear && (
-                    <button
-                        onClick={onClear}
-                        disabled={disabled || isLoading}
-                        style={{
-                            ...styles.button,
-                            ...styles.secondaryButton,
-                            ...styles.smallButton,
-                            ...(disabled || isLoading ? styles.disabledButton : {})
-                        }}
-                        aria-label="Clear chat history"
-                    >
-                        Clear
-                    </button>
-                )}
                 <span style={{ fontSize: '0.8em', opacity: 0.6 }}>
-                    Ctrl+Enter to send
+                    Enter to send, Shift+Enter for newline
                 </span>
             </div>
         </div>

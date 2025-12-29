@@ -4,6 +4,7 @@
  */
 
 import type { Phase, CLIStatus } from './cli';
+import type { SessionMeta } from './state';
 
 /**
  * Message sender identifier
@@ -29,6 +30,26 @@ export interface ChatMessage {
 }
 
 /**
+ * Progress state for webview
+ */
+export type ProgressState =
+    | { type: 'idle' }
+    | { type: 'thinking'; message?: string }
+    | { type: 'searching'; target: string }
+    | { type: 'reading'; files: string[] }
+    | { type: 'writing'; files: string[] }
+    | { type: 'executing'; command: string }
+    | { type: 'error'; message: string };
+
+/**
+ * Token usage information
+ */
+export interface TokenUsage {
+    used: number;
+    limit: number;
+}
+
+/**
  * Messages from Extension to Webview
  */
 export type ExtensionToWebviewMessage =
@@ -39,7 +60,15 @@ export type ExtensionToWebviewMessage =
     | { type: 'history'; data: ChatMessage[] }
     | { type: 'error'; data: string }
     | { type: 'clear' }
-    | { type: 'ready' };
+    | { type: 'ready' }
+    | { type: 'locale'; data: string }
+    | { type: 'progress'; data: ProgressState }
+    | { type: 'token-usage'; data: TokenUsage }
+    | { type: 'sessions-list'; data: SessionMeta[] }
+    | { type: 'session-switched'; data: { sessionId: string; messages: ChatMessage[]; phase: Phase } }
+    | { type: 'session-created'; data: { sessionId: string } }
+    | { type: 'session-deleted'; data: { sessionId: string } }
+    | { type: 'toggle-history' };
 
 /**
  * Messages from Webview to Extension
@@ -47,11 +76,17 @@ export type ExtensionToWebviewMessage =
 export type WebviewToExtensionMessage =
     | { type: 'send'; data: string }
     | { type: 'switch-phase'; data: Phase }
+    | { type: 'phase-rollback'; data: { from: Phase; to: Phase } }
     | { type: 'cancel' }
     | { type: 'retry' }
     | { type: 'get-history' }
     | { type: 'clear-history' }
-    | { type: 'ready' };
+    | { type: 'ready' }
+    | { type: 'get-sessions' }
+    | { type: 'create-session' }
+    | { type: 'switch-session'; data: string }
+    | { type: 'delete-session'; data: string }
+    | { type: 'rename-session'; data: { sessionId: string; title: string } };
 
 /**
  * Union type for all messages
@@ -62,14 +97,14 @@ export type WebviewMessage = ExtensionToWebviewMessage | WebviewToExtensionMessa
  * Type guard for Extension messages
  */
 export function isExtensionMessage(msg: WebviewMessage): msg is ExtensionToWebviewMessage {
-    return ['output', 'message', 'status', 'phase-changed', 'history', 'error', 'clear', 'ready'].includes(msg.type);
+    return ['output', 'message', 'status', 'phase-changed', 'history', 'error', 'clear', 'ready', 'locale', 'progress', 'token-usage', 'sessions-list', 'session-switched', 'session-created', 'session-deleted', 'toggle-history'].includes(msg.type);
 }
 
 /**
  * Type guard for Webview messages
  */
 export function isWebviewMessage(msg: WebviewMessage): msg is WebviewToExtensionMessage {
-    return ['send', 'switch-phase', 'cancel', 'retry', 'get-history', 'clear-history', 'ready'].includes(msg.type);
+    return ['send', 'switch-phase', 'phase-rollback', 'cancel', 'retry', 'get-history', 'clear-history', 'ready', 'get-sessions', 'create-session', 'switch-session', 'delete-session', 'rename-session'].includes(msg.type);
 }
 
 /**

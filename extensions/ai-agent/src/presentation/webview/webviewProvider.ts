@@ -4,6 +4,8 @@
  */
 
 import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as path from 'path';
 import { AgentController } from '../../application/agentController';
 import type { ExtensionToWebviewMessage, WebviewToExtensionMessage } from '../../types';
 
@@ -51,6 +53,9 @@ export class WebviewProvider implements vscode.WebviewViewProvider, vscode.Dispo
 
         this.setupMessageHandling(webviewView.webview);
 
+        // Send locale to webview
+        this.sendLocale(webviewView.webview);
+
         webviewView.onDidDispose(() => {
             this.view = undefined;
         }, null, this.disposables);
@@ -75,11 +80,22 @@ export class WebviewProvider implements vscode.WebviewViewProvider, vscode.Dispo
         this.panel.webview.html = this.getHtmlContent(this.panel.webview);
         this.setupMessageHandling(this.panel.webview);
 
+        // Send locale to webview
+        this.sendLocale(this.panel.webview);
+
         this.panel.onDidDispose(() => {
             this.panel = undefined;
         }, null, this.disposables);
 
         return this.panel;
+    }
+
+    /**
+     * Send current locale to webview
+     */
+    private sendLocale(webview: vscode.Webview): void {
+        const locale = vscode.env.language;
+        webview.postMessage({ type: 'locale', data: locale });
     }
 
     /**
@@ -102,8 +118,7 @@ export class WebviewProvider implements vscode.WebviewViewProvider, vscode.Dispo
             enableScripts: true,
             retainContextWhenHidden: true,
             localResourceRoots: [
-                vscode.Uri.joinPath(this.extensionUri, 'out', 'webview'),
-                vscode.Uri.joinPath(this.extensionUri, 'webview-ui', 'dist')
+                vscode.Uri.joinPath(this.extensionUri, 'out', 'webview')
             ]
         };
     }
@@ -133,14 +148,29 @@ export class WebviewProvider implements vscode.WebviewViewProvider, vscode.Dispo
      * Get HTML content for the webview
      */
     private getHtmlContent(webview: vscode.Webview): string {
-        // Get resource URIs
-        const scriptUri = webview.asWebviewUri(
-            vscode.Uri.joinPath(this.extensionUri, 'out', 'webview', 'main.js')
-        );
+        // Read CSS and JS files directly to inline them (bypass CDN resource loading)
+        const webviewOutPath = path.join(this.extensionUri.fsPath, 'out', 'webview');
 
-        const styleUri = webview.asWebviewUri(
-            vscode.Uri.joinPath(this.extensionUri, 'out', 'webview', 'main.css')
-        );
+        let cssContent = '';
+        let jsContent = '';
+
+        try {
+            const cssPath = path.join(webviewOutPath, 'index.css');
+            if (fs.existsSync(cssPath)) {
+                cssContent = fs.readFileSync(cssPath, 'utf8');
+            }
+        } catch (err) {
+            console.error('[Code Ship] Failed to read CSS:', err);
+        }
+
+        try {
+            const jsPath = path.join(webviewOutPath, 'main.js');
+            if (fs.existsSync(jsPath)) {
+                jsContent = fs.readFileSync(jsPath, 'utf8');
+            }
+        } catch (err) {
+            console.error('[Code Ship] Failed to read JS:', err);
+        }
 
         // Generate nonce for CSP
         const nonce = this.getNonce();
@@ -150,9 +180,8 @@ export class WebviewProvider implements vscode.WebviewViewProvider, vscode.Dispo
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';">
     <title>Code Ship Chat</title>
-    <link href="${styleUri}" rel="stylesheet">
     <style>
         * {
             box-sizing: border-box;
@@ -184,10 +213,15 @@ export class WebviewProvider implements vscode.WebviewViewProvider, vscode.Dispo
             }
         }
     </style>
+    <style>${cssContent}</style>
 </head>
 <body>
-    <div id="root"></div>
-    <script nonce="${nonce}" src="${scriptUri}"></script>
+    <div id="root">
+        <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--vscode-foreground);">
+            <span>Loading Code Ship...</span>
+        </div>
+    </div>
+    <script>${jsContent}</script>
 </body>
 </html>`;
     }

@@ -1,0 +1,63 @@
+/**
+ * Progress Indicator Styles
+ */
+
+.progress-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: var(--vscode-input-background);
+    border-radius: 6px;
+    margin: 8px 0;
+}
+
+.progress-indicator--error {
+    background: var(--vscode-inputValidation-errorBackground, rgba(255, 0, 0, 0.1));
+    border: 1px solid var(--vscode-inputValidation-errorBorder, #be1100);
+}
+
+.progress-indicator__content {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.progress-indicator__spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--vscode-foreground);
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: progress-spin 0.8s linear infinite;
+}
+
+@keyframes progress-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.progress-indicator__message {
+    font-size: 13px;
+    color: var(--vscode-foreground);
+}
+
+.progress-indicator--error .progress-indicator__message {
+    color: var(--vscode-errorForeground);
+}
+
+.progress-indicator__cancel {
+    padding: 4px 8px;
+    background: transparent;
+    border: 1px solid var(--vscode-button-secondaryBackground, #3a3d41);
+    border-radius: 4px;
+    color: var(--vscode-foreground);
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.progress-indicator__cancel:hover {
+    background: var(--vscode-button-secondaryHoverBackground, #45494e);
+}
