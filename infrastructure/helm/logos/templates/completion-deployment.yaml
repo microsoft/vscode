@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "logos.fullname" . }}-completion
+  labels:
+    {{- include "logos.labels" . | nindent 4 }}
+    app.kubernetes.io/component: completion
+spec:
+  {{- if not .Values.completion.autoscaling.enabled }}
+  replicas: {{ .Values.completion.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "logos.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: completion
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+      labels:
+        {{- include "logos.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: completion
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "logos.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: completion
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.completion.image.repository }}:{{ .Values.completion.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.completion.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8082
+              protocol: TCP
+          env:
+            - name: PORT
+              value: "8082"
+            - name: D3N_ENDPOINT
+              value: {{ .Values.d3n.apiEndpoint }}
+            - name: D3N_DEFAULT_TIER
+              value: "{{ .Values.d3n.defaultTier }}"
+            - name: FLASH_APPS_ENABLED
+              value: "{{ .Values.d3n.flashApps.enabled }}"
+            - name: FLASH_APPS_CACHE_ENABLED
+              value: "{{ .Values.d3n.flashApps.cacheEnabled }}"
+            - name: FLASH_APPS_CACHE_TTL
+              value: "{{ .Values.d3n.flashApps.cacheTTLSeconds }}"
+            - name: BMU_TARGET_USF
+              value: "{{ .Values.d3n.bmu.targetUSF }}"
+            - name: BMU_LATENCY_BUDGET
+              value: "{{ .Values.d3n.bmu.latencyBudgetMs }}"
+            - name: REDIS_HOST
+              value: {{ include "logos.redis.host" . }}
+          envFrom:
+            - secretRef:
+                name: {{ include "logos.fullname" . }}-secrets
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.completion.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: model-cache
+              mountPath: /models
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: model-cache
+          emptyDir:
+            sizeLimit: 10Gi
+      {{- if .Values.completion.gpu.enabled }}
+      nodeSelector:
+        cloud.google.com/gke-accelerator: {{ .Values.completion.gpu.type }}
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+      {{- end }}
+

@@ -1,0 +1,82 @@
+{{- if .Values.web.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "logos.fullname" . }}-web
+  labels:
+    {{- include "logos.labels" . | nindent 4 }}
+    app.kubernetes.io/component: web
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "logos.fullname" . }}-web
+  minReplicas: {{ .Values.web.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.web.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.web.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}
+---
+{{- if .Values.chat.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "logos.fullname" . }}-chat
+  labels:
+    {{- include "logos.labels" . | nindent 4 }}
+    app.kubernetes.io/component: chat
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "logos.fullname" . }}-chat
+  minReplicas: {{ .Values.chat.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.chat.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.chat.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}
+---
+{{- if .Values.completion.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "logos.fullname" . }}-completion
+  labels:
+    {{- include "logos.labels" . | nindent 4 }}
+    app.kubernetes.io/component: completion
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "logos.fullname" . }}-completion
+  minReplicas: {{ .Values.completion.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.completion.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.completion.autoscaling.targetCPUUtilizationPercentage }}
+    # Scale based on GPU utilization if available
+    {{- if .Values.completion.gpu.enabled }}
+    - type: Pods
+      pods:
+        metric:
+          name: nvidia_gpu_duty_cycle
+        target:
+          type: AverageValue
+          averageValue: "70"
+    {{- end }}
+{{- end }}
+

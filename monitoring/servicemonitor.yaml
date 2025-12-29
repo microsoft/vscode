@@ -1,0 +1,77 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: logos
+  namespace: monitoring
+  labels:
+    app: logos
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: logos
+  namespaceSelector:
+    matchNames:
+      - logos
+  endpoints:
+    - port: http
+      interval: 30s
+      path: /metrics
+      scrapeTimeout: 10s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: logos-chat
+  namespace: monitoring
+  labels:
+    app: logos-chat
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: chat
+  namespaceSelector:
+    matchNames:
+      - logos
+  endpoints:
+    - port: http
+      interval: 15s
+      path: /metrics
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: logos-completion
+  namespace: monitoring
+  labels:
+    app: logos-completion
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: completion
+  namespaceSelector:
+    matchNames:
+      - logos
+  endpoints:
+    - port: http
+      interval: 15s
+      path: /metrics
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: logos-ca
+  namespace: monitoring
+  labels:
+    app: logos-ca
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: ca
+  namespaceSelector:
+    matchNames:
+      - logos
+  endpoints:
+    - port: http
+      interval: 30s
+      path: /metrics
+

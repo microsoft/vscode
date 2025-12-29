@@ -1,0 +1,229 @@
+/**
+ * ContextIndicator - Editor context display styles
+ */
+
+.logos-context-indicator {
+  padding: 8px 16px;
+  border-top: 1px solid var(--logos-border);
+  background: var(--logos-bg-tertiary);
+}
+
+.context-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--logos-text-secondary);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.context-summary:hover {
+  color: var(--logos-text-primary);
+}
+
+.context-icon {
+  font-size: 14px;
+}
+
+.context-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.context-text .filename {
+  font-weight: 500;
+  color: var(--logos-text-primary);
+}
+
+.context-text .selection-badge,
+.context-text .symbol-badge {
+  background: var(--logos-bg-secondary);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+}
+
+.context-text .no-context {
+  font-style: italic;
+}
+
+.expand-icon {
+  font-size: 10px;
+  color: var(--logos-text-muted);
+}
+
+/* Expanded view */
+.context-details {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--logos-border);
+}
+
+.context-section {
+  margin-bottom: 12px;
+}
+
+.context-section h4 {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--logos-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.file-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: var(--logos-bg-secondary);
+  border-radius: var(--logos-radius-sm);
+  font-size: 12px;
+}
+
+.file-item.compact {
+  padding: 4px 6px;
+}
+
+.file-icon {
+  font-size: 14px;
+}
+
+.file-path {
+  flex: 1;
+  font-family: 'SF Mono', Consolas, monospace;
+  color: var(--logos-text-primary);
+}
+
+.file-language {
+  color: var(--logos-text-muted);
+  font-size: 11px;
+}
+
+.file-lines {
+  color: var(--logos-text-muted);
+  font-size: 11px;
+}
+
+.active-badge {
+  background: var(--logos-accent-primary);
+  color: white;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.more-files {
+  font-size: 11px;
+  color: var(--logos-text-muted);
+  padding: 4px 8px;
+}
+
+/* Selection */
+.selection-item {
+  background: var(--logos-bg-secondary);
+  border-radius: var(--logos-radius-sm);
+  overflow: hidden;
+}
+
+.selection-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  background: var(--logos-bg-tertiary);
+  font-size: 12px;
+}
+
+.selection-file {
+  font-family: 'SF Mono', Consolas, monospace;
+  font-weight: 500;
+}
+
+.selection-range {
+  color: var(--logos-text-muted);
+}
+
+.selection-preview {
+  margin: 0;
+  padding: 8px;
+  font-family: 'SF Mono', Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  color: var(--logos-text-secondary);
+  max-height: 80px;
+  overflow: hidden;
+}
+
+/* Symbols */
+.symbol-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.symbol-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--logos-bg-secondary);
+  padding: 4px 8px;
+  border-radius: var(--logos-radius-sm);
+  font-size: 12px;
+}
+
+.symbol-kind {
+  font-family: 'SF Mono', Consolas, monospace;
+  font-weight: 600;
+  color: var(--logos-accent-purple);
+}
+
+.symbol-name {
+  font-family: 'SF Mono', Consolas, monospace;
+}
+
+.symbol-refs {
+  color: var(--logos-text-muted);
+  font-size: 10px;
+}
+
+/* Actions */
+.context-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--logos-border);
+}
+
+.context-action {
+  background: none;
+  border: 1px solid var(--logos-border);
+  color: var(--logos-text-secondary);
+  padding: 4px 8px;
+  border-radius: var(--logos-radius-sm);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.context-action:hover {
+  background: var(--logos-bg-secondary);
+  color: var(--logos-text-primary);
+}
+

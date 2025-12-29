@@ -1,0 +1,52 @@
+---
+# Workspace storage PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: logos-workspaces-pvc
+  namespace: logos
+  labels:
+    app.kubernetes.io/name: logos
+    app.kubernetes.io/part-of: logos
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: efs-sc
+  resources:
+    requests:
+      storage: 500Gi
+---
+# Flash App models PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: flash-app-models-pvc
+  namespace: logos
+  labels:
+    app.kubernetes.io/name: logos
+    app.kubernetes.io/part-of: logos
+spec:
+  accessModes:
+    - ReadOnlyMany
+  storageClassName: efs-sc
+  resources:
+    requests:
+      storage: 50Gi
+---
+# CA State PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: logos-ca-state-pvc
+  namespace: logos
+  labels:
+    app.kubernetes.io/name: logos
+    app.kubernetes.io/part-of: logos
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: efs-sc
+  resources:
+    requests:
+      storage: 100Gi
+

@@ -1,0 +1,217 @@
+name: Deploy
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+env:
+  HELM_VERSION: '3.13.0'
+
+jobs:
+  prepare:
+    name: Prepare Deployment
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      environment: ${{ steps.env.outputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+          else
+            VERSION=${{ github.sha }}
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Determine environment
+        id: env
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "environment=${{ inputs.environment }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == refs/tags/v*.*.* ]] && [[ ! "${{ github.ref }}" == *-* ]]; then
+            echo "environment=production" >> $GITHUB_OUTPUT
+          else
+            echo "environment=staging" >> $GITHUB_OUTPUT
+          fi
+
+  build-images:
+    name: Build Images
+    runs-on: ubuntu-latest
+    needs: [prepare]
+    strategy:
+      matrix:
+        image: [web, chat, completion, ca, audit]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: infrastructure/docker/Dockerfile.${{ matrix.image }}
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/logos-${{ matrix.image }}:${{ needs.prepare.outputs.version }}
+            ghcr.io/${{ github.repository }}/logos-${{ matrix.image }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [prepare, build-images]
+    if: needs.prepare.outputs.environment == 'staging'
+    environment:
+      name: staging
+      url: https://logos-staging.deepcreative.io
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Configure kubectl
+        uses: azure/k8s-set-context@v3
+        with:
+          kubeconfig: ${{ secrets.STAGING_KUBECONFIG }}
+
+      - name: Deploy with Helm
+        run: |
+          helm upgrade --install logos ./infrastructure/helm/logos \
+            --namespace logos-staging \
+            --create-namespace \
+            --set global.image.tag=${{ needs.prepare.outputs.version }} \
+            --values ./infrastructure/helm/logos/values-staging.yaml \
+            --wait \
+            --timeout 10m
+
+      - name: Verify deployment
+        run: |
+          kubectl rollout status deployment/logos-web -n logos-staging
+          kubectl rollout status deployment/logos-chat -n logos-staging
+          kubectl rollout status deployment/logos-completion -n logos-staging
+
+      - name: Run smoke tests
+        run: |
+          STAGING_URL="https://logos-staging.deepcreative.io"
+          curl -f "$STAGING_URL/health" || exit 1
+          curl -f "$STAGING_URL/api/health" || exit 1
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [prepare, build-images]
+    if: needs.prepare.outputs.environment == 'production'
+    environment:
+      name: production
+      url: https://logos.deepcreative.io
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Configure kubectl
+        uses: azure/k8s-set-context@v3
+        with:
+          kubeconfig: ${{ secrets.PRODUCTION_KUBECONFIG }}
+
+      - name: Deploy with Helm
+        run: |
+          helm upgrade --install logos ./infrastructure/helm/logos \
+            --namespace logos \
+            --set global.image.tag=${{ needs.prepare.outputs.version }} \
+            --values ./infrastructure/helm/logos/values-production.yaml \
+            --wait \
+            --timeout 15m
+
+      - name: Verify deployment
+        run: |
+          kubectl rollout status deployment/logos-web -n logos
+          kubectl rollout status deployment/logos-chat -n logos
+          kubectl rollout status deployment/logos-completion -n logos
+
+      - name: Run smoke tests
+        run: |
+          PROD_URL="https://logos.deepcreative.io"
+          curl -f "$PROD_URL/health" || exit 1
+          curl -f "$PROD_URL/api/health" || exit 1
+
+      - name: Notify Slack
+        if: always()
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "Logos ${{ needs.prepare.outputs.version }} deployed to production",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Logos Deployment*\n Version: `${{ needs.prepare.outputs.version }}`\n Status: ${{ job.status }}"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+
+  rollback:
+    name: Rollback
+    runs-on: ubuntu-latest
+    needs: [deploy-production]
+    if: failure() && needs.prepare.outputs.environment == 'production'
+    steps:
+      - name: Configure kubectl
+        uses: azure/k8s-set-context@v3
+        with:
+          kubeconfig: ${{ secrets.PRODUCTION_KUBECONFIG }}
+
+      - name: Rollback Helm release
+        run: |
+          helm rollback logos -n logos
+
+      - name: Notify Slack
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "⚠️ Logos production deployment failed - rolled back"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+

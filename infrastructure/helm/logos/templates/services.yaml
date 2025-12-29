@@ -1,0 +1,91 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "logos.fullname" . }}-web
+  labels:
+    {{- include "logos.labels" . | nindent 4 }}
+    app.kubernetes.io/component: web
+spec:
+  type: {{ .Values.web.service.type }}
+  ports:
+    - port: {{ .Values.web.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "logos.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: web
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "logos.fullname" . }}-chat
+  labels:
+    {{- include "logos.labels" . | nindent 4 }}
+    app.kubernetes.io/component: chat
+spec:
+  type: {{ .Values.chat.service.type }}
+  ports:
+    - port: {{ .Values.chat.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "logos.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: chat
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "logos.fullname" . }}-completion
+  labels:
+    {{- include "logos.labels" . | nindent 4 }}
+    app.kubernetes.io/component: completion
+spec:
+  type: {{ .Values.completion.service.type }}
+  ports:
+    - port: {{ .Values.completion.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "logos.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: completion
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "logos.fullname" . }}-ca
+  labels:
+    {{- include "logos.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ca
+spec:
+  type: {{ .Values.ca.service.type }}
+  ports:
+    - port: {{ .Values.ca.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "logos.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: ca
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "logos.fullname" . }}-audit
+  labels:
+    {{- include "logos.labels" . | nindent 4 }}
+    app.kubernetes.io/component: audit
+spec:
+  type: {{ .Values.audit.service.type }}
+  ports:
+    - port: {{ .Values.audit.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "logos.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: audit
+

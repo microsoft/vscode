@@ -1,0 +1,171 @@
+---
+# Logos Chat Service Deployment
+# Handles multi-agent conversations via ARIA
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: logos-chat
+  namespace: logos
+  labels:
+    app: logos-chat
+    app.kubernetes.io/name: logos-chat
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: logos
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: logos-chat
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: logos-chat
+        app.kubernetes.io/name: logos-chat
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+    spec:
+      serviceAccountName: logos-chat
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+        - name: logos-chat
+          image: logos/chat-service:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+            - name: websocket
+              containerPort: 8081
+              protocol: TCP
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+          env:
+            - name: ARIA_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: logos-config
+                  key: aria_url
+            - name: PERSONA_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: logos-config
+                  key: persona_url
+            - name: D3N_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: logos-config
+                  key: d3n_url
+            - name: ATHENA_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: logos-config
+                  key: athena_url
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: logos-secrets
+                  key: redis_url
+            - name: POSTGRES_URL
+              valueFrom:
+                secretKeyRef:
+                  name: logos-secrets
+                  key: postgres_url
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "2Gi"
+            limits:
+              cpu: "2"
+              memory: "4Gi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: agent-personas
+              mountPath: /personas
+              readOnly: true
+      volumes:
+        - name: agent-personas
+          configMap:
+            name: logos-agent-personas
+---
+# Logos Chat Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: logos-chat
+  namespace: logos
+  labels:
+    app: logos-chat
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+    - name: websocket
+      port: 8081
+      targetPort: websocket
+      protocol: TCP
+    - name: metrics
+      port: 9090
+      targetPort: metrics
+      protocol: TCP
+  selector:
+    app: logos-chat
+---
+# Logos Chat HPA
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: logos-chat-hpa
+  namespace: logos
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: logos-chat
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    # Custom metric: active sessions
+    - type: Pods
+      pods:
+        metric:
+          name: active_chat_sessions
+        target:
+          type: AverageValue
+          averageValue: "1000"
+---
+# Service Account
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: logos-chat
+  namespace: logos
+

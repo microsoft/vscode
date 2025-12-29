@@ -1,0 +1,98 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "logos.fullname" . }}-chat
+  labels:
+    {{- include "logos.labels" . | nindent 4 }}
+    app.kubernetes.io/component: chat
+spec:
+  {{- if not .Values.chat.autoscaling.enabled }}
+  replicas: {{ .Values.chat.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "logos.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: chat
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+      labels:
+        {{- include "logos.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: chat
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "logos.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: chat
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.chat.image.repository }}:{{ .Values.chat.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.chat.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8081
+              protocol: TCP
+            - name: ws
+              containerPort: 8081
+              protocol: TCP
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: PORT
+              value: "8081"
+            - name: REDIS_HOST
+              value: {{ include "logos.redis.host" . }}
+            - name: D3N_ENDPOINT
+              value: {{ .Values.d3n.apiEndpoint }}
+            - name: D3N_DEFAULT_TIER
+              value: "{{ .Values.d3n.defaultTier }}"
+            - name: D3N_MAX_TIER
+              value: "{{ .Values.d3n.maxTier }}"
+            - name: ARIA_CONDUCTOR_ENDPOINT
+              value: {{ .Values.aria.conductorEndpoint }}
+            - name: ARIA_APIF_ENABLED
+              value: "{{ .Values.aria.apifEnabled }}"
+            - name: AGENT_TIMEOUT_MS
+              value: "{{ .Values.aria.agentTimeoutMs }}"
+          envFrom:
+            - secretRef:
+                name: {{ include "logos.fullname" . }}-secrets
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.chat.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      {{- with .Values.chat.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.chat.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.chat.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+

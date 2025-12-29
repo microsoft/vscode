@@ -1,0 +1,96 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Build extensions
+        run: |
+          for ext in logos-chat logos-completion logos-ca logos-d3n; do
+            cd extensions/$ext
+            npm ci
+            npm run build
+            cd ../..
+          done
+
+      - name: Package extensions
+        run: |
+          mkdir -p dist/extensions
+          for ext in logos-chat logos-completion logos-ca logos-d3n; do
+            cd extensions/$ext
+            npx vsce package -o ../../dist/extensions/$ext.vsix
+            cd ../..
+          done
+
+      - name: Generate changelog
+        id: changelog
+        uses: mikepenz/release-changelog-builder-action@v4
+        with:
+          configuration: ".github/changelog-config.json"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          body: ${{ steps.changelog.outputs.changelog }}
+          files: |
+            dist/extensions/*.vsix
+          draft: false
+          prerelease: ${{ contains(github.ref, '-') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish to VS Code Marketplace
+        if: "!contains(github.ref, '-')"
+        run: |
+          for ext in logos-chat logos-completion logos-ca logos-d3n; do
+            npx vsce publish -p ${{ secrets.VSCE_PAT }} -i dist/extensions/$ext.vsix
+          done
+
+      - name: Notify release
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "🚀 Logos ${{ github.ref_name }} released!",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Logos Release ${{ github.ref_name }}*\n<${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref_name }}|View Release>"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+

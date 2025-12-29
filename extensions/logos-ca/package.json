@@ -1,0 +1,126 @@
+{
+  "name": "logos-ca",
+  "displayName": "Logos Workspace CA",
+  "description": "Per-workspace Cognitive Architect for proactive assistance",
+  "version": "1.0.0",
+  "publisher": "deepcreative",
+  "license": "UNLICENSED",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Machine Learning",
+    "Other"
+  ],
+  "keywords": [
+    "ai",
+    "architecture",
+    "documentation",
+    "d3n",
+    "logos"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "logos.ca.showSuggestions",
+        "title": "Logos CA: Show Suggestions"
+      },
+      {
+        "command": "logos.ca.generateDocs",
+        "title": "Logos CA: Generate Documentation"
+      },
+      {
+        "command": "logos.ca.generateArchitecture",
+        "title": "Logos CA: Generate Architecture Diagram"
+      },
+      {
+        "command": "logos.ca.explainCodebase",
+        "title": "Logos CA: Explain Codebase"
+      },
+      {
+        "command": "logos.ca.applySuggestion",
+        "title": "Logos CA: Apply Suggestion"
+      },
+      {
+        "command": "logos.ca.dismissSuggestion",
+        "title": "Logos CA: Dismiss Suggestion"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "logos-ca",
+          "title": "Workspace CA",
+          "icon": "$(symbol-structure)"
+        }
+      ]
+    },
+    "views": {
+      "logos-ca": [
+        {
+          "id": "logos.caSuggestions",
+          "name": "Suggestions"
+        },
+        {
+          "id": "logos.caInsights",
+          "name": "Project Insights"
+        },
+        {
+          "id": "logos.caActions",
+          "name": "Quick Actions"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Logos Workspace CA",
+      "properties": {
+        "logos.ca.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Workspace Cognitive Architect"
+        },
+        "logos.ca.autoStart": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically start CA when workspace opens"
+        },
+        "logos.ca.suggestionFrequency": {
+          "type": "string",
+          "default": "on_save",
+          "enum": ["on_save", "periodic", "manual"],
+          "description": "When to generate suggestions"
+        },
+        "logos.ca.suggestionTypes": {
+          "type": "array",
+          "default": ["documentation_gaps", "refactoring_opportunities", "test_coverage"],
+          "items": {
+            "type": "string"
+          },
+          "description": "Types of suggestions to show"
+        },
+        "logos.ca.minConfidence": {
+          "type": "number",
+          "default": 0.7,
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Minimum confidence for showing suggestions"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.0"
+  }
+}
+

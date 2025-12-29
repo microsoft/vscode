@@ -1,0 +1,113 @@
+/**
+ * ChatPanel - Main chat interface styles
+ * Design system: Logos D3N-native IDE
+ */
+
+:root {
+  --logos-bg-primary: #0d1117;
+  --logos-bg-secondary: #161b22;
+  --logos-bg-tertiary: #21262d;
+  --logos-border: #30363d;
+  --logos-text-primary: #c9d1d9;
+  --logos-text-secondary: #8b949e;
+  --logos-text-muted: #484f58;
+  --logos-accent-primary: #58a6ff;
+  --logos-accent-success: #3fb950;
+  --logos-accent-warning: #d29922;
+  --logos-accent-error: #f85149;
+  --logos-accent-purple: #a371f7;
+  --logos-radius-sm: 4px;
+  --logos-radius-md: 8px;
+  --logos-radius-lg: 12px;
+  --logos-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.logos-chat-panel {
+  display: flex;
+  height: 100%;
+  background: var(--logos-bg-primary);
+  color: var(--logos-text-primary);
+  font-family: 'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.chat-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--logos-border);
+  background: var(--logos-bg-secondary);
+}
+
+.chat-header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.chat-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.chat-actions button {
+  background: none;
+  border: none;
+  color: var(--logos-text-secondary);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--logos-radius-sm);
+  transition: background 0.15s, color 0.15s;
+}
+
+.chat-actions button:hover {
+  background: var(--logos-bg-tertiary);
+  color: var(--logos-text-primary);
+}
+
+.message-list-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.tangent-tree-toggle {
+  font-size: 16px;
+}
+
+.close-button {
+  font-size: 14px;
+}
+
+.tangent-tree-panel {
+  width: 280px;
+  border-left: 1px solid var(--logos-border);
+  background: var(--logos-bg-secondary);
+  overflow-y: auto;
+}
+
+/* Scrollbar styling */
+.logos-chat-panel ::-webkit-scrollbar {
+  width: 8px;
+}
+
+.logos-chat-panel ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.logos-chat-panel ::-webkit-scrollbar-thumb {
+  background: var(--logos-bg-tertiary);
+  border-radius: 4px;
+}
+
+.logos-chat-panel ::-webkit-scrollbar-thumb:hover {
+  background: var(--logos-border);
+}
+

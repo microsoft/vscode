@@ -1,0 +1,154 @@
+---
+# Logos Web Server Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: logos-web
+  namespace: logos
+  labels:
+    app: logos-web
+    app.kubernetes.io/name: logos-web
+    app.kubernetes.io/component: frontend
+    app.kubernetes.io/part-of: logos
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: logos-web
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: logos-web
+        app.kubernetes.io/name: logos-web
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+    spec:
+      serviceAccountName: logos-web
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: logos-web
+          image: logos/web:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PERSONA_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: logos-config
+                  key: persona_url
+            - name: D3N_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: logos-config
+                  key: d3n_url
+            - name: ARIA_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: logos-config
+                  key: aria_url
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2"
+              memory: "4Gi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: workspace-storage
+              mountPath: /workspaces
+            - name: config
+              mountPath: /app/config
+              readOnly: true
+      volumes:
+        - name: workspace-storage
+          persistentVolumeClaim:
+            claimName: logos-workspaces-pvc
+        - name: config
+          configMap:
+            name: logos-config
+---
+# Logos Web Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: logos-web
+  namespace: logos
+  labels:
+    app: logos-web
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+    - name: metrics
+      port: 9090
+      targetPort: metrics
+      protocol: TCP
+  selector:
+    app: logos-web
+---
+# Logos Web HPA
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: logos-web-hpa
+  namespace: logos
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: logos-web
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+---
+# Service Account
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: logos-web
+  namespace: logos
+

@@ -1,0 +1,121 @@
+{
+  "name": "logos-completion",
+  "displayName": "Logos D3N Completion",
+  "description": "D3N-powered code completions with Flash App acceleration",
+  "version": "1.0.0",
+  "publisher": "deepcreative",
+  "license": "UNLICENSED",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Machine Learning",
+    "Programming Languages"
+  ],
+  "keywords": [
+    "ai",
+    "completion",
+    "d3n",
+    "logos",
+    "copilot"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "logos.completion.trigger",
+        "title": "Logos: Trigger Completion"
+      },
+      {
+        "command": "logos.completion.accept",
+        "title": "Logos: Accept Completion"
+      },
+      {
+        "command": "logos.completion.reject",
+        "title": "Logos: Reject Completion"
+      },
+      {
+        "command": "logos.completion.showMetrics",
+        "title": "Logos: Show Completion Metrics"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "logos.completion.trigger",
+        "key": "ctrl+space",
+        "mac": "ctrl+space",
+        "when": "editorTextFocus && !editorHasSelection"
+      },
+      {
+        "command": "logos.completion.accept",
+        "key": "tab",
+        "when": "logos.completionVisible"
+      },
+      {
+        "command": "logos.completion.reject",
+        "key": "escape",
+        "when": "logos.completionVisible"
+      }
+    ],
+    "configuration": {
+      "title": "Logos Completion",
+      "properties": {
+        "logos.completion.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable D3N-powered completions"
+        },
+        "logos.completion.defaultTier": {
+          "type": "number",
+          "default": 2,
+          "minimum": 1,
+          "maximum": 3,
+          "description": "Default D3N tier for completions"
+        },
+        "logos.completion.maxTier": {
+          "type": "number",
+          "default": 3,
+          "minimum": 1,
+          "maximum": 3,
+          "description": "Maximum D3N tier for completions"
+        },
+        "logos.completion.flashAppsEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Flash App acceleration"
+        },
+        "logos.completion.usfTarget": {
+          "type": "number",
+          "default": 0.85,
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Target USF (thermodynamic efficiency)"
+        },
+        "logos.completion.debounceMs": {
+          "type": "number",
+          "default": 300,
+          "description": "Debounce delay in milliseconds"
+        },
+        "logos.completion.maxTokens": {
+          "type": "number",
+          "default": 128,
+          "description": "Maximum tokens for completion"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.0"
+  }
+}
+

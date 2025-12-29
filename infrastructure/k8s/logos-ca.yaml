@@ -1,0 +1,166 @@
+---
+# Logos Workspace CA Service Deployment
+# Handles per-workspace Cognitive Architect instances
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: logos-ca
+  namespace: logos
+  labels:
+    app: logos-ca
+    app.kubernetes.io/name: logos-ca
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: logos
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: logos-ca
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: logos-ca
+        app.kubernetes.io/name: logos-ca
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+    spec:
+      serviceAccountName: logos-ca
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+        - name: logos-ca
+          image: logos/ca-service:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+            - name: grpc
+              containerPort: 50051
+              protocol: TCP
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+          env:
+            - name: D3N_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: logos-config
+                  key: d3n_url
+            - name: PERSONA_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: logos-config
+                  key: persona_url
+            - name: CA_DEFAULT_TIER
+              value: "2"
+            - name: CA_MAX_TIER
+              value: "3"
+            - name: CA_USF_TARGET
+              value: "0.85"
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: logos-secrets
+                  key: redis_url
+            - name: S3_BUCKET
+              valueFrom:
+                configMapKeyRef:
+                  name: logos-config
+                  key: ca_state_bucket
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "2Gi"
+            limits:
+              cpu: "2"
+              memory: "4Gi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: ca-state
+              mountPath: /ca-state
+      volumes:
+        - name: ca-state
+          persistentVolumeClaim:
+            claimName: logos-ca-state-pvc
+---
+# Logos CA Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: logos-ca
+  namespace: logos
+  labels:
+    app: logos-ca
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+    - name: grpc
+      port: 50051
+      targetPort: grpc
+      protocol: TCP
+    - name: metrics
+      port: 9090
+      targetPort: metrics
+      protocol: TCP
+  selector:
+    app: logos-ca
+---
+# Logos CA HPA
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: logos-ca-hpa
+  namespace: logos
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: logos-ca
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    # Custom metric: active workspaces
+    - type: Pods
+      pods:
+        metric:
+          name: active_workspaces
+        target:
+          type: AverageValue
+          averageValue: "500"
+---
+# Service Account
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: logos-ca
+  namespace: logos
+

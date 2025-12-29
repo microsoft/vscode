@@ -1,0 +1,253 @@
+/**
+ * ThreadSidebar - Conversation list styles
+ */
+
+.logos-thread-sidebar {
+  width: 260px;
+  display: flex;
+  flex-direction: column;
+  background: var(--logos-bg-secondary);
+  border-right: 1px solid var(--logos-border);
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--logos-border);
+}
+
+.sidebar-header h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.new-thread-button {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--logos-accent-primary);
+  color: white;
+  border: none;
+  border-radius: var(--logos-radius-sm);
+  font-size: 16px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.new-thread-button:hover {
+  opacity: 0.9;
+}
+
+.sidebar-search {
+  position: relative;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--logos-border);
+}
+
+.sidebar-search input {
+  width: 100%;
+  padding: 8px 28px 8px 10px;
+  background: var(--logos-bg-primary);
+  border: 1px solid var(--logos-border);
+  border-radius: var(--logos-radius-sm);
+  color: var(--logos-text-primary);
+  font-size: 12px;
+}
+
+.sidebar-search input:focus {
+  outline: none;
+  border-color: var(--logos-accent-primary);
+}
+
+.sidebar-search input::placeholder {
+  color: var(--logos-text-muted);
+}
+
+.clear-search {
+  position: absolute;
+  right: 18px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--logos-text-muted);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.clear-search:hover {
+  color: var(--logos-text-primary);
+}
+
+.thread-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.thread-group {
+  margin-bottom: 16px;
+}
+
+.thread-group-header {
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--logos-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.thread-item {
+  position: relative;
+  margin-bottom: 4px;
+}
+
+.thread-content {
+  width: 100%;
+  padding: 10px 12px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--logos-radius-sm);
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.thread-item:hover .thread-content,
+.thread-item.active .thread-content {
+  background: var(--logos-bg-tertiary);
+  border-color: var(--logos-border);
+}
+
+.thread-item.active .thread-content {
+  border-left: 2px solid var(--logos-accent-primary);
+}
+
+.thread-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.thread-name {
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--logos-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.thread-name-input {
+  flex: 1;
+  background: var(--logos-bg-primary);
+  border: 1px solid var(--logos-accent-primary);
+  border-radius: 3px;
+  padding: 2px 6px;
+  color: var(--logos-text-primary);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.branch-indicator {
+  font-size: 12px;
+}
+
+.thread-preview {
+  font-size: 12px;
+  color: var(--logos-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 4px;
+}
+
+.thread-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--logos-text-muted);
+}
+
+.thread-agents {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.agent-chip {
+  background: var(--logos-bg-secondary);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  color: var(--logos-text-secondary);
+}
+
+.thread-actions {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  gap: 4px;
+  background: var(--logos-bg-tertiary);
+  padding: 2px;
+  border-radius: var(--logos-radius-sm);
+  border: 1px solid var(--logos-border);
+}
+
+.thread-action {
+  background: none;
+  border: none;
+  padding: 4px 6px;
+  cursor: pointer;
+  font-size: 12px;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+
+.thread-action:hover {
+  opacity: 1;
+}
+
+.thread-action.delete:hover {
+  color: var(--logos-accent-error);
+}
+
+.empty-threads {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--logos-text-secondary);
+}
+
+.empty-threads p {
+  margin: 0 0 12px;
+  font-size: 13px;
+}
+
+.empty-threads button {
+  background: var(--logos-accent-primary);
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: var(--logos-radius-sm);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.empty-threads button:hover {
+  opacity: 0.9;
+}
+

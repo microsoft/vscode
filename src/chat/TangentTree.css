@@ -1,0 +1,153 @@
+/**
+ * TangentTree - Conversation branching visualization
+ */
+
+.tangent-tree {
+  padding: 16px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.tangent-tree-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.tangent-tree-header h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.thread-count {
+  font-size: 11px;
+  color: var(--logos-text-muted);
+  background: var(--logos-bg-tertiary);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.tangent-tree-content {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.tangent-tree-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--logos-text-secondary);
+  text-align: center;
+  font-size: 13px;
+}
+
+.tree-node {
+  position: relative;
+}
+
+.tree-connection {
+  position: absolute;
+  left: -12px;
+  top: 0;
+  bottom: 50%;
+  width: 12px;
+}
+
+.tree-line-vertical {
+  position: absolute;
+  left: 0;
+  top: -16px;
+  width: 1px;
+  height: calc(100% + 8px);
+  background: var(--logos-border);
+}
+
+.tree-line-horizontal {
+  position: absolute;
+  left: 0;
+  bottom: 50%;
+  width: 12px;
+  height: 1px;
+  background: var(--logos-border);
+}
+
+.tree-node-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--logos-bg-tertiary);
+  border: 1px solid var(--logos-border);
+  border-radius: var(--logos-radius-sm);
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s;
+  margin-bottom: 8px;
+}
+
+.tree-node-content:hover {
+  border-color: var(--logos-accent-primary);
+}
+
+.tree-node-content--active {
+  border-color: var(--logos-accent-primary);
+  background: rgba(88, 166, 255, 0.1);
+}
+
+.node-icon {
+  font-size: 14px;
+}
+
+.node-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.node-name {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--logos-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.node-meta {
+  display: block;
+  font-size: 10px;
+  color: var(--logos-text-muted);
+}
+
+.branch-indicator {
+  color: var(--logos-accent-warning);
+  font-size: 10px;
+  margin-left: 4px;
+}
+
+.merge-button {
+  background: none;
+  border: 1px solid var(--logos-border);
+  color: var(--logos-text-muted);
+  padding: 4px 6px;
+  border-radius: 3px;
+  font-size: 12px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.tree-node-content:hover .merge-button {
+  opacity: 1;
+}
+
+.merge-button:hover {
+  color: var(--logos-accent-success);
+  border-color: var(--logos-accent-success);
+}
+

@@ -1,0 +1,46 @@
+# Logos Web Server Dockerfile
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Install dependencies
+COPY package*.json ./
+RUN npm ci --legacy-peer-deps
+
+# Copy source
+COPY . .
+
+# Build the application
+RUN npm run compile
+
+# Production image
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install production dependencies only
+COPY package*.json ./
+RUN npm ci --omit=dev --legacy-peer-deps
+
+# Copy built application
+COPY --from=builder /app/out /app/out
+COPY --from=builder /app/extensions /app/extensions
+COPY --from=builder /app/product.json /app/
+
+# Create non-root user
+RUN addgroup -g 1000 logos && \
+    adduser -u 1000 -G logos -s /bin/sh -D logos && \
+    chown -R logos:logos /app
+
+USER logos
+
+# Expose ports
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
+
+# Start the server
+CMD ["node", "./out/server-main.js", "--port", "8080"]
+

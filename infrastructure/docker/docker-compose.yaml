@@ -1,0 +1,166 @@
+# Logos Development Docker Compose
+# For local development and testing
+
+version: "3.9"
+
+services:
+  # Logos Web Server
+  logos-web:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.web
+    ports:
+      - "8080:8080"
+    environment:
+      - NODE_ENV=development
+      - PERSONA_URL=http://persona:8080
+      - D3N_URL=http://d3n:8080
+      - ARIA_URL=http://aria:8080
+    volumes:
+      - ../../src:/app/src:ro
+      - workspaces:/workspaces
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - logos-network
+
+  # Completion Service
+  logos-completion:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.completion
+    ports:
+      - "50051:50051"
+      - "8081:8080"
+    environment:
+      - D3N_URL=http://d3n:8080
+      - FLASH_APPS_ENABLED=true
+      - USF_TARGET=0.85
+      - DEFAULT_TIER=2
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - flash-models:/models:ro
+    depends_on:
+      - redis
+    networks:
+      - logos-network
+
+  # Chat Service
+  logos-chat:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.chat
+    ports:
+      - "8082:8080"
+      - "8083:8081"
+    environment:
+      - ARIA_URL=http://aria:8080
+      - PERSONA_URL=http://persona:8080
+      - D3N_URL=http://d3n:8080
+      - REDIS_URL=redis://redis:6379
+      - POSTGRES_URL=postgres://logos:logos@postgres:5432/logos
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - logos-network
+
+  # CA Service
+  logos-ca:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.ca
+    ports:
+      - "8084:8080"
+      - "50052:50051"
+    environment:
+      - D3N_URL=http://d3n:8080
+      - PERSONA_URL=http://persona:8080
+      - REDIS_URL=redis://redis:6379
+      - CA_DEFAULT_TIER=2
+      - CA_MAX_TIER=3
+    volumes:
+      - ca-state:/ca-state
+    depends_on:
+      - redis
+    networks:
+      - logos-network
+
+  # Audit Service
+  logos-audit:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.audit
+    ports:
+      - "8085:8080"
+    environment:
+      - PERSONA_URL=http://persona:8080
+      - POSTGRES_URL=postgres://logos:logos@postgres:5432/logos_audit
+      - RETENTION_DAYS=90
+    depends_on:
+      - postgres
+    networks:
+      - logos-network
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=logos
+      - POSTGRES_PASSWORD=logos
+      - POSTGRES_DB=logos
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - logos-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - logos-network
+
+  # Mock D3N Service (for development)
+  d3n-mock:
+    image: logos/d3n-mock:latest
+    ports:
+      - "8090:8080"
+    networks:
+      - logos-network
+
+  # Mock PERSONA Service (for development)
+  persona-mock:
+    image: logos/persona-mock:latest
+    ports:
+      - "8091:8080"
+    networks:
+      - logos-network
+
+  # Mock ARIA Service (for development)
+  aria-mock:
+    image: logos/aria-mock:latest
+    ports:
+      - "8092:8080"
+    networks:
+      - logos-network
+
+volumes:
+  workspaces:
+  flash-models:
+  ca-state:
+  postgres-data:
+  redis-data:
+
+networks:
+  logos-network:
+    driver: bridge
+

@@ -1,0 +1,284 @@
+# Default values for Logos D3N-Native IDE
+# This is a YAML-formatted file.
+
+# -- Global settings
+global:
+  # -- Image pull secrets for private registries
+  imagePullSecrets: []
+  # -- Storage class for persistent volumes
+  storageClass: ""
+
+# -- Logos Web Server
+web:
+  replicaCount: 2
+  
+  image:
+    repository: deepcreative/logos-web
+    pullPolicy: IfNotPresent
+    tag: ""
+  
+  service:
+    type: ClusterIP
+    port: 8080
+  
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+    requests:
+      cpu: 200m
+      memory: 512Mi
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+  
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# -- Logos Chat Service
+chat:
+  replicaCount: 2
+  
+  image:
+    repository: deepcreative/logos-chat
+    pullPolicy: IfNotPresent
+    tag: ""
+  
+  service:
+    type: ClusterIP
+    port: 8081
+  
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+    requests:
+      cpu: 500m
+      memory: 1Gi
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 60
+
+# -- Logos Completion Service
+completion:
+  replicaCount: 3
+  
+  image:
+    repository: deepcreative/logos-completion
+    pullPolicy: IfNotPresent
+    tag: ""
+  
+  service:
+    type: ClusterIP
+    port: 8082
+  
+  resources:
+    limits:
+      cpu: 4000m
+      memory: 8Gi
+      nvidia.com/gpu: 1
+    requests:
+      cpu: 1000m
+      memory: 4Gi
+  
+  # -- Enable GPU for completion service
+  gpu:
+    enabled: true
+    type: nvidia-tesla-t4
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 50
+
+# -- Logos Cognitive Architect Service
+ca:
+  replicaCount: 1
+  
+  image:
+    repository: deepcreative/logos-ca
+    pullPolicy: IfNotPresent
+    tag: ""
+  
+  service:
+    type: ClusterIP
+    port: 8083
+  
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+    requests:
+      cpu: 500m
+      memory: 1Gi
+  
+  # -- Per-workspace CA settings
+  workspace:
+    # -- Maximum concurrent CA instances
+    maxInstances: 100
+    # -- CA instance timeout (seconds)
+    idleTimeout: 3600
+
+# -- Logos Audit Service
+audit:
+  replicaCount: 2
+  
+  image:
+    repository: deepcreative/logos-audit
+    pullPolicy: IfNotPresent
+    tag: ""
+  
+  service:
+    type: ClusterIP
+    port: 8084
+  
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+    requests:
+      cpu: 200m
+      memory: 512Mi
+  
+  # -- Audit storage configuration
+  storage:
+    # -- S3 bucket for audit logs
+    s3Bucket: logos-audit-logs
+    # -- Retention period in days
+    retentionDays: 365
+    # -- Enable encryption at rest
+    encryptionEnabled: true
+
+# -- D3N Integration
+d3n:
+  # -- D3N API endpoint
+  apiEndpoint: "http://d3n-gateway.d3n.svc:8080"
+  
+  # -- Default tier for operations
+  defaultTier: 2
+  
+  # -- Maximum tier allowed
+  maxTier: 3
+  
+  # -- Flash Apps configuration
+  flashApps:
+    enabled: true
+    cacheEnabled: true
+    cacheTTLSeconds: 300
+  
+  # -- BMU configuration
+  bmu:
+    targetUSF: 0.85
+    latencyBudgetMs: 500
+
+# -- ARIA Integration
+aria:
+  # -- ARIA conductor endpoint
+  conductorEndpoint: "http://aria-conductor.aria.svc:8080"
+  
+  # -- Enable APIF enforcement
+  apifEnabled: true
+  
+  # -- Agent timeout (ms)
+  agentTimeoutMs: 30000
+
+# -- PERSONA Integration
+persona:
+  # -- PERSONA service endpoint
+  serviceEndpoint: "http://persona.persona.svc:8080"
+  
+  # -- Enable PQC authentication
+  pqcEnabled: true
+  
+  # -- Session timeout (hours)
+  sessionTimeoutHours: 8
+
+# -- Ingress configuration
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/websocket-services: "logos-chat"
+  hosts:
+    - host: logos.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          service: web
+        - path: /api/chat
+          pathType: Prefix
+          service: chat
+        - path: /api/completion
+          pathType: Prefix
+          service: completion
+  tls:
+    - secretName: logos-tls
+      hosts:
+        - logos.example.com
+
+# -- PostgreSQL configuration
+postgresql:
+  enabled: true
+  auth:
+    postgresPassword: ""
+    username: logos
+    password: ""
+    database: logos
+  primary:
+    persistence:
+      enabled: true
+      size: 50Gi
+
+# -- Redis configuration
+redis:
+  enabled: true
+  auth:
+    enabled: true
+    password: ""
+  master:
+    persistence:
+      enabled: true
+      size: 10Gi
+
+# -- Monitoring configuration
+monitoring:
+  # -- Enable Prometheus ServiceMonitor
+  serviceMonitor:
+    enabled: true
+    namespace: monitoring
+    interval: 30s
+  
+  # -- Enable Grafana dashboards
+  dashboards:
+    enabled: true
+    namespace: monitoring
+
+# -- Service account
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# -- Pod security context
+podSecurityContext:
+  fsGroup: 1000
+
+# -- Security context
+securityContext:
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+

@@ -1,0 +1,97 @@
+---
+# Logos Ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: logos-ingress
+  namespace: logos
+  labels:
+    app.kubernetes.io/name: logos
+    app.kubernetes.io/part-of: logos
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/websocket-services: "logos-web,logos-chat"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    # CORS for IDE extensions
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "https://logos.yankee.dev"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization,X-PERSONA-Token"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - logos.yankee.dev
+        - "*.logos.yankee.dev"
+      secretName: logos-tls
+  rules:
+    - host: logos.yankee.dev
+      http:
+        paths:
+          # Main IDE
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: logos-web
+                port:
+                  number: 80
+          # Chat API and WebSocket
+          - path: /api/chat
+            pathType: Prefix
+            backend:
+              service:
+                name: logos-chat
+                port:
+                  number: 80
+          - path: /ws/chat
+            pathType: Prefix
+            backend:
+              service:
+                name: logos-chat
+                port:
+                  number: 8081
+          # Completion API
+          - path: /api/completion
+            pathType: Prefix
+            backend:
+              service:
+                name: logos-completion
+                port:
+                  number: 80
+          # CA API
+          - path: /api/ca
+            pathType: Prefix
+            backend:
+              service:
+                name: logos-ca
+                port:
+                  number: 80
+          # Audit API
+          - path: /api/audit
+            pathType: Prefix
+            backend:
+              service:
+                name: logos-audit
+                port:
+                  number: 80
+---
+# Certificate for TLS
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: logos-tls
+  namespace: logos
+spec:
+  secretName: logos-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  commonName: logos.yankee.dev
+  dnsNames:
+    - logos.yankee.dev
+    - "*.logos.yankee.dev"
+

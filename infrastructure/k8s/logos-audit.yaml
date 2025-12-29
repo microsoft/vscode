@@ -1,0 +1,128 @@
+---
+# Logos Audit Service Deployment
+# Handles comprehensive audit logging with PERSONA attestation
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: logos-audit
+  namespace: logos
+  labels:
+    app: logos-audit
+    app.kubernetes.io/name: logos-audit
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: logos
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: logos-audit
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: logos-audit
+        app.kubernetes.io/name: logos-audit
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+    spec:
+      serviceAccountName: logos-audit
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+        - name: logos-audit
+          image: logos/audit-service:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+            - name: grpc
+              containerPort: 50051
+              protocol: TCP
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+          env:
+            - name: PERSONA_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: logos-config
+                  key: persona_url
+            - name: POSTGRES_URL
+              valueFrom:
+                secretKeyRef:
+                  name: logos-secrets
+                  key: postgres_audit_url
+            - name: S3_BUCKET
+              valueFrom:
+                configMapKeyRef:
+                  name: logos-config
+                  key: audit_bucket
+            - name: RETENTION_DAYS
+              value: "90"
+            - name: ARCHIVE_RETENTION_YEARS
+              value: "7"
+            - name: BLOCKCHAIN_ANCHORING_ENABLED
+              value: "false"
+            - name: BLOCKCHAIN_BATCH_SIZE
+              value: "1000"
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "2Gi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes: []
+---
+# Logos Audit Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: logos-audit
+  namespace: logos
+  labels:
+    app: logos-audit
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+    - name: grpc
+      port: 50051
+      targetPort: grpc
+      protocol: TCP
+    - name: metrics
+      port: 9090
+      targetPort: metrics
+      protocol: TCP
+  selector:
+    app: logos-audit
+---
+# Service Account
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: logos-audit
+  namespace: logos
+

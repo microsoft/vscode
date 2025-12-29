@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "logos.fullname" . }}-config
+  labels:
+    {{- include "logos.labels" . | nindent 4 }}
+data:
+  # D3N Configuration
+  D3N_DEFAULT_TIER: "{{ .Values.d3n.defaultTier }}"
+  D3N_MAX_TIER: "{{ .Values.d3n.maxTier }}"
+  D3N_FLASH_APPS_ENABLED: "{{ .Values.d3n.flashApps.enabled }}"
+  D3N_CACHE_ENABLED: "{{ .Values.d3n.flashApps.cacheEnabled }}"
+  D3N_CACHE_TTL: "{{ .Values.d3n.flashApps.cacheTTLSeconds }}"
+  BMU_TARGET_USF: "{{ .Values.d3n.bmu.targetUSF }}"
+  BMU_LATENCY_BUDGET_MS: "{{ .Values.d3n.bmu.latencyBudgetMs }}"
+  
+  # ARIA Configuration
+  ARIA_APIF_ENABLED: "{{ .Values.aria.apifEnabled }}"
+  ARIA_AGENT_TIMEOUT_MS: "{{ .Values.aria.agentTimeoutMs }}"
+  
+  # PERSONA Configuration
+  PERSONA_PQC_ENABLED: "{{ .Values.persona.pqcEnabled }}"
+  PERSONA_SESSION_TIMEOUT_HOURS: "{{ .Values.persona.sessionTimeoutHours }}"
+  
+  # Workspace CA Configuration
+  CA_MAX_INSTANCES: "{{ .Values.ca.workspace.maxInstances }}"
+  CA_IDLE_TIMEOUT: "{{ .Values.ca.workspace.idleTimeout }}"
+  
+  # Audit Configuration
+  AUDIT_RETENTION_DAYS: "{{ .Values.audit.storage.retentionDays }}"
+  AUDIT_ENCRYPTION_ENABLED: "{{ .Values.audit.storage.encryptionEnabled }}"
+  
+  # Feature flags
+  FEATURE_MULTI_AGENT_CHAT: "true"
+  FEATURE_THREAD_BRANCHING: "true"
+  FEATURE_CONTEXT_INDICATOR: "true"
+  FEATURE_CODE_APPLY: "true"
+

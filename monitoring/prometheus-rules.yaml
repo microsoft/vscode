@@ -1,0 +1,172 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: logos-alerts
+  namespace: monitoring
+  labels:
+    app: logos
+spec:
+  groups:
+    - name: logos.availability
+      interval: 30s
+      rules:
+        - alert: LogosHighErrorRate
+          expr: |
+            sum(rate(logos_requests_total{status="error"}[5m]))
+            / sum(rate(logos_requests_total[5m])) > 0.05
+          for: 5m
+          labels:
+            severity: critical
+            service: logos
+          annotations:
+            summary: "High error rate in Logos"
+            description: "Error rate is {{ $value | humanizePercentage }} (threshold: 5%)"
+
+        - alert: LogosHighLatency
+          expr: |
+            histogram_quantile(0.99, sum(rate(logos_request_latency_seconds_bucket[5m])) by (le)) > 2
+          for: 5m
+          labels:
+            severity: warning
+            service: logos
+          annotations:
+            summary: "High latency in Logos"
+            description: "P99 latency is {{ $value | humanizeDuration }}"
+
+        - alert: LogosServiceDown
+          expr: |
+            up{job=~"logos-.*"} == 0
+          for: 2m
+          labels:
+            severity: critical
+            service: logos
+          annotations:
+            summary: "Logos service is down"
+            description: "{{ $labels.job }} has been down for more than 2 minutes"
+
+    - name: logos.d3n
+      interval: 30s
+      rules:
+        - alert: D3NTier3Overuse
+          expr: |
+            sum(rate(logos_tier_requests_total{tier="3"}[1h]))
+            / sum(rate(logos_tier_requests_total[1h])) > 0.4
+          for: 15m
+          labels:
+            severity: warning
+            service: logos
+          annotations:
+            summary: "High Tier 3 usage"
+            description: "Tier 3 usage is {{ $value | humanizePercentage }} (threshold: 40%)"
+
+        - alert: LowUSFScore
+          expr: |
+            avg(logos_usf_score) < 0.7
+          for: 10m
+          labels:
+            severity: warning
+            service: logos
+          annotations:
+            summary: "Low USF score"
+            description: "Average USF is {{ $value | printf \"%.2f\" }} (target: 0.85)"
+
+        - alert: FlashAppLowCacheHitRate
+          expr: |
+            sum(rate(logos_flash_app_cache_hits_total[1h]))
+            / sum(rate(logos_flash_app_executions_total[1h])) < 0.2
+          for: 30m
+          labels:
+            severity: warning
+            service: logos
+          annotations:
+            summary: "Low Flash App cache hit rate"
+            description: "Cache hit rate is {{ $value | humanizePercentage }}"
+
+    - name: logos.completion
+      interval: 30s
+      rules:
+        - alert: CompletionHighLatency
+          expr: |
+            histogram_quantile(0.95, sum(rate(logos_completion_latency_seconds_bucket[5m])) by (le)) > 0.5
+          for: 5m
+          labels:
+            severity: warning
+            service: logos-completion
+          annotations:
+            summary: "High completion latency"
+            description: "P95 completion latency is {{ $value | humanizeDuration }}"
+
+        - alert: CompletionLowAcceptanceRate
+          expr: |
+            sum(rate(logos_completion_accepted_total[1h]))
+            / sum(rate(logos_completion_shown_total[1h])) < 0.3
+          for: 1h
+          labels:
+            severity: info
+            service: logos-completion
+          annotations:
+            summary: "Low completion acceptance rate"
+            description: "Acceptance rate is {{ $value | humanizePercentage }}"
+
+    - name: logos.chat
+      interval: 30s
+      rules:
+        - alert: ChatHighResponseTime
+          expr: |
+            histogram_quantile(0.95, sum(rate(logos_chat_response_latency_seconds_bucket[5m])) by (le)) > 5
+          for: 5m
+          labels:
+            severity: warning
+            service: logos-chat
+          annotations:
+            summary: "High chat response time"
+            description: "P95 response time is {{ $value | humanizeDuration }}"
+
+        - alert: AgentInvocationFailures
+          expr: |
+            sum(rate(logos_agent_invocations_total{status="error"}[5m])) by (agent_id) > 0.1
+          for: 5m
+          labels:
+            severity: warning
+            service: logos-chat
+          annotations:
+            summary: "Agent invocation failures"
+            description: "{{ $labels.agent_id }} is failing at {{ $value | printf \"%.2f\" }} req/s"
+
+    - name: logos.resources
+      interval: 60s
+      rules:
+        - alert: HighCPUUsage
+          expr: |
+            sum(rate(container_cpu_usage_seconds_total{namespace="logos"}[5m])) by (pod)
+            / sum(container_spec_cpu_quota{namespace="logos"}/container_spec_cpu_period{namespace="logos"}) by (pod) > 0.85
+          for: 10m
+          labels:
+            severity: warning
+            service: logos
+          annotations:
+            summary: "High CPU usage"
+            description: "{{ $labels.pod }} CPU usage is {{ $value | humanizePercentage }}"
+
+        - alert: HighMemoryUsage
+          expr: |
+            sum(container_memory_working_set_bytes{namespace="logos"}) by (pod)
+            / sum(container_spec_memory_limit_bytes{namespace="logos"}) by (pod) > 0.9
+          for: 5m
+          labels:
+            severity: warning
+            service: logos
+          annotations:
+            summary: "High memory usage"
+            description: "{{ $labels.pod }} memory usage is {{ $value | humanizePercentage }}"
+
+        - alert: PodRestarts
+          expr: |
+            increase(kube_pod_container_status_restarts_total{namespace="logos"}[1h]) > 3
+          labels:
+            severity: warning
+            service: logos
+          annotations:
+            summary: "Pod restarts"
+            description: "{{ $labels.pod }} has restarted {{ $value }} times in the last hour"
+

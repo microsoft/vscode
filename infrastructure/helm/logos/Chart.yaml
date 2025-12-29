@@ -1,0 +1,36 @@
+apiVersion: v2
+name: logos
+description: Logos D3N-Native IDE - Helm chart for Kubernetes deployment
+
+type: application
+
+version: 0.1.0
+
+appVersion: "1.0.0"
+
+keywords:
+  - ide
+  - vscode
+  - d3n
+  - ai
+  - cognitive-architecture
+
+home: https://github.com/DeepCreative/Logos
+
+sources:
+  - https://github.com/DeepCreative/Logos
+
+maintainers:
+  - name: DeepCreative
+    email: platform@deepcreative.io
+
+dependencies:
+  - name: postgresql
+    version: "~14.0.0"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: postgresql.enabled
+  - name: redis
+    version: "~18.0.0"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: redis.enabled
+

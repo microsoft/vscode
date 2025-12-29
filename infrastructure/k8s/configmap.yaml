@@ -1,0 +1,110 @@
+---
+# Logos ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: logos-config
+  namespace: logos
+  labels:
+    app.kubernetes.io/name: logos
+    app.kubernetes.io/part-of: logos
+data:
+  # Service URLs
+  persona_url: "http://persona.persona.svc.cluster.local"
+  aria_url: "http://aria.aria.svc.cluster.local"
+  d3n_url: "http://d3n.d3n.svc.cluster.local"
+  athena_url: "http://athena.athena.svc.cluster.local"
+  carousel_url: "http://carousel.carousel.svc.cluster.local"
+  beeper_url: "http://beeper.beeper.svc.cluster.local"
+  
+  # Storage buckets
+  audit_bucket: "logos-audit-logs"
+  ca_state_bucket: "logos-ca-state"
+  workspace_bucket: "logos-workspaces"
+  
+  # D3N settings
+  d3n_default_tier: "2"
+  d3n_max_tier: "3"
+  usf_target: "0.85"
+  flash_apps_enabled: "true"
+  
+  # Audit settings
+  audit_retention_days: "90"
+  archive_retention_years: "7"
+  
+  # Feature flags
+  multi_agent_chat_enabled: "true"
+  workspace_ca_enabled: "true"
+  thread_branching_enabled: "true"
+---
+# Logos Agent Personas ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: logos-agent-personas
+  namespace: logos
+  labels:
+    app.kubernetes.io/name: logos
+    app.kubernetes.io/part-of: logos
+data:
+  conductor.yaml: |
+    persona_id: "logos.conductor"
+    name: "Conductor"
+    persona_class: "conductor"
+    tier: "orchestrator"
+    default_tier: 2
+    max_tier: 3
+    moe_preferences:
+      reasoning: 0.5
+      orchestration: 0.4
+      coding: 0.1
+    
+  swe.yaml: |
+    persona_id: "logos.swe"
+    name: "Software Engineer"
+    persona_class: "swe"
+    tier: "specialist"
+    default_tier: 2
+    max_tier: 3
+    moe_preferences:
+      coding: 0.6
+      reasoning: 0.3
+      documentation: 0.1
+    
+  data_analyst.yaml: |
+    persona_id: "logos.data_analyst"
+    name: "Data Analyst"
+    persona_class: "specialist"
+    tier: "specialist"
+    default_tier: 2
+    max_tier: 3
+    moe_preferences:
+      analysis: 0.5
+      visualization: 0.3
+      reasoning: 0.2
+    
+  researcher.yaml: |
+    persona_id: "logos.researcher"
+    name: "Researcher"
+    persona_class: "specialist"
+    tier: "specialist"
+    default_tier: 3
+    max_tier: 3
+    moe_preferences:
+      research: 0.6
+      synthesis: 0.3
+      reasoning: 0.1
+    
+  workspace_ca.yaml: |
+    persona_id: "logos.workspace_ca"
+    name: "Workspace CA"
+    persona_class: "cognitive_architect"
+    tier: "subsystem"
+    default_tier: 2
+    max_tier: 3
+    moe_preferences:
+      architecture: 0.4
+      documentation: 0.3
+      reasoning: 0.2
+      coding: 0.1
+

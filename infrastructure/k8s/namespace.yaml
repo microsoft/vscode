@@ -1,0 +1,61 @@
+---
+# Logos namespace configuration
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: logos
+  labels:
+    app.kubernetes.io/name: logos
+    app.kubernetes.io/part-of: yankee-platform
+    app.kubernetes.io/managed-by: helm
+  annotations:
+    description: "Logos D3N-native Web IDE"
+---
+# Resource quotas for the namespace
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: logos-quota
+  namespace: logos
+spec:
+  hard:
+    requests.cpu: "50"
+    requests.memory: 100Gi
+    limits.cpu: "100"
+    limits.memory: 200Gi
+    persistentvolumeclaims: "20"
+    pods: "100"
+---
+# Network policy for namespace isolation
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: logos-network-policy
+  namespace: logos
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: yankee-platform
+        - podSelector: {}
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: yankee-platform
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443
+

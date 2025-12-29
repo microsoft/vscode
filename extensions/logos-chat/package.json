@@ -1,0 +1,132 @@
+{
+  "name": "logos-chat",
+  "displayName": "Logos Multi-Agent Chat",
+  "description": "Multi-agent conversation interface for Logos IDE with ARIA agents",
+  "version": "1.0.0",
+  "publisher": "deepcreative",
+  "license": "UNLICENSED",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Machine Learning",
+    "Other"
+  ],
+  "keywords": [
+    "ai",
+    "chat",
+    "agent",
+    "d3n",
+    "logos"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "logos.chat.open",
+        "title": "Logos: Open Chat",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "logos.chat.newThread",
+        "title": "Logos: New Conversation"
+      },
+      {
+        "command": "logos.chat.mentionAgent",
+        "title": "Logos: Mention Agent"
+      },
+      {
+        "command": "logos.chat.branchThread",
+        "title": "Logos: Branch Conversation"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "logos-chat",
+          "title": "Logos Chat",
+          "icon": "$(comment-discussion)"
+        }
+      ]
+    },
+    "views": {
+      "logos-chat": [
+        {
+          "type": "webview",
+          "id": "logos.chatPanel",
+          "name": "Chat"
+        },
+        {
+          "id": "logos.threadList",
+          "name": "Threads"
+        }
+      ]
+    },
+    "menus": {
+      "editor/context": [
+        {
+          "command": "logos.chat.open",
+          "group": "logos"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "logos.chat.newThread",
+          "when": "view == logos.chatPanel",
+          "group": "navigation"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "logos.chat.open",
+        "key": "ctrl+shift+l",
+        "mac": "cmd+shift+l"
+      },
+      {
+        "command": "logos.chat.mentionAgent",
+        "key": "ctrl+shift+a",
+        "mac": "cmd+shift+a",
+        "when": "logos.chatFocused"
+      }
+    ],
+    "configuration": {
+      "title": "Logos Chat",
+      "properties": {
+        "logos.chat.defaultAgent": {
+          "type": "string",
+          "default": "logos.conductor",
+          "description": "Default agent to use when no agent is mentioned"
+        },
+        "logos.chat.showContext": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show editor context in chat"
+        },
+        "logos.chat.autoSaveThreads": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically save conversation threads"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "test": "node ./out/test/runTest.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.20.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.0"
+  }
+}
+

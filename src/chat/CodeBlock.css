@@ -1,0 +1,125 @@
+/**
+ * CodeBlock - Syntax highlighting and code display
+ */
+
+.logos-code-block {
+  margin: 12px 0;
+  border-radius: var(--logos-radius-md);
+  overflow: hidden;
+  background: var(--logos-bg-primary);
+  border: 1px solid var(--logos-border);
+}
+
+.code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--logos-bg-tertiary);
+  border-bottom: 1px solid var(--logos-border);
+}
+
+.code-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.code-filename {
+  font-family: 'SF Mono', Consolas, monospace;
+  font-size: 12px;
+  color: var(--logos-text-primary);
+  font-weight: 500;
+}
+
+.line-range {
+  color: var(--logos-text-muted);
+}
+
+.code-language {
+  font-size: 11px;
+  color: var(--logos-text-muted);
+  background: var(--logos-bg-secondary);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.code-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.code-action-button {
+  background: none;
+  border: 1px solid var(--logos-border);
+  color: var(--logos-text-secondary);
+  padding: 4px 8px;
+  border-radius: var(--logos-radius-sm);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.code-action-button:hover {
+  background: var(--logos-bg-secondary);
+  color: var(--logos-text-primary);
+}
+
+.code-action-button.apply {
+  border-color: var(--logos-accent-success);
+  color: var(--logos-accent-success);
+}
+
+.code-action-button.apply:hover {
+  background: rgba(63, 185, 80, 0.1);
+}
+
+.code-content {
+  overflow-x: auto;
+}
+
+.code-content pre {
+  margin: 0;
+  padding: 12px 0;
+}
+
+.code-content code {
+  font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.code-line {
+  display: flex;
+  padding: 0 12px;
+}
+
+.code-line:hover {
+  background: rgba(88, 166, 255, 0.05);
+}
+
+.line-number {
+  flex-shrink: 0;
+  width: 40px;
+  text-align: right;
+  padding-right: 16px;
+  color: var(--logos-text-muted);
+  user-select: none;
+  font-size: 12px;
+}
+
+.line-content {
+  flex: 1;
+  white-space: pre;
+}
+
+/* Syntax highlighting colors */
+.code-content .keyword { color: #ff7b72; }
+.code-content .string { color: #a5d6ff; }
+.code-content .number { color: #79c0ff; }
+.code-content .comment { color: #8b949e; font-style: italic; }
+.code-content .function { color: #d2a8ff; }
+.code-content .class-name { color: #ffa657; }
+.code-content .operator { color: #ff7b72; }
+.code-content .punctuation { color: #c9d1d9; }
+
