@@ -12,7 +12,7 @@
     "@vscode/spdlog": "^0.15.2",
     "@vscode/tree-sitter-wasm": "^0.3.0",
     "@vscode/vscode-languagedetection": "1.0.21",
-    "@vscode/watcher": "bpasero/watcher#89593fe05f69b1957e57e3a9155370999a7493ba",
+    "@vscode/watcher": "bpasero/watcher#8ecffb4a57df24ac3e6946aa095b9b1f14f8bba9",
     "@vscode/windows-process-tree": "^0.6.0",
     "@vscode/windows-registry": "^1.1.0",
     "@xterm/addon-clipboard": "^0.3.0-beta.22",

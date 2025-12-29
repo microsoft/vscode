@@ -1932,7 +1932,6 @@ export default tseslint.config(
 						'test/automation',
 						'test/smoke/**',
 						'@vscode/*',
-						'@parcel/*',
 						'@playwright/*',
 						'*' // node modules
 					]
@@ -1942,7 +1941,6 @@ export default tseslint.config(
 					'restrictions': [
 						'test/automation/**',
 						'@vscode/*',
-						'@parcel/*',
 						'playwright-core/**',
 						'@playwright/*',
 						'*' // node modules
@@ -1953,7 +1951,6 @@ export default tseslint.config(
 					'restrictions': [
 						'test/integration/**',
 						'@vscode/*',
-						'@parcel/*',
 						'@playwright/*',
 						'*' // node modules
 					]
@@ -1963,7 +1960,6 @@ export default tseslint.config(
 					'restrictions': [
 						'test/monaco/**',
 						'@vscode/*',
-						'@parcel/*',
 						'@playwright/*',
 						'*' // node modules
 					]
@@ -1974,7 +1970,6 @@ export default tseslint.config(
 						'test/automation',
 						'test/mcp/**',
 						'@vscode/*',
-						'@parcel/*',
 						'@playwright/*',
 						'@modelcontextprotocol/sdk/**/*',
 						'*' // node modules
