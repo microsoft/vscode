@@ -151,6 +151,12 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			}));
 		}
 
+		if (provider.onDidChangeChatSessionProviderOptions) {
+			disposables.add(provider.onDidChangeChatSessionProviderOptions(() => {
+				this._proxy.$onDidChangeChatSessionProviderOptions(handle);
+			}));
+		}
+
 		return new extHostTypes.Disposable(() => {
 			this._chatSessionContentProviders.delete(handle);
 			disposables.dispose();
