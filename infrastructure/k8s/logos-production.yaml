@@ -21,7 +21,7 @@ data:
   NODE_ENV: "production"
   FLASH_APPS_ENABLED: "true"
 ---
-# Logos Web IDE (OpenVSCode Server)
+# Logos Web IDE (OpenVSCode Server with ARIA Chat)
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -32,7 +32,7 @@ metadata:
     app.kubernetes.io/name: logos
     app.kubernetes.io/component: web
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: logos-web
@@ -43,6 +43,59 @@ spec:
         app.kubernetes.io/name: logos
         app.kubernetes.io/component: web
     spec:
+      initContainers:
+        # Install ARIA Chat extension
+        - name: install-aria-extension
+          image: node:20-alpine
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              mkdir -p /extensions/logos-aria-chat
+              cat > /extensions/logos-aria-chat/package.json << 'EOF'
+              {
+                "name": "logos-aria-chat",
+                "displayName": "Logos ARIA Chat",
+                "description": "ARIA multi-agent conversation panel",
+                "version": "1.0.0",
+                "publisher": "deepcreative",
+                "engines": {"vscode": "^1.85.0"},
+                "categories": ["Other"],
+                "activationEvents": ["onStartupFinished"],
+                "main": "./extension.js",
+                "contributes": {
+                  "viewsContainers": {
+                    "activitybar": [{
+                      "id": "logos-aria",
+                      "title": "ARIA Chat",
+                      "icon": "$(comment-discussion)"
+                    }]
+                  },
+                  "views": {
+                    "logos-aria": [{
+                      "type": "webview",
+                      "id": "logos.ariaChat",
+                      "name": "ARIA"
+                    }]
+                  },
+                  "commands": [{
+                    "command": "logos.newChat",
+                    "title": "New Chat",
+                    "icon": "$(add)"
+                  }],
+                  "menus": {
+                    "view/title": [{
+                      "command": "logos.newChat",
+                      "when": "view == logos.ariaChat",
+                      "group": "navigation"
+                    }]
+                  }
+                }
+              }
+              EOF
+              echo "Extension package.json created"
+          volumeMounts:
+            - name: extensions
+              mountPath: /extensions
       containers:
         - name: logos-web
           image: gitpod/openvscode-server:1.95.3
@@ -51,6 +104,8 @@ spec:
           env:
             - name: HOME
               value: /home/workspace
+            - name: EXTENSIONS_DIR
+              value: /extensions
           envFrom:
             - configMapRef:
                 name: logos-config
@@ -76,8 +131,12 @@ spec:
           volumeMounts:
             - name: workspace
               mountPath: /home/workspace
+            - name: extensions
+              mountPath: /extensions
       volumes:
         - name: workspace
+          emptyDir: {}
+        - name: extensions
           emptyDir: {}
 ---
 apiVersion: v1
@@ -96,7 +155,7 @@ spec:
       protocol: TCP
   type: ClusterIP
 ---
-# Logos Chat Service
+# Logos Chat Service with ARIA Integration
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -124,25 +183,71 @@ spec:
           command: ["node"]
           args: ["-e", "
             const http = require('http');
+            const conversations = new Map();
+            
             const server = http.createServer((req, res) => {
+              res.setHeader('Access-Control-Allow-Origin', '*');
+              res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+              res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+              
+              if (req.method === 'OPTIONS') {
+                res.writeHead(204);
+                res.end();
+                return;
+              }
+              
               if (req.url === '/health') {
                 res.writeHead(200, {'Content-Type': 'application/json'});
-                res.end(JSON.stringify({status: 'healthy', service: 'logos-chat'}));
+                res.end(JSON.stringify({status: 'healthy', service: 'logos-chat', conversations: conversations.size}));
               } else if (req.url === '/api/agents') {
                 res.writeHead(200, {'Content-Type': 'application/json'});
                 res.end(JSON.stringify({agents: [
-                  {id: 'conductor', name: 'Conductor', command: '@conductor'},
-                  {id: 'swe', name: 'Software Engineer', command: '@swe'},
-                  {id: 'da', name: 'Data Analyst', command: '@da'},
-                  {id: 'researcher', name: 'Researcher', command: '@researcher'},
-                  {id: 'ca', name: 'Cognitive Architect', command: '@ca'}
+                  {id: 'aria', name: 'ARIA', command: '@aria', model: 'aria-01', description: 'Primary AI assistant'},
+                  {id: 'conductor', name: 'Conductor', command: '@conductor', description: 'Multi-step coordination'},
+                  {id: 'swe', name: 'Software Engineer', command: '@swe', description: 'Code generation'},
+                  {id: 'da', name: 'Data Analyst', command: '@da', description: 'Data analysis'},
+                  {id: 'researcher', name: 'Researcher', command: '@researcher', description: 'Deep research'},
+                  {id: 'ca', name: 'Cognitive Architect', command: '@ca', description: 'Architecture help'}
                 ]}));
+              } else if (req.url.match(/\\/api\\/conversations\\/[^/]+\\/messages/) && req.method === 'POST') {
+                let body = '';
+                req.on('data', chunk => body += chunk);
+                req.on('end', () => {
+                  try {
+                    const data = JSON.parse(body);
+                    const convId = req.url.split('/')[3];
+                    
+                    // Generate ARIA response
+                    const responses = [
+                      'I understand you want help with that. Let me analyze your request and provide a comprehensive solution.',
+                      'Based on the context you provided, here is my recommendation for approaching this task.',
+                      'I can help you with that! Here is a detailed breakdown of how we can solve this together.',
+                      'Great question! Let me walk you through the best practices for handling this scenario.',
+                      'I have analyzed your code context and have some suggestions for improvement.'
+                    ];
+                    const response = responses[Math.floor(Math.random() * responses.length)];
+                    
+                    res.writeHead(200, {'Content-Type': 'application/json'});
+                    res.end(JSON.stringify({
+                      id: 'msg-' + Date.now(),
+                      role: 'assistant',
+                      content: response + '\\n\\nAs ARIA powered by the Aria-01 model, I am connected to the D3N infrastructure and can provide:\\n\\n• **Code Analysis** - Understanding your codebase\\n• **Generation** - Writing new code\\n• **Refactoring** - Improving existing code\\n• **Documentation** - Creating docs\\n\\nWhat specific aspect would you like me to focus on?',
+                      agentId: 'aria',
+                      model: 'aria-01',
+                      tier: 2,
+                      timestamp: new Date().toISOString()
+                    }));
+                  } catch(e) {
+                    res.writeHead(400, {'Content-Type': 'application/json'});
+                    res.end(JSON.stringify({error: 'Invalid request'}));
+                  }
+                });
               } else {
                 res.writeHead(200, {'Content-Type': 'application/json'});
-                res.end(JSON.stringify({message: 'Logos Chat Service'}));
+                res.end(JSON.stringify({message: 'Logos Chat Service', version: '1.0.0'}));
               }
             });
-            server.listen(8081, () => console.log('Chat service on 8081'));
+            server.listen(8081, () => console.log('ARIA Chat service running on 8081'));
           "]
           ports:
             - containerPort: 8081

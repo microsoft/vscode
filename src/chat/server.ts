@@ -59,7 +59,7 @@ app.post('/api/conversations/:id/messages', async (req: Request, res: Response) 
   const { content, agentId, context } = req.body;
 
   const messages = conversations.get(id) || [];
-  
+
   // Add user message
   const userMessage = {
     id: `msg-${Date.now()}`,
@@ -82,7 +82,7 @@ app.post('/api/conversations/:id/messages', async (req: Request, res: Response) 
     });
 
     const agentResponse = await response.json();
-    
+
     const assistantMessage = {
       id: `msg-${Date.now() + 1}`,
       role: 'assistant',
@@ -94,7 +94,7 @@ app.post('/api/conversations/:id/messages', async (req: Request, res: Response) 
     messages.push(assistantMessage);
 
     conversations.set(id, messages);
-    
+
     // Notify WebSocket clients
     const ws = activeConnections.get(id);
     if (ws && ws.readyState === WebSocket.OPEN) {
@@ -104,7 +104,7 @@ app.post('/api/conversations/:id/messages', async (req: Request, res: Response) 
     res.json(assistantMessage);
   } catch (error) {
     console.error('ARIA invocation failed:', error);
-    
+
     // Fallback response
     const fallbackMessage = {
       id: `msg-${Date.now() + 1}`,
@@ -115,7 +115,7 @@ app.post('/api/conversations/:id/messages', async (req: Request, res: Response) 
     };
     messages.push(fallbackMessage);
     conversations.set(id, messages);
-    
+
     res.json(fallbackMessage);
   }
 });
@@ -127,7 +127,7 @@ app.post('/api/conversations/:id/branch', (req: Request, res: Response) => {
 
   const messages = conversations.get(id) || [];
   const branchPoint = messages.findIndex((m) => m.id === fromMessageId);
-  
+
   if (branchPoint === -1) {
     return res.status(404).json({ error: 'Message not found' });
   }
@@ -147,10 +147,10 @@ const wss = new WebSocketServer({ server, path: '/ws' });
 
 wss.on('connection', (ws, req) => {
   const conversationId = new URL(req.url!, `http://${req.headers.host}`).searchParams.get('conversation');
-  
+
   if (conversationId) {
     activeConnections.set(conversationId, ws);
-    
+
     ws.on('close', () => {
       activeConnections.delete(conversationId);
     });

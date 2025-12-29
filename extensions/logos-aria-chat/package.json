@@ -1,0 +1,86 @@
+{
+  "name": "logos-aria-chat",
+  "displayName": "Logos ARIA Chat",
+  "description": "ARIA multi-agent conversation panel for Logos IDE",
+  "version": "1.0.0",
+  "publisher": "deepcreative",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "logos-aria",
+          "title": "ARIA Chat",
+          "icon": "$(comment-discussion)"
+        }
+      ]
+    },
+    "views": {
+      "logos-aria": [
+        {
+          "type": "webview",
+          "id": "logos.ariaChat",
+          "name": "ARIA",
+          "contextualTitle": "ARIA Chat"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "logos.newChat",
+        "title": "New Chat",
+        "icon": "$(add)"
+      },
+      {
+        "command": "logos.clearChat",
+        "title": "Clear Chat",
+        "icon": "$(trash)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "logos.newChat",
+          "when": "view == logos.ariaChat",
+          "group": "navigation"
+        },
+        {
+          "command": "logos.clearChat",
+          "when": "view == logos.ariaChat",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "ARIA Chat",
+      "properties": {
+        "logos.aria.endpoint": {
+          "type": "string",
+          "default": "http://logos-chat:8081",
+          "description": "ARIA Chat service endpoint"
+        },
+        "logos.aria.defaultModel": {
+          "type": "string",
+          "default": "aria-01",
+          "description": "Default ARIA model"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "build": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0"
+  }
+}
+

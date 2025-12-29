@@ -31,8 +31,8 @@ const CACHE_TTL = 300000; // 5 minutes
 
 // Health check
 app.get('/health', (_req: Request, res: Response) => {
-  res.json({ 
-    status: 'healthy', 
+  res.json({
+    status: 'healthy',
     service: 'logos-completion',
     flashAppsEnabled: FLASH_APPS_ENABLED,
     timestamp: new Date().toISOString(),
@@ -61,18 +61,18 @@ app.get('/metrics', (_req: Request, res: Response) => {
 // Determine tier based on query complexity
 function determineTier(prefix: string, suffix: string, language: string): number {
   const contextLength = (prefix?.length || 0) + (suffix?.length || 0);
-  
+
   // Simple heuristics for tier selection
   // Tier 1: Flash Apps - simple completions
   if (contextLength < 100) {
     return 1;
   }
-  
+
   // Tier 3: Full reasoning - complex code
   if (contextLength > 2000 || language === 'rust' || language === 'haskell') {
     return 3;
   }
-  
+
   // Tier 2: Default
   return 2;
 }
@@ -94,11 +94,11 @@ app.post('/api/completion', async (req: Request, res: Response) => {
   // Check cache
   const cacheKey = getCacheKey(prefix || '', language || 'plaintext');
   const cached = completionCache.get(cacheKey);
-  
+
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
     cacheHits++;
     tier1Requests++;
-    
+
     const latency = Date.now() - startTime;
     avgLatency = (avgLatency * (totalRequests - 1) + latency) / totalRequests;
 
@@ -112,7 +112,7 @@ app.post('/api/completion', async (req: Request, res: Response) => {
 
   // Determine tier
   const tier = determineTier(prefix || '', suffix || '', language || 'plaintext');
-  
+
   if (tier === 1) tier1Requests++;
   else if (tier === 2) tier2Requests++;
   else tier3Requests++;
@@ -162,7 +162,7 @@ app.post('/api/completion', async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('D3N completion failed:', error);
-    
+
     const latency = Date.now() - startTime;
     avgLatency = (avgLatency * (totalRequests - 1) + latency) / totalRequests;
 
@@ -182,9 +182,9 @@ app.post('/api/inline-completion', async (req: Request, res: Response) => {
 
   // Extract prefix and suffix from document
   const lines = document.split('\n');
-  const prefix = lines.slice(0, position.line).join('\n') + 
+  const prefix = lines.slice(0, position.line).join('\n') +
                  '\n' + lines[position.line].slice(0, position.character);
-  const suffix = lines[position.line].slice(position.character) + 
+  const suffix = lines[position.line].slice(position.character) +
                  '\n' + lines.slice(position.line + 1).join('\n');
 
   // Forward to main completion endpoint

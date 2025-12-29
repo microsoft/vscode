@@ -56,7 +56,7 @@ app.post('/api/events', (req: Request, res: Response) => {
   totalEvents++;
   const eventType = event.type || 'unknown';
   eventsByType.set(eventType, (eventsByType.get(eventType) || 0) + 1);
-  
+
   if (event.userId) {
     eventsByUser.set(event.userId, (eventsByUser.get(event.userId) || 0) + 1);
   }
@@ -207,10 +207,10 @@ app.get('/api/export', (req: Request, res: Response) => {
   }
 
   if (format === 'csv') {
-    const csv = events.map(e => 
+    const csv = events.map(e =>
       `${e.timestamp},${e.type},${e.userId || ''},${e.sessionId || ''},${JSON.stringify(e)}`
     ).join('\n');
-    
+
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', 'attachment; filename=audit-export.csv');
     res.send(`timestamp,type,userId,sessionId,data\n${csv}`);
