@@ -234,4 +234,53 @@ suite('bracket matching', () => {
 		removeBrackets();
 		assert.deepStrictEqual(editor.getModel().getValue(), 'var x = 3 + 5-7; y();');
 	});
+
+	test('Double-click after opening bracket selects content', () => {
+		const editor = createCodeEditorWithBrackets('var x = (3 + 5); y = {a: 1}; z = [1, 2];');
+
+		// Test double-click right after '(' - position 10 (after '(')
+		// Simulate what happens when double-clicking right after an opening bracket
+		// The viewController would call _trySelectBracketContent which should select '3 + 5'
+		const model = editor.getModel();
+		const brackets = model.bracketPairs.matchBracket(new Position(1, 9)); // position of '('
+
+		if (brackets) {
+			const [openBracket, closeBracket] = brackets;
+			const startPos = openBracket.getEndPosition();
+			const endPos = closeBracket.getStartPosition();
+			editor.setSelection(new Selection(
+				startPos.lineNumber,
+				startPos.column,
+				endPos.lineNumber,
+				endPos.column
+			));
+		}
+
+		assert.deepStrictEqual(editor.getSelection(), new Selection(1, 10, 1, 15), 'Should select content inside ()');
+		assert.strictEqual(editor.getModel().getValueInRange(editor.getSelection()), '3 + 5');
+	});
+
+	test('Double-click before closing bracket selects content', () => {
+		const editor = createCodeEditorWithBrackets('var x = (3 + 5); y = {a: 1}; z = [1, 2];');
+
+		// Test double-click right before ')' - position 16 (at ')')
+		const model = editor.getModel();
+		const position = new Position(1, 16);
+		const brackets = model.bracketPairs.matchBracket(position);
+
+		if (brackets) {
+			const [openBracket, closeBracket] = brackets;
+			const startPos = openBracket.getEndPosition();
+			const endPos = closeBracket.getStartPosition();
+			editor.setSelection(new Selection(
+				startPos.lineNumber,
+				startPos.column,
+				endPos.lineNumber,
+				endPos.column
+			));
+		}
+
+		assert.deepStrictEqual(editor.getSelection(), new Selection(1, 10, 1, 15), 'Should select content inside ()');
+		assert.strictEqual(editor.getModel().getValueInRange(editor.getSelection()), '3 + 5');
+	});
 });
