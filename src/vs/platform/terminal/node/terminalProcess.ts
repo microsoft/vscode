@@ -569,7 +569,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 	}
 
-	async setUnicodeVersion(version: '6' | '11'): Promise<void> {
+	async setUnicodeVersion(version: '6' | '11' | 'graphemes'): Promise<void> {
 		// No-op
 	}
 

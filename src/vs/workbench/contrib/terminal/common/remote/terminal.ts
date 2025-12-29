@@ -32,7 +32,7 @@ export interface ICreateTerminalProcessArguments {
 	options: ITerminalProcessOptions;
 	cols: number;
 	rows: number;
-	unicodeVersion: '6' | '11';
+	unicodeVersion: '6' | '11' | 'graphemes';
 	resolverEnv: { [key: string]: string | null } | undefined;
 }
 

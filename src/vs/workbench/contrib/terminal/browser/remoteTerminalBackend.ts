@@ -155,7 +155,7 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 		cwd: string, // TODO: This is ignored
 		cols: number,
 		rows: number,
-		unicodeVersion: '6' | '11',
+		unicodeVersion: '6' | '11' | 'graphemes',
 		env: IProcessEnvironment, // TODO: This is ignored
 		options: ITerminalProcessOptions,
 		shouldPersist: boolean

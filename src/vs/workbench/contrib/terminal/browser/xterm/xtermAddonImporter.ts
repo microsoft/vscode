@@ -10,6 +10,7 @@ import type { ProgressAddon as ProgressAddonType } from '@xterm/addon-progress';
 import type { SearchAddon as SearchAddonType } from '@xterm/addon-search';
 import type { SerializeAddon as SerializeAddonType } from '@xterm/addon-serialize';
 import type { Unicode11Addon as Unicode11AddonType } from '@xterm/addon-unicode11';
+import type { UnicodeGraphemesAddon as UnicodeGraphemesAddonType } from '@xterm/addon-unicode-graphemes';
 import type { WebglAddon as WebglAddonType } from '@xterm/addon-webgl';
 import { importAMDNodeModule } from '../../../../../amdX.js';
 
@@ -21,6 +22,7 @@ export interface IXtermAddonNameToCtor {
 	search: typeof SearchAddonType;
 	serialize: typeof SerializeAddonType;
 	unicode11: typeof Unicode11AddonType;
+	'unicode-graphemes': typeof UnicodeGraphemesAddonType;
 	webgl: typeof WebglAddonType;
 }
 
@@ -48,6 +50,7 @@ export class XtermAddonImporter {
 				case 'search': addon = (await importAMDNodeModule<typeof import('@xterm/addon-search')>('@xterm/addon-search', 'lib/addon-search.js')).SearchAddon as IXtermAddonNameToCtor[T]; break;
 				case 'serialize': addon = (await importAMDNodeModule<typeof import('@xterm/addon-serialize')>('@xterm/addon-serialize', 'lib/addon-serialize.js')).SerializeAddon as IXtermAddonNameToCtor[T]; break;
 				case 'unicode11': addon = (await importAMDNodeModule<typeof import('@xterm/addon-unicode11')>('@xterm/addon-unicode11', 'lib/addon-unicode11.js')).Unicode11Addon as IXtermAddonNameToCtor[T]; break;
+				case 'unicode-graphemes': addon = (await importAMDNodeModule<typeof import('@xterm/addon-unicode-graphemes')>('@xterm/addon-unicode-graphemes', 'lib/addon-unicode-graphemes.js')).UnicodeGraphemesAddon as IXtermAddonNameToCtor[T]; break;
 				case 'webgl': addon = (await importAMDNodeModule<typeof import('@xterm/addon-webgl')>('@xterm/addon-webgl', 'lib/addon-webgl.js')).WebglAddon as IXtermAddonNameToCtor[T]; break;
 			}
 			if (!addon) {

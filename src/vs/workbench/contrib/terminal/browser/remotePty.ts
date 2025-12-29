@@ -113,7 +113,7 @@ export class RemotePty extends BasePty implements ITerminalChildProcess {
 		});
 	}
 
-	async setUnicodeVersion(version: '6' | '11'): Promise<void> {
+	async setUnicodeVersion(version: '6' | '11' | 'graphemes'): Promise<void> {
 		return this._remoteTerminalChannel.setUnicodeVersion(this.id, version);
 	}
 

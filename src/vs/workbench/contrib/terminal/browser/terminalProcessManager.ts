@@ -590,7 +590,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		return this.ptyProcessReady.then(() => this._resize(cols, rows));
 	}
 
-	async setUnicodeVersion(version: '6' | '11'): Promise<void> {
+	async setUnicodeVersion(version: '6' | '11' | 'graphemes'): Promise<void> {
 		return this._process?.setUnicodeVersion(version);
 	}
 

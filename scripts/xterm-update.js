@@ -15,6 +15,7 @@ const moduleNames = [
 	'@xterm/addon-search',
 	'@xterm/addon-serialize',
 	'@xterm/addon-unicode11',
+	'@xterm/addon-unicode-graphemes',
 	'@xterm/addon-webgl',
 ];
 

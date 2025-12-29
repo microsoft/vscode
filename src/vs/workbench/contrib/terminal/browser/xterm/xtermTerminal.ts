@@ -6,6 +6,7 @@
 import type { IBuffer, ITerminalOptions, ITheme, Terminal as RawXtermTerminal, LogLevel as XtermLogLevel, IMarker as IXtermMarker } from '@xterm/xterm';
 import type { ISearchOptions, SearchAddon as SearchAddonType } from '@xterm/addon-search';
 import type { Unicode11Addon as Unicode11AddonType } from '@xterm/addon-unicode11';
+import type { UnicodeGraphemesAddon as UnicodeGraphemesAddonType } from '@xterm/addon-unicode-graphemes';
 import type { ILigatureOptions, LigaturesAddon as LigaturesAddonType } from '@xterm/addon-ligatures';
 import type { WebglAddon as WebglAddonType } from '@xterm/addon-webgl';
 import type { SerializeAddon as SerializeAddonType } from '@xterm/addon-serialize';
@@ -119,6 +120,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	// Optional addons
 	private _searchAddon?: SearchAddonType;
 	private _unicode11Addon?: Unicode11AddonType;
+	private _unicodeGraphemesAddon?: UnicodeGraphemesAddonType;
 	private _webglAddon?: WebglAddonType;
 	private _webglAddonCustomGlyphs?: boolean = false;
 	private _serializeAddon?: SerializeAddonType;
@@ -973,13 +975,20 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	}
 
 	private async _updateUnicodeVersion(): Promise<void> {
-		if (!this._unicode11Addon && this._terminalConfigurationService.config.unicodeVersion === '11') {
+		const unicodeVersion = this._terminalConfigurationService.config.unicodeVersion;
+		if (!this._unicode11Addon && unicodeVersion === '11') {
 			const Addon = await this._xtermAddonLoader.importAddon('unicode11');
 			this._unicode11Addon = new Addon();
 			this.raw.loadAddon(this._unicode11Addon);
 		}
-		if (this.raw.unicode.activeVersion !== this._terminalConfigurationService.config.unicodeVersion) {
-			this.raw.unicode.activeVersion = this._terminalConfigurationService.config.unicodeVersion;
+		if (!this._unicodeGraphemesAddon && unicodeVersion === 'graphemes') {
+			const Addon = await this._xtermAddonLoader.importAddon('unicode-graphemes');
+			this._unicodeGraphemesAddon = new Addon();
+			this.raw.loadAddon(this._unicodeGraphemesAddon);
+		}
+		const xtermVersion = unicodeVersion === 'graphemes' ? 'graphemes' : unicodeVersion;
+		if (this.raw.unicode.activeVersion !== xtermVersion) {
+			this.raw.unicode.activeVersion = xtermVersion;
 		}
 	}
 

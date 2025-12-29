@@ -183,7 +183,7 @@ export interface ITerminalConfiguration {
 	wordSeparators: string;
 	enableFileLinks: 'off' | 'on' | 'notRemote';
 	allowedLinkSchemes: string[];
-	unicodeVersion: '6' | '11';
+	unicodeVersion: '6' | '11' | 'graphemes';
 	enablePersistentSessions: boolean;
 	tabs: {
 		enabled: boolean;
@@ -302,7 +302,7 @@ export interface ITerminalProcessManager extends IDisposable, ITerminalProcessIn
 	setDimensions(cols: number, rows: number, sync: false): Promise<void>;
 	setDimensions(cols: number, rows: number, sync: true): void;
 	clearBuffer(): Promise<void>;
-	setUnicodeVersion(version: '6' | '11'): Promise<void>;
+	setUnicodeVersion(version: '6' | '11' | 'graphemes'): Promise<void>;
 	setNextCommandId(commandLine: string, commandId: string): Promise<void>;
 	acknowledgeDataEvent(charCount: number): void;
 	processBinary(data: string): void;

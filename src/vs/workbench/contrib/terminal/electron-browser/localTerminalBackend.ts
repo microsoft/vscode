@@ -205,7 +205,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		cwd: string,
 		cols: number,
 		rows: number,
-		unicodeVersion: '6' | '11',
+		unicodeVersion: '6' | '11' | 'graphemes',
 		env: IProcessEnvironment,
 		options: ITerminalProcessOptions,
 		shouldPersist: boolean

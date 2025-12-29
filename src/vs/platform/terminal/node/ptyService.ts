@@ -17,6 +17,7 @@ import { TerminalDataBufferer } from '../common/terminalDataBuffering.js';
 import { escapeNonWindowsPath } from '../common/terminalEnvironment.js';
 import type { ISerializeOptions, SerializeAddon as XtermSerializeAddon } from '@xterm/addon-serialize';
 import type { Unicode11Addon as XtermUnicode11Addon } from '@xterm/addon-unicode11';
+import type { UnicodeGraphemesAddon as XtermUnicodeGraphemesAddon } from '@xterm/addon-unicode-graphemes';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto } from '../common/terminalProcess.js';
 import { getWindowsBuildNumber } from './terminalEnvironment.js';
 import { TerminalProcess } from './terminalProcess.js';
@@ -73,6 +74,7 @@ type WorkspaceId = string;
 
 let SerializeAddon: typeof XtermSerializeAddon;
 let Unicode11Addon: typeof XtermUnicode11Addon;
+let UnicodeGraphemesAddon: typeof XtermUnicodeGraphemesAddon;
 
 export class PtyService extends Disposable implements IPtyService {
 	declare readonly _serviceBrand: undefined;
@@ -300,7 +302,7 @@ export class PtyService extends Disposable implements IPtyService {
 		cwd: string,
 		cols: number,
 		rows: number,
-		unicodeVersion: '6' | '11',
+		unicodeVersion: '6' | '11' | 'graphemes',
 		env: IProcessEnvironment,
 		executableEnv: IProcessEnvironment,
 		options: ITerminalProcessOptions,
@@ -458,7 +460,7 @@ export class PtyService extends Disposable implements IPtyService {
 		return this._throwIfNoPty(id).acknowledgeDataEvent(charCount);
 	}
 	@traceRpc
-	async setUnicodeVersion(id: number, version: '6' | '11'): Promise<void> {
+	async setUnicodeVersion(id: number, version: '6' | '11' | 'graphemes'): Promise<void> {
 		return this._throwIfNoPty(id).setUnicodeVersion(version);
 	}
 
@@ -748,7 +750,7 @@ class PersistentTerminalProcess extends Disposable {
 		cols: number,
 		rows: number,
 		readonly processLaunchOptions: IPersistentTerminalProcessLaunchConfig,
-		public unicodeVersion: '6' | '11',
+		public unicodeVersion: '6' | '11' | 'graphemes',
 		reconnectConstants: IReconnectConstants,
 		private readonly _logService: ILogService,
 		reviveBuffer: string | undefined,
@@ -898,7 +900,7 @@ class PersistentTerminalProcess extends Disposable {
 		this._serializer.clearBuffer();
 		this._terminalProcess.clearBuffer();
 	}
-	setUnicodeVersion(version: '6' | '11'): void {
+	setUnicodeVersion(version: '6' | '11' | 'graphemes'): void {
 		this.unicodeVersion = version;
 		this._serializer.setUnicodeVersion?.(version);
 		// TODO: Pass in unicode version in ctor
@@ -1013,12 +1015,13 @@ class XtermSerializer implements ITerminalSerializer {
 	private readonly _xterm: XtermTerminal;
 	private readonly _shellIntegrationAddon: ShellIntegrationAddon;
 	private _unicodeAddon?: XtermUnicode11Addon;
+	private _unicodeGraphemesAddon?: XtermUnicodeGraphemesAddon;
 
 	constructor(
 		cols: number,
 		rows: number,
 		scrollback: number,
-		unicodeVersion: '6' | '11',
+		unicodeVersion: '6' | '11' | 'graphemes',
 		reviveBufferWithRestoreMessage: string | undefined,
 		shellIntegrationNonce: string,
 		private _rawReviveBuffer: string | undefined,
@@ -1087,16 +1090,25 @@ class XtermSerializer implements ITerminalSerializer {
 		};
 	}
 
-	async setUnicodeVersion(version: '6' | '11'): Promise<void> {
+	async setUnicodeVersion(version: '6' | '11' | 'graphemes'): Promise<void> {
 		if (this._xterm.unicode.activeVersion === version) {
 			return;
 		}
 		if (version === '11') {
+			this._unicodeGraphemesAddon?.dispose();
+			this._unicodeGraphemesAddon = undefined;
 			this._unicodeAddon = new (await this._getUnicode11Constructor());
 			this._xterm.loadAddon(this._unicodeAddon);
+		} else if (version === 'graphemes') {
+			this._unicodeAddon?.dispose();
+			this._unicodeAddon = undefined;
+			this._unicodeGraphemesAddon = new (await this._getUnicodeGraphemesConstructor());
+			this._xterm.loadAddon(this._unicodeGraphemesAddon);
 		} else {
 			this._unicodeAddon?.dispose();
 			this._unicodeAddon = undefined;
+			this._unicodeGraphemesAddon?.dispose();
+			this._unicodeGraphemesAddon = undefined;
 		}
 		this._xterm.unicode.activeVersion = version;
 	}
@@ -1106,6 +1118,13 @@ class XtermSerializer implements ITerminalSerializer {
 			Unicode11Addon = (await import('@xterm/addon-unicode11')).Unicode11Addon;
 		}
 		return Unicode11Addon;
+	}
+
+	async _getUnicodeGraphemesConstructor(): Promise<typeof UnicodeGraphemesAddon> {
+		if (!UnicodeGraphemesAddon) {
+			UnicodeGraphemesAddon = (await import('@xterm/addon-unicode-graphemes')).UnicodeGraphemesAddon;
+		}
+		return UnicodeGraphemesAddon;
 	}
 
 	async _getSerializeConstructor(): Promise<typeof SerializeAddon> {
@@ -1145,6 +1164,6 @@ interface ITerminalSerializer {
 	handleResize(cols: number, rows: number): void;
 	clearBuffer(): void;
 	generateReplayEvent(normalBufferOnly?: boolean, restoreToLastReviveBuffer?: boolean): Promise<IPtyHostProcessReplayEvent>;
-	setUnicodeVersion?(version: '6' | '11'): void;
+	setUnicodeVersion?(version: '6' | '11' | 'graphemes'): void;
 	setNextCommandId?(commandLine: string, commandId: string): void;
 }

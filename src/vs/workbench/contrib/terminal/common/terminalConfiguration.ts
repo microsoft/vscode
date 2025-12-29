@@ -529,10 +529,11 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	},
 	[TerminalSettingId.UnicodeVersion]: {
 		type: 'string',
-		enum: ['6', '11'],
+		enum: ['6', '11', 'graphemes'],
 		enumDescriptions: [
 			localize('terminal.integrated.unicodeVersion.six', "Version 6 of Unicode. This is an older version which should work better on older systems."),
-			localize('terminal.integrated.unicodeVersion.eleven', "Version 11 of Unicode. This version provides better support on modern systems that use modern versions of Unicode.")
+			localize('terminal.integrated.unicodeVersion.eleven', "Version 11 of Unicode. This version provides better support on modern systems that use modern versions of Unicode."),
+			localize('terminal.integrated.unicodeVersion.graphemes', "Use Unicode graphemes for character width calculation. This provides the best support for complex characters and emoji.")
 		],
 		default: '11',
 		description: localize('terminal.integrated.unicodeVersion', "Controls what version of Unicode to use when evaluating the width of characters in the terminal. If you experience emoji or other wide characters not taking up the right amount of space or backspace either deleting too much or too little then you may want to try tweaking this setting.")

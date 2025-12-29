@@ -202,7 +202,7 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 		cwd: string,
 		cols: number,
 		rows: number,
-		unicodeVersion: '6' | '11',
+		unicodeVersion: '6' | '11' | 'graphemes',
 		env: IProcessEnvironment,
 		executableEnv: IProcessEnvironment,
 		options: ITerminalProcessOptions,
@@ -263,7 +263,7 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 	acknowledgeDataEvent(id: number, charCount: number): Promise<void> {
 		return this._proxy.acknowledgeDataEvent(id, charCount);
 	}
-	setUnicodeVersion(id: number, version: '6' | '11'): Promise<void> {
+	setUnicodeVersion(id: number, version: '6' | '11' | 'graphemes'): Promise<void> {
 		return this._proxy.setUnicodeVersion(id, version);
 	}
 	setNextCommandId(id: number, commandLine: string, commandId: string): Promise<void> {

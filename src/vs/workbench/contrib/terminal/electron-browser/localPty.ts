@@ -87,7 +87,7 @@ export class LocalPty extends BasePty implements ITerminalChildProcess {
 		this._proxy.acknowledgeDataEvent(this.id, charCount);
 	}
 
-	setUnicodeVersion(version: '6' | '11'): Promise<void> {
+	setUnicodeVersion(version: '6' | '11' | 'graphemes'): Promise<void> {
 		return this._proxy.setUnicodeVersion(this.id, version);
 	}
 

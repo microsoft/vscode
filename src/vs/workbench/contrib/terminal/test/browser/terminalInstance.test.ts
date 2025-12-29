@@ -87,7 +87,7 @@ class TestTerminalChildProcess extends Disposable implements ITerminalChildProce
 	resize(cols: number, rows: number): void { }
 	clearBuffer(): void { }
 	acknowledgeDataEvent(charCount: number): void { }
-	async setUnicodeVersion(version: '6' | '11'): Promise<void> { }
+	async setUnicodeVersion(version: '6' | '11' | 'graphemes'): Promise<void> { }
 	async getInitialCwd(): Promise<string> { return ''; }
 	async getCwd(): Promise<string> { return ''; }
 	async processBinary(data: string): Promise<void> { }
@@ -108,7 +108,7 @@ class TestTerminalInstanceService extends Disposable implements Partial<ITermina
 				cwd: string,
 				cols: number,
 				rows: number,
-				unicodeVersion: '6' | '11',
+				unicodeVersion: '6' | '11' | 'graphemes',
 				env: IProcessEnvironment,
 				options: ITerminalProcessOptions,
 				shouldPersist: boolean
