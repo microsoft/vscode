@@ -4,40 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-// Mock vscode module - must be before imports that use it
-vi.mock('vscode', () => {
-    const mockDisposable = { dispose: vi.fn() };
-    return {
-        commands: {
-            registerCommand: vi.fn(() => mockDisposable),
-            executeCommand: vi.fn()
-        },
-        window: {
-            showInformationMessage: vi.fn(),
-            showErrorMessage: vi.fn(),
-            createOutputChannel: vi.fn(() => ({
-                appendLine: vi.fn(),
-                show: vi.fn()
-            }))
-        },
-        workspace: {
-            getConfiguration: vi.fn(() => ({
-                get: vi.fn((key: string, defaultValue: any) => defaultValue)
-            }))
-        },
-        EventEmitter: class MockEventEmitter {
-            private listeners: Function[] = [];
-            event = (listener: Function) => {
-                this.listeners.push(listener);
-                return { dispose: () => {} };
-            };
-            fire(data: any) {
-                this.listeners.forEach(l => l(data));
-            }
-            dispose() {}
-        }
-    };
-});
+// Note: vscode mock is provided by global setup.ts
 
 // Mock child_process for AgentController's ClaudeAdapter
 vi.mock('child_process', () => {

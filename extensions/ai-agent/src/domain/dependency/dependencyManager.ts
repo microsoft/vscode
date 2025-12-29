@@ -9,6 +9,9 @@ import type { CLIType } from '../../types';
 
 const execAsync = promisify(exec);
 
+/** Timeout for CLI commands in milliseconds */
+const COMMAND_TIMEOUT = 5000;
+
 /**
  * Dependency status for a CLI
  */
@@ -160,9 +163,9 @@ export class DependencyManager {
     private async commandExists(cli: CLIType, info: CLIInfo): Promise<boolean> {
         try {
             if (this.isWindows && info.windowsCheckCommand) {
-                await execAsync(info.windowsCheckCommand);
+                await execAsync(info.windowsCheckCommand, { timeout: COMMAND_TIMEOUT });
             } else {
-                await execAsync(`which ${cli}`);
+                await execAsync(`which ${cli}`, { timeout: COMMAND_TIMEOUT });
             }
             return true;
         } catch {
@@ -175,7 +178,7 @@ export class DependencyManager {
      */
     private async getVersion(command: string): Promise<string | undefined> {
         try {
-            const { stdout } = await execAsync(command);
+            const { stdout } = await execAsync(command, { timeout: COMMAND_TIMEOUT });
             return stdout.trim();
         } catch {
             return undefined;

@@ -4,22 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce, isNonEmptyArray } from '../../../../base/common/arrays.js';
-import { Codicon } from '../../../../base/common/codicons.js';
+// Code Ship: Commented out - used only by disabled Chat view registration
+// import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Event } from '../../../../base/common/event.js';
 import { createCommandUri, MarkdownString } from '../../../../base/common/htmlContent.js';
-import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+// Code Ship: Commented out - used only by disabled Chat view registration
+// import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import * as strings from '../../../../base/common/strings.js';
-import { localize, localize2 } from '../../../../nls.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { localize } from '../../../../nls.js';
+// Code Ship: localize2 commented out - used only by disabled Chat view registration
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+// Code Ship: ContextKeyExpr commented out - used only by disabled Chat view registration
 import { ExtensionIdentifier, IExtensionManifest } from '../../../../platform/extensions/common/extensions.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
+// Code Ship: Commented out - used only by disabled Chat view registration
+// import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, ViewContainerLocation, Extensions as ViewExtensions } from '../../../common/views.js';
+// Code Ship: Reduced imports - only IViewsRegistry and Extensions are used
+import { IViewsRegistry, Extensions as ViewExtensions } from '../../../common/views.js';
 import { Extensions, IExtensionFeaturesRegistry, IExtensionFeatureTableRenderer, IRenderedData, IRowData, ITableData } from '../../../services/extensionManagement/common/extensionFeatures.js';
 import { isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import * as extensionsRegistry from '../../../services/extensions/common/extensionsRegistry.js';
@@ -29,11 +35,15 @@ import { IChatAgentData, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IRawChatParticipantContribution } from '../common/chatParticipantContribTypes.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
-import { ChatViewId, ChatViewContainerId } from './chat.js';
-import { ChatViewPane } from './chatViewPane.js';
+// Code Ship: ChatViewContainerId commented out - used only by disabled Chat view registration
+import { ChatViewId } from './chat.js';
+// Code Ship: Commented out - used only by disabled Chat view registration
+// import { ChatViewPane } from './chatViewPane.js';
 
 // --- Chat Container &  View Registration
-
+// Code Ship: Standard VS Code Chat is disabled.
+// Use CODE SHIP chat extension instead (extensions/ai-agent).
+/*
 const chatViewContainer: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 	id: ChatViewContainerId,
 	title: localize2('chat.viewContainer.label', "Chat"),
@@ -65,16 +75,20 @@ const chatViewDescriptor: IViewDescriptor = {
 		order: 1
 	},
 	ctorDescriptor: new SyncDescriptor(ChatViewPane),
-	when: ContextKeyExpr.or(
+	// Modified to respect chat.disableAIFeatures setting for Code Ship
+	when: ContextKeyExpr.and(
 		ContextKeyExpr.or(
-			ChatContextKeys.Setup.hidden,
-			ChatContextKeys.Setup.disabled
-		)?.negate(),
-		ChatContextKeys.panelParticipantRegistered,
-		ChatContextKeys.extensionInvalid
+			ContextKeyExpr.or(
+				ChatContextKeys.Setup.hidden,
+				ChatContextKeys.Setup.disabled
+			)?.negate(),
+			ChatContextKeys.extensionInvalid
+		),
+		ContextKeyExpr.has('config.chat.disableAIFeatures').negate()
 	)
 };
 Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([chatViewDescriptor], chatViewContainer);
+*/
 
 const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawChatParticipantContribution[]>({
 	extensionPoint: 'chatParticipants',

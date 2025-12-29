@@ -251,6 +251,15 @@ export class CodeApplication extends Disposable {
 				return true; // Only restrict top level page of webviews: index.html
 			}
 
+			// Allow extension webviews (they have extensionId in query params)
+			if (uri.query) {
+				const params = new URLSearchParams(uri.query);
+				const extensionId = params.get('extensionId');
+				if (extensionId) {
+					return true; // Extension webviews are allowed
+				}
+			}
+
 			const frame = details.frame;
 			if (!frame || !this.windowsMainService) {
 				return false;

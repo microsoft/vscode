@@ -22,6 +22,7 @@ export class ProcessManager implements Disposable {
     private process: ChildProcess | null = null;
     private _state: ProcessState = 'idle';
     private _pid: number | null = null;
+    private _timeoutId: NodeJS.Timeout | undefined;
 
     private readonly _onOutput = new EventEmitter<CLIOutput>();
     private readonly _onStateChange = new EventEmitter<ProcessState>();
@@ -67,7 +68,7 @@ export class ProcessManager implements Disposable {
         options: ProcessOptions = {}
     ): Promise<SpawnResult> {
         if (this.isRunning) {
-            throw new Error('Process already running. Kill it first.');
+            throw new Error(`Process already running (PID: ${this._pid}). Call kill() first before spawning a new process.`);
         }
 
         const mergedOptions = { ...DEFAULT_OPTIONS, ...options };
@@ -85,7 +86,7 @@ export class ProcessManager implements Disposable {
 
                 if (!this.process.pid) {
                     this.setState('error');
-                    reject(new Error('Failed to spawn process'));
+                    reject(new Error(`Failed to spawn process: '${command}' with args [${args.join(', ')}]. Check if the command exists and is executable.`));
                     return;
                 }
 
@@ -100,7 +101,7 @@ export class ProcessManager implements Disposable {
 
                 // Setup timeout if specified
                 if (mergedOptions.timeout) {
-                    setTimeout(() => {
+                    this._timeoutId = setTimeout(() => {
                         if (this.isRunning) {
                             this.kill();
                         }
@@ -243,6 +244,10 @@ export class ProcessManager implements Disposable {
      * Cleanup after process ends
      */
     private cleanup(): void {
+        if (this._timeoutId) {
+            clearTimeout(this._timeoutId);
+            this._timeoutId = undefined;
+        }
         this.process = null;
         this._pid = null;
         this.setState('idle');

@@ -19,11 +19,14 @@ export const mockWindow = {
             html: '',
             postMessage: vi.fn(),
             onDidReceiveMessage: vi.fn(() => ({ dispose: vi.fn() })),
-            asWebviewUri: vi.fn((uri: any) => uri)
+            asWebviewUri: vi.fn((uri: any) => uri),
+            cspSource: 'https://test.vscode-cdn.net'
         },
+        reveal: vi.fn(),
         dispose: vi.fn(),
         onDidDispose: vi.fn(() => ({ dispose: vi.fn() }))
-    }))
+    })),
+    registerWebviewViewProvider: vi.fn(() => ({ dispose: vi.fn() }))
 };
 
 export const mockCommands = {
@@ -42,6 +45,13 @@ export const mockWorkspace = {
         writeFile: vi.fn(),
         stat: vi.fn()
     }
+};
+
+export const mockEnv = {
+    language: 'en',
+    appName: 'Code Ship',
+    machineId: 'mock-machine-id',
+    uriScheme: 'codeship'
 };
 
 export class MockEventEmitter<T> {
@@ -72,7 +82,19 @@ export const mockDisposable = {
 
 export const mockUri = {
     file: vi.fn((path: string) => ({ fsPath: path, path })),
-    parse: vi.fn((str: string) => ({ fsPath: str, path: str }))
+    parse: vi.fn((str: string) => ({ fsPath: str, path: str })),
+    joinPath: vi.fn((...args: any[]) => ({
+        toString: () => args.join('/'),
+        fsPath: args.join('/')
+    }))
+};
+
+export const mockViewColumn = {
+    One: 1,
+    Two: 2,
+    Three: 3,
+    Beside: 2,
+    Active: -1
 };
 
 export function createMockExtensionContext() {

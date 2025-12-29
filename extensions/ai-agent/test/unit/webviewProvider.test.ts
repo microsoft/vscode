@@ -40,6 +40,12 @@ vi.mock('vscode', () => ({
         createWebviewPanel: vi.fn(() => mockWebviewPanel),
         registerWebviewViewProvider: vi.fn(() => ({ dispose: vi.fn() }))
     },
+    env: {
+        language: 'en',
+        appName: 'Code Ship',
+        machineId: 'mock-machine-id',
+        uriScheme: 'codeship'
+    },
     EventEmitter: class MockEventEmitter {
         private listeners: Function[] = [];
         event = (listener: Function) => {

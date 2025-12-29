@@ -26,11 +26,20 @@ export interface OverlayHandle extends IDisposable {
  * Internal API for Code Ship AI Agent extension
  * This interface provides privileged access to VS Code internals
  * that are not available through the standard Extension API.
+ *
+ * Implementation Status:
+ * - Phase 2 (Current): Basic handler registration and event firing
+ * - Phase 3 (Planned): Full command interception, DOM overlays, native events
  */
 export interface IExtHostAIAgent {
 	/**
 	 * Intercept a command before it executes.
 	 * The handler receives the command arguments and returns whether to proceed.
+	 *
+	 * NOTE: Phase 2 implementation provides handler registration and shouldAllowCommand()
+	 * checking. Full integration with VS Code's command service (to actually block
+	 * commands) will be implemented in Phase 3.
+	 *
 	 * @param commandId The command to intercept (e.g., 'workbench.action.files.save')
 	 * @param handler Async function that returns true to allow, false to cancel
 	 * @returns Disposable to unregister the interceptor
@@ -39,6 +48,10 @@ export interface IExtHostAIAgent {
 
 	/**
 	 * Request access to create overlay widgets in the editor area.
+	 *
+	 * NOTE: Phase 2 provides a stub implementation. Full DOM overlay rendering
+	 * will be implemented in Phase 3 with MainThread proxy integration.
+	 *
 	 * @returns Promise resolving to an OverlayHandle for managing the overlay
 	 */
 	requestOverlayAccess(): Promise<OverlayHandle>;
@@ -107,22 +120,37 @@ export class ExtHostAIAgent extends Disposable implements IExtHostAIAgent {
 		return true;
 	}
 
+	/**
+	 * Request access to create overlay widgets.
+	 *
+	 * NOTE: This is a stub implementation for Phase 2.
+	 * Full DOM overlay functionality will be implemented in Phase 3 ("The Body"),
+	 * which requires MainThread proxy integration for:
+	 * - Position updates relative to editor viewport
+	 * - HTML content rendering in overlay layer
+	 * - Lifecycle management with MainThread
+	 *
+	 * Current behavior: Returns a handle that logs operations but does not
+	 * actually render overlays in the editor.
+	 */
 	async requestOverlayAccess(): Promise<OverlayHandle> {
 		const id = `ai-agent-overlay-${++this._overlayIdCounter}`;
+
+		console.warn(`[ExtHostAIAgent] Overlay API is a stub implementation. Full functionality coming in Phase 3.`);
 
 		const handle: OverlayHandle = {
 			id,
 			updatePosition: (line: number, column: number) => {
-				// TODO: Implement position update via MainThread
-				console.log(`[ExtHostAIAgent] Overlay ${id} position: ${line}:${column}`);
+				// Phase 3: Implement position update via MainThread proxy
+				console.log(`[ExtHostAIAgent] Overlay ${id} position: ${line}:${column} (stub - not rendered)`);
 			},
 			updateContent: (html: string) => {
-				// TODO: Implement content update via MainThread
-				console.log(`[ExtHostAIAgent] Overlay ${id} content updated`);
+				// Phase 3: Implement content update via MainThread proxy
+				console.log(`[ExtHostAIAgent] Overlay ${id} content updated (stub - not rendered)`);
 			},
 			dispose: () => {
 				this._overlays.delete(id);
-				// TODO: Notify MainThread to remove overlay
+				// Phase 3: Notify MainThread to remove overlay from DOM
 				console.log(`[ExtHostAIAgent] Overlay ${id} disposed`);
 			}
 		};

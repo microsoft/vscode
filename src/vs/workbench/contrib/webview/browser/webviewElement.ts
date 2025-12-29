@@ -432,7 +432,8 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 			parentOrigin: targetWindow.origin,
 		};
 
-		if (this._options.disableServiceWorker) {
+		// Disable service worker for extension webviews to prevent content blocking
+		if (this._options.disableServiceWorker || extension) {
 			params.disableServiceWorker = 'true';
 		}
 

@@ -46,6 +46,12 @@ vi.mock('vscode', () => {
                 uri: { fsPath: '/test/workspace' }
             }]
         },
+        env: {
+            language: 'en',
+            appName: 'Code Ship',
+            machineId: 'mock-machine-id',
+            uriScheme: 'codeship'
+        },
         Uri: {
             joinPath: vi.fn((...args: any[]) => ({
                 fsPath: args.map((a: any) => a.fsPath || a).join('/'),
