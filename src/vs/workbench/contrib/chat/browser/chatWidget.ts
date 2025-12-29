@@ -227,6 +227,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private lastItem: ChatTreeItem | undefined;
 
 	private readonly visibilityTimeoutDisposable: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
+	private readonly visibilityAnimationFrameDisposable: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
+	private readonly scrollAnimationFrameDisposable: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 
 	private readonly inputPartDisposable: MutableDisposable<ChatInputPart> = this._register(new MutableDisposable());
 	private readonly inlineInputPartDisposable: MutableDisposable<ChatInputPart> = this._register(new MutableDisposable());
@@ -1438,9 +1440,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					}
 				}, 0);
 
-				this._register(dom.scheduleAtNextAnimationFrame(dom.getWindow(this.listContainer), () => {
+				this.visibilityAnimationFrameDisposable.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(this.listContainer), () => {
 					this._onDidShow.fire();
-				}));
+				});
 			}
 		} else if (wasVisible) {
 			this._onDidHide.fire();
@@ -1797,11 +1799,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				// Consider the tree to be scrolled all the way down if it is within 2px of the bottom.
 				const lastElementWasVisible = this.tree.scrollTop + this.tree.renderHeight >= this.previousTreeScrollHeight - 2;
 				if (lastElementWasVisible) {
-					this._register(dom.scheduleAtNextAnimationFrame(dom.getWindow(this.listContainer), () => {
+					this.scrollAnimationFrameDisposable.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(this.listContainer), () => {
 						// Can't set scrollTop during this event listener, the list might overwrite the change
 
 						this.scrollToEnd();
-					}, 0));
+					}, 0);
 				}
 			}
 		}
