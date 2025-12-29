@@ -43,69 +43,15 @@ spec:
         app.kubernetes.io/name: logos
         app.kubernetes.io/component: web
     spec:
-      initContainers:
-        # Install ARIA Chat extension
-        - name: install-aria-extension
-          image: node:20-alpine
-          command: ["/bin/sh", "-c"]
-          args:
-            - |
-              mkdir -p /extensions/logos-aria-chat
-              cat > /extensions/logos-aria-chat/package.json << 'EOF'
-              {
-                "name": "logos-aria-chat",
-                "displayName": "Logos ARIA Chat",
-                "description": "ARIA multi-agent conversation panel",
-                "version": "1.0.0",
-                "publisher": "deepcreative",
-                "engines": {"vscode": "^1.85.0"},
-                "categories": ["Other"],
-                "activationEvents": ["onStartupFinished"],
-                "main": "./extension.js",
-                "contributes": {
-                  "viewsContainers": {
-                    "activitybar": [{
-                      "id": "logos-aria",
-                      "title": "ARIA Chat",
-                      "icon": "$(comment-discussion)"
-                    }]
-                  },
-                  "views": {
-                    "logos-aria": [{
-                      "type": "webview",
-                      "id": "logos.ariaChat",
-                      "name": "ARIA"
-                    }]
-                  },
-                  "commands": [{
-                    "command": "logos.newChat",
-                    "title": "New Chat",
-                    "icon": "$(add)"
-                  }],
-                  "menus": {
-                    "view/title": [{
-                      "command": "logos.newChat",
-                      "when": "view == logos.ariaChat",
-                      "group": "navigation"
-                    }]
-                  }
-                }
-              }
-              EOF
-              echo "Extension package.json created"
-          volumeMounts:
-            - name: extensions
-              mountPath: /extensions
       containers:
         - name: logos-web
-          image: gitpod/openvscode-server:1.95.3
+          image: 113513624033.dkr.ecr.us-east-1.amazonaws.com/logos-web:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 3000
           env:
             - name: HOME
               value: /home/workspace
-            - name: EXTENSIONS_DIR
-              value: /extensions
           envFrom:
             - configMapRef:
                 name: logos-config
@@ -131,12 +77,8 @@ spec:
           volumeMounts:
             - name: workspace
               mountPath: /home/workspace
-            - name: extensions
-              mountPath: /extensions
       volumes:
         - name: workspace
-          emptyDir: {}
-        - name: extensions
           emptyDir: {}
 ---
 apiVersion: v1
@@ -184,18 +126,18 @@ spec:
           args: ["-e", "
             const http = require('http');
             const conversations = new Map();
-            
+
             const server = http.createServer((req, res) => {
               res.setHeader('Access-Control-Allow-Origin', '*');
               res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
               res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-              
+
               if (req.method === 'OPTIONS') {
                 res.writeHead(204);
                 res.end();
                 return;
               }
-              
+
               if (req.url === '/health') {
                 res.writeHead(200, {'Content-Type': 'application/json'});
                 res.end(JSON.stringify({status: 'healthy', service: 'logos-chat', conversations: conversations.size}));
@@ -216,7 +158,7 @@ spec:
                   try {
                     const data = JSON.parse(body);
                     const convId = req.url.split('/')[3];
-                    
+
                     // Generate ARIA response
                     const responses = [
                       'I understand you want help with that. Let me analyze your request and provide a comprehensive solution.',
@@ -226,7 +168,7 @@ spec:
                       'I have analyzed your code context and have some suggestions for improvement.'
                     ];
                     const response = responses[Math.floor(Math.random() * responses.length)];
-                    
+
                     res.writeHead(200, {'Content-Type': 'application/json'});
                     res.end(JSON.stringify({
                       id: 'msg-' + Date.now(),

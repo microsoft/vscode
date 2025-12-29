@@ -120,7 +120,7 @@ class AriaChatViewProvider implements vscode.WebviewViewProvider {
     // Send to ARIA backend
     try {
       const endpoint = vscode.workspace.getConfiguration('logos.aria').get('endpoint', '/api/chat');
-      
+
       // Get editor context
       const editor = vscode.window.activeTextEditor;
       const context = editor ? {
@@ -140,7 +140,12 @@ class AriaChatViewProvider implements vscode.WebviewViewProvider {
         }),
       });
 
-      const result = await response.json();
+      const result = await response.json() as {
+        id?: string;
+        content?: string;
+        response?: string;
+        tier?: number;
+      };
 
       // Add assistant response
       const assistantMessage: Message = {
@@ -209,13 +214,13 @@ class AriaChatViewProvider implements vscode.WebviewViewProvider {
       --space-sm: 8px;
       --space-md: 16px;
     }
-    
+
     * {
       margin: 0;
       padding: 0;
       box-sizing: border-box;
     }
-    
+
     body {
       font-family: var(--font-sans);
       background: var(--bg-primary);
@@ -225,7 +230,7 @@ class AriaChatViewProvider implements vscode.WebviewViewProvider {
       flex-direction: column;
       font-size: 13px;
     }
-    
+
     .header {
       padding: var(--space-sm) var(--space-md);
       border-bottom: 1px solid var(--border-subtle);
@@ -234,7 +239,7 @@ class AriaChatViewProvider implements vscode.WebviewViewProvider {
       align-items: center;
       gap: var(--space-sm);
     }
-    
+
     .header-title {
       font-weight: 600;
       font-size: 12px;
@@ -242,7 +247,7 @@ class AriaChatViewProvider implements vscode.WebviewViewProvider {
       letter-spacing: 0.05em;
       color: var(--text-secondary);
     }
-    
+
     .new-chat-btn {
       background: var(--bg-tertiary);
       border: 1px solid var(--border-medium);
@@ -258,19 +263,19 @@ class AriaChatViewProvider implements vscode.WebviewViewProvider {
       transition: all 0.15s ease;
       margin-left: auto;
     }
-    
+
     .new-chat-btn:hover {
       background: var(--bg-hover);
       border-color: var(--accent-primary);
     }
-    
+
     .conversations-list {
       flex-shrink: 0;
       max-height: 150px;
       overflow-y: auto;
       border-bottom: 1px solid var(--border-subtle);
     }
-    
+
     .conversation-item {
       padding: var(--space-sm) var(--space-md);
       cursor: pointer;
@@ -280,16 +285,16 @@ class AriaChatViewProvider implements vscode.WebviewViewProvider {
       transition: background 0.1s ease;
       border-left: 2px solid transparent;
     }
-    
+
     .conversation-item:hover {
       background: var(--bg-hover);
     }
-    
+
     .conversation-item.active {
       background: var(--bg-tertiary);
       border-left-color: var(--accent-primary);
     }
-    
+
     .conversation-title {
       flex: 1;
       white-space: nowrap;
@@ -297,12 +302,12 @@ class AriaChatViewProvider implements vscode.WebviewViewProvider {
       text-overflow: ellipsis;
       font-size: 12px;
     }
-    
+
     .conversation-time {
       font-size: 10px;
       color: var(--text-muted);
     }
-    
+
     .messages-container {
       flex: 1;
       overflow-y: auto;
@@ -311,18 +316,18 @@ class AriaChatViewProvider implements vscode.WebviewViewProvider {
       flex-direction: column;
       gap: var(--space-md);
     }
-    
+
     .message {
       display: flex;
       gap: var(--space-sm);
       animation: slideIn 0.2s ease;
     }
-    
+
     @keyframes slideIn {
       from { opacity: 0; transform: translateY(8px); }
       to { opacity: 1; transform: translateY(0); }
     }
-    
+
     .message-avatar {
       width: 28px;
       height: 28px;
@@ -335,33 +340,33 @@ class AriaChatViewProvider implements vscode.WebviewViewProvider {
       font-size: 12px;
       flex-shrink: 0;
     }
-    
+
     .message.user .message-avatar {
       background: var(--bg-elevated);
     }
-    
+
     .message.assistant .message-avatar {
       background: var(--bg-tertiary);
       color: var(--status-success);
     }
-    
+
     .message-content {
       flex: 1;
       min-width: 0;
     }
-    
+
     .message-header {
       display: flex;
       align-items: center;
       gap: var(--space-sm);
       margin-bottom: 4px;
     }
-    
+
     .message-sender {
       font-weight: 600;
       font-size: 12px;
     }
-    
+
     .message-model {
       font-size: 10px;
       color: var(--text-muted);
@@ -370,14 +375,14 @@ class AriaChatViewProvider implements vscode.WebviewViewProvider {
       background: var(--bg-tertiary);
       border-radius: 3px;
     }
-    
+
     .message-text {
       font-size: 13px;
       line-height: 1.5;
       white-space: pre-wrap;
       word-wrap: break-word;
     }
-    
+
     .message-text code {
       background: var(--bg-tertiary);
       padding: 1px 4px;
@@ -385,17 +390,17 @@ class AriaChatViewProvider implements vscode.WebviewViewProvider {
       font-family: var(--font-mono);
       font-size: 12px;
     }
-    
+
     .message-text strong {
       font-weight: 600;
     }
-    
+
     .input-container {
       padding: var(--space-md);
       border-top: 1px solid var(--border-subtle);
       background: var(--bg-secondary);
     }
-    
+
     .input-wrapper {
       display: flex;
       gap: var(--space-sm);
@@ -404,11 +409,11 @@ class AriaChatViewProvider implements vscode.WebviewViewProvider {
       border: 1px solid var(--border-medium);
       border-radius: var(--radius-md);
     }
-    
+
     .input-wrapper:focus-within {
       border-color: var(--accent-primary);
     }
-    
+
     #messageInput {
       flex: 1;
       background: transparent;
@@ -421,11 +426,11 @@ class AriaChatViewProvider implements vscode.WebviewViewProvider {
       min-height: 20px;
       max-height: 120px;
     }
-    
+
     #messageInput::placeholder {
       color: var(--text-muted);
     }
-    
+
     .send-btn {
       background: var(--accent-primary);
       border: none;
@@ -439,16 +444,16 @@ class AriaChatViewProvider implements vscode.WebviewViewProvider {
       justify-content: center;
       transition: opacity 0.15s ease;
     }
-    
+
     .send-btn:hover {
       opacity: 0.9;
     }
-    
+
     .send-btn:disabled {
       opacity: 0.4;
       cursor: not-allowed;
     }
-    
+
     .empty-state {
       flex: 1;
       display: flex;
@@ -459,31 +464,31 @@ class AriaChatViewProvider implements vscode.WebviewViewProvider {
       padding: var(--space-md);
       color: var(--text-muted);
     }
-    
+
     .empty-state-icon {
       font-size: 32px;
       margin-bottom: var(--space-md);
     }
-    
+
     .empty-state-title {
       font-weight: 600;
       color: var(--text-primary);
       margin-bottom: var(--space-xs);
     }
-    
+
     .empty-state-text {
       font-size: 12px;
       max-width: 200px;
     }
-    
+
     ::-webkit-scrollbar {
       width: 6px;
     }
-    
+
     ::-webkit-scrollbar-track {
       background: transparent;
     }
-    
+
     ::-webkit-scrollbar-thumb {
       background: var(--border-medium);
       border-radius: 3px;
@@ -498,9 +503,9 @@ class AriaChatViewProvider implements vscode.WebviewViewProvider {
       New Chat
     </button>
   </div>
-  
+
   <div class="conversations-list" id="conversationsList"></div>
-  
+
   <div class="messages-container" id="messagesContainer">
     <div class="empty-state">
       <div class="empty-state-icon">⚡</div>
@@ -508,12 +513,12 @@ class AriaChatViewProvider implements vscode.WebviewViewProvider {
       <div class="empty-state-text">Start a new conversation with ARIA, powered by the Aria-01 model</div>
     </div>
   </div>
-  
+
   <div class="input-container">
     <div class="input-wrapper">
-      <textarea 
-        id="messageInput" 
-        placeholder="Message ARIA..." 
+      <textarea
+        id="messageInput"
+        placeholder="Message ARIA..."
         rows="1"
         onkeydown="handleKeyDown(event)"
       ></textarea>
@@ -522,42 +527,42 @@ class AriaChatViewProvider implements vscode.WebviewViewProvider {
       </button>
     </div>
   </div>
-  
+
   <script>
     const vscode = acquireVsCodeApi();
     let conversations = [];
     let activeConversationId = null;
-    
+
     function newChat() {
       vscode.postMessage({ type: 'newChat' });
     }
-    
+
     function selectConversation(id) {
       vscode.postMessage({ type: 'selectConversation', conversationId: id });
     }
-    
+
     function sendMessage() {
       const input = document.getElementById('messageInput');
       const message = input.value.trim();
       if (!message || !activeConversationId) return;
-      
+
       vscode.postMessage({
         type: 'sendMessage',
         message: message,
         conversationId: activeConversationId
       });
-      
+
       input.value = '';
       input.style.height = 'auto';
     }
-    
+
     function handleKeyDown(e) {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         sendMessage();
       }
     }
-    
+
     function formatMessage(text) {
       // Simple markdown-like formatting
       return text
@@ -565,22 +570,22 @@ class AriaChatViewProvider implements vscode.WebviewViewProvider {
         .replace(/\`(.*?)\`/g, '<code>$1</code>')
         .replace(/• /g, '• ');
     }
-    
+
     function render() {
       // Render conversations list
       const listEl = document.getElementById('conversationsList');
       listEl.innerHTML = conversations.map(conv => \`
-        <div class="conversation-item \${conv.id === activeConversationId ? 'active' : ''}" 
+        <div class="conversation-item \${conv.id === activeConversationId ? 'active' : ''}"
              onclick="selectConversation('\${conv.id}')">
           <span class="conversation-title">\${conv.title}</span>
           <span class="conversation-time">\${getRelativeTime(conv.createdAt)}</span>
         </div>
       \`).join('');
-      
+
       // Render messages
       const messagesEl = document.getElementById('messagesContainer');
       const activeConv = conversations.find(c => c.id === activeConversationId);
-      
+
       if (!activeConv || activeConv.messages.length === 0) {
         messagesEl.innerHTML = \`
           <div class="empty-state">
@@ -591,7 +596,7 @@ class AriaChatViewProvider implements vscode.WebviewViewProvider {
         \`;
         return;
       }
-      
+
       messagesEl.innerHTML = activeConv.messages.map(msg => \`
         <div class="message \${msg.role}">
           <div class="message-avatar">
@@ -606,24 +611,24 @@ class AriaChatViewProvider implements vscode.WebviewViewProvider {
           </div>
         </div>
       \`).join('');
-      
+
       // Scroll to bottom
       messagesEl.scrollTop = messagesEl.scrollHeight;
     }
-    
+
     function getRelativeTime(dateStr) {
       const date = new Date(dateStr);
       const now = new Date();
       const diffMs = now - date;
       const diffMins = Math.floor(diffMs / 60000);
-      
+
       if (diffMins < 1) return 'now';
       if (diffMins < 60) return diffMins + 'm';
       const diffHours = Math.floor(diffMins / 60);
       if (diffHours < 24) return diffHours + 'h';
       return Math.floor(diffHours / 24) + 'd';
     }
-    
+
     // Handle messages from extension
     window.addEventListener('message', event => {
       const message = event.data;
@@ -633,7 +638,7 @@ class AriaChatViewProvider implements vscode.WebviewViewProvider {
         render();
       }
     });
-    
+
     // Auto-resize textarea
     document.getElementById('messageInput').addEventListener('input', function() {
       this.style.height = 'auto';

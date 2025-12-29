@@ -1,6 +1,16 @@
 # Logos Web IDE Dockerfile
 # Based on OpenVSCode Server with Logos customizations
-FROM gitpod/openvscode-server:1.95.3 AS base
+
+# Stage 1: Build ARIA Chat extension
+FROM node:20-alpine AS extension-builder
+WORKDIR /build/logos-aria-chat
+COPY extensions/logos-aria-chat/package*.json ./
+RUN npm install
+COPY extensions/logos-aria-chat/ ./
+RUN npm run compile
+
+# Stage 2: Final OpenVSCode Server image
+FROM gitpod/openvscode-server:1.95.3
 
 # Switch to root to install dependencies
 USER root
@@ -13,17 +23,29 @@ RUN apt-get update && apt-get install -y \
     python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
-# Create app directories
-WORKDIR /home/workspace
+# Create extension directories
+RUN mkdir -p /home/.openvscode-server/extensions/logos-aria-chat \
+    && mkdir -p /home/.openvscode-server/data/Machine \
+    && mkdir -p /home/workspace/.vscode
 
-# Copy Logos extensions
-COPY --chown=openvscode-server:openvscode-server extensions/ /home/.openvscode-server/extensions/
+# Copy compiled ARIA Chat extension from builder
+COPY --from=extension-builder --chown=openvscode-server:openvscode-server \
+    /build/logos-aria-chat/package.json \
+    /home/.openvscode-server/extensions/logos-aria-chat/
+
+COPY --from=extension-builder --chown=openvscode-server:openvscode-server \
+    /build/logos-aria-chat/out/ \
+    /home/.openvscode-server/extensions/logos-aria-chat/out/
 
 # Copy Logos configuration
 COPY --chown=openvscode-server:openvscode-server .vscode/ /home/workspace/.vscode/
 
 # Copy custom settings
 COPY --chown=openvscode-server:openvscode-server infrastructure/docker/settings.json /home/.openvscode-server/data/Machine/settings.json
+
+# Set proper ownership
+RUN chown -R openvscode-server:openvscode-server /home/.openvscode-server \
+    && chown -R openvscode-server:openvscode-server /home/workspace
 
 # Set environment variables
 ENV OPENVSCODE_SERVER_ROOT=/home/.openvscode-server
@@ -38,12 +60,15 @@ ENV LOGOS_AUDIT_ENDPOINT=http://logos-audit:8084
 # Switch back to non-root user
 USER openvscode-server
 
+# Set workdir
+WORKDIR /home/workspace
+
 # Expose port
-EXPOSE 8080
+EXPOSE 3000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:8080/healthz || exit 1
+    CMD curl -f http://localhost:3000/ || exit 1
 
-# Start OpenVSCode Server
-ENTRYPOINT ["/bin/sh", "-c", "exec ${OPENVSCODE_SERVER_ROOT}/bin/openvscode-server --host 0.0.0.0 --port 8080 --without-connection-token"]
+# Start OpenVSCode Server with extensions directory
+ENTRYPOINT ["/bin/sh", "-c", "exec ${OPENVSCODE_SERVER_ROOT}/bin/openvscode-server --host 0.0.0.0 --port 3000 --without-connection-token --extensions-dir ${OPENVSCODE_SERVER_ROOT}/extensions"]
