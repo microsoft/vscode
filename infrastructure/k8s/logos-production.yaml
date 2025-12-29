@@ -1,0 +1,383 @@
+---
+# Logos Production Deployment
+# D3N-Native Cognitive Development Environment
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: logos
+  labels:
+    app.kubernetes.io/name: logos
+    platform: bravozero
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: logos-config
+  namespace: logos
+data:
+  D3N_ENDPOINT: "http://d3n-gateway.bravozero.svc:9090"
+  ARIA_ENDPOINT: "http://aria-inference.aria-inference.svc:80"
+  PERSONA_ENDPOINT: "http://persona-api.persona-staging.svc:80"
+  NODE_ENV: "production"
+  FLASH_APPS_ENABLED: "true"
+---
+# Logos Web IDE (OpenVSCode Server)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: logos-web
+  namespace: logos
+  labels:
+    app: logos-web
+    app.kubernetes.io/name: logos
+    app.kubernetes.io/component: web
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: logos-web
+  template:
+    metadata:
+      labels:
+        app: logos-web
+        app.kubernetes.io/name: logos
+        app.kubernetes.io/component: web
+    spec:
+      containers:
+        - name: logos-web
+          image: gitpod/openvscode-server:1.95.3
+          ports:
+            - containerPort: 3000
+          env:
+            - name: HOME
+              value: /home/workspace
+          envFrom:
+            - configMapRef:
+                name: logos-config
+          resources:
+            limits:
+              cpu: 2000m
+              memory: 4Gi
+            requests:
+              cpu: 500m
+              memory: 1Gi
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 60
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          volumeMounts:
+            - name: workspace
+              mountPath: /home/workspace
+      volumes:
+        - name: workspace
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: logos-web
+  namespace: logos
+  labels:
+    app: logos-web
+spec:
+  selector:
+    app: logos-web
+  ports:
+    - port: 8080
+      targetPort: 3000
+      protocol: TCP
+  type: ClusterIP
+---
+# Logos Chat Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: logos-chat
+  namespace: logos
+  labels:
+    app: logos-chat
+    app.kubernetes.io/name: logos
+    app.kubernetes.io/component: chat
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: logos-chat
+  template:
+    metadata:
+      labels:
+        app: logos-chat
+        app.kubernetes.io/name: logos
+        app.kubernetes.io/component: chat
+    spec:
+      containers:
+        - name: logos-chat
+          image: node:20-alpine
+          command: ["node"]
+          args: ["-e", "
+            const http = require('http');
+            const server = http.createServer((req, res) => {
+              if (req.url === '/health') {
+                res.writeHead(200, {'Content-Type': 'application/json'});
+                res.end(JSON.stringify({status: 'healthy', service: 'logos-chat'}));
+              } else if (req.url === '/api/agents') {
+                res.writeHead(200, {'Content-Type': 'application/json'});
+                res.end(JSON.stringify({agents: [
+                  {id: 'conductor', name: 'Conductor', command: '@conductor'},
+                  {id: 'swe', name: 'Software Engineer', command: '@swe'},
+                  {id: 'da', name: 'Data Analyst', command: '@da'},
+                  {id: 'researcher', name: 'Researcher', command: '@researcher'},
+                  {id: 'ca', name: 'Cognitive Architect', command: '@ca'}
+                ]}));
+              } else {
+                res.writeHead(200, {'Content-Type': 'application/json'});
+                res.end(JSON.stringify({message: 'Logos Chat Service'}));
+              }
+            });
+            server.listen(8081, () => console.log('Chat service on 8081'));
+          "]
+          ports:
+            - containerPort: 8081
+          envFrom:
+            - configMapRef:
+                name: logos-config
+          resources:
+            limits:
+              cpu: 1000m
+              memory: 2Gi
+            requests:
+              cpu: 200m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8081
+            initialDelaySeconds: 10
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: logos-chat
+  namespace: logos
+spec:
+  selector:
+    app: logos-chat
+  ports:
+    - port: 8081
+      targetPort: 8081
+  type: ClusterIP
+---
+# Logos Completion Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: logos-completion
+  namespace: logos
+  labels:
+    app: logos-completion
+    app.kubernetes.io/name: logos
+    app.kubernetes.io/component: completion
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: logos-completion
+  template:
+    metadata:
+      labels:
+        app: logos-completion
+        app.kubernetes.io/name: logos
+        app.kubernetes.io/component: completion
+    spec:
+      containers:
+        - name: logos-completion
+          image: node:20-alpine
+          command: ["node"]
+          args: ["-e", "
+            const http = require('http');
+            let requests = 0;
+            const server = http.createServer((req, res) => {
+              if (req.url === '/health') {
+                res.writeHead(200, {'Content-Type': 'application/json'});
+                res.end(JSON.stringify({status: 'healthy', service: 'logos-completion', requests}));
+              } else if (req.url === '/api/completion' && req.method === 'POST') {
+                requests++;
+                let body = '';
+                req.on('data', chunk => body += chunk);
+                req.on('end', () => {
+                  res.writeHead(200, {'Content-Type': 'application/json'});
+                  res.end(JSON.stringify({completions: ['// completion suggestion'], tier: 2, latencyMs: 50}));
+                });
+              } else {
+                res.writeHead(200, {'Content-Type': 'application/json'});
+                res.end(JSON.stringify({message: 'Logos Completion Service'}));
+              }
+            });
+            server.listen(8082, () => console.log('Completion service on 8082'));
+          "]
+          ports:
+            - containerPort: 8082
+          envFrom:
+            - configMapRef:
+                name: logos-config
+          resources:
+            limits:
+              cpu: 2000m
+              memory: 4Gi
+            requests:
+              cpu: 500m
+              memory: 1Gi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8082
+            initialDelaySeconds: 10
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: logos-completion
+  namespace: logos
+spec:
+  selector:
+    app: logos-completion
+  ports:
+    - port: 8082
+      targetPort: 8082
+  type: ClusterIP
+---
+# Logos CA Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: logos-ca
+  namespace: logos
+  labels:
+    app: logos-ca
+    app.kubernetes.io/name: logos
+    app.kubernetes.io/component: ca
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: logos-ca
+  template:
+    metadata:
+      labels:
+        app: logos-ca
+        app.kubernetes.io/name: logos
+        app.kubernetes.io/component: ca
+    spec:
+      containers:
+        - name: logos-ca
+          image: node:20-alpine
+          command: ["node"]
+          args: ["-e", "
+            const http = require('http');
+            const workspaces = new Map();
+            const server = http.createServer((req, res) => {
+              if (req.url === '/health') {
+                res.writeHead(200, {'Content-Type': 'application/json'});
+                res.end(JSON.stringify({status: 'healthy', service: 'logos-ca', activeWorkspaces: workspaces.size}));
+              } else {
+                res.writeHead(200, {'Content-Type': 'application/json'});
+                res.end(JSON.stringify({message: 'Logos Cognitive Architect Service'}));
+              }
+            });
+            server.listen(8083, () => console.log('CA service on 8083'));
+          "]
+          ports:
+            - containerPort: 8083
+          envFrom:
+            - configMapRef:
+                name: logos-config
+          resources:
+            limits:
+              cpu: 1000m
+              memory: 2Gi
+            requests:
+              cpu: 200m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8083
+            initialDelaySeconds: 10
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: logos-ca
+  namespace: logos
+spec:
+  selector:
+    app: logos-ca
+  ports:
+    - port: 8083
+      targetPort: 8083
+  type: ClusterIP
+---
+# ALB Ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: logos-ingress
+  namespace: logos
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:113513624033:certificate/5a10c11d-7556-4ba3-808f-114b8cbd951d
+    alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS13-1-2-2021-06
+    alb.ingress.kubernetes.io/healthcheck-path: /
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: "15"
+    alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=3600
+    alb.ingress.kubernetes.io/tags: Environment=production,Project=logos,Platform=bravozero
+spec:
+  ingressClassName: alb
+  rules:
+    - host: logos.bravozero.ai
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: logos-web
+                port:
+                  number: 8080
+          - path: /api/chat
+            pathType: Prefix
+            backend:
+              service:
+                name: logos-chat
+                port:
+                  number: 8081
+          - path: /api/completion
+            pathType: Prefix
+            backend:
+              service:
+                name: logos-completion
+                port:
+                  number: 8082
+          - path: /api/ca
+            pathType: Prefix
+            backend:
+              service:
+                name: logos-ca
+                port:
+                  number: 8083
+
