@@ -90,13 +90,13 @@ data:
     server {
         listen 80;
         server_name logos.bravozero.ai;
-        
+
         location /health {
             access_log off;
             return 200 'healthy';
             add_header Content-Type text/plain;
         }
-        
+
         location / {
             root /usr/share/nginx/html;
             index index.html;
@@ -116,85 +116,171 @@ data:
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Logos - D3N-Native IDE</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
         <style>
+            /* Hydra-aligned Minimalist Monochrome Design System */
+            :root {
+                --bg-primary: #000000;
+                --bg-secondary: #0a0a0a;
+                --bg-tertiary: #141414;
+                --bg-elevated: #1a1a1a;
+                --bg-hover: #242424;
+                --text-primary: #ffffff;
+                --text-secondary: #a0a0a0;
+                --text-muted: #606060;
+                --border-subtle: rgba(255, 255, 255, 0.08);
+                --border-medium: rgba(255, 255, 255, 0.15);
+                --accent-glow: rgba(255, 255, 255, 0.1);
+                --status-success: #4ade80;
+                --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+                --font-mono: 'JetBrains Mono', 'SF Mono', monospace;
+                --radius-md: 8px;
+                --radius-lg: 16px;
+                --radius-xl: 20px;
+                --space-sm: 8px;
+                --space-md: 16px;
+                --space-lg: 24px;
+                --space-xl: 32px;
+            }
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body {
-                font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
-                background: linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 50%, #16213e 100%);
+                font-family: var(--font-sans);
+                background: var(--bg-primary);
                 min-height: 100vh;
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                color: #e0e0e0;
+                color: var(--text-primary);
+                -webkit-font-smoothing: antialiased;
             }
             .container {
                 text-align: center;
-                padding: 3rem;
-                background: rgba(255, 255, 255, 0.03);
-                border-radius: 24px;
-                border: 1px solid rgba(255, 255, 255, 0.08);
-                backdrop-filter: blur(20px);
-                max-width: 600px;
+                padding: var(--space-xl) var(--space-xl);
+                background: var(--bg-secondary);
+                border-radius: var(--radius-xl);
+                border: 1px solid var(--border-subtle);
+                max-width: 560px;
+                animation: slideUp 0.35s ease-out;
             }
-            .logo {
-                font-size: 4rem;
-                margin-bottom: 1rem;
+            @keyframes slideUp {
+                from { opacity: 0; transform: translateY(20px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+            .logo-container {
+                width: 64px;
+                height: 64px;
+                margin: 0 auto var(--space-lg);
+                background: var(--bg-tertiary);
+                border: 1px solid var(--border-medium);
+                border-radius: var(--radius-lg);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            .logo-container svg {
+                width: 32px;
+                height: 32px;
+                stroke: var(--text-primary);
+                fill: none;
+                stroke-width: 2;
             }
             h1 {
-                font-size: 2.5rem;
+                font-size: 2rem;
                 font-weight: 700;
-                background: linear-gradient(135deg, #00d4ff, #7c3aed, #f472b6);
-                -webkit-background-clip: text;
-                -webkit-text-fill-color: transparent;
-                margin-bottom: 0.5rem;
+                letter-spacing: -0.02em;
+                margin-bottom: var(--space-sm);
             }
             .subtitle {
-                font-size: 1.2rem;
-                color: #8b8b9a;
-                margin-bottom: 2rem;
+                font-size: 1rem;
+                color: var(--text-secondary);
+                margin-bottom: var(--space-lg);
+                line-height: 1.5;
             }
             .status {
                 display: inline-flex;
                 align-items: center;
-                gap: 0.5rem;
-                padding: 0.75rem 1.5rem;
-                background: rgba(124, 58, 237, 0.1);
-                border: 1px solid rgba(124, 58, 237, 0.3);
+                gap: var(--space-sm);
+                padding: 10px 20px;
+                background: var(--bg-tertiary);
+                border: 1px solid var(--border-medium);
                 border-radius: 9999px;
-                font-size: 0.9rem;
+                font-size: 0.875rem;
+                font-weight: 500;
             }
             .pulse {
-                width: 10px;
-                height: 10px;
-                background: #7c3aed;
+                width: 8px;
+                height: 8px;
+                background: var(--status-success);
                 border-radius: 50%;
-                animation: pulse 2s infinite;
+                animation: pulse 2s ease-in-out infinite;
             }
             @keyframes pulse {
-                0%, 100% { opacity: 1; transform: scale(1); }
-                50% { opacity: 0.5; transform: scale(1.2); }
+                0%, 100% { opacity: 1; }
+                50% { opacity: 0.5; }
             }
             .features {
-                margin-top: 2rem;
+                margin-top: var(--space-xl);
                 display: grid;
                 grid-template-columns: repeat(2, 1fr);
-                gap: 1rem;
+                gap: var(--space-md);
                 text-align: left;
             }
             .feature {
-                padding: 1rem;
-                background: rgba(255, 255, 255, 0.02);
-                border-radius: 12px;
-                border: 1px solid rgba(255, 255, 255, 0.05);
+                padding: var(--space-md);
+                background: var(--bg-tertiary);
+                border-radius: var(--radius-md);
+                border: 1px solid var(--border-subtle);
+                transition: all 0.2s ease-out;
             }
-            .feature-icon { font-size: 1.5rem; margin-bottom: 0.5rem; }
-            .feature-title { font-weight: 600; margin-bottom: 0.25rem; }
-            .feature-desc { font-size: 0.8rem; color: #6b6b7a; }
+            .feature:hover {
+                background: var(--bg-hover);
+                border-color: var(--border-medium);
+            }
+            .feature-header {
+                display: flex;
+                align-items: center;
+                gap: var(--space-sm);
+                margin-bottom: 6px;
+            }
+            .feature-icon {
+                width: 20px;
+                height: 20px;
+                color: var(--text-secondary);
+            }
+            .feature-title {
+                font-weight: 600;
+                font-size: 0.875rem;
+            }
+            .feature-desc {
+                font-size: 0.75rem;
+                color: var(--text-muted);
+                line-height: 1.4;
+            }
+            .footer {
+                margin-top: var(--space-xl);
+                padding-top: var(--space-lg);
+                border-top: 1px solid var(--border-subtle);
+            }
+            .footer-text {
+                font-size: 0.75rem;
+                color: var(--text-muted);
+                font-family: var(--font-mono);
+            }
+            @media (max-width: 480px) {
+                .features { grid-template-columns: 1fr; }
+                .container { margin: var(--space-md); }
+            }
         </style>
     </head>
     <body>
         <div class="container">
-            <div class="logo">⚡</div>
+            <div class="logo-container">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
             <h1>Logos</h1>
             <p class="subtitle">D3N-Native Cognitive Development Environment</p>
             <div class="status">
@@ -203,25 +289,46 @@ data:
             </div>
             <div class="features">
                 <div class="feature">
-                    <div class="feature-icon">🤖</div>
-                    <div class="feature-title">Multi-Agent Chat</div>
-                    <div class="feature-desc">ARIA-powered conversations</div>
+                    <div class="feature-header">
+                        <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                        </svg>
+                        <span class="feature-title">Multi-Agent Chat</span>
+                    </div>
+                    <p class="feature-desc">ARIA-powered conversations with @-mention routing</p>
                 </div>
                 <div class="feature">
-                    <div class="feature-icon">⚡</div>
-                    <div class="feature-title">Flash Completions</div>
-                    <div class="feature-desc">Sub-10ms code completion</div>
+                    <div class="feature-header">
+                        <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                        </svg>
+                        <span class="feature-title">Flash Completions</span>
+                    </div>
+                    <p class="feature-desc">Sub-10ms code completion via spiking networks</p>
                 </div>
                 <div class="feature">
-                    <div class="feature-icon">🧠</div>
-                    <div class="feature-title">Cognitive Architect</div>
-                    <div class="feature-desc">Per-workspace AI assistant</div>
+                    <div class="feature-header">
+                        <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M12 16v-4M12 8h.01"/>
+                        </svg>
+                        <span class="feature-title">Cognitive Architect</span>
+                    </div>
+                    <p class="feature-desc">Per-workspace AI assistant for architecture</p>
                 </div>
                 <div class="feature">
-                    <div class="feature-icon">🔐</div>
-                    <div class="feature-title">PERSONA Auth</div>
-                    <div class="feature-desc">Zero-trust identity</div>
+                    <div class="feature-header">
+                        <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                        </svg>
+                        <span class="feature-title">PERSONA Auth</span>
+                    </div>
+                    <p class="feature-desc">Zero-trust identity with quantum-secure options</p>
                 </div>
+            </div>
+            <div class="footer">
+                <p class="footer-text">Part of the Bravo Zero Platform</p>
             </div>
         </div>
     </body>

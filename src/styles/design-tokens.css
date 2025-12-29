@@ -1,0 +1,317 @@
+/* =====================================================
+   LOGOS - Design System Tokens
+   Aligned with Hydra Minimalist Monochrome Theme
+   Dark/Light mode with black & white palette
+   ===================================================== */
+
+:root {
+  /* Core monochrome palette - Dark mode (default) */
+  --bg-primary: #000000;
+  --bg-secondary: #0a0a0a;
+  --bg-tertiary: #141414;
+  --bg-elevated: #1a1a1a;
+  --bg-hover: #242424;
+  
+  /* Text colors - Dark mode */
+  --text-primary: #ffffff;
+  --text-secondary: #a0a0a0;
+  --text-tertiary: #707070;
+  --text-muted: #606060;
+  --text-inverse: #000000;
+  
+  /* Accent - minimal, just white/black with subtle highlight */
+  --accent-primary: #ffffff;
+  --accent-secondary: #808080;
+  --accent-highlight: #e0e0e0;
+  --accent-glow: rgba(255, 255, 255, 0.1);
+  
+  /* RGB values for rgba() usage */
+  --accent-primary-rgb: 255, 255, 255;
+  --bg-secondary-rgb: 10, 10, 10;
+  
+  /* Borders */
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-medium: rgba(255, 255, 255, 0.15);
+  --border-strong: rgba(255, 255, 255, 0.25);
+  
+  /* Shadows */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.7);
+  --shadow-glow: 0 0 20px rgba(255, 255, 255, 0.05);
+  
+  /* Status colors - muted, monochrome-friendly */
+  --status-success: #4ade80;
+  --status-error: #ef4444;
+  --status-warning: #fbbf24;
+  --status-info: #60a5fa;
+  
+  /* Gradients - subtle monochrome */
+  --gradient-primary: linear-gradient(135deg, var(--text-primary), var(--text-secondary));
+  --gradient-surface: linear-gradient(180deg, var(--bg-tertiary), var(--bg-secondary));
+  --gradient-glow: radial-gradient(circle at center, rgba(255, 255, 255, 0.03), transparent 70%);
+  
+  /* Spacing */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+  
+  /* Typography */
+  --font-sans: 'Inter', 'SF Pro Display', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+  
+  /* Transitions */
+  --transition-fast: 100ms ease-out;
+  --transition-base: 200ms ease-out;
+  --transition-slow: 350ms ease-out;
+  
+  /* Dimensions */
+  --header-height: 72px;
+  --input-height: 100px;
+  --max-content-width: 900px;
+  --sidebar-width: 280px;
+  
+  /* Border radius */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
+  
+  /* Legacy compatibility - map old vars to new ones */
+  --accent-cyan: var(--accent-primary);
+  --accent-purple: var(--accent-secondary);
+  --accent-magenta: var(--accent-secondary);
+}
+
+/* =====================================================
+   LIGHT MODE
+   ===================================================== */
+
+[data-theme="light"] {
+  /* Core monochrome palette - Light mode */
+  --bg-primary: #ffffff;
+  --bg-secondary: #fafafa;
+  --bg-tertiary: #f0f0f0;
+  --bg-elevated: #e8e8e8;
+  --bg-hover: #d8d8d8;
+  
+  /* Text colors - Light mode */
+  --text-primary: #000000;
+  --text-secondary: #505050;
+  --text-tertiary: #808080;
+  --text-muted: #909090;
+  --text-inverse: #ffffff;
+  
+  /* Accent - inverted for light mode */
+  --accent-primary: #000000;
+  --accent-secondary: #606060;
+  --accent-highlight: #303030;
+  --accent-glow: rgba(0, 0, 0, 0.05);
+  
+  /* RGB values for rgba() usage */
+  --accent-primary-rgb: 0, 0, 0;
+  --bg-secondary-rgb: 250, 250, 250;
+  
+  /* Borders - Light mode */
+  --border-subtle: rgba(0, 0, 0, 0.06);
+  --border-medium: rgba(0, 0, 0, 0.12);
+  --border-strong: rgba(0, 0, 0, 0.2);
+  
+  /* Shadows - Light mode */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.12);
+  --shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.16);
+  --shadow-glow: 0 0 20px rgba(0, 0, 0, 0.03);
+  
+  /* Gradients - Light mode */
+  --gradient-primary: linear-gradient(135deg, var(--text-primary), var(--text-secondary));
+  --gradient-surface: linear-gradient(180deg, var(--bg-secondary), var(--bg-primary));
+  --gradient-glow: radial-gradient(circle at center, rgba(0, 0, 0, 0.02), transparent 70%);
+}
+
+/* =====================================================
+   BASE RESET & STYLES
+   ===================================================== */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* Enable text selection globally by default */
+body {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color var(--transition-base), color var(--transition-base);
+}
+
+#root {
+  height: 100%;
+}
+
+/* =====================================================
+   SCROLLBAR
+   ===================================================== */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-medium);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
+}
+
+/* =====================================================
+   SELECTION & FOCUS
+   ===================================================== */
+
+::selection {
+  background: var(--accent-primary);
+  color: var(--text-inverse);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+/* =====================================================
+   ANIMATIONS
+   ===================================================== */
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes typing {
+  0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-4px); }
+}
+
+@keyframes thinking-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes thinking-pulse {
+  0%, 100% { box-shadow: 0 0 8px var(--accent-glow); }
+  50% { box-shadow: 0 0 16px var(--accent-glow); }
+}
+
+/* =====================================================
+   UTILITY CLASSES
+   ===================================================== */
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.text-secondary {
+  color: var(--text-secondary);
+}
+
+.text-success {
+  color: var(--status-success);
+}
+
+.text-error {
+  color: var(--status-error);
+}
+
+.text-warning {
+  color: var(--status-warning);
+}
+
+.text-info {
+  color: var(--status-info);
+}
+
+/* Animation utilities */
+.animate-pulse {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.2s ease-out;
+}
+
+.animate-spin {
+  animation: rotate 1s linear infinite;
+}
+

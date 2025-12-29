@@ -1,153 +1,311 @@
 /**
- * TangentTree - Conversation branching visualization
+ * TangentTree - Conversation branch visualization
+ * Design system: Hydra-aligned Minimalist Monochrome
+ * Matches Hydra/src/components/TangentTree.css exactly
  */
 
-.tangent-tree {
-  padding: 16px;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-}
-
-.tangent-tree-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
-}
-
-.tangent-tree-header h4 {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.thread-count {
-  font-size: 11px;
-  color: var(--logos-text-muted);
-  background: var(--logos-bg-tertiary);
-  padding: 2px 8px;
-  border-radius: 10px;
-}
-
-.tangent-tree-content {
-  flex: 1;
-  overflow-y: auto;
-}
-
-.tangent-tree-empty {
+.tangent-tree-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 100%;
-  color: var(--logos-text-secondary);
+  z-index: 10000;
+  backdrop-filter: blur(4px);
+  animation: fadeIn 0.15s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.tangent-tree-modal {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  width: 90%;
+  max-width: 600px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  animation: slideUp 0.2s ease;
+  overflow: hidden;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Header */
+.tangent-tree-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-tertiary);
+  flex-shrink: 0;
+}
+
+.tangent-tree-title-section {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.tangent-tree-title-section svg {
+  color: var(--accent-primary);
+}
+
+.tangent-tree-title-section h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.tangent-tree-close {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: var(--space-xs);
+  border-radius: var(--radius-sm);
+  transition: all 0.15s ease;
+}
+
+.tangent-tree-close:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+/* Stats */
+.tangent-tree-stats {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-lg);
+  padding: var(--space-md);
+  border-bottom: 1px solid var(--border-subtle);
+  background: rgba(0, 0, 0, 0.2);
+  flex-shrink: 0;
+}
+
+.tree-stat {
   text-align: center;
-  font-size: 13px;
+}
+
+.tree-stat .stat-value {
+  display: block;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--accent-primary);
+  line-height: 1;
+}
+
+.tree-stat .stat-label {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Search */
+.tangent-tree-search {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  margin: var(--space-md);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+}
+
+.tangent-tree-search svg {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.tangent-tree-search input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  outline: none;
+  font-family: var(--font-sans);
+}
+
+.tangent-tree-search input::placeholder {
+  color: var(--text-muted);
+}
+
+.tangent-tree-search .clear-search {
+  background: none;
+  border: none;
+  padding: 2px;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  transition: all 0.15s ease;
+}
+
+.tangent-tree-search .clear-search:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Content */
+.tangent-tree-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 var(--space-md);
+}
+
+.tree-empty-state {
+  text-align: center;
+  padding: var(--space-xl);
+  color: var(--text-muted);
+}
+
+.tree-nodes-container {
+  padding-bottom: var(--space-md);
+}
+
+/* Tree Node */
+.tree-node-wrapper {
+  --indent: calc(var(--depth, 0) * 20px);
 }
 
 .tree-node {
-  position: relative;
-}
-
-.tree-connection {
-  position: absolute;
-  left: -12px;
-  top: 0;
-  bottom: 50%;
-  width: 12px;
-}
-
-.tree-line-vertical {
-  position: absolute;
-  left: 0;
-  top: -16px;
-  width: 1px;
-  height: calc(100% + 8px);
-  background: var(--logos-border);
-}
-
-.tree-line-horizontal {
-  position: absolute;
-  left: 0;
-  bottom: 50%;
-  width: 12px;
-  height: 1px;
-  background: var(--logos-border);
-}
-
-.tree-node-content {
   display: flex;
   align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 8px 10px;
-  background: var(--logos-bg-tertiary);
-  border: 1px solid var(--logos-border);
-  border-radius: var(--logos-radius-sm);
-  text-align: left;
+  gap: var(--space-xs);
+  padding: var(--space-sm);
+  padding-left: calc(var(--indent) + var(--space-sm));
+  border-radius: var(--radius-md);
   cursor: pointer;
-  transition: all 0.15s;
-  margin-bottom: 8px;
+  transition: all 0.1s ease;
+  margin-bottom: 2px;
 }
 
-.tree-node-content:hover {
-  border-color: var(--logos-accent-primary);
+.tree-node:hover {
+  background: var(--bg-hover);
 }
 
-.tree-node-content--active {
-  border-color: var(--logos-accent-primary);
-  background: rgba(88, 166, 255, 0.1);
+.tree-node.active {
+  background: var(--accent-glow);
+  border-left: 2px solid var(--accent-primary);
 }
 
-.node-icon {
-  font-size: 14px;
+/* Expand button */
+.tree-expand-btn {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  transition: all 0.15s ease;
+  flex-shrink: 0;
 }
 
-.node-info {
+.tree-expand-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+}
+
+.tree-expand-btn svg {
+  transition: transform 0.15s ease;
+}
+
+.tree-expand-btn.expanded svg {
+  transform: rotate(90deg);
+}
+
+/* Node content */
+.tree-node-content {
   flex: 1;
   min-width: 0;
 }
 
-.node-name {
+.tree-node-title {
   display: block;
-  font-size: 12px;
+  font-size: 0.9rem;
   font-weight: 500;
-  color: var(--logos-text-primary);
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.node-meta {
-  display: block;
-  font-size: 10px;
-  color: var(--logos-text-muted);
+.tree-node-meta {
+  display: flex;
+  gap: var(--space-sm);
+  font-size: 0.75rem;
+  color: var(--text-muted);
 }
 
-.branch-indicator {
-  color: var(--logos-accent-warning);
-  font-size: 10px;
-  margin-left: 4px;
+.tangent-count {
+  color: var(--status-success);
 }
 
-.merge-button {
-  background: none;
-  border: 1px solid var(--logos-border);
-  color: var(--logos-text-muted);
-  padding: 4px 6px;
-  border-radius: 3px;
-  font-size: 12px;
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.15s;
+/* Footer */
+.tangent-tree-footer {
+  padding: var(--space-sm) var(--space-md);
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg-tertiary);
+  flex-shrink: 0;
 }
 
-.tree-node-content:hover .merge-button {
-  opacity: 1;
+.tree-legend {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-lg);
 }
 
-.merge-button:hover {
-  color: var(--logos-accent-success);
-  border-color: var(--logos-accent-success);
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: 0.75rem;
+  color: var(--text-muted);
 }
 
+/* Mobile */
+@media (max-width: 640px) {
+  .tangent-tree-modal {
+    width: 95%;
+    max-height: 85vh;
+  }
+
+  .tangent-tree-stats {
+    gap: var(--space-md);
+  }
+
+  .tree-stat .stat-value {
+    font-size: 1.2rem;
+  }
+}

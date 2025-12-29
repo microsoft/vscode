@@ -1,33 +1,17 @@
 /**
  * ChatPanel - Main chat interface styles
- * Design system: Logos D3N-native IDE
+ * Design system: Hydra-aligned Minimalist Monochrome
  */
 
-:root {
-  --logos-bg-primary: #0d1117;
-  --logos-bg-secondary: #161b22;
-  --logos-bg-tertiary: #21262d;
-  --logos-border: #30363d;
-  --logos-text-primary: #c9d1d9;
-  --logos-text-secondary: #8b949e;
-  --logos-text-muted: #484f58;
-  --logos-accent-primary: #58a6ff;
-  --logos-accent-success: #3fb950;
-  --logos-accent-warning: #d29922;
-  --logos-accent-error: #f85149;
-  --logos-accent-purple: #a371f7;
-  --logos-radius-sm: 4px;
-  --logos-radius-md: 8px;
-  --logos-radius-lg: 12px;
-  --logos-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-}
+/* Import design tokens - these match Hydra exactly */
+@import '../styles/design-tokens.css';
 
 .logos-chat-panel {
   display: flex;
   height: 100%;
-  background: var(--logos-bg-primary);
-  color: var(--logos-text-primary);
-  font-family: 'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
 }
 
 .chat-main {
@@ -41,61 +25,70 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--logos-border);
-  background: var(--logos-bg-secondary);
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-secondary);
+  flex-shrink: 0;
 }
 
 .chat-header h3 {
   margin: 0;
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 600;
+  color: var(--text-primary);
 }
 
 .chat-actions {
   display: flex;
-  gap: 8px;
+  gap: var(--space-sm);
 }
 
 .chat-actions button {
   background: none;
   border: none;
-  color: var(--logos-text-secondary);
+  color: var(--text-secondary);
   cursor: pointer;
-  padding: 4px 8px;
-  border-radius: var(--logos-radius-sm);
-  transition: background 0.15s, color 0.15s;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .chat-actions button:hover {
-  background: var(--logos-bg-tertiary);
-  color: var(--logos-text-primary);
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 .message-list-container {
   flex: 1;
   overflow-y: auto;
-  padding: 16px;
+  padding: var(--space-md);
 }
 
 .tangent-tree-toggle {
-  font-size: 16px;
+  font-size: 1rem;
 }
 
 .close-button {
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 
 .tangent-tree-panel {
-  width: 280px;
-  border-left: 1px solid var(--logos-border);
-  background: var(--logos-bg-secondary);
+  width: var(--sidebar-width);
+  border-left: 1px solid var(--border-subtle);
+  background: var(--bg-secondary);
   overflow-y: auto;
 }
 
-/* Scrollbar styling */
+/* =====================================================
+   SCROLLBAR - Hydra style
+   ===================================================== */
+
 .logos-chat-panel ::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 .logos-chat-panel ::-webkit-scrollbar-track {
@@ -103,11 +96,77 @@
 }
 
 .logos-chat-panel ::-webkit-scrollbar-thumb {
-  background: var(--logos-bg-tertiary);
-  border-radius: 4px;
+  background: var(--border-medium);
+  border-radius: var(--radius-full);
 }
 
 .logos-chat-panel ::-webkit-scrollbar-thumb:hover {
-  background: var(--logos-border);
+  background: var(--border-strong);
 }
 
+/* =====================================================
+   LOADING STATE
+   ===================================================== */
+
+.chat-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-muted);
+}
+
+.chat-loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--border-medium);
+  border-top-color: var(--text-primary);
+  border-radius: 50%;
+  animation: rotate 0.8s linear infinite;
+}
+
+/* =====================================================
+   EMPTY STATE
+   ===================================================== */
+
+.chat-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: var(--space-xl);
+  text-align: center;
+}
+
+.chat-empty-state svg {
+  width: 48px;
+  height: 48px;
+  color: var(--text-muted);
+  margin-bottom: var(--space-md);
+}
+
+.chat-empty-state h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: var(--space-xs);
+  color: var(--text-primary);
+}
+
+.chat-empty-state p {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  max-width: 280px;
+}
+
+/* =====================================================
+   ANIMATIONS
+   ===================================================== */
+
+.chat-panel-enter {
+  animation: fadeIn var(--transition-base);
+}
+
+.message-enter {
+  animation: slideUp var(--transition-base);
+}

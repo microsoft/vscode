@@ -1,147 +1,249 @@
 /**
- * MessageInput - Input field styles
+ * MessageInput - Chat input with @-mention autocomplete
+ * Design system: Hydra-aligned Minimalist Monochrome
  */
 
-.logos-message-input {
-  padding: 12px 16px;
-  border-top: 1px solid var(--logos-border);
-  background: var(--logos-bg-secondary);
+.message-input-container {
+  padding: var(--space-md);
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-subtle);
 }
 
-.input-container {
+.message-input-wrapper {
   position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-sm);
+  padding: var(--space-sm);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  transition: border-color var(--transition-fast);
 }
 
-.input-container textarea {
-  width: 100%;
-  padding: 12px;
-  background: var(--logos-bg-primary);
-  border: 1px solid var(--logos-border);
-  border-radius: var(--logos-radius-md);
-  color: var(--logos-text-primary);
-  font-family: inherit;
-  font-size: 14px;
+.message-input-wrapper:focus-within {
+  border-color: var(--accent-primary);
+}
+
+.message-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
   line-height: 1.5;
   resize: none;
-  min-height: 44px;
+  min-height: 24px;
   max-height: 200px;
-  transition: border-color 0.15s;
+  padding: var(--space-xs) 0;
 }
 
-.input-container textarea:focus {
+.message-input::placeholder {
+  color: var(--text-muted);
+}
+
+.message-input:focus {
   outline: none;
-  border-color: var(--logos-accent-primary);
 }
 
-.input-container textarea::placeholder {
-  color: var(--logos-text-muted);
+/* =====================================================
+   SEND BUTTON
+   ===================================================== */
+
+.message-send-btn {
+  background: var(--accent-primary);
+  border: none;
+  color: var(--text-inverse);
+  padding: var(--space-sm);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.input-container textarea:disabled {
-  opacity: 0.5;
+.message-send-btn:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.message-send-btn:disabled {
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
-/* Autocomplete dropdown */
-.autocomplete-dropdown {
+.message-send-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* =====================================================
+   MENTION AUTOCOMPLETE
+   ===================================================== */
+
+.mention-autocomplete {
   position: absolute;
   bottom: 100%;
   left: 0;
   right: 0;
-  max-height: 240px;
-  overflow-y: auto;
-  background: var(--logos-bg-secondary);
-  border: 1px solid var(--logos-border);
-  border-radius: var(--logos-radius-md);
-  box-shadow: var(--logos-shadow);
-  margin-bottom: 8px;
+  margin-bottom: var(--space-xs);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
   z-index: 100;
+  animation: slideDown var(--transition-fast);
 }
 
-.autocomplete-item {
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.mention-autocomplete-header {
+  padding: var(--space-xs) var(--space-sm);
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 0.65rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.mention-option {
   display: flex;
   align-items: center;
-  gap: 12px;
-  width: 100%;
-  padding: 10px 12px;
-  background: none;
-  border: none;
-  color: var(--logos-text-primary);
-  text-align: left;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
   cursor: pointer;
-  transition: background 0.1s;
+  transition: background var(--transition-fast);
 }
 
-.autocomplete-item:hover,
-.autocomplete-item.selected {
-  background: var(--logos-bg-tertiary);
+.mention-option:hover,
+.mention-option.selected {
+  background: var(--bg-hover);
 }
 
-.autocomplete-item .agent-avatar {
-  width: 28px;
-  height: 28px;
+.mention-option-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--logos-radius-sm);
-  font-size: 14px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
 }
 
-.autocomplete-item .agent-name {
-  font-weight: 600;
-  font-size: 13px;
+.mention-option-info {
+  flex: 1;
+  min-width: 0;
 }
 
-.autocomplete-item .agent-desc {
-  font-size: 12px;
-  color: var(--logos-text-secondary);
-  margin-left: auto;
+.mention-option-name {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.mention-option-role {
+  font-size: 0.7rem;
+  color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 200px;
 }
 
-/* Input actions */
-.input-actions {
+.mention-option-shortcut {
+  font-size: 0.7rem;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  padding: 2px 4px;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-sm);
+}
+
+/* =====================================================
+   CONTEXT BADGE
+   ===================================================== */
+
+.input-context-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+}
+
+.input-context-badge svg {
+  width: 12px;
+  height: 12px;
+}
+
+.input-context-badge .remove-context {
+  background: none;
+  border: none;
+  padding: 0;
+  margin-left: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+}
+
+.input-context-badge .remove-context:hover {
+  color: var(--text-primary);
+}
+
+/* =====================================================
+   INPUT FOOTER
+   ===================================================== */
+
+.message-input-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 8px;
+  margin-top: var(--space-xs);
+  padding: 0 var(--space-xs);
 }
 
 .input-hint {
-  font-size: 12px;
-  color: var(--logos-text-muted);
+  font-size: 0.7rem;
+  color: var(--text-muted);
 }
 
 .input-hint kbd {
-  background: var(--logos-bg-tertiary);
-  padding: 2px 5px;
+  padding: 1px 4px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
   border-radius: 3px;
-  font-family: 'SF Mono', Consolas, monospace;
-  font-size: 11px;
-  border: 1px solid var(--logos-border);
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
 }
 
-.send-button {
-  background: var(--logos-accent-primary);
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: var(--logos-radius-sm);
-  font-weight: 600;
-  font-size: 13px;
-  cursor: pointer;
-  transition: opacity 0.15s;
+.char-count {
+  font-size: 0.7rem;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
 }
 
-.send-button:hover:not(:disabled) {
-  opacity: 0.9;
+.char-count.warning {
+  color: var(--status-warning);
 }
 
-.send-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.char-count.error {
+  color: var(--status-error);
 }
-
