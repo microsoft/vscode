@@ -91,9 +91,6 @@ export class QuickTree<T extends IQuickTreeItem> extends QuickInput implements I
 		return this.ui.tree.tree.getParentElement(element) as T ?? undefined;
 	}
 
-	setCheckboxState(element: T, checked: boolean | 'mixed'): void {
-		this.ui.tree.check(element, checked);
-	}
 	expand(element: T): void {
 		this.ui.tree.tree.expand(element);
 	}

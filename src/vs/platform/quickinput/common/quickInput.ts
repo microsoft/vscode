@@ -1139,13 +1139,6 @@ export interface IQuickTree<T extends IQuickTreeItem> extends IQuickInput {
 	setItemTree(itemTree: T[]): void;
 
 	/**
-	 * Sets the checkbox state of an item.
-	 * @param element The item to update.
-	 * @param checked The new checkbox state.
-	 */
-	setCheckboxState(element: T, checked: boolean | 'mixed'): void;
-
-	/**
 	 * Expands an item.
 	 * @param element The item to expand.
 	 */
