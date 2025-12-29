@@ -1,46 +1,49 @@
-# Logos Web Server Dockerfile
-FROM node:20-alpine AS builder
+# Logos Web IDE Dockerfile
+# Based on OpenVSCode Server with Logos customizations
+FROM gitpod/openvscode-server:1.95.3 AS base
 
-WORKDIR /app
+# Switch to root to install dependencies
+USER root
 
-# Install dependencies
-COPY package*.json ./
-RUN npm ci --legacy-peer-deps
+# Install additional tools
+RUN apt-get update && apt-get install -y \
+    curl \
+    git \
+    python3 \
+    python3-pip \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy source
-COPY . .
+# Create app directories
+WORKDIR /home/workspace
 
-# Build the application
-RUN npm run compile
+# Copy Logos extensions
+COPY --chown=openvscode-server:openvscode-server extensions/ /home/.openvscode-server/extensions/
 
-# Production image
-FROM node:20-alpine
+# Copy Logos configuration
+COPY --chown=openvscode-server:openvscode-server .vscode/ /home/workspace/.vscode/
 
-WORKDIR /app
+# Copy custom settings
+COPY --chown=openvscode-server:openvscode-server infrastructure/docker/settings.json /home/.openvscode-server/data/Machine/settings.json
 
-# Install production dependencies only
-COPY package*.json ./
-RUN npm ci --omit=dev --legacy-peer-deps
+# Set environment variables
+ENV OPENVSCODE_SERVER_ROOT=/home/.openvscode-server
+ENV D3N_ENDPOINT=http://d3n-gateway:9090
+ENV ARIA_ENDPOINT=http://aria-inference:80
+ENV PERSONA_ENDPOINT=http://persona-api:80
+ENV LOGOS_CHAT_ENDPOINT=http://logos-chat:8081
+ENV LOGOS_COMPLETION_ENDPOINT=http://logos-completion:8082
+ENV LOGOS_CA_ENDPOINT=http://logos-ca:8083
+ENV LOGOS_AUDIT_ENDPOINT=http://logos-audit:8084
 
-# Copy built application
-COPY --from=builder /app/out /app/out
-COPY --from=builder /app/extensions /app/extensions
-COPY --from=builder /app/product.json /app/
+# Switch back to non-root user
+USER openvscode-server
 
-# Create non-root user
-RUN addgroup -g 1000 logos && \
-    adduser -u 1000 -G logos -s /bin/sh -D logos && \
-    chown -R logos:logos /app
-
-USER logos
-
-# Expose ports
+# Expose port
 EXPOSE 8080
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
+    CMD curl -f http://localhost:8080/healthz || exit 1
 
-# Start the server
-CMD ["node", "./out/server-main.js", "--port", "8080"]
-
+# Start OpenVSCode Server
+ENTRYPOINT ["/bin/sh", "-c", "exec ${OPENVSCODE_SERVER_ROOT}/bin/openvscode-server --host 0.0.0.0 --port 8080 --without-connection-token"]

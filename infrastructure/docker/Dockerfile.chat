@@ -1,0 +1,50 @@
+# Logos Chat Service Dockerfile
+# Multi-agent chat with ARIA integration
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Install dependencies
+COPY package*.json ./
+RUN npm ci --legacy-peer-deps
+
+# Copy source
+COPY . .
+
+# Build the chat service
+RUN npm run build:chat
+
+# Production image
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install production dependencies
+COPY package*.json ./
+RUN npm ci --omit=dev --legacy-peer-deps
+
+# Copy built application
+COPY --from=builder /app/out/chat /app/out/chat
+COPY --from=builder /app/src/chat /app/src/chat
+
+# Create non-root user
+RUN addgroup -g 1000 logos && \
+    adduser -u 1000 -G logos -s /bin/sh -D logos && \
+    chown -R logos:logos /app
+
+USER logos
+
+# Environment variables
+ENV NODE_ENV=production
+ENV PORT=8081
+
+# Expose ports
+EXPOSE 8081
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8081/health || exit 1
+
+# Start the chat service
+CMD ["node", "./out/chat/server.js"]
+

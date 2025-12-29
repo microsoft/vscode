@@ -1,0 +1,53 @@
+# Logos Audit Service Dockerfile
+# Comprehensive logging and compliance
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Install dependencies
+COPY package*.json ./
+RUN npm ci --legacy-peer-deps
+
+# Copy source
+COPY . .
+
+# Build the audit service
+RUN npm run build:audit
+
+# Production image
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install production dependencies
+COPY package*.json ./
+RUN npm ci --omit=dev --legacy-peer-deps
+
+# Copy built application
+COPY --from=builder /app/out/governance /app/out/governance
+COPY --from=builder /app/src/governance /app/src/governance
+
+# Create non-root user
+RUN addgroup -g 1000 logos && \
+    adduser -u 1000 -G logos -s /bin/sh -D logos && \
+    chown -R logos:logos /app
+
+USER logos
+
+# Environment variables
+ENV NODE_ENV=production
+ENV PORT=8084
+ENV AUDIT_S3_BUCKET=logos-audit-logs
+ENV AUDIT_RETENTION_DAYS=365
+ENV AUDIT_ENCRYPTION_ENABLED=true
+
+# Expose ports
+EXPOSE 8084
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8084/health || exit 1
+
+# Start the audit service
+CMD ["node", "./out/governance/server.js"]
+

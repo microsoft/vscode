@@ -1,0 +1,52 @@
+# Logos Completion Service Dockerfile
+# D3N-powered code completions with Flash App acceleration
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Install dependencies
+COPY package*.json ./
+RUN npm ci --legacy-peer-deps
+
+# Copy source
+COPY . .
+
+# Build the completion service
+RUN npm run build:completion
+
+# Production image
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install production dependencies
+COPY package*.json ./
+RUN npm ci --omit=dev --legacy-peer-deps
+
+# Copy built application
+COPY --from=builder /app/out/completion /app/out/completion
+COPY --from=builder /app/src/d3n /app/src/d3n
+
+# Create non-root user
+RUN addgroup -g 1000 logos && \
+    adduser -u 1000 -G logos -s /bin/sh -D logos && \
+    chown -R logos:logos /app
+
+USER logos
+
+# Environment variables
+ENV NODE_ENV=production
+ENV PORT=8082
+ENV D3N_ENDPOINT=http://d3n-gateway:9090
+ENV FLASH_APPS_ENABLED=true
+
+# Expose ports
+EXPOSE 8082
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8082/health || exit 1
+
+# Start the completion service
+CMD ["node", "./out/completion/server.js"]
+

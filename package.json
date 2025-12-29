@@ -69,7 +69,19 @@
     "extensions-ci": "npm run gulp extensions-ci",
     "extensions-ci-pr": "npm run gulp extensions-ci-pr",
     "perf": "node scripts/code-perf.js",
-    "update-build-ts-version": "npm install -D typescript@next && npm install -D @typescript/native-preview && (cd build && npm run typecheck)"
+    "update-build-ts-version": "npm install -D typescript@next && npm install -D @typescript/native-preview && (cd build && npm run typecheck)",
+    "build": "npm run compile && npm run compile-extensions-build",
+    "build:chat": "tsc -p src/chat/tsconfig.json",
+    "build:completion": "tsc -p src/completion/tsconfig.json",
+    "build:ca": "tsc -p src/workspace-ca/tsconfig.json",
+    "build:audit": "tsc -p src/governance/tsconfig.json",
+    "build:services": "npm run build:chat && npm run build:completion && npm run build:ca && npm run build:audit",
+    "lint": "npm run eslint",
+    "lint:styles": "npm run stylelint",
+    "typecheck": "tsc --noEmit",
+    "test:e2e": "cd e2e && npm test",
+    "logos:start": "./scripts/code-server.sh",
+    "logos:dev": "npm run watch"
   },
   "dependencies": {
     "@microsoft/1ds-core-js": "^3.2.13",

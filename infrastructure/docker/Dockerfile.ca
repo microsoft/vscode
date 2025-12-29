@@ -1,0 +1,53 @@
+# Logos Cognitive Architect Service Dockerfile
+# Per-workspace AI assistant for architecture and documentation
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Install dependencies
+COPY package*.json ./
+RUN npm ci --legacy-peer-deps
+
+# Copy source
+COPY . .
+
+# Build the CA service
+RUN npm run build:ca
+
+# Production image
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install production dependencies
+COPY package*.json ./
+RUN npm ci --omit=dev --legacy-peer-deps
+
+# Copy built application
+COPY --from=builder /app/out/workspace-ca /app/out/workspace-ca
+COPY --from=builder /app/src/workspace-ca /app/src/workspace-ca
+
+# Create non-root user
+RUN addgroup -g 1000 logos && \
+    adduser -u 1000 -G logos -s /bin/sh -D logos && \
+    chown -R logos:logos /app
+
+USER logos
+
+# Environment variables
+ENV NODE_ENV=production
+ENV PORT=8083
+ENV D3N_ENDPOINT=http://d3n-gateway:9090
+ENV CA_MAX_INSTANCES=100
+ENV CA_IDLE_TIMEOUT=3600
+
+# Expose ports
+EXPOSE 8083
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8083/health || exit 1
+
+# Start the CA service
+CMD ["node", "./out/workspace-ca/server.js"]
+
