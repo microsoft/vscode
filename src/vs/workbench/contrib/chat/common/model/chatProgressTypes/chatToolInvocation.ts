@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { encodeBase64 } from '../../../../../base/common/buffer.js';
-import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
-import { IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
-import { localize } from '../../../../../nls.js';
-import { ConfirmedReason, IChatExtensionsContent, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatTerminalToolInvocationData } from '../chatService.js';
-import { IPreparedToolInvocation, isToolResultOutputDetails, IToolConfirmationMessages, IToolData, IToolProgressStep, IToolResult, ToolDataSource } from '../tools/languageModelToolsService.js';
+import { encodeBase64 } from '../../../../../../base/common/buffer.js';
+import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { IObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { localize } from '../../../../../../nls.js';
+import { ConfirmedReason, IChatExtensionsContent, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatTerminalToolInvocationData } from '../../chatService.js';
+import { IPreparedToolInvocation, isToolResultOutputDetails, IToolConfirmationMessages, IToolData, IToolProgressStep, IToolResult, ToolDataSource } from '../../tools/languageModelToolsService.js';
 
 export class ChatToolInvocation implements IChatToolInvocation {
 	public readonly kind: 'toolInvocation' = 'toolInvocation';
