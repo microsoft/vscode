@@ -14,6 +14,10 @@ class WebBrowserElementsService implements IBrowserElementsService {
 
 	constructor() { }
 
+	async getConsoleLogs(): Promise<string | undefined> {
+		throw new Error('Not implemented');
+	}
+
 	async getElementData(rect: IRectangle, token: CancellationToken): Promise<IElementData | undefined> {
 		throw new Error('Not implemented');
 	}
