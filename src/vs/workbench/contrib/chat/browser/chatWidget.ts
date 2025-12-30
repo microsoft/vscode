@@ -1608,14 +1608,23 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			// set contexts and request to false
 			const currentContext: IChatRequestVariableEntry[] = [];
+			const addedContextIds = new Set<string>();
+			const addToContext = (entry: IChatRequestVariableEntry) => {
+				if (addedContextIds.has(entry.id) || isWorkspaceVariableEntry(entry)) {
+					return;
+				}
+				if ((isPromptFileVariableEntry(entry) || isPromptTextVariableEntry(entry)) && entry.automaticallyAdded) {
+					return;
+				}
+				addedContextIds.add(entry.id);
+				currentContext.push(entry);
+			};
 			for (let i = requests.length - 1; i >= 0; i -= 1) {
 				const request = requests[i];
 				if (request.id === currentElement.id) {
 					request.shouldBeBlocked = false; // unblocking just this request.
-					if (request.attachedContext) {
-						const context = request.attachedContext.filter(entry => !isWorkspaceVariableEntry(entry) && (!(isPromptFileVariableEntry(entry) || isPromptTextVariableEntry(entry)) || !entry.automaticallyAdded));
-						currentContext.push(...context);
-					}
+					request.attachedContext?.forEach(addToContext);
+					currentElement.variables.forEach(addToContext);
 				}
 			}
 
