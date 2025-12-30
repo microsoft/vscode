@@ -8,6 +8,7 @@ import { raceTimeout } from '../../../../../base/common/async.js';
 import { decodeBase64 } from '../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { isPatternInWord } from '../../../../../base/common/filters.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
@@ -1036,6 +1037,8 @@ class BuiltinDynamicCompletions extends Disposable {
 	}
 
 	private addSymbolEntries(widget: IChatWidget, result: CompletionList, info: { insert: Range; replace: Range; varWord: IWordAtPosition | null }, token: CancellationToken) {
+		const timeoutMs = 100;
+		const stopwatch = new StopWatch();
 
 		const makeSymbolCompletionItem = (symbolItem: { name: string; location: Location; kind: SymbolKind }, pattern: string): CompletionItem => {
 			const text = `${chatVariableLeader}sym:${symbolItem.name}`;
@@ -1075,12 +1078,10 @@ class BuiltinDynamicCompletions extends Disposable {
 			}
 		}
 
-		const startTime = Date.now();
-		const timeoutMs = 100;
 		let timedOut = false;
 
 		for (const symbol of symbolsToAdd) {
-			if (Date.now() - startTime > timeoutMs) {
+			if (stopwatch.elapsed() > timeoutMs) {
 				timedOut = true;
 				break;
 			}
