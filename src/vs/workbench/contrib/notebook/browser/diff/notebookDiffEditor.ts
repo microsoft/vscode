@@ -508,6 +508,13 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			}
 		}));
 
+		// Track selection changes in the modified notebook (for history navigation)
+		// Following the text diff editor pattern: delegate to the modified (right) side
+		if (this.inlineDiffWidget?.editorWidget) {
+			this._modifiedResourceDisposableStore.add(this.inlineDiffWidget.editorWidget.onDidChangeActiveCell(() => this._onDidChangeSelection.fire({ reason: EditorPaneSelectionChangeReason.USER })));
+		}
+		this._modifiedResourceDisposableStore.add(this._model.modified.notebook.onDidChangeContent(() => this._onDidChangeSelection.fire({ reason: EditorPaneSelectionChangeReason.EDIT })));
+
 		await this._createOriginalWebview(generateUuid(), this._model.original.viewType, this._model.original.resource);
 		if (this._originalWebview) {
 			this._modifiedResourceDisposableStore.add(this._originalWebview);
