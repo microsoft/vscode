@@ -144,6 +144,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	readonly onDidRequestRefreshDimensions = this._onDidRequestRefreshDimensions.event;
 	private readonly _onDidChangeFindResults = this._register(new Emitter<{ resultIndex: number; resultCount: number }>());
 	readonly onDidChangeFindResults = this._onDidChangeFindResults.event;
+	private readonly _onBeforeSearch = this._register(new Emitter<void>());
+	readonly onBeforeSearch = this._onBeforeSearch.event;
+	private readonly _onAfterSearch = this._register(new Emitter<void>());
+	readonly onAfterSearch = this._onAfterSearch.event;
 	private readonly _onDidChangeSelection = this._register(new Emitter<void>());
 	readonly onDidChangeSelection = this._onDidChangeSelection.event;
 	private readonly _onDidChangeFocus = this._register(new Emitter<boolean>());
@@ -613,6 +617,12 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 				this._searchAddon.onDidChangeResults((results: { resultIndex: number; resultCount: number }) => {
 					this._lastFindResult = results;
 					this._onDidChangeFindResults.fire(results);
+				});
+				this._searchAddon.onBeforeSearch(() => {
+					this._onBeforeSearch.fire();
+				});
+				this._searchAddon.onAfterSearch(() => {
+					this._onAfterSearch.fire();
 				});
 				return this._searchAddon;
 			});
