@@ -1081,7 +1081,7 @@ class BuiltinDynamicCompletions extends Disposable {
 		let timedOut = false;
 
 		for (const symbol of symbolsToAdd) {
-			if (stopwatch.elapsed() > timeoutMs) {
+			if (stopwatch.elapsed() > timeoutMs || token.isCancellationRequested) {
 				timedOut = true;
 				break;
 			}
