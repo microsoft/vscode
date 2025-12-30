@@ -173,10 +173,9 @@ class CodeMain {
 
 		// Set custom application name for WM_CLASS/app_id when --class argument is provided
 		if (environmentMainService.args.class) {
-			const customAppName = environmentMainService.args.class;
-			app.setName(customAppName);
+			app.setName(environmentMainService.args.class);
 			if (isLinux) {
-				app.setDesktopName(customAppName);
+				app.setDesktopName(environmentMainService.args.class);
 			}
 		}
 
