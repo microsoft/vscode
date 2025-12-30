@@ -329,8 +329,25 @@ namespace McpServerSchemaVersion_v2025_07_09 {
 			}
 
 			function convertKeyValueInput(input: RawGalleryMcpServerKeyValueInput): IMcpServerKeyValueInput {
+				let description = input.description;
+				
+				// Enhance descriptions for GitHub MCP Server inputs with documentation links
+				if (from.name === 'github-mcp-server' && input.name && description) {
+					const docLinks: Record<string, string> = {
+						'toolsets': 'https://aka.ms/vscode-gh-mcp-toolsets',
+						'readOnlyMode': 'https://aka.ms/vscode-gh-mcp-readonly',
+						'lockdownMode': 'https://aka.ms/vscode-gh-mcp-lockdown'
+					};
+					
+					const docLink = docLinks[input.name];
+					if (docLink) {
+						description = `${description} [Learn more](${docLink})`;
+					}
+				}
+				
 				return {
 					...input,
+					description,
 					isRequired: input.is_required,
 					isSecret: input.is_secret,
 					variables: input.variables ? convertVariables(input.variables) : undefined,
