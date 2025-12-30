@@ -329,7 +329,11 @@ export class ViewModel extends Disposable implements IViewModel {
 								if (injectedText) {
 									injectedText = injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId));
 								}
-								lineBreaksComputer.addRequest(line, injectedText, null);
+								let inlineClassNames = change.inlineClassNames[lineIdx];
+								if (inlineClassNames) {
+									inlineClassNames = inlineClassNames.filter(element => (!element.ownerId || element.ownerId === this._editorId));
+								}
+								lineBreaksComputer.addRequest(line, injectedText, inlineClassNames, null);
 							}
 							break;
 						}
@@ -338,7 +342,12 @@ export class ViewModel extends Disposable implements IViewModel {
 							if (change.injectedText) {
 								injectedText = change.injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId));
 							}
-							lineBreaksComputer.addRequest(change.detail, injectedText, null);
+
+							let inlineClassNames: textModelEvents.InlineClassName[] | null = null;
+							if (change.inlineClassNames) {
+								inlineClassNames = change.inlineClassNames.filter(element => (!element.ownerId || element.ownerId === this._editorId));
+							}
+							lineBreaksComputer.addRequest(change.detail, injectedText, inlineClassNames, null);
 							break;
 						}
 					}
