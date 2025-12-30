@@ -43,7 +43,7 @@
 				margin: 0 0 2px 6px;
 			}
 
-			.codicon {
+			.codicon:not(.chat-thinking-icon) {
 				display: none;
 			}
 		}
@@ -68,8 +68,9 @@
 		}
 
 		/* chain of thought lines */
-		.chat-tool-invocation-part,
+		.chat-thinking-tool-wrapper,
 		.chat-thinking-item.markdown-content {
+			position: relative;
 
 			&::before {
 				content: '';
@@ -80,15 +81,15 @@
 				width: 1px;
 				border-radius: 0;
 				background-color: var(--vscode-chat-requestBorder);
-				mask-image: linear-gradient(to bottom, #000 0 9px, transparent 9px 21px, #000 21px 100%);
+				mask-image: linear-gradient(to bottom, #000 0 5px, transparent 5px 25px, #000 24px 100%);
 			}
 
 			&:first-child::before {
-				mask-image: linear-gradient(to bottom, transparent 0 21px, #000 21px 100%);
+				mask-image: linear-gradient(to bottom, transparent 0 25px, #000 25px 100%);
 			}
 
 			&:last-child::before {
-				mask-image: linear-gradient(to bottom, #000 0 9px, transparent 9px 100%);
+				mask-image: linear-gradient(to bottom, #000 0 5px, transparent 5px 100%);
 			}
 
 			&:only-child::before {
@@ -96,17 +97,22 @@
 				mask-image: none;
 			}
 
-			&::after {
-				content: '';
+			> .chat-thinking-icon {
 				position: absolute;
-				left: 8px;
-				top: 12px;
-				width: 6px;
-				height: 6px;
-				border-radius: 50%;
-				background-color: var(--vscode-chat-requestBorder);
+				left: 5px;
+				top: 9px;
+				width: 12px;
+				height: 12px;
+				font-size: 12px;
+				line-height: 12px;
+				text-align: center;
+				color: var(--vscode-descriptionForeground);
 			}
 
+		}
+
+		.chat-thinking-tool-wrapper .chat-tool-invocation-part {
+			padding: 3px 12px 4px 18px;
 		}
 	}
 

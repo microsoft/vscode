@@ -31,6 +31,46 @@ function extractTextFromPart(content: IChatThinkingPart): string {
 	return raw.trim();
 }
 
+export function getToolInvocationIcon(toolId: string): ThemeIcon {
+	const lowerToolId = toolId.toLowerCase();
+
+	if (
+		lowerToolId.includes('search') ||
+		lowerToolId.includes('grep') ||
+		lowerToolId.includes('find') ||
+		lowerToolId.includes('list') ||
+		lowerToolId.includes('semantic') ||
+		lowerToolId.includes('changes') ||
+		lowerToolId.includes('codebase')
+	) {
+		return Codicon.search;
+	}
+
+	if (
+		lowerToolId.includes('read') ||
+		lowerToolId.includes('get_file') ||
+		lowerToolId.includes('problems')
+	) {
+		return Codicon.eye;
+	}
+
+	if (
+		lowerToolId.includes('edit') ||
+		lowerToolId.includes('create')
+	) {
+		return Codicon.pencil;
+	}
+
+	// default to generic tool icon
+	return Codicon.tools;
+}
+
+function createThinkingIcon(icon: ThemeIcon): HTMLElement {
+	const iconElement = $('span.chat-thinking-icon');
+	iconElement.classList.add(...ThemeIcon.asClassNameArray(icon));
+	return iconElement;
+}
+
 function extractTitleFromThinkingContent(content: string): string | undefined {
 	const headerMatch = content.match(/^\*\*([^*]+)\*\*/);
 	return headerMatch ? headerMatch[1] : undefined;
@@ -198,6 +238,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.markdownResult = rendered;
 		if (!target) {
 			clearNode(this.textContainer);
+			this.textContainer.appendChild(createThinkingIcon(Codicon.comment));
 			this.textContainer.appendChild(rendered.element);
 		}
 	}
@@ -432,7 +473,13 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	public appendItem(content: HTMLElement, toolInvocationId?: string, toolInvocation?: IChatToolInvocation | IChatToolInvocationSerialized): void {
-		this.wrapper.appendChild(content);
+		const itemWrapper = $('.chat-thinking-tool-wrapper');
+		const icon = toolInvocationId ? getToolInvocationIcon(toolInvocationId) : Codicon.tools;
+		const iconElement = createThinkingIcon(icon);
+		itemWrapper.appendChild(iconElement);
+		itemWrapper.appendChild(content);
+
+		this.wrapper.appendChild(itemWrapper);
 		if (toolInvocationId) {
 			this.toolInvocationCount++;
 			let toolCallLabel: string;
