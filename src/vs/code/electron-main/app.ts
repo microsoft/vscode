@@ -1212,7 +1212,9 @@ export class CodeApplication extends Disposable {
 		sharedProcessClient.then(client => client.registerChannel('profileStorageListener', profileStorageListener));
 
 		// Terminal
-		const ptyHostChannel = ProxyChannel.fromService(accessor.get(ILocalPtyService), disposables);
+		const ptyHostChannel = ProxyChannel.fromService(accessor.get(ILocalPtyService), disposables, {
+			isLazyEvent: (key: string) => key === 'onProcessData'
+		});
 		mainProcessElectronServer.registerChannel(TerminalIpcChannels.LocalPty, ptyHostChannel);
 
 		// External Terminal
