@@ -500,7 +500,7 @@ interface ISerializedAgentSession extends Omit<IAgentSessionData, 'iconPath' | '
 }
 
 interface ISerializedAgentSessionState extends IAgentSessionState {
-	readonly resource: UriComponents;
+	readonly resource: UriComponents /* old shape */ | string /* new shape that is more compact */;
 }
 
 class AgentSessionsCache {
@@ -587,7 +587,7 @@ class AgentSessionsCache {
 
 	saveSessionStates(states: ResourceMap<IAgentSessionState>): void {
 		const serialized: ISerializedAgentSessionState[] = Array.from(states.entries()).map(([resource, state]) => ({
-			resource: resource.toJSON(),
+			resource: resource.toString(),
 			archived: state.archived,
 			read: state.read
 		}));
@@ -607,7 +607,14 @@ class AgentSessionsCache {
 			const cached = JSON.parse(statesCache) as ISerializedAgentSessionState[];
 
 			for (const entry of cached) {
-				states.set(URI.revive(entry.resource), {
+				let resource: URI;
+				if (typeof entry.resource === 'string') {
+					resource = URI.parse(entry.resource);
+				} else {
+					resource = URI.revive(entry.resource);
+				}
+
+				states.set(resource, {
 					archived: entry.archived,
 					read: entry.read
 				});
