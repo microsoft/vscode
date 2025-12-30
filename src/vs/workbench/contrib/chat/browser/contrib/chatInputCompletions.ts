@@ -1075,11 +1075,19 @@ class BuiltinDynamicCompletions extends Disposable {
 			}
 		}
 
+		const startTime = Date.now();
+		const timeoutMs = 100;
+		let timedOut = false;
+
 		for (const symbol of symbolsToAdd) {
+			if (Date.now() - startTime > timeoutMs) {
+				timedOut = true;
+				break;
+			}
 			result.suggestions.push(makeSymbolCompletionItem({ ...symbol.symbol, location: { uri: symbol.uri, range: symbol.symbol.range } }, pattern ?? ''));
 		}
 
-		result.incomplete = !!pattern;
+		result.incomplete = !!pattern || timedOut;
 	}
 
 	private updateCacheKey() {
