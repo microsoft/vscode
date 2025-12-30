@@ -196,3 +196,4 @@ function getSymbolIcon(kind: string): string {
 
 export default ContextIndicator;
 
+

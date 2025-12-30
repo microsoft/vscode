@@ -302,3 +302,4 @@ const ProjectInsights: React.FC<ProjectInsightsProps> = ({ ca }) => {
 
 export default CASidebar;
 
+

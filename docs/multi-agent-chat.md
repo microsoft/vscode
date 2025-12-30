@@ -176,3 +176,4 @@ const thread = await vscode.commands.executeCommand('logos.chat.getThread', {
 2. Check ContextIndicator for what's included
 3. Manually add context with @-file mentions
 
+

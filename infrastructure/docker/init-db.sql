@@ -118,3 +118,4 @@ CREATE TABLE blockchain_anchors (
 CREATE INDEX idx_anchors_merkle ON blockchain_anchors(merkle_root);
 CREATE INDEX idx_anchors_tx ON blockchain_anchors(tx_id);
 
+

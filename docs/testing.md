@@ -282,3 +282,4 @@ npx playwright test --ui
 6. **Keep tests fast (< 100ms per unit test)**
 7. **Use data-testid for E2E selectors**
 
+

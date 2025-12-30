@@ -50,3 +50,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
 # Start the completion service
 CMD ["node", "./out/completion/server.js"]
 
+

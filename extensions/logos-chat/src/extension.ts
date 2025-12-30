@@ -97,3 +97,4 @@ export function deactivate() {
   console.log('[logos-chat] Deactivating extension');
 }
 
+

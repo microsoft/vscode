@@ -89,3 +89,4 @@ spec:
     {{- include "logos.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: audit
 
+
