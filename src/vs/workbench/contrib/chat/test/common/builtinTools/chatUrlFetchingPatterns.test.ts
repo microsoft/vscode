@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { extractUrlPatterns, getPatternLabel, isUrlApproved, getMatchingPattern, IUrlApprovalSettings } from '../../../common/builtinTools/chatUrlFetchingPatterns.js';
+import { extractUrlPatterns, getPatternLabel, isUrlApproved, getMatchingPattern, IUrlApprovalSettings } from '../../../common/tools/builtinTools/chatUrlFetchingPatterns.js';
 
 suite('ChatUrlFetchingPatterns', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

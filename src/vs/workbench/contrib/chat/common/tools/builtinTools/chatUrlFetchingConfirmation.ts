@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from '../../../../../base/common/codicons.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../../../base/common/map.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { localize } from '../../../../../nls.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IQuickInputButton, IQuickInputService, IQuickTreeItem } from '../../../../../platform/quickinput/common/quickInput.js';
-import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
-import { ConfirmedReason, ToolConfirmKind } from '../chatService.js';
-import { ChatConfiguration } from '../constants.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../../../base/common/map.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { localize } from '../../../../../../nls.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IQuickInputButton, IQuickInputService, IQuickTreeItem } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
+import { ConfirmedReason, ToolConfirmKind } from '../../chatService.js';
+import { ChatConfiguration } from '../../constants.js';
 import {
 	ILanguageModelToolConfirmationActions,
 	ILanguageModelToolConfirmationContribution,
 	ILanguageModelToolConfirmationContributionQuickTreeItem,
 	ILanguageModelToolConfirmationRef
-} from '../tools/languageModelToolsConfirmationService.js';
+} from '../languageModelToolsConfirmationService.js';
 import { extractUrlPatterns, getPatternLabel, isUrlApproved, IUrlApprovalSettings } from './chatUrlFetchingPatterns.js';
 
 const trashButton: IQuickInputButton = {

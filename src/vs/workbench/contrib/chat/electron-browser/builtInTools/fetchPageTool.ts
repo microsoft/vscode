@@ -19,7 +19,7 @@ import { IChatService } from '../../common/chatService.js';
 import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { ChatImageMimeType } from '../../common/languageModels.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultDataPart, IToolResultTextPart, ToolDataSource, ToolProgress } from '../../common/tools/languageModelToolsService.js';
-import { InternalFetchWebPageToolId } from '../../common/builtinTools/tools.js';
+import { InternalFetchWebPageToolId } from '../../common/tools/builtinTools/tools.js';
 
 export const FetchWebPageToolData: IToolData = {
 	id: InternalFetchWebPageToolId,

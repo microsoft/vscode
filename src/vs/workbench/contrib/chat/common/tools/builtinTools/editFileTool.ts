@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { IDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../base/common/observable.js';
-import { URI, UriComponents } from '../../../../../base/common/uri.js';
-import { CellUri } from '../../../notebook/common/notebookCommon.js';
-import { INotebookService } from '../../../notebook/common/notebookService.js';
-import { ICodeMapperService } from '../chatCodeMapperService.js';
-import { ChatModel } from '../model/chatModel.js';
-import { IChatService } from '../chatService.js';
-import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress } from '../tools/languageModelToolsService.js';
-import { LocalChatSessionUri } from '../model/chatUri.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../../base/common/observable.js';
+import { URI, UriComponents } from '../../../../../../base/common/uri.js';
+import { CellUri } from '../../../../notebook/common/notebookCommon.js';
+import { INotebookService } from '../../../../notebook/common/notebookService.js';
+import { ICodeMapperService } from '../../chatCodeMapperService.js';
+import { ChatModel } from '../../model/chatModel.js';
+import { IChatService } from '../../chatService.js';
+import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress } from '../languageModelToolsService.js';
+import { LocalChatSessionUri } from '../../model/chatUri.js';
 
 export const ExtensionEditToolId = 'vscode_editFile';
 export const InternalEditToolId = 'vscode_editFile_internal';

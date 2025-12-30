@@ -14,7 +14,7 @@ import { IWebContentExtractorService, WebContentExtractResult } from '../../../.
 import { FetchWebPageTool } from '../../../electron-browser/builtInTools/fetchPageTool.js';
 import { TestFileService } from '../../../../../test/common/workbenchTestServices.js';
 import { MockTrustedDomainService } from '../../../../url/test/browser/mockTrustedDomainService.js';
-import { InternalFetchWebPageToolId } from '../../../common/builtinTools/tools.js';
+import { InternalFetchWebPageToolId } from '../../../common/tools/builtinTools/tools.js';
 import { MockChatService } from '../../common/mockChatService.js';
 import { upcastDeepPartial } from '../../../../../../base/test/common/mock.js';
 import { IChatService } from '../../../common/chatService.js';

@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import {
 	IToolData,
 	IToolImpl,
@@ -15,14 +15,14 @@ import {
 	ToolDataSource,
 	IToolInvocationPreparationContext,
 	IPreparedToolInvocation
-} from '../tools/languageModelToolsService.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
-import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { IChatTodo, IChatTodoListService } from '../tools/chatTodoListService.js';
-import { localize } from '../../../../../nls.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { chatSessionResourceToId, LocalChatSessionUri } from '../model/chatUri.js';
+} from '../languageModelToolsService.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { IChatTodo, IChatTodoListService } from '../chatTodoListService.js';
+import { localize } from '../../../../../../nls.js';
+import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { chatSessionResourceToId, LocalChatSessionUri } from '../../model/chatUri.js';
 
 export const TodoListToolWriteOnlySettingId = 'chat.todoListTool.writeOnly';
 export const TodoListToolDescriptionFieldSettingId = 'chat.todoListTool.descriptionField';

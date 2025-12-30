@@ -17,7 +17,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
 import { IChatTodoListService, IChatTodo } from '../../common/tools/chatTodoListService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { TodoListToolDescriptionFieldSettingId } from '../../common/builtinTools/manageTodoListTool.js';
+import { TodoListToolDescriptionFieldSettingId } from '../../common/tools/builtinTools/manageTodoListTool.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 
