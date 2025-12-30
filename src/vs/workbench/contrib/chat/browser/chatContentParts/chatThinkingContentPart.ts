@@ -31,7 +31,7 @@ function extractTextFromPart(content: IChatThinkingPart): string {
 	return raw.trim();
 }
 
-export function getToolInvocationIcon(toolId: string): ThemeIcon {
+function getToolInvocationIcon(toolId: string): ThemeIcon {
 	const lowerToolId = toolId.toLowerCase();
 
 	if (
