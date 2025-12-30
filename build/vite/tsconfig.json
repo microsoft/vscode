@@ -1,10 +1,13 @@
 {
 	"compilerOptions": {
 		"allowImportingTsExtensions": true,
+		"checkJs": true,
+		"module": "preserve",
 		"noEmit": true,
 		"strict": true,
-		"forceConsistentCasingInFileNames": true,
 		"experimentalDecorators": true,
-	},
-	"include": ["**/*.ts"]
+		"types": [
+			"vite/client"
+		]
+	}
 }
