@@ -9,7 +9,7 @@ import { ContextKeyService } from '../../../../../platform/contextkey/browser/co
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { LanguageModelToolsService } from '../../browser/languageModelToolsService.js';
 import { IChatService } from '../../common/chatService.js';
-import { ILanguageModelToolsService, IToolData, ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, ToolDataSource, ToolSet } from '../../common/tools/languageModelToolsService.js';
 import { MockChatService } from '../common/mockChatService.js';
 import { ChatSelectedTools } from '../../browser/chatSelectedTools.js';
 import { constObservable } from '../../../../../base/common/observable.js';

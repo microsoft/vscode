@@ -15,9 +15,9 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
-import { IChatTodoListService, IChatTodo } from '../../common/chatTodoListService.js';
+import { IChatTodoListService, IChatTodo } from '../../common/tools/chatTodoListService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { TodoListToolDescriptionFieldSettingId } from '../../common/tools/manageTodoListTool.js';
+import { TodoListToolDescriptionFieldSettingId } from '../../common/builtinTools/manageTodoListTool.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 

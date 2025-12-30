@@ -14,7 +14,7 @@ import { Range } from '../../../../../../editor/common/core/range.js';
 import { CharCode } from '../../../../../../base/common/charCode.js';
 import { getWordAtText } from '../../../../../../editor/common/core/wordHelper.js';
 import { chatVariableLeader } from '../../chatParserTypes.js';
-import { ILanguageModelToolsService } from '../../languageModelToolsService.js';
+import { ILanguageModelToolsService } from '../../tools/languageModelToolsService.js';
 
 /**
  * Provides autocompletion for the variables inside prompt bodies.

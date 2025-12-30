@@ -8,7 +8,7 @@ import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { ElicitationState, IChatElicitationRequest, IChatElicitationRequestSerialized } from '../common/chatService.js';
-import { ToolDataSource } from '../common/languageModelToolsService.js';
+import { ToolDataSource } from '../common/tools/languageModelToolsService.js';
 
 export class ChatElicitationRequestPart extends Disposable implements IChatElicitationRequest {
 	public readonly kind = 'elicitation2';

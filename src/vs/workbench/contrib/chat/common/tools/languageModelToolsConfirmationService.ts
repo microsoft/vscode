@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from '../../../../base/common/lifecycle.js';
-import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IQuickInputButton, IQuickTreeItem } from '../../../../platform/quickinput/common/quickInput.js';
-import { ConfirmedReason } from './chatService.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IQuickInputButton, IQuickTreeItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { ConfirmedReason } from '../chatService.js';
 import { IToolData, ToolDataSource } from './languageModelToolsService.js';
 
 export interface ILanguageModelToolConfirmationActions {

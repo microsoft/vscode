@@ -16,7 +16,7 @@ import { AccessibilityVerbositySettingId } from '../../accessibility/browser/acc
 import { migrateLegacyTerminalToolSpecificData } from '../common/chat.js';
 import { IChatToolInvocation } from '../common/chatService.js';
 import { IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
-import { isToolResultInputOutputDetails, isToolResultOutputDetails, toolContentToA11yString } from '../common/languageModelToolsService.js';
+import { isToolResultInputOutputDetails, isToolResultOutputDetails, toolContentToA11yString } from '../common/tools/languageModelToolsService.js';
 import { CancelChatActionId } from './actions/chatExecuteActions.js';
 import { AcceptToolConfirmationActionId } from './actions/chatToolActions.js';
 import { ChatTreeItem } from './chat.js';

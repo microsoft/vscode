@@ -35,7 +35,7 @@ import {
 	ToolSet,
 	VSCodeToolReference,
 	IToolAndToolSetEnablementMap
-} from '../languageModelToolsService.js';
+} from '../tools/languageModelToolsService.js';
 import { ComputeAutomaticInstructions } from '../promptSyntax/computeAutomaticInstructions.js';
 import { ManageTodoListToolToolId } from './manageTodoListTool.js';
 import { createToolSimpleTextResult } from './toolHelpers.js';

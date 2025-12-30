@@ -15,11 +15,10 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
-import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
+import { WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { ViewContainerLocation } from '../../../common/views.js';
 import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
@@ -30,37 +29,9 @@ import { IChatWidgetService } from '../browser/chat.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatConfiguration, ChatModeKind } from '../common/constants.js';
 import { IChatService } from '../common/chatService.js';
-import { ChatUrlFetchingConfirmationContribution } from '../common/chatUrlFetchingConfirmation.js';
-import { ILanguageModelToolsConfirmationService } from '../common/languageModelToolsConfirmationService.js';
-import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
-import { InternalFetchWebPageToolId } from '../common/tools/tools.js';
 import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js';
 import { HoldToVoiceChatInChatViewAction, InlineVoiceChatAction, KeywordActivationContribution, QuickVoiceChatAction, ReadChatResponseAloud, StartVoiceChatAction, StopListeningAction, StopListeningAndSubmitAction, StopReadAloud, StopReadChatItemAloud, VoiceChatInChatViewAction } from './actions/voiceChatActions.js';
-import { FetchWebPageTool, FetchWebPageToolData, IFetchWebPageToolParams } from './tools/fetchPageTool.js';
-
-class NativeBuiltinToolsContribution extends Disposable implements IWorkbenchContribution {
-
-	static readonly ID = 'chat.nativeBuiltinTools';
-
-	constructor(
-		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ILanguageModelToolsConfirmationService confirmationService: ILanguageModelToolsConfirmationService,
-	) {
-		super();
-
-		const editTool = instantiationService.createInstance(FetchWebPageTool);
-		this._register(toolsService.registerTool(FetchWebPageToolData, editTool));
-
-		this._register(confirmationService.registerConfirmationContribution(
-			InternalFetchWebPageToolId,
-			instantiationService.createInstance(
-				ChatUrlFetchingConfirmationContribution,
-				params => (params as IFetchWebPageToolParams).urls
-			)
-		));
-	}
-}
+import { NativeBuiltinToolsContribution } from './tools/tools.js';
 
 class ChatCommandLineHandler extends Disposable {
 

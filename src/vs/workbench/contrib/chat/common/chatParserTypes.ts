@@ -11,7 +11,7 @@ import { IChatAgentCommand, IChatAgentData, IChatAgentService, reviveSerializedA
 import { IChatSlashData } from './chatSlashCommands.js';
 import { IChatRequestProblemsVariable, IChatRequestVariableValue } from './chatVariables.js';
 import { ChatAgentLocation } from './constants.js';
-import { IToolData } from './languageModelToolsService.js';
+import { IToolData } from './tools/languageModelToolsService.js';
 import { IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData } from './chatVariableEntries.js';
 
 // These are in a separate file to avoid circular dependencies with the dependencies of the parser

@@ -17,7 +17,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { IMarkerService } from '../../../../../../platform/markers/common/markers.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { ChatConfiguration } from '../../../common/constants.js';
-import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../../common/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { LanguageModelToolsService } from '../../../browser/languageModelToolsService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { getLanguageIdForPromptsType, PromptsType } from '../../../common/promptSyntax/promptTypes.js';

@@ -61,7 +61,7 @@ import { IChatResponseViewModel } from '../../../chat/common/chatViewModel.js';
 import { ChatWidgetHistoryService, IChatWidgetHistoryService } from '../../../chat/common/chatWidgetHistoryService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../chat/common/constants.js';
 import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
-import { ILanguageModelToolsService } from '../../../chat/common/languageModelToolsService.js';
+import { ILanguageModelToolsService } from '../../../chat/common/tools/languageModelToolsService.js';
 import { NullLanguageModelsService } from '../../../chat/test/common/languageModels.js';
 import { MockLanguageModelToolsService } from '../../../chat/test/common/mockLanguageModelToolsService.js';
 import { IMcpService } from '../../../mcp/common/mcpTypes.js';

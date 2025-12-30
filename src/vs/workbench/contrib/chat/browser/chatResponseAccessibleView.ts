@@ -17,7 +17,7 @@ import { migrateLegacyTerminalToolSpecificData } from '../common/chat.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatToolInvocation } from '../common/chatService.js';
 import { isResponseVM } from '../common/chatViewModel.js';
-import { isToolResultInputOutputDetails, isToolResultOutputDetails, toolContentToA11yString } from '../common/languageModelToolsService.js';
+import { isToolResultInputOutputDetails, isToolResultOutputDetails, toolContentToA11yString } from '../common/tools/languageModelToolsService.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from './chat.js';
 
 export class ChatResponseAccessibleView implements IAccessibleViewImplementation {

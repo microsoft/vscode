@@ -15,10 +15,10 @@ import {
 	ToolDataSource,
 	IToolInvocationPreparationContext,
 	IPreparedToolInvocation
-} from '../languageModelToolsService.js';
+} from '../tools/languageModelToolsService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { IChatTodo, IChatTodoListService } from '../chatTodoListService.js';
+import { IChatTodo, IChatTodoListService } from '../tools/chatTodoListService.js';
 import { localize } from '../../../../../nls.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';

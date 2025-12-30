@@ -5,8 +5,8 @@
 
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ConfirmedReason } from '../../common/chatService.js';
-import { ILanguageModelToolConfirmationActions, ILanguageModelToolConfirmationContribution, ILanguageModelToolConfirmationRef, ILanguageModelToolsConfirmationService } from '../../common/languageModelToolsConfirmationService.js';
-import { IToolData } from '../../common/languageModelToolsService.js';
+import { ILanguageModelToolConfirmationActions, ILanguageModelToolConfirmationContribution, ILanguageModelToolConfirmationRef, ILanguageModelToolsConfirmationService } from '../../common/tools/languageModelToolsConfirmationService.js';
+import { IToolData } from '../../common/tools/languageModelToolsService.js';
 
 export class MockLanguageModelToolsConfirmationService implements ILanguageModelToolsConfirmationService {
 	manageConfirmationPreferences(tools: readonly IToolData[], options?: { defaultScope?: 'workspace' | 'profile' | 'session' }): void {

@@ -20,7 +20,7 @@ import { IChatSlashCommandService } from '../../common/chatSlashCommands.js';
 import { LocalChatSessionUri } from '../../common/chatUri.js';
 import { IChatVariablesService } from '../../common/chatVariables.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
-import { IToolData, ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
+import { IToolData, ToolDataSource, ToolSet } from '../../common/tools/languageModelToolsService.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { MockChatService } from './mockChatService.js';
 import { MockChatVariablesService } from './mockChatVariables.js';

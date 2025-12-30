@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IToolResult } from '../languageModelToolsService.js';
+import { IToolResult } from '../tools/languageModelToolsService.js';
 
 /**
  * Creates a tool result with a single text content part.

@@ -14,7 +14,7 @@ import { ITerminalChatService } from '../../../../../terminal/browser/terminal.j
 import { IStorageService, StorageScope } from '../../../../../../../platform/storage/common/storage.js';
 import { TerminalToolConfirmationStorageKeys } from '../../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import { ChatConfiguration } from '../../../../../chat/common/constants.js';
-import type { ToolConfirmationAction } from '../../../../../chat/common/languageModelToolsService.js';
+import type { ToolConfirmationAction } from '../../../../../chat/common/tools/languageModelToolsService.js';
 import { TerminalChatAgentToolsSettingId } from '../../../common/terminalChatAgentToolsConfiguration.js';
 import { CommandLineAutoApprover, type IAutoApproveRule, type ICommandApprovalResult, type ICommandApprovalResultWithReason } from '../../commandLineAutoApprover.js';
 import { dedupeRules, generateAutoApproveActions, isPowerShell } from '../../runInTerminalHelpers.js';

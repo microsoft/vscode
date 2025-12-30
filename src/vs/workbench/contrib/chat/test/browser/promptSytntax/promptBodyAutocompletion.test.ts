@@ -15,7 +15,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { LanguageModelToolsService } from '../../../browser/languageModelToolsService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
-import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../../common/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { PromptBodyAutocompletion } from '../../../common/promptSyntax/languageProviders/promptBodyAutocompletion.js';
 import { createTextModel } from '../../../../../../editor/test/common/testTextModel.js';
 import { URI } from '../../../../../../base/common/uri.js';

@@ -16,7 +16,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ChatModel } from '../../../../chat/common/chatModel.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
-import { IToolInvocationContext } from '../../../../chat/common/languageModelToolsService.js';
+import { IToolInvocationContext } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { LocalChatSessionUri } from '../../../../chat/common/chatUri.js';
 import { isNumber } from '../../../../../../base/common/types.js';
 

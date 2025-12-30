@@ -5,8 +5,8 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { createManageTodoListToolData } from '../../../common/tools/manageTodoListTool.js';
-import { IToolData } from '../../../common/languageModelToolsService.js';
+import { createManageTodoListToolData } from '../../../common/builtinTools/manageTodoListTool.js';
+import { IToolData } from '../../../common/tools/languageModelToolsService.js';
 import { IJSONSchema } from '../../../../../../base/common/jsonSchema.js';
 
 suite('ManageTodoListTool Description Field Setting', () => {

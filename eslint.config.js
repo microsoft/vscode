@@ -277,7 +277,7 @@ export default tseslint.config(
 			'src/vs/workbench/contrib/chat/common/chatModel.ts',
 			'src/vs/workbench/contrib/chat/test/common/promptSyntax/testUtils/mockFilesystem.test.ts',
 			'src/vs/workbench/contrib/chat/test/common/promptSyntax/testUtils/mockFilesystem.ts',
-			'src/vs/workbench/contrib/chat/test/common/tools/manageTodoListTool.test.ts',
+			'src/vs/workbench/contrib/chat/test/common/builtinTools/manageTodoListTool.test.ts',
 			'src/vs/workbench/contrib/debug/browser/debugAdapterManager.ts',
 			'src/vs/workbench/contrib/debug/browser/variablesView.ts',
 			'src/vs/workbench/contrib/debug/browser/watchExpressionsView.ts',

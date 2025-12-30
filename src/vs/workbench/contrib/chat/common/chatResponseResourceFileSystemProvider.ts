@@ -12,7 +12,7 @@ import { createFileSystemProviderError, FileSystemProviderCapabilities, FileSyst
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ChatResponseResource } from './chatModel.js';
 import { IChatService, IChatToolInvocation, IChatToolInvocationSerialized } from './chatService.js';
-import { isToolResultInputOutputDetails } from './languageModelToolsService.js';
+import { isToolResultInputOutputDetails } from './tools/languageModelToolsService.js';
 
 export class ChatResponseResourceFileSystemProvider extends Disposable implements
 	IWorkbenchContribution,

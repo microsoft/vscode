@@ -9,8 +9,8 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IStorageService, InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { LanguageModelToolsConfirmationService } from '../../browser/languageModelToolsConfirmationService.js';
 import { ToolConfirmKind } from '../../common/chatService.js';
-import { ILanguageModelToolConfirmationActions, ILanguageModelToolConfirmationContribution, ILanguageModelToolConfirmationRef } from '../../common/languageModelToolsConfirmationService.js';
-import { ToolDataSource } from '../../common/languageModelToolsService.js';
+import { ILanguageModelToolConfirmationActions, ILanguageModelToolConfirmationContribution, ILanguageModelToolConfirmationRef } from '../../common/tools/languageModelToolsConfirmationService.js';
+import { ToolDataSource } from '../../common/tools/languageModelToolsService.js';
 
 suite('LanguageModelToolsConfirmationService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

@@ -18,8 +18,8 @@ import { ITrustedDomainService } from '../../../url/browser/trustedDomainService
 import { IChatService } from '../../common/chatService.js';
 import { LocalChatSessionUri } from '../../common/chatUri.js';
 import { ChatImageMimeType } from '../../common/languageModels.js';
-import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultDataPart, IToolResultTextPart, ToolDataSource, ToolProgress } from '../../common/languageModelToolsService.js';
-import { InternalFetchWebPageToolId } from '../../common/tools/tools.js';
+import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultDataPart, IToolResultTextPart, ToolDataSource, ToolProgress } from '../../common/tools/languageModelToolsService.js';
+import { InternalFetchWebPageToolId } from '../../common/builtinTools/tools.js';
 
 export const FetchWebPageToolData: IToolData = {
 	id: InternalFetchWebPageToolId,

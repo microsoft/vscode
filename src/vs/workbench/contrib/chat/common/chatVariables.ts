@@ -12,7 +12,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IChatModel } from './chatModel.js';
 import { IChatContentReference, IChatProgressMessage } from './chatService.js';
 import { IDiagnosticVariableEntryFilterData, StringChatContextValue } from './chatVariableEntries.js';
-import { IToolAndToolSetEnablementMap } from './languageModelToolsService.js';
+import { IToolAndToolSetEnablementMap } from './tools/languageModelToolsService.js';
 
 export interface IChatVariableData {
 	id: string;

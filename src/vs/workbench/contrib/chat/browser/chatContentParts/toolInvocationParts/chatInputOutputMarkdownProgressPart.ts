@@ -17,7 +17,7 @@ import { localize } from '../../../../../../nls.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ChatResponseResource } from '../../../common/chatModel.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService.js';
-import { IToolResultInputOutputDetails } from '../../../common/languageModelToolsService.js';
+import { IToolResultInputOutputDetails } from '../../../common/tools/languageModelToolsService.js';
 import { IChatCodeBlockInfo } from '../../chat.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatCollapsibleInputOutputContentPart, ChatCollapsibleIOPart, IChatCollapsibleIOCodePart } from '../chatToolInputOutputContentPart.js';

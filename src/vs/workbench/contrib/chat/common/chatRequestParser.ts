@@ -12,7 +12,7 @@ import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynami
 import { IChatSlashCommandService } from './chatSlashCommands.js';
 import { IChatVariablesService, IDynamicVariable } from './chatVariables.js';
 import { ChatAgentLocation, ChatModeKind } from './constants.js';
-import { IToolData, ToolSet } from './languageModelToolsService.js';
+import { IToolData, ToolSet } from './tools/languageModelToolsService.js';
 import { IPromptsService } from './promptSyntax/service/promptsService.js';
 
 const agentReg = /^@([\w_\-\.]+)(?=(\s|$|\b))/i; // An @-agent

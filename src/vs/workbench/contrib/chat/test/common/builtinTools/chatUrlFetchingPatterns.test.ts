@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { URI } from '../../../../../base/common/uri.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { extractUrlPatterns, getPatternLabel, isUrlApproved, getMatchingPattern, IUrlApprovalSettings } from '../../common/chatUrlFetchingPatterns.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { extractUrlPatterns, getPatternLabel, isUrlApproved, getMatchingPattern, IUrlApprovalSettings } from '../../../common/builtinTools/chatUrlFetchingPatterns.js';
 
 suite('ChatUrlFetchingPatterns', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -189,4 +189,3 @@ suite('ChatUrlFetchingPatterns', () => {
 		});
 	});
 });
-

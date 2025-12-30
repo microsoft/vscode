@@ -14,8 +14,8 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ChatResponseResource } from '../../../common/chatModel.js';
 import { IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService.js';
-import { ILanguageModelToolsConfirmationService } from '../../../common/languageModelToolsConfirmationService.js';
-import { ILanguageModelToolsService, IToolResultDataPart, IToolResultPromptTsxPart, IToolResultTextPart, stringifyPromptTsxPart } from '../../../common/languageModelToolsService.js';
+import { ILanguageModelToolsConfirmationService } from '../../../common/tools/languageModelToolsConfirmationService.js';
+import { ILanguageModelToolsService, IToolResultDataPart, IToolResultPromptTsxPart, IToolResultTextPart, stringifyPromptTsxPart } from '../../../common/tools/languageModelToolsService.js';
 import { AcceptToolPostConfirmationActionId, SkipToolPostConfirmationActionId } from '../../actions/chatToolActions.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';

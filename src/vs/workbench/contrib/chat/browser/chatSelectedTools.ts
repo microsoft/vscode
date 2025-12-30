@@ -14,7 +14,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { UserSelectedTools } from '../common/chatAgents.js';
 import { IChatMode } from '../common/chatModes.js';
 import { ChatModeKind } from '../common/constants.js';
-import { ILanguageModelToolsService, IToolAndToolSetEnablementMap, IToolData, ToolSet } from '../common/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolAndToolSetEnablementMap, IToolData, ToolSet } from '../common/tools/languageModelToolsService.js';
 import { PromptsStorage } from '../common/promptSyntax/service/promptsService.js';
 import { PromptFileRewriter } from './promptSyntax/promptFileRewriter.js';
 

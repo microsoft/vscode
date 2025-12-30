@@ -13,8 +13,8 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IQuickInputButtonWithToggle, IQuickInputService, IQuickTreeItem, QuickInputButtonLocation } from '../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ConfirmedReason, ToolConfirmKind } from '../common/chatService.js';
-import { ILanguageModelToolConfirmationActions, ILanguageModelToolConfirmationContribution, ILanguageModelToolConfirmationContributionQuickTreeItem, ILanguageModelToolConfirmationRef, ILanguageModelToolsConfirmationService } from '../common/languageModelToolsConfirmationService.js';
-import { IToolData, ToolDataSource } from '../common/languageModelToolsService.js';
+import { ILanguageModelToolConfirmationActions, ILanguageModelToolConfirmationContribution, ILanguageModelToolConfirmationContributionQuickTreeItem, ILanguageModelToolConfirmationRef, ILanguageModelToolsConfirmationService } from '../common/tools/languageModelToolsConfirmationService.js';
+import { IToolData, ToolDataSource } from '../common/tools/languageModelToolsService.js';
 
 const RUN_WITHOUT_APPROVAL = localize('runWithoutApproval', "without approval");
 const CONTINUE_WITHOUT_REVIEWING_RESULTS = localize('continueWithoutReviewingResults', "without reviewing result");

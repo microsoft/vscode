@@ -47,7 +47,7 @@ import { LocalChatSessionUri } from './chatUri.js';
 import { IChatRequestVariableEntry } from './chatVariableEntries.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from './constants.js';
 import { ChatMessageRole, IChatMessage } from './languageModels.js';
-import { ILanguageModelToolsService } from './languageModelToolsService.js';
+import { ILanguageModelToolsService } from './tools/languageModelToolsService.js';
 
 const serializedChatKey = 'interactive.sessions';
 

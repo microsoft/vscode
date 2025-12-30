@@ -10,10 +10,10 @@ import { autorun } from '../../../../../base/common/observable.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { CellUri } from '../../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
-import { ICodeMapperService } from '../../common/chatCodeMapperService.js';
-import { ChatModel } from '../../common/chatModel.js';
-import { IChatService } from '../../common/chatService.js';
-import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress } from '../../common/languageModelToolsService.js';
+import { ICodeMapperService } from '../chatCodeMapperService.js';
+import { ChatModel } from '../chatModel.js';
+import { IChatService } from '../chatService.js';
+import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress } from '../tools/languageModelToolsService.js';
 import { LocalChatSessionUri } from '../chatUri.js';
 
 export const ExtensionEditToolId = 'vscode_editFile';

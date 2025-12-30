@@ -91,7 +91,7 @@ import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { ChatHistoryNavigator } from '../common/chatWidgetHistoryService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, validateChatMode } from '../common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
-import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
+import { ILanguageModelToolsService } from '../common/tools/languageModelToolsService.js';
 import { ActionLocation, ChatContinueInSessionActionItem, ContinueChatInSessionAction } from './actions/chatContinueInAction.js';
 import { ChatOpenModelPickerActionId, ChatSessionPrimaryPickerAction, ChatSubmitAction, IChatExecuteActionContext, OpenModePickerAction } from './actions/chatExecuteActions.js';
 import { IAgentSessionsService } from './agentSessions/agentSessionsService.js';

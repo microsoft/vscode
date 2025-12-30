@@ -15,7 +15,7 @@ import { MarkerSeverity, IMarker } from '../../../../platform/markers/common/mar
 import { ISCMHistoryItem } from '../../scm/common/history.js';
 import { IChatContentReference } from './chatService.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
-import { IToolData, ToolSet } from './languageModelToolsService.js';
+import { IToolData, ToolSet } from './tools/languageModelToolsService.js';
 
 
 interface IBaseChatRequestVariableEntry {

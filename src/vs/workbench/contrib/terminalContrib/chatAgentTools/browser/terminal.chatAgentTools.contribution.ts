@@ -15,7 +15,7 @@ import { TerminalSettingId } from '../../../../../platform/terminal/common/termi
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IChatWidgetService } from '../../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../../chat/common/chatContextKeys.js';
-import { ILanguageModelToolsService } from '../../../chat/common/languageModelToolsService.js';
+import { ILanguageModelToolsService } from '../../../chat/common/tools/languageModelToolsService.js';
 import { registerActiveInstanceAction, sharedWhenClause } from '../../../terminal/browser/terminalActions.js';
 import { TerminalContextMenuGroup } from '../../../terminal/browser/terminalMenus.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';

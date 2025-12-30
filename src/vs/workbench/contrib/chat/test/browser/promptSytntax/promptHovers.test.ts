@@ -15,7 +15,7 @@ import { workbenchInstantiationService } from '../../../../../test/browser/workb
 import { LanguageModelToolsService } from '../../../browser/languageModelToolsService.js';
 import { ChatMode, CustomChatMode, IChatModeService } from '../../../common/chatModes.js';
 import { ChatConfiguration } from '../../../common/constants.js';
-import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../../common/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
 import { PromptHoverProvider } from '../../../common/promptSyntax/languageProviders/promptHovers.js';
 import { IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';

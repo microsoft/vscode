@@ -59,7 +59,7 @@ import { ITerminalService } from '../../terminal/browser/terminal.js';
 import { IChatContentReference } from '../common/chatService.js';
 import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry, ITerminalVariableEntry } from '../common/chatVariableEntries.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
-import { ILanguageModelToolsService, ToolSet } from '../common/languageModelToolsService.js';
+import { ILanguageModelToolsService, ToolSet } from '../common/tools/languageModelToolsService.js';
 import { getCleanPromptName } from '../common/promptSyntax/config/promptFileLocations.js';
 
 const commonHoverOptions: Partial<IHoverOptions> = {

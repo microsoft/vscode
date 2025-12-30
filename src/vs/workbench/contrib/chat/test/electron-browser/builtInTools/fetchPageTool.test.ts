@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { ResourceMap } from '../../../../../base/common/map.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IFileContent, IReadFileOptions } from '../../../../../platform/files/common/files.js';
-import { IWebContentExtractorService, WebContentExtractResult } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { VSBuffer } from '../../../../../../base/common/buffer.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { ResourceMap } from '../../../../../../base/common/map.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IFileContent, IReadFileOptions } from '../../../../../../platform/files/common/files.js';
+import { IWebContentExtractorService, WebContentExtractResult } from '../../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { FetchWebPageTool } from '../../electron-browser/tools/fetchPageTool.js';
-import { TestFileService } from '../../../../test/common/workbenchTestServices.js';
-import { MockTrustedDomainService } from '../../../url/test/browser/mockTrustedDomainService.js';
-import { InternalFetchWebPageToolId } from '../../common/tools/tools.js';
-import { MockChatService } from '../common/mockChatService.js';
-import { upcastDeepPartial } from '../../../../../base/test/common/mock.js';
-import { IChatService } from '../../common/chatService.js';
+import { TestFileService } from '../../../../../test/common/workbenchTestServices.js';
+import { MockTrustedDomainService } from '../../../../url/test/browser/mockTrustedDomainService.js';
+import { InternalFetchWebPageToolId } from '../../../common/builtinTools/tools.js';
+import { MockChatService } from '../../common/mockChatService.js';
+import { upcastDeepPartial } from '../../../../../../base/test/common/mock.js';
+import { IChatService } from '../../../common/chatService.js';
 
 class TestWebContentExtractorService implements IWebContentExtractorService {
 	_serviceBrand: undefined;

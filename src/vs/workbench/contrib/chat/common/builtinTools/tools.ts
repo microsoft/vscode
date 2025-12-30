@@ -10,7 +10,7 @@ import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
-import { ILanguageModelToolsService, SpecedToolAliases, ToolDataSource } from '../../common/languageModelToolsService.js';
+import { ILanguageModelToolsService, SpecedToolAliases, ToolDataSource } from '../tools/languageModelToolsService.js';
 import { ConfirmationTool, ConfirmationToolData } from './confirmationTool.js';
 import { EditTool, EditToolData } from './editFileTool.js';
 import { createManageTodoListToolData, ManageTodoListTool, TodoListToolDescriptionFieldSettingId, TodoListToolWriteOnlySettingId } from './manageTodoListTool.js';

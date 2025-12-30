@@ -19,7 +19,7 @@ import { ChatModel } from '../../../../../chat/common/chatModel.js';
 import { ElicitationState, IChatService } from '../../../../../chat/common/chatService.js';
 import { ChatAgentLocation } from '../../../../../chat/common/constants.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../../../../chat/common/languageModels.js';
-import { IToolInvocationContext } from '../../../../../chat/common/languageModelToolsService.js';
+import { IToolInvocationContext } from '../../../../../chat/common/tools/languageModelToolsService.js';
 import { ITaskService } from '../../../../../tasks/common/taskService.js';
 import { ILinkLocation } from '../../taskHelpers.js';
 import { IConfirmationPrompt, IExecution, IPollingResult, OutputMonitorState, PollingConsts } from './types.js';

@@ -10,7 +10,7 @@ import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { escapeRegExpCharacters, removeAnsiEscapeCodes } from '../../../../../base/common/strings.js';
 import { localize } from '../../../../../nls.js';
 import type { TerminalNewAutoApproveButtonData } from '../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
-import type { ToolConfirmationAction } from '../../../chat/common/languageModelToolsService.js';
+import type { ToolConfirmationAction } from '../../../chat/common/tools/languageModelToolsService.js';
 import type { ICommandApprovalResultWithReason } from './commandLineAutoApprover.js';
 
 export function isPowerShell(envShell: string, os: OperatingSystem): boolean {
