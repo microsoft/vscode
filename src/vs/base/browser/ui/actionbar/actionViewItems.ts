@@ -402,10 +402,6 @@ export class ActionViewItem extends BaseActionViewItem {
 	}
 
 	protected override updateEnabled(): void {
-		if (this.action.id === Separator.ID) {
-			return;
-		}
-
 		if (this.action.enabled) {
 			if (this.label) {
 				this.label.removeAttribute('aria-disabled');
@@ -431,10 +427,6 @@ export class ActionViewItem extends BaseActionViewItem {
 	}
 
 	protected override updateChecked(): void {
-		if (this.action.id === Separator.ID) {
-			return;
-		}
-
 		if (this.label) {
 			if (this.action.checked !== undefined) {
 				this.label.classList.toggle('checked', this.action.checked);
