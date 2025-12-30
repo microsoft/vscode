@@ -39,7 +39,7 @@
 				padding-left: 2px;
 			}
 
-			.progress-container {
+			.progress-container, .chat-confirmation-widget-container {
 				margin: 0 0 2px 6px;
 			}
 
