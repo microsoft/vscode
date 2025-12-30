@@ -6,13 +6,14 @@
 import { URI } from '../../../../base/common/uri.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import * as errors from '../../../../base/common/errors.js';
+import * as json from '../../../../base/common/json.js';
 import { Disposable, IDisposable, dispose, toDisposable, MutableDisposable, combinedDisposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { FileChangeType, FileChangesEvent, IFileService, whenProviderRegistered, FileOperationError, FileOperationResult, FileOperation, FileOperationEvent } from '../../../../platform/files/common/files.js';
 import { ConfigurationModel, ConfigurationModelParser, ConfigurationParseOptions, UserSettings } from '../../../../platform/configuration/common/configurationModels.js';
 import { WorkspaceConfigurationModelParser, StandaloneConfigurationModelParser } from '../common/configurationModels.js';
 import { TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY, IConfigurationCache, ConfigurationKey, REMOTE_MACHINE_SCOPES, FOLDER_SCOPES, WORKSPACE_SCOPES, APPLY_ALL_PROFILES_SETTING, APPLICATION_SCOPES, MCP_CONFIGURATION_KEY } from '../common/configuration.js';
-import { IStoredWorkspaceFolder } from '../../../../platform/workspaces/common/workspaces.js';
+import { getLocalWorkspaceConfigurationUri, IStoredWorkspaceFolder, mergeWorkspaceConfiguration } from '../../../../platform/workspaces/common/workspaces.js';
 import { WorkbenchState, IWorkspaceFolder, IWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
 import { ConfigurationScope, Extensions, IConfigurationRegistry, OVERRIDE_PROPERTY_REGEX } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { equals } from '../../../../base/common/objects.js';
@@ -763,8 +764,23 @@ class FileServiceBasedWorkspaceConfiguration extends Disposable {
 		this.workspaceSettings = ConfigurationModel.createEmptyModel(logService);
 
 		this._register(Event.any(
-			Event.filter(this.fileService.onDidFilesChange, e => !!this._workspaceIdentifier && e.contains(this._workspaceIdentifier.configPath)),
-			Event.filter(this.fileService.onDidRunOperation, e => !!this._workspaceIdentifier && (e.isOperation(FileOperation.CREATE) || e.isOperation(FileOperation.COPY) || e.isOperation(FileOperation.DELETE) || e.isOperation(FileOperation.WRITE)) && uriIdentityService.extUri.isEqual(e.resource, this._workspaceIdentifier.configPath))
+			Event.filter(this.fileService.onDidFilesChange, e => {
+				if (!this._workspaceIdentifier) {
+					return false;
+				}
+				const localConfigurationUri = getLocalWorkspaceConfigurationUri(this._workspaceIdentifier.configPath);
+				return e.contains(this._workspaceIdentifier.configPath) || (localConfigurationUri ? e.contains(localConfigurationUri) : false);
+			}),
+			Event.filter(this.fileService.onDidRunOperation, e => {
+				if (!this._workspaceIdentifier) {
+					return false;
+				}
+				if (!(e.isOperation(FileOperation.CREATE) || e.isOperation(FileOperation.COPY) || e.isOperation(FileOperation.DELETE) || e.isOperation(FileOperation.WRITE))) {
+					return false;
+				}
+				const localConfigurationUri = getLocalWorkspaceConfigurationUri(this._workspaceIdentifier.configPath);
+				return uriIdentityService.extUri.isEqual(e.resource, this._workspaceIdentifier.configPath) || (localConfigurationUri ? uriIdentityService.extUri.isEqual(e.resource, localConfigurationUri) : false);
+			})
 		)(() => this.reloadConfigurationScheduler.schedule()));
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this._onDidChange.fire(), 50));
 		this.workspaceConfigWatcher = this._register(this.watchWorkspaceConfigurationFile());
@@ -776,7 +792,23 @@ class FileServiceBasedWorkspaceConfiguration extends Disposable {
 
 	async resolveContent(workspaceIdentifier: IWorkspaceIdentifier): Promise<string> {
 		const content = await this.fileService.readFile(workspaceIdentifier.configPath, { atomic: true });
-		return content.value.toString();
+		const workspaceContents = content.value.toString();
+
+		const localConfigurationUri = getLocalWorkspaceConfigurationUri(workspaceIdentifier.configPath);
+		if (!localConfigurationUri) {
+			return workspaceContents;
+		}
+
+		try {
+			const localContent = await this.fileService.readFile(localConfigurationUri, { atomic: true });
+			const localContents = localContent.value.toString();
+			const storedWorkspace = json.parse(workspaceContents) as IStringDictionary<unknown>;
+			const localWorkspace = json.parse(localContents) as IStringDictionary<unknown>;
+			const mergedWorkspace = mergeWorkspaceConfiguration(storedWorkspace, localWorkspace);
+			return JSON.stringify(mergedWorkspace);
+		} catch {
+			return workspaceContents;
+		}
 	}
 
 	async load(workspaceIdentifier: IWorkspaceIdentifier, configurationParseOptions: ConfigurationParseOptions): Promise<void> {
@@ -830,7 +862,19 @@ class FileServiceBasedWorkspaceConfiguration extends Disposable {
 	}
 
 	private watchWorkspaceConfigurationFile(): IDisposable {
-		return this._workspaceIdentifier ? this.fileService.watch(this._workspaceIdentifier.configPath) : Disposable.None;
+		if (!this._workspaceIdentifier) {
+			return Disposable.None;
+		}
+
+		const store = new DisposableStore();
+		store.add(this.fileService.watch(this._workspaceIdentifier.configPath));
+
+		const localConfigurationUri = getLocalWorkspaceConfigurationUri(this._workspaceIdentifier.configPath);
+		if (localConfigurationUri) {
+			store.add(this.fileService.watch(localConfigurationUri));
+		}
+
+		return store;
 	}
 
 }
