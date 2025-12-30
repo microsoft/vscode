@@ -244,6 +244,52 @@ suite('Response', () => {
 		assert.ok(!responseString.includes('Initial content'), 'Should not include content before clear');
 		assert.ok(responseString.endsWith('Made changes.'), 'Should end with "Made changes."');
 	});
+
+	test('markdown merging with thinking parts interleaved', async () => {
+		const response = store.add(new Response([]));
+		response.updateContent({ content: new MarkdownString('First markdown'), kind: 'markdownContent' });
+		response.updateContent({ kind: 'thinking', value: 'Thinking about something' });
+		response.updateContent({ content: new MarkdownString(' second markdown'), kind: 'markdownContent' });
+		response.updateContent({ kind: 'thinking', value: 'More thinking' });
+		response.updateContent({ content: new MarkdownString(' third markdown'), kind: 'markdownContent' });
+
+		// Markdown parts should be merged despite thinking parts in between
+		const responseParts = response.value;
+		const markdownParts = responseParts.filter(p => p.kind === 'markdownContent');
+		assert.strictEqual(markdownParts.length, 1, 'Should have exactly one markdown part after merging');
+		assert.strictEqual(response.toString(), 'First markdown second markdown third markdown');
+	});
+
+	test('markdown merging with progressMessage parts interleaved', async () => {
+		const response = store.add(new Response([]));
+		response.updateContent({ content: new MarkdownString('First markdown'), kind: 'markdownContent' });
+		response.updateContent({ kind: 'progressMessage', content: new MarkdownString('Processing...') });
+		response.updateContent({ content: new MarkdownString(' second markdown'), kind: 'markdownContent' });
+		response.updateContent({ kind: 'progressMessage', content: new MarkdownString('Still processing...') });
+		response.updateContent({ content: new MarkdownString(' third markdown'), kind: 'markdownContent' });
+
+		// Markdown parts should be merged despite progressMessage parts in between
+		const responseParts = response.value;
+		const markdownParts = responseParts.filter(p => p.kind === 'markdownContent');
+		assert.strictEqual(markdownParts.length, 1, 'Should have exactly one markdown part after merging');
+		assert.strictEqual(response.toString(), 'First markdown second markdown third markdown');
+	});
+
+	test('markdown merging with both thinking and progressMessage parts', async () => {
+		const response = store.add(new Response([]));
+		response.updateContent({ content: new MarkdownString('Start'), kind: 'markdownContent' });
+		response.updateContent({ kind: 'thinking', value: 'Thinking...' });
+		response.updateContent({ content: new MarkdownString(' middle'), kind: 'markdownContent' });
+		response.updateContent({ kind: 'progressMessage', content: new MarkdownString('Progress update') });
+		response.updateContent({ content: new MarkdownString(' end'), kind: 'markdownContent' });
+		response.updateContent({ kind: 'thinking', value: 'Final thoughts' });
+
+		// Markdown parts should be merged despite mixed thinking and progressMessage parts
+		const responseParts = response.value;
+		const markdownParts = responseParts.filter(p => p.kind === 'markdownContent');
+		assert.strictEqual(markdownParts.length, 1, 'Should have exactly one markdown part after merging');
+		assert.strictEqual(response.toString(), 'Start middle end');
+	});
 });
 
 suite('normalizeSerializableChatData', () => {
