@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ChatModeKind, RawChatParticipantLocation } from './constants.js';
+import { ChatModeKind, RawChatParticipantLocation } from '../constants.js';
 
 export interface IRawChatCommandContribution {
 	name: string;

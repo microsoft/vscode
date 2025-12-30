@@ -31,7 +31,7 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { InlineChatConfigKeys } from '../../inlineChat/common/inlineChat.js';
 import { IMcpService } from '../../mcp/common/mcpTypes.js';
 import { awaitStatsForSession } from './chat.js';
-import { IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from './chatAgents.js';
+import { IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from './participants/chatAgents.js';
 import { chatEditingSessionIsReady } from './chatEditingService.js';
 import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData, toChatHistoryContent, updateRanges } from './model/chatModel.js';
 import { ChatModelStore, IStartSessionProps } from './model/chatModelStore.js';
@@ -41,10 +41,10 @@ import { ChatMcpServersStarting, IChatCompleteResponse, IChatDetail, IChatFollow
 import { ChatRequestTelemetry, ChatServiceTelemetry } from './chatServiceTelemetry.js';
 import { IChatSessionsService } from './chatSessionsService.js';
 import { ChatSessionStore, IChatSessionEntryMetadata } from './model/chatSessionStore.js';
-import { IChatSlashCommandService } from './chatSlashCommands.js';
+import { IChatSlashCommandService } from './participants/chatSlashCommands.js';
 import { IChatTransferService } from './model/chatTransferService.js';
 import { LocalChatSessionUri } from './model/chatUri.js';
-import { IChatRequestVariableEntry } from './chatVariableEntries.js';
+import { IChatRequestVariableEntry } from './attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from './constants.js';
 import { ChatMessageRole, IChatMessage } from './languageModels.js';
 import { ILanguageModelToolsService } from './tools/languageModelToolsService.js';

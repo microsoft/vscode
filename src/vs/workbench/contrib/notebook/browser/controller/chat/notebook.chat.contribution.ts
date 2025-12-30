@@ -25,7 +25,7 @@ import { IChatWidget, IChatWidgetService } from '../../../../chat/browser/chat.j
 import { IChatContextPicker, IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPickService } from '../../../../chat/browser/chatContextPickService.js';
 import { ChatDynamicVariableModel } from '../../../../chat/browser/contrib/chatDynamicVariables.js';
 import { computeCompletionRanges } from '../../../../chat/browser/contrib/chatInputCompletions.js';
-import { IChatAgentService } from '../../../../chat/common/chatAgents.js';
+import { IChatAgentService } from '../../../../chat/common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../../../chat/common/chatContextKeys.js';
 import { chatVariableLeader } from '../../../../chat/common/chatParserTypes.js';
 import { ChatAgentLocation } from '../../../../chat/common/constants.js';

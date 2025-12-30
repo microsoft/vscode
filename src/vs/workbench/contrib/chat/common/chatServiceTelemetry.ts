@@ -6,11 +6,11 @@
 import { URI } from '../../../../base/common/uri.js';
 import { isLocation } from '../../../../editor/common/languages.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { IChatAgentData } from './chatAgents.js';
+import { IChatAgentData } from './participants/chatAgents.js';
 import { ChatRequestModel, IChatRequestVariableData } from './model/chatModel.js';
 import { ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart } from './chatParserTypes.js';
 import { ChatAgentVoteDirection, ChatCopyKind, IChatSendRequestOptions, IChatUserActionEvent } from './chatService.js';
-import { isImageVariableEntry } from './chatVariableEntries.js';
+import { isImageVariableEntry } from './attachments/chatVariableEntries.js';
 import { ChatAgentLocation } from './constants.js';
 import { ILanguageModelsService } from './languageModels.js';
 

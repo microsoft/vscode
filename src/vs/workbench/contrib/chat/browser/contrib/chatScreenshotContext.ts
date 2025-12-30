@@ -5,7 +5,7 @@
 
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { localize } from '../../../../../nls.js';
-import { IChatRequestVariableEntry } from '../../common/chatVariableEntries.js';
+import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 
 export const ScreenshotVariableId = 'screenshot-focused-window';
 

@@ -49,7 +49,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IChatService } from '../../chat/common/chatService.js';
-import { IChatAgentService } from '../../chat/common/chatAgents.js';
+import { IChatAgentService } from '../../chat/common/participants/chatAgents.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 
 interface IWorkspaceFolderConfigurationResult {

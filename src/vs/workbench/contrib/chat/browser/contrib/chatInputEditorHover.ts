@@ -13,7 +13,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IChatWidgetService } from '../chat.js';
 import { ChatAgentHover, getChatAgentHoverOptions } from '../chatAgentHover.js';
 import { ChatEditorHoverWrapper } from './editorHoverWrapper.js';
-import { IChatAgentData } from '../../common/chatAgents.js';
+import { IChatAgentData } from '../../common/participants/chatAgents.js';
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import * as nls from '../../../../../nls.js';
 

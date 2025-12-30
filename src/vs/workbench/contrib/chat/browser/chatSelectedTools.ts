@@ -11,7 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ObservableMemento, observableMemento } from '../../../../platform/observable/common/observableMemento.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { UserSelectedTools } from '../common/chatAgents.js';
+import { UserSelectedTools } from '../common/participants/chatAgents.js';
 import { IChatMode } from '../common/chatModes.js';
 import { ChatModeKind } from '../common/constants.js';
 import { ILanguageModelToolsService, IToolAndToolSetEnablementMap, IToolData, ToolSet } from '../common/tools/languageModelToolsService.js';

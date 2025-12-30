@@ -22,10 +22,10 @@ import { ExtensionIdentifier } from '../../../../../platform/extensions/common/e
 import { ByteSize } from '../../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IProgress } from '../../../../../platform/progress/common/progress.js';
-import { UserSelectedTools } from '../chatAgents.js';
+import { UserSelectedTools } from '../participants/chatAgents.js';
 import { IVariableReference } from '../chatModes.js';
 import { IChatExtensionsContent, IChatTodoListContent, IChatToolInputInvocationData, type IChatTerminalToolInvocationData } from '../chatService.js';
-import { ChatRequestToolReferenceEntry } from '../chatVariableEntries.js';
+import { ChatRequestToolReferenceEntry } from '../attachments/chatVariableEntries.js';
 import { LanguageModelPartAudience } from '../languageModels.js';
 import { PromptElementJSON, stringifyPromptElementJSON } from './promptTsxTypes.js';
 

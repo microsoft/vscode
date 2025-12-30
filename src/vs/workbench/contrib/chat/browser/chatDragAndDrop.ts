@@ -20,7 +20,7 @@ import { IThemeService, Themable } from '../../../../platform/theme/common/theme
 import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import { extractSCMHistoryItemDropData } from '../../scm/browser/scmHistoryChatContext.js';
-import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
+import { IChatRequestVariableEntry } from '../common/attachments/chatVariableEntries.js';
 import { IChatWidget } from './chat.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { IChatAttachmentResolveService, ImageTransferData } from './chatAttachmentResolveService.js';

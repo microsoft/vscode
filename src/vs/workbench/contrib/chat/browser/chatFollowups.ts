@@ -8,7 +8,7 @@ import { Button, IButtonStyles } from '../../../../base/browser/ui/button/button
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
-import { IChatAgentService } from '../common/chatAgents.js';
+import { IChatAgentService } from '../common/participants/chatAgents.js';
 import { formatChatQuestion } from '../common/chatParserTypes.js';
 import { IChatFollowup } from '../common/chatService.js';
 import { ChatAgentLocation } from '../common/constants.js';

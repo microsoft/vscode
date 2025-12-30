@@ -33,15 +33,15 @@ import { NotebookTextModel } from '../../../notebook/common/model/notebookTextMo
 import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { ChatEditingService } from '../../browser/chatEditing/chatEditingServiceImpl.js';
 import { ChatSessionsService } from '../../browser/chatSessions.contribution.js';
-import { ChatAgentService, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../common/chatAgents.js';
+import { ChatAgentService, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../common/participants/chatAgents.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { ChatModel } from '../../common/model/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatService } from '../../common/chatServiceImpl.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
-import { IChatSlashCommandService } from '../../common/chatSlashCommands.js';
+import { IChatSlashCommandService } from '../../common/participants/chatSlashCommands.js';
 import { ChatTransferService, IChatTransferService } from '../../common/model/chatTransferService.js';
-import { IChatVariablesService } from '../../common/chatVariables.js';
+import { IChatVariablesService } from '../../common/attachments/chatVariables.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { ILanguageModelsService } from '../../common/languageModels.js';
 import { NullLanguageModelsService } from '../common/languageModels.js';

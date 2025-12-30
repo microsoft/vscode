@@ -27,7 +27,7 @@ import { getOutputViewModelFromId } from '../../notebook/browser/controller/cell
 import { getNotebookEditorFromEditorPane } from '../../notebook/browser/notebookBrowser.js';
 import { SCMHistoryItemTransferData } from '../../scm/browser/scmHistoryChatContext.js';
 import { CHAT_ATTACHABLE_IMAGE_MIME_TYPES, getAttachableImageExtension } from '../common/model/chatModel.js';
-import { IChatRequestVariableEntry, OmittedState, IDiagnosticVariableEntry, IDiagnosticVariableEntryFilterData, ISymbolVariableEntry, toPromptFileVariableEntry, PromptFileVariableKind, ISCMHistoryItemVariableEntry } from '../common/chatVariableEntries.js';
+import { IChatRequestVariableEntry, OmittedState, IDiagnosticVariableEntry, IDiagnosticVariableEntryFilterData, ISymbolVariableEntry, toPromptFileVariableEntry, PromptFileVariableKind, ISCMHistoryItemVariableEntry } from '../common/attachments/chatVariableEntries.js';
 import { getPromptsTypeForLanguageId, PromptsType } from '../common/promptSyntax/promptTypes.js';
 import { imageToHash } from './chatPasteProviders.js';
 import { resizeImage } from './chatImageUtils.js';
@@ -319,4 +319,3 @@ function getMimeTypeFromPath(match: RegExpExecArray): string | undefined {
 	const ext = match[1].toLowerCase();
 	return CHAT_ATTACHABLE_IMAGE_MIME_TYPES[ext];
 }
-

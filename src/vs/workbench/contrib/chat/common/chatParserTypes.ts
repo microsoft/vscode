@@ -7,12 +7,12 @@ import { revive } from '../../../../base/common/marshalling.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IOffsetRange, OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 import { IRange } from '../../../../editor/common/core/range.js';
-import { IChatAgentCommand, IChatAgentData, IChatAgentService, reviveSerializedAgent } from './chatAgents.js';
-import { IChatSlashData } from './chatSlashCommands.js';
-import { IChatRequestProblemsVariable, IChatRequestVariableValue } from './chatVariables.js';
+import { IChatAgentCommand, IChatAgentData, IChatAgentService, reviveSerializedAgent } from './participants/chatAgents.js';
+import { IChatSlashData } from './participants/chatSlashCommands.js';
+import { IChatRequestProblemsVariable, IChatRequestVariableValue } from './attachments/chatVariables.js';
 import { ChatAgentLocation } from './constants.js';
 import { IToolData } from './tools/languageModelToolsService.js';
-import { IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData } from './chatVariableEntries.js';
+import { IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData } from './attachments/chatVariableEntries.js';
 
 // These are in a separate file to avoid circular dependencies with the dependencies of the parser
 

@@ -46,7 +46,7 @@ import { TextToSpeechInProgress as GlobalTextToSpeechInProgress, HasSpeechProvid
 import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
 import { IChatExecuteActionContext } from '../../browser/actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService } from '../../browser/chat.js';
-import { IChatAgentService } from '../../common/chatAgents.js';
+import { IChatAgentService } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatResponseModel } from '../../common/model/chatModel.js';
 import { KEYWORD_ACTIVIATION_SETTING_ID } from '../../common/chatService.js';

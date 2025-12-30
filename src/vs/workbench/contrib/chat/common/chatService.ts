@@ -21,13 +21,13 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IAutostartResult } from '../../mcp/common/mcpTypes.js';
 import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { IWorkspaceSymbol } from '../../search/common/search.js';
-import { IChatAgentCommand, IChatAgentData, IChatAgentResult, UserSelectedTools } from './chatAgents.js';
+import { IChatAgentCommand, IChatAgentData, IChatAgentResult, UserSelectedTools } from './participants/chatAgents.js';
 import { IChatEditingSession } from './chatEditingService.js';
 import { IChatModel, IChatRequestModeInfo, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData } from './model/chatModel.js';
 import { IParsedChatRequest } from './chatParserTypes.js';
 import { IChatParserContext } from './chatRequestParser.js';
-import { IChatRequestVariableEntry } from './chatVariableEntries.js';
-import { IChatRequestVariableValue } from './chatVariables.js';
+import { IChatRequestVariableEntry } from './attachments/chatVariableEntries.js';
+import { IChatRequestVariableValue } from './attachments/chatVariables.js';
 import { ChatAgentLocation } from './constants.js';
 import { IPreparedToolInvocation, IToolConfirmationMessages, IToolResult, IToolResultInputOutputDetails, ToolDataSource } from './tools/languageModelToolsService.js';
 

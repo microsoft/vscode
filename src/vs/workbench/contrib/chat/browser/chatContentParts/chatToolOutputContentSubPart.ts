@@ -27,7 +27,7 @@ import { REVEAL_IN_EXPLORER_COMMAND_ID } from '../../../files/browser/fileConsta
 import { getAttachableImageExtension } from '../../common/model/chatModel.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
-import { IChatRequestVariableEntry } from '../../common/chatVariableEntries.js';
+import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IChatCodeBlockInfo } from '../chat.js';
 import { CodeBlockPart, ICodeBlockData } from '../codeBlockPart.js';
 import { ChatAttachmentsContentPart } from './chatAttachmentsContentPart.js';

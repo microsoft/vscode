@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from '../../../../base/common/codicons.js';
-import { basename } from '../../../../base/common/resources.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { URI } from '../../../../base/common/uri.js';
-import { IRange } from '../../../../editor/common/core/range.js';
-import { IOffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
-import { isLocation, Location, SymbolKind } from '../../../../editor/common/languages.js';
-import { localize } from '../../../../nls.js';
-import { MarkerSeverity, IMarker } from '../../../../platform/markers/common/markers.js';
-import { ISCMHistoryItem } from '../../scm/common/history.js';
-import { IChatContentReference } from './chatService.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { basename } from '../../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IRange } from '../../../../../editor/common/core/range.js';
+import { IOffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
+import { isLocation, Location, SymbolKind } from '../../../../../editor/common/languages.js';
+import { localize } from '../../../../../nls.js';
+import { MarkerSeverity, IMarker } from '../../../../../platform/markers/common/markers.js';
+import { ISCMHistoryItem } from '../../../scm/common/history.js';
+import { IChatContentReference } from '../chatService.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
-import { IToolData, ToolSet } from './tools/languageModelToolsService.js';
+import { IToolData, ToolSet } from '../tools/languageModelToolsService.js';
 
 
 interface IBaseChatRequestVariableEntry {

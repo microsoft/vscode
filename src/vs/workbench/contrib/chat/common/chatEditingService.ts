@@ -20,7 +20,7 @@ import { RawContextKey } from '../../../../platform/contextkey/common/contextkey
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditorPane } from '../../../common/editor.js';
 import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
-import { IChatAgentResult } from './chatAgents.js';
+import { IChatAgentResult } from './participants/chatAgents.js';
 import { ChatModel, IChatRequestDisablement, IChatResponseModel } from './model/chatModel.js';
 import { IChatMultiDiffData, IChatProgress } from './chatService.js';
 

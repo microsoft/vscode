@@ -10,7 +10,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { isObject } from '../../../../base/common/types.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IQuickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
-import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
+import { IChatRequestVariableEntry } from '../common/attachments/chatVariableEntries.js';
 import { IChatWidget } from './chat.js';
 
 

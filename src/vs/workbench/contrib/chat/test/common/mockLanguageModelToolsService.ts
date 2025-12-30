@@ -11,7 +11,7 @@ import { constObservable, IObservable } from '../../../../../base/common/observa
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IProgressStep } from '../../../../../platform/progress/common/progress.js';
 import { IVariableReference } from '../../common/chatModes.js';
-import { ChatRequestToolReferenceEntry } from '../../common/chatVariableEntries.js';
+import { ChatRequestToolReferenceEntry } from '../../common/attachments/chatVariableEntries.js';
 import { CountTokensCallback, ILanguageModelToolsService, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolDataSource, ToolSet } from '../../common/tools/languageModelToolsService.js';
 
 export class MockLanguageModelToolsService implements ILanguageModelToolsService {

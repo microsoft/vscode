@@ -23,7 +23,7 @@ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IChatModel, IChatRequestModel, IChatTextEditGroupState } from '../../chat/common/model/chatModel.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
-import { IChatAgent } from '../../chat/common/chatAgents.js';
+import { IChatAgent } from '../../chat/common/participants/chatAgents.js';
 import { IDocumentDiff } from '../../../../editor/common/diff/documentDiffProvider.js';
 
 

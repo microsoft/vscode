@@ -10,8 +10,8 @@ import { createDecorator } from '../../../../../platform/instantiation/common/in
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { Memento } from '../../../../common/memento.js';
 import { IChatModelInputState } from '../model/chatModel.js';
-import { CHAT_PROVIDER_ID } from '../chatParticipantContribTypes.js';
-import { IChatRequestVariableEntry } from '../chatVariableEntries.js';
+import { CHAT_PROVIDER_ID } from '../participants/chatParticipantContribTypes.js';
+import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from '../constants.js';
 
 interface IChatHistoryEntry {

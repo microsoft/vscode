@@ -9,7 +9,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IChatContextPicker, IChatContextPickerItem, IChatContextPickService } from './chatContextPickService.js';
 import { IChatContextItem, IChatContextProvider } from '../common/chatContext.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { IChatRequestWorkspaceVariableEntry, IGenericChatRequestVariableEntry, StringChatContextValue } from '../common/chatVariableEntries.js';
+import { IChatRequestWorkspaceVariableEntry, IGenericChatRequestVariableEntry, StringChatContextValue } from '../common/attachments/chatVariableEntries.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { Disposable, DisposableMap, IDisposable } from '../../../../base/common/lifecycle.js';
