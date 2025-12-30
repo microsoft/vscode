@@ -53,6 +53,15 @@ class AriaChatViewProvider implements vscode.WebviewViewProvider {
     // Handle messages from the webview
     webviewView.webview.onDidReceiveMessage(async (data) => {
       switch (data.type) {
+        case 'ready':
+          // Webview is ready, initialize with a new chat if needed
+          console.log('ARIA Chat webview ready, initializing...');
+          if (this._conversations.length === 0) {
+            this.newChat();
+          } else {
+            this._updateWebview();
+          }
+          break;
         case 'sendMessage':
           await this._handleSendMessage(data.message, data.conversationId);
           break;
@@ -64,9 +73,6 @@ class AriaChatViewProvider implements vscode.WebviewViewProvider {
           break;
       }
     });
-
-    // Initialize with a new chat
-    this.newChat();
   }
 
   public newChat() {
@@ -667,6 +673,10 @@ class AriaChatViewProvider implements vscode.WebviewViewProvider {
       this.style.height = 'auto';
       this.style.height = Math.min(this.scrollHeight, 120) + 'px';
     });
+
+    // Signal to extension that webview is ready and request initial state
+    console.log('ARIA Chat webview loaded, sending ready signal...');
+    vscode.postMessage({ type: 'ready' });
   </script>
 </body>
 </html>`;
