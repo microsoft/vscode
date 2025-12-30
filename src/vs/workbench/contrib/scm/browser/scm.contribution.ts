@@ -461,12 +461,26 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'scm.clearValidation',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeyExpr.and(
+		ContextKeyExpr.has('scmRepository'),
+		ContextKeys.SCMInputHasValidationMessage),
+	primary: KeyCode.Escape,
+	handler: async (accessor) => {
+		const scmViewService = accessor.get(ISCMViewService);
+		scmViewService.activeRepository.get()?.repository.input.clearValidation();
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'scm.clearInput',
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(
 		ContextKeyExpr.has('scmRepository'),
 		SuggestContext.Visible.toNegated(),
 		InlineCompletionContextKeys.inlineSuggestionVisible.toNegated(),
+		ContextKeys.SCMInputHasValidationMessage.toNegated(),
 		EditorContextKeys.hasNonEmptySelection.toNegated()),
 	primary: KeyCode.Escape,
 	handler: async (accessor) => {
