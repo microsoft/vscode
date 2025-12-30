@@ -678,6 +678,8 @@ export class Git {
 
 		options.env = assign({}, process.env, this.env, options.env || {}, {
 			VSCODE_GIT_COMMAND: args[0],
+			// Precendence is explained here: https://www.gnu.org/software/gettext/manual/html_node/Locale-Environment-Variables.html
+			LANGUAGE: 'en',
 			LC_ALL: 'en_US.UTF-8',
 			LANG: 'en_US.UTF-8',
 			GIT_PAGER: 'cat'
