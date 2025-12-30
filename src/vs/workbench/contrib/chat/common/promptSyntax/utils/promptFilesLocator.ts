@@ -263,7 +263,7 @@ export class PromptFilesLocator {
 		const searchOptions: IFileQuery = {
 			folderQueries: [{ folder, disregardIgnoreFiles }],
 			type: QueryType.File,
-			shouldGlobMatchFilePattern: true,
+			filePatternType: 'glob',
 			excludePattern: workspaceRoot ? getExcludePattern(workspaceRoot.uri) : undefined,
 			sortByScore: true,
 			filePattern
@@ -314,7 +314,7 @@ export class PromptFilesLocator {
 		const searchOptions: IFileQuery = {
 			folderQueries: [{ folder, disregardIgnoreFiles }],
 			type: QueryType.File,
-			shouldGlobMatchFilePattern: true,
+			filePatternType: 'globCaseInsensitive',
 			excludePattern: getExcludePattern(folder),
 			filePattern: '**/AGENTS.md',
 		};
