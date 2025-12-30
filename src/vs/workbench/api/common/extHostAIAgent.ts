@@ -5,6 +5,13 @@
 
 import { Event, Emitter } from '../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import {
+	AIAgentNativeEvent,
+	ExtHostAIAgentShape,
+	MainContext,
+	MainThreadAIAgentShape
+} from './extHost.protocol.js';
+import { IExtHostRpcService } from './extHostRpcService.js';
 
 /**
  * Native event types that can be captured through the AI Agent API
@@ -28,17 +35,16 @@ export interface OverlayHandle extends IDisposable {
  * that are not available through the standard Extension API.
  *
  * Implementation Status:
- * - Phase 2 (Current): Basic handler registration and event firing
- * - Phase 3 (Planned): Full command interception, DOM overlays, native events
+ * - Phase 2: Basic handler registration and event firing (COMPLETED)
+ * - Phase 3.1: MainThread proxy infrastructure (CURRENT)
+ * - Phase 3.2: Full command interception with CommandService
+ * - Phase 3.3: DOM overlay rendering
+ * - Phase 3.6: Native event forwarding
  */
 export interface IExtHostAIAgent {
 	/**
 	 * Intercept a command before it executes.
 	 * The handler receives the command arguments and returns whether to proceed.
-	 *
-	 * NOTE: Phase 2 implementation provides handler registration and shouldAllowCommand()
-	 * checking. Full integration with VS Code's command service (to actually block
-	 * commands) will be implemented in Phase 3.
 	 *
 	 * @param commandId The command to intercept (e.g., 'workbench.action.files.save')
 	 * @param handler Async function that returns true to allow, false to cancel
@@ -48,9 +54,6 @@ export interface IExtHostAIAgent {
 
 	/**
 	 * Request access to create overlay widgets in the editor area.
-	 *
-	 * NOTE: Phase 2 provides a stub implementation. Full DOM overlay rendering
-	 * will be implemented in Phase 3 with MainThread proxy integration.
 	 *
 	 * @returns Promise resolving to an OverlayHandle for managing the overlay
 	 */
@@ -64,9 +67,12 @@ export interface IExtHostAIAgent {
 }
 
 /**
- * Implementation of IExtHostAIAgent
+ * Implementation of IExtHostAIAgent with MainThread proxy integration.
+ *
+ * Communication flow:
+ * Extension API → ExtHostAIAgent → [RPC] → MainThreadAIAgent → VS Code Services
  */
-export class ExtHostAIAgent extends Disposable implements IExtHostAIAgent {
+export class ExtHostAIAgent extends Disposable implements IExtHostAIAgent, ExtHostAIAgentShape {
 
 	private readonly _commandInterceptors = new Map<string, Set<(args: any[]) => Promise<boolean>>>();
 	private readonly _overlays = new Map<string, OverlayHandle>();
@@ -75,13 +81,29 @@ export class ExtHostAIAgent extends Disposable implements IExtHostAIAgent {
 	private readonly _onNativeEvent = this._register(new Emitter<NativeEvent>());
 	readonly onNativeEvent: Event<NativeEvent> = this._onNativeEvent.event;
 
-	constructor() {
+	private readonly _proxy: MainThreadAIAgentShape;
+
+	constructor(
+		extHostRpc: IExtHostRpcService
+	) {
 		super();
+		this._proxy = extHostRpc.getProxy(MainContext.MainThreadAIAgent);
 	}
 
+	// ─────────────────────────────────────────────────────────────────
+	// Public API (IExtHostAIAgent)
+	// ─────────────────────────────────────────────────────────────────
+
+	/**
+	 * Register a command interceptor.
+	 * When a command is about to execute, the handler will be called.
+	 * If the handler returns false, the command execution is blocked.
+	 */
 	interceptCommand(commandId: string, handler: (args: any[]) => Promise<boolean>): IDisposable {
 		if (!this._commandInterceptors.has(commandId)) {
 			this._commandInterceptors.set(commandId, new Set());
+			// Notify MainThread that we want to intercept this command
+			this._proxy.$registerCommandInterceptor(commandId);
 		}
 
 		const handlers = this._commandInterceptors.get(commandId)!;
@@ -91,15 +113,53 @@ export class ExtHostAIAgent extends Disposable implements IExtHostAIAgent {
 			handlers.delete(handler);
 			if (handlers.size === 0) {
 				this._commandInterceptors.delete(commandId);
+				// Notify MainThread we no longer need to intercept this command
+				this._proxy.$unregisterCommandInterceptor(commandId);
 			}
 		});
 	}
 
 	/**
-	 * Check if a command should be allowed to execute
-	 * @internal Called by the command service
+	 * Request access to create overlay widgets.
+	 * Creates an overlay via MainThread proxy for DOM rendering.
 	 */
-	async shouldAllowCommand(commandId: string, args: any[]): Promise<boolean> {
+	async requestOverlayAccess(): Promise<OverlayHandle> {
+		const localId = `ai-agent-overlay-${++this._overlayIdCounter}`;
+
+		// Create overlay via MainThread
+		const mainThreadId = await this._proxy.$createOverlay({
+			line: 1,
+			column: 1,
+			html: ''
+		});
+
+		const handle: OverlayHandle = {
+			id: localId,
+			updatePosition: (line: number, column: number) => {
+				this._proxy.$updateOverlayPosition(mainThreadId, { line, column });
+			},
+			updateContent: (html: string) => {
+				this._proxy.$updateOverlayContent(mainThreadId, html);
+			},
+			dispose: () => {
+				this._overlays.delete(localId);
+				this._proxy.$destroyOverlay(mainThreadId);
+			}
+		};
+
+		this._overlays.set(localId, handle);
+		return handle;
+	}
+
+	// ─────────────────────────────────────────────────────────────────
+	// ExtHostAIAgentShape Implementation (called from MainThread)
+	// ─────────────────────────────────────────────────────────────────
+
+	/**
+	 * Called by MainThread to check if a command should be allowed.
+	 * Executes all registered handlers for the command.
+	 */
+	async $shouldAllowCommand(commandId: string, args: any[]): Promise<boolean> {
 		const handlers = this._commandInterceptors.get(commandId);
 		if (!handlers || handlers.size === 0) {
 			return true;
@@ -121,46 +181,23 @@ export class ExtHostAIAgent extends Disposable implements IExtHostAIAgent {
 	}
 
 	/**
-	 * Request access to create overlay widgets.
-	 *
-	 * NOTE: This is a stub implementation for Phase 2.
-	 * Full DOM overlay functionality will be implemented in Phase 3 ("The Body"),
-	 * which requires MainThread proxy integration for:
-	 * - Position updates relative to editor viewport
-	 * - HTML content rendering in overlay layer
-	 * - Lifecycle management with MainThread
-	 *
-	 * Current behavior: Returns a handle that logs operations but does not
-	 * actually render overlays in the editor.
+	 * Called by MainThread when a native event occurs.
+	 * Forwards the event to all listeners.
 	 */
-	async requestOverlayAccess(): Promise<OverlayHandle> {
-		const id = `ai-agent-overlay-${++this._overlayIdCounter}`;
-
-		console.warn(`[ExtHostAIAgent] Overlay API is a stub implementation. Full functionality coming in Phase 3.`);
-
-		const handle: OverlayHandle = {
-			id,
-			updatePosition: (line: number, column: number) => {
-				// Phase 3: Implement position update via MainThread proxy
-				console.log(`[ExtHostAIAgent] Overlay ${id} position: ${line}:${column} (stub - not rendered)`);
-			},
-			updateContent: (html: string) => {
-				// Phase 3: Implement content update via MainThread proxy
-				console.log(`[ExtHostAIAgent] Overlay ${id} content updated (stub - not rendered)`);
-			},
-			dispose: () => {
-				this._overlays.delete(id);
-				// Phase 3: Notify MainThread to remove overlay from DOM
-				console.log(`[ExtHostAIAgent] Overlay ${id} disposed`);
-			}
-		};
-
-		this._overlays.set(id, handle);
-		return handle;
+	$onNativeEvent(event: AIAgentNativeEvent): void {
+		// Convert protocol type to public type
+		const nativeEvent: NativeEvent = event;
+		this._onNativeEvent.fire(nativeEvent);
 	}
 
+	// ─────────────────────────────────────────────────────────────────
+	// Internal Methods
+	// ─────────────────────────────────────────────────────────────────
+
 	/**
-	 * Fire a native event (called from MainThread)
+	 * Legacy method for backward compatibility.
+	 * Use $onNativeEvent instead.
+	 * @deprecated
 	 * @internal
 	 */
 	fireNativeEvent(event: NativeEvent): void {
@@ -168,20 +205,58 @@ export class ExtHostAIAgent extends Disposable implements IExtHostAIAgent {
 	}
 
 	/**
-	 * Get all registered command interceptors (for debugging)
+	 * Get all registered command interceptors (for debugging).
 	 * @internal
 	 */
 	getInterceptedCommands(): string[] {
 		return Array.from(this._commandInterceptors.keys());
 	}
+
+	/**
+	 * Get overlay count (for debugging).
+	 * @internal
+	 */
+	getOverlayCount(): number {
+		return this._overlays.size;
+	}
 }
 
-// Singleton instance
-let _instance: ExtHostAIAgent | undefined;
+// ─────────────────────────────────────────────────────────────────
+// Singleton Pattern (Backward Compatibility)
+// ─────────────────────────────────────────────────────────────────
 
+// Note: This singleton pattern is maintained for backward compatibility
+// with Phase 2 code. New code should use dependency injection.
+let _instance: ExtHostAIAgent | undefined;
+let _rpcService: IExtHostRpcService | undefined;
+
+/**
+ * Set the RPC service for singleton initialization.
+ * Must be called before getExtHostAIAgent().
+ * @internal
+ */
+export function setExtHostRpcService(rpcService: IExtHostRpcService): void {
+	_rpcService = rpcService;
+}
+
+/**
+ * Get the singleton ExtHostAIAgent instance.
+ * @deprecated Use dependency injection with IExtHostRpcService instead.
+ */
 export function getExtHostAIAgent(): ExtHostAIAgent {
 	if (!_instance) {
-		_instance = new ExtHostAIAgent();
+		if (!_rpcService) {
+			throw new Error('[ExtHostAIAgent] RPC service not initialized. Call setExtHostRpcService first.');
+		}
+		_instance = new ExtHostAIAgent(_rpcService);
 	}
 	return _instance;
+}
+
+/**
+ * Create a new ExtHostAIAgent instance (for testing or custom scenarios).
+ * @internal
+ */
+export function createExtHostAIAgent(rpcService: IExtHostRpcService): ExtHostAIAgent {
+	return new ExtHostAIAgent(rpcService);
 }

@@ -13,8 +13,10 @@ import type {
     StateOptions,
     AgentMemory,
     SessionMeta,
-    SessionIndex
+    SessionIndex,
+    HandoverArtifact
 } from '../../types';
+import { createHandoverArtifact } from './artifactTemplates';
 import {
     createSessionState,
     createChatMessage,
@@ -49,6 +51,7 @@ export class LogbookService implements Disposable {
     private readonly _onMessageAdded = new EventEmitter<ChatMessage>();
     private readonly _onPhaseChange = new EventEmitter<Phase>();
     private readonly _onSessionsChange = new EventEmitter<SessionMeta[]>();
+    private readonly _onArtifactAdded = new EventEmitter<HandoverArtifact>();
 
     /** Event fired when state changes */
     readonly onStateChange = this._onStateChange.event;
@@ -61,6 +64,9 @@ export class LogbookService implements Disposable {
 
     /** Event fired when sessions list changes */
     readonly onSessionsChange = this._onSessionsChange.event;
+
+    /** Event fired when a handover artifact is added */
+    readonly onArtifactAdded = this._onArtifactAdded.event;
 
     constructor(options: Partial<StateOptions> = {}) {
         this.options = { ...DEFAULT_OPTIONS, ...options };
@@ -393,6 +399,61 @@ export class LogbookService implements Disposable {
         }, null, 2);
     }
 
+    // ==================== Artifact Methods (Phase 3.5) ====================
+
+    /**
+     * Add a handover artifact
+     * @param artifact The artifact to add
+     */
+    addArtifact(artifact: HandoverArtifact): void {
+        if (!this.state.artifacts) {
+            this.state.artifacts = [];
+        }
+        this.state.artifacts.push(artifact);
+        this.markDirty();
+        this._onArtifactAdded.fire(artifact);
+        this._onStateChange.fire(this.state);
+    }
+
+    /**
+     * Get all handover artifacts
+     * @returns Array of artifacts
+     */
+    getArtifacts(): HandoverArtifact[] {
+        return [...(this.state.artifacts || [])];
+    }
+
+    /**
+     * Get the latest handover artifact
+     * @returns Latest artifact or undefined
+     */
+    getLatestArtifact(): HandoverArtifact | undefined {
+        const artifacts = this.state.artifacts || [];
+        return artifacts.length > 0 ? artifacts[artifacts.length - 1] : undefined;
+    }
+
+    /**
+     * Generate a handover artifact for phase transition
+     * @param fromPhase Source phase
+     * @param toPhase Target phase
+     * @param cliName Name of the CLI generating the artifact
+     * @returns Generated HandoverArtifact
+     */
+    generateHandoverArtifact(
+        fromPhase: Phase,
+        toPhase: Phase,
+        cliName: string
+    ): HandoverArtifact {
+        const recentHistory = this.state.chatHistory.slice(-30);
+        return createHandoverArtifact(
+            fromPhase,
+            toPhase,
+            this.state.agentMemory,
+            recentHistory,
+            cliName
+        );
+    }
+
     // ==================== Multi-Session Methods ====================
 
     /**
@@ -547,6 +608,7 @@ export class LogbookService implements Disposable {
         this._onMessageAdded.dispose();
         this._onPhaseChange.dispose();
         this._onSessionsChange.dispose();
+        this._onArtifactAdded.dispose();
     }
 
     /**

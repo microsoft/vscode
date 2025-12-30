@@ -24,6 +24,7 @@
     "vscode-uri": "3.0.2"
   },
   "devDependencies": {
+    "@types/minimatch": "^5.1.2",
     "@types/ncp": "2.0.1",
     "@types/node": "22.x",
     "@types/tmp": "0.2.2",

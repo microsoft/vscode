@@ -3324,6 +3324,85 @@ export interface ExtHostChatSessionsShape {
 	$provideHandleOptionsChange(providerHandle: number, sessionResource: UriComponents, updates: ReadonlyArray<ChatSessionOptionUpdateDto>, token: CancellationToken): Promise<void>;
 }
 
+// --- Code Ship AI Agent API (Phase 3) ---
+
+/**
+ * Native event types that can be captured through the AI Agent API
+ */
+export type AIAgentNativeEvent =
+	| { type: 'keydown'; key: string; modifiers: string[] }
+	| { type: 'mousemove'; x: number; y: number };
+
+/**
+ * Configuration for creating an overlay widget
+ */
+export interface AIAgentOverlayConfig {
+	line: number;
+	column: number;
+	html: string;
+}
+
+/**
+ * Position update for an overlay widget
+ */
+export interface AIAgentOverlayPosition {
+	line: number;
+	column: number;
+}
+
+/**
+ * MainThread shape for AI Agent operations
+ * Handles overlay rendering and native event bridging in the main thread
+ */
+export interface MainThreadAIAgentShape extends IDisposable {
+	/**
+	 * Create an overlay widget at the specified position
+	 */
+	$createOverlay(config: AIAgentOverlayConfig): Promise<string>;
+
+	/**
+	 * Update the position of an existing overlay
+	 */
+	$updateOverlayPosition(id: string, position: AIAgentOverlayPosition): Promise<void>;
+
+	/**
+	 * Update the content of an existing overlay
+	 */
+	$updateOverlayContent(id: string, html: string): Promise<void>;
+
+	/**
+	 * Destroy an overlay widget
+	 */
+	$destroyOverlay(id: string): Promise<void>;
+
+	/**
+	 * Register a command for interception
+	 */
+	$registerCommandInterceptor(commandId: string): void;
+
+	/**
+	 * Unregister a command interception
+	 */
+	$unregisterCommandInterceptor(commandId: string): void;
+}
+
+/**
+ * ExtHost shape for AI Agent operations
+ * Handles command interception decisions and native event reception
+ */
+export interface ExtHostAIAgentShape {
+	/**
+	 * Check if a command should be allowed to execute
+	 * Called by MainThread before command execution
+	 */
+	$shouldAllowCommand(commandId: string, args: any[]): Promise<boolean>;
+
+	/**
+	 * Called when a native event occurs in the MainThread
+	 */
+	$onNativeEvent(event: AIAgentNativeEvent): void;
+}
+
 // --- proxy identifiers
 
 export const MainContext = {
@@ -3404,6 +3483,7 @@ export const MainContext = {
 	MainThreadChatSessions: createProxyIdentifier<MainThreadChatSessionsShape>('MainThreadChatSessions'),
 	MainThreadChatOutputRenderer: createProxyIdentifier<MainThreadChatOutputRendererShape>('MainThreadChatOutputRenderer'),
 	MainThreadChatContext: createProxyIdentifier<MainThreadChatContextShape>('MainThreadChatContext'),
+	MainThreadAIAgent: createProxyIdentifier<MainThreadAIAgentShape>('MainThreadAIAgent'),
 };
 
 export const ExtHostContext = {
@@ -3480,4 +3560,5 @@ export const ExtHostContext = {
 	ExtHostMcp: createProxyIdentifier<ExtHostMcpShape>('ExtHostMcp'),
 	ExtHostDataChannels: createProxyIdentifier<ExtHostDataChannelsShape>('ExtHostDataChannels'),
 	ExtHostChatSessions: createProxyIdentifier<ExtHostChatSessionsShape>('ExtHostChatSessions'),
+	ExtHostAIAgent: createProxyIdentifier<ExtHostAIAgentShape>('ExtHostAIAgent'),
 };

@@ -11,6 +11,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
+import { IAIAgentCommandInterceptor } from '../../aiAgent/common/aiAgentCommandInterceptor.js';
 
 export class CommandService extends Disposable implements ICommandService {
 
@@ -28,7 +29,8 @@ export class CommandService extends Disposable implements ICommandService {
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
-		@ILogService private readonly _logService: ILogService
+		@ILogService private readonly _logService: ILogService,
+		@IAIAgentCommandInterceptor private readonly _aiAgentInterceptor: IAIAgentCommandInterceptor
 	) {
 		super();
 		this._extensionService.whenInstalledExtensionsRegistered().then(value => this._extensionHostIsReady = value);
@@ -89,11 +91,24 @@ export class CommandService extends Disposable implements ICommandService {
 		return this._tryExecuteCommand(id, args);
 	}
 
-	private _tryExecuteCommand(id: string, args: unknown[]): Promise<any> {
+	private async _tryExecuteCommand(id: string, args: unknown[]): Promise<any> {
 		const command = CommandsRegistry.getCommand(id);
 		if (!command) {
 			return Promise.reject(new Error(`command '${id}' not found`));
 		}
+
+		// AI Agent interception check (Phase 3.2)
+		try {
+			const allowed = await this._aiAgentInterceptor.shouldAllowCommand(id, args);
+			if (!allowed) {
+				this._logService.trace('CommandService#_tryExecuteCommand', `Command '${id}' blocked by AI Agent interceptor`);
+				return Promise.reject(new Error(`Command '${id}' was blocked by AI Agent interceptor`));
+			}
+		} catch (err) {
+			// On error, allow the command to proceed (fail-open)
+			this._logService.warn('CommandService#_tryExecuteCommand', `AI Agent interception check failed for '${id}':`, err);
+		}
+
 		try {
 			this._onWillExecuteCommand.fire({ commandId: id, args });
 			const result = this._instantiationService.invokeFunction(command.handler, ...args);

@@ -55,7 +55,30 @@ export const messages: Record<string, Record<string, string>> = {
         deleteSession: 'Delete session',
         deleteSessionConfirm: 'Are you sure you want to delete this session?',
         sessionMessages: '{count} messages',
-        currentSession: 'Current'
+        currentSession: 'Current',
+
+        // Review Dialog (Phase 3.2)
+        reviewTitle: 'AI Review',
+        reviewFileSave: 'File Save',
+        reviewGitCommit: 'Git Commit',
+        reviewOperation: 'Operation',
+        reviewFilesAffected: 'Files affected',
+        reviewPrompt: 'Would you like AI to review the changes before proceeding?',
+        reviewFirst: 'Review First',
+        saveAnyway: 'Save Anyway',
+        proceedAnyway: 'Proceed Anyway',
+
+        // Handover Artifact (Phase 3.5)
+        artifactGenerated: 'Handover artifact generated',
+        artifactFromPhase: 'From phase',
+        artifactToPhase: 'To phase',
+        artifactSummary: 'Summary',
+        artifactModifiedFiles: 'Modified files',
+        artifactIssues: 'Open issues',
+        viewArtifact: 'View Artifact',
+        artifactCreatedBy: 'Created by',
+        artifactCreatedAt: 'Created at',
+        noArtifacts: 'No handover artifacts'
     },
     ja: {
         // Token Usage
@@ -108,7 +131,30 @@ export const messages: Record<string, Record<string, string>> = {
         deleteSession: 'セッションを削除',
         deleteSessionConfirm: 'このセッションを削除しますか？',
         sessionMessages: '{count}件のメッセージ',
-        currentSession: '現在'
+        currentSession: '現在',
+
+        // Review Dialog (Phase 3.2)
+        reviewTitle: 'AIレビュー',
+        reviewFileSave: 'ファイル保存',
+        reviewGitCommit: 'Gitコミット',
+        reviewOperation: '操作',
+        reviewFilesAffected: '対象ファイル',
+        reviewPrompt: '変更をAIにレビューしてもらいますか？',
+        reviewFirst: 'レビューする',
+        saveAnyway: 'そのまま保存',
+        proceedAnyway: 'そのまま続行',
+
+        // Handover Artifact (Phase 3.5)
+        artifactGenerated: '引き継ぎ成果物を生成しました',
+        artifactFromPhase: '移行元フェーズ',
+        artifactToPhase: '移行先フェーズ',
+        artifactSummary: '概要',
+        artifactModifiedFiles: '変更ファイル',
+        artifactIssues: '未解決課題',
+        viewArtifact: '成果物を表示',
+        artifactCreatedBy: '作成者',
+        artifactCreatedAt: '作成日時',
+        noArtifacts: '引き継ぎ成果物はありません'
     }
 };
 

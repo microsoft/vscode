@@ -216,6 +216,7 @@ export class AgentController implements Disposable {
 
     /**
      * Switch to a different phase
+     * Generates a handover artifact before transitioning (Phase 3.5)
      * @param phase Target phase
      */
     async switchPhase(phase: Phase): Promise<void> {
@@ -223,10 +224,24 @@ export class AgentController implements Disposable {
             return;
         }
 
+        const previousPhase = this.phase;
+        const cliName = this.cliAdapter?.name ?? 'unknown';
+
         // Stop current CLI if running
         if (this.cliAdapter?.isRunning) {
             await this.cliAdapter.kill();
         }
+
+        // Generate handover artifact before switching (Phase 3.5)
+        const artifact = this.logbook.generateHandoverArtifact(
+            previousPhase,
+            phase,
+            cliName
+        );
+        this.logbook.addArtifact(artifact);
+
+        // Notify webview of artifact generation
+        this.postToWebview({ type: 'artifact-generated', data: artifact });
 
         // Update phase
         this.logbook.setPhase(phase);

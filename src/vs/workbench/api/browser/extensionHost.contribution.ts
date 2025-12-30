@@ -15,6 +15,7 @@ import { LanguageConfigurationFileHandler } from '../../contrib/codeEditor/commo
 import { StatusBarItemsExtensionPoint } from './statusBarExtensionPoint.js';
 
 // --- mainThread participants
+import './mainThreadAIAgent.js';
 import './mainThreadLocalization.js';
 import './mainThreadBulkEdits.js';
 import './mainThreadLanguageModels.js';

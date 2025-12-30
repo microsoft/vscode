@@ -4,7 +4,7 @@
  */
 
 import type { Phase, CLIStatus } from './cli';
-import type { SessionMeta } from './state';
+import type { SessionMeta, HandoverArtifact } from './state';
 
 /**
  * Message sender identifier
@@ -50,6 +50,32 @@ export interface TokenUsage {
 }
 
 /**
+ * AI Review Request (Phase 3.2)
+ * Sent from Extension to Webview when command interception triggers a review dialog
+ */
+export interface ReviewRequest {
+    /** Unique request ID for correlating response */
+    requestId: string;
+    /** Files affected by the operation */
+    files: string[];
+    /** Type of operation being intercepted */
+    changeType: 'save' | 'commit' | 'other';
+    /** Optional message to display */
+    message?: string;
+}
+
+/**
+ * AI Review Response (Phase 3.2)
+ * Sent from Webview to Extension in response to review request
+ */
+export interface ReviewResponse {
+    /** Request ID to correlate with original request */
+    requestId: string;
+    /** User's decision */
+    action: 'proceed' | 'review' | 'cancel';
+}
+
+/**
  * Messages from Extension to Webview
  */
 export type ExtensionToWebviewMessage =
@@ -68,7 +94,9 @@ export type ExtensionToWebviewMessage =
     | { type: 'session-switched'; data: { sessionId: string; messages: ChatMessage[]; phase: Phase } }
     | { type: 'session-created'; data: { sessionId: string } }
     | { type: 'session-deleted'; data: { sessionId: string } }
-    | { type: 'toggle-history' };
+    | { type: 'toggle-history' }
+    | { type: 'review-requested'; data: ReviewRequest }
+    | { type: 'artifact-generated'; data: HandoverArtifact };
 
 /**
  * Messages from Webview to Extension
@@ -86,7 +114,8 @@ export type WebviewToExtensionMessage =
     | { type: 'create-session' }
     | { type: 'switch-session'; data: string }
     | { type: 'delete-session'; data: string }
-    | { type: 'rename-session'; data: { sessionId: string; title: string } };
+    | { type: 'rename-session'; data: { sessionId: string; title: string } }
+    | { type: 'review-response'; data: ReviewResponse };
 
 /**
  * Union type for all messages
@@ -97,14 +126,14 @@ export type WebviewMessage = ExtensionToWebviewMessage | WebviewToExtensionMessa
  * Type guard for Extension messages
  */
 export function isExtensionMessage(msg: WebviewMessage): msg is ExtensionToWebviewMessage {
-    return ['output', 'message', 'status', 'phase-changed', 'history', 'error', 'clear', 'ready', 'locale', 'progress', 'token-usage', 'sessions-list', 'session-switched', 'session-created', 'session-deleted', 'toggle-history'].includes(msg.type);
+    return ['output', 'message', 'status', 'phase-changed', 'history', 'error', 'clear', 'ready', 'locale', 'progress', 'token-usage', 'sessions-list', 'session-switched', 'session-created', 'session-deleted', 'toggle-history', 'review-requested', 'artifact-generated'].includes(msg.type);
 }
 
 /**
  * Type guard for Webview messages
  */
 export function isWebviewMessage(msg: WebviewMessage): msg is WebviewToExtensionMessage {
-    return ['send', 'switch-phase', 'phase-rollback', 'cancel', 'retry', 'get-history', 'clear-history', 'ready', 'get-sessions', 'create-session', 'switch-session', 'delete-session', 'rename-session'].includes(msg.type);
+    return ['send', 'switch-phase', 'phase-rollback', 'cancel', 'retry', 'get-history', 'clear-history', 'ready', 'get-sessions', 'create-session', 'switch-session', 'delete-session', 'rename-session', 'review-response'].includes(msg.type);
 }
 
 /**

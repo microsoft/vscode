@@ -115,7 +115,7 @@ import { ExtHostWebviewViews } from './extHostWebviewView.js';
 import { IExtHostWindow } from './extHostWindow.js';
 import { IExtHostWorkspace } from './extHostWorkspace.js';
 import { ExtHostChatContext } from './extHostChatContext.js';
-import { getExtHostAIAgent, IExtHostAIAgent } from './extHostAIAgent.js';
+import { getExtHostAIAgent, setExtHostRpcService, IExtHostAIAgent } from './extHostAIAgent.js';
 
 export interface IExtensionRegistries {
 	mine: ExtensionDescriptionRegistry;
@@ -177,6 +177,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	rpcProtocol.set(ExtHostContext.ExtHostAuthentication, extHostAuthentication);
 	rpcProtocol.set(ExtHostContext.ExtHostChatProvider, extHostLanguageModels);
 	rpcProtocol.set(ExtHostContext.ExtHostDataChannels, extHostDataChannels);
+
+	// Code Ship AI Agent - register early for MainThread communication
+	setExtHostRpcService(rpcProtocol);
+	rpcProtocol.set(ExtHostContext.ExtHostAIAgent, getExtHostAIAgent());
 
 	// automatically create and register addressable instances
 	const extHostDecorations = rpcProtocol.set(ExtHostContext.ExtHostDecorations, accessor.get(IExtHostDecorations));

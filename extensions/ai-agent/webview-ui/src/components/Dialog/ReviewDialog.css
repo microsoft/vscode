@@ -1,0 +1,147 @@
+/**
+ * Review Dialog Styles
+ * Phase 3.2: Command Interception Integration
+ */
+
+.review-dialog {
+    min-width: 350px;
+    max-width: 450px;
+}
+
+.review-dialog__header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+.review-dialog__icon {
+    font-size: 18px;
+    color: var(--vscode-notificationsWarningIcon-foreground, #cca700);
+}
+
+.review-dialog__type {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--vscode-foreground);
+}
+
+.review-dialog__message {
+    margin: 0 0 12px;
+    padding: 8px 12px;
+    background: var(--vscode-inputValidation-infoBackground, rgba(0, 127, 212, 0.1));
+    border-left: 3px solid var(--vscode-inputValidation-infoBorder, #007fd4);
+    border-radius: 2px;
+    font-size: 12px;
+    color: var(--vscode-foreground);
+    line-height: 1.5;
+}
+
+.review-dialog__files {
+    margin: 0 0 16px;
+}
+
+.review-dialog__files-label {
+    margin: 0 0 8px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--vscode-descriptionForeground);
+}
+
+.review-dialog__files-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    max-height: 120px;
+    overflow-y: auto;
+    background: var(--vscode-input-background);
+    border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
+    border-radius: 4px;
+    padding: 4px 0;
+}
+
+.review-dialog__file-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-family: var(--vscode-editor-font-family, monospace);
+    color: var(--vscode-foreground);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.review-dialog__file-item .codicon {
+    flex-shrink: 0;
+    font-size: 14px;
+    color: var(--vscode-icon-foreground);
+}
+
+.review-dialog__prompt {
+    margin: 0 0 16px;
+    font-size: 13px;
+    color: var(--vscode-foreground);
+    line-height: 1.5;
+}
+
+.review-dialog__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.review-dialog__button {
+    padding: 6px 14px;
+    font-size: 13px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.15s ease, opacity 0.15s ease;
+}
+
+.review-dialog__button--secondary {
+    background: transparent;
+    border: 1px solid var(--vscode-button-secondaryBackground, #3a3d41);
+    color: var(--vscode-foreground);
+}
+
+.review-dialog__button--secondary:hover {
+    background: var(--vscode-button-secondaryHoverBackground, #45494e);
+}
+
+.review-dialog__button--primary {
+    background: var(--vscode-button-background, #0e639c);
+    border: none;
+    color: var(--vscode-button-foreground, #ffffff);
+}
+
+.review-dialog__button--primary:hover {
+    background: var(--vscode-button-hoverBackground, #1177bb);
+}
+
+/* Focus states for accessibility */
+.review-dialog__button:focus {
+    outline: 1px solid var(--vscode-focusBorder);
+    outline-offset: 2px;
+}
+
+/* Scrollbar styling for file list */
+.review-dialog__files-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+.review-dialog__files-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.review-dialog__files-list::-webkit-scrollbar-thumb {
+    background: var(--vscode-scrollbarSlider-background);
+    border-radius: 4px;
+}
+
+.review-dialog__files-list::-webkit-scrollbar-thumb:hover {
+    background: var(--vscode-scrollbarSlider-hoverBackground);
+}

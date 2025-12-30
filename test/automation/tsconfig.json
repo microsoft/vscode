@@ -10,8 +10,11 @@
 		"declaration": true,
 		"skipLibCheck": true,
 		"lib": [
-			"esnext", // for #201187
+			"esnext",
 			"dom"
+		],
+		"typeRoots": [
+			"./node_modules/@types"
 		],
 		"paths": {
 			"playwright-core/types/protocol": [

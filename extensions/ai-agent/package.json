@@ -35,7 +35,8 @@
           "id": "codeShip.chatView",
           "name": "Chat",
           "type": "webview",
-          "visibility": "visible"
+          "visibility": "visible",
+          "when": "!config.chat.disableAIFeatures"
         }
       ]
     },
@@ -43,77 +44,89 @@
       {
         "view": "codeShip.chatView",
         "contents": "Welcome to Code Ship AI Agent!\n\nStart your AI-assisted development workflow.\n\n[Open Chat](command:codeShip.focusChat)",
-        "when": "codeShip.noMessages"
+        "when": "codeShip.noMessages && !config.chat.disableAIFeatures"
       }
     ],
     "commands": [
       {
         "command": "codeShip.helloWorld",
-        "title": "Code Ship: Hello World"
+        "title": "Code Ship: Hello World",
+        "enablement": "!config.chat.disableAIFeatures"
       },
       {
         "command": "codeShip.testIntercept",
-        "title": "Code Ship: Test Command Interception"
+        "title": "Code Ship: Test Command Interception",
+        "enablement": "!config.chat.disableAIFeatures"
       },
       {
         "command": "codeShip.showChatView",
         "title": "Code Ship: Show Chat View",
-        "icon": "$(comment-discussion)"
+        "icon": "$(comment-discussion)",
+        "enablement": "!config.chat.disableAIFeatures"
       },
       {
         "command": "codeShip.openChat",
-        "title": "Code Ship: Open Chat"
+        "title": "Code Ship: Open Chat",
+        "enablement": "!config.chat.disableAIFeatures"
       },
       {
         "command": "codeShip.sendMessage",
-        "title": "Code Ship: Send Message"
+        "title": "Code Ship: Send Message",
+        "enablement": "!config.chat.disableAIFeatures"
       },
       {
         "command": "codeShip.switchPhase",
-        "title": "Code Ship: Switch Phase"
+        "title": "Code Ship: Switch Phase",
+        "enablement": "!config.chat.disableAIFeatures"
       },
       {
         "command": "codeShip.cancel",
-        "title": "Code Ship: Cancel"
+        "title": "Code Ship: Cancel",
+        "enablement": "!config.chat.disableAIFeatures"
       },
       {
         "command": "codeShip.clearHistory",
-        "title": "Clear Chat History"
+        "title": "Clear Chat History",
+        "enablement": "!config.chat.disableAIFeatures"
       },
       {
         "command": "codeShip.showHistory",
         "title": "Code Ship: Show History",
-        "icon": "$(history)"
+        "icon": "$(history)",
+        "enablement": "!config.chat.disableAIFeatures"
       },
       {
         "command": "codeShip.newChat",
         "title": "Code Ship: New Chat",
-        "icon": "$(add)"
+        "icon": "$(add)",
+        "enablement": "!config.chat.disableAIFeatures"
       },
       {
         "command": "codeShip.checkDependencies",
-        "title": "Code Ship: Check Dependencies"
+        "title": "Code Ship: Check Dependencies",
+        "enablement": "!config.chat.disableAIFeatures"
       },
       {
         "command": "codeShip.focusChat",
-        "title": "Code Ship: Focus Chat"
+        "title": "Code Ship: Focus Chat",
+        "enablement": "!config.chat.disableAIFeatures"
       }
     ],
     "menus": {
       "view/title": [
         {
           "command": "codeShip.showHistory",
-          "when": "view == codeShip.chatView",
+          "when": "view == codeShip.chatView && !config.chat.disableAIFeatures",
           "group": "navigation@1"
         },
         {
           "command": "codeShip.newChat",
-          "when": "view == codeShip.chatView",
+          "when": "view == codeShip.chatView && !config.chat.disableAIFeatures",
           "group": "navigation@2"
         },
         {
           "command": "codeShip.clearHistory",
-          "when": "view == codeShip.chatView",
+          "when": "view == codeShip.chatView && !config.chat.disableAIFeatures",
           "group": "2_clear"
         }
       ]

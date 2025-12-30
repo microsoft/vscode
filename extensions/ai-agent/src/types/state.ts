@@ -42,6 +42,8 @@ export interface SessionState {
     agentMemory: AgentMemory;
     /** Chat history */
     chatHistory: ChatMessage[];
+    /** Handover artifacts from phase transitions (optional for backward compatibility) */
+    artifacts?: HandoverArtifact[];
 }
 
 /**

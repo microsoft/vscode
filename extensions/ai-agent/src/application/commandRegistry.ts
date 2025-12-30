@@ -92,6 +92,7 @@ export class CommandRegistry implements vscode.Disposable {
 
     /**
      * Setup command interception using Internal API
+     * Phase 3.2: Command Interception Integration
      */
     private setupInterception(): void {
         if (!this.internalApi) return;
@@ -99,28 +100,8 @@ export class CommandRegistry implements vscode.Disposable {
         // Intercept file save for AI review
         const saveInterceptor = this.internalApi.interceptCommand(
             'workbench.action.files.save',
-            async (args) => {
-                // Get configuration
-                const config = vscode.workspace.getConfiguration('codeShip');
-                const reviewOnSave = config.get<boolean>('reviewOnSave', false);
-
-                if (!reviewOnSave) {
-                    return true; // Allow save without review
-                }
-
-                const result = await vscode.window.showInformationMessage(
-                    '[Code Ship] Run AI review before save?',
-                    { modal: false },
-                    'Save',
-                    'Review First'
-                );
-
-                if (result === 'Review First') {
-                    // Trigger AI review
-                    await vscode.commands.executeCommand('codeShip.reviewCurrentFile');
-                }
-
-                return true; // Always allow save after user decision
+            async (_args) => {
+                return this.handleSaveIntercept();
             }
         );
 
@@ -129,30 +110,81 @@ export class CommandRegistry implements vscode.Disposable {
         // Intercept git commit for AI review
         const commitInterceptor = this.internalApi.interceptCommand(
             'git.commit',
-            async (args) => {
-                const config = vscode.workspace.getConfiguration('codeShip');
-                const reviewOnCommit = config.get<boolean>('reviewOnCommit', false);
-
-                if (!reviewOnCommit) {
-                    return true;
-                }
-
-                const result = await vscode.window.showInformationMessage(
-                    '[Code Ship] Run AI review before commit?',
-                    { modal: false },
-                    'Commit',
-                    'Review First'
-                );
-
-                if (result === 'Review First') {
-                    await vscode.commands.executeCommand('codeShip.reviewStagedChanges');
-                }
-
-                return true;
+            async (_args) => {
+                return this.handleCommitIntercept();
             }
         );
 
         this.disposables.push(commitInterceptor);
+    }
+
+    /**
+     * Handle file save interception
+     * @returns true to allow save, false to block
+     */
+    private async handleSaveIntercept(): Promise<boolean> {
+        const config = vscode.workspace.getConfiguration('codeShip');
+        const reviewOnSave = config.get<boolean>('reviewOnSave', false);
+
+        if (!reviewOnSave) {
+            return true; // Allow save without review
+        }
+
+        // Get active editor file
+        const activeFile = vscode.window.activeTextEditor?.document.fileName;
+        const files = activeFile ? [activeFile] : [];
+
+        const result = await vscode.window.showInformationMessage(
+            `[Code Ship] AI Review: ${files.length > 0 ? files[0] : 'File'}`,
+            { modal: false },
+            'Save',
+            'Review First',
+            'Cancel'
+        );
+
+        switch (result) {
+            case 'Review First':
+                // Trigger AI review and then allow save
+                await vscode.commands.executeCommand('codeShip.reviewCurrentFile');
+                return true;
+            case 'Cancel':
+                return false; // Block the save
+            case 'Save':
+            default:
+                return true; // Allow save
+        }
+    }
+
+    /**
+     * Handle git commit interception
+     * @returns true to allow commit, false to block
+     */
+    private async handleCommitIntercept(): Promise<boolean> {
+        const config = vscode.workspace.getConfiguration('codeShip');
+        const reviewOnCommit = config.get<boolean>('reviewOnCommit', false);
+
+        if (!reviewOnCommit) {
+            return true; // Allow commit without review
+        }
+
+        const result = await vscode.window.showInformationMessage(
+            '[Code Ship] AI Review: Git Commit',
+            { modal: false },
+            'Commit',
+            'Review First',
+            'Cancel'
+        );
+
+        switch (result) {
+            case 'Review First':
+                await vscode.commands.executeCommand('codeShip.reviewStagedChanges');
+                return true;
+            case 'Cancel':
+                return false; // Block the commit
+            case 'Commit':
+            default:
+                return true; // Allow commit
+        }
     }
 
     /**
