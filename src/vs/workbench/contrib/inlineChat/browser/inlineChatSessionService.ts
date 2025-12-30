@@ -14,7 +14,7 @@ import { IValidEditOperation } from '../../../../editor/common/model.js';
 import { createDecorator, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../chat/browser/chat.js';
 import { IChatEditingSession } from '../../chat/common/chatEditingService.js';
-import { IChatModel, IChatModelInputState, IChatRequestModel } from '../../chat/common/chatModel.js';
+import { IChatModel, IChatModelInputState, IChatRequestModel } from '../../chat/common/model/chatModel.js';
 import { IChatService } from '../../chat/common/chatService.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { Session, StashedSession } from './inlineChatSession.js';

@@ -13,7 +13,7 @@ import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, IToolResultOutputDetailsSerialized } from '../../../common/chatService.js';
-import { IChatViewModel } from '../../../common/chatViewModel.js';
+import { IChatViewModel } from '../../../common/model/chatViewModel.js';
 import { IToolResultOutputDetails } from '../../../common/tools/languageModelToolsService.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
 import { IChatOutputRendererService } from '../../chatOutputItemRenderer.js';

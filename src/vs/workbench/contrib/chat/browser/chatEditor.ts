@@ -23,7 +23,7 @@ import { IEditorOpenContext } from '../../../common/editor.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../common/theme.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { IChatModel, IChatModelInputState, IExportableChatData, ISerializableChatData } from '../common/chatModel.js';
+import { IChatModel, IChatModelInputState, IExportableChatData, ISerializableChatData } from '../common/model/chatModel.js';
 import { IChatService } from '../common/chatService.js';
 import { IChatSessionsService, localChatSessionType } from '../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';

@@ -6,7 +6,7 @@
 import { $, clearNode } from '../../../../../base/browser/dom.js';
 import { IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../common/chatService.js';
 import { IChatContentPartRenderContext, IChatContentPart } from './chatContentParts.js';
-import { IChatRendererContent } from '../../common/chatViewModel.js';
+import { IChatRendererContent } from '../../common/model/chatViewModel.js';
 import { ChatConfiguration, ThinkingDisplayMode } from '../../common/constants.js';
 import { ChatTreeItem } from '../chat.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';

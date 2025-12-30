@@ -16,10 +16,10 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { LocalAgentsSessionsProvider } from '../../browser/agentSessions/localAgentSessionsProvider.js';
 import { ModifiedFileEntryState } from '../../common/chatEditingService.js';
-import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../common/chatModel.js';
+import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../common/model/chatModel.js';
 import { IChatDetail, IChatService, IChatSessionStartOptions, ResponseModelState } from '../../common/chatService.js';
 import { ChatSessionStatus, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
-import { LocalChatSessionUri } from '../../common/chatUri.js';
+import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { MockChatSessionsService } from '../common/mockChatSessionsService.js';
 

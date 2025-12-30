@@ -15,7 +15,7 @@ import { ITextModel } from '../../../../editor/common/model.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { EditorModel } from '../../../common/editor/editorModel.js';
-import { IChatResponseViewModel } from '../common/chatViewModel.js';
+import { IChatResponseViewModel } from '../common/model/chatViewModel.js';
 import { IDisposableReference } from './chatContentParts/chatCollections.js';
 import { DiffEditorPool } from './chatContentParts/chatContentCodePools.js';
 import { CodeCompareBlockPart, ICodeCompareBlockData, ICodeCompareBlockDiffData } from './codeBlockPart.js';

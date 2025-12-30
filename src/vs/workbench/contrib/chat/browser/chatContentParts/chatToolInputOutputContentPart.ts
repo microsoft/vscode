@@ -18,7 +18,7 @@ import { localize } from '../../../../../nls.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IChatRendererContent } from '../../common/chatViewModel.js';
+import { IChatRendererContent } from '../../common/model/chatViewModel.js';
 import { LanguageModelPartAudience } from '../../common/languageModels.js';
 import { ChatTreeItem, IChatCodeBlockInfo } from '../chat.js';
 import { CodeBlockPart, ICodeBlockData, ICodeBlockRenderOptions } from '../codeBlockPart.js';

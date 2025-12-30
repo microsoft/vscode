@@ -11,7 +11,7 @@ import { rtrim } from '../../../../base/common/strings.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IChatAgentService } from './chatAgents.js';
-import { IChatModel } from './chatModel.js';
+import { IChatModel } from './model/chatModel.js';
 import { chatAgentLeader, chatSubcommandLeader } from './chatParserTypes.js';
 import { ISpeechService, ISpeechToTextEvent, SpeechToTextStatus } from '../../speech/common/speechService.js';
 

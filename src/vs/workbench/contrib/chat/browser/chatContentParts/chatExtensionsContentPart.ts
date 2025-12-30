@@ -11,7 +11,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ExtensionsList, getExtensions } from '../../../extensions/browser/extensionsViewer.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { IChatExtensionsContent } from '../../common/chatService.js';
-import { IChatRendererContent } from '../../common/chatViewModel.js';
+import { IChatRendererContent } from '../../common/model/chatViewModel.js';
 import { ChatTreeItem, ChatViewId, IChatCodeBlockInfo } from '../chat.js';
 import { IChatContentPart } from './chatContentParts.js';
 import { PagedModel } from '../../../../../base/common/paging.js';

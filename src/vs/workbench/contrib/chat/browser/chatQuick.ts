@@ -24,7 +24,7 @@ import { editorBackground, inputBackground, quickInputBackground, quickInputFore
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../common/theme.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
-import { isCellTextEditOperationArray } from '../common/chatModel.js';
+import { isCellTextEditOperationArray } from '../common/model/chatModel.js';
 import { ChatMode } from '../common/chatModes.js';
 import { IParsedChatRequest } from '../common/chatParserTypes.js';
 import { IChatModelReference, IChatProgress, IChatService } from '../common/chatService.js';

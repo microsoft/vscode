@@ -26,7 +26,7 @@ import { createNotebookOutputVariableEntry, NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_
 import { getOutputViewModelFromId } from '../../notebook/browser/controller/cellOutputActions.js';
 import { getNotebookEditorFromEditorPane } from '../../notebook/browser/notebookBrowser.js';
 import { SCMHistoryItemTransferData } from '../../scm/browser/scmHistoryChatContext.js';
-import { CHAT_ATTACHABLE_IMAGE_MIME_TYPES, getAttachableImageExtension } from '../common/chatModel.js';
+import { CHAT_ATTACHABLE_IMAGE_MIME_TYPES, getAttachableImageExtension } from '../common/model/chatModel.js';
 import { IChatRequestVariableEntry, OmittedState, IDiagnosticVariableEntry, IDiagnosticVariableEntryFilterData, ISymbolVariableEntry, toPromptFileVariableEntry, PromptFileVariableKind, ISCMHistoryItemVariableEntry } from '../common/chatVariableEntries.js';
 import { getPromptsTypeForLanguageId, PromptsType } from '../common/promptSyntax/promptTypes.js';
 import { imageToHash } from './chatPasteProviders.js';

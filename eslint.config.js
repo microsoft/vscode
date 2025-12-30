@@ -274,7 +274,7 @@ export default tseslint.config(
 			'src/vs/workbench/contrib/chat/browser/chatInlineAnchorWidget.ts',
 			'src/vs/workbench/contrib/chat/browser/accessibility/chatResponseAccessibleView.ts',
 			'src/vs/workbench/contrib/chat/browser/contrib/chatInputCompletions.ts',
-			'src/vs/workbench/contrib/chat/common/chatModel.ts',
+			'src/vs/workbench/contrib/chat/common/model/chatModel.ts',
 			'src/vs/workbench/contrib/chat/test/common/promptSyntax/testUtils/mockFilesystem.test.ts',
 			'src/vs/workbench/contrib/chat/test/common/promptSyntax/testUtils/mockFilesystem.ts',
 			'src/vs/workbench/contrib/chat/test/common/builtinTools/manageTodoListTool.test.ts',

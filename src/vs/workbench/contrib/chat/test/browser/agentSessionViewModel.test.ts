@@ -13,7 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { AgentSessionsModel, IAgentSession, isAgentSession, isAgentSessionsModel, isLocalAgentSessionItem } from '../../browser/agentSessions/agentSessionsModel.js';
 import { AgentSessionsFilter } from '../../browser/agentSessions/agentSessionsFilter.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
-import { LocalChatSessionUri } from '../../common/chatUri.js';
+import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { MockChatSessionsService } from '../common/mockChatSessionsService.js';
 import { TestLifecycleService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';

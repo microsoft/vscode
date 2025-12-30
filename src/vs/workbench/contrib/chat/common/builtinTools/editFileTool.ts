@@ -11,10 +11,10 @@ import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { CellUri } from '../../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { ICodeMapperService } from '../chatCodeMapperService.js';
-import { ChatModel } from '../chatModel.js';
+import { ChatModel } from '../model/chatModel.js';
 import { IChatService } from '../chatService.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress } from '../tools/languageModelToolsService.js';
-import { LocalChatSessionUri } from '../chatUri.js';
+import { LocalChatSessionUri } from '../model/chatUri.js';
 
 export const ExtensionEditToolId = 'vscode_editFile';
 export const InternalEditToolId = 'vscode_editFile_internal';

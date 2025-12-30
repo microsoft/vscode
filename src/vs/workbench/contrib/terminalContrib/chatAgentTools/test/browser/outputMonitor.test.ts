@@ -13,11 +13,11 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { ILanguageModelsService } from '../../../../chat/common/languageModels.js';
 import { IChatService } from '../../../../chat/common/chatService.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { ChatModel } from '../../../../chat/common/chatModel.js';
+import { ChatModel } from '../../../../chat/common/model/chatModel.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { IToolInvocationContext } from '../../../../chat/common/tools/languageModelToolsService.js';
-import { LocalChatSessionUri } from '../../../../chat/common/chatUri.js';
+import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
 import { isNumber } from '../../../../../../base/common/types.js';
 
 suite('OutputMonitor', () => {

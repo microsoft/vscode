@@ -19,9 +19,9 @@ import { IWorkspaceContextService, WorkspaceFolder } from '../../../../../platfo
 import { TestWorkspace, Workspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { InMemoryTestFileService, TestContextService, TestLifecycleService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
-import { ChatModel } from '../../common/chatModel.js';
-import { ChatSessionStore, IChatTransfer } from '../../common/chatSessionStore.js';
-import { LocalChatSessionUri } from '../../common/chatUri.js';
+import { ChatModel } from '../../common/model/chatModel.js';
+import { ChatSessionStore, IChatTransfer } from '../../common/model/chatSessionStore.js';
+import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { MockChatModel } from './mockChatModel.js';
 
 function createMockChatModel(sessionResource: URI, options?: { customTitle?: string }): ChatModel {

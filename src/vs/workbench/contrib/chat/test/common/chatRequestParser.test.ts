@@ -17,7 +17,7 @@ import { ChatAgentService, IChatAgentCommand, IChatAgentData, IChatAgentService 
 import { ChatRequestParser } from '../../common/chatRequestParser.js';
 import { IChatService } from '../../common/chatService.js';
 import { IChatSlashCommandService } from '../../common/chatSlashCommands.js';
-import { LocalChatSessionUri } from '../../common/chatUri.js';
+import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { IChatVariablesService } from '../../common/chatVariables.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { IToolData, ToolDataSource, ToolSet } from '../../common/tools/languageModelToolsService.js';

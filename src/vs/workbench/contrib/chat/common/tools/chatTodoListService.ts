@@ -9,7 +9,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { Memento } from '../../../../common/memento.js';
-import { chatSessionResourceToId } from '../chatUri.js';
+import { chatSessionResourceToId } from '../model/chatUri.js';
 
 export interface IChatTodo {
 	id: number;

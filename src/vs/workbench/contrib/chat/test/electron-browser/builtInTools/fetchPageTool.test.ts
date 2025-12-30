@@ -11,7 +11,7 @@ import { ResourceMap } from '../../../../../../base/common/map.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IFileContent, IReadFileOptions } from '../../../../../../platform/files/common/files.js';
 import { IWebContentExtractorService, WebContentExtractResult } from '../../../../../../platform/webContentExtractor/common/webContentExtractor.js';
-import { FetchWebPageTool } from '../../electron-browser/tools/fetchPageTool.js';
+import { FetchWebPageTool } from '../../../electron-browser/builtInTools/fetchPageTool.js';
 import { TestFileService } from '../../../../../test/common/workbenchTestServices.js';
 import { MockTrustedDomainService } from '../../../../url/test/browser/mockTrustedDomainService.js';
 import { InternalFetchWebPageToolId } from '../../../common/builtinTools/tools.js';

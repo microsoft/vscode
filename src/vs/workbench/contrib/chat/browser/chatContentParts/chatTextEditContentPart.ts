@@ -21,9 +21,9 @@ import { IResolvedTextEditorModel, ITextModelService } from '../../../../../edit
 import { localize } from '../../../../../nls.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IChatProgressRenderableResponseContent, IChatTextEditGroup } from '../../common/chatModel.js';
+import { IChatProgressRenderableResponseContent, IChatTextEditGroup } from '../../common/model/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
-import { IChatResponseViewModel, isResponseVM } from '../../common/chatViewModel.js';
+import { IChatResponseViewModel, isResponseVM } from '../../common/model/chatViewModel.js';
 import { IChatListItemRendererOptions } from '../chat.js';
 import { CodeCompareBlockPart, ICodeCompareBlockData, ICodeCompareBlockDiffData } from '../codeBlockPart.js';
 import { IDisposableReference } from './chatCollections.js';

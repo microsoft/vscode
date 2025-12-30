@@ -35,7 +35,7 @@ import { IChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessi
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
 import { IChatEditorOptions } from './chatEditor.js';
-import { IChatModel } from '../common/chatModel.js';
+import { IChatModel } from '../common/model/chatModel.js';
 import { IChatService, IChatToolInvocation } from '../common/chatService.js';
 import { autorun, autorunIterableDelta, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';

@@ -22,7 +22,7 @@ import { IEditorWorkerService } from '../../../../editor/common/services/editorW
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { Progress } from '../../../../platform/progress/common/progress.js';
 import { SaveReason } from '../../../common/editor.js';
-import { countWords } from '../../chat/common/chatWordCounter.js';
+import { countWords } from '../../chat/common/model/chatWordCounter.js';
 import { HunkInformation, Session, HunkState } from './inlineChatSession.js';
 import { InlineChatZoneWidget } from './inlineChatZoneWidget.js';
 import { ACTION_TOGGLE_DIFF, CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, MENU_INLINE_CHAT_ZONE, minimapInlineChatDiffInserted, overviewRulerInlineChatDiffInserted } from '../common/inlineChat.js';

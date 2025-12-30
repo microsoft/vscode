@@ -21,7 +21,7 @@ import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IChatModel, IChatRequestModel, IChatTextEditGroupState } from '../../chat/common/chatModel.js';
+import { IChatModel, IChatRequestModel, IChatTextEditGroupState } from '../../chat/common/model/chatModel.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { IChatAgent } from '../../chat/common/chatAgents.js';
 import { IDocumentDiff } from '../../../../editor/common/diff/documentDiffProvider.js';

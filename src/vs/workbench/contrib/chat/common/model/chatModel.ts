@@ -3,40 +3,40 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { asArray } from '../../../../base/common/arrays.js';
-import { softAssertNever } from '../../../../base/common/assert.js';
-import { VSBuffer, decodeHex, encodeHex } from '../../../../base/common/buffer.js';
-import { BugIndicatingError } from '../../../../base/common/errors.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
-import { IMarkdownString, MarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
-import { Disposable, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../../base/common/map.js';
-import { revive } from '../../../../base/common/marshalling.js';
-import { Schemas } from '../../../../base/common/network.js';
-import { equals } from '../../../../base/common/objects.js';
-import { IObservable, autorun, autorunSelfDisposable, derived, observableFromEvent, observableSignalFromEvent, observableValue, observableValueOpts } from '../../../../base/common/observable.js';
-import { basename, isEqual } from '../../../../base/common/resources.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { WithDefinedProps } from '../../../../base/common/types.js';
-import { URI, UriComponents, UriDto, isUriComponents } from '../../../../base/common/uri.js';
-import { generateUuid } from '../../../../base/common/uuid.js';
-import { IRange } from '../../../../editor/common/core/range.js';
-import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
-import { ISelection } from '../../../../editor/common/core/selection.js';
-import { TextEdit } from '../../../../editor/common/languages.js';
-import { EditSuggestionId } from '../../../../editor/common/textModelEditSource.js';
-import { localize } from '../../../../nls.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
-import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommon.js';
-import { migrateLegacyTerminalToolSpecificData } from './chat.js';
-import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, UserSelectedTools, reviveSerializedAgent } from './chatAgents.js';
-import { IChatEditingService, IChatEditingSession, ModifiedFileEntryState, editEntriesToMultiDiffData } from './chatEditingService.js';
-import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from './chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatMcpServersStarting, IChatModelReference, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatPrepareToolInvocationPart, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatService, IChatSessionContext, IChatSessionTiming, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, ResponseModelState, isIUsedContext } from './chatService.js';
+import { asArray } from '../../../../../base/common/arrays.js';
+import { softAssertNever } from '../../../../../base/common/assert.js';
+import { VSBuffer, decodeHex, encodeHex } from '../../../../../base/common/buffer.js';
+import { BugIndicatingError } from '../../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { IMarkdownString, MarkdownString, isMarkdownString } from '../../../../../base/common/htmlContent.js';
+import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../../base/common/map.js';
+import { revive } from '../../../../../base/common/marshalling.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { equals } from '../../../../../base/common/objects.js';
+import { IObservable, autorun, autorunSelfDisposable, derived, observableFromEvent, observableSignalFromEvent, observableValue, observableValueOpts } from '../../../../../base/common/observable.js';
+import { basename, isEqual } from '../../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { WithDefinedProps } from '../../../../../base/common/types.js';
+import { URI, UriComponents, UriDto, isUriComponents } from '../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
+import { IRange } from '../../../../../editor/common/core/range.js';
+import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
+import { ISelection } from '../../../../../editor/common/core/selection.js';
+import { TextEdit } from '../../../../../editor/common/languages.js';
+import { EditSuggestionId } from '../../../../../editor/common/textModelEditSource.js';
+import { localize } from '../../../../../nls.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
+import { migrateLegacyTerminalToolSpecificData } from '../chat.js';
+import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, UserSelectedTools, reviveSerializedAgent } from '../chatAgents.js';
+import { IChatEditingService, IChatEditingSession, ModifiedFileEntryState, editEntriesToMultiDiffData } from '../chatEditingService.js';
+import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from '../chatParserTypes.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatMcpServersStarting, IChatModelReference, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatPrepareToolInvocationPart, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatService, IChatSessionContext, IChatSessionTiming, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, ResponseModelState, isIUsedContext } from '../chatService.js';
 import { LocalChatSessionUri } from './chatUri.js';
-import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry } from './chatVariableEntries.js';
-import { ChatAgentLocation, ChatModeKind } from './constants.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from './languageModels.js';
+import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry } from '../chatVariableEntries.js';
+import { ChatAgentLocation, ChatModeKind } from '../constants.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../languageModels.js';
 
 
 export const CHAT_ATTACHABLE_IMAGE_MIME_TYPES: Record<string, string> = {

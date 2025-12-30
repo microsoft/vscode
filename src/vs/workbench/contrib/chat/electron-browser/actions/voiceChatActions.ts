@@ -48,9 +48,9 @@ import { IChatExecuteActionContext } from '../../browser/actions/chatExecuteActi
 import { IChatWidget, IChatWidgetService, IQuickChatService } from '../../browser/chat.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IChatResponseModel } from '../../common/chatModel.js';
+import { IChatResponseModel } from '../../common/model/chatModel.js';
 import { KEYWORD_ACTIVIATION_SETTING_ID } from '../../common/chatService.js';
-import { ChatResponseViewModel, IChatResponseViewModel, isResponseVM } from '../../common/chatViewModel.js';
+import { ChatResponseViewModel, IChatResponseViewModel, isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { VoiceChatInProgress as GlobalVoiceChatInProgress, IVoiceChatService } from '../../common/voiceChatService.js';
 import './media/voiceChatActions.css';

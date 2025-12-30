@@ -15,7 +15,7 @@ import { IChatWidgetService } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { isExportableSessionData } from '../../common/chatModel.js';
+import { isExportableSessionData } from '../../common/model/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { revive } from '../../../../../base/common/marshalling.js';

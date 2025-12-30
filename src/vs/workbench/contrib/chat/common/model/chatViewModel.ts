@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from '../../../../base/common/codicons.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
-import { hash } from '../../../../base/common/hash.js';
-import { IMarkdownString } from '../../../../base/common/htmlContent.js';
-import { Disposable, dispose } from '../../../../base/common/lifecycle.js';
-import * as marked from '../../../../base/common/marked/marked.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { URI } from '../../../../base/common/uri.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { annotateVulnerabilitiesInText } from './annotations.js';
-import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameService, IChatAgentResult } from './chatAgents.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { hash } from '../../../../../base/common/hash.js';
+import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
+import { Disposable, dispose } from '../../../../../base/common/lifecycle.js';
+import * as marked from '../../../../../base/common/marked/marked.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { annotateVulnerabilitiesInText } from '../annotations.js';
+import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameService, IChatAgentResult } from '../chatAgents.js';
 import { IChatModel, IChatProgressRenderableResponseContent, IChatRequestDisablement, IChatRequestModel, IChatResponseModel, IChatTextEditGroup, IResponse } from './chatModel.js';
-import { IParsedChatRequest } from './chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatCodeCitation, IChatContentReference, IChatFollowup, IChatMcpServersStarting, IChatProgressMessage, IChatResponseErrorDetails, IChatTask, IChatUsedContext } from './chatService.js';
-import { IChatRequestVariableEntry } from './chatVariableEntries.js';
+import { IParsedChatRequest } from '../chatParserTypes.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatCodeCitation, IChatContentReference, IChatFollowup, IChatMcpServersStarting, IChatProgressMessage, IChatResponseErrorDetails, IChatTask, IChatUsedContext } from '../chatService.js';
+import { IChatRequestVariableEntry } from '../chatVariableEntries.js';
 import { countWords } from './chatWordCounter.js';
-import { CodeBlockModelCollection } from './codeBlockModelCollection.js';
-import { ChatStreamStatsTracker, IChatStreamStats } from './model/chatStreamStats.js';
+import { CodeBlockModelCollection } from '../codeBlockModelCollection.js';
+import { ChatStreamStatsTracker, IChatStreamStats } from './chatStreamStats.js';
 
 export function isRequestVM(item: unknown): item is IChatRequestViewModel {
 	return !!item && typeof item === 'object' && 'message' in item;

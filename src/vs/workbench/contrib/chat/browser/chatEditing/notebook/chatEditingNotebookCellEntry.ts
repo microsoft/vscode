@@ -17,7 +17,7 @@ import { INotebookEditorService } from '../../../../notebook/browser/services/no
 import { NotebookCellTextModel } from '../../../../notebook/common/model/notebookCellTextModel.js';
 import { CellKind } from '../../../../notebook/common/notebookCommon.js';
 import { ModifiedFileEntryState } from '../../../common/chatEditingService.js';
-import { IChatResponseModel } from '../../../common/chatModel.js';
+import { IChatResponseModel } from '../../../common/model/chatModel.js';
 import { ChatEditingTextModelChangeService } from '../chatEditingTextModelChangeService.js';
 
 

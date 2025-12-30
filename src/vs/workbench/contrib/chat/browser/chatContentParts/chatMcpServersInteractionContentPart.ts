@@ -21,7 +21,7 @@ import { McpCommandIds } from '../../../mcp/common/mcpCommandIds.js';
 import { IAutostartResult, IMcpService } from '../../../mcp/common/mcpTypes.js';
 import { startServerAndWaitForLiveTools } from '../../../mcp/common/mcpTypesUtils.js';
 import { IChatMcpServersStarting } from '../../common/chatService.js';
-import { IChatRendererContent, IChatResponseViewModel, isResponseVM } from '../../common/chatViewModel.js';
+import { IChatRendererContent, IChatResponseViewModel, isResponseVM } from '../../common/model/chatViewModel.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { ChatProgressContentPart } from './chatProgressContentPart.js';
 import './media/chatMcpServersInteractionContent.css';

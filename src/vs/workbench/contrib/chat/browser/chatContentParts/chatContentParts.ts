@@ -5,7 +5,7 @@
 
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ChatTreeItem, IChatCodeBlockInfo } from '../chat.js';
-import { IChatRendererContent } from '../../common/chatViewModel.js';
+import { IChatRendererContent } from '../../common/model/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../common/codeBlockModelCollection.js';
 import { DiffEditorPool, EditorPool } from './chatContentCodePools.js';
 

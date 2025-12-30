@@ -11,7 +11,7 @@ import { IContextKey, IContextKeyService } from '../../../../../platform/context
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChatService } from '../../../chat/common/chatService.js';
 import { TerminalChatContextKeys } from './terminalChat.js';
-import { LocalChatSessionUri } from '../../../chat/common/chatUri.js';
+import { LocalChatSessionUri } from '../../../chat/common/model/chatUri.js';
 import { isNumber, isString } from '../../../../../base/common/types.js';
 
 const enum StorageKeys {

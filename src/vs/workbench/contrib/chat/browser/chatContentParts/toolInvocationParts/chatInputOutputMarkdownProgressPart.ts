@@ -15,7 +15,7 @@ import { ILanguageService } from '../../../../../../editor/common/languages/lang
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../nls.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { ChatResponseResource } from '../../../common/chatModel.js';
+import { ChatResponseResource } from '../../../common/model/chatModel.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService.js';
 import { IToolResultInputOutputDetails } from '../../../common/tools/languageModelToolsService.js';
 import { IChatCodeBlockInfo } from '../../chat.js';

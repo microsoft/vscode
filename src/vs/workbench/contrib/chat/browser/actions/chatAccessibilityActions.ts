@@ -11,7 +11,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { isResponseVM } from '../../common/chatViewModel.js';
+import { isResponseVM } from '../../common/model/chatViewModel.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../../platform/accessibility/common/accessibility.js';
 
 export const ACTION_ID_FOCUS_CHAT_CONFIRMATION = 'workbench.action.chat.focusConfirmation';

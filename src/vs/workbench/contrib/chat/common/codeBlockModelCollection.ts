@@ -15,7 +15,7 @@ import { EndOfLinePreference, ITextModel } from '../../../../editor/common/model
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { extractCodeblockUrisFromText, extractVulnerabilitiesFromText, IMarkdownVulnerability } from './annotations.js';
 import { isChatContentVariableReference } from './chatService.js';
-import { IChatRequestViewModel, IChatResponseViewModel, isResponseVM } from './chatViewModel.js';
+import { IChatRequestViewModel, IChatResponseViewModel, isResponseVM } from './model/chatViewModel.js';
 
 
 interface CodeBlockContent {

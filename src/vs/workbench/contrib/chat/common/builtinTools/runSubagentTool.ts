@@ -15,7 +15,7 @@ import { IConfigurationChangeEvent, IConfigurationService } from '../../../../..
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IChatAgentRequest, IChatAgentService, UserSelectedTools } from '../chatAgents.js';
-import { ChatModel, IChatRequestModeInstructions } from '../chatModel.js';
+import { ChatModel, IChatRequestModeInstructions } from '../model/chatModel.js';
 import { IChatModeService } from '../chatModes.js';
 import { IChatProgress, IChatService } from '../chatService.js';
 import { ChatRequestVariableSet } from '../chatVariableEntries.js';

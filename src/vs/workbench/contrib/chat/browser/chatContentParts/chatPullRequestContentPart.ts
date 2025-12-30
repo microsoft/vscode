@@ -8,7 +8,7 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { IChatPullRequestContent } from '../../common/chatService.js';
-import { IChatRendererContent } from '../../common/chatViewModel.js';
+import { IChatRendererContent } from '../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../chat.js';
 import { IChatContentPart } from './chatContentParts.js';
 import { Codicon } from '../../../../../base/common/codicons.js';

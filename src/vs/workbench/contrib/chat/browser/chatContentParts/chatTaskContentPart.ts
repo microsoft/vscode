@@ -8,7 +8,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { IMarkdownRenderer } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IChatProgressRenderableResponseContent } from '../../common/chatModel.js';
+import { IChatProgressRenderableResponseContent } from '../../common/model/chatModel.js';
 import { IChatTask, IChatTaskSerialized } from '../../common/chatService.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { ChatProgressContentPart } from './chatProgressContentPart.js';

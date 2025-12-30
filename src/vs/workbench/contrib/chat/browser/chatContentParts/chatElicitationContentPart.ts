@@ -10,7 +10,7 @@ import { autorun } from '../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
-import { IChatProgressRenderableResponseContent } from '../../common/chatModel.js';
+import { IChatProgressRenderableResponseContent } from '../../common/model/chatModel.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { ElicitationState, IChatElicitationRequest, IChatElicitationRequestSerialized } from '../../common/chatService.js';
 import { IChatAccessibilityService } from '../chat.js';

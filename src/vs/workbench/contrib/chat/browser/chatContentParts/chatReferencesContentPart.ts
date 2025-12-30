@@ -41,7 +41,7 @@ import { createFileIconThemableTreeContainerScope } from '../../../files/browser
 import { ExplorerFolderContext } from '../../../files/common/files.js';
 import { chatEditingWidgetFileStateContextKey, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { ChatResponseReferencePartStatusKind, IChatContentReference, IChatWarningMessage } from '../../common/chatService.js';
-import { IChatRendererContent, IChatResponseViewModel } from '../../common/chatViewModel.js';
+import { IChatRendererContent, IChatResponseViewModel } from '../../common/model/chatViewModel.js';
 import { ChatTreeItem, IChatWidgetService } from '../chat.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { IDisposableReference, ResourcePool } from './chatCollections.js';

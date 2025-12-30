@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Sequencer } from '../../../../base/common/async.js';
-import { VSBuffer } from '../../../../base/common/buffer.js';
-import { toErrorMessage } from '../../../../base/common/errorMessage.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { revive } from '../../../../base/common/marshalling.js';
-import { joinPath } from '../../../../base/common/resources.js';
-import { URI } from '../../../../base/common/uri.js';
-import { localize } from '../../../../nls.js';
-import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
-import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../platform/files/common/files.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { Dto } from '../../../services/extensions/common/proxyIdentifier.js';
-import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
-import { awaitStatsForSession } from './chat.js';
-import { ModifiedFileEntryState } from './chatEditingService.js';
+import { Sequencer } from '../../../../../base/common/async.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { revive } from '../../../../../base/common/marshalling.js';
+import { joinPath } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { localize } from '../../../../../nls.js';
+import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
+import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../platform/files/common/files.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IUserDataProfilesService } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { Dto } from '../../../../services/extensions/common/proxyIdentifier.js';
+import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
+import { awaitStatsForSession } from '../chat.js';
+import { ModifiedFileEntryState } from '../chatEditingService.js';
 import { ChatModel, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData } from './chatModel.js';
-import { IChatSessionStats, IChatSessionTiming, ResponseModelState } from './chatService.js';
+import { IChatSessionStats, IChatSessionTiming, ResponseModelState } from '../chatService.js';
 import { LocalChatSessionUri } from './chatUri.js';
-import { ChatAgentLocation } from './constants.js';
+import { ChatAgentLocation } from '../constants.js';
 
 const maxPersistedSessions = 25;
 

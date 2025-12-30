@@ -14,7 +14,7 @@ import { FileSystemProviderCapabilities, FileType, IFileChange, IFileDeleteOptio
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { IChatEditingService } from '../../../common/chatEditingService.js';
-import { LocalChatSessionUri } from '../../../common/chatUri.js';
+import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { ChatEditingNotebookSnapshotScheme } from './chatEditingModifiedNotebookSnapshot.js';
 
 

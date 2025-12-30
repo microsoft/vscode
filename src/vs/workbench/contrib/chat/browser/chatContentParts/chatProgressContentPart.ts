@@ -14,7 +14,7 @@ import { IRenderedMarkdown } from '../../../../../base/browser/markdownRenderer.
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { localize } from '../../../../../nls.js';
 import { IChatProgressMessage, IChatTask, IChatTaskSerialized, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../common/chatService.js';
-import { IChatRendererContent, isResponseVM } from '../../common/chatViewModel.js';
+import { IChatRendererContent, isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../chat.js';
 import { renderFileWidgets } from '../chatInlineAnchorWidget.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';

@@ -36,7 +36,7 @@ import { IMcpService } from '../../../mcp/common/mcpTypes.js';
 import { TestMcpService } from '../../../mcp/test/common/testMcpService.js';
 import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../common/chatAgents.js';
 import { IChatEditingService, IChatEditingSession } from '../../common/chatEditingService.js';
-import { ChatModel, IChatModel, ISerializableChatData } from '../../common/chatModel.js';
+import { ChatModel, IChatModel, ISerializableChatData } from '../../common/model/chatModel.js';
 import { IChatFollowup, IChatModelReference, IChatService } from '../../common/chatService.js';
 import { ChatService } from '../../common/chatServiceImpl.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../common/chatSlashCommands.js';

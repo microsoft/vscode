@@ -8,8 +8,8 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { ChatModel } from '../../common/chatModel.js';
-import { ChatModelStore, IStartSessionProps } from '../../common/chatModelStore.js';
+import { ChatModel } from '../../common/model/chatModel.js';
+import { ChatModelStore, IStartSessionProps } from '../../common/model/chatModelStore.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { MockChatModel } from './mockChatModel.js';
 

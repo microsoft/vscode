@@ -46,9 +46,9 @@ import { IAiEditTelemetryService } from '../../../editTelemetry/browser/telemetr
 import { MarkedKatexSupport } from '../../../markdown/browser/markedKatexSupport.js';
 import { extractCodeblockUrisFromText, IMarkdownVulnerability } from '../../common/annotations.js';
 import { IEditSessionEntryDiff } from '../../common/chatEditingService.js';
-import { IChatProgressRenderableResponseContent } from '../../common/chatModel.js';
+import { IChatProgressRenderableResponseContent } from '../../common/model/chatModel.js';
 import { IChatMarkdownContent, IChatService, IChatUndoStop } from '../../common/chatService.js';
-import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
+import { isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { CodeBlockEntry, CodeBlockModelCollection } from '../../common/codeBlockModelCollection.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { IChatCodeBlockInfo } from '../chat.js';

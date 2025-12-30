@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as markedKatexExtension from '../../markdown/common/markedKatexExtension.js';
+import * as markedKatexExtension from '../../../markdown/common/markedKatexExtension.js';
 
 export interface IWordCountResult {
 	value: string;

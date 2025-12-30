@@ -36,7 +36,7 @@ import { CellKind, ICellEditOperation, NOTEBOOK_EDITOR_ID } from '../../../noteb
 import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { ICodeMapperCodeBlock, ICodeMapperRequest, ICodeMapperResponse, ICodeMapperService } from '../../common/chatCodeMapperService.js';
 import { ChatUserAction, IChatService } from '../../common/chatService.js';
-import { IChatRequestViewModel, isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
+import { IChatRequestViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { ICodeBlockActionContext } from '../codeBlockPart.js';
 
 export class InsertCodeBlockOperation {

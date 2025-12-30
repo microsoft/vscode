@@ -13,7 +13,7 @@ import { IChatService } from '../../../chat/common/chatService.js';
 import { isDetachedTerminalInstance, ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { TerminalChatWidget } from './terminalChatWidget.js';
 import type { ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
-import type { IChatModel } from '../../../chat/common/chatModel.js';
+import type { IChatModel } from '../../../chat/common/model/chatModel.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 
 export class TerminalChatController extends Disposable implements ITerminalContribution {

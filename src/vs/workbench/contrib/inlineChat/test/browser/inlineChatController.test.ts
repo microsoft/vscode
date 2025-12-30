@@ -66,9 +66,9 @@ import { IChatProgress, IChatService } from '../../../chat/common/chatService.js
 import { ChatService } from '../../../chat/common/chatServiceImpl.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../../chat/common/chatSlashCommands.js';
 import { IChatTodo, IChatTodoListService } from '../../../chat/common/tools/chatTodoListService.js';
-import { ChatTransferService, IChatTransferService } from '../../../chat/common/chatTransferService.js';
+import { ChatTransferService, IChatTransferService } from '../../../chat/common/model/chatTransferService.js';
 import { IChatVariablesService } from '../../../chat/common/chatVariables.js';
-import { IChatResponseViewModel } from '../../../chat/common/chatViewModel.js';
+import { IChatResponseViewModel } from '../../../chat/common/model/chatViewModel.js';
 import { ChatWidgetHistoryService, IChatWidgetHistoryService } from '../../../chat/common/chatWidgetHistoryService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../chat/common/constants.js';
 import { ILanguageModelsService, LanguageModelsService } from '../../../chat/common/languageModels.js';

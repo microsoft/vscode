@@ -11,7 +11,7 @@ import * as extHostProtocol from './extHost.protocol.js';
 import { NotebookEdit, TextEdit } from './extHostTypeConverters.js';
 import { URI } from '../../../base/common/uri.js';
 import { asArray } from '../../../base/common/arrays.js';
-import { LocalChatSessionUri } from '../../contrib/chat/common/chatUri.js';
+import { LocalChatSessionUri } from '../../contrib/chat/common/model/chatUri.js';
 
 export class ExtHostCodeMapper implements extHostProtocol.ExtHostCodeMapperShape {
 

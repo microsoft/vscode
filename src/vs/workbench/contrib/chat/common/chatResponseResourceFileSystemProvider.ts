@@ -10,7 +10,7 @@ import { newWriteableStream, ReadableStreamEvents } from '../../../../base/commo
 import { URI } from '../../../../base/common/uri.js';
 import { createFileSystemProviderError, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileService, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IStat } from '../../../../platform/files/common/files.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { ChatResponseResource } from './chatModel.js';
+import { ChatResponseResource } from './model/chatModel.js';
 import { IChatService, IChatToolInvocation, IChatToolInvocationSerialized } from './chatService.js';
 import { isToolResultInputOutputDetails } from './tools/languageModelToolsService.js';
 

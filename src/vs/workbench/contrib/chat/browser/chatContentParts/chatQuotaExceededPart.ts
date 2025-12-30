@@ -19,7 +19,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { asCssVariable, textLinkForeground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
-import { IChatErrorDetailsPart, IChatRendererContent, IChatResponseViewModel } from '../../common/chatViewModel.js';
+import { IChatErrorDetailsPart, IChatRendererContent, IChatResponseViewModel } from '../../common/model/chatViewModel.js';
 import { IChatWidgetService } from '../chat.js';
 import { IChatContentPart } from './chatContentParts.js';
 

@@ -10,8 +10,8 @@ import { localize } from '../../../../../nls.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ChatTreeItem } from '../chat.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
-import { getCodeCitationsMessage } from '../../common/chatModel.js';
-import { IChatCodeCitations, IChatRendererContent } from '../../common/chatViewModel.js';
+import { getCodeCitationsMessage } from '../../common/model/chatModel.js';
+import { IChatCodeCitations, IChatRendererContent } from '../../common/model/chatViewModel.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 
 type ChatCodeCitationOpenedClassification = {

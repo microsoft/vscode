@@ -11,7 +11,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { CHAT_CATEGORY } from './chatActions.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IChatResponseViewModel, isResponseVM } from '../../common/chatViewModel.js';
+import { IChatResponseViewModel, isResponseVM } from '../../common/model/chatViewModel.js';
 
 export function registerChatFileTreeActions() {
 	registerAction2(class NextFileTreeAction extends Action2 {

@@ -13,7 +13,7 @@ import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/k
 import { ChatViewId, IChatWidgetService } from '../../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../../chat/common/chatContextKeys.js';
 import { IChatService } from '../../../chat/common/chatService.js';
-import { LocalChatSessionUri } from '../../../chat/common/chatUri.js';
+import { LocalChatSessionUri } from '../../../chat/common/model/chatUri.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../chat/common/constants.js';
 import { AbstractInline1ChatAction } from '../../../inlineChat/browser/inlineChatActions.js';
 import { isDetachedTerminalInstance, ITerminalChatService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../terminal/browser/terminal.js';

@@ -30,8 +30,8 @@ import { MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffS
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IEditSessionEntryDiff } from '../../common/chatEditingService.js';
 import { IChatMultiDiffData, IChatMultiDiffInnerData } from '../../common/chatService.js';
-import { getChatSessionType } from '../../common/chatUri.js';
-import { IChatRendererContent } from '../../common/chatViewModel.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
+import { IChatRendererContent } from '../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../chat.js';
 import { IChatContentPart } from './chatContentParts.js';
 

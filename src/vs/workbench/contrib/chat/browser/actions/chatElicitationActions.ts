@@ -11,7 +11,7 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { ElicitationState } from '../../common/chatService.js';
-import { isResponseVM } from '../../common/chatViewModel.js';
+import { isResponseVM } from '../../common/model/chatViewModel.js';
 import { IChatWidgetService } from '../chat.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 

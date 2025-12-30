@@ -22,7 +22,7 @@ import { IChatTodo, IChatTodoListService } from '../tools/chatTodoListService.js
 import { localize } from '../../../../../nls.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { chatSessionResourceToId, LocalChatSessionUri } from '../chatUri.js';
+import { chatSessionResourceToId, LocalChatSessionUri } from '../model/chatUri.js';
 
 export const TodoListToolWriteOnlySettingId = 'chat.todoListTool.writeOnly';
 export const TodoListToolDescriptionFieldSettingId = 'chat.todoListTool.descriptionField';
