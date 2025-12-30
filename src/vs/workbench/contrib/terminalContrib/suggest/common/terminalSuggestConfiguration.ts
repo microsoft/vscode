@@ -47,7 +47,7 @@ export const terminalSuggestConfigSection = 'terminal.integrated.suggest';
 
 export interface ITerminalSuggestConfiguration {
 	enabled: boolean;
-	quickSuggestions: {
+	quickSuggestions: boolean | {
 		commands: 'off' | 'on';
 		arguments: 'off' | 'on';
 		unknown: 'off' | 'on';
@@ -60,6 +60,27 @@ export interface ITerminalSuggestConfiguration {
 	cdPath: 'off' | 'relative' | 'absolute';
 	inlineSuggestion: 'off' | 'alwaysOnTopExceptExactMatch' | 'alwaysOnTop';
 	insertTrailingSpace: boolean;
+}
+
+export interface ITerminalQuickSuggestionsOptions {
+	commands: 'off' | 'on';
+	arguments: 'off' | 'on';
+	unknown: 'off' | 'on';
+}
+
+/**
+ * Normalizes the quickSuggestions config value to an object.
+ * - `true` -> { commands: 'on', arguments: 'on', unknown: 'off' }
+ * - `false` -> { commands: 'off', arguments: 'off', unknown: 'off' }
+ * - object -> passed through as-is
+ */
+export function normalizeQuickSuggestionsConfig(config: ITerminalSuggestConfiguration['quickSuggestions']): ITerminalQuickSuggestionsOptions {
+	if (typeof config === 'boolean') {
+		return config
+			? { commands: 'on', arguments: 'on', unknown: 'off' }
+			: { commands: 'off', arguments: 'off', unknown: 'off' };
+	}
+	return config;
 }
 
 export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
@@ -78,35 +99,38 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 	[TerminalSuggestSettingId.QuickSuggestions]: {
 		restricted: true,
 		markdownDescription: localize('suggest.quickSuggestions', "Controls whether suggestions should automatically show up while typing. Also be aware of the {0}-setting which controls if suggestions are triggered by special characters.", `\`#${TerminalSuggestSettingId.SuggestOnTriggerCharacters}#\``),
-		type: 'object',
-		properties: {
-			commands: {
-				description: localize('suggest.quickSuggestions.commands', 'Enable quick suggestions for commands, the first word in a command line input.'),
-				type: 'string',
-				enum: ['off', 'on'],
+		oneOf: [
+			{
+				type: 'boolean',
 			},
-			arguments: {
-				description: localize('suggest.quickSuggestions.arguments', 'Enable quick suggestions for arguments, anything after the first word in a command line input.'),
-				type: 'string',
-				enum: ['off', 'on'],
-			},
-			unknown: {
-				description: localize('suggest.quickSuggestions.unknown', 'Enable quick suggestions when it\'s unclear what the best suggestion is, if this is on files and folders will be suggested as a fallback.'),
-				type: 'string',
-				enum: ['off', 'on'],
-			},
-		},
-		default: {
-			commands: 'on',
-			arguments: 'on',
-			unknown: 'off',
-		},
+			{
+				type: 'object',
+				properties: {
+					commands: {
+						description: localize('suggest.quickSuggestions.commands', 'Enable quick suggestions for commands, the first word in a command line input.'),
+						type: 'string',
+						enum: ['off', 'on'],
+					},
+					arguments: {
+						description: localize('suggest.quickSuggestions.arguments', 'Enable quick suggestions for arguments, anything after the first word in a command line input.'),
+						type: 'string',
+						enum: ['off', 'on'],
+					},
+					unknown: {
+						description: localize('suggest.quickSuggestions.unknown', 'Enable quick suggestions when it\'s unclear what the best suggestion is, if this is on files and folders will be suggested as a fallback.'),
+						type: 'string',
+						enum: ['off', 'on'],
+					},
+				},
+			}
+		],
+		default: false,
 	},
 	[TerminalSuggestSettingId.SuggestOnTriggerCharacters]: {
 		restricted: true,
 		markdownDescription: localize('suggest.suggestOnTriggerCharacters', "Controls whether suggestions should automatically show up when typing trigger characters."),
 		type: 'boolean',
-		default: true,
+		default: false,
 	},
 	[TerminalSuggestSettingId.RunOnEnter]: {
 		restricted: true,
