@@ -47,7 +47,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchIssueService } from '../../issue/common/issue.js';
 import { CodiconActionViewItem } from '../../notebook/browser/view/cellParts/cellActionView.js';
-import { annotateSpecialMarkdownContent } from '../common/annotations.js';
+import { annotateSpecialMarkdownContent } from '../common/ui/annotations.js';
 import { checkModeOption } from '../common/chat.js';
 import { IChatAgentMetadata } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
@@ -59,7 +59,7 @@ import { getChatSessionType } from '../common/model/chatUri.js';
 import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
 import { IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../common/model/chatViewModel.js';
 import { getNWords } from '../common/model/chatWordCounter.js';
-import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
+import { CodeBlockModelCollection } from '../common/ui/codeBlockModelCollection.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../common/constants.js';
 import { MarkUnhelpfulActionId } from './actions/chatTitleActions.js';
 import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidgetService } from './chat.js';

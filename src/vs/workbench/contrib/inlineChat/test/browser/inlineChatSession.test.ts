@@ -58,7 +58,7 @@ import { ChatSlashCommandService, IChatSlashCommandService } from '../../../chat
 import { ChatTransferService, IChatTransferService } from '../../../chat/common/model/chatTransferService.js';
 import { IChatVariablesService } from '../../../chat/common/chatVariables.js';
 import { IChatResponseViewModel } from '../../../chat/common/model/chatViewModel.js';
-import { ChatWidgetHistoryService, IChatWidgetHistoryService } from '../../../chat/common/chatWidgetHistoryService.js';
+import { ChatWidgetHistoryService, IChatWidgetHistoryService } from '../../../chat/common/ui/chatWidgetHistoryService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../chat/common/constants.js';
 import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
 import { ILanguageModelToolsService } from '../../../chat/common/tools/languageModelToolsService.js';

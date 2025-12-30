@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
-import { Iterable } from '../../../../base/common/iterator.js';
-import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
-import { Schemas } from '../../../../base/common/network.js';
-import { URI } from '../../../../base/common/uri.js';
-import { Range } from '../../../../editor/common/core/range.js';
-import { ILanguageService } from '../../../../editor/common/languages/language.js';
-import { PLAINTEXT_LANGUAGE_ID } from '../../../../editor/common/languages/modesRegistry.js';
-import { EndOfLinePreference, ITextModel } from '../../../../editor/common/model.js';
-import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { encodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
+import { Iterable } from '../../../../../base/common/iterator.js';
+import { Disposable, IReference } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../../editor/common/languages/modesRegistry.js';
+import { EndOfLinePreference, ITextModel } from '../../../../../editor/common/model.js';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { extractCodeblockUrisFromText, extractVulnerabilitiesFromText, IMarkdownVulnerability } from './annotations.js';
-import { isChatContentVariableReference } from './chatService.js';
-import { IChatRequestViewModel, IChatResponseViewModel, isResponseVM } from './model/chatViewModel.js';
+import { isChatContentVariableReference } from '../chatService.js';
+import { IChatRequestViewModel, IChatResponseViewModel, isResponseVM } from '../model/chatViewModel.js';
 
 
 interface CodeBlockContent {

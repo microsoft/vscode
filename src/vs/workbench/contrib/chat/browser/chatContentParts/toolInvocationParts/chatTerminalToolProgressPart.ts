@@ -9,7 +9,7 @@ import { isMarkdownString, MarkdownString } from '../../../../../../base/common/
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../common/chat.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../common/chatService.js';
-import { CodeBlockModelCollection } from '../../../common/codeBlockModelCollection.js';
+import { CodeBlockModelCollection } from '../../../common/ui/codeBlockModelCollection.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
 import { ChatQueryTitlePart } from '../chatConfirmationWidget.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';

@@ -10,7 +10,7 @@ import { IStorageService, StorageScope } from '../../../../../platform/storage/c
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { IChatModelInputState } from '../../common/model/chatModel.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
-import { ChatHistoryNavigator, ChatInputHistoryMaxEntries, ChatWidgetHistoryService, IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
+import { ChatHistoryNavigator, ChatInputHistoryMaxEntries, ChatWidgetHistoryService, IChatWidgetHistoryService } from '../../common/ui/chatWidgetHistoryService.js';
 import { Memento } from '../../../../common/memento.js';
 
 suite('ChatWidgetHistoryService', () => {

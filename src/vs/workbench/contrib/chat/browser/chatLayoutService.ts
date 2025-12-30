@@ -7,7 +7,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { derived, IObservable } from '../../../../base/common/observable.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
-import { IChatLayoutService } from '../common/chatLayoutService.js';
+import { IChatLayoutService } from '../common/ui/chatLayoutService.js';
 
 const FONT_SIZE = 13;
 

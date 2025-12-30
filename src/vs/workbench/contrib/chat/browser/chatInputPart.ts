@@ -88,7 +88,7 @@ import { IChatSessionFileChange, IChatSessionProviderOptionItem, IChatSessionsSe
 import { getChatSessionType } from '../common/model/chatUri.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isStringVariableEntry } from '../common/chatVariableEntries.js';
 import { IChatResponseViewModel } from '../common/model/chatViewModel.js';
-import { ChatHistoryNavigator } from '../common/chatWidgetHistoryService.js';
+import { ChatHistoryNavigator } from '../common/ui/chatWidgetHistoryService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, validateChatMode } from '../common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
 import { ILanguageModelToolsService } from '../common/tools/languageModelToolsService.js';

@@ -44,12 +44,12 @@ import { IEditorService, SIDE_GROUP } from '../../../../services/editor/common/e
 import { AccessibilityWorkbenchSettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { IAiEditTelemetryService } from '../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { MarkedKatexSupport } from '../../../markdown/browser/markedKatexSupport.js';
-import { extractCodeblockUrisFromText, IMarkdownVulnerability } from '../../common/annotations.js';
+import { extractCodeblockUrisFromText, IMarkdownVulnerability } from '../../common/ui/annotations.js';
 import { IEditSessionEntryDiff } from '../../common/chatEditingService.js';
 import { IChatProgressRenderableResponseContent } from '../../common/model/chatModel.js';
 import { IChatMarkdownContent, IChatService, IChatUndoStop } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
-import { CodeBlockEntry, CodeBlockModelCollection } from '../../common/codeBlockModelCollection.js';
+import { CodeBlockEntry, CodeBlockModelCollection } from '../../common/ui/codeBlockModelCollection.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { IChatCodeBlockInfo } from '../chat.js';
 import { allowedChatMarkdownHtmlTags } from '../chatContentMarkdownRenderer.js';

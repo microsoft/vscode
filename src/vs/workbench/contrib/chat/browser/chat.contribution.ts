@@ -33,11 +33,11 @@ import { AddConfigurationType, AssistedTypes } from '../../mcp/browser/mcpComman
 import { allDiscoverySources, discoverySourceSettingsLabel, mcpDiscoverySection, mcpServerSamplingSection } from '../../mcp/common/mcpConfiguration.js';
 import { ChatAgentNameService, ChatAgentService, IChatAgentNameService, IChatAgentService } from '../common/chatAgents.js';
 import { CodeMapperService, ICodeMapperService } from '../common/chatCodeMapperService.js';
-import '../common/chatColors.js';
+import '../common/ui/chatColors.js';
 import { IChatEditingService } from '../common/chatEditingService.js';
-import { IChatLayoutService } from '../common/chatLayoutService.js';
+import { IChatLayoutService } from '../common/ui/chatLayoutService.js';
 import { ChatModeService, IChatMode, IChatModeService } from '../common/chatModes.js';
-import { ChatResponseResourceFileSystemProvider } from '../common/chatResponseResourceFileSystemProvider.js';
+import { ChatResponseResourceFileSystemProvider } from '../common/ui/chatResponseResourceFileSystemProvider.js';
 import { IChatService } from '../common/chatService.js';
 import { ChatService } from '../common/chatServiceImpl.js';
 import { IChatSessionsService } from '../common/chatSessionsService.js';
@@ -45,7 +45,7 @@ import { ChatSlashCommandService, IChatSlashCommandService } from '../common/cha
 import { ChatTodoListService, IChatTodoListService } from '../common/tools/chatTodoListService.js';
 import { ChatTransferService, IChatTransferService } from '../common/model/chatTransferService.js';
 import { IChatVariablesService } from '../common/chatVariables.js';
-import { ChatWidgetHistoryService, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
+import { ChatWidgetHistoryService, IChatWidgetHistoryService } from '../common/ui/chatWidgetHistoryService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
 import { ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService } from '../common/ignoredFiles.js';
 import { ILanguageModelsService, LanguageModelsService } from '../common/languageModels.js';

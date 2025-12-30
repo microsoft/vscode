@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { decodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
-import { Event } from '../../../../base/common/event.js';
-import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
-import { newWriteableStream, ReadableStreamEvents } from '../../../../base/common/stream.js';
-import { URI } from '../../../../base/common/uri.js';
-import { createFileSystemProviderError, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileService, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IStat } from '../../../../platform/files/common/files.js';
-import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { ChatResponseResource } from './model/chatModel.js';
-import { IChatService, IChatToolInvocation, IChatToolInvocationSerialized } from './chatService.js';
-import { isToolResultInputOutputDetails } from './tools/languageModelToolsService.js';
+import { decodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
+import { Event } from '../../../../../base/common/event.js';
+import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { newWriteableStream, ReadableStreamEvents } from '../../../../../base/common/stream.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { createFileSystemProviderError, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileService, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IStat } from '../../../../../platform/files/common/files.js';
+import { IWorkbenchContribution } from '../../../../common/contributions.js';
+import { ChatResponseResource } from '../model/chatModel.js';
+import { IChatService, IChatToolInvocation, IChatToolInvocationSerialized } from '../chatService.js';
+import { isToolResultInputOutputDetails } from '../tools/languageModelToolsService.js';
 
 export class ChatResponseResourceFileSystemProvider extends Disposable implements
 	IWorkbenchContribution,

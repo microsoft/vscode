@@ -17,9 +17,9 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
-import { contentRefUrl } from '../common/annotations.js';
+import { contentRefUrl } from '../common/ui/annotations.js';
 import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameService, IChatAgentService } from '../common/chatAgents.js';
-import { chatSlashCommandBackground, chatSlashCommandForeground } from '../common/chatColors.js';
+import { chatSlashCommandBackground, chatSlashCommandForeground } from '../common/ui/chatColors.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, chatSubcommandLeader, IParsedChatRequest, IParsedChatRequestPart } from '../common/chatParserTypes.js';
 import { IChatMarkdownContent, IChatService } from '../common/chatService.js';
 import { ILanguageModelToolsService } from '../common/tools/languageModelToolsService.js';

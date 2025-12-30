@@ -12,14 +12,14 @@ import * as marked from '../../../../../base/common/marked/marked.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { annotateVulnerabilitiesInText } from '../annotations.js';
+import { annotateVulnerabilitiesInText } from '../ui/annotations.js';
 import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameService, IChatAgentResult } from '../chatAgents.js';
 import { IChatModel, IChatProgressRenderableResponseContent, IChatRequestDisablement, IChatRequestModel, IChatResponseModel, IChatTextEditGroup, IResponse } from './chatModel.js';
 import { IParsedChatRequest } from '../chatParserTypes.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatCodeCitation, IChatContentReference, IChatFollowup, IChatMcpServersStarting, IChatProgressMessage, IChatResponseErrorDetails, IChatTask, IChatUsedContext } from '../chatService.js';
 import { IChatRequestVariableEntry } from '../chatVariableEntries.js';
 import { countWords } from './chatWordCounter.js';
-import { CodeBlockModelCollection } from '../codeBlockModelCollection.js';
+import { CodeBlockModelCollection } from '../ui/codeBlockModelCollection.js';
 import { ChatStreamStatsTracker, IChatStreamStats } from './chatStreamStats.js';
 
 export function isRequestVM(item: unknown): item is IChatRequestViewModel {

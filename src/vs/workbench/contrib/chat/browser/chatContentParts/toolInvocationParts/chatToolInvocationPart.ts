@@ -11,7 +11,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
-import { CodeBlockModelCollection } from '../../../common/codeBlockModelCollection.js';
+import { CodeBlockModelCollection } from '../../../common/ui/codeBlockModelCollection.js';
 import { isToolResultInputOutputDetails, isToolResultOutputDetails, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { ChatTreeItem, IChatCodeBlockInfo } from '../../chat.js';
 import { EditorPool } from '../chatContentCodePools.js';
