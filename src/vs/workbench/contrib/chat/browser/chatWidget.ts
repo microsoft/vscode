@@ -799,6 +799,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.inputPart.clearTodoListWidget(this.viewModel?.sessionResource, true);
 		this.chatSuggestNextWidget.hide();
 		await this.viewOptions.clear?.();
+		this.renderer?.resetSession();
 	}
 
 	private onDidChangeItems(skipDynamicLayout?: boolean) {
@@ -1973,6 +1974,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		if (!model) {
+			this.renderer?.resetSession();
 			this.viewModel = undefined;
 			this.onDidChangeItems();
 			return;
@@ -1981,6 +1983,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (isEqual(model.sessionResource, this.viewModel?.sessionResource)) {
 			return;
 		}
+
+		this.renderer?.resetSession();
 		this.inputPart.clearTodoListWidget(model.sessionResource, false);
 		this.chatSuggestNextWidget.hide();
 
