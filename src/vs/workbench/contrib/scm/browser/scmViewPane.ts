@@ -1379,7 +1379,19 @@ class CollapseAllAction extends ViewAction<SCMViewPane> {
 		});
 	}
 
-	async runInView(_: ServicesAccessor, view: SCMViewPane, repository?: ISCMRepository): Promise<void> {
+	async runInView(accessor: ServicesAccessor, view: SCMViewPane, context?: ISCMResourceGroup | ISCMRepository): Promise<void> {
+		if (!context) {
+			return;
+		}
+
+		let repository: ISCMRepository | undefined;
+		if (isSCMRepository(context)) {
+			repository = context;
+		} else {
+			const scmViewService = accessor.get(ISCMViewService);
+			repository = scmViewService.visibleRepositories.find(r => r.provider === context.provider);
+		}
+
 		if (repository) {
 			view.collapseAllResources(repository);
 		}
@@ -2874,7 +2886,7 @@ export class SCMViewPane extends ViewPane {
 		let done = false;
 		for (const group of groups) {
 			for (const { element } of this.tree.getNode(group).children) {
-				done = !isSCMViewService(element) && this.tree.collapse(element, true) || done;
+				done = (!isSCMViewService(element) && this.tree.collapse(element, true)) || done;
 			}
 		}
 
