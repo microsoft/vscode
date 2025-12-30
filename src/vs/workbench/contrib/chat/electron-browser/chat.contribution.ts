@@ -31,7 +31,7 @@ import { ChatConfiguration, ChatModeKind } from '../common/constants.js';
 import { IChatService } from '../common/chatService.js';
 import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js';
 import { HoldToVoiceChatInChatViewAction, InlineVoiceChatAction, KeywordActivationContribution, QuickVoiceChatAction, ReadChatResponseAloud, StartVoiceChatAction, StopListeningAction, StopListeningAndSubmitAction, StopReadAloud, StopReadChatItemAloud, VoiceChatInChatViewAction } from './actions/voiceChatActions.js';
-import { NativeBuiltinToolsContribution } from './tools/tools.js';
+import { NativeBuiltinToolsContribution } from './builtInTools/tools.js';
 
 class ChatCommandLineHandler extends Disposable {
 
