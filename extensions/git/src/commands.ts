@@ -1428,7 +1428,6 @@ export class CommandCenter {
 		// Check if file has uncommitted changes
 		const uriString = uri.toString();
 		if (allChangedResources.some(o => o.resourceUri.toString() === uriString)) {
-			window.showInformationMessage(l10n.t('Git: Delete can only be performed on tracked files without uncommitted changes.'));
 			return;
 		}
 
