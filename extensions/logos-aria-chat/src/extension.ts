@@ -119,8 +119,11 @@ class AriaChatViewProvider implements vscode.WebviewViewProvider {
 
     // Send to ARIA backend
     try {
-      // Use relative URL for browser context - ALB routes /api/chat/* to logos-chat service
-      const baseUrl = '/api/chat';
+      // Get ARIA endpoint from environment or use default
+      // In web context, use relative URL which ALB routes to logos-chat service
+      // In desktop context, use configured endpoint
+      const ariaEndpoint = process.env.ARIA_ENDPOINT || process.env.LOGOS_CHAT_ENDPOINT;
+      const baseUrl = ariaEndpoint ? `${ariaEndpoint}/api/chat` : '/api/chat';
 
       // Get editor context
       const editor = vscode.window.activeTextEditor;
@@ -129,6 +132,9 @@ class AriaChatViewProvider implements vscode.WebviewViewProvider {
         language: editor.document.languageId,
         selection: editor.document.getText(editor.selection),
       } : undefined;
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
 
       const response = await fetch(`${baseUrl}/conversations/${conversationId}/messages`, {
         method: 'POST',
@@ -139,14 +145,26 @@ class AriaChatViewProvider implements vscode.WebviewViewProvider {
           model: 'aria-01',
           context,
         }),
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`API returned ${response.status}: ${response.statusText}`);
+      }
 
       const result = await response.json() as {
         id?: string;
         content?: string;
         response?: string;
         tier?: number;
+        error?: string;
       };
+
+      if (result.error) {
+        throw new Error(result.error);
+      }
 
       // Add assistant response
       const assistantMessage: Message = {
@@ -160,6 +178,7 @@ class AriaChatViewProvider implements vscode.WebviewViewProvider {
       };
       conversation.messages.push(assistantMessage);
     } catch (error) {
+      console.error('ARIA chat error:', error);
       // Fallback response for demo/offline mode
       const assistantMessage: Message = {
         id: `msg-${Date.now() + 1}`,
@@ -565,7 +584,10 @@ class AriaChatViewProvider implements vscode.WebviewViewProvider {
     }
 
     function formatMessage(text) {
-      // Simple markdown-like formatting
+      // Simple markdown-like formatting with null safety
+      if (!text || typeof text !== 'string') {
+        return text || '';
+      }
       return text
         .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
         .replace(/\`(.*?)\`/g, '<code>$1</code>')

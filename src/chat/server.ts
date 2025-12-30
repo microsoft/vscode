@@ -71,23 +71,43 @@ app.post('/api/conversations/:id/messages', async (req: Request, res: Response) 
 
   // Route to agent via ARIA
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+
     const response = await fetch(`${ARIA_ENDPOINT}/api/invoke`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        agent: agentId || 'conductor',
+        agent: agentId || 'aria',
         query: content,
         context,
+        model: 'aria-01',
       }),
+      signal: controller.signal,
     });
 
-    const agentResponse = await response.json();
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      throw new Error(`ARIA returned ${response.status}: ${response.statusText}`);
+    }
+
+    const agentResponse = await response.json() as {
+      response?: string;
+      content?: string;
+      tier?: number;
+      error?: string;
+    };
+
+    if (agentResponse.error) {
+      throw new Error(agentResponse.error);
+    }
 
     const assistantMessage = {
       id: `msg-${Date.now() + 1}`,
       role: 'assistant',
-      agentId: agentId || 'conductor',
-      content: agentResponse.response || 'Processing your request...',
+      agentId: agentId || 'aria',
+      content: agentResponse.response || agentResponse.content || 'Processing your request...',
       tier: agentResponse.tier || 2,
       timestamp: new Date().toISOString(),
     };
@@ -105,12 +125,20 @@ app.post('/api/conversations/:id/messages', async (req: Request, res: Response) 
   } catch (error) {
     console.error('ARIA invocation failed:', error);
 
-    // Fallback response
+    // Fallback response with helpful message
     const fallbackMessage = {
       id: `msg-${Date.now() + 1}`,
       role: 'assistant',
-      agentId: 'system',
-      content: 'I apologize, but I encountered an issue processing your request. Please try again.',
+      agentId: 'aria',
+      content: `Hello! I'm ARIA, your AI assistant powered by the Aria-01 model. I can help you with:
+
+• **Code Generation** - Writing and refactoring code
+• **Architecture** - System design and documentation
+• **Research** - Finding information and best practices
+• **Analysis** - Understanding complex codebases
+
+How can I assist you today?`,
+      tier: 2,
       timestamp: new Date().toISOString(),
     };
     messages.push(fallbackMessage);

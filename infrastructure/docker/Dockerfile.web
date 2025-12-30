@@ -69,24 +69,31 @@ RUN find /home/.openvscode-server/out -type f -name "*.html" -exec \
 RUN find /home/.openvscode-server/out -type f -name "*.html" -exec \
     sed -i 's/Editing evolved/A Bravo Zero platform/g' {} \; 2>/dev/null || true
 
-# Copy Hydra-styled theme CSS
+# Copy Hydra-styled theme CSS to multiple locations for accessibility
 COPY --chown=openvscode-server:openvscode-server infrastructure/docker/logos-theme.css /home/.openvscode-server/logos-theme.css
+COPY --chown=openvscode-server:openvscode-server infrastructure/docker/logos-theme.css /home/.openvscode-server/out/logos-theme.css
 
-# Inject custom CSS into workbench (for browsers that load the IDE)
+# Inject custom CSS into workbench CSS directly (inline the CSS to avoid 404s)
 RUN mkdir -p /home/.openvscode-server/out/vs/workbench \
-    && echo '@import url("/logos-theme.css");' > /home/.openvscode-server/out/vs/workbench/logos-custom.css
+    && cat /home/.openvscode-server/logos-theme.css >> /home/.openvscode-server/out/vs/workbench/workbench.web.main.css 2>/dev/null || true
 
-# Create custom startup script that injects CSS
+# Find and append custom CSS to all workbench CSS files
+RUN find /home/.openvscode-server/out -name "workbench*.css" -type f -exec sh -c \
+    'cat /home/.openvscode-server/logos-theme.css >> "$1"' _ {} \; 2>/dev/null || true
+
+# Create custom startup script that injects CSS into HTML and serves static files
 RUN echo '#!/bin/bash\n\
 # Logos IDE Startup Script\n\
-# Inject custom CSS into the HTML\n\
+# Inject custom CSS into the HTML and ensure proper serving\n\
 \n\
 OPENVSCODE_ROOT="${OPENVSCODE_SERVER_ROOT:-/home/.openvscode-server}"\n\
 \n\
-# Find and patch workbench HTML to include custom CSS\n\
+# Find and patch workbench HTML to include inline CSS style tag\n\
 for html_file in $(find "$OPENVSCODE_ROOT" -name "workbench.html" 2>/dev/null); do\n\
-  if ! grep -q "logos-theme.css" "$html_file" 2>/dev/null; then\n\
-    sed -i "s|</head>|<link rel=\"stylesheet\" href=\"/logos-theme.css\"></head>|g" "$html_file" 2>/dev/null || true\n\
+  if ! grep -q "logos-theme-inline" "$html_file" 2>/dev/null; then\n\
+    # Read the CSS file and inject it as inline style\n\
+    CSS_CONTENT=$(cat "$OPENVSCODE_ROOT/logos-theme.css" 2>/dev/null | tr "\n" " " | sed "s/\"/\\\\\\&/g")\n\
+    sed -i "s|</head>|<style id=\"logos-theme-inline\">$CSS_CONTENT</style></head>|g" "$html_file" 2>/dev/null || true\n\
   fi\n\
 done\n\
 \n\

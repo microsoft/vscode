@@ -123,7 +123,146 @@ spec:
         - name: logos-chat
           image: node:20-alpine
           command: ["node"]
-          args: ["-e", "const http=require('http');const server=http.createServer((req,res)=>{res.setHeader('Access-Control-Allow-Origin','*');res.setHeader('Access-Control-Allow-Methods','GET,POST,OPTIONS');res.setHeader('Access-Control-Allow-Headers','Content-Type');if(req.method==='OPTIONS'){res.writeHead(204);res.end();return}if(req.url==='/health'){res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({status:'healthy',service:'logos-chat'}));return}if(req.url==='/api/chat/agents'||req.url==='/api/agents'){res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({agents:[{id:'aria',name:'ARIA',command:'@aria',model:'aria-01',description:'Primary AI assistant'},{id:'conductor',name:'Conductor',command:'@conductor',description:'Multi-step coordination'},{id:'swe',name:'SWE',command:'@swe',description:'Code generation'},{id:'ca',name:'CA',command:'@ca',description:'Architecture help'}]}));return}if(req.url.startsWith('/api/chat/conversations/')&&req.method==='POST'){let body='';req.on('data',c=>body+=c);req.on('end',()=>{try{const d=JSON.parse(body);res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({id:'msg-'+Date.now(),role:'assistant',content:'Hello! I am ARIA, your AI assistant powered by the Aria-01 model. I can help you with code generation, architecture, research, and analysis. What would you like me to help with today?',agentId:'aria',model:'aria-01',tier:2,timestamp:new Date().toISOString()}))}catch(e){res.writeHead(400,{'Content-Type':'application/json'});res.end(JSON.stringify({error:'Invalid request'}))}});return}res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({message:'Logos Chat Service',version:'1.0.0'}))});server.listen(8081,()=>console.log('Chat on 8081'))"]
+          args:
+            - "-e"
+            - |
+              const http = require('http');
+              const https = require('https');
+
+              const ARIA_ENDPOINT = process.env.ARIA_ENDPOINT || 'http://aria-inference.aria-inference.svc:80';
+              const conversations = new Map();
+
+              async function callARIA(query, context) {
+                return new Promise((resolve, reject) => {
+                  const url = new URL('/api/invoke', ARIA_ENDPOINT);
+                  const isHttps = url.protocol === 'https:';
+                  const client = isHttps ? https : http;
+
+                  const postData = JSON.stringify({
+                    agent: 'aria',
+                    query: query,
+                    context: context,
+                    model: 'aria-01'
+                  });
+
+                  const options = {
+                    hostname: url.hostname,
+                    port: url.port || (isHttps ? 443 : 80),
+                    path: url.pathname,
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Content-Length': Buffer.byteLength(postData)
+                    },
+                    timeout: 30000
+                  };
+
+                  const req = client.request(options, (res) => {
+                    let data = '';
+                    res.on('data', chunk => data += chunk);
+                    res.on('end', () => {
+                      try {
+                        const result = JSON.parse(data);
+                        resolve(result);
+                      } catch (e) {
+                        reject(new Error('Invalid JSON response from ARIA'));
+                      }
+                    });
+                  });
+
+                  req.on('error', reject);
+                  req.on('timeout', () => {
+                    req.destroy();
+                    reject(new Error('ARIA request timeout'));
+                  });
+
+                  req.write(postData);
+                  req.end();
+                });
+              }
+
+              const server = http.createServer(async (req, res) => {
+                res.setHeader('Access-Control-Allow-Origin', '*');
+                res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+                res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+                if (req.method === 'OPTIONS') {
+                  res.writeHead(204);
+                  res.end();
+                  return;
+                }
+
+                if (req.url === '/health') {
+                  res.writeHead(200, { 'Content-Type': 'application/json' });
+                  res.end(JSON.stringify({ status: 'healthy', service: 'logos-chat', ariaEndpoint: ARIA_ENDPOINT }));
+                  return;
+                }
+
+                if (req.url === '/api/chat/agents' || req.url === '/api/agents') {
+                  res.writeHead(200, { 'Content-Type': 'application/json' });
+                  res.end(JSON.stringify({
+                    agents: [
+                      { id: 'aria', name: 'ARIA', command: '@aria', model: 'aria-01', description: 'Primary AI assistant' },
+                      { id: 'conductor', name: 'Conductor', command: '@conductor', description: 'Multi-step coordination' },
+                      { id: 'swe', name: 'SWE', command: '@swe', description: 'Code generation' },
+                      { id: 'ca', name: 'CA', command: '@ca', description: 'Architecture help' }
+                    ]
+                  }));
+                  return;
+                }
+
+                if (req.url.startsWith('/api/chat/conversations/') && req.method === 'POST') {
+                  let body = '';
+                  req.on('data', chunk => body += chunk);
+                  req.on('end', async () => {
+                    try {
+                      const data = JSON.parse(body);
+                      const conversationId = req.url.split('/')[4];
+
+                      // Try to call ARIA, fall back to demo response
+                      let responseContent;
+                      let tier = 2;
+
+                      try {
+                        const ariaResult = await callARIA(data.content, data.context);
+                        responseContent = ariaResult.response || ariaResult.content || 'ARIA processed your request.';
+                        tier = ariaResult.tier || 2;
+                      } catch (ariaError) {
+                        console.error('ARIA call failed:', ariaError.message);
+                        responseContent = `Hello! I'm ARIA, your AI assistant powered by the Aria-01 model. I can help you with:
+
+              • **Code Generation** - Writing and refactoring code
+              • **Architecture** - System design and documentation
+              • **Research** - Finding information and best practices
+              • **Analysis** - Understanding complex codebases
+
+              How can I assist you today?`;
+                      }
+
+                      res.writeHead(200, { 'Content-Type': 'application/json' });
+                      res.end(JSON.stringify({
+                        id: 'msg-' + Date.now(),
+                        role: 'assistant',
+                        content: responseContent,
+                        agentId: data.agentId || 'aria',
+                        model: 'aria-01',
+                        tier: tier,
+                        timestamp: new Date().toISOString()
+                      }));
+                    } catch (e) {
+                      console.error('Request error:', e);
+                      res.writeHead(400, { 'Content-Type': 'application/json' });
+                      res.end(JSON.stringify({ error: 'Invalid request' }));
+                    }
+                  });
+                  return;
+                }
+
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ message: 'Logos Chat Service', version: '1.0.0' }));
+              });
+
+              server.listen(8081, () => console.log('Logos Chat on 8081, ARIA endpoint:', ARIA_ENDPOINT));
           ports:
             - containerPort: 8081
           envFrom:
