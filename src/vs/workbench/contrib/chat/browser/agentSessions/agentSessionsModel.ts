@@ -474,7 +474,7 @@ interface ISerializedAgentSession extends Omit<IAgentSessionData, 'iconPath' | '
 	readonly providerType: string;
 	readonly providerLabel: string;
 
-	readonly resource: UriComponents;
+	readonly resource: UriComponents /* old shape */ | string /* new shape that is more compact */;
 
 	readonly status: AgentSessionStatus;
 
@@ -519,7 +519,7 @@ class AgentSessionsCache {
 			providerType: session.providerType,
 			providerLabel: session.providerLabel,
 
-			resource: session.resource.toJSON(),
+			resource: session.resource.toString(),
 
 			icon: session.icon.id,
 			label: session.label,
@@ -553,7 +553,7 @@ class AgentSessionsCache {
 				providerType: session.providerType,
 				providerLabel: session.providerLabel,
 
-				resource: URI.revive(session.resource),
+				resource: typeof session.resource === 'string' ? URI.parse(session.resource) : URI.revive(session.resource),
 
 				icon: ThemeIcon.fromId(session.icon),
 				label: session.label,
