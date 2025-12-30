@@ -607,14 +607,7 @@ class AgentSessionsCache {
 			const cached = JSON.parse(statesCache) as ISerializedAgentSessionState[];
 
 			for (const entry of cached) {
-				let resource: URI;
-				if (typeof entry.resource === 'string') {
-					resource = URI.parse(entry.resource);
-				} else {
-					resource = URI.revive(entry.resource);
-				}
-
-				states.set(resource, {
+				states.set(typeof entry.resource === 'string' ? URI.parse(entry.resource) : URI.revive(entry.resource), {
 					archived: entry.archived,
 					read: entry.read
 				});
