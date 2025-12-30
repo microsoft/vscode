@@ -76,7 +76,7 @@ import { IHandOff, PromptHeader, Target } from '../common/promptSyntax/promptFil
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { handleModeSwitch } from './actions/chatActions.js';
 import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions, isIChatResourceViewContext, isIChatViewViewContext } from './chat.js';
-import { ChatAccessibilityProvider } from './chatAccessibilityProvider.js';
+import { ChatAccessibilityProvider } from './accessibility/chatAccessibilityProvider.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { ChatSuggestNextWidget } from './chatContentParts/chatSuggestNextWidget.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from './chatInputPart.js';

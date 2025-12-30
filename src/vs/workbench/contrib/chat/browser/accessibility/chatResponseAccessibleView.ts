@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
-import { isMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
-import { stripIcons } from '../../../../base/common/iconLabels.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { localize } from '../../../../nls.js';
-import { AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
-import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
-import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
-import { migrateLegacyTerminalToolSpecificData } from '../common/chat.js';
-import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { IChatToolInvocation } from '../common/chatService.js';
-import { isResponseVM } from '../common/chatViewModel.js';
-import { isToolResultInputOutputDetails, isToolResultOutputDetails, toolContentToA11yString } from '../common/tools/languageModelToolsService.js';
-import { ChatTreeItem, IChatWidget, IChatWidgetService } from './chat.js';
+import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { isMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { stripIcons } from '../../../../../base/common/iconLabels.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { localize } from '../../../../../nls.js';
+import { AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider } from '../../../../../platform/accessibility/browser/accessibleView.js';
+import { IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
+import { migrateLegacyTerminalToolSpecificData } from '../../common/chat.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { IChatToolInvocation } from '../../common/chatService.js';
+import { isResponseVM } from '../../common/chatViewModel.js';
+import { isToolResultInputOutputDetails, isToolResultOutputDetails, toolContentToA11yString } from '../../common/tools/languageModelToolsService.js';
+import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
 
 export class ChatResponseAccessibleView implements IAccessibleViewImplementation {
 	readonly priority = 100;

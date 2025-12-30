@@ -42,7 +42,7 @@ import { ChatRequestToolReferenceEntry, toToolSetVariableEntry, toToolVariableEn
 import { ChatConfiguration } from '../common/constants.js';
 import { ILanguageModelToolsConfirmationService } from '../common/tools/languageModelToolsConfirmationService.js';
 import { CountTokensCallback, createToolSchemaUri, ILanguageModelToolsService, IPreparedToolInvocation, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, SpecedToolAliases, stringifyPromptTsxPart, ToolDataSource, ToolSet, VSCodeToolReference } from '../common/tools/languageModelToolsService.js';
-import { getToolConfirmationAlert } from './chatAccessibilityProvider.js';
+import { getToolConfirmationAlert } from './accessibility/chatAccessibilityProvider.js';
 
 const jsonSchemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
 
