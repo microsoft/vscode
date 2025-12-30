@@ -246,6 +246,14 @@ namespace McpServerSchemaVersion_v2025_07_09 {
 
 	class Serializer implements IGalleryMcpServerDataSerializer {
 
+		// GitHub MCP Server configuration constants
+		private static readonly GITHUB_MCP_SERVER_NAME = 'github-mcp-server';
+		private static readonly GITHUB_MCP_DOC_LINKS: Record<string, string> = {
+			'toolsets': 'https://aka.ms/vscode-gh-mcp-toolsets',
+			'readOnlyMode': 'https://aka.ms/vscode-gh-mcp-readonly',
+			'lockdownMode': 'https://aka.ms/vscode-gh-mcp-lockdown'
+		};
+
 		public toRawGalleryMcpServerResult(input: unknown): IRawGalleryMcpServersResult | undefined {
 			if (!input || typeof input !== 'object' || !Array.isArray((input as RawGalleryMcpServersResult).servers)) {
 				return undefined;
@@ -332,14 +340,8 @@ namespace McpServerSchemaVersion_v2025_07_09 {
 				let description = input.description;
 				
 				// Enhance descriptions for GitHub MCP Server inputs with documentation links
-				if (from.name === 'github-mcp-server' && input.name && description) {
-					const docLinks: Record<string, string> = {
-						'toolsets': 'https://aka.ms/vscode-gh-mcp-toolsets',
-						'readOnlyMode': 'https://aka.ms/vscode-gh-mcp-readonly',
-						'lockdownMode': 'https://aka.ms/vscode-gh-mcp-lockdown'
-					};
-					
-					const docLink = docLinks[input.name];
+				if (from.name === Serializer.GITHUB_MCP_SERVER_NAME && input.name && description) {
+					const docLink = Serializer.GITHUB_MCP_DOC_LINKS[input.name];
 					if (docLink) {
 						description = `${description} [Learn more](${docLink})`;
 					}
