@@ -105,12 +105,12 @@ export class ReadFileTool implements ToolImplementation {
       // Check if it's an image file
       const ext = params.path.split('.').pop()?.toLowerCase();
       const imageExts = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'];
-      
+
       if (ext && imageExts.includes(ext)) {
         const contentBytes = await vscode.workspace.fs.readFile(fileUri);
         const base64 = Buffer.from(contentBytes).toString('base64');
         const mimeType = ext === 'svg' ? 'image/svg+xml' : `image/${ext === 'jpg' ? 'jpeg' : ext}`;
-        
+
         return {
           success: true,
           content: `data:${mimeType};base64,${base64}`,
@@ -134,9 +134,9 @@ export class ReadFileTool implements ToolImplementation {
         const lines = content.split('\n');
         const startLine = (params.offset || 1) - 1; // Convert to 0-based
         const endLine = params.limit ? startLine + params.limit : lines.length;
-        
+
         const selectedLines = lines.slice(startLine, endLine);
-        
+
         // Add line numbers
         content = selectedLines
           .map((line, i) => `${String(startLine + i + 1).padStart(6)}|${line}`)

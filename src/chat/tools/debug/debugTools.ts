@@ -131,7 +131,7 @@ export class StartDebugTool implements ToolImplementation {
         );
 
         const ext = params.file.split('.').pop()?.toLowerCase();
-        
+
         switch (ext) {
           case 'js':
           case 'mjs':
@@ -782,7 +782,7 @@ export class GetCallStackTool implements ToolImplementation {
 
       // Get threads
       const threadsResponse = await session.customRequest('threads', {});
-      
+
       const allStacks: Record<string, any[]> = {};
 
       for (const thread of threadsResponse.threads || []) {

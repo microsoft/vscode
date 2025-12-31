@@ -328,11 +328,11 @@ function MyComponent() {
   const { modes, currentMode, setMode, isToolAllowed } = useModeRegistry();
 
   // Planning hook
-  const { 
-    plans, 
-    activePlan, 
-    createPlan, 
-    updateItemStatus, 
+  const {
+    plans,
+    activePlan,
+    createPlan,
+    updateItemStatus,
     getProgress,
     executePlan,
   } = usePlanningService(sessionId);

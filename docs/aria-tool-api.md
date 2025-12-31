@@ -242,11 +242,11 @@ class MyCustomTool implements ToolImplementation {
     context: ToolInvocationContext
   ): Promise<ToolResult> {
     const startTime = performance.now();
-    
+
     try {
       // Your tool logic here
       const result = `Processed: ${params.input}`;
-      
+
       return {
         success: true,
         content: result,

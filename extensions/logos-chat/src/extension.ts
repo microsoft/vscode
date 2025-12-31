@@ -188,7 +188,7 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('logos.tools.list', async () => {
       const tools = chatPanelProvider.getAvailableTools();
       const toolList = tools.map(t => `${t.icon || '🔧'} ${t.name}: ${t.description}`).join('\n');
-      
+
       const doc = await vscode.workspace.openTextDocument({
         content: `# Available Aria Tools\n\n${toolList}`,
         language: 'markdown',

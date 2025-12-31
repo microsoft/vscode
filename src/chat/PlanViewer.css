@@ -316,7 +316,7 @@
 }
 
 .progress-fill.executing {
-  background: linear-gradient(90deg, 
+  background: linear-gradient(90deg,
     var(--vscode-progressBar-foreground, #0e639c) 0%,
     var(--color-info, #3b82f6) 50%,
     var(--vscode-progressBar-foreground, #0e639c) 100%

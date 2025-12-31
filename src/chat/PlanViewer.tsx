@@ -162,7 +162,7 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({
     } catch (error) {
       console.error('Execution failed:', error);
     }
-    
+
     if (onExecutePlan) {
       onExecutePlan();
     }
