@@ -53,7 +53,7 @@ import { TestChatEntitlementService, TestContextService, TestExtensionService } 
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { IChatAccessibilityService, IChatWidget, IChatWidgetService, IQuickChatService } from '../../../chat/browser/chat.js';
 import { ChatContextService, IChatContextService } from '../../../chat/browser/contextContrib/chatContextService.js';
-import { ChatInputBoxContentProvider } from '../../../chat/browser/contrib/chatEditorInputContentProvider.js';
+import { ChatInputBoxContentProvider } from '../../../chat/browser/widget/input/editor/chatEditorInputContentProvider.js';
 import { ChatLayoutService } from '../../../chat/browser/widget/chatLayoutService.js';
 import { ChatVariablesService } from '../../../chat/browser/attachments/chatVariables.js';
 import { ChatWidget } from '../../../chat/browser/widget/chatWidget.js';

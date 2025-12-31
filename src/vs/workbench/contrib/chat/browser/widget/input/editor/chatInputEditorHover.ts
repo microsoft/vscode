@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
-import { Range } from '../../../../../editor/common/core/range.js';
-import { IModelDecoration } from '../../../../../editor/common/model.js';
-import { HoverAnchor, HoverAnchorType, HoverParticipantRegistry, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart, IRenderedHoverParts, RenderedHoverParts } from '../../../../../editor/contrib/hover/browser/hoverTypes.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IChatWidgetService } from '../chat.js';
-import { ChatAgentHover, getChatAgentHoverOptions } from '../widget/chatAgentHover.js';
+import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
+import { ICodeEditor } from '../../../../../../../editor/browser/editorBrowser.js';
+import { Range } from '../../../../../../../editor/common/core/range.js';
+import { IModelDecoration } from '../../../../../../../editor/common/model.js';
+import { HoverAnchor, HoverAnchorType, HoverParticipantRegistry, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart, IRenderedHoverParts, RenderedHoverParts } from '../../../../../../../editor/contrib/hover/browser/hoverTypes.js';
+import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
+import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
+import { IChatWidgetService } from '../../../chat.js';
+import { ChatAgentHover, getChatAgentHoverOptions } from '../../chatAgentHover.js';
 import { ChatEditorHoverWrapper } from './editorHoverWrapper.js';
-import { IChatAgentData } from '../../common/participants/chatAgents.js';
-import { extractAgentAndCommand } from '../../common/requestParser/chatParserTypes.js';
-import * as nls from '../../../../../nls.js';
+import { IChatAgentData } from '../../../../common/participants/chatAgents.js';
+import { extractAgentAndCommand } from '../../../../common/requestParser/chatParserTypes.js';
+import * as nls from '../../../../../../../nls.js';
 
 export class ChatAgentHoverParticipant implements IEditorHoverParticipant<ChatAgentHoverPart> {
 

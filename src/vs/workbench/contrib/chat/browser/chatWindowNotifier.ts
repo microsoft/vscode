@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from '../../../../../base/browser/dom.js';
-import { mainWindow } from '../../../../../base/browser/window.js';
-import { Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableResourceMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { autorunDelta, autorunIterableDelta } from '../../../../../base/common/observable.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { localize } from '../../../../../nls.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { FocusMode } from '../../../../../platform/native/common/native.js';
-import { IWorkbenchContribution } from '../../../../common/contributions.js';
-import { IHostService } from '../../../../services/host/browser/host.js';
-import { IChatModel, IChatRequestNeedsInputInfo } from '../../common/model/chatModel.js';
-import { IChatService } from '../../common/chatService/chatService.js';
-import { IChatWidgetService } from '../chat.js';
+import * as dom from '../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { Event } from '../../../../base/common/event.js';
+import { Disposable, DisposableResourceMap, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { autorunDelta, autorunIterableDelta } from '../../../../base/common/observable.js';
+import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { FocusMode } from '../../../../platform/native/common/native.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { IChatModel, IChatRequestNeedsInputInfo } from '../common/model/chatModel.js';
+import { IChatService } from '../common/chatService/chatService.js';
+import { IChatWidgetService } from './chat.js';
 
 /**
  * Observes all live chat models and triggers OS notifications when any model

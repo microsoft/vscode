@@ -6,7 +6,7 @@
 import { IChatVariablesService, IDynamicVariable } from '../../common/attachments/chatVariables.js';
 import { IToolAndToolSetEnablementMap } from '../../common/tools/languageModelToolsService.js';
 import { IChatWidgetService } from '../chat.js';
-import { ChatDynamicVariableModel } from '../contrib/chatDynamicVariables.js';
+import { ChatDynamicVariableModel } from './chatDynamicVariables.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { URI } from '../../../../../base/common/uri.js';
 

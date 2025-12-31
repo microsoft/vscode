@@ -23,8 +23,8 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IChatWidget, IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { IChatContextPicker, IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPickService } from '../../../../chat/browser/attachments/chatContextPickService.js';
-import { ChatDynamicVariableModel } from '../../../../chat/browser/contrib/chatDynamicVariables.js';
-import { computeCompletionRanges } from '../../../../chat/browser/contrib/chatInputCompletions.js';
+import { ChatDynamicVariableModel } from '../../../../chat/browser/attachments/chatDynamicVariables.js';
+import { computeCompletionRanges } from '../../../../chat/browser/widget/input/editor/chatInputCompletions.js';
 import { IChatAgentService } from '../../../../chat/common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
 import { chatVariableLeader } from '../../../../chat/common/requestParser/chatParserTypes.js';

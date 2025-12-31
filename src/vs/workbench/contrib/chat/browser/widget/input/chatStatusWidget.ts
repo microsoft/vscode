@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatStatusWidget.css';
-import * as dom from '../../../../../base/browser/dom.js';
-import { Button } from '../../../../../base/browser/ui/button/button.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { localize } from '../../../../../nls.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { ChatEntitlement, ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
-import { ChatInputPartWidgetsRegistry, IChatInputPartWidget } from '../widget/input/chatInputPartWidgets.js';
-import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { CHAT_SETUP_ACTION_ID } from '../actions/chatActions.js';
+import * as dom from '../../../../../../base/browser/dom.js';
+import { Button } from '../../../../../../base/browser/ui/button/button.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { localize } from '../../../../../../nls.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
+import { ChatEntitlement, ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { ChatInputPartWidgetsRegistry, IChatInputPartWidget } from './chatInputPartWidgets.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
+import { CHAT_SETUP_ACTION_ID } from '../../actions/chatActions.js';
 
 const $ = dom.$;
 

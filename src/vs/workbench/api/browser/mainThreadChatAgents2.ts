@@ -24,7 +24,7 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { ILogService } from '../../../platform/log/common/log.js';
 import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
 import { IChatWidgetService } from '../../contrib/chat/browser/chat.js';
-import { AddDynamicVariableAction, IAddDynamicVariableContext } from '../../contrib/chat/browser/contrib/chatDynamicVariables.js';
+import { AddDynamicVariableAction, IAddDynamicVariableContext } from '../../contrib/chat/browser/attachments/chatDynamicVariables.js';
 import { IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../contrib/chat/common/participants/chatAgents.js';
 import { ICustomAgentQueryOptions, IPromptsService } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { IChatEditingService, IChatRelatedFileProviderMetadata } from '../../contrib/chat/common/editing/chatEditingService.js';

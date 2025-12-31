@@ -12,7 +12,6 @@ This contrib is, as of the end of 2025, the largest workbench contrib in VS Code
 - `chatContentParts/` - Rendering components for different response content types (markdown, code blocks, tool output, etc.).
 - `chatEditing/` - The edit session model, edit diff UI, edit snapshots.
 - `chatSetup/` - Placeholder registrations before the chat extentension is set up. Running the chat auth/install flow.
-- `contrib/` - Standalone feature contributions that have few or no incoming imports. Example: chat input suggestions and paste providers.
 - `contextContrib/` - The contribution point for chat context providers - note the difference from `attachments/`.
 - `widget/` - The core files related to rendering parts of the ChatWidget, including the list, the input, the model/agent pickers, and other main UI parts. Must have direct references from ChatWidget itself.
 - `widgetHosts/` - Hosts that embed chat widgets in other places (view pane, editor, quick chat).

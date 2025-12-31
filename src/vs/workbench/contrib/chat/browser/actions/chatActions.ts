@@ -67,7 +67,7 @@ import { ILanguageModelToolsService } from '../../common/tools/languageModelTool
 import { ChatViewId, IChatWidget, IChatWidgetService } from '../chat.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatEditorInput, showClearEditingSessionConfirmation } from '../widgetHosts/editor/chatEditorInput.js';
-import { convertBufferToScreenshotVariable } from '../contrib/chatScreenshotContext.js';
+import { convertBufferToScreenshotVariable } from '../attachments/chatScreenshotContext.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 
