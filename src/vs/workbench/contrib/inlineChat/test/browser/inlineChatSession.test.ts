@@ -47,7 +47,7 @@ import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/
 import { IChatAccessibilityService, IChatWidgetService, IQuickChatService } from '../../../chat/browser/chat.js';
 import { ChatSessionsService } from '../../../chat/browser/chatSessions.contribution.js';
 import { ChatVariablesService } from '../../../chat/browser/chatVariables.js';
-import { ChatWidget } from '../../../chat/browser/chatWidget.js';
+import { ChatWidget } from '../../../chat/browser/widget/chatWidget.js';
 import { ChatAgentService, IChatAgentService } from '../../../chat/common/participants/chatAgents.js';
 import { IChatEditingService, IChatEditingSession } from '../../../chat/common/chatEditingService.js';
 import { IChatRequestModel } from '../../../chat/common/model/chatModel.js';
@@ -70,7 +70,7 @@ import { HunkState } from '../../browser/inlineChatSession.js';
 import { IInlineChatSessionService } from '../../browser/inlineChatSessionService.js';
 import { InlineChatSessionServiceImpl } from '../../browser/inlineChatSessionServiceImpl.js';
 import { TestWorkerService } from './testWorkerService.js';
-import { ChatWidgetService } from '../../../chat/browser/chatWidgetService.js';
+import { ChatWidgetService } from '../../../chat/browser/widget/chatWidgetService.js';
 import { URI } from '../../../../../base/common/uri.js';
 
 suite('InlineChatSession', function () {

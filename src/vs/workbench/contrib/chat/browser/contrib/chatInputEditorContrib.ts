@@ -22,7 +22,7 @@ import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynami
 import { ChatRequestParser } from '../../common/chatRequestParser.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { IChatWidget } from '../chat.js';
-import { ChatWidget } from '../chatWidget.js';
+import { ChatWidget } from '../widget/chatWidget.js';
 import { dynamicVariableDecorationType } from './chatDynamicVariables.js';
 import { NativeEditContextRegistry } from '../../../../../editor/browser/controller/editContext/native/nativeEditContextRegistry.js';
 import { TextAreaEditContextRegistry } from '../../../../../editor/browser/controller/editContext/textArea/textAreaEditContextRegistry.js';

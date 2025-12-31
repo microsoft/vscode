@@ -30,7 +30,7 @@ import { IParsedChatRequest } from '../common/chatParserTypes.js';
 import { IChatModelReference, IChatProgress, IChatService } from '../common/chatService.js';
 import { ChatAgentLocation } from '../common/constants.js';
 import { IChatWidgetService, IQuickChatOpenOptions, IQuickChatService } from './chat.js';
-import { ChatWidget } from './chatWidget.js';
+import { ChatWidget } from './widget/chatWidget.js';
 
 export class QuickChatService extends Disposable implements IQuickChatService {
 	readonly _serviceBrand: undefined;

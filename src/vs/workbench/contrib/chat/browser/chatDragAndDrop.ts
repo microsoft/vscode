@@ -24,7 +24,7 @@ import { IChatRequestVariableEntry } from '../common/attachments/chatVariableEnt
 import { IChatWidget } from './chat.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { IChatAttachmentResolveService, ImageTransferData } from './chatAttachmentResolveService.js';
-import { IChatInputStyles } from './chatInputPart.js';
+import { IChatInputStyles } from './widget/chatInputPart.js';
 import { convertStringToUInt8Array } from './chatImageUtils.js';
 
 enum ChatDragAndDropType {

@@ -67,7 +67,7 @@ import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatResponseModel, IChatTextEditGroup } from '../common/model/chatModel.js';
 import { IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/model/chatViewModel.js';
 import { ChatTreeItem } from './chat.js';
-import { IChatRendererDelegate } from './chatListRenderer.js';
+import { IChatRendererDelegate } from './widget/chatListRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { emptyProgressRunner, IEditorProgressService } from '../../../../platform/progress/common/progress.js';
 import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';

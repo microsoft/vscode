@@ -24,8 +24,8 @@ import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel } from '.
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { IChatEditorOptions } from './chatEditor.js';
-import { ChatInputPart } from './chatInputPart.js';
-import { ChatWidget, IChatWidgetContrib } from './chatWidget.js';
+import { ChatInputPart } from './widget/chatInputPart.js';
+import { ChatWidget, IChatWidgetContrib } from './widget/chatWidget.js';
 import { ICodeBlockActionContext } from './codeBlockPart.js';
 
 export const IChatWidgetService = createDecorator<IChatWidgetService>('chatWidgetService');

@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from '../../../../base/browser/dom.js';
-import { raceCancellablePromises, timeout } from '../../../../base/common/async.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
-import { combinedDisposable, Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { isEqual } from '../../../../base/common/resources.js';
-import { URI } from '../../../../base/common/uri.js';
-import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
-import { ACTIVE_GROUP, IEditorService, type PreferredGroup } from '../../../../workbench/services/editor/common/editorService.js';
-import { IEditorGroup, IEditorGroupsService, isEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
-import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { IChatService } from '../common/chatService.js';
-import { ChatAgentLocation } from '../common/constants.js';
-import { ChatViewId, ChatViewPaneTarget, IChatWidget, IChatWidgetService, IQuickChatService, isIChatViewViewContext } from './chat.js';
-import { ChatEditor, IChatEditorOptions } from './chatEditor.js';
-import { ChatEditorInput } from './chatEditorInput.js';
-import { ChatViewPane } from './chatViewPane.js';
+import * as dom from '../../../../../base/browser/dom.js';
+import { raceCancellablePromises, timeout } from '../../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { combinedDisposable, Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { isEqual } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
+import { ACTIVE_GROUP, IEditorService, type PreferredGroup } from '../../../../services/editor/common/editorService.js';
+import { IEditorGroup, IEditorGroupsService, isEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { IChatService } from '../../common/chatService.js';
+import { ChatAgentLocation } from '../../common/constants.js';
+import { ChatViewId, ChatViewPaneTarget, IChatWidget, IChatWidgetService, IQuickChatService, isIChatViewViewContext } from '../chat.js';
+import { ChatEditor, IChatEditorOptions } from '../chatEditor.js';
+import { ChatEditorInput } from '../chatEditorInput.js';
+import { ChatViewPane } from '../chatViewPane.js';
 
 export class ChatWidgetService extends Disposable implements IChatWidgetService {
 

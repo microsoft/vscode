@@ -29,7 +29,7 @@ import { IChatSessionsService, localChatSessionType } from '../common/chatSessio
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { clearChatEditor } from './actions/chatClear.js';
 import { ChatEditorInput } from './chatEditorInput.js';
-import { ChatWidget } from './chatWidget.js';
+import { ChatWidget } from './widget/chatWidget.js';
 
 export interface IChatEditorOptions extends IEditorOptions {
 	/**

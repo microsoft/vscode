@@ -22,7 +22,7 @@ import { ElicitationState, IChatElicitationRequest, IChatService } from '../../c
 import { IChatResponseViewModel } from '../../common/model/chatViewModel.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { IChatAccessibilityService, IChatWidgetService } from '../chat.js';
-import { ChatWidget } from '../chatWidget.js';
+import { ChatWidget } from '../widget/chatWidget.js';
 
 const CHAT_RESPONSE_PENDING_ALLOWANCE_MS = 4000;
 export class ChatAccessibilityService extends Disposable implements IChatAccessibilityService {

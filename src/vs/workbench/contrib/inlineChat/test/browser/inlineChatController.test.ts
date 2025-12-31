@@ -56,8 +56,8 @@ import { ChatContextService, IChatContextService } from '../../../chat/browser/c
 import { ChatInputBoxContentProvider } from '../../../chat/browser/chatEdinputInputContentProvider.js';
 import { ChatLayoutService } from '../../../chat/browser/chatLayoutService.js';
 import { ChatVariablesService } from '../../../chat/browser/chatVariables.js';
-import { ChatWidget } from '../../../chat/browser/chatWidget.js';
-import { ChatWidgetService } from '../../../chat/browser/chatWidgetService.js';
+import { ChatWidget } from '../../../chat/browser/widget/chatWidget.js';
+import { ChatWidgetService } from '../../../chat/browser/widget/chatWidgetService.js';
 import { ChatAgentService, IChatAgentData, IChatAgentNameService, IChatAgentService } from '../../../chat/common/participants/chatAgents.js';
 import { IChatEditingService, IChatEditingSession } from '../../../chat/common/chatEditingService.js';
 import { IChatLayoutService } from '../../../chat/common/ui/chatLayoutService.js';
