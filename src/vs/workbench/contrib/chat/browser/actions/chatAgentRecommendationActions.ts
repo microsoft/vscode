@@ -19,7 +19,7 @@ import { CHAT_CATEGORY } from './chatActions.js';
 import { IChatSessionRecommendation } from '../../../../../base/common/product.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ChatAgentLocation } from '../../common/constants.js';
-import { IChatService } from '../../common/chatService.js';
+import { IChatService } from '../../common/chatService/chatService.js';
 
 const INSTALL_CONTEXT_PREFIX = 'chat.installRecommendationAvailable';
 

@@ -47,7 +47,7 @@ import { AccessibleViewRegistry } from '../../../../platform/accessibility/brows
 import { SCMAccessibilityHelp } from './scmAccessibilityHelp.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { SCMHistoryItemContextContribution } from './scmHistoryChatContext.js';
-import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
+import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../../chat/browser/actions/chatActions.js';
 import product from '../../../../platform/product/common/product.js';
 
