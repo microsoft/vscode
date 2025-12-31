@@ -39,35 +39,35 @@ const TECH_PATTERNS: TechPattern[] = [
   { name: 'Express', category: 'framework', files: [], packagePatterns: ['express'] },
   { name: 'Vite', category: 'build', files: ['vite.config.ts', 'vite.config.js'], packagePatterns: ['vite'] },
   { name: 'Webpack', category: 'build', files: ['webpack.config.js'], packagePatterns: ['webpack'] },
-  
+
   // Python
   { name: 'Python', category: 'language', files: ['*.py', 'requirements.txt', 'pyproject.toml', 'setup.py'] },
   { name: 'FastAPI', category: 'framework', files: [], packagePatterns: ['fastapi'] },
   { name: 'Django', category: 'framework', files: ['manage.py'], packagePatterns: ['django'] },
   { name: 'Flask', category: 'framework', files: [], packagePatterns: ['flask'] },
-  
+
   // Go
   { name: 'Go', category: 'language', files: ['go.mod', 'go.sum', '*.go'] },
   { name: 'Gin', category: 'framework', files: [], packagePatterns: ['github.com/gin-gonic/gin'] },
-  
+
   // Rust
   { name: 'Rust', category: 'language', files: ['Cargo.toml', 'Cargo.lock', '*.rs'] },
-  
+
   // Infrastructure
   { name: 'Docker', category: 'container', files: ['Dockerfile', 'docker-compose.yml', 'docker-compose.yaml'] },
   { name: 'Kubernetes', category: 'orchestration', files: ['*.yaml', '*.yml'], packagePatterns: ['kustomize'] },
   { name: 'Terraform', category: 'iac', files: ['*.tf', '*.tfvars'] },
   { name: 'Helm', category: 'package', files: ['Chart.yaml', 'values.yaml'] },
-  
+
   // Testing
   { name: 'Jest', category: 'testing', files: ['jest.config.js', 'jest.config.ts'], packagePatterns: ['jest'] },
   { name: 'Vitest', category: 'testing', files: ['vitest.config.ts'], packagePatterns: ['vitest'] },
   { name: 'Pytest', category: 'testing', files: ['pytest.ini', 'conftest.py'], packagePatterns: ['pytest'] },
-  
+
   // CI/CD
   { name: 'GitHub Actions', category: 'ci', files: ['.github/workflows/*.yml', '.github/workflows/*.yaml'] },
   { name: 'GitLab CI', category: 'ci', files: ['.gitlab-ci.yml'] },
-  
+
   // Database
   { name: 'PostgreSQL', category: 'database', files: [], packagePatterns: ['pg', 'psycopg2', 'asyncpg'] },
   { name: 'MongoDB', category: 'database', files: [], packagePatterns: ['mongodb', 'mongoose', 'pymongo'] },

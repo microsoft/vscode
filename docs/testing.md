@@ -1,285 +1,437 @@
-# Testing Guide
+# Logos Testing Guide
+
+This document describes the testing strategy, test types, and how to run tests for the Logos IDE.
 
 ## Overview
 
-Logos uses a multi-layer testing strategy:
-- **Unit Tests**: Jest for TypeScript, pytest for Python
-- **E2E Tests**: Playwright for browser-based tests
-- **Integration Tests**: Service-level integration
+Logos uses a comprehensive testing approach with multiple levels:
 
-## Quick Start
+- **Unit Tests** - Test individual functions and classes
+- **Integration Tests** - Test component interactions
+- **End-to-End Tests** - Test complete user workflows
+- **Visual Regression Tests** - Ensure UI consistency
 
-```bash
-# Run all unit tests
-npm test
+## Test Framework
 
-# Run with coverage
-npm run test:coverage
-
-# Run E2E tests
-cd e2e && npm test
-
-# Run specific test file
-npm test -- src/__tests__/chat/ChatPanel.test.tsx
-```
-
-## Unit Tests
-
-### Structure
-
-```
-src/
-├── chat/
-│   └── __tests__/
-│       ├── ChatPanel.test.tsx
-│       ├── MessageInput.test.tsx
-│       └── MarkdownRenderer.test.tsx
-├── workspace-ca/
-│   └── __tests__/
-│       ├── ProjectAnalyzer.test.ts
-│       └── SuggestionEngine.test.ts
-└── d3n/
-    └── __tests__/
-        ├── D3NClient.test.ts
-        └── ARIAClient.test.ts
-```
-
-### Writing Tests
-
-```typescript
-import { render, screen, fireEvent } from '@testing-library/react';
-import { ChatPanel } from '../ChatPanel';
-
-describe('ChatPanel', () => {
-  it('should send message on button click', async () => {
-    const onSend = jest.fn();
-    render(<ChatPanel onSend={onSend} />);
-
-    const input = screen.getByPlaceholderText(/message/i);
-    await userEvent.type(input, 'Hello');
-
-    const button = screen.getByRole('button', { name: /send/i });
-    await userEvent.click(button);
-
-    expect(onSend).toHaveBeenCalledWith('Hello', []);
-  });
-});
-```
-
-### Mocking
-
-```typescript
-// Mock D3N client
-jest.mock('../d3n/client', () => ({
-  getD3NClient: () => ({
-    invoke: jest.fn().mockResolvedValue({
-      content: 'Mocked response',
-      tierUsed: 2,
-    }),
-  }),
-}));
-
-// Mock VSCode API
-jest.mock('vscode', () => ({
-  window: {
-    showInformationMessage: jest.fn(),
-  },
-  workspace: {
-    getConfiguration: () => ({
-      get: jest.fn().mockReturnValue('default'),
-    }),
-  },
-}), { virtual: true });
-```
-
-## E2E Tests
-
-### Setup
-
-```bash
-cd e2e
-npm install
-npx playwright install --with-deps
-```
-
-### Running
+All tests use [Vitest](https://vitest.dev/) as the test runner:
 
 ```bash
 # Run all tests
 npm test
 
-# Run in headed mode
-npm run test:headed
+# Run tests in watch mode
+npm run test:watch
 
-# Run with debug
-npm run test:debug
-
-# Run specific file
-npx playwright test tests/chat.spec.ts
+# Run tests with coverage
+npm run test:coverage
 ```
 
-### Writing E2E Tests
+## Test Organization
+
+```
+src/
+├── chat/
+│   ├── planning/
+│   │   └── __tests__/
+│   │       └── planning.e2e.test.ts
+│   ├── modes/
+│   │   └── __tests__/
+│   │       └── modeSwitch.e2e.test.ts
+│   ├── tools/
+│   │   └── __tests__/
+│   │       ├── terminalTools.test.ts
+│   │       ├── gitTools.test.ts
+│   │       └── fileTools.test.ts
+│   └── telemetry/
+│       └── __tests__/
+│           └── telemetry.test.ts
+└── vs/
+    └── platform/
+        └── **/*.test.ts
+```
+
+## Unit Tests
+
+### Tool Tests
+
+Each tool category has dedicated unit tests that mock VS Code APIs:
+
+#### Terminal Tools (`terminalTools.test.ts`)
 
 ```typescript
-import { test, expect } from '@playwright/test';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { RunInTerminalTool, GetTerminalOutputTool } from '../terminal/terminalTools';
 
-test.describe('Chat', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/');
-    await page.waitForSelector('[data-testid="logos-ready"]');
-  });
+// Mock VS Code
+vi.mock('vscode', () => ({
+  window: {
+    terminals: [],
+    createTerminal: vi.fn(() => ({
+      name: 'Test Terminal',
+      sendText: vi.fn(),
+    })),
+  },
+}));
 
-  test('should send message', async ({ page }) => {
-    // Open chat
-    await page.keyboard.press('Meta+Shift+L');
-
-    // Type message
-    const input = page.locator('[data-testid="message-input"]');
-    await input.fill('Hello world');
-
-    // Send
-    await page.keyboard.press('Meta+Enter');
-
-    // Verify
-    await expect(page.locator('[data-testid="message-user"]'))
-      .toContainText('Hello world');
+describe('RunInTerminalTool', () => {
+  it('should execute command in terminal', async () => {
+    const tool = new RunInTerminalTool();
+    const result = await tool.execute(
+      { command: 'echo hello' },
+      { mode: 'agent', sessionId: 'test', workspacePath: '/test' }
+    );
+    expect(result.success).toBe(true);
   });
 });
 ```
 
-### Test Data Attributes
+#### Git Tools (`gitTools.test.ts`)
 
-Use `data-testid` for reliable selectors:
+Tests for SCM operations:
 
-```tsx
-<button data-testid="send-button">Send</button>
-<div data-testid="message-list">...</div>
-<input data-testid="message-input" />
-```
+- `GitStatusTool` - Get repository status
+- `GitDiffTool` - Get file diffs
+- `GitStageTool` - Stage files
+- `GitCommitTool` - Create commits
+- `GitBranchTool` - Branch operations
+- `GitPushTool` - Push changes
+- `GitPullTool` - Pull changes
+- `GitLogTool` - View commit history
 
-## Python Tests
+#### File Tools (`fileTools.test.ts`)
 
-### Setup
+Tests for file system operations:
+
+- `ReadFileTool` - Read file contents
+- `WriteFileTool` - Write files
+- `CreateFileTool` - Create new files
+- `DeleteFileTool` - Delete files
+- `ListDirectoryTool` - List directory contents
+- `GrepTool` - Search file contents
+- `FindFilesTool` - Find files by pattern
+
+### Running Unit Tests
 
 ```bash
-cd ../d3n-core
-pip install -e ".[dev]"
+# Run all tool tests
+npm test -- --filter="tools"
+
+# Run specific test file
+npm test -- src/chat/tools/__tests__/terminalTools.test.ts
+
+# Run with verbose output
+npm test -- --reporter=verbose
 ```
 
-### Running
+## End-to-End Tests
+
+### Planning Workflow (`planning.e2e.test.ts`)
+
+Tests the complete planning system workflow:
+
+1. **Plan Creation**
+   - Create plan with basic options
+   - Create plan with items
+   - Create plan from agent response
+   - Link plan to session
+
+2. **Plan Item Status Updates**
+   - Update item to in_progress
+   - Update item to completed
+   - Mark plan complete when all items done
+   - Emit events on status changes
+
+3. **Plan Progress Tracking**
+   - Calculate progress correctly
+   - Handle empty plans
+
+4. **Plan Serialization**
+   - Serialize to markdown with YAML frontmatter
+   - Parse from markdown
+   - Handle invalid markdown
+
+5. **Plan CRUD Operations**
+   - Retrieve all plans
+   - Update plan properties
+   - Add items to existing plan
+   - Delete plan
+   - Handle non-existent plans
+
+### Mode Switching (`modeSwitch.e2e.test.ts`)
+
+Tests the mode system workflow:
+
+1. **Default Configuration**
+   - Initialize with Agent mode
+   - All six default modes registered
+   - Correct mode configurations
+
+2. **Mode Switching**
+   - Switch modes successfully
+   - Track auto-switched modes
+   - Skip switch when already in mode
+   - Emit modeChange event
+   - Reset active plan on switch
+
+3. **Tool Permissions**
+   - Allow all tools in Agent mode
+   - Only read-only tools in Plan mode
+   - Custom allowed tools in Debug mode
+   - Custom allowed tools in Research mode
+
+4. **Custom Mode Registration**
+   - Register custom mode
+   - Update existing mode configuration
+
+5. **Auto Mode Detection**
+   - Detect debug mode from error queries
+   - Detect plan mode from planning queries
+   - Detect research mode from research queries
+   - Detect code-review mode from review queries
+   - Detect ask mode from question queries
+
+### Running E2E Tests
 
 ```bash
-# Run Logos agent tests
-pytest tests/agents/logos -v
+# Run all E2E tests
+npm test -- --filter="e2e"
 
-# Run with coverage
-pytest tests/agents/logos --cov=d3n_core/agents/logos
+# Run planning E2E tests
+npm test -- planning.e2e.test.ts
 
-# Run specific test
-pytest tests/agents/logos/test_routing_policies.py::TestLogosRoutingPolicy -v
+# Run mode switching E2E tests
+npm test -- modeSwitch.e2e.test.ts
 ```
 
-### Writing Python Tests
+## Test Coverage
 
-```python
-import pytest
-from d3n_core.agents.logos import ConductorBinding
-
-class TestConductorBinding:
-    @pytest.fixture
-    def conductor(self):
-        return ConductorBinding()
-
-    def test_tier_selection(self, conductor):
-        tier = conductor.select_tier("simple task")
-        assert tier == 1
-
-    def test_delegation(self, conductor):
-        delegate = conductor.should_delegate("fix this bug")
-        assert delegate == "logos.swe"
-```
-
-## Integration Tests
-
-### D3N Integration
-
-```typescript
-// tests/integration/d3n.test.ts
-import { D3NClient } from '../src/d3n/client';
-
-describe('D3N Integration', () => {
-  const client = new D3NClient({
-    endpoint: process.env.D3N_ENDPOINT || 'http://localhost:8080',
-    apiKey: process.env.D3N_API_KEY || 'test-key',
-  });
-
-  it('should invoke agent', async () => {
-    const result = await client.invoke({
-      agentId: 'logos.conductor',
-      query: 'Hello',
-    });
-
-    expect(result.content).toBeDefined();
-    expect(result.tierUsed).toBeGreaterThanOrEqual(1);
-  });
-});
-```
-
-## Coverage
-
-### Viewing Coverage
+Generate coverage reports:
 
 ```bash
 npm run test:coverage
-
-# Open report
-open coverage/lcov-report/index.html
 ```
 
-### Coverage Requirements
+Coverage thresholds are configured in `vitest.config.ts`:
 
-| Category | Minimum |
-|----------|---------|
-| Statements | 80% |
-| Branches | 75% |
-| Functions | 80% |
-| Lines | 80% |
+```typescript
+export default defineConfig({
+  test: {
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html', 'lcov'],
+      exclude: [
+        'node_modules/',
+        'test/',
+        '**/*.d.ts',
+      ],
+      thresholds: {
+        lines: 70,
+        functions: 70,
+        branches: 60,
+        statements: 70,
+      },
+    },
+  },
+});
+```
 
-## CI Integration
+## Mocking Strategies
+
+### VS Code API Mocking
+
+Mock the entire `vscode` module:
+
+```typescript
+vi.mock('vscode', () => ({
+  window: {
+    terminals: [],
+    activeTerminal: null,
+    createTerminal: vi.fn(),
+    showInformationMessage: vi.fn(),
+    showErrorMessage: vi.fn(),
+  },
+  workspace: {
+    workspaceFolders: [{ uri: { fsPath: '/test' } }],
+    fs: {
+      readFile: vi.fn(),
+      writeFile: vi.fn(),
+    },
+  },
+  Uri: {
+    file: vi.fn((path) => ({ fsPath: path })),
+  },
+  debug: {
+    activeDebugSession: null,
+    breakpoints: [],
+    startDebugging: vi.fn(),
+    stopDebugging: vi.fn(),
+  },
+  languages: {
+    getDiagnostics: vi.fn(() => []),
+  },
+}));
+```
+
+### EventEmitter Mocking
+
+For Node.js EventEmitter:
+
+```typescript
+vi.mock('events', () => ({
+  EventEmitter: class {
+    private listeners: Map<string, Function[]> = new Map();
+
+    on(event: string, listener: Function) {
+      if (!this.listeners.has(event)) {
+        this.listeners.set(event, []);
+      }
+      this.listeners.get(event)!.push(listener);
+      return this;
+    }
+
+    emit(event: string, ...args: any[]) {
+      const handlers = this.listeners.get(event);
+      if (handlers) {
+        handlers.forEach((h) => h(...args));
+      }
+      return true;
+    }
+  },
+}));
+```
+
+### Singleton Reset
+
+Reset singletons between tests:
+
+```typescript
+const resetSingletons = () => {
+  // @ts-ignore - accessing private static for testing
+  PlanningService['instance'] = undefined;
+  ModeRegistry['instance'] = undefined;
+  AriaToolRegistry['instance'] = undefined;
+};
+
+beforeEach(() => {
+  resetSingletons();
+});
+
+afterEach(() => {
+  resetSingletons();
+});
+```
+
+## Writing New Tests
+
+### Test File Naming
+
+- Unit tests: `*.test.ts`
+- E2E tests: `*.e2e.test.ts`
+- Integration tests: `*.integration.test.ts`
+
+### Test Structure
+
+Follow the AAA pattern (Arrange, Act, Assert):
+
+```typescript
+describe('FeatureName', () => {
+  describe('methodName', () => {
+    it('should do specific thing when condition', () => {
+      // Arrange
+      const service = new MyService();
+      const input = { key: 'value' };
+
+      // Act
+      const result = service.method(input);
+
+      // Assert
+      expect(result).toBe(expectedValue);
+    });
+  });
+});
+```
+
+### Test Data Factories
+
+Create factories for test data:
+
+```typescript
+function createTestPlan(overrides?: Partial<Plan>): Plan {
+  return {
+    id: 'test-plan-123',
+    name: 'Test Plan',
+    overview: 'Test overview',
+    items: [],
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    isComplete: false,
+    createdByMode: 'plan',
+    ...overrides,
+  };
+}
+```
+
+## Continuous Integration
 
 Tests run automatically on:
-- Every push to `main`/`develop`
-- Every pull request
 
-See `.github/workflows/ci.yml` for configuration.
+- Pull request creation
+- Push to main branch
+- Nightly scheduled runs
+
+### GitHub Actions Configuration
+
+```yaml
+name: Tests
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci
+      - run: npm test
+      - run: npm run test:coverage
+      - uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage/lcov.info
+```
 
 ## Debugging Tests
 
-### Jest
+### VS Code Debug Configuration
 
-```bash
-# Debug mode
-node --inspect-brk node_modules/.bin/jest --runInBand
+Add to `.vscode/launch.json`:
+
+```json
+{
+  "type": "node",
+  "request": "launch",
+  "name": "Debug Tests",
+  "program": "${workspaceFolder}/node_modules/vitest/vitest.mjs",
+  "args": ["run", "--reporter=verbose"],
+  "console": "integratedTerminal",
+  "cwd": "${workspaceFolder}"
+}
 ```
 
-### Playwright
+### Debug Single Test
 
 ```bash
-# Debug mode
-PWDEBUG=1 npx playwright test
-
-# UI mode
-npx playwright test --ui
+# Run single test with inspector
+node --inspect-brk node_modules/vitest/vitest.mjs run -t "test name"
 ```
 
 ## Best Practices
 
-1. **Test behavior, not implementation**
-2. **Use descriptive test names**
-3. **One assertion per test when possible**
-4. **Use fixtures for setup/teardown**
-5. **Mock external dependencies**
-6. **Keep tests fast (< 100ms per unit test)**
-7. **Use data-testid for E2E selectors**
-
-
+1. **Isolate tests** - Each test should be independent
+2. **Mock external dependencies** - Don't rely on network or file system
+3. **Use descriptive names** - Test names should describe behavior
+4. **Test edge cases** - Include error conditions and boundaries
+5. **Keep tests fast** - Mock slow operations
+6. **Avoid test interdependence** - Reset state between tests
+7. **Test public API** - Focus on observable behavior
+8. **Use test data factories** - Create reusable test data

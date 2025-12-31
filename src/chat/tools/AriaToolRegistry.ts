@@ -3,11 +3,13 @@
  *
  * This bridges VS Code services to tool implementations that agents can invoke.
  * Tools are organized by category and respect mode-based permissions.
+ * Integrates with AriaTelemetry for usage tracking.
  */
 
 import { EventEmitter } from 'events';
 import type { AriaModeId } from '../modes/types';
 import { ModeRegistry } from '../modes/ModeRegistry';
+import { ariaTelemetry } from '../telemetry';
 
 /**
  * Tool input parameter definition
@@ -317,6 +319,24 @@ export class AriaToolRegistry extends EventEmitter {
       result.executionTimeMs = performance.now() - startTime;
       result.wasConfirmed = wasConfirmed;
 
+      // Track successful invocation in telemetry
+      try {
+        ariaTelemetry.trackToolInvocation(
+          toolId,
+          definition.category,
+          context.mode,
+          result.success,
+          result.executionTimeMs,
+          {
+            requiredConfirmation: definition.requiresConfirmation,
+            userApproved: wasConfirmed,
+          }
+        );
+      } catch (telemetryError) {
+        // Telemetry should never break functionality
+        console.warn('[AriaToolRegistry] Telemetry tracking failed:', telemetryError);
+      }
+
       this.emit('toolInvoked', {
         toolId,
         params,
@@ -327,11 +347,30 @@ export class AriaToolRegistry extends EventEmitter {
       return result;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
+      const executionTimeMs = performance.now() - startTime;
+
+      // Track failed invocation in telemetry
+      try {
+        ariaTelemetry.trackToolInvocation(
+          toolId,
+          definition.category,
+          context.mode,
+          false,
+          executionTimeMs,
+          {
+            errorType: error instanceof Error ? error.constructor.name : 'Unknown',
+            requiredConfirmation: definition.requiresConfirmation,
+          }
+        );
+      } catch (telemetryError) {
+        console.warn('[AriaToolRegistry] Telemetry tracking failed:', telemetryError);
+      }
+
       return {
         success: false,
         content: '',
         error: `Tool execution failed: ${errorMessage}`,
-        executionTimeMs: performance.now() - startTime,
+        executionTimeMs,
       };
     }
   }

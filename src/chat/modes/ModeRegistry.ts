@@ -2,6 +2,7 @@
  * ModeRegistry - Central registry for Aria modes
  *
  * Manages mode configurations, state, and mode switching logic.
+ * Integrates with AriaTelemetry for usage tracking.
  */
 
 import { EventEmitter } from 'events';
@@ -11,6 +12,7 @@ import type {
   AriaModeState,
   ModeChangeEvent,
 } from './types';
+import { ariaTelemetry } from '../telemetry';
 
 /**
  * Default mode configurations
@@ -281,6 +283,16 @@ export class ModeRegistry extends EventEmitter {
       switchContext: context,
       activePlanId: undefined, // Reset plan when switching modes
     };
+
+    // Track mode switch in telemetry
+    try {
+      ariaTelemetry.trackModeSwitch(previousMode, newModeId, reason, {
+        autoDetectContext: context,
+      });
+    } catch (error) {
+      // Telemetry should never break functionality
+      console.warn('[ModeRegistry] Telemetry tracking failed:', error);
+    }
 
     // Emit change event
     const event: ModeChangeEvent = {

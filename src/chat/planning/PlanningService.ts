@@ -6,6 +6,7 @@
  * - File-based persistence (markdown with YAML frontmatter)
  * - Session linking for plan-to-chat association
  * - Plan execution tracking
+ * Integrates with AriaTelemetry for usage tracking.
  */
 
 import { EventEmitter } from 'events';
@@ -16,6 +17,7 @@ import type {
   PlanFileFormat,
   AriaModeId,
 } from '../modes/types';
+import { ariaTelemetry } from '../telemetry';
 
 /**
  * Plan storage location options
@@ -106,6 +108,18 @@ export class PlanningService extends EventEmitter {
     // Link to session if provided
     if (options.sessionId) {
       this.sessionPlanMap.set(options.sessionId, plan.id);
+    }
+
+    // Track plan creation in telemetry
+    try {
+      ariaTelemetry.trackPlanEvent(
+        plan.id,
+        'created',
+        options.createdByMode,
+        plan.items.length
+      );
+    } catch (error) {
+      console.warn('[PlanningService] Telemetry tracking failed:', error);
     }
 
     this.emit('planCreated', plan);
@@ -218,6 +232,7 @@ export class PlanningService extends EventEmitter {
       throw new Error(`Item not found: ${itemId}`);
     }
 
+    const previousStatus = item.status;
     item.status = status;
     item.updatedAt = Date.now();
 
@@ -227,12 +242,37 @@ export class PlanningService extends EventEmitter {
 
     plan.updatedAt = Date.now();
 
+    // Track item status change in telemetry
+    try {
+      ariaTelemetry.trackPlanItemChange(planId, itemId, previousStatus, status);
+    } catch (error) {
+      console.warn('[PlanningService] Telemetry tracking failed:', error);
+    }
+
     // Check if plan is complete
     const allComplete = plan.items.every(
       (i) => i.status === 'completed' || i.status === 'cancelled'
     );
     if (allComplete && !plan.isComplete) {
       plan.isComplete = true;
+
+      // Track plan completion in telemetry
+      try {
+        const completedCount = plan.items.filter((i) => i.status === 'completed').length;
+        ariaTelemetry.trackPlanEvent(
+          planId,
+          'completed',
+          plan.createdByMode,
+          plan.items.length,
+          {
+            completedItemCount: completedCount,
+            durationMs: Date.now() - plan.createdAt,
+          }
+        );
+      } catch (error) {
+        console.warn('[PlanningService] Telemetry tracking failed:', error);
+      }
+
       this.emit('planCompleted', plan);
     }
 
@@ -247,6 +287,23 @@ export class PlanningService extends EventEmitter {
   deletePlan(planId: string): void {
     const plan = this.plans.get(planId);
     if (plan) {
+      // Track plan deletion in telemetry
+      try {
+        const completedCount = plan.items.filter((i) => i.status === 'completed').length;
+        ariaTelemetry.trackPlanEvent(
+          planId,
+          'deleted',
+          plan.createdByMode,
+          plan.items.length,
+          {
+            completedItemCount: completedCount,
+            durationMs: Date.now() - plan.createdAt,
+          }
+        );
+      } catch (error) {
+        console.warn('[PlanningService] Telemetry tracking failed:', error);
+      }
+
       this.plans.delete(planId);
 
       // Remove session mapping

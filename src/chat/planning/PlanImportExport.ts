@@ -270,7 +270,7 @@ export class PlanImportExport {
       const item = plan.items[i];
       lines.push(`### Step ${i + 1}: ${item.content}`);
       lines.push('');
-      
+
       if (item.status !== 'pending') {
         lines.push(`**Status:** ${item.status}`);
         lines.push('');

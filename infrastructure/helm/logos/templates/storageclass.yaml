@@ -1,0 +1,30 @@
+{{- if .Values.storageClass.create }}
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ .Values.storageClass.name | default "ssd-premium" }}
+  labels:
+    {{- include "logos.labels" . | nindent 4 }}
+provisioner: {{ .Values.storageClass.provisioner | default "ebs.csi.aws.com" }}
+parameters:
+  {{- if eq .Values.storageClass.provisioner "ebs.csi.aws.com" }}
+  type: {{ .Values.storageClass.type | default "gp3" }}
+  {{- if .Values.storageClass.iops }}
+  iops: {{ .Values.storageClass.iops | quote }}
+  {{- end }}
+  {{- if .Values.storageClass.throughput }}
+  throughput: {{ .Values.storageClass.throughput | quote }}
+  {{- end }}
+  encrypted: {{ .Values.storageClass.encrypted | default "true" | quote }}
+  {{- else if eq .Values.storageClass.provisioner "kubernetes.io/aws-ebs" }}
+  type: {{ .Values.storageClass.type | default "gp3" }}
+  encrypted: {{ .Values.storageClass.encrypted | default "true" | quote }}
+  {{- end }}
+  {{- with .Values.storageClass.extraParameters }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
+reclaimPolicy: {{ .Values.storageClass.reclaimPolicy | default "Delete" }}
+volumeBindingMode: {{ .Values.storageClass.volumeBindingMode | default "WaitForFirstConsumer" }}
+allowVolumeExpansion: {{ .Values.storageClass.allowVolumeExpansion | default true }}
+{{- end }}
+

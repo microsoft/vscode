@@ -1,6 +1,19 @@
 # Production values for Logos D3N-Native IDE
 # Domain: logos.bravozero.ai
 
+# -- Storage class configuration for persistent volumes
+storageClass:
+  create: true
+  name: ssd-premium
+  provisioner: ebs.csi.aws.com
+  type: gp3
+  iops: "3000"
+  throughput: "125"
+  encrypted: "true"
+  reclaimPolicy: Delete
+  volumeBindingMode: WaitForFirstConsumer
+  allowVolumeExpansion: true
+
 # -- Replica counts for production
 web:
   replicaCount: 3
