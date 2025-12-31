@@ -7,8 +7,8 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatRendererDelegate } from '../widget/chatListRenderer.js';
-import { ChatEditorOptions } from '../chatOptions.js';
-import { CodeBlockPart, CodeCompareBlockPart } from '../codeBlockPart.js';
+import { ChatEditorOptions } from '../widget/chatOptions.js';
+import { CodeBlockPart, CodeCompareBlockPart } from './codeBlockPart.js';
 import { ResourcePool, IDisposableReference } from './chatCollections.js';
 
 export class EditorPool extends Disposable {

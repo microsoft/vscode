@@ -11,7 +11,7 @@ import { HoverAnchor, HoverAnchorType, HoverParticipantRegistry, IEditorHoverPar
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatWidgetService } from '../chat.js';
-import { ChatAgentHover, getChatAgentHoverOptions } from '../chatAgentHover.js';
+import { ChatAgentHover, getChatAgentHoverOptions } from '../widget/chatAgentHover.js';
 import { ChatEditorHoverWrapper } from './editorHoverWrapper.js';
 import { IChatAgentData } from '../../common/participants/chatAgents.js';
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';

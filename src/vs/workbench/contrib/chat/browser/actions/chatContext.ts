@@ -26,7 +26,7 @@ import { IChatEditingService } from '../../common/chatEditingService.js';
 import { IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IImageVariableEntry, OmittedState, toToolSetVariableEntry, toToolVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ToolDataSource, ToolSet } from '../../common/tools/languageModelToolsService.js';
 import { IChatWidget } from '../chat.js';
-import { imageToHash, isImage } from '../chatPasteProviders.js';
+import { imageToHash, isImage } from '../contrib/chatPasteProviders.js';
 import { convertBufferToScreenshotVariable } from '../contrib/chatScreenshotContext.js';
 import { ChatInstructionsPickerPick } from '../promptSyntax/attachInstructionsAction.js';
 import { ITerminalService } from '../../../terminal/browser/terminal.js';

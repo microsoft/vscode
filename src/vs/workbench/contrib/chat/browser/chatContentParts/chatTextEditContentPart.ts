@@ -25,7 +25,7 @@ import { IChatProgressRenderableResponseContent, IChatTextEditGroup } from '../.
 import { IChatService } from '../../common/chatService.js';
 import { IChatResponseViewModel, isResponseVM } from '../../common/model/chatViewModel.js';
 import { IChatListItemRendererOptions } from '../chat.js';
-import { CodeCompareBlockPart, ICodeCompareBlockData, ICodeCompareBlockDiffData } from '../codeBlockPart.js';
+import { CodeCompareBlockPart, ICodeCompareBlockData, ICodeCompareBlockDiffData } from './codeBlockPart.js';
 import { IDisposableReference } from './chatCollections.js';
 import { DiffEditorPool } from './chatContentCodePools.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';

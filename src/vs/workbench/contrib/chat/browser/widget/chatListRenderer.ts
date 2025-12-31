@@ -47,7 +47,7 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchIssueService } from '../../../issue/common/issue.js';
 import { CodiconActionViewItem } from '../../../notebook/browser/view/cellParts/cellActionView.js';
-import { annotateSpecialMarkdownContent } from '../../common/ui/annotations.js';
+import { annotateSpecialMarkdownContent } from '../../common/widget/annotations.js';
 import { checkModeOption } from '../../common/chat.js';
 import { IChatAgentMetadata } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
@@ -59,12 +59,12 @@ import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { getNWords } from '../../common/model/chatWordCounter.js';
-import { CodeBlockModelCollection } from '../../common/ui/codeBlockModelCollection.js';
+import { CodeBlockModelCollection } from '../../common/widget/codeBlockModelCollection.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../common/constants.js';
 import { MarkUnhelpfulActionId } from '../actions/chatTitleActions.js';
 import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidgetService } from '../chat.js';
-import { ChatAgentHover, getChatAgentHoverOptions } from '../chatAgentHover.js';
-import { ChatContentMarkdownRenderer } from '../chatContentMarkdownRenderer.js';
+import { ChatAgentHover, getChatAgentHoverOptions } from './chatAgentHover.js';
+import { ChatContentMarkdownRenderer } from './chatContentMarkdownRenderer.js';
 import { ChatAgentCommandContentPart } from '../chatContentParts/chatAgentCommandContentPart.js';
 import { ChatAnonymousRateLimitedPart } from '../chatContentParts/chatAnonymousRateLimitedPart.js';
 import { ChatAttachmentsContentPart } from '../chatContentParts/chatAttachmentsContentPart.js';
@@ -90,9 +90,9 @@ import { ChatTextEditContentPart } from '../chatContentParts/chatTextEditContent
 import { ChatThinkingContentPart } from '../chatContentParts/chatThinkingContentPart.js';
 import { ChatTreeContentPart, TreePool } from '../chatContentParts/chatTreeContentPart.js';
 import { ChatToolInvocationPart } from '../chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
-import { ChatMarkdownDecorationsRenderer } from '../chatMarkdownDecorationsRenderer.js';
-import { ChatEditorOptions } from '../chatOptions.js';
-import { ChatCodeBlockContentProvider, CodeBlockPart } from '../codeBlockPart.js';
+import { ChatMarkdownDecorationsRenderer } from '../chatContentParts/chatMarkdownDecorationsRenderer.js';
+import { ChatEditorOptions } from './chatOptions.js';
+import { ChatCodeBlockContentProvider, CodeBlockPart } from '../chatContentParts/codeBlockPart.js';
 
 const $ = dom.$;
 

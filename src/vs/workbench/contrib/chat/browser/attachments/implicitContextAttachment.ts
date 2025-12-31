@@ -31,7 +31,7 @@ import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { IChatRequestImplicitVariableEntry, IChatRequestStringVariableEntry, isStringImplicitContextValue } from '../../common/attachments/chatVariableEntries.js';
 import { IChatWidget } from '../chat.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
-import { IChatContextService } from '../context/chatContextService.js';
+import { IChatContextService } from '../contextContrib/chatContextService.js';
 
 export class ImplicitContextAttachmentWidget extends Disposable {
 	public readonly domNode: HTMLElement;

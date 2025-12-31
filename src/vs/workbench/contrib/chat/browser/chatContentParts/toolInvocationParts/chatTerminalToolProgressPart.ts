@@ -9,7 +9,7 @@ import { isMarkdownString, MarkdownString } from '../../../../../../base/common/
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../common/chat.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../common/chatService.js';
-import { CodeBlockModelCollection } from '../../../common/ui/codeBlockModelCollection.js';
+import { CodeBlockModelCollection } from '../../../common/widget/codeBlockModelCollection.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
 import { ChatQueryTitlePart } from '../chatConfirmationWidget.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
@@ -17,7 +17,7 @@ import { ChatMarkdownContentPart, type IChatMarkdownContentPartOptions } from '.
 import { ChatProgressSubPart } from '../chatProgressContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 import '../media/chatTerminalToolProgressPart.css';
-import type { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
+import type { ICodeBlockRenderOptions } from '../codeBlockPart.js';
 import { Action, IAction } from '../../../../../../base/common/actions.js';
 import { IChatTerminalToolProgressPart, ITerminalChatService, ITerminalConfigurationService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../../terminal/browser/terminal.js';
 import { Disposable, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';

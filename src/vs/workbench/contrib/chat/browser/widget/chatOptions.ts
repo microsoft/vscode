@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Color } from '../../../../base/common/color.js';
-import { Emitter } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IBracketPairColorizationOptions, IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { IViewDescriptorService } from '../../../common/views.js';
+import { Color } from '../../../../../base/common/color.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { IBracketPairColorizationOptions, IEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { IViewDescriptorService } from '../../../../common/views.js';
 
 export interface IChatConfiguration {
 	editor: {

@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ChatSessionsService } from '../../browser/chatSessions.contribution.js';
+import { ChatSessionsService } from '../../browser/chatSessions/chatSessions.contribution.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
 suite.skip('ChatSessionsService', () => {

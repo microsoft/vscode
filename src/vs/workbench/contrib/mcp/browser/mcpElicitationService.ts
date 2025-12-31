@@ -16,7 +16,7 @@ import { localize } from '../../../../nls.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IQuickInputService, IQuickPick, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
-import { ChatElicitationRequestPart } from '../../chat/browser/chatElicitationRequestPart.js';
+import { ChatElicitationRequestPart } from '../../chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatModel } from '../../chat/common/model/chatModel.js';
 import { ElicitationState, IChatService } from '../../chat/common/chatService.js';
 import { LocalChatSessionUri } from '../../chat/common/model/chatUri.js';

@@ -6,7 +6,7 @@
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { assertSnapshot } from '../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ChatContentMarkdownRenderer } from '../../browser/chatContentMarkdownRenderer.js';
+import { ChatContentMarkdownRenderer } from '../../browser/widget/chatContentMarkdownRenderer.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
 suite('ChatMarkdownRenderer', () => {

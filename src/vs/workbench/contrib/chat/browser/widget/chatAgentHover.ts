@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from '../../../../base/browser/dom.js';
-import { IManagedHoverOptions } from '../../../../base/browser/ui/hover/hover.js';
-import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { FileAccess } from '../../../../base/common/network.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { URI } from '../../../../base/common/uri.js';
-import { localize } from '../../../../nls.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { getFullyQualifiedId, IChatAgentData, IChatAgentNameService, IChatAgentService } from '../common/participants/chatAgents.js';
-import { showExtensionsWithIdsCommandId } from '../../extensions/browser/extensionsActions.js';
-import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
-import { verifiedPublisherIcon } from '../../../services/extensionManagement/common/extensionsIcons.js';
+import * as dom from '../../../../../base/browser/dom.js';
+import { IManagedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
+import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { FileAccess } from '../../../../../base/common/network.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { localize } from '../../../../../nls.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { getFullyQualifiedId, IChatAgentData, IChatAgentNameService, IChatAgentService } from '../../common/participants/chatAgents.js';
+import { showExtensionsWithIdsCommandId } from '../../../extensions/browser/extensionsActions.js';
+import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
+import { verifiedPublisherIcon } from '../../../../services/extensionManagement/common/extensionsIcons.js';
 
 export class ChatAgentHover extends Disposable {
 	public readonly domNode: HTMLElement;

@@ -20,7 +20,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { fromNow, getDurationString } from '../../../../../base/common/date.js';
 import { FuzzyScore, createMatches } from '../../../../../base/common/filters.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
-import { allowedChatMarkdownHtmlTags } from '../chatContentMarkdownRenderer.js';
+import { allowedChatMarkdownHtmlTags } from '../widget/chatContentMarkdownRenderer.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
 import { ListViewTargetSector } from '../../../../../base/browser/ui/list/listView.js';

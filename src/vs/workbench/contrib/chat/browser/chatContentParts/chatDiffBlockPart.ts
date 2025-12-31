@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Emitter } from '../../../../base/common/event.js';
-import { hashAsync } from '../../../../base/common/hash.js';
-import { Disposable, IReference, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { Schemas } from '../../../../base/common/network.js';
-import { URI } from '../../../../base/common/uri.js';
-import { generateUuid } from '../../../../base/common/uuid.js';
-import { ILanguageService } from '../../../../editor/common/languages/language.js';
-import { ITextModel } from '../../../../editor/common/model.js';
-import { IModelService } from '../../../../editor/common/services/model.js';
-import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
-import { EditorModel } from '../../../common/editor/editorModel.js';
-import { IChatResponseViewModel } from '../common/model/chatViewModel.js';
-import { IDisposableReference } from './chatContentParts/chatCollections.js';
-import { DiffEditorPool } from './chatContentParts/chatContentCodePools.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { hashAsync } from '../../../../../base/common/hash.js';
+import { Disposable, IReference, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { EditorModel } from '../../../../common/editor/editorModel.js';
+import { IChatResponseViewModel } from '../../common/model/chatViewModel.js';
+import { IDisposableReference } from './chatCollections.js';
+import { DiffEditorPool } from './chatContentCodePools.js';
 import { CodeCompareBlockPart, ICodeCompareBlockData, ICodeCompareBlockDiffData } from './codeBlockPart.js';
 
 /**

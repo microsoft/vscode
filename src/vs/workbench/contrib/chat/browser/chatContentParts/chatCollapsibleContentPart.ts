@@ -13,7 +13,7 @@ import { autorun, IObservable, observableValue } from '../../../../../base/commo
 import { IChatRendererContent } from '../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../chat.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
-import { renderFileWidgets } from '../chatInlineAnchorWidget.js';
+import { renderFileWidgets } from './chatInlineAnchorWidget.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownRenderer } from '../../../../../platform/markdown/browser/markdownRenderer.js';

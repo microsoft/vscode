@@ -22,13 +22,13 @@ import { IKeybindingService } from '../../../../../../platform/keybinding/common
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../../platform/markers/common/markers.js';
 import { IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService.js';
-import { CodeBlockModelCollection } from '../../../common/ui/codeBlockModelCollection.js';
+import { CodeBlockModelCollection } from '../../../common/widget/codeBlockModelCollection.js';
 import { createToolInputUri, createToolSchemaUri, ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { ILanguageModelToolsConfirmationService } from '../../../common/tools/languageModelToolsConfirmationService.js';
 import { AcceptToolConfirmationActionId, SkipToolConfirmationActionId } from '../../actions/chatToolActions.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
-import { renderFileWidgets } from '../../chatInlineAnchorWidget.js';
-import { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
+import { renderFileWidgets } from '../chatInlineAnchorWidget.js';
+import { ICodeBlockRenderOptions } from '../codeBlockPart.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { IChatMarkdownAnchorService } from '../chatMarkdownAnchorService.js';
 import { ChatMarkdownContentPart } from '../chatMarkdownContentPart.js';

@@ -32,7 +32,7 @@ import { ITextFileService } from '../../../services/textfile/common/textfiles.js
 import { IUntitledTextEditorModel } from '../../../services/untitled/common/untitledTextEditorModel.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { DefaultChatTextEditor } from '../../chat/browser/codeBlockPart.js';
+import { DefaultChatTextEditor } from '../../chat/browser/chatContentParts/codeBlockPart.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { ConflictActionsFactory, IContentWidgetAction } from '../../mergeEditor/browser/view/conflictActions.js';

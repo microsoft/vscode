@@ -49,7 +49,7 @@ import { MarkUnhelpfulActionId } from '../../chat/browser/actions/chatTitleActio
 import { IChatWidgetViewOptions } from '../../chat/browser/chat.js';
 import { ChatVoteDownButton } from '../../chat/browser/widget/chatListRenderer.js';
 import { ChatWidget, IChatWidgetLocationOptions } from '../../chat/browser/widget/chatWidget.js';
-import { chatRequestBackground } from '../../chat/common/ui/chatColors.js';
+import { chatRequestBackground } from '../../chat/common/widget/chatColors.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { IChatModel } from '../../chat/common/model/chatModel.js';
 import { ChatMode } from '../../chat/common/chatModes.js';

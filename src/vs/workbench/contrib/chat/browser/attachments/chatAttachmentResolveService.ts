@@ -29,7 +29,7 @@ import { SCMHistoryItemTransferData } from '../../../scm/browser/scmHistoryChatC
 import { CHAT_ATTACHABLE_IMAGE_MIME_TYPES, getAttachableImageExtension } from '../../common/model/chatModel.js';
 import { IChatRequestVariableEntry, OmittedState, IDiagnosticVariableEntry, IDiagnosticVariableEntryFilterData, ISymbolVariableEntry, toPromptFileVariableEntry, PromptFileVariableKind, ISCMHistoryItemVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { getPromptsTypeForLanguageId, PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { imageToHash } from '../chatPasteProviders.js';
+import { imageToHash } from '../contrib/chatPasteProviders.js';
 import { resizeImage } from '../chatImageUtils.js';
 
 export const IChatAttachmentResolveService = createDecorator<IChatAttachmentResolveService>('IChatAttachmentResolveService');

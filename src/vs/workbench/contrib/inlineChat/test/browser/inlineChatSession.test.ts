@@ -45,7 +45,7 @@ import { workbenchInstantiationService } from '../../../../test/browser/workbenc
 import { TestContextService, TestExtensionService } from '../../../../test/common/workbenchTestServices.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { IChatAccessibilityService, IChatWidgetService, IQuickChatService } from '../../../chat/browser/chat.js';
-import { ChatSessionsService } from '../../../chat/browser/chatSessions.contribution.js';
+import { ChatSessionsService } from '../../../chat/browser/chatSessions/chatSessions.contribution.js';
 import { ChatVariablesService } from '../../../chat/browser/attachments/chatVariables.js';
 import { ChatWidget } from '../../../chat/browser/widget/chatWidget.js';
 import { ChatAgentService, IChatAgentService } from '../../../chat/common/participants/chatAgents.js';
@@ -58,7 +58,7 @@ import { ChatSlashCommandService, IChatSlashCommandService } from '../../../chat
 import { ChatTransferService, IChatTransferService } from '../../../chat/common/model/chatTransferService.js';
 import { IChatVariablesService } from '../../../chat/common/attachments/chatVariables.js';
 import { IChatResponseViewModel } from '../../../chat/common/model/chatViewModel.js';
-import { ChatWidgetHistoryService, IChatWidgetHistoryService } from '../../../chat/common/ui/chatWidgetHistoryService.js';
+import { ChatWidgetHistoryService, IChatWidgetHistoryService } from '../../../chat/common/widget/chatWidgetHistoryService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../chat/common/constants.js';
 import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
 import { ILanguageModelToolsService } from '../../../chat/common/tools/languageModelToolsService.js';

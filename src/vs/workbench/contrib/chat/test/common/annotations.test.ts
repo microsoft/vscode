@@ -7,7 +7,7 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { assertSnapshot } from '../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IChatMarkdownContent } from '../../common/chatService.js';
-import { annotateSpecialMarkdownContent, extractVulnerabilitiesFromText } from '../../common/ui/annotations.js';
+import { annotateSpecialMarkdownContent, extractVulnerabilitiesFromText } from '../../common/widget/annotations.js';
 
 function content(str: string): IChatMarkdownContent {
 	return { kind: 'markdownContent', content: new MarkdownString(str) };

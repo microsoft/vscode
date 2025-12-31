@@ -21,7 +21,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IChatRendererContent } from '../../common/model/chatViewModel.js';
 import { LanguageModelPartAudience } from '../../common/languageModels.js';
 import { ChatTreeItem, IChatCodeBlockInfo } from '../chat.js';
-import { CodeBlockPart, ICodeBlockData, ICodeBlockRenderOptions } from '../codeBlockPart.js';
+import { CodeBlockPart, ICodeBlockData, ICodeBlockRenderOptions } from './codeBlockPart.js';
 import { IDisposableReference } from './chatCollections.js';
 import { ChatQueryTitlePart } from './chatConfirmationWidget.js';
 import { IChatContentPartRenderContext } from './chatContentParts.js';

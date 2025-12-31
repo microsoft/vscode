@@ -88,7 +88,7 @@ import { IChatSessionFileChange, IChatSessionProviderOptionItem, IChatSessionsSe
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isStringVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IChatResponseViewModel } from '../../common/model/chatViewModel.js';
-import { ChatHistoryNavigator } from '../../common/ui/chatWidgetHistoryService.js';
+import { ChatHistoryNavigator } from '../../common/widget/chatWidgetHistoryService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, validateChatMode } from '../../common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../common/languageModels.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
@@ -102,8 +102,8 @@ import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmen
 import { IDisposableReference } from '../chatContentParts/chatCollections.js';
 import { CollapsibleListPool, IChatCollapsibleListItem } from '../chatContentParts/chatReferencesContentPart.js';
 import { ChatTodoListWidget } from '../chatContentParts/chatTodoListWidget.js';
-import { IChatContextService } from '../context/chatContextService.js';
-import { ChatDragAndDrop } from '../chatDragAndDrop.js';
+import { IChatContextService } from '../contextContrib/chatContextService.js';
+import { ChatDragAndDrop } from './chatDragAndDrop.js';
 import { ChatEditingShowChangesAction, ViewAllSessionChangesAction, ViewPreviousEditsAction } from '../chatEditing/chatEditingActions.js';
 import { ChatFollowups } from './chatFollowups.js';
 import { ChatInputPartWidgetController } from './chatInputPartWidgets.js';

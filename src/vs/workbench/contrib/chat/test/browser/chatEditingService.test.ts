@@ -32,7 +32,7 @@ import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService } from '../..
 import { NotebookTextModel } from '../../../notebook/common/model/notebookTextModel.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { ChatEditingService } from '../../browser/chatEditing/chatEditingServiceImpl.js';
-import { ChatSessionsService } from '../../browser/chatSessions.contribution.js';
+import { ChatSessionsService } from '../../browser/chatSessions/chatSessions.contribution.js';
 import { ChatAgentService, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../common/participants/chatAgents.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { ChatModel } from '../../common/model/chatModel.js';

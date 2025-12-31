@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { derived, IObservable } from '../../../../base/common/observable.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
-import { IChatLayoutService } from '../common/ui/chatLayoutService.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { derived, IObservable } from '../../../../../base/common/observable.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
+import { IChatLayoutService } from '../../common/widget/chatLayoutService.js';
 
 const FONT_SIZE = 13;
 

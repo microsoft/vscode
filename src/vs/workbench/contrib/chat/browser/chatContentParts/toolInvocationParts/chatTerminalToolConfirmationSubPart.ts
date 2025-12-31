@@ -35,10 +35,10 @@ import { TerminalContribCommandId, TerminalContribSettingId } from '../../../../
 import { migrateLegacyTerminalToolSpecificData } from '../../../common/chat.js';
 import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { IChatToolInvocation, ToolConfirmKind, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../common/chatService.js';
-import type { CodeBlockModelCollection } from '../../../common/ui/codeBlockModelCollection.js';
+import type { CodeBlockModelCollection } from '../../../common/widget/codeBlockModelCollection.js';
 import { AcceptToolConfirmationActionId, SkipToolConfirmationActionId } from '../../actions/chatToolActions.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
-import { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
+import { ICodeBlockRenderOptions } from '../codeBlockPart.js';
 import { ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatConfirmationWidget.js';
 import { EditorPool } from '../chatContentCodePools.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';

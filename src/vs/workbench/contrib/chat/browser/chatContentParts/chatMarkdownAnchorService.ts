@@ -6,7 +6,7 @@
 import { addDisposableListener, isActiveElement } from '../../../../../base/browser/dom.js';
 import { Disposable, IDisposable, combinedDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
-import { InlineAnchorWidget } from '../chatInlineAnchorWidget.js';
+import { InlineAnchorWidget } from './chatInlineAnchorWidget.js';
 
 
 export const IChatMarkdownAnchorService = createDecorator<IChatMarkdownAnchorService>('chatMarkdownAnchorService');

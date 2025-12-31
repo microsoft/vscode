@@ -16,7 +16,7 @@ import { localize } from '../../../../../nls.js';
 import { IChatProgressMessage, IChatTask, IChatTaskSerialized, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../common/chatService.js';
 import { IChatRendererContent, isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../chat.js';
-import { renderFileWidgets } from '../chatInlineAnchorWidget.js';
+import { renderFileWidgets } from './chatInlineAnchorWidget.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';

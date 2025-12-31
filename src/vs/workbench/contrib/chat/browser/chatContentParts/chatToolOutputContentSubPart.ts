@@ -29,7 +29,7 @@ import { IMarkdownString, MarkdownString } from '../../../../../base/common/html
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IChatCodeBlockInfo } from '../chat.js';
-import { CodeBlockPart, ICodeBlockData } from '../codeBlockPart.js';
+import { CodeBlockPart, ICodeBlockData } from './codeBlockPart.js';
 import { ChatAttachmentsContentPart } from './chatAttachmentsContentPart.js';
 import { IDisposableReference } from './chatCollections.js';
 import { IChatContentPartRenderContext } from './chatContentParts.js';
