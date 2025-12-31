@@ -208,10 +208,10 @@ If PVCs are stuck in `Pending` state:
    ```bash
    # Delete StatefulSet keeping pods
    kubectl delete statefulset logos-postgresql --cascade=orphan -n logos
-   
+
    # Delete PVC
    kubectl delete pvc data-logos-postgresql-0 -n logos
-   
+
    # Recreate StatefulSet
    helm upgrade logos infrastructure/helm/logos -n logos
    ```

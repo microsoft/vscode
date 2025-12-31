@@ -498,7 +498,7 @@ ORDER BY count DESC
 
 **Tool reliability:**
 ```sql
-SELECT toolId, 
+SELECT toolId,
        COUNT(*) as total,
        SUM(CASE WHEN success THEN 1 ELSE 0 END) as successes,
        AVG(executionTimeMs) as avgTime
