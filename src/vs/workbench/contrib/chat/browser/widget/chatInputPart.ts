@@ -102,7 +102,7 @@ import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmen
 import { IDisposableReference } from '../chatContentParts/chatCollections.js';
 import { CollapsibleListPool, IChatCollapsibleListItem } from '../chatContentParts/chatReferencesContentPart.js';
 import { ChatTodoListWidget } from '../chatContentParts/chatTodoListWidget.js';
-import { IChatContextService } from '../chatContextService.js';
+import { IChatContextService } from '../context/chatContextService.js';
 import { ChatDragAndDrop } from '../chatDragAndDrop.js';
 import { ChatEditingShowChangesAction, ViewAllSessionChangesAction, ViewPreviousEditsAction } from '../chatEditing/chatEditingActions.js';
 import { ChatFollowups } from './chatFollowups.js';
@@ -112,8 +112,8 @@ import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from '../chat
 import { ChatImplicitContext } from '../contrib/chatImplicitContext.js';
 import { ChatRelatedFiles } from '../contrib/chatInputRelatedFilesContrib.js';
 import { resizeImage } from '../chatImageUtils.js';
-import { IModelPickerDelegate, ModelPickerActionItem } from '../modelPicker/modelPickerActionItem.js';
-import { IModePickerDelegate, ModePickerActionItem } from '../modelPicker/modePickerActionItem.js';
+import { IModelPickerDelegate, ModelPickerActionItem } from './modelPicker/modelPickerActionItem.js';
+import { IModePickerDelegate, ModePickerActionItem } from './modelPicker/modePickerActionItem.js';
 
 const $ = dom.$;
 

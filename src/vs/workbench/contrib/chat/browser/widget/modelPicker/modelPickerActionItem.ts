@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction } from '../../../../../base/common/actions.js';
-import { Event } from '../../../../../base/common/event.js';
-import { ILanguageModelChatMetadataAndIdentifier } from '../../common/languageModels.js';
-import { localize } from '../../../../../nls.js';
-import * as dom from '../../../../../base/browser/dom.js';
-import { renderIcon, renderLabelWithIcons } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { ActionWidgetDropdownActionViewItem } from '../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
-import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
-import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider, IActionWidgetDropdownOptions } from '../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
-import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
-import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../common/modelPicker/modelPickerWidget.js';
-import { IActionProvider } from '../../../../../base/browser/ui/dropdown/dropdown.js';
-import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { IProductService } from '../../../../../platform/product/common/productService.js';
-import { MANAGE_CHAT_COMMAND_ID } from '../../common/constants.js';
-import { TelemetryTrustedValue } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IAction } from '../../../../../../base/common/actions.js';
+import { Event } from '../../../../../../base/common/event.js';
+import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
+import { localize } from '../../../../../../nls.js';
+import * as dom from '../../../../../../base/browser/dom.js';
+import { renderIcon, renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { ActionWidgetDropdownActionViewItem } from '../../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
+import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
+import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider, IActionWidgetDropdownOptions } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
+import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../../common/modelPicker/modelPickerWidget.js';
+import { IActionProvider } from '../../../../../../base/browser/ui/dropdown/dropdown.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { IProductService } from '../../../../../../platform/product/common/productService.js';
+import { MANAGE_CHAT_COMMAND_ID } from '../../../common/constants.js';
+import { TelemetryTrustedValue } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 
 export interface IModelPickerDelegate {
 	readonly onDidChangeModel: Event<ILanguageModelChatMetadataAndIdentifier>;

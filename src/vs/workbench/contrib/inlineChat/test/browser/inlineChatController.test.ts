@@ -52,7 +52,7 @@ import { TestViewsService, workbenchInstantiationService } from '../../../../tes
 import { TestChatEntitlementService, TestContextService, TestExtensionService } from '../../../../test/common/workbenchTestServices.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { IChatAccessibilityService, IChatWidget, IChatWidgetService, IQuickChatService } from '../../../chat/browser/chat.js';
-import { ChatContextService, IChatContextService } from '../../../chat/browser/chatContextService.js';
+import { ChatContextService, IChatContextService } from '../../../chat/browser/context/chatContextService.js';
 import { ChatInputBoxContentProvider } from '../../../chat/browser/chatEdinputInputContentProvider.js';
 import { ChatLayoutService } from '../../../chat/browser/chatLayoutService.js';
 import { ChatVariablesService } from '../../../chat/browser/attachments/chatVariables.js';
