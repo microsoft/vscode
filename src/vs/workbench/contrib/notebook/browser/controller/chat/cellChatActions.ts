@@ -22,7 +22,7 @@ import { NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED } from '../../../comm
 import { Iterable } from '../../../../../../base/common/iterator.js';
 import { ICodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
-import { ChatContextKeys } from '../../../../chat/common/chatContextKeys.js';
+import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
 import { InlineChatController } from '../../../../inlineChat/browser/inlineChatController.js';
 import { EditorAction2 } from '../../../../../../editor/browser/editorExtensions.js';
 
