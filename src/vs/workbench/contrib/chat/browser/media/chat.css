@@ -9,7 +9,8 @@
 	max-width: 950px;
 	height: 100%;
 	margin: auto;
-	position: relative; /* Enable absolute positioning for child elements */
+	position: relative;
+	/* Enable absolute positioning for child elements */
 
 	/* 11px when base font is 13px */
 	--vscode-chat-font-size-body-xs: 0.846em;
@@ -564,6 +565,7 @@
 }
 
 .interactive-item-container .value .from-sub-agent {
+
 	&.chat-tool-invocation-part,
 	&.chat-confirmation-widget,
 	&.chat-terminal-confirmation-widget,
@@ -988,16 +990,15 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .chat-related-files .monaco-button.codicon.codicon-add {
 	display: flex;
-	flex-direction: column;
+	align-items: center;
+	justify-content: center;
 	color: var(--vscode-descriptionForeground);
-	padding-top: 3px;
 	margin-left: -4px;
 	padding-left: 4px;
 	font-size: 14px;
 	/* The + codicon is large, make it look more like the x codicon */
-	height: calc(100% - 3px);
+	height: 100%;
 	width: 17px;
-	outline-offset: -2px !important;
 }
 
 .interactive-session .chat-related-files .monaco-icon-label::before {
