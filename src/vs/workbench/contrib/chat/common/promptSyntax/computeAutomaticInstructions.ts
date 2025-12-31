@@ -22,7 +22,7 @@ import { PromptsConfig } from './config/config.js';
 import { isPromptOrInstructionsFile } from './config/promptFileLocations.js';
 import { PromptsType } from './promptTypes.js';
 import { ParsedPromptFile } from './promptFileParser.js';
-import { IPromptPath, IPromptsService, PromptsStorage, ExtensionAgentSourceType } from './service/promptsService.js';
+import { IPromptPath, IPromptsService } from './service/promptsService.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { ChatConfiguration } from '../constants.js';
 
@@ -88,9 +88,6 @@ export class ComputeAutomaticInstructions {
 		const telemetryEvent: InstructionsCollectionEvent = newInstructionsCollectionEvent();
 		const context = this._getContext(variables);
 
-		// add instructions from providers (always included)
-		await this.addProviderInstructions(instructionFiles, context, variables, telemetryEvent, token);
-
 		// find instructions where the `applyTo` matches the attached context
 		await this.addApplyingInstructions(instructionFiles, context, variables, telemetryEvent, token);
 
@@ -113,42 +110,6 @@ export class ComputeAutomaticInstructions {
 		// Emit telemetry
 		telemetryEvent.totalInstructionsCount = telemetryEvent.agentInstructionsCount + telemetryEvent.referencedInstructionsCount + telemetryEvent.applyingInstructionsCount + telemetryEvent.listedInstructionsCount;
 		this._telemetryService.publicLog2<InstructionsCollectionEvent, InstructionsCollectionClassification>('instructionsCollected', telemetryEvent);
-	}
-
-	/** public for testing */
-	public async addProviderInstructions(instructionFiles: readonly IPromptPath[], context: { files: ResourceSet; instructions: ResourceSet }, variables: ChatRequestVariableSet, telemetryEvent: InstructionsCollectionEvent, token: CancellationToken): Promise<void> {
-
-		for (const instructionPath of instructionFiles) {
-			// Only include instructions from extension providers (not contributed files)
-			if (instructionPath.storage !== PromptsStorage.extension) {
-				continue;
-			}
-
-			// Check that the source is from a provider, not a contribution
-			if (instructionPath.source !== ExtensionAgentSourceType.provider) {
-				continue;
-			}
-
-			const uri = instructionPath.uri;
-
-			if (context.instructions.has(uri)) {
-				// the instruction file is already part of the input or has already been processed
-				this._logService.trace(`[InstructionsContextComputer] Skipping already processed provider instruction file: ${uri}`);
-				continue;
-			}
-
-			const parsedFile = await this._parseInstructionsFile(uri, token);
-			if (!parsedFile) {
-				this._logService.trace(`[InstructionsContextComputer] Unable to read provider instruction: ${uri}`);
-				continue;
-			}
-
-			this._logService.trace(`[InstructionsContextComputer] Adding provider instruction: ${uri}`);
-
-			const reason = localize('instruction.file.reason.provider', 'Automatically attached from extension provider');
-			variables.add(toPromptFileVariableEntry(uri, PromptFileVariableKind.Instruction, reason, true));
-			telemetryEvent.applyingInstructionsCount++;
-		}
 	}
 
 	/** public for testing */
