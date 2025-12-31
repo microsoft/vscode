@@ -12,10 +12,10 @@ import { XtermTerminal } from './xterm/xtermTerminal.js';
 import { TERMINAL_BACKGROUND_COLOR } from '../common/terminalColorRegistry.js';
 import { PANEL_BACKGROUND } from '../../../common/theme.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
+import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { Color } from '../../../../base/common/color.js';
-import type { IChatTerminalToolInvocationData } from '../../chat/common/chatService.js';
+import type { IChatTerminalToolInvocationData } from '../../chat/common/chatService/chatService.js';
 import type { IColorTheme } from '../../../../platform/theme/common/themeService.js';
 
 function getChatTerminalBackgroundColor(theme: IColorTheme, contextKeyService: IContextKeyService, storedBackground?: string): Color | undefined {
