@@ -7,7 +7,7 @@ import type { IMarkdownString } from '../../../../../../../base/common/htmlConte
 import type { IDisposable } from '../../../../../../../base/common/lifecycle.js';
 import type { OperatingSystem } from '../../../../../../../base/common/platform.js';
 import type { URI } from '../../../../../../../base/common/uri.js';
-import type { ToolConfirmationAction } from '../../../../../chat/common/languageModelToolsService.js';
+import type { ToolConfirmationAction } from '../../../../../chat/common/tools/languageModelToolsService.js';
 import type { TreeSitterCommandParserLanguage } from '../../treeSitterCommandParser.js';
 
 export interface ICommandLineAnalyzer extends IDisposable {
