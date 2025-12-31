@@ -12,7 +12,7 @@ import { getActiveDocument } from '../../../../../../base/browser/dom.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { strictEqual } from 'assert';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
-import { IChatAgent } from '../../../../chat/common/chatAgents.js';
+import { IChatAgent } from '../../../../chat/common/participants/chatAgents.js';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../chat/common/constants.js';
 import { InitialHintAddon } from '../../browser/terminal.initialHint.contribution.js';
