@@ -359,7 +359,9 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 	[TerminalChatAgentToolsSettingId.AutoApproveWorkspaceNpmScripts]: {
 		restricted: true,
 		type: 'boolean',
-		default: true, // The workspace is trusted by default, so scripts it defines are also trusted
+		// In order to use agent mode the workspace must be trusted, this plus the fact that
+		// modifying package.json is protected means this is safe to enable by default.
+		default: true,
 		tags: ['experimental'],
 		markdownDescription: localize('autoApproveWorkspaceNpmScripts.description', "Whether to automatically approve npm, yarn, and pnpm run commands when the script is defined in a workspace package.json file. Since the workspace is trusted, scripts defined in package.json are considered safe to run without explicit approval."),
 	},
