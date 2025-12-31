@@ -19,19 +19,18 @@ import { TerminalToolConfirmationStorageKeys } from '../../../../../chat/browser
 
 /**
  * Regex patterns to match npm/yarn/pnpm run commands and extract the script name.
- * Captures the script name in group 1.
+ * Uses named capture groups: 'command' for the package manager, 'scriptName' for the script.
  */
 const npmRunPatterns = [
-	// npm run <script>, npm run-script <script>
-	/^npm\s+(?:run(?:-script)?)\s+([^\s&|;]+)/i,
+	// npm run <script>
+	// npm run-script <script>
+	/^(?<command>npm)\s+(?:run(?:-script)?)\s+(?<scriptName>[^\s&|;]+)/i,
+	// yarn <script>
 	// yarn run <script>
-	/^yarn\s+run\s+([^\s&|;]+)/i,
-	// yarn <script> (shorthand, but exclude yarn built-in commands)
-	/^yarn\s+([^\s&|;]+)/i,
+	/^(?<command>yarn)\s+(?:run\s+)?(?<scriptName>[^\s&|;]+)/i,
+	// pnpm <script>
 	// pnpm run <script>
-	/^pnpm\s+run\s+([^\s&|;]+)/i,
-	// pnpm <script> (shorthand)
-	/^pnpm\s+([^\s&|;]+)/i,
+	/^(?<command>pnpm)\s+(?:run\s+)?(?<scriptName>[^\s&|;]+)/i,
 ];
 
 /**
@@ -162,19 +161,15 @@ export class CommandLineNpmScriptAutoApproveAnalyzer extends Disposable implemen
 
 			for (const pattern of npmRunPatterns) {
 				const match = trimmedCommand.match(pattern);
-				if (match && match[1]) {
-					const scriptName = match[1];
+				if (match?.groups?.scriptName) {
+					const { command, scriptName } = match.groups;
 
 					// Check if this is a yarn/pnpm shorthand that matches a built-in command
-					if (pattern.source.includes('yarn\\s+([^')) {
-						if (yarnBuiltinCommands.has(scriptName.toLowerCase())) {
-							continue;
-						}
+					if (command.toLowerCase() === 'yarn' && yarnBuiltinCommands.has(scriptName.toLowerCase())) {
+						continue;
 					}
-					if (pattern.source.includes('pnpm\\s+([^')) {
-						if (pnpmBuiltinCommands.has(scriptName.toLowerCase())) {
-							continue;
-						}
+					if (command.toLowerCase() === 'pnpm' && pnpmBuiltinCommands.has(scriptName.toLowerCase())) {
+						continue;
 					}
 
 					scriptNames.push(scriptName);

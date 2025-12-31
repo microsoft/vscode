@@ -130,6 +130,11 @@ suite('CommandLineNpmScriptAutoApproveAnalyzer', () => {
 		test('npm run lint - script exists', () => t('npm run lint', { lint: 'eslint .' }, true));
 		test('npm run-script build - script exists', () => t('npm run-script build', { build: 'tsc' }, true));
 
+		// Scripts with colons (namespaced scripts)
+		test('npm run build:prod - script with colon exists', () => t('npm run build:prod', { 'build:prod': 'tsc --build' }, true));
+		test('npm run test:unit - script with colon exists', () => t('npm run test:unit', { 'test:unit': 'jest --testPathPattern=unit' }, true));
+		test('npm run lint:fix - script with colon exists', () => t('npm run lint:fix', { 'lint:fix': 'eslint . --fix' }, true));
+
 		test('npm run missing - script does not exist', () => t('npm run missing', { build: 'tsc' }, undefined));
 		test('npm run build - no scripts section', async () => {
 			const packageJsonUri = URI.joinPath(cwd, 'package.json');
