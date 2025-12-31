@@ -6,7 +6,7 @@
 import { strictEqual } from 'assert';
 import { VSBuffer } from '../../../../../../../base/common/buffer.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
-import { isWindows, OperatingSystem } from '../../../../../../../base/common/platform.js';
+import { OperatingSystem } from '../../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { ITreeSitterLibraryService } from '../../../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
@@ -22,6 +22,7 @@ import { Workspace } from '../../../../../../../platform/workspace/test/common/t
 import { TerminalToolConfirmationStorageKeys } from '../../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import { TreeSitterLibraryService } from '../../../../../../services/treeSitter/browser/treeSitterLibraryService.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
+import { TestIPCFileSystemProvider } from '../../../../../../test/electron-browser/workbenchTestServices.js';
 import { TestContextService, TestStorageService } from '../../../../../../test/common/workbenchTestServices.js';
 import type { ICommandLineAnalyzerOptions } from '../../../browser/tools/commandLineAnalyzer/commandLineAnalyzer.js';
 import { CommandLineNpmScriptAutoApproveAnalyzer } from '../../../browser/tools/commandLineAnalyzer/commandLineNpmScriptAutoApproveAnalyzer.js';
@@ -42,16 +43,25 @@ suite('CommandLineNpmScriptAutoApproveAnalyzer', () => {
 
 	const mockLog = (..._args: unknown[]) => { };
 
-	const cwd = URI.file('/workspace/project');
+	// Use inMemory scheme to avoid platform-specific path issues
+	const cwd = URI.from({ scheme: Schemas.inMemory, path: '/workspace/project' });
 
-	setup(() => {
+	setup(async () => {
 		fileService = store.add(new FileService(new NullLogService()));
+
+		// Register file: scheme provider for tree-sitter WASM grammar loading
+		store.add(fileService.registerProvider(Schemas.file, new TestIPCFileSystemProvider()));
+
+		// Register inMemory: scheme provider for test package.json files
 		fileSystemProvider = store.add(new InMemoryFileSystemProvider());
-		store.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
+		store.add(fileService.registerProvider(Schemas.inMemory, fileSystemProvider));
+
+		// Create workspace directory structure
+		await fileService.createFolder(cwd);
 
 		configurationService = new TestConfigurationService();
 		workspaceContextService = new TestContextService();
-		storageService = new TestStorageService();
+		storageService = store.add(new TestStorageService());
 
 		instantiationService = workbenchInstantiationService({
 			fileService: () => fileService,
@@ -100,9 +110,9 @@ suite('CommandLineNpmScriptAutoApproveAnalyzer', () => {
 		const options: ICommandLineAnalyzerOptions = {
 			commandLine,
 			cwd,
-			shell: isWindows ? 'pwsh' : 'bash',
-			os: isWindows ? OperatingSystem.Windows : OperatingSystem.Linux,
-			treeSitterLanguage: isWindows ? TreeSitterCommandParserLanguage.PowerShell : TreeSitterCommandParserLanguage.Bash,
+			shell: 'bash',
+			os: OperatingSystem.Linux,
+			treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
 			terminalToolSessionId: 'test',
 			chatSessionId: 'test',
 		};
@@ -128,9 +138,9 @@ suite('CommandLineNpmScriptAutoApproveAnalyzer', () => {
 			const options: ICommandLineAnalyzerOptions = {
 				commandLine: 'npm run build',
 				cwd,
-				shell: isWindows ? 'pwsh' : 'bash',
-				os: isWindows ? OperatingSystem.Windows : OperatingSystem.Linux,
-				treeSitterLanguage: isWindows ? TreeSitterCommandParserLanguage.PowerShell : TreeSitterCommandParserLanguage.Bash,
+				shell: 'bash',
+				os: OperatingSystem.Linux,
+				treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
 				terminalToolSessionId: 'test',
 				chatSessionId: 'test',
 			};
@@ -180,10 +190,10 @@ suite('CommandLineNpmScriptAutoApproveAnalyzer', () => {
 		test('npm run build - no package.json file', async () => {
 			const options: ICommandLineAnalyzerOptions = {
 				commandLine: 'npm run build',
-				cwd: URI.file('/nonexistent/path'),
-				shell: isWindows ? 'pwsh' : 'bash',
-				os: isWindows ? OperatingSystem.Windows : OperatingSystem.Linux,
-				treeSitterLanguage: isWindows ? TreeSitterCommandParserLanguage.PowerShell : TreeSitterCommandParserLanguage.Bash,
+				cwd: URI.from({ scheme: Schemas.inMemory, path: '/nonexistent/path' }),
+				shell: 'bash',
+				os: OperatingSystem.Linux,
+				treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
 				terminalToolSessionId: 'test',
 				chatSessionId: 'test',
 			};
@@ -210,9 +220,9 @@ suite('CommandLineNpmScriptAutoApproveAnalyzer', () => {
 			const options: ICommandLineAnalyzerOptions = {
 				commandLine: 'npm run build',
 				cwd,
-				shell: isWindows ? 'pwsh' : 'bash',
-				os: isWindows ? OperatingSystem.Windows : OperatingSystem.Linux,
-				treeSitterLanguage: isWindows ? TreeSitterCommandParserLanguage.PowerShell : TreeSitterCommandParserLanguage.Bash,
+				shell: 'bash',
+				os: OperatingSystem.Linux,
+				treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
 				terminalToolSessionId: 'test',
 				chatSessionId: 'test',
 			};
@@ -231,9 +241,9 @@ suite('CommandLineNpmScriptAutoApproveAnalyzer', () => {
 			const options: ICommandLineAnalyzerOptions = {
 				commandLine: 'npm run build',
 				cwd,
-				shell: isWindows ? 'pwsh' : 'bash',
-				os: isWindows ? OperatingSystem.Windows : OperatingSystem.Linux,
-				treeSitterLanguage: isWindows ? TreeSitterCommandParserLanguage.PowerShell : TreeSitterCommandParserLanguage.Bash,
+				shell: 'bash',
+				os: OperatingSystem.Linux,
+				treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
 				terminalToolSessionId: 'test',
 				chatSessionId: 'test',
 			};
@@ -252,9 +262,9 @@ suite('CommandLineNpmScriptAutoApproveAnalyzer', () => {
 			const options: ICommandLineAnalyzerOptions = {
 				commandLine: 'npm run build',
 				cwd,
-				shell: isWindows ? 'pwsh' : 'bash',
-				os: isWindows ? OperatingSystem.Windows : OperatingSystem.Linux,
-				treeSitterLanguage: isWindows ? TreeSitterCommandParserLanguage.PowerShell : TreeSitterCommandParserLanguage.Bash,
+				shell: 'bash',
+				os: OperatingSystem.Linux,
+				treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
 				terminalToolSessionId: 'test',
 				chatSessionId: 'test',
 			};
@@ -273,9 +283,9 @@ suite('CommandLineNpmScriptAutoApproveAnalyzer', () => {
 			const options: ICommandLineAnalyzerOptions = {
 				commandLine: 'npm run build',
 				cwd,
-				shell: isWindows ? 'pwsh' : 'bash',
-				os: isWindows ? OperatingSystem.Windows : OperatingSystem.Linux,
-				treeSitterLanguage: isWindows ? TreeSitterCommandParserLanguage.PowerShell : TreeSitterCommandParserLanguage.Bash,
+				shell: 'bash',
+				os: OperatingSystem.Linux,
+				treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
 				terminalToolSessionId: 'test',
 				chatSessionId: 'test',
 			};
@@ -293,9 +303,9 @@ suite('CommandLineNpmScriptAutoApproveAnalyzer', () => {
 			const options: ICommandLineAnalyzerOptions = {
 				commandLine: 'npm run lint && npm run test',
 				cwd,
-				shell: isWindows ? 'pwsh' : 'bash',
-				os: isWindows ? OperatingSystem.Windows : OperatingSystem.Linux,
-				treeSitterLanguage: isWindows ? TreeSitterCommandParserLanguage.PowerShell : TreeSitterCommandParserLanguage.Bash,
+				shell: 'bash',
+				os: OperatingSystem.Linux,
+				treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
 				terminalToolSessionId: 'test',
 				chatSessionId: 'test',
 			};
@@ -315,9 +325,9 @@ suite('CommandLineNpmScriptAutoApproveAnalyzer', () => {
 			const options: ICommandLineAnalyzerOptions = {
 				commandLine: 'npm run build',
 				cwd: undefined, // No cwd
-				shell: isWindows ? 'pwsh' : 'bash',
-				os: isWindows ? OperatingSystem.Windows : OperatingSystem.Linux,
-				treeSitterLanguage: isWindows ? TreeSitterCommandParserLanguage.PowerShell : TreeSitterCommandParserLanguage.Bash,
+				shell: 'bash',
+				os: OperatingSystem.Linux,
+				treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
 				terminalToolSessionId: 'test',
 				chatSessionId: 'test',
 			};

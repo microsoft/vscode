@@ -36,6 +36,8 @@ const npmRunPatterns = [
 
 /**
  * Yarn built-in commands that should not be treated as script names.
+ * Note: 'test' is omitted since it's commonly a user script, and 'yarn test'
+ * is often used to run the 'test' script from package.json.
  */
 const yarnBuiltinCommands = new Set([
 	'add', 'audit', 'autoclean', 'bin', 'cache', 'check', 'config',
@@ -44,19 +46,21 @@ const yarnBuiltinCommands = new Set([
 	'link', 'list', 'login', 'logout', 'node', 'outdated', 'owner',
 	'pack', 'patch', 'patch-commit', 'plugin', 'policies', 'publish',
 	'rebuild', 'remove', 'run', 'search', 'set', 'stage', 'tag', 'team',
-	'test', 'unlink', 'unplug', 'up', 'upgrade', 'upgrade-interactive',
+	'unlink', 'unplug', 'up', 'upgrade', 'upgrade-interactive',
 	'version', 'versions', 'why', 'workspace', 'workspaces',
 ]);
 
 /**
  * pnpm built-in commands that should not be treated as script names.
+ * Note: 'test' is omitted since it's commonly a user script, and 'pnpm test'
+ * is often used to run the 'test' script from package.json.
  */
 const pnpmBuiltinCommands = new Set([
 	'add', 'audit', 'bin', 'config', 'dedupe', 'deploy', 'dlx', 'doctor',
 	'env', 'exec', 'fetch', 'import', 'init', 'install', 'install-test',
 	'licenses', 'link', 'list', 'ln', 'ls', 'outdated', 'pack', 'patch',
 	'patch-commit', 'patch-remove', 'prune', 'publish', 'rb', 'rebuild',
-	'remove', 'rm', 'root', 'run', 'server', 'setup', 'store', 'test',
+	'remove', 'rm', 'root', 'run', 'server', 'setup', 'store',
 	'un', 'uninstall', 'unlink', 'up', 'update', 'why',
 ]);
 
