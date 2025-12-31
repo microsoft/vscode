@@ -22,7 +22,7 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ITerminalCapabilityStore, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
-import { IChatAgent, IChatAgentService } from '../../../chat/common/chatAgents.js';
+import { IChatAgent, IChatAgentService } from '../../../chat/common/participants/chatAgents.js';
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
 import { IDetachedTerminalInstance, ITerminalContribution, ITerminalInstance, IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { registerTerminalContribution, type IDetachedCompatibleTerminalContributionContext, type ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
