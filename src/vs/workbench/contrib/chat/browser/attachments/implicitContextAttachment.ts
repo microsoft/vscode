@@ -30,7 +30,7 @@ import { IResourceLabel, ResourceLabels } from '../../../../browser/labels.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { IChatRequestImplicitVariableEntry, IChatRequestStringVariableEntry, isStringImplicitContextValue } from '../../common/attachments/chatVariableEntries.js';
 import { IChatWidget } from '../chat.js';
-import { ChatAttachmentModel } from '../chatAttachmentModel.js';
+import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { IChatContextService } from '../chatContextService.js';
 
 export class ImplicitContextAttachmentWidget extends Disposable {

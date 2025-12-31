@@ -7,7 +7,7 @@ import assert from 'assert';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
-import { LanguageModelToolsService } from '../../browser/languageModelToolsService.js';
+import { LanguageModelToolsService } from '../../browser/tools/languageModelToolsService.js';
 import { IChatService } from '../../common/chatService.js';
 import { ILanguageModelToolsService, IToolData, ToolDataSource, ToolSet } from '../../common/tools/languageModelToolsService.js';
 import { MockChatService } from '../common/mockChatService.js';

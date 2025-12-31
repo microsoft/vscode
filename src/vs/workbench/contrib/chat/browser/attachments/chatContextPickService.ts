@@ -2,16 +2,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { derived, IObservable, ObservablePromise } from '../../../../base/common/observable.js';
-import { compare } from '../../../../base/common/strings.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { isObject } from '../../../../base/common/types.js';
-import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IQuickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
-import { IChatRequestVariableEntry } from '../common/attachments/chatVariableEntries.js';
-import { IChatWidget } from './chat.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { derived, IObservable, ObservablePromise } from '../../../../../base/common/observable.js';
+import { compare } from '../../../../../base/common/strings.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { isObject } from '../../../../../base/common/types.js';
+import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IQuickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { IChatWidget } from '../chat.js';
 
 
 export interface IChatContextPickerPickItem extends Partial<IQuickItem> {

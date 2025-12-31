@@ -21,14 +21,14 @@ import { IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickSeparator } f
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
-import { IChatAttachmentResolveService } from '../../chat/browser/chatAttachmentResolveService.js';
+import { IChatAttachmentResolveService } from '../../chat/browser/attachments/chatAttachmentResolveService.js';
 import { IChatRequestVariableEntry } from '../../chat/common/attachments/chatVariableEntries.js';
 import { IMcpResource, IMcpResourceTemplate, IMcpServer, IMcpService, isMcpResourceTemplate, McpCapability, McpConnectionState, McpResourceURI } from '../common/mcpTypes.js';
 import { McpIcons } from '../common/mcpIcons.js';
 import { IUriTemplateVariable } from '../common/uriTemplate.js';
 import { openPanelChatAndGetWidget } from './openPanelChatAndGetWidget.js';
 import { LinkedList } from '../../../../base/common/linkedList.js';
-import { ChatContextPickAttachment } from '../../chat/browser/chatContextPickService.js';
+import { ChatContextPickAttachment } from '../../chat/browser/attachments/chatContextPickService.js';
 import { asArray } from '../../../../base/common/arrays.js';
 
 export class McpResourcePickHelper extends Disposable {

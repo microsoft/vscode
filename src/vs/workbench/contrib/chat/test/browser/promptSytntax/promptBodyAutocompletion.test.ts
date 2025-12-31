@@ -13,7 +13,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { LanguageModelToolsService } from '../../../browser/languageModelToolsService.js';
+import { LanguageModelToolsService } from '../../../browser/tools/languageModelToolsService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { PromptBodyAutocompletion } from '../../../common/promptSyntax/languageProviders/promptBodyAutocompletion.js';

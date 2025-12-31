@@ -20,7 +20,7 @@ import { ContextKeyEqualsExpr, IContextKeyService } from '../../../../../platfor
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
-import { LanguageModelToolsService } from '../../browser/languageModelToolsService.js';
+import { LanguageModelToolsService } from '../../browser/tools/languageModelToolsService.js';
 import { ChatModel, IChatModel } from '../../common/model/chatModel.js';
 import { IChatService, IChatToolInputInvocationData, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService.js';
 import { ChatConfiguration } from '../../common/constants.js';

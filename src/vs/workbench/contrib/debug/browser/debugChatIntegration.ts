@@ -15,7 +15,7 @@ import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/c
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IChatWidget, IChatWidgetService } from '../../chat/browser/chat.js';
-import { ChatContextPick, IChatContextPicker, IChatContextPickerItem, IChatContextPickService } from '../../chat/browser/chatContextPickService.js';
+import { ChatContextPick, IChatContextPicker, IChatContextPickerItem, IChatContextPickService } from '../../chat/browser/attachments/chatContextPickService.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { IChatRequestFileEntry, IChatRequestVariableEntry, IDebugVariableEntry } from '../../chat/common/attachments/chatVariableEntries.js';
 import { IDebugService, IExpression, IScope, IStackFrame, State } from '../common/debug.js';

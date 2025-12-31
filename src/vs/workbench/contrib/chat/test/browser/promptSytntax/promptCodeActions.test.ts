@@ -18,7 +18,7 @@ import { IMarkerService } from '../../../../../../platform/markers/common/marker
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
-import { LanguageModelToolsService } from '../../../browser/languageModelToolsService.js';
+import { LanguageModelToolsService } from '../../../browser/tools/languageModelToolsService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { getLanguageIdForPromptsType, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { getPromptFileExtension } from '../../../common/promptSyntax/config/promptFileLocations.js';

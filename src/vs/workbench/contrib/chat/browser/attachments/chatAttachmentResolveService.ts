@@ -3,34 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from '../../../../base/common/buffer.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { basename } from '../../../../base/common/resources.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { URI } from '../../../../base/common/uri.js';
-import { IRange } from '../../../../editor/common/core/range.js';
-import { SymbolKinds } from '../../../../editor/common/languages.js';
-import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
-import { localize } from '../../../../nls.js';
-import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { IDraggedResourceEditorInput, MarkerTransferData, DocumentSymbolTransferData, NotebookCellOutputTransferData } from '../../../../platform/dnd/browser/dnd.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
-import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { MarkerSeverity } from '../../../../platform/markers/common/markers.js';
-import { isUntitledResourceEditorInput } from '../../../common/editor.js';
-import { EditorInput } from '../../../common/editor/editorInput.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
-import { UntitledTextEditorInput } from '../../../services/untitled/common/untitledTextEditorInput.js';
-import { createNotebookOutputVariableEntry, NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT_CONST } from '../../notebook/browser/contrib/chat/notebookChatUtils.js';
-import { getOutputViewModelFromId } from '../../notebook/browser/controller/cellOutputActions.js';
-import { getNotebookEditorFromEditorPane } from '../../notebook/browser/notebookBrowser.js';
-import { SCMHistoryItemTransferData } from '../../scm/browser/scmHistoryChatContext.js';
-import { CHAT_ATTACHABLE_IMAGE_MIME_TYPES, getAttachableImageExtension } from '../common/model/chatModel.js';
-import { IChatRequestVariableEntry, OmittedState, IDiagnosticVariableEntry, IDiagnosticVariableEntryFilterData, ISymbolVariableEntry, toPromptFileVariableEntry, PromptFileVariableKind, ISCMHistoryItemVariableEntry } from '../common/attachments/chatVariableEntries.js';
-import { getPromptsTypeForLanguageId, PromptsType } from '../common/promptSyntax/promptTypes.js';
-import { imageToHash } from './chatPasteProviders.js';
-import { resizeImage } from './chatImageUtils.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { basename } from '../../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IRange } from '../../../../../editor/common/core/range.js';
+import { SymbolKinds } from '../../../../../editor/common/languages.js';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { localize } from '../../../../../nls.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IDraggedResourceEditorInput, MarkerTransferData, DocumentSymbolTransferData, NotebookCellOutputTransferData } from '../../../../../platform/dnd/browser/dnd.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import { MarkerSeverity } from '../../../../../platform/markers/common/markers.js';
+import { isUntitledResourceEditorInput } from '../../../../common/editor.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IExtensionService, isProposedApiEnabled } from '../../../../services/extensions/common/extensions.js';
+import { UntitledTextEditorInput } from '../../../../services/untitled/common/untitledTextEditorInput.js';
+import { createNotebookOutputVariableEntry, NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT_CONST } from '../../../notebook/browser/contrib/chat/notebookChatUtils.js';
+import { getOutputViewModelFromId } from '../../../notebook/browser/controller/cellOutputActions.js';
+import { getNotebookEditorFromEditorPane } from '../../../notebook/browser/notebookBrowser.js';
+import { SCMHistoryItemTransferData } from '../../../scm/browser/scmHistoryChatContext.js';
+import { CHAT_ATTACHABLE_IMAGE_MIME_TYPES, getAttachableImageExtension } from '../../common/model/chatModel.js';
+import { IChatRequestVariableEntry, OmittedState, IDiagnosticVariableEntry, IDiagnosticVariableEntryFilterData, ISymbolVariableEntry, toPromptFileVariableEntry, PromptFileVariableKind, ISCMHistoryItemVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { getPromptsTypeForLanguageId, PromptsType } from '../../common/promptSyntax/promptTypes.js';
+import { imageToHash } from '../chatPasteProviders.js';
+import { resizeImage } from '../chatImageUtils.js';
 
 export const IChatAttachmentResolveService = createDecorator<IChatAttachmentResolveService>('IChatAttachmentResolveService');
 

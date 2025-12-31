@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService, InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
-import { LanguageModelToolsConfirmationService } from '../../browser/languageModelToolsConfirmationService.js';
+import { LanguageModelToolsConfirmationService } from '../../browser/tools/languageModelToolsConfirmationService.js';
 import { ToolConfirmKind } from '../../common/chatService.js';
 import { ILanguageModelToolConfirmationActions, ILanguageModelToolConfirmationContribution, ILanguageModelToolConfirmationRef } from '../../common/tools/languageModelToolsConfirmationService.js';
 import { ToolDataSource } from '../../common/tools/languageModelToolsService.js';

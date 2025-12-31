@@ -16,7 +16,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IMarkerData, MarkerSeverity } from '../../../../../../platform/markers/common/markers.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { LanguageModelToolsService } from '../../../browser/languageModelToolsService.js';
+import { LanguageModelToolsService } from '../../../browser/tools/languageModelToolsService.js';
 import { ChatMode, CustomChatMode, IChatModeService } from '../../../common/chatModes.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';

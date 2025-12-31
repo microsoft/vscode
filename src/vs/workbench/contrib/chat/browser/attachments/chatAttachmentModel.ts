@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from '../../../../base/common/uri.js';
-import { Emitter } from '../../../../base/common/event.js';
-import { basename } from '../../../../base/common/resources.js';
-import { IRange } from '../../../../editor/common/core/range.js';
-import { combinedDisposable, Disposable, DisposableMap, IDisposable } from '../../../../base/common/lifecycle.js';
-import { IChatRequestFileEntry, IChatRequestVariableEntry, isPromptFileVariableEntry } from '../common/attachments/chatVariableEntries.js';
-import { FileChangeType, IFileService } from '../../../../platform/files/common/files.js';
-import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
-import { Schemas } from '../../../../base/common/network.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { basename } from '../../../../../base/common/resources.js';
+import { IRange } from '../../../../../editor/common/core/range.js';
+import { combinedDisposable, Disposable, DisposableMap, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { IChatRequestFileEntry, IChatRequestVariableEntry, isPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { FileChangeType, IFileService } from '../../../../../platform/files/common/files.js';
+import { ISharedWebContentExtractorService } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { IChatAttachmentResolveService } from './chatAttachmentResolveService.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { equals } from '../../../../base/common/objects.js';
-import { Iterable } from '../../../../base/common/iterator.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { equals } from '../../../../../base/common/objects.js';
+import { Iterable } from '../../../../../base/common/iterator.js';
 
 export interface IChatAttachmentChangeEvent {
 	readonly deleted: readonly string[];
