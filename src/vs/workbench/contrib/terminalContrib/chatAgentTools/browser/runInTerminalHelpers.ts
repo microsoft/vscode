@@ -9,7 +9,7 @@ import { posix as pathPosix, win32 as pathWin32 } from '../../../../../base/comm
 import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { escapeRegExpCharacters, removeAnsiEscapeCodes } from '../../../../../base/common/strings.js';
 import { localize } from '../../../../../nls.js';
-import type { TerminalNewAutoApproveButtonData } from '../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
+import type { TerminalNewAutoApproveButtonData } from '../../../chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import type { ToolConfirmationAction } from '../../../chat/common/tools/languageModelToolsService.js';
 import type { ICommandApprovalResultWithReason } from './commandLineAutoApprover.js';
 

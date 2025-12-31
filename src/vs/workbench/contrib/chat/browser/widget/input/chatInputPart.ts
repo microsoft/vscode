@@ -99,9 +99,9 @@ import { ImplicitContextAttachmentWidget } from '../../attachments/implicitConte
 import { IChatWidget } from '../../chat.js';
 import { ChatAttachmentModel } from '../../attachments/chatAttachmentModel.js';
 import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget, PromptFileAttachmentWidget, PromptTextAttachmentWidget, SCMHistoryItemAttachmentWidget, SCMHistoryItemChangeAttachmentWidget, SCMHistoryItemChangeRangeAttachmentWidget, TerminalCommandAttachmentWidget, ToolSetOrToolItemAttachmentWidget } from '../../attachments/chatAttachmentWidgets.js';
-import { IDisposableReference } from '../../chatContentParts/chatCollections.js';
-import { CollapsibleListPool, IChatCollapsibleListItem } from '../../chatContentParts/chatReferencesContentPart.js';
-import { ChatTodoListWidget } from '../../chatContentParts/chatTodoListWidget.js';
+import { IDisposableReference } from '../chatContentParts/chatCollections.js';
+import { CollapsibleListPool, IChatCollapsibleListItem } from '../chatContentParts/chatReferencesContentPart.js';
+import { ChatTodoListWidget } from '../chatContentParts/chatTodoListWidget.js';
 import { IChatContextService } from '../../contextContrib/chatContextService.js';
 import { ChatDragAndDrop } from '../chatDragAndDrop.js';
 import { ChatEditingShowChangesAction, ViewAllSessionChangesAction, ViewPreviousEditsAction } from '../../chatEditing/chatEditingActions.js';
