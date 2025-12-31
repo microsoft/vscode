@@ -320,12 +320,12 @@ declare module 'vscode' {
 
 	// #endregion
 
-	// #region CustomAgentsProvider
+	// #region ChatContributionsProvider
 
 	/**
 	 * Represents a custom agent resource file (e.g., .agent.md or .prompt.md) available for a repository.
 	 */
-	export interface CustomAgentResource {
+	export interface ChatContributionResource {
 		/**
 		 * The unique identifier/name of the custom agent resource.
 		 */
@@ -350,16 +350,16 @@ declare module 'vscode' {
 	/**
 	 * Options for querying custom agents.
 	 */
-	export interface CustomAgentQueryOptions { }
+	export interface ChatContributionQueryOptions { }
 
 	/**
 	 * A provider that supplies custom agent resources (from .agent.md and .prompt.md files) for repositories.
 	 */
-	export interface CustomAgentsProvider {
+	export interface ChatContributionsProvider {
 		/**
 		 * An optional event to signal that custom agents have changed.
 		 */
-		readonly onDidChangeCustomAgents?: Event<void>;
+		readonly onDidChangeContributions?: Event<void>;
 
 		/**
 		 * Provide the list of custom agent resources available for a given repository.
@@ -367,34 +367,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @returns An array of custom agent resources or a promise that resolves to such.
 		 */
-		provideCustomAgents(options: CustomAgentQueryOptions, token: CancellationToken): ProviderResult<CustomAgentResource[]>;
-	}
-
-	// #endregion
-
-	// #region InstructionsProvider
-
-	/**
-	 * Options for querying instructions.
-	 */
-	export interface InstructionQueryOptions { }
-
-	/**
-	 * A provider that supplies instruction resources for repositories.
-	 */
-	export interface InstructionsProvider {
-		/**
-		 * An optional event to signal that instructions have changed.
-		 */
-		readonly onDidChangeInstructions?: Event<void>;
-
-		/**
-		 * Provide the list of instruction resources available for a given repository.
-		 * @param options Optional query parameters.
-		 * @param token A cancellation token.
-		 * @returns An array of instruction resources or a promise that resolves to such.
-		 */
-		provideInstructions(options: InstructionQueryOptions, token: CancellationToken): ProviderResult<CustomAgentResource[]>;
+		provideContributions(options: ChatContributionQueryOptions, token: CancellationToken): ProviderResult<ChatContributionResource[]>;
 	}
 
 	export namespace chat {
@@ -403,14 +376,7 @@ declare module 'vscode' {
 		 * @param provider The custom agents provider.
 		 * @returns A disposable that unregisters the provider when disposed.
 		 */
-		export function registerCustomAgentsProvider(provider: CustomAgentsProvider): Disposable;
-
-		/**
-		 * Register a provider for instructions.
-		 * @param provider The instructions provider.
-		 * @returns A disposable that unregisters the provider when disposed.
-		 */
-		export function registerInstructionsProvider(provider: InstructionsProvider): Disposable;
+		export function registerContributionsProvider(type: string, provider: ChatContributionsProvider): Disposable;
 	}
 
 	// #endregion

@@ -35,7 +35,7 @@ import { ExtHostLanguageModels } from './extHostLanguageModels.js';
 import { ExtHostLanguageModelTools } from './extHostLanguageModelTools.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
-import { ICustomAgentQueryOptions, IExternalCustomAgentResource, IInstructionQueryOptions } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
+import { IChatContributionQueryOptions, IChatContributionResource } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors.js';
 
 export class ChatAgentResponseStream {
@@ -398,10 +398,8 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 	private static _relatedFilesProviderIdPool = 0;
 	private readonly _relatedFilesProviders = new Map<number, ExtHostRelatedFilesProvider>();
 
-	private static _customAgentsProviderIdPool = 0;
-	private readonly _customAgentsProviders = new Map<number, { extension: IExtensionDescription; provider: vscode.CustomAgentsProvider }>();
-	private static _instructionsProviderIdPool = 0;
-	private readonly _instructionsProviders = new Map<number, { extension: IExtensionDescription; provider: vscode.InstructionsProvider }>();
+	private static _contributionsProviderIdPool = 0;
+	private readonly _contributionsProviders = new Map<number, { extension: IExtensionDescription; provider: vscode.ChatContributionsProvider }>();
 
 	private readonly _sessionDisposables: DisposableResourceMap<DisposableStore> = this._register(new DisposableResourceMap());
 	private readonly _completionDisposables: DisposableMap<number, DisposableStore> = this._register(new DisposableMap());
@@ -481,45 +479,23 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		});
 	}
 
-	registerCustomAgentsProvider(extension: IExtensionDescription, provider: vscode.CustomAgentsProvider): vscode.Disposable {
-		const handle = ExtHostChatAgents2._customAgentsProviderIdPool++;
-		this._customAgentsProviders.set(handle, { extension, provider });
-		this._proxy.$registerCustomAgentsProvider(handle, extension.identifier);
+	registerContributionsProvider(extension: IExtensionDescription, type: string, provider: vscode.ChatContributionsProvider): vscode.Disposable {
+		const handle = ExtHostChatAgents2._contributionsProviderIdPool++;
+		this._contributionsProviders.set(handle, { extension, provider });
+		this._proxy.$registerContributionsProvider(handle, type, extension.identifier);
 
 		const disposables = new DisposableStore();
 
 		// Listen to provider change events and notify main thread
-		if (provider.onDidChangeCustomAgents) {
-			disposables.add(provider.onDidChangeCustomAgents(() => {
-				this._proxy.$onDidChangeCustomAgents(handle);
+		if (provider.onDidChangeContributions) {
+			disposables.add(provider.onDidChangeContributions(() => {
+				this._proxy.$onDidChangeContributions(handle);
 			}));
 		}
 
 		disposables.add(toDisposable(() => {
-			this._customAgentsProviders.delete(handle);
-			this._proxy.$unregisterCustomAgentsProvider(handle);
-		}));
-
-		return disposables;
-	}
-
-	registerInstructionsProvider(extension: IExtensionDescription, provider: vscode.InstructionsProvider): vscode.Disposable {
-		const handle = ExtHostChatAgents2._instructionsProviderIdPool++;
-		this._instructionsProviders.set(handle, { extension, provider });
-		this._proxy.$registerInstructionsProvider(handle, extension.identifier);
-
-		const disposables = new DisposableStore();
-
-		// Listen to provider change events and notify main thread
-		if (provider.onDidChangeInstructions) {
-			disposables.add(provider.onDidChangeInstructions(() => {
-				this._proxy.$onDidChangeInstructions(handle);
-			}));
-		}
-
-		disposables.add(toDisposable(() => {
-			this._instructionsProviders.delete(handle);
-			this._proxy.$unregisterInstructionsProvider(handle);
+			this._contributionsProviders.delete(handle);
+			this._proxy.$unregisterContributionsProvider(handle);
 		}));
 
 		return disposables;
@@ -535,22 +511,13 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return await provider.provider.provideRelatedFiles(extRequestDraft, token) ?? undefined;
 	}
 
-	async $provideCustomAgents(handle: number, options: ICustomAgentQueryOptions, token: CancellationToken): Promise<IExternalCustomAgentResource[] | undefined> {
-		const providerData = this._customAgentsProviders.get(handle);
+	async $provideContributions(handle: number, options: IChatContributionQueryOptions, token: CancellationToken): Promise<IChatContributionResource[] | undefined> {
+		const providerData = this._contributionsProviders.get(handle);
 		if (!providerData) {
 			return Promise.resolve(undefined);
 		}
 
-		return await providerData.provider.provideCustomAgents(options, token) ?? undefined;
-	}
-
-	async $provideInstructions(handle: number, options: IInstructionQueryOptions, token: CancellationToken): Promise<IExternalCustomAgentResource[] | undefined> {
-		const providerData = this._instructionsProviders.get(handle);
-		if (!providerData) {
-			return Promise.resolve(undefined);
-		}
-
-		return await providerData.provider.provideInstructions(options, token) ?? undefined;
+		return await providerData.provider.provideContributions(options, token) ?? undefined;
 	}
 
 	async $detectChatParticipant(handle: number, requestDto: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, options: { location: ChatAgentLocation; participants?: vscode.ChatParticipantMetadata[] }, token: CancellationToken): Promise<vscode.ChatParticipantDetectionResult | null | undefined> {

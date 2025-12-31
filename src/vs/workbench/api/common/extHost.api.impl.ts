@@ -1541,13 +1541,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatContextProvider');
 				return extHostChatContext.registerChatContextProvider(selector ? checkSelector(selector) : undefined, `${extension.id}-${id}`, provider);
 			},
-			registerCustomAgentsProvider(provider: vscode.CustomAgentsProvider): vscode.Disposable {
+			registerContributionsProvider(type: string, provider: vscode.ChatContributionsProvider): vscode.Disposable {
 				checkProposedApiEnabled(extension, 'chatParticipantPrivate');
-				return extHostChatAgents2.registerCustomAgentsProvider(extension, provider);
-			},
-			registerInstructionsProvider(provider: vscode.InstructionsProvider): vscode.Disposable {
-				checkProposedApiEnabled(extension, 'chatParticipantPrivate');
-				return extHostChatAgents2.registerInstructionsProvider(extension, provider);
+				return extHostChatAgents2.registerContributionsProvider(extension, type, provider);
 			},
 		};
 

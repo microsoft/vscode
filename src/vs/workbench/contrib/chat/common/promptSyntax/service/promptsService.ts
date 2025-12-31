@@ -16,29 +16,19 @@ import { IHandOff, ParsedPromptFile } from '../promptFileParser.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 
 /**
- * Activation event for custom agent providers.
+ * Activation event for chat contributions providers.
  */
-export const CUSTOM_AGENTS_PROVIDER_ACTIVATION_EVENT = 'onCustomAgentsProvider';
+export const CHAT_CONTRIBUTIONS_PROVIDER_ACTIVATION_EVENT = 'onChatContributionsProvider';
 
 /**
- * Activation event for instructions providers.
+ * Options for querying chat contributions.
  */
-export const INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT = 'onInstructionsProvider';
+export interface IChatContributionQueryOptions { }
 
 /**
- * Options for querying custom agents.
+ * Represents a chat contribution resource from an external provider.
  */
-export interface ICustomAgentQueryOptions { }
-
-/**
- * Options for querying instructions.
- */
-export interface IInstructionQueryOptions { }
-
-/**
- * Represents a custom agent resource from an external provider.
- */
-export interface IExternalCustomAgentResource {
+export interface IChatContributionResource {
 	/**
 	 * The unique identifier/name of the custom agent resource.
 	 */
@@ -326,27 +316,16 @@ export interface IPromptsService extends IDisposable {
 	setDisabledPromptFiles(type: PromptsType, uris: ResourceSet): void;
 
 	/**
-	 * Registers a CustomAgentsProvider that can provide custom agents for repositories.
+	 * Registers a ChatContributionsProvider that can provide chat contributions for repositories.
 	 * This is part of the proposed API and requires the chatParticipantPrivate proposal.
 	 * @param extension The extension registering the provider.
+	 * @param type The type of contribution (e.g. 'instruction', 'custom agent', 'prompt').
 	 * @param provider The provider implementation with optional change event.
 	 * @returns A disposable that unregisters the provider when disposed.
 	 */
-	registerCustomAgentsProvider(extension: IExtensionDescription, provider: {
-		onDidChangeCustomAgents?: Event<void>;
-		provideCustomAgents: (options: ICustomAgentQueryOptions, token: CancellationToken) => Promise<IExternalCustomAgentResource[] | undefined>;
-	}): IDisposable;
-
-	/**
-	 * Registers an InstructionsProvider that can provide instructions for repositories.
-	 * This is part of the proposed API and requires the chatParticipantPrivate proposal.
-	 * @param extension The extension registering the provider.
-	 * @param provider The provider implementation with optional change event.
-	 * @returns A disposable that unregisters the provider when disposed.
-	 */
-	registerInstructionsProvider(extension: IExtensionDescription, provider: {
-		onDidChangeInstructions?: Event<void>;
-		provideInstructions: (options: IInstructionQueryOptions, token: CancellationToken) => Promise<IExternalCustomAgentResource[] | undefined>;
+	registerContributionsProvider(extension: IExtensionDescription, type: PromptsType, provider: {
+		onDidChangeContributions?: Event<void>;
+		provideContributions: (options: IChatContributionQueryOptions, token: CancellationToken) => Promise<IChatContributionResource[] | undefined>;
 	}): IDisposable;
 
 	/**

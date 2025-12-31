@@ -32,7 +32,7 @@ import { getCleanPromptName } from '../config/promptFileLocations.js';
 import { PROMPT_LANGUAGE_ID, PromptsType, getPromptsTypeForLanguageId } from '../promptTypes.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
-import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IAgentSkill, IUserPromptPath, PromptsStorage, ICustomAgentQueryOptions, IExternalCustomAgentResource, ExtensionAgentSourceType, CUSTOM_AGENTS_PROVIDER_ACTIVATION_EVENT, IInstructionQueryOptions, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT } from './promptsService.js';
+import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IAgentSkill, IUserPromptPath, PromptsStorage, ExtensionAgentSourceType, CHAT_CONTRIBUTIONS_PROVIDER_ACTIVATION_EVENT, IChatContributionQueryOptions, IChatContributionResource } from './promptsService.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 
@@ -165,92 +165,59 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	/**
-	 * Registry of CustomAgentsProvider instances. Extensions can register providers via the proposed API.
+	 * Registry of ChatContributionsProvider instances. Extensions can register providers via the proposed API.
 	 */
-	private readonly customAgentsProviders: Array<{
+	private readonly contributionsProviders: Array<{
 		extension: IExtensionDescription;
-		onDidChangeCustomAgents?: Event<void>;
-		provideCustomAgents: (options: ICustomAgentQueryOptions, token: CancellationToken) => Promise<IExternalCustomAgentResource[] | undefined>;
+		type: PromptsType;
+		onDidChangeContributions?: Event<void>;
+		provideContributions: (options: IChatContributionQueryOptions, token: CancellationToken) => Promise<IChatContributionResource[] | undefined>;
 	}> = [];
 
 	/**
-	 * Registry of InstructionsProvider instances. Extensions can register providers via the proposed API.
+	 * Registers a ChatContributionsProvider. This will be called by the extension host bridge when
+	 * an extension registers a provider via vscode.chat.registerContributionsProvider().
 	 */
-	private readonly instructionsProviders: Array<{
-		extension: IExtensionDescription;
-		onDidChangeInstructions?: Event<void>;
-		provideInstructions: (options: IInstructionQueryOptions, token: CancellationToken) => Promise<IExternalCustomAgentResource[] | undefined>;
-	}> = [];
-
-	/**
-	 * Registers a CustomAgentsProvider. This will be called by the extension host bridge when
-	 * an extension registers a provider via vscode.chat.registerCustomAgentsProvider().
-	 */
-	public registerCustomAgentsProvider(extension: IExtensionDescription, provider: {
-		onDidChangeCustomAgents?: Event<void>;
-		provideCustomAgents: (options: ICustomAgentQueryOptions, token: CancellationToken) => Promise<IExternalCustomAgentResource[] | undefined>;
+	public registerContributionsProvider(extension: IExtensionDescription, type: PromptsType, provider: {
+		onDidChangeContributions?: Event<void>;
+		provideContributions: (options: IChatContributionQueryOptions, token: CancellationToken) => Promise<IChatContributionResource[] | undefined>;
 	}): IDisposable {
-		const providerEntry = { extension, ...provider };
-		this.customAgentsProviders.push(providerEntry);
+		const providerEntry = { extension, type, ...provider };
+		this.contributionsProviders.push(providerEntry);
 
 		const disposables = new DisposableStore();
 
 		// Listen to provider change events to rerun computeListPromptFiles
-		if (provider.onDidChangeCustomAgents) {
-			disposables.add(provider.onDidChangeCustomAgents(() => {
-				this.cachedFileLocations[PromptsType.agent] = undefined;
-				this.cachedCustomAgents.refresh();
-			}));
-		}
-
-		// Invalidate agent cache when providers change
-		this.cachedFileLocations[PromptsType.agent] = undefined;
-		this.cachedCustomAgents.refresh();
-
-		disposables.add({
-			dispose: () => {
-				const index = this.customAgentsProviders.findIndex((p) => p === providerEntry);
-				if (index >= 0) {
-					this.customAgentsProviders.splice(index, 1);
+		if (provider.onDidChangeContributions) {
+			disposables.add(provider.onDidChangeContributions(() => {
+				if (type === PromptsType.agent) {
 					this.cachedFileLocations[PromptsType.agent] = undefined;
 					this.cachedCustomAgents.refresh();
+				} else if (type === PromptsType.instructions) {
+					this.cachedFileLocations[PromptsType.instructions] = undefined;
 				}
-			}
-		});
-
-		return disposables;
-	}
-
-	/**
-	 * Registers an InstructionsProvider. This will be called by the extension host bridge when
-	 * an extension registers a provider via vscode.chat.registerInstructionsProvider().
-	 */
-	public registerInstructionsProvider(extension: IExtensionDescription, provider: {
-		onDidChangeInstructions?: Event<void>;
-		provideInstructions: (options: IInstructionQueryOptions, token: CancellationToken) => Promise<IExternalCustomAgentResource[] | undefined>;
-	}): IDisposable {
-		const providerEntry = { extension, ...provider };
-		this.instructionsProviders.push(providerEntry);
-
-		const disposables = new DisposableStore();
-
-		// Listen to provider change events
-		if (provider.onDidChangeInstructions) {
-			disposables.add(provider.onDidChangeInstructions(() => {
-				// Invalidate instruction cache when providers change
-				this.cachedFileLocations[PromptsType.instructions] = undefined;
 			}));
 		}
 
-		// Invalidate instruction cache when provider is registered
-		this.cachedFileLocations[PromptsType.instructions] = undefined;
+		// Invalidate cache when providers change
+		if (type === PromptsType.agent) {
+			this.cachedFileLocations[PromptsType.agent] = undefined;
+			this.cachedCustomAgents.refresh();
+		} else if (type === PromptsType.instructions) {
+			this.cachedFileLocations[PromptsType.instructions] = undefined;
+		}
 
 		disposables.add({
 			dispose: () => {
-				const index = this.instructionsProviders.findIndex((p) => p === providerEntry);
+				const index = this.contributionsProviders.findIndex((p) => p === providerEntry);
 				if (index >= 0) {
-					this.instructionsProviders.splice(index, 1);
-					this.cachedFileLocations[PromptsType.instructions] = undefined;
+					this.contributionsProviders.splice(index, 1);
+					if (type === PromptsType.agent) {
+						this.cachedFileLocations[PromptsType.agent] = undefined;
+						this.cachedCustomAgents.refresh();
+					} else if (type === PromptsType.instructions) {
+						this.cachedFileLocations[PromptsType.instructions] = undefined;
+					}
 				}
 			}
 		});
@@ -261,17 +228,18 @@ export class PromptsService extends Disposable implements IPromptsService {
 	private async listCustomAgentsFromProvider(token: CancellationToken): Promise<IPromptPath[]> {
 		const result: IPromptPath[] = [];
 
-		if (this.customAgentsProviders.length === 0) {
+		// Activate extensions that might provide custom agents
+		await this.extensionService.activateByEvent(CHAT_CONTRIBUTIONS_PROVIDER_ACTIVATION_EVENT);
+
+		const providers = this.contributionsProviders.filter(p => p.type === PromptsType.agent);
+		if (providers.length === 0) {
 			return result;
 		}
 
-		// Activate extensions that might provide custom agents
-		await this.extensionService.activateByEvent(CUSTOM_AGENTS_PROVIDER_ACTIVATION_EVENT);
-
 		// Collect agents from all providers
-		for (const providerEntry of this.customAgentsProviders) {
+		for (const providerEntry of providers) {
 			try {
-				const agents = await providerEntry.provideCustomAgents({}, token);
+				const agents = await providerEntry.provideContributions({}, token);
 				if (!agents || token.isCancellationRequested) {
 					continue;
 				}
@@ -307,17 +275,18 @@ export class PromptsService extends Disposable implements IPromptsService {
 	private async listInstructionsFromProvider(token: CancellationToken): Promise<IPromptPath[]> {
 		const result: IPromptPath[] = [];
 
-		if (this.instructionsProviders.length === 0) {
+		// Activate extensions that might provide instructions
+		await this.extensionService.activateByEvent(CHAT_CONTRIBUTIONS_PROVIDER_ACTIVATION_EVENT);
+
+		const providers = this.contributionsProviders.filter(p => p.type === PromptsType.instructions);
+		if (providers.length === 0) {
 			return result;
 		}
 
-		// Activate extensions that might provide instructions
-		await this.extensionService.activateByEvent(INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT);
-
 		// Collect instructions from all providers
-		for (const providerEntry of this.instructionsProviders) {
+		for (const providerEntry of providers) {
 			try {
-				const instructions = await providerEntry.provideInstructions({}, token);
+				const instructions = await providerEntry.provideContributions({}, token);
 				if (!instructions || token.isCancellationRequested) {
 					continue;
 				}
