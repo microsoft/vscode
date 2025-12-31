@@ -8,6 +8,15 @@
 	display: flex;
 	flex-direction: column;
 
+	.chat-controls-wrapper {
+		display: flex;
+		flex-direction: column;
+		flex: 1;
+		height: 100%;
+		min-height: 0;
+		min-width: 0;
+	}
+
 	.chat-controls-container {
 		display: flex;
 		flex-direction: column;
@@ -101,6 +110,11 @@
 	.agent-sessions-container {
 		border-bottom: 1px solid var(--vscode-panel-border);
 	}
+
+	/* Hide sash in stacked mode */
+	.agent-sessions-sash {
+		display: none;
+	}
 }
 
 /* Sessions control: side by side */
@@ -110,7 +124,20 @@
 		flex-direction: row;
 
 		.agent-sessions-container {
+			border-right: none; /* border handled by sash */
+			position: relative;
+			flex-shrink: 0;
+		}
+
+		.agent-sessions-sash {
+			right: 0;
+			cursor: ew-resize;
 			border-right: 1px solid var(--vscode-panel-border);
+		}
+
+		.agent-sessions-sash:hover,
+		.agent-sessions-sash.active {
+			border-right-color: var(--vscode-sash-hoverBorder);
 		}
 	}
 
@@ -118,8 +145,35 @@
 		flex-direction: row-reverse;
 
 		.agent-sessions-container {
+			border-left: none; /* border handled by sash */
+			position: relative;
+			flex-shrink: 0;
+		}
+
+		.agent-sessions-sash {
+			left: 0;
+			cursor: ew-resize;
 			border-left: 1px solid var(--vscode-panel-border);
 		}
+
+		.agent-sessions-sash:hover,
+		.agent-sessions-sash.active {
+			border-left-color: var(--vscode-sash-hoverBorder);
+		}
+	}
+
+	.agent-sessions-container {
+		height: 100%;
+		overflow: hidden;
+	}
+
+	.agent-sessions-sash {
+		position: absolute;
+		top: 0;
+		bottom: 0;
+		width: 4px;
+		z-index: 10;
+		transition: border-color 0.1s ease-out;
 	}
 
 	.agent-sessions-link-container {

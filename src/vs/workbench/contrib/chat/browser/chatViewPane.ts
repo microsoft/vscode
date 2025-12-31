@@ -268,14 +268,23 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private createControls(parent: HTMLElement): void {
 
-		// Sessions Control
+		// Load stored sessions sidebar width
+		const storedWidth = this.storageService.getNumber(ChatViewPane.SESSIONS_SIDEBAR_WIDTH_STORAGE_KEY, StorageScope.PROFILE);
+		if (storedWidth && storedWidth >= ChatViewPane.SESSIONS_SIDEBAR_MIN_WIDTH && storedWidth <= ChatViewPane.SESSIONS_SIDEBAR_MAX_WIDTH) {
+			this.sessionsSidebarWidth = storedWidth;
+		}
+
+		// Sessions Control (created directly in parent for flexbox layout)
 		const sessionsControl = this.createSessionsControl(parent);
 
+		// Chat Controls Container (for Welcome and Chat Widget)
+		this.chatControlsContainer = parent.appendChild($('.chat-controls-wrapper'));
+
 		// Welcome Control (used to show chat specific extension provided welcome views via `chatViewsWelcome` contribution point)
-		const welcomeController = this.welcomeController = this._register(this.instantiationService.createInstance(ChatViewWelcomeController, parent, this, ChatAgentLocation.Chat));
+		const welcomeController = this.welcomeController = this._register(this.instantiationService.createInstance(ChatViewWelcomeController, this.chatControlsContainer, this, ChatAgentLocation.Chat));
 
 		// Chat Control
-		const chatWidget = this.createChatControl(parent);
+		const chatWidget = this.createChatControl(this.chatControlsContainer);
 
 		// Controls Listeners
 		this.registerControlsListeners(sessionsControl, chatWidget, welcomeController);
@@ -287,8 +296,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	//#region Sessions Control
 
 	private static readonly SESSIONS_LIMIT = 3;
-	private static readonly SESSIONS_SIDEBAR_WIDTH = 300;
-	private static readonly SESSIONS_SIDEBAR_VIEW_MIN_WIDTH = 300 /* default chat width */ + this.SESSIONS_SIDEBAR_WIDTH;
+	private static readonly SESSIONS_SIDEBAR_DEFAULT_WIDTH = 300;
+	private static readonly SESSIONS_SIDEBAR_MIN_WIDTH = 150;
+	private static readonly SESSIONS_SIDEBAR_MAX_WIDTH = 600;
+	private static readonly SESSIONS_SIDEBAR_VIEW_MIN_WIDTH = 300 /* default chat width */ + this.SESSIONS_SIDEBAR_DEFAULT_WIDTH;
+	private static readonly SESSIONS_SIDEBAR_WIDTH_STORAGE_KEY = 'chat.sessionsPanel.width';
 
 	private sessionsContainer: HTMLElement | undefined;
 	private sessionsTitleContainer: HTMLElement | undefined;
@@ -306,9 +318,17 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private sessionsViewerVisibilityContext: IContextKey<boolean>;
 	private sessionsViewerPositionContext: IContextKey<AgentSessionsViewerPosition>;
 
+	// Resizable sessions sidebar
+	private chatControlsContainer: HTMLElement | undefined;
+	private sessionsSidebarWidth: number = ChatViewPane.SESSIONS_SIDEBAR_DEFAULT_WIDTH;
+
 	private createSessionsControl(parent: HTMLElement): AgentSessionsControl {
 		const that = this;
 		const sessionsContainer = this.sessionsContainer = parent.appendChild($('.agent-sessions-container'));
+
+		// Sash for resizing sessions sidebar (added to the container, positioned via CSS)
+		const sessionsSash = append(sessionsContainer, $('.agent-sessions-sash'));
+		this.setupSessionsSash(sessionsSash);
 
 		// Sessions Title
 		const sessionsTitleContainer = this.sessionsTitleContainer = append(sessionsContainer, $('.agent-sessions-title-container'));
@@ -410,6 +430,90 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}));
 
 		return sessionsControl;
+	}
+
+	/**
+	 * Sets up the sash element for resizing the sessions sidebar in side-by-side mode.
+	 * Supports drag to resize and double-click to reset to default width.
+	 */
+	private setupSessionsSash(sashElement: HTMLElement): void {
+		let startX = 0;
+		let startWidth = 0;
+		let dragPosition: Position | undefined;
+
+		const onMouseMove = (e: MouseEvent) => {
+			if (dragPosition === undefined) {
+				return;
+			}
+
+			const delta = dragPosition === Position.RIGHT
+				? startX - e.clientX  // When sessions on right, dragging left increases width
+				: e.clientX - startX; // When sessions on left, dragging right increases width
+
+			const newWidth = Math.max(
+				ChatViewPane.SESSIONS_SIDEBAR_MIN_WIDTH,
+				Math.min(ChatViewPane.SESSIONS_SIDEBAR_MAX_WIDTH, startWidth + delta)
+			);
+
+			this.sessionsSidebarWidth = newWidth;
+			if (this.lastDimensions) {
+				this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
+			}
+		};
+
+		const onMouseUp = () => {
+			dragPosition = undefined;
+			document.body.style.cursor = '';
+			sashElement.classList.remove('active');
+
+			// Save the width to storage
+			this.storageService.store(
+				ChatViewPane.SESSIONS_SIDEBAR_WIDTH_STORAGE_KEY,
+				this.sessionsSidebarWidth,
+				StorageScope.PROFILE,
+				StorageTarget.USER
+			);
+		};
+
+		// Register document-level listeners with proper disposal
+		this._register(addDisposableListener(getWindow(sashElement).document, EventType.MOUSE_MOVE, onMouseMove));
+		this._register(addDisposableListener(getWindow(sashElement).document, EventType.MOUSE_UP, onMouseUp));
+
+		this._register(addDisposableListener(sashElement, EventType.MOUSE_DOWN, (e: MouseEvent) => {
+			if (this.sessionsViewerOrientation !== AgentSessionsViewerOrientation.SideBySide) {
+				return; // Only allow resize in side-by-side mode
+			}
+
+			e.preventDefault();
+			startX = e.clientX;
+			startWidth = this.sessionsSidebarWidth;
+
+			// Capture the position at drag start to handle layout changes during drag
+			const { position } = this.getViewPositionAndLocation();
+			dragPosition = position;
+
+			document.body.style.cursor = 'ew-resize';
+			sashElement.classList.add('active');
+		}));
+
+		// Double-click to reset to default width
+		this._register(addDisposableListener(sashElement, EventType.DBLCLICK, () => {
+			if (this.sessionsViewerOrientation !== AgentSessionsViewerOrientation.SideBySide) {
+				return;
+			}
+
+			this.sessionsSidebarWidth = ChatViewPane.SESSIONS_SIDEBAR_DEFAULT_WIDTH;
+			this.storageService.store(
+				ChatViewPane.SESSIONS_SIDEBAR_WIDTH_STORAGE_KEY,
+				this.sessionsSidebarWidth,
+				StorageScope.PROFILE,
+				StorageTarget.USER
+			);
+
+			if (this.lastDimensions) {
+				this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
+			}
+		}));
 	}
 
 	getSessionsViewerOrientation(): AgentSessionsViewerOrientation {
@@ -833,7 +937,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this.sessionsViewerOrientationContext.set(AgentSessionsViewerOrientation.Stacked);
 		}
 
-		// Update limited state based on orientation change
+		// Handle orientation change
 		if (oldSessionsViewerOrientation !== this.sessionsViewerOrientation) {
 			const oldSessionsViewerLimited = this.sessionsViewerLimited;
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
@@ -871,11 +975,16 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			availableSessionsHeight -= ChatViewPane.MIN_CHAT_WIDGET_HEIGHT; // always reserve some space for chat input
 		}
 
-		// Show as sidebar
+		// Show as sidebar with resizable width
 		if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
+			// Clamp sidebar width to available space
+			const maxSidebarWidth = Math.min(this.sessionsSidebarWidth, width - 200);
+			const actualSidebarWidth = Math.max(ChatViewPane.SESSIONS_SIDEBAR_MIN_WIDTH, maxSidebarWidth);
+
 			this.sessionsControlContainer.style.height = `${availableSessionsHeight}px`;
-			this.sessionsControlContainer.style.width = `${ChatViewPane.SESSIONS_SIDEBAR_WIDTH}px`;
-			this.sessionsControl.layout(availableSessionsHeight, ChatViewPane.SESSIONS_SIDEBAR_WIDTH);
+			this.sessionsControlContainer.style.width = `${actualSidebarWidth}px`;
+			this.sessionsContainer.style.width = `${actualSidebarWidth}px`;
+			this.sessionsControl.layout(availableSessionsHeight, actualSidebarWidth);
 
 			heightReduction = 0; // side by side to chat widget
 			widthReduction = this.sessionsContainer.offsetWidth;
@@ -894,6 +1003,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 			this.sessionsControlContainer.style.height = `${sessionsHeight}px`;
 			this.sessionsControlContainer.style.width = ``;
+			this.sessionsContainer.style.width = ``;
 			this.sessionsControl.layout(sessionsHeight, width);
 
 			heightReduction = this.sessionsContainer.offsetHeight;
