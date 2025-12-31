@@ -1,0 +1,205 @@
+{
+  "name": "logos-swe-agent",
+  "displayName": "Logos SWE Agent",
+  "description": "Software Engineering Agent powered by D3N - 15 specialized models for code generation, debugging, testing, and more",
+  "version": "0.1.0",
+  "publisher": "logos",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Snippets",
+    "Machine Learning",
+    "Other"
+  ],
+  "keywords": [
+    "ai",
+    "code",
+    "generation",
+    "debugging",
+    "testing",
+    "d3n",
+    "swe",
+    "agent"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "swe-agent.generate",
+        "title": "SWE: Generate Code",
+        "category": "SWE Agent"
+      },
+      {
+        "command": "swe-agent.fix",
+        "title": "SWE: Fix Bug",
+        "category": "SWE Agent"
+      },
+      {
+        "command": "swe-agent.review",
+        "title": "SWE: Review Code",
+        "category": "SWE Agent"
+      },
+      {
+        "command": "swe-agent.test",
+        "title": "SWE: Generate Tests",
+        "category": "SWE Agent"
+      },
+      {
+        "command": "swe-agent.explain",
+        "title": "SWE: Explain Code",
+        "category": "SWE Agent"
+      },
+      {
+        "command": "swe-agent.refactor",
+        "title": "SWE: Refactor Code",
+        "category": "SWE Agent"
+      },
+      {
+        "command": "swe-agent.document",
+        "title": "SWE: Generate Documentation",
+        "category": "SWE Agent"
+      },
+      {
+        "command": "swe-agent.chat",
+        "title": "SWE: Open Chat",
+        "category": "SWE Agent"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "swe-agent.generate",
+        "key": "ctrl+shift+g",
+        "mac": "cmd+shift+g",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "swe-agent.fix",
+        "key": "ctrl+shift+f",
+        "mac": "cmd+shift+f",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "swe-agent.chat",
+        "key": "ctrl+shift+a",
+        "mac": "cmd+shift+a"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "submenu": "swe-agent.submenu",
+          "group": "swe-agent"
+        }
+      ],
+      "swe-agent.submenu": [
+        {
+          "command": "swe-agent.generate"
+        },
+        {
+          "command": "swe-agent.fix"
+        },
+        {
+          "command": "swe-agent.review"
+        },
+        {
+          "command": "swe-agent.test"
+        },
+        {
+          "command": "swe-agent.explain"
+        },
+        {
+          "command": "swe-agent.refactor"
+        },
+        {
+          "command": "swe-agent.document"
+        }
+      ]
+    },
+    "submenus": [
+      {
+        "id": "swe-agent.submenu",
+        "label": "SWE Agent"
+      }
+    ],
+    "configuration": {
+      "title": "SWE Agent",
+      "properties": {
+        "sweAgent.apiEndpoint": {
+          "type": "string",
+          "default": "http://localhost:8080",
+          "description": "Gateway-D3N API endpoint"
+        },
+        "sweAgent.autoSuggest": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable automatic code suggestions"
+        },
+        "sweAgent.preferredModels": {
+          "type": "object",
+          "default": {
+            "code": "codex-01",
+            "debug": "debug-01",
+            "test": "test-01"
+          },
+          "description": "Preferred D3N models for each task"
+        },
+        "sweAgent.telemetryEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable anonymous telemetry"
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "swe-agent",
+          "title": "SWE Agent",
+          "icon": "resources/swe-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "swe-agent": [
+        {
+          "id": "swe-agent.chat",
+          "name": "Chat"
+        },
+        {
+          "id": "swe-agent.history",
+          "name": "History"
+        },
+        {
+          "id": "swe-agent.models",
+          "name": "Models"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile",
+    "test": "node ./out/test/runTest.js",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.50.0",
+    "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "axios": "^1.6.0"
+  }
+}
+
+

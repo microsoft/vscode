@@ -1,0 +1,216 @@
+/**
+ * ModeSelector Styles
+ *
+ * Cursor-inspired mode selector with refined dark theme aesthetics.
+ */
+
+.logos-mode-selector {
+  position: relative;
+  display: inline-flex;
+  font-family: var(--vscode-font-family, 'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif);
+}
+
+.logos-mode-selector.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* Trigger Button */
+.mode-selector-trigger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--vscode-input-background, rgba(30, 30, 30, 0.8));
+  border: 1px solid var(--vscode-input-border, rgba(255, 255, 255, 0.1));
+  border-radius: 6px;
+  color: var(--vscode-foreground, #cccccc);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.mode-selector-trigger:hover {
+  background: var(--vscode-list-hoverBackground, rgba(45, 45, 45, 0.9));
+  border-color: var(--vscode-focusBorder, rgba(255, 255, 255, 0.2));
+}
+
+.mode-selector-trigger:focus {
+  outline: none;
+  border-color: var(--vscode-focusBorder, #007acc);
+  box-shadow: 0 0 0 1px var(--vscode-focusBorder, #007acc);
+}
+
+.mode-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.mode-name {
+  min-width: 60px;
+}
+
+.mode-chevron {
+  font-size: 8px;
+  opacity: 0.6;
+  margin-left: 2px;
+}
+
+/* Dropdown */
+.mode-selector-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 280px;
+  background: var(--vscode-dropdown-background, #252526);
+  border: 1px solid var(--vscode-dropdown-border, rgba(255, 255, 255, 0.1));
+  border-radius: 8px;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    0 2px 8px rgba(0, 0, 0, 0.2);
+  z-index: 1000;
+  overflow: hidden;
+  animation: dropdownSlide 0.15s ease-out;
+}
+
+@keyframes dropdownSlide {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Mode Option */
+.mode-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  color: var(--vscode-foreground, #cccccc);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+
+.mode-option:hover {
+  background: var(--vscode-list-hoverBackground, rgba(255, 255, 255, 0.05));
+}
+
+.mode-option:focus {
+  outline: none;
+  background: var(--vscode-list-focusBackground, rgba(255, 255, 255, 0.08));
+}
+
+.mode-option.selected {
+  background: var(--vscode-list-activeSelectionBackground, rgba(255, 255, 255, 0.1));
+}
+
+.mode-option-icon {
+  font-size: 16px;
+  line-height: 1;
+  padding-top: 2px;
+}
+
+.mode-option-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mode-option-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--vscode-foreground, #cccccc);
+}
+
+.mode-option-description {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground, #8b8b8b);
+  line-height: 1.3;
+}
+
+.mode-option-shortcut {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground, #666666);
+  background: var(--vscode-badge-background, rgba(255, 255, 255, 0.1));
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: var(--vscode-editor-font-family, 'SF Mono', monospace);
+}
+
+.mode-option-check {
+  color: var(--vscode-terminal-ansiGreen, #4ade80);
+  font-size: 14px;
+  margin-left: auto;
+}
+
+/* Compact Mode Indicator */
+.logos-mode-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: var(--vscode-badge-background, rgba(255, 255, 255, 0.1));
+  border: 1px solid transparent;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.logos-mode-indicator:hover {
+  background: var(--vscode-list-hoverBackground, rgba(255, 255, 255, 0.15));
+}
+
+.indicator-icon {
+  font-size: 12px;
+}
+
+.indicator-label {
+  color: var(--vscode-foreground, #cccccc);
+}
+
+/* Model Selector (next to mode) */
+.logos-model-selector {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+}
+
+.model-selector-trigger {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  background: transparent;
+  border: none;
+  color: var(--vscode-descriptionForeground, #8b8b8b);
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.model-selector-trigger:hover {
+  background: var(--vscode-list-hoverBackground, rgba(255, 255, 255, 0.05));
+  color: var(--vscode-foreground, #cccccc);
+}
+
+.model-name {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+

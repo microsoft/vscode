@@ -9,14 +9,17 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useThreadManager } from '../threading/useThreadManager';
 import { useAgentRegistry } from '../agents/useAgentRegistry';
 import { useEditorContext } from '../context/useEditorContext';
+import { useModeRegistry } from './modes/useModeRegistry';
 import { AuditLogger } from '../governance/AuditLogger';
 import { ThreadSidebar } from './ThreadSidebar';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
 import { ContextIndicator } from './ContextIndicator';
 import { AgentSelector } from './AgentSelector';
+import { ModeSelector } from './ModeSelector';
 import { TangentTree } from './TangentTree';
 import type { Message, AgentMention, Thread } from './types';
+import type { AriaModeId } from './modes/types';
 
 import './ChatPanel.css';
 
@@ -37,6 +40,13 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ className, onClose }) => {
 
   const { agents, invokeAgent, isLoading } = useAgentRegistry();
   const { context, refreshContext } = useEditorContext();
+  const {
+    currentMode,
+    switchMode,
+    isToolAllowed,
+    getSystemPromptAddition,
+    detectModeFromQuery,
+  } = useModeRegistry();
   const [showTangentTree, setShowTangentTree] = useState(false);
   const messageListRef = useRef<HTMLDivElement>(null);
 
@@ -183,7 +193,19 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ className, onClose }) => {
       {/* Main chat area */}
       <div className="chat-main">
         <div className="chat-header">
-          <h3>
+          {/* Mode Selector - Cursor-style mode switching */}
+          <div className="chat-header-left">
+            <ModeSelector
+              onModeChange={(modeId: AriaModeId) => {
+                AuditLogger.getInstance().log('mode.switch', {
+                  thread_id: activeThread?.id,
+                  new_mode: modeId,
+                  previous_mode: currentMode.id,
+                });
+              }}
+            />
+          </div>
+          <h3 className="chat-title">
             {activeThread?.name || 'New Conversation'}
           </h3>
           <div className="chat-actions">

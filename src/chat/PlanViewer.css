@@ -1,0 +1,275 @@
+/**
+ * PlanViewer Styles
+ *
+ * Cursor-inspired plan viewer with dark theme aesthetics.
+ */
+
+.logos-plan-viewer {
+  background: var(--vscode-editor-background, #1e1e1e);
+  border: 1px solid var(--vscode-panel-border, rgba(255, 255, 255, 0.1));
+  border-radius: 8px;
+  margin: 12px 0;
+  overflow: hidden;
+}
+
+.logos-plan-viewer.collapsed .plan-content {
+  display: none;
+}
+
+/* Header */
+.plan-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--vscode-sideBar-background, #252526);
+  border-bottom: 1px solid var(--vscode-panel-border, rgba(255, 255, 255, 0.1));
+}
+
+.collapse-toggle {
+  background: none;
+  border: none;
+  color: var(--vscode-foreground, #cccccc);
+  cursor: pointer;
+  padding: 2px 4px;
+  font-size: 10px;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+
+.collapse-toggle:hover {
+  opacity: 1;
+}
+
+.plan-title-section {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.plan-icon {
+  font-size: 14px;
+}
+
+.plan-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--vscode-foreground, #cccccc);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.plan-mode-badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  background: var(--vscode-badge-background, rgba(255, 255, 255, 0.1));
+  border-radius: 10px;
+  color: var(--vscode-badge-foreground, #8b8b8b);
+  text-transform: capitalize;
+}
+
+.plan-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.plan-action-btn {
+  background: none;
+  border: none;
+  color: var(--vscode-foreground, #cccccc);
+  cursor: pointer;
+  padding: 4px 8px;
+  font-size: 12px;
+  border-radius: 4px;
+  opacity: 0.7;
+  transition: all 0.15s;
+}
+
+.plan-action-btn:hover {
+  opacity: 1;
+  background: var(--vscode-list-hoverBackground, rgba(255, 255, 255, 0.05));
+}
+
+.plan-action-btn.primary {
+  background: var(--vscode-button-background, #0e639c);
+  color: var(--vscode-button-foreground, #ffffff);
+  opacity: 1;
+}
+
+.plan-action-btn.primary:hover {
+  background: var(--vscode-button-hoverBackground, #1177bb);
+}
+
+.plan-action-btn.close {
+  opacity: 0.5;
+}
+
+.plan-action-btn.close:hover {
+  opacity: 1;
+  color: var(--vscode-errorForeground, #f48771);
+}
+
+/* Progress bar */
+.plan-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--vscode-sideBar-background, #252526);
+}
+
+.progress-bar {
+  flex: 1;
+  height: 4px;
+  background: var(--vscode-progressBar-background, rgba(255, 255, 255, 0.1));
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--vscode-progressBar-foreground, #0e639c);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.progress-text {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground, #8b8b8b);
+  min-width: 80px;
+  text-align: right;
+}
+
+/* Content */
+.plan-content {
+  padding: 12px;
+}
+
+.plan-overview {
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  background: var(--vscode-textBlockQuote-background, rgba(255, 255, 255, 0.03));
+  border-left: 2px solid var(--vscode-textBlockQuote-border, rgba(255, 255, 255, 0.1));
+  border-radius: 0 4px 4px 0;
+}
+
+.plan-overview p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground, #8b8b8b);
+  line-height: 1.5;
+}
+
+/* Items */
+.plan-items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.plan-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+
+.plan-item.editable {
+  cursor: pointer;
+}
+
+.plan-item.editable:hover {
+  background: var(--vscode-list-hoverBackground, rgba(255, 255, 255, 0.05));
+}
+
+.item-status {
+  font-size: 12px;
+  line-height: 1.5;
+  flex-shrink: 0;
+  transition: transform 0.15s;
+}
+
+.plan-item.editable:hover .item-status {
+  transform: scale(1.1);
+}
+
+.item-content {
+  flex: 1;
+  font-size: 12px;
+  color: var(--vscode-foreground, #cccccc);
+  line-height: 1.5;
+}
+
+.item-content.completed {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
+.item-complexity {
+  font-size: 9px;
+  color: var(--vscode-descriptionForeground, #666666);
+  letter-spacing: -1px;
+}
+
+/* Status-specific styles */
+.plan-item.in_progress {
+  background: rgba(245, 158, 11, 0.1);
+}
+
+.plan-item.completed {
+  opacity: 0.7;
+}
+
+.plan-item.cancelled .item-content,
+.plan-item.blocked .item-content {
+  text-decoration: line-through;
+  opacity: 0.5;
+}
+
+/* Compact progress indicator */
+.logos-plan-progress-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: var(--vscode-badge-background, rgba(255, 255, 255, 0.1));
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.logos-plan-progress-indicator:hover {
+  background: var(--vscode-list-hoverBackground, rgba(255, 255, 255, 0.15));
+}
+
+.progress-icon {
+  font-size: 12px;
+}
+
+.progress-mini-bar {
+  width: 40px;
+  height: 3px;
+  background: var(--vscode-progressBar-background, rgba(255, 255, 255, 0.1));
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progress-mini-fill {
+  height: 100%;
+  background: var(--vscode-progressBar-foreground, #10b981);
+  border-radius: 2px;
+}
+
+.progress-count {
+  font-size: 10px;
+  color: var(--vscode-descriptionForeground, #8b8b8b);
+}
+
