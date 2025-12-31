@@ -16,11 +16,11 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../platform/log/common/log.js';
-import { ChatSessionsService } from '../../../contrib/chat/browser/chatSessions.contribution.js';
-import { IChatAgentRequest } from '../../../contrib/chat/common/chatAgents.js';
-import { IChatProgress, IChatProgressMessage, IChatService } from '../../../contrib/chat/common/chatService.js';
+import { ChatSessionsService } from '../../../contrib/chat/browser/chatSessions/chatSessions.contribution.js';
+import { IChatAgentRequest } from '../../../contrib/chat/common/participants/chatAgents.js';
+import { IChatProgress, IChatProgressMessage, IChatService } from '../../../contrib/chat/common/chatService/chatService.js';
 import { IChatSessionItem, IChatSessionProviderOptionGroup, IChatSessionsService } from '../../../contrib/chat/common/chatSessionsService.js';
-import { LocalChatSessionUri } from '../../../contrib/chat/common/chatUri.js';
+import { LocalChatSessionUri } from '../../../contrib/chat/common/model/chatUri.js';
 import { ChatAgentLocation } from '../../../contrib/chat/common/constants.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExtHostContext } from '../../../services/extensions/common/extHostCustomers.js';
@@ -31,7 +31,7 @@ import { mock, TestExtensionService } from '../../../test/common/workbenchTestSe
 import { MainThreadChatSessions, ObservableChatSession } from '../../browser/mainThreadChatSessions.js';
 import { ExtHostChatSessionsShape, IChatProgressDto, IChatSessionProviderOptions } from '../../common/extHost.protocol.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
-import { MockChatService } from '../../../contrib/chat/test/common/mockChatService.js';
+import { MockChatService } from '../../../contrib/chat/test/common/chatService/mockChatService.js';
 
 suite('ObservableChatSession', function () {
 	let disposables: DisposableStore;

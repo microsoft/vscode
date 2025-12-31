@@ -13,7 +13,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { AccessibilityHelpAction } from './accessibleViewActions.js';
-import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
+import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { CommentAccessibilityHelpNLS } from '../../comments/browser/commentsAccessibility.js';
 import { CommentContextKeys } from '../../comments/common/commentContextKeys.js';
 import { NEW_UNTITLED_FILE_COMMAND_ID } from '../../files/browser/fileConstants.js';
