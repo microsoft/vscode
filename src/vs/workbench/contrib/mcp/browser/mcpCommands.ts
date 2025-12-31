@@ -50,11 +50,11 @@ import { IUserDataProfileService } from '../../../services/userDataProfile/commo
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { CHAT_CONFIG_MENU_ID } from '../../chat/browser/actions/chatActions.js';
 import { ChatViewId, IChatWidgetService } from '../../chat/browser/chat.js';
-import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
-import { IChatElicitationRequest, IChatToolInvocation } from '../../chat/common/chatService.js';
+import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
+import { IChatElicitationRequest, IChatToolInvocation } from '../../chat/common/chatService/chatService.js';
 import { ChatModeKind } from '../../chat/common/constants.js';
 import { ILanguageModelsService } from '../../chat/common/languageModels.js';
-import { ILanguageModelToolsService } from '../../chat/common/languageModelToolsService.js';
+import { ILanguageModelToolsService } from '../../chat/common/tools/languageModelToolsService.js';
 import { VIEW_CONTAINER } from '../../extensions/browser/extensions.contribution.js';
 import { extensionsFilterSubMenu, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
