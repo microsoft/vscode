@@ -26,7 +26,7 @@ import { ConfirmedReason, IChatToolInvocation, ToolConfirmKind } from '../../com
 import { isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatModeKind } from '../../common/constants.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
-import { ToolsScope } from '../widget/chatSelectedTools.js';
+import { ToolsScope } from '../widget/input/chatSelectedTools.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { showToolsPicker } from './chatToolPicker.js';
 

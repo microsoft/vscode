@@ -11,7 +11,7 @@ import { LanguageModelToolsService } from '../../browser/tools/languageModelTool
 import { IChatService } from '../../common/chatService.js';
 import { ILanguageModelToolsService, IToolData, ToolDataSource, ToolSet } from '../../common/tools/languageModelToolsService.js';
 import { MockChatService } from '../common/mockChatService.js';
-import { ChatSelectedTools } from '../../browser/widget/chatSelectedTools.js';
+import { ChatSelectedTools } from '../../browser/widget/input/chatSelectedTools.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';

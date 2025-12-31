@@ -14,7 +14,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ChatEntitlement, ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
-import { ChatInputPartWidgetsRegistry, IChatInputPartWidget } from '../widget/chatInputPartWidgets.js';
+import { ChatInputPartWidgetsRegistry, IChatInputPartWidget } from '../widget/input/chatInputPartWidgets.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { CHAT_SETUP_ACTION_ID } from '../actions/chatActions.js';
 

@@ -79,7 +79,7 @@ import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChat
 import { ChatAccessibilityProvider } from '../accessibility/chatAccessibilityProvider.js';
 import { ChatAttachmentModel } from '../attachments/chatAttachmentModel.js';
 import { ChatSuggestNextWidget } from '../chatContentParts/chatSuggestNextWidget.js';
-import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from './chatInputPart.js';
+import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from './input/chatInputPart.js';
 import { ChatListDelegate, ChatListItemRenderer, IChatListItemTemplate, IChatRendererDelegate } from './chatListRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatViewWelcomePart, IChatSuggestedPrompts, IChatViewWelcomeContent } from '../viewsWelcome/chatViewWelcomeController.js';
