@@ -479,7 +479,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		});
 	}
 
-	registerContributionsProvider(extension: IExtensionDescription, type: string, provider: vscode.ChatContributionsProvider): vscode.Disposable {
+	registerContributionsProvider(extension: IExtensionDescription, type: vscode.PromptsType, provider: vscode.ChatContributionsProvider): vscode.Disposable {
 		const handle = ExtHostChatAgents2._contributionsProviderIdPool++;
 		this._contributionsProviders.set(handle, { extension, provider });
 		this._proxy.$registerContributionsProvider(handle, type, extension.identifier);

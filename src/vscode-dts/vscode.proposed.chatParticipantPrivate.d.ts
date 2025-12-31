@@ -322,6 +322,12 @@ declare module 'vscode' {
 
 	// #region ChatContributionsProvider
 
+	export enum PromptsType {
+		instructions = 'instructions',
+		prompt = 'prompt',
+		agent = 'agent'
+	}
+
 	/**
 	 * Represents a custom agent resource file (e.g., .agent.md or .prompt.md) available for a repository.
 	 */
@@ -376,7 +382,7 @@ declare module 'vscode' {
 		 * @param provider The custom agents provider.
 		 * @returns A disposable that unregisters the provider when disposed.
 		 */
-		export function registerContributionsProvider(type: string, provider: ChatContributionsProvider): Disposable;
+		export function registerContributionsProvider(type: PromptsType, provider: ChatContributionsProvider): Disposable;
 	}
 
 	// #endregion
