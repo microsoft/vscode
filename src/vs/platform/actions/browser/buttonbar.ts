@@ -85,12 +85,9 @@ export class WorkbenchButtonBar extends ButtonBar {
 			const actionOrSubmenu = actions[i];
 			let action: IAction;
 			let btn: IButton;
-			let tooltip: string = '';
-			const kb = actionOrSubmenu instanceof SubmenuAction ? '' : this._keybindingService.lookupKeybinding(actionOrSubmenu.id);
-			if (kb) {
-				tooltip = localize('labelWithKeybinding', "{0} ({1})", actionOrSubmenu.tooltip || actionOrSubmenu.label, kb.getLabel());
-			} else {
-				tooltip = actionOrSubmenu.tooltip || actionOrSubmenu.label;
+			let tooltip = actionOrSubmenu.tooltip || actionOrSubmenu.label;
+			if (!(actionOrSubmenu instanceof SubmenuAction)) {
+				tooltip = this._keybindingService.appendKeybinding(tooltip, actionOrSubmenu.id);
 			}
 			if (actionOrSubmenu instanceof SubmenuAction && actionOrSubmenu.actions.length > 0) {
 				const [first, ...rest] = actionOrSubmenu.actions;

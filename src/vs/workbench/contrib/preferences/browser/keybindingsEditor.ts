@@ -886,23 +886,21 @@ class ActionsColumnRenderer implements ITableRenderer<IKeybindingItemEntry, IAct
 	}
 
 	private createEditAction(keybindingItemEntry: IKeybindingItemEntry): IAction {
-		const keybinding = this.keybindingsService.lookupKeybinding(KEYBINDINGS_EDITOR_COMMAND_DEFINE);
 		return <IAction>{
 			class: ThemeIcon.asClassName(keybindingsEditIcon),
 			enabled: true,
 			id: 'editKeybinding',
-			tooltip: keybinding ? localize('editKeybindingLabelWithKey', "Change Keybinding {0}", `(${keybinding.getLabel()})`) : localize('editKeybindingLabel', "Change Keybinding"),
+			tooltip: this.keybindingsService.appendKeybinding(localize('editKeybindingLabel', "Change Keybinding"), KEYBINDINGS_EDITOR_COMMAND_DEFINE),
 			run: () => this.keybindingsEditor.defineKeybinding(keybindingItemEntry, false)
 		};
 	}
 
 	private createAddAction(keybindingItemEntry: IKeybindingItemEntry): IAction {
-		const keybinding = this.keybindingsService.lookupKeybinding(KEYBINDINGS_EDITOR_COMMAND_DEFINE);
 		return <IAction>{
 			class: ThemeIcon.asClassName(keybindingsAddIcon),
 			enabled: true,
 			id: 'addKeybinding',
-			tooltip: keybinding ? localize('addKeybindingLabelWithKey', "Add Keybinding {0}", `(${keybinding.getLabel()})`) : localize('addKeybindingLabel', "Add Keybinding"),
+			tooltip: this.keybindingsService.appendKeybinding(localize('addKeybindingLabel', "Add Keybinding"), KEYBINDINGS_EDITOR_COMMAND_DEFINE),
 			run: () => this.keybindingsEditor.defineKeybinding(keybindingItemEntry, false)
 		};
 	}
