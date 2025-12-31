@@ -47,7 +47,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { gotoNextLocation, gotoPreviousLocation } from '../../../../platform/theme/common/iconRegistry.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Color } from '../../../../base/common/color.js';
-import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { getOuterEditor } from '../../../../editor/browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 import { quickDiffDecorationCount } from './quickDiffDecorator.js';
 import { hasNativeContextMenu } from '../../../../platform/window/common/window.js';
@@ -464,6 +464,14 @@ class QuickDiffWidget extends PeekViewWidget {
 		return this.diffEditor.hasTextFocus();
 	}
 
+	toggleFocus(): void {
+		if (this.diffEditor.hasTextFocus()) {
+			this.editor.focus();
+		} else {
+			this.diffEditor.focus();
+		}
+	}
+
 	override dispose() {
 		this.dropdown?.dispose();
 		this.menu?.dispose();
@@ -545,6 +553,12 @@ export class QuickDiffEditorController extends Disposable implements IEditorCont
 
 	refresh(): void {
 		this.widget?.showChange(this.widget.index, false);
+	}
+
+	toggleFocus(): void {
+		if (this.widget) {
+			this.widget.toggleFocus();
+		}
 	}
 
 	next(lineNumber?: number): void {
@@ -937,6 +951,26 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		}
 
 		controller.close();
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'togglePeekWidgetFocus',
+	weight: KeybindingWeight.EditorContrib,
+	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.F2),
+	when: isQuickDiffVisible,
+	handler: (accessor: ServicesAccessor) => {
+		const outerEditor = getOuterEditorFromDiffEditor(accessor);
+		if (!outerEditor) {
+			return;
+		}
+
+		const controller = QuickDiffEditorController.get(outerEditor);
+		if (!controller) {
+			return;
+		}
+
+		controller.toggleFocus();
 	}
 });
 
