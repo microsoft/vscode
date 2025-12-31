@@ -39,7 +39,7 @@ import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { SETTINGS_AUTHORITY } from '../../../../services/preferences/common/preferences.js';
 import { createFileIconThemableTreeContainerScope } from '../../../files/browser/views/explorerView.js';
 import { ExplorerFolderContext } from '../../../files/common/files.js';
-import { chatEditingWidgetFileStateContextKey, ModifiedFileEntryState } from '../../common/chatEditingService.js';
+import { chatEditingWidgetFileStateContextKey, chatEditingWidgetReadonlyContextKey, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { ChatResponseReferencePartStatusKind, IChatContentReference, IChatWarningMessage } from '../../common/chatService.js';
 import { IChatRendererContent, IChatResponseViewModel } from '../../common/chatViewModel.js';
 import { ChatTreeItem, IChatWidgetService } from '../chat.js';
@@ -54,6 +54,7 @@ export interface IChatReferenceListItem extends IChatContentReference {
 	description?: string;
 	state?: ModifiedFileEntryState;
 	excluded?: boolean;
+	readonly?: boolean;
 }
 
 export interface IChatListDividerItem {
@@ -451,6 +452,9 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 			if (templateData.contextKeyService) {
 				if (data.state !== undefined) {
 					chatEditingWidgetFileStateContextKey.bindTo(templateData.contextKeyService).set(data.state);
+				}
+				if (data.readonly !== undefined) {
+					chatEditingWidgetReadonlyContextKey.bindTo(templateData.contextKeyService).set(data.readonly);
 				}
 			}
 		}

@@ -80,7 +80,7 @@ import { InlineChatConfigKeys } from '../../inlineChat/common/inlineChat.js';
 import { IChatViewTitleActionContext } from '../common/chatActions.js';
 import { IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../common/chatEditingService.js';
+import { IChatEditingSession, IEditSessionEntryDiff, IModifiedFileEntry, ModifiedFileEntryState } from '../common/chatEditingService.js';
 import { IChatModelInputState, IChatRequestModeInfo, IInputModel } from '../common/chatModel.js';
 import { ChatMode, IChatMode, IChatModeService } from '../common/chatModes.js';
 import { IChatFollowup, IChatService } from '../common/chatService.js';
@@ -2331,6 +2331,199 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			list.layout(height);
 			list.getHTMLElement().style.height = `${height}px`;
 			list.splice(0, list.length, allEntries);
+			this._onDidChangeHeight.fire();
+		}));
+	}
+
+	/**
+	 * Renders file changes in the input widget from timeline diff data.
+	 * This is used for agent sessions that don't have a traditional editing session
+	 * but instead have diff data computed from the timeline.
+	 * NOTE: this is pretty much an addaptation of renderChatEditingSessionState above
+	 * but using IEditSessionEntryDiff observable instead.
+	 */
+	renderFileChangesFromDiffs(diffs: IObservable<readonly IEditSessionEntryDiff[]>, sessionResource: URI) {
+		const listEntries = derived((reader): IChatCollapsibleListItem[] => {
+			const entries: IChatCollapsibleListItem[] = [];
+			const seenEntries = new ResourceSet();
+
+			for (const diff of diffs.read(reader)) {
+				if (diff.identical) {
+					continue;
+				}
+				if (!seenEntries.has(diff.modifiedURI)) {
+					seenEntries.add(diff.modifiedURI);
+					entries.push({
+						reference: diff.modifiedURI,
+						state: ModifiedFileEntryState.Modified,
+						kind: 'reference',
+						readonly: true,
+						options: {
+							status: undefined,
+							diffMeta: { added: diff.added, removed: diff.removed }
+						}
+					});
+				}
+			}
+
+			entries.sort((a, b) => {
+				if (a.kind === 'reference' && b.kind === 'reference') {
+					return a.reference.toString().localeCompare(b.reference.toString());
+				}
+				return 0;
+			});
+
+			return entries;
+		});
+
+		const shouldRender = listEntries.map(r => r.length > 0);
+
+		this._renderingChatEdits.value = autorun(reader => {
+			if (this.options.renderWorkingSet && shouldRender.read(reader)) {
+				this.renderFileChangesFromDiffsWithEntries(
+					reader.store,
+					diffs,
+					listEntries,
+					sessionResource,
+				);
+			} else {
+				dom.clearNode(this.chatEditingSessionWidgetContainer);
+				this._chatEditsDisposables.clear();
+				this._chatEditList = undefined;
+			}
+		});
+	}
+
+	private renderFileChangesFromDiffsWithEntries(
+		store: DisposableStore,
+		diffs: IObservable<readonly IEditSessionEntryDiff[]>,
+		listEntries: IObservable<IChatCollapsibleListItem[]>,
+		sessionResource: URI,
+	) {
+		dom.setVisibility(true, this.chatEditingSessionWidgetContainer);
+
+		// eslint-disable-next-line no-restricted-syntax
+		const innerContainer = this.chatEditingSessionWidgetContainer.querySelector('.chat-editing-session-container.show-file-icons') as HTMLElement ?? dom.append(this.chatEditingSessionWidgetContainer, dom.$('.chat-editing-session-container.show-file-icons'));
+
+		// eslint-disable-next-line no-restricted-syntax
+		const overviewRegion = innerContainer.querySelector('.chat-editing-session-overview') as HTMLElement ?? dom.append(innerContainer, dom.$('.chat-editing-session-overview'));
+		// eslint-disable-next-line no-restricted-syntax
+		const overviewTitle = overviewRegion.querySelector('.working-set-title') as HTMLElement ?? dom.append(overviewRegion, dom.$('.working-set-title'));
+
+		// Clear out the previous actions (if any)
+		this._chatEditsActionsDisposables.clear();
+
+		// Working set
+		// eslint-disable-next-line no-restricted-syntax
+		const workingSetContainer = innerContainer.querySelector('.chat-editing-session-list') as HTMLElement ?? dom.append(innerContainer, dom.$('.chat-editing-session-list'));
+
+		const button = this._chatEditsActionsDisposables.add(new ButtonWithIcon(overviewTitle, {
+			supportIcons: true,
+			secondary: true,
+			ariaLabel: localize('chatEditingSession.toggleWorkingSet', 'Toggle changed files.'),
+		}));
+
+		const edits: IEditSessionEntryDiff[] = [];
+		store.add(autorun(reader => {
+			let added = 0;
+			let removed = 0;
+			const entries = diffs.read(reader);
+			for (const entry of entries) {
+				if (!entry.identical) {
+					added += entry.added;
+					removed += entry.removed;
+					edits.push(entry);
+				}
+			}
+			const fileCount = entries.filter(e => !e.identical).length;
+			const baseLabel = fileCount === 1 ? localize('chatEditingSession.oneFile.1', '1 file changed') : localize('chatEditingSession.manyFiles.1', '{0} files changed', fileCount);
+			button.label = baseLabel;
+
+			this._workingSetLinesAddedSpan.value.textContent = `+${added}`;
+			this._workingSetLinesRemovedSpan.value.textContent = `-${removed}`;
+			button.element.setAttribute('aria-label', localize('chatEditingSession.ariaLabelWithCounts', '{0}, {1} lines added, {2} lines removed', baseLabel, added, removed));
+
+			const shouldShowEditingSession = added > 0 || removed > 0;
+			dom.setVisibility(shouldShowEditingSession, this.chatEditingSessionWidgetContainer);
+			if (!shouldShowEditingSession) {
+				this._onDidChangeHeight.fire();
+			}
+		}));
+
+		const countsContainer = dom.$('.working-set-line-counts');
+		button.element.appendChild(countsContainer);
+		countsContainer.appendChild(this._workingSetLinesAddedSpan.value);
+		countsContainer.appendChild(this._workingSetLinesRemovedSpan.value);
+
+		const applyCollapseState = () => {
+			button.icon = this._workingSetCollapsed ? Codicon.chevronRight : Codicon.chevronDown;
+			workingSetContainer.classList.toggle('collapsed', this._workingSetCollapsed);
+			this._onDidChangeHeight.fire();
+		};
+
+		const toggleWorkingSet = () => {
+			this._workingSetCollapsed = !this._workingSetCollapsed;
+			applyCollapseState();
+		};
+
+		this._chatEditsActionsDisposables.add(button.onDidClick(() => { toggleWorkingSet(); }));
+		this._chatEditsActionsDisposables.add(addDisposableListener(overviewRegion, 'click', e => {
+			if (e.defaultPrevented) {
+				return;
+			}
+			const target = e.target as HTMLElement;
+			if (target.closest('.monaco-button')) {
+				return;
+			}
+			toggleWorkingSet();
+		}));
+
+		applyCollapseState();
+
+		if (!this._chatEditList) {
+			this._chatEditList = this._chatEditsListPool.get();
+			const list = this._chatEditList.object;
+			this._chatEditsDisposables.add(this._chatEditList);
+			this._chatEditsDisposables.add(list.onDidFocus(() => {
+				this._onDidFocus.fire();
+			}));
+			this._chatEditsDisposables.add(list.onDidOpen(async (e) => {
+				if (e.element?.kind === 'reference' && URI.isUri(e.element.reference)) {
+					const modifiedFileUri = e.element.reference;
+					// For contributed sessions, find the diff and open it
+					const diff = edits.find(d => isEqual(d.modifiedURI, modifiedFileUri));
+					if (diff) {
+						await this.editorService.openEditor({
+							original: { resource: diff.originalURI },
+							modified: { resource: diff.modifiedURI },
+							options: e.editorOptions
+						}, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+					} else {
+						await this.editorService.openEditor({
+							resource: modifiedFileUri,
+							options: e.editorOptions
+						}, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+					}
+				}
+			}));
+			this._chatEditsDisposables.add(addDisposableListener(list.getHTMLElement(), 'click', e => {
+				if (!this.hasFocus()) {
+					this._onDidFocus.fire();
+				}
+			}, true));
+			dom.append(workingSetContainer, list.getHTMLElement());
+			dom.append(innerContainer, workingSetContainer);
+		}
+
+		store.add(autorun(reader => {
+			const entries = listEntries.read(reader);
+			const maxItemsShown = 6;
+			const itemsShown = Math.min(entries.length, maxItemsShown);
+			const height = itemsShown * 22;
+			const list = this._chatEditList!.object;
+			list.layout(height);
+			list.getHTMLElement().style.height = `${height}px`;
+			list.splice(0, list.length, entries);
 			this._onDidChangeHeight.fire();
 		}));
 	}
