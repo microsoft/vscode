@@ -273,4 +273,222 @@
   color: var(--vscode-descriptionForeground, #8b8b8b);
 }
 
+/* Execution-specific styles */
+.execution-badge {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 500;
+}
+
+.execution-badge.running {
+  background: var(--color-info, rgba(59, 130, 246, 0.2));
+  color: var(--vscode-textLink-foreground, #3794ff);
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.plan-action-btn.warning {
+  background: var(--color-warning, rgba(245, 158, 11, 0.2));
+  color: #f59e0b;
+}
+
+.plan-action-btn.warning:hover {
+  background: rgba(245, 158, 11, 0.3);
+}
+
+.plan-action-btn.danger {
+  background: var(--color-error, rgba(239, 68, 68, 0.2));
+  color: #ef4444;
+}
+
+.plan-action-btn.danger:hover {
+  background: rgba(239, 68, 68, 0.3);
+}
+
+.plan-action-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.progress-fill.executing {
+  background: linear-gradient(90deg, 
+    var(--vscode-progressBar-foreground, #0e639c) 0%,
+    var(--color-info, #3b82f6) 50%,
+    var(--vscode-progressBar-foreground, #0e639c) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.plan-item.executing {
+  background: rgba(59, 130, 246, 0.1);
+  border-left: 2px solid var(--color-info, #3b82f6);
+}
+
+.item-status.pulse {
+  animation: statusPulse 1s infinite;
+}
+
+@keyframes statusPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+}
+
+.item-error {
+  color: var(--color-error, #ef4444);
+  cursor: help;
+}
+
+.item-duration {
+  font-size: 10px;
+  color: var(--vscode-descriptionForeground, #666666);
+  padding: 1px 4px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+}
+
+/* Execution Panel */
+.execution-panel {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 360px;
+  background: var(--vscode-editor-background, #1e1e1e);
+  border: 1px solid var(--vscode-panel-border, rgba(255, 255, 255, 0.1));
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  z-index: 1000;
+  overflow: hidden;
+}
+
+.execution-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  background: var(--vscode-sideBar-background, #252526);
+  border-bottom: 1px solid var(--vscode-panel-border, rgba(255, 255, 255, 0.1));
+}
+
+.execution-state-icon {
+  font-size: 16px;
+}
+
+.execution-state-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--vscode-foreground, #cccccc);
+}
+
+.execution-stats {
+  flex: 1;
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground, #8b8b8b);
+  text-align: right;
+}
+
+.execution-panel-header .close-btn {
+  background: none;
+  border: none;
+  color: var(--vscode-foreground, #cccccc);
+  opacity: 0.5;
+  cursor: pointer;
+  padding: 4px;
+  font-size: 14px;
+}
+
+.execution-panel-header .close-btn:hover {
+  opacity: 1;
+}
+
+.execution-progress-detail {
+  padding: 12px 14px;
+}
+
+.progress-bar.large {
+  height: 8px;
+  margin-bottom: 8px;
+}
+
+.progress-fill.running {
+  background: var(--color-info, #3b82f6);
+}
+
+.progress-fill.completed {
+  background: var(--color-success, #10b981);
+}
+
+.progress-fill.failed {
+  background: var(--color-error, #ef4444);
+}
+
+.progress-fill.paused {
+  background: var(--color-warning, #f59e0b);
+}
+
+.progress-label {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground, #8b8b8b);
+}
+
+.execution-results {
+  padding: 0 14px 12px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.result-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  font-size: 11px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.result-row:last-child {
+  border-bottom: none;
+}
+
+.result-icon {
+  width: 14px;
+  text-align: center;
+}
+
+.result-row.success .result-icon {
+  color: var(--color-success, #10b981);
+}
+
+.result-row.failed .result-icon {
+  color: var(--color-error, #ef4444);
+}
+
+.result-item {
+  flex: 1;
+  color: var(--vscode-foreground, #cccccc);
+}
+
+.result-duration {
+  color: var(--vscode-descriptionForeground, #666666);
+}
+
+.result-error {
+  color: var(--color-error, #ef4444);
+  font-size: 10px;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 

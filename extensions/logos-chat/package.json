@@ -41,6 +41,71 @@
       {
         "command": "logos.chat.branchThread",
         "title": "Logos: Branch Conversation"
+      },
+      {
+        "command": "logos.mode.agent",
+        "title": "Logos: Switch to Agent Mode",
+        "category": "Logos Modes"
+      },
+      {
+        "command": "logos.mode.plan",
+        "title": "Logos: Switch to Plan Mode",
+        "category": "Logos Modes"
+      },
+      {
+        "command": "logos.mode.debug",
+        "title": "Logos: Switch to Debug Mode",
+        "category": "Logos Modes"
+      },
+      {
+        "command": "logos.mode.ask",
+        "title": "Logos: Switch to Ask Mode",
+        "category": "Logos Modes"
+      },
+      {
+        "command": "logos.mode.research",
+        "title": "Logos: Switch to Research Mode",
+        "category": "Logos Modes"
+      },
+      {
+        "command": "logos.mode.code_review",
+        "title": "Logos: Switch to Code Review Mode",
+        "category": "Logos Modes"
+      },
+      {
+        "command": "logos.mode.pick",
+        "title": "Logos: Select Mode...",
+        "category": "Logos Modes"
+      },
+      {
+        "command": "logos.plan.create",
+        "title": "Logos: Create Plan",
+        "category": "Logos Planning"
+      },
+      {
+        "command": "logos.plan.execute",
+        "title": "Logos: Execute Plan",
+        "category": "Logos Planning"
+      },
+      {
+        "command": "logos.plan.pause",
+        "title": "Logos: Pause Plan Execution",
+        "category": "Logos Planning"
+      },
+      {
+        "command": "logos.plan.resume",
+        "title": "Logos: Resume Plan Execution",
+        "category": "Logos Planning"
+      },
+      {
+        "command": "logos.plan.cancel",
+        "title": "Logos: Cancel Plan Execution",
+        "category": "Logos Planning"
+      },
+      {
+        "command": "logos.tools.list",
+        "title": "Logos: List Available Tools",
+        "category": "Logos Tools"
       }
     ],
     "viewsContainers": {
@@ -78,6 +143,32 @@
           "when": "view == logos.chatPanel",
           "group": "navigation"
         }
+      ],
+      "commandPalette": [
+        {
+          "command": "logos.mode.agent",
+          "when": "true"
+        },
+        {
+          "command": "logos.mode.plan",
+          "when": "true"
+        },
+        {
+          "command": "logos.mode.debug",
+          "when": "true"
+        },
+        {
+          "command": "logos.mode.ask",
+          "when": "true"
+        },
+        {
+          "command": "logos.mode.research",
+          "when": "true"
+        },
+        {
+          "command": "logos.mode.code_review",
+          "when": "true"
+        }
       ]
     },
     "keybindings": [
@@ -91,10 +182,51 @@
         "key": "ctrl+shift+a",
         "mac": "cmd+shift+a",
         "when": "logos.chatFocused"
+      },
+      {
+        "command": "logos.mode.agent",
+        "key": "ctrl+shift+1",
+        "mac": "cmd+shift+1"
+      },
+      {
+        "command": "logos.mode.plan",
+        "key": "ctrl+shift+2",
+        "mac": "cmd+shift+2"
+      },
+      {
+        "command": "logos.mode.debug",
+        "key": "ctrl+shift+3",
+        "mac": "cmd+shift+3"
+      },
+      {
+        "command": "logos.mode.ask",
+        "key": "ctrl+shift+4",
+        "mac": "cmd+shift+4"
+      },
+      {
+        "command": "logos.mode.research",
+        "key": "ctrl+shift+5",
+        "mac": "cmd+shift+5"
+      },
+      {
+        "command": "logos.mode.code_review",
+        "key": "ctrl+shift+6",
+        "mac": "cmd+shift+6"
+      },
+      {
+        "command": "logos.mode.pick",
+        "key": "ctrl+shift+m",
+        "mac": "cmd+shift+m"
+      },
+      {
+        "command": "logos.plan.execute",
+        "key": "ctrl+shift+enter",
+        "mac": "cmd+shift+enter",
+        "when": "logos.hasActivePlan"
       }
     ],
     "configuration": {
-      "title": "Logos Chat",
+      "title": "Logos",
       "properties": {
         "logos.chat.defaultAgent": {
           "type": "string",
@@ -110,6 +242,55 @@
           "type": "boolean",
           "default": true,
           "description": "Automatically save conversation threads"
+        },
+        "logos.defaultMode": {
+          "type": "string",
+          "default": "agent",
+          "enum": ["agent", "plan", "debug", "ask", "research", "code_review"],
+          "enumDescriptions": [
+            "Full agentic execution with all tools enabled",
+            "Planning mode - analyze and create plans without execution",
+            "Debugging assistance and problem diagnosis",
+            "Question and answer mode with no side effects",
+            "Deep research via Athena integration",
+            "Code analysis and improvement suggestions"
+          ],
+          "description": "Default Aria mode on startup"
+        },
+        "logos.autoModeSwitch": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically switch modes based on query context"
+        },
+        "logos.tools.confirmBeforeExecute": {
+          "type": "boolean",
+          "default": true,
+          "description": "Require confirmation before executing write operations"
+        },
+        "logos.tools.showToolOutput": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show detailed tool output in chat"
+        },
+        "logos.plans.autoSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically save plans to workspace"
+        },
+        "logos.plans.directory": {
+          "type": "string",
+          "default": ".logos/plans",
+          "description": "Directory for storing plan files (relative to workspace root)"
+        },
+        "logos.plans.executionMode": {
+          "type": "string",
+          "default": "sequential",
+          "enum": ["sequential", "step-by-step"],
+          "enumDescriptions": [
+            "Execute all plan items automatically",
+            "Pause after each item for review"
+          ],
+          "description": "How to execute plans"
         }
       }
     }
@@ -129,5 +310,3 @@
     "typescript": "^5.3.0"
   }
 }
-
-

@@ -1,12 +1,15 @@
 /**
- * Diagnostics Tools - Tools for working with problems and diagnostics
+ * Diagnostics Tools - Tools for accessing IDE diagnostics (Problems panel)
  *
  * Provides agents with the ability to:
- * - Read diagnostics/problems from the Problems panel
- * - Get diagnostics for specific files
- * - Analyze error patterns
+ * - Get diagnostics (errors, warnings, info) for files
+ * - Filter by severity
+ * - Access quick fixes
+ *
+ * These tools are wired to the VS Code Languages/Diagnostics API.
  */
 
+import * as vscode from 'vscode';
 import type {
   ToolDefinition,
   ToolImplementation,
@@ -14,65 +17,69 @@ import type {
   ToolResult,
 } from '../AriaToolRegistry';
 
-/**
- * Diagnostic severity levels
- */
-export type DiagnosticSeverity = 'error' | 'warning' | 'info' | 'hint';
-
-/**
- * A diagnostic item
- */
-export interface DiagnosticItem {
-  file: string;
-  line: number;
-  column: number;
-  endLine?: number;
-  endColumn?: number;
-  severity: DiagnosticSeverity;
-  message: string;
-  source?: string;
-  code?: string | number;
-}
-
 // =============================================================================
-// Read Diagnostics Tool
+// Severity Mapping
 // =============================================================================
 
-export const readDiagnosticsDefinition: ToolDefinition = {
-  id: 'read_diagnostics',
-  displayName: 'Read Diagnostics',
-  modelDescription: `Get diagnostics (errors, warnings) from the Problems panel.
+const SEVERITY_MAP: Record<vscode.DiagnosticSeverity, string> = {
+  [vscode.DiagnosticSeverity.Error]: 'error',
+  [vscode.DiagnosticSeverity.Warning]: 'warning',
+  [vscode.DiagnosticSeverity.Information]: 'info',
+  [vscode.DiagnosticSeverity.Hint]: 'hint',
+};
 
-Can filter by:
-- File path
-- Severity (error, warning, info, hint)
-- Source (e.g., typescript, eslint)`,
-  userDescription: 'Read problems and diagnostics',
+const SEVERITY_PRIORITY: Record<vscode.DiagnosticSeverity, number> = {
+  [vscode.DiagnosticSeverity.Error]: 0,
+  [vscode.DiagnosticSeverity.Warning]: 1,
+  [vscode.DiagnosticSeverity.Information]: 2,
+  [vscode.DiagnosticSeverity.Hint]: 3,
+};
+
+// =============================================================================
+// Get Diagnostics Tool
+// =============================================================================
+
+export const getDiagnosticsDefinition: ToolDefinition = {
+  id: 'get_diagnostics',
+  displayName: 'Get Diagnostics',
+  modelDescription: `Get diagnostics (errors, warnings, info) from the IDE.
+
+Returns:
+- Error messages with file, line, column
+- Warning messages
+- Info and hints
+- Source (e.g., typescript, eslint, pylint)
+
+Use this to:
+- Check for compilation errors
+- See linting issues
+- Understand what problems exist in the codebase`,
+  userDescription: 'Get errors and warnings from the Problems panel',
   category: 'diagnostics',
   parameters: [
     {
       name: 'file',
       type: 'string',
-      description: 'Filter by file path (optional)',
+      description: 'Filter diagnostics by file path (optional)',
       required: false,
     },
     {
       name: 'severity',
       type: 'string',
-      description: 'Filter by severity level',
+      description: 'Filter by severity: error, warning, info, hint (optional)',
       required: false,
       enum: ['error', 'warning', 'info', 'hint'],
     },
     {
       name: 'source',
       type: 'string',
-      description: 'Filter by diagnostic source (e.g., typescript)',
+      description: 'Filter by source (e.g., typescript, eslint)',
       required: false,
     },
     {
-      name: 'limit',
+      name: 'maxResults',
       type: 'number',
-      description: 'Maximum number of diagnostics to return',
+      description: 'Maximum number of results (default: 50)',
       required: false,
       default: 50,
     },
@@ -80,84 +87,123 @@ Can filter by:
   isReadOnly: true,
   requiresConfirmation: false,
   icon: '⚠️',
-  tags: ['diagnostics', 'problems', 'read'],
+  tags: ['diagnostics', 'errors', 'warnings', 'read'],
 };
 
-export class ReadDiagnosticsTool implements ToolImplementation {
+export class GetDiagnosticsTool implements ToolImplementation {
   async execute(
-    params: { file?: string; severity?: string; source?: string; limit?: number },
+    params: {
+      file?: string;
+      severity?: string;
+      source?: string;
+      maxResults?: number;
+    },
     context: ToolInvocationContext
   ): Promise<ToolResult> {
     const startTime = performance.now();
 
     try {
-      // In a real implementation, this would use VS Code's diagnostics API
-      let diagnostics: DiagnosticItem[] = [
-        {
-          file: 'src/main.ts',
-          line: 42,
-          column: 5,
-          severity: 'error',
-          message: "Property 'foo' does not exist on type 'Bar'",
-          source: 'typescript',
-          code: 2339,
-        },
-        {
-          file: 'src/utils.ts',
-          line: 15,
-          column: 10,
-          severity: 'warning',
-          message: "'x' is declared but its value is never read",
-          source: 'typescript',
-          code: 6133,
-        },
-        {
-          file: 'src/api.ts',
-          line: 88,
-          column: 1,
-          severity: 'warning',
-          message: 'Unexpected console statement',
-          source: 'eslint',
-          code: 'no-console',
-        },
-      ];
+      const maxResults = params.maxResults || 50;
+      const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
 
-      // Apply filters
+      // Get all diagnostics
+      let allDiagnostics: [vscode.Uri, vscode.Diagnostic[]][];
+
       if (params.file) {
-        diagnostics = diagnostics.filter((d) => d.file === params.file);
-      }
-      if (params.severity) {
-        diagnostics = diagnostics.filter((d) => d.severity === params.severity);
-      }
-      if (params.source) {
-        diagnostics = diagnostics.filter((d) => d.source === params.source);
+        // Get diagnostics for specific file
+        const fileUri = params.file.startsWith('/')
+          ? vscode.Uri.file(params.file)
+          : vscode.Uri.file(`${workspaceRoot}/${params.file}`);
+
+        const fileDiagnostics = vscode.languages.getDiagnostics(fileUri);
+        allDiagnostics = [[fileUri, fileDiagnostics]];
+      } else {
+        // Get all diagnostics
+        allDiagnostics = vscode.languages.getDiagnostics();
       }
 
-      // Apply limit
-      const limit = params.limit || 50;
-      diagnostics = diagnostics.slice(0, limit);
+      // Flatten and filter
+      const results: any[] = [];
 
-      // Summary
+      for (const [uri, diagnostics] of allDiagnostics) {
+        for (const diagnostic of diagnostics) {
+          // Filter by severity
+          if (params.severity) {
+            const severityStr = SEVERITY_MAP[diagnostic.severity];
+            if (severityStr !== params.severity) {
+              continue;
+            }
+          }
+
+          // Filter by source
+          if (params.source && diagnostic.source?.toLowerCase() !== params.source.toLowerCase()) {
+            continue;
+          }
+
+          results.push({
+            file: vscode.workspace.asRelativePath(uri),
+            severity: SEVERITY_MAP[diagnostic.severity],
+            severityPriority: SEVERITY_PRIORITY[diagnostic.severity],
+            line: diagnostic.range.start.line + 1,
+            column: diagnostic.range.start.character + 1,
+            endLine: diagnostic.range.end.line + 1,
+            endColumn: diagnostic.range.end.character + 1,
+            message: diagnostic.message,
+            source: diagnostic.source,
+            code: typeof diagnostic.code === 'object'
+              ? diagnostic.code.value
+              : diagnostic.code,
+          });
+
+          if (results.length >= maxResults) {
+            break;
+          }
+        }
+
+        if (results.length >= maxResults) {
+          break;
+        }
+      }
+
+      // Sort by severity, then file, then line
+      results.sort((a, b) => {
+        if (a.severityPriority !== b.severityPriority) {
+          return a.severityPriority - b.severityPriority;
+        }
+        if (a.file !== b.file) {
+          return a.file.localeCompare(b.file);
+        }
+        return a.line - b.line;
+      });
+
+      // Remove the priority field before returning
+      results.forEach((r) => delete r.severityPriority);
+
+      if (results.length === 0) {
+        return {
+          success: true,
+          content: 'No diagnostics found' + (params.file ? ` for ${params.file}` : ''),
+          executionTimeMs: performance.now() - startTime,
+        };
+      }
+
+      // Format output
       const summary = {
-        total: diagnostics.length,
-        bySevertiy: {
-          error: diagnostics.filter((d) => d.severity === 'error').length,
-          warning: diagnostics.filter((d) => d.severity === 'warning').length,
-          info: diagnostics.filter((d) => d.severity === 'info').length,
-          hint: diagnostics.filter((d) => d.severity === 'hint').length,
-        },
-        diagnostics,
+        total: results.length,
+        errors: results.filter((r) => r.severity === 'error').length,
+        warnings: results.filter((r) => r.severity === 'warning').length,
+        info: results.filter((r) => r.severity === 'info').length,
+        hints: results.filter((r) => r.severity === 'hint').length,
       };
 
       return {
         success: true,
-        content: JSON.stringify(summary, null, 2),
-        artifacts: [
-          {
-            type: 'diagnostic',
-            metadata: summary,
-          },
-        ],
+        content: JSON.stringify({ summary, diagnostics: results }, null, 2),
+        artifacts: results.map((r) => ({
+          type: 'diagnostic' as const,
+          path: r.file,
+          metadata: r,
+        })),
         executionTimeMs: performance.now() - startTime,
       };
     } catch (error) {
@@ -172,52 +218,89 @@ export class ReadDiagnosticsTool implements ToolImplementation {
 }
 
 // =============================================================================
-// Get File Diagnostics Tool
+// Get Quick Fixes Tool
 // =============================================================================
 
-export const getFileDiagnosticsDefinition: ToolDefinition = {
-  id: 'get_file_diagnostics',
-  displayName: 'Get File Diagnostics',
-  modelDescription: `Get all diagnostics for a specific file, organized by line.`,
-  userDescription: 'Get diagnostics for a file',
+export const getQuickFixesDefinition: ToolDefinition = {
+  id: 'get_quick_fixes',
+  displayName: 'Get Quick Fixes',
+  modelDescription: `Get available quick fixes/code actions for a diagnostic at a specific location.`,
+  userDescription: 'Get available quick fixes',
   category: 'diagnostics',
   parameters: [
     {
       name: 'file',
       type: 'string',
-      description: 'File path to get diagnostics for',
+      description: 'File path',
       required: true,
+    },
+    {
+      name: 'line',
+      type: 'number',
+      description: 'Line number (1-based)',
+      required: true,
+    },
+    {
+      name: 'column',
+      type: 'number',
+      description: 'Column number (1-based, optional, defaults to 1)',
+      required: false,
+      default: 1,
     },
   ],
   isReadOnly: true,
   requiresConfirmation: false,
-  icon: '📋',
-  tags: ['diagnostics', 'file', 'read'],
+  icon: '💡',
+  tags: ['diagnostics', 'quickfix', 'read'],
 };
 
-export class GetFileDiagnosticsTool implements ToolImplementation {
+export class GetQuickFixesTool implements ToolImplementation {
   async execute(
-    params: { file: string },
+    params: { file: string; line: number; column?: number },
     context: ToolInvocationContext
   ): Promise<ToolResult> {
     const startTime = performance.now();
 
     try {
-      // In a real implementation, this would use VS Code's diagnostics API
-      const diagnostics: DiagnosticItem[] = [
-        {
-          file: params.file,
-          line: 10,
-          column: 5,
-          severity: 'error',
-          message: 'Example error message',
-          source: 'typescript',
-        },
-      ];
+      const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
+      const fileUri = params.file.startsWith('/')
+        ? vscode.Uri.file(params.file)
+        : vscode.Uri.file(`${workspaceRoot}/${params.file}`);
+
+      const line = params.line - 1; // Convert to 0-based
+      const column = (params.column || 1) - 1;
+
+      const range = new vscode.Range(
+        new vscode.Position(line, column),
+        new vscode.Position(line, column)
+      );
+
+      // Get code actions
+      const codeActions = await vscode.commands.executeCommand<vscode.CodeAction[]>(
+        'vscode.executeCodeActionProvider',
+        fileUri,
+        range
+      );
+
+      if (!codeActions || codeActions.length === 0) {
+        return {
+          success: true,
+          content: `No quick fixes available at ${params.file}:${params.line}`,
+          executionTimeMs: performance.now() - startTime,
+        };
+      }
+
+      const actions = codeActions.map((action, index) => ({
+        index,
+        title: action.title,
+        kind: action.kind?.value,
+        isPreferred: action.isPreferred,
+        disabled: action.disabled?.reason,
+      }));
 
       return {
         success: true,
-        content: JSON.stringify(diagnostics, null, 2),
+        content: JSON.stringify(actions, null, 2),
         executionTimeMs: performance.now() - startTime,
       };
     } catch (error) {
@@ -232,58 +315,127 @@ export class GetFileDiagnosticsTool implements ToolImplementation {
 
   validate(params: Record<string, any>): { valid: boolean; error?: string } {
     if (!params.file) return { valid: false, error: 'file is required' };
+    if (!params.line || typeof params.line !== 'number') {
+      return { valid: false, error: 'line is required and must be a number' };
+    }
     return { valid: true };
   }
 }
 
 // =============================================================================
-// Get Diagnostic Summary Tool
+// Apply Quick Fix Tool
 // =============================================================================
 
-export const getDiagnosticSummaryDefinition: ToolDefinition = {
-  id: 'get_diagnostic_summary',
-  displayName: 'Get Diagnostic Summary',
-  modelDescription: `Get a summary of all diagnostics in the workspace grouped by file and severity.`,
-  userDescription: 'Get summary of all problems',
+export const applyQuickFixDefinition: ToolDefinition = {
+  id: 'apply_quick_fix',
+  displayName: 'Apply Quick Fix',
+  modelDescription: `Apply a quick fix/code action at a specific location.`,
+  userDescription: 'Apply a quick fix',
   category: 'diagnostics',
-  parameters: [],
-  isReadOnly: true,
-  requiresConfirmation: false,
-  icon: '📊',
-  tags: ['diagnostics', 'summary', 'read'],
+  parameters: [
+    {
+      name: 'file',
+      type: 'string',
+      description: 'File path',
+      required: true,
+    },
+    {
+      name: 'line',
+      type: 'number',
+      description: 'Line number (1-based)',
+      required: true,
+    },
+    {
+      name: 'fixIndex',
+      type: 'number',
+      description: 'Index of the quick fix to apply (from get_quick_fixes)',
+      required: false,
+      default: 0,
+    },
+    {
+      name: 'fixTitle',
+      type: 'string',
+      description: 'Title of the fix to apply (alternative to fixIndex)',
+      required: false,
+    },
+  ],
+  isReadOnly: false,
+  requiresConfirmation: true,
+  icon: '🔧',
+  tags: ['diagnostics', 'quickfix', 'write'],
 };
 
-export class GetDiagnosticSummaryTool implements ToolImplementation {
+export class ApplyQuickFixTool implements ToolImplementation {
   async execute(
-    params: Record<string, never>,
+    params: { file: string; line: number; fixIndex?: number; fixTitle?: string },
     context: ToolInvocationContext
   ): Promise<ToolResult> {
     const startTime = performance.now();
 
     try {
-      const summary = {
-        totalFiles: 3,
-        totalDiagnostics: 5,
-        byFile: {
-          'src/main.ts': { errors: 2, warnings: 0 },
-          'src/utils.ts': { errors: 0, warnings: 2 },
-          'src/api.ts': { errors: 0, warnings: 1 },
-        },
-        bySeverity: {
-          error: 2,
-          warning: 3,
-          info: 0,
-          hint: 0,
-        },
-        bySource: {
-          typescript: 4,
-          eslint: 1,
-        },
-      };
+      const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
+      const fileUri = params.file.startsWith('/')
+        ? vscode.Uri.file(params.file)
+        : vscode.Uri.file(`${workspaceRoot}/${params.file}`);
+
+      const line = params.line - 1;
+      const range = new vscode.Range(
+        new vscode.Position(line, 0),
+        new vscode.Position(line, 0)
+      );
+
+      // Get code actions
+      const codeActions = await vscode.commands.executeCommand<vscode.CodeAction[]>(
+        'vscode.executeCodeActionProvider',
+        fileUri,
+        range
+      );
+
+      if (!codeActions || codeActions.length === 0) {
+        return {
+          success: false,
+          content: '',
+          error: `No quick fixes available at ${params.file}:${params.line}`,
+          executionTimeMs: performance.now() - startTime,
+        };
+      }
+
+      // Find the action to apply
+      let action: vscode.CodeAction | undefined;
+
+      if (params.fixTitle) {
+        action = codeActions.find((a) =>
+          a.title.toLowerCase().includes(params.fixTitle!.toLowerCase())
+        );
+      } else {
+        const index = params.fixIndex || 0;
+        action = codeActions[index];
+      }
+
+      if (!action) {
+        return {
+          success: false,
+          content: '',
+          error: `Quick fix not found. Available fixes: ${codeActions.map((a) => a.title).join(', ')}`,
+          executionTimeMs: performance.now() - startTime,
+        };
+      }
+
+      // Apply the action
+      if (action.edit) {
+        await vscode.workspace.applyEdit(action.edit);
+      }
+
+      if (action.command) {
+        await vscode.commands.executeCommand(
+          action.command.command,
+          ...(action.command.arguments || [])
+        );
+      }
 
       return {
         success: true,
-        content: JSON.stringify(summary, null, 2),
+        content: `Applied quick fix: "${action.title}"`,
         executionTimeMs: performance.now() - startTime,
       };
     } catch (error) {
@@ -295,53 +447,98 @@ export class GetDiagnosticSummaryTool implements ToolImplementation {
       };
     }
   }
+
+  validate(params: Record<string, any>): { valid: boolean; error?: string } {
+    if (!params.file) return { valid: false, error: 'file is required' };
+    if (!params.line || typeof params.line !== 'number') {
+      return { valid: false, error: 'line is required and must be a number' };
+    }
+    return { valid: true };
+  }
 }
 
 // =============================================================================
-// Run Linter Tool
+// Get Workspace Problems Summary Tool
 // =============================================================================
 
-export const runLinterDefinition: ToolDefinition = {
-  id: 'run_linter',
-  displayName: 'Run Linter',
-  modelDescription: `Manually trigger linting on files or the entire workspace.`,
-  userDescription: 'Run linter on files',
+export const getWorkspaceProblemsSummaryDefinition: ToolDefinition = {
+  id: 'get_problems_summary',
+  displayName: 'Get Problems Summary',
+  modelDescription: `Get a summary of all problems in the workspace, grouped by file.`,
+  userDescription: 'Get a summary of all problems',
   category: 'diagnostics',
-  parameters: [
-    {
-      name: 'files',
-      type: 'array',
-      description: 'Files to lint (optional, defaults to all)',
-      required: false,
-    },
-    {
-      name: 'fix',
-      type: 'boolean',
-      description: 'Auto-fix issues where possible',
-      required: false,
-      default: false,
-    },
-  ],
-  isReadOnly: false,
-  requiresConfirmation: true,
-  icon: '🔧',
-  tags: ['diagnostics', 'lint', 'write'],
+  parameters: [],
+  isReadOnly: true,
+  requiresConfirmation: false,
+  icon: '📊',
+  tags: ['diagnostics', 'summary', 'read'],
 };
 
-export class RunLinterTool implements ToolImplementation {
+export class GetWorkspaceProblemsSummaryTool implements ToolImplementation {
   async execute(
-    params: { files?: string[]; fix?: boolean },
+    params: Record<string, never>,
     context: ToolInvocationContext
   ): Promise<ToolResult> {
     const startTime = performance.now();
 
     try {
-      const filesLinted = params.files || ['all files'];
-      const fixApplied = params.fix || false;
+      const allDiagnostics = vscode.languages.getDiagnostics();
+
+      let totalErrors = 0;
+      let totalWarnings = 0;
+      let totalInfo = 0;
+      let totalHints = 0;
+
+      const byFile: Record<string, { errors: number; warnings: number; info: number; hints: number }> = {};
+
+      for (const [uri, diagnostics] of allDiagnostics) {
+        if (diagnostics.length === 0) continue;
+
+        const relativePath = vscode.workspace.asRelativePath(uri);
+        const counts = { errors: 0, warnings: 0, info: 0, hints: 0 };
+
+        for (const d of diagnostics) {
+          switch (d.severity) {
+            case vscode.DiagnosticSeverity.Error:
+              counts.errors++;
+              totalErrors++;
+              break;
+            case vscode.DiagnosticSeverity.Warning:
+              counts.warnings++;
+              totalWarnings++;
+              break;
+            case vscode.DiagnosticSeverity.Information:
+              counts.info++;
+              totalInfo++;
+              break;
+            case vscode.DiagnosticSeverity.Hint:
+              counts.hints++;
+              totalHints++;
+              break;
+          }
+        }
+
+        byFile[relativePath] = counts;
+      }
+
+      const filesWithProblems = Object.entries(byFile)
+        .filter(([, counts]) => counts.errors > 0 || counts.warnings > 0)
+        .sort((a, b) => (b[1].errors + b[1].warnings) - (a[1].errors + a[1].warnings));
+
+      const summary = {
+        totals: {
+          errors: totalErrors,
+          warnings: totalWarnings,
+          info: totalInfo,
+          hints: totalHints,
+          filesWithProblems: filesWithProblems.length,
+        },
+        files: Object.fromEntries(filesWithProblems.slice(0, 20)),
+      };
 
       return {
         success: true,
-        content: `Linted ${filesLinted.length} file(s)${fixApplied ? ' with auto-fix' : ''}`,
+        content: JSON.stringify(summary, null, 2),
         executionTimeMs: performance.now() - startTime,
       };
     } catch (error) {
@@ -362,10 +559,8 @@ export class RunLinterTool implements ToolImplementation {
 import { AriaToolRegistry } from '../AriaToolRegistry';
 
 export function registerDiagnosticsTools(registry: AriaToolRegistry): void {
-  registry.registerTool(readDiagnosticsDefinition, new ReadDiagnosticsTool());
-  registry.registerTool(getFileDiagnosticsDefinition, new GetFileDiagnosticsTool());
-  registry.registerTool(getDiagnosticSummaryDefinition, new GetDiagnosticSummaryTool());
-  registry.registerTool(runLinterDefinition, new RunLinterTool());
+  registry.registerTool(getDiagnosticsDefinition, new GetDiagnosticsTool());
+  registry.registerTool(getQuickFixesDefinition, new GetQuickFixesTool());
+  registry.registerTool(applyQuickFixDefinition, new ApplyQuickFixTool());
+  registry.registerTool(getWorkspaceProblemsSummaryDefinition, new GetWorkspaceProblemsSummaryTool());
 }
-
-

@@ -6,14 +6,163 @@
  * - Get terminal output
  * - Get terminal selection
  * - List active terminals
+ *
+ * These tools are wired to the VS Code Terminal API.
  */
 
+import * as vscode from 'vscode';
 import type {
   ToolDefinition,
   ToolImplementation,
   ToolInvocationContext,
   ToolResult,
 } from '../AriaToolRegistry';
+
+// =============================================================================
+// Terminal Session Manager - Tracks terminals created by Aria
+// =============================================================================
+
+interface TrackedTerminal {
+  terminal: vscode.Terminal;
+  id: string;
+  createdAt: number;
+  lastCommand?: string;
+  isBackground: boolean;
+  outputBuffer: string[];
+  sessionId: string;
+}
+
+class TerminalSessionManager {
+  private static instance: TerminalSessionManager;
+  private terminals: Map<string, TrackedTerminal> = new Map();
+  private outputListeners: Map<string, vscode.Disposable> = new Map();
+
+  private constructor() {
+    // Listen for terminal disposal
+    vscode.window.onDidCloseTerminal((terminal) => {
+      for (const [id, tracked] of this.terminals) {
+        if (tracked.terminal === terminal) {
+          this.terminals.delete(id);
+          const listener = this.outputListeners.get(id);
+          if (listener) {
+            listener.dispose();
+            this.outputListeners.delete(id);
+          }
+          break;
+        }
+      }
+    });
+  }
+
+  static getInstance(): TerminalSessionManager {
+    if (!TerminalSessionManager.instance) {
+      TerminalSessionManager.instance = new TerminalSessionManager();
+    }
+    return TerminalSessionManager.instance;
+  }
+
+  getOrCreateTerminal(
+    sessionId: string,
+    cwd?: string,
+    isBackground: boolean = false
+  ): TrackedTerminal {
+    // For foreground commands, reuse existing session terminal
+    if (!isBackground) {
+      const existing = this.getSessionTerminal(sessionId);
+      if (existing) {
+        return existing;
+      }
+    }
+
+    // Create new terminal
+    const id = `aria-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const terminalOptions: vscode.TerminalOptions = {
+      name: isBackground ? `Aria Background (${id.slice(-6)})` : `Aria Terminal`,
+      cwd: cwd || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
+      iconPath: new vscode.ThemeIcon('sparkle'),
+    };
+
+    const terminal = vscode.window.createTerminal(terminalOptions);
+
+    const tracked: TrackedTerminal = {
+      terminal,
+      id,
+      createdAt: Date.now(),
+      isBackground,
+      outputBuffer: [],
+      sessionId,
+    };
+
+    this.terminals.set(id, tracked);
+
+    // Set up shell integration output capture if available
+    this.setupOutputCapture(tracked);
+
+    return tracked;
+  }
+
+  private setupOutputCapture(tracked: TrackedTerminal): void {
+    // Use shell integration for output capture when available
+    // This requires VS Code 1.93+ with terminal shell integration
+    try {
+      const shellIntegration = (tracked.terminal as any).shellIntegration;
+      if (shellIntegration) {
+        // Listen for command execution via shell integration
+        const listener = shellIntegration.onDidEndCommandExecution?.((e: any) => {
+          if (e.output) {
+            tracked.outputBuffer.push(e.output);
+            // Keep buffer at reasonable size
+            if (tracked.outputBuffer.length > 1000) {
+              tracked.outputBuffer = tracked.outputBuffer.slice(-500);
+            }
+          }
+        });
+        if (listener) {
+          this.outputListeners.set(tracked.id, listener);
+        }
+      }
+    } catch (e) {
+      // Shell integration not available
+      console.debug('[TerminalTools] Shell integration not available for output capture');
+    }
+  }
+
+  getTerminal(id: string): TrackedTerminal | undefined {
+    return this.terminals.get(id);
+  }
+
+  getSessionTerminal(sessionId: string): TrackedTerminal | undefined {
+    for (const tracked of this.terminals.values()) {
+      if (tracked.sessionId === sessionId && !tracked.isBackground) {
+        return tracked;
+      }
+    }
+    return undefined;
+  }
+
+  getAllTerminals(): TrackedTerminal[] {
+    return Array.from(this.terminals.values());
+  }
+
+  getActiveTerminal(): TrackedTerminal | undefined {
+    const active = vscode.window.activeTerminal;
+    if (!active) return undefined;
+
+    for (const tracked of this.terminals.values()) {
+      if (tracked.terminal === active) {
+        return tracked;
+      }
+    }
+    return undefined;
+  }
+
+  appendOutput(id: string, output: string): void {
+    const tracked = this.terminals.get(id);
+    if (tracked) {
+      tracked.outputBuffer.push(output);
+    }
+  }
+}
 
 // =============================================================================
 // Run in Terminal Tool
@@ -68,6 +217,8 @@ Background processes: Set isBackground=true for long-running commands like serve
 };
 
 export class RunInTerminalTool implements ToolImplementation {
+  private sessionManager = TerminalSessionManager.getInstance();
+
   async execute(
     params: {
       command: string;
@@ -80,26 +231,33 @@ export class RunInTerminalTool implements ToolImplementation {
     const startTime = performance.now();
 
     try {
-      // In a real implementation, this would use VS Code's terminal API
-      // For now, we simulate the behavior
+      const isBackground = params.isBackground ?? false;
 
-      console.log(
-        `[Terminal] Executing: ${params.command}`,
-        params.isBackground ? '(background)' : ''
+      // Get or create terminal for this session
+      const tracked = this.sessionManager.getOrCreateTerminal(
+        context.sessionId,
+        params.cwd,
+        isBackground
       );
 
-      // Simulate command execution
-      const terminalId = `terminal-${Date.now()}`;
+      // Show terminal (preserveFocus for background commands)
+      tracked.terminal.show(!isBackground);
 
-      if (params.isBackground) {
+      // Record the command
+      tracked.lastCommand = params.command;
+
+      // Send the command
+      tracked.terminal.sendText(params.command, true);
+
+      if (isBackground) {
         return {
           success: true,
-          content: `Command started in background. Terminal ID: ${terminalId}`,
+          content: `Command started in background terminal.\nTerminal ID: ${tracked.id}\nCommand: ${params.command}\n\nUse get_terminal_output with this terminal ID to check output later.`,
           artifacts: [
             {
               type: 'terminal_output',
               metadata: {
-                terminalId,
+                terminalId: tracked.id,
                 command: params.command,
                 isBackground: true,
               },
@@ -109,21 +267,44 @@ export class RunInTerminalTool implements ToolImplementation {
         };
       }
 
-      // For foreground commands, we would wait for completion
-      // and capture output
-      const simulatedOutput = `$ ${params.command}\n[Command output would appear here]`;
+      // For foreground commands, wait a bit for output
+      // In production, this would use shell integration to detect command completion
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Try to get output via shell integration
+      let output = '';
+      try {
+        const shellIntegration = (tracked.terminal as any).shellIntegration;
+        if (shellIntegration?.commandDetection?.commands?.length > 0) {
+          const lastExecution = shellIntegration.commandDetection.commands.slice(-1)[0];
+          if (lastExecution?.output) {
+            output = lastExecution.output;
+          }
+        }
+      } catch (e) {
+        // Shell integration output not available
+      }
+
+      // Fallback: check output buffer
+      if (!output && tracked.outputBuffer.length > 0) {
+        output = tracked.outputBuffer.slice(-10).join('\n');
+      }
+
+      const resultContent = output
+        ? `$ ${params.command}\n${output}`
+        : `Command executed: ${params.command}\n\n(Output capture requires VS Code terminal shell integration. The command was sent to the terminal.)`;
 
       return {
         success: true,
-        content: simulatedOutput,
+        content: resultContent,
         artifacts: [
           {
             type: 'terminal_output',
-            content: simulatedOutput,
+            content: resultContent,
             metadata: {
-              terminalId,
+              terminalId: tracked.id,
               command: params.command,
-              exitCode: 0,
+              exitCode: 0, // Would be captured via shell integration
             },
           },
         ],
@@ -187,6 +368,8 @@ Use this to:
 };
 
 export class GetTerminalOutputTool implements ToolImplementation {
+  private sessionManager = TerminalSessionManager.getInstance();
+
   async execute(
     params: { terminalId?: string; lines?: number },
     context: ToolInvocationContext
@@ -196,8 +379,58 @@ export class GetTerminalOutputTool implements ToolImplementation {
     try {
       const lines = params.lines || 100;
 
-      // In a real implementation, this would use VS Code's terminal API
-      const output = `[Terminal output - last ${lines} lines would appear here]`;
+      // Find the terminal
+      let tracked: TrackedTerminal | undefined;
+      if (params.terminalId) {
+        tracked = this.sessionManager.getTerminal(params.terminalId);
+        if (!tracked) {
+          return {
+            success: false,
+            content: '',
+            error: `Terminal not found: ${params.terminalId}`,
+            executionTimeMs: performance.now() - startTime,
+          };
+        }
+      } else {
+        // Try session terminal first, then active terminal
+        tracked =
+          this.sessionManager.getSessionTerminal(context.sessionId) ||
+          this.sessionManager.getActiveTerminal();
+      }
+
+      if (!tracked) {
+        return {
+          success: false,
+          content: '',
+          error: 'No terminal found. Create one first using run_terminal.',
+          executionTimeMs: performance.now() - startTime,
+        };
+      }
+
+      // Try to get output via shell integration
+      let output = '';
+      try {
+        const shellIntegration = (tracked.terminal as any).shellIntegration;
+        if (shellIntegration?.commandDetection?.commands?.length > 0) {
+          const recentCommands = shellIntegration.commandDetection.commands.slice(-5);
+          output = recentCommands
+            .map((cmd: any) => `$ ${cmd.commandLine}\n${cmd.output || '(no output)'}`)
+            .join('\n\n');
+        }
+      } catch (e) {
+        // Shell integration not available
+      }
+
+      // Fallback to output buffer
+      if (!output && tracked.outputBuffer.length > 0) {
+        output = tracked.outputBuffer.slice(-lines).join('\n');
+      }
+
+      if (!output) {
+        output = `Terminal ${tracked.id} exists but no output captured yet.\n`;
+        output += `Last command: ${tracked.lastCommand || 'none'}\n`;
+        output += `\nNote: Full output capture requires VS Code terminal shell integration.`;
+      }
 
       return {
         success: true,
@@ -244,8 +477,38 @@ export class GetTerminalSelectionTool implements ToolImplementation {
     const startTime = performance.now();
 
     try {
-      // In a real implementation, this would use VS Code's terminal API
-      const selection = '';
+      const terminal = vscode.window.activeTerminal;
+      if (!terminal) {
+        return {
+          success: true,
+          content: 'No active terminal',
+          executionTimeMs: performance.now() - startTime,
+        };
+      }
+
+      // Try to get selection via shell integration
+      let selection = '';
+      try {
+        const shellIntegration = (terminal as any).shellIntegration;
+        if (shellIntegration?.selection) {
+          selection = shellIntegration.selection;
+        }
+      } catch (e) {
+        // Shell integration selection not available
+      }
+
+      // Alternative: use clipboard if user copied
+      if (!selection) {
+        try {
+          // Check if there's terminal selection via xterm
+          const xtermState = (terminal as any)._xterm;
+          if (xtermState?.hasSelection?.()) {
+            selection = xtermState.getSelection?.() || '';
+          }
+        } catch (e) {
+          // xterm access not available
+        }
+      }
 
       return {
         success: true,
@@ -270,7 +533,7 @@ export class GetTerminalSelectionTool implements ToolImplementation {
 export const listTerminalsDefinition: ToolDefinition = {
   id: 'list_terminals',
   displayName: 'List Terminals',
-  modelDescription: `List all open terminals with their IDs, names, and current working directories.`,
+  modelDescription: `List all open terminals with their IDs, names, and status.`,
   userDescription: 'List all open terminal sessions',
   category: 'terminal',
   parameters: [],
@@ -281,6 +544,8 @@ export const listTerminalsDefinition: ToolDefinition = {
 };
 
 export class ListTerminalsTool implements ToolImplementation {
+  private sessionManager = TerminalSessionManager.getInstance();
+
   async execute(
     params: Record<string, never>,
     context: ToolInvocationContext
@@ -288,14 +553,31 @@ export class ListTerminalsTool implements ToolImplementation {
     const startTime = performance.now();
 
     try {
-      // In a real implementation, this would use VS Code's terminal API
-      const terminals = [
-        { id: 'term-1', name: 'bash', cwd: context.workspacePath },
-      ];
+      // Get all VS Code terminals
+      const vscodeTerminals = vscode.window.terminals;
+
+      // Get tracked Aria terminals
+      const ariaTerminals = this.sessionManager.getAllTerminals();
+      const ariaTerminalSet = new Set(ariaTerminals.map((t) => t.terminal));
+
+      const terminalList = vscodeTerminals.map((terminal, index) => {
+        const ariaTracked = ariaTerminals.find((t) => t.terminal === terminal);
+
+        return {
+          index,
+          name: terminal.name,
+          id: ariaTracked?.id || `vscode-${index}`,
+          isAriaManaged: ariaTerminalSet.has(terminal),
+          isBackground: ariaTracked?.isBackground || false,
+          lastCommand: ariaTracked?.lastCommand,
+          createdAt: ariaTracked?.createdAt,
+          processId: terminal.processId,
+        };
+      });
 
       return {
         success: true,
-        content: JSON.stringify(terminals, null, 2),
+        content: JSON.stringify(terminalList, null, 2),
         executionTimeMs: performance.now() - startTime,
       };
     } catch (error) {
@@ -321,5 +603,3 @@ export function registerTerminalTools(registry: AriaToolRegistry): void {
   registry.registerTool(getTerminalSelectionDefinition, new GetTerminalSelectionTool());
   registry.registerTool(listTerminalsDefinition, new ListTerminalsTool());
 }
-
-
