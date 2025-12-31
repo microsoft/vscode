@@ -466,3 +466,4 @@ export function registerDebugTools(registry: AriaToolRegistry): void {
   registry.registerTool(getCallStackDefinition, new GetCallStackTool());
 }
 
+

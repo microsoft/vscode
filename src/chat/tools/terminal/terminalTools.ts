@@ -23,7 +23,7 @@ export const runInTerminalDefinition: ToolDefinition = {
   id: 'run_terminal',
   displayName: 'Run in Terminal',
   modelDescription: `Execute a command in the terminal. The command runs in a persistent shell session.
-  
+
 Use this for:
 - Running build commands (npm run build, make, etc.)
 - Starting/stopping servers
@@ -158,7 +158,7 @@ export const getTerminalOutputDefinition: ToolDefinition = {
   id: 'get_terminal_output',
   displayName: 'Get Terminal Output',
   modelDescription: `Get the output from a terminal, optionally filtering by terminal ID.
-  
+
 Use this to:
 - Check the output of a background process
 - See error messages from a failed command
@@ -223,7 +223,7 @@ export const getTerminalSelectionDefinition: ToolDefinition = {
   id: 'get_terminal_selection',
   displayName: 'Get Terminal Selection',
   modelDescription: `Get the currently selected text in the active terminal.
-  
+
 Useful for:
 - Getting specific output the user highlighted
 - Working with selected error messages`,
@@ -321,4 +321,5 @@ export function registerTerminalTools(registry: AriaToolRegistry): void {
   registry.registerTool(getTerminalSelectionDefinition, new GetTerminalSelectionTool());
   registry.registerTool(listTerminalsDefinition, new ListTerminalsTool());
 }
+
 

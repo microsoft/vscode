@@ -554,3 +554,4 @@ export function registerGitTools(registry: AriaToolRegistry): void {
   registry.registerTool(gitPullDefinition, new GitPullTool());
 }
 
+
