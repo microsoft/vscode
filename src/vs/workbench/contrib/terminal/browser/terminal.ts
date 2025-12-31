@@ -329,7 +329,7 @@ export interface IDetachedXTermOptions {
 	cols: number;
 	rows: number;
 	colorProvider: IXtermColorProvider;
-	capabilities?: ITerminalCapabilityStore;
+	capabilities?: ITerminalCapabilityStore & IDisposable;
 	readonly?: boolean;
 	processInfo: ITerminalProcessInfo;
 	disableOverviewRuler?: boolean;
@@ -727,7 +727,7 @@ export interface ITerminalInstanceHost {
 	/**
 	 * Reveal and focus the instance, regardless of its location.
 	 */
-	focusInstance(instance: ITerminalInstance): void;
+	focusInstance(instance: ITerminalInstance): Promise<void>;
 	/**
 	 * Reveal and focus the active instance, regardless of its location.
 	 */
@@ -1289,6 +1289,16 @@ export interface IXtermTerminal extends IDisposable {
 	 * Event fired when focus enters (fires with true) or leaves (false) the terminal.
 	 */
 	readonly onDidChangeFocus: Event<boolean>;
+
+	/**
+	 * Fires after a search is performed.
+	 */
+	readonly onAfterSearch: Event<void>;
+
+	/**
+	 * Fires before a search is performed.
+	 */
+	readonly onBeforeSearch: Event<void>;
 
 	/**
 	 * Gets a view of the current texture atlas used by the renderers.

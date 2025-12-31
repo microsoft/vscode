@@ -7,7 +7,7 @@ import { $, clearNode } from '../../../../../base/browser/dom.js';
 import { IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../common/chatService.js';
 import { IChatContentPartRenderContext, IChatContentPart } from './chatContentParts.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
-import { ThinkingDisplayMode } from '../../common/constants.js';
+import { ChatConfiguration, ThinkingDisplayMode } from '../../common/constants.js';
 import { ChatTreeItem } from '../chat.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -29,6 +29,46 @@ import './media/chatThinkingContent.css';
 function extractTextFromPart(content: IChatThinkingPart): string {
 	const raw = Array.isArray(content.value) ? content.value.join('') : (content.value || '');
 	return raw.trim();
+}
+
+function getToolInvocationIcon(toolId: string): ThemeIcon {
+	const lowerToolId = toolId.toLowerCase();
+
+	if (
+		lowerToolId.includes('search') ||
+		lowerToolId.includes('grep') ||
+		lowerToolId.includes('find') ||
+		lowerToolId.includes('list') ||
+		lowerToolId.includes('semantic') ||
+		lowerToolId.includes('changes') ||
+		lowerToolId.includes('codebase')
+	) {
+		return Codicon.search;
+	}
+
+	if (
+		lowerToolId.includes('read') ||
+		lowerToolId.includes('get_file') ||
+		lowerToolId.includes('problems')
+	) {
+		return Codicon.eye;
+	}
+
+	if (
+		lowerToolId.includes('edit') ||
+		lowerToolId.includes('create')
+	) {
+		return Codicon.pencil;
+	}
+
+	// default to generic tool icon
+	return Codicon.tools;
+}
+
+function createThinkingIcon(icon: ThemeIcon): HTMLElement {
+	const iconElement = $('span.chat-thinking-icon');
+	iconElement.classList.add(...ThemeIcon.asClassNameArray(icon));
+	return iconElement;
 }
 
 function extractTitleFromThinkingContent(content: string): string | undefined {
@@ -55,6 +95,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private streamingCompleted: boolean = false;
 	private isActive: boolean = true;
 	private currentToolCallLabel: string | undefined;
+	private toolInvocations: (IChatToolInvocation | IChatToolInvocationSerialized)[] = [];
 
 	constructor(
 		content: IChatThinkingPart,
@@ -100,7 +141,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		if (this.fixedScrollingMode) {
 			node.classList.add('chat-thinking-fixed-mode');
 			this.currentTitle = this.defaultTitle;
-			if (this._collapseButton) {
+			if (this._collapseButton && !this.context.element.isComplete) {
 				this._collapseButton.icon = ThemeIcon.modify(Codicon.loading, 'spin');
 			}
 		}
@@ -109,7 +150,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this._register(autorun(r => {
 			this.expanded.read(r);
 			if (this._collapseButton && this.wrapper) {
-				if (this.wrapper.classList.contains('chat-thinking-streaming')) {
+				if (this.wrapper.classList.contains('chat-thinking-streaming') && !this.context.element.isComplete) {
 					this._collapseButton.icon = ThemeIcon.modify(Codicon.loading, 'spin');
 				} else {
 					this._collapseButton.icon = Codicon.check;
@@ -117,7 +158,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			}
 		}));
 
-		if (this._collapseButton && !this.streamingCompleted) {
+		if (this._collapseButton && !this.streamingCompleted && !this.context.element.isComplete) {
 			this._collapseButton.icon = ThemeIcon.modify(Codicon.loading, 'spin');
 		}
 
@@ -185,10 +226,19 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.markdownResult = undefined;
 		}
 
-		const rendered = this._register(this.chatContentMarkdownRenderer.render(new MarkdownString(contentToRender), undefined, target));
+		const rendered = this._register(this.chatContentMarkdownRenderer.render(new MarkdownString(contentToRender), {
+			fillInIncompleteTokens: true,
+			asyncRenderCallback: () => this._onDidChangeHeight.fire(),
+			codeBlockRendererSync: (_languageId, text, raw) => {
+				const codeElement = $('code');
+				codeElement.textContent = text;
+				return codeElement;
+			}
+		}, target));
 		this.markdownResult = rendered;
 		if (!target) {
 			clearNode(this.textContainer);
+			this.textContainer.appendChild(createThinkingIcon(Codicon.comment));
 			this.textContainer.appendChild(rendered.element);
 		}
 	}
@@ -298,11 +348,18 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			return;
 		}
 
-		// case where we only have one dropdown in the thinking container
-		if (this.toolInvocationCount === 1 && this.extractedTitles.length === 1 && this.currentToolCallLabel) {
+		const existingToolTitle = this.toolInvocations.find(t => t.generatedTitle)?.generatedTitle;
+		if (existingToolTitle) {
+			this.currentTitle = existingToolTitle;
+			this.content.generatedTitle = existingToolTitle;
+			super.setTitle(existingToolTitle);
+			return;
+		}
+
+		// case where we only have one dropdown in the thinking container and no thinking parts
+		if (this.toolInvocationCount === 1 && this.extractedTitles.length === 1 && this.currentToolCallLabel && this.currentThinkingValue.trim() === '') {
 			const title = this.currentToolCallLabel;
 			this.currentTitle = title;
-			this.content.generatedTitle = title;
 			this.setTitleWithWidgets(new MarkdownString(title), this.instantiationService, this.chatMarkdownAnchorService, this.chatContentMarkdownRenderer);
 			return;
 		}
@@ -316,7 +373,19 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			return;
 		}
 
+		const generateTitles = this.configurationService.getValue<boolean>(ChatConfiguration.ThinkingGenerateTitles) ?? true;
+		if (!generateTitles) {
+			this.setFallbackTitle();
+			return;
+		}
+
 		this.generateTitleViaLLM();
+	}
+
+	private setGeneratedTitleOnToolInvocations(title: string): void {
+		for (const toolInvocation of this.toolInvocations) {
+			toolInvocation.generatedTitle = title;
+		}
 	}
 
 	private async generateTitleViaLLM(): Promise<void> {
@@ -337,7 +406,14 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 				context = this.currentThinkingValue.substring(0, 1000);
 			}
 
-			const prompt = `Summarize the following in 6-7 words: ${context}. Respond with only the summary, no quotes or punctuation. Make sure to use past tense.`;
+			const prompt = `Summarize the following actions in 6-7 words using past tense. Be very concise - focus on the main action only. No subjects, quotes, or punctuation.
+
+			Examples:
+			- "Preparing to create new page file, Read HomePage.tsx, Creating new TypeScript file" → "Created new page file"
+			- "Searching for files, Reading configuration, Analyzing dependencies" → "Analyzed project structure"
+			- "Invoked terminal command, Checked build output, Fixed errors" → "Ran build and fixed errors"
+
+			Actions: ${context}`;
 
 			const response = await this.languageModelsService.sendChatRequest(
 				models[0],
@@ -369,6 +445,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 					this._collapseButton.label = generatedTitle;
 				}
 				this.content.generatedTitle = generatedTitle;
+				this.setGeneratedTitleOnToolInvocations(generatedTitle);
 				return;
 			}
 		} catch (error) {
@@ -396,7 +473,13 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	public appendItem(content: HTMLElement, toolInvocationId?: string, toolInvocation?: IChatToolInvocation | IChatToolInvocationSerialized): void {
-		this.wrapper.appendChild(content);
+		const itemWrapper = $('.chat-thinking-tool-wrapper');
+		const icon = toolInvocationId ? getToolInvocationIcon(toolInvocationId) : Codicon.tools;
+		const iconElement = createThinkingIcon(icon);
+		itemWrapper.appendChild(iconElement);
+		itemWrapper.appendChild(content);
+
+		this.wrapper.appendChild(itemWrapper);
 		if (toolInvocationId) {
 			this.toolInvocationCount++;
 			let toolCallLabel: string;
@@ -410,6 +493,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 			if (toolInvocation?.pastTenseMessage) {
 				this.currentToolCallLabel = typeof toolInvocation.pastTenseMessage === 'string' ? toolInvocation.pastTenseMessage : toolInvocation.pastTenseMessage.value;
+			}
+
+			if (toolInvocation) {
+				this.toolInvocations.push(toolInvocation);
 			}
 
 			// Add tool call to extracted titles for LLM title generation

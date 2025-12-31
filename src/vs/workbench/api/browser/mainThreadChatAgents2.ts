@@ -126,7 +126,9 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatAgents2);
 
 		this._register(this._chatService.onDidDisposeSession(e => {
-			this._proxy.$releaseSession(e.sessionResource);
+			for (const resource of e.sessionResource) {
+				this._proxy.$releaseSession(resource);
+			}
 		}));
 		this._register(this._chatService.onDidPerformUserAction(e => {
 			if (typeof e.agentId === 'string') {
@@ -148,7 +150,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._agents.deleteAndDispose(handle);
 	}
 
-	$transferActiveChatSession(toWorkspace: UriComponents): void {
+	async $transferActiveChatSession(toWorkspace: UriComponents): Promise<void> {
 		const widget = this._chatWidgetService.lastFocusedWidget;
 		const model = widget?.viewModel?.model;
 		if (!model) {
@@ -156,8 +158,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			return;
 		}
 
-		const location = widget.location;
-		this._chatService.transferChatSession({ sessionId: model.sessionId, inputState: model.inputModel.state.get(), location }, URI.revive(toWorkspace));
+		await this._chatService.transferChatSession(model.sessionResource, URI.revive(toWorkspace));
 	}
 
 	async $registerAgent(handle: number, extension: ExtensionIdentifier, id: string, metadata: IExtensionChatAgentMetadata, dynamicProps: IDynamicChatAgentProps | undefined): Promise<void> {
@@ -204,6 +205,11 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				return this._proxy.$provideChatSummary(handle, history, token);
 			},
 		};
+
+		// Do not attempt to register migrated chatSession providers
+		if (chatSessionRegistration?.alternativeIds?.includes(id)) {
+			return;
+		}
 
 		let disposable: IDisposable;
 		if (!staticAgentRegistration && dynamicProps) {

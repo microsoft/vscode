@@ -24,7 +24,7 @@ import { ITextModelService } from '../../../../editor/common/services/resolverSe
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -37,6 +37,7 @@ import { ITextFileService } from '../../../services/textfile/common/textfiles.js
 import { UntitledTextEditorInput } from '../../../services/untitled/common/untitledTextEditorInput.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { IChatAgentService } from '../../chat/common/chatAgents.js';
+import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { ModifiedFileEntryState } from '../../chat/common/chatEditingService.js';
 import { IChatService } from '../../chat/common/chatService.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
@@ -399,6 +400,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		const result: IInlineChatSession2 = {
 			uri,
 			initialPosition: editor.getSelection().getStartPosition().delta(-1), /* one line above selection start */
+			initialSelection: editor.getSelection(),
 			chatModel,
 			editingSession: chatModel.editingSession!,
 			dispose: store.dispose.bind(store)
@@ -558,12 +560,14 @@ export class InlineChatEscapeToolContribution extends Disposable {
 
 				if (!editor || result.confirmed) {
 					logService.trace('InlineChatEscapeToolContribution: moving session to panel chat');
-					await instaService.invokeFunction(askInPanelChat, session.chatModel.getRequests().at(-1)!);
+					await instaService.invokeFunction(askInPanelChat, session.chatModel.getRequests().at(-1)!, session.chatModel.inputModel.state.get());
 					session.dispose();
 
 				} else {
 					logService.trace('InlineChatEscapeToolContribution: rephrase prompt');
-					chatService.removeRequest(session.chatModel.sessionResource, session.chatModel.getRequests().at(-1)!.id);
+					const lastRequest = session.chatModel.getRequests().at(-1)!;
+					chatService.removeRequest(session.chatModel.sessionResource, lastRequest.id);
+					session.chatModel.inputModel.setState({ inputText: lastRequest.message.text });
 				}
 
 				if (result.checkboxChecked) {
@@ -581,7 +585,7 @@ registerAction2(class ResetMoveToPanelChatChoice extends Action2 {
 	constructor() {
 		super({
 			id: 'inlineChat.resetMoveToPanelChatChoice',
-			precondition: ContextKeyExpr.has('config.chat.disableAIFeatures').negate(),
+			precondition: ChatContextKeys.Setup.hidden.negate(),
 			title: localize2('resetChoice.label', "Reset Choice for 'Move Inline Chat to Panel Chat'"),
 			f1: true
 		});

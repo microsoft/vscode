@@ -1293,11 +1293,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 				return extHostSCM.getLastInputBox(extension)!; // Strict null override - Deprecated api
 			},
-			createSourceControl(id: string, label: string, rootUri?: vscode.Uri, iconPath?: vscode.IconPath, parent?: vscode.SourceControl): vscode.SourceControl {
-				if (iconPath || parent) {
+			createSourceControl(id: string, label: string, rootUri?: vscode.Uri, iconPath?: vscode.IconPath, isHidden?: boolean, parent?: vscode.SourceControl): vscode.SourceControl {
+				if (iconPath || isHidden || parent) {
 					checkProposedApiEnabled(extension, 'scmProviderOptions');
 				}
-				return extHostSCM.createSourceControl(extension, id, label, rootUri, iconPath, parent);
+				return extHostSCM.createSourceControl(extension, id, label, rootUri, iconPath, isHidden, parent);
 			}
 		};
 
@@ -1469,7 +1469,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		// namespace: interactive
 		const interactive: typeof vscode.interactive = {
-			transferActiveChat(toWorkspace: vscode.Uri) {
+			transferActiveChat(toWorkspace: vscode.Uri): Thenable<void> {
 				checkProposedApiEnabled(extension, 'interactive');
 				return extHostChatAgents2.transferActiveChat(toWorkspace);
 			}
@@ -1868,6 +1868,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			EditSessionIdentityMatch: EditSessionIdentityMatch,
 			InteractiveSessionVoteDirection: extHostTypes.InteractiveSessionVoteDirection,
 			ChatCopyKind: extHostTypes.ChatCopyKind,
+			ChatSessionChangedFile: extHostTypes.ChatSessionChangedFile,
 			ChatEditingSessionActionOutcome: extHostTypes.ChatEditingSessionActionOutcome,
 			InteractiveEditorResponseFeedbackKind: extHostTypes.InteractiveEditorResponseFeedbackKind,
 			DebugStackFrame: extHostTypes.DebugStackFrame,

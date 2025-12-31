@@ -8,6 +8,7 @@ import { raceTimeout } from '../../../../../base/common/async.js';
 import { decodeBase64 } from '../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { isPatternInWord } from '../../../../../base/common/filters.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
@@ -57,7 +58,7 @@ import { ToolSet } from '../../common/languageModelToolsService.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { ChatSubmitAction, IChatExecuteActionContext } from '../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
-import { resizeImage } from '../imageUtils.js';
+import { resizeImage } from '../chatImageUtils.js';
 import { ChatDynamicVariableModel } from './chatDynamicVariables.js';
 
 class SlashCommandCompletions extends Disposable {
@@ -1036,6 +1037,8 @@ class BuiltinDynamicCompletions extends Disposable {
 	}
 
 	private addSymbolEntries(widget: IChatWidget, result: CompletionList, info: { insert: Range; replace: Range; varWord: IWordAtPosition | null }, token: CancellationToken) {
+		const timeoutMs = 100;
+		const stopwatch = new StopWatch();
 
 		const makeSymbolCompletionItem = (symbolItem: { name: string; location: Location; kind: SymbolKind }, pattern: string): CompletionItem => {
 			const text = `${chatVariableLeader}sym:${symbolItem.name}`;
@@ -1075,11 +1078,17 @@ class BuiltinDynamicCompletions extends Disposable {
 			}
 		}
 
+		let timedOut = false;
+
 		for (const symbol of symbolsToAdd) {
+			if (stopwatch.elapsed() > timeoutMs || token.isCancellationRequested) {
+				timedOut = true;
+				break;
+			}
 			result.suggestions.push(makeSymbolCompletionItem({ ...symbol.symbol, location: { uri: symbol.uri, range: symbol.symbol.range } }, pattern ?? ''));
 		}
 
-		result.incomplete = !!pattern;
+		result.incomplete = !!pattern || timedOut;
 	}
 
 	private updateCacheKey() {
@@ -1207,6 +1216,7 @@ class ToolCompletions extends Disposable {
 					}
 
 					let detail: string | undefined;
+					let documentation: string | undefined;
 
 					let name: string;
 					if (item instanceof ToolSet) {
@@ -1217,6 +1227,7 @@ class ToolCompletions extends Disposable {
 						const source = item.source;
 						detail = localize('tool_source_completion', "{0}: {1}", source.label, item.displayName);
 						name = item.toolReferenceName ?? item.displayName;
+						documentation = item.userDescription ?? item.modelDescription;
 					}
 
 					if (usedNames.has(name)) {
@@ -1228,6 +1239,7 @@ class ToolCompletions extends Disposable {
 						label: withLeader,
 						range,
 						detail,
+						documentation,
 						insertText: withLeader + ' ',
 						kind: CompletionItemKind.Tool,
 						sortText: 'z',

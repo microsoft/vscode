@@ -24,6 +24,7 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IUserDataProfilesService, toUserDataProfile } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../services/assignment/test/common/nullAssignmentService.js';
@@ -158,6 +159,7 @@ suite('ChatService', () => {
 		)));
 		instantiationService.stub(IStorageService, testDisposables.add(new TestStorageService()));
 		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IUserDataProfilesService, { defaultProfile: toUserDataProfile('default', 'Default', URI.file('/test/userdata'), URI.file('/test/cache')) });
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IExtensionService, new TestExtensionService());
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
@@ -171,6 +173,7 @@ suite('ChatService', () => {
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() {
 			override startOrContinueGlobalEditingSession(): IChatEditingSession {
 				return {
+					state: constObservable('idle'),
 					requestDisablement: observableValue('requestDisablement', []),
 					entries: constObservable([]),
 					dispose: () => { }
@@ -405,8 +408,10 @@ suite('ChatService', () => {
 
 		let disposed = false;
 		testDisposables.add(testService.onDidDisposeSession(e => {
-			if (e.sessionResource.toString() === model.sessionResource.toString()) {
-				disposed = true;
+			for (const resource of e.sessionResource) {
+				if (resource.toString() === model.sessionResource.toString()) {
+					disposed = true;
+				}
 			}
 		}));
 

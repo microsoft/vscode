@@ -439,8 +439,8 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		});
 	}
 
-	transferActiveChat(newWorkspace: vscode.Uri): void {
-		this._proxy.$transferActiveChatSession(newWorkspace);
+	async transferActiveChat(newWorkspace: vscode.Uri): Promise<void> {
+		await this._proxy.$transferActiveChatSession(newWorkspace);
 	}
 
 	createChatAgent(extension: IExtensionDescription, id: string, handler: vscode.ChatExtendedRequestHandler): vscode.ChatParticipant {
@@ -754,7 +754,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 		for (const h of context.history) {
 			const ehResult = typeConvert.ChatAgentResult.to(h.result);
-			const result: vscode.ChatResult = agentId === h.request.agentId ?
+			const result: vscode.ChatResult = agentId === h.request.agentId || (isBuiltinParticipant(h.request.agentId) && isBuiltinParticipant(agentId)) ?
 				ehResult :
 				{ ...ehResult, metadata: undefined };
 
@@ -1154,4 +1154,8 @@ function raceCancellationWithTimeout<T>(cancelWait: number, promise: Promise<T>,
 		});
 		promise.then(resolve, reject).finally(() => ref.dispose());
 	});
+}
+
+function isBuiltinParticipant(agentId: string): boolean {
+	return agentId.startsWith('github.copilot');
 }

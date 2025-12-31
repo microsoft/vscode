@@ -48,7 +48,7 @@ import { ChatAgentLocation, isSupportedChatFileScheme } from '../../common/const
 import { IChatWidget, IChatWidgetService, IQuickChatService } from '../chat.js';
 import { IChatContextPickerItem, IChatContextPickService, IChatContextValueItem, isChatContextPickerPickItem } from '../chatContextPickService.js';
 import { isQuickChat } from '../chatWidget.js';
-import { resizeImage } from '../imageUtils.js';
+import { resizeImage } from '../chatImageUtils.js';
 import { registerPromptActions } from '../promptSyntax/promptFileActions.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
