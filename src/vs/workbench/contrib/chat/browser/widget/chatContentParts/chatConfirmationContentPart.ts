@@ -8,7 +8,7 @@ import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle
 import { localize } from '../../../../../../nls.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatProgressRenderableResponseContent } from '../../../common/model/chatModel.js';
-import { IChatConfirmation, IChatSendRequestOptions, IChatService } from '../../../common/chatService.js';
+import { IChatConfirmation, IChatSendRequestOptions, IChatService } from '../../../common/chatService/chatService.js';
 import { isResponseVM } from '../../../common/model/chatViewModel.js';
 import { IChatWidgetService } from '../../chat.js';
 import { SimpleChatConfirmationWidget } from './chatConfirmationWidget.js';

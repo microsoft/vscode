@@ -7,7 +7,7 @@
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IChatAgentCommand } from '../../../common/participants/chatAgents.js';
-import { chatSubcommandLeader } from '../../../common/chatParserTypes.js';
+import { chatSubcommandLeader } from '../../../common/requestParser/chatParserTypes.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
 import { IChatContentPart } from './chatContentParts.js';

@@ -6,7 +6,7 @@
 import type * as vscode from 'vscode';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
-import { ICodeMapperResult } from '../../contrib/chat/common/chatCodeMapperService.js';
+import { ICodeMapperResult } from '../../contrib/chat/common/editing/chatCodeMapperService.js';
 import * as extHostProtocol from './extHost.protocol.js';
 import { NotebookEdit, TextEdit } from './extHostTypeConverters.js';
 import { URI } from '../../../base/common/uri.js';

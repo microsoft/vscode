@@ -17,7 +17,7 @@ import { MockTrustedDomainService } from '../../../../url/test/browser/mockTrust
 import { InternalFetchWebPageToolId } from '../../../common/tools/builtinTools/tools.js';
 import { MockChatService } from '../../common/mockChatService.js';
 import { upcastDeepPartial } from '../../../../../../base/test/common/mock.js';
-import { IChatService } from '../../../common/chatService.js';
+import { IChatService } from '../../../common/chatService/chatService.js';
 
 class TestWebContentExtractorService implements IWebContentExtractorService {
 	_serviceBrand: undefined;

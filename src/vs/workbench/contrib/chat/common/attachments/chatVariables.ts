@@ -10,7 +10,7 @@ import { IRange } from '../../../../../editor/common/core/range.js';
 import { Location } from '../../../../../editor/common/languages.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatModel } from '../model/chatModel.js';
-import { IChatContentReference, IChatProgressMessage } from '../chatService.js';
+import { IChatContentReference, IChatProgressMessage } from '../chatService/chatService.js';
 import { IDiagnosticVariableEntryFilterData, StringChatContextValue } from './chatVariableEntries.js';
 import { IToolAndToolSetEnablementMap } from '../tools/languageModelToolsService.js';
 

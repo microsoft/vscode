@@ -9,7 +9,7 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, type ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatCodeBlockContextProviderService, IChatWidgetService } from '../../../chat/browser/chat.js';
-import { IChatService } from '../../../chat/common/chatService.js';
+import { IChatService } from '../../../chat/common/chatService/chatService.js';
 import { isDetachedTerminalInstance, ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { TerminalChatWidget } from './terminalChatWidget.js';
 import type { ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';

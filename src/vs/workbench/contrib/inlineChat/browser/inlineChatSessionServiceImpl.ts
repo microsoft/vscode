@@ -37,8 +37,8 @@ import { ITextFileService } from '../../../services/textfile/common/textfiles.js
 import { UntitledTextEditorInput } from '../../../services/untitled/common/untitledTextEditorInput.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { IChatAgentService } from '../../chat/common/participants/chatAgents.js';
-import { ModifiedFileEntryState } from '../../chat/common/chatEditingService.js';
-import { IChatService } from '../../chat/common/chatService.js';
+import { ModifiedFileEntryState } from '../../chat/common/editing/chatEditingService.js';
+import { IChatService } from '../../chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../chat/common/tools/languageModelToolsService.js';
 import { CTX_INLINE_CHAT_HAS_AGENT2, CTX_INLINE_CHAT_HAS_NOTEBOOK_AGENT, CTX_INLINE_CHAT_HAS_NOTEBOOK_INLINE, CTX_INLINE_CHAT_POSSIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';

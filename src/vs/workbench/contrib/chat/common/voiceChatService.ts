@@ -12,7 +12,7 @@ import { IContextKey, IContextKeyService, RawContextKey } from '../../../../plat
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IChatAgentService } from './participants/chatAgents.js';
 import { IChatModel } from './model/chatModel.js';
-import { chatAgentLeader, chatSubcommandLeader } from './chatParserTypes.js';
+import { chatAgentLeader, chatSubcommandLeader } from './requestParser/chatParserTypes.js';
 import { ISpeechService, ISpeechToTextEvent, SpeechToTextStatus } from '../../speech/common/speechService.js';
 
 export const IVoiceChatService = createDecorator<IVoiceChatService>('voiceChatService');

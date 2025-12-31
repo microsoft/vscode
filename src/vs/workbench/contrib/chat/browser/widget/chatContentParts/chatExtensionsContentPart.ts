@@ -10,7 +10,7 @@ import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ExtensionsList, getExtensions } from '../../../../extensions/browser/extensionsViewer.js';
 import { IExtensionsWorkbenchService } from '../../../../extensions/common/extensions.js';
-import { IChatExtensionsContent } from '../../../common/chatService.js';
+import { IChatExtensionsContent } from '../../../common/chatService/chatService.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem, ChatViewId, IChatCodeBlockInfo } from '../../chat.js';
 import { IChatContentPart } from './chatContentParts.js';

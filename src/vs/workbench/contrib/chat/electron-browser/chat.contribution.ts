@@ -26,9 +26,9 @@ import { IWorkbenchLayoutService } from '../../../services/layout/browser/layout
 import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
 import { ACTION_ID_NEW_CHAT, CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../browser/actions/chatActions.js';
 import { IChatWidgetService } from '../browser/chat.js';
-import { ChatContextKeys } from '../common/chatContextKeys.js';
+import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { ChatConfiguration, ChatModeKind } from '../common/constants.js';
-import { IChatService } from '../common/chatService.js';
+import { IChatService } from '../common/chatService/chatService.js';
 import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js';
 import { HoldToVoiceChatInChatViewAction, InlineVoiceChatAction, KeywordActivationContribution, QuickVoiceChatAction, ReadChatResponseAloud, StartVoiceChatAction, StopListeningAction, StopListeningAndSubmitAction, StopReadAloud, StopReadChatItemAloud, VoiceChatInChatViewAction } from './actions/voiceChatActions.js';
 import { NativeBuiltinToolsContribution } from './builtInTools/tools.js';

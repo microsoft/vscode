@@ -13,7 +13,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { FileSystemProviderCapabilities, FileType, IFileChange, IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileReadStreamOptions, IFileService, IFileSystemProvider, IFileWriteOptions, IStat, IWatchOptions } from '../../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
-import { IChatEditingService } from '../../../common/chatEditingService.js';
+import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { ChatEditingNotebookSnapshotScheme } from './chatEditingModifiedNotebookSnapshot.js';
 

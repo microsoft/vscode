@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from '../../../../base/common/uri.js';
-import { IPosition, Position } from '../../../../editor/common/core/position.js';
-import { Range } from '../../../../editor/common/core/range.js';
-import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
-import { IChatAgentData, IChatAgentService } from './participants/chatAgents.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IPosition, Position } from '../../../../../editor/common/core/position.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
+import { IChatAgentData, IChatAgentService } from '../participants/chatAgents.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, IParsedChatRequest, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from './chatParserTypes.js';
-import { IChatSlashCommandService } from './participants/chatSlashCommands.js';
-import { IChatVariablesService, IDynamicVariable } from './attachments/chatVariables.js';
-import { ChatAgentLocation, ChatModeKind } from './constants.js';
-import { IToolData, ToolSet } from './tools/languageModelToolsService.js';
-import { IPromptsService } from './promptSyntax/service/promptsService.js';
+import { IChatSlashCommandService } from '../participants/chatSlashCommands.js';
+import { IChatVariablesService, IDynamicVariable } from '../attachments/chatVariables.js';
+import { ChatAgentLocation, ChatModeKind } from '../constants.js';
+import { IToolData, ToolSet } from '../tools/languageModelToolsService.js';
+import { IPromptsService } from '../promptSyntax/service/promptsService.js';
 
 const agentReg = /^@([\w_\-\.]+)(?=(\s|$|\b))/i; // An @-agent
 const variableReg = /^#([\w_\-]+)(:\d+)?(?=(\s|$|\b))/i; // A #-variable with an optional numeric : arg (@response:2)

@@ -7,7 +7,7 @@ import { IMarkdownString } from '../../../../../../../base/common/htmlContent.js
 import { URI } from '../../../../../../../base/common/uri.js';
 import { Location } from '../../../../../../../editor/common/languages.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
-import { IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService.js';
+import { IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
 import { IChatCodeBlockInfo } from '../../../chat.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatCollapsibleListContentPart, CollapsibleListPool, IChatCollapsibleListItem } from '../chatReferencesContentPart.js';

@@ -17,7 +17,7 @@ import { workbenchInstantiationService } from '../../../../test/browser/workbenc
 import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { ChatEditingCheckpointTimelineImpl, IChatEditingTimelineFsDelegate } from '../../browser/chatEditing/chatEditingCheckpointTimelineImpl.js';
 import { FileOperation, FileOperationType } from '../../browser/chatEditing/chatEditingOperations.js';
-import { IModifiedEntryTelemetryInfo } from '../../common/chatEditingService.js';
+import { IModifiedEntryTelemetryInfo } from '../../common/editing/chatEditingService.js';
 
 suite('ChatEditingCheckpointTimeline', function () {
 
@@ -1255,5 +1255,3 @@ class TestNotebookService {
 	getNotebookTextModel() { return undefined; }
 	hasSupportedNotebooks() { return false; }
 }
-
-

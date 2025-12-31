@@ -33,8 +33,8 @@ import { IPreferencesService } from '../../../../../../services/preferences/comm
 import { ITerminalChatService } from '../../../../../terminal/browser/terminal.js';
 import { TerminalContribCommandId, TerminalContribSettingId } from '../../../../../terminal/terminalContribExports.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../../common/chat.js';
-import { ChatContextKeys } from '../../../../common/chatContextKeys.js';
-import { IChatToolInvocation, ToolConfirmKind, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../../common/chatService.js';
+import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
+import { IChatToolInvocation, ToolConfirmKind, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../../common/chatService/chatService.js';
 import type { CodeBlockModelCollection } from '../../../../common/widget/codeBlockModelCollection.js';
 import { AcceptToolConfirmationActionId, SkipToolConfirmationActionId } from '../../../actions/chatToolActions.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../../chat.js';

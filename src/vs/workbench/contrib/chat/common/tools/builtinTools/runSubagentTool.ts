@@ -17,7 +17,7 @@ import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IChatAgentRequest, IChatAgentService, UserSelectedTools } from '../../participants/chatAgents.js';
 import { ChatModel, IChatRequestModeInstructions } from '../../model/chatModel.js';
 import { IChatModeService } from '../../chatModes.js';
-import { IChatProgress, IChatService } from '../../chatService.js';
+import { IChatProgress, IChatService } from '../../chatService/chatService.js';
 import { ChatRequestVariableSet } from '../../attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';

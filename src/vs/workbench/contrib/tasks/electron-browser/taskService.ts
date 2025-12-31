@@ -48,7 +48,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
-import { IChatService } from '../../chat/common/chatService.js';
+import { IChatService } from '../../chat/common/chatService/chatService.js';
 import { IChatAgentService } from '../../chat/common/participants/chatAgents.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 

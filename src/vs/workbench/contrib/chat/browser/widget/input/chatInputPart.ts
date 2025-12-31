@@ -77,13 +77,13 @@ import { AccessibilityVerbositySettingId } from '../../../../accessibility/brows
 import { AccessibilityCommandId } from '../../../../accessibility/common/accessibilityCommands.js';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions, setupSimpleEditorSelectionStyling } from '../../../../codeEditor/browser/simpleEditorOptions.js';
 import { InlineChatConfigKeys } from '../../../../inlineChat/common/inlineChat.js';
-import { IChatViewTitleActionContext } from '../../../common/chatActions.js';
+import { IChatViewTitleActionContext } from '../../../common/actions/chatActions.js';
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { ChatContextKeys } from '../../../common/chatContextKeys.js';
-import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/chatEditingService.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
+import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { IChatModelInputState, IChatRequestModeInfo, IInputModel } from '../../../common/model/chatModel.js';
 import { ChatMode, IChatMode, IChatModeService } from '../../../common/chatModes.js';
-import { IChatFollowup, IChatService } from '../../../common/chatService.js';
+import { IChatFollowup, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionFileChange, IChatSessionProviderOptionItem, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isStringVariableEntry } from '../../../common/attachments/chatVariableEntries.js';

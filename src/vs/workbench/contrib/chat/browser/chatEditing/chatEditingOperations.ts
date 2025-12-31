@@ -7,7 +7,7 @@ import { StringSHA1 } from '../../../../../base/common/hash.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
-import { IModifiedEntryTelemetryInfo } from '../../common/chatEditingService.js';
+import { IModifiedEntryTelemetryInfo } from '../../common/editing/chatEditingService.js';
 import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 
 export enum FileOperationType {

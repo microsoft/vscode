@@ -32,14 +32,14 @@ import { IEditorResolverService, RegisteredEditorPriority } from '../../../servi
 import { AddConfigurationType, AssistedTypes } from '../../mcp/browser/mcpCommandsAddConfiguration.js';
 import { allDiscoverySources, discoverySourceSettingsLabel, mcpDiscoverySection, mcpServerSamplingSection } from '../../mcp/common/mcpConfiguration.js';
 import { ChatAgentNameService, ChatAgentService, IChatAgentNameService, IChatAgentService } from '../common/participants/chatAgents.js';
-import { CodeMapperService, ICodeMapperService } from '../common/chatCodeMapperService.js';
+import { CodeMapperService, ICodeMapperService } from '../common/editing/chatCodeMapperService.js';
 import '../common/widget/chatColors.js';
-import { IChatEditingService } from '../common/chatEditingService.js';
+import { IChatEditingService } from '../common/editing/chatEditingService.js';
 import { IChatLayoutService } from '../common/widget/chatLayoutService.js';
 import { ChatModeService, IChatMode, IChatModeService } from '../common/chatModes.js';
 import { ChatResponseResourceFileSystemProvider } from '../common/widget/chatResponseResourceFileSystemProvider.js';
-import { IChatService } from '../common/chatService.js';
-import { ChatService } from '../common/chatServiceImpl.js';
+import { IChatService } from '../common/chatService/chatService.js';
+import { ChatService } from '../common/chatService/chatServiceImpl.js';
 import { IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../common/participants/chatSlashCommands.js';
 import { ChatTodoListService, IChatTodoListService } from '../common/tools/chatTodoListService.js';

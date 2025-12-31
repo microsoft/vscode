@@ -18,7 +18,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { FocusMode } from '../../../../../platform/native/common/native.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { AccessibilityVoiceSettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
-import { ElicitationState, IChatElicitationRequest, IChatService } from '../../common/chatService.js';
+import { ElicitationState, IChatElicitationRequest, IChatService } from '../../common/chatService/chatService.js';
 import { IChatResponseViewModel } from '../../common/model/chatViewModel.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { IChatAccessibilityService, IChatWidgetService } from '../chat.js';

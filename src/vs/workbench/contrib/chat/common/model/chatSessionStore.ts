@@ -22,9 +22,9 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 import { Dto } from '../../../../services/extensions/common/proxyIdentifier.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { awaitStatsForSession } from '../chat.js';
-import { ModifiedFileEntryState } from '../chatEditingService.js';
+import { ModifiedFileEntryState } from '../editing/chatEditingService.js';
 import { ChatModel, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData } from './chatModel.js';
-import { IChatSessionStats, IChatSessionTiming, ResponseModelState } from '../chatService.js';
+import { IChatSessionStats, IChatSessionTiming, ResponseModelState } from '../chatService/chatService.js';
 import { LocalChatSessionUri } from './chatUri.js';
 import { ChatAgentLocation } from '../constants.js';
 

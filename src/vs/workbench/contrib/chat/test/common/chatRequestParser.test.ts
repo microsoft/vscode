@@ -14,8 +14,8 @@ import { IStorageService } from '../../../../../platform/storage/common/storage.
 import { IExtensionService, nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
 import { TestExtensionService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { ChatAgentService, IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../common/participants/chatAgents.js';
-import { ChatRequestParser } from '../../common/chatRequestParser.js';
-import { IChatService } from '../../common/chatService.js';
+import { ChatRequestParser } from '../../common/requestParser/chatRequestParser.js';
+import { IChatService } from '../../common/chatService/chatService.js';
 import { IChatSlashCommandService } from '../../common/participants/chatSlashCommands.js';
 import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { IChatVariablesService } from '../../common/attachments/chatVariables.js';

@@ -6,7 +6,7 @@
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputButton, IQuickTreeItem } from '../../../../../platform/quickinput/common/quickInput.js';
-import { ConfirmedReason } from '../chatService.js';
+import { ConfirmedReason } from '../chatService/chatService.js';
 import { IToolData, ToolDataSource } from './languageModelToolsService.js';
 
 export interface ILanguageModelToolConfirmationActions {

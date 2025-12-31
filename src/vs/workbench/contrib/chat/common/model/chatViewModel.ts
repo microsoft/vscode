@@ -15,8 +15,8 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { annotateVulnerabilitiesInText } from '../widget/annotations.js';
 import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameService, IChatAgentResult } from '../participants/chatAgents.js';
 import { IChatModel, IChatProgressRenderableResponseContent, IChatRequestDisablement, IChatRequestModel, IChatResponseModel, IChatTextEditGroup, IResponse } from './chatModel.js';
-import { IParsedChatRequest } from '../chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatCodeCitation, IChatContentReference, IChatFollowup, IChatMcpServersStarting, IChatProgressMessage, IChatResponseErrorDetails, IChatTask, IChatUsedContext } from '../chatService.js';
+import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatCodeCitation, IChatContentReference, IChatFollowup, IChatMcpServersStarting, IChatProgressMessage, IChatResponseErrorDetails, IChatTask, IChatUsedContext } from '../chatService/chatService.js';
 import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js';
 import { countWords } from './chatWordCounter.js';
 import { CodeBlockModelCollection } from '../widget/codeBlockModelCollection.js';

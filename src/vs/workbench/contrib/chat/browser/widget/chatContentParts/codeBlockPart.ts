@@ -63,7 +63,7 @@ import { MenuPreventer } from '../../../../codeEditor/browser/menuPreventer.js';
 import { SelectionClipboardContributionID } from '../../../../codeEditor/browser/selectionClipboard.js';
 import { getSimpleEditorOptions } from '../../../../codeEditor/browser/simpleEditorOptions.js';
 import { IMarkdownVulnerability } from '../../../common/widget/annotations.js';
-import { ChatContextKeys } from '../../../common/chatContextKeys.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IChatResponseModel, IChatTextEditGroup } from '../../../common/model/chatModel.js';
 import { IChatResponseViewModel, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';

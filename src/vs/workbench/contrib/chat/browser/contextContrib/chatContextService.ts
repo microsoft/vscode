@@ -7,7 +7,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { LanguageSelector, score } from '../../../../../editor/common/languageSelector.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatContextPicker, IChatContextPickerItem, IChatContextPickService } from '../attachments/chatContextPickService.js';
-import { IChatContextItem, IChatContextProvider } from '../../common/chatContext.js';
+import { IChatContextItem, IChatContextProvider } from '../../common/contextContrib/chatContext.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IChatRequestWorkspaceVariableEntry, IGenericChatRequestVariableEntry, StringChatContextValue } from '../../common/attachments/chatVariableEntries.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';

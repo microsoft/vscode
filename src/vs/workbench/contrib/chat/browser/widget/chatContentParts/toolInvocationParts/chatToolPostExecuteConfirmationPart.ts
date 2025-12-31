@@ -13,7 +13,7 @@ import { IContextKeyService } from '../../../../../../../platform/contextkey/com
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
 import { ChatResponseResource } from '../../../../common/model/chatModel.js';
-import { IChatToolInvocation, ToolConfirmKind } from '../../../../common/chatService.js';
+import { IChatToolInvocation, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { ILanguageModelToolsConfirmationService } from '../../../../common/tools/languageModelToolsConfirmationService.js';
 import { ILanguageModelToolsService, IToolResultDataPart, IToolResultPromptTsxPart, IToolResultTextPart, stringifyPromptTsxPart } from '../../../../common/tools/languageModelToolsService.js';
 import { AcceptToolPostConfirmationActionId, SkipToolPostConfirmationActionId } from '../../../actions/chatToolActions.js';

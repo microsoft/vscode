@@ -13,7 +13,7 @@ import { isLocation, Location, SymbolKind } from '../../../../../editor/common/l
 import { localize } from '../../../../../nls.js';
 import { MarkerSeverity, IMarker } from '../../../../../platform/markers/common/markers.js';
 import { ISCMHistoryItem } from '../../../scm/common/history.js';
-import { IChatContentReference } from '../chatService.js';
+import { IChatContentReference } from '../chatService/chatService.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
 import { IToolData, ToolSet } from '../tools/languageModelToolsService.js';
 

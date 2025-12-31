@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
-import { ConfirmedReason } from '../../common/chatService.js';
+import { ConfirmedReason } from '../../common/chatService/chatService.js';
 import { ILanguageModelToolConfirmationActions, ILanguageModelToolConfirmationContribution, ILanguageModelToolConfirmationRef, ILanguageModelToolsConfirmationService } from '../../common/tools/languageModelToolsConfirmationService.js';
 import { IToolData } from '../../common/tools/languageModelToolsService.js';
 

@@ -16,7 +16,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IChatWidget, IChatWidgetService } from '../../chat/browser/chat.js';
 import { ChatContextPick, IChatContextPicker, IChatContextPickerItem, IChatContextPickService } from '../../chat/browser/attachments/chatContextPickService.js';
-import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
+import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { IChatRequestFileEntry, IChatRequestVariableEntry, IDebugVariableEntry } from '../../chat/common/attachments/chatVariableEntries.js';
 import { IDebugService, IExpression, IScope, IStackFrame, State } from '../common/debug.js';
 import { Variable } from '../common/debugModel.js';

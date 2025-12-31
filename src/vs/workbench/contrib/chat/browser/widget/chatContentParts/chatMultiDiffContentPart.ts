@@ -27,9 +27,9 @@ import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../../service
 import { createFileIconThemableTreeContainerScope } from '../../../../files/browser/views/explorerView.js';
 import { MultiDiffEditorInput } from '../../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { MultiDiffEditorItem } from '../../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
-import { ChatContextKeys } from '../../../common/chatContextKeys.js';
-import { IEditSessionEntryDiff } from '../../../common/chatEditingService.js';
-import { IChatMultiDiffData, IChatMultiDiffInnerData } from '../../../common/chatService.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
+import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
+import { IChatMultiDiffData, IChatMultiDiffInnerData } from '../../../common/chatService/chatService.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';

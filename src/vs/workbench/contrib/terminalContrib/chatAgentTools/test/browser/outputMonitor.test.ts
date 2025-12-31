@@ -11,7 +11,7 @@ import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { IPollingResult, OutputMonitorState } from '../../browser/tools/monitoring/types.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILanguageModelsService } from '../../../../chat/common/languageModels.js';
-import { IChatService } from '../../../../chat/common/chatService.js';
+import { IChatService } from '../../../../chat/common/chatService/chatService.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ChatModel } from '../../../../chat/common/model/chatModel.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';

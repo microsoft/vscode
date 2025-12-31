@@ -11,8 +11,8 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { IChatProgressRenderableResponseContent } from '../../../common/model/chatModel.js';
-import { ChatContextKeys } from '../../../common/chatContextKeys.js';
-import { ElicitationState, IChatElicitationRequest, IChatElicitationRequestSerialized } from '../../../common/chatService.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
+import { ElicitationState, IChatElicitationRequest, IChatElicitationRequestSerialized } from '../../../common/chatService/chatService.js';
 import { IChatAccessibilityService } from '../../chat.js';
 import { AcceptElicitationRequestActionId } from '../../actions/chatElicitationActions.js';
 import { ChatConfirmationWidget, IChatConfirmationButton } from './chatConfirmationWidget.js';

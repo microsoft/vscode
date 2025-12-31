@@ -5,7 +5,7 @@
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { IChatTerminalToolInvocationData } from '../../chatService.js';
+import { IChatTerminalToolInvocationData } from '../../chatService/chatService.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress } from '../languageModelToolsService.js';
 
 export const ConfirmationToolId = 'vscode_get_confirmation';

@@ -18,7 +18,7 @@ import { TestInstantiationService } from '../../../../platform/instantiation/tes
 import { ILogService, NullLogService } from '../../../../platform/log/common/log.js';
 import { ChatSessionsService } from '../../../contrib/chat/browser/chatSessions/chatSessions.contribution.js';
 import { IChatAgentRequest } from '../../../contrib/chat/common/participants/chatAgents.js';
-import { IChatProgress, IChatProgressMessage, IChatService } from '../../../contrib/chat/common/chatService.js';
+import { IChatProgress, IChatProgressMessage, IChatService } from '../../../contrib/chat/common/chatService/chatService.js';
 import { IChatSessionItem, IChatSessionProviderOptionGroup, IChatSessionsService } from '../../../contrib/chat/common/chatSessionsService.js';
 import { LocalChatSessionUri } from '../../../contrib/chat/common/model/chatUri.js';
 import { ChatAgentLocation } from '../../../contrib/chat/common/constants.js';

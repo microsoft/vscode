@@ -14,7 +14,7 @@ import { PLAINTEXT_LANGUAGE_ID } from '../../../../../editor/common/languages/mo
 import { EndOfLinePreference, ITextModel } from '../../../../../editor/common/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { extractCodeblockUrisFromText, extractVulnerabilitiesFromText, IMarkdownVulnerability } from './annotations.js';
-import { isChatContentVariableReference } from '../chatService.js';
+import { isChatContentVariableReference } from '../chatService/chatService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isResponseVM } from '../model/chatViewModel.js';
 
 

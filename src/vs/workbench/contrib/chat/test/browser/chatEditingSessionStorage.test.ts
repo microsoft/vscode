@@ -15,7 +15,7 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { TestEnvironmentService } from '../../../../test/browser/workbenchTestServices.js';
 import { ChatEditingSessionStorage, IChatEditingSessionStop, StoredSessionState } from '../../browser/chatEditing/chatEditingSessionStorage.js';
 import { ChatEditingSnapshotTextModelContentProvider } from '../../browser/chatEditing/chatEditingTextModelContentProviders.js';
-import { ISnapshotEntry, ModifiedFileEntryState } from '../../common/chatEditingService.js';
+import { ISnapshotEntry, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 
 suite('ChatEditingSessionStorage', () => {
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();

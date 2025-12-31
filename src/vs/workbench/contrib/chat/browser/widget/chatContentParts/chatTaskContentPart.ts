@@ -9,7 +9,7 @@ import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatProgressRenderableResponseContent } from '../../../common/model/chatModel.js';
-import { IChatTask, IChatTaskSerialized } from '../../../common/chatService.js';
+import { IChatTask, IChatTaskSerialized } from '../../../common/chatService/chatService.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { ChatProgressContentPart } from './chatProgressContentPart.js';
 import { ChatCollapsibleListContentPart, CollapsibleListPool } from './chatReferencesContentPart.js';

@@ -50,11 +50,11 @@ import { ISharedWebContentExtractorService } from '../../../../platform/webConte
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IChatAttachmentResolveService } from '../../chat/browser/attachments/chatAttachmentResolveService.js';
 import { IChatWidgetLocationOptions } from '../../chat/browser/widget/chatWidget.js';
-import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
-import { IChatEditingSession, ModifiedFileEntryState } from '../../chat/common/chatEditingService.js';
+import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
+import { IChatEditingSession, ModifiedFileEntryState } from '../../chat/common/editing/chatEditingService.js';
 import { ChatModel, ChatRequestRemovalReason, IChatRequestModel, IChatTextEditGroup, IChatTextEditGroupState, IResponse } from '../../chat/common/model/chatModel.js';
 import { ChatMode } from '../../chat/common/chatModes.js';
-import { IChatService } from '../../chat/common/chatService.js';
+import { IChatService } from '../../chat/common/chatService/chatService.js';
 import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData } from '../../chat/common/attachments/chatVariableEntries.js';
 import { isResponseVM } from '../../chat/common/model/chatViewModel.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';

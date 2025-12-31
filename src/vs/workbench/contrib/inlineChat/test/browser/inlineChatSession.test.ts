@@ -49,10 +49,10 @@ import { ChatSessionsService } from '../../../chat/browser/chatSessions/chatSess
 import { ChatVariablesService } from '../../../chat/browser/attachments/chatVariables.js';
 import { ChatWidget } from '../../../chat/browser/widget/chatWidget.js';
 import { ChatAgentService, IChatAgentService } from '../../../chat/common/participants/chatAgents.js';
-import { IChatEditingService, IChatEditingSession } from '../../../chat/common/chatEditingService.js';
+import { IChatEditingService, IChatEditingSession } from '../../../chat/common/editing/chatEditingService.js';
 import { IChatRequestModel } from '../../../chat/common/model/chatModel.js';
-import { IChatService } from '../../../chat/common/chatService.js';
-import { ChatService } from '../../../chat/common/chatServiceImpl.js';
+import { IChatService } from '../../../chat/common/chatService/chatService.js';
+import { ChatService } from '../../../chat/common/chatService/chatServiceImpl.js';
 import { IChatSessionsService } from '../../../chat/common/chatSessionsService.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../../chat/common/participants/chatSlashCommands.js';
 import { ChatTransferService, IChatTransferService } from '../../../chat/common/model/chatTransferService.js';

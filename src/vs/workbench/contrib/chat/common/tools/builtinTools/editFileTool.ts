@@ -10,9 +10,9 @@ import { autorun } from '../../../../../../base/common/observable.js';
 import { URI, UriComponents } from '../../../../../../base/common/uri.js';
 import { CellUri } from '../../../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../../../notebook/common/notebookService.js';
-import { ICodeMapperService } from '../../chatCodeMapperService.js';
+import { ICodeMapperService } from '../../editing/chatCodeMapperService.js';
 import { ChatModel } from '../../model/chatModel.js';
-import { IChatService } from '../../chatService.js';
+import { IChatService } from '../../chatService/chatService.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress } from '../languageModelToolsService.js';
 import { LocalChatSessionUri } from '../../model/chatUri.js';
 

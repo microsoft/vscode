@@ -7,7 +7,7 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IChatEditingSession } from '../../common/chatEditingService.js';
+import { IChatEditingSession } from '../../common/editing/chatEditingService.js';
 import { IChatChangeEvent, IChatModel, IChatRequestModel, IChatRequestNeedsInputInfo, IExportableChatData, IInputModel, ISerializableChatData } from '../../common/model/chatModel.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 

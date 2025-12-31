@@ -14,7 +14,7 @@ import { IChatWidgetService } from '../chat.js';
 import { ChatAgentHover, getChatAgentHoverOptions } from '../widget/chatAgentHover.js';
 import { ChatEditorHoverWrapper } from './editorHoverWrapper.js';
 import { IChatAgentData } from '../../common/participants/chatAgents.js';
-import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
+import { extractAgentAndCommand } from '../../common/requestParser/chatParserTypes.js';
 import * as nls from '../../../../../nls.js';
 
 export class ChatAgentHoverParticipant implements IEditorHoverParticipant<ChatAgentHoverPart> {

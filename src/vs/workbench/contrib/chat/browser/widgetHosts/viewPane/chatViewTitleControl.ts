@@ -17,7 +17,7 @@ import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../../plat
 import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { IChatViewTitleActionContext } from '../../../common/chatActions.js';
+import { IChatViewTitleActionContext } from '../../../common/actions/chatActions.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { AgentSessionProviders, getAgentSessionProviderIcon } from '../../agentSessions/agentSessions.js';

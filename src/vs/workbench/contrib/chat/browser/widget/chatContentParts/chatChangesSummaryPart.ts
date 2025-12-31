@@ -27,8 +27,8 @@ import { IEditorService } from '../../../../../services/editor/common/editorServ
 import { createFileIconThemableTreeContainerScope } from '../../../../files/browser/views/explorerView.js';
 import { MultiDiffEditorInput } from '../../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { MultiDiffEditorItem } from '../../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
-import { IChatEditingSession, IEditSessionEntryDiff } from '../../../common/chatEditingService.js';
-import { IChatService } from '../../../common/chatService.js';
+import { IChatEditingSession, IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
+import { IChatService } from '../../../common/chatService/chatService.js';
 import { IChatChangesSummaryPart as IChatFileChangesSummaryPart, IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
 import { ResourcePool } from './chatCollections.js';

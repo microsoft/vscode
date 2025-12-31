@@ -36,7 +36,7 @@ import * as JSONContributionRegistry from '../../../../../platform/jsonschemas/c
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ChatViewId } from '../chat.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 
 
 const toolEnumValues: string[] = [];

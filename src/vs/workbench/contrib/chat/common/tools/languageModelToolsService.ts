@@ -24,7 +24,7 @@ import { createDecorator } from '../../../../../platform/instantiation/common/in
 import { IProgress } from '../../../../../platform/progress/common/progress.js';
 import { UserSelectedTools } from '../participants/chatAgents.js';
 import { IVariableReference } from '../chatModes.js';
-import { IChatExtensionsContent, IChatTodoListContent, IChatToolInputInvocationData, type IChatTerminalToolInvocationData } from '../chatService.js';
+import { IChatExtensionsContent, IChatTodoListContent, IChatToolInputInvocationData, type IChatTerminalToolInvocationData } from '../chatService/chatService.js';
 import { ChatRequestToolReferenceEntry } from '../attachments/chatVariableEntries.js';
 import { LanguageModelPartAudience } from '../languageModels.js';
 import { PromptElementJSON, stringifyPromptElementJSON } from './promptTsxTypes.js';

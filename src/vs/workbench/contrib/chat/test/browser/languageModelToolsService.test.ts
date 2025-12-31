@@ -22,7 +22,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { LanguageModelToolsService } from '../../browser/tools/languageModelToolsService.js';
 import { ChatModel, IChatModel } from '../../common/model/chatModel.js';
-import { IChatService, IChatToolInputInvocationData, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService.js';
+import { IChatService, IChatToolInputInvocationData, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService/chatService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { SpecedToolAliases, isToolResultInputOutputDetails, IToolData, IToolImpl, IToolInvocation, ToolDataSource, ToolSet } from '../../common/tools/languageModelToolsService.js';
 import { MockChatService } from '../common/mockChatService.js';

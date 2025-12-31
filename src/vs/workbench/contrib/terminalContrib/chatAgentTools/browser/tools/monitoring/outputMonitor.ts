@@ -16,7 +16,7 @@ import { ExtensionIdentifier } from '../../../../../../../platform/extensions/co
 import { IChatWidgetService } from '../../../../../chat/browser/chat.js';
 import { ChatElicitationRequestPart } from '../../../../../chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatModel } from '../../../../../chat/common/model/chatModel.js';
-import { ElicitationState, IChatService } from '../../../../../chat/common/chatService.js';
+import { ElicitationState, IChatService } from '../../../../../chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../../chat/common/constants.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../../../../chat/common/languageModels.js';
 import { IToolInvocationContext } from '../../../../../chat/common/tools/languageModelToolsService.js';

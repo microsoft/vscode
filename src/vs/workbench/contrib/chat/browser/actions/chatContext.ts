@@ -22,7 +22,7 @@ import { UntitledTextEditorInput } from '../../../../services/untitled/common/un
 import { FileEditorInput } from '../../../files/browser/editors/fileEditorInput.js';
 import { NotebookEditorInput } from '../../../notebook/common/notebookEditorInput.js';
 import { IChatContextPickService, IChatContextValueItem, IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPicker } from '../attachments/chatContextPickService.js';
-import { IChatEditingService } from '../../common/chatEditingService.js';
+import { IChatEditingService } from '../../common/editing/chatEditingService.js';
 import { IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IImageVariableEntry, OmittedState, toToolSetVariableEntry, toToolVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ToolDataSource, ToolSet } from '../../common/tools/languageModelToolsService.js';
 import { IChatWidget } from '../chat.js';

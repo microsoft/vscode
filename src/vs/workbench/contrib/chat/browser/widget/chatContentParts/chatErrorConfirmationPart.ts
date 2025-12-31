@@ -11,7 +11,7 @@ import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
-import { ChatErrorLevel, IChatResponseErrorDetailsConfirmationButton, IChatSendRequestOptions, IChatService } from '../../../common/chatService.js';
+import { ChatErrorLevel, IChatResponseErrorDetailsConfirmationButton, IChatSendRequestOptions, IChatService } from '../../../common/chatService/chatService.js';
 import { assertIsResponseVM, IChatErrorDetailsPart, IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { IChatWidgetService } from '../../chat.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';

@@ -11,7 +11,7 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { IChatProgressRenderableResponseContent } from '../../../common/model/chatModel.js';
-import { IChatCommandButton } from '../../../common/chatService.js';
+import { IChatCommandButton } from '../../../common/chatService/chatService.js';
 import { isResponseVM } from '../../../common/model/chatViewModel.js';
 
 const $ = dom.$;

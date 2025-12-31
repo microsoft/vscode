@@ -59,11 +59,11 @@ import { ChatVariablesService } from '../../../chat/browser/attachments/chatVari
 import { ChatWidget } from '../../../chat/browser/widget/chatWidget.js';
 import { ChatWidgetService } from '../../../chat/browser/widget/chatWidgetService.js';
 import { ChatAgentService, IChatAgentData, IChatAgentNameService, IChatAgentService } from '../../../chat/common/participants/chatAgents.js';
-import { IChatEditingService, IChatEditingSession } from '../../../chat/common/chatEditingService.js';
+import { IChatEditingService, IChatEditingSession } from '../../../chat/common/editing/chatEditingService.js';
 import { IChatLayoutService } from '../../../chat/common/widget/chatLayoutService.js';
 import { IChatModeService } from '../../../chat/common/chatModes.js';
-import { IChatProgress, IChatService } from '../../../chat/common/chatService.js';
-import { ChatService } from '../../../chat/common/chatServiceImpl.js';
+import { IChatProgress, IChatService } from '../../../chat/common/chatService/chatService.js';
+import { ChatService } from '../../../chat/common/chatService/chatServiceImpl.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../../chat/common/participants/chatSlashCommands.js';
 import { IChatTodo, IChatTodoListService } from '../../../chat/common/tools/chatTodoListService.js';
 import { ChatTransferService, IChatTransferService } from '../../../chat/common/model/chatTransferService.js';

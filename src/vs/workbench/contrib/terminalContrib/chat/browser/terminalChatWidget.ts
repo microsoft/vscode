@@ -20,7 +20,7 @@ import { IChatAcceptInputOptions, IChatWidgetService } from '../../../chat/brows
 import { IChatAgentService } from '../../../chat/common/participants/chatAgents.js';
 import { IChatResponseModel, isCellTextEditOperationArray } from '../../../chat/common/model/chatModel.js';
 import { ChatMode } from '../../../chat/common/chatModes.js';
-import { IChatModelReference, IChatProgress, IChatService } from '../../../chat/common/chatService.js';
+import { IChatModelReference, IChatProgress, IChatService } from '../../../chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
 import { InlineChatWidget } from '../../../inlineChat/browser/inlineChatWidget.js';
 import { MENU_INLINE_CHAT_WIDGET_SECONDARY } from '../../../inlineChat/common/inlineChat.js';

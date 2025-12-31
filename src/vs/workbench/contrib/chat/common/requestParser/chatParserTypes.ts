@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { revive } from '../../../../base/common/marshalling.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { IOffsetRange, OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
-import { IRange } from '../../../../editor/common/core/range.js';
-import { IChatAgentCommand, IChatAgentData, IChatAgentService, reviveSerializedAgent } from './participants/chatAgents.js';
-import { IChatSlashData } from './participants/chatSlashCommands.js';
-import { IChatRequestProblemsVariable, IChatRequestVariableValue } from './attachments/chatVariables.js';
-import { ChatAgentLocation } from './constants.js';
-import { IToolData } from './tools/languageModelToolsService.js';
-import { IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData } from './attachments/chatVariableEntries.js';
+import { revive } from '../../../../../base/common/marshalling.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { IOffsetRange, OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
+import { IRange } from '../../../../../editor/common/core/range.js';
+import { IChatAgentCommand, IChatAgentData, IChatAgentService, reviveSerializedAgent } from '../participants/chatAgents.js';
+import { IChatSlashData } from '../participants/chatSlashCommands.js';
+import { IChatRequestProblemsVariable, IChatRequestVariableValue } from '../attachments/chatVariables.js';
+import { ChatAgentLocation } from '../constants.js';
+import { IToolData } from '../tools/languageModelToolsService.js';
+import { IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData } from '../attachments/chatVariableEntries.js';
 
 // These are in a separate file to avoid circular dependencies with the dependencies of the parser
 

@@ -12,7 +12,7 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
-import { IChatEditingService, IChatEditingSession } from '../../common/chatEditingService.js';
+import { IChatEditingService, IChatEditingSession } from '../../common/editing/chatEditingService.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 
 export class ChatRelatedFilesContribution extends Disposable implements IWorkbenchContribution {

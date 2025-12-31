@@ -47,9 +47,9 @@ import { McpPromptArgumentPick } from '../../../mcp/browser/mcpPromptArgumentPic
 import { IMcpPrompt, IMcpPromptMessage, IMcpServer, IMcpService, McpResourceURI } from '../../../mcp/common/mcpTypes.js';
 import { searchFilesAndFolders } from '../../../search/browser/searchChatContext.js';
 import { IChatAgentData, IChatAgentNameService, IChatAgentService, getFullyQualifiedId } from '../../common/participants/chatAgents.js';
-import { IChatEditingService } from '../../common/chatEditingService.js';
+import { IChatEditingService } from '../../common/editing/chatEditingService.js';
 import { getAttachableImageExtension } from '../../common/model/chatModel.js';
-import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from '../../common/chatParserTypes.js';
+import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from '../../common/requestParser/chatParserTypes.js';
 import { IChatSlashCommandService } from '../../common/participants/chatSlashCommands.js';
 import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IDynamicVariable } from '../../common/attachments/chatVariables.js';

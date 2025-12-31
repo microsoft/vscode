@@ -87,7 +87,7 @@ import { IRemoteAgentService } from '../../../services/remote/common/remoteAgent
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { CHAT_OPEN_ACTION_ID } from '../../chat/browser/actions/chatActions.js';
 import { IChatAgentService } from '../../chat/common/participants/chatAgents.js';
-import { IChatService } from '../../chat/common/chatService.js';
+import { IChatService } from '../../chat/common/chatService/chatService.js';
 import { configureTaskIcon, isWorkspaceFolder, ITaskQuickPickEntry, QUICKOPEN_DETAIL_CONFIG, QUICKOPEN_SKIP_CONFIG, TaskQuickPick } from './taskQuickPick.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import * as dom from '../../../../base/browser/dom.js';

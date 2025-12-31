@@ -23,8 +23,8 @@ import { IExtensionService } from '../../../../services/extensions/common/extens
 import { TestExtensionService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { ChatAgentService, IChatAgentService } from '../../common/participants/chatAgents.js';
 import { ChatModel, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, Response } from '../../common/model/chatModel.js';
-import { ChatRequestTextPart } from '../../common/chatParserTypes.js';
-import { IChatService, IChatToolInvocation } from '../../common/chatService.js';
+import { ChatRequestTextPart } from '../../common/requestParser/chatParserTypes.js';
+import { IChatService, IChatToolInvocation } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { MockChatService } from './mockChatService.js';
 

@@ -8,7 +8,7 @@ import { DisposableStore, IDisposable, IReference, ReferenceCollection } from '.
 import { ObservableMap } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IChatEditingSession } from '../chatEditingService.js';
+import { IChatEditingSession } from '../editing/chatEditingService.js';
 import { ChatModel, IExportableChatData, ISerializableChatData, ISerializableChatModelInputState } from './chatModel.js';
 import { ChatAgentLocation } from '../constants.js';
 

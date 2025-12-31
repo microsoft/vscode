@@ -20,8 +20,8 @@ import { asCssVariable } from '../../../../../../platform/theme/common/colorUtil
 import { contentRefUrl } from '../../../common/widget/annotations.js';
 import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameService, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../../common/widget/chatColors.js';
-import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, chatSubcommandLeader, IParsedChatRequest, IParsedChatRequestPart } from '../../../common/chatParserTypes.js';
-import { IChatMarkdownContent, IChatService } from '../../../common/chatService.js';
+import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, chatSubcommandLeader, IParsedChatRequest, IParsedChatRequestPart } from '../../../common/requestParser/chatParserTypes.js';
+import { IChatMarkdownContent, IChatService } from '../../../common/chatService/chatService.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { IChatWidgetService } from '../../chat.js';
 import { ChatAgentHover, getChatAgentHoverOptions } from '../chatAgentHover.js';

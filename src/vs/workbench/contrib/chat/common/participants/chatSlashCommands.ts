@@ -9,7 +9,7 @@ import { Disposable, IDisposable, toDisposable } from '../../../../../base/commo
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IProgress } from '../../../../../platform/progress/common/progress.js';
 import { IChatMessage } from '../languageModels.js';
-import { IChatFollowup, IChatProgress, IChatResponseProgressFileTreeData } from '../chatService.js';
+import { IChatFollowup, IChatProgress, IChatResponseProgressFileTreeData } from '../chatService/chatService.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { ChatAgentLocation, ChatModeKind } from '../constants.js';
 import { URI } from '../../../../../base/common/uri.js';

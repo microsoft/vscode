@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService, InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { LanguageModelToolsConfirmationService } from '../../browser/tools/languageModelToolsConfirmationService.js';
-import { ToolConfirmKind } from '../../common/chatService.js';
+import { ToolConfirmKind } from '../../common/chatService/chatService.js';
 import { ILanguageModelToolConfirmationActions, ILanguageModelToolConfirmationContribution, ILanguageModelToolConfirmationRef } from '../../common/tools/languageModelToolsConfirmationService.js';
 import { ToolDataSource } from '../../common/tools/languageModelToolsService.js';
 

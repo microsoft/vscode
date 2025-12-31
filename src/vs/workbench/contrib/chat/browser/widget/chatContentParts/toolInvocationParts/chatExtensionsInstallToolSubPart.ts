@@ -12,8 +12,8 @@ import { IExtensionManagementService } from '../../../../../../../platform/exten
 import { areSameExtensions } from '../../../../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
-import { ChatContextKeys } from '../../../../common/chatContextKeys.js';
-import { ConfirmedReason, IChatToolInvocation, ToolConfirmKind } from '../../../../common/chatService.js';
+import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
+import { ConfirmedReason, IChatToolInvocation, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { CancelChatActionId } from '../../../actions/chatExecuteActions.js';
 import { AcceptToolConfirmationActionId } from '../../../actions/chatToolActions.js';
 import { IChatWidgetService } from '../../../chat.js';

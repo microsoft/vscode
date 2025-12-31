@@ -9,8 +9,8 @@ import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { formatChatQuestion } from '../../../common/chatParserTypes.js';
-import { IChatFollowup } from '../../../common/chatService.js';
+import { formatChatQuestion } from '../../../common/requestParser/chatParserTypes.js';
+import { IChatFollowup } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
 
 const $ = dom.$;
