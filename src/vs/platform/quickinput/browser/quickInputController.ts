@@ -802,8 +802,13 @@ export class QuickInputController extends Disposable {
 	}
 
 	toggle() {
-		if (this.isVisible() && this.controller instanceof QuickPick && this.controller.canSelectMany) {
+		if (!this.isVisible()) {
+			return;
+		}
+		if (this.controller instanceof QuickPick && this.controller.canSelectMany) {
 			this.getUI().list.toggleCheckbox();
+		} else if (this.controller instanceof QuickTree) {
+			this.getUI().tree.toggleCheckbox();
 		}
 	}
 
