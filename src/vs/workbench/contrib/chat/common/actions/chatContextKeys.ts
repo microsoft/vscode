@@ -107,6 +107,7 @@ export namespace ChatContextKeys {
 }
 
 export namespace ChatContextKeyExprs {
+
 	export const inEditingMode = ContextKeyExpr.or(
 		ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Edit),
 		ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
