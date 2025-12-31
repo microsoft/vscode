@@ -11,7 +11,7 @@ import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions
 import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID, AgentSessionProviders, AgentSessionsViewerOrientation, IAgentSessionsControl } from './agentSessions.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IChatEditorOptions } from '../chatEditor.js';
+import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, PreferredGroup, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
@@ -19,13 +19,13 @@ import { getPartByLocation } from '../../../../services/views/browser/viewsServi
 import { IWorkbenchLayoutService, Position } from '../../../../services/layout/browser/layoutService.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ChatEditorInput, showClearEditingSessionConfirmation } from '../chatEditorInput.js';
+import { ChatEditorInput, showClearEditingSessionConfirmation } from '../widgetHosts/editor/chatEditorInput.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY } from '../actions/chatActions.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { ChatViewPane } from '../chatViewPane.js';
+import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { AgentSessionsPicker } from './agentSessionsPicker.js';

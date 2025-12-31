@@ -28,13 +28,13 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
-import { ChatEditorInput } from '../browser/chatEditorInput.js';
+import { ChatEditorInput } from './widgetHosts/editor/chatEditorInput.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentService } from '../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsExtensionPoint, IChatSessionsService, isSessionInProgressStatus, localChatSessionType, SessionOptionsChangedCallback } from '../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
-import { IChatEditorOptions } from './chatEditor.js';
+import { IChatEditorOptions } from './widgetHosts/editor/chatEditor.js';
 import { IChatModel } from '../common/model/chatModel.js';
 import { IChatService, IChatToolInvocation } from '../common/chatService.js';
 import { autorun, autorunIterableDelta, observableSignalFromEvent } from '../../../../base/common/observable.js';
@@ -43,7 +43,7 @@ import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js'
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ChatViewId } from './chat.js';
-import { ChatViewPane } from './chatViewPane.js';
+import { ChatViewPane } from './widgetHosts/viewPane/chatViewPane.js';
 
 const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsExtensionPoint[]>({
 	extensionPoint: 'chatSessions',

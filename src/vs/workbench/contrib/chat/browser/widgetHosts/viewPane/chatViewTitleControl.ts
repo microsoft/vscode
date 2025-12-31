@@ -4,26 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatViewTitleControl.css';
-import { addDisposableListener, EventType, h } from '../../../../base/browser/dom.js';
-import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
-import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
-import { Emitter } from '../../../../base/common/event.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { MarshalledId } from '../../../../base/common/marshallingIds.js';
-import { localize } from '../../../../nls.js';
-import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
-import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { IChatViewTitleActionContext } from '../common/chatActions.js';
-import { IChatModel } from '../common/model/chatModel.js';
-import { ChatConfiguration } from '../common/constants.js';
-import { AgentSessionProviders, getAgentSessionProviderIcon } from './agentSessions/agentSessions.js';
-import { ActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { IAction } from '../../../../base/common/actions.js';
-import { AgentSessionsPicker } from './agentSessions/agentSessionsPicker.js';
+import { addDisposableListener, EventType, h } from '../../../../../../base/browser/dom.js';
+import { renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
+import { Gesture, EventType as TouchEventType } from '../../../../../../base/browser/touch.js';
+import { Emitter } from '../../../../../../base/common/event.js';
+import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
+import { localize } from '../../../../../../nls.js';
+import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
+import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IChatViewTitleActionContext } from '../../../common/chatActions.js';
+import { IChatModel } from '../../../common/model/chatModel.js';
+import { ChatConfiguration } from '../../../common/constants.js';
+import { AgentSessionProviders, getAgentSessionProviderIcon } from '../../agentSessions/agentSessions.js';
+import { ActionViewItem, IActionViewItemOptions } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { IAction } from '../../../../../../base/common/actions.js';
+import { AgentSessionsPicker } from '../../agentSessions/agentSessionsPicker.js';
 
 export interface IChatViewTitleDelegate {
 	focusChat(): void;

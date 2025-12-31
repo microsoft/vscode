@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { Schemas } from '../../../../base/common/network.js';
-import { isEqual } from '../../../../base/common/resources.js';
-import { truncate } from '../../../../base/common/strings.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { URI } from '../../../../base/common/uri.js';
-import * as nls from '../../../../nls.js';
-import { ConfirmResult, IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
-import { EditorInputCapabilities, IEditorIdentifier, IEditorSerializer, IUntypedEditorInput, Verbosity } from '../../../common/editor.js';
-import { EditorInput, IEditorCloseHandler } from '../../../common/editor/editorInput.js';
-import { IChatEditingSession, ModifiedFileEntryState } from '../common/chatEditingService.js';
-import { IChatModel } from '../common/model/chatModel.js';
-import { IChatModelReference, IChatService } from '../common/chatService.js';
-import { IChatSessionsService, localChatSessionType } from '../common/chatSessionsService.js';
-import { LocalChatSessionUri, getChatSessionType } from '../common/model/chatUri.js';
-import { ChatAgentLocation, ChatEditorTitleMaxLength } from '../common/constants.js';
-import { IClearEditingSessionConfirmationOptions } from './actions/chatActions.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { Disposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../../base/common/network.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
+import { truncate } from '../../../../../../base/common/strings.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import * as nls from '../../../../../../nls.js';
+import { ConfirmResult, IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { registerIcon } from '../../../../../../platform/theme/common/iconRegistry.js';
+import { EditorInputCapabilities, IEditorIdentifier, IEditorSerializer, IUntypedEditorInput, Verbosity } from '../../../../../common/editor.js';
+import { EditorInput, IEditorCloseHandler } from '../../../../../common/editor/editorInput.js';
+import { IChatEditingSession, ModifiedFileEntryState } from '../../../common/chatEditingService.js';
+import { IChatModel } from '../../../common/model/chatModel.js';
+import { IChatModelReference, IChatService } from '../../../common/chatService.js';
+import { IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
+import { LocalChatSessionUri, getChatSessionType } from '../../../common/model/chatUri.js';
+import { ChatAgentLocation, ChatEditorTitleMaxLength } from '../../../common/constants.js';
+import { IClearEditingSessionConfirmationOptions } from '../../actions/chatActions.js';
 import type { IChatEditorOptions } from './chatEditor.js';
 
 const ChatEditorIcon = registerIcon('chat-editor-label-icon', Codicon.chatSparkle, nls.localize('chatEditorLabelIcon', 'Icon of the chat editor label.'));

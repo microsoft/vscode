@@ -55,7 +55,7 @@ import { IChatAccessibilityService, IChatWidget, IChatWidgetService, IQuickChatS
 import { ChatContextService, IChatContextService } from '../../../chat/browser/chatContextService.js';
 import { ChatInputBoxContentProvider } from '../../../chat/browser/chatEdinputInputContentProvider.js';
 import { ChatLayoutService } from '../../../chat/browser/chatLayoutService.js';
-import { ChatVariablesService } from '../../../chat/browser/chatVariables.js';
+import { ChatVariablesService } from '../../../chat/browser/attachments/chatVariables.js';
 import { ChatWidget } from '../../../chat/browser/widget/chatWidget.js';
 import { ChatWidgetService } from '../../../chat/browser/widget/chatWidgetService.js';
 import { ChatAgentService, IChatAgentData, IChatAgentNameService, IChatAgentService } from '../../../chat/common/participants/chatAgents.js';

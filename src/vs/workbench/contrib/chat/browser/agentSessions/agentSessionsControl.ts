@@ -31,7 +31,7 @@ import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.
 import { URI } from '../../../../../base/common/uri.js';
 import { openSession } from './agentSessionsOpener.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { ChatEditorInput } from '../chatEditorInput.js';
+import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 
 export interface IAgentSessionsControlOptions extends IAgentSessionsSorterOptions {
 	readonly overrideStyles?: IStyleOverride<IListStyles>;

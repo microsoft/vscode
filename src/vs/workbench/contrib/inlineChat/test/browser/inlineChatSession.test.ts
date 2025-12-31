@@ -46,7 +46,7 @@ import { TestContextService, TestExtensionService } from '../../../../test/commo
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { IChatAccessibilityService, IChatWidgetService, IQuickChatService } from '../../../chat/browser/chat.js';
 import { ChatSessionsService } from '../../../chat/browser/chatSessions.contribution.js';
-import { ChatVariablesService } from '../../../chat/browser/chatVariables.js';
+import { ChatVariablesService } from '../../../chat/browser/attachments/chatVariables.js';
 import { ChatWidget } from '../../../chat/browser/widget/chatWidget.js';
 import { ChatAgentService, IChatAgentService } from '../../../chat/common/participants/chatAgents.js';
 import { IChatEditingService, IChatEditingSession } from '../../../chat/common/chatEditingService.js';

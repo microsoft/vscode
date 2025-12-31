@@ -19,7 +19,7 @@ import { IChatService } from '../../common/chatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { EditingSessionAction, getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
-import { ChatEditorInput } from '../chatEditorInput.js';
+import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION, CHAT_CATEGORY, handleCurrentEditingSession } from './chatActions.js';
 import { clearChatEditor } from './chatClear.js';
 

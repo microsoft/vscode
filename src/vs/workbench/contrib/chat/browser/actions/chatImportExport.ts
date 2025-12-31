@@ -12,8 +12,8 @@ import { IFileDialogService } from '../../../../../platform/dialogs/common/dialo
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { IChatWidgetService } from '../chat.js';
-import { IChatEditorOptions } from '../chatEditor.js';
-import { ChatEditorInput } from '../chatEditorInput.js';
+import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
+import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { isExportableSessionData } from '../../common/model/chatModel.js';
 import { IChatService } from '../../common/chatService.js';

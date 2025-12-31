@@ -30,7 +30,7 @@ import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IRawChatParticipantContribution } from '../common/participants/chatParticipantContribTypes.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { ChatViewId, ChatViewContainerId } from './chat.js';
-import { ChatViewPane } from './chatViewPane.js';
+import { ChatViewPane } from './widgetHosts/viewPane/chatViewPane.js';
 
 // --- Chat Container &  View Registration
 

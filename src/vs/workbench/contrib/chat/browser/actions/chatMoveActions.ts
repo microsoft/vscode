@@ -19,9 +19,9 @@ import { isChatViewTitleActionContext } from '../../common/chatActions.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
-import { ChatEditor, IChatEditorOptions } from '../chatEditor.js';
-import { ChatEditorInput } from '../chatEditorInput.js';
-import { ChatViewPane } from '../chatViewPane.js';
+import { ChatEditor, IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
+import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
+import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
 enum MoveToNewLocation {

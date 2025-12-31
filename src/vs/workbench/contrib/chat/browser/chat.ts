@@ -23,7 +23,7 @@ import { IChatElicitationRequest, IChatLocationData, IChatSendRequestOptions } f
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel } from '../common/model/chatViewModel.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { ChatAttachmentModel } from './attachments/chatAttachmentModel.js';
-import { IChatEditorOptions } from './chatEditor.js';
+import { IChatEditorOptions } from './widgetHosts/editor/chatEditor.js';
 import { ChatInputPart } from './widget/chatInputPart.js';
 import { ChatWidget, IChatWidgetContrib } from './widget/chatWidget.js';
 import { ICodeBlockActionContext } from './codeBlockPart.js';

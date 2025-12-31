@@ -16,9 +16,9 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import { IChatService } from '../../common/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { ChatViewId, ChatViewPaneTarget, IChatWidget, IChatWidgetService, IQuickChatService, isIChatViewViewContext } from '../chat.js';
-import { ChatEditor, IChatEditorOptions } from '../chatEditor.js';
-import { ChatEditorInput } from '../chatEditorInput.js';
-import { ChatViewPane } from '../chatViewPane.js';
+import { ChatEditor, IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
+import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
+import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 
 export class ChatWidgetService extends Disposable implements IChatWidgetService {
 
