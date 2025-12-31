@@ -25,7 +25,9 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 	static readonly GO_TO_LINE_PREFIX = ':';
 	static readonly GO_TO_OFFSET_PREFIX = '::';
 	private static readonly ZERO_BASED_OFFSET_STORAGE_KEY = 'gotoLine.useZeroBasedOffset';
-	private static readonly DISABLE_PREVIEW_STORAGE_KEY = 'gotoLine.disablePreview';
+	private static readonly DISABLE_AUTO_REVEAL_STORAGE_KEY = 'gotoLine.disableAutoReveal';
+
+	private sessionDisableAutoReveal: boolean | undefined;
 
 	constructor() {
 		super({ canAcceptInBackground: true });
@@ -48,19 +50,47 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 			StorageTarget.USER);
 	}
 
-	private get disablePreview() {
-		return this.storageService.getBoolean(
-			AbstractGotoLineQuickAccessProvider.DISABLE_PREVIEW_STORAGE_KEY,
-			StorageScope.APPLICATION,
-			false);
+	private get disableAutoReveal() {
+		if (typeof this.sessionDisableAutoReveal === 'boolean') {
+			return this.sessionDisableAutoReveal;
+		}
+
+		const configured = this.getConfiguredAutoReveal();
+		if (typeof configured === 'boolean') {
+			return !configured;
+		}
+
+		const stored = this.storageService.getBoolean(
+			AbstractGotoLineQuickAccessProvider.DISABLE_AUTO_REVEAL_STORAGE_KEY,
+			StorageScope.APPLICATION
+		);
+		if (typeof stored === 'boolean') {
+			return stored;
+		}
+
+		return !this.isAutoRevealEnabledByDefault();
 	}
 
-	private set disablePreview(value: boolean) {
+	private set disableAutoReveal(value: boolean) {
+		this.sessionDisableAutoReveal = value;
+
+		if (typeof this.getConfiguredAutoReveal() === 'boolean') {
+			return;
+		}
+
 		this.storageService.store(
-			AbstractGotoLineQuickAccessProvider.DISABLE_PREVIEW_STORAGE_KEY,
+			AbstractGotoLineQuickAccessProvider.DISABLE_AUTO_REVEAL_STORAGE_KEY,
 			value,
 			StorageScope.APPLICATION,
 			StorageTarget.USER);
+	}
+
+	protected isAutoRevealEnabledByDefault(): boolean {
+		return true;
+	}
+
+	protected getConfiguredAutoReveal(): boolean | undefined {
+		return undefined;
 	}
 
 	protected provideWithoutTextEditor(picker: IQuickPick<IGotoLineQuickPickItem, { useSeparators: true }>): IDisposable {
@@ -99,11 +129,11 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 			toggle: { checked: this.useZeroBasedOffset }
 		};
 
-		const previewButton: IQuickInputButton = {
+		const autoRevealButton: IQuickInputButton = {
 			iconClass: ThemeIcon.asClassName(Codicon.eye),
-			tooltip: localize('gotoLinePreviewToggleButton', "Toggle Live Preview"),
+			tooltip: localize('gotoLineAutoRevealToggleButton', "Toggle Auto Reveal"),
 			location: QuickInputButtonLocation.Input,
-			toggle: { checked: !this.disablePreview }
+			toggle: { checked: !this.disableAutoReveal }
 		};
 
 		// React to picker changes
@@ -111,7 +141,7 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 			const inputText = picker.value.trim().substring(AbstractGotoLineQuickAccessProvider.GO_TO_LINE_PREFIX.length);
 			const { inOffsetMode, lineNumber, column, label } = this.parsePosition(editor, inputText);
 
-			const buttons: IQuickInputButton[] = [previewButton];
+			const buttons: IQuickInputButton[] = [autoRevealButton];
 			if (inOffsetMode) {
 				buttons.push(offsetButton);
 			}
@@ -135,11 +165,11 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 			// Always update decorations so the target line is highlighted
 			this.addDecorations(editor, range);
 
-			if (this.disablePreview) {
+			if (this.disableAutoReveal) {
 				return;
 			}
 
-			// Reveal only when preview is enabled
+			// Reveal only when auto reveal is enabled
 			editor.revealRangeInCenter(range, ScrollType.Smooth);
 		};
 
@@ -147,8 +177,8 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 			if (button === offsetButton) {
 				this.useZeroBasedOffset = button.toggle?.checked ?? !this.useZeroBasedOffset;
 				updatePickerAndEditor();
-			} else if (button === previewButton) {
-				this.disablePreview = !(button.toggle?.checked ?? !this.disablePreview);
+			} else if (button === autoRevealButton) {
+				this.disableAutoReveal = !(button.toggle?.checked ?? !this.disableAutoReveal);
 				updatePickerAndEditor();
 			}
 		}));
