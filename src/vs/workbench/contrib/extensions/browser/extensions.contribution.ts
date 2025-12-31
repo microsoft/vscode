@@ -136,6 +136,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 		type: 'object',
 		properties: {
 			'extensions.autoUpdate': {
+				type: ['boolean', 'string'],
 				enum: [true, 'onlyEnabledExtensions', false,],
 				enumItemLabels: [
 					localize('all', "All Extensions"),
@@ -150,7 +151,32 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				description: localize('extensions.autoUpdate', "Controls the automatic update behavior of extensions. The updates are fetched from a Microsoft online service."),
 				default: true,
 				scope: ConfigurationScope.APPLICATION,
-				tags: ['usesOnlineServices']
+				tags: ['usesOnlineServices'],
+				policy: {
+					name: 'ExtensionsAutoUpdate',
+					category: PolicyCategory.Extensions,
+					minimumVersion: '1.108',
+					localization: {
+						description: {
+							key: 'extensions.autoUpdate',
+							value: localize('extensions.autoUpdate', "Controls the automatic update behavior of extensions. The updates are fetched from a Microsoft online service."),
+						},
+						enumDescriptions: [
+							{
+								key: 'extensions.autoUpdate.true',
+								value: localize('extensions.autoUpdate.true', 'Download and install updates automatically for all extensions.'),
+							},
+							{
+								key: 'extensions.autoUpdate.enabled',
+								value: localize('extensions.autoUpdate.enabled', 'Download and install updates automatically only for enabled extensions.'),
+							},
+							{
+								key: 'extensions.autoUpdate.false',
+								value: localize('extensions.autoUpdate.false', 'Extensions are not automatically updated.'),
+							}
+						]
+					}
+				}
 			},
 			'extensions.autoCheckUpdates': {
 				type: 'boolean',
