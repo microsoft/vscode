@@ -63,7 +63,7 @@ import { ChatAgentLocation, ChatModeKind } from '../../../chat/common/constants.
 import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
 import { ILanguageModelToolsService } from '../../../chat/common/tools/languageModelToolsService.js';
 import { NullLanguageModelsService } from '../../../chat/test/common/languageModels.js';
-import { MockLanguageModelToolsService } from '../../../chat/test/common/mockLanguageModelToolsService.js';
+import { MockLanguageModelToolsService } from '../../../chat/test/common/tools/mockLanguageModelToolsService.js';
 import { IMcpService } from '../../../mcp/common/mcpTypes.js';
 import { TestMcpService } from '../../../mcp/test/common/testMcpService.js';
 import { HunkState } from '../../browser/inlineChatSession.js';

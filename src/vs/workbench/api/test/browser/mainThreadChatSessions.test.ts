@@ -31,7 +31,7 @@ import { mock, TestExtensionService } from '../../../test/common/workbenchTestSe
 import { MainThreadChatSessions, ObservableChatSession } from '../../browser/mainThreadChatSessions.js';
 import { ExtHostChatSessionsShape, IChatProgressDto, IChatSessionProviderOptions } from '../../common/extHost.protocol.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
-import { MockChatService } from '../../../contrib/chat/test/common/mockChatService.js';
+import { MockChatService } from '../../../contrib/chat/test/common/chatService/mockChatService.js';
 
 suite('ObservableChatSession', function () {
 	let disposables: DisposableStore;

@@ -76,7 +76,7 @@ import { ILanguageModelToolsService } from '../../../chat/common/tools/languageM
 import { PromptsType } from '../../../chat/common/promptSyntax/promptTypes.js';
 import { IPromptPath, IPromptsService } from '../../../chat/common/promptSyntax/service/promptsService.js';
 import { MockChatModeService } from '../../../chat/test/common/mockChatModeService.js';
-import { MockLanguageModelToolsService } from '../../../chat/test/common/mockLanguageModelToolsService.js';
+import { MockLanguageModelToolsService } from '../../../chat/test/common/tools/mockLanguageModelToolsService.js';
 import { IMcpService } from '../../../mcp/common/mcpTypes.js';
 import { TestMcpService } from '../../../mcp/test/common/testMcpService.js';
 import { INotebookEditorService } from '../../../notebook/browser/services/notebookEditorService.js';
