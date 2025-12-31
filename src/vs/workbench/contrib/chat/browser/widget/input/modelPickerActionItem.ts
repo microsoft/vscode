@@ -17,7 +17,7 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
-import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../../common/modelPicker/modelPickerWidget.js';
+import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../../common/widget/input/modelPickerWidget.js';
 import { IActionProvider } from '../../../../../../base/browser/ui/dropdown/dropdown.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';

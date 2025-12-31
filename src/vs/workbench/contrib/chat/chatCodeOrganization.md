@@ -1,6 +1,6 @@
 # workbench/contrib/chat Code Organization
 
-This contrib is, as of the end of 2025, the largest contrib in VS Code by a substantial margin. Let's try to keep it organized! Here's a rough description of some of the key folders.
+This contrib is, as of the end of 2025, the largest workbench contrib in VS Code by a substantial margin. Let's try to keep it organized! Here's a rough description of some of the key folders.
 
 ## Key Folders
 
@@ -19,6 +19,8 @@ This contrib is, as of the end of 2025, the largest contrib in VS Code by a subs
 
 ### `common/`
 
+- `chatService/` - IChatService interface, implementation, and related code.
 - `model/` - Chat data model, view model, and session storage.
+- `participants/` - Chat participant management (sometimes called "agents" in code).
 - `tools/` - Language model tools infrastructure and services.
 	- `builtinTools/` - Implementations of some built-in tools.
