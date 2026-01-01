@@ -599,9 +599,15 @@ registerAction2(class CopyLastChatResponse extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, ...args: unknown[]) {
-		const item = args[0] as ChatTreeItem | undefined;
+		let item = args[0] as ChatTreeItem | undefined;
+		const chatWidgetService = accessor.get(IChatWidgetService);
 		const clipboardService = accessor.get(IClipboardService);
 		const chatService = accessor.get(IChatService);
+		const widget = (isChatTreeItem(item) && chatWidgetService.getWidgetBySessionResource(item.sessionResource)) || chatWidgetService.lastFocusedWidget;
+
+		if (!isResponseVM(item) && !isRequestVM(item)) {
+			item = widget?.getFocus();
+		}
 
 		if (!item) {
 			return;
