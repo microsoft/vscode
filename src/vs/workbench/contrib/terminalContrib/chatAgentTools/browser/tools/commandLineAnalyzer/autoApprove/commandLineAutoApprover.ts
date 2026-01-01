@@ -13,21 +13,13 @@ import { ConfigurationTarget, IConfigurationService, type IConfigurationValue } 
 import { IInstantiationService } from '../../../../../../../../platform/instantiation/common/instantiation.js';
 import { TerminalChatAgentToolsSettingId } from '../../../../common/terminalChatAgentToolsConfiguration.js';
 import { isPowerShell } from '../../../runInTerminalHelpers.js';
-import { NpmScriptAutoApprover, type INpmScriptAutoApproveResult } from './npmScriptAutoApprover.js';
-
-export interface IAutoApproveRule {
-	regex: RegExp;
-	regexCaseInsensitive: RegExp;
-	sourceText: string;
-	sourceTarget: ConfigurationTarget;
-	isDefaultRule: boolean;
-}
+import type { IAutoApproveRule, INpmScriptAutoApproveRule } from '../commandLineAnalyzer.js';
+import { NpmScriptAutoApprover } from './npmScriptAutoApprover.js';
 
 export interface ICommandApprovalResultWithReason {
 	result: ICommandApprovalResult;
 	reason: string;
-	rule?: IAutoApproveRule;
-	npmScriptResult?: INpmScriptAutoApproveResult;
+	rule?: IAutoApproveRule | INpmScriptAutoApproveRule;
 }
 
 export type ICommandApprovalResult = 'approved' | 'denied' | 'noMatch';
@@ -120,7 +112,7 @@ export class CommandLineAutoApprover extends Disposable {
 		if (npmScriptResult.isAutoApproved) {
 			return {
 				result: 'approved',
-				npmScriptResult,
+				rule: { type: 'npmScript', npmScriptResult },
 				reason: `Command '${command}' is approved as npm script '${npmScriptResult.scriptName}' is defined in package.json`
 			};
 		}

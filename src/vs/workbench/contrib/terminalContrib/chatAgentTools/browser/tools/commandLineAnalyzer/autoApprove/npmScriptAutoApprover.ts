@@ -6,8 +6,8 @@
 import { MarkdownString, type IMarkdownString } from '../../../../../../../../base/common/htmlContent.js';
 import { visit, type JSONVisitor } from '../../../../../../../../base/common/json.js';
 import { Disposable } from '../../../../../../../../base/common/lifecycle.js';
-import { extUri } from '../../../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../../../base/common/uri.js';
+import { IUriIdentityService } from '../../../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { localize } from '../../../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../../../../platform/files/common/files.js';
@@ -79,6 +79,7 @@ export class NpmScriptAutoApprover extends Disposable {
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IFileService private readonly _fileService: IFileService,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
@@ -153,7 +154,7 @@ export class NpmScriptAutoApprover extends Disposable {
 	 */
 	private _isWithinWorkspace(uri: URI): boolean {
 		const workspaceFolders = this._workspaceContextService.getWorkspace().folders;
-		return workspaceFolders.some((folder: IWorkspaceFolder) => extUri.isEqualOrParent(uri, folder.uri));
+		return workspaceFolders.some((folder: IWorkspaceFolder) => this._uriIdentityService.extUri.isEqualOrParent(uri, folder.uri));
 	}
 
 	/**

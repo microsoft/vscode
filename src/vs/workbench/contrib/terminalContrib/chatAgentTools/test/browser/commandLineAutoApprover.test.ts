@@ -12,6 +12,7 @@ import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentT
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { ok, strictEqual } from 'assert';
 import { CommandLineAutoApprover } from '../../browser/tools/commandLineAnalyzer/autoApprove/commandLineAutoApprover.js';
+import { isAutoApproveRule } from '../../browser/tools/commandLineAnalyzer/commandLineAnalyzer.js';
 
 suite('CommandLineAutoApprover', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -821,11 +822,13 @@ suite('CommandLineAutoApprover', () => {
 
 	suite('isDefaultRule logic', () => {
 		async function getIsDefaultRule(command: string): Promise<boolean | undefined> {
-			return (await commandLineAutoApprover.isCommandAutoApproved(command, shell, os, undefined)).rule?.isDefaultRule;
+			const rule = (await commandLineAutoApprover.isCommandAutoApproved(command, shell, os, undefined)).rule;
+			return isAutoApproveRule(rule) ? rule.isDefaultRule : undefined;
 		}
 
 		function getCommandLineIsDefaultRule(commandLine: string): boolean | undefined {
-			return commandLineAutoApprover.isCommandLineAutoApproved(commandLine).rule?.isDefaultRule;
+			const rule = commandLineAutoApprover.isCommandLineAutoApproved(commandLine).rule;
+			return isAutoApproveRule(rule) ? rule.isDefaultRule : undefined;
 		}
 
 		function setAutoApproveWithDefaults(userConfig: { [key: string]: boolean }, defaultConfig: { [key: string]: boolean }) {
@@ -938,7 +941,7 @@ suite('CommandLineAutoApprover', () => {
 			strictEqual(catResult.result, 'approved', 'cat should be approved from default config');
 
 			// cat should be marked as default rule since it comes from default config only
-			strictEqual(catResult.rule?.isDefaultRule, true, 'cat is only in default config, not in user config - should be marked as default');
+			strictEqual(isAutoApproveRule(catResult.rule) ? catResult.rule.isDefaultRule : undefined, true, 'cat is only in default config, not in user config - should be marked as default');
 		});
 
 		test('should handle default rules with different values', async () => {

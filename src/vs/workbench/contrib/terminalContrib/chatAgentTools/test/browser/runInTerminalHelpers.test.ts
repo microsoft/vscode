@@ -8,7 +8,8 @@ import { TRUNCATION_MESSAGE, dedupeRules, isPowerShell, sanitizeTerminalOutput, 
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
-import type { IAutoApproveRule, ICommandApprovalResultWithReason } from '../../browser/tools/commandLineAnalyzer/autoApprove/commandLineAutoApprover.js';
+import type { ICommandApprovalResultWithReason } from '../../browser/tools/commandLineAnalyzer/autoApprove/commandLineAutoApprover.js';
+import { isAutoApproveRule, type IAutoApproveRule } from '../../browser/tools/commandLineAnalyzer/commandLineAnalyzer.js';
 
 suite('isPowerShell', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -186,6 +187,10 @@ suite('dedupeRules', () => {
 		};
 	}
 
+	function getSourceText(result: ICommandApprovalResultWithReason): string | undefined {
+		return isAutoApproveRule(result.rule) ? result.rule.sourceText : undefined;
+	}
+
 	test('should return empty array for empty input', () => {
 		const result = dedupeRules([]);
 		strictEqual(result.length, 0);
@@ -197,8 +202,8 @@ suite('dedupeRules', () => {
 			createMockResult('approved', 'approved by ls rule', createMockRule('ls'))
 		]);
 		strictEqual(result.length, 2);
-		strictEqual(result[0].rule?.sourceText, 'echo');
-		strictEqual(result[1].rule?.sourceText, 'ls');
+		strictEqual(getSourceText(result[0]), 'echo');
+		strictEqual(getSourceText(result[1]), 'ls');
 	});
 
 	test('should deduplicate rules with same sourceText', () => {
@@ -208,8 +213,8 @@ suite('dedupeRules', () => {
 			createMockResult('approved', 'approved by ls rule', createMockRule('ls'))
 		]);
 		strictEqual(result.length, 2);
-		strictEqual(result[0].rule?.sourceText, 'echo');
-		strictEqual(result[1].rule?.sourceText, 'ls');
+		strictEqual(getSourceText(result[0]), 'echo');
+		strictEqual(getSourceText(result[1]), 'ls');
 	});
 
 	test('should preserve first occurrence when deduplicating', () => {
@@ -228,7 +233,7 @@ suite('dedupeRules', () => {
 			createMockResult('denied', 'denied without rule')
 		]);
 		strictEqual(result.length, 1);
-		strictEqual(result[0].rule?.sourceText, 'echo');
+		strictEqual(getSourceText(result[0]), 'echo');
 	});
 
 	test('should handle mix of rules and no-rule results with duplicates', () => {
@@ -240,8 +245,8 @@ suite('dedupeRules', () => {
 			createMockResult('denied', 'denied without rule')
 		]);
 		strictEqual(result.length, 2);
-		strictEqual(result[0].rule?.sourceText, 'echo');
-		strictEqual(result[1].rule?.sourceText, 'ls');
+		strictEqual(getSourceText(result[0]), 'echo');
+		strictEqual(getSourceText(result[1]), 'ls');
 	});
 
 	test('should handle multiple duplicates of same rule', () => {
@@ -252,9 +257,9 @@ suite('dedupeRules', () => {
 			createMockResult('approved', 'git rule', createMockRule('git'))
 		]);
 		strictEqual(result.length, 2);
-		strictEqual(result[0].rule?.sourceText, 'npm');
+		strictEqual(getSourceText(result[0]), 'npm');
 		strictEqual(result[0].reason, 'npm rule 1');
-		strictEqual(result[1].rule?.sourceText, 'git');
+		strictEqual(getSourceText(result[1]), 'git');
 	});
 });
 
