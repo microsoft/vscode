@@ -96,7 +96,7 @@ suite('TerminalCompletionService', () => {
 	let configurationService: TestConfigurationService;
 	let capabilities: TerminalCapabilityStore;
 	let validResources: URI[];
-	let childResources: { resource: URI; isFile?: boolean; isDirectory?: boolean; isSymbolicLink?: boolean }[];
+	let childResources: { resource: URI; isFile?: boolean; isDirectory?: boolean; isSymbolicLink?: boolean; executable?: boolean }[];
 	let terminalCompletionService: TerminalCompletionService;
 	const provider = 'testProvider';
 
@@ -232,10 +232,10 @@ suite('TerminalCompletionService', () => {
 		setup(() => {
 			validResources = [URI.parse('file:///test')];
 			childResources = [
-				{ resource: URI.parse('file:///test/.hiddenFile'), isFile: true },
+				{ resource: URI.parse('file:///test/.hiddenFile'), isFile: true, executable: true },
 				{ resource: URI.parse('file:///test/.hiddenFolder/'), isDirectory: true },
 				{ resource: URI.parse('file:///test/folder1/'), isDirectory: true },
-				{ resource: URI.parse('file:///test/file1.txt'), isFile: true },
+				{ resource: URI.parse('file:///test/file1.txt'), isFile: true, executable: true },
 			];
 		});
 
@@ -307,7 +307,7 @@ suite('TerminalCompletionService', () => {
 			childResources = [
 				{ resource: URI.parse('file:///home/vscode'), isDirectory: true },
 				{ resource: URI.parse('file:///home/vscode/foo'), isDirectory: true },
-				{ resource: URI.parse('file:///home/vscode/bar.txt'), isFile: true },
+				{ resource: URI.parse('file:///home/vscode/bar.txt'), isFile: true, executable: true },
 			];
 		});
 
@@ -814,7 +814,7 @@ suite('TerminalCompletionService', () => {
 				{ resource: URI.parse('file:///test/[folder1]/'), isDirectory: true },
 				{ resource: URI.parse('file:///test/folder 2/'), isDirectory: true },
 				{ resource: URI.parse('file:///test/!special$chars&/'), isDirectory: true },
-				{ resource: URI.parse('file:///test/!special$chars2&'), isFile: true }
+				{ resource: URI.parse('file:///test/!special$chars2&'), isFile: true, executable: true }
 			];
 			const result = await terminalCompletionService.resolveResources(resourceOptions, '', 0, provider, capabilities);
 
