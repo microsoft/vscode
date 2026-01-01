@@ -3,20 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { visit, type JSONVisitor } from '../../../../../../../base/common/json.js';
-import { Disposable } from '../../../../../../../base/common/lifecycle.js';
-import { extUri } from '../../../../../../../base/common/resources.js';
-import { URI } from '../../../../../../../base/common/uri.js';
-import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
-import { IFileService } from '../../../../../../../platform/files/common/files.js';
-import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
-import { TerminalChatAgentToolsSettingId } from '../../../common/terminalChatAgentToolsConfiguration.js';
-import type { TreeSitterCommandParser } from '../../treeSitterCommandParser.js';
-import type { ICommandLineAnalyzer, ICommandLineAnalyzerOptions, ICommandLineAnalyzerResult } from './commandLineAnalyzer.js';
-import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
-import { localize } from '../../../../../../../nls.js';
-import { IStorageService, StorageScope } from '../../../../../../../platform/storage/common/storage.js';
-import { TerminalToolConfirmationStorageKeys } from '../../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
+import { MarkdownString, type IMarkdownString } from '../../../../../../../../base/common/htmlContent.js';
+import { visit, type JSONVisitor } from '../../../../../../../../base/common/json.js';
+import { Disposable } from '../../../../../../../../base/common/lifecycle.js';
+import { extUri } from '../../../../../../../../base/common/resources.js';
+import { URI } from '../../../../../../../../base/common/uri.js';
+import { localize } from '../../../../../../../../nls.js';
+import { IConfigurationService } from '../../../../../../../../platform/configuration/common/configuration.js';
+import { IFileService } from '../../../../../../../../platform/files/common/files.js';
+import { IWorkspaceContextService, type IWorkspaceFolder } from '../../../../../../../../platform/workspace/common/workspace.js';
+import { TerminalChatAgentToolsSettingId } from '../../../../common/terminalChatAgentToolsConfiguration.js';
 
 /**
  * Regex patterns to match npm/yarn/pnpm run commands and extract the script name.
@@ -69,117 +65,84 @@ interface IPackageJsonScripts {
 	scripts: Set<string>;
 }
 
-export class CommandLineNpmScriptAutoApproveAnalyzer extends Disposable implements ICommandLineAnalyzer {
+export interface INpmScriptAutoApproveResult {
+	isAutoApproved: boolean;
+	scriptName?: string;
+	autoApproveInfo?: IMarkdownString;
+}
+
+export class NpmScriptAutoApprover extends Disposable {
 
 	constructor(
-		private readonly _treeSitterCommandParser: TreeSitterCommandParser,
-		private readonly _log: (message: string, ...args: unknown[]) => void,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IFileService private readonly _fileService: IFileService,
-		@IStorageService private readonly _storageService: IStorageService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 	}
 
-	async analyze(options: ICommandLineAnalyzerOptions): Promise<ICommandLineAnalyzerResult> {
+	/**
+	 * Checks if a single command is an npm/yarn/pnpm script that exists in package.json.
+	 * Returns auto-approve result if the command is a valid script.
+	 */
+	async isCommandAutoApproved(command: string, cwd: URI | undefined): Promise<INpmScriptAutoApproveResult> {
 		// Check if the feature is enabled
 		const isNpmScriptAutoApproveEnabled = this._configurationService.getValue(TerminalChatAgentToolsSettingId.AutoApproveWorkspaceNpmScripts) === true;
 		if (!isNpmScriptAutoApproveEnabled) {
-			return { isAutoApproveAllowed: true };
+			return { isAutoApproved: false };
 		}
 
-		// Check if auto-approve is enabled
-		const isAutoApproveEnabled = this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnableAutoApprove) === true;
-		const isAutoApproveWarningAccepted = this._storageService.getBoolean(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION, false);
-		if (!isAutoApproveEnabled || !isAutoApproveWarningAccepted) {
-			return { isAutoApproveAllowed: true };
+		// Extract script name from the command
+		const scriptName = this._extractScriptName(command);
+		if (!scriptName) {
+			return { isAutoApproved: false };
 		}
-
-		// Parse sub-commands
-		let subCommands: string[] | undefined;
-		try {
-			subCommands = await this._treeSitterCommandParser.extractSubCommands(options.treeSitterLanguage, options.commandLine);
-			this._log('Parsed sub-commands for npm script check', subCommands);
-		} catch (e) {
-			this._log('Failed to parse sub-commands for npm script check');
-			return { isAutoApproveAllowed: true };
-		}
-
-		if (!subCommands || subCommands.length === 0) {
-			return { isAutoApproveAllowed: true };
-		}
-
-		// Extract script names from npm/yarn/pnpm run commands
-		const scriptNamesToCheck = this._extractScriptNames(subCommands);
-		if (scriptNamesToCheck.length === 0) {
-			return { isAutoApproveAllowed: true };
-		}
-
-		this._log('Script names to check', scriptNamesToCheck);
 
 		// Find and parse package.json
-		const packageJsonScripts = await this._getPackageJsonScripts(options.cwd);
+		const packageJsonScripts = await this._getPackageJsonScripts(cwd);
 		if (!packageJsonScripts) {
-			this._log('No package.json found or no scripts section');
-			return { isAutoApproveAllowed: true };
+			return { isAutoApproved: false };
 		}
 
-		this._log('Found package.json scripts', Array.from(packageJsonScripts.scripts));
-
-		// Check if all script names exist in package.json
-		const allScriptsExist = scriptNamesToCheck.every(script => packageJsonScripts.scripts.has(script));
-		if (!allScriptsExist) {
-			const missingScripts = scriptNamesToCheck.filter(script => !packageJsonScripts.scripts.has(script));
-			this._log('Some scripts not found in package.json', missingScripts);
-			return { isAutoApproveAllowed: true };
+		// Check if script exists in package.json
+		if (!packageJsonScripts.scripts.has(scriptName)) {
+			return { isAutoApproved: false };
 		}
 
-		this._log('All scripts found in package.json, auto-approving');
-
-		// All scripts exist - auto approve
-		const scriptsList = scriptNamesToCheck.length === 1
-			? `\`${scriptNamesToCheck[0]}\``
-			: scriptNamesToCheck.map(s => `\`${s}\``).join(', ');
-
+		// Script exists - auto approve
 		return {
 			isAutoApproved: true,
-			isAutoApproveAllowed: true,
+			scriptName,
 			autoApproveInfo: new MarkdownString(
-				localize('autoApprove.npmScript', 'Auto approved as {0} is defined in package.json', scriptsList)
+				localize('autoApprove.npmScript', 'Auto approved as {0} is defined in package.json', `\`${scriptName}\``)
 			),
 		};
 	}
 
 	/**
-	 * Extracts script names from npm/yarn/pnpm run commands.
+	 * Extracts script name from an npm/yarn/pnpm run command.
 	 */
-	private _extractScriptNames(subCommands: string[]): string[] {
-		const scriptNames: string[] = [];
+	private _extractScriptName(command: string): string | undefined {
+		const trimmedCommand = command.trim();
 
-		for (const subCommand of subCommands) {
-			const trimmedCommand = subCommand.trim();
+		for (const pattern of npmRunPatterns) {
+			const match = trimmedCommand.match(pattern);
+			if (match?.groups?.scriptName) {
+				const { command: pkgManager, scriptName } = match.groups;
 
-			for (const pattern of npmRunPatterns) {
-				const match = trimmedCommand.match(pattern);
-				if (match?.groups?.scriptName) {
-					const { command, scriptName } = match.groups;
-
-					// Check if this is a yarn/pnpm shorthand that matches a built-in command
-					if (command.toLowerCase() === 'yarn' && yarnBuiltinCommands.has(scriptName.toLowerCase())) {
-						continue;
-					}
-					if (command.toLowerCase() === 'pnpm' && pnpmBuiltinCommands.has(scriptName.toLowerCase())) {
-						continue;
-					}
-
-					scriptNames.push(scriptName);
-					break; // Only match one pattern per sub-command
+				// Check if this is a yarn/pnpm shorthand that matches a built-in command
+				if (pkgManager.toLowerCase() === 'yarn' && yarnBuiltinCommands.has(scriptName.toLowerCase())) {
+					continue;
 				}
+				if (pkgManager.toLowerCase() === 'pnpm' && pnpmBuiltinCommands.has(scriptName.toLowerCase())) {
+					continue;
+				}
+
+				return scriptName;
 			}
 		}
 
-		return scriptNames;
+		return undefined;
 	}
 
 	/**
@@ -187,7 +150,7 @@ export class CommandLineNpmScriptAutoApproveAnalyzer extends Disposable implemen
 	 */
 	private _isWithinWorkspace(uri: URI): boolean {
 		const workspaceFolders = this._workspaceContextService.getWorkspace().folders;
-		return workspaceFolders.some(folder => extUri.isEqualOrParent(uri, folder.uri));
+		return workspaceFolders.some((folder: IWorkspaceFolder) => extUri.isEqualOrParent(uri, folder.uri));
 	}
 
 	/**
@@ -223,8 +186,7 @@ export class CommandLineNpmScriptAutoApproveAnalyzer extends Disposable implemen
 			const text = content.value.toString();
 
 			return this._parsePackageJsonScripts(text);
-		} catch (e) {
-			this._log('Failed to read package.json', packageJsonUri.toString(), e);
+		} catch {
 			return undefined;
 		}
 	}

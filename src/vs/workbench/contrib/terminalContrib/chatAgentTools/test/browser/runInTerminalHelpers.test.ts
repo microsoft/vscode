@@ -8,7 +8,7 @@ import { TRUNCATION_MESSAGE, dedupeRules, isPowerShell, sanitizeTerminalOutput, 
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
-import type { IAutoApproveRule, ICommandApprovalResultWithReason } from '../../browser/commandLineAutoApprover.js';
+import type { IAutoApproveRule, ICommandApprovalResultWithReason } from '../../browser/tools/commandLineAnalyzer/autoApprove/commandLineAutoApprover.js';
 
 suite('isPowerShell', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

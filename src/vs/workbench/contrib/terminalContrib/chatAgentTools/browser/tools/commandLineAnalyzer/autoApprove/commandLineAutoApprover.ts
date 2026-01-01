@@ -3,14 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../../base/common/lifecycle.js';
-import type { OperatingSystem } from '../../../../../base/common/platform.js';
-import { escapeRegExpCharacters, regExpLeadsToEndlessLoop } from '../../../../../base/common/strings.js';
-import { isObject } from '../../../../../base/common/types.js';
-import { structuralEquals } from '../../../../../base/common/equals.js';
-import { ConfigurationTarget, IConfigurationService, type IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
-import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
-import { isPowerShell } from './runInTerminalHelpers.js';
+import { structuralEquals } from '../../../../../../../../base/common/equals.js';
+import { Disposable } from '../../../../../../../../base/common/lifecycle.js';
+import type { OperatingSystem } from '../../../../../../../../base/common/platform.js';
+import { escapeRegExpCharacters, regExpLeadsToEndlessLoop } from '../../../../../../../../base/common/strings.js';
+import { isObject } from '../../../../../../../../base/common/types.js';
+import type { URI } from '../../../../../../../../base/common/uri.js';
+import { ConfigurationTarget, IConfigurationService, type IConfigurationValue } from '../../../../../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService } from '../../../../../../../../platform/instantiation/common/instantiation.js';
+import { TerminalChatAgentToolsSettingId } from '../../../../common/terminalChatAgentToolsConfiguration.js';
+import { isPowerShell } from '../../../runInTerminalHelpers.js';
+import { INpmScriptAutoApproveResult, NpmScriptAutoApprover } from './npmScriptAutoApprover.js';
 
 export interface IAutoApproveRule {
 	regex: RegExp;
@@ -24,6 +27,7 @@ export interface ICommandApprovalResultWithReason {
 	result: ICommandApprovalResult;
 	reason: string;
 	rule?: IAutoApproveRule;
+	npmScriptResult?: INpmScriptAutoApproveResult;
 }
 
 export type ICommandApprovalResult = 'approved' | 'denied' | 'noMatch';
@@ -36,11 +40,14 @@ export class CommandLineAutoApprover extends Disposable {
 	private _allowListRules: IAutoApproveRule[] = [];
 	private _allowListCommandLineRules: IAutoApproveRule[] = [];
 	private _denyListCommandLineRules: IAutoApproveRule[] = [];
+	private readonly _npmScriptAutoApprover: NpmScriptAutoApprover;
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
+		this._npmScriptAutoApprover = this._register(instantiationService.createInstance(NpmScriptAutoApprover));
 		this.updateConfiguration();
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (
@@ -76,7 +83,7 @@ export class CommandLineAutoApprover extends Disposable {
 		this._denyListCommandLineRules = denyListCommandLineRules;
 	}
 
-	isCommandAutoApproved(command: string, shell: string, os: OperatingSystem): ICommandApprovalResultWithReason {
+	async isCommandAutoApproved(command: string, shell: string, os: OperatingSystem, cwd: URI | undefined): Promise<ICommandApprovalResultWithReason> {
 		// Check if the command has a transient environment variable assignment prefix which we
 		// always deny for now as it can easily lead to execute other commands
 		if (transientEnvVarRegex.test(command)) {
@@ -106,6 +113,16 @@ export class CommandLineAutoApprover extends Disposable {
 					reason: `Command '${command}' is approved by allow list rule: ${rule.sourceText}`
 				};
 			}
+		}
+
+		// Check if this is an npm/yarn/pnpm script defined in package.json
+		const npmScriptResult = await this._npmScriptAutoApprover.isCommandAutoApproved(command, cwd);
+		if (npmScriptResult.isAutoApproved) {
+			return {
+				result: 'approved',
+				npmScriptResult,
+				reason: `Command '${command}' is approved as npm script '${npmScriptResult.scriptName}' is defined in package.json`
+			};
 		}
 
 		// TODO: LLM-based auto-approval https://github.com/microsoft/vscode/issues/253267

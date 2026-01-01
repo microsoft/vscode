@@ -11,7 +11,7 @@ import { escapeRegExpCharacters, removeAnsiEscapeCodes } from '../../../../../ba
 import { localize } from '../../../../../nls.js';
 import type { TerminalNewAutoApproveButtonData } from '../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import type { ToolConfirmationAction } from '../../../chat/common/languageModelToolsService.js';
-import type { ICommandApprovalResultWithReason } from './commandLineAutoApprover.js';
+import type { ICommandApprovalResultWithReason } from './tools/commandLineAnalyzer/autoApprove/commandLineAutoApprover.js';
 
 export function isPowerShell(envShell: string, os: OperatingSystem): boolean {
 	if (os === OperatingSystem.Windows) {

@@ -19,7 +19,7 @@ export class RunInTerminalToolTelemetry {
 		subCommands: string[];
 		autoApproveAllowed: 'allowed' | 'needsOptIn' | 'off';
 		autoApproveResult: 'approved' | 'denied' | 'manual';
-		autoApproveReason: 'subCommand' | 'commandLine' | undefined;
+		autoApproveReason: 'subCommand' | 'commandLine' | 'npmScript' | undefined;
 		autoApproveDefault: boolean | undefined;
 	}) {
 		const subCommandsSanitized = state.subCommands.map(e => {

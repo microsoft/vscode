@@ -42,7 +42,6 @@ import { TreeSitterCommandParser, TreeSitterCommandParserLanguage } from '../tre
 import { type ICommandLineAnalyzer, type ICommandLineAnalyzerOptions } from './commandLineAnalyzer/commandLineAnalyzer.js';
 import { CommandLineAutoApproveAnalyzer } from './commandLineAnalyzer/commandLineAutoApproveAnalyzer.js';
 import { CommandLineFileWriteAnalyzer } from './commandLineAnalyzer/commandLineFileWriteAnalyzer.js';
-import { CommandLineNpmScriptAutoApproveAnalyzer } from './commandLineAnalyzer/commandLineNpmScriptAutoApproveAnalyzer.js';
 import { OutputMonitor } from './monitoring/outputMonitor.js';
 import { IPollingResult, OutputMonitorState } from './monitoring/types.js';
 import { LocalChatSessionUri } from '../../../../chat/common/chatUri.js';
@@ -317,7 +316,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		this._commandLineAnalyzers = [
 			this._register(this._instantiationService.createInstance(CommandLineFileWriteAnalyzer, this._treeSitterCommandParser, (message, args) => this._logService.info(`RunInTerminalTool#CommandLineFileWriteAnalyzer: ${message}`, args))),
 			this._register(this._instantiationService.createInstance(CommandLineAutoApproveAnalyzer, this._treeSitterCommandParser, this._telemetry, (message, args) => this._logService.info(`RunInTerminalTool#CommandLineAutoApproveAnalyzer: ${message}`, args))),
-			this._register(this._instantiationService.createInstance(CommandLineNpmScriptAutoApproveAnalyzer, this._treeSitterCommandParser, (message, args) => this._logService.info(`RunInTerminalTool#CommandLineNpmScriptAutoApproveAnalyzer: ${message}`, args))),
 		];
 
 		// Clear out warning accepted state if the setting is disabled
