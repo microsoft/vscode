@@ -23,6 +23,13 @@ or exit
 set --global VSCODE_SHELL_INTEGRATION 1
 set --global __vscode_shell_env_reporting $VSCODE_SHELL_ENV_REPORTING
 set -e VSCODE_SHELL_ENV_REPORTING
+
+# Enable fish private mode to exclude commands from history when requested by VS Code
+# This is used by Copilot terminals to prevent AI-executed commands from polluting history
+if test "$VSCODE_EXCLUDE_FROM_HISTORY" = "1"
+	set -g fish_private_mode 1
+end
+set -e VSCODE_EXCLUDE_FROM_HISTORY
 set -g envVarsToReport
 if test -n "$__vscode_shell_env_reporting"
 	set envVarsToReport (string split "," "$__vscode_shell_env_reporting")

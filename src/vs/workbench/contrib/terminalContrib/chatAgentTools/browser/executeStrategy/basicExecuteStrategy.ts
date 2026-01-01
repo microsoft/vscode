@@ -8,12 +8,14 @@ import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { isNumber } from '../../../../../../base/common/types.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import type { ICommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import { trackIdleOnPrompt, waitForIdle, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { createAltBufferPromise, setupRecreatingStartMarker } from './strategyHelpers.js';
+import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 
 /**
  * This strategy is used when shell integration is enabled, but rich command detection was not
@@ -49,6 +51,7 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 		private readonly _instance: ITerminalInstance,
 		private readonly _hasReceivedUserInput: () => boolean,
 		private readonly _commandDetection: ICommandDetectionCapability,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
 	) {
 	}
@@ -121,8 +124,12 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 			// is used as it's more common to not recognize the prompt input which would result in
 			// ^C being sent and also to return the exit code of 130 when from the shell when that
 			// occurs.
+			// Prefix with space to exclude from shell history (requires HISTCONTROL=ignorespace
+			// or HIST_IGNORE_SPACE=1 env var which is set when the terminal is created)
+			const preventShellHistory = this._configurationService.getValue(TerminalChatAgentToolsSettingId.PreventShellHistory) === true;
+			const commandToSend = preventShellHistory ? ` ${commandLine}` : commandLine;
 			this._log(`Executing command line \`${commandLine}\``);
-			this._instance.sendText(commandLine, true);
+			this._instance.sendText(commandToSend, true);
 
 			// Wait for the next end execution event - note that this may not correspond to the actual
 			// execution requested

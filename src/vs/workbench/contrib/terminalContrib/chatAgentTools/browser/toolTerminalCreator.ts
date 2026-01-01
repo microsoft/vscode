@@ -9,6 +9,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { basename } from '../../../../../base/common/path.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { hasKey, isNumber, isObject, isString } from '../../../../../base/common/types.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -17,6 +18,7 @@ import { PromptInputState } from '../../../../../platform/terminal/common/capabi
 import { ITerminalLogService, ITerminalProfile, TerminalSettingId, type IShellLaunchConfig } from '../../../../../platform/terminal/common/terminal.js';
 import { ITerminalService, type ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import { getShellIntegrationTimeout } from '../../../terminal/common/terminalEnvironment.js';
+import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
 
 const enum ShellLaunchType {
 	Unknown = 0,
@@ -139,14 +141,31 @@ export class ToolTerminalCreator {
 	}
 
 	private _createCopilotTerminal(shellOrProfile: string | ITerminalProfile) {
+		const shellPath = isString(shellOrProfile) ? shellOrProfile : shellOrProfile.path;
+		const shellBasename = basename(shellPath).toLowerCase().replace(/\.exe$/i, '');
+
+		// Check if the shell supports history exclusion via shell integration scripts
+		const shellSupportsHistoryExclusion = /^(bash|zsh|pwsh|powershell|fish)$/.test(shellBasename);
+		const preventShellHistory = this._configurationService.getValue(TerminalChatAgentToolsSettingId.PreventShellHistory) === true;
+
+		const env: Record<string, string> = {
+			// Avoid making `git diff` interactive when called from copilot
+			GIT_PAGER: 'cat',
+		};
+
+		// Configure shells to ignore commands prefixed with a space from history.
+		// This works together with the space prefix added to commands to prevent
+		// copilot-executed commands from polluting the user's shell history.
+		// VSCODE_EXCLUDE_FROM_HISTORY=1 is handled by shell integration scripts for all shells.
+		if (preventShellHistory && shellSupportsHistoryExclusion) {
+			env['VSCODE_EXCLUDE_FROM_HISTORY'] = '1';
+		}
+
 		const config: IShellLaunchConfig = {
 			icon: ThemeIcon.fromId(Codicon.chatSparkle.id),
 			hideFromUser: true,
 			forcePersist: true,
-			env: {
-				// Avoid making `git diff` interactive when called from copilot
-				GIT_PAGER: 'cat',
-			}
+			env,
 		};
 
 		if (isString(shellOrProfile)) {

@@ -20,6 +20,7 @@ export const enum TerminalChatAgentToolsSettingId {
 	ShellIntegrationTimeout = 'chat.tools.terminal.shellIntegrationTimeout',
 	AutoReplyToPrompts = 'chat.tools.terminal.autoReplyToPrompts',
 	OutputLocation = 'chat.tools.terminal.outputLocation',
+	PreventShellHistory = 'chat.tools.terminal.preventShellHistory',
 
 	TerminalProfileLinux = 'chat.tools.terminal.terminalProfile.linux',
 	TerminalProfileMacOs = 'chat.tools.terminal.terminalProfile.osx',
@@ -445,6 +446,11 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		experiment: {
 			mode: 'auto'
 		}
+	},
+	[TerminalChatAgentToolsSettingId.PreventShellHistory]: {
+		type: 'boolean',
+		default: true,
+		markdownDescription: localize('preventShellHistory.description', "Whether to exclude commands run by the terminal tool from the shell history. Commands are prefixed with a space and the shell is configured to ignore space-prefixed commands. Supported shells:\n- bash: `HISTCONTROL=ignorespace`\n- zsh: `setopt HIST_IGNORE_SPACE`\n- fish: `fish_private_mode`\n- pwsh: PSReadLine `AddToHistoryHandler`"),
 	}
 };
 

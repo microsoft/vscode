@@ -561,7 +561,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			let pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
 			try {
 				this._logService.debug(`RunInTerminalTool: Starting background execution \`${command}\``);
-				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command, chatSessionId, commandId);
+				const preventShellHistory = this._configurationService.getValue(TerminalChatAgentToolsSettingId.PreventShellHistory) === true;
+				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command, chatSessionId, preventShellHistory, commandId);
 				RunInTerminalTool._backgroundExecutions.set(termId, execution);
 
 				outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, execution, undefined, invocation.context!, token, command));
@@ -957,12 +958,16 @@ class BackgroundTerminalExecution extends Disposable {
 		private readonly _xterm: XtermTerminal,
 		private readonly _commandLine: string,
 		readonly sessionId: string,
-		commandId?: string
+		preventShellHistory: boolean,
+		commandId?: string,
 	) {
 		super();
 
 		this._startMarker = this._register(this._xterm.raw.registerMarker());
-		this.instance.runCommand(this._commandLine, true, commandId);
+		// Prefix with space to exclude from shell history (requires HISTCONTROL=ignorespace
+		// or HIST_IGNORE_SPACE=1 env var which is set when the terminal is created)
+		const commandToSend = preventShellHistory ? ` ${this._commandLine}` : this._commandLine;
+		this.instance.runCommand(commandToSend, true, commandId);
 	}
 	getOutput(marker?: IXtermMarker): string {
 		return getOutput(this.instance, marker ?? this._startMarker);
