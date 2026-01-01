@@ -221,6 +221,9 @@
 	visibility: hidden;
 	padding-top: 6px;
 	height: 22px;
+}
+
+.interactive-item-container.interactive-response:not(.chat-response-loading) .chat-footer-toolbar .chat-footer-details {
 	overflow: hidden;
 	white-space: nowrap;
 	text-overflow: ellipsis;
