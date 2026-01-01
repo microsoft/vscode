@@ -18,6 +18,7 @@ import { ILanguageFeaturesService } from '../../../../../editor/common/services/
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, IAction2Options, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -574,6 +575,48 @@ registerAction2(class RestoreLastCheckpoint extends Action2 {
 				widget?.focusInput();
 				widget?.input.setValue(request.message.text, false);
 			}
+		}
+	}
+});
+
+registerAction2(class CopyLastChatResponse extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.copyLastChatResponse',
+			title: localize2('chat.copyLastChatResponse.label', "Copy Response"),
+			f1: false,
+			category: CHAT_CATEGORY,
+			icon: Codicon.copy,
+			menu: [
+				{
+					id: MenuId.ChatMessageFooter,
+					group: 'navigation',
+					order: 4,
+					when: ContextKeyExpr.and(ContextKeyExpr.in(ChatContextKeys.itemId.key, ChatContextKeys.lastItemId.key), ContextKeyExpr.equals(`config.${ChatConfiguration.CheckpointsEnabled}`, true), ChatContextKeys.lockedToCodingAgent.negate()),
+				}
+			]
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: unknown[]) {
+		const item = args[0] as ChatTreeItem | undefined;
+		const clipboardService = accessor.get(IClipboardService);
+		const chatService = accessor.get(IChatService);
+
+		if (!item) {
+			return;
+		}
+
+		const chatModel = chatService.getSession(item.sessionResource);
+
+		if (!chatModel) {
+			return;
+		}
+
+		const responseContent = chatModel.lastRequest?.response?.entireResponse.toString();
+
+		if (responseContent) {
+			await clipboardService.writeText(responseContent);
 		}
 	}
 });
