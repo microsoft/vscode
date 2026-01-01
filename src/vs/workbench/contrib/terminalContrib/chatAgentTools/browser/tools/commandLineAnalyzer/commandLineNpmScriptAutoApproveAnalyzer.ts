@@ -5,6 +5,7 @@
 
 import { visit, type JSONVisitor } from '../../../../../../../base/common/json.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
+import { extUri } from '../../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
@@ -182,11 +183,20 @@ export class CommandLineNpmScriptAutoApproveAnalyzer extends Disposable implemen
 	}
 
 	/**
+	 * Checks if a URI is within any workspace folder.
+	 */
+	private _isWithinWorkspace(uri: URI): boolean {
+		const workspaceFolders = this._workspaceContextService.getWorkspace().folders;
+		return workspaceFolders.some(folder => extUri.isEqualOrParent(uri, folder.uri));
+	}
+
+	/**
 	 * Finds and parses package.json to get the scripts section.
+	 * Only looks within the workspace for security.
 	 */
 	private async _getPackageJsonScripts(cwd: URI | undefined): Promise<IPackageJsonScripts | undefined> {
-		// Try cwd first
-		if (cwd) {
+		// Try cwd first, but only if it's within the workspace
+		if (cwd && this._isWithinWorkspace(cwd)) {
 			const packageJsonUri = URI.joinPath(cwd, 'package.json');
 			const scripts = await this._readPackageJsonScripts(packageJsonUri);
 			if (scripts) {

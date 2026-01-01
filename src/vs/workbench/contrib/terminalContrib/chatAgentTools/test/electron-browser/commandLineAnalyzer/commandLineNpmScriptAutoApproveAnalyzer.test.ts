@@ -340,5 +340,26 @@ suite('CommandLineNpmScriptAutoApproveAnalyzer', () => {
 			const result = await analyzer.analyze(options);
 			strictEqual(result.isAutoApproved, true);
 		});
+
+		test('cwd outside workspace - does not auto-approve', async () => {
+			// Create package.json outside workspace
+			const outsideCwd = URI.from({ scheme: Schemas.inMemory, path: '/outside/project' });
+			await fileService.createFolder(outsideCwd);
+			const outsidePackageJsonUri = URI.joinPath(outsideCwd, 'package.json');
+			await writePackageJson(outsidePackageJsonUri, { build: 'tsc' });
+
+			const options: ICommandLineAnalyzerOptions = {
+				commandLine: 'npm run build',
+				cwd: outsideCwd, // cwd is outside workspace
+				shell: 'bash',
+				os: OperatingSystem.Linux,
+				treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
+				terminalToolSessionId: 'test',
+				chatSessionId: 'test',
+			};
+
+			const result = await analyzer.analyze(options);
+			strictEqual(result.isAutoApproved !== true, true, 'Should not auto-approve when cwd is outside workspace');
+		});
 	});
 });
