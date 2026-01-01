@@ -11,6 +11,14 @@ import './style.css';
 import * as monaco from '../../src/vs/editor/editor.main';
 
 globalThis.monaco = monaco;
+
+// Enable automatic dark mode for accessibility.
+const dark = matchMedia('(prefers-color-scheme: dark)');
+monaco.editor.setTheme(dark.matches ? 'vs-dark' : 'vs-light');
+dark.addEventListener('change', () => {
+	monaco.editor.setTheme(dark.matches ? 'vs-dark' : 'vs-light');
+});
+
 const root = document.getElementById('sampleContent');
 if (root) {
 	const d = monaco.editor.createDiffEditor(root);
