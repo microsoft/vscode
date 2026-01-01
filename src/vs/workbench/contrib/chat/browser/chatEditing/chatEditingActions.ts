@@ -579,11 +579,11 @@ registerAction2(class RestoreLastCheckpoint extends Action2 {
 	}
 });
 
-registerAction2(class CopyLastChatResponse extends Action2 {
+registerAction2(class CopyChatResponse extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.chat.copyLastChatResponse',
-			title: localize2('chat.copyLastChatResponse.label', "Copy Response"),
+			id: 'workbench.action.chat.copyChatResponse',
+			title: localize2('chat.copyChatResponse.label', "Copy Response"),
 			f1: false,
 			category: CHAT_CATEGORY,
 			icon: Codicon.copy,
