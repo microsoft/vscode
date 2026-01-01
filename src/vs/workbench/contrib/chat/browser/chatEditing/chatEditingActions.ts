@@ -592,7 +592,7 @@ registerAction2(class CopyLastChatResponse extends Action2 {
 					id: MenuId.ChatMessageFooter,
 					group: 'navigation',
 					order: 4,
-					when: ContextKeyExpr.and(ContextKeyExpr.in(ChatContextKeys.itemId.key, ChatContextKeys.lastItemId.key), ContextKeyExpr.equals(`config.${ChatConfiguration.CheckpointsEnabled}`, true), ChatContextKeys.lockedToCodingAgent.negate()),
+					when: ContextKeyExpr.and(ContextKeyExpr.in(ChatContextKeys.itemId.key, ChatContextKeys.lastItemId.key), ChatContextKeys.isResponse, ChatContextKeys.lockedToCodingAgent.negate()),
 				}
 			]
 		});
