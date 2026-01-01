@@ -13,13 +13,6 @@ import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentTool
 import { isPowerShell } from './runInTerminalHelpers.js';
 import { ITerminalChatService } from '../../../terminal/browser/terminal.js';
 
-export const enum AutoApproveRuleSource {
-	Default = 'default',
-	User = 'user',
-	Workspace = 'workspace',
-	Session = 'session'
-}
-
 export interface IAutoApproveRule {
 	regex: RegExp;
 	regexCaseInsensitive: RegExp;
