@@ -218,6 +218,12 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 					break;
 				}
 				case 'subCommand': {
+					// Check if approval came from npm script
+					const npmScriptApproval = subCommandResults.find(e => e.npmScriptResult?.isAutoApproved);
+					if (npmScriptApproval?.npmScriptResult?.autoApproveInfo) {
+						return npmScriptApproval.npmScriptResult.autoApproveInfo;
+					}
+
 					const uniqueRules = dedupeRules(subCommandResults);
 					if (uniqueRules.length === 1) {
 						return new MarkdownString(localize('autoApprove.rule', 'Auto approved by rule {0}', formatRuleLinks(uniqueRules)), mdTrustSettings);

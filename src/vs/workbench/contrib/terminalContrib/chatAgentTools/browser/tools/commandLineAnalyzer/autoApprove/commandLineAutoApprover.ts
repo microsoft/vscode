@@ -13,7 +13,7 @@ import { ConfigurationTarget, IConfigurationService, type IConfigurationValue } 
 import { IInstantiationService } from '../../../../../../../../platform/instantiation/common/instantiation.js';
 import { TerminalChatAgentToolsSettingId } from '../../../../common/terminalChatAgentToolsConfiguration.js';
 import { isPowerShell } from '../../../runInTerminalHelpers.js';
-import { NpmScriptAutoApprover } from './npmScriptAutoApprover.js';
+import { NpmScriptAutoApprover, type INpmScriptAutoApproveResult } from './npmScriptAutoApprover.js';
 
 export interface IAutoApproveRule {
 	regex: RegExp;
@@ -27,6 +27,7 @@ export interface ICommandApprovalResultWithReason {
 	result: ICommandApprovalResult;
 	reason: string;
 	rule?: IAutoApproveRule;
+	npmScriptResult?: INpmScriptAutoApproveResult;
 }
 
 export type ICommandApprovalResult = 'approved' | 'denied' | 'noMatch';
@@ -119,6 +120,7 @@ export class CommandLineAutoApprover extends Disposable {
 		if (npmScriptResult.isAutoApproved) {
 			return {
 				result: 'approved',
+				npmScriptResult,
 				reason: `Command '${command}' is approved as npm script '${npmScriptResult.scriptName}' is defined in package.json`
 			};
 		}

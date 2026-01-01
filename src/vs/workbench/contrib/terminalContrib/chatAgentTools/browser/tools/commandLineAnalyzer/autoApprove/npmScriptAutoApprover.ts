@@ -22,6 +22,9 @@ const npmRunPatterns = [
 	// npm run <script>
 	// npm run-script <script>
 	/^(?<command>npm)\s+(?:run(?:-script)?)\s+(?<scriptName>[^\s&|;]+)/i,
+	// npm test, npm start, npm stop, npm restart (shorthand commands)
+	// See https://docs.npmjs.com/cli/v10/commands/npm-run-script
+	/^(?<command>npm)\s+(?<scriptName>test|start|stop|restart)\b/i,
 	// yarn <script>
 	// yarn run <script>
 	/^(?<command>yarn)\s+(?:run\s+)?(?<scriptName>[^\s&|;]+)/i,

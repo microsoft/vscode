@@ -94,6 +94,16 @@ suite('NpmScriptAutoApprover', () => {
 		test('npm run lint - script exists', () => t('npm run lint', { lint: 'eslint .' }, true));
 		test('npm run-script build - script exists', () => t('npm run-script build', { build: 'tsc' }, true));
 
+		// npm shorthand commands (npm test, npm start, npm stop, npm restart)
+		test('npm test - shorthand script exists', () => t('npm test', { test: 'jest' }, true));
+		test('npm start - shorthand script exists', () => t('npm start', { start: 'node index.js' }, true));
+		test('npm stop - shorthand script exists', () => t('npm stop', { stop: 'pkill node' }, true));
+		test('npm restart - shorthand script exists', () => t('npm restart', { restart: 'npm stop && npm start' }, true));
+		test('npm test - shorthand script does not exist', () => t('npm test', { build: 'tsc' }, false));
+		test('npm test -- --watch - shorthand with args', () => t('npm test -- --watch', { test: 'jest' }, true));
+		test('npm startevil - word boundary prevents match', () => t('npm startevil', { start: 'node index.js', startevil: 'evil' }, false));
+		test('npm install - built-in command, not a script', () => t('npm install', { install: 'echo should not match' }, false));
+
 		// Scripts with colons (namespaced scripts)
 		test('npm run build:prod - script with colon exists', () => t('npm run build:prod', { 'build:prod': 'tsc --build' }, true));
 		test('npm run test:unit - script with colon exists', () => t('npm run test:unit', { 'test:unit': 'jest --testPathPattern=unit' }, true));
