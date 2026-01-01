@@ -121,7 +121,8 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	}
 
 	private _constructLines(resetHiddenAreas: boolean, previousLineBreaks: ((ModelLineProjectionData | null)[]) | null): void {
-		this.modelLineProjections = [];
+		// Build new projections in a local array to prevent partially updated state being observed.
+		const newProjections: IModelLineProjection[] = [];
 
 		if (resetHiddenAreas) {
 			this.hiddenAreasDecorationIds = this.model.deltaDecorations(this.hiddenAreasDecorationIds, []);
@@ -159,11 +160,13 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 			const isInHiddenArea = (lineNumber >= hiddenAreaStart && lineNumber <= hiddenAreaEnd);
 			const line = createModelLineProjection(linesBreaks[i], !isInHiddenArea);
 			values[i] = line.getViewLineCount();
-			this.modelLineProjections[i] = line;
+			newProjections[i] = line;
 		}
 
 		this._validModelVersionId = this.model.getVersionId();
 
+		// Atomically replace the arrays at the very end to avoid exposing incomplete state.
+		this.modelLineProjections = newProjections;
 		this.projectedModelLineLineCounts = new ConstantTimePrefixSumComputer(values);
 	}
 
