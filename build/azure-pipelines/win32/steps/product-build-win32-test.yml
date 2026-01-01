@@ -9,7 +9,7 @@ parameters:
     type: boolean
 
 steps:
-  - powershell: npm exec -- npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
+  - powershell: npm exec -- npm-run-all2 -lp "electron $(VSCODE_ARCH)" "playwright-install"
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Download Electron and Playwright

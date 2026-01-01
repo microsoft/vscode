@@ -109,7 +109,7 @@ jobs:
           set -e
 
           for i in {1..3}; do # try 3 times (matching retryCountOnTaskFailure: 3)
-            if npm exec -- npm-run-all -lp "electron ${{ env.VSCODE_ARCH }}" "playwright-install"; then
+            if npm exec -- npm-run-all2 -lp "electron ${{ env.VSCODE_ARCH }}" "playwright-install"; then
               echo "Download successful on attempt $i"
               break
             fi

@@ -119,7 +119,7 @@ jobs:
         run: |
           for ($i = 1; $i -le 3; $i++) {
             try {
-              npm exec -- npm-run-all -lp "electron ${{ env.VSCODE_ARCH }}" "playwright-install"
+              npm exec -- npm-run-all2 -lp "electron ${{ env.VSCODE_ARCH }}" "playwright-install"
               break
             }
             catch {
