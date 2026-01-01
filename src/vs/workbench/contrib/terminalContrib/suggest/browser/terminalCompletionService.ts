@@ -411,7 +411,10 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			return resourceCompletions;
 		}
 
-		const stat = await this._fileService.resolve(lastWordFolderResource, { resolveSingleChildDescendants: true });
+		const stat = await this._fileService.resolve(lastWordFolderResource, {
+			resolveMetadata: true,
+			resolveSingleChildDescendants: true
+		});
 		if (!stat?.children) {
 			return;
 		}
@@ -475,12 +478,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			} else if (showFiles && child.isFile) {
 				// When completing the command (first word) on Unix, only show executable files
 				if (isCommandPosition && !useWindowsStylePath) {
-					try {
-						const childStat = await this._fileService.stat(child.resource);
-						if (!childStat.executable) {
-							return;
-						}
-					} catch {
+					if (!child.executable) {
 						return;
 					}
 				}
