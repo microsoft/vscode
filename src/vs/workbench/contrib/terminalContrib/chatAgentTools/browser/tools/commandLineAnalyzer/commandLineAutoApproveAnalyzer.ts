@@ -12,9 +12,9 @@ import { IConfigurationService } from '../../../../../../../platform/configurati
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { ITerminalChatService } from '../../../../../terminal/browser/terminal.js';
 import { IStorageService, StorageScope } from '../../../../../../../platform/storage/common/storage.js';
-import { TerminalToolConfirmationStorageKeys } from '../../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
+import { TerminalToolConfirmationStorageKeys } from '../../../../../chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import { ChatConfiguration } from '../../../../../chat/common/constants.js';
-import type { ToolConfirmationAction } from '../../../../../chat/common/languageModelToolsService.js';
+import type { ToolConfirmationAction } from '../../../../../chat/common/tools/languageModelToolsService.js';
 import { TerminalChatAgentToolsSettingId } from '../../../common/terminalChatAgentToolsConfiguration.js';
 import { dedupeRules, generateAutoApproveActions, isPowerShell } from '../../runInTerminalHelpers.js';
 import type { RunInTerminalToolTelemetry } from '../../runInTerminalToolTelemetry.js';
