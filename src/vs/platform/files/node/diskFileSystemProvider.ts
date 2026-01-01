@@ -90,7 +90,6 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 				ctime: stat.birthtime.getTime(), // intentionally not using ctime here, we want the creation time
 				mtime: stat.mtime.getTime(),
 				size: stat.size,
-				permissions: permissions ?? undefined
 			};
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
