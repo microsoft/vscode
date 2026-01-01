@@ -3013,7 +3013,17 @@ export class CommandCenter {
 	}
 
 	private async _branch(repository: Repository, defaultName?: string, from = false, target?: string): Promise<void> {
-		target = target ?? 'HEAD';
+		const targetRef = target ?? 'HEAD';
+		let targetExists = true;
+
+		if (!target) {
+			try {
+				await repository.getCommit(targetRef);
+			} catch (err) {
+				// HEAD does not exist (e.g., newly initialized repo with no commits)
+				targetExists = false;
+			}
+		}
 
 		const config = workspace.getConfiguration('git');
 		const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
@@ -3040,6 +3050,7 @@ export class CommandCenter {
 
 			if (choice instanceof RefItem && choice.refName) {
 				target = choice.refName;
+				targetExists = true;
 			}
 		}
 
@@ -3049,7 +3060,7 @@ export class CommandCenter {
 			return;
 		}
 
-		await repository.branch(branchName, true, target);
+		await repository.branch(branchName, true, targetExists ? target : undefined);
 	}
 
 	private async pickRef<T extends QuickPickItem>(items: Promise<T[]>, placeHolder: string): Promise<T | undefined> {
