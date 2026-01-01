@@ -712,7 +712,7 @@ suite('TerminalCompletionService', () => {
 				];
 				childResources = [
 					{ resource: URI.file('C:\\Users\\foo\\bar'), isDirectory: true, isFile: false },
-					{ resource: URI.file('C:\\Users\\foo\\baz.txt'), isFile: true }
+					{ resource: URI.file('C:\\Users\\foo\\baz.txt'), isFile: true, executable: true }
 				];
 				const result = await terminalCompletionService.resolveResources(resourceOptions, 'C:/Users/foo/', 13, provider, capabilities, WindowsShellType.GitBash);
 				assertCompletions(result, [
@@ -735,7 +735,7 @@ suite('TerminalCompletionService', () => {
 				];
 				childResources = [
 					{ resource: URI.file('C:\\Users\\foo\\bar'), isDirectory: true },
-					{ resource: URI.file('C:\\Users\\foo\\baz.txt'), isFile: true }
+					{ resource: URI.file('C:\\Users\\foo\\baz.txt'), isFile: true, executable: true }
 				];
 				const result = await terminalCompletionService.resolveResources(resourceOptions, './', 2, provider, capabilities, WindowsShellType.GitBash);
 				assertCompletions(result, [
@@ -760,7 +760,7 @@ suite('TerminalCompletionService', () => {
 				];
 				childResources = [
 					{ resource: URI.file('C:\\Users\\foo\\bar'), isDirectory: true },
-					{ resource: URI.file('C:\\Users\\foo\\baz.txt'), isFile: true }
+					{ resource: URI.file('C:\\Users\\foo\\baz.txt'), isFile: true, executable: true }
 				];
 				const result = await terminalCompletionService.resolveResources(resourceOptions, '/c/Users/foo/', 13, provider, capabilities, WindowsShellType.GitBash);
 				assertCompletions(result, [
