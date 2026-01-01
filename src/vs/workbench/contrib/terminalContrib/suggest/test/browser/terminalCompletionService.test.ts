@@ -104,17 +104,22 @@ suite('TerminalCompletionService', () => {
 		instantiationService = workbenchInstantiationService({
 			pathService: () => new TestPathService(URI.file(homeDir ?? '/')),
 		}, store);
+		const normalizePath = (path: string) => path === '/' ? path : path.replace(/\/+$/, '');
+		const doesResourceExist = (resource: URI) => validResources.some(e => normalizePath(e.path) === normalizePath(resource.path)) || childResources.some(e => normalizePath(e.resource.path) === normalizePath(resource.path));
 		configurationService = new TestConfigurationService();
 		instantiationService.stub(ITerminalLogService, new NullLogService());
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IFileService, {
 			async stat(resource) {
-				if (!validResources.map(e => e.path).includes(resource.path)) {
+				if (!doesResourceExist(resource)) {
 					throw new Error('Doesn\'t exist');
 				}
 				return createFileStat(resource);
 			},
 			async resolve(resource: URI, options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata> {
+				if (!doesResourceExist(resource)) {
+					throw new Error('Doesn\'t exist');
+				}
 				const children = childResources.filter(child => {
 					const childFsPath = child.resource.path.replace(/\/$/, '');
 					const parentFsPath = resource.path.replace(/\/$/, '');
@@ -142,7 +147,7 @@ suite('TerminalCompletionService', () => {
 	});
 
 	suite('resolveResources should return undefined', () => {
-		test('if neither showFiles nor showFolders are true', async () => {
+		test('if neither showFiles nor showDirectories are true', async () => {
 			const resourceOptions: TerminalCompletionResourceOptions = {
 				cwd: URI.parse('file:///test'),
 				pathSeparator
@@ -484,6 +489,22 @@ suite('TerminalCompletionService', () => {
 			], { replacementRange: [0, 2] });
 		});
 
+		test('should not return completions when relative folder prefix does not exist', async () => {
+			const resourceOptions: TerminalCompletionResourceOptions = {
+				cwd: URI.parse('file:///test'),
+				showDirectories: true,
+				pathSeparator
+			};
+			validResources = [URI.parse('file:///test')];
+			childResources = [
+				{ resource: URI.parse('file:///test/src/'), isDirectory: true },
+				{ resource: URI.parse('file:///test/vs/'), isDirectory: true }
+			];
+			const result = await terminalCompletionService.resolveResources(resourceOptions, 's/', 2, provider, capabilities);
+
+			assert.strictEqual(result, undefined);
+		});
+
 		test('./| should handle large directories with many results gracefully', async () => {
 			const resourceOptions: TerminalCompletionResourceOptions = {
 				cwd: URI.parse('file:///test'),
@@ -524,6 +545,28 @@ suite('TerminalCompletionService', () => {
 				{ label: './../', detail: '/' }
 			], { replacementRange: [1, 10] });
 		});
+		test('should resolve nested folder when name matches cwd basename', async () => {
+			const resourceOptions: TerminalCompletionResourceOptions = {
+				cwd: URI.parse('file:///test'),
+				showDirectories: true,
+				pathSeparator
+			};
+			validResources = [
+				URI.parse('file:///test'),
+				URI.parse('file:///test/test'),
+			];
+			childResources = [
+				{ resource: URI.parse('file:///test/test/'), isDirectory: true },
+				{ resource: URI.parse('file:///test/test/inner/'), isDirectory: true }
+			];
+			const result = await terminalCompletionService.resolveResources(resourceOptions, 'test/', 5, provider, capabilities);
+
+			assertCompletions(result, [
+				{ label: './test/', detail: '/test/test/' },
+				{ label: './test/inner/', detail: '/test/test/inner/' },
+				{ label: './test/../', detail: '/' }
+			], { replacementRange: [0, 5] });
+		});
 		test('test/| should normalize current and parent folders', async () => {
 			const resourceOptions: TerminalCompletionResourceOptions = {
 				cwd: URI.parse('file:///test'),
@@ -539,14 +582,14 @@ suite('TerminalCompletionService', () => {
 				{ resource: URI.parse('file:///test/folder1/'), isDirectory: true },
 				{ resource: URI.parse('file:///test/folder2/'), isDirectory: true }
 			];
-			const result = await terminalCompletionService.resolveResources(resourceOptions, 'test/', 5, provider, capabilities);
+			const result = await terminalCompletionService.resolveResources(resourceOptions, './test/', 7, provider, capabilities);
 
 			assertCompletions(result, [
 				{ label: './test/', detail: '/test/' },
 				{ label: './test/folder1/', detail: '/test/folder1/' },
 				{ label: './test/folder2/', detail: '/test/folder2/' },
 				{ label: './test/../', detail: '/' }
-			], { replacementRange: [0, 5] });
+			], { replacementRange: [0, 7] });
 		});
 	});
 
@@ -554,7 +597,10 @@ suite('TerminalCompletionService', () => {
 		let shellEnvDetection: ShellEnvDetectionCapability;
 
 		setup(() => {
-			validResources = [URI.parse('file:///test')];
+			validResources = [
+				URI.parse('file:///test'),
+				URI.parse('file:///cdpath_value')
+			];
 			childResources = [
 				{ resource: URI.parse('file:///cdpath_value/folder1/'), isDirectory: true },
 				{ resource: URI.parse('file:///cdpath_value/file1.txt'), isFile: true },

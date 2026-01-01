@@ -29,10 +29,10 @@ import { TreeSitterLibraryService } from '../../../../../services/treeSitter/bro
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { TestContextService } from '../../../../../test/common/workbenchTestServices.js';
 import { TestIPCFileSystemProvider } from '../../../../../test/electron-browser/workbenchTestServices.js';
-import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
-import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService.js';
-import { LocalChatSessionUri } from '../../../../chat/common/chatUri.js';
-import { ILanguageModelToolsService, IPreparedToolInvocation, IToolInvocationPreparationContext, type ToolConfirmationAction } from '../../../../chat/common/languageModelToolsService.js';
+import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
+import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
+import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
+import { ILanguageModelToolsService, IPreparedToolInvocation, IToolInvocationPreparationContext, type ToolConfirmationAction } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
 import { RunInTerminalTool, type IRunInTerminalInputParams } from '../../browser/tools/runInTerminalTool.js';
@@ -243,6 +243,11 @@ suite('RunInTerminalTool', () => {
 			'date +%Y-%m-%d',
 			'find . -name "*.txt"',
 			'grep pattern file.txt',
+			'rg pattern file.txt',
+			'rg --json pattern .',
+			'rg -i --color=never "TODO" src/',
+			'sed "s/foo/bar/g"',
+			'sed -n "1,10p" file.txt',
 			'sort file.txt',
 			'tree directory'
 		];
@@ -295,6 +300,19 @@ suite('RunInTerminalTool', () => {
 			'find . -exec rm {} \\;',
 			'find . -execdir rm {} \\;',
 			'find . -fprint output.txt',
+			'rg --pre cat pattern .',
+			'rg --hostname-bin hostname pattern .',
+			'sed -i "s/foo/bar/g" file.txt',
+			'sed -i.bak "s/foo/bar/" file.txt',
+			'sed -Ibak "s/foo/bar/" file.txt',
+			'sed --in-place "s/foo/bar/" file.txt',
+			'sed -e "s/a/b/" file.txt',
+			'sed -f script.sed file.txt',
+			'sed --expression "s/a/b/" file.txt',
+			'sed --file script.sed file.txt',
+			'sed "s/foo/bar/e" file.txt',
+			'sed "s/foo/bar/w output.txt" file.txt',
+			'sed ";W output.txt" file.txt',
 			'sort -o /etc/passwd file.txt',
 			'sort -S 100G file.txt',
 			'tree -o output.txt',

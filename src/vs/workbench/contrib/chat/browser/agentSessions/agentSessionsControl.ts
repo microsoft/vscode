@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IOpenEvent, WorkbenchCompressibleAsyncDataTree } from '../../../../../platform/list/browser/listService.js';
@@ -30,12 +30,15 @@ import { IAgentSessionsControl } from './agentSessions.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { openSession } from './agentSessionsOpener.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 
 export interface IAgentSessionsControlOptions extends IAgentSessionsSorterOptions {
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
 	readonly filter?: IAgentSessionsFilter;
 
 	getHoverPosition(): HoverPosition;
+	trackActiveEditorSession(): boolean;
 }
 
 type AgentSessionOpenedClassification = {
@@ -70,6 +73,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		@IMenuService private readonly menuService: IMenuService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
 
@@ -78,6 +82,37 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		this.focusedAgentSessionTypeContextKey = ChatContextKeys.agentSessionType.bindTo(this.contextKeyService);
 
 		this.createList(this.container);
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this._register(this.editorService.onDidActiveEditorChange(() => this.revealAndFocusActiveEditorSession()));
+	}
+
+	private revealAndFocusActiveEditorSession(): void {
+		if (
+			!this.options.trackActiveEditorSession() ||
+			!this.visible
+		) {
+			return;
+		}
+
+		const input = this.editorService.activeEditor;
+		const resource = (input instanceof ChatEditorInput) ? input.sessionResource : input?.resource;
+		if (!resource) {
+			return;
+		}
+
+		const matchingSession = this.agentSessionsService.model.getSession(resource);
+		if (matchingSession && this.sessionsList?.hasNode(matchingSession)) {
+			if (this.sessionsList.getRelativeTop(matchingSession) === null) {
+				this.sessionsList.reveal(matchingSession, 0.5); // only reveal when not already visible
+			}
+
+			this.sessionsList.setFocus([matchingSession]);
+			this.sessionsList.setSelection([matchingSession]);
+		}
 	}
 
 	private createList(container: HTMLElement): void {
