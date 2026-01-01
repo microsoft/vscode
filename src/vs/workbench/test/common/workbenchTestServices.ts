@@ -257,6 +257,7 @@ export function createFileStat(resource: URI, readonly = false, isFile?: boolean
 		isSymbolicLink: isSymbolicLink ?? false,
 		readonly,
 		locked: false,
+		executable: false,
 		name: basename(resource),
 		children: children?.map(c => createFileStat(c.resource, false, c.isFile, c.isDirectory, c.isSymbolicLink)),
 	};

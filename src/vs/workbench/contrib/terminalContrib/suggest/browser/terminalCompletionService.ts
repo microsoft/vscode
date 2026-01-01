@@ -269,6 +269,11 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		const resourceCompletions: ITerminalCompletion[] = [];
 		const cursorPrefix = promptValue.substring(0, cursorPosition);
 
+		// Determine if we're completing the command (first word) vs an argument
+		// We're in command position if there are no unescaped spaces before cursor
+		const wordsBeforeCursor = cursorPrefix.split(/(?<!\\) /);
+		const isCommandPosition = wordsBeforeCursor.length <= 1 && !cursorPrefix.endsWith(' ');
+
 		// TODO: Leverage Fig's tokens array here?
 		// The last word (or argument). When the cursor is following a space it will be the empty
 		// string
@@ -468,6 +473,17 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 					kind = TerminalCompletionItemKind.Folder;
 				}
 			} else if (showFiles && child.isFile) {
+				// When completing the command (first word) on Unix, only show executable files
+				if (isCommandPosition && !useWindowsStylePath) {
+					try {
+						const childStat = await this._fileService.stat(child.resource);
+						if (!childStat.executable) {
+							return;
+						}
+					} catch {
+						return;
+					}
+				}
 				if (child.isSymbolicLink) {
 					kind = TerminalCompletionItemKind.SymbolicLinkFile;
 				} else {
