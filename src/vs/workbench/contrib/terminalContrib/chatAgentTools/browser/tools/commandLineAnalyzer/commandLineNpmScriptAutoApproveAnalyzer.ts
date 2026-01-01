@@ -195,23 +195,15 @@ export class CommandLineNpmScriptAutoApproveAnalyzer extends Disposable implemen
 	 * Only looks within the workspace for security.
 	 */
 	private async _getPackageJsonScripts(cwd: URI | undefined): Promise<IPackageJsonScripts | undefined> {
-		// Try cwd first, but only if it's within the workspace
-		if (cwd && this._isWithinWorkspace(cwd)) {
-			const packageJsonUri = URI.joinPath(cwd, 'package.json');
-			const scripts = await this._readPackageJsonScripts(packageJsonUri);
-			if (scripts) {
-				return { uri: packageJsonUri, scripts };
-			}
+		// Only look in cwd if it's within the workspace
+		if (!cwd || !this._isWithinWorkspace(cwd)) {
+			return undefined;
 		}
 
-		// Fall back to workspace folder roots
-		const workspaceFolders = this._workspaceContextService.getWorkspace().folders;
-		for (const folder of workspaceFolders) {
-			const packageJsonUri = URI.joinPath(folder.uri, 'package.json');
-			const scripts = await this._readPackageJsonScripts(packageJsonUri);
-			if (scripts) {
-				return { uri: packageJsonUri, scripts };
-			}
+		const packageJsonUri = URI.joinPath(cwd, 'package.json');
+		const scripts = await this._readPackageJsonScripts(packageJsonUri);
+		if (scripts) {
+			return { uri: packageJsonUri, scripts };
 		}
 
 		return undefined;
