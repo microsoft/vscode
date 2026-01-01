@@ -592,7 +592,7 @@ registerAction2(class CopyLastChatResponse extends Action2 {
 					id: MenuId.ChatMessageFooter,
 					group: 'navigation',
 					order: 4,
-					when: ContextKeyExpr.and(ContextKeyExpr.in(ChatContextKeys.itemId.key, ChatContextKeys.lastItemId.key), ChatContextKeys.isResponse, ChatContextKeys.lockedToCodingAgent.negate()),
+					when: ChatContextKeys.isResponse,
 				}
 			]
 		});
@@ -619,7 +619,7 @@ registerAction2(class CopyLastChatResponse extends Action2 {
 			return;
 		}
 
-		const responseContent = chatModel.lastRequest?.response?.entireResponse.toString();
+		const responseContent = chatModel.getRequests().find(request => request.response?.id === item.id)?.response?.entireResponse.toString();
 
 		if (responseContent) {
 			await clipboardService.writeText(responseContent);
