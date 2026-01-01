@@ -95,9 +95,8 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 		];
 
 		let isDenied = false;
-		let autoApproveReason: 'subCommand' | 'commandLine' | 'npmScript' | undefined;
+		let autoApproveReason: 'subCommand' | 'commandLine' | undefined;
 		let autoApproveDefault: boolean | undefined;
-		let npmScriptAutoApproveInfo: IMarkdownString | undefined;
 
 		const deniedSubCommandResult = subCommandResults.find(e => e.result === 'denied');
 		if (deniedSubCommandResult) {
@@ -113,14 +112,7 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 		} else {
 			if (subCommandResults.every(e => e.result === 'approved')) {
 				this._log('All sub-commands auto-approved');
-				// Check if any sub-command was approved via npm script
-				const npmScriptApprovedResult = subCommandResults.find(e => e.npmScriptResult?.isAutoApproved);
-				if (npmScriptApprovedResult) {
-					autoApproveReason = 'npmScript';
-					npmScriptAutoApproveInfo = npmScriptApprovedResult.npmScriptResult?.autoApproveInfo;
-				} else {
-					autoApproveReason = 'subCommand';
-				}
+				autoApproveReason = 'subCommand';
 				isAutoApproved = true;
 				autoApproveDefault = subCommandResults.every(e => e.rule?.isDefaultRule);
 			} else {
@@ -145,15 +137,13 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 		const isAutoApproveEnabled = this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnableAutoApprove) === true;
 		const isAutoApproveWarningAccepted = this._storageService.getBoolean(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION, false);
 		if (isAutoApproveEnabled && isAutoApproved) {
-			autoApproveInfo = autoApproveReason === 'npmScript' && npmScriptAutoApproveInfo
-				? npmScriptAutoApproveInfo
-				: this._createAutoApproveInfo(
-					isAutoApproved,
-					isDenied,
-					autoApproveReason,
-					subCommandResults,
-					commandLineResult,
-				);
+			autoApproveInfo = this._createAutoApproveInfo(
+				isAutoApproved,
+				isDenied,
+				autoApproveReason,
+				subCommandResults,
+				commandLineResult,
+			);
 		} else {
 			isAutoApproved = false;
 		}
@@ -195,7 +185,7 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 	private _createAutoApproveInfo(
 		isAutoApproved: boolean,
 		isDenied: boolean,
-		autoApproveReason: 'subCommand' | 'commandLine' | 'npmScript' | undefined,
+		autoApproveReason: 'subCommand' | 'commandLine' | undefined,
 		subCommandResults: ICommandApprovalResultWithReason[],
 		commandLineResult: ICommandApprovalResultWithReason,
 	): IMarkdownString | undefined {
