@@ -496,22 +496,20 @@ flakySuite('Disk File Service', function () {
 		assert.ok(result.ctime > 0);
 	});
 
-	(isWindows ? test.skip /* executable permission is not supported on Windows */ : test)('stat - executable', async () => {
-		const resource = URI.file(join(testDir, 'executable.sh'));
-		writeFileSync(resource.fsPath, '#!/bin/bash\necho "Hello"');
+	// The executable bit does not exist on Windows so use a condition not skip
+	if (!isWindows) {
+		test('stat - executable', async () => {
+			const nonExecutable = FileAccess.asFileUri('vs/platform/files/test/node/fixtures/executable/non_executable');
+			let resolved = await service.stat(nonExecutable);
+			assert.strictEqual(resolved.isFile, true);
+			assert.strictEqual(resolved.executable, false);
 
-		// Verify not executable initially
-		let resolved = await service.stat(resource);
-		assert.strictEqual(resolved.isFile, true);
-		assert.strictEqual(resolved.executable, false);
-
-		// Set executable bit
-		await promises.chmod(resource.fsPath, 0o755);
-
-		// Verify executable flag is returned
-		resolved = await service.stat(resource);
-		assert.strictEqual(resolved.executable, true);
-	});
+			const executable = FileAccess.asFileUri('vs/platform/files/test/node/fixtures/executable/executable');
+			resolved = await service.stat(executable);
+			assert.strictEqual(resolved.isFile, true);
+			assert.strictEqual(resolved.executable, true);
+		});
+	}
 
 	test('deleteFile (non recursive)', async () => {
 		return testDeleteFile(false, false);
