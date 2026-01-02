@@ -27,7 +27,7 @@ export interface IDecorationStyleSet {
 	 */
 	strikethroughThickness: number | undefined;
 	/**
-	 * A 24-bit number representing the strikethrough color.
+	 * A 32-bit number representing the strikethrough color.
 	 */
 	strikethroughColor: number | undefined;
 }

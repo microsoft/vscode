@@ -441,7 +441,6 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 									}
 									case 'text-decoration-color': {
 										let colorValue = value;
-										// Resolve CSS variables that fall back to currentcolor
 										const varMatch = value.match(/^var\((--[^,]+),\s*(?:initial|inherit)\)$/);
 										if (varMatch) {
 											colorValue = ViewGpuContext.decorationCssRuleExtractor.resolveCssVariable(this._viewGpuContext.canvas.domNode, varMatch[1]);
