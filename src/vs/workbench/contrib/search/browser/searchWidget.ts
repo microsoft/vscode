@@ -58,7 +58,6 @@ export interface ISearchWidgetOptions {
 	searchHistory?: string[];
 	replaceHistory?: string[];
 	preserveCase?: boolean;
-	_hideReplaceToggle?: boolean; // TODO: Search Editor's replace experience
 	showContextToggle?: boolean;
 	inputBoxStyles: IInputBoxStyles;
 	toggleStyles: IToggleStyles;
@@ -362,9 +361,7 @@ export class SearchWidget extends Widget {
 		this.domNode = dom.append(container, dom.$('.search-widget'));
 		this.domNode.style.position = 'relative';
 
-		if (!options._hideReplaceToggle) {
-			this.renderToggleReplaceButton(this.domNode);
-		}
+		this.renderToggleReplaceButton(this.domNode);
 
 		this.renderSearchInput(this.domNode, options);
 		this.renderReplaceInput(this.domNode, options);
