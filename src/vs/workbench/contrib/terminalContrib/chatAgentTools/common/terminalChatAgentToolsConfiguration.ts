@@ -455,7 +455,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			`- \`bash\`: ${localize('preventShellHistory.description.bash', "Sets `HISTCONTROL=ignorespace` and prepends the command with space")}`,
 			`- \`zsh\`: ${localize('preventShellHistory.description.zsh', "Sets `HIST_IGNORE_SPACE` option and prepends the command with space")}`,
 			`- \`fish\`: ${localize('preventShellHistory.description.fish', "Sets `fish_private_mode` to prevent any command from entering history")}`,
-			`- \`pwsh\`: ${localize('preventShellHistory.description.pwsh', "Overrides PSReadLine's `AddToHistoryHandler` to prevent any command from entering history")}`,
+			`- \`pwsh\`: ${localize('preventShellHistory.description.pwsh', "Sets a custom history handler via PSReadLine's `AddToHistoryHandler` to prevent any command from entering history")}`,
 		].join('\n'),
 	}
 };

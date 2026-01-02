@@ -260,9 +260,13 @@ function Set-MappedKeyHandlers {
 if ($Global:__VSCodeState.HasPSReadLine) {
 	Set-MappedKeyHandlers
 
-	# Configure history exclusion for space-prefixed commands when requested by VS Code
+	# Configure history exclusion when requested by VS Code
 	# This is used by Copilot terminals to prevent AI-executed commands from polluting history
 	if ($env:VSCODE_EXCLUDE_FROM_HISTORY -eq "1") {
+		Set-PSReadLineOption -AddToHistoryHandler {
+			param([string]$line)
+			return $false
+		}
 	}
 	$env:VSCODE_EXCLUDE_FROM_HISTORY = $null
 }
