@@ -5,13 +5,14 @@
 
 import * as DOM from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { ChatImageSlideshowEditorInput } from './chatImageSlideshowEditorInput.js';
 import { ISlideshowImage } from './chatImageSlideshowTypes.js';
 
@@ -27,11 +28,12 @@ export class ChatImageSlideshowEditor extends EditorPane {
 	private readonly _contentDisposables = this._register(new DisposableStore());
 
 	constructor(
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService
 	) {
-		super(ChatImageSlideshowEditor.ID, telemetryService, themeService, storageService);
+		super(ChatImageSlideshowEditor.ID, group, telemetryService, themeService, storageService);
 	}
 
 	protected override createEditor(parent: HTMLElement): void {
@@ -69,7 +71,7 @@ export class ChatImageSlideshowEditor extends EditorPane {
 
 		// Create slideshow structure
 		const slideshowContainer = DOM.$('.slideshow-container');
-		
+
 		// Add image display area
 		const imageArea = DOM.$('.image-area');
 		const currentImage = this._images[this._currentIndex];
@@ -91,9 +93,9 @@ export class ChatImageSlideshowEditor extends EditorPane {
 	private createImageElement(image: ISlideshowImage): HTMLElement {
 		const container = DOM.$('.main-image-container');
 		const img = DOM.$('img.main-image') as HTMLImageElement;
-		
+
 		// Convert VSBuffer to blob URL
-		const blob = new Blob([image.data.buffer], { type: image.mimeType });
+		const blob = new Blob([image.data.buffer.slice(0)], { type: image.mimeType });
 		const url = URL.createObjectURL(blob);
 		img.src = url;
 		img.alt = image.name;
@@ -111,8 +113,8 @@ export class ChatImageSlideshowEditor extends EditorPane {
 		const controls = DOM.$('.slideshow-controls');
 
 		// Previous button
-		const prevBtn = DOM.$('button.nav-button.prev-button');
-		prevBtn.textContent = '❮ Previous';
+		const prevBtn = DOM.$('button.nav-button.prev-button') as HTMLButtonElement;
+		prevBtn.textContent = '< Previous';
 		prevBtn.disabled = this._currentIndex === 0;
 		this._contentDisposables.add(DOM.addDisposableListener(prevBtn, 'click', () => {
 			if (this._currentIndex > 0) {
@@ -128,8 +130,8 @@ export class ChatImageSlideshowEditor extends EditorPane {
 		controls.appendChild(counter);
 
 		// Next button
-		const nextBtn = DOM.$('button.nav-button.next-button');
-		nextBtn.textContent = 'Next ❯';
+		const nextBtn = DOM.$('button.nav-button.next-button') as HTMLButtonElement;
+		nextBtn.textContent = 'Next >';
 		nextBtn.disabled = this._currentIndex === this._images.length - 1;
 		this._contentDisposables.add(DOM.addDisposableListener(nextBtn, 'click', () => {
 			if (this._currentIndex < this._images.length - 1) {
@@ -153,7 +155,7 @@ export class ChatImageSlideshowEditor extends EditorPane {
 			}
 
 			const img = DOM.$('img.thumbnail-image') as HTMLImageElement;
-			const blob = new Blob([image.data.buffer], { type: image.mimeType });
+			const blob = new Blob([image.data.buffer.slice(0)], { type: image.mimeType });
 			const url = URL.createObjectURL(blob);
 			img.src = url;
 			img.alt = image.name;

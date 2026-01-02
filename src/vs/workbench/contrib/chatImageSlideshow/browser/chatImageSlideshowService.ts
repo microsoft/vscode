@@ -4,11 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { VSBuffer } from '../../../../base/common/buffer.js';
-import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ISlideshowImage, ISlideshowImageCollection } from './chatImageSlideshowTypes.js';
-import { IChatResponseViewModel } from '../../chat/common/chatViewModel.js';
+import { IChatResponseViewModel } from '../../chat/common/model/chatViewModel.js';
 import { IChatToolInvocation } from '../../chat/common/chatService/chatService.js';
 
 export const IChatImageSlideshowService = createDecorator<IChatImageSlideshowService>('chatImageSlideshowService');
@@ -41,7 +39,7 @@ export class ChatImageSlideshowService extends Disposable implements IChatImageS
 	 */
 	async extractImagesFromResponse(response: IChatResponseViewModel): Promise<ISlideshowImageCollection | undefined> {
 		const images: ISlideshowImage[] = [];
-		
+
 		// Iterate through response items to find tool invocations
 		for (const item of response.response.value) {
 			if (item.kind === 'toolInvocation' || item.kind === 'toolInvocationSerialized') {
@@ -70,12 +68,8 @@ export class ChatImageSlideshowService extends Disposable implements IChatImageS
 		const state = toolInvocation.state.get();
 
 		// Check if there's content for the model that contains data parts
-		if (state.type === 'completed' || state.type === 'waitingForPostApproval') {
-			const contentForModel = state.type === 'waitingForPostApproval' 
-				? state.contentForModel 
-				: state.type === 'completed' && 'contentForModel' in state 
-					? (state as any).contentForModel 
-					: undefined;
+		if (state.type === IChatToolInvocation.StateKind.Completed || state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
+			const contentForModel = state.contentForModel;
 
 			if (contentForModel) {
 				for (const part of contentForModel) {
