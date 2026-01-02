@@ -487,8 +487,28 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 			actions.push(new Separator());
 
 			if (e.element.marketplaceInfo) {
-				actions.push(new Action('runtimeExtensionsEditor.action.disableWorkspace', nls.localize('disable workspace', "Disable (Workspace)"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo!, EnablementState.DisabledWorkspace)));
-				actions.push(new Action('runtimeExtensionsEditor.action.disable', nls.localize('disable', "Disable"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo!, EnablementState.DisabledGlobally)));
+				actions.push(new Action('runtimeExtensionsEditor.action.disableWorkspace', nls.localize('disable workspace', "Disable (Workspace)"), undefined, true, async () => {
+					await this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo!, EnablementState.DisabledWorkspace);
+					this._notificationService.prompt(
+						Severity.Info,
+						nls.localize('restartExtensionsRequired', "The extension has been disabled. Please restart extensions to apply the change."),
+						[{
+							label: nls.localize('restartExtensions', "Restart Extensions"),
+							run: () => this._extensionsWorkbenchService.updateRunningExtensions()
+						}]
+					);
+				}));
+				actions.push(new Action('runtimeExtensionsEditor.action.disable', nls.localize('disable', "Disable"), undefined, true, async () => {
+					await this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo!, EnablementState.DisabledGlobally);
+					this._notificationService.prompt(
+						Severity.Info,
+						nls.localize('restartExtensionsRequired', "The extension has been disabled. Please restart extensions to apply the change."),
+						[{
+							label: nls.localize('restartExtensions', "Restart Extensions"),
+							run: () => this._extensionsWorkbenchService.updateRunningExtensions()
+						}]
+					);
+				}));
 			}
 			actions.push(new Separator());
 
