@@ -115,7 +115,7 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 
 		// The sub-pixel x offset is the fractional part of the x pixel coordinate of the cell, this
 		// is used to improve the spacing between rendered characters.
-		const xSubPixelXOffset = (tokenMetadata & 0b1111) / 10;
+		const subPixelXOffset = (tokenMetadata & 0b1111) / 10;
 
 		const bgId = TokenMetadata.getBackground(tokenMetadata);
 		const bg = colorMap[bgId];
@@ -150,34 +150,45 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 
 		const originX = devicePixelFontSize;
 		const originY = devicePixelFontSize;
+
+		// Apply text color
 		if (decorationStyleSet?.color !== undefined) {
 			this._ctx.fillStyle = `#${decorationStyleSet.color.toString(16).padStart(8, '0')}`;
 		} else {
 			this._ctx.fillStyle = colorMap[TokenMetadata.getForeground(tokenMetadata)];
 		}
-		this._ctx.textBaseline = 'top';
 
+		// Apply opacity
 		if (decorationStyleSet?.opacity !== undefined) {
 			this._ctx.globalAlpha = decorationStyleSet.opacity;
 		}
 
-		this._ctx.fillText(chars, originX + xSubPixelXOffset, originY);
+		// The glyph baseline is top, meaning it's drawn at the top-left of the
+		// cell. Add `TextMetrics.alphabeticBaseline` to the drawn position to
+		// get the alphabetic baseline.
+		this._ctx.textBaseline = 'top';
 
-		// Draw strikethrough if needed
-		if (decorationStyleSet?.strikethrough || (fontStyle & FontStyle.Strikethrough)) {
-			const textMetrics = this._ctx.measureText(chars);
-			// Position strikethrough at the vertical center of lowercase letters.
-			// With textBaseline='top', alphabeticBaseline is the distance from top to baseline.
-			// Strikethrough should be at roughly 65-70% down from top to baseline (x-height center).
-			const strikethroughY = Math.round(originY - textMetrics.alphabeticBaseline * 0.65);
+		// Draw the text
+		this._ctx.fillText(chars, originX + subPixelXOffset, originY);
+
+		// Draw strikethrough
+		if (decorationStyleSet?.strikethrough) {
+			// TODO: This position could be refined further by checking
+			//       TextMetrics of lowercase letters.
+			// Position strikethrough at approximately the vertical center of
+			// lowercase letters.
+			const strikethroughY = Math.round(originY - this._textMetrics.alphabeticBaseline * 0.65);
 			const lineWidth = decorationStyleSet?.strikethroughThickness !== undefined
 				? Math.round(decorationStyleSet.strikethroughThickness * this.devicePixelRatio)
 				: Math.max(1, Math.floor(devicePixelFontSize / 10));
-			this._ctx.fillRect(originX + xSubPixelXOffset, strikethroughY - Math.floor(lineWidth / 2), textMetrics.width, lineWidth);
+			// Intentionally do not apply the sub pixel x offset to
+			// strikethrough to ensure successive glyphs form a contiguous line.
+			this._ctx.fillRect(originX, strikethroughY - Math.floor(lineWidth / 2), Math.ceil(this._textMetrics.width), lineWidth);
 		}
 
 		this._ctx.restore();
 
+		// Extract the image data and clear the background color
 		const imageData = this._ctx.getImageData(0, 0, this._canvas.width, this._canvas.height);
 		if (this._antiAliasing === 'subpixel') {
 			const bgR = parseInt(bg.substring(1, 3), 16);
@@ -186,7 +197,10 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 			this._clearColor(imageData, bgR, bgG, bgB);
 			this._ctx.putImageData(imageData, 0, 0);
 		}
+
+		// Find the bounding box
 		this._findGlyphBoundingBox(imageData, this._workGlyph.boundingBox);
+
 		// const offset = {
 		// 	x: textMetrics.actualBoundingBoxLeft,
 		// 	y: textMetrics.actualBoundingBoxAscent
