@@ -136,22 +136,48 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 		if (subCommandsToSuggest.length > 0) {
 			let subCommandLabel: string;
 			if (subCommandsToSuggest.length === 1) {
-				subCommandLabel = localize('autoApprove.baseCommandSingle', 'Always Allow Command: {0}', subCommandsToSuggest[0]);
+				subCommandLabel = `\`${subCommandsToSuggest[0]} \u2026\``;
 			} else {
-				const commandSeparated = subCommandsToSuggest.join(', ');
-				subCommandLabel = localize('autoApprove.baseCommand', 'Always Allow Commands: {0}', commandSeparated);
+				subCommandLabel = `Commands ${subCommandsToSuggest.map(e => `\`${e} \u2026\``).join(', ')}`;
 			}
 
 			actions.push({
-				label: subCommandLabel,
+				label: `Allow ${subCommandLabel} in this Session`,
 				data: {
 					type: 'newRule',
 					rule: subCommandsToSuggest.map(key => ({
 						key,
-						value: true
+						value: true,
+						scope: 'session'
 					}))
 				} satisfies TerminalNewAutoApproveButtonData
 			});
+			actions.push({
+				label: `Allow ${subCommandLabel} in this Workspace`,
+				data: {
+					type: 'newRule',
+					rule: subCommandsToSuggest.map(key => ({
+						key,
+						value: true,
+						scope: 'workspace'
+					}))
+				} satisfies TerminalNewAutoApproveButtonData
+			});
+			actions.push({
+				label: `Always Allow ${subCommandLabel}`,
+				data: {
+					type: 'newRule',
+					rule: subCommandsToSuggest.map(key => ({
+						key,
+						value: true,
+						scope: 'user'
+					}))
+				} satisfies TerminalNewAutoApproveButtonData
+			});
+		}
+
+		if (actions.length > 0) {
+			actions.push(new Separator());
 		}
 
 		// Allow exact command line, don't do this if it's just the first sub-command's first
@@ -163,6 +189,34 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 			!commandsWithSubSubCommands.has(commandLine)
 		) {
 			actions.push({
+				label: localize('autoApprove.exactCommand1', 'Allow Exact Command Line in this Session'),
+				data: {
+					type: 'newRule',
+					rule: {
+						key: `/^${escapeRegExpCharacters(commandLine)}$/`,
+						value: {
+							approve: true,
+							matchCommandLine: true
+						},
+						scope: 'session'
+					}
+				} satisfies TerminalNewAutoApproveButtonData
+			});
+			actions.push({
+				label: localize('autoApprove.exactCommand2', 'Allow Exact Command Line in this Workspace'),
+				data: {
+					type: 'newRule',
+					rule: {
+						key: `/^${escapeRegExpCharacters(commandLine)}$/`,
+						value: {
+							approve: true,
+							matchCommandLine: true
+						},
+						scope: 'workspace'
+					}
+				} satisfies TerminalNewAutoApproveButtonData
+			});
+			actions.push({
 				label: localize('autoApprove.exactCommand', 'Always Allow Exact Command Line'),
 				data: {
 					type: 'newRule',
@@ -171,7 +225,8 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 						value: {
 							approve: true,
 							matchCommandLine: true
-						}
+						},
+						scope: 'user'
 					}
 				} satisfies TerminalNewAutoApproveButtonData
 			});
