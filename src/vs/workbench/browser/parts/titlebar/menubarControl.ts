@@ -458,6 +458,40 @@ export class CustomMenubarControl extends MenubarControl {
 		}
 	}
 
+	private getTimeRemainingText(progress: { bytesDownloaded: number; totalBytes: number; startTime: number }): string {
+		const { bytesDownloaded, totalBytes, startTime } = progress;
+
+		if (bytesDownloaded === 0 || totalBytes === 0) {
+			return '';
+		}
+
+		const percentage = Math.floor((bytesDownloaded / totalBytes) * 100);
+
+		const elapsedMs = Date.now() - startTime;
+		
+		// Need at least 1 second of data to make a reasonable estimate
+		if (elapsedMs < 1000) {
+			return localize('downloadingWithPercentage', " ({0}%)", percentage);
+		}
+
+		const bytesPerMs = bytesDownloaded / elapsedMs;
+		const remainingBytes = totalBytes - bytesDownloaded;
+		const remainingMs = remainingBytes / bytesPerMs;
+		const remainingSeconds = Math.ceil(remainingMs / 1000);
+
+		// Sanity check for unreasonable values
+		if (!isFinite(remainingSeconds) || remainingSeconds < 0 || remainingSeconds > 86400) {
+			return localize('downloadingWithPercentage', " ({0}%)", percentage);
+		}
+
+		if (remainingSeconds < 60) {
+			return localize('downloadingWithPercentageAndSeconds', " ({0}% - {1}s remaining)", percentage, remainingSeconds);
+		} else {
+			const remainingMinutes = Math.ceil(remainingSeconds / 60);
+			return localize('downloadingWithPercentageAndMinutes', " ({0}% - {1}m remaining)", percentage, remainingMinutes);
+		}
+	}
+
 	private getUpdateAction(): IAction | null {
 		const state = this.updateService.state;
 
@@ -477,8 +511,10 @@ export class CustomMenubarControl extends MenubarControl {
 						this.updateService.downloadUpdate()
 				});
 
-			case StateType.Downloading:
-				return toAction({ id: 'update.downloading', label: localize('DownloadingUpdate', "Downloading Update..."), enabled: false, run: () => { } });
+			case StateType.Downloading: {
+				const timeRemainingText = state.progress ? this.getTimeRemainingText(state.progress) : '';
+				return toAction({ id: 'update.downloading', label: localize('DownloadingUpdate', "Downloading Update...") + timeRemainingText, enabled: false, run: () => { } });
+			}
 
 			case StateType.Downloaded:
 				return isMacintosh ? null : toAction({
