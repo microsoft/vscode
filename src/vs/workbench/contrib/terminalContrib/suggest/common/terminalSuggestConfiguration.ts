@@ -12,6 +12,7 @@ import { TerminalSettingId } from '../../../../../platform/terminal/common/termi
 export const enum TerminalSuggestSettingId {
 	Enabled = 'terminal.integrated.suggest.enabled',
 	QuickSuggestions = 'terminal.integrated.suggest.quickSuggestions',
+	QuickSuggestionsDelay = 'terminal.integrated.suggest.quickSuggestionsDelay',
 	SuggestOnTriggerCharacters = 'terminal.integrated.suggest.suggestOnTriggerCharacters',
 	RunOnEnter = 'terminal.integrated.suggest.runOnEnter',
 	WindowsExecutableExtensions = 'terminal.integrated.suggest.windowsExecutableExtensions',
@@ -52,6 +53,7 @@ export interface ITerminalSuggestConfiguration {
 		arguments: 'off' | 'on';
 		unknown: 'off' | 'on';
 	};
+	quickSuggestionsDelay: number;
 	suggestOnTriggerCharacters: boolean;
 	runOnEnter: 'never' | 'exactMatch' | 'exactMatchIgnoreExtension' | 'always';
 	windowsExecutableExtensions: { [key: string]: boolean };
@@ -125,6 +127,14 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 			}
 		],
 		default: false,
+	},
+	[TerminalSuggestSettingId.QuickSuggestionsDelay]: {
+		restricted: true,
+		markdownDescription: localize('suggest.quickSuggestionsDelay', "Controls the delay in milliseconds before quick suggestions are shown. Set to 0 to show suggestions immediately (default behavior). A delay can help reduce visual distraction when you know the exact command you're typing."),
+		type: 'number',
+		default: 0,
+		minimum: 0,
+		maximum: 5000,
 	},
 	[TerminalSuggestSettingId.SuggestOnTriggerCharacters]: {
 		restricted: true,

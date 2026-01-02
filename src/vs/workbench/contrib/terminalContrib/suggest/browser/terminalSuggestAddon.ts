@@ -95,6 +95,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _focusedItem?: TerminalCompletionItem;
 	private _ignoreFocusEvents: boolean = false;
 	private _requestCompletionsOnNextSync: boolean = false;
+	private _quickSuggestionsDelayTimer?: TimeoutTimer;
 
 	isPasting: boolean = false;
 	shellType: TerminalShellType | undefined;
@@ -462,12 +463,12 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 	}
 
-	private _requestTriggerCharQuickSuggestCompletions(): boolean {
+	private _requestTriggerCharQuickSuggestCompletions(explicitlyInvoked?: boolean): boolean {
 		if (!this._wasLastInputVerticalArrowKey() && !this._wasLastInputTabKey()) {
 			// Only request on trigger character when it's a regular input, or on an arrow if the widget
 			// is already visible
 			if (!this._wasLastInputIncludedEscape() || this._terminalSuggestWidgetVisibleContextKey.get()) {
-				this.requestCompletions();
+				this.requestCompletions(explicitlyInvoked);
 				return true;
 			}
 		}
@@ -536,7 +537,22 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 						(commandLineHasSpace && quickSuggestions.arguments !== 'off')
 					) {
 						if (promptInputState.prefix.match(/[^\s]$/)) {
-							sent = this._requestTriggerCharQuickSuggestCompletions();
+							// Clear any existing delay timer
+							this._quickSuggestionsDelayTimer?.cancel();
+
+							const delay = config.quickSuggestionsDelay;
+							if (delay > 0) {
+								// Schedule completion request after delay
+								if (!this._quickSuggestionsDelayTimer) {
+									this._quickSuggestionsDelayTimer = this._register(new TimeoutTimer());
+								}
+								this._quickSuggestionsDelayTimer.cancelAndSet(() => {
+									sent = this._requestTriggerCharQuickSuggestCompletions(false);
+								}, delay);
+							} else {
+								// No delay, request immediately
+								sent = this._requestTriggerCharQuickSuggestCompletions(false);
+							}
 						}
 					}
 				}
@@ -1038,14 +1054,18 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	hideSuggestWidget(cancelAnyRequest: boolean): void {
+		// Cancel any pending delay timer
+		this._quickSuggestionsDelayTimer?.cancel();
 		this._discoverability?.resetTimer();
+
 		if (cancelAnyRequest) {
 			this._cancellationTokenSource?.cancel();
-			this._cancellationTokenSource = undefined;
 			// Also cancel any pending resolution requests
 			this._currentSuggestionDetails?.cancel();
-			this._currentSuggestionDetails = undefined;
 		}
+		this._cancellationTokenSource = undefined;
+		this._currentSuggestionDetails = undefined;
+		this._model = undefined;
 		this._currentPromptInputState = undefined;
 		this._leadingLineContent = undefined;
 		this._focusedItem = undefined;
