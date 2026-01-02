@@ -337,11 +337,12 @@ export class TerminalViewPane extends ViewPane {
 		// be focused. So wait for connection to finish, then focus.
 		const previousActiveElement = this.element.ownerDocument.activeElement;
 		if (previousActiveElement) {
-			this._register(Event.once(this._terminalService.onDidChangeConnectionState)(() => {
+			const listener = this._register(Event.once(this._terminalService.onDidChangeConnectionState)(() => {
 				// Only focus the terminal if the activeElement has not changed since focus() was called
 				if (previousActiveElement && dom.isActiveElement(previousActiveElement)) {
 					this._terminalGroupService.showPanel(true);
 				}
+				this._store.delete(listener);
 			}));
 		}
 	}
