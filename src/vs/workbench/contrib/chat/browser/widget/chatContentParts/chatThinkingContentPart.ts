@@ -493,6 +493,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.singleToolItemInfo = {
 				element: content,
 				originalParent,
+				originalNextSibling: this.domNode
 			};
 		} else {
 			this.singleToolItemInfo = undefined;
