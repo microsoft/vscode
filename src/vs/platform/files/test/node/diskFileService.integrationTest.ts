@@ -496,6 +496,23 @@ flakySuite('Disk File Service', function () {
 		assert.ok(result.ctime > 0);
 	});
 
+	(isWindows ? test.skip /* executable permission is not supported on Windows */ : test)('stat - executable', async () => {
+		const resource = URI.file(join(testDir, 'executable.sh'));
+		writeFileSync(resource.fsPath, '#!/bin/bash\necho "Hello"');
+
+		// Verify not executable initially
+		let resolved = await service.stat(resource);
+		assert.strictEqual(resolved.isFile, true);
+		assert.strictEqual(resolved.executable, false);
+
+		// Set executable bit
+		await promises.chmod(resource.fsPath, 0o755);
+
+		// Verify executable flag is returned
+		resolved = await service.stat(resource);
+		assert.strictEqual(resolved.executable, true);
+	});
+
 	test('deleteFile (non recursive)', async () => {
 		return testDeleteFile(false, false);
 	});
