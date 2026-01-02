@@ -122,7 +122,7 @@
 <key>pfm_default</key>
 <false/>
 <key>pfm_description</key>
-<string>Enable agent mode for chat. When this is enabled, agent mode can be activated via the dropdown in the view.</string>
+<string>When enabled, agent mode can be activated from chat and tools in agentic contexts with side effects can be used.</string>
 <key>pfm_name</key>
 <string>ChatAgentMode</string>
 <key>pfm_title</key>
@@ -203,7 +203,6 @@ This feature disables critical security protections and makes it much easier for
 <string>AllowedExtensions</string>
 <key>pfm_type</key>
 <string>string</string>
-
 </dict><dict>
 <key>pfm_default</key>
 <string></string>

@@ -122,7 +122,7 @@
 <key>pfm_default</key>
 <false/>
 <key>pfm_description</key>
-<string>Activez le mode Assistant pour la conversation. Lorsque cette option est activée, le mode Assistant peut être activé via la liste déroulante de la vue.</string>
+<string>When enabled, agent mode can be activated from chat and tools in agentic contexts with side effects can be used.
 <key>pfm_name</key>
 <string>ChatAgentMode</string>
 <key>pfm_title</key>
@@ -203,7 +203,6 @@ Cette fonctionnalité désactive [les protections de sécurité critiques](https
 <string>AllowedExtensions</string>
 <key>pfm_type</key>
 <string>string</string>
-
 </dict><dict>
 <key>pfm_default</key>
 <string></string>
