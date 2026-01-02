@@ -118,6 +118,10 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 		// For each unapproved sub-command (within the overall command line), decide whether to
 		// suggest new rules for the command, a sub-command, a sub-command of a sub-command or to
 		// not suggest at all.
+		//
+		// This includes support for detecting flags between the commands, so `mvn -DskipIT test a`
+		// would suggest `mvn -DskipIT test` as that's more useful than only suggesting the exact
+		// command line.
 		const subCommandsToSuggest = Array.from(new Set(coalesce(unapprovedSubCommands.map(command => {
 			const parts = command.trim().split(/\s+/);
 			const baseCommand = parts[0].toLowerCase();
