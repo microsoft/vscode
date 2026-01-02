@@ -602,6 +602,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('workbench.activityBar.location.hide', "Hide the Activity Bar in the Primary and Secondary Side Bars.")
 				],
 			},
+			'workbench.activityBar.hoverTrigger': {
+				'type': 'boolean',
+				'default': false,
+				'description': localize('workbench.activityBar.hoverTrigger', "Controls whether hovering over the Activity Bar opens the Primary Side Bar.")
+			},
 			'workbench.activityBar.iconClickBehavior': {
 				'type': 'string',
 				'enum': ['toggle', 'focus'],
