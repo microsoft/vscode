@@ -7,13 +7,11 @@ import type { CancellationToken } from '../../../../../../base/common/cancellati
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import { waitForIdle, waitForIdleWithPromptHeuristics, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { createAltBufferPromise, setupRecreatingStartMarker } from './strategyHelpers.js';
-import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 
 /**
  * This strategy is used when no shell integration is available. There are very few extension APIs
@@ -32,7 +30,6 @@ export class NoneExecuteStrategy implements ITerminalExecuteStrategy {
 	constructor(
 		private readonly _instance: ITerminalInstance,
 		private readonly _hasReceivedUserInput: () => boolean,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
 	) {
 	}
@@ -74,17 +71,12 @@ export class NoneExecuteStrategy implements ITerminalExecuteStrategy {
 				await waitForIdle(this._instance.onData, 100);
 			}
 
-			// Prefix with space to exclude from shell history (requires HISTCONTROL=ignorespace
-			// or HIST_IGNORE_SPACE=1 env var which is set when the terminal is created)
-			const preventShellHistory = this._configurationService.getValue(TerminalChatAgentToolsSettingId.PreventShellHistory) === true;
-			const commandToSend = preventShellHistory ? ` ${commandLine}` : commandLine;
-
 			// Execute the command
 			// IMPORTANT: This uses `sendText` not `runCommand` since when no shell integration
 			// is used as sending ctrl+c before a shell is initialized (eg. PSReadLine) can result
 			// in failure (https://github.com/microsoft/vscode/issues/258989)
 			this._log(`Executing command line \`${commandLine}\``);
-			this._instance.sendText(commandToSend, true);
+			this._instance.sendText(commandLine, true);
 
 			// Assume the command is done when it's idle
 			this._log('Waiting for idle with prompt heuristics');

@@ -8,14 +8,12 @@ import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { isNumber } from '../../../../../../base/common/types.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import type { ICommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { trackIdleOnPrompt, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { createAltBufferPromise, setupRecreatingStartMarker } from './strategyHelpers.js';
-import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 
 /**
  * This strategy is used when the terminal has rich shell integration/command detection is
@@ -34,7 +32,6 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 	constructor(
 		private readonly _instance: ITerminalInstance,
 		private readonly _commandDetection: ICommandDetectionCapability,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
 	) {
 	}
@@ -78,14 +75,9 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 				this._log.bind(this)
 			);
 
-			// Prefix with space to exclude from shell history (requires HISTCONTROL=ignorespace
-			// or HIST_IGNORE_SPACE=1 env var which is set when the terminal is created)
-			const preventShellHistory = this._configurationService.getValue(TerminalChatAgentToolsSettingId.PreventShellHistory) === true;
-			const commandToSend = preventShellHistory ? ` ${commandLine}` : commandLine;
-
 			// Execute the command
 			this._log(`Executing command line \`${commandLine}\``);
-			this._instance.runCommand(commandToSend, true, commandId);
+			this._instance.runCommand(commandLine, true, commandId);
 
 			// Wait for the terminal to idle
 			this._log('Waiting for done event');

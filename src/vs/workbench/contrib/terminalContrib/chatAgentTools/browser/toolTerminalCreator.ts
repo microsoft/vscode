@@ -9,7 +9,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { basename } from '../../../../../base/common/path.js';
+import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { hasKey, isNumber, isObject, isString } from '../../../../../base/common/types.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -19,6 +19,7 @@ import { ITerminalLogService, ITerminalProfile, TerminalSettingId, type IShellLa
 import { ITerminalService, type ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import { getShellIntegrationTimeout } from '../../../terminal/common/terminalEnvironment.js';
 import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
+import { isBash, isFish, isPowerShell, isZsh } from './runInTerminalHelpers.js';
 
 const enum ShellLaunchType {
 	Unknown = 0,
@@ -52,8 +53,8 @@ export class ToolTerminalCreator {
 	) {
 	}
 
-	async createTerminal(shellOrProfile: string | ITerminalProfile, token: CancellationToken): Promise<IToolTerminal> {
-		const instance = await this._createCopilotTerminal(shellOrProfile);
+	async createTerminal(shellOrProfile: string | ITerminalProfile, os: OperatingSystem, token: CancellationToken): Promise<IToolTerminal> {
+		const instance = await this._createCopilotTerminal(shellOrProfile, os);
 		const toolTerminal: IToolTerminal = {
 			instance,
 			shellIntegrationQuality: ShellIntegrationQuality.None,
@@ -140,12 +141,11 @@ export class ToolTerminalCreator {
 		}
 	}
 
-	private _createCopilotTerminal(shellOrProfile: string | ITerminalProfile) {
+	private _createCopilotTerminal(shellOrProfile: string | ITerminalProfile, os: OperatingSystem) {
 		const shellPath = isString(shellOrProfile) ? shellOrProfile : shellOrProfile.path;
-		const shellBasename = basename(shellPath).toLowerCase().replace(/\.exe$/i, '');
 
 		// Check if the shell supports history exclusion via shell integration scripts
-		const shellSupportsHistoryExclusion = /^(bash|zsh|pwsh|powershell|fish)$/.test(shellBasename);
+		const shellSupportsHistoryExclusion = isBash(shellPath, os) || isZsh(shellPath, os) || isFish(shellPath, os) || isPowerShell(shellPath, os);
 		const preventShellHistory = this._configurationService.getValue(TerminalChatAgentToolsSettingId.PreventShellHistory) === true;
 
 		const env: Record<string, string> = {
