@@ -145,9 +145,8 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 		fontSb.appendString(`${devicePixelFontSize}px ${this.fontFamily}`);
 		this._ctx.font = fontSb.build();
 
-		// TODO: Support FontStyle.Strikethrough and FontStyle.Underline text decorations, these
-		//       need to be drawn manually to the canvas. See xterm.js for "dodging" the text for
-		//       underlines.
+		// TODO: Support FontStyle.Underline text decorations, these need to be drawn manually to
+		//       the canvas. See xterm.js for "dodging" the text for underlines.
 
 		const originX = devicePixelFontSize;
 		const originY = devicePixelFontSize;
@@ -163,6 +162,20 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 		}
 
 		this._ctx.fillText(chars, originX + xSubPixelXOffset, originY);
+
+		// Draw strikethrough if needed
+		if (decorationStyleSet?.strikethrough || (fontStyle & FontStyle.Strikethrough)) {
+			const textMetrics = this._ctx.measureText(chars);
+			// Position strikethrough at the vertical center of lowercase letters.
+			// With textBaseline='top', alphabeticBaseline is the distance from top to baseline.
+			// Strikethrough should be at roughly 65-70% down from top to baseline (x-height center).
+			const strikethroughY = Math.round(originY - textMetrics.alphabeticBaseline * 0.65);
+			const lineWidth = decorationStyleSet?.strikethroughThickness !== undefined
+				? Math.round(decorationStyleSet.strikethroughThickness * this.devicePixelRatio)
+				: Math.max(1, Math.floor(devicePixelFontSize / 10));
+			this._ctx.fillRect(originX + xSubPixelXOffset, strikethroughY - Math.floor(lineWidth / 2), textMetrics.width, lineWidth);
+		}
+
 		this._ctx.restore();
 
 		const imageData = this._ctx.getImageData(0, 0, this._canvas.width, this._canvas.height);

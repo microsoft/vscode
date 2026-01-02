@@ -209,6 +209,8 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 		let decorationStyleSetBold: boolean | undefined;
 		let decorationStyleSetColor: number | undefined;
 		let decorationStyleSetOpacity: number | undefined;
+		let decorationStyleSetStrikethrough: boolean | undefined;
+		let decorationStyleSetStrikethroughThickness: number | undefined;
 
 		let lineData: ViewLineRenderingData;
 		let decoration: InlineDecoration;
@@ -278,6 +280,8 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 					decorationStyleSetColor = undefined;
 					decorationStyleSetBold = undefined;
 					decorationStyleSetOpacity = undefined;
+					decorationStyleSetStrikethrough = undefined;
+					decorationStyleSetStrikethroughThickness = undefined;
 
 					// Apply supported inline decoration styles to the cell metadata
 					for (decoration of lineData.inlineDecorations) {
@@ -322,6 +326,25 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 										decorationStyleSetOpacity = parsedValue;
 										break;
 									}
+									case 'text-decoration':
+									case 'text-decoration-line': {
+										if (value === 'line-through') {
+											decorationStyleSetStrikethrough = true;
+										}
+										break;
+									}
+									case 'text-decoration-thickness': {
+										const match = value.match(/^(\d+(?:\.\d+)?)px$/);
+										if (match) {
+											decorationStyleSetStrikethroughThickness = parseFloat(match[1]);
+										}
+										break;
+									}
+									case 'text-decoration-color':
+									case 'text-decoration-style': {
+										// These are validated in canRender and use default behavior
+										break;
+									}
 									default: throw new BugIndicatingError('Unexpected inline decoration style');
 								}
 							}
@@ -346,7 +369,7 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 						continue;
 					}
 
-					const decorationStyleSetId = ViewGpuContext.decorationStyleCache.getOrCreateEntry(decorationStyleSetColor, decorationStyleSetBold, decorationStyleSetOpacity);
+					const decorationStyleSetId = ViewGpuContext.decorationStyleCache.getOrCreateEntry(decorationStyleSetColor, decorationStyleSetBold, decorationStyleSetOpacity, decorationStyleSetStrikethrough, decorationStyleSetStrikethroughThickness);
 					glyph = this._viewGpuContext.atlas.getGlyph(this.glyphRasterizer, chars, tokenMetadata, decorationStyleSetId, absoluteOffsetX);
 
 					absoluteOffsetY = Math.round(

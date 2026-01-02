@@ -255,6 +255,12 @@ const gpuSupportedDecorationCssRules = [
 	'color',
 	'font-weight',
 	'opacity',
+	'text-decoration',
+	// TODO: This isn't actually supported, it uses the text color currently
+	'text-decoration-color',
+	'text-decoration-line',
+	'text-decoration-style',
+	'text-decoration-thickness',
 ];
 
 function supportsCssRule(rule: string, style: CSSStyleDeclaration) {
@@ -263,6 +269,27 @@ function supportsCssRule(rule: string, style: CSSStyleDeclaration) {
 	}
 	// Check for values that aren't supported
 	switch (rule) {
+		case 'text-decoration':
+		case 'text-decoration-line': {
+			const value = style.getPropertyValue(rule);
+			// Only line-through is supported currently
+			return value === 'line-through';
+		}
+		case 'text-decoration-color': {
+			const value = style.getPropertyValue(rule);
+			// Support var(--something, initial/inherit) which falls back to currentcolor
+			return /^var\(--[^,]+,\s*(?:initial|inherit)\)$/.test(value);
+		}
+		case 'text-decoration-style': {
+			const value = style.getPropertyValue(rule);
+			// Only 'initial' (solid) is supported
+			return value === 'initial';
+		}
+		case 'text-decoration-thickness': {
+			const value = style.getPropertyValue(rule);
+			// Only pixel values and 'initial' are supported
+			return value === 'initial' || /^\d+(\.\d+)?px$/.test(value);
+		}
 		default: return true;
 	}
 }
