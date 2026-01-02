@@ -263,10 +263,6 @@ if ($Global:__VSCodeState.HasPSReadLine) {
 	# Configure history exclusion for space-prefixed commands when requested by VS Code
 	# This is used by Copilot terminals to prevent AI-executed commands from polluting history
 	if ($env:VSCODE_EXCLUDE_FROM_HISTORY -eq "1") {
-		Set-PSReadLineOption -AddToHistoryHandler {
-			param([string]$line)
-			return -not $line.StartsWith(' ')
-		}
 	}
 	$env:VSCODE_EXCLUDE_FROM_HISTORY = $null
 }
