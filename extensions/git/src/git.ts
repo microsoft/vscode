@@ -2684,19 +2684,23 @@ export class Repository {
 
 				if (limit !== 0 && parser.status.length > limit) {
 					child.removeListener('close', onClose);
-					child.stdout!.removeListener('data', onStdoutData);
+					child.stdout?.removeListener('data', onStdoutData);
 					child.kill();
 
 					c({ status: parser.status.slice(0, limit), statusLength: parser.status.length, didHitLimit: true });
 				}
 			};
 
-			child.stdout!.setEncoding('utf8');
-			child.stdout!.on('data', onStdoutData);
+			if (child.stdout) {
+				child.stdout.setEncoding('utf8');
+				child.stdout.on('data', onStdoutData);
+			}
 
 			const stderrData: string[] = [];
-			child.stderr!.setEncoding('utf8');
-			child.stderr!.on('data', raw => stderrData.push(raw as string));
+			if (child.stderr) {
+				child.stderr.setEncoding('utf8');
+				child.stderr.on('data', raw => stderrData.push(raw as string));
+			}
 
 			child.on('error', cpErrorHandler(e));
 			child.on('close', onClose);
