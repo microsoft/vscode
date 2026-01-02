@@ -211,6 +211,7 @@ import './contrib/inlineChat/browser/inlineChat.contribution.js';
 import './contrib/mcp/browser/mcp.contribution.js';
 import './contrib/chat/browser/chatSessions/chatSessions.contribution.js';
 import './contrib/chat/browser/contextContrib/chatContext.contribution.js';
+import './contrib/chatImageSlideshow/browser/chatImageSlideshow.contribution.js';
 
 // Interactive
 import './contrib/interactive/browser/interactive.contribution.js';
