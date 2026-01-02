@@ -25,7 +25,7 @@ import { ChatResponseResource, getAttachableImageExtension } from '../../chat/co
 import { LanguageModelPartAudience } from '../../chat/common/languageModels.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolConfirmationMessages, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultInputOutputDetails, ToolDataSource, ToolProgress, ToolSet } from '../../chat/common/languageModelToolsService.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
-import { IMcpServer, IMcpService, IMcpTool, IMcpToolResourceLinkContents, McpResourceURI, McpToolResourceLinkMimeType } from './mcpTypes.js';
+import { IMcpServer, IMcpService, IMcpTool, IMcpToolResourceLinkContents, McpResourceURI, McpToolResourceLinkMimeType, McpToolVisibility } from './mcpTypes.js';
 import { mcpServerToSourceData } from './mcpTypesUtils.js';
 
 interface ISyncedToolData {
@@ -111,6 +111,11 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 
 			const collection = collectionObservable.read(reader);
 			for (const tool of server.tools.read(reader)) {
+				// Skip app-only tools - they should not be registered with the language model tools service
+				if (!(tool.visibility & McpToolVisibility.Model)) {
+					continue;
+				}
+
 				const existing = tools.get(tool.id);
 				const icons = tool.icons.getUrl(22);
 				const toolData: IToolData = {
@@ -339,6 +344,11 @@ class McpToolImplementation implements IToolImpl {
 		if (callResult.structuredContent) {
 			details.output.push({ type: 'embed', isText: true, value: JSON.stringify(callResult.structuredContent, null, 2), audience: [LanguageModelPartAudience.Assistant] });
 			result.content.push({ kind: 'text', value: JSON.stringify(callResult.structuredContent), audience: [LanguageModelPartAudience.Assistant] });
+		}
+
+		// Add MCP App UI data if present in the call result
+		if (callResult.ui) {
+			details.output.push({ type: 'mcpApp', uiData: callResult.ui });
 		}
 
 		result.toolResultDetails = details;

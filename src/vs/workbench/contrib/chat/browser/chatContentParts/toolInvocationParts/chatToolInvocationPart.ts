@@ -12,13 +12,14 @@ import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/m
 import { IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService.js';
 import { IChatRendererContent } from '../../../common/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../../common/codeBlockModelCollection.js';
-import { isToolResultInputOutputDetails, isToolResultOutputDetails, ToolInvocationPresentation } from '../../../common/languageModelToolsService.js';
+import { isToolMcpUiOutput, isToolResultInputOutputDetails, isToolResultOutputDetails, ToolInvocationPresentation, ToolMcpUiOutput } from '../../../common/languageModelToolsService.js';
 import { ChatTreeItem, IChatCodeBlockInfo } from '../../chat.js';
 import { EditorPool } from '../chatContentCodePools.js';
 import { IChatContentPart, IChatContentPartRenderContext } from '../chatContentParts.js';
 import { CollapsibleListPool } from '../chatReferencesContentPart.js';
 import { ExtensionsInstallConfirmationWidgetSubPart } from './chatExtensionsInstallToolSubPart.js';
 import { ChatInputOutputMarkdownProgressPart } from './chatInputOutputMarkdownProgressPart.js';
+import { ChatMcpAppSubPart } from './chatMcpAppSubPart.js';
 import { ChatResultListSubPart } from './chatResultListSubPart.js';
 import { ChatTerminalToolConfirmationSubPart } from './chatTerminalToolConfirmationSubPart.js';
 import { ChatTerminalToolProgressPart } from './chatTerminalToolProgressPart.js';
@@ -129,6 +130,12 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		}
 
 		if (isToolResultInputOutputDetails(resultDetails)) {
+			// Check if there's an MCP App UI output in the details
+			const mcpAppOutput = this.findMcpAppOutput(resultDetails.output);
+			if (mcpAppOutput) {
+				return this.instantiationService.createInstance(ChatMcpAppSubPart, this.toolInvocation, mcpAppOutput, resultDetails, this.context);
+			}
+
 			return this.instantiationService.createInstance(
 				ChatInputOutputMarkdownProgressPart,
 				this.toolInvocation,
@@ -157,6 +164,18 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		}
 
 		return this.instantiationService.createInstance(ChatToolProgressSubPart, this.toolInvocation, this.context, this.renderer, this.announcedToolProgressKeys);
+	}
+
+	/**
+	 * Finds the first MCP App UI output in the output array.
+	 */
+	private findMcpAppOutput(output: readonly unknown[]): ToolMcpUiOutput | undefined {
+		for (const item of output) {
+			if (isToolMcpUiOutput(item)) {
+				return item;
+			}
+		}
+		return undefined;
 	}
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {

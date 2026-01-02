@@ -119,6 +119,11 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 			throw createFileSystemProviderError(`Tool does not have part`, FileSystemProviderErrorCode.FileNotFound);
 		}
 
+		// MCP App outputs don't have file content
+		if (part.type === 'mcpApp') {
+			throw createFileSystemProviderError(`MCP App outputs are not readable as files`, FileSystemProviderErrorCode.FileNotFound);
+		}
+
 		if (part.type === 'ref') {
 			return this._fileService.readFile(part.uri).then(r => r.value.buffer);
 		}

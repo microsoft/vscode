@@ -17,7 +17,7 @@ import { localize } from '../../../../../../nls.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ChatResponseResource } from '../../../common/chatModel.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService.js';
-import { IToolResultInputOutputDetails } from '../../../common/languageModelToolsService.js';
+import { IToolResultInputOutputDetails, ToolInputOutputEmbedded, ToolInputOutputReference } from '../../../common/languageModelToolsService.js';
 import { IChatCodeBlockInfo } from '../../chat.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatCollapsibleInputOutputContentPart, ChatCollapsibleIOPart, IChatCollapsibleIOCodePart } from '../chatToolInputOutputContentPart.js';
@@ -89,6 +89,9 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 			processedOutput = [{ type: 'embed', value: output, isText: true }];
 		}
 
+		// Filter out MCP App outputs - they are handled separately by ChatMcpAppSubPart
+		const standardOutput = processedOutput?.filter((o): o is ToolInputOutputEmbedded | ToolInputOutputReference => o.type !== 'mcpApp');
+
 		const collapsibleListPart = this._register(instantiationService.createInstance(
 			ChatCollapsibleInputOutputContentPart,
 			message,
@@ -96,8 +99,8 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 			this.getAutoApproveMessageContent(),
 			context,
 			toCodePart(input),
-			processedOutput && {
-				parts: processedOutput.map((o, i): ChatCollapsibleIOPart => {
+			standardOutput && standardOutput.length > 0 ? {
+				parts: standardOutput.map((o, i): ChatCollapsibleIOPart => {
 					const permalinkBasename = o.type === 'ref' || o.uri
 						? basename(o.uri!)
 						: o.mimeType && getExtensionForMimeType(o.mimeType)
@@ -124,7 +127,7 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 						return { kind: 'data', value: decoded || new TextEncoder().encode(o.value), mimeType: o.mimeType, uri: permalinkUri, audience: o.audience };
 					}
 				}),
-			},
+			} : undefined,
 			isError,
 			ChatInputOutputMarkdownProgressPart._expandedByDefault.get(toolInvocation) ?? false,
 		));
