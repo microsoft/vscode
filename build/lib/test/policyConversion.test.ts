@@ -162,6 +162,20 @@ const policies: ExportedPolicyDataDto = {
 			default: false
 		},
 		{
+			key: 'chat.tools.eligibleForAutoApproval',
+			name: 'ChatToolsEligibleForAutoApproval',
+			category: 'InteractiveSession',
+			minimumVersion: '1.107',
+			localization: {
+				description: {
+					key: 'chat.tools.eligibleForAutoApproval',
+					value: 'Controls which tools are eligible for automatic approval. Tools set to \'false\' will always present a confirmation and will never offer the option to auto-approve. The default behavior (or setting a tool to \'true\') may result in the tool offering auto-approval options.'
+				}
+			},
+			type: 'object',
+			default: {}
+		},
+		{
 			key: 'chat.mcp.access',
 			name: 'ChatMCP',
 			category: 'InteractiveSession',
@@ -216,7 +230,7 @@ const policies: ExportedPolicyDataDto = {
 			localization: {
 				description: {
 					key: 'chat.agent.enabled.description',
-					value: 'Enable agent mode for chat. When this is enabled, agent mode can be activated via the dropdown in the view.'
+					value: 'When enabled, agent mode can be activated from chat and tools in agentic contexts with side effects can be used.'
 				}
 			},
 			type: 'boolean',
@@ -249,6 +263,33 @@ const policies: ExportedPolicyDataDto = {
 			},
 			type: 'boolean',
 			default: true
+		},
+		{
+			key: 'chat.tools.terminal.autoApprove',
+			name: 'ChatToolsTerminalAutoApprove',
+			category: 'IntegratedTerminal',
+			minimumVersion: '1.108',
+			localization: {
+				description: {
+					key: 'autoApprove.policy.description',
+					value: 'A list of commands or regular expressions that control whether the run in terminal tool commands require explicit approval.'
+				}
+			},
+			type: 'object'
+		},
+		{
+			key: 'chat.tools.terminal.ignoreDefaultAutoApproveRules',
+			name: 'ChatToolsTerminalIgnoreDefaultAutoApproveRules',
+			category: 'IntegratedTerminal',
+			minimumVersion: '1.108',
+			localization: {
+				description: {
+					key: 'ignoreDefaultAutoApproveRules.policy.description',
+					value: 'Whether to ignore the built-in default auto-approve rules used by the run in terminal tool.'
+				}
+			},
+			type: 'boolean',
+			default: false
 		},
 		{
 			key: 'update.mode',

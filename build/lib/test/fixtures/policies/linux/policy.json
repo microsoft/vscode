@@ -4,10 +4,13 @@
     "ChatMCP": "none",
     "ChatPromptFiles": false,
     "ChatToolsAutoApprove": false,
+    "ChatToolsEligibleForAutoApproval": "",
     "McpGalleryServiceUrl": "",
     "AllowedExtensions": "",
     "ExtensionGalleryServiceUrl": "",
+    "ChatToolsTerminalAutoApprove": "",
     "ChatToolsTerminalEnableAutoApprove": false,
+    "ChatToolsTerminalIgnoreDefaultAutoApproveRules": false,
     "EnableFeedback": false,
     "TelemetryLevel": "all",
     "UpdateMode": "none"

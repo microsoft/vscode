@@ -7,6 +7,8 @@
 			<string id="Application">Code - OSS</string>
 			<string id="Supported_1_101">Code - OSS &gt;= 1.101</string>
 			<string id="Supported_1_104">Code - OSS &gt;= 1.104</string>
+			<string id="Supported_1_107">Code - OSS &gt;= 1.107</string>
+			<string id="Supported_1_108">Code - OSS &gt;= 1.108</string>
 			<string id="Supported_1_67">Code - OSS &gt;= 1.67</string>
 			<string id="Supported_1_96">Code - OSS &gt;= 1.96</string>
 			<string id="Supported_1_99">Code - OSS &gt;= 1.99</string>
@@ -30,6 +32,8 @@
 			<string id="ChatToolsAutoApprove_autoApprove2_description">L’approbation automatique globale, également appelée « mode YOLO », désactive complètement l’approbation manuelle pour tous les outils dans tous les espaces de travail, permettant à l’agent d’agir de manière totalement autonome. Ceci est extrêmement dangereux et est *jamais* recommandé, même dans des environnements conteneurisés comme [Codespaces](https://github.com/features/codespaces) et [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers), où des clés utilisateur sont transférées dans le conteneur et pourraient être compromises.
 
 Cette fonctionnalité désactive [les protections de sécurité critiques](https://code.visualstudio.com/docs/copilot/security) et facilite considérablement la compromission de la machine par un attaquant.</string>
+			<string id="ChatToolsEligibleForAutoApproval">ChatToolsEligibleForAutoApproval</string>
+			<string id="ChatToolsEligibleForAutoApproval_chat_tools_eligibleForAutoApproval">Controls which tools are eligible for automatic approval. Tools set to 'false' will always present a confirmation and will never offer the option to auto-approve. The default behavior (or setting a tool to 'true') may result in the tool offering auto-approval options.</string>
 			<string id="McpGalleryServiceUrl">McpGalleryServiceUrl</string>
 			<string id="McpGalleryServiceUrl_mcp_gallery_serviceUrl">Configurer l’URL du service de la galerie MCP à laquelle se connecter</string>
 			<string id="AllowedExtensions">AllowedExtensions</string>
@@ -41,6 +45,8 @@ Cette fonctionnalité désactive [les protections de sécurité critiques](https
 			<string id="EnableFeedback">EnableFeedback</string>
 			<string id="EnableFeedback_telemetry_feedback_enabled">Activez les mécanismes de commentaires tels que le système de rapport de problèmes, les sondages et autres options de commentaires.</string>
 			<string id="TelemetryLevel">TelemetryLevel</string>
+<string id="ChatToolsTerminalIgnoreDefaultAutoApproveRules">ChatToolsTerminalIgnoreDefaultAutoApproveRules</string>
+<string id="ChatToolsTerminalIgnoreDefaultAutoApproveRules_ignoreDefaultAutoApproveRules_policy_description">Whether to ignore the built-in default auto-approve rules used by the run in terminal tool.</string>
 			<string id="TelemetryLevel_telemetry_telemetryLevel_policyDescription">Contrôle le niveau de télémétrie.</string>
 			<string id="TelemetryLevel_telemetry_telemetryLevel_default">Envoie les données d'utilisation, les erreurs et les rapports d'erreur.</string>
 			<string id="TelemetryLevel_telemetry_telemetryLevel_error">Envoie la télémétrie d'erreur générale et les rapports de plantage.</string>
@@ -59,10 +65,13 @@ Cette fonctionnalité désactive [les protections de sécurité critiques](https
 			<presentation id="ChatMCP"><dropdownList refId="ChatMCP" /></presentation>
 			<presentation id="ChatPromptFiles"><checkBox refId="ChatPromptFiles">ChatPromptFiles</checkBox></presentation>
 			<presentation id="ChatToolsAutoApprove"><checkBox refId="ChatToolsAutoApprove">ChatToolsAutoApprove</checkBox></presentation>
+			<presentation id="ChatToolsEligibleForAutoApproval"><multiTextBox refId="ChatToolsEligibleForAutoApproval" /></presentation>
 			<presentation id="McpGalleryServiceUrl"><textBox refId="McpGalleryServiceUrl"><label>McpGalleryServiceUrl:</label></textBox></presentation>
 			<presentation id="AllowedExtensions"><multiTextBox refId="AllowedExtensions" /></presentation>
 			<presentation id="ExtensionGalleryServiceUrl"><textBox refId="ExtensionGalleryServiceUrl"><label>ExtensionGalleryServiceUrl:</label></textBox></presentation>
+			<presentation id="ChatToolsTerminalAutoApprove"><multiTextBox refId="ChatToolsTerminalAutoApprove" /></presentation>
 			<presentation id="ChatToolsTerminalEnableAutoApprove"><checkBox refId="ChatToolsTerminalEnableAutoApprove">ChatToolsTerminalEnableAutoApprove</checkBox></presentation>
+			<presentation id="ChatToolsTerminalIgnoreDefaultAutoApproveRules"><checkBox refId="ChatToolsTerminalIgnoreDefaultAutoApproveRules">ChatToolsTerminalIgnoreDefaultAutoApproveRules</checkBox></presentation>
 			<presentation id="EnableFeedback"><checkBox refId="EnableFeedback">EnableFeedback</checkBox></presentation>
 			<presentation id="TelemetryLevel"><dropdownList refId="TelemetryLevel" /></presentation>
 			<presentation id="UpdateMode"><dropdownList refId="UpdateMode" /></presentation>

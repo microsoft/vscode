@@ -104,6 +104,17 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			].join('\n'),
 		].join('\n\n'),
 		type: 'object',
+		policy: {
+			name: 'ChatToolsTerminalAutoApprove',
+			category: PolicyCategory.IntegratedTerminal,
+			minimumVersion: '1.108',
+			localization: {
+				description: {
+					key: 'autoApprove.policy.description',
+					value: localize('autoApprove.policy.description', "A list of commands or regular expressions that control whether the run in terminal tool commands require explicit approval."),
+				}
+			}
+		},
 		additionalProperties: {
 			anyOf: [
 				autoApproveBoolean,
@@ -355,6 +366,17 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		default: false,
 		tags: ['experimental'],
 		markdownDescription: localize('ignoreDefaultAutoApproveRules.description', "Whether to ignore the built-in default auto-approve rules used by the run in terminal tool as defined in {0}. When this setting is enabled, the run in terminal tool will ignore any rule that comes from the default set but still follow rules defined in the user, remote and workspace settings. Use this setting at your own risk; the default auto-approve rules are designed to protect you against running dangerous commands.", `\`#${TerminalChatAgentToolsSettingId.AutoApprove}#\``),
+		policy: {
+			name: 'ChatToolsTerminalIgnoreDefaultAutoApproveRules',
+			category: PolicyCategory.IntegratedTerminal,
+			minimumVersion: '1.108',
+			localization: {
+				description: {
+					key: 'ignoreDefaultAutoApproveRules.policy.description',
+					value: localize('ignoreDefaultAutoApproveRules.policy.description', "Whether to ignore the built-in default auto-approve rules used by the run in terminal tool."),
+				}
+			}
+		}
 	},
 	[TerminalChatAgentToolsSettingId.AutoApproveWorkspaceNpmScripts]: {
 		restricted: true,

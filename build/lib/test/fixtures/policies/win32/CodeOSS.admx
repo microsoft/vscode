@@ -8,6 +8,8 @@
 		<definitions>
 			<definition name="Supported_1_101" displayName="$(string.Supported_1_101)" />
 			<definition name="Supported_1_104" displayName="$(string.Supported_1_104)" />
+			<definition name="Supported_1_107" displayName="$(string.Supported_1_107)" />
+			<definition name="Supported_1_108" displayName="$(string.Supported_1_108)" />
 			<definition name="Supported_1_67" displayName="$(string.Supported_1_67)" />
 			<definition name="Supported_1_96" displayName="$(string.Supported_1_96)" />
 			<definition name="Supported_1_99" displayName="$(string.Supported_1_99)" />
@@ -69,6 +71,13 @@
 		</boolean>
 			</elements>
 		</policy>
+		<policy name="ChatToolsEligibleForAutoApproval" class="Both" displayName="$(string.ChatToolsEligibleForAutoApproval)" explainText="$(string.ChatToolsEligibleForAutoApproval_chat_tools_eligibleForAutoApproval)" key="Software\Policies\Microsoft\CodeOSS" presentation="$(presentation.ChatToolsEligibleForAutoApproval)">
+			<parentCategory ref="interactiveSessionConfigurationTitle" />
+			<supportedOn ref="Supported_1_107" />
+			<elements>
+		<multiText id="ChatToolsEligibleForAutoApproval" valueName="ChatToolsEligibleForAutoApproval" required="true" />
+			</elements>
+		</policy>
 		<policy name="McpGalleryServiceUrl" class="Both" displayName="$(string.McpGalleryServiceUrl)" explainText="$(string.McpGalleryServiceUrl_mcp_gallery_serviceUrl)" key="Software\Policies\Microsoft\CodeOSS" presentation="$(presentation.McpGalleryServiceUrl)">
 			<parentCategory ref="interactiveSessionConfigurationTitle" />
 			<supportedOn ref="Supported_1_101" />
@@ -90,11 +99,27 @@
 		<text id="ExtensionGalleryServiceUrl" valueName="ExtensionGalleryServiceUrl" required="true" />
 			</elements>
 		</policy>
+		<policy name="ChatToolsTerminalAutoApprove" class="Both" displayName="$(string.ChatToolsTerminalAutoApprove)" explainText="$(string.ChatToolsTerminalAutoApprove_autoApprove_policy_description)" key="Software\Policies\Microsoft\CodeOSS" presentation="$(presentation.ChatToolsTerminalAutoApprove)">
+			<parentCategory ref="terminalIntegratedConfigurationTitle" />
+			<supportedOn ref="Supported_1_108" />
+			<elements>
+		<multiText id="ChatToolsTerminalAutoApprove" valueName="ChatToolsTerminalAutoApprove" required="true" />
+			</elements>
+		</policy>
 		<policy name="ChatToolsTerminalEnableAutoApprove" class="Both" displayName="$(string.ChatToolsTerminalEnableAutoApprove)" explainText="$(string.ChatToolsTerminalEnableAutoApprove_autoApproveMode_description)" key="Software\Policies\Microsoft\CodeOSS" presentation="$(presentation.ChatToolsTerminalEnableAutoApprove)">
 			<parentCategory ref="terminalIntegratedConfigurationTitle" />
 			<supportedOn ref="Supported_1_104" />
 			<elements>
 		<boolean id="ChatToolsTerminalEnableAutoApprove" valueName="ChatToolsTerminalEnableAutoApprove">
+			<trueValue><decimal value="1" /></trueValue><falseValue><decimal value="0" /></falseValue>
+		</boolean>
+			</elements>
+		</policy>
+		<policy name="ChatToolsTerminalIgnoreDefaultAutoApproveRules" class="Both" displayName="$(string.ChatToolsTerminalIgnoreDefaultAutoApproveRules)" explainText="$(string.ChatToolsTerminalIgnoreDefaultAutoApproveRules_ignoreDefaultAutoApproveRules_policy_description)" key="Software\Policies\Microsoft\CodeOSS" presentation="$(presentation.ChatToolsTerminalIgnoreDefaultAutoApproveRules)">
+			<parentCategory ref="terminalIntegratedConfigurationTitle" />
+			<supportedOn ref="Supported_1_108" />
+			<elements>
+		<boolean id="ChatToolsTerminalIgnoreDefaultAutoApproveRules" valueName="ChatToolsTerminalIgnoreDefaultAutoApproveRules">
 			<trueValue><decimal value="1" /></trueValue><falseValue><decimal value="0" /></falseValue>
 		</boolean>
 			</elements>

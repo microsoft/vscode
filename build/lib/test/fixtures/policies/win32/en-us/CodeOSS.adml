@@ -7,6 +7,8 @@
 			<string id="Application">Code - OSS</string>
 			<string id="Supported_1_101">Code - OSS &gt;= 1.101</string>
 			<string id="Supported_1_104">Code - OSS &gt;= 1.104</string>
+			<string id="Supported_1_107">Code - OSS &gt;= 1.107</string>
+			<string id="Supported_1_108">Code - OSS &gt;= 1.108</string>
 			<string id="Supported_1_67">Code - OSS &gt;= 1.67</string>
 			<string id="Supported_1_96">Code - OSS &gt;= 1.96</string>
 			<string id="Supported_1_99">Code - OSS &gt;= 1.99</string>
@@ -18,7 +20,7 @@
 			<string id="ChatAgentExtensionTools">ChatAgentExtensionTools</string>
 			<string id="ChatAgentExtensionTools_chat_extensionToolsEnabled">Enable using tools contributed by third-party extensions.</string>
 			<string id="ChatAgentMode">ChatAgentMode</string>
-			<string id="ChatAgentMode_chat_agent_enabled_description">Enable agent mode for chat. When this is enabled, agent mode can be activated via the dropdown in the view.</string>
+			<string id="ChatAgentMode_chat_agent_enabled_description">When enabled, agent mode can be activated from chat and tools in agentic contexts with side effects can be used.</string>
 			<string id="ChatMCP">ChatMCP</string>
 			<string id="ChatMCP_chat_mcp_access">Controls access to installed Model Context Protocol servers.</string>
 			<string id="ChatMCP_chat_mcp_access_none">No access to MCP servers.</string>
@@ -30,14 +32,20 @@
 			<string id="ChatToolsAutoApprove_autoApprove2_description">Global auto approve also known as "YOLO mode" disables manual approval completely for all tools in all workspaces, allowing the agent to act fully autonomously. This is extremely dangerous and is *never* recommended, even containerized environments like Codespaces and Dev Containers have user keys forwarded into the container that could be compromised.
 
 This feature disables critical security protections and makes it much easier for an attacker to compromise the machine.</string>
+			<string id="ChatToolsEligibleForAutoApproval">ChatToolsEligibleForAutoApproval</string>
+			<string id="ChatToolsEligibleForAutoApproval_chat_tools_eligibleForAutoApproval">Controls which tools are eligible for automatic approval. Tools set to 'false' will always present a confirmation and will never offer the option to auto-approve. The default behavior (or setting a tool to 'true') may result in the tool offering auto-approval options.</string>
 			<string id="McpGalleryServiceUrl">McpGalleryServiceUrl</string>
 			<string id="McpGalleryServiceUrl_mcp_gallery_serviceUrl">Configure the MCP Gallery service URL to connect to</string>
 			<string id="AllowedExtensions">AllowedExtensions</string>
 			<string id="AllowedExtensions_extensions_allowed_policy">Specify a list of extensions that are allowed to use. This helps maintain a secure and consistent development environment by restricting the use of unauthorized extensions. More information: https://code.visualstudio.com/docs/setup/enterprise#_configure-allowed-extensions</string>
 			<string id="ExtensionGalleryServiceUrl">ExtensionGalleryServiceUrl</string>
 			<string id="ExtensionGalleryServiceUrl_extensions_gallery_serviceUrl">Configure the Marketplace service URL to connect to</string>
+			<string id="ChatToolsTerminalAutoApprove">ChatToolsTerminalAutoApprove</string>
+			<string id="ChatToolsTerminalAutoApprove_autoApprove_policy_description">A list of commands or regular expressions that control whether the run in terminal tool commands require explicit approval.</string>
 			<string id="ChatToolsTerminalEnableAutoApprove">ChatToolsTerminalEnableAutoApprove</string>
 			<string id="ChatToolsTerminalEnableAutoApprove_autoApproveMode_description">Controls whether to allow auto approval in the run in terminal tool.</string>
+			<string id="ChatToolsTerminalIgnoreDefaultAutoApproveRules">ChatToolsTerminalIgnoreDefaultAutoApproveRules</string>
+			<string id="ChatToolsTerminalIgnoreDefaultAutoApproveRules_ignoreDefaultAutoApproveRules_policy_description">Whether to ignore the built-in default auto-approve rules used by the run in terminal tool.</string>
 			<string id="EnableFeedback">EnableFeedback</string>
 			<string id="EnableFeedback_telemetry_feedback_enabled">Enable feedback mechanisms such as the issue reporter, surveys, and other feedback options.</string>
 			<string id="TelemetryLevel">TelemetryLevel</string>
@@ -59,10 +67,13 @@ This feature disables critical security protections and makes it much easier for
 			<presentation id="ChatMCP"><dropdownList refId="ChatMCP" /></presentation>
 			<presentation id="ChatPromptFiles"><checkBox refId="ChatPromptFiles">ChatPromptFiles</checkBox></presentation>
 			<presentation id="ChatToolsAutoApprove"><checkBox refId="ChatToolsAutoApprove">ChatToolsAutoApprove</checkBox></presentation>
+			<presentation id="ChatToolsEligibleForAutoApproval"><multiTextBox refId="ChatToolsEligibleForAutoApproval" /></presentation>
 			<presentation id="McpGalleryServiceUrl"><textBox refId="McpGalleryServiceUrl"><label>McpGalleryServiceUrl:</label></textBox></presentation>
 			<presentation id="AllowedExtensions"><multiTextBox refId="AllowedExtensions" /></presentation>
 			<presentation id="ExtensionGalleryServiceUrl"><textBox refId="ExtensionGalleryServiceUrl"><label>ExtensionGalleryServiceUrl:</label></textBox></presentation>
+			<presentation id="ChatToolsTerminalAutoApprove"><multiTextBox refId="ChatToolsTerminalAutoApprove" /></presentation>
 			<presentation id="ChatToolsTerminalEnableAutoApprove"><checkBox refId="ChatToolsTerminalEnableAutoApprove">ChatToolsTerminalEnableAutoApprove</checkBox></presentation>
+			<presentation id="ChatToolsTerminalIgnoreDefaultAutoApproveRules"><checkBox refId="ChatToolsTerminalIgnoreDefaultAutoApproveRules">ChatToolsTerminalIgnoreDefaultAutoApproveRules</checkBox></presentation>
 			<presentation id="EnableFeedback"><checkBox refId="EnableFeedback">EnableFeedback</checkBox></presentation>
 			<presentation id="TelemetryLevel"><dropdownList refId="TelemetryLevel" /></presentation>
 			<presentation id="UpdateMode"><dropdownList refId="UpdateMode" /></presentation>
