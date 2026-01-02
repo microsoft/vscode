@@ -106,27 +106,50 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 		// instead of `foo`)
 		const commandsWithSubSubCommands = new Set(['npm run', 'yarn run']);
 
+		// Helper function to find the first non-flag argument after a given index
+		const findNextNonFlagArg = (parts: string[], startIndex: number): number | undefined => {
+			for (let i = startIndex; i < parts.length; i++) {
+				if (!parts[i].startsWith('-')) {
+					return i;
+				}
+			}
+			return undefined;
+		};
+
 		// For each unapproved sub-command (within the overall command line), decide whether to
 		// suggest new rules for the command, a sub-command, a sub-command of a sub-command or to
 		// not suggest at all.
+		//
+		// This includes support for detecting flags between the commands, so `mvn -DskipIT test a`
+		// would suggest `mvn -DskipIT test` as that's more useful than only suggesting the exact
+		// command line.
 		const subCommandsToSuggest = Array.from(new Set(coalesce(unapprovedSubCommands.map(command => {
 			const parts = command.trim().split(/\s+/);
 			const baseCommand = parts[0].toLowerCase();
-			const baseSubCommand = parts.length > 1 ? `${parts[0]} ${parts[1]}`.toLowerCase() : '';
 
 			// Security check: Never suggest auto-approval for dangerous interpreter commands
 			if (neverAutoApproveCommands.has(baseCommand)) {
 				return undefined;
 			}
 
-			if (commandsWithSubSubCommands.has(baseSubCommand)) {
-				if (parts.length >= 3 && !parts[2].startsWith('-')) {
-					return `${parts[0]} ${parts[1]} ${parts[2]}`;
-				}
-				return undefined;
-			} else if (commandsWithSubcommands.has(baseCommand)) {
-				if (parts.length >= 2 && !parts[1].startsWith('-')) {
-					return `${parts[0]} ${parts[1]}`;
+			if (commandsWithSubcommands.has(baseCommand)) {
+				// Find the first non-flag argument after the command
+				const subCommandIndex = findNextNonFlagArg(parts, 1);
+				if (subCommandIndex !== undefined) {
+					// Check if this is a sub-sub-command case
+					const baseSubCommand = `${parts[0]} ${parts[subCommandIndex]}`.toLowerCase();
+					if (commandsWithSubSubCommands.has(baseSubCommand)) {
+						// Look for the second non-flag argument after the first subcommand
+						const subSubCommandIndex = findNextNonFlagArg(parts, subCommandIndex + 1);
+						if (subSubCommandIndex !== undefined) {
+							// Include everything from command to sub-sub-command (including flags)
+							return parts.slice(0, subSubCommandIndex + 1).join(' ');
+						}
+						return undefined;
+					} else {
+						// Include everything from command to subcommand (including flags)
+						return parts.slice(0, subCommandIndex + 1).join(' ');
+					}
 				}
 				return undefined;
 			} else {
