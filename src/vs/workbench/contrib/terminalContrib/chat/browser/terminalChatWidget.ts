@@ -17,10 +17,10 @@ import { IContextKey, IContextKeyService } from '../../../../../platform/context
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChatAcceptInputOptions, IChatWidgetService } from '../../../chat/browser/chat.js';
-import { IChatAgentService } from '../../../chat/common/chatAgents.js';
-import { IChatResponseModel, isCellTextEditOperationArray } from '../../../chat/common/chatModel.js';
+import { IChatAgentService } from '../../../chat/common/participants/chatAgents.js';
+import { IChatResponseModel, isCellTextEditOperationArray } from '../../../chat/common/model/chatModel.js';
 import { ChatMode } from '../../../chat/common/chatModes.js';
-import { IChatModelReference, IChatProgress, IChatService } from '../../../chat/common/chatService.js';
+import { IChatModelReference, IChatProgress, IChatService } from '../../../chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
 import { InlineChatWidget } from '../../../inlineChat/browser/inlineChatWidget.js';
 import { MENU_INLINE_CHAT_WIDGET_SECONDARY } from '../../../inlineChat/common/inlineChat.js';

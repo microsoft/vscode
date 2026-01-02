@@ -9,8 +9,8 @@ import { localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { katexContainerClassName, katexContainerLatexAttributeName } from '../../../markdown/common/markedKatexExtension.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IChatRequestViewModel, IChatResponseViewModel, isChatTreeItem, isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { IChatRequestViewModel, IChatResponseViewModel, isChatTreeItem, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatTreeItem, IChatWidgetService } from '../chat.js';
 import { CHAT_CATEGORY, stringifyItem } from './chatActions.js';
 

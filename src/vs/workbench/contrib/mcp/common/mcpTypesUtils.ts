@@ -8,7 +8,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, IReader } from '../../../../base/common/observable.js';
-import { ToolDataSource } from '../../chat/common/languageModelToolsService.js';
+import { ToolDataSource } from '../../chat/common/tools/languageModelToolsService.js';
 import { IMcpServer, IMcpServerStartOpts, IMcpService, McpConnectionState, McpServerCacheState, McpServerTransportType } from './mcpTypes.js';
 import { MCP } from './modelContextProtocol.js';
 

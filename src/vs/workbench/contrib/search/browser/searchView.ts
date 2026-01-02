@@ -13,7 +13,7 @@ import { Delayer, RunOnceScheduler, Throttler } from '../../../../base/common/as
 import * as errors from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import * as strings from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as network from '../../../../base/common/network.js';
@@ -173,6 +173,7 @@ export class SearchView extends ViewPane {
 	private resultsElement!: HTMLElement;
 
 	private currentSelectedFileMatch: ISearchTreeFileMatch | undefined;
+	private readonly currentEditorCursorListener = this._register(new MutableDisposable());
 
 	private delayedRefresh: Delayer<void>;
 	private changedWhileHidden: boolean;
@@ -1042,6 +1043,15 @@ export class SearchView extends ViewPane {
 			this.folderMatchWithResourceFocused.reset();
 			this.searchResultHeaderFocused.reset();
 			this.isEditableItem.reset();
+		}));
+
+		// Setup cursor position monitoring to clear selected match when cursor moves
+		this._register(this.editorService.onDidActiveEditorChange(() => {
+			const editor = getCodeEditor(this.editorService.activeTextEditorControl);
+			this.currentEditorCursorListener.value = editor?.onDidChangeCursorPosition(() => {
+				this.currentSelectedFileMatch?.setSelectedMatch(null);
+				this.currentSelectedFileMatch = undefined;
+			});
 		}));
 	}
 

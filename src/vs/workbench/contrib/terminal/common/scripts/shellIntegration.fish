@@ -23,6 +23,13 @@ or exit
 set --global VSCODE_SHELL_INTEGRATION 1
 set --global __vscode_shell_env_reporting $VSCODE_SHELL_ENV_REPORTING
 set -e VSCODE_SHELL_ENV_REPORTING
+
+# Prevent AI-executed commands from polluting shell history
+if test "$VSCODE_PREVENT_SHELL_HISTORY" = "1"
+	set -g fish_private_mode 1
+	set -e VSCODE_PREVENT_SHELL_HISTORY
+end
+
 set -g envVarsToReport
 if test -n "$__vscode_shell_env_reporting"
 	set envVarsToReport (string split "," "$__vscode_shell_env_reporting")

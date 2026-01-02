@@ -15,7 +15,7 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { Event } from '../../../../../base/common/event.js';
 import type { ISearchOptions } from '@xterm/addon-search';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
-import { IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { TerminalFindCommandId } from '../common/terminal.find.js';
 import { TerminalClipboardContribution } from '../../clipboard/browser/terminal.clipboard.contribution.js';
@@ -30,7 +30,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 	private _findWidgetFocused: IContextKey<boolean>;
 	private _findWidgetVisible: IContextKey<boolean>;
 
-	private _overrideCopyOnSelectionDisposable: IDisposable | undefined;
+	private _overrideCopyOnSelectionDisposable = this._register(new MutableDisposable());
 	private _selectionDisposable = this._register(new MutableDisposable());
 
 	constructor(
@@ -100,7 +100,25 @@ export class TerminalFindWidget extends SimpleFindWidget {
 			}
 		}));
 
+		this._setupSearchEventListeners();
 		this.updateResultCount();
+	}
+
+	private _setupSearchEventListeners(): void {
+		const xterm = this._instance.xterm;
+		if (!xterm) {
+			return;
+		}
+
+		// Disable copy-on-selection during search to prevent search result from overriding clipboard
+		this._register(xterm.onBeforeSearch(() => {
+			this._overrideCopyOnSelectionDisposable.value = TerminalClipboardContribution.get(this._instance)?.overrideCopyOnSelection(false);
+		}));
+
+		// Re-enable copy-on-selection after search completes
+		this._register(xterm.onAfterSearch(() => {
+			this._overrideCopyOnSelectionDisposable.clear();
+		}));
 	}
 
 	find(previous: boolean, update?: boolean) {
@@ -140,6 +158,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 
 	override hide() {
 		super.hide();
+		this._overrideCopyOnSelectionDisposable.clear();
 		this._findWidgetVisible.reset();
 		this._instance.focus(true);
 		this._instance.xterm?.clearSearchDecorations();
@@ -162,13 +181,13 @@ export class TerminalFindWidget extends SimpleFindWidget {
 
 	protected _onFocusTrackerFocus() {
 		if (TerminalClipboardContribution.get(this._instance)?.overrideCopyOnSelection) {
-			this._overrideCopyOnSelectionDisposable = TerminalClipboardContribution.get(this._instance)?.overrideCopyOnSelection(false);
+			this._overrideCopyOnSelectionDisposable.value = TerminalClipboardContribution.get(this._instance)?.overrideCopyOnSelection(false);
 		}
 		this._findWidgetFocused.set(true);
 	}
 
 	protected _onFocusTrackerBlur() {
-		this._overrideCopyOnSelectionDisposable?.dispose();
+		this._overrideCopyOnSelectionDisposable.clear();
 		this._instance.xterm?.clearActiveSearchDecoration();
 		this._findWidgetFocused.reset();
 	}

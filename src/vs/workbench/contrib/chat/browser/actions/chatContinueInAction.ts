@@ -26,12 +26,12 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IChatAgentService } from '../../common/chatAgents.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { chatEditingWidgetFileStateContextKey, ModifiedFileEntryState } from '../../common/chatEditingService.js';
-import { ChatModel } from '../../common/chatModel.js';
-import { ChatRequestParser } from '../../common/chatRequestParser.js';
-import { IChatService } from '../../common/chatService.js';
+import { IChatAgentService } from '../../common/participants/chatAgents.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { chatEditingWidgetFileStateContextKey, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
+import { ChatModel } from '../../common/model/chatModel.js';
+import { ChatRequestParser } from '../../common/requestParser/chatRequestParser.js';
+import { IChatService } from '../../common/chatService/chatService.js';
 import { IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/promptTypes.js';
@@ -39,7 +39,7 @@ import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProv
 import { IChatWidgetService } from '../chat.js';
 import { ctxHasEditorModification } from '../chatEditing/chatEditingEditorContextKeys.js';
 import { CHAT_SETUP_ACTION_ID } from './chatActions.js';
-import { PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/chatVariableEntries.js';
+import { PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 
 export const enum ActionLocation {
 	ChatWidget = 'chatWidget',

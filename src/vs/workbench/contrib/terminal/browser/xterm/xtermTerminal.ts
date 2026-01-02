@@ -144,6 +144,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	readonly onDidRequestRefreshDimensions = this._onDidRequestRefreshDimensions.event;
 	private readonly _onDidChangeFindResults = this._register(new Emitter<{ resultIndex: number; resultCount: number }>());
 	readonly onDidChangeFindResults = this._onDidChangeFindResults.event;
+	private readonly _onBeforeSearch = this._register(new Emitter<void>());
+	readonly onBeforeSearch = this._onBeforeSearch.event;
+	private readonly _onAfterSearch = this._register(new Emitter<void>());
+	readonly onAfterSearch = this._onAfterSearch.event;
 	private readonly _onDidChangeSelection = this._register(new Emitter<void>());
 	readonly onDidChangeSelection = this._onDidChangeSelection.event;
 	private readonly _onDidChangeFocus = this._register(new Emitter<boolean>());
@@ -614,6 +618,12 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 					this._lastFindResult = results;
 					this._onDidChangeFindResults.fire(results);
 				});
+				this._searchAddon.onBeforeSearch(() => {
+					this._onBeforeSearch.fire();
+				});
+				this._searchAddon.onAfterSearch(() => {
+					this._onAfterSearch.fire();
+				});
 				return this._searchAddon;
 			});
 		}
@@ -793,6 +803,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		if (!this.raw.element || this._webglAddon && this._webglAddonCustomGlyphs === this._terminalConfigurationService.config.customGlyphs) {
 			return;
 		}
+
+		// Dispose of existing addon before creating a new one to avoid leaking WebGL contexts
+		this._disposeOfWebglRenderer();
+
 		this._webglAddonCustomGlyphs = this._terminalConfigurationService.config.customGlyphs;
 
 		const Addon = await this._xtermAddonLoader.importAddon('webgl');
@@ -882,6 +896,9 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	}
 
 	private _disposeOfWebglRenderer(): void {
+		if (!this._webglAddon) {
+			return;
+		}
 		try {
 			this._webglAddon?.dispose();
 		} catch {

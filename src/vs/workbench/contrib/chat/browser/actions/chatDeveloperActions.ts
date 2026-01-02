@@ -8,8 +8,8 @@ import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions
 import { localize2 } from '../../../../../nls.js';
 import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IChatService } from '../../common/chatService.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { IChatService } from '../../common/chatService/chatService.js';
 import { IChatWidgetService } from '../chat.js';
 
 export function registerChatDeveloperActions() {

@@ -25,8 +25,8 @@ import { CommandsRegistry } from '../../../../platform/commands/common/commands.
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IChatService } from '../../chat/common/chatService.js';
-import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
+import { IChatService } from '../../chat/common/chatService/chatService.js';
+import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { HunkInformation } from './inlineChatSession.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
 

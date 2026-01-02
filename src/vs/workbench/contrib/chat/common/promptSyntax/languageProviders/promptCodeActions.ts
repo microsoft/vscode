@@ -8,7 +8,7 @@ import { Range } from '../../../../../../editor/common/core/range.js';
 import { CodeAction, CodeActionContext, CodeActionList, CodeActionProvider, IWorkspaceFileEdit, IWorkspaceTextEdit, TextEdit } from '../../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { localize } from '../../../../../../nls.js';
-import { ILanguageModelToolsService } from '../../languageModelToolsService.js';
+import { ILanguageModelToolsService } from '../../tools/languageModelToolsService.js';
 import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
 import { ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';

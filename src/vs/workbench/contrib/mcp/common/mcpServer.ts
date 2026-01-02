@@ -30,7 +30,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IOutputService } from '../../../services/output/common/output.js';
-import { ToolProgress } from '../../chat/common/languageModelToolsService.js';
+import { ToolProgress } from '../../chat/common/tools/languageModelToolsService.js';
 import { mcpActivationEvent } from './mcpConfiguration.js';
 import { McpDevModeServerAttache } from './mcpDevMode.js';
 import { McpIcons, parseAndValidateMcpIcon, StoredMcpIcons } from './mcpIcons.js';

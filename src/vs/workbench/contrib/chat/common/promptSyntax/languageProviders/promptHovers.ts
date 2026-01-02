@@ -11,7 +11,7 @@ import { Hover, HoverContext, HoverProvider } from '../../../../../../editor/com
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { localize } from '../../../../../../nls.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
-import { ILanguageModelToolsService, ToolSet } from '../../languageModelToolsService.js';
+import { ILanguageModelToolsService, ToolSet } from '../../tools/languageModelToolsService.js';
 import { IChatModeService, isBuiltinChatMode } from '../../chatModes.js';
 import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';

@@ -333,8 +333,13 @@
 	margin-right: 4px;
 }
 
-.viewpane-filter > .viewpane-filter-controls .monaco-action-bar .action-label.codicon.codicon-filter.checked {
-	border-color: var(--vscode-inputOption-activeBorder);
+.viewpane-filter > .viewpane-filter-controls .monaco-action-bar .action-label {
+	padding: 2px;
+}
+
+.viewpane-filter > .viewpane-filter-controls .monaco-action-bar .monaco-dropdown .action-label.codicon.codicon-filter.checked {
 	color: var(--vscode-inputOption-activeForeground);
 	background-color: var(--vscode-inputOption-activeBackground);
+	border: 1px solid var(--vscode-inputOption-activeBorder);
+	padding: 1px;
 }

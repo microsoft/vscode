@@ -62,6 +62,12 @@ if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
 	builtin return
 fi
 
+# Prevent AI-executed commands from polluting shell history
+if [ "${VSCODE_PREVENT_SHELL_HISTORY:-}" = "1" ]; then
+	export HISTCONTROL="ignorespace"
+	builtin unset VSCODE_PREVENT_SHELL_HISTORY
+fi
+
 # Apply EnvironmentVariableCollections if needed
 if [ -n "${VSCODE_ENV_REPLACE:-}" ]; then
 	IFS=':' read -ra ADDR <<< "$VSCODE_ENV_REPLACE"

@@ -9,7 +9,7 @@ import { URI, UriComponents } from '../../../base/common/uri.js';
 import { ExtHostChatContextShape, MainContext, MainThreadChatContextShape } from './extHost.protocol.js';
 import { DocumentSelector } from './extHostTypeConverters.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
-import { IChatContextItem } from '../../contrib/chat/common/chatContext.js';
+import { IChatContextItem } from '../../contrib/chat/common/contextContrib/chatContext.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 
 export class ExtHostChatContext extends Disposable implements ExtHostChatContextShape {
