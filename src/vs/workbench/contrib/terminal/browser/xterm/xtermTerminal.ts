@@ -803,6 +803,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		if (!this.raw.element || this._webglAddon && this._webglAddonCustomGlyphs === this._terminalConfigurationService.config.customGlyphs) {
 			return;
 		}
+
+		// Dispose of existing addon before creating a new one to avoid leaking WebGL contexts
+		this._disposeOfWebglRenderer();
+
 		this._webglAddonCustomGlyphs = this._terminalConfigurationService.config.customGlyphs;
 
 		const Addon = await this._xtermAddonLoader.importAddon('webgl');
@@ -892,6 +896,9 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	}
 
 	private _disposeOfWebglRenderer(): void {
+		if (!this._webglAddon) {
+			return;
+		}
 		try {
 			this._webglAddon?.dispose();
 		} catch {
