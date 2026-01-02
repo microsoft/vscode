@@ -20,6 +20,7 @@ import { QuickInputTreeFilter } from './quickInputTreeFilter.js';
 import { QuickInputCheckboxStateHandler, QuickInputTreeRenderer } from './quickInputTreeRenderer.js';
 import { QuickInputTreeSorter } from './quickInputTreeSorter.js';
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
+import { IQuickInputStyles } from '../quickInput.js';
 
 const $ = dom.$;
 const flatHierarchyClass = 'quick-input-tree-flat';
@@ -78,6 +79,7 @@ export class QuickInputTreeController extends Disposable {
 	constructor(
 		container: HTMLElement,
 		hoverDelegate: IHoverDelegate | undefined,
+		styles: IQuickInputStyles,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
@@ -89,6 +91,7 @@ export class QuickInputTreeController extends Disposable {
 			this._onDidTriggerButton,
 			this.onDidChangeCheckboxState,
 			this._checkboxStateHandler,
+			styles.toggle
 		));
 		this._filter = this.instantiationService.createInstance(QuickInputTreeFilter);
 		this._sorter = this._register(new QuickInputTreeSorter());
@@ -374,12 +377,12 @@ export class QuickInputTreeController extends Disposable {
 		return this._tree.getFocus().filter((item): item is IQuickTreeItem => item !== null);
 	}
 
-	check(element: IQuickTreeItem, checked: boolean | 'mixed') {
-		if (element.checked === checked) {
-			return;
+	toggleCheckbox() {
+		for (const element of this.getActiveItems()) {
+			if (element.pickable !== false && !element.disabled) {
+				this.updateCheckboxState(element, !(element.checked === true));
+			}
 		}
-		element.checked = checked;
-		this._onDidCheckedLeafItemsChange.fire(this.getCheckedLeafItems());
 	}
 
 	checkAll(checked: boolean | 'mixed') {

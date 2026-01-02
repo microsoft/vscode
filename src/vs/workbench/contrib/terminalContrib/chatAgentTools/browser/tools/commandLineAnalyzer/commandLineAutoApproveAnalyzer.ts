@@ -8,13 +8,13 @@ import { createCommandUri, MarkdownString, type IMarkdownString } from '../../..
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import type { SingleOrMany } from '../../../../../../../base/common/types.js';
 import { localize } from '../../../../../../../nls.js';
-import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { ITerminalChatService } from '../../../../../terminal/browser/terminal.js';
 import { IStorageService, StorageScope } from '../../../../../../../platform/storage/common/storage.js';
-import { TerminalToolConfirmationStorageKeys } from '../../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
+import { TerminalToolConfirmationStorageKeys } from '../../../../../chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import { ChatConfiguration } from '../../../../../chat/common/constants.js';
-import type { ToolConfirmationAction } from '../../../../../chat/common/languageModelToolsService.js';
+import type { ToolConfirmationAction } from '../../../../../chat/common/tools/languageModelToolsService.js';
 import { TerminalChatAgentToolsSettingId } from '../../../common/terminalChatAgentToolsConfiguration.js';
 import { CommandLineAutoApprover, type IAutoApproveRule, type ICommandApprovalResult, type ICommandApprovalResultWithReason } from '../../commandLineAutoApprover.js';
 import { dedupeRules, generateAutoApproveActions, isPowerShell } from '../../runInTerminalHelpers.js';
@@ -87,8 +87,8 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 			};
 		}
 
-		const subCommandResults = subCommands.map(e => this._commandLineAutoApprover.isCommandAutoApproved(e, options.shell, options.os));
-		const commandLineResult = this._commandLineAutoApprover.isCommandLineAutoApproved(options.commandLine);
+		const subCommandResults = subCommands.map(e => this._commandLineAutoApprover.isCommandAutoApproved(e, options.shell, options.os, options.chatSessionId));
+		const commandLineResult = this._commandLineAutoApprover.isCommandLineAutoApproved(options.commandLine, options.chatSessionId);
 		const autoApproveReasons: string[] = [
 			...subCommandResults.map(e => e.reason),
 			commandLineResult.reason,
@@ -191,8 +191,30 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 	): IMarkdownString | undefined {
 		const formatRuleLinks = (result: SingleOrMany<{ result: ICommandApprovalResult; rule?: IAutoApproveRule; reason: string }>): string => {
 			return asArray(result).map(e => {
+				// Session rules cannot be actioned currently so no link
+				if (e.rule!.sourceTarget === 'session') {
+					return localize('autoApproveRule.sessionIndicator', '{0} (session)', `\`${e.rule!.sourceText}\``);
+				}
 				const settingsUri = createCommandUri(TerminalChatCommandId.OpenTerminalSettingsLink, e.rule!.sourceTarget);
-				return `[\`${e.rule!.sourceText}\`](${settingsUri.toString()} "${localize('ruleTooltip', 'View rule in settings')}")`;
+				const tooltip = localize('ruleTooltip', 'View rule in settings');
+				let label = e.rule!.sourceText;
+				switch (e.rule?.sourceTarget) {
+					case ConfigurationTarget.DEFAULT:
+						label = `${label} (default)`;
+						break;
+					case ConfigurationTarget.USER:
+					case ConfigurationTarget.USER_LOCAL:
+						label = `${label} (user)`;
+						break;
+					case ConfigurationTarget.USER_REMOTE:
+						label = `${label} (remote)`;
+						break;
+					case ConfigurationTarget.WORKSPACE:
+					case ConfigurationTarget.WORKSPACE_FOLDER:
+						label = `${label} (workspace)`;
+						break;
+				}
+				return `[\`${label}\`](${settingsUri.toString()} "${tooltip}")`;
 			}).join(', ');
 		};
 
