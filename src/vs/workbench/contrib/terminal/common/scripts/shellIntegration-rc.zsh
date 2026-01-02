@@ -16,10 +16,10 @@ VSCODE_SHELL_INTEGRATION=1
 
 # Configure history exclusion for space-prefixed commands when requested by VS Code
 # This is used by Copilot terminals to prevent AI-executed commands from polluting history
-if [ "${VSCODE_EXCLUDE_FROM_HISTORY:-}" = "1" ]; then
+if [ "${VSCODE_PREVENT_SHELL_HISTORY:-}" = "1" ]; then
 	setopt HIST_IGNORE_SPACE
 fi
-unset VSCODE_EXCLUDE_FROM_HISTORY
+unset VSCODE_PREVENT_SHELL_HISTORY
 
 # By default, zsh will set the $HISTFILE to the $ZDOTDIR location automatically. In the case of the
 # shell integration being injected, this means that the terminal will use a different history file

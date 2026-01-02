@@ -262,11 +262,11 @@ if ($Global:__VSCodeState.HasPSReadLine) {
 
 	# Configure history exclusion when requested by VS Code
 	# This is used by Copilot terminals to prevent AI-executed commands from polluting history
-	if ($env:VSCODE_EXCLUDE_FROM_HISTORY -eq "1") {
+	if ($env:VSCODE_PREVENT_SHELL_HISTORY -eq "1") {
 		Set-PSReadLineOption -AddToHistoryHandler {
 			param([string]$line)
 			return $false
 		}
 	}
-	$env:VSCODE_EXCLUDE_FROM_HISTORY = $null
+	$env:VSCODE_PREVENT_SHELL_HISTORY = $null
 }

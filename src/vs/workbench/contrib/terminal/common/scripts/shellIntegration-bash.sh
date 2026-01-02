@@ -12,10 +12,10 @@ VSCODE_SHELL_INTEGRATION=1
 
 # Configure history exclusion for space-prefixed commands when requested by VS Code
 # This is used by Copilot terminals to prevent AI-executed commands from polluting history
-if [ "${VSCODE_EXCLUDE_FROM_HISTORY:-}" = "1" ]; then
+if [ "${VSCODE_PREVENT_SHELL_HISTORY:-}" = "1" ]; then
 	export HISTCONTROL="ignorespace"
 fi
-unset VSCODE_EXCLUDE_FROM_HISTORY
+unset VSCODE_PREVENT_SHELL_HISTORY
 
 vsc_env_keys=()
 vsc_env_values=()

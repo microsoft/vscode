@@ -156,9 +156,9 @@ export class ToolTerminalCreator {
 		// Configure shells to ignore commands prefixed with a space from history.
 		// This works together with the space prefix added to commands to prevent
 		// copilot-executed commands from polluting the user's shell history.
-		// VSCODE_EXCLUDE_FROM_HISTORY=1 is handled by shell integration scripts for all shells.
+		// VSCODE_PREVENT_SHELL_HISTORY=1 is handled by shell integration scripts for all shells.
 		if (preventShellHistory && shellSupportsHistoryExclusion) {
-			env['VSCODE_EXCLUDE_FROM_HISTORY'] = '1';
+			env['VSCODE_PREVENT_SHELL_HISTORY'] = '1';
 		}
 
 		const config: IShellLaunchConfig = {
