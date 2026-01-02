@@ -10,9 +10,10 @@ import { TerminalChatAgentToolsSettingId } from '../../../common/terminalChatAge
 import type { ICommandLineRewriter, ICommandLineRewriterOptions, ICommandLineRewriterResult } from './commandLineRewriter.js';
 
 /**
- * Rewriter that prepends a space to commands to prevent them from being added to shell history.
- * This requires HISTCONTROL=ignorespace or HIST_IGNORE_SPACE=1 env var which is set when the
- * terminal is created.
+ * Rewriter that prepends a space to commands to prevent them from being added to shell history for
+ * certain shells. This depends on $VSCODE_PREVENT_SHELL_HISTORY being handled in shell integration
+ * scripts to set `HISTCONTROL=ignorespace` (bash) or `HIST_IGNORE_SPACE` (zsh) env vars. The
+ * prepended space is harmless so we don't try to remove it if shell integration isn't functional.
  */
 export class CommandLinePreventHistoryRewriter extends Disposable implements ICommandLineRewriter {
 	constructor(

@@ -67,9 +67,11 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 			};
 		}
 
+		const trimmedCommandLine = options.commandLine.trimStart();
+
 		let subCommands: string[] | undefined;
 		try {
-			subCommands = await this._treeSitterCommandParser.extractSubCommands(options.treeSitterLanguage, options.commandLine);
+			subCommands = await this._treeSitterCommandParser.extractSubCommands(options.treeSitterLanguage, trimmedCommandLine);
 			this._log(`Parsed sub-commands via ${options.treeSitterLanguage} grammar`, subCommands);
 		} catch (e) {
 			console.error(e);
@@ -88,7 +90,7 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 		}
 
 		const subCommandResults = subCommands.map(e => this._commandLineAutoApprover.isCommandAutoApproved(e, options.shell, options.os));
-		const commandLineResult = this._commandLineAutoApprover.isCommandLineAutoApproved(options.commandLine);
+		const commandLineResult = this._commandLineAutoApprover.isCommandLineAutoApproved(trimmedCommandLine);
 		const autoApproveReasons: string[] = [
 			...subCommandResults.map(e => e.reason),
 			commandLineResult.reason,
@@ -169,7 +171,7 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 		}
 
 		if (!isAutoApproved && isAutoApproveEnabled) {
-			customActions = generateAutoApproveActions(options.commandLine, subCommands, { subCommandResults, commandLineResult });
+			customActions = generateAutoApproveActions(trimmedCommandLine, subCommands, { subCommandResults, commandLineResult });
 		}
 
 		return {

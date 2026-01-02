@@ -144,21 +144,22 @@ export class ToolTerminalCreator {
 	private _createCopilotTerminal(shellOrProfile: string | ITerminalProfile, os: OperatingSystem) {
 		const shellPath = isString(shellOrProfile) ? shellOrProfile : shellOrProfile.path;
 
-		// Check if the shell supports history exclusion via shell integration scripts
-		const shellSupportsHistoryExclusion = isBash(shellPath, os) || isZsh(shellPath, os) || isFish(shellPath, os) || isPowerShell(shellPath, os);
-		const preventShellHistory = this._configurationService.getValue(TerminalChatAgentToolsSettingId.PreventShellHistory) === true;
-
 		const env: Record<string, string> = {
 			// Avoid making `git diff` interactive when called from copilot
 			GIT_PAGER: 'cat',
 		};
 
-		// Configure shells to ignore commands prefixed with a space from history.
-		// This works together with the space prefix added to commands to prevent
-		// copilot-executed commands from polluting the user's shell history.
-		// VSCODE_PREVENT_SHELL_HISTORY=1 is handled by shell integration scripts for all shells.
-		if (preventShellHistory && shellSupportsHistoryExclusion) {
-			env['VSCODE_PREVENT_SHELL_HISTORY'] = '1';
+		const preventShellHistory = this._configurationService.getValue(TerminalChatAgentToolsSettingId.PreventShellHistory) === true;
+		if (preventShellHistory) {
+			// Check if the shell supports history exclusion via shell integration scripts
+			if (
+				isBash(shellPath, os) ||
+				isZsh(shellPath, os) ||
+				isFish(shellPath, os) ||
+				isPowerShell(shellPath, os)
+			) {
+				env['VSCODE_PREVENT_SHELL_HISTORY'] = '1';
+			}
 		}
 
 		const config: IShellLaunchConfig = {
