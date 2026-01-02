@@ -11,7 +11,8 @@ import { escapeRegExpCharacters, removeAnsiEscapeCodes } from '../../../../../ba
 import { localize } from '../../../../../nls.js';
 import type { TerminalNewAutoApproveButtonData } from '../../../chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import type { ToolConfirmationAction } from '../../../chat/common/tools/languageModelToolsService.js';
-import type { ICommandApprovalResultWithReason } from './commandLineAutoApprover.js';
+import type { ICommandApprovalResultWithReason } from './tools/commandLineAnalyzer/autoApprove/commandLineAutoApprover.js';
+import { isAutoApproveRule } from './tools/commandLineAnalyzer/commandLineAnalyzer.js';
 
 export function isPowerShell(envShell: string, os: OperatingSystem): boolean {
 	if (os === OperatingSystem.Windows) {
@@ -262,6 +263,10 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 
 export function dedupeRules(rules: ICommandApprovalResultWithReason[]): ICommandApprovalResultWithReason[] {
 	return rules.filter((result, index, array) => {
-		return result.rule && array.findIndex(r => r.rule && r.rule.sourceText === result.rule!.sourceText) === index;
+		if (!isAutoApproveRule(result.rule)) {
+			return false;
+		}
+		const sourceText = result.rule.sourceText;
+		return array.findIndex(r => isAutoApproveRule(r.rule) && r.rule.sourceText === sourceText) === index;
 	});
 }

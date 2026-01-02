@@ -3,28 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../../base/common/lifecycle.js';
-import type { OperatingSystem } from '../../../../../base/common/platform.js';
-import { escapeRegExpCharacters, regExpLeadsToEndlessLoop } from '../../../../../base/common/strings.js';
-import { isObject } from '../../../../../base/common/types.js';
-import { structuralEquals } from '../../../../../base/common/equals.js';
-import { ConfigurationTarget, IConfigurationService, type IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
-import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
-import { isPowerShell } from './runInTerminalHelpers.js';
-import { ITerminalChatService } from '../../../terminal/browser/terminal.js';
-
-export interface IAutoApproveRule {
-	regex: RegExp;
-	regexCaseInsensitive: RegExp;
-	sourceText: string;
-	sourceTarget: ConfigurationTarget | 'session';
-	isDefaultRule: boolean;
-}
+import { structuralEquals } from '../../../../../../../../base/common/equals.js';
+import { Disposable } from '../../../../../../../../base/common/lifecycle.js';
+import type { OperatingSystem } from '../../../../../../../../base/common/platform.js';
+import { escapeRegExpCharacters, regExpLeadsToEndlessLoop } from '../../../../../../../../base/common/strings.js';
+import { isObject } from '../../../../../../../../base/common/types.js';
+import type { URI } from '../../../../../../../../base/common/uri.js';
+import { ConfigurationTarget, IConfigurationService, type IConfigurationValue } from '../../../../../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService } from '../../../../../../../../platform/instantiation/common/instantiation.js';
+import { ITerminalChatService } from '../../../../../../terminal/browser/terminal.js';
+import { TerminalChatAgentToolsSettingId } from '../../../../common/terminalChatAgentToolsConfiguration.js';
+import { isPowerShell } from '../../../runInTerminalHelpers.js';
+import type { IAutoApproveRule, INpmScriptAutoApproveRule } from '../commandLineAnalyzer.js';
+import { NpmScriptAutoApprover } from './npmScriptAutoApprover.js';
 
 export interface ICommandApprovalResultWithReason {
 	result: ICommandApprovalResult;
 	reason: string;
-	rule?: IAutoApproveRule;
+	rule?: IAutoApproveRule | INpmScriptAutoApproveRule;
 }
 
 export type ICommandApprovalResult = 'approved' | 'denied' | 'noMatch';
@@ -37,12 +33,15 @@ export class CommandLineAutoApprover extends Disposable {
 	private _allowListRules: IAutoApproveRule[] = [];
 	private _allowListCommandLineRules: IAutoApproveRule[] = [];
 	private _denyListCommandLineRules: IAutoApproveRule[] = [];
+	private readonly _npmScriptAutoApprover: NpmScriptAutoApprover;
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
 	) {
 		super();
+		this._npmScriptAutoApprover = this._register(instantiationService.createInstance(NpmScriptAutoApprover));
 		this.updateConfiguration();
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (
@@ -78,7 +77,7 @@ export class CommandLineAutoApprover extends Disposable {
 		this._denyListCommandLineRules = denyListCommandLineRules;
 	}
 
-	isCommandAutoApproved(command: string, shell: string, os: OperatingSystem, chatSessionId?: string): ICommandApprovalResultWithReason {
+	async isCommandAutoApproved(command: string, shell: string, os: OperatingSystem, cwd: URI | undefined, chatSessionId?: string): Promise<ICommandApprovalResultWithReason> {
 		// Check if the command has a transient environment variable assignment prefix which we
 		// always deny for now as it can easily lead to execute other commands
 		if (transientEnvVarRegex.test(command)) {
@@ -119,6 +118,16 @@ export class CommandLineAutoApprover extends Disposable {
 					reason: `Command '${command}' is approved by allow list rule: ${rule.sourceText}`
 				};
 			}
+		}
+
+		// Check if this is an npm/yarn/pnpm script defined in package.json
+		const npmScriptResult = await this._npmScriptAutoApprover.isCommandAutoApproved(command, cwd);
+		if (npmScriptResult.isAutoApproved) {
+			return {
+				result: 'approved',
+				rule: { type: 'npmScript', npmScriptResult },
+				reason: `Command '${command}' is approved as npm script '${npmScriptResult.scriptName}' is defined in package.json`
+			};
 		}
 
 		// TODO: LLM-based auto-approval https://github.com/microsoft/vscode/issues/253267

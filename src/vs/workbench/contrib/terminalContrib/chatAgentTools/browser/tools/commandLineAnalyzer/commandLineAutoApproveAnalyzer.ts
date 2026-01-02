@@ -16,12 +16,12 @@ import { TerminalToolConfirmationStorageKeys } from '../../../../../chat/browser
 import { ChatConfiguration } from '../../../../../chat/common/constants.js';
 import type { ToolConfirmationAction } from '../../../../../chat/common/tools/languageModelToolsService.js';
 import { TerminalChatAgentToolsSettingId } from '../../../common/terminalChatAgentToolsConfiguration.js';
-import { CommandLineAutoApprover, type IAutoApproveRule, type ICommandApprovalResult, type ICommandApprovalResultWithReason } from '../../commandLineAutoApprover.js';
 import { dedupeRules, generateAutoApproveActions, isPowerShell } from '../../runInTerminalHelpers.js';
 import type { RunInTerminalToolTelemetry } from '../../runInTerminalToolTelemetry.js';
 import { type TreeSitterCommandParser } from '../../treeSitterCommandParser.js';
-import type { ICommandLineAnalyzer, ICommandLineAnalyzerOptions, ICommandLineAnalyzerResult } from './commandLineAnalyzer.js';
+import { type ICommandLineAnalyzer, type ICommandLineAnalyzerOptions, type ICommandLineAnalyzerResult, type IAutoApproveRule, isAutoApproveRule, isNpmScriptAutoApproveRule } from './commandLineAnalyzer.js';
 import { TerminalChatCommandId } from '../../../../chat/browser/terminalChat.js';
+import { CommandLineAutoApprover, type ICommandApprovalResultWithReason } from './autoApprove/commandLineAutoApprover.js';
 
 const promptInjectionWarningCommandsLower = [
 	'curl',
@@ -87,7 +87,7 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 			};
 		}
 
-		const subCommandResults = subCommands.map(e => this._commandLineAutoApprover.isCommandAutoApproved(e, options.shell, options.os, options.chatSessionId));
+		const subCommandResults = await Promise.all(subCommands.map(e => this._commandLineAutoApprover.isCommandAutoApproved(e, options.shell, options.os, options.cwd, options.chatSessionId)));
 		const commandLineResult = this._commandLineAutoApprover.isCommandLineAutoApproved(options.commandLine, options.chatSessionId);
 		const autoApproveReasons: string[] = [
 			...subCommandResults.map(e => e.reason),
@@ -102,26 +102,26 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 		if (deniedSubCommandResult) {
 			this._log('Sub-command DENIED auto approval');
 			isDenied = true;
-			autoApproveDefault = deniedSubCommandResult.rule?.isDefaultRule;
+			autoApproveDefault = isAutoApproveRule(deniedSubCommandResult.rule) ? deniedSubCommandResult.rule.isDefaultRule : undefined;
 			autoApproveReason = 'subCommand';
 		} else if (commandLineResult.result === 'denied') {
 			this._log('Command line DENIED auto approval');
 			isDenied = true;
-			autoApproveDefault = commandLineResult.rule?.isDefaultRule;
+			autoApproveDefault = isAutoApproveRule(commandLineResult.rule) ? commandLineResult.rule.isDefaultRule : undefined;
 			autoApproveReason = 'commandLine';
 		} else {
 			if (subCommandResults.every(e => e.result === 'approved')) {
 				this._log('All sub-commands auto-approved');
-				autoApproveReason = 'subCommand';
 				isAutoApproved = true;
-				autoApproveDefault = subCommandResults.every(e => e.rule?.isDefaultRule);
+				autoApproveReason = 'subCommand';
+				autoApproveDefault = subCommandResults.every(e => isAutoApproveRule(e.rule) && e.rule.isDefaultRule);
 			} else {
 				this._log('All sub-commands NOT auto-approved');
 				if (commandLineResult.result === 'approved') {
 					this._log('Command line auto-approved');
 					autoApproveReason = 'commandLine';
 					isAutoApproved = true;
-					autoApproveDefault = commandLineResult.rule?.isDefaultRule;
+					autoApproveDefault = isAutoApproveRule(commandLineResult.rule) ? commandLineResult.rule.isDefaultRule : undefined;
 				} else {
 					this._log('Command line NOT auto-approved');
 				}
@@ -189,33 +189,36 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 		subCommandResults: ICommandApprovalResultWithReason[],
 		commandLineResult: ICommandApprovalResultWithReason,
 	): IMarkdownString | undefined {
-		const formatRuleLinks = (result: SingleOrMany<{ result: ICommandApprovalResult; rule?: IAutoApproveRule; reason: string }>): string => {
-			return asArray(result).map(e => {
-				// Session rules cannot be actioned currently so no link
-				if (e.rule!.sourceTarget === 'session') {
-					return localize('autoApproveRule.sessionIndicator', '{0} (session)', `\`${e.rule!.sourceText}\``);
-				}
-				const settingsUri = createCommandUri(TerminalChatCommandId.OpenTerminalSettingsLink, e.rule!.sourceTarget);
-				const tooltip = localize('ruleTooltip', 'View rule in settings');
-				let label = e.rule!.sourceText;
-				switch (e.rule?.sourceTarget) {
-					case ConfigurationTarget.DEFAULT:
-						label = `${label} (default)`;
-						break;
-					case ConfigurationTarget.USER:
-					case ConfigurationTarget.USER_LOCAL:
-						label = `${label} (user)`;
-						break;
-					case ConfigurationTarget.USER_REMOTE:
-						label = `${label} (remote)`;
-						break;
-					case ConfigurationTarget.WORKSPACE:
-					case ConfigurationTarget.WORKSPACE_FOLDER:
-						label = `${label} (workspace)`;
-						break;
-				}
-				return `[\`${label}\`](${settingsUri.toString()} "${tooltip}")`;
-			}).join(', ');
+		const formatRuleLinks = (result: SingleOrMany<ICommandApprovalResultWithReason>): string => {
+			return asArray(result)
+				.filter((e): e is ICommandApprovalResultWithReason & { rule: IAutoApproveRule } =>
+					isAutoApproveRule(e.rule))
+				.map(e => {
+					// Session rules cannot be actioned currently so no link
+					if (e.rule.sourceTarget === 'session') {
+						return localize('autoApproveRule.sessionIndicator', '{0} (session)', `\`${e.rule.sourceText}\``);
+					}
+					const settingsUri = createCommandUri(TerminalChatCommandId.OpenTerminalSettingsLink, e.rule.sourceTarget);
+					const tooltip = localize('ruleTooltip', 'View rule in settings');
+					let label = e.rule.sourceText;
+					switch (e.rule?.sourceTarget) {
+						case ConfigurationTarget.DEFAULT:
+							label = `${label} (default)`;
+							break;
+						case ConfigurationTarget.USER:
+						case ConfigurationTarget.USER_LOCAL:
+							label = `${label} (user)`;
+							break;
+						case ConfigurationTarget.USER_REMOTE:
+							label = `${label} (remote)`;
+							break;
+						case ConfigurationTarget.WORKSPACE:
+						case ConfigurationTarget.WORKSPACE_FOLDER:
+							label = `${label} (workspace)`;
+							break;
+					}
+					return `[\`${label}\`](${settingsUri.toString()} "${tooltip}")`;
+				}).join(', ');
 		};
 
 		const mdTrustSettings = {
@@ -234,12 +237,17 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 		if (isAutoApproved) {
 			switch (autoApproveReason) {
 				case 'commandLine': {
-					if (commandLineResult.rule) {
+					if (isAutoApproveRule(commandLineResult.rule)) {
 						return new MarkdownString(localize('autoApprove.rule', 'Auto approved by rule {0}', formatRuleLinks(commandLineResult)), mdTrustSettings);
 					}
 					break;
 				}
 				case 'subCommand': {
+					// Check if approval came from npm script
+					const npmScriptApproval = subCommandResults.find(e => isNpmScriptAutoApproveRule(e.rule));
+					if (npmScriptApproval && isNpmScriptAutoApproveRule(npmScriptApproval.rule) && npmScriptApproval.rule.npmScriptResult.autoApproveInfo) {
+						return npmScriptApproval.rule.npmScriptResult.autoApproveInfo;
+					}
 					const uniqueRules = dedupeRules(subCommandResults);
 					if (uniqueRules.length === 1) {
 						return new MarkdownString(localize('autoApprove.rule', 'Auto approved by rule {0}', formatRuleLinks(uniqueRules)), mdTrustSettings);
