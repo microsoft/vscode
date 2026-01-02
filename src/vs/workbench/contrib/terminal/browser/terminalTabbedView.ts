@@ -592,10 +592,8 @@ export class TerminalTabbedView extends Disposable {
 		// be focused. So wait for connection to finish, then focus.
 		const previousActiveElement = this._tabListElement.ownerDocument.activeElement;
 		if (previousActiveElement) {
-			// TODO: Improve lifecycle management this event should be disposed after first fire
 			const listener = this._register(Event.once(this._terminalService.onDidChangeConnectionState)(() => {
 				// Only focus the terminal if the activeElement has not changed since focus() was called
-				// TODO: Hack
 				if (dom.isActiveElement(previousActiveElement)) {
 					this._focus();
 				}
