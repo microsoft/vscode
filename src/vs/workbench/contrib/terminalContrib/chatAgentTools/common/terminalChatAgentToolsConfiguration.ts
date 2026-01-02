@@ -450,7 +450,13 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 	[TerminalChatAgentToolsSettingId.PreventShellHistory]: {
 		type: 'boolean',
 		default: true,
-		markdownDescription: localize('preventShellHistory.description', "Whether to exclude commands run by the terminal tool from the shell history. Commands are prefixed with a space and the shell is configured to ignore space-prefixed commands. Supported shells:\n- bash: `HISTCONTROL=ignorespace`\n- zsh: `setopt HIST_IGNORE_SPACE`\n- fish: `fish_private_mode`\n- pwsh: PSReadLine `AddToHistoryHandler`"),
+		markdownDescription: [
+			localize('preventShellHistory.description', "Whether to exclude commands run by the terminal tool from the shell history. See below for the supported shells and the method used for each:"),
+			`- \`bash\`: ${localize('preventShellHistory.description.bash', "Sets `HISTCONTROL=ignorespace` and prepends the command with space")}`,
+			`- \`zsh\`: ${localize('preventShellHistory.description.zsh', "Sets `HIST_IGNORE_SPACE` option and prepends the command with space")}`,
+			`- \`fish\`: ${localize('preventShellHistory.description.fish', "Sets `fish_private_mode` to prevent any command from entering history")}`,
+			`- \`pwsh\`: ${localize('preventShellHistory.description.pwsh', "Overrides PSReadLine's `AddToHistoryHandler` to prevent any command from entering history")}`,
+		].join('\n'),
 	}
 };
 
