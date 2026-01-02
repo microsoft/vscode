@@ -78,11 +78,12 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 				this._log.bind(this)
 			);
 
-			// Execute the command
 			// Prefix with space to exclude from shell history (requires HISTCONTROL=ignorespace
 			// or HIST_IGNORE_SPACE=1 env var which is set when the terminal is created)
 			const preventShellHistory = this._configurationService.getValue(TerminalChatAgentToolsSettingId.PreventShellHistory) === true;
 			const commandToSend = preventShellHistory ? ` ${commandLine}` : commandLine;
+
+			// Execute the command
 			this._log(`Executing command line \`${commandLine}\``);
 			this._instance.runCommand(commandToSend, true, commandId);
 

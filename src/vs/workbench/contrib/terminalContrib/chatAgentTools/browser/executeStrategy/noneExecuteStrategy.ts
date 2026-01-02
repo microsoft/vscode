@@ -74,14 +74,15 @@ export class NoneExecuteStrategy implements ITerminalExecuteStrategy {
 				await waitForIdle(this._instance.onData, 100);
 			}
 
-			// Execute the command
-			// IMPORTANT: This uses `sendText` not `runCommand` since when no shell integration
-			// is used as sending ctrl+c before a shell is initialized (eg. PSReadLine) can result
-			// in failure (https://github.com/microsoft/vscode/issues/258989)
 			// Prefix with space to exclude from shell history (requires HISTCONTROL=ignorespace
 			// or HIST_IGNORE_SPACE=1 env var which is set when the terminal is created)
 			const preventShellHistory = this._configurationService.getValue(TerminalChatAgentToolsSettingId.PreventShellHistory) === true;
 			const commandToSend = preventShellHistory ? ` ${commandLine}` : commandLine;
+
+			// Execute the command
+			// IMPORTANT: This uses `sendText` not `runCommand` since when no shell integration
+			// is used as sending ctrl+c before a shell is initialized (eg. PSReadLine) can result
+			// in failure (https://github.com/microsoft/vscode/issues/258989)
 			this._log(`Executing command line \`${commandLine}\``);
 			this._instance.sendText(commandToSend, true);
 

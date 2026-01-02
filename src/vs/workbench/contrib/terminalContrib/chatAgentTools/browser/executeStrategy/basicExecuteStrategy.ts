@@ -116,6 +116,11 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 				await waitForIdle(this._instance.onData, 100);
 			}
 
+			// Prefix with space to exclude from shell history (requires HISTCONTROL=ignorespace
+			// or HIST_IGNORE_SPACE=1 env var which is set when the terminal is created)
+			const preventShellHistory = this._configurationService.getValue(TerminalChatAgentToolsSettingId.PreventShellHistory) === true;
+			const commandToSend = preventShellHistory ? ` ${commandLine}` : commandLine;
+
 			// Execute the command
 			if (commandId) {
 				this._log(`In basic execute strategy: skipping pre-bound command id ${commandId} because basic shell integration executes via sendText`);
@@ -124,10 +129,6 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 			// is used as it's more common to not recognize the prompt input which would result in
 			// ^C being sent and also to return the exit code of 130 when from the shell when that
 			// occurs.
-			// Prefix with space to exclude from shell history (requires HISTCONTROL=ignorespace
-			// or HIST_IGNORE_SPACE=1 env var which is set when the terminal is created)
-			const preventShellHistory = this._configurationService.getValue(TerminalChatAgentToolsSettingId.PreventShellHistory) === true;
-			const commandToSend = preventShellHistory ? ` ${commandLine}` : commandLine;
 			this._log(`Executing command line \`${commandLine}\``);
 			this._instance.sendText(commandToSend, true);
 
