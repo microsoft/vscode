@@ -15,6 +15,7 @@ import { PolicyCategory } from '../../../../../base/common/policy.js';
 export const enum TerminalChatAgentToolsSettingId {
 	EnableAutoApprove = 'chat.tools.terminal.enableAutoApprove',
 	AutoApprove = 'chat.tools.terminal.autoApprove',
+	AutoApproveWorkspaceNpmScripts = 'chat.tools.terminal.autoApproveWorkspaceNpmScripts',
 	IgnoreDefaultAutoApproveRules = 'chat.tools.terminal.ignoreDefaultAutoApproveRules',
 	BlockDetectedFileWrites = 'chat.tools.terminal.blockDetectedFileWrites',
 	ShellIntegrationTimeout = 'chat.tools.terminal.shellIntegrationTimeout',
@@ -355,6 +356,15 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		default: false,
 		tags: ['experimental'],
 		markdownDescription: localize('ignoreDefaultAutoApproveRules.description', "Whether to ignore the built-in default auto-approve rules used by the run in terminal tool as defined in {0}. When this setting is enabled, the run in terminal tool will ignore any rule that comes from the default set but still follow rules defined in the user, remote and workspace settings. Use this setting at your own risk; the default auto-approve rules are designed to protect you against running dangerous commands.", `\`#${TerminalChatAgentToolsSettingId.AutoApprove}#\``),
+	},
+	[TerminalChatAgentToolsSettingId.AutoApproveWorkspaceNpmScripts]: {
+		restricted: true,
+		type: 'boolean',
+		// In order to use agent mode the workspace must be trusted, this plus the fact that
+		// modifying package.json is protected means this is safe to enable by default.
+		default: true,
+		tags: ['experimental'],
+		markdownDescription: localize('autoApproveWorkspaceNpmScripts.description', "Whether to automatically approve npm, yarn, and pnpm run commands when the script is defined in a workspace package.json file. Since the workspace is trusted, scripts defined in package.json are considered safe to run without explicit approval."),
 	},
 	[TerminalChatAgentToolsSettingId.BlockDetectedFileWrites]: {
 		type: 'string',

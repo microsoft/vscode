@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, clearNode } from '../../../../../../base/browser/dom.js';
+import { $, clearNode, hide } from '../../../../../../base/browser/dom.js';
 import { IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import { IChatContentPartRenderContext, IChatContentPart } from './chatContentParts.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
@@ -94,8 +94,8 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private toolInvocationCount: number = 0;
 	private streamingCompleted: boolean = false;
 	private isActive: boolean = true;
-	private currentToolCallLabel: string | undefined;
 	private toolInvocations: (IChatToolInvocation | IChatToolInvocationSerialized)[] = [];
+	private singleToolItemInfo: { element: HTMLElement; originalParent: HTMLElement; originalNextSibling: Node | null } | undefined;
 
 	constructor(
 		content: IChatThinkingPart,
@@ -356,11 +356,9 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			return;
 		}
 
-		// case where we only have one dropdown in the thinking container and no thinking parts
-		if (this.toolInvocationCount === 1 && this.extractedTitles.length === 1 && this.currentToolCallLabel && this.currentThinkingValue.trim() === '') {
-			const title = this.currentToolCallLabel;
-			this.currentTitle = title;
-			this.setTitleWithWidgets(new MarkdownString(title), this.instantiationService, this.chatMarkdownAnchorService, this.chatContentMarkdownRenderer);
+		// case where we only have one tool in the thinking container and no thinking parts, we want to move it back to its original position
+		if (this.toolInvocationCount === 1 && this.currentThinkingValue.trim() === '' && this.singleToolItemInfo) {
+			this.restoreSingleToolToOriginalPosition();
 			return;
 		}
 
@@ -455,6 +453,23 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.setFallbackTitle();
 	}
 
+	private restoreSingleToolToOriginalPosition(): void {
+		if (!this.singleToolItemInfo) {
+			return;
+		}
+
+		const { element, originalParent, originalNextSibling } = this.singleToolItemInfo;
+
+		if (originalNextSibling && originalNextSibling.parentNode === originalParent) {
+			originalParent.insertBefore(element, originalNextSibling);
+		} else {
+			originalParent.appendChild(element);
+		}
+
+		hide(this.domNode);
+		this.singleToolItemInfo = undefined;
+	}
+
 	private setFallbackTitle(): void {
 		const finalLabel = this.toolInvocationCount > 0
 			? localize('chat.thinking.finished.withTools', 'Finished thinking and invoked {0} tool{1}', this.toolInvocationCount, this.toolInvocationCount === 1 ? '' : 's')
@@ -472,7 +487,18 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.updateDropdownClickability();
 	}
 
-	public appendItem(content: HTMLElement, toolInvocationId?: string, toolInvocation?: IChatToolInvocation | IChatToolInvocationSerialized): void {
+	public appendItem(content: HTMLElement, toolInvocationId?: string, toolInvocation?: IChatToolInvocation | IChatToolInvocationSerialized, originalParent?: HTMLElement): void {
+		// save the first tool item info for potential restoration later
+		if (this.toolInvocationCount === 0 && originalParent) {
+			this.singleToolItemInfo = {
+				element: content,
+				originalParent,
+				originalNextSibling: this.domNode
+			};
+		} else {
+			this.singleToolItemInfo = undefined;
+		}
+
 		const itemWrapper = $('.chat-thinking-tool-wrapper');
 		const icon = toolInvocationId ? getToolInvocationIcon(toolInvocationId) : Codicon.tools;
 		const iconElement = createThinkingIcon(icon);
@@ -490,11 +516,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			} else {
 				toolCallLabel = `Invoked \`${toolInvocationId}\``;
 			}
-
-			if (toolInvocation?.pastTenseMessage) {
-				this.currentToolCallLabel = typeof toolInvocation.pastTenseMessage === 'string' ? toolInvocation.pastTenseMessage : toolInvocation.pastTenseMessage.value;
-			}
-
 			if (toolInvocation) {
 				this.toolInvocations.push(toolInvocation);
 			}
