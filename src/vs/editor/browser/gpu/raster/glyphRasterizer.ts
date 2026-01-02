@@ -181,6 +181,10 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 			const lineWidth = decorationStyleSet?.strikethroughThickness !== undefined
 				? Math.round(decorationStyleSet.strikethroughThickness * this.devicePixelRatio)
 				: Math.max(1, Math.floor(devicePixelFontSize / 10));
+			// Apply strikethrough color if specified
+			if (decorationStyleSet?.strikethroughColor !== undefined) {
+				this._ctx.fillStyle = `#${decorationStyleSet.strikethroughColor.toString(16).padStart(8, '0')}`;
+			}
 			// Intentionally do not apply the sub pixel x offset to
 			// strikethrough to ensure successive glyphs form a contiguous line.
 			this._ctx.fillRect(originX, strikethroughY - Math.floor(lineWidth / 2), Math.ceil(this._textMetrics.width), lineWidth);

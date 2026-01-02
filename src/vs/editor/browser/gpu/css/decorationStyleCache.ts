@@ -26,6 +26,10 @@ export interface IDecorationStyleSet {
 	 * The thickness of the strikethrough line in pixels (CSS pixels, not device pixels).
 	 */
 	strikethroughThickness: number | undefined;
+	/**
+	 * A 24-bit number representing the strikethrough color.
+	 */
+	strikethroughColor: number | undefined;
 }
 
 export interface IDecorationStyleCacheEntry extends IDecorationStyleSet {
@@ -40,33 +44,49 @@ export class DecorationStyleCache {
 	private _nextId = 1;
 
 	private readonly _cacheById = new Map<number, IDecorationStyleCacheEntry>();
-	private readonly _cacheByStyle = new NKeyMap<IDecorationStyleCacheEntry, [number, number, string, number, string]>();
+	private readonly _cacheByStyle = new NKeyMap<IDecorationStyleCacheEntry, [number, number, string, number, string, number]>();
 
 	getOrCreateEntry(
 		color: number | undefined,
 		bold: boolean | undefined,
 		opacity: number | undefined,
 		strikethrough: boolean | undefined,
-		strikethroughThickness: number | undefined
+		strikethroughThickness: number | undefined,
+		strikethroughColor: number | undefined
 	): number {
-		if (color === undefined && bold === undefined && opacity === undefined && strikethrough === undefined && strikethroughThickness === undefined) {
+		if (color === undefined && bold === undefined && opacity === undefined && strikethrough === undefined && strikethroughThickness === undefined && strikethroughColor === undefined) {
 			return 0;
 		}
-		const result = this._cacheByStyle.get(color ?? 0, bold ? 1 : 0, opacity === undefined ? '' : opacity.toFixed(2), strikethrough ? 1 : 0, strikethroughThickness === undefined ? '' : strikethroughThickness.toFixed(2));
+		const result = this._cacheByStyle.get(
+			color ?? 0,
+			bold ? 1 : 0,
+			opacity === undefined ? '' : opacity.toFixed(2),
+			strikethrough ? 1 : 0,
+			strikethroughThickness === undefined ? '' : strikethroughThickness.toFixed(2),
+			strikethroughColor ?? 0
+		);
 		if (result) {
 			return result.id;
 		}
 		const id = this._nextId++;
-		const entry = {
+		const entry: IDecorationStyleCacheEntry = {
 			id,
 			color,
 			bold,
 			opacity,
 			strikethrough,
 			strikethroughThickness,
+			strikethroughColor,
 		};
 		this._cacheById.set(id, entry);
-		this._cacheByStyle.set(entry, color ?? 0, bold ? 1 : 0, opacity === undefined ? '' : opacity.toFixed(2), strikethrough ? 1 : 0, strikethroughThickness === undefined ? '' : strikethroughThickness.toFixed(2));
+		this._cacheByStyle.set(entry,
+			color ?? 0,
+			bold ? 1 : 0,
+			opacity === undefined ? '' : opacity.toFixed(2),
+			strikethrough ? 1 : 0,
+			strikethroughThickness === undefined ? '' : strikethroughThickness.toFixed(2),
+			strikethroughColor ?? 0
+		);
 		return id;
 	}
 

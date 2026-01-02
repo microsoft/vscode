@@ -6,6 +6,7 @@
 import * as nls from '../../../nls.js';
 import { addDisposableListener, getActiveWindow } from '../../../base/browser/dom.js';
 import { createFastDomNode, type FastDomNode } from '../../../base/browser/fastDomNode.js';
+import { Color } from '../../../base/common/color.js';
 import { BugIndicatingError } from '../../../base/common/errors.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import type { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
@@ -256,7 +257,6 @@ const gpuSupportedDecorationCssRules = [
 	'font-weight',
 	'opacity',
 	'text-decoration',
-	// TODO: This isn't actually supported, it uses the text color currently
 	'text-decoration-color',
 	'text-decoration-line',
 	'text-decoration-style',
@@ -278,7 +278,11 @@ function supportsCssRule(rule: string, style: CSSStyleDeclaration) {
 		case 'text-decoration-color': {
 			const value = style.getPropertyValue(rule);
 			// Support var(--something, initial/inherit) which falls back to currentcolor
-			return /^var\(--[^,]+,\s*(?:initial|inherit)\)$/.test(value);
+			if (/^var\(--[^,]+,\s*(?:initial|inherit)\)$/.test(value)) {
+				return true;
+			}
+			// Support parsed color values
+			return Color.Format.CSS.parse(value) !== null;
 		}
 		case 'text-decoration-style': {
 			const value = style.getPropertyValue(rule);
