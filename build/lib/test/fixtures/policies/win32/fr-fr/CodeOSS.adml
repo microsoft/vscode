@@ -40,13 +40,15 @@ Cette fonctionnalité désactive [les protections de sécurité critiques](https
 			<string id="AllowedExtensions_extensions_allowed_policy">Spécifiez une liste d’extensions autorisées. Cela permet de maintenir un environnement de développement sécurisé et cohérent en limitant l’utilisation d’extensions non autorisées. Plus d’informations : https://code.visualstudio.com/docs/setup/enterprise#_configure-allowed-extensions</string>
 			<string id="ExtensionGalleryServiceUrl">ExtensionGalleryServiceUrl</string>
 			<string id="ExtensionGalleryServiceUrl_extensions_gallery_serviceUrl">Configurer l’URL du service Place de marché à laquelle se connecter</string>
+			<string id="ChatToolsTerminalAutoApprove">ChatToolsTerminalAutoApprove</string>
+			<string id="ChatToolsTerminalAutoApprove_autoApprove_policy_description">A list of commands or regular expressions that control whether the run in terminal tool commands require explicit approval.</string>
 			<string id="ChatToolsTerminalEnableAutoApprove">ChatToolsTerminalEnableAutoApprove</string>
 			<string id="ChatToolsTerminalEnableAutoApprove_autoApproveMode_description">Contrôle s’il faut autoriser l’approbation automatique lors de l’exécution dans l’outil terminal.</string>
 			<string id="EnableFeedback">EnableFeedback</string>
 			<string id="EnableFeedback_telemetry_feedback_enabled">Activez les mécanismes de commentaires tels que le système de rapport de problèmes, les sondages et autres options de commentaires.</string>
+			<string id="ChatToolsTerminalIgnoreDefaultAutoApproveRules">ChatToolsTerminalIgnoreDefaultAutoApproveRules</string>
+			<string id="ChatToolsTerminalIgnoreDefaultAutoApproveRules_ignoreDefaultAutoApproveRules_policy_description">Whether to ignore the built-in default auto-approve rules used by the run in terminal tool.</string>
 			<string id="TelemetryLevel">TelemetryLevel</string>
-<string id="ChatToolsTerminalIgnoreDefaultAutoApproveRules">ChatToolsTerminalIgnoreDefaultAutoApproveRules</string>
-<string id="ChatToolsTerminalIgnoreDefaultAutoApproveRules_ignoreDefaultAutoApproveRules_policy_description">Whether to ignore the built-in default auto-approve rules used by the run in terminal tool.</string>
 			<string id="TelemetryLevel_telemetry_telemetryLevel_policyDescription">Contrôle le niveau de télémétrie.</string>
 			<string id="TelemetryLevel_telemetry_telemetryLevel_default">Envoie les données d'utilisation, les erreurs et les rapports d'erreur.</string>
 			<string id="TelemetryLevel_telemetry_telemetryLevel_error">Envoie la télémétrie d'erreur générale et les rapports de plantage.</string>

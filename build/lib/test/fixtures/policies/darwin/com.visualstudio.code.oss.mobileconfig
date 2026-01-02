@@ -25,13 +25,19 @@
 				<false/>
 				<key>ChatToolsAutoApprove</key>
 				<false/>
+				<key>ChatToolsEligibleForAutoApproval</key>
+				<string></string>
 				<key>McpGalleryServiceUrl</key>
 				<string></string>
 				<key>AllowedExtensions</key>
 				<string></string>
 				<key>ExtensionGalleryServiceUrl</key>
 				<string></string>
+				<key>ChatToolsTerminalAutoApprove</key>
+				<string></string>
 				<key>ChatToolsTerminalEnableAutoApprove</key>
+				<false/>
+				<key>ChatToolsTerminalIgnoreDefaultAutoApproveRules</key>
 				<false/>
 				<key>EnableFeedback</key>
 				<false/>

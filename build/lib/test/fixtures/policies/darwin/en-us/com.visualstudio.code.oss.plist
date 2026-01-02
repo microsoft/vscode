@@ -174,6 +174,17 @@ This feature disables critical security protections and makes it much easier for
 <key>pfm_default</key>
 <string></string>
 <key>pfm_description</key>
+<string>Controls which tools are eligible for automatic approval. Tools set to 'false' will always present a confirmation and will never offer the option to auto-approve. The default behavior (or setting a tool to 'true') may result in the tool offering auto-approval options.</string>
+<key>pfm_name</key>
+<string>ChatToolsEligibleForAutoApproval</string>
+<key>pfm_title</key>
+<string>ChatToolsEligibleForAutoApproval</string>
+<key>pfm_type</key>
+<string>string</string>
+</dict><dict>
+<key>pfm_default</key>
+<string></string>
+<key>pfm_description</key>
 <string>Configure the MCP Gallery service URL to connect to</string>
 <key>pfm_name</key>
 <string>McpGalleryServiceUrl</string>
@@ -206,6 +217,17 @@ This feature disables critical security protections and makes it much easier for
 <string>string</string>
 </dict><dict>
 <key>pfm_default</key>
+<string></string>
+<key>pfm_description</key>
+<string>A list of commands or regular expressions that control whether the run in terminal tool commands require explicit approval.</string>
+<key>pfm_name</key>
+<string>ChatToolsTerminalAutoApprove</string>
+<key>pfm_title</key>
+<string>ChatToolsTerminalAutoApprove</string>
+<key>pfm_type</key>
+<string>string</string>
+</dict><dict>
+<key>pfm_default</key>
 <false/>
 <key>pfm_description</key>
 <string>Controls whether to allow auto approval in the run in terminal tool.</string>
@@ -213,6 +235,17 @@ This feature disables critical security protections and makes it much easier for
 <string>ChatToolsTerminalEnableAutoApprove</string>
 <key>pfm_title</key>
 <string>ChatToolsTerminalEnableAutoApprove</string>
+<key>pfm_type</key>
+<string>boolean</string>
+</dict><dict>
+<key>pfm_default</key>
+<false/>
+<key>pfm_description</key>
+<string>Whether to ignore the built-in default auto-approve rules used by the run in terminal tool.</string>
+<key>pfm_name</key>
+<string>ChatToolsTerminalIgnoreDefaultAutoApproveRules</string>
+<key>pfm_title</key>
+<string>ChatToolsTerminalIgnoreDefaultAutoApproveRules</string>
 <key>pfm_type</key>
 <string>boolean</string>
 </dict><dict>
