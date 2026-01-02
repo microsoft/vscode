@@ -906,6 +906,28 @@ suite('ExtensionsActions', () => {
 			});
 	});
 
+	test('Test DisableGloballyAction when extension is installed, disabled globally and enabled in workspace', () => {
+		const local = aLocalExtension('a');
+		instantiationService.stub(IExtensionService, {
+			extensions: [toExtensionDescription(local)],
+			onDidChangeExtensions: Event.None,
+			whenInstalledExtensionsRegistered: () => Promise.resolve(true)
+		});
+
+		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally)
+			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([local], EnablementState.EnabledWorkspace))
+			.then(() => {
+				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+
+				return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
+					.then(extensions => {
+						const testObject: ExtensionsActions.DisableGloballyAction = disposables.add(instantiationService.createInstance(ExtensionsActions.DisableGloballyAction));
+						testObject.extension = extensions[0];
+						assert.ok(!testObject.enabled);
+					});
+			});
+	});
+
 	test('Test DisableGloballyAction when extension is uninstalled', () => {
 		const gallery = aGalleryExtension('a');
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
