@@ -10,7 +10,7 @@ import { Emitter } from '../../../../../../base/common/event.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { isLinux, isWindows, OperatingSystem } from '../../../../../../base/common/platform.js';
 import { count } from '../../../../../../base/common/strings.js';
-import type { SingleOrMany } from '../../../../../../base/common/types.js';
+import { hasKey, type SingleOrMany } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ITreeSitterLibraryService } from '../../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
@@ -82,6 +82,9 @@ suite('RunInTerminalTool', () => {
 			fileService: () => fileService,
 		}, store);
 
+		instantiationService.stub(IChatService, {
+			onDidDisposeSession: chatServiceDisposeEmitter.event
+		});
 		instantiationService.stub(ITerminalChatService, store.add(instantiationService.createInstance(TerminalChatService)));
 		instantiationService.stub(IWorkspaceContextService, workspaceContextService);
 		instantiationService.stub(IHistoryService, {
@@ -100,9 +103,6 @@ suite('RunInTerminalTool', () => {
 		instantiationService.stub(ITerminalService, {
 			onDidDisposeInstance: terminalServiceDisposeEmitter.event,
 			setNextCommandId: async () => { }
-		});
-		instantiationService.stub(IChatService, {
-			onDidDisposeSession: chatServiceDisposeEmitter.event
 		});
 		instantiationService.stub(ITerminalProfileResolverService, {
 			getDefaultProfile: async () => ({ path: 'bash' } as ITerminalProfile)
@@ -493,7 +493,9 @@ suite('RunInTerminalTool', () => {
 
 	suite('prepareToolInvocation - custom actions for dropdown', () => {
 
-		function assertDropdownActions(result: IPreparedToolInvocation | undefined, items: ({ subCommand: SingleOrMany<string> } | 'commandLine' | '---' | 'configure' | 'sessionApproval')[]) {
+		type ActionItemType = { subCommand: SingleOrMany<string>; scope: 'session' | 'workspace' | 'user' } | { commandLine: true; scope: 'session' | 'workspace' | 'user' } | '---' | 'configure' | 'sessionApproval';
+
+		function assertDropdownActions(result: IPreparedToolInvocation | undefined, items: ActionItemType[]) {
 			const actions = result?.confirmationMessages?.terminalCustomActions!;
 			ok(actions, 'Expected custom actions to be defined');
 
@@ -511,16 +513,21 @@ suite('RunInTerminalTool', () => {
 					} else if (item === 'sessionApproval') {
 						strictEqual(action.label, 'Allow All Commands in this Session');
 						strictEqual(action.data.type, 'sessionApproval');
-					} else if (item === 'commandLine') {
-						strictEqual(action.label, 'Always Allow Exact Command Line');
+					} else if (hasKey(item, { commandLine: true })) {
+						const expectedLabel = item.scope === 'session' ? 'Allow Exact Command Line in this Session'
+							: item.scope === 'workspace' ? 'Allow Exact Command Line in this Workspace'
+								: 'Always Allow Exact Command Line';
+						strictEqual(action.label, expectedLabel);
 						strictEqual(action.data.type, 'newRule');
 						ok(!Array.isArray(action.data.rule), 'Expected rule to be an object');
 					} else {
-						if (Array.isArray(item.subCommand)) {
-							strictEqual(action.label, `Always Allow Commands: ${item.subCommand.join(', ')}`);
-						} else {
-							strictEqual(action.label, `Always Allow Command: ${item.subCommand}`);
-						}
+						const subCommandLabel = Array.isArray(item.subCommand)
+							? `Commands ${item.subCommand.map(e => `\`${e} \u2026\``).join(', ')}`
+							: `\`${item.subCommand} \u2026\``;
+						const expectedLabel = item.scope === 'session' ? `Allow ${subCommandLabel} in this Session`
+							: item.scope === 'workspace' ? `Allow ${subCommandLabel} in this Workspace`
+								: `Always Allow ${subCommandLabel}`;
+						strictEqual(action.label, expectedLabel);
 						strictEqual(action.data.type, 'newRule');
 						ok(Array.isArray(action.data.rule), 'Expected rule to be an array');
 					}
@@ -539,8 +546,13 @@ suite('RunInTerminalTool', () => {
 
 			assertConfirmationRequired(result, 'Run `bash` command?');
 			assertDropdownActions(result, [
-				{ subCommand: 'npm run build' },
-				'commandLine',
+				{ subCommand: 'npm run build', scope: 'session' },
+				{ subCommand: 'npm run build', scope: 'workspace' },
+				{ subCommand: 'npm run build', scope: 'user' },
+				'---',
+				{ commandLine: true, scope: 'session' },
+				{ commandLine: true, scope: 'workspace' },
+				{ commandLine: true, scope: 'user' },
 				'---',
 				'sessionApproval',
 				'---',
@@ -556,7 +568,10 @@ suite('RunInTerminalTool', () => {
 
 			assertConfirmationRequired(result);
 			assertDropdownActions(result, [
-				{ subCommand: 'foo' },
+				{ subCommand: 'foo', scope: 'session' },
+				{ subCommand: 'foo', scope: 'workspace' },
+				{ subCommand: 'foo', scope: 'user' },
+				'---',
 				'---',
 				'sessionApproval',
 				'---',
@@ -601,8 +616,13 @@ suite('RunInTerminalTool', () => {
 
 			assertConfirmationRequired(result, 'Run `bash` command?');
 			assertDropdownActions(result, [
-				{ subCommand: ['npm install', 'npm run build'] },
-				'commandLine',
+				{ subCommand: ['npm install', 'npm run build'], scope: 'session' },
+				{ subCommand: ['npm install', 'npm run build'], scope: 'workspace' },
+				{ subCommand: ['npm install', 'npm run build'], scope: 'user' },
+				'---',
+				{ commandLine: true, scope: 'session' },
+				{ commandLine: true, scope: 'workspace' },
+				{ commandLine: true, scope: 'user' },
 				'---',
 				'sessionApproval',
 				'---',
@@ -621,8 +641,13 @@ suite('RunInTerminalTool', () => {
 
 			assertConfirmationRequired(result, 'Run `bash` command?');
 			assertDropdownActions(result, [
-				{ subCommand: 'foo' },
-				'commandLine',
+				{ subCommand: 'foo', scope: 'session' },
+				{ subCommand: 'foo', scope: 'workspace' },
+				{ subCommand: 'foo', scope: 'user' },
+				'---',
+				{ commandLine: true, scope: 'session' },
+				{ commandLine: true, scope: 'workspace' },
+				{ commandLine: true, scope: 'user' },
 				'---',
 				'sessionApproval',
 				'---',
@@ -655,8 +680,13 @@ suite('RunInTerminalTool', () => {
 
 			assertConfirmationRequired(result, 'Run `bash` command?');
 			assertDropdownActions(result, [
-				{ subCommand: ['foo', 'bar'] },
-				'commandLine',
+				{ subCommand: ['foo', 'bar'], scope: 'session' },
+				{ subCommand: ['foo', 'bar'], scope: 'workspace' },
+				{ subCommand: ['foo', 'bar'], scope: 'user' },
+				'---',
+				{ commandLine: true, scope: 'session' },
+				{ commandLine: true, scope: 'workspace' },
+				{ commandLine: true, scope: 'user' },
 				'---',
 				'sessionApproval',
 				'---',
@@ -672,8 +702,13 @@ suite('RunInTerminalTool', () => {
 
 			assertConfirmationRequired(result);
 			assertDropdownActions(result, [
-				{ subCommand: 'git status' },
-				'commandLine',
+				{ subCommand: 'git status', scope: 'session' },
+				{ subCommand: 'git status', scope: 'workspace' },
+				{ subCommand: 'git status', scope: 'user' },
+				'---',
+				{ commandLine: true, scope: 'session' },
+				{ commandLine: true, scope: 'workspace' },
+				{ commandLine: true, scope: 'user' },
 				'---',
 				'sessionApproval',
 				'---',
@@ -689,8 +724,13 @@ suite('RunInTerminalTool', () => {
 
 			assertConfirmationRequired(result);
 			assertDropdownActions(result, [
-				{ subCommand: 'npm test' },
-				'commandLine',
+				{ subCommand: 'npm test', scope: 'session' },
+				{ subCommand: 'npm test', scope: 'workspace' },
+				{ subCommand: 'npm test', scope: 'user' },
+				'---',
+				{ commandLine: true, scope: 'session' },
+				{ commandLine: true, scope: 'workspace' },
+				{ commandLine: true, scope: 'user' },
 				'---',
 				'sessionApproval',
 				'---',
@@ -706,8 +746,13 @@ suite('RunInTerminalTool', () => {
 
 			assertConfirmationRequired(result);
 			assertDropdownActions(result, [
-				{ subCommand: 'npm run build' },
-				'commandLine',
+				{ subCommand: 'npm run build', scope: 'session' },
+				{ subCommand: 'npm run build', scope: 'workspace' },
+				{ subCommand: 'npm run build', scope: 'user' },
+				'---',
+				{ commandLine: true, scope: 'session' },
+				{ commandLine: true, scope: 'workspace' },
+				{ commandLine: true, scope: 'user' },
 				'---',
 				'sessionApproval',
 				'---',
@@ -723,8 +768,13 @@ suite('RunInTerminalTool', () => {
 
 			assertConfirmationRequired(result);
 			assertDropdownActions(result, [
-				{ subCommand: 'yarn run test' },
-				'commandLine',
+				{ subCommand: 'yarn run test', scope: 'session' },
+				{ subCommand: 'yarn run test', scope: 'workspace' },
+				{ subCommand: 'yarn run test', scope: 'user' },
+				'---',
+				{ commandLine: true, scope: 'session' },
+				{ commandLine: true, scope: 'workspace' },
+				{ commandLine: true, scope: 'user' },
 				'---',
 				'sessionApproval',
 				'---',
@@ -740,8 +790,13 @@ suite('RunInTerminalTool', () => {
 
 			assertConfirmationRequired(result);
 			assertDropdownActions(result, [
-				{ subCommand: 'foo' },
-				'commandLine',
+				{ subCommand: 'foo', scope: 'session' },
+				{ subCommand: 'foo', scope: 'workspace' },
+				{ subCommand: 'foo', scope: 'user' },
+				'---',
+				{ commandLine: true, scope: 'session' },
+				{ commandLine: true, scope: 'workspace' },
+				{ commandLine: true, scope: 'user' },
 				'---',
 				'sessionApproval',
 				'---',
@@ -757,8 +812,13 @@ suite('RunInTerminalTool', () => {
 
 			assertConfirmationRequired(result);
 			assertDropdownActions(result, [
-				{ subCommand: 'npm run abc' },
-				'commandLine',
+				{ subCommand: 'npm run abc', scope: 'session' },
+				{ subCommand: 'npm run abc', scope: 'workspace' },
+				{ subCommand: 'npm run abc', scope: 'user' },
+				'---',
+				{ commandLine: true, scope: 'session' },
+				{ commandLine: true, scope: 'workspace' },
+				{ commandLine: true, scope: 'user' },
 				'---',
 				'sessionApproval',
 				'---',
@@ -774,8 +834,13 @@ suite('RunInTerminalTool', () => {
 
 			assertConfirmationRequired(result);
 			assertDropdownActions(result, [
-				{ subCommand: ['npm run build', 'git status'] },
-				'commandLine',
+				{ subCommand: ['npm run build', 'git status'], scope: 'session' },
+				{ subCommand: ['npm run build', 'git status'], scope: 'workspace' },
+				{ subCommand: ['npm run build', 'git status'], scope: 'user' },
+				'---',
+				{ commandLine: true, scope: 'session' },
+				{ commandLine: true, scope: 'workspace' },
+				{ commandLine: true, scope: 'user' },
 				'---',
 				'sessionApproval',
 				'---',
@@ -791,8 +856,13 @@ suite('RunInTerminalTool', () => {
 
 			assertConfirmationRequired(result);
 			assertDropdownActions(result, [
-				{ subCommand: ['git push', 'echo'] },
-				'commandLine',
+				{ subCommand: ['git push', 'echo'], scope: 'session' },
+				{ subCommand: ['git push', 'echo'], scope: 'workspace' },
+				{ subCommand: ['git push', 'echo'], scope: 'user' },
+				'---',
+				{ commandLine: true, scope: 'session' },
+				{ commandLine: true, scope: 'workspace' },
+				{ commandLine: true, scope: 'user' },
 				'---',
 				'sessionApproval',
 				'---',
@@ -808,8 +878,13 @@ suite('RunInTerminalTool', () => {
 
 			assertConfirmationRequired(result);
 			assertDropdownActions(result, [
-				{ subCommand: ['git status', 'git log'] },
-				'commandLine',
+				{ subCommand: ['git status', 'git log'], scope: 'session' },
+				{ subCommand: ['git status', 'git log'], scope: 'workspace' },
+				{ subCommand: ['git status', 'git log'], scope: 'user' },
+				'---',
+				{ commandLine: true, scope: 'session' },
+				{ commandLine: true, scope: 'workspace' },
+				{ commandLine: true, scope: 'user' },
 				'---',
 				'sessionApproval',
 				'---',
@@ -825,8 +900,13 @@ suite('RunInTerminalTool', () => {
 
 			assertConfirmationRequired(result);
 			assertDropdownActions(result, [
-				{ subCommand: 'foo' },
-				'commandLine',
+				{ subCommand: 'foo', scope: 'session' },
+				{ subCommand: 'foo', scope: 'workspace' },
+				{ subCommand: 'foo', scope: 'user' },
+				'---',
+				{ commandLine: true, scope: 'session' },
+				{ commandLine: true, scope: 'workspace' },
+				{ commandLine: true, scope: 'user' },
 				'---',
 				'sessionApproval',
 				'---',
@@ -856,8 +936,13 @@ suite('RunInTerminalTool', () => {
 
 			assertConfirmationRequired(result);
 			assertDropdownActions(result, [
-				{ subCommand: 'npm test' },
-				'commandLine',
+				{ subCommand: 'npm test', scope: 'session' },
+				{ subCommand: 'npm test', scope: 'workspace' },
+				{ subCommand: 'npm test', scope: 'user' },
+				'---',
+				{ commandLine: true, scope: 'session' },
+				{ commandLine: true, scope: 'workspace' },
+				{ commandLine: true, scope: 'user' },
 				'---',
 				'sessionApproval',
 				'---',
@@ -873,8 +958,13 @@ suite('RunInTerminalTool', () => {
 
 			assertConfirmationRequired(result);
 			assertDropdownActions(result, [
-				{ subCommand: 'foo' },
-				'commandLine',
+				{ subCommand: 'foo', scope: 'session' },
+				{ subCommand: 'foo', scope: 'workspace' },
+				{ subCommand: 'foo', scope: 'user' },
+				'---',
+				{ commandLine: true, scope: 'session' },
+				{ commandLine: true, scope: 'workspace' },
+				{ commandLine: true, scope: 'user' },
 				'---',
 				'sessionApproval',
 				'---',
@@ -890,7 +980,9 @@ suite('RunInTerminalTool', () => {
 
 			assertConfirmationRequired(result);
 			assertDropdownActions(result, [
-				'commandLine',
+				{ commandLine: true, scope: 'session' },
+				{ commandLine: true, scope: 'workspace' },
+				{ commandLine: true, scope: 'user' },
 				'---',
 				'sessionApproval',
 				'---',

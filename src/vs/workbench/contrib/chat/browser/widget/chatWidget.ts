@@ -1642,7 +1642,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.inputContainer = dom.$('.chat-edit-input-container');
 				rowContainer.appendChild(this.inputContainer);
 				this.createInput(this.inputContainer);
-				this.input.setChatMode(this.inputPart.currentModeKind);
+				this.input.setChatMode(this.inputPart.currentModeObs.get().id);
 			} else {
 				this.inputPart.element.classList.add('editing');
 			}
@@ -1708,7 +1708,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const isInput = this.configurationService.getValue<string>('chat.editRequests') === 'input';
 
 		if (!isInput) {
-			this.inputPart.setChatMode(this.input.currentModeKind);
+			this.inputPart.setChatMode(this.input.currentModeObs.get().id);
 			const currentModel = this.input.selectedLanguageModel;
 			if (currentModel) {
 				this.inputPart.switchModel(currentModel.metadata);

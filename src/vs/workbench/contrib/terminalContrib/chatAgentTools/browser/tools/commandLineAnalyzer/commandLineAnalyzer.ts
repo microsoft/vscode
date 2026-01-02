@@ -16,7 +16,7 @@ export interface IAutoApproveRule {
 	regex: RegExp;
 	regexCaseInsensitive: RegExp;
 	sourceText: string;
-	sourceTarget: ConfigurationTarget;
+	sourceTarget: ConfigurationTarget | 'session';
 	isDefaultRule: boolean;
 }
 
