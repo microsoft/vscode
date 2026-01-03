@@ -135,8 +135,9 @@ export class EditorWorker implements IDisposable, IWorkerTextModelSyncChannelSer
 	private static computeDiff(originalTextModel: ICommonModel | ITextModel, modifiedTextModel: ICommonModel | ITextModel, options: IDocumentDiffProviderOptions, algorithm: DiffAlgorithmName): IDiffComputationResult {
 		const diffAlgorithm: ILinesDiffComputer = algorithm === 'advanced' ? linesDiffComputers.getDefault() : linesDiffComputers.getLegacy();
 
-		const originalLines = originalTextModel.getLinesContent();
-		const modifiedLines = modifiedTextModel.getLinesContent();
+		const considerEOL = !options.ignoreEOL;
+		const originalLines = originalTextModel.getLinesContent(considerEOL);
+		const modifiedLines = modifiedTextModel.getLinesContent(considerEOL);
 
 		const result = diffAlgorithm.computeDiff(originalLines, modifiedLines, options);
 
@@ -185,7 +186,7 @@ export class EditorWorker implements IDisposable, IWorkerTextModelSyncChannelSer
 		return true;
 	}
 
-	public async $computeDirtyDiff(originalUrl: string, modifiedUrl: string, ignoreTrimWhitespace: boolean): Promise<IChange[] | null> {
+	public async $computeDirtyDiff(originalUrl: string, modifiedUrl: string, ignoreTrimWhitespace: boolean, ignoreEOL: boolean): Promise<IChange[] | null> {
 		const original = this._getModel(originalUrl);
 		const modified = this._getModel(modifiedUrl);
 		if (!original || !modified) {
@@ -198,6 +199,7 @@ export class EditorWorker implements IDisposable, IWorkerTextModelSyncChannelSer
 			shouldComputeCharChanges: false,
 			shouldPostProcessCharChanges: false,
 			shouldIgnoreTrimWhitespace: ignoreTrimWhitespace,
+			shouldIgnoreEOL: ignoreEOL,
 			shouldMakePrettyDiff: true,
 			maxComputationTime: 1000
 		});
@@ -549,7 +551,7 @@ export function computeStringDiff(original: string, modified: string, options: {
 	const modifiedText = new StringText(modified);
 	const modifiedLines = modifiedText.getLines();
 
-	const result = diffAlgorithm.computeDiff(originalLines, modifiedLines, { ignoreTrimWhitespace: false, maxComputationTimeMs: options.maxComputationTimeMs, computeMoves: false, extendToSubwords: false });
+	const result = diffAlgorithm.computeDiff(originalLines, modifiedLines, { ignoreTrimWhitespace: false, ignoreEOL: true, maxComputationTimeMs: options.maxComputationTimeMs, computeMoves: false, extendToSubwords: false });
 
 	const textEdit = DetailedLineRangeMapping.toTextEdit(result.changes, modifiedText);
 	const strEdit = originalText.getTransformer().getStringEdit(textEdit);

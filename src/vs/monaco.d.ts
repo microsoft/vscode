@@ -4039,6 +4039,11 @@ declare namespace monaco.editor {
 		 */
 		ignoreTrimWhitespace?: boolean;
 		/**
+		 * Ignore end-of-line characters when computing the diff.
+		 * Defaults to true.
+		 */
+		ignoreEOL?: boolean;
+		/**
 		 * Render +/- indicators for added/deleted changes.
 		 * Defaults to true.
 		 */
