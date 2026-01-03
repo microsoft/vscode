@@ -245,7 +245,7 @@ export class TestWorkingCopy extends Disposable implements IWorkingCopy {
 	}
 }
 
-export function createFileStat(resource: URI, readonly = false, isFile?: boolean, isDirectory?: boolean, isSymbolicLink?: boolean, children?: { resource: URI; isFile?: boolean; isDirectory?: boolean; isSymbolicLink?: boolean }[] | undefined): IFileStatWithMetadata {
+export function createFileStat(resource: URI, readonly = false, isFile?: boolean, isDirectory?: boolean, isSymbolicLink?: boolean, children?: { resource: URI; isFile?: boolean; isDirectory?: boolean; isSymbolicLink?: boolean; executable?: boolean }[] | undefined, executable?: boolean): IFileStatWithMetadata {
 	return {
 		resource,
 		etag: Date.now().toString(),
@@ -257,8 +257,9 @@ export function createFileStat(resource: URI, readonly = false, isFile?: boolean
 		isSymbolicLink: isSymbolicLink ?? false,
 		readonly,
 		locked: false,
+		executable: executable ?? false,
 		name: basename(resource),
-		children: children?.map(c => createFileStat(c.resource, false, c.isFile, c.isDirectory, c.isSymbolicLink)),
+		children: children?.map(c => createFileStat(c.resource, false, c.isFile, c.isDirectory, c.isSymbolicLink, undefined, c.executable)),
 	};
 }
 
