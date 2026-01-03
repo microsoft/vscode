@@ -1103,9 +1103,9 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			}
 
 			if (cmd === 'left') {
-				this.send('vscode:runAction', { id: 'workbench.action.openPreviousRecentlyUsedEditor', from: 'mouse' });
+				this.send('vscode:runAction', { id: 'workbench.action.navigateBack', from: 'mouse' });
 			} else if (cmd === 'right') {
-				this.send('vscode:runAction', { id: 'workbench.action.openNextRecentlyUsedEditor', from: 'mouse' });
+				this.send('vscode:runAction', { id: 'workbench.action.navigateForward', from: 'mouse' });
 			}
 		});
 	}
