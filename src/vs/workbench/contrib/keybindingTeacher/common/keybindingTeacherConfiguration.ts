@@ -10,49 +10,50 @@ import { Extensions as ConfigurationExtensions, IConfigurationRegistry, Configur
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 configurationRegistry.registerConfiguration({
-	id: 'keybindingTeacher',
-	order: 7.5,
-	title: localize('keybindingTeacherConfigurationTitle', 'Keybinding Teacher'),
-	type: 'object',
+	id: 'workbench',
 	properties: {
-		'keybindingTeacher.enabled': {
+		'workbench.keybindingTeacher.enabled': {
 			type: 'boolean',
-			default: true,
+			default: false,
 			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
 			markdownDescription: localize(
 				'keybindingTeacher.enabled',
-				'When enabled, VS Code will show suggestions for keyboard shortcuts when you use mouse or menu actions that have keybindings.'
+				'**Experimental**: When enabled, VS Code will show suggestions for keyboard shortcuts when you use mouse or menu actions that have keybindings.'
 			)
 		},
-		'keybindingTeacher.threshold': {
+		'workbench.keybindingTeacher.threshold': {
 			type: 'number',
 			default: 3,
 			minimum: 1,
 			maximum: 20,
 			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
 			markdownDescription: localize(
 				'keybindingTeacher.threshold',
-				'Number of times you must use a mouse/menu action before VS Code suggests the keyboard shortcut.'
+				'VS Code will show a keyboard shortcut suggestion every N times you use a mouse/menu action (where N is this threshold value).'
 			)
 		},
-		'keybindingTeacher.cooldownMinutes': {
+		'workbench.keybindingTeacher.cooldownMinutes': {
 			type: 'number',
 			default: 60,
 			minimum: 0,
 			maximum: 1440,
 			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
 			markdownDescription: localize(
 				'keybindingTeacher.cooldownMinutes',
 				'Minimum time (in minutes) between showing suggestions for the same command. Set to 0 to always show suggestions after reaching the threshold.'
 			)
 		},
-		'keybindingTeacher.showDismissOption': {
+		'workbench.keybindingTeacher.showDismissOption': {
 			type: 'boolean',
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
 			markdownDescription: localize(
 				'keybindingTeacher.showDismissOption',
-				'Show an option to permanently dismiss suggestions for specific commands.'
+				'Show an option to permanently dismiss suggestions for specific commands. Use `Keybinding Teacher: Manage Dismissed Suggestions` command to re-enable dismissed commands. Use `Keybinding Teacher: Clear All Data` command to reset all data.'
 			)
 		}
 	}

@@ -23,7 +23,7 @@ export class KeybindingTeacherStorage {
 	) { }
 
 	loadStats(): Map<string, ICommandStats> {
-		const stored = this.storageService.get(STORAGE_KEY, StorageScope.PROFILE, '{}');
+		const stored = this.storageService.get(STORAGE_KEY, StorageScope.APPLICATION, '{}');
 		const statsMap = new Map<string, ICommandStats>();
 
 		try {
@@ -60,10 +60,10 @@ export class KeybindingTeacherStorage {
 			};
 		}
 
-		this.storageService.store(STORAGE_KEY, JSON.stringify(toStore), StorageScope.PROFILE, StorageTarget.USER);
+		this.storageService.store(STORAGE_KEY, JSON.stringify(toStore), StorageScope.APPLICATION, StorageTarget.USER);
 	}
 
 	clearStats(): void {
-		this.storageService.remove(STORAGE_KEY, StorageScope.PROFILE);
+		this.storageService.remove(STORAGE_KEY, StorageScope.APPLICATION);
 	}
 }

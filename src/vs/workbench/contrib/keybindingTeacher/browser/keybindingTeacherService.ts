@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Mutable } from '../../../../base/common/types.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
@@ -13,21 +14,8 @@ import { ICommandStats, IKeybindingTeacherConfiguration, IKeybindingTeacherServi
 import { KeybindingTeacherStorage } from '../common/keybindingTeacherStorage.js';
 import { localize } from '../../../../nls.js';
 
-// Internal mutable version of ICommandStats
-interface MutableCommandStats {
-	commandId: string;
-	uiExecutions: number;
-	keyboardExecutions: number;
-	totalExecutions: number;
-	lastNotified: number | undefined;
-	dismissed: boolean;
-	firstUIExecution: number;
-}
-
-// High-frequency commands that should not trigger suggestions
 const HIGH_FREQ_COMMANDS = /^(cursor|delete|undo|redo|tab|type|editor\.action\.clipboard)/;
 
-// Commands that don't have useful keybindings to teach
 const IGNORED_COMMANDS = new Set([
 	'_extensionHost.command',
 	'vscode.executeCommand',
@@ -38,7 +26,7 @@ export class KeybindingTeacherService extends Disposable implements IKeybindingT
 
 	declare readonly _serviceBrand: undefined;
 
-	private stats: Map<string, MutableCommandStats>;
+	private stats: Map<string, Mutable<ICommandStats>>;
 	private storage: KeybindingTeacherStorage;
 	private config: IKeybindingTeacherConfiguration;
 
@@ -55,25 +43,15 @@ export class KeybindingTeacherService extends Disposable implements IKeybindingT
 		this.stats = this.storage.loadStats();
 		this.config = this.loadConfiguration();
 
-		console.log('[KeybindingTeacher] Service initialized, enabled:', this.config.enabled);
-
-		// Listen for configuration changes
 		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('keybindingTeacher')) {
+			if (e.affectsConfiguration('workbench.keybindingTeacher')) {
 				this.config = this.loadConfiguration();
-				console.log('[KeybindingTeacher] Configuration changed, enabled:', this.config.enabled);
 			}
 		}));
 
-		// Hook into command execution to record the source
-		// We use the keybindingService.currentlyDispatchingCommandId to determine
-		// if a command is being executed from a keybinding or from UI
+		// Distinguish keybinding vs UI command execution using currentlyDispatchingCommandId
 		this._register(commandService.onDidExecuteCommand(e => {
-			// Check if this command is currently being dispatched by the keybinding service
-			const isFromKeybinding = this.keybindingService.currentlyDispatchingCommandId === e.commandId;
-			console.log('[KeybindingTeacher] Command executed:', e.commandId, 'from keybinding:', isFromKeybinding);
-
-			if (isFromKeybinding) {
+			if (this.keybindingService.currentlyDispatchingCommandId === e.commandId) {
 				this.recordKeybindingExecution(e.commandId);
 			} else {
 				this.recordUICommandExecution(e.commandId);
@@ -82,7 +60,7 @@ export class KeybindingTeacherService extends Disposable implements IKeybindingT
 	}
 
 	private loadConfiguration(): IKeybindingTeacherConfiguration {
-		const config = this.configurationService.getValue<Partial<IKeybindingTeacherConfiguration>>('keybindingTeacher') || {};
+		const config = this.configurationService.getValue<Partial<IKeybindingTeacherConfiguration>>('workbench.keybindingTeacher') || {};
 		return {
 			enabled: config.enabled !== undefined ? config.enabled : DEFAULT_CONFIG.enabled,
 			threshold: config.threshold !== undefined ? config.threshold : DEFAULT_CONFIG.threshold,
@@ -106,7 +84,6 @@ export class KeybindingTeacherService extends Disposable implements IKeybindingT
 		this.stats.set(commandId, stats);
 		this.storage.saveStats(this.stats);
 
-		// Check if we should show a suggestion
 		if (this.shouldShowSuggestion(stats)) {
 			this.showKeybindingSuggestion(commandId, stats);
 		}
@@ -129,17 +106,14 @@ export class KeybindingTeacherService extends Disposable implements IKeybindingT
 	}
 
 	private shouldIgnoreCommand(commandId: string): boolean {
-		// Ignore high-frequency commands
 		if (HIGH_FREQ_COMMANDS.test(commandId)) {
 			return true;
 		}
 
-		// Ignore specific commands
 		if (IGNORED_COMMANDS.has(commandId)) {
 			return true;
 		}
 
-		// Ignore if no keybinding exists
 		const keybinding = this.keybindingService.lookupKeybinding(commandId);
 		if (!keybinding) {
 			return true;
@@ -148,7 +122,7 @@ export class KeybindingTeacherService extends Disposable implements IKeybindingT
 		return false;
 	}
 
-	private getOrCreateStats(commandId: string): MutableCommandStats {
+	private getOrCreateStats(commandId: string): Mutable<ICommandStats> {
 		let stats = this.stats.get(commandId);
 		if (!stats) {
 			stats = {
@@ -166,18 +140,16 @@ export class KeybindingTeacherService extends Disposable implements IKeybindingT
 		return stats;
 	}
 
-	private shouldShowSuggestion(stats: MutableCommandStats): boolean {
-		// Don't show if dismissed
+	private shouldShowSuggestion(stats: Mutable<ICommandStats>): boolean {
 		if (stats.dismissed) {
 			return false;
 		}
 
-		// Check threshold
-		if (stats.uiExecutions < this.config.threshold) {
+		// Use modulo to trigger every N times while preserving historical count
+		if (stats.uiExecutions < this.config.threshold || stats.uiExecutions % this.config.threshold !== 0) {
 			return false;
 		}
 
-		// Check cooldown (if cooldown is 0, always show)
 		if (stats.lastNotified && this.config.cooldownMinutes > 0) {
 			const cooldownMs = this.config.cooldownMinutes * 60 * 1000;
 			const timeSinceLastNotified = Date.now() - stats.lastNotified;
@@ -189,7 +161,7 @@ export class KeybindingTeacherService extends Disposable implements IKeybindingT
 		return true;
 	}
 
-	private showKeybindingSuggestion(commandId: string, stats: MutableCommandStats): void {
+	private showKeybindingSuggestion(commandId: string, stats: Mutable<ICommandStats>): void {
 		const keybinding = this.keybindingService.lookupKeybinding(commandId);
 		if (!keybinding) {
 			return;
@@ -200,13 +172,10 @@ export class KeybindingTeacherService extends Disposable implements IKeybindingT
 			return;
 		}
 
-		// Update last notified time and reset UI execution count
 		stats.lastNotified = Date.now();
-		stats.uiExecutions = 0; // Reset counter so user starts fresh after learning the shortcut
 		this.stats.set(commandId, stats);
 		this.storage.saveStats(this.stats);
 
-		// Get a friendly command name
 		const commandLabel = this.getCommandLabel(commandId);
 
 		const message = localize(
@@ -218,7 +187,6 @@ export class KeybindingTeacherService extends Disposable implements IKeybindingT
 
 		const actions = [];
 
-		// Show keybindings action
 		actions.push({
 			label: localize('keybindingTeacher.showKeybindings', 'Show All Keybindings'),
 			run: () => {
@@ -226,7 +194,6 @@ export class KeybindingTeacherService extends Disposable implements IKeybindingT
 			}
 		});
 
-		// Dismiss option
 		if (this.config.showDismissOption) {
 			actions.push({
 				label: localize('keybindingTeacher.dismiss', "Don't Show Again for This Command"),
@@ -247,8 +214,6 @@ export class KeybindingTeacherService extends Disposable implements IKeybindingT
 	}
 
 	private getCommandLabel(commandId: string): string {
-		// Try to get a friendly label from the command palette
-		// For now, just clean up the command ID
 		return commandId
 			.replace(/^workbench\.action\./, '')
 			.replace(/^editor\.action\./, '')
@@ -269,13 +234,38 @@ export class KeybindingTeacherService extends Disposable implements IKeybindingT
 		this.storage.saveStats(this.stats);
 	}
 
+	undismissCommand(commandId: string): void {
+		const stats = this.stats.get(commandId);
+		if (stats) {
+			stats.dismissed = false;
+			stats.uiExecutions = 0;
+			stats.lastNotified = undefined;
+			this.stats.set(commandId, stats);
+			this.storage.saveStats(this.stats);
+		}
+	}
+
+	getDismissedCommands(): string[] {
+		const dismissed: string[] = [];
+		for (const [commandId, stats] of this.stats.entries()) {
+			if (stats.dismissed) {
+				dismissed.push(commandId);
+			}
+		}
+		return dismissed.sort();
+	}
+
+	resetAllStats(): void {
+		this.stats.clear();
+		this.storage.clearStats();
+	}
+
 	setEnabled(enabled: boolean): void {
 		const currentConfig = this.configurationService.getValue<Partial<IKeybindingTeacherConfiguration>>('keybindingTeacher') || {};
 		this.configurationService.updateValue('keybindingTeacher', { ...currentConfig, enabled });
 	}
 
 	override dispose(): void {
-		// Save stats one last time
 		this.storage.saveStats(this.stats);
 		super.dispose();
 	}

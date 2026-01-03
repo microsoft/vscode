@@ -31,6 +31,21 @@ export interface IKeybindingTeacherService {
 	dismissCommand(commandId: string): void;
 
 	/**
+	 * Re-enable suggestions for a specific command that was dismissed
+	 */
+	undismissCommand(commandId: string): void;
+
+	/**
+	 * Get all dismissed commands
+	 */
+	getDismissedCommands(): string[];
+
+	/**
+	 * Reset all statistics and dismissed commands
+	 */
+	resetAllStats(): void;
+
+	/**
 	 * Enable or disable the keybinding teacher
 	 */
 	setEnabled(enabled: boolean): void;
@@ -54,7 +69,7 @@ export interface IKeybindingTeacherConfiguration {
 }
 
 export const DEFAULT_CONFIG: IKeybindingTeacherConfiguration = {
-	enabled: true,
+	enabled: false,
 	threshold: 3,
 	cooldownMinutes: 60,
 	showDismissOption: true
