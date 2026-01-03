@@ -12,6 +12,7 @@ import { registerAction2, Action2 } from '../../../../platform/actions/common/ac
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IQuickPickItem, IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { localize } from '../../../../nls.js';
 import '../common/keybindingTeacherConfiguration.js';
 
@@ -38,7 +39,7 @@ registerAction2(class ManageDismissedCommandsAction extends Action2 {
 		super({
 			id: 'keybindingTeacher.manageDismissedCommands',
 			title: { value: localize('manageDismissedCommands', "Manage Dismissed Suggestions"), original: 'Manage Dismissed Suggestions' },
-			category: { value: localize('keybindingTeacher', "Keybinding Teacher"), original: 'Keybinding Teacher' },
+			category: { value: localize('manageDismissedCommandsCategory', "Keybinding Teacher"), original: 'Keybinding Teacher' },
 			f1: true
 		});
 	}
@@ -89,23 +90,22 @@ registerAction2(class ClearAllDataAction extends Action2 {
 		super({
 			id: 'keybindingTeacher.clearAllData',
 			title: { value: localize('clearAllData', "Clear All Data"), original: 'Clear All Data' },
-			category: { value: localize('keybindingTeacher', "Keybinding Teacher"), original: 'Keybinding Teacher' },
+			category: { value: localize('clearAllDataCategory', "Keybinding Teacher"), original: 'Keybinding Teacher' },
 			f1: true
 		});
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const keybindingTeacherService = accessor.get(IKeybindingTeacherService);
-		const quickInputService = accessor.get(IQuickInputService);
+		const dialogService = accessor.get(IDialogService);
 
-		const confirm = await quickInputService.pick([
-			{ label: localize('yes', "Yes"), value: true },
-			{ label: localize('no', "No"), value: false }
-		], {
-			placeHolder: localize('confirmClear', "Clear all keybinding teacher data (dismissed commands and usage counts)?")
+		const { confirmed } = await dialogService.confirm({
+			message: localize('confirmClearMessage', "Clear all keybinding teacher data?"),
+			detail: localize('confirmClearDetail', "This will clear all dismissed commands and usage counts."),
+			primaryButton: localize('clearButton', "Clear")
 		});
 
-		if (confirm?.value) {
+		if (confirmed) {
 			keybindingTeacherService.resetAllStats();
 		}
 	}

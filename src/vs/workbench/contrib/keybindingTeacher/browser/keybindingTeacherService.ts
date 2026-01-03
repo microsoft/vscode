@@ -5,7 +5,7 @@
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Mutable } from '../../../../base/common/types.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
@@ -188,6 +188,21 @@ export class KeybindingTeacherService extends Disposable implements IKeybindingT
 	}
 
 	private getCommandLabel(commandId: string): string {
+		const command = CommandsRegistry.getCommand(commandId);
+		if (command?.metadata?.description) {
+			const description = command.metadata.description;
+			if (typeof description === 'string') {
+				return description;
+			} else if (typeof description === 'object' && description !== null) {
+				// Check if it's a localized string object with a 'value' property
+				const localizedDesc = description as { value?: string };
+				if (localizedDesc.value) {
+					return localizedDesc.value;
+				}
+			}
+		}
+
+		// Fallback to formatting the command ID
 		return commandId
 			.replace(/^workbench\.action\./, '')
 			.replace(/^editor\.action\./, '')
