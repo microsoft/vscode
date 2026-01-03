@@ -118,6 +118,8 @@
 
 .extension-list-item > .details > .header-container > .header > .ratings {
 	text-align: right;
+	flex-shrink: 0;
+	white-space: nowrap;
 }
 
 .extension-list-item > .details > .header-container > .header .extension-icon-badge .codicon {
