@@ -33,6 +33,13 @@ export function isZsh(envShell: string, os: OperatingSystem): boolean {
 	return /^zsh$/.test(pathPosix.basename(envShell));
 }
 
+export function isBash(envShell: string, os: OperatingSystem): boolean {
+	if (os === OperatingSystem.Windows) {
+		return /^bash(?:\.exe)?$/i.test(pathWin32.basename(envShell));
+	}
+	return /^bash$/.test(pathPosix.basename(envShell));
+}
+
 export function isFish(envShell: string, os: OperatingSystem): boolean {
 	if (os === OperatingSystem.Windows) {
 		return /^fish(?:\.exe)?$/i.test(pathWin32.basename(envShell));
