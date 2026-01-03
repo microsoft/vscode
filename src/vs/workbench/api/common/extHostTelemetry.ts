@@ -12,7 +12,6 @@ import { ILogger, ILoggerService } from '../../../platform/log/common/log.js';
 import { IExtHostInitDataService } from './extHostInitDataService.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { UIKind } from '../../services/extensions/common/extensionHostProtocol.js';
-import { getRemoteName } from '../../../platform/remote/common/remoteHosts.js';
 import { cleanData, cleanRemoteAuthority, TelemetryLogGroup } from '../../../platform/telemetry/common/telemetryUtils.js';
 import { mixin } from '../../../base/common/objects.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
@@ -116,7 +115,7 @@ export class ExtHostTelemetry extends Disposable implements ExtHostTelemetryShap
 				commonProperties['common.uikind'] = 'unknown';
 		}
 
-		commonProperties['common.remotename'] = getRemoteName(cleanRemoteAuthority(this.initData.remote.authority));
+		commonProperties['common.remotename'] = cleanRemoteAuthority(this.initData.remote.authority, this.initData);
 
 		return commonProperties;
 	}
