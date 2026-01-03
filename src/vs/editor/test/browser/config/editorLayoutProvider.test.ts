@@ -19,6 +19,7 @@ interface IEditorLayoutProviderOpts {
 	readonly lineNumbersMinChars: number;
 	readonly lineNumbersDigitCount: number;
 	maxLineNumber?: number;
+	readonly lineNumbersMaxDigitWidth?: number;
 
 	readonly lineDecorationsWidth: number;
 
@@ -104,6 +105,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			lineNumbersDigitCount: input.lineNumbersDigitCount,
 			typicalHalfwidthCharacterWidth: input.typicalHalfwidthCharacterWidth,
 			maxDigitWidth: input.maxDigitWidth,
+			lineNumbersMaxDigitWidth: input.lineNumbersMaxDigitWidth ?? input.maxDigitWidth,
 			pixelRatio: input.pixelRatio,
 			glyphMarginDecorationLaneCount: 1,
 		});
@@ -243,6 +245,76 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				top: 13,
 				width: 11,
 				height: (800 - 2 * 13),
+				right: 0
+			}
+		});
+	});
+
+	test('EditorLayoutProvider line numbers font size scales width', () => {
+		doTest({
+			outerWidth: 200,
+			outerHeight: 100,
+			showGlyphMargin: false,
+			lineHeight: 10,
+			showLineNumbers: true,
+			lineNumbersMinChars: 2,
+			lineNumbersDigitCount: 3,
+			lineNumbersMaxDigitWidth: 8,
+			lineDecorationsWidth: 10,
+			typicalHalfwidthCharacterWidth: 8,
+			maxDigitWidth: 10,
+			verticalScrollbarWidth: 0,
+			horizontalScrollbarHeight: 0,
+			scrollbarArrowSize: 0,
+			verticalScrollbarHasArrows: false,
+			minimap: false,
+			minimapSide: 'right',
+			minimapRenderCharacters: true,
+			minimapMaxColumn: 150,
+			pixelRatio: 1,
+		}, {
+			width: 200,
+			height: 100,
+
+			glyphMarginLeft: 0,
+			glyphMarginWidth: 0,
+			glyphMarginDecorationLaneCount: 1,
+
+			lineNumbersLeft: 0,
+			lineNumbersWidth: 24,
+
+			decorationsLeft: 24,
+			decorationsWidth: 10,
+
+			contentLeft: 34,
+			contentWidth: 166,
+
+			minimap: {
+				renderMinimap: RenderMinimap.None,
+				minimapLeft: 0,
+				minimapWidth: 0,
+				minimapHeightIsEditorHeight: false,
+				minimapIsSampling: false,
+				minimapScale: 1,
+				minimapLineHeight: 1,
+				minimapCanvasInnerWidth: 0,
+				minimapCanvasInnerHeight: 100,
+				minimapCanvasOuterWidth: 0,
+				minimapCanvasOuterHeight: 100,
+			},
+
+			viewportColumn: 20,
+			isWordWrapMinified: false,
+			isViewportWrapping: false,
+			wrappingColumn: -1,
+
+			verticalScrollbarWidth: 0,
+			horizontalScrollbarHeight: 0,
+
+			overviewRuler: {
+				top: 0,
+				width: 0,
+				height: 100,
 				right: 0
 			}
 		});

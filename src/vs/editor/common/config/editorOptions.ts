@@ -146,6 +146,10 @@ export interface IEditorOptions {
 	 */
 	lineNumbersMinChars?: number;
 	/**
+	 * Controls the font size for line numbers in pixels. Use 0 to inherit the editor font size.
+	 */
+	lineNumbersFontSize?: number;
+	/**
 	 * Enable the rendering of the glyph margin.
 	 * Defaults to true in vscode and to false in monaco-editor.
 	 */
@@ -2536,6 +2540,7 @@ export interface EditorLayoutInfoComputerEnv {
 	readonly lineNumbersDigitCount: number;
 	readonly typicalHalfwidthCharacterWidth: number;
 	readonly maxDigitWidth: number;
+	readonly lineNumbersMaxDigitWidth: number;
 	readonly pixelRatio: number;
 	readonly glyphMarginDecorationLaneCount: number;
 }
@@ -2632,6 +2637,10 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 	}
 
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, _: EditorLayoutInfo): EditorLayoutInfo {
+		const configuredLineNumbersFontSize = options.get(EditorOption.lineNumbersFontSize);
+		const lineNumbersFontSize = (configuredLineNumbersFontSize > 0 ? configuredLineNumbersFontSize : env.fontInfo.fontSize);
+		const lineNumbersMaxDigitWidth = env.fontInfo.maxDigitWidth * (lineNumbersFontSize / env.fontInfo.fontSize);
+
 		return EditorLayoutInfoComputer.computeLayout(options, {
 			memory: env.memory,
 			outerWidth: env.outerWidth,
@@ -2642,6 +2651,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 			lineNumbersDigitCount: env.lineNumbersDigitCount,
 			typicalHalfwidthCharacterWidth: env.fontInfo.typicalHalfwidthCharacterWidth,
 			maxDigitWidth: env.fontInfo.maxDigitWidth,
+			lineNumbersMaxDigitWidth,
 			pixelRatio: env.pixelRatio,
 			glyphMarginDecorationLaneCount: env.glyphMarginDecorationLaneCount
 		});
@@ -2849,7 +2859,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		const lineHeight = env.lineHeight | 0;
 		const lineNumbersDigitCount = env.lineNumbersDigitCount | 0;
 		const typicalHalfwidthCharacterWidth = env.typicalHalfwidthCharacterWidth;
-		const maxDigitWidth = env.maxDigitWidth;
+		const lineNumbersMaxDigitWidth = env.lineNumbersMaxDigitWidth;
 		const pixelRatio = env.pixelRatio;
 		const viewLineCount = env.viewLineCount;
 
@@ -2884,7 +2894,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		let lineNumbersWidth = 0;
 		if (showLineNumbers) {
 			const digitCount = Math.max(lineNumbersDigitCount, lineNumbersMinChars);
-			lineNumbersWidth = Math.round(digitCount * maxDigitWidth);
+			lineNumbersWidth = Math.round(digitCount * lineNumbersMaxDigitWidth);
 		}
 
 		let glyphMarginWidth = 0;
@@ -5884,6 +5894,7 @@ export const enum EditorOption {
 	inertialScroll,
 	inlayHints,
 	wrapOnEscapedLineFeeds,
+	lineNumbersFontSize,
 	// Leave these at the end (because they have dependencies!)
 	effectiveCursorStyle,
 	editorClassName,
@@ -6326,6 +6337,17 @@ export const EditorOptions = {
 	lineNumbersMinChars: register(new EditorIntOption(
 		EditorOption.lineNumbersMinChars, 'lineNumbersMinChars',
 		5, 1, 300
+	)),
+	lineNumbersFontSize: register(new EditorIntOption(
+		EditorOption.lineNumbersFontSize, 'lineNumbersFontSize',
+		0, 0, 1000,
+		{
+			type: 'number',
+			default: 0,
+			minimum: 0,
+			maximum: 1000,
+			markdownDescription: nls.localize('lineNumbersFontSize', "Controls the font size in pixels for line numbers. When set to 0, the editor font size is used.")
+		}
 	)),
 	linkedEditing: register(new EditorBooleanOption(
 		EditorOption.linkedEditing, 'linkedEditing', false,

@@ -3295,6 +3295,10 @@ declare namespace monaco.editor {
 		 */
 		lineNumbersMinChars?: number;
 		/**
+		 * Controls the font size for line numbers in pixels. Use 0 to inherit the editor font size.
+		 */
+		lineNumbersFontSize?: number;
+		/**
 		 * Enable the rendering of the glyph margin.
 		 * Defaults to true in vscode and to false in monaco-editor.
 		 */
@@ -5225,18 +5229,19 @@ declare namespace monaco.editor {
 		inertialScroll = 158,
 		inlayHints = 159,
 		wrapOnEscapedLineFeeds = 160,
-		effectiveCursorStyle = 161,
-		editorClassName = 162,
-		pixelRatio = 163,
-		tabFocusMode = 164,
-		layoutInfo = 165,
-		wrappingInfo = 166,
-		defaultColorDecorators = 167,
-		colorDecoratorsActivatedOn = 168,
-		inlineCompletionsAccessibilityVerbose = 169,
-		effectiveEditContext = 170,
-		scrollOnMiddleClick = 171,
-		effectiveAllowVariableFonts = 172
+		lineNumbersFontSize = 161,
+		effectiveCursorStyle = 162,
+		editorClassName = 163,
+		pixelRatio = 164,
+		tabFocusMode = 165,
+		layoutInfo = 166,
+		wrappingInfo = 167,
+		defaultColorDecorators = 168,
+		colorDecoratorsActivatedOn = 169,
+		inlineCompletionsAccessibilityVerbose = 170,
+		effectiveEditContext = 171,
+		scrollOnMiddleClick = 172,
+		effectiveAllowVariableFonts = 173
 	}
 
 	export const EditorOptions: {
@@ -5323,6 +5328,7 @@ declare namespace monaco.editor {
 		lineHeight: IEditorOption<EditorOption.lineHeight, number>;
 		lineNumbers: IEditorOption<EditorOption.lineNumbers, InternalEditorRenderLineNumbersOptions>;
 		lineNumbersMinChars: IEditorOption<EditorOption.lineNumbersMinChars, number>;
+		lineNumbersFontSize: IEditorOption<EditorOption.lineNumbersFontSize, number>;
 		linkedEditing: IEditorOption<EditorOption.linkedEditing, boolean>;
 		links: IEditorOption<EditorOption.links, boolean>;
 		matchBrackets: IEditorOption<EditorOption.matchBrackets, 'always' | 'never' | 'near'>;
