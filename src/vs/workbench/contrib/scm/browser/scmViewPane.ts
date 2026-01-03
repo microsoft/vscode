@@ -1364,6 +1364,42 @@ class ExpandAllRepositoriesAction extends ViewAction<SCMViewPane> {
 registerAction2(CollapseAllRepositoriesAction);
 registerAction2(ExpandAllRepositoriesAction);
 
+class CollapseAllAction extends ViewAction<SCMViewPane> {
+	constructor() {
+		super({
+			id: `workbench.scm.action.collapseAll`,
+			title: localize('scmCollapseAll', "Collapse All"),
+			viewId: VIEW_PANE_ID,
+			f1: false,
+			icon: Codicon.collapseAll,
+			menu: {
+				id: MenuId.SCMResourceGroupContext,
+				group: 'inline',
+			}
+		});
+	}
+
+	async runInView(accessor: ServicesAccessor, view: SCMViewPane, context?: ISCMResourceGroup | ISCMRepository): Promise<void> {
+		if (!context) {
+			return;
+		}
+
+		let repository: ISCMRepository | undefined;
+		if (isSCMRepository(context)) {
+			repository = context;
+		} else {
+			const scmViewService = accessor.get(ISCMViewService);
+			repository = scmViewService.visibleRepositories.find(r => r.provider === context.provider);
+		}
+
+		if (repository) {
+			view.collapseAllResources(repository);
+		}
+	}
+}
+
+registerAction2(CollapseAllAction);
+
 const enum SCMInputWidgetCommandId {
 	CancelAction = 'scm.input.cancelAction',
 	SetupAction = 'scm.input.triggerSetup'
@@ -2840,6 +2876,23 @@ export class SCMViewPane extends ViewPane {
 		for (const repository of this.scmViewService.visibleRepositories) {
 			if (this.tree.isCollapsible(repository)) {
 				this.tree.expand(repository);
+			}
+		}
+	}
+
+	collapseAllResources(repository: ISCMRepository): void {
+		const groups = repository.provider.groups.filter(o => this.tree.hasNode(o));
+
+		let done = false;
+		for (const group of groups) {
+			for (const { element } of this.tree.getNode(group).children) {
+				done = (!isSCMViewService(element) && this.tree.collapse(element, true)) || done;
+			}
+		}
+
+		if (!done) {
+			for (const group of groups) {
+				this.tree.collapse(group, true);
 			}
 		}
 	}
