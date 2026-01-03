@@ -208,6 +208,7 @@ suite('CommandLineAutoApprover', () => {
 				'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+log\\b/': true,
 				'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+show\\b/': true,
 				'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+diff\\b/': true,
+				'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+ls-files\\b/': true,
 				'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+grep\\b/': true,
 				'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+branch\\b/': true,
 				'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+branch\\b.*-(d|D|m|M|-delete|-force)\\b/': false,
@@ -218,8 +219,14 @@ suite('CommandLineAutoApprover', () => {
 			ok(await isAutoApproved('git log'));
 			ok(await isAutoApproved('git show HEAD'));
 			ok(await isAutoApproved('git diff'));
+			ok(await isAutoApproved('git ls-files'));
 			ok(await isAutoApproved('git grep pattern'));
 			ok(await isAutoApproved('git branch'));
+
+			// ls-files with options
+			ok(await isAutoApproved('git ls-files --cached'));
+			ok(await isAutoApproved('git -C /path ls-files'));
+			ok(await isAutoApproved('git --no-pager ls-files'));
 
 			// With -C path
 			ok(await isAutoApproved('git -C /some/path status'));
