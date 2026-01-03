@@ -65,12 +65,10 @@ export interface IKeybindingTeacherConfiguration {
 	readonly enabled: boolean;
 	readonly threshold: number;
 	readonly cooldownMinutes: number;
-	readonly showDismissOption: boolean;
 }
 
 export const DEFAULT_CONFIG: IKeybindingTeacherConfiguration = {
 	enabled: false,
 	threshold: 3,
-	cooldownMinutes: 60,
-	showDismissOption: true
+	cooldownMinutes: 60
 };

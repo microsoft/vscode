@@ -19,7 +19,7 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			markdownDescription: localize(
 				'keybindingTeacher.enabled',
-				'**Experimental**: When enabled, VS Code will show suggestions for keyboard shortcuts when you use mouse or menu actions that have keybindings.'
+				"**Experimental**: When enabled, VS Code will show suggestions for keyboard shortcuts when you use mouse or menu actions that have keybindings."
 			)
 		},
 		'workbench.keybindingTeacher.threshold': {
@@ -31,7 +31,7 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			markdownDescription: localize(
 				'keybindingTeacher.threshold',
-				'VS Code will show a keyboard shortcut suggestion every N times you use a mouse/menu action (where N is this threshold value).'
+				"VS Code will show a keyboard shortcut suggestion every N times you use a mouse/menu action (where N is this threshold value)."
 			)
 		},
 		'workbench.keybindingTeacher.cooldownMinutes': {
@@ -43,17 +43,7 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			markdownDescription: localize(
 				'keybindingTeacher.cooldownMinutes',
-				'Minimum time (in minutes) between showing suggestions for the same command. Set to 0 to always show suggestions after reaching the threshold.'
-			)
-		},
-		'workbench.keybindingTeacher.showDismissOption': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.APPLICATION,
-			tags: ['experimental'],
-			markdownDescription: localize(
-				'keybindingTeacher.showDismissOption',
-				'Show an option to permanently dismiss suggestions for specific commands. Use `Keybinding Teacher: Manage Dismissed Suggestions` command to re-enable dismissed commands. Use `Keybinding Teacher: Clear All Data` command to reset all data.'
+				"Minimum time (in minutes) between showing suggestions for the same command. Set to 0 to always show suggestions after reaching the threshold."
 			)
 		}
 	}

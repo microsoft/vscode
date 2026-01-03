@@ -64,8 +64,7 @@ export class KeybindingTeacherService extends Disposable implements IKeybindingT
 		return {
 			enabled: config.enabled !== undefined ? config.enabled : DEFAULT_CONFIG.enabled,
 			threshold: config.threshold !== undefined ? config.threshold : DEFAULT_CONFIG.threshold,
-			cooldownMinutes: config.cooldownMinutes !== undefined ? config.cooldownMinutes : DEFAULT_CONFIG.cooldownMinutes,
-			showDismissOption: config.showDismissOption !== undefined ? config.showDismissOption : DEFAULT_CONFIG.showDismissOption
+			cooldownMinutes: config.cooldownMinutes !== undefined ? config.cooldownMinutes : DEFAULT_CONFIG.cooldownMinutes
 		};
 	}
 
@@ -180,7 +179,7 @@ export class KeybindingTeacherService extends Disposable implements IKeybindingT
 
 		const message = localize(
 			'keybindingTeacher.suggestion',
-			'You can use {0} for "{1}"',
+			"You can use {0} for \"{1}\"",
 			keybindingLabel,
 			commandLabel
 		);
@@ -188,20 +187,18 @@ export class KeybindingTeacherService extends Disposable implements IKeybindingT
 		const actions = [];
 
 		actions.push({
-			label: localize('keybindingTeacher.showKeybindings', 'Show All Keybindings'),
+			label: localize('keybindingTeacher.showKeybindings', "Show All Keybindings"),
 			run: () => {
 				this.commandService.executeCommand('workbench.action.openGlobalKeybindings');
 			}
 		});
 
-		if (this.config.showDismissOption) {
-			actions.push({
-				label: localize('keybindingTeacher.dismiss', "Don't Show Again for This Command"),
-				run: () => {
-					this.dismissCommand(commandId);
-				}
-			});
-		}
+		actions.push({
+			label: localize('keybindingTeacher.dismiss', "Don't Show Again for This Command"),
+			run: () => {
+				this.dismissCommand(commandId);
+			}
+		});
 
 		this.notificationService.prompt(
 			Severity.Info,

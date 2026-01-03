@@ -37,8 +37,8 @@ registerAction2(class ManageDismissedCommandsAction extends Action2 {
 	constructor() {
 		super({
 			id: 'keybindingTeacher.manageDismissedCommands',
-			title: { value: localize('manageDismissedCommands', 'Manage Dismissed Suggestions'), original: 'Manage Dismissed Suggestions' },
-			category: { value: localize('keybindingTeacher', 'Keybinding Teacher'), original: 'Keybinding Teacher' },
+			title: { value: localize('manageDismissedCommands', "Manage Dismissed Suggestions"), original: 'Manage Dismissed Suggestions' },
+			category: { value: localize('keybindingTeacher', "Keybinding Teacher"), original: 'Keybinding Teacher' },
 			f1: true
 		});
 	}
@@ -52,17 +52,17 @@ registerAction2(class ManageDismissedCommandsAction extends Action2 {
 
 		if (dismissedCommands.length === 0) {
 			await quickInputService.pick([{
-				label: localize('noDismissedCommands', 'No dismissed commands'),
-				description: localize('noDismissedCommandsDesc', 'You have not dismissed any keybinding suggestions')
+				label: localize('noDismissedCommands', "No dismissed commands"),
+				description: localize('noDismissedCommandsDesc', "You have not dismissed any keybinding suggestions")
 			}], {
-				placeHolder: localize('dismissedCommandsPlaceholder', 'Dismissed Commands')
+				placeHolder: localize('dismissedCommandsPlaceholder', "Dismissed Commands")
 			});
 			return;
 		}
 
 		const picks: (IQuickPickItem & { commandId: string })[] = dismissedCommands.map(commandId => {
 			const keybinding = keybindingService.lookupKeybinding(commandId);
-			const keybindingLabel = keybinding?.getLabel() || localize('noKeybinding', 'No keybinding');
+			const keybindingLabel = keybinding?.getLabel() || localize('noKeybinding', "No keybinding");
 
 			return {
 				label: commandId,
@@ -72,7 +72,7 @@ registerAction2(class ManageDismissedCommandsAction extends Action2 {
 		});
 
 		const selected = await quickInputService.pick(picks, {
-			placeHolder: localize('selectCommandToReEnable', 'Select a command to re-enable suggestions'),
+			placeHolder: localize('selectCommandToReEnable', "Select a command to re-enable suggestions"),
 			canPickMany: true
 		});
 
@@ -88,8 +88,8 @@ registerAction2(class ClearAllDataAction extends Action2 {
 	constructor() {
 		super({
 			id: 'keybindingTeacher.clearAllData',
-			title: { value: localize('clearAllData', 'Clear All Data'), original: 'Clear All Data' },
-			category: { value: localize('keybindingTeacher', 'Keybinding Teacher'), original: 'Keybinding Teacher' },
+			title: { value: localize('clearAllData', "Clear All Data"), original: 'Clear All Data' },
+			category: { value: localize('keybindingTeacher', "Keybinding Teacher"), original: 'Keybinding Teacher' },
 			f1: true
 		});
 	}
@@ -99,10 +99,10 @@ registerAction2(class ClearAllDataAction extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 
 		const confirm = await quickInputService.pick([
-			{ label: localize('yes', 'Yes'), value: true },
-			{ label: localize('no', 'No'), value: false }
+			{ label: localize('yes', "Yes"), value: true },
+			{ label: localize('no', "No"), value: false }
 		], {
-			placeHolder: localize('confirmClear', 'Clear all keybinding teacher data (dismissed commands and usage counts)?')
+			placeHolder: localize('confirmClear', "Clear all keybinding teacher data (dismissed commands and usage counts)?")
 		});
 
 		if (confirm?.value) {
