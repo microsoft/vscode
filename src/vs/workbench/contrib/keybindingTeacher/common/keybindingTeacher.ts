@@ -16,11 +16,6 @@ export interface IKeybindingTeacherService {
 	recordUICommandExecution(commandId: string): void;
 
 	/**
-	 * Record a command execution from a keybinding
-	 */
-	recordKeybindingExecution(commandId: string): void;
-
-	/**
 	 * Get statistics for a specific command
 	 */
 	getCommandStats(commandId: string): ICommandStats | undefined;
@@ -49,11 +44,8 @@ export interface IKeybindingTeacherService {
 export interface ICommandStats {
 	readonly commandId: string;
 	readonly uiExecutions: number;
-	readonly keyboardExecutions: number;
-	readonly totalExecutions: number;
 	readonly lastNotified: number | undefined;
 	readonly dismissed: boolean;
-	readonly firstUIExecution: number;
 }
 
 export interface IKeybindingTeacherConfiguration {

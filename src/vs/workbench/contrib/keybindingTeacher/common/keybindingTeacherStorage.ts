@@ -10,10 +10,8 @@ const STORAGE_KEY = 'keybindingTeacher.commandStats';
 
 interface StoredStats {
 	uiExecutions: number;
-	keyboardExecutions: number;
 	lastNotified?: number;
 	dismissed: boolean;
-	firstUIExecution: number;
 }
 
 export class KeybindingTeacherStorage {
@@ -32,11 +30,8 @@ export class KeybindingTeacherStorage {
 				statsMap.set(commandId, {
 					commandId,
 					uiExecutions: stats.uiExecutions,
-					keyboardExecutions: stats.keyboardExecutions,
-					totalExecutions: stats.uiExecutions + stats.keyboardExecutions,
 					lastNotified: stats.lastNotified,
-					dismissed: stats.dismissed,
-					firstUIExecution: stats.firstUIExecution
+					dismissed: stats.dismissed
 				});
 			}
 		} catch (error) {
@@ -53,10 +48,8 @@ export class KeybindingTeacherStorage {
 		for (const [commandId, stat] of stats.entries()) {
 			toStore[commandId] = {
 				uiExecutions: stat.uiExecutions,
-				keyboardExecutions: stat.keyboardExecutions,
 				lastNotified: stat.lastNotified,
-				dismissed: stat.dismissed,
-				firstUIExecution: stat.firstUIExecution
+				dismissed: stat.dismissed
 			};
 		}
 

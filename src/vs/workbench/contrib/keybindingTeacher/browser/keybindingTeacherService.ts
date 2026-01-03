@@ -49,11 +49,8 @@ export class KeybindingTeacherService extends Disposable implements IKeybindingT
 			}
 		}));
 
-		// Distinguish keybinding vs UI command execution using currentlyDispatchingCommandId
 		this._register(commandService.onDidExecuteCommand(e => {
-			if (this.keybindingService.currentlyDispatchingCommandId === e.commandId) {
-				this.recordKeybindingExecution(e.commandId);
-			} else {
+			if (this.keybindingService.currentlyDispatchingCommandId !== e.commandId) {
 				this.recordUICommandExecution(e.commandId);
 			}
 		}));
@@ -88,22 +85,6 @@ export class KeybindingTeacherService extends Disposable implements IKeybindingT
 		}
 	}
 
-	recordKeybindingExecution(commandId: string): void {
-		if (!this.config.enabled) {
-			return;
-		}
-
-		if (this.shouldIgnoreCommand(commandId)) {
-			return;
-		}
-
-		const stats = this.getOrCreateStats(commandId);
-		stats.keyboardExecutions++;
-
-		this.stats.set(commandId, stats);
-		this.storage.saveStats(this.stats);
-	}
-
 	private shouldIgnoreCommand(commandId: string): boolean {
 		if (HIGH_FREQ_COMMANDS.test(commandId)) {
 			return true;
@@ -127,15 +108,11 @@ export class KeybindingTeacherService extends Disposable implements IKeybindingT
 			stats = {
 				commandId,
 				uiExecutions: 0,
-				keyboardExecutions: 0,
-				totalExecutions: 0,
 				lastNotified: undefined,
-				dismissed: false,
-				firstUIExecution: Date.now()
+				dismissed: false
 			};
 			this.stats.set(commandId, stats);
 		}
-		stats.totalExecutions = stats.uiExecutions + stats.keyboardExecutions;
 		return stats;
 	}
 
