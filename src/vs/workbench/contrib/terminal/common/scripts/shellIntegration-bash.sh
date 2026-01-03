@@ -28,8 +28,8 @@ if (( BASH_VERSINFO[0] >= 4 )); then
 fi
 
 # Run relevant rc/profile only if shell integration has been injected, not when run manually
-if [ "$VSCODE_INJECTION" == "1" ]; then
-	if [ -z "$VSCODE_SHELL_LOGIN" ]; then
+if [ "${VSCODE_INJECTION-}" == "1" ]; then
+	if [ -z "${VSCODE_SHELL_LOGIN-}" ]; then
 		if [ -r ~/.bashrc ]; then
 			. ~/.bashrc
 		fi
@@ -58,7 +58,7 @@ if [ "$VSCODE_INJECTION" == "1" ]; then
 	builtin unset VSCODE_INJECTION
 fi
 
-if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
+if [ -z "${VSCODE_SHELL_INTEGRATION-}" ]; then
 	builtin return
 fi
 
@@ -208,11 +208,11 @@ __vsc_in_command_execution="1"
 __vsc_current_command=""
 
 # It's fine this is in the global scope as it getting at it requires access to the shell environment
-__vsc_nonce="$VSCODE_NONCE"
+__vsc_nonce="${VSCODE_NONCE-}"
 unset VSCODE_NONCE
 
 # Some features should only work in Insiders
-__vsc_stable="$VSCODE_STABLE"
+__vsc_stable="${VSCODE_STABLE-}"
 unset VSCODE_STABLE
 
 # Report continuation prompt
