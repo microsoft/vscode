@@ -1924,7 +1924,15 @@ export class Repository {
 	async stage(path: string, data: Uint8Array): Promise<void> {
 		const relativePath = this.sanitizeRelativePath(path);
 		const child = this.stream(['hash-object', '--stdin', '-w', '--path', relativePath], { stdio: [null, null, null] });
-		child.stdin!.end(data);
+
+		if (!child.stdin) {
+			throw new GitError({
+				message: 'Failed to spawn git process',
+				exitCode: -1
+			});
+		}
+
+		child.stdin.end(data);
 
 		const { exitCode, stdout } = await exec(child);
 		const hash = stdout.toString('utf8');
