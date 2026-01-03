@@ -603,6 +603,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 		this._overlayContainer.classList.add(`cell-toolbar-${cellToolbarInteractionState}`);
 
+		const dragAndDropEnabled = this._notebookOptions.getDisplayOptions().dragAndDropEnabled;
+		this._overlayContainer.classList.toggle('notebook-dnd-disabled', !dragAndDropEnabled);
+
 	}
 
 	private _generateFontInfo(): void {
