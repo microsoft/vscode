@@ -197,22 +197,23 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			//
 			// Safe and common sub-commands
 
-			'git status': true,
-			'git log': true,
-			'git show': true,
-			'git diff': true,
+			// Note: These patterns support `-C <path>` and `--no-pager` immediately after `git`
+			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+status\\b/': true,
+			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+log\\b/': true,
+			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+show\\b/': true,
+			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+diff\\b/': true,
 
 			// git grep
 			// - `--open-files-in-pager`: This is the configured pager, so no risk of code execution
 			// - See notes on `grep`
-			'git grep': true,
+			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+grep\\b/': true,
 
 			// git branch
 			// - `-d`, `-D`, `--delete`: Prevent branch deletion
 			// - `-m`, `-M`: Prevent branch renaming
 			// - `--force`: Generally dangerous
-			'git branch': true,
-			'/^git branch\\b.*-(d|D|m|M|-delete|-force)\\b/': false,
+			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+branch\\b/': true,
+			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+branch\\b.*-(d|D|m|M|-delete|-force)\\b/': false,
 
 			// #endregion
 

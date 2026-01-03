@@ -202,6 +202,55 @@ suite('CommandLineAutoApprover', () => {
 			ok(!await isAutoApproved('kill process'));
 		});
 
+		test('should handle git patterns with -C and --no-pager', async () => {
+			setAutoApprove({
+				'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+status\\b/': true,
+				'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+log\\b/': true,
+				'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+show\\b/': true,
+				'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+diff\\b/': true,
+				'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+grep\\b/': true,
+				'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+branch\\b/': true,
+				'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+branch\\b.*-(d|D|m|M|-delete|-force)\\b/': false,
+			});
+
+			// Basic commands
+			ok(await isAutoApproved('git status'));
+			ok(await isAutoApproved('git log'));
+			ok(await isAutoApproved('git show HEAD'));
+			ok(await isAutoApproved('git diff'));
+			ok(await isAutoApproved('git grep pattern'));
+			ok(await isAutoApproved('git branch'));
+
+			// With -C path
+			ok(await isAutoApproved('git -C /some/path status'));
+			ok(await isAutoApproved('git -C ../relative log'));
+			ok(await isAutoApproved('git -C . diff'));
+
+			// With --no-pager
+			ok(await isAutoApproved('git --no-pager status'));
+			ok(await isAutoApproved('git --no-pager log'));
+			ok(await isAutoApproved('git --no-pager diff HEAD~1'));
+
+			// With both -C and --no-pager
+			ok(await isAutoApproved('git -C /path --no-pager status'));
+			ok(await isAutoApproved('git --no-pager -C /path log'));
+			ok(await isAutoApproved('git -C /path1 -C /path2 status'));
+			ok(await isAutoApproved('git --no-pager --no-pager log'));
+
+			// Branch deletion should be denied
+			ok(!await isAutoApproved('git branch -d feature'));
+			ok(!await isAutoApproved('git branch -D feature'));
+			ok(!await isAutoApproved('git branch --delete feature'));
+			ok(!await isAutoApproved('git -C /path branch -d feature'));
+			ok(!await isAutoApproved('git --no-pager branch -D feature'));
+			ok(!await isAutoApproved('git -C /path --no-pager branch --force'));
+
+			// Branch rename should be denied
+			ok(!await isAutoApproved('git branch -m old new'));
+			ok(!await isAutoApproved('git branch -M old new'));
+			ok(!await isAutoApproved('git -C /path branch -m old new'));
+		});
+
 		suite('flags', () => {
 			test('should handle case-insensitive regex patterns with i flag', async () => {
 				setAutoApprove({
