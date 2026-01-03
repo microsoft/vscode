@@ -8,7 +8,7 @@ import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ITextModelContentProvider } from '../../../../../editor/common/services/resolverService.js';
-import { IChatEditingService } from '../../common/chatEditingService.js';
+import { IChatEditingService } from '../../common/editing/chatEditingService.js';
 
 type ChatEditingTextModelContentQueryData = { kind: 'doc'; documentId: string; chatSessionResource: UriComponents };
 
