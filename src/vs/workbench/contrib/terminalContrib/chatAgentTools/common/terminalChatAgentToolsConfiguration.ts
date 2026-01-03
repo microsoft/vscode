@@ -364,7 +364,6 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 	[TerminalChatAgentToolsSettingId.IgnoreDefaultAutoApproveRules]: {
 		type: 'boolean',
 		default: false,
-		tags: ['experimental'],
 		markdownDescription: localize('ignoreDefaultAutoApproveRules.description', "Whether to ignore the built-in default auto-approve rules used by the run in terminal tool as defined in {0}. When this setting is enabled, the run in terminal tool will ignore any rule that comes from the default set but still follow rules defined in the user, remote and workspace settings. Use this setting at your own risk; the default auto-approve rules are designed to protect you against running dangerous commands.", `\`#${TerminalChatAgentToolsSettingId.AutoApprove}#\``),
 		policy: {
 			name: 'ChatToolsTerminalIgnoreDefaultAutoApproveRules',
