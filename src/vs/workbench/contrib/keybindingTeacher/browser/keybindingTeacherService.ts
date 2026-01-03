@@ -10,9 +10,19 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { isLocalizedString } from '../../../../platform/action/common/action.js';
 import { ICommandStats, IKeybindingTeacherConfiguration, IKeybindingTeacherService, DEFAULT_CONFIG } from '../common/keybindingTeacher.js';
 import { KeybindingTeacherStorage } from '../common/keybindingTeacherStorage.js';
 import { localize } from '../../../../nls.js';
+
+/**
+ * Filter out high-frequency commands that users trigger very often.
+ * This pattern intentionally mirrors the high-frequency command filter in
+ * src/vs/platform/keybinding/common/abstractKeybindingService.ts, but also
+ * includes 'type' to better capture text-editing commands for the keybinding
+ * teacher's suggestion heuristics.
+ */
 
 const HIGH_FREQ_COMMANDS = /^(cursor|delete|undo|redo|tab|type|editor\.action\.clipboard)/;
 
@@ -59,9 +69,8 @@ export class KeybindingTeacherService extends Disposable implements IKeybindingT
 	private loadConfiguration(): IKeybindingTeacherConfiguration {
 		const config = this.configurationService.getValue<Partial<IKeybindingTeacherConfiguration>>('workbench.keybindingTeacher') || {};
 		return {
-			enabled: config.enabled !== undefined ? config.enabled : DEFAULT_CONFIG.enabled,
-			threshold: config.threshold !== undefined ? config.threshold : DEFAULT_CONFIG.threshold,
-			cooldownMinutes: config.cooldownMinutes !== undefined ? config.cooldownMinutes : DEFAULT_CONFIG.cooldownMinutes
+			...DEFAULT_CONFIG,
+			...config
 		};
 	}
 
@@ -78,7 +87,6 @@ export class KeybindingTeacherService extends Disposable implements IKeybindingT
 		stats.uiExecutions++;
 
 		this.stats.set(commandId, stats);
-		this.storage.saveStats(this.stats);
 
 		if (this.shouldShowSuggestion(stats)) {
 			this.showKeybindingSuggestion(commandId, stats);
@@ -121,7 +129,6 @@ export class KeybindingTeacherService extends Disposable implements IKeybindingT
 			return false;
 		}
 
-		// Use modulo to trigger every N times while preserving historical count
 		if (stats.uiExecutions < this.config.threshold || stats.uiExecutions % this.config.threshold !== 0) {
 			return false;
 		}
@@ -156,7 +163,7 @@ export class KeybindingTeacherService extends Disposable implements IKeybindingT
 
 		const message = localize(
 			'keybindingTeacher.suggestion',
-			"You can use {0} for \"{1}\"",
+			"You can use \"{0}\" for \"{1}\"",
 			keybindingLabel,
 			commandLabel
 		);
@@ -188,26 +195,43 @@ export class KeybindingTeacherService extends Disposable implements IKeybindingT
 	}
 
 	private getCommandLabel(commandId: string): string {
+		const menuCommand = MenuRegistry.getCommand(commandId);
+		if (menuCommand) {
+			const title = typeof menuCommand.title === 'string'
+				? menuCommand.title
+				: (isLocalizedString(menuCommand.title) ? menuCommand.title.value : undefined);
+
+			if (title) {
+				if (menuCommand.category) {
+					const category = typeof menuCommand.category === 'string'
+						? menuCommand.category
+						: (isLocalizedString(menuCommand.category) ? menuCommand.category.value : undefined);
+					if (category) {
+						return `${category}: ${title}`;
+					}
+				}
+				return title;
+			}
+		}
+
 		const command = CommandsRegistry.getCommand(commandId);
 		if (command?.metadata?.description) {
 			const description = command.metadata.description;
 			if (typeof description === 'string') {
 				return description;
-			} else if (typeof description === 'object' && description !== null) {
-				// Check if it's a localized string object with a 'value' property
-				const localizedDesc = description as { value?: string };
-				if (localizedDesc.value) {
-					return localizedDesc.value;
-				}
+			} else if (isLocalizedString(description)) {
+				return description.value;
 			}
 		}
 
-		// Fallback to formatting the command ID
 		return commandId
 			.replace(/^workbench\.action\./, '')
 			.replace(/^editor\.action\./, '')
 			.replace(/\./g, ' ')
-			.replace(/([A-Z])/g, ' $1')
+			// Insert spaces between lower/digit and upper (e.g. showHTML -> show HTML)
+			.replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+			// Insert spaces between acronym and subsequent capitalized word (e.g. HTMLPreview -> HTML Preview)
+			.replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
 			.trim()
 			.toLowerCase();
 	}

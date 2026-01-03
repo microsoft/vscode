@@ -34,9 +34,8 @@ export class KeybindingTeacherStorage {
 					dismissed: stats.dismissed
 				});
 			}
-		} catch (error) {
-			// Invalid JSON, start fresh
-			console.error('Failed to load keybinding teacher stats:', error);
+		} catch {
+			this.clearStats();
 		}
 
 		return statsMap;

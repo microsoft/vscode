@@ -17,7 +17,11 @@ import { localize } from '../../../../nls.js';
 import '../common/keybindingTeacherConfiguration.js';
 
 /**
- * Workbench contribution that initializes the keybinding teacher service.
+ * Workbench contribution that ensures the keybinding teacher service is instantiated.
+ * Even though the service is registered as InstantiationType.Eager, it still needs
+ * to be requested by something to actually instantiate. This contribution serves
+ * that purpose by injecting the service in its constructor, causing it to be
+ * instantiated during workbench initialization.
  */
 class KeybindingTeacherContribution extends Disposable implements IWorkbenchContribution {
 
