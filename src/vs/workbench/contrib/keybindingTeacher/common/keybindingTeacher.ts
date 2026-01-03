@@ -44,11 +44,6 @@ export interface IKeybindingTeacherService {
 	 * Reset all statistics and dismissed commands
 	 */
 	resetAllStats(): void;
-
-	/**
-	 * Enable or disable the keybinding teacher
-	 */
-	setEnabled(enabled: boolean): void;
 }
 
 export interface ICommandStats {

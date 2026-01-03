@@ -257,11 +257,6 @@ export class KeybindingTeacherService extends Disposable implements IKeybindingT
 		this.storage.clearStats();
 	}
 
-	setEnabled(enabled: boolean): void {
-		const currentConfig = this.configurationService.getValue<Partial<IKeybindingTeacherConfiguration>>('keybindingTeacher') || {};
-		this.configurationService.updateValue('keybindingTeacher', { ...currentConfig, enabled });
-	}
-
 	override dispose(): void {
 		this.storage.saveStats(this.stats);
 		super.dispose();
