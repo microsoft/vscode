@@ -1110,6 +1110,23 @@ suite('RunInTerminalTool', () => {
 			assertConfirmationRequired(await executeToolTest({ command: 'echo hello world' }), 'Run `bash` command?');
 		});
 
+		test('should include autoApproveInfo when command would be auto-approved but warning not accepted', async () => {
+			setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, true);
+			setAutoApprove({
+				echo: true
+			});
+
+			clearAutoApproveWarningAcceptedState();
+
+			const result = await executeToolTest({ command: 'echo hello world' });
+			assertConfirmationRequired(result, 'Run `bash` command?');
+
+			// autoApproveInfo should be set so the confirmation widget knows to auto-approve
+			// after the user accepts the warning modal
+			const terminalData = result!.toolSpecificData as IChatTerminalToolInvocationData;
+			ok(terminalData.autoApproveInfo, 'autoApproveInfo should be set for commands that would be auto-approved');
+		});
+
 		test('should auto-approve commands when both auto-approve enabled and warning accepted', async () => {
 			setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, true);
 			setAutoApprove({
