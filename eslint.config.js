@@ -1935,6 +1935,13 @@ export default tseslint.config(
 					]
 				},
 				{
+					'target': 'test/sanity/**',
+					'restrictions': [
+						'test/sanity/**',
+						'*' // node modules
+					]
+				},
+				{
 					'target': 'test/automation/**',
 					'restrictions': [
 						'test/automation/**',
