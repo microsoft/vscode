@@ -260,6 +260,7 @@ registerQuickInputCommandAndKeybindingRule(
 registerQuickPickCommandAndKeybindingRule(
 	{
 		id: 'quickInput.toggleCheckbox',
+		when: InputFocusedContext.negate(),
 		primary: KeyCode.Space,
 		handler: accessor => {
 			const quickInputService = accessor.get(IQuickInputService);
