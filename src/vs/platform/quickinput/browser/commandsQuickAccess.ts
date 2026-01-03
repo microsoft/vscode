@@ -275,12 +275,8 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 		if (commandPick.type === 'separator') {
 			return commandPick;
 		}
-		if (!commandPick.tooltip && commandPick.commandDescription) {
-			commandPick = {
-				...commandPick,
-				tooltip: commandPick.commandDescription.value
-			};
-		}
+		const tooltip = commandPick.tooltip
+			?? commandPick.commandDescription?.value;
 
 		const keybinding = this.keybindingService.lookupKeybinding(commandPick.commandId);
 		const ariaLabel = keybinding ?
@@ -299,6 +295,7 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 
 		return {
 			...commandPick,
+			tooltip,
 			ariaLabel,
 			detail: this.options.showAlias && commandPick.commandAlias !== commandPick.label ? commandPick.commandAlias : undefined,
 			keybinding,
