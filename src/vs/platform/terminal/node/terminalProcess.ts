@@ -167,7 +167,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		// Delay resizes to avoid conpty not respecting very early resize calls
 		if (isWindows) {
 			if (useConpty && cols === 0 && rows === 0 && this.shellLaunchConfig.executable?.endsWith('Git\\bin\\bash.exe')) {
-				this._delayedResizer = new DelayedResizer();
+				this._delayedResizer = this._register(new DelayedResizer());
 				this._register(this._delayedResizer.onTrigger(dimensions => {
 					this._delayedResizer?.dispose();
 					this._delayedResizer = undefined;
@@ -177,11 +177,11 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				}));
 			}
 			// WindowsShellHelper is used to fetch the process title and shell type
-			this.onProcessReady(e => {
+			this._register(this.onProcessReady(e => {
 				this._windowsShellHelper = this._register(new WindowsShellHelper(e.pid));
 				this._register(this._windowsShellHelper.onShellTypeChanged(e => this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: e })));
 				this._register(this._windowsShellHelper.onShellNameChanged(e => this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: e })));
-			});
+			}));
 		}
 		this._register(toDisposable(() => {
 			if (this._titleInterval) {
