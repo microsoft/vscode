@@ -57,6 +57,7 @@ export interface IViewModel extends ICursorSimpleModel, ISimpleModel {
 	getMinimapLinesRenderingData(startLineNumber: number, endLineNumber: number, needed: boolean[]): MinimapLinesRenderingData;
 	getCompletelyVisibleViewRange(): Range;
 	getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range;
+	getViewRangeWithCursorPadding(viewRange: Range): Range;
 
 	getHiddenAreas(): Range[];
 
