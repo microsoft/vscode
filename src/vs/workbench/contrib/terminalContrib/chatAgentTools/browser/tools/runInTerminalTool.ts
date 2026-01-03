@@ -459,9 +459,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			shellType = 'pwsh';
 		}
 
-		const isFinalAutoApproved = (
-			// Is the setting enabled and the user has opted-in
-			isAutoApproveAllowed &&
+		// Check if the command would be auto-approved based on rules (ignoring warning state)
+		const wouldBeAutoApproved = (
 			// Does at least one analyzer auto approve
 			commandLineAnalyzerResults.some(e => e.isAutoApproved) &&
 			// No analyzer denies auto approval
@@ -470,7 +469,16 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			analyzersIsAutoApproveAllowed
 		);
 
-		if (isFinalAutoApproved) {
+		const isFinalAutoApproved = (
+			// Is the setting enabled and the user has opted-in
+			isAutoApproveAllowed &&
+			// Would be auto-approved based on rules
+			wouldBeAutoApproved
+		);
+
+		// Pass autoApproveInfo if command would be auto-approved (even if warning not yet accepted)
+		// This allows the confirmation widget to auto-approve after user accepts the warning
+		if (isFinalAutoApproved || (isAutoApproveEnabled && wouldBeAutoApproved)) {
 			toolSpecificData.autoApproveInfo = commandLineAnalyzerResults.find(e => e.autoApproveInfo)?.autoApproveInfo;
 		}
 
