@@ -78,22 +78,26 @@ export function registerChatExportActions() {
 				f1: true,
 			});
 		}
-		async run(accessor: ServicesAccessor, ...args: unknown[]) {
+		async run(accessor: ServicesAccessor, inputUri?: URI) {
 			const fileDialogService = accessor.get(IFileDialogService);
 			const fileService = accessor.get(IFileService);
 			const widgetService = accessor.get(IChatWidgetService);
 
-			const defaultUri = joinPath(await fileDialogService.defaultFilePath(), defaultFileName);
-			const result = await fileDialogService.showOpenDialog({
-				defaultUri,
-				canSelectFiles: true,
-				filters
-			});
-			if (!result) {
-				return;
+			let fileUri = inputUri;
+			if (!fileUri) {
+				const defaultUri = joinPath(await fileDialogService.defaultFilePath(), defaultFileName);
+				const result = await fileDialogService.showOpenDialog({
+					defaultUri,
+					canSelectFiles: true,
+					filters
+				});
+				if (!result) {
+					return;
+				}
+				fileUri = result[0];
 			}
 
-			const content = await fileService.readFile(result[0]);
+			const content = await fileService.readFile(fileUri);
 			try {
 				const data = revive(JSON.parse(content.value.toString()));
 				if (!isExportableSessionData(data)) {
