@@ -232,13 +232,13 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 						const optedIn = await this._showAutoApproveWarning();
 						if (optedIn) {
 							this.storageService.store(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, true, StorageScope.APPLICATION, StorageTarget.USER);
-							// This is good to auto approve immediately
-							if (!terminalCustomActions) {
+							// If this command would have been auto-approved, approve immediately
+							if (terminalData.autoApproveInfo) {
 								toolConfirmKind = ToolConfirmKind.UserAction;
 							}
 							// If this would not have been auto approved, enable the options and
 							// do not complete
-							else {
+							else if (terminalCustomActions) {
 								for (const action of terminalCustomActions) {
 									if (!(action instanceof Separator)) {
 										action.disabled = false;
