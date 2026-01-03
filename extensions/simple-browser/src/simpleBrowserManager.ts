@@ -35,7 +35,10 @@ export class SimpleBrowserManager {
 		const url = state?.url ?? '';
 		const view = SimpleBrowserView.restore(this.extensionUri, url, panel);
 		this.registerWebviewListeners(view);
-		this._activeView ??= view;
+
+		// Always set as active view - restored panels take priority over newly created ones
+		// to prevent race conditions when extension activation triggers show() simultaneously
+		this._activeView = view;
 	}
 
 	private registerWebviewListeners(view: SimpleBrowserView) {
