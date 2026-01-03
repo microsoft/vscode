@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IKeyMods, IQuickPickDidAcceptEvent, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { PickerQuickAccessProvider, IPickerQuickAccessItem, TriggerAction } from '../../../../../platform/quickinput/browser/pickerQuickAccess.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -29,6 +29,7 @@ export class AgentSessionsQuickAccessProvider extends PickerQuickAccessProvider<
 		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(AGENT_SESSIONS_QUICK_ACCESS_PREFIX, {
+			canAcceptInBackground: true,
 			noResultsPick: {
 				label: localize('noAgentSessionResults', "No matching agent sessions")
 			}
@@ -69,25 +70,29 @@ export class AgentSessionsQuickAccessProvider extends PickerQuickAccessProvider<
 			buttons,
 			trigger: async (buttonIndex) => {
 				const button = buttons[buttonIndex];
-				if (button === renameButton) {
-					await this.commandService.executeCommand(AGENT_SESSION_RENAME_ACTION_ID, session);
-					return TriggerAction.REFRESH_PICKER;
-				} else if (button === deleteButton) {
-					await this.commandService.executeCommand(AGENT_SESSION_DELETE_ACTION_ID, session);
-					return TriggerAction.REFRESH_PICKER;
-				} else if (button === archiveButton || button === unarchiveButton) {
-					const newArchivedState = !session.isArchived();
-					session.setArchived(newArchivedState);
-					return TriggerAction.REFRESH_PICKER;
+				switch (button) {
+					case renameButton:
+						await this.commandService.executeCommand(AGENT_SESSION_RENAME_ACTION_ID, session);
+						return TriggerAction.REFRESH_PICKER;
+					case deleteButton:
+						await this.commandService.executeCommand(AGENT_SESSION_DELETE_ACTION_ID, session);
+						return TriggerAction.REFRESH_PICKER;
+					case archiveButton:
+					case unarchiveButton: {
+						const newArchivedState = !session.isArchived();
+						session.setArchived(newArchivedState);
+						return TriggerAction.REFRESH_PICKER;
+					}
+					default:
+						return TriggerAction.NO_ACTION;
 				}
-				return TriggerAction.NO_ACTION;
 			},
-			accept: () => {
+			accept: (keyMods: IKeyMods, event: IQuickPickDidAcceptEvent) => {
 				this.instantiationService.invokeFunction(openSession, session, {
-					sideBySide: false,
+					sideBySide: event.inBackground,
 					editorOptions: {
-						preserveFocus: false,
-						pinned: false
+						preserveFocus: event.inBackground,
+						pinned: event.inBackground
 					}
 				});
 			}

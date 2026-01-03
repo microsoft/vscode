@@ -46,16 +46,19 @@ export function getSessionDescription(session: IAgentSession): string {
 	const descriptionText = typeof session.description === 'string' ? session.description : session.description ? renderAsPlaintext(session.description) : undefined;
 	const timeAgo = fromNow(session.timing.endTime || session.timing.startTime);
 	const descriptionParts = [descriptionText, session.providerLabel, timeAgo].filter(part => !!part);
+
 	return descriptionParts.join(' • ');
 }
 
 export function getSessionButtons(session: IAgentSession): IQuickInputButton[] {
 	const buttons: IQuickInputButton[] = [];
+
 	if (isLocalAgentSessionItem(session)) {
 		buttons.push(renameButton);
 		buttons.push(deleteButton);
 	}
 	buttons.push(session.isArchived() ? unarchiveButton : archiveButton);
+
 	return buttons;
 }
 
@@ -85,7 +88,7 @@ export class AgentSessionsPicker {
 					sideBySide: e.inBackground,
 					editorOptions: {
 						preserveFocus: e.inBackground,
-						pinned: false
+						pinned: e.inBackground
 					}
 				});
 			}
