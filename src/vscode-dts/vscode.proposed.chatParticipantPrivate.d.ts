@@ -320,12 +320,18 @@ declare module 'vscode' {
 
 	// #endregion
 
-	// #region CustomAgentsProvider
+	// #region ChatContributionsProvider
+
+	export enum PromptsType {
+		instructions = 'instructions',
+		prompt = 'prompt',
+		agent = 'agent'
+	}
 
 	/**
 	 * Represents a custom agent resource file (e.g., .agent.md or .prompt.md) available for a repository.
 	 */
-	export interface CustomAgentResource {
+	export interface ChatContributionResource {
 		/**
 		 * The unique identifier/name of the custom agent resource.
 		 */
@@ -350,16 +356,16 @@ declare module 'vscode' {
 	/**
 	 * Options for querying custom agents.
 	 */
-	export interface CustomAgentQueryOptions { }
+	export interface ChatContributionQueryOptions { }
 
 	/**
 	 * A provider that supplies custom agent resources (from .agent.md and .prompt.md files) for repositories.
 	 */
-	export interface CustomAgentsProvider {
+	export interface ChatContributionsProvider {
 		/**
 		 * An optional event to signal that custom agents have changed.
 		 */
-		readonly onDidChangeCustomAgents?: Event<void>;
+		readonly onDidChangeContributions?: Event<void>;
 
 		/**
 		 * Provide the list of custom agent resources available for a given repository.
@@ -367,7 +373,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @returns An array of custom agent resources or a promise that resolves to such.
 		 */
-		provideCustomAgents(options: CustomAgentQueryOptions, token: CancellationToken): ProviderResult<CustomAgentResource[]>;
+		provideContributions(options: ChatContributionQueryOptions, token: CancellationToken): ProviderResult<ChatContributionResource[]>;
 	}
 
 	export namespace chat {
@@ -376,7 +382,7 @@ declare module 'vscode' {
 		 * @param provider The custom agents provider.
 		 * @returns A disposable that unregisters the provider when disposed.
 		 */
-		export function registerCustomAgentsProvider(provider: CustomAgentsProvider): Disposable;
+		export function registerContributionsProvider(type: PromptsType, provider: ChatContributionsProvider): Disposable;
 	}
 
 	// #endregion
