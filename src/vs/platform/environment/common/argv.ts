@@ -169,4 +169,5 @@ export interface NativeParsedArgs {
 	'trace-startup-file'?: string;
 	'trace-startup-duration'?: string;
 	'xdg-portal-required-version'?: string;
+	'class'?: string;
 }
