@@ -60,6 +60,9 @@ export namespace EditorContextKeys {
 
 	export const standaloneColorPickerVisible = new RawContextKey<boolean>('standaloneColorPickerVisible', false, nls.localize('standaloneColorPickerVisible', "Whether the standalone color picker is visible"));
 	export const standaloneColorPickerFocused = new RawContextKey<boolean>('standaloneColorPickerFocused', false, nls.localize('standaloneColorPickerFocused', "Whether the standalone color picker is focused"));
+
+	export const isComposing = new RawContextKey<boolean>('isComposing', false, nls.localize('isComposing', "Whether the editor is in the composition mode"));
+
 	/**
 	 * A context key that is set when an editor is part of a larger editor, like notebooks or
 	 * (future) a diff editor
