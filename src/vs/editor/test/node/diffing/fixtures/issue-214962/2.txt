@@ -1,0 +1,9 @@
+print("Right")
+
+
+if 1:
+    if 2:
+        pass
+
+
+print("Done")
