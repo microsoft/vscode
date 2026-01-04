@@ -227,6 +227,7 @@ suite('RunInTerminalTool', () => {
 			'Get-Location',
 			'Write-Host "Hello"',
 			'Write-Output "Test"',
+			'Out-String',
 			'Split-Path C:\\Users\\test',
 			'Join-Path C:\\Users test',
 			'Start-Sleep 2',
