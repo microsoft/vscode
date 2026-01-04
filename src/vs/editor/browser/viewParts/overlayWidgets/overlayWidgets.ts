@@ -214,7 +214,28 @@ export class ViewOverlayWidgets extends ViewPart {
 		}
 	}
 
+	// Determine if any overflowing widgets need the editor position so _renderWidget can place them in page space.
+	private _needsViewDomNodeRectMeasurement(): boolean {
+		if (!this._context.configuration.options.get(EditorOption.fixedOverflowWidgets)) {
+			return false;
+		}
+
+		const keys = Object.keys(this._widgets);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			const widgetData = this._widgets[keys[i]];
+			const preference = widgetData.preference;
+			if (preference && typeof preference !== 'number' && this._widgetCanOverflow(widgetData.widget)) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	public prepareRender(ctx: RenderingContext): void {
+		if (!this._needsViewDomNodeRectMeasurement()) {
+			return;
+		}
 		this._viewDomNodeRect = dom.getDomNodePagePosition(this._viewDomNode.domNode);
 	}
 
