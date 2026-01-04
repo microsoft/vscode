@@ -722,7 +722,7 @@ export class McpHTTPHandle extends Disposable {
 		// If we have an Authorization header and still get an auth error, we should retry with a new auth registration
 		if (headers['Authorization'] && isAuthStatusCode(res.status)) {
 			const errorText = await this._getErrText(res);
-			this._log(LogLevel.Debug, `Received ${res.status} status with Authorization header, retrying with new auth registration. Error details: ${errorText || 'no additional details'}`);
+			this._log(LogLevel.Info, `Received ${res.status} status with Authorization header, retrying with new auth registration. Error details: ${errorText || 'no additional details'}`);
 			await this._addAuthHeader(headers, true);
 			res = await doFetch();
 		}
@@ -872,7 +872,7 @@ class AuthMetadata implements IAuthMetadata {
 	update(response: CommonResponse): boolean {
 		const scopesChallenge = this._parseScopesFromResponse(response);
 		if (!scopesMatch(scopesChallenge, this._scopes)) {
-			this._log(LogLevel.Debug, `Scopes changed from ${JSON.stringify(this._scopes)} to ${JSON.stringify(scopesChallenge)}, updating`);
+			this._log(LogLevel.Info, `Scopes changed from ${JSON.stringify(this._scopes)} to ${JSON.stringify(scopesChallenge)}, updating`);
 			this._scopes = scopesChallenge;
 			return true;
 		}
@@ -890,7 +890,7 @@ class AuthMetadata implements IAuthMetadata {
 			if (challenge.scheme === 'Bearer' && challenge.params['scope']) {
 				const scopes = challenge.params['scope'].split(AUTH_SCOPE_SEPARATOR).filter(s => s.trim().length);
 				if (scopes.length) {
-					this._log(LogLevel.Debug, `Found scope challenge in WWW-Authenticate header: ${challenge.params['scope']}`);
+					this._log(LogLevel.Info, `Found scope challenge in WWW-Authenticate header: ${challenge.params['scope']}`);
 					return scopes;
 				}
 			}
@@ -941,7 +941,7 @@ export async function createAuthMetadata(
 	let scopesChallenge = scopesChallengeFromHeader;
 
 	try {
-		const { metadata, errors } = await fetchResourceMetadata(mcpUrl, resourceMetadataChallenge, {
+		const { metadata, discoveryUrl, errors } = await fetchResourceMetadata(mcpUrl, resourceMetadataChallenge, {
 			sameOriginHeaders: {
 				...Object.fromEntries(launchHeaders),
 				'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION
@@ -951,10 +951,15 @@ export async function createAuthMetadata(
 		for (const err of errors) {
 			log(LogLevel.Warning, `Error fetching resource metadata: ${err}`);
 		}
+		log(LogLevel.Info, `Discovered resource metadata at ${discoveryUrl}`);
 		// TODO:@TylerLeonhardt support multiple authorization servers
 		// Consider using one that has an auth provider first, over the dynamic flow
 		serverMetadataUrl = metadata.authorization_servers?.[0];
-		log(LogLevel.Debug, `Using auth server metadata url: ${serverMetadataUrl}`);
+		if (!serverMetadataUrl) {
+			log(LogLevel.Warning, `No authorization_servers found in resource metadata ${discoveryUrl} - Is this resource metadata configured correctly?`);
+		} else {
+			log(LogLevel.Info, `Using auth server metadata url: ${serverMetadataUrl}`);
+		}
 		scopesChallenge ??= metadata.scopes_supported;
 		resource = metadata;
 	} catch (e) {
@@ -977,14 +982,18 @@ export async function createAuthMetadata(
 
 	try {
 		log(LogLevel.Debug, `Fetching auth server metadata for: ${serverMetadataUrl} ...`);
-		const serverMetadataResponse = await fetchAuthorizationServerMetadata(serverMetadataUrl, {
+		const { metadata, discoveryUrl, errors } = await fetchAuthorizationServerMetadata(serverMetadataUrl, {
 			additionalHeaders,
 			fetch: (url, init) => fetch(url, init as MinimalRequestInit)
 		});
-		log(LogLevel.Info, 'Populated auth metadata');
+		for (const err of errors) {
+			log(LogLevel.Warning, `Error fetching authorization server metadata: ${err}`);
+		}
+		log(LogLevel.Info, `Discovered authorization server metadata at ${discoveryUrl}`);
+
 		return new AuthMetadata(
 			URI.parse(serverMetadataUrl),
-			serverMetadataResponse,
+			metadata,
 			resource,
 			scopesChallenge,
 			log
