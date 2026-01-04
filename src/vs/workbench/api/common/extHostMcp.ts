@@ -21,7 +21,7 @@ import { StorageScope } from '../../../platform/storage/common/storage.js';
 import { extensionPrefixedIdentifier, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerStaticMetadata, McpServerStaticToolAvailability, McpServerTransportHTTP, McpServerTransportType, UserInteractionRequiredError } from '../../contrib/mcp/common/mcpTypes.js';
 import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
-import { ExtHostMcpShape, IMcpAuthenticationDetails, IStartMcpOptions, MainContext, MainThreadMcpShape } from './extHost.protocol.js';
+import { ExtHostMcpShape, IMcpAuthenticationDetails, IMcpAuthSetupTelemetry, IStartMcpOptions, MainContext, MainThreadMcpShape, McpAuthResourceMetadataSource, McpAuthServerMetadataSource } from './extHost.protocol.js';
 import { IExtHostInitDataService } from './extHostInitDataService.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import * as Convert from './extHostTypeConverters.js';
@@ -701,6 +701,7 @@ export class McpHTTPHandle extends Disposable {
 					fetch: (url, init) => this._fetch(url, init as MinimalRequestInit),
 					log: (level, message) => this._log(level, message)
 				});
+				this._proxy.$logMcpAuthSetup(this._authMetadata.telemetry);
 				await this._addAuthHeader(headers);
 				if (headers['Authorization']) {
 					// Update the headers in the init object
@@ -839,6 +840,8 @@ export interface IAuthMetadata {
 	readonly serverMetadata: IAuthorizationServerMetadata;
 	readonly resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined;
 	readonly scopes: string[] | undefined;
+	/** Telemetry data about how auth metadata was discovered */
+	readonly telemetry: IMcpAuthSetupTelemetry;
 
 	/**
 	 * Updates the scopes based on the WWW-Authenticate header in the response.
@@ -860,6 +863,7 @@ class AuthMetadata implements IAuthMetadata {
 		public readonly serverMetadata: IAuthorizationServerMetadata,
 		public readonly resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined,
 		scopes: string[] | undefined,
+		public readonly telemetry: IMcpAuthSetupTelemetry,
 		private readonly _log: AuthMetadataLogger,
 	) {
 		this._scopes = scopes;
@@ -932,6 +936,10 @@ export async function createAuthMetadata(
 ): Promise<AuthMetadata> {
 	const { launchHeaders, fetch, log } = options;
 
+	// Track discovery sources for telemetry
+	let resourceMetadataSource = McpAuthResourceMetadataSource.None;
+	let serverMetadataSource: McpAuthServerMetadataSource | undefined;
+
 	// Parse the WWW-Authenticate header for resource_metadata and scope challenges
 	const { resourceMetadataChallenge, scopesChallenge: scopesChallengeFromHeader } = parseWWWAuthenticateHeaderForChallenges(originalResponse, log);
 
@@ -952,6 +960,10 @@ export async function createAuthMetadata(
 			log(LogLevel.Warning, `Error fetching resource metadata: ${err}`);
 		}
 		log(LogLevel.Info, `Discovered resource metadata at ${discoveryUrl}`);
+
+		// Determine if resource metadata came from header or well-known
+		resourceMetadataSource = resourceMetadataChallenge ? McpAuthResourceMetadataSource.Header : McpAuthResourceMetadataSource.WellKnown;
+
 		// TODO:@TylerLeonhardt support multiple authorization servers
 		// Consider using one that has an auth provider first, over the dynamic flow
 		serverMetadataUrl = metadata.authorization_servers?.[0];
@@ -959,6 +971,7 @@ export async function createAuthMetadata(
 			log(LogLevel.Warning, `No authorization_servers found in resource metadata ${discoveryUrl} - Is this resource metadata configured correctly?`);
 		} else {
 			log(LogLevel.Info, `Using auth server metadata url: ${serverMetadataUrl}`);
+			serverMetadataSource = McpAuthServerMetadataSource.ResourceMetadata;
 		}
 		scopesChallenge ??= metadata.scopes_supported;
 		resource = metadata;
@@ -991,11 +1004,16 @@ export async function createAuthMetadata(
 		}
 		log(LogLevel.Info, `Discovered authorization server metadata at ${discoveryUrl}`);
 
+		// If serverMetadataSource is not yet defined, it means we fell back to baseUrl
+		// and successfully fetched from well-known
+		serverMetadataSource ??= McpAuthServerMetadataSource.WellKnown;
+
 		return new AuthMetadata(
 			URI.parse(serverMetadataUrl),
 			metadata,
 			resource,
 			scopesChallenge,
+			{ resourceMetadataSource, serverMetadataSource },
 			log
 		);
 	} catch (e) {
@@ -1010,6 +1028,7 @@ export async function createAuthMetadata(
 		defaultMetadata,
 		resource,
 		scopesChallenge,
+		{ resourceMetadataSource, serverMetadataSource: McpAuthServerMetadataSource.Default },
 		log
 	);
 }
