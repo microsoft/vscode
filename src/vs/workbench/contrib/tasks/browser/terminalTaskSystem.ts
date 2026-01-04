@@ -835,7 +835,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 	private _isTaskEmpty(task: CustomTask | ContributedTask): boolean {
 		const isCustomExecution = (task.command.runtime === RuntimeType.CustomExecution);
-		return !((task.command !== undefined) && task.command.runtime && (isCustomExecution || (task.command.name !== undefined)));
+		const hasValidCommandName = task.command.name !== undefined && CommandString.value(task.command.name).trim() !== '';
+		return !((task.command !== undefined) && task.command.runtime && (isCustomExecution || hasValidCommandName));
 	}
 
 	private _reexecuteCommand(task: CustomTask | ContributedTask, trigger: string, alreadyResolved: Map<string, string>): Promise<ITaskSummary> {
