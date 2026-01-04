@@ -29,7 +29,7 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { WorkbenchList } from '../../../../platform/list/browser/listService.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
@@ -88,7 +88,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
-		@IStorageService storageService: IStorageService,
+		@IStorageService private readonly _storageService: IStorageService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
@@ -96,7 +96,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IMenuService private readonly _menuService: IMenuService,
 	) {
-		super(AbstractRuntimeExtensionsEditor.ID, group, telemetryService, themeService, storageService);
+		super(AbstractRuntimeExtensionsEditor.ID, group, telemetryService, themeService, _storageService);
 
 		this._list = null;
 		this._elements = null;
@@ -487,8 +487,8 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 			actions.push(new Separator());
 
 			if (e.element.marketplaceInfo) {
-				actions.push(new Action('runtimeExtensionsEditor.action.disableWorkspace', nls.localize('disable workspace', "Disable (Workspace)"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo!, EnablementState.DisabledWorkspace)));
-				actions.push(new Action('runtimeExtensionsEditor.action.disable', nls.localize('disable', "Disable"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo!, EnablementState.DisabledGlobally)));
+				actions.push(new Action('runtimeExtensionsEditor.action.disableWorkspace', nls.localize('disable workspace', "Disable (Workspace)"), undefined, true, () => this._disableExtensionWithPrompt(e.element!.marketplaceInfo!, EnablementState.DisabledWorkspace)));
+				actions.push(new Action('runtimeExtensionsEditor.action.disable', nls.localize('disable', "Disable"), undefined, true, () => this._disableExtensionWithPrompt(e.element!.marketplaceInfo!, EnablementState.DisabledGlobally)));
 			}
 			actions.push(new Separator());
 
@@ -510,6 +510,36 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 	protected abstract _getUnresponsiveProfile(extensionId: ExtensionIdentifier): IExtensionHostProfile | undefined;
 	protected abstract _createSlowExtensionAction(element: IRuntimeExtension): Action | null;
 	protected abstract _createReportExtensionIssueAction(element: IRuntimeExtension): Action | null;
+
+	private async _disableExtensionWithPrompt(extension: IExtension, state: EnablementState): Promise<void> {
+		await this._extensionsWorkbenchService.setEnablement(extension, state);
+
+		const key = 'extensions.restartDismissed';
+		if (this._storageService.getBoolean(key, StorageScope.PROFILE, false)) {
+			return;
+		}
+
+		const restart = new Action('restart', nls.localize('restart', "Restart Extensions"), undefined, true, async () => {
+			await this._extensionService.stopExtensionHosts();
+			await this._extensionService.startExtensionHosts();
+		});
+
+		this._notificationService.prompt(
+			Severity.Info,
+			nls.localize('finishDisable', "Extension disabled. Restart extensions to take effect?"),
+			[{
+				label: nls.localize('restart', "Restart Extensions"),
+				run: () => restart.run()
+			}, {
+				label: nls.localize('later', "Later"),
+				run: () => { }
+			}],
+			{
+				sticky: true,
+				neverShowAgain: { id: key, isSecondary: true, scope: StorageScope.PROFILE }
+			}
+		);
+	}
 }
 
 export class ShowRuntimeExtensionsAction extends Action2 {
