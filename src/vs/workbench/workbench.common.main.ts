@@ -323,6 +323,9 @@ import './contrib/markdown/browser/markdown.contribution.js';
 // Keybindings Contributions
 import './contrib/keybindings/browser/keybindings.contribution.js';
 
+// Keybinding Teacher
+import './contrib/keybindingTeacher/browser/keybindingTeacher.contribution.js';
+
 // Snippets
 import './contrib/snippets/browser/snippets.contribution.js';
 
