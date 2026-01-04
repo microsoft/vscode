@@ -9,16 +9,14 @@
 }
 
 .terminal-selection-decoration .terminal-selection-action-button {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: 20px;
-	height: 20px;
+	display: inline-block;
+	white-space: nowrap;
+	padding: 2px 8px;
 	border-radius: 4px;
 	cursor: pointer;
 	background-color: var(--vscode-button-background);
 	color: var(--vscode-button-foreground);
-	font-size: 14px;
+	font-size: 12px;
 	transition: background-color 0.1s ease-in-out;
 	transform: translateY(-100%);
 }

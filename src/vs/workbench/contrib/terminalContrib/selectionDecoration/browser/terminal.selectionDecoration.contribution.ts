@@ -56,6 +56,7 @@ class TerminalSelectionDecorationContribution extends Disposable implements ITer
 	}
 
 	private _onSelectionChange(): void {
+		// TODO: Show decoration in intuitive position regardless of where it starts
 		// TODO: Upstream to allow listening while selection is in progress
 		// Clear decoration immediately when selection changes
 		this._decoration.clear();
@@ -122,7 +123,7 @@ class TerminalSelectionDecorationContribution extends Disposable implements ITer
 
 		// Create the action button
 		const button = dom.append(element, dom.$('.terminal-selection-action-button'));
-		button.classList.add('codicon', 'codicon-sparkle');
+		button.textContent = localize('addSelectionToChat', "Add Selection to Chat");
 
 		this._decorationListeners.add(dom.addDisposableListener(button, dom.EventType.CLICK, (e) => {
 			e.stopImmediatePropagation();
