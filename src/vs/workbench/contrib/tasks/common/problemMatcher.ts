@@ -1606,6 +1606,25 @@ class ProblemPatternRegistryImpl implements IProblemPatternRegistry {
 				loop: true
 			}
 		]);
+		// esbuild prints headers like `X [ERROR] Missing import`; the leading glyph varies by
+		// platform (ASCII `X`, Unicode ✘/▲, terminals that rewrite the character, etc.), so
+		// `\S` keeps the matcher resilient. The looped line pattern then captures indented
+		// location lines such as `    src/app.ts:10:7:` (watch mode may append notes).
+		this.add('esbuild', [
+			{
+				regexp: /^\S \[([A-Z]+)\] (.+)$/,
+				kind: ProblemLocationKind.Location,
+				severity: 1,
+				message: 2
+			},
+			{
+				regexp: /^\s*(.+?):(\d+)(?::(\d+))?:?(?:\s.*)?$/,
+				file: 1,
+				line: 2,
+				character: 3,
+				loop: true
+			}
+		]);
 		this.add('go', {
 			regexp: /^([^:]*: )?((.:)?[^:]*):(\d+)(:(\d+))?: (.*)$/,
 			kind: ProblemLocationKind.Location,
@@ -2015,6 +2034,33 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 			fileLocation: FileLocationKind.Relative,
 			filePrefix: '${workspaceFolder}',
 			pattern: ProblemPatternRegistry.get('go')
+		});
+
+		this.add({
+			name: 'esbuild',
+			label: localize('esbuild', 'esbuild problems'),
+			owner: 'esbuild',
+			source: 'esbuild',
+			applyTo: ApplyToKind.allDocuments,
+			fileLocation: FileLocationKind.Relative,
+			filePrefix: '${workspaceFolder}',
+			pattern: ProblemPatternRegistry.get('esbuild')
+		});
+
+		this.add({
+			name: 'esbuild-watch',
+			label: localize('esbuild-watch', 'esbuild watch mode problems'),
+			owner: 'esbuild',
+			source: 'esbuild',
+			applyTo: ApplyToKind.allDocuments,
+			fileLocation: FileLocationKind.Relative,
+			filePrefix: '${workspaceFolder}',
+			pattern: ProblemPatternRegistry.get('esbuild'),
+			watching: {
+				activeOnStart: true,
+				beginsPattern: { regexp: /> \[watch\] build started/ },
+				endsPattern: { regexp: /> \[watch\] build finished/ }
+			}
 		});
 	}
 }
