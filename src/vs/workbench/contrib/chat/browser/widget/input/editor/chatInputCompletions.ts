@@ -23,7 +23,7 @@ import { ICodeEditorService } from '../../../../../../../editor/browser/services
 import { Position } from '../../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { IWordAtPosition, getWordAtText } from '../../../../../../../editor/common/core/wordHelper.js';
-import { CompletionContext, CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, DocumentSymbol, Location, ProviderResult, SymbolKind, SymbolKinds } from '../../../../../../../editor/common/languages.js';
+import { CompletionContext, CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, DocumentSymbol, Location, ProviderResult, SymbolKind, SymbolKinds, type InlineCompletionContext, type InlineCompletions, type InlineCompletionsProvider } from '../../../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../../../../editor/common/services/languageFeatures.js';
 import { IOutlineModelService } from '../../../../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
@@ -31,6 +31,7 @@ import { localize } from '../../../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { IChatInlineCompletionsService } from '../../../../common/chatInlineCompletionsService.js';
 import { FileKind, IFileService } from '../../../../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
@@ -1255,3 +1256,60 @@ class ToolCompletions extends Disposable {
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ToolCompletions, LifecyclePhase.Eventually);
+
+/**
+ * AI-powered inline completions for chat input.
+ *
+ * Bridges the chat inline completions service to the editor's inline completions infrastructure.
+ * This provider queries chat-specific completion providers (like GitHub Copilot) via the
+ * chatInlineCompletionsService and surfaces suggestions in the chat input field.
+ *
+ * Registered as a workbench contribution to integrate with VS Code's inline completion UI.
+ */
+class ChatInputInlineCompletions extends Disposable {
+	private readonly _ourProvider: InlineCompletionsProvider;
+
+	constructor(
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IChatInlineCompletionsService private readonly chatInlineCompletionsService: IChatInlineCompletionsService,
+	) {
+		super();
+
+		this._ourProvider = {
+			debounceDelayMs: 150, // prevents excessive provider calls during rapid typing.
+			provideInlineCompletions: async (model: ITextModel, position: Position, _context: InlineCompletionContext, token: CancellationToken): Promise<InlineCompletions | undefined> => {
+				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
+				if (!widget || !widget.viewModel) {
+					return undefined;
+				}
+
+				// Only show suggestions at end of line with non-empty content.
+				const lineContent = model.getLineContent(position.lineNumber);
+				// Column is 1-based, so subtract 1 to compare with 0-based line length
+				const isAtEndOfLine = position.column - 1 === lineContent.length;
+
+				if (!isAtEndOfLine || lineContent.trim().length < 3) {
+					return undefined;
+				}
+
+				// Call chat-specific inline completion providers
+				const input = model.getValue();
+				const cursorPosition = model.getOffsetAt(position);
+
+				const result = await this.chatInlineCompletionsService.provideChatInlineCompletions(
+					input,
+					cursorPosition,
+					token
+				);
+
+				return result;
+			},
+			disposeInlineCompletions: () => { },
+		};
+
+		this._register(this.languageFeaturesService.inlineCompletionsProvider.register({ scheme: Schemas.vscodeChatInput, hasAccessToAllModels: true }, this._ourProvider));
+	}
+}
+
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ChatInputInlineCompletions, LifecyclePhase.Eventually);
