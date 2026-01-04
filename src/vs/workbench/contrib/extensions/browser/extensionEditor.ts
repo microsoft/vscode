@@ -664,12 +664,24 @@ export class ExtensionEditor extends EditorPane {
 	}
 
 	private open(id: string, extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
+		// Setup common container structure for all tabs
+		const details = append(template.content, $('.details'));
+		const contentContainer = append(details, $('.content-container'));
+		const additionalDetailsContainer = append(details, $('.additional-details-container'));
+
+		const layout = () => details.classList.toggle('narrow', this.dimension && this.dimension.width < 500);
+		layout();
+		this.contentDisposables.add(toDisposable(arrays.insert(this.layoutParticipants, { layout })));
+
+		// Render additional details synchronously to avoid flicker
+		this.renderAdditionalDetails(additionalDetailsContainer, extension);
+
 		switch (id) {
-			case ExtensionEditorTab.Readme: return this.openDetails(extension, template, token);
-			case ExtensionEditorTab.Features: return this.openFeatures(template, token);
-			case ExtensionEditorTab.Changelog: return this.openChangelog(extension, template, token);
-			case ExtensionEditorTab.Dependencies: return this.openExtensionDependencies(extension, template, token);
-			case ExtensionEditorTab.ExtensionPack: return this.openExtensionPack(extension, template, token);
+			case ExtensionEditorTab.Readme: return this.openDetails(extension, contentContainer, token);
+			case ExtensionEditorTab.Features: return this.openFeatures(extension, contentContainer, token);
+			case ExtensionEditorTab.Changelog: return this.openChangelog(extension, contentContainer, token);
+			case ExtensionEditorTab.Dependencies: return this.openExtensionDependencies(extension, contentContainer, token);
+			case ExtensionEditorTab.ExtensionPack: return this.openExtensionPack(extension, contentContainer, token);
 		}
 		return Promise.resolve(null);
 	}
@@ -835,24 +847,15 @@ export class ExtensionEditor extends EditorPane {
 		</html>`;
 	}
 
-	private async openDetails(extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
-		const details = append(template.content, $('.details'));
-		const readmeContainer = append(details, $('.readme-container'));
-		const additionalDetailsContainer = append(details, $('.additional-details-container'));
-
-		const layout = () => details.classList.toggle('narrow', this.dimension && this.dimension.width < 500);
-		layout();
-		this.contentDisposables.add(toDisposable(arrays.insert(this.layoutParticipants, { layout })));
-
+	private async openDetails(extension: IExtension, contentContainer: HTMLElement, token: CancellationToken): Promise<IActiveElement | null> {
 		let activeElement: IActiveElement | null = null;
 		const manifest = await this.extensionManifest!.get().promise;
 		if (manifest && manifest.extensionPack?.length && this.shallRenderAsExtensionPack(manifest)) {
-			activeElement = await this.openExtensionPackReadme(extension, manifest, readmeContainer, token);
+			activeElement = await this.openExtensionPackReadme(extension, manifest, contentContainer, token);
 		} else {
-			activeElement = await this.openMarkdown(extension, this.extensionReadme!.get(), localize('noReadme', "No README available."), readmeContainer, WebviewIndex.Readme, localize('Readme title', "Readme"), token);
+			activeElement = await this.openMarkdown(extension, this.extensionReadme!.get(), localize('noReadme', "No README available."), contentContainer, WebviewIndex.Readme, localize('Readme title', "Readme"), token);
 		}
 
-		this.renderAdditionalDetails(additionalDetailsContainer, extension);
 		return activeElement;
 	}
 
@@ -870,21 +873,35 @@ export class ExtensionEditor extends EditorPane {
 		extensionPackReadme.style.maxWidth = '882px';
 
 		const extensionPack = append(extensionPackReadme, $('div', { class: 'extension-pack' }));
-		if (manifest.extensionPack!.length <= 3) {
-			extensionPackReadme.classList.add('one-row');
-		} else if (manifest.extensionPack!.length <= 6) {
-			extensionPackReadme.classList.add('two-rows');
-		} else if (manifest.extensionPack!.length <= 9) {
-			extensionPackReadme.classList.add('three-rows');
-		} else {
-			extensionPackReadme.classList.add('more-rows');
-		}
+
+		const packCount = manifest.extensionPack!.length;
+		const headerHeight = 37; // navbar height
+		const contentMinHeight = 200; // minimum height for readme content
+
+		const layout = () => {
+			extensionPackReadme.classList.remove('one-row', 'two-rows', 'three-rows', 'more-rows');
+			const availableHeight = container.clientHeight;
+			const availableForPack = Math.max(availableHeight - headerHeight - contentMinHeight, 0);
+			let rowClass = 'one-row';
+			if (availableForPack >= 302 && packCount > 6) {
+				rowClass = 'more-rows';
+			} else if (availableForPack >= 282 && packCount > 4) {
+				rowClass = 'three-rows';
+			} else if (availableForPack >= 200 && packCount > 2) {
+				rowClass = 'two-rows';
+			} else {
+				rowClass = 'one-row';
+			}
+			extensionPackReadme.classList.add(rowClass);
+		};
+
+		layout();
+		this.contentDisposables.add(toDisposable(arrays.insert(this.layoutParticipants, { layout })));
 
 		const extensionPackHeader = append(extensionPack, $('div.header'));
 		extensionPackHeader.textContent = localize('extension pack', "Extension Pack ({0})", manifest.extensionPack!.length);
 		const extensionPackContent = append(extensionPack, $('div', { class: 'extension-pack-content' }));
 		extensionPackContent.setAttribute('tabindex', '0');
-		append(extensionPack, $('div.footer'));
 		const readmeContent = append(extensionPackReadme, $('div.readme-content'));
 
 		await Promise.all([
@@ -909,12 +926,14 @@ export class ExtensionEditor extends EditorPane {
 		scrollableContent.scanDomNode();
 	}
 
-	private openChangelog(extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
-		return this.openMarkdown(extension, this.extensionChangelog!.get(), localize('noChangelog', "No Changelog available."), template.content, WebviewIndex.Changelog, localize('Changelog title', "Changelog"), token);
+	private async openChangelog(extension: IExtension, contentContainer: HTMLElement, token: CancellationToken): Promise<IActiveElement | null> {
+		const activeElement = await this.openMarkdown(extension, this.extensionChangelog!.get(), localize('noChangelog', "No Changelog available."), contentContainer, WebviewIndex.Changelog, localize('Changelog title', "Changelog"), token);
+
+		return activeElement;
 	}
 
-	private async openFeatures(template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
-		const manifest = await this.loadContents(() => this.extensionManifest!.get(), template.content);
+	private async openFeatures(extension: IExtension, contentContainer: HTMLElement, token: CancellationToken): Promise<IActiveElement | null> {
+		const manifest = await this.loadContents(() => this.extensionManifest!.get(), contentContainer);
 		if (token.isCancellationRequested) {
 			return null;
 		}
@@ -923,27 +942,28 @@ export class ExtensionEditor extends EditorPane {
 		}
 
 		const extensionFeaturesTab = this.contentDisposables.add(this.instantiationService.createInstance(ExtensionFeaturesTab, manifest, (<IExtensionEditorOptions | undefined>this.options)?.feature));
-		const layout = () => extensionFeaturesTab.layout(template.content.clientHeight, template.content.clientWidth);
-		const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
+		const featureLayout = () => extensionFeaturesTab.layout(contentContainer.clientHeight, contentContainer.clientWidth);
+		const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout: featureLayout });
 		this.contentDisposables.add(toDisposable(removeLayoutParticipant));
-		append(template.content, extensionFeaturesTab.domNode);
-		layout();
+		append(contentContainer, extensionFeaturesTab.domNode);
+		featureLayout();
+
 		return extensionFeaturesTab.domNode;
 	}
 
-	private openExtensionDependencies(extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
+	private openExtensionDependencies(extension: IExtension, contentContainer: HTMLElement, token: CancellationToken): Promise<IActiveElement | null> {
 		if (token.isCancellationRequested) {
 			return Promise.resolve(null);
 		}
 
 		if (arrays.isFalsyOrEmpty(extension.dependencies)) {
-			append(template.content, $('p.nocontent')).textContent = localize('noDependencies', "No Dependencies");
-			return Promise.resolve(template.content);
+			append(contentContainer, $('p.nocontent')).textContent = localize('noDependencies', "No Dependencies");
+			return Promise.resolve(contentContainer);
 		}
 
 		const content = $('div', { class: 'subcontent' });
 		const scrollableContent = new DomScrollableElement(content, {});
-		append(template.content, scrollableContent.getDomNode());
+		append(contentContainer, scrollableContent.getDomNode());
 		this.contentDisposables.add(scrollableContent);
 
 		const dependenciesTree = this.instantiationService.createInstance(ExtensionsTree,
@@ -951,31 +971,34 @@ export class ExtensionEditor extends EditorPane {
 			{
 				listBackground: editorBackground
 			});
-		const layout = () => {
+		const depLayout = () => {
 			scrollableContent.scanDomNode();
 			const scrollDimensions = scrollableContent.getScrollDimensions();
 			dependenciesTree.layout(scrollDimensions.height);
 		};
-		const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
+		const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout: depLayout });
 		this.contentDisposables.add(toDisposable(removeLayoutParticipant));
 
 		this.contentDisposables.add(dependenciesTree);
 		scrollableContent.scanDomNode();
+
 		return Promise.resolve({ focus() { dependenciesTree.domFocus(); } });
 	}
 
-	private async openExtensionPack(extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
+	private async openExtensionPack(extension: IExtension, contentContainer: HTMLElement, token: CancellationToken): Promise<IActiveElement | null> {
 		if (token.isCancellationRequested) {
 			return Promise.resolve(null);
 		}
-		const manifest = await this.loadContents(() => this.extensionManifest!.get(), template.content);
+
+		const manifest = await this.loadContents(() => this.extensionManifest!.get(), contentContainer);
 		if (token.isCancellationRequested) {
 			return null;
 		}
 		if (!manifest) {
 			return null;
 		}
-		return this.renderExtensionPack(manifest, template.content, token);
+
+		return this.renderExtensionPack(manifest, contentContainer, token);
 	}
 
 	private async renderExtensionPack(manifest: IExtensionManifest, parent: HTMLElement, token: CancellationToken): Promise<IActiveElement | null> {

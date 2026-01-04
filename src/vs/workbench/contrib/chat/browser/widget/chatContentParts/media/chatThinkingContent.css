@@ -1,0 +1,165 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.interactive-session .interactive-response .chat-used-context-list.chat-thinking-items {
+	color: var(--vscode-descriptionForeground);
+	padding-top: 0;
+}
+
+.interactive-session .interactive-response .value .chat-thinking-box {
+	outline: none;
+	position: relative;
+	color: var(--vscode-descriptionForeground);
+
+	.chat-used-context {
+		margin: 0px;
+	}
+
+	.monaco-button.hidden,
+	.chat-pinned-preview.hidden {
+		display: none;
+	}
+
+	.chat-used-context-list.chat-thinking-collapsible {
+		border: 1px solid var(--vscode-chat-requestBorder);
+		border-radius: 4px;
+		margin-bottom: 0;
+		position: relative;
+		overflow: hidden;
+
+		.chat-tool-invocation-part {
+			padding: 3px 12px 4px 18px;
+			position: relative;
+
+			.chat-used-context {
+				margin-bottom: 0px;
+				margin-left: 2px;
+				padding-left: 2px;
+			}
+
+			.progress-container, .chat-confirmation-widget-container {
+				margin: 0 0 2px 6px;
+			}
+
+			.codicon:not(.chat-thinking-icon) {
+				display: none;
+			}
+		}
+
+		.chat-thinking-item.markdown-content {
+			padding: 5px 12px 6px 24px;
+			position: relative;
+			font-size: var(--vscode-chat-font-size-body-s);
+
+			.progress-container {
+				margin-bottom: 0px;
+				padding-top: 0px;
+			}
+
+			[data-code] {
+				background-color: var(--vscode-textPreformat-background);
+				padding: 1px 3px;
+				border-radius: 4px;
+				border: 1px solid var(--vscode-textPreformat-border);
+				white-space: pre-wrap;
+			}
+		}
+
+		/* chain of thought lines */
+		.chat-thinking-tool-wrapper,
+		.chat-thinking-item.markdown-content {
+			position: relative;
+
+			&::before {
+				content: '';
+				position: absolute;
+				left: 10.5px;
+				top: 0px;
+				bottom: 0px;
+				width: 1px;
+				border-radius: 0;
+				background-color: var(--vscode-chat-requestBorder);
+				mask-image: linear-gradient(to bottom, #000 0 5px, transparent 5px 25px, #000 24px 100%);
+			}
+
+			&:first-child::before {
+				mask-image: linear-gradient(to bottom, transparent 0 25px, #000 25px 100%);
+			}
+
+			&:last-child::before {
+				mask-image: linear-gradient(to bottom, #000 0 5px, transparent 5px 100%);
+			}
+
+			&:only-child::before {
+				background: none;
+				mask-image: none;
+			}
+
+			> .chat-thinking-icon {
+				position: absolute;
+				left: 5px;
+				top: 9px;
+				width: 12px;
+				height: 12px;
+				font-size: 12px;
+				line-height: 12px;
+				text-align: center;
+				color: var(--vscode-descriptionForeground);
+			}
+
+		}
+	}
+
+	.chat-thinking-item {
+		padding: 6px 12px;
+		position: relative;
+
+		.progress-container {
+			margin-bottom: 0px;
+			padding-top: 0px;
+		}
+	}
+
+	.chat-thinking-text {
+		font-size: var(--vscode-chat-font-size-body-s);
+		padding: 0 10px;
+		display: block;
+	}
+
+	.rendered-markdown > p {
+		margin: 0;
+	}
+}
+
+.interactive-session .interactive-response .value .chat-thinking-fixed-mode {
+	outline: none;
+
+	&.chat-used-context-collapsed .chat-used-context-list.chat-thinking-collapsible.chat-thinking-streaming {
+		max-height: 200px;
+		overflow: hidden;
+		display: block;
+	}
+
+	&:not(.chat-used-context-collapsed) .chat-used-context-list.chat-thinking-collapsible.chat-thinking-streaming {
+		max-height: none;
+		overflow: visible;
+		display: block;
+	}
+
+	.chat-used-context-list.chat-thinking-collapsible:not(.chat-thinking-streaming) {
+		max-height: none;
+		overflow: visible;
+	}
+}
+
+.editor-instance .interactive-session .interactive-response .value .chat-thinking-box .chat-thinking-item ::before {
+	background: var(--vscode-editor-background);
+}
+
+.interactive-session .interactive-response .value .chat-thinking-box .chat-used-context-label code {
+	display: inline;
+	line-height: inherit;
+	padding: 0 4px;
+}

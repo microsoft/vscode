@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Stats, promises } from 'fs';
+import { Stats, constants, promises } from 'fs';
 import { Barrier, retry } from '../../../base/common/async.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
@@ -73,12 +73,24 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		try {
 			const { stat, symbolicLink } = await SymlinkSupport.stat(this.toFilePath(resource)); // cannot use fs.stat() here to support links properly
 
+			let permissions: FilePermission | undefined = undefined;
+			if ((stat.mode & 0o200) === 0) {
+				permissions = FilePermission.Locked;
+			}
+			if (
+				stat.mode & constants.S_IXUSR ||
+				stat.mode & constants.S_IXGRP ||
+				stat.mode & constants.S_IXOTH
+			) {
+				permissions = (permissions ?? 0) | FilePermission.Executable;
+			}
+
 			return {
 				type: this.toType(stat, symbolicLink),
 				ctime: stat.birthtime.getTime(), // intentionally not using ctime here, we want the creation time
 				mtime: stat.mtime.getTime(),
 				size: stat.size,
-				permissions: (stat.mode & 0o200) === 0 ? FilePermission.Locked : undefined
+				permissions
 			};
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
@@ -268,7 +280,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			locks.add(await this.createResourceLock(tempResource));
 
 			// Write to temp resource first
-			await this.doWriteFile(tempResource, content, opts, true /* disable write lock */);
+			await this.doWriteFile(tempResource, content, { ...opts, create: true, overwrite: true }, true /* disable write lock */);
 
 			try {
 

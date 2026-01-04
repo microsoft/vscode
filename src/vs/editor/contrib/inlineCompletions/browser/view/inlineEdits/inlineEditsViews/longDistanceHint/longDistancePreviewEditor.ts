@@ -5,6 +5,7 @@
 
 import { n } from '../../../../../../../../base/browser/dom.js';
 import { Disposable } from '../../../../../../../../base/common/lifecycle.js';
+import { clamp } from '../../../../../../../../base/common/numbers.js';
 import { IObservable, derived, constObservable, IReader, autorun, observableValue } from '../../../../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../../../../browser/editorBrowser.js';
@@ -22,11 +23,13 @@ import { InlineCompletionContextKeys } from '../../../../controller/inlineComple
 import { InlineEditsGutterIndicator, InlineEditsGutterIndicatorData, InlineSuggestionGutterMenuData, SimpleInlineSuggestModel } from '../../components/gutterIndicatorView.js';
 import { InlineEditTabAction } from '../../inlineEditsViewInterface.js';
 import { classNames, maxContentWidthInRange } from '../../utils/utils.js';
+import { JumpToView } from '../jumpToView.js';
 
 export interface ILongDistancePreviewProps {
+	nextCursorPosition: Position | null; // assert: nextCursorPosition !== null  xor  diff.length > 0
 	diff: DetailedLineRangeMapping[];
 	model: SimpleInlineSuggestModel;
-	suggestInfo: InlineSuggestionGutterMenuData;
+	inlineSuggestInfo: InlineSuggestionGutterMenuData;
 }
 
 export class LongDistancePreviewEditor extends Disposable {
@@ -51,7 +54,12 @@ export class LongDistancePreviewEditor extends Disposable {
 		this._parentEditorObs = observableCodeEditor(this._parentEditor);
 
 		this._register(autorun(reader => {
-			this.previewEditor.setModel(this._state.read(reader)?.textModel || null);
+			const tm = this._state.read(reader)?.textModel || null;
+
+			if (tm) {
+				// Avoid transitions from tm -> null -> tm, where tm -> tm would be a no-op.
+				this.previewEditor.setModel(tm);
+			}
 		}));
 
 		this._previewEditorObs = observableCodeEditor(this.previewEditor);
@@ -60,6 +68,21 @@ export class LongDistancePreviewEditor extends Disposable {
 			const decorations = this._editorDecorations.read(reader);
 			return (state?.mode === 'original' ? decorations?.originalDecorations : decorations?.modifiedDecorations) ?? [];
 		})));
+
+		const showJumpToDecoration = false;
+
+		if (showJumpToDecoration) {
+			this._register(this._instantiationService.createInstance(JumpToView, this._previewEditorObs, { style: 'cursor' }, derived(reader => {
+				const p = this._properties.read(reader);
+				if (!p || !p.nextCursorPosition) {
+					return undefined;
+				}
+				return {
+					jumpToPosition: p.nextCursorPosition,
+
+				};
+			})));
+		}
 
 		// Mirror the cursor position. Allows the gutter arrow to point in the correct direction.
 		this._register(autorun((reader) => {
@@ -73,12 +96,12 @@ export class LongDistancePreviewEditor extends Disposable {
 		}));
 
 		this._register(autorun(reader => {
-			const state = this._properties.read(reader);
+			const state = this._state.read(reader);
 			if (!state) {
 				return;
 			}
 			// Ensure there is enough space to the left of the line number for the gutter indicator to fits.
-			const lineNumberDigets = state.diff[0].modified.startLineNumber.toString().length;
+			const lineNumberDigets = state.visibleLineRange.startLineNumber.toString().length;
 			this.previewEditor.updateOptions({ lineNumbersMinChars: lineNumberDigets + 1 });
 		}));
 
@@ -86,12 +109,15 @@ export class LongDistancePreviewEditor extends Disposable {
 			InlineEditsGutterIndicator,
 			this._previewEditorObs,
 			derived(reader => {
-				const state = this._properties.read(reader);
+				const state = this._state.read(reader);
 				if (!state) { return undefined; }
+				const props = this._properties.read(reader);
+				if (!props) { return undefined; }
 				return new InlineEditsGutterIndicatorData(
-					state.suggestInfo,
-					LineRange.ofLength(state.diff[0].original.startLineNumber, 1),
-					state.model,
+					props.inlineSuggestInfo,
+					LineRange.ofLength(state.visibleLineRange.startLineNumber, 1),
+					props.model,
+					undefined,
 				);
 			}),
 			this._tabAction,
@@ -109,21 +135,29 @@ export class LongDistancePreviewEditor extends Disposable {
 			return undefined;
 		}
 
-		if (props.diff[0].innerChanges?.every(c => c.modifiedRange.isEmpty())) {
-			return {
-				diff: props.diff,
-				visibleLineRange: LineRange.ofLength(props.diff[0].original.startLineNumber, 1),
-				textModel: this._parentEditorObs.model.read(reader),
-				mode: 'original' as const,
-			};
+		let mode: 'original' | 'modified';
+		let visibleRange: LineRange;
+
+		if (props.nextCursorPosition !== null) {
+			mode = 'original';
+			visibleRange = LineRange.ofLength(props.nextCursorPosition.lineNumber, 1);
 		} else {
-			return {
-				diff: props.diff,
-				visibleLineRange: LineRange.ofLength(props.diff[0].modified.startLineNumber, 1),
-				textModel: this._previewTextModel,
-				mode: 'modified' as const,
-			};
+			if (props.diff[0].innerChanges?.every(c => c.modifiedRange.isEmpty())) {
+				mode = 'original';
+				visibleRange = LineRange.ofLength(props.diff[0].original.startLineNumber, 1);
+			} else {
+				mode = 'modified';
+				visibleRange = LineRange.ofLength(props.diff[0].modified.startLineNumber, 1);
+			}
 		}
+
+		const textModel = mode === 'original' ? this._parentEditorObs.model.read(reader) : this._previewTextModel;
+		return {
+			mode,
+			visibleLineRange: visibleRange,
+			textModel,
+			diff: props.diff,
+		};
 	});
 
 	private _createPreviewEditor() {
@@ -140,7 +174,7 @@ export class LongDistancePreviewEditor extends Disposable {
 					bracketPairsHorizontal: false,
 					highlightActiveIndentation: false,
 				},
-
+				editContext: false, // is a bit faster
 				rulers: [],
 				padding: { top: 0, bottom: 0 },
 				//folding: false,
@@ -193,36 +227,47 @@ export class LongDistancePreviewEditor extends Disposable {
 	});
 
 	public readonly horizontalContentRangeInPreviewEditorToShow = derived(this, reader => {
-		return this._getHorizontalContentRangeInPreviewEditorToShow(this.previewEditor, this._properties.read(reader)?.diff ?? [], reader);
+		return this._getHorizontalContentRangeInPreviewEditorToShow(this.previewEditor, reader);
 	});
 
 	public readonly contentHeight = derived(this, (reader) => {
-		const viewState = this._properties.read(reader);
+		const viewState = this._state.read(reader);
 		if (!viewState) {
 			return constObservable(null);
 		}
 
-		const previewEditorHeight = this._previewEditorObs.observeLineHeightForLine(viewState.diff[0].modified.startLineNumber);
+		const previewEditorHeight = this._previewEditorObs.observeLineHeightForLine(viewState.visibleLineRange.startLineNumber);
 		return previewEditorHeight;
 	}).flatten();
 
-	private _getHorizontalContentRangeInPreviewEditorToShow(editor: ICodeEditor, diff: DetailedLineRangeMapping[], reader: IReader) {
-
-		const r = LineRange.ofLength(diff[0].modified.startLineNumber, 1);
-		const l = this._previewEditorObs.layoutInfo.read(reader);
-		const trueContentWidth = maxContentWidthInRange(this._previewEditorObs, r, reader);
-
+	private _getHorizontalContentRangeInPreviewEditorToShow(editor: ICodeEditor, reader: IReader) {
 		const state = this._state.read(reader);
-		if (!state || !diff[0].innerChanges) {
+		if (!state) { return undefined; }
+
+		const diff = state.diff;
+		const jumpToPos = this._properties.read(reader)?.nextCursorPosition;
+
+		const visibleRange = state.visibleLineRange;
+		const l = this._previewEditorObs.layoutInfo.read(reader);
+		const trueContentWidth = maxContentWidthInRange(this._previewEditorObs, visibleRange, reader);
+
+		let firstCharacterChange: Range;
+		if (jumpToPos) {
+			firstCharacterChange = Range.fromPositions(jumpToPos);
+		} else if (diff[0].innerChanges) {
+			firstCharacterChange = state.mode === 'modified' ? diff[0].innerChanges[0].modifiedRange : diff[0].innerChanges[0].originalRange;
+		} else {
 			return undefined;
 		}
 
-		const firstCharacterChange = state.mode === 'modified' ? diff[0].innerChanges[0].modifiedRange : diff[0].innerChanges[0].originalRange;
 
 		// find the horizontal range we want to show.
 		const preferredRange = growUntilVariableBoundaries(editor.getModel()!, firstCharacterChange, 5);
-		const left = this._previewEditorObs.getLeftOfPosition(preferredRange.getStartPosition(), reader);
-		const right = this._previewEditorObs.getLeftOfPosition(preferredRange.getEndPosition(), reader);
+		const leftOffset = this._previewEditorObs.getLeftOfPosition(preferredRange.getStartPosition(), reader);
+		const rightOffset = this._previewEditorObs.getLeftOfPosition(preferredRange.getEndPosition(), reader);
+
+		const left = clamp(leftOffset, 0, trueContentWidth);
+		const right = clamp(rightOffset, left, trueContentWidth);
 
 		const indentCol = editor.getModel()!.getLineFirstNonWhitespaceColumn(preferredRange.startLineNumber);
 		const indentationEnd = this._previewEditorObs.getLeftOfPosition(new Position(preferredRange.startLineNumber, indentCol), reader);
@@ -244,12 +289,12 @@ export class LongDistancePreviewEditor extends Disposable {
 	}
 
 	private readonly _editorDecorations = derived(this, reader => {
-		const diff2 = this._state.read(reader);
-		if (!diff2) { return undefined; }
+		const state = this._state.read(reader);
+		if (!state) { return undefined; }
 
 		const diff = {
 			mode: 'insertionInline' as const,
-			diff: diff2.diff,
+			diff: state.diff,
 		};
 		const originalDecorations: IModelDeltaDecoration[] = [];
 		const modifiedDecorations: IModelDeltaDecoration[] = [];

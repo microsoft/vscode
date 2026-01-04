@@ -9,9 +9,9 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IChatTerminalToolProgressPart, ITerminalChatService, ITerminalInstance, ITerminalService } from '../../../terminal/browser/terminal.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { IChatService } from '../../../chat/common/chatService.js';
+import { IChatService } from '../../../chat/common/chatService/chatService.js';
 import { TerminalChatContextKeys } from './terminalChat.js';
-import { LocalChatSessionUri } from '../../../chat/common/chatUri.js';
+import { LocalChatSessionUri } from '../../../chat/common/model/chatUri.js';
 import { isNumber, isString } from '../../../../../base/common/types.js';
 
 const enum StorageKeys {
@@ -53,6 +53,13 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	 */
 	private readonly _sessionAutoApprovalEnabled = new Set<string>();
 
+	/**
+	 * Tracks session-scoped auto-approve rules per chat session. These are temporary rules that
+	 * last only for the duration of the chat session (not persisted to disk).
+	 * Map<chatSessionId, Record<ruleKey, ruleValue>>
+	 */
+	private readonly _sessionAutoApproveRules = new Map<string, Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>>();
+
 	constructor(
 		@ILogService private readonly _logService: ILogService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
@@ -66,6 +73,16 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		this._hasHiddenToolTerminalContext = TerminalChatContextKeys.hasHiddenChatTerminals.bindTo(this._contextKeyService);
 
 		this._restoreFromStorage();
+
+		// Clear session auto-approve rules when chat sessions end
+		this._register(this._chatService.onDidDisposeSession(e => {
+			for (const resource of e.sessionResource) {
+				const sessionId = LocalChatSessionUri.parseLocalSessionId(resource);
+				if (sessionId) {
+					this._sessionAutoApproveRules.delete(sessionId);
+				}
+			}
+		}));
 	}
 
 	registerTerminalInstanceWithToolSession(terminalToolSessionId: string | undefined, instance: ITerminalInstance): void {
@@ -85,17 +102,19 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		}));
 
 		this._register(this._chatService.onDidDisposeSession(e => {
-			if (LocalChatSessionUri.parseLocalSessionId(e.sessionResource) === terminalToolSessionId) {
-				this._terminalInstancesByToolSessionId.delete(terminalToolSessionId);
-				this._toolSessionIdByTerminalInstance.delete(instance);
-				this._terminalInstanceListenersByToolSessionId.deleteAndDispose(terminalToolSessionId);
-				// Clean up session auto approval state
-				const sessionId = LocalChatSessionUri.parseLocalSessionId(e.sessionResource);
-				if (sessionId) {
-					this._sessionAutoApprovalEnabled.delete(sessionId);
+			for (const resource of e.sessionResource) {
+				if (LocalChatSessionUri.parseLocalSessionId(resource) === terminalToolSessionId) {
+					this._terminalInstancesByToolSessionId.delete(terminalToolSessionId);
+					this._toolSessionIdByTerminalInstance.delete(instance);
+					this._terminalInstanceListenersByToolSessionId.deleteAndDispose(terminalToolSessionId);
+					// Clean up session auto approval state
+					const sessionId = LocalChatSessionUri.parseLocalSessionId(resource);
+					if (sessionId) {
+						this._sessionAutoApprovalEnabled.delete(sessionId);
+					}
+					this._persistToStorage();
+					this._updateHasToolTerminalContextKeys();
 				}
-				this._persistToStorage();
-				this._updateHasToolTerminalContextKeys();
 			}
 		}));
 
@@ -202,6 +221,9 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	}
 
 	getMostRecentProgressPart(): IChatTerminalToolProgressPart | undefined {
+		if (!this._mostRecentProgressPart || !this._activeProgressParts.has(this._mostRecentProgressPart)) {
+			this._mostRecentProgressPart = this._getLastActiveProgressPart();
+		}
 		return this._mostRecentProgressPart;
 	}
 
@@ -270,8 +292,14 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		try {
 			const entries: [string, number][] = [];
 			for (const [toolSessionId, instance] of this._terminalInstancesByToolSessionId.entries()) {
-				if (isNumber(instance.persistentProcessId) && instance.shouldPersist) {
-					entries.push([toolSessionId, instance.persistentProcessId]);
+				// Use the live persistent process id when available, otherwise fall back to the id
+				// from the attached process so mappings survive early in the terminal lifecycle.
+				const persistentId = isNumber(instance.persistentProcessId)
+					? instance.persistentProcessId
+					: instance.shellLaunchConfig.attachPersistentProcess?.id;
+				const shouldPersist = instance.shouldPersist || instance.shellLaunchConfig.forcePersist;
+				if (isNumber(persistentId) && shouldPersist) {
+					entries.push([toolSessionId, persistentId]);
 				}
 			}
 			if (entries.length > 0) {
@@ -301,5 +329,18 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 
 	hasChatSessionAutoApproval(chatSessionId: string): boolean {
 		return this._sessionAutoApprovalEnabled.has(chatSessionId);
+	}
+
+	addSessionAutoApproveRule(chatSessionId: string, key: string, value: boolean | { approve: boolean; matchCommandLine?: boolean }): void {
+		let sessionRules = this._sessionAutoApproveRules.get(chatSessionId);
+		if (!sessionRules) {
+			sessionRules = {};
+			this._sessionAutoApproveRules.set(chatSessionId, sessionRules);
+		}
+		sessionRules[key] = value;
+	}
+
+	getSessionAutoApproveRules(chatSessionId: string): Readonly<Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>> {
+		return this._sessionAutoApproveRules.get(chatSessionId) ?? {};
 	}
 }

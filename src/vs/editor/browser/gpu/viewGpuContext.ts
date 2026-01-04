@@ -6,6 +6,7 @@
 import * as nls from '../../../nls.js';
 import { addDisposableListener, getActiveWindow } from '../../../base/browser/dom.js';
 import { createFastDomNode, type FastDomNode } from '../../../base/browser/fastDomNode.js';
+import { Color } from '../../../base/common/color.js';
 import { BugIndicatingError } from '../../../base/common/errors.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import type { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
@@ -255,6 +256,11 @@ const gpuSupportedDecorationCssRules = [
 	'color',
 	'font-weight',
 	'opacity',
+	'text-decoration',
+	'text-decoration-color',
+	'text-decoration-line',
+	'text-decoration-style',
+	'text-decoration-thickness',
 ];
 
 function supportsCssRule(rule: string, style: CSSStyleDeclaration) {
@@ -263,6 +269,31 @@ function supportsCssRule(rule: string, style: CSSStyleDeclaration) {
 	}
 	// Check for values that aren't supported
 	switch (rule) {
+		case 'text-decoration':
+		case 'text-decoration-line': {
+			const value = style.getPropertyValue(rule);
+			// Only line-through is supported currently
+			return value === 'line-through';
+		}
+		case 'text-decoration-color': {
+			const value = style.getPropertyValue(rule);
+			// Support var(--something, initial/inherit) which falls back to currentcolor
+			if (/^var\(--[^,]+,\s*(?:initial|inherit)\)$/.test(value)) {
+				return true;
+			}
+			// Support parsed color values
+			return Color.Format.CSS.parse(value) !== null;
+		}
+		case 'text-decoration-style': {
+			const value = style.getPropertyValue(rule);
+			// Only 'initial' (solid) is supported
+			return value === 'initial';
+		}
+		case 'text-decoration-thickness': {
+			const value = style.getPropertyValue(rule);
+			// Only pixel values and 'initial' are supported
+			return value === 'initial' || /^\d+(\.\d+)?px$/.test(value);
+		}
 		default: return true;
 	}
 }
