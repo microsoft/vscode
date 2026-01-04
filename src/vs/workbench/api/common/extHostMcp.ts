@@ -941,7 +941,7 @@ export async function createAuthMetadata(
 	let scopesChallenge = scopesChallengeFromHeader;
 
 	try {
-		const { metadata, errors } = await fetchResourceMetadata(mcpUrl, resourceMetadataChallenge, {
+		const { metadata, discoveryUrl, errors } = await fetchResourceMetadata(mcpUrl, resourceMetadataChallenge, {
 			sameOriginHeaders: {
 				...Object.fromEntries(launchHeaders),
 				'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION
@@ -951,10 +951,15 @@ export async function createAuthMetadata(
 		for (const err of errors) {
 			log(LogLevel.Warning, `Error fetching resource metadata: ${err}`);
 		}
+		log(LogLevel.Debug, `Discovered resource metadata at ${discoveryUrl}`);
 		// TODO:@TylerLeonhardt support multiple authorization servers
 		// Consider using one that has an auth provider first, over the dynamic flow
 		serverMetadataUrl = metadata.authorization_servers?.[0];
-		log(LogLevel.Debug, `Using auth server metadata url: ${serverMetadataUrl}`);
+		if (!serverMetadataUrl) {
+			log(LogLevel.Warning, `No authorization_servers found in resource metadata ${discoveryUrl} - Is this resource metadata configured correctly?`);
+		} else {
+			log(LogLevel.Debug, `Using auth server metadata url: ${serverMetadataUrl}`);
+		}
 		scopesChallenge ??= metadata.scopes_supported;
 		resource = metadata;
 	} catch (e) {
@@ -977,14 +982,18 @@ export async function createAuthMetadata(
 
 	try {
 		log(LogLevel.Debug, `Fetching auth server metadata for: ${serverMetadataUrl} ...`);
-		const serverMetadataResponse = await fetchAuthorizationServerMetadata(serverMetadataUrl, {
+		const { metadata, discoveryUrl, errors } = await fetchAuthorizationServerMetadata(serverMetadataUrl, {
 			additionalHeaders,
 			fetch: (url, init) => fetch(url, init as MinimalRequestInit)
 		});
-		log(LogLevel.Info, 'Populated auth metadata');
+		for (const err of errors) {
+			log(LogLevel.Warning, `Error fetching authorization server metadata: ${err}`);
+		}
+		log(LogLevel.Debug, `Discovered authorization server metadata at ${discoveryUrl}`);
+
 		return new AuthMetadata(
 			URI.parse(serverMetadataUrl),
-			serverMetadataResponse,
+			metadata,
 			resource,
 			scopesChallenge,
 			log
