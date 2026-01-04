@@ -860,7 +860,12 @@ export class QuickInputController extends Disposable {
 
 			// Position
 			style.top = `${this.viewState?.top ? Math.round(this.dimension!.height * this.viewState.top) : this.titleBarOffset}px`;
-			style.left = `${Math.round((this.dimension!.width * (this.viewState?.left ?? 0.5 /* center */)) - (width / 2))}px`;
+			
+			// Calculate left position with bounds checking to prevent off-screen positioning
+			let leftPosition = Math.round((this.dimension!.width * (this.viewState?.left ?? 0.5 /* center */)) - (width / 2));
+			// Ensure the widget stays within the container bounds
+			leftPosition = Math.max(0, Math.min(leftPosition, this.dimension!.width - width));
+			style.left = `${leftPosition}px`;
 
 			this.ui.inputBox.layout();
 			this.ui.list.layout(this.dimension && this.dimension.height * 0.4);
