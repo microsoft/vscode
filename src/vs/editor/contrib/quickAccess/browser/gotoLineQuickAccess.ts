@@ -25,6 +25,9 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 	static readonly GO_TO_LINE_PREFIX = ':';
 	static readonly GO_TO_OFFSET_PREFIX = '::';
 	private static readonly ZERO_BASED_OFFSET_STORAGE_KEY = 'gotoLine.useZeroBasedOffset';
+	private static readonly DISABLE_AUTO_REVEAL_STORAGE_KEY = 'gotoLine.disableAutoReveal';
+
+	private sessionDisableAutoReveal: boolean | undefined;
 
 	constructor() {
 		super({ canAcceptInBackground: true });
@@ -47,6 +50,49 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 			StorageTarget.USER);
 	}
 
+	private get disableAutoReveal() {
+		if (typeof this.sessionDisableAutoReveal === 'boolean') {
+			return this.sessionDisableAutoReveal;
+		}
+
+		const configured = this.getConfiguredAutoReveal();
+		if (typeof configured === 'boolean') {
+			return !configured;
+		}
+
+		const stored = this.storageService.getBoolean(
+			AbstractGotoLineQuickAccessProvider.DISABLE_AUTO_REVEAL_STORAGE_KEY,
+			StorageScope.APPLICATION
+		);
+		if (typeof stored === 'boolean') {
+			return stored;
+		}
+
+		return !this.isAutoRevealEnabledByDefault();
+	}
+
+	private set disableAutoReveal(value: boolean) {
+		this.sessionDisableAutoReveal = value;
+
+		if (typeof this.getConfiguredAutoReveal() === 'boolean') {
+			return;
+		}
+
+		this.storageService.store(
+			AbstractGotoLineQuickAccessProvider.DISABLE_AUTO_REVEAL_STORAGE_KEY,
+			value,
+			StorageScope.APPLICATION,
+			StorageTarget.USER);
+	}
+
+	protected isAutoRevealEnabledByDefault(): boolean {
+		return true;
+	}
+
+	protected getConfiguredAutoReveal(): boolean | undefined {
+		return undefined;
+	}
+
 	protected provideWithoutTextEditor(picker: IQuickPick<IGotoLineQuickPickItem, { useSeparators: true }>): IDisposable {
 		const label = localize('gotoLine.noEditor', "Open a text editor first to go to a line or an offset.");
 
@@ -62,17 +108,16 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 
 		// Goto line once picked
 		disposables.add(picker.onDidAccept(event => {
-			const [item] = picker.selectedItems;
-			if (item) {
-				if (!item.lineNumber) {
-					return;
-				}
+			const item = picker.selectedItems[0];
+			if (!item || !item.lineNumber) {
+				return;
+			}
 
-				this.gotoLocation(context, { range: this.toRange(item.lineNumber, item.column), keyMods: picker.keyMods, preserveFocus: event.inBackground });
+			const range = this.toRange(item.lineNumber, item.column);
+			this.gotoLocation(context, { range, keyMods: picker.keyMods, preserveFocus: event.inBackground });
 
-				if (!event.inBackground) {
-					picker.hide();
-				}
+			if (!event.inBackground) {
+				picker.hide();
 			}
 		}));
 
@@ -84,13 +129,23 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 			toggle: { checked: this.useZeroBasedOffset }
 		};
 
+		const autoRevealButton: IQuickInputButton = {
+			iconClass: ThemeIcon.asClassName(Codicon.eye),
+			tooltip: localize('gotoLineAutoRevealToggleButton', "Toggle Auto Reveal"),
+			location: QuickInputButtonLocation.Input,
+			toggle: { checked: !this.disableAutoReveal }
+		};
+
 		// React to picker changes
 		const updatePickerAndEditor = () => {
 			const inputText = picker.value.trim().substring(AbstractGotoLineQuickAccessProvider.GO_TO_LINE_PREFIX.length);
 			const { inOffsetMode, lineNumber, column, label } = this.parsePosition(editor, inputText);
 
-			// Show toggle only when input text starts with '::'.
-			picker.buttons = inOffsetMode ? [offsetButton] : [];
+			const buttons: IQuickInputButton[] = [autoRevealButton];
+			if (inOffsetMode) {
+				buttons.push(offsetButton);
+			}
+			picker.buttons = buttons;
 
 			// Picker
 			picker.items = [{
@@ -105,17 +160,25 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 				return;
 			}
 
-			// Reveal
 			const range = this.toRange(lineNumber, column);
-			editor.revealRangeInCenter(range, ScrollType.Smooth);
 
-			// Decorate
+			// Always update decorations so the target line is highlighted
 			this.addDecorations(editor, range);
+
+			if (this.disableAutoReveal) {
+				return;
+			}
+
+			// Reveal only when auto reveal is enabled
+			editor.revealRangeInCenter(range, ScrollType.Smooth);
 		};
 
 		disposables.add(picker.onDidTriggerButton(button => {
 			if (button === offsetButton) {
 				this.useZeroBasedOffset = button.toggle?.checked ?? !this.useZeroBasedOffset;
+				updatePickerAndEditor();
+			} else if (button === autoRevealButton) {
+				this.disableAutoReveal = !(button.toggle?.checked ?? !this.disableAutoReveal);
 				updatePickerAndEditor();
 			}
 		}));
