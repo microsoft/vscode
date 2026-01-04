@@ -29,6 +29,11 @@ export interface IChatContentPart extends IDisposable {
 	 */
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean;
 
+	/**
+	 * Called when the content part is mounted to the DOM after being detached.
+	 */
+	onDidRemount?(): void;
+
 	addDisposable?(disposable: IDisposable): void;
 }
 

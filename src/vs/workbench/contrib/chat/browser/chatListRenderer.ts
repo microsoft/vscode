@@ -106,6 +106,12 @@ export interface IChatListItemTemplate {
 	 * they are disposed in a separate cycle after diffing with the next content to render.
 	 */
 	renderedParts?: IChatContentPart[];
+	/**
+	 * Whether the parts are mounted in the DOM. This is undefined after
+	 * the element is disposed so the `renderedParts.onDidMount` can be
+	 * called on the next render as appropriate.
+	 */
+	renderedPartsMounted?: boolean;
 	readonly rowContainer: HTMLElement;
 	readonly titleToolbar?: MenuWorkbenchToolBar;
 	readonly header?: HTMLElement;
@@ -664,6 +670,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				this.renderChatRequest(element, index, templateData);
 			}
 		}
+		templateData.renderedPartsMounted = true;
 	}
 
 	private renderDetail(element: IChatResponseViewModel, templateData: IChatListItemTemplate): void {
@@ -993,12 +1000,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const renderedParts = templateData.renderedParts ?? [];
 		templateData.renderedParts = renderedParts;
 		partsToRender.forEach((partToRender, contentIndex) => {
+			const alreadyRenderedPart = templateData.renderedParts?.[contentIndex];
+
 			if (!partToRender) {
 				// null=no change
+				if (!templateData.renderedPartsMounted) {
+					alreadyRenderedPart?.onDidRemount?.();
+				}
 				return;
 			}
-
-			const alreadyRenderedPart = templateData.renderedParts?.[contentIndex];
 
 			// keep existing thinking part instance during streaming and update it in place
 			if (alreadyRenderedPart) {
@@ -1752,6 +1762,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	disposeElement(node: ITreeNode<ChatTreeItem, FuzzyScore>, index: number, templateData: IChatListItemTemplate, details?: IListElementRenderDetails): void {
 		this.traceLayout('disposeElement', `Disposing element, index=${index}`);
 		templateData.elementDisposables.clear();
+		templateData.renderedPartsMounted = false;
 
 		if (templateData.currentElement && !this.viewModel?.editing) {
 			this.templateDataByRequestId.delete(templateData.currentElement.id);

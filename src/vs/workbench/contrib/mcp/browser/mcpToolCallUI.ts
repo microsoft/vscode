@@ -21,11 +21,9 @@ import { McpApps } from '../common/modelContextProtocolApps.js';
 /**
  * Result from loading an MCP App UI resource.
  */
-export interface IMcpAppResourceContent {
+export interface IMcpAppResourceContent extends McpApps.McpUiResourceMeta {
 	/** The HTML content of the UI resource */
 	readonly html: string;
-	/** CSP domains from the resource metadata */
-	readonly csp?: readonly string[];
 	/** MIME type of the content */
 	readonly mimeType: string;
 }
@@ -219,9 +217,11 @@ export class McpToolCallUI extends Disposable {
 			throw new Error('UI resource has no content');
 		}
 
+		const meta = resourceResult._meta?.ui as McpApps.McpUiResourceMeta | undefined;
+
 		return {
+			...meta,
 			html,
-			csp: this._uiData.csp,
 			mimeType,
 		};
 	}
@@ -246,7 +246,13 @@ export class McpToolCallUI extends Disposable {
 			throw new Error(`Tool not found on server: ${name}`);
 		}
 
-		return tool.call(params, undefined, token);
+		const res = await tool.call(params, undefined, token);
+		return {
+			content: res.content,
+			isError: res.isError,
+			_meta: res._meta,
+			structuredContent: res.structuredContent,
+		};
 	}
 
 	/**

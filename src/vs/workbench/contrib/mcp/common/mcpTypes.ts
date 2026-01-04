@@ -460,8 +460,6 @@ export interface IMcpToolCallUIData {
 	readonly serverDefinitionId: string;
 	/** Reference to the collection containing the server */
 	readonly collectionId: string;
-	/** CSP domains declared in the UI resource metadata */
-	readonly csp?: readonly string[];
 	/** Original raw tool result. */
 	readonly rawToolOutput: MCP.CallToolResult;
 }

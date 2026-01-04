@@ -39,6 +39,7 @@ import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
 import { McpTaskManager } from './mcpTaskManager.js';
 import { ElicitationKind, extensionMcpCollectionPrefix, IMcpElicitationService, IMcpIcons, IMcpPrompt, IMcpPromptMessage, IMcpResource, IMcpResourceTemplate, IMcpSamplingService, IMcpServer, IMcpServerConnection, IMcpServerStartOpts, IMcpTool, IMcpToolCallContext, IMcpToolCallResult, IMcpToolCallUIData, McpCapability, McpCollectionDefinition, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, mcpPromptReplaceSpecialChars, McpResourceURI, McpServerCacheState, McpServerDefinition, McpServerStaticToolAvailability, McpServerTransportType, McpToolName, McpToolVisibility, MpcResponseError, UserInteractionRequiredError } from './mcpTypes.js';
 import { MCP } from './modelContextProtocol.js';
+import { McpApps } from './modelContextProtocolApps.js';
 import { UriTemplate } from './uriTemplate.js';
 
 type ServerBootData = {
@@ -230,12 +231,6 @@ type ValidatedMcpTool = MCP.Tool & {
 	 * Parsed from `_meta.ui.resourceUri`.
 	 */
 	uiResourceUri?: string;
-
-	/**
-	 * CSP domains declared in the UI resource metadata.
-	 * Parsed from `_meta.ui.csp`.
-	 */
-	uiCsp?: readonly string[];
 };
 
 interface StoredServerMetadata {
@@ -764,7 +759,7 @@ export class McpServer extends Disposable implements IMcpServer {
 
 	private async _normalizeTool(originalTool: MCP.Tool): Promise<ValidatedMcpTool | { error: string[] }> {
 		// Parse MCP Apps UI metadata from _meta.ui
-		const uiMeta = originalTool._meta?.ui as { resourceUri?: string; visibility?: Array<'model' | 'app'>; csp?: string[] } | undefined;
+		const uiMeta = originalTool._meta?.ui as McpApps.McpUiToolMeta | undefined;
 
 		// Compute visibility from _meta.ui.visibility, defaulting to Model | App
 		let visibility: McpToolVisibility = McpToolVisibility.Model | McpToolVisibility.App;
@@ -785,7 +780,6 @@ export class McpServer extends Disposable implements IMcpServer {
 			_icons: this._parseIcons(originalTool),
 			visibility,
 			uiResourceUri: uiMeta?.resourceUri,
-			uiCsp: uiMeta?.csp,
 		};
 		if (!tool.description) {
 			// Ensure a description is provided for each tool, #243919
@@ -1103,7 +1097,6 @@ export class McpTool implements IMcpTool {
 						resourceUri: this._definition.uiResourceUri,
 						serverDefinitionId: this._server.definition.id,
 						collectionId: this._server.collection.id,
-						csp: this._definition.uiCsp,
 						rawToolOutput: mcpResult,
 					};
 					return { ...mcpResult, ui: uiData };

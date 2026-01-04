@@ -45,6 +45,8 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 
 	private subPart!: BaseChatToolInvocationSubPart;
 
+	private readonly _onDidRemount = this._register(new Emitter<void>());
+
 	constructor(
 		private readonly toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
 		private readonly context: IChatContentPartRenderContext,
@@ -133,7 +135,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			// Check if there's an MCP App UI output in the details
 			const mcpAppOutput = this.findMcpAppOutput(resultDetails.output);
 			if (mcpAppOutput) {
-				return this.instantiationService.createInstance(ChatMcpAppSubPart, this.toolInvocation, mcpAppOutput, resultDetails, this.context);
+				return this.instantiationService.createInstance(ChatMcpAppSubPart, this.toolInvocation, mcpAppOutput, resultDetails, this.context, this._onDidRemount.event);
 			}
 
 			return this.instantiationService.createInstance(
@@ -176,6 +178,10 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			}
 		}
 		return undefined;
+	}
+
+	onDidRemount(): void {
+		this._onDidRemount.fire();
 	}
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {

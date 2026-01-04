@@ -10,6 +10,7 @@ import { disposableTimeout } from '../../../../../../base/common/async.js';
 import { decodeBase64 } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { autorun, IObservable, observableValue } from '../../../../../../base/common/observable.js';
@@ -23,7 +24,7 @@ import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
-import { McpToolCallUI } from '../../../../mcp/browser/mcpToolCallUI.js';
+import { IMcpAppResourceContent, McpToolCallUI } from '../../../../mcp/browser/mcpToolCallUI.js';
 import { IMcpToolCallUIData, McpResourceURI } from '../../../../mcp/common/mcpTypes.js';
 import { MCP } from '../../../../mcp/common/modelContextProtocol.js';
 import { McpApps } from '../../../../mcp/common/modelContextProtocolApps.js';
@@ -73,6 +74,7 @@ export class ChatMcpAppSubPart extends BaseChatToolInvocationSubPart {
 		private readonly _uiOutput: ToolMcpUiOutput,
 		private readonly _details: IToolResultInputOutputDetails,
 		private readonly _context: IChatContentPartRenderContext,
+		private readonly _onDidRemount: Event<void>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IWebviewService private readonly _webviewService: IWebviewService,
@@ -184,7 +186,7 @@ export class ChatMcpAppSubPart extends BaseChatToolInvocationSubPart {
 		}
 
 		// Inject CSP into the HTML
-		const htmlWithCsp = this._injectPreamble(resourceContent.html, resourceContent.csp);
+		const htmlWithCsp = this._injectPreamble(resourceContent);
 
 		// Create the webview
 		const webview = this._register(this._webviewService.createWebviewElement({
@@ -239,30 +241,28 @@ export class ChatMcpAppSubPart extends BaseChatToolInvocationSubPart {
 			});
 		}));
 
-		// Handle widget show/hide for webview reinitialization
-		const widget = this._chatWidgetService.getWidgetBySessionResource(this._context.element.sessionResource);
-		if (widget) {
-			this._register(widget.onDidShow(() => {
-				webview.reinitializeAfterDismount();
-			}));
-		}
+		this._register(this._onDidRemount(() => {
+			this._announcedCapabilities = false;
+			webview.reinitializeAfterDismount();
+		}));
 	}
 
 	/**
 	 * Injects a Content-Security-Policy meta tag into the HTML.
 	 */
-	private _injectPreamble(html: string, csp?: readonly string[]): string {
-		// Build CSP directive
-		const cspDomains = csp?.join(' ') || '';
-		const noneSrc = `'none'`;
-		const cspContent = [
-			`default-src ${noneSrc}`,
-			`script-src 'unsafe-inline' ${cspDomains}`.trim(),
-			`style-src 'unsafe-inline' ${cspDomains}`.trim(),
-			`img-src data: https: ${cspDomains}`.trim(),
-			`font-src data: https: ${cspDomains}`.trim(),
-			`connect-src ${cspDomains || noneSrc}`.trim(),
-		].join('; ');
+	private _injectPreamble({ html, csp }: IMcpAppResourceContent): string {
+		const cspContent = `
+			default-src 'none';
+			script-src 'self' 'unsafe-inline';
+			style-src 'self' 'unsafe-inline';
+			connect-src 'self' ${csp?.connectDomains?.join(' ') || ''};
+			img-src 'self' data: ${csp?.resourceDomains?.join(' ') || ''};
+			font-src 'self' ${csp?.resourceDomains?.join(' ') || ''};
+			media-src 'self' data: ${csp?.resourceDomains?.join(' ') || ''};
+			frame-src 'none';
+			object-src 'none';
+			base-uri 'self';
+		`;
 
 		const cspTag = `<meta http-equiv="Content-Security-Policy" content="${cspContent}">`;
 
