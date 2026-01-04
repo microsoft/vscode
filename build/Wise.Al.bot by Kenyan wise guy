@@ -1,0 +1,85 @@
+import websocket
+import json
+import numpy as np
+import pandas as pd
+from sklearn.linear_model import LogisticRegression
+import time
+
+# ================= CONFIG =================
+API_TOKEN = "PUT_YOUR_API_TOKEN_HERE"
+APP_ID = 1089   # Default Deriv app ID
+SYMBOL = "R_100"  # Synthetic index
+STAKE = 1
+CURRENCY = "USD"
+WINDOW_SIZE = 20
+# ==========================================
+
+prices = []
+model = LogisticRegression()
+
+def on_open(ws):
+    ws.send(json.dumps({
+        "authorize": API_TOKEN
+    }))
+
+def on_message(ws, message):
+    global prices, model
+
+    data = json.loads(message)
+
+    if "tick" in data:
+        price = float(data["tick"]["quote"])
+        prices.append(price)
+
+        if len(prices) > WINDOW_SIZE:
+            prices.pop(0)
+
+        if len(prices) == WINDOW_SIZE:
+            X, y = prepare_data(prices)
+            model.fit(X, y)
+
+            prediction = model.predict(X[-1].reshape(1, -1))
+
+            if prediction == 1:
+                place_trade(ws, "CALL")  # Rise
+            else:
+                place_trade(ws, "PUT")   # Fall
+
+def prepare_data(price_list):
+    df = pd.DataFrame(price_list, columns=["price"])
+    df["return"] = df["price"].pct_change()
+    df.dropna(inplace=True)
+
+    X = np.array(df["return"]).reshape(-1, 1)
+    y = (df["return"] > 0).astype(int)
+
+    return X[:-1], y[:-1]
+
+def place_trade(ws, contract_type):
+    trade = {
+        "buy": 1,
+        "price": STAKE,
+        "parameters": {
+            "amount": STAKE,
+            "basis": "stake",
+            "contract_type": contract_type,
+            "currency": CURRENCY,
+            "duration": 1,
+            "duration_unit": "t",
+            "symbol": SYMBOL
+        }
+    }
+
+    ws.send(json.dumps(trade))
+    print(f"Placed {contract_type} trade")
+
+def start_bot():
+    ws = websocket.WebSocketApp(
+        f"wss://ws.derivws.com/websockets/v3?app_id={APP_ID}",
+        on_open=on_open,
+        on_message=on_message
+    )
+    ws.run_forever()
+
+if __name__ == "__main__":
+    start_bot()
