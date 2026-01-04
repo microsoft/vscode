@@ -81,6 +81,8 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 				container: fixture,
 				idPrefix: 'testQuickInput',
 				ignoreFocusOut() { return true; },
+				maximumWidth() { return 600; },
+				relativeWidth() { return 0.62; },
 				returnFocus() { },
 				backKeybindingLabel() { return undefined; },
 				setContextKey() { return undefined; },
