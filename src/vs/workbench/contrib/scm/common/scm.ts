@@ -163,6 +163,9 @@ export interface ISCMInput {
 	showValidationMessage(message: string | IMarkdownString, type: InputValidationType): void;
 	readonly onDidChangeValidationMessage: Event<IInputValidation>;
 
+	clearValidation(): void;
+	readonly onDidClearValidation: Event<void>;
+
 	showNextHistoryValue(): void;
 	showPreviousHistoryValue(): void;
 }
