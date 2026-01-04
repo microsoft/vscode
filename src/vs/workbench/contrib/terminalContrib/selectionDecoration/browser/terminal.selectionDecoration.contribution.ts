@@ -7,16 +7,24 @@ import type { IDecoration, Terminal as RawXtermTerminal } from '@xterm/xterm';
 import * as dom from '../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { localize } from '../../../../../nls.js';
-import { IChatWidgetService } from '../../../chat/browser/chat.js';
-import { ChatAgentLocation } from '../../../chat/common/constants.js';
+import { localize, localize2 } from '../../../../../nls.js';
 import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { registerTerminalContribution, type IDetachedCompatibleTerminalContributionContext, type ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
+import { IMenu, IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { getFlatContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
+import { registerActiveXtermAction } from '../../../terminal/browser/terminalActions.js';
+import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
+import { IChatWidgetService } from '../../../chat/browser/chat.js';
+import { ChatAgentLocation } from '../../../chat/common/constants.js';
 import { IChatRequestStringVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import './media/terminalSelectionDecoration.css';
+
+// #region Terminal Contribution
 
 class TerminalSelectionDecorationContribution extends Disposable implements ITerminalContribution {
 	static readonly ID = 'terminal.selectionDecoration';
@@ -29,13 +37,17 @@ class TerminalSelectionDecorationContribution extends Disposable implements ITer
 	private readonly _decoration = this._register(new MutableDisposable<IDecoration>());
 	private readonly _decorationListeners = this._register(new DisposableStore());
 	private readonly _showDecorationScheduler: RunOnceScheduler;
+	private readonly _menu: IMenu;
 
 	constructor(
 		_ctx: ITerminalContributionContext | IDetachedCompatibleTerminalContributionContext,
-		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@IMenuService menuService: IMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 	) {
 		super();
 		this._showDecorationScheduler = this._register(new RunOnceScheduler(() => this._showDecoration(), 200));
+		this._menu = this._register(menuService.createMenu(MenuId.TerminalSelectionContext, contextKeyService));
 	}
 
 	xtermReady(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
@@ -44,6 +56,7 @@ class TerminalSelectionDecorationContribution extends Disposable implements ITer
 	}
 
 	private _onSelectionChange(): void {
+		// TODO: Upstream to allow listening while selection is in progress
 		// Clear decoration immediately when selection changes
 		this._decoration.clear();
 		this._decorationListeners.clear();
@@ -61,13 +74,14 @@ class TerminalSelectionDecorationContribution extends Disposable implements ITer
 			return;
 		}
 
-		// Only show if there's a selection and chat supports terminal attachments
+		// Only show if there's a selection
 		if (!this._xterm.raw.hasSelection()) {
 			return;
 		}
 
-		const chatIsEnabled = this._chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat).some(w => w.attachmentCapabilities.supportsTerminalAttachments);
-		if (!chatIsEnabled) {
+		// Check if menu has any actions
+		const actions = getFlatContextMenuActions(this._menu.getActions({ shouldForwardArgs: true }));
+		if (actions.length === 0) {
 			return;
 		}
 
@@ -106,15 +120,14 @@ class TerminalSelectionDecorationContribution extends Disposable implements ITer
 	private _setupDecorationElement(element: HTMLElement): void {
 		element.classList.add('terminal-selection-decoration');
 
-		// Create the attach button
-		const button = dom.append(element, dom.$('.terminal-selection-attach-button'));
-		button.classList.add(...ThemeIcon.asClassNameArray(Codicon.sparkle));
-		button.title = localize('terminal.attachSelectionToChat', "Attach Selection to Chat");
+		// Create the action button
+		const button = dom.append(element, dom.$('.terminal-selection-action-button'));
+		button.classList.add('codicon', 'codicon-sparkle');
 
-		this._decorationListeners.add(dom.addDisposableListener(button, dom.EventType.CLICK, async (e) => {
+		this._decorationListeners.add(dom.addDisposableListener(button, dom.EventType.CLICK, (e) => {
 			e.stopImmediatePropagation();
 			e.preventDefault();
-			await this._attachSelectionToChat();
+			this._showContextMenu(e, button);
 		}));
 
 		this._decorationListeners.add(dom.addDisposableListener(button, dom.EventType.MOUSE_DOWN, (e) => {
@@ -123,20 +136,53 @@ class TerminalSelectionDecorationContribution extends Disposable implements ITer
 		}));
 	}
 
-	private async _attachSelectionToChat(): Promise<void> {
-		if (!this._xterm?.raw.hasSelection()) {
+	private _showContextMenu(e: MouseEvent, anchor: HTMLElement): void {
+		const actions = getFlatContextMenuActions(this._menu.getActions({ shouldForwardArgs: true }));
+		if (actions.length === 0) {
 			return;
 		}
 
-		const selection = this._xterm.raw.getSelection();
+		// If only one action, run it directly
+		if (actions.length === 1) {
+			actions[0].run();
+			return;
+		}
+
+		const standardEvent = new StandardMouseEvent(dom.getWindow(anchor), e);
+		this._contextMenuService.showContextMenu({
+			getAnchor: () => standardEvent,
+			getActions: () => actions,
+		});
+	}
+}
+
+registerTerminalContribution(TerminalSelectionDecorationContribution.ID, TerminalSelectionDecorationContribution, true);
+
+// #endregion
+
+// #region Actions
+
+const enum TerminalSelectionCommandId {
+	AttachSelectionToChat = 'workbench.action.terminal.attachSelectionToChat',
+}
+
+registerActiveXtermAction({
+	id: TerminalSelectionCommandId.AttachSelectionToChat,
+	title: localize2('workbench.action.terminal.attachSelectionToChat', 'Attach Selection to Chat'),
+	icon: Codicon.sparkle,
+	precondition: TerminalContextKeys.textSelectedInFocused,
+	run: async (_xterm, accessor, activeInstance) => {
+		const chatWidgetService = accessor.get(IChatWidgetService);
+
+		const selection = activeInstance.selection;
 		if (!selection) {
 			return;
 		}
 
-		let widget = this._chatWidgetService.lastFocusedWidget ?? this._chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat)?.find(w => w.attachmentCapabilities.supportsTerminalAttachments);
+		let widget = chatWidgetService.lastFocusedWidget ?? chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat)?.find(w => w.attachmentCapabilities.supportsTerminalAttachments);
 
 		if (!widget) {
-			widget = await this._chatWidgetService.revealWidget();
+			widget = await chatWidgetService.revealWidget();
 		}
 
 		if (!widget || !widget.attachmentCapabilities.supportsTerminalAttachments) {
@@ -144,22 +190,28 @@ class TerminalSelectionDecorationContribution extends Disposable implements ITer
 		}
 
 		// Clear the selection after attaching
-		const selectionText = selection;
-		this._xterm.raw.clearSelection();
+		activeInstance.clearSelection();
 
 		// Attach the selection as a string attachment
 		const attachment: IChatRequestStringVariableEntry = {
 			kind: 'string',
 			id: `terminalSelection:${Date.now()}`,
 			name: localize('terminal.selection', "Terminal Selection"),
-			value: selectionText,
+			value: selection,
 			icon: Codicon.terminal,
 			uri: URI.parse(`terminal-selection:${Date.now()}`),
 		};
 
 		widget.attachmentModel.addContext(attachment);
 		widget.focusInput();
-	}
-}
+	},
+	menu: [
+		{
+			id: MenuId.TerminalSelectionContext,
+			group: 'navigation',
+			order: 1,
+		}
+	]
+});
 
-registerTerminalContribution(TerminalSelectionDecorationContribution.ID, TerminalSelectionDecorationContribution, true);
+// #endregion

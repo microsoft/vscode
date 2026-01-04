@@ -8,7 +8,7 @@
 	pointer-events: auto !important;
 }
 
-.terminal-selection-decoration .terminal-selection-attach-button {
+.terminal-selection-decoration .terminal-selection-action-button {
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -23,10 +23,10 @@
 	transform: translateY(-100%);
 }
 
-.terminal-selection-decoration .terminal-selection-attach-button:hover {
+.terminal-selection-decoration .terminal-selection-action-button:hover {
 	background-color: var(--vscode-button-hoverBackground);
 }
 
-.terminal-selection-decoration .terminal-selection-attach-button:active {
-	background-color: var(--vscode-button-activeBackground, var(--vscode-button-hoverBackground));
+.terminal-selection-decoration .terminal-selection-action-button:active {
+	background-color: var(--vscode-button-hoverBackground);
 }
