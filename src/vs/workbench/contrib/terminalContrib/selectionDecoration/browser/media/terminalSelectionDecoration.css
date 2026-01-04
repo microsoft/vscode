@@ -1,0 +1,32 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.terminal-selection-decoration {
+	z-index: 10;
+	pointer-events: auto !important;
+}
+
+.terminal-selection-decoration .terminal-selection-attach-button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 20px;
+	height: 20px;
+	border-radius: 4px;
+	cursor: pointer;
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	font-size: 14px;
+	transition: background-color 0.1s ease-in-out;
+	transform: translateY(-100%);
+}
+
+.terminal-selection-decoration .terminal-selection-attach-button:hover {
+	background-color: var(--vscode-button-hoverBackground);
+}
+
+.terminal-selection-decoration .terminal-selection-attach-button:active {
+	background-color: var(--vscode-button-activeBackground, var(--vscode-button-hoverBackground));
+}
