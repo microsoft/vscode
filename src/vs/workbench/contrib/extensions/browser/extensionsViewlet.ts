@@ -980,7 +980,11 @@ export class StatusUpdater extends Disposable implements IWorkbenchContribution 
 	) {
 		super();
 		this.onServiceChange();
-		this._register(Event.any(Event.debounce(extensionsWorkbenchService.onChange, () => undefined, 100, undefined, undefined, undefined, this._store), extensionsWorkbenchService.onDidChangeExtensionsNotification)(this.onServiceChange, this));
+		this._register(Event.any(
+			Event.debounce(extensionsWorkbenchService.onChange, () => undefined, 100, undefined, undefined, undefined, this._store),
+			extensionsWorkbenchService.onDidChangeExtensionsNotification,
+			Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ExcludeDisabledAutoUpdateFromBadgeKey) || e.affectsConfiguration(AutoRestartConfigurationKey))
+		)(this.onServiceChange, this));
 	}
 
 	private onServiceChange(): void {
