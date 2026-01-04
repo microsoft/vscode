@@ -5,7 +5,7 @@
 
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { timeout } from '../../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
@@ -22,9 +22,9 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../../
 import { TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService, ITerminalProfile } from '../../../../../../platform/terminal/common/terminal.js';
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
-import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
-import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService.js';
-import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress } from '../../../../chat/common/languageModelToolsService.js';
+import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
+import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
+import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import type { XtermTerminal } from '../../../../terminal/browser/xterm/xtermTerminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
@@ -44,9 +44,10 @@ import { CommandLineAutoApproveAnalyzer } from './commandLineAnalyzer/commandLin
 import { CommandLineFileWriteAnalyzer } from './commandLineAnalyzer/commandLineFileWriteAnalyzer.js';
 import { OutputMonitor } from './monitoring/outputMonitor.js';
 import { IPollingResult, OutputMonitorState } from './monitoring/types.js';
-import { LocalChatSessionUri } from '../../../../chat/common/chatUri.js';
+import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
 import type { ICommandLineRewriter } from './commandLineRewriter/commandLineRewriter.js';
 import { CommandLineCdPrefixRewriter } from './commandLineRewriter/commandLineCdPrefixRewriter.js';
+import { CommandLinePreventHistoryRewriter } from './commandLineRewriter/commandLinePreventHistoryRewriter.js';
 import { CommandLinePwshChainOperatorRewriter } from './commandLineRewriter/commandLinePwshChainOperatorRewriter.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IHistoryService } from '../../../../../services/history/common/history.js';
@@ -99,7 +100,8 @@ function createPowerShellModelDescription(shell: string): string {
 		'- Prefer PowerShell cmdlets over external commands when available',
 		'- Prefer idiomatic PowerShell like Get-ChildItem instead of dir or ls for file listings',
 		'- Use Test-Path to check file/directory existence',
-		'- Be specific with Select-Object properties to avoid excessive output'
+		'- Be specific with Select-Object properties to avoid excessive output',
+		'- Avoid printing credentials unless absolutely required',
 	].join('\n');
 }
 
@@ -133,7 +135,8 @@ Output Management:
 Best Practices:
 - Quote variables: "$var" instead of $var to handle spaces
 - Use find with -exec or xargs for file operations
-- Be specific with commands to avoid excessive output`;
+- Be specific with commands to avoid excessive output
+- Avoid printing credentials unless absolutely required`;
 
 function createBashModelDescription(): string {
 	return [
@@ -255,6 +258,8 @@ const telemetryIgnoredSequences = [
 	'\x1b[O', // Focus out
 ];
 
+const altBufferMessage = localize('runInTerminalTool.altBufferMessage', "The command opened the alternate buffer.");
+
 
 export class RunInTerminalTool extends Disposable implements IToolImpl {
 
@@ -282,7 +287,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	}
 
 	constructor(
-		@IChatService private readonly _chatService: IChatService,
+		@IChatService protected readonly _chatService: IChatService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IHistoryService private readonly _historyService: IHistoryService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -308,6 +313,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		this._commandLineRewriters = [
 			this._register(this._instantiationService.createInstance(CommandLineCdPrefixRewriter)),
 			this._register(this._instantiationService.createInstance(CommandLinePwshChainOperatorRewriter, this._treeSitterCommandParser)),
+			this._register(this._instantiationService.createInstance(CommandLinePreventHistoryRewriter)),
 		];
 		this._commandLineAnalyzers = [
 			this._register(this._instantiationService.createInstance(CommandLineFileWriteAnalyzer, this._treeSitterCommandParser, (message, args) => this._logService.info(`RunInTerminalTool#CommandLineFileWriteAnalyzer: ${message}`, args))),
@@ -335,9 +341,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		// Listen for chat session disposal to clean up associated terminals
 		this._register(this._chatService.onDidDisposeSession(e => {
-			const localSessionId = LocalChatSessionUri.parseLocalSessionId(e.sessionResource);
-			if (localSessionId) {
-				this._cleanupSessionTerminals(localSessionId);
+			for (const resource of e.sessionResource) {
+				const localSessionId = LocalChatSessionUri.parseLocalSessionId(resource);
+				if (localSessionId) {
+					this._cleanupSessionTerminals(localSessionId);
+				}
 			}
 		}));
 	}
@@ -451,9 +459,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			shellType = 'pwsh';
 		}
 
-		const isFinalAutoApproved = (
-			// Is the setting enabled and the user has opted-in
-			isAutoApproveAllowed &&
+		// Check if the command would be auto-approved based on rules (ignoring warning state)
+		const wouldBeAutoApproved = (
 			// Does at least one analyzer auto approve
 			commandLineAnalyzerResults.some(e => e.isAutoApproved) &&
 			// No analyzer denies auto approval
@@ -462,7 +469,16 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			analyzersIsAutoApproveAllowed
 		);
 
-		if (isFinalAutoApproved) {
+		const isFinalAutoApproved = (
+			// Is the setting enabled and the user has opted-in
+			isAutoApproveAllowed &&
+			// Would be auto-approved based on rules
+			wouldBeAutoApproved
+		);
+
+		// Pass autoApproveInfo if command would be auto-approved (even if warning not yet accepted)
+		// This allows the confirmation widget to auto-approve after user accepts the warning
+		if (isFinalAutoApproved || (isAutoApproveEnabled && wouldBeAutoApproved)) {
 			toolSpecificData.autoApproveInfo = commandLineAnalyzerResults.find(e => e.autoApproveInfo)?.autoApproveInfo;
 		}
 
@@ -635,6 +651,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 			let outputLineCount = -1;
 			let exitCode: number | undefined;
+			let altBufferResult: IToolResult | undefined;
+			const executeCancellation = store.add(new CancellationTokenSource(token));
 			try {
 				let strategy: ITerminalExecuteStrategy;
 				switch (toolTerminal.shellIntegrationQuality) {
@@ -658,39 +676,58 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, { instance: toolTerminal.instance, sessionId: invocation.context?.sessionId, getOutput: (marker?: IXtermMarker) => getOutput(toolTerminal.instance, marker ?? startMarker) }, undefined, invocation.context, token, command));
 					}
 				}));
-				const executeResult = await strategy.execute(command, token, commandId);
+				const executeResult = await strategy.execute(command, executeCancellation.token, commandId);
 				// Reset user input state after command execution completes
 				toolTerminal.receivedUserInput = false;
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
 				}
 
-				await this._commandArtifactCollector.capture(toolSpecificData, toolTerminal.instance, commandId);
-				{
+				if (executeResult.didEnterAltBuffer) {
 					const state = toolSpecificData.terminalCommandState ?? {};
 					state.timestamp = state.timestamp ?? timingStart;
-					if (executeResult.exitCode !== undefined) {
-						state.exitCode = executeResult.exitCode;
-						if (state.timestamp !== undefined) {
-							state.duration = state.duration ?? Math.max(0, Date.now() - state.timestamp);
-						}
-					}
 					toolSpecificData.terminalCommandState = state;
-				}
+					toolResultMessage = altBufferMessage;
+					outputLineCount = 0;
+					error = executeResult.error ?? 'alternateBuffer';
+					altBufferResult = {
+						toolResultMessage,
+						toolMetadata: {
+							exitCode: undefined
+						},
+						content: [{
+							kind: 'text',
+							value: altBufferMessage,
+						}]
+					};
+				} else {
+					await this._commandArtifactCollector.capture(toolSpecificData, toolTerminal.instance, commandId);
+					{
+						const state = toolSpecificData.terminalCommandState ?? {};
+						state.timestamp = state.timestamp ?? timingStart;
+						if (executeResult.exitCode !== undefined) {
+							state.exitCode = executeResult.exitCode;
+							if (state.timestamp !== undefined) {
+								state.duration = state.duration ?? Math.max(0, Date.now() - state.timestamp);
+							}
+						}
+						toolSpecificData.terminalCommandState = state;
+					}
 
-				this._logService.debug(`RunInTerminalTool: Finished \`${strategy.type}\` execute strategy with exitCode \`${executeResult.exitCode}\`, result.length \`${executeResult.output?.length}\`, error \`${executeResult.error}\``);
-				outputLineCount = executeResult.output === undefined ? 0 : count(executeResult.output.trim(), '\n') + 1;
-				exitCode = executeResult.exitCode;
-				error = executeResult.error;
+					this._logService.debug(`RunInTerminalTool: Finished \`${strategy.type}\` execute strategy with exitCode \`${executeResult.exitCode}\`, result.length \`${executeResult.output?.length}\`, error \`${executeResult.error}\``);
+					outputLineCount = executeResult.output === undefined ? 0 : count(executeResult.output.trim(), '\n') + 1;
+					exitCode = executeResult.exitCode;
+					error = executeResult.error;
 
-				const resultArr: string[] = [];
-				if (executeResult.output !== undefined) {
-					resultArr.push(executeResult.output);
+					const resultArr: string[] = [];
+					if (executeResult.output !== undefined) {
+						resultArr.push(executeResult.output);
+					}
+					if (executeResult.additionalInformation) {
+						resultArr.push(executeResult.additionalInformation);
+					}
+					terminalResult = resultArr.join('\n\n');
 				}
-				if (executeResult.additionalInformation) {
-					resultArr.push(executeResult.additionalInformation);
-				}
-				terminalResult = resultArr.join('\n\n');
 
 			} catch (e) {
 				this._logService.debug(`RunInTerminalTool: Threw exception`);
@@ -727,6 +764,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				});
 			}
 
+			if (altBufferResult) {
+				return altBufferResult;
+			}
+
 			const resultText: string[] = [];
 			if (didUserEditCommand) {
 				resultText.push(`Note: The user manually edited the command to \`${command}\`, and this is the output of running that command instead:\n`);
@@ -761,7 +802,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	private async _initBackgroundTerminal(chatSessionId: string, termId: string, terminalToolSessionId: string | undefined, token: CancellationToken): Promise<IToolTerminal> {
 		this._logService.debug(`RunInTerminalTool: Creating background terminal with ID=${termId}`);
 		const profile = await this._profileFetcher.getCopilotProfile();
-		const toolTerminal = await this._terminalToolCreator.createTerminal(profile, token);
+		const os = await this._osBackend;
+		const toolTerminal = await this._terminalToolCreator.createTerminal(profile, os, token);
 		this._terminalChatService.registerTerminalInstanceWithToolSession(terminalToolSessionId, toolTerminal.instance);
 		this._terminalChatService.registerTerminalInstanceWithChatSession(chatSessionId, toolTerminal.instance);
 		this._registerInputListener(toolTerminal);
@@ -783,7 +825,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			return cachedTerminal;
 		}
 		const profile = await this._profileFetcher.getCopilotProfile();
-		const toolTerminal = await this._terminalToolCreator.createTerminal(profile, token);
+		const os = await this._osBackend;
+		const toolTerminal = await this._terminalToolCreator.createTerminal(profile, os, token);
 		this._terminalChatService.registerTerminalInstanceWithToolSession(terminalToolSessionId, toolTerminal.instance);
 		this._terminalChatService.registerTerminalInstanceWithChatSession(chatSessionId, toolTerminal.instance);
 		this._registerInputListener(toolTerminal);
@@ -926,7 +969,7 @@ class BackgroundTerminalExecution extends Disposable {
 		private readonly _xterm: XtermTerminal,
 		private readonly _commandLine: string,
 		readonly sessionId: string,
-		commandId?: string
+		commandId?: string,
 	) {
 		super();
 

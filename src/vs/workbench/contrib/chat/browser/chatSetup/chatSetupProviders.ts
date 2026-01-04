@@ -23,14 +23,14 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
-import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolDataSource, ToolProgress } from '../../common/languageModelToolsService.js';
-import { IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../common/chatAgents.js';
+import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolDataSource, ToolProgress } from '../../common/tools/languageModelToolsService.js';
+import { IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../common/participants/chatAgents.js';
 import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementRequests, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
-import { ChatModel, ChatRequestModel, IChatRequestModel, IChatRequestVariableData } from '../../common/chatModel.js';
+import { ChatModel, ChatRequestModel, IChatRequestModel, IChatRequestVariableData } from '../../common/model/chatModel.js';
 import { ChatMode } from '../../common/chatModes.js';
-import { ChatRequestAgentPart, ChatRequestToolPart } from '../../common/chatParserTypes.js';
-import { IChatProgress, IChatService } from '../../common/chatService.js';
-import { IChatRequestToolEntry } from '../../common/chatVariableEntries.js';
+import { ChatRequestAgentPart, ChatRequestToolPart } from '../../common/requestParser/chatParserTypes.js';
+import { IChatProgress, IChatService } from '../../common/chatService/chatService.js';
+import { IChatRequestToolEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { ILanguageModelsService } from '../../common/languageModels.js';
 import { CHAT_OPEN_ACTION_ID, CHAT_SETUP_ACTION_ID } from '../actions/chatActions.js';
@@ -232,6 +232,8 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 		try {
 			await this.doForwardRequestToChat(requestModel, progress, chatService, languageModelsService, chatAgentService, chatWidgetService, languageModelToolsService);
 		} catch (error) {
+			this.logService.error('[chat setup] Failed to forward request to chat', error);
+
 			progress({
 				kind: 'warning',
 				content: new MarkdownString(localize('copilotUnavailableWarning', "Failed to get a response. Please try again."))
@@ -262,10 +264,12 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 		// Chat. Waiting for the registration of the agent is not
 		// enough, we also need a language/tools model to be available.
 
+		let agentActivated = false;
 		let agentReady = false;
 		let languageModelReady = false;
 		let toolsModelReady = false;
 
+		const whenAgentActivated = this.whenAgentActivated(chatService).then(() => agentActivated = true);
 		const whenAgentReady = this.whenAgentReady(chatAgentService, modeInfo?.kind)?.then(() => agentReady = true);
 		const whenLanguageModelReady = this.whenLanguageModelReady(languageModelsService, requestModel.modelId)?.then(() => languageModelReady = true);
 		const whenToolsModelReady = this.whenToolsModelReady(languageModelToolsService, requestModel)?.then(() => toolsModelReady = true);
@@ -281,8 +285,12 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 			try {
 				const ready = await Promise.race([
 					timeout(this.environmentService.remoteAuthority ? 60000 /* increase for remote scenarios */ : 20000).then(() => 'timedout'),
-					this.whenDefaultAgentActivated(chatService),
-					Promise.allSettled([whenLanguageModelReady, whenAgentReady, whenToolsModelReady])
+					Promise.allSettled([
+						whenAgentActivated,
+						whenAgentReady,
+						whenLanguageModelReady,
+						whenToolsModelReady
+					])
 				]);
 
 				if (ready === 'timedout') {
@@ -294,9 +302,10 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 					}
 
 					this.logService.warn(warningMessage, {
-						agentReady: whenAgentReady ? agentReady : undefined,
-						languageModelReady: whenLanguageModelReady ? languageModelReady : undefined,
-						toolsModelReady: whenToolsModelReady ? toolsModelReady : undefined
+						agentActivated,
+						agentReady,
+						languageModelReady,
+						toolsModelReady
 					});
 
 					progress({
@@ -380,7 +389,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 		}));
 	}
 
-	private async whenDefaultAgentActivated(chatService: IChatService): Promise<void> {
+	private async whenAgentActivated(chatService: IChatService): Promise<void> {
 		try {
 			await chatService.activateDefaultAgent(this.location);
 		} catch (error) {
@@ -720,8 +729,9 @@ export class AICodeActionsHelper {
 			title: localize('explain', "Explain"),
 			arguments: [
 				{
-					query: `@workspace /explain ${markers.map(marker => marker.message).join(', ')}`
-				} satisfies { query: string }
+					query: `@workspace /explain ${markers.map(marker => marker.message).join(', ')}`,
+					isPartialQuery: true
+				} satisfies { query: string; isPartialQuery: boolean }
 			]
 		};
 	}
@@ -733,11 +743,10 @@ export class AICodeActionsHelper {
 			arguments: [
 				{
 					message: `/fix ${markers.map(marker => marker.message).join(', ')}`,
-					autoSend: true,
 					initialSelection: this.rangeToSelection(range),
 					initialRange: range,
 					position: range.getStartPosition()
-				} satisfies { message: string; autoSend: boolean; initialSelection: ISelection; initialRange: IRange; position: IPosition }
+				} satisfies { message: string; initialSelection: ISelection; initialRange: IRange; position: IPosition }
 			]
 		};
 	}

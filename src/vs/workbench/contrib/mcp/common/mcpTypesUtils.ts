@@ -8,7 +8,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, IReader } from '../../../../base/common/observable.js';
-import { ToolDataSource } from '../../chat/common/languageModelToolsService.js';
+import { ToolDataSource } from '../../chat/common/tools/languageModelToolsService.js';
 import { IMcpServer, IMcpServerStartOpts, IMcpService, McpConnectionState, McpServerCacheState, McpServerTransportType } from './mcpTypes.js';
 import { MCP } from './modelContextProtocol.js';
 
@@ -106,7 +106,7 @@ export function canLoadMcpNetworkResourceDirectly(resource: URL, server: IMcpSer
 	let isResourceRequestValid = false;
 	if (resource.protocol === 'http:') {
 		const launch = server?.connection.get()?.launchDefinition;
-		if (launch && launch.type === McpServerTransportType.HTTP && launch.uri.authority.toLowerCase() === resource.hostname.toLowerCase()) {
+		if (launch && launch.type === McpServerTransportType.HTTP && launch.uri.authority.toLowerCase() === resource.host.toLowerCase()) {
 			isResourceRequestValid = true;
 		}
 	} else if (resource.protocol === 'https:') {

@@ -8,7 +8,7 @@ import { Dimension, getActiveWindow, IFocusTracker, trackFocus } from '../../../
 import { CancelablePromise, createCancelablePromise, DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, observableValue, type IObservable } from '../../../../../base/common/observable.js';
 import { MicrotaskDelay } from '../../../../../base/common/symbols.js';
 import { localize } from '../../../../../nls.js';
@@ -17,10 +17,10 @@ import { IContextKey, IContextKeyService } from '../../../../../platform/context
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChatAcceptInputOptions, IChatWidgetService } from '../../../chat/browser/chat.js';
-import { IChatAgentService } from '../../../chat/common/chatAgents.js';
-import { IChatResponseModel, isCellTextEditOperationArray } from '../../../chat/common/chatModel.js';
+import { IChatAgentService } from '../../../chat/common/participants/chatAgents.js';
+import { IChatResponseModel, isCellTextEditOperationArray } from '../../../chat/common/model/chatModel.js';
 import { ChatMode } from '../../../chat/common/chatModes.js';
-import { IChatModelReference, IChatProgress, IChatService } from '../../../chat/common/chatService.js';
+import { IChatModelReference, IChatProgress, IChatService } from '../../../chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
 import { InlineChatWidget } from '../../../inlineChat/browser/inlineChatWidget.js';
 import { MENU_INLINE_CHAT_WIDGET_SECONDARY } from '../../../inlineChat/common/inlineChat.js';
@@ -82,6 +82,7 @@ export class TerminalChatWidget extends Disposable {
 	private _terminalAgentName = 'terminal';
 
 	private readonly _model: MutableDisposable<IChatModelReference> = this._register(new MutableDisposable());
+	private readonly _sessionDisposables: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 
 	private _sessionCtor: CancelablePromise<void> | undefined;
 
@@ -327,14 +328,14 @@ export class TerminalChatWidget extends Disposable {
 	private async _createSession(): Promise<void> {
 		this._sessionCtor = createCancelablePromise<void>(async token => {
 			if (!this._model.value) {
-				const modelRef = this._chatService.startSession(ChatAgentLocation.Terminal, token);
+				const modelRef = this._chatService.startSession(ChatAgentLocation.Terminal);
 				this._model.value = modelRef;
 				const model = modelRef.object;
 				this._inlineChatWidget.setChatModel(model);
 				this._resetPlaceholder();
 			}
 		});
-		this._register(toDisposable(() => this._sessionCtor?.cancel()));
+		this._sessionDisposables.value = toDisposable(() => this._sessionCtor?.cancel());
 	}
 
 	private _saveViewState() {

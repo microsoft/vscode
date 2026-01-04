@@ -36,9 +36,9 @@ import { MultiDiffEditor } from '../../../multiDiffEditor/browser/multiDiffEdito
 import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
-import { chatEditingSessionIsReady, ChatEditingSessionState, ChatEditKind, getMultiDiffSourceUri, IChatEditingSession, IModifiedEntryTelemetryInfo, IModifiedFileEntry, ISnapshotEntry, IStreamingEdits, ModifiedFileEntryState } from '../../common/chatEditingService.js';
-import { IChatResponseModel } from '../../common/chatModel.js';
-import { IChatProgress } from '../../common/chatService.js';
+import { chatEditingSessionIsReady, ChatEditingSessionState, ChatEditKind, getMultiDiffSourceUri, IChatEditingSession, IEditSessionEntryDiff, IModifiedEntryTelemetryInfo, IModifiedFileEntry, ISnapshotEntry, IStreamingEdits, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
+import { IChatResponseModel } from '../../common/model/chatModel.js';
+import { IChatProgress } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatEditingCheckpointTimeline } from './chatEditingCheckpointTimeline.js';
 import { ChatEditingCheckpointTimelineImpl, IChatEditingTimelineFsDelegate } from './chatEditingCheckpointTimelineImpl.js';
@@ -247,32 +247,32 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 	private async _init(transferFrom?: IChatEditingSession): Promise<void> {
 		const storage = this._instantiationService.createInstance(ChatEditingSessionStorage, this.chatSessionResource);
-		let restoredSessionState = await storage.restoreState().catch(err => {
-			this._logService.error(`Error restoring chat editing session state for ${this.chatSessionResource}`, err);
-		});
-
-		if (this._store.isDisposed) {
-			return; // disposed while restoring
-		}
-
-		if (!restoredSessionState && transferFrom instanceof ChatEditingSession) {
+		let restoredSessionState: StoredSessionState | undefined;
+		if (transferFrom instanceof ChatEditingSession) {
 			restoredSessionState = transferFrom._getStoredState(this.chatSessionResource);
+		} else {
+			restoredSessionState = await storage.restoreState().catch(err => {
+				this._logService.error(`Error restoring chat editing session state for ${this.chatSessionResource}`, err);
+				return undefined;
+			});
+
+			if (this._store.isDisposed) {
+				return; // disposed while restoring
+			}
 		}
+
 
 		if (restoredSessionState) {
 			for (const [uri, content] of restoredSessionState.initialFileContents) {
 				this._initialFileContents.set(uri, content);
 			}
+			if (restoredSessionState.timeline) {
+				transaction(tx => this._timeline.restoreFromState(restoredSessionState.timeline!, tx));
+			}
 			await this._initEntries(restoredSessionState.recentSnapshot);
-			transaction(tx => {
-				if (restoredSessionState.timeline) {
-					this._timeline.restoreFromState(restoredSessionState.timeline, tx);
-				}
-				this._state.set(ChatEditingSessionState.Idle, tx);
-			});
-		} else {
-			this._state.set(ChatEditingSessionState.Idle, undefined);
 		}
+
+		this._state.set(ChatEditingSessionState.Idle, undefined);
 	}
 
 	private _getEntry(uri: URI): AbstractChatEditingModifiedFileEntry | undefined {
@@ -323,6 +323,14 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 	public getDiffForSession() {
 		return this._timeline.getDiffForSession();
+	}
+
+	public getDiffsForFilesInRequest(requestId: string): IObservable<readonly IEditSessionEntryDiff[]> {
+		return this._timeline.getDiffsForFilesInRequest(requestId);
+	}
+
+	public hasEditsInRequest(requestId: string, reader?: IReader): boolean {
+		return this._timeline.hasEditsInRequest(requestId, reader);
 	}
 
 	public createSnapshot(requestId: string, undoStop: string | undefined): void {

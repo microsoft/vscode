@@ -29,7 +29,7 @@ import { CommandsRegistry, ICommandService } from '../../../../platform/commands
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { buttonBackground, buttonForeground, buttonHoverBackground, registerColor, editorWarningForeground, editorInfoForeground, editorErrorForeground, buttonSeparator } from '../../../../platform/theme/common/colorRegistry.js';
+import { buttonBackground, buttonForeground, buttonHoverBackground, buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground, registerColor, editorWarningForeground, editorInfoForeground, editorErrorForeground, buttonSeparator } from '../../../../platform/theme/common/colorRegistry.js';
 import { IJSONEditingService } from '../../../services/configuration/common/jsonEditing.js';
 import { ITextEditorSelection } from '../../../../platform/editor/common/editor.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
@@ -290,7 +290,6 @@ export abstract class ExtensionAction extends Action implements IExtensionContai
 	static readonly EXTENSION_ACTION_CLASS = 'extension-action';
 	static readonly TEXT_ACTION_CLASS = `${ExtensionAction.EXTENSION_ACTION_CLASS} text`;
 	static readonly LABEL_ACTION_CLASS = `${ExtensionAction.EXTENSION_ACTION_CLASS} label`;
-	static readonly PROMINENT_LABEL_ACTION_CLASS = `${ExtensionAction.LABEL_ACTION_CLASS} prominent`;
 	static readonly ICON_ACTION_CLASS = `${ExtensionAction.EXTENSION_ACTION_CLASS} icon`;
 
 	private _extension: IExtension | null = null;
@@ -952,7 +951,7 @@ export class UninstallAction extends ExtensionAction {
 
 export class UpdateAction extends ExtensionAction {
 
-	private static readonly EnabledClass = `${this.LABEL_ACTION_CLASS} prominent update`;
+	private static readonly EnabledClass = `${this.LABEL_ACTION_CLASS} update`;
 	private static readonly DisabledClass = `${this.EnabledClass} disabled`;
 
 	private readonly updateThrottler = new Throttler();
@@ -1495,7 +1494,7 @@ export class TogglePreReleaseExtensionAction extends ExtensionAction {
 	static readonly ID = 'workbench.extensions.action.togglePreRlease';
 	static readonly LABEL = localize('togglePreRleaseLabel', "Pre-Release");
 
-	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} pre-release`;
+	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} prominent pre-release`;
 	private static readonly DisabledClass = `${this.EnabledClass} hide`;
 
 	constructor(
@@ -3177,22 +3176,22 @@ CommandsRegistry.registerCommand(showExtensionsWithIdsCommandId, function (acces
 });
 
 registerColor('extensionButton.background', {
-	dark: buttonBackground,
-	light: buttonBackground,
+	dark: buttonSecondaryBackground,
+	light: buttonSecondaryBackground,
 	hcDark: null,
 	hcLight: null
 }, localize('extensionButtonBackground', "Button background color for extension actions."));
 
 registerColor('extensionButton.foreground', {
-	dark: buttonForeground,
-	light: buttonForeground,
+	dark: buttonSecondaryForeground,
+	light: buttonSecondaryForeground,
 	hcDark: null,
 	hcLight: null
 }, localize('extensionButtonForeground', "Button foreground color for extension actions."));
 
 registerColor('extensionButton.hoverBackground', {
-	dark: buttonHoverBackground,
-	light: buttonHoverBackground,
+	dark: buttonSecondaryHoverBackground,
+	light: buttonSecondaryHoverBackground,
 	hcDark: null,
 	hcLight: null
 }, localize('extensionButtonHoverBackground', "Button background hover color for extension actions."));

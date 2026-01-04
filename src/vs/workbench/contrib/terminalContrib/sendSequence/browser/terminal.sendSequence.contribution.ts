@@ -243,8 +243,3 @@ registerSendSequenceKeybinding('\u001e', {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Digit6,
 	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Digit6 }
 });
-// US (Undo): ctrl+/
-registerSendSequenceKeybinding('\u001f', {
-	primary: KeyMod.CtrlCmd | KeyCode.Slash,
-	mac: { primary: KeyMod.WinCtrl | KeyCode.Slash }
-});

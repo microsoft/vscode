@@ -4,14 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { createDecorator, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { AgentSessionsModel, IAgentSessionsModel } from './agentSessionsModel.js';
+import { AgentSessionsModel, IAgentSession, IAgentSessionsModel } from './agentSessionsModel.js';
 
 export interface IAgentSessionsService {
 
 	readonly _serviceBrand: undefined;
 
 	readonly model: IAgentSessionsModel;
+
+	getSession(resource: URI): IAgentSession | undefined;
 }
 
 export class AgentSessionsService extends Disposable implements IAgentSessionsService {
@@ -30,6 +33,10 @@ export class AgentSessionsService extends Disposable implements IAgentSessionsSe
 
 	constructor(@IInstantiationService private readonly instantiationService: IInstantiationService) {
 		super();
+	}
+
+	getSession(resource: URI): IAgentSession | undefined {
+		return this.model.getSession(resource);
 	}
 }
 
