@@ -127,9 +127,9 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 							foreground: normalizeColor(ruleSettings.foreground),
 							background: normalizeColor(ruleSettings.background),
 							fontStyle: ruleSettings.fontStyle,
-							fontSizeMultiplier: ruleSettings.fontSizeMultiplier,
+							fontSize: ruleSettings.fontSize,
 							fontFamily: ruleSettings.fontFamily,
-							lineHeightMultiplier: ruleSettings.lineHeightMultiplier
+							lineHeight: ruleSettings.lineHeight
 						}
 					});
 				}
@@ -288,7 +288,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	public getTokenFontIndex(): TokenFontIndex {
 		if (!this.tokenFontIndex) {
 			const index = new TokenFontIndex();
-			this.tokenColors.forEach(r => index.add(r.settings.fontFamily, r.settings.fontSizeMultiplier, r.settings.lineHeightMultiplier));
+			this.tokenColors.forEach(r => index.add(r.settings.fontFamily, r.settings.fontSize, r.settings.lineHeight));
 			this.tokenFontIndex = index;
 		}
 		return this.tokenFontIndex;
@@ -1014,8 +1014,8 @@ class TokenFontIndex {
 		this._font2id = new Map();
 	}
 
-	public add(fontFamily: string | undefined, fontSizeMultiplier: number | undefined, lineHeightMultiplier: number | undefined): number {
-		const font: IFontTokenOptions = { fontFamily, fontSizeMultiplier, lineHeightMultiplier };
+	public add(fontFamily: string | undefined, fontSize: number | undefined, lineHeight: number | undefined): number {
+		const font: IFontTokenOptions = { fontFamily, fontSize, lineHeight };
 		let value = this._font2id.get(font);
 		if (value) {
 			return value;
