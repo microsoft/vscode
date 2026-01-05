@@ -56,7 +56,8 @@ class ExtendedTestFileService extends TestFileService {
 			mtime: 0,
 			ctime: 0,
 			readonly: false,
-			locked: false
+			locked: false,
+			executable: false
 		};
 	}
 
