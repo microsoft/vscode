@@ -46,7 +46,6 @@ import { equals } from '../../../../../base/common/objects.js';
 import type { IProgressState } from '@xterm/addon-progress';
 import type { CommandDetectionCapability } from '../../../../../platform/terminal/common/capabilities/commandDetectionCapability.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { assert } from '../../../../../base/common/assert.js';
 
 const enum RenderConstants {
 	SmoothScrollDuration = 125
@@ -912,22 +911,28 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this._onDidRequestRefreshDimensions.fire();
 	}
 
-	async getRangeAsVT(startMarker: IXtermMarker, endMarker?: IXtermMarker, skipLastLine?: boolean): Promise<string> {
+	async getRangeAsVT(startMarker?: IXtermMarker, endMarker?: IXtermMarker, skipLastLine?: boolean): Promise<string> {
 		if (!this._serializeAddon) {
 			const Addon = await this._xtermAddonLoader.importAddon('serialize');
 			this._serializeAddon = new Addon();
 			this.raw.loadAddon(this._serializeAddon);
 		}
 
-		assert(startMarker.line !== -1);
+		if (startMarker && startMarker.line === -1) {
+			startMarker = undefined;
+		}
+		if (endMarker && endMarker.line === -1) {
+			endMarker = undefined;
+		}
+
 		let end = endMarker?.line ?? this.raw.buffer.active.length - 1;
 		if (skipLastLine) {
 			end = end - 1;
 		}
 		return this._serializeAddon.serialize({
 			range: {
-				start: startMarker.line,
-				end: end
+				start: startMarker?.line ?? 0,
+				end
 			}
 		});
 	}

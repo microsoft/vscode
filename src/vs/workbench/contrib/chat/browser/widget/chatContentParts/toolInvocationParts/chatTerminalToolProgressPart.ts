@@ -20,7 +20,7 @@ import '../media/chatTerminalToolProgressPart.css';
 import type { ICodeBlockRenderOptions } from '../codeBlockPart.js';
 import { Action, IAction } from '../../../../../../../base/common/actions.js';
 import { IChatTerminalToolProgressPart, ITerminalChatService, ITerminalConfigurationService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../../../terminal/browser/terminal.js';
-import { Disposable, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { DecorationSelector, getTerminalCommandDecorationState, getTerminalCommandDecorationTooltip } from '../../../../../terminal/browser/xterm/decorationStyles.js';
@@ -506,13 +506,19 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				return;
 			}
 
-			commandDetectionListener.value = commandDetection.onCommandFinished(() => {
+			const store = new DisposableStore();
+			store.add(commandDetection.onCommandExecuted(() => {
+				this._addActions(terminalInstance, this._terminalData.terminalToolSessionId);
+			}));
+			store.add(commandDetection.onCommandFinished(() => {
 				this._addActions(terminalInstance, this._terminalData.terminalToolSessionId);
 				const resolvedCommand = this._getResolvedCommand(terminalInstance);
 				if (resolvedCommand?.endMarker) {
 					commandDetectionListener.clear();
 				}
-			});
+			}));
+			commandDetectionListener.value = store;
+
 			const resolvedImmediately = await tryResolveCommand();
 			if (resolvedImmediately?.endMarker) {
 				commandDetectionListener.clear();
@@ -651,12 +657,29 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			return undefined;
 		}
 		const commandDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
-		const commands = commandDetection?.commands;
-		if (!commands || commands.length === 0) {
+		if (!commandDetection) {
 			return undefined;
 		}
 
-		return commands.find(c => c.id === this._terminalData.terminalCommandId);
+		const targetId = this._terminalData.terminalCommandId;
+		if (!targetId) {
+			return undefined;
+		}
+
+		const commands = commandDetection.commands;
+		if (commands && commands.length > 0) {
+			const fromHistory = commands.find(c => c.id === targetId);
+			if (fromHistory) {
+				return fromHistory;
+			}
+		}
+
+		const executing = commandDetection.executingCommandObject;
+		if (executing && executing.id === targetId) {
+			return executing;
+		}
+
+		return undefined;
 	}
 }
 
@@ -858,7 +881,11 @@ class ChatTerminalToolOutputSection extends Disposable {
 			this._disposeLiveMirror();
 			return false;
 		}
-		this._mirror = this._register(this._instantiationService.createInstance(DetachedTerminalCommandMirror, liveTerminalInstance.xterm!, command));
+		this._mirror = this._register(this._instantiationService.createInstance(DetachedTerminalCommandMirror, liveTerminalInstance, command));
+		this._register(this._mirror.onDidUpdate(lineCount => {
+			this._layoutOutput(lineCount);
+			this._scrollOutputToBottom();
+		}));
 		await this._mirror.attach(this._terminalContainer);
 		const result = await this._mirror.renderCommand();
 		if (!result || result.lineCount === 0) {

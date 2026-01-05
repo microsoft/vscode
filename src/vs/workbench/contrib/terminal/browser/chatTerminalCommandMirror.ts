@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import type { IMarker as IXtermMarker } from '@xterm/xterm';
+import { Disposable, DisposableStore, ImmortalReference } from '../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
 import type { ITerminalCommand } from '../../../../platform/terminal/common/capabilities/capabilities.js';
-import { ITerminalService, type IDetachedTerminalInstance } from './terminal.js';
+import { ITerminalInstance, ITerminalService, type IDetachedTerminalInstance } from './terminal.js';
 import { DetachedProcessInfo } from './detachedTerminal.js';
 import { XtermTerminal } from './xterm/xtermTerminal.js';
 import { TERMINAL_BACKGROUND_COLOR } from '../common/terminalColorRegistry.js';
@@ -17,6 +18,10 @@ import { editorBackground } from '../../../../platform/theme/common/colorRegistr
 import { Color } from '../../../../base/common/color.js';
 import type { IChatTerminalToolInvocationData } from '../../chat/common/chatService/chatService.js';
 import type { IColorTheme } from '../../../../platform/theme/common/themeService.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { TerminalInstanceColorProvider } from './terminalInstance.js';
+import { TerminalLocation } from '../../../../platform/terminal/common/terminal.js';
+import { ICurrentPartialCommand } from '../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand.js';
 
 function getChatTerminalBackgroundColor(theme: IColorTheme, contextKeyService: IContextKeyService, storedBackground?: string): Color | undefined {
 	if (storedBackground) {
@@ -35,35 +40,10 @@ function getChatTerminalBackgroundColor(theme: IColorTheme, contextKeyService: I
 	return theme.getColor(isInEditor ? editorBackground : PANEL_BACKGROUND);
 }
 
-/**
- * Base class for detached terminal mirrors.
- * Handles attaching to containers and managing the detached terminal instance.
- */
-abstract class DetachedTerminalMirror extends Disposable {
-	private _detachedTerminal: Promise<IDetachedTerminalInstance> | undefined;
-	private _attachedContainer: HTMLElement | undefined;
-
-	protected _setDetachedTerminal(detachedTerminal: Promise<IDetachedTerminalInstance>): void {
-		this._detachedTerminal = detachedTerminal.then(terminal => this._register(terminal));
-	}
-
-	protected async _getTerminal(): Promise<IDetachedTerminalInstance> {
-		if (!this._detachedTerminal) {
-			throw new Error('Detached terminal not initialized');
-		}
-		return this._detachedTerminal;
-	}
-
-	protected async _attachToContainer(container: HTMLElement): Promise<IDetachedTerminalInstance> {
-		const terminal = await this._getTerminal();
-		container.classList.add('chat-terminal-output-terminal');
-		const needsAttach = this._attachedContainer !== container || container.firstChild === null;
-		if (needsAttach) {
-			terminal.attachToElement(container, { enableGpu: false });
-			this._attachedContainer = container;
-		}
-		return terminal;
-	}
+interface IDetachedTerminalCommandMirror {
+	attach(container: HTMLElement): Promise<void>;
+	renderCommand(): Promise<{ lineCount?: number } | undefined>;
+	readonly onDidUpdate: Event<number>;
 }
 
 export async function getCommandOutputSnapshot(
@@ -74,111 +54,252 @@ export async function getCommandOutputSnapshot(
 	const executedMarker = command.executedMarker;
 	const endMarker = command.endMarker;
 
-	if (!endMarker || endMarker.isDisposed) {
+	if (!endMarker || endMarker.isDisposed || !executedMarker) {
 		return undefined;
 	}
-
-	if (!executedMarker || executedMarker.isDisposed) {
-		const raw = xtermTerminal.raw;
-		const buffer = raw.buffer.active;
-		const offsets = [
-			-(buffer.baseY + buffer.cursorY),
-			-buffer.baseY,
-			0
-		];
-		let startMarker: IXtermMarker | undefined;
-		for (const offset of offsets) {
-			startMarker = raw.registerMarker(offset);
-			if (startMarker) {
-				break;
-			}
-		}
-		if (!startMarker || startMarker.isDisposed) {
-			return { text: '', lineCount: 0 };
-		}
-		const startLine = startMarker.line;
-		let text: string | undefined;
-		try {
-			text = await xtermTerminal.getRangeAsVT(startMarker, endMarker, true);
-		} catch (error) {
-			log?.('fallback', error);
-			return undefined;
-		} finally {
-			startMarker.dispose();
-		}
-		if (!text) {
-			return { text: '', lineCount: 0 };
-		}
-		const endLine = endMarker.line - 1;
-		const lineCount = Math.max(endLine - startLine + 1, 0);
-		return { text, lineCount };
-	}
-
-	const startLine = executedMarker.line;
-	const endLine = endMarker.line - 1;
-	const lineCount = Math.max(endLine - startLine + 1, 0);
 
 	let text: string | undefined;
 	try {
 		text = await xtermTerminal.getRangeAsVT(executedMarker, endMarker, true);
 	} catch (error) {
-		log?.('primary', error);
+		log?.('fallback', error);
 		return undefined;
 	}
 	if (!text) {
 		return { text: '', lineCount: 0 };
 	}
+	const endLine = endMarker.line - 1;
+	const startLine = executedMarker.line > -1 ? executedMarker.line : 0;
+	const lineCount = Math.max(endLine - startLine + 1, 0);
 
 	return { text, lineCount };
-}
-
-interface IDetachedTerminalCommandMirror {
-	attach(container: HTMLElement): Promise<void>;
-	renderCommand(): Promise<{ lineCount?: number } | undefined>;
 }
 
 /**
  * Mirrors a terminal command's output into a detached terminal instance.
  * Used in the chat terminal tool progress part to show command output for example.
+ * This implementation streams output by:
+ *  - Taking full VT snapshots of the command range.
+ *  - Tracking cursor movement and dirty ranges via xterm events and onData.
+ *  - Appending only new VT where possible, falling back to full rewrites when needed.
  */
-export class DetachedTerminalCommandMirror extends DetachedTerminalMirror implements IDetachedTerminalCommandMirror {
+export class DetachedTerminalCommandMirror extends Disposable implements IDetachedTerminalCommandMirror {
+	private _detachedTerminal: IDetachedTerminalInstance | undefined;
+	private _attachedContainer: HTMLElement | undefined;
+	private readonly _streamingDisposables = this._register(new DisposableStore());
+	private readonly _onDidUpdateEmitter = this._register(new Emitter<number>());
+	public readonly onDidUpdate: Event<number> = this._onDidUpdateEmitter.event;
+
+	private _lastVT = '';
+	private _lineCount = 0;
+	private _lastUpToDateCursorY: number | undefined;
+	private _lowestDirtyCursorY: number | undefined;
+	private _flushPromise: Promise<void> | undefined;
+	private _dirtyScheduled = false;
+	private _isStreaming = false;
+	private _sourceRaw: RawXtermTerminal | undefined;
+
 	constructor(
-		private readonly _xtermTerminal: XtermTerminal,
+		private readonly _terminalInstance: ITerminalInstance,
 		private readonly _command: ITerminalCommand,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IInstantiationService private readonly _instantationService: IInstantiationService
 	) {
 		super();
-		const processInfo = this._register(new DetachedProcessInfo({ initialCwd: '' }));
-		this._setDetachedTerminal(this._terminalService.createDetachedTerminal({
-			cols: this._xtermTerminal.raw!.cols,
-			rows: 10,
-			readonly: true,
-			processInfo,
-			disableOverviewRuler: true,
-			colorProvider: {
-				getBackgroundColor: theme => getChatTerminalBackgroundColor(theme, this._contextKeyService),
-			},
-		}));
+	}
+
+	override dispose(): void {
+		this._stopStreaming();
+		super.dispose();
 	}
 
 	async attach(container: HTMLElement): Promise<void> {
-		await this._attachToContainer(container);
+		const terminal = await this._getOrCreateTerminal();
+		if (this._attachedContainer !== container) {
+			container.classList.add('chat-terminal-output-terminal');
+			terminal.attachToElement(container);
+			this._attachedContainer = container;
+		}
 	}
 
 	async renderCommand(): Promise<{ lineCount?: number } | undefined> {
-		const vt = await getCommandOutputSnapshot(this._xtermTerminal, this._command);
+		const detached = await this._getOrCreateTerminal();
+		const sourceXterm = await this._terminalInstance.xtermReadyPromise;
+		if (!sourceXterm) {
+			return undefined;
+		}
+		let vt;
+		try {
+			vt = await this._getCommandOutputAsVT(sourceXterm);
+		} catch {
+			// ignore and treat as no output
+		}
 		if (!vt) {
 			return undefined;
 		}
-		if (!vt.text) {
-			return { lineCount: 0 };
+
+		if (!this._lastVT) {
+			if (vt.text) {
+				detached.xterm.write(vt.text);
+			}
+		} else {
+			const appended = vt.text.slice(this._lastVT.length);
+			if (appended) {
+				detached.xterm.write(appended);
+			}
 		}
-		const detached = await this._getTerminal();
-		await new Promise<void>(resolve => {
-			detached.xterm.write(vt.text, () => resolve());
-		});
+
+		this._lastVT = vt.text;
+		this._lineCount = vt.lineCount;
+
+		const xterm = await this._terminalInstance.xtermReadyPromise;
+		const sourceRaw = xterm?.raw;
+		if (sourceRaw) {
+			this._sourceRaw = sourceRaw;
+			this._lastUpToDateCursorY = this._getAbsoluteCursorY(sourceRaw);
+			if (!this._isStreaming && (!this._command.endMarker || this._command.endMarker.isDisposed)) {
+				this._startStreaming(sourceRaw);
+			}
+		}
+
 		return { lineCount: vt.lineCount };
+	}
+
+	private async _getCommandOutputAsVT(source: XtermTerminal): Promise<{ text: string; lineCount: number } | undefined> {
+		const executedMarker = this._command.executedMarker ?? (this._command as unknown as ICurrentPartialCommand).commandExecutedMarker;
+		if (!executedMarker) {
+			return undefined;
+		}
+
+		const endMarker = this._command.endMarker;
+		const text = await source.getRangeAsVT(executedMarker, endMarker, endMarker?.line !== executedMarker.line);
+		if (!text) {
+			return { text: '', lineCount: 0 };
+		}
+
+		return { text, lineCount: text.split('\r\n').length };
+	}
+
+	private async _getOrCreateTerminal(): Promise<IDetachedTerminalInstance> {
+		if (this._detachedTerminal) {
+			return this._detachedTerminal;
+		}
+		const targetRef = this._terminalInstance?.targetRef ?? new ImmortalReference<TerminalLocation | undefined>(undefined);
+		const colorProvider = this._instantationService.createInstance(TerminalInstanceColorProvider, targetRef);
+		const detached = await this._terminalService.createDetachedTerminal({
+			cols: this._terminalInstance?.cols ?? 80,
+			rows: 10,
+			readonly: true,
+			processInfo: new DetachedProcessInfo({ initialCwd: '' }),
+			colorProvider
+		});
+		this._detachedTerminal = detached;
+		this._register(detached);
+		return detached;
+	}
+
+	private _startStreaming(raw: RawXtermTerminal): void {
+		if (this._isStreaming) {
+			return;
+		}
+		this._isStreaming = true;
+		this._streamingDisposables.add(Event.any(raw.onCursorMove, raw.onLineFeed, raw.onWriteParsed)(() => this._handleCursorEvent()));
+		this._streamingDisposables.add(this._terminalInstance.onData(() => this._handleCursorEvent()));
+	}
+
+	private _stopStreaming(): void {
+		if (!this._isStreaming) {
+			return;
+		}
+		this._streamingDisposables.clear();
+		this._isStreaming = false;
+		this._lowestDirtyCursorY = undefined;
+	}
+
+	private _handleCursorEvent(): void {
+		if (!this._sourceRaw) {
+			return;
+		}
+		const cursorY = this._getAbsoluteCursorY(this._sourceRaw);
+		this._lowestDirtyCursorY = this._lowestDirtyCursorY === undefined ? cursorY : Math.min(this._lowestDirtyCursorY, cursorY);
+		this._scheduleFlush();
+	}
+
+	private _scheduleFlush(): void {
+		if (this._dirtyScheduled) {
+			return;
+		}
+		this._dirtyScheduled = true;
+		Promise.resolve().then(() => {
+			this._dirtyScheduled = false;
+			this._flushDirtyRange();
+		});
+	}
+
+	private _flushDirtyRange(): void {
+		if (this._flushPromise) {
+			return;
+		}
+		this._flushPromise = this._doFlushDirtyRange().finally(() => {
+			this._flushPromise = undefined;
+		});
+	}
+
+	private async _doFlushDirtyRange(): Promise<void> {
+		const sourceXterm = await this._terminalInstance.xtermReadyPromise;
+		const sourceRaw = sourceXterm?.raw;
+		const detached = this._detachedTerminal ?? await this._getOrCreateTerminal();
+		const detachedRaw = detached.xterm;
+		if (!sourceRaw || !detachedRaw || !sourceXterm) {
+			return;
+		}
+
+		this._sourceRaw = sourceRaw;
+		const currentCursor = this._getAbsoluteCursorY(sourceRaw);
+		const previousCursor = this._lastUpToDateCursorY ?? currentCursor;
+		const startCandidate = this._lowestDirtyCursorY ?? currentCursor;
+		this._lowestDirtyCursorY = undefined;
+
+		const startLine = Math.min(previousCursor, startCandidate);
+		// Ensure we resolve any pending flush even when no actual new output is available.
+		const vt = await this._getCommandOutputAsVT(sourceXterm);
+		if (!vt) {
+			return;
+		}
+
+		if (vt.text === this._lastVT) {
+			this._lineCount = vt.lineCount;
+			this._lastUpToDateCursorY = currentCursor;
+			if (this._command.endMarker && !this._command.endMarker.isDisposed) {
+				this._stopStreaming();
+			}
+			return;
+		}
+
+		const canAppend = !!this._lastVT && startLine >= previousCursor;
+		if (!this._lastVT || !canAppend) {
+			if (vt.text) {
+				detachedRaw.write(vt.text);
+			}
+		} else {
+			const appended = vt.text.slice(this._lastVT.length);
+			if (appended) {
+				detachedRaw.write(appended);
+			}
+		}
+
+		this._lastVT = vt.text;
+		this._lineCount = vt.lineCount;
+		this._lastUpToDateCursorY = currentCursor;
+		this._onDidUpdateEmitter.fire(this._lineCount);
+
+		if (this._command.endMarker && !this._command.endMarker.isDisposed) {
+			this._stopStreaming();
+		}
+	}
+
+	private _getAbsoluteCursorY(raw: RawXtermTerminal): number {
+		return raw.buffer.active.baseY + raw.buffer.active.cursorY;
 	}
 }
 
@@ -186,7 +307,10 @@ export class DetachedTerminalCommandMirror extends DetachedTerminalMirror implem
  * Mirrors a terminal output snapshot into a detached terminal instance.
  * Used when the terminal has been disposed of but we still want to show the output.
  */
-export class DetachedTerminalSnapshotMirror extends DetachedTerminalMirror {
+export class DetachedTerminalSnapshotMirror extends Disposable {
+	private _detachedTerminal: Promise<IDetachedTerminalInstance> | undefined;
+	private _attachedContainer: HTMLElement | undefined;
+
 	private _output: IChatTerminalToolInvocationData['terminalCommandOutput'] | undefined;
 	private _container: HTMLElement | undefined;
 	private _dirty = true;
@@ -201,7 +325,7 @@ export class DetachedTerminalSnapshotMirror extends DetachedTerminalMirror {
 		super();
 		this._output = output;
 		const processInfo = this._register(new DetachedProcessInfo({ initialCwd: '' }));
-		this._setDetachedTerminal(this._terminalService.createDetachedTerminal({
+		this._detachedTerminal = this._terminalService.createDetachedTerminal({
 			cols: 80,
 			rows: 10,
 			readonly: true,
@@ -213,7 +337,14 @@ export class DetachedTerminalSnapshotMirror extends DetachedTerminalMirror {
 					return getChatTerminalBackgroundColor(theme, this._contextKeyService, storedBackground);
 				}
 			}
-		}));
+		}).then(terminal => this._register(terminal));
+	}
+
+	private async _getTerminal(): Promise<IDetachedTerminalInstance> {
+		if (!this._detachedTerminal) {
+			throw new Error('Detached terminal not initialized');
+		}
+		return this._detachedTerminal;
 	}
 
 	public setOutput(output: IChatTerminalToolInvocationData['terminalCommandOutput'] | undefined): void {
@@ -222,7 +353,14 @@ export class DetachedTerminalSnapshotMirror extends DetachedTerminalMirror {
 	}
 
 	public async attach(container: HTMLElement): Promise<void> {
-		await this._attachToContainer(container);
+		const terminal = await this._getTerminal();
+		container.classList.add('chat-terminal-output-terminal');
+		const needsAttach = this._attachedContainer !== container || container.firstChild === null;
+		if (needsAttach) {
+			terminal.attachToElement(container, { enableGpu: false });
+			this._attachedContainer = container;
+		}
+
 		this._container = container;
 		this._applyTheme(container);
 	}
