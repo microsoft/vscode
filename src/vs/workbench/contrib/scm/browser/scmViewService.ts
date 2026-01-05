@@ -123,7 +123,9 @@ export class SCMViewService implements ISCMViewService {
 	private _repositories: ISCMRepositoryView[] = [];
 
 	get repositories(): ISCMRepository[] {
-		return this._repositories.map(r => r.repository);
+		return this._repositories
+			.filter(r => r.repository.provider.isHidden !== true)
+			.map(r => r.repository);
 	}
 
 	readonly didFinishLoadingRepositories = observableValue<boolean>(this, false);

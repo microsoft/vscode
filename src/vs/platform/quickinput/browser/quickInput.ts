@@ -5,7 +5,7 @@
 
 import * as dom from '../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
-import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
+import { ToolBar } from '../../../base/browser/ui/toolbar/toolbar.js';
 import { Button, IButtonStyles } from '../../../base/browser/ui/button/button.js';
 import { CountBadge, ICountBadgeStyles } from '../../../base/browser/ui/countBadge/countBadge.js';
 import { IHoverDelegate, IHoverDelegateOptions } from '../../../base/browser/ui/hover/hoverDelegate.js';
@@ -13,7 +13,7 @@ import { IInputBoxStyles } from '../../../base/browser/ui/inputbox/inputBox.js';
 import { IKeybindingLabelStyles } from '../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IListStyles } from '../../../base/browser/ui/list/listWidget.js';
 import { IProgressBarStyles, ProgressBar } from '../../../base/browser/ui/progressbar/progressbar.js';
-import { IToggleStyles, Toggle, TriStateCheckbox } from '../../../base/browser/ui/toggle/toggle.js';
+import { IToggleStyles, TriStateCheckbox } from '../../../base/browser/ui/toggle/toggle.js';
 import { equals } from '../../../base/common/arrays.js';
 import { TimeoutTimer } from '../../../base/common/async.js';
 import { Codicon } from '../../../base/common/codicons.js';
@@ -25,9 +25,9 @@ import Severity from '../../../base/common/severity.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import './media/quickInput.css';
 import { localize } from '../../../nls.js';
-import { IInputBox, IKeyMods, IQuickInput, IQuickInputButton, IQuickInputHideEvent, IQuickInputToggle, IQuickNavigateConfiguration, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, IQuickPickWillAcceptEvent, IQuickWidget, ItemActivation, NO_KEY_MODS, QuickInputButtonLocation, QuickInputHideReason, QuickInputType, QuickPickFocus } from '../common/quickInput.js';
+import { IInputBox, IKeyMods, IQuickInput, IQuickInputButton, IQuickInputHideEvent, IQuickNavigateConfiguration, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, IQuickPickWillAcceptEvent, IQuickWidget, ItemActivation, NO_KEY_MODS, QuickInputButtonLocation, QuickInputHideReason, QuickInputType, QuickPickFocus } from '../common/quickInput.js';
 import { QuickInputBox } from './quickInputBox.js';
-import { quickInputButtonToAction, renderQuickInputDescription } from './quickInputUtils.js';
+import { quickInputButtonToAction, quickInputButtonsToActionArrays, renderQuickInputDescription } from './quickInputUtils.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IHoverService, WorkbenchHoverDelegate } from '../../hover/browser/hover.js';
 import { QuickInputList } from './quickInputList.js';
@@ -97,14 +97,14 @@ export const backButton = {
 export interface QuickInputUI {
 	container: HTMLElement;
 	styleSheet: HTMLStyleElement;
-	leftActionBar: ActionBar;
+	leftActionBar: ToolBar;
 	titleBar: HTMLElement;
 	title: HTMLElement;
 	description1: HTMLElement;
 	description2: HTMLElement;
 	widget: HTMLElement;
-	rightActionBar: ActionBar;
-	inlineActionBar: ActionBar;
+	rightActionBar: ToolBar;
+	inlineActionBar: ToolBar;
 	checkAll: TriStateCheckbox;
 	inputContainer: HTMLElement;
 	filterContainer: HTMLElement;
@@ -156,8 +156,6 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 	protected _visible = observableValue('visible', false);
 	private _title: string | undefined;
 	private _description: string | undefined;
-	private _widget: HTMLElement | undefined;
-	private _widgetUpdated = false;
 	private _steps: number | undefined;
 	private _totalSteps: number | undefined;
 	private _enabled = true;
@@ -169,8 +167,6 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 	private _inlineButtons: IQuickInputButton[] = [];
 	private _inputButtons: IQuickInputButton[] = [];
 	private buttonsUpdated = false;
-	private _toggles: IQuickInputToggle[] = [];
-	private togglesUpdated = false;
 	protected noValidationMessage: string | undefined = QuickInput.noPromptMessage;
 	private _validationMessage: string | undefined;
 	private _lastValidationMessage: string | undefined;
@@ -213,21 +209,6 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 	set description(description: string | undefined) {
 		this._description = description;
 		this.update();
-	}
-
-	get widget() {
-		return this._widget;
-	}
-
-	set widget(widget: unknown | undefined) {
-		if (!(dom.isHTMLElement(widget))) {
-			return;
-		}
-		if (this._widget !== widget) {
-			this._widget = widget;
-			this._widgetUpdated = true;
-			this.update();
-		}
 	}
 
 	get step() {
@@ -334,16 +315,6 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 		this.update();
 	}
 
-	get toggles() {
-		return this._toggles;
-	}
-
-	set toggles(toggles: IQuickInputToggle[]) {
-		this._toggles = toggles ?? [];
-		this.togglesUpdated = true;
-		this.update();
-	}
-
 	get validationMessage() {
 		return this._validationMessage;
 	}
@@ -388,11 +359,6 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 			// rerender them.
 			this.buttonsUpdated = true;
 		}
-		if (this.toggles.length) {
-			// if there are toggles, the ui.show() clears them out of the UI so we should
-			// rerender them.
-			this.togglesUpdated = true;
-		}
 
 		this.update();
 	}
@@ -434,14 +400,6 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 		if (this.ui.description2.textContent !== description) {
 			this.ui.description2.textContent = description;
 		}
-		if (this._widgetUpdated) {
-			this._widgetUpdated = false;
-			if (this._widget) {
-				dom.reset(this.ui.widget, this._widget);
-			} else {
-				dom.reset(this.ui.widget);
-			}
-		}
 		if (this.busy && !this.busyDelay) {
 			this.busyDelay = new TimeoutTimer();
 			this.busyDelay.setIfNotSet(() => {
@@ -459,47 +417,33 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 		}
 		if (this.buttonsUpdated) {
 			this.buttonsUpdated = false;
-			this.ui.leftActionBar.clear();
-			const leftButtons = this._leftButtons
-				.map((button, index) => quickInputButtonToAction(
-					button,
-					`id-${index}`,
-					async () => this.onDidTriggerButtonEmitter.fire(button)
-				));
-			this.ui.leftActionBar.push(leftButtons, { icon: true, label: false });
-			this.ui.rightActionBar.clear();
-			const rightButtons = this._rightButtons
-				.map((button, index) => quickInputButtonToAction(
-					button,
-					`id-${index}`,
-					async () => this.onDidTriggerButtonEmitter.fire(button)
-				));
-			this.ui.rightActionBar.push(rightButtons, { icon: true, label: false });
-			this.ui.inlineActionBar.clear();
-			const inlineButtons = this._inlineButtons
-				.map((button, index) => quickInputButtonToAction(
-					button,
-					`id-${index}`,
-					async () => this.onDidTriggerButtonEmitter.fire(button)
-				));
-			this.ui.inlineActionBar.push(inlineButtons, { icon: true, label: false });
+			const leftActions = quickInputButtonsToActionArrays(
+				this._leftButtons,
+				'left-button',
+				(button) => this.onDidTriggerButtonEmitter.fire(button)
+			);
+			this.ui.leftActionBar.setActions(leftActions.primary, leftActions.secondary);
+			const rightActions = quickInputButtonsToActionArrays(
+				this._rightButtons,
+				'right-button',
+				(button) => this.onDidTriggerButtonEmitter.fire(button)
+			);
+			this.ui.rightActionBar.setActions(rightActions.primary, rightActions.secondary);
+			const inlineActions = quickInputButtonsToActionArrays(
+				this._inlineButtons,
+				'inline-button',
+				(button) => this.onDidTriggerButtonEmitter.fire(button)
+			);
+			this.ui.inlineActionBar.setActions(inlineActions.primary, inlineActions.secondary);
+			// Adjust count badge position based on input buttons (each button/toggle is ~22px wide)
+			const inputButtonOffset = this._inputButtons.length * 22;
+			this.ui.countContainer.style.right = inputButtonOffset > 0 ? `${4 + inputButtonOffset}px` : '4px';
 			this.ui.inputBox.actions = this._inputButtons
 				.map((button, index) => quickInputButtonToAction(
 					button,
 					`id-${index}`,
 					async () => this.onDidTriggerButtonEmitter.fire(button)
 				));
-		}
-		if (this.togglesUpdated) {
-			this.togglesUpdated = false;
-			// HACK: Filter out toggles here that are not concrete Toggle objects. This is to workaround
-			// a layering issue as quick input's interface is in common but Toggle is in browser and
-			// it requires a HTMLElement on its interface
-			const concreteToggles = this.toggles?.filter(opts => opts instanceof Toggle) ?? [];
-			this.ui.inputBox.toggles = concreteToggles;
-			// Adjust count badge position based on number of toggles (each toggle is ~22px wide)
-			const toggleOffset = concreteToggles.length * 22;
-			this.ui.countContainer.style.right = toggleOffset > 0 ? `${4 + toggleOffset}px` : '4px';
 		}
 		this.ui.ignoreFocusOut = this.ignoreFocusOut;
 		this.ui.setEnabled(this.enabled);
@@ -1383,17 +1327,37 @@ export class InputBox extends QuickInput implements IInputBox {
 export class QuickWidget extends QuickInput implements IQuickWidget {
 	readonly type = QuickInputType.QuickWidget;
 
+	private _widget: HTMLElement | undefined;
+	private _widgetUpdated = false;
+
+	get widget() {
+		return this._widget;
+	}
+
+	set widget(widget: HTMLElement | undefined) {
+		if (this._widget !== widget) {
+			this._widget = widget;
+			this._widgetUpdated = true;
+			this.update();
+		}
+	}
+
 	protected override update() {
 		if (!this.visible) {
 			return;
 		}
-
-		const visibilities: Visibilities = {
+		this.ui.setVisibilities({
 			title: !!this.title || !!this.step || !!this.titleButtons.length,
 			description: !!this.description || !!this.step
-		};
-
-		this.ui.setVisibilities(visibilities);
+		});
+		if (this._widgetUpdated) {
+			this._widgetUpdated = false;
+			if (this._widget) {
+				dom.reset(this.ui.widget, this._widget);
+			} else {
+				dom.reset(this.ui.widget);
+			}
+		}
 		super.update();
 	}
 }

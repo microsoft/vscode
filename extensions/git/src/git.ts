@@ -13,7 +13,7 @@ import { EventEmitter } from 'events';
 import * as filetype from 'file-type';
 import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows, pathEquals, isMacintosh, isDescendant, relativePathWithNoFallback, Mutable } from './util';
 import { CancellationError, CancellationToken, ConfigurationChangeEvent, LogOutputChannel, Progress, Uri, workspace } from 'vscode';
-import { Commit as ApiCommit, Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, RefQuery as ApiRefQuery, InitOptions, Worktree } from './api/git';
+import { Commit as ApiCommit, Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, RefQuery as ApiRefQuery, InitOptions, DiffChange, Worktree as ApiWorktree } from './api/git';
 import * as byline from 'byline';
 import { StringDecoder } from 'string_decoder';
 
@@ -678,6 +678,7 @@ export class Git {
 
 		options.env = assign({}, process.env, this.env, options.env || {}, {
 			VSCODE_GIT_COMMAND: args[0],
+			LANGUAGE: 'en',
 			LC_ALL: 'en_US.UTF-8',
 			LANG: 'en_US.UTF-8',
 			GIT_PAGER: 'cat'
@@ -1084,6 +1085,79 @@ function parseGitChanges(repositoryRoot: string, raw: string): Change[] {
 	return result;
 }
 
+function parseGitChangesRaw(repositoryRoot: string, raw: string): DiffChange[] {
+	const changes: Change[] = [];
+	const numStats = new Map<string, { insertions: number; deletions: number }>();
+
+	let index = 0;
+	const segments = raw.trim().split('\x00').filter(s => s);
+
+	segmentsLoop:
+	while (index < segments.length) {
+		const segment = segments[index++];
+		if (!segment) {
+			break;
+		}
+
+		if (segment.startsWith(':')) {
+			// Parse --raw output
+			const [, , , , change] = segment.split(' ');
+			const filePath = segments[index++];
+			const originalUri = Uri.file(path.isAbsolute(filePath) ? filePath : path.join(repositoryRoot, filePath));
+
+			let uri = originalUri;
+			let renameUri = originalUri;
+			let status = Status.UNTRACKED;
+
+			switch (change[0]) {
+				case 'A':
+					status = Status.INDEX_ADDED;
+					break;
+				case 'M':
+					status = Status.MODIFIED;
+					break;
+				case 'D':
+					status = Status.DELETED;
+					break;
+				case 'R': {
+					if (index >= segments.length) {
+						break;
+					}
+					const newPath = segments[index++];
+					if (!newPath) {
+						break;
+					}
+
+					status = Status.INDEX_RENAMED;
+					uri = renameUri = Uri.file(path.isAbsolute(newPath) ? newPath : path.join(repositoryRoot, newPath));
+					break;
+				}
+				default:
+					// Unknown status
+					break segmentsLoop;
+			}
+
+			changes.push({ status, uri, originalUri, renameUri });
+		} else {
+			// Parse --numstat output
+			const [insertions, deletions, filePath] = segment.split('\t');
+			numStats.set(
+				path.isAbsolute(filePath)
+					? filePath
+					: path.join(repositoryRoot, filePath), {
+				insertions: insertions === '-' ? 0 : parseInt(insertions),
+				deletions: deletions === '-' ? 0 : parseInt(deletions),
+			});
+		}
+	}
+
+	return changes.map(change => ({
+		...change,
+		insertions: numStats.get(change.uri.fsPath)?.insertions ?? 0,
+		deletions: numStats.get(change.uri.fsPath)?.deletions ?? 0,
+	}));
+}
+
 export interface BlameInformation {
 	readonly hash: string;
 	readonly subject?: string;
@@ -1228,6 +1302,10 @@ export interface PullOptions {
 	readonly tags?: boolean;
 	readonly autoStash?: boolean;
 	readonly cancellationToken?: CancellationToken;
+}
+
+export interface Worktree extends ApiWorktree {
+	readonly commitDetails?: ApiCommit;
 }
 
 export class Repository {
@@ -1694,8 +1772,24 @@ export class Repository {
 		return result.stdout.trim();
 	}
 
-	async diffBetween2(ref1: string, ref2: string, options: { similarityThreshold?: number }): Promise<Change[]> {
-		return await this.diffFiles(`${ref1}...${ref2}`, { cached: false, similarityThreshold: options.similarityThreshold });
+	async diffBetweenWithStats(ref: string, options: { path?: string; similarityThreshold?: number }): Promise<DiffChange[]> {
+		const args = ['diff', '--raw', '--numstat', '--diff-filter=ADMR', '-z',];
+
+		if (options.similarityThreshold) {
+			args.push(`--find-renames=${options.similarityThreshold}%`);
+		}
+
+		args.push(...[ref, '--']);
+		if (options.path) {
+			args.push(this.sanitizeRelativePath(options.path));
+		}
+
+		const gitResult = await this.exec(args);
+		if (gitResult.exitCode) {
+			return [];
+		}
+
+		return parseGitChangesRaw(this.repositoryRoot, gitResult.stdout);
 	}
 
 	private async diffFiles(ref: string | undefined, options: { cached: boolean; similarityThreshold?: number }): Promise<Change[]> {
@@ -1749,8 +1843,8 @@ export class Repository {
 	}
 
 
-	async diffTrees(treeish1: string, treeish2?: string, options?: { similarityThreshold?: number }): Promise<Change[]> {
-		const args = ['diff-tree', '-r', '--name-status', '-z', '--diff-filter=ADMR'];
+	async diffTrees(treeish1: string, treeish2?: string, options?: { similarityThreshold?: number }): Promise<DiffChange[]> {
+		const args = ['diff-tree', '-r', '--raw', '--numstat', '--diff-filter=ADMR', '-z'];
 
 		if (options?.similarityThreshold) {
 			args.push(`--find-renames=${options.similarityThreshold}%`);
@@ -1769,7 +1863,7 @@ export class Repository {
 			return [];
 		}
 
-		return parseGitChanges(this.repositoryRoot, gitResult.stdout);
+		return parseGitChangesRaw(this.repositoryRoot, gitResult.stdout);
 	}
 
 	async getMergeBase(ref1: string, ref2: string, ...refs: string[]): Promise<string | undefined> {
@@ -1831,7 +1925,15 @@ export class Repository {
 	async stage(path: string, data: Uint8Array): Promise<void> {
 		const relativePath = this.sanitizeRelativePath(path);
 		const child = this.stream(['hash-object', '--stdin', '-w', '--path', relativePath], { stdio: [null, null, null] });
-		child.stdin!.end(data);
+
+		if (!child.stdin) {
+			throw new GitError({
+				message: 'Failed to spawn git process',
+				exitCode: -1
+			});
+		}
+
+		child.stdin.end(data);
 
 		const { exitCode, stdout } = await exec(child);
 		const hash = stdout.toString('utf8');
@@ -2414,9 +2516,13 @@ export class Repository {
 		}
 	}
 
-	async blame2(path: string, ref?: string): Promise<BlameInformation[] | undefined> {
+	async blame2(path: string, ref?: string, ignoreWhitespace?: boolean): Promise<BlameInformation[] | undefined> {
 		try {
 			const args = ['blame', '--root', '--incremental'];
+
+			if (ignoreWhitespace) {
+				args.push('-w');
+			}
 
 			if (ref) {
 				args.push(ref);
@@ -2587,19 +2693,23 @@ export class Repository {
 
 				if (limit !== 0 && parser.status.length > limit) {
 					child.removeListener('close', onClose);
-					child.stdout!.removeListener('data', onStdoutData);
+					child.stdout?.removeListener('data', onStdoutData);
 					child.kill();
 
 					c({ status: parser.status.slice(0, limit), statusLength: parser.status.length, didHitLimit: true });
 				}
 			};
 
-			child.stdout!.setEncoding('utf8');
-			child.stdout!.on('data', onStdoutData);
+			if (child.stdout) {
+				child.stdout.setEncoding('utf8');
+				child.stdout.on('data', onStdoutData);
+			}
 
 			const stderrData: string[] = [];
-			child.stderr!.setEncoding('utf8');
-			child.stderr!.on('data', raw => stderrData.push(raw as string));
+			if (child.stderr) {
+				child.stderr.setEncoding('utf8');
+				child.stderr.on('data', raw => stderrData.push(raw as string));
+			}
 
 			child.on('error', cpErrorHandler(e));
 			child.on('close', onClose);

@@ -14,7 +14,7 @@ import { Disposable, DisposableStore } from '../../../../../base/common/lifecycl
 import { Schemas } from '../../../../../base/common/network.js';
 import { basename, dirname } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { Location } from '../../../../../editor/common/languages.js';
+import { isLocation, Location } from '../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../nls.js';
@@ -28,10 +28,10 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IResourceLabel, ResourceLabels } from '../../../../browser/labels.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
-import { IChatRequestImplicitVariableEntry, IChatRequestStringVariableEntry, isStringImplicitContextValue } from '../../common/chatVariableEntries.js';
+import { IChatRequestImplicitVariableEntry, IChatRequestStringVariableEntry, isStringImplicitContextValue } from '../../common/attachments/chatVariableEntries.js';
 import { IChatWidget } from '../chat.js';
-import { ChatAttachmentModel } from '../chatAttachmentModel.js';
-import { IChatContextService } from '../chatContextService.js';
+import { ChatAttachmentModel } from './chatAttachmentModel.js';
+import { IChatContextService } from '../contextContrib/chatContextService.js';
 
 export class ImplicitContextAttachmentWidget extends Disposable {
 	public readonly domNode: HTMLElement;
@@ -83,6 +83,15 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 						await this.convertToRegularAttachment();
 					}
 					this.attachment.enabled = false;
+				}));
+			} else {
+				const pinButtonMsg = localize('pinSelection', "Pin selection");
+				const pinButton = this.renderDisposables.add(new Button(this.domNode, { supportIcons: true, title: pinButtonMsg }));
+				pinButton.icon = Codicon.pinned;
+				this.renderDisposables.add(pinButton.onDidClick(async (e) => {
+					e.stopPropagation();
+					e.preventDefault();
+					await this.pinSelection();
 				}));
 			}
 
@@ -205,7 +214,22 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 			this.attachmentModel.addContext(context);
 		} else {
 			const file = URI.isUri(this.attachment.value) ? this.attachment.value : this.attachment.value.uri;
-			this.attachmentModel.addFile(file);
+			if (file.scheme === Schemas.vscodeNotebookCell && isLocation(this.attachment.value)) {
+				this.attachmentModel.addFile(file, this.attachment.value.range);
+			} else {
+				this.attachmentModel.addFile(file);
+			}
+		}
+		this.widgetRef()?.focusInput();
+	}
+	private async pinSelection(): Promise<void> {
+		if (!this.attachment.value || !this.attachment.isSelection) {
+			return;
+		}
+
+		if (!URI.isUri(this.attachment.value) && !isStringImplicitContextValue(this.attachment.value)) {
+			const location = this.attachment.value;
+			this.attachmentModel.addFile(location.uri, location.range);
 		}
 		this.widgetRef()?.focusInput();
 	}
