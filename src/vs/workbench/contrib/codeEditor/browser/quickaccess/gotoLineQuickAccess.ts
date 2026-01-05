@@ -34,6 +34,11 @@ export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProv
 	) {
 		super();
 		this.onDidActiveTextEditorControlChange = this.editorService.onDidActiveEditorChange;
+		this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('editor.gotoLine.autoReveal')) {
+				this.onAutoRevealConfigurationChanged();
+			}
+		});
 	}
 
 	private get configuration() {

@@ -26,6 +26,7 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 	static readonly GO_TO_OFFSET_PREFIX = '::';
 	private static readonly ZERO_BASED_OFFSET_STORAGE_KEY = 'gotoLine.useZeroBasedOffset';
 	private static readonly DISABLE_AUTO_REVEAL_STORAGE_KEY = 'gotoLine.disableAutoReveal';
+	private static readonly AUTO_REVEAL_CONFIG_SNAPSHOT_STORAGE_KEY = 'gotoLine.autoRevealConfigSnapshot';
 
 	private sessionDisableAutoReveal: boolean | undefined;
 
@@ -55,17 +56,16 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 			return this.sessionDisableAutoReveal;
 		}
 
-		const configured = this.getConfiguredAutoReveal();
-		if (typeof configured === 'boolean') {
-			return !configured;
+		const persisted = this.getPersistedAutoRevealPreference();
+		if (typeof persisted === 'boolean') {
+			return persisted;
 		}
 
-		const stored = this.storageService.getBoolean(
-			AbstractGotoLineQuickAccessProvider.DISABLE_AUTO_REVEAL_STORAGE_KEY,
-			StorageScope.APPLICATION
-		);
-		if (typeof stored === 'boolean') {
-			return stored;
+		const configured = this.getConfiguredAutoReveal();
+		if (typeof configured === 'boolean') {
+			const value = !configured;
+			this.persistAutoRevealPreference(value, configured);
+			return value;
 		}
 
 		return !this.isAutoRevealEnabledByDefault();
@@ -73,16 +73,18 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 
 	private set disableAutoReveal(value: boolean) {
 		this.sessionDisableAutoReveal = value;
+		this.persistAutoRevealPreference(value);
+	}
 
-		if (typeof this.getConfiguredAutoReveal() === 'boolean') {
+	protected onAutoRevealConfigurationChanged(): void {
+		this.sessionDisableAutoReveal = undefined;
+		const configured = this.getConfiguredAutoReveal();
+		if (typeof configured === 'boolean') {
+			this.persistAutoRevealPreference(!configured, configured);
 			return;
 		}
 
-		this.storageService.store(
-			AbstractGotoLineQuickAccessProvider.DISABLE_AUTO_REVEAL_STORAGE_KEY,
-			value,
-			StorageScope.APPLICATION,
-			StorageTarget.USER);
+		this.clearPersistedAutoRevealPreference();
 	}
 
 	protected isAutoRevealEnabledByDefault(): boolean {
@@ -91,6 +93,58 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 
 	protected getConfiguredAutoReveal(): boolean | undefined {
 		return undefined;
+	}
+
+	private getPersistedAutoRevealPreference(): boolean | undefined {
+		const value = this.storageService.getBoolean(
+			AbstractGotoLineQuickAccessProvider.DISABLE_AUTO_REVEAL_STORAGE_KEY,
+			StorageScope.APPLICATION
+		);
+		if (typeof value !== 'boolean') {
+			return undefined;
+		}
+
+		const snapshotRaw = this.storageService.get(
+			AbstractGotoLineQuickAccessProvider.AUTO_REVEAL_CONFIG_SNAPSHOT_STORAGE_KEY,
+			StorageScope.APPLICATION
+		);
+		const snapshot = snapshotRaw === 'true' ? true : snapshotRaw === 'false' ? false : undefined;
+
+		const configured = this.getConfiguredAutoReveal();
+		if (snapshot !== configured) {
+			if (typeof configured === 'boolean') {
+				this.persistAutoRevealPreference(!configured, configured);
+				return !configured;
+			}
+
+			this.clearPersistedAutoRevealPreference();
+			return undefined;
+		}
+
+		return value;
+	}
+
+	private persistAutoRevealPreference(value: boolean, configuredSnapshot: boolean | undefined = this.getConfiguredAutoReveal()): void {
+		this.storageService.store(
+			AbstractGotoLineQuickAccessProvider.DISABLE_AUTO_REVEAL_STORAGE_KEY,
+			value,
+			StorageScope.APPLICATION,
+			StorageTarget.USER);
+
+		if (typeof configuredSnapshot === 'boolean') {
+			this.storageService.store(
+				AbstractGotoLineQuickAccessProvider.AUTO_REVEAL_CONFIG_SNAPSHOT_STORAGE_KEY,
+				configuredSnapshot ? 'true' : 'false',
+				StorageScope.APPLICATION,
+				StorageTarget.USER);
+		} else {
+			this.storageService.remove(AbstractGotoLineQuickAccessProvider.AUTO_REVEAL_CONFIG_SNAPSHOT_STORAGE_KEY, StorageScope.APPLICATION);
+		}
+	}
+
+	private clearPersistedAutoRevealPreference(): void {
+		this.storageService.remove(AbstractGotoLineQuickAccessProvider.DISABLE_AUTO_REVEAL_STORAGE_KEY, StorageScope.APPLICATION);
+		this.storageService.remove(AbstractGotoLineQuickAccessProvider.AUTO_REVEAL_CONFIG_SNAPSHOT_STORAGE_KEY, StorageScope.APPLICATION);
 	}
 
 	protected provideWithoutTextEditor(picker: IQuickPick<IGotoLineQuickPickItem, { useSeparators: true }>): IDisposable {
@@ -103,8 +157,12 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 	}
 
 	protected provideWithTextEditor(context: IQuickAccessTextEditorContext, picker: IQuickPick<IGotoLineQuickPickItem, { useSeparators: true }>, token: CancellationToken): IDisposable {
+		this.sessionDisableAutoReveal = undefined;
 		const editor = context.editor;
 		const disposables = new DisposableStore();
+		disposables.add(toDisposable(() => {
+			this.sessionDisableAutoReveal = undefined;
+		}));
 
 		// Goto line once picked
 		disposables.add(picker.onDidAccept(event => {
