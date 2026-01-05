@@ -1277,7 +1277,7 @@ class ChatInputInlineCompletions extends Disposable {
 		super();
 
 		this._ourProvider = {
-			debounceDelayMs: 150, // prevents excessive provider calls during rapid typing.
+			debounceDelayMs: 150, // Debounce delay for provider calls.
 			provideInlineCompletions: async (model: ITextModel, position: Position, _context: InlineCompletionContext, token: CancellationToken): Promise<InlineCompletions | undefined> => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (!widget || !widget.viewModel) {
