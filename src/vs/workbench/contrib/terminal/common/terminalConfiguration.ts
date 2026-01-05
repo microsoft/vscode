@@ -572,8 +572,10 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	[TerminalSettingId.CustomGlyphs]: {
 		markdownDescription: localize('terminal.integrated.customGlyphs', "Whether to draw custom glyphs instead of using the font for the following unicode ranges:\n\n{0}\n\nThis will typically result in better rendering with continuous lines, even when line height and letter spacing is used. This feature only works when {1} is enabled.", [
 			'- Box Drawing (U+2500-U+257F)',
+			'- Block Elements (U+2580-U+259F)',
 			'- Braille Patterns (U+2800-U+28FF)',
 			'- Powerline Symbols (U+E0A0-U+E0D4, Private Use Area)',
+			'- Progress Indicators (U+EE00-U+EE0B, Private Use Area)',
 			'- Git Branch Symbols (U+F5D0-U+F60D, Private Use Area)',
 			'- Symbols for Legacy Computing (U+1FB00-U+1FBFF)'
 		].join('\n'), `\`#${TerminalSettingId.GpuAcceleration}#\``),
