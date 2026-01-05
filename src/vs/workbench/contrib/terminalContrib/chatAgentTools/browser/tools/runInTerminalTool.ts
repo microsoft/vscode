@@ -482,9 +482,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			wouldBeAutoApproved
 		);
 
-		// Pass autoApproveInfo if command would be auto-approved (even if warning not yet accepted),
-		// or if it was denied by a rule so the UI can explain why
-		// This allows the confirmation widget to auto-approve after user accepts the warning
+		// Pass auto approve info if the command:
+		// - Was auto approved
+		// - Would have be auto approved, but the opt-in warning was not accepted
+		// - Was denied explicitly by a rule
+		//
+		// This allows surfacing this information to the user.
 		if (isFinalAutoApproved || (isAutoApproveEnabled && commandLineAnalyzerResults.some(e => e.autoApproveInfo))) {
 			toolSpecificData.autoApproveInfo = commandLineAnalyzerResults.find(e => e.autoApproveInfo)?.autoApproveInfo;
 		}
