@@ -429,3 +429,7 @@ export class VinylStat implements fs.Stats {
 	isFIFO(): boolean { return false; }
 	isSocket(): boolean { return false; }
 }
+
+export function getDate() {
+	return process.env.BUILD_DATE ? new Date(process.env.BUILD_DATE) : new Date();
+}
