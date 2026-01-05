@@ -314,12 +314,6 @@ export interface IQuickInput extends IDisposable {
 	description: string | undefined;
 
 	/**
-	 * An HTML widget rendered below the input.
-	 * @deprecated Use an IQuickWidget instead.
-	 */
-	widget: any | undefined;
-
-	/**
 	 * The current step of the quick input rendered in the titlebar.
 	 */
 	step: number | undefined;
@@ -360,11 +354,6 @@ export interface IQuickInput extends IDisposable {
 	ignoreFocusOut: boolean;
 
 	/**
-	 * The toggle buttons to be added to the input box.
-	 */
-	toggles: IQuickInputToggle[] | undefined;
-
-	/**
 	 * Shows the quick input.
 	 */
 	show(): void;
@@ -395,10 +384,9 @@ export interface IQuickWidget extends IQuickInput {
 	readonly type: QuickInputType.QuickWidget;
 
 	/**
-	 * Should be an HTMLElement (TODO: move this entire file into browser)
-	 * @override
+	 * A HTML element that will be rendered inside the quick input.
 	 */
-	widget: any | undefined;
+	widget: HTMLElement | undefined;
 }
 
 export interface IQuickPickWillAcceptEvent {
@@ -718,17 +706,6 @@ export interface IQuickPick<T extends IQuickPickItem, O extends { useSeparators:
 }
 
 /**
- * Represents a toggle for quick input.
- */
-export interface IQuickInputToggle {
-	/**
-	 * Event that is fired when the toggle value changes.
-	 * The boolean value indicates whether the change was triggered via keyboard.
-	 */
-	readonly onChange: Event<boolean>;
-}
-
-/**
  * Represents an input box in a quick input dialog.
  */
 export interface IInputBox extends IQuickInput {
@@ -836,6 +813,26 @@ export interface IQuickInputButton {
 	 * @note This property is ignored if the button was added to a QuickPickItem.
 	 */
 	location?: QuickInputButtonLocation;
+	/**
+	 * When present, indicates that the button is a toggle button that can be checked or unchecked.
+	 * The `checked` property indicates the current state of the toggle and will be updated
+	 * when the button is clicked.
+	 */
+	readonly toggle?: { checked: boolean };
+	/**
+	 * Optional label for the button. When used with secondary actions, this label appears in the overflow menu.
+	 */
+	label?: string;
+	/**
+	 * When true, the button will be rendered as a secondary action in the toolbar overflow menu.
+	 * By default, buttons are rendered as primary actions.
+	 * @note This does not currently apply to buttons in the Input location
+	 */
+	secondary?: boolean;
+}
+
+export interface IQuickInputButtonWithToggle extends IQuickInputButton {
+	readonly toggle: { checked: boolean };
 }
 
 /**
@@ -1140,13 +1137,6 @@ export interface IQuickTree<T extends IQuickTreeItem> extends IQuickInput {
 	 * @param itemTree The items to display.
 	 */
 	setItemTree(itemTree: T[]): void;
-
-	/**
-	 * Sets the checkbox state of an item.
-	 * @param element The item to update.
-	 * @param checked The new checkbox state.
-	 */
-	setCheckboxState(element: T, checked: boolean | 'mixed'): void;
 
 	/**
 	 * Expands an item.

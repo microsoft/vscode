@@ -168,7 +168,8 @@ export const CopyOptions = {
 };
 
 export const PasteOptions = {
-	electronBugWorkaroundPasteEventHasFired: false
+	electronBugWorkaroundPasteEventHasFired: false,
+	electronBugWorkaroundPasteEventLock: false
 };
 
 interface InMemoryClipboardMetadata {
