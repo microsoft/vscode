@@ -38,7 +38,7 @@ import { INotificationService } from '../../../../../../../platform/notification
 import { Registry } from '../../../../../../../platform/registry/common/platform.js';
 import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../../../../common/contributions.js';
-import { EditorsOrder } from '../../../../../../common/editor.js';
+import { EditorsOrder, isDiffEditorInput } from '../../../../../../common/editor.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import { IHistoryService } from '../../../../../../services/history/common/history.js';
 import { LifecyclePhase } from '../../../../../../services/lifecycle/common/lifecycle.js';
@@ -974,21 +974,22 @@ class BuiltinDynamicCompletions extends Disposable {
 		// HISTORY
 		// always take the last N items
 		for (const [i, item] of this.historyService.getHistory().entries()) {
-			if (!item.resource || seen.has(item.resource) || !this.instantiationService.invokeFunction(accessor => isSupportedChatFileScheme(accessor, item.resource!.scheme))) {
+			const resource = isDiffEditorInput(item) ? item.modified.resource : item.resource;
+			if (!resource || seen.has(resource) || !this.instantiationService.invokeFunction(accessor => isSupportedChatFileScheme(accessor, resource.scheme))) {
 				// ignore editors without a resource
 				continue;
 			}
 
 			if (pattern) {
 				// use pattern if available
-				const basename = this.labelService.getUriBasenameLabel(item.resource).toLowerCase();
+				const basename = this.labelService.getUriBasenameLabel(resource).toLowerCase();
 				if (!isPatternInWord(pattern, 0, pattern.length, basename, 0, basename.length)) {
 					continue;
 				}
 			}
 
-			seen.add(item.resource);
-			const newLen = result.suggestions.push(makeCompletionItem(item.resource, FileKind.FILE, i === 0 ? localize('activeFile', 'Active file') : undefined, i === 0));
+			seen.add(resource);
+			const newLen = result.suggestions.push(makeCompletionItem(resource, FileKind.FILE, i === 0 ? localize('activeFile', 'Active file') : undefined, i === 0));
 			if (newLen - len >= 5) {
 				break;
 			}

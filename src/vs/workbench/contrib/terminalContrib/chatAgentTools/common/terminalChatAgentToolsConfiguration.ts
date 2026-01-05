@@ -15,11 +15,13 @@ import { PolicyCategory } from '../../../../../base/common/policy.js';
 export const enum TerminalChatAgentToolsSettingId {
 	EnableAutoApprove = 'chat.tools.terminal.enableAutoApprove',
 	AutoApprove = 'chat.tools.terminal.autoApprove',
+	AutoApproveWorkspaceNpmScripts = 'chat.tools.terminal.autoApproveWorkspaceNpmScripts',
 	IgnoreDefaultAutoApproveRules = 'chat.tools.terminal.ignoreDefaultAutoApproveRules',
 	BlockDetectedFileWrites = 'chat.tools.terminal.blockDetectedFileWrites',
 	ShellIntegrationTimeout = 'chat.tools.terminal.shellIntegrationTimeout',
 	AutoReplyToPrompts = 'chat.tools.terminal.autoReplyToPrompts',
 	OutputLocation = 'chat.tools.terminal.outputLocation',
+	PreventShellHistory = 'chat.tools.terminal.preventShellHistory',
 
 	TerminalProfileLinux = 'chat.tools.terminal.terminalProfile.linux',
 	TerminalProfileMacOs = 'chat.tools.terminal.terminalProfile.osx',
@@ -195,22 +197,24 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			//
 			// Safe and common sub-commands
 
-			'git status': true,
-			'git log': true,
-			'git show': true,
-			'git diff': true,
+			// Note: These patterns support `-C <path>` and `--no-pager` immediately after `git`
+			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+status\\b/': true,
+			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+log\\b/': true,
+			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+show\\b/': true,
+			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+diff\\b/': true,
+			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+ls-files\\b/': true,
 
 			// git grep
 			// - `--open-files-in-pager`: This is the configured pager, so no risk of code execution
 			// - See notes on `grep`
-			'git grep': true,
+			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+grep\\b/': true,
 
 			// git branch
 			// - `-d`, `-D`, `--delete`: Prevent branch deletion
 			// - `-m`, `-M`: Prevent branch renaming
 			// - `--force`: Generally dangerous
-			'git branch': true,
-			'/^git branch\\b.*-(d|D|m|M|-delete|-force)\\b/': false,
+			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+branch\\b/': true,
+			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+branch\\b.*-(d|D|m|M|-delete|-force)\\b/': false,
 
 			// #endregion
 
@@ -223,6 +227,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			'Get-Location': true,
 			'Write-Host': true,
 			'Write-Output': true,
+			'Out-String': true,
 			'Split-Path': true,
 			'Join-Path': true,
 			'Start-Sleep': true,
@@ -355,6 +360,15 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		tags: ['experimental'],
 		markdownDescription: localize('ignoreDefaultAutoApproveRules.description', "Whether to ignore the built-in default auto-approve rules used by the run in terminal tool as defined in {0}. When this setting is enabled, the run in terminal tool will ignore any rule that comes from the default set but still follow rules defined in the user, remote and workspace settings. Use this setting at your own risk; the default auto-approve rules are designed to protect you against running dangerous commands.", `\`#${TerminalChatAgentToolsSettingId.AutoApprove}#\``),
 	},
+	[TerminalChatAgentToolsSettingId.AutoApproveWorkspaceNpmScripts]: {
+		restricted: true,
+		type: 'boolean',
+		// In order to use agent mode the workspace must be trusted, this plus the fact that
+		// modifying package.json is protected means this is safe to enable by default.
+		default: true,
+		tags: ['experimental'],
+		markdownDescription: localize('autoApproveWorkspaceNpmScripts.description', "Whether to automatically approve npm, yarn, and pnpm run commands when the script is defined in a workspace package.json file. Since the workspace is trusted, scripts defined in package.json are considered safe to run without explicit approval."),
+	},
 	[TerminalChatAgentToolsSettingId.BlockDetectedFileWrites]: {
 		type: 'string',
 		enum: ['never', 'outsideWorkspace', 'all'],
@@ -445,6 +459,17 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		experiment: {
 			mode: 'auto'
 		}
+	},
+	[TerminalChatAgentToolsSettingId.PreventShellHistory]: {
+		type: 'boolean',
+		default: true,
+		markdownDescription: [
+			localize('preventShellHistory.description', "Whether to exclude commands run by the terminal tool from the shell history. See below for the supported shells and the method used for each:"),
+			`- \`bash\`: ${localize('preventShellHistory.description.bash', "Sets `HISTCONTROL=ignorespace` and prepends the command with space")}`,
+			`- \`zsh\`: ${localize('preventShellHistory.description.zsh', "Sets `HIST_IGNORE_SPACE` option and prepends the command with space")}`,
+			`- \`fish\`: ${localize('preventShellHistory.description.fish', "Sets `fish_private_mode` to prevent any command from entering history")}`,
+			`- \`pwsh\`: ${localize('preventShellHistory.description.pwsh', "Sets a custom history handler via PSReadLine's `AddToHistoryHandler` to prevent any command from entering history")}`,
+		].join('\n'),
 	}
 };
 
