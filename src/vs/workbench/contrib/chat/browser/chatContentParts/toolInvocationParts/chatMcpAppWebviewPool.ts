@@ -33,6 +33,7 @@ export class McpAppWebviewPool extends Disposable {
 	private readonly _entries = new Map<string, McpAppPoolEntry>();
 
 	constructor(
+		private readonly _container: HTMLElement,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
@@ -79,7 +80,8 @@ export class McpAppWebviewPool extends Disposable {
 		const model = disposables.add(this._instantiationService.createInstance(
 			ChatMcpAppModel,
 			toolInvocation,
-			renderData
+			renderData,
+			this._container
 		));
 
 		entry = {

@@ -93,6 +93,7 @@ export class ChatMcpAppModel extends Disposable {
 	constructor(
 		public readonly toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
 		public readonly renderData: IMcpAppRenderData,
+		container: HTMLElement | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IWebviewService private readonly _webviewService: IWebviewService,
@@ -123,7 +124,9 @@ export class ChatMcpAppModel extends Disposable {
 				allowForms: true,
 			},
 			extension: undefined,
+			container,
 		}));
+
 
 		// Build host context observable
 		this.hostContext = this._mcpToolCallUI.hostContext.map((context, reader) => ({
@@ -198,6 +201,8 @@ export class ChatMcpAppModel extends Disposable {
 		resizeObserver.observe(domNode);
 		this._hostContextAutorun.add(toDisposable(() => resizeObserver.disconnect()));
 		listener();
+
+		this._webview.container.style.zIndex = '1';
 	}
 
 	/**
@@ -415,7 +420,6 @@ export class ChatMcpAppModel extends Disposable {
 
 		return {
 			protocolVersion: McpApps.LATEST_PROTOCOL_VERSION,
-			capabilities: {},
 			hostInfo: {
 				name: this._productService.nameLong,
 				version: this._productService.version,
@@ -427,7 +431,7 @@ export class ChatMcpAppModel extends Disposable {
 				logging: {},
 			},
 			hostContext: this.hostContext.get(),
-		};
+		} satisfies Required<McpApps.McpUiInitializeResult>;
 	}
 
 	/**

@@ -95,6 +95,7 @@ import { ChatToolInvocationPart } from './chatContentParts/toolInvocationParts/c
 import { ChatMarkdownDecorationsRenderer } from './chatMarkdownDecorationsRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatCodeBlockContentProvider, CodeBlockPart } from './codeBlockPart.js';
+import { softAssert } from '../../../../base/common/assert.js';
 
 const $ = dom.$;
 
@@ -194,7 +195,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private readonly _diffEditorPool: DiffEditorPool;
 	private readonly _treePool: TreePool;
 	private readonly _contentReferencesListPool: CollapsibleListPool;
-	private readonly _mcpAppWebviewPool: McpAppWebviewPool;
+	private _mcpAppWebviewPool: McpAppWebviewPool | undefined;
 
 	private _currentLayoutWidth: number = 0;
 	private _isVisible = true;
@@ -238,7 +239,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this._diffEditorPool = this._register(this.instantiationService.createInstance(DiffEditorPool, editorOptions, delegate, overflowWidgetsDomNode, false));
 		this._treePool = this._register(this.instantiationService.createInstance(TreePool, this._onDidChangeVisibility.event));
 		this._contentReferencesListPool = this._register(this.instantiationService.createInstance(CollapsibleListPool, this._onDidChangeVisibility.event, undefined, undefined));
-		this._mcpAppWebviewPool = this._register(this.instantiationService.createInstance(McpAppWebviewPool));
 
 		this._register(this.instantiationService.createInstance(ChatCodeBlockContentProvider));
 		this._toolInvocationCodeBlockCollection = this._register(this.instantiationService.createInstance(CodeBlockModelCollection, 'tools'));
@@ -865,7 +865,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				editorPool: this._editorPool,
 				diffEditorPool: this._diffEditorPool,
 				codeBlockModelCollection: this.codeBlockModelCollection,
-				mcpAppWebviewPool: this._mcpAppWebviewPool,
+				mcpAppWebviewPool: this._getMcpAppWebviewPool(templateData),
 				currentWidth: () => this._currentLayoutWidth,
 				get codeBlockStartIndex() {
 					return context.preceedingContentParts.reduce((acc, part) => acc + (part.codeblocks?.length ?? 0), 0);
@@ -910,6 +910,21 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		this.updateItemHeightOnRender(element, templateData);
+	}
+
+	private _getMcpAppWebviewPool(templateData: IChatListItemTemplate): McpAppWebviewPool {
+		if (!this._mcpAppWebviewPool) {
+			let root = templateData.rowContainer.parentElement;
+			while (root && !root.classList.contains('monaco-list-rows')) {
+				root = root.parentElement;
+			}
+
+			softAssert(!!root, 'Could not find list root for MCP App Webview Pool, defaulting to document.body');
+			this._mcpAppWebviewPool = this._register(this.instantiationService.createInstance(McpAppWebviewPool, root || dom.getWindow(templateData.rowContainer).document.body));
+		}
+
+		return this._mcpAppWebviewPool;
+
 	}
 
 	updateItemHeightOnRender(element: ChatTreeItem, templateData: IChatListItemTemplate) {
@@ -1042,7 +1057,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				editorPool: this._editorPool,
 				diffEditorPool: this._diffEditorPool,
 				codeBlockModelCollection: this.codeBlockModelCollection,
-				mcpAppWebviewPool: this._mcpAppWebviewPool,
+				mcpAppWebviewPool: this._getMcpAppWebviewPool(templateData),
 				currentWidth: () => this._currentLayoutWidth,
 				get codeBlockStartIndex() {
 					return context.preceedingContentParts.reduce((acc, part) => acc + (part.codeblocks?.length ?? 0), 0);
