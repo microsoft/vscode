@@ -16,8 +16,8 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariableEntry, toPromptFileVariableEntry, toPromptTextVariableEntry, PromptFileVariableKind, IPromptTextVariableEntry, ChatRequestToolReferenceEntry, toToolVariableEntry } from '../chatVariableEntries.js';
-import { ILanguageModelToolsService, IToolAndToolSetEnablementMap, IToolData, VSCodeToolReference } from '../languageModelToolsService.js';
+import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariableEntry, toPromptFileVariableEntry, toPromptTextVariableEntry, PromptFileVariableKind, IPromptTextVariableEntry, ChatRequestToolReferenceEntry, toToolVariableEntry } from '../attachments/chatVariableEntries.js';
+import { ILanguageModelToolsService, IToolAndToolSetEnablementMap, IToolData, VSCodeToolReference } from '../tools/languageModelToolsService.js';
 import { PromptsConfig } from './config/config.js';
 import { isPromptOrInstructionsFile } from './config/promptFileLocations.js';
 import { PromptsType } from './promptTypes.js';
@@ -304,13 +304,13 @@ export class ComputeAutomaticInstructions {
 				entries.push('</instructions>', '', ''); // add trailing newline
 			}
 
-			const claudeSkills = await this._promptsService.findClaudeSkills(token);
-			if (claudeSkills && claudeSkills.length > 0) {
+			const agentSkills = await this._promptsService.findAgentSkills(token);
+			if (agentSkills && agentSkills.length > 0) {
 				entries.push('<skills>');
 				entries.push('Here is a list of skills that contain domain specific knowledge on a variety of topics.');
 				entries.push('Each skill comes with a description of the topic and a file path that contains the detailed instructions.');
 				entries.push(`When a user asks you to perform a task that falls within the domain of a skill, use the ${readTool.variable} tool to acquire the full instructions from the file URI.`);
-				for (const skill of claudeSkills) {
+				for (const skill of agentSkills) {
 					entries.push('<skill>');
 					entries.push(`<name>${skill.name}</name>`);
 					if (skill.description) {

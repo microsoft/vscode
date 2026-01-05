@@ -510,6 +510,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 					if (cachedPca.isBrokerAvailable && process.platform === 'darwin') {
 						redirectUri = Config.macOSBrokerRedirectUri;
 					}
+					this._logger.trace(`[getAllSessionsForPca] [${scopeData.scopeStr}] [${account.environment}] [${account.username}] acquiring token silently with${forceRefresh ? ' ' : 'out '}force refresh${claims ? ' and claims' : ''}...`);
 					const result = await cachedPca.acquireTokenSilent({
 						account,
 						authority,

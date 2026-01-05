@@ -22,9 +22,9 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../../
 import { TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService, ITerminalProfile } from '../../../../../../platform/terminal/common/terminal.js';
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
-import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
-import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService.js';
-import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress } from '../../../../chat/common/languageModelToolsService.js';
+import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
+import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
+import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import type { XtermTerminal } from '../../../../terminal/browser/xterm/xtermTerminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
@@ -44,9 +44,10 @@ import { CommandLineAutoApproveAnalyzer } from './commandLineAnalyzer/commandLin
 import { CommandLineFileWriteAnalyzer } from './commandLineAnalyzer/commandLineFileWriteAnalyzer.js';
 import { OutputMonitor } from './monitoring/outputMonitor.js';
 import { IPollingResult, OutputMonitorState } from './monitoring/types.js';
-import { LocalChatSessionUri } from '../../../../chat/common/chatUri.js';
+import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
 import type { ICommandLineRewriter } from './commandLineRewriter/commandLineRewriter.js';
 import { CommandLineCdPrefixRewriter } from './commandLineRewriter/commandLineCdPrefixRewriter.js';
+import { CommandLinePreventHistoryRewriter } from './commandLineRewriter/commandLinePreventHistoryRewriter.js';
 import { CommandLinePwshChainOperatorRewriter } from './commandLineRewriter/commandLinePwshChainOperatorRewriter.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IHistoryService } from '../../../../../services/history/common/history.js';
@@ -54,6 +55,7 @@ import { TerminalCommandArtifactCollector } from './terminalCommandArtifactColle
 import { isNumber, isString } from '../../../../../../base/common/types.js';
 import { ChatConfiguration } from '../../../../chat/common/constants.js';
 import { IChatWidgetService } from '../../../../chat/browser/chat.js';
+import { TerminalChatCommandId } from '../../../chat/browser/terminalChat.js';
 
 // #region Tool data
 
@@ -312,6 +314,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		this._commandLineRewriters = [
 			this._register(this._instantiationService.createInstance(CommandLineCdPrefixRewriter)),
 			this._register(this._instantiationService.createInstance(CommandLinePwshChainOperatorRewriter, this._treeSitterCommandParser)),
+			this._register(this._instantiationService.createInstance(CommandLinePreventHistoryRewriter)),
 		];
 		this._commandLineAnalyzers = [
 			this._register(this._instantiationService.createInstance(CommandLineFileWriteAnalyzer, this._treeSitterCommandParser, (message, args) => this._logService.info(`RunInTerminalTool#CommandLineFileWriteAnalyzer: ${message}`, args))),
@@ -443,10 +446,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		};
 		const commandLineAnalyzerResults = await Promise.all(this._commandLineAnalyzers.map(e => e.analyze(commandLineAnalyzerOptions)));
 
-		const disclaimersRaw = commandLineAnalyzerResults.filter(e => e.disclaimers).flatMap(e => e.disclaimers);
+		const disclaimersRaw = commandLineAnalyzerResults.map(e => e.disclaimers).filter(e => !!e).flatMap(e => e);
 		let disclaimer: IMarkdownString | undefined;
 		if (disclaimersRaw.length > 0) {
-			disclaimer = new MarkdownString(`$(${Codicon.info.id}) ` + disclaimersRaw.join(' '), { supportThemeIcons: true });
+			const disclaimerTexts = disclaimersRaw.map(d => typeof d === 'string' ? d : d.value);
+			const hasMarkdownDisclaimer = disclaimersRaw.some(d => typeof d !== 'string');
+			const mdOptions = hasMarkdownDisclaimer
+				? { supportThemeIcons: true, isTrusted: { enabledCommands: [TerminalChatCommandId.OpenTerminalSettingsLink] } }
+				: { supportThemeIcons: true };
+			disclaimer = new MarkdownString(`$(${Codicon.info.id}) ` + disclaimerTexts.join(' '), mdOptions);
 		}
 
 		const analyzersIsAutoApproveAllowed = commandLineAnalyzerResults.every(e => e.isAutoApproveAllowed);
@@ -457,9 +465,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			shellType = 'pwsh';
 		}
 
-		const isFinalAutoApproved = (
-			// Is the setting enabled and the user has opted-in
-			isAutoApproveAllowed &&
+		// Check if the command would be auto-approved based on rules (ignoring warning state)
+		const wouldBeAutoApproved = (
 			// Does at least one analyzer auto approve
 			commandLineAnalyzerResults.some(e => e.isAutoApproved) &&
 			// No analyzer denies auto approval
@@ -468,7 +475,20 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			analyzersIsAutoApproveAllowed
 		);
 
-		if (isFinalAutoApproved) {
+		const isFinalAutoApproved = (
+			// Is the setting enabled and the user has opted-in
+			isAutoApproveAllowed &&
+			// Would be auto-approved based on rules
+			wouldBeAutoApproved
+		);
+
+		// Pass auto approve info if the command:
+		// - Was auto approved
+		// - Would have be auto approved, but the opt-in warning was not accepted
+		// - Was denied explicitly by a rule
+		//
+		// This allows surfacing this information to the user.
+		if (isFinalAutoApproved || (isAutoApproveEnabled && commandLineAnalyzerResults.some(e => e.autoApproveInfo))) {
 			toolSpecificData.autoApproveInfo = commandLineAnalyzerResults.find(e => e.autoApproveInfo)?.autoApproveInfo;
 		}
 
@@ -792,7 +812,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	private async _initBackgroundTerminal(chatSessionId: string, termId: string, terminalToolSessionId: string | undefined, token: CancellationToken): Promise<IToolTerminal> {
 		this._logService.debug(`RunInTerminalTool: Creating background terminal with ID=${termId}`);
 		const profile = await this._profileFetcher.getCopilotProfile();
-		const toolTerminal = await this._terminalToolCreator.createTerminal(profile, token);
+		const os = await this._osBackend;
+		const toolTerminal = await this._terminalToolCreator.createTerminal(profile, os, token);
 		this._terminalChatService.registerTerminalInstanceWithToolSession(terminalToolSessionId, toolTerminal.instance);
 		this._terminalChatService.registerTerminalInstanceWithChatSession(chatSessionId, toolTerminal.instance);
 		this._registerInputListener(toolTerminal);
@@ -814,7 +835,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			return cachedTerminal;
 		}
 		const profile = await this._profileFetcher.getCopilotProfile();
-		const toolTerminal = await this._terminalToolCreator.createTerminal(profile, token);
+		const os = await this._osBackend;
+		const toolTerminal = await this._terminalToolCreator.createTerminal(profile, os, token);
 		this._terminalChatService.registerTerminalInstanceWithToolSession(terminalToolSessionId, toolTerminal.instance);
 		this._terminalChatService.registerTerminalInstanceWithChatSession(chatSessionId, toolTerminal.instance);
 		this._registerInputListener(toolTerminal);
@@ -957,7 +979,7 @@ class BackgroundTerminalExecution extends Disposable {
 		private readonly _xterm: XtermTerminal,
 		private readonly _commandLine: string,
 		readonly sessionId: string,
-		commandId?: string
+		commandId?: string,
 	) {
 		super();
 

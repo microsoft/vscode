@@ -7,6 +7,7 @@ import { BrowserWindow } from 'electron';
 import { Limiter } from '../../../base/common/async.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
+import { isURLDomainTrusted } from '../../url/common/trustedDomains.js';
 import { IWebContentExtractorOptions, IWebContentExtractorService, WebContentExtractResult } from '../common/webContentExtractor.js';
 import { WebContentCache } from './webContentCache.js';
 import { WebPageLoader } from './webPageLoader.js';
@@ -37,7 +38,13 @@ export class NativeWebContentExtractorService implements IWebContentExtractorSer
 			return cached;
 		}
 
-		const loader = new WebPageLoader((options) => new BrowserWindow(options), this._logger, uri, options);
+		const loader = new WebPageLoader(
+			(options) => new BrowserWindow(options),
+			this._logger,
+			uri,
+			options,
+			(uri) => isURLDomainTrusted(uri, options?.trustedDomains || []));
+
 		try {
 			const result = await loader.load();
 			this._webContentsCache.add(uri, options, result);
