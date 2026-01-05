@@ -46,6 +46,11 @@ interface IDetachedTerminalCommandMirror {
 	readonly onDidUpdate: Event<number>;
 }
 
+const enum ChatTerminalMirrorMetrics {
+	MirrorRowCount = 10,
+	MirrorColCountFallback = 80
+}
+
 export async function getCommandOutputSnapshot(
 	xtermTerminal: XtermTerminal,
 	command: ITerminalCommand,
@@ -220,8 +225,8 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 		const targetRef = this._terminalInstance?.targetRef ?? new ImmortalReference<TerminalLocation | undefined>(undefined);
 		const colorProvider = this._instantationService.createInstance(TerminalInstanceColorProvider, targetRef);
 		const detached = await this._terminalService.createDetachedTerminal({
-			cols: this._terminalInstance?.cols ?? 80,
-			rows: 10,
+			cols: this._terminalInstance?.cols ?? ChatTerminalMirrorMetrics.MirrorColCountFallback,
+			rows: ChatTerminalMirrorMetrics.MirrorRowCount,
 			readonly: true,
 			processInfo: new DetachedProcessInfo({ initialCwd: '' }),
 			colorProvider
@@ -359,8 +364,8 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 		this._output = output;
 		const processInfo = this._register(new DetachedProcessInfo({ initialCwd: '' }));
 		this._detachedTerminal = this._terminalService.createDetachedTerminal({
-			cols: 80,
-			rows: 10,
+			cols: ChatTerminalMirrorMetrics.MirrorColCountFallback,
+			rows: ChatTerminalMirrorMetrics.MirrorRowCount,
 			readonly: true,
 			processInfo,
 			disableOverviewRuler: true,
