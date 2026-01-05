@@ -62,7 +62,7 @@ import { IPreferencesService } from '../../../services/preferences/common/prefer
 import { CONTEXT_SYNC_ENABLEMENT } from '../../../services/userDataSync/common/userDataSync.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { WORKSPACE_TRUST_EXTENSION_SUPPORT } from '../../../services/workspaces/common/workspaceTrust.js';
-import { ILanguageModelToolsService } from '../../chat/common/languageModelToolsService.js';
+import { ILanguageModelToolsService } from '../../chat/common/tools/languageModelToolsService.js';
 import { CONTEXT_KEYBINDINGS_EDITOR } from '../../preferences/common/preferences.js';
 import { IWebview } from '../../webview/browser/webview.js';
 import { Query } from '../common/extensionQuery.js';
