@@ -18,6 +18,7 @@ import { getTelemetryLevel, isInternalTelemetry, isLoggingOnly, ITelemetryAppend
 import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { resolveWorkbenchCommonProperties } from './workbenchCommonProperties.js';
+import { experimentsEnabled } from '../common/workbenchTelemetryUtils.js';
 
 export class TelemetryService extends Disposable implements ITelemetryService {
 
@@ -89,6 +90,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 				appenders,
 				commonProperties: resolveWorkbenchCommonProperties(storageService, productService, isInternal, environmentService.remoteAuthority, environmentService.options && environmentService.options.resolveCommonTelemetryProperties),
 				sendErrorTelemetry: this.sendErrorTelemetry,
+				waitForExperimentProperties: experimentsEnabled(configurationService, productService, environmentService),
 			};
 
 			return this._register(new BaseTelemetryService(config, configurationService, productService));
