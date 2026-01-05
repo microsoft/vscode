@@ -27,6 +27,7 @@ import { TerminalTabsChatEntry } from './terminalTabsChatEntry.js';
 import { containsDragType } from '../../../../platform/dnd/browser/dnd.js';
 import { getTerminalResourcesFromDragEvent, parseTerminalUri } from './terminalUri.js';
 import type { IProcessDetails } from '../../../../platform/terminal/common/terminalProcess.js';
+import { TerminalContribContextKeyStrings } from '../terminalContribExports.js';
 
 const $ = dom.$;
 
@@ -143,7 +144,7 @@ export class TerminalTabbedView extends Disposable {
 		}));
 
 		this._register(contextKeyService.onDidChangeContext(e => {
-			if (e.affectsSome(new Set(['hasHiddenChatTerminals']))) {
+			if (e.affectsSome(new Set([TerminalContribContextKeyStrings.ChatHasHiddenTerminals]))) {
 				this._refreshShowTabs();
 				this._updateChatTerminalsEntry();
 			}
@@ -591,13 +592,12 @@ export class TerminalTabbedView extends Disposable {
 		// be focused. So wait for connection to finish, then focus.
 		const previousActiveElement = this._tabListElement.ownerDocument.activeElement;
 		if (previousActiveElement) {
-			// TODO: Improve lifecycle management this event should be disposed after first fire
-			this._register(this._terminalService.onDidChangeConnectionState(() => {
+			const listener = this._register(Event.once(this._terminalService.onDidChangeConnectionState)(() => {
 				// Only focus the terminal if the activeElement has not changed since focus() was called
-				// TODO: Hack
 				if (dom.isActiveElement(previousActiveElement)) {
 					this._focus();
 				}
+				this._store.delete(listener);
 			}));
 		}
 	}

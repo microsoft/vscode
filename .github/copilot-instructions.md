@@ -134,3 +134,5 @@ function f(x: number, y: string): void { }
 - If you create any temporary new files, scripts, or helper files for iteration, clean up these files by removing them at the end of the task
 - Never duplicate imports. Always reuse existing imports if they are present.
 - Do not use `any` or `unknown` as the type for variables, parameters, or return values unless absolutely necessary. If they need type annotations, they should have proper types or interfaces defined.
+- When adding file watching, prefer correlated file watchers (via fileService.createWatcher) to shared ones.
+- When adding tooltips to UI elements, prefer the use of IHoverService service.

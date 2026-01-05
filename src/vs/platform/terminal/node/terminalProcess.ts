@@ -20,7 +20,6 @@ import { ChildProcessMonitor } from './childProcessMonitor.js';
 import { getShellIntegrationInjection, getWindowsBuildNumber, IShellIntegrationConfigInjection } from './terminalEnvironment.js';
 import { WindowsShellHelper } from './windowsShellHelper.js';
 import { IPty, IPtyForkOptions, IWindowsPtyForkOptions, spawn } from 'node-pty';
-import { chunkInput } from '../common/terminalProcess.js';
 import { isNumber } from '../../../base/common/types.js';
 
 const enum ShutdownConstants {
@@ -57,15 +56,6 @@ const enum Constants {
 	 * interval.
 	 */
 	KillSpawnSpacingDuration = 50,
-	/**
-	 * How long to wait between chunk writes.
-	 */
-	WriteInterval = 5,
-}
-
-interface IWriteObject {
-	data: string;
-	isBinary: boolean;
 }
 
 const posixShellTypeMap = new Map<string, PosixShellType>([
@@ -84,7 +74,7 @@ const generalShellTypeMap = new Map<string, GeneralShellType>([
 	['julia', GeneralShellType.Julia],
 	['nu', GeneralShellType.NuShell],
 	['node', GeneralShellType.Node],
-
+	['xonsh', GeneralShellType.Xonsh],
 ]);
 export class TerminalProcess extends Disposable implements ITerminalChildProcess {
 	readonly id = 0;
@@ -113,8 +103,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private _windowsShellHelper: WindowsShellHelper | undefined;
 	private _childProcessMonitor: ChildProcessMonitor | undefined;
 	private _titleInterval: Timeout | undefined;
-	private _writeQueue: IWriteObject[] = [];
-	private _writeTimeout: Timeout | undefined;
 	private _delayedResizer: DelayedResizer | undefined;
 	private readonly _initialCwd: string;
 	private readonly _ptyOptions: IPtyForkOptions | IWindowsPtyForkOptions;
@@ -179,7 +167,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		// Delay resizes to avoid conpty not respecting very early resize calls
 		if (isWindows) {
 			if (useConpty && cols === 0 && rows === 0 && this.shellLaunchConfig.executable?.endsWith('Git\\bin\\bash.exe')) {
-				this._delayedResizer = new DelayedResizer();
+				this._delayedResizer = this._register(new DelayedResizer());
 				this._register(this._delayedResizer.onTrigger(dimensions => {
 					this._delayedResizer?.dispose();
 					this._delayedResizer = undefined;
@@ -189,11 +177,11 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				}));
 			}
 			// WindowsShellHelper is used to fetch the process title and shell type
-			this.onProcessReady(e => {
+			this._register(this.onProcessReady(e => {
 				this._windowsShellHelper = this._register(new WindowsShellHelper(e.pid));
 				this._register(this._windowsShellHelper.onShellTypeChanged(e => this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: e })));
 				this._register(this._windowsShellHelper.onShellNameChanged(e => this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: e })));
-			});
+			}));
 		}
 		this._register(toDisposable(() => {
 			if (this._titleInterval) {
@@ -471,13 +459,13 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	input(data: string, isBinary: boolean = false): void {
-		if (this._store.isDisposed || !this._ptyProcess) {
-			return;
+		this._logService.trace('node-pty.IPty#write', data, isBinary);
+		if (isBinary) {
+			this._ptyProcess!.write(Buffer.from(data, 'binary'));
+		} else {
+			this._ptyProcess!.write(data);
 		}
-		this._writeQueue.push(...chunkInput(data).map(e => {
-			return { isBinary, data: e };
-		}));
-		this._startWrite();
+		this._childProcessMonitor?.handleInput();
 	}
 
 	sendSignal(signal: string): void {
@@ -520,40 +508,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		if (type === ProcessPropertyType.FixedDimensions) {
 			this._properties.fixedDimensions = value as IProcessPropertyMap[ProcessPropertyType.FixedDimensions];
 		}
-	}
-
-	private _startWrite(): void {
-		// Don't write if it's already queued of is there is nothing to write
-		if (this._writeTimeout !== undefined || this._writeQueue.length === 0) {
-			return;
-		}
-
-		this._doWrite();
-
-		// Don't queue more writes if the queue is empty
-		if (this._writeQueue.length === 0) {
-			this._writeTimeout = undefined;
-			return;
-		}
-
-		// Queue the next write
-		this._writeTimeout = setTimeout(() => {
-			this._writeTimeout = undefined;
-			this._startWrite();
-		}, Constants.WriteInterval);
-	}
-
-	private _doWrite(): void {
-		const object = this._writeQueue.shift()!;
-		this._logService.trace('node-pty.IPty#write', object.data);
-		if (object.isBinary) {
-			// TODO: node-pty's write should accept a Buffer, needs https://github.com/microsoft/node-pty/pull/812
-			// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
-			this._ptyProcess!.write(Buffer.from(object.data, 'binary') as any);
-		} else {
-			this._ptyProcess!.write(object.data);
-		}
-		this._childProcessMonitor?.handleInput();
 	}
 
 	resize(cols: number, rows: number): void {
