@@ -881,7 +881,8 @@ class ChatTerminalToolOutputSection extends Disposable {
 			this._disposeLiveMirror();
 			return false;
 		}
-		this._mirror = this._register(this._instantiationService.createInstance(DetachedTerminalCommandMirror, liveTerminalInstance, command));
+		await liveTerminalInstance.xtermReadyPromise;
+		this._mirror = this._register(this._instantiationService.createInstance(DetachedTerminalCommandMirror, liveTerminalInstance.xterm, liveTerminalInstance?.targetRef, command));
 		this._register(this._mirror.onDidUpdate(lineCount => {
 			this._layoutOutput(lineCount);
 			this._scrollOutputToBottom();

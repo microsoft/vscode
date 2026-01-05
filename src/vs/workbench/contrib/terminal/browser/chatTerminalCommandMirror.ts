@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, ImmortalReference, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, ImmortalReference, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import type { IMarker as IXtermMarker, Terminal as RawXtermTerminal } from '@xterm/xterm';
 import type { ITerminalCommand } from '../../../../platform/terminal/common/capabilities/capabilities.js';
-import { ITerminalInstance, ITerminalService, type IDetachedTerminalInstance } from './terminal.js';
+import { ITerminalService, type IDetachedTerminalInstance } from './terminal.js';
 import { DetachedProcessInfo } from './detachedTerminal.js';
 import { XtermTerminal } from './xterm/xtermTerminal.js';
 import { TERMINAL_BACKGROUND_COLOR } from '../common/terminalColorRegistry.js';
@@ -142,10 +142,11 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 	private _sourceRaw: RawXtermTerminal | undefined;
 
 	constructor(
-		private readonly _terminalInstance: ITerminalInstance,
+		private readonly _xtermTerminal: XtermTerminal,
+		private readonly _terminalLocation: IReference<TerminalLocation | undefined>,
 		private readonly _command: ITerminalCommand,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@IInstantiationService private readonly _instantationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
 		this._register(toDisposable(() => this._stopStreaming()));
@@ -162,13 +163,9 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 
 	async renderCommand(): Promise<{ lineCount?: number } | undefined> {
 		const detached = await this._getOrCreateTerminal();
-		const sourceXterm = await this._terminalInstance.xtermReadyPromise;
-		if (!sourceXterm) {
-			return undefined;
-		}
 		let vt;
 		try {
-			vt = await this._getCommandOutputAsVT(sourceXterm);
+			vt = await this._getCommandOutputAsVT(this._xtermTerminal);
 		} catch {
 			// ignore and treat as no output
 		}
@@ -190,8 +187,7 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 		this._lastVT = vt.text;
 		this._lineCount = vt.lineCount;
 
-		const xterm = await this._terminalInstance.xtermReadyPromise;
-		const sourceRaw = xterm?.raw;
+		const sourceRaw = this._xtermTerminal.raw;
 		if (sourceRaw) {
 			this._sourceRaw = sourceRaw;
 			this._lastUpToDateCursorY = this._getAbsoluteCursorY(sourceRaw);
@@ -222,10 +218,10 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 		if (this._detachedTerminal) {
 			return this._detachedTerminal;
 		}
-		const targetRef = this._terminalInstance?.targetRef ?? new ImmortalReference<TerminalLocation | undefined>(undefined);
-		const colorProvider = this._instantationService.createInstance(TerminalInstanceColorProvider, targetRef);
+		const targetRef = this._terminalLocation ?? new ImmortalReference<TerminalLocation | undefined>(undefined);
+		const colorProvider = this._instantiationService.createInstance(TerminalInstanceColorProvider, targetRef);
 		const detached = await this._terminalService.createDetachedTerminal({
-			cols: this._terminalInstance?.cols ?? ChatTerminalMirrorMetrics.MirrorColCountFallback,
+			cols: this._xtermTerminal.raw.cols ?? ChatTerminalMirrorMetrics.MirrorColCountFallback,
 			rows: ChatTerminalMirrorMetrics.MirrorRowCount,
 			readonly: true,
 			processInfo: new DetachedProcessInfo({ initialCwd: '' }),
@@ -242,7 +238,7 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 		}
 		this._isStreaming = true;
 		this._streamingDisposables.add(Event.any(raw.onCursorMove, raw.onLineFeed, raw.onWriteParsed)(() => this._handleCursorEvent()));
-		this._streamingDisposables.add(this._terminalInstance.onData(() => this._handleCursorEvent()));
+		this._streamingDisposables.add(this._xtermTerminal.raw.onData(() => this._handleCursorEvent()));
 	}
 
 	private _stopStreaming(): void {
@@ -284,11 +280,10 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 	}
 
 	private async _doFlushDirtyRange(): Promise<void> {
-		const sourceXterm = await this._terminalInstance.xtermReadyPromise;
-		const sourceRaw = sourceXterm?.raw;
+		const sourceRaw = this._xtermTerminal.raw;
 		const detached = this._detachedTerminal ?? await this._getOrCreateTerminal();
 		const detachedRaw = detached.xterm;
-		if (!sourceRaw || !detachedRaw || !sourceXterm) {
+		if (!sourceRaw || !detachedRaw) {
 			return;
 		}
 
@@ -300,7 +295,7 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 
 		const startLine = Math.min(previousCursor, startCandidate);
 		// Ensure we resolve any pending flush even when no actual new output is available.
-		const vt = await this._getCommandOutputAsVT(sourceXterm);
+		const vt = await this._getCommandOutputAsVT(this._xtermTerminal);
 		if (!vt) {
 			return;
 		}
