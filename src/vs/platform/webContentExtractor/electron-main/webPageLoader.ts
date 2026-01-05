@@ -5,6 +5,7 @@
 
 import type { BeforeSendResponse, BrowserWindow, BrowserWindowConstructorOptions, Event, OnBeforeSendHeadersListenerDetails } from 'electron';
 import { Queue, raceTimeout, TimeoutTimer } from '../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { createSingleCallFunction } from '../../../base/common/functional.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
@@ -331,14 +332,23 @@ export class WebPageLoader extends Disposable {
 			const title = this._window.webContents.getTitle();
 
 			let result = '';
-			await raceTimeout((async () => {
-				result = await this.extractAccessibilityTreeContent() ?? '';
-				if (result.length < WebPageLoader.MIN_CONTENT_LENGTH) {
-					this.trace(`Accessibility tree extraction yielded insufficient content, trying main DOM element extraction`);
-					const domContent = await this.extractMainDomElementContent() ?? '';
-					result = domContent.length > result.length ? domContent : result;
-				}
-			})(), WebPageLoader.EXTRACT_CONTENT_TIMEOUT);
+			const cts = new CancellationTokenSource();
+			try {
+				await raceTimeout((async () => {
+					if (!cts.token.isCancellationRequested) {
+						result = await this.extractAccessibilityTreeContent() ?? '';
+					}
+
+					if (!cts.token.isCancellationRequested && result.length < WebPageLoader.MIN_CONTENT_LENGTH) {
+						this.trace(`Accessibility tree extraction yielded insufficient content, trying main DOM element extraction`);
+						const domContent = await this.extractMainDomElementContent() ?? '';
+						result = domContent.length > result.length ? domContent : result;
+					}
+				})(), WebPageLoader.EXTRACT_CONTENT_TIMEOUT);
+			} finally {
+				cts.cancel();
+				cts.dispose();
+			}
 
 			if (result.length === 0) {
 				this._onResult({ status: 'error', error: 'Failed to extract meaningful content from the web page' });
