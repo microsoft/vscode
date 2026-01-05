@@ -39,6 +39,7 @@ import { RunInTerminalTool, type IRunInTerminalInputParams } from '../../browser
 import { ShellIntegrationQuality } from '../../browser/toolTerminalCreator.js';
 import { terminalChatAgentToolsConfiguration, TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { TerminalChatService } from '../../../chat/browser/terminalChatService.js';
+import type { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 
 class TestRunInTerminalTool extends RunInTerminalTool {
 	protected override _osBackend: Promise<OperatingSystem> = Promise.resolve(OperatingSystem.Windows);
@@ -1215,7 +1216,7 @@ suite('RunInTerminalTool', () => {
 	});
 
 	suite('denial info in disclaimers', () => {
-		function getDisclaimerValue(disclaimer: string | import('../../../../../../base/common/htmlContent.js').IMarkdownString | undefined): string | undefined {
+		function getDisclaimerValue(disclaimer: string | IMarkdownString | undefined): string | undefined {
 			if (!disclaimer) {
 				return undefined;
 			}
