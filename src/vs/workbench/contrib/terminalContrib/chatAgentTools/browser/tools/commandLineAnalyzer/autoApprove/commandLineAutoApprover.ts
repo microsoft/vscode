@@ -3,27 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../../base/common/lifecycle.js';
-import type { OperatingSystem } from '../../../../../base/common/platform.js';
-import { escapeRegExpCharacters, regExpLeadsToEndlessLoop } from '../../../../../base/common/strings.js';
-import { isObject } from '../../../../../base/common/types.js';
-import { structuralEquals } from '../../../../../base/common/equals.js';
-import { ConfigurationTarget, IConfigurationService, type IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
-import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
-import { isPowerShell } from './runInTerminalHelpers.js';
-
-export interface IAutoApproveRule {
-	regex: RegExp;
-	regexCaseInsensitive: RegExp;
-	sourceText: string;
-	sourceTarget: ConfigurationTarget;
-	isDefaultRule: boolean;
-}
+import { structuralEquals } from '../../../../../../../../base/common/equals.js';
+import { Disposable } from '../../../../../../../../base/common/lifecycle.js';
+import type { OperatingSystem } from '../../../../../../../../base/common/platform.js';
+import { escapeRegExpCharacters, regExpLeadsToEndlessLoop } from '../../../../../../../../base/common/strings.js';
+import { isObject } from '../../../../../../../../base/common/types.js';
+import type { URI } from '../../../../../../../../base/common/uri.js';
+import { ConfigurationTarget, IConfigurationService, type IConfigurationValue } from '../../../../../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService } from '../../../../../../../../platform/instantiation/common/instantiation.js';
+import { ITerminalChatService } from '../../../../../../terminal/browser/terminal.js';
+import { TerminalChatAgentToolsSettingId } from '../../../../common/terminalChatAgentToolsConfiguration.js';
+import { isPowerShell } from '../../../runInTerminalHelpers.js';
+import type { IAutoApproveRule, INpmScriptAutoApproveRule } from '../commandLineAnalyzer.js';
+import { NpmScriptAutoApprover } from './npmScriptAutoApprover.js';
 
 export interface ICommandApprovalResultWithReason {
 	result: ICommandApprovalResult;
 	reason: string;
-	rule?: IAutoApproveRule;
+	rule?: IAutoApproveRule | INpmScriptAutoApproveRule;
 }
 
 export type ICommandApprovalResult = 'approved' | 'denied' | 'noMatch';
@@ -36,11 +33,15 @@ export class CommandLineAutoApprover extends Disposable {
 	private _allowListRules: IAutoApproveRule[] = [];
 	private _allowListCommandLineRules: IAutoApproveRule[] = [];
 	private _denyListCommandLineRules: IAutoApproveRule[] = [];
+	private readonly _npmScriptAutoApprover: NpmScriptAutoApprover;
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
 	) {
 		super();
+		this._npmScriptAutoApprover = this._register(instantiationService.createInstance(NpmScriptAutoApprover));
 		this.updateConfiguration();
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (
@@ -76,7 +77,7 @@ export class CommandLineAutoApprover extends Disposable {
 		this._denyListCommandLineRules = denyListCommandLineRules;
 	}
 
-	isCommandAutoApproved(command: string, shell: string, os: OperatingSystem): ICommandApprovalResultWithReason {
+	async isCommandAutoApproved(command: string, shell: string, os: OperatingSystem, cwd: URI | undefined, chatSessionId?: string): Promise<ICommandApprovalResultWithReason> {
 		// Check if the command has a transient environment variable assignment prefix which we
 		// always deny for now as it can easily lead to execute other commands
 		if (transientEnvVarRegex.test(command)) {
@@ -86,7 +87,7 @@ export class CommandLineAutoApprover extends Disposable {
 			};
 		}
 
-		// Check the deny list to see if this command requires explicit approval
+		// Check the config deny list to see if this command requires explicit approval
 		for (const rule of this._denyListRules) {
 			if (this._commandMatchesRule(rule, command, shell, os)) {
 				return {
@@ -97,7 +98,18 @@ export class CommandLineAutoApprover extends Disposable {
 			}
 		}
 
-		// Check the allow list to see if the command is allowed to run without explicit approval
+		// Check session allow rules (session deny rules can't exist)
+		for (const rule of this._getSessionRules(chatSessionId).allowListRules) {
+			if (this._commandMatchesRule(rule, command, shell, os)) {
+				return {
+					result: 'approved',
+					rule,
+					reason: `Command '${command}' is approved by session allow list rule: ${rule.sourceText}`
+				};
+			}
+		}
+
+		// Check the config allow list to see if the command is allowed to run without explicit approval
 		for (const rule of this._allowListRules) {
 			if (this._commandMatchesRule(rule, command, shell, os)) {
 				return {
@@ -106,6 +118,16 @@ export class CommandLineAutoApprover extends Disposable {
 					reason: `Command '${command}' is approved by allow list rule: ${rule.sourceText}`
 				};
 			}
+		}
+
+		// Check if this is an npm/yarn/pnpm script defined in package.json
+		const npmScriptResult = await this._npmScriptAutoApprover.isCommandAutoApproved(command, cwd);
+		if (npmScriptResult.isAutoApproved) {
+			return {
+				result: 'approved',
+				rule: { type: 'npmScript', npmScriptResult },
+				reason: `Command '${command}' is approved as npm script '${npmScriptResult.scriptName}' is defined in package.json`
+			};
 		}
 
 		// TODO: LLM-based auto-approval https://github.com/microsoft/vscode/issues/253267
@@ -117,8 +139,8 @@ export class CommandLineAutoApprover extends Disposable {
 		};
 	}
 
-	isCommandLineAutoApproved(commandLine: string): ICommandApprovalResultWithReason {
-		// Check the deny list first to see if this command line requires explicit approval
+	isCommandLineAutoApproved(commandLine: string, chatSessionId?: string): ICommandApprovalResultWithReason {
+		// Check the config deny list first to see if this command line requires explicit approval
 		for (const rule of this._denyListCommandLineRules) {
 			if (rule.regex.test(commandLine)) {
 				return {
@@ -129,7 +151,18 @@ export class CommandLineAutoApprover extends Disposable {
 			}
 		}
 
-		// Check if the full command line matches any of the allow list command line regexes
+		// Check session allow list (session deny rules can't exist)
+		for (const rule of this._getSessionRules(chatSessionId).allowListCommandLineRules) {
+			if (rule.regex.test(commandLine)) {
+				return {
+					result: 'approved',
+					rule,
+					reason: `Command line '${commandLine}' is approved by session allow list rule: ${rule.sourceText}`
+				};
+			}
+		}
+
+		// Check if the full command line matches any of the config allow list command line regexes
 		for (const rule of this._allowListCommandLineRules) {
 			if (rule.regex.test(commandLine)) {
 				return {
@@ -143,6 +176,54 @@ export class CommandLineAutoApprover extends Disposable {
 			result: 'noMatch',
 			reason: `Command line '${commandLine}' has no matching auto approve entries`
 		};
+	}
+
+	private _getSessionRules(chatSessionId?: string): {
+		denyListRules: IAutoApproveRule[];
+		allowListRules: IAutoApproveRule[];
+		allowListCommandLineRules: IAutoApproveRule[];
+		denyListCommandLineRules: IAutoApproveRule[];
+	} {
+		const denyListRules: IAutoApproveRule[] = [];
+		const allowListRules: IAutoApproveRule[] = [];
+		const allowListCommandLineRules: IAutoApproveRule[] = [];
+		const denyListCommandLineRules: IAutoApproveRule[] = [];
+
+		if (!chatSessionId) {
+			return { denyListRules, allowListRules, allowListCommandLineRules, denyListCommandLineRules };
+		}
+
+		const sessionRulesConfig = this._terminalChatService.getSessionAutoApproveRules(chatSessionId);
+		for (const [key, value] of Object.entries(sessionRulesConfig)) {
+			if (typeof value === 'boolean') {
+				const { regex, regexCaseInsensitive } = this._convertAutoApproveEntryToRegex(key);
+				if (value === true) {
+					allowListRules.push({ regex, regexCaseInsensitive, sourceText: key, sourceTarget: 'session', isDefaultRule: false });
+				} else if (value === false) {
+					denyListRules.push({ regex, regexCaseInsensitive, sourceText: key, sourceTarget: 'session', isDefaultRule: false });
+				}
+			} else if (typeof value === 'object' && value !== null) {
+				const objectValue = value as { approve?: boolean; matchCommandLine?: boolean };
+				if (typeof objectValue.approve === 'boolean') {
+					const { regex, regexCaseInsensitive } = this._convertAutoApproveEntryToRegex(key);
+					if (objectValue.approve === true) {
+						if (objectValue.matchCommandLine === true) {
+							allowListCommandLineRules.push({ regex, regexCaseInsensitive, sourceText: key, sourceTarget: 'session', isDefaultRule: false });
+						} else {
+							allowListRules.push({ regex, regexCaseInsensitive, sourceText: key, sourceTarget: 'session', isDefaultRule: false });
+						}
+					} else if (objectValue.approve === false) {
+						if (objectValue.matchCommandLine === true) {
+							denyListCommandLineRules.push({ regex, regexCaseInsensitive, sourceText: key, sourceTarget: 'session', isDefaultRule: false });
+						} else {
+							denyListRules.push({ regex, regexCaseInsensitive, sourceText: key, sourceTarget: 'session', isDefaultRule: false });
+						}
+					}
+				}
+			}
+		}
+
+		return { denyListRules, allowListRules, allowListCommandLineRules, denyListCommandLineRules };
 	}
 
 	private _commandMatchesRule(rule: IAutoApproveRule, command: string, shell: string, os: OperatingSystem): boolean {
