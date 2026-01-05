@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, getActiveDocument } from '../../../../base/browser/dom.js';
+import { $, getActiveDocument, getActiveWindow } from '../../../../base/browser/dom.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import './media/decorationCssRuleExtractor.css';
 
@@ -80,5 +80,15 @@ export class DecorationCssRuleExtractor extends Disposable {
 		}
 
 		return rules;
+	}
+
+	/**
+	 * Resolves a CSS variable to its computed value using the container element.
+	 */
+	resolveCssVariable(canvas: HTMLCanvasElement, variableName: string): string {
+		canvas.appendChild(this._container);
+		const result = getActiveWindow().getComputedStyle(this._container).getPropertyValue(variableName).trim();
+		canvas.removeChild(this._container);
+		return result;
 	}
 }
