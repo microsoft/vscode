@@ -113,6 +113,7 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 		this._context = newContext;
 	}
 
+	render(container: HTMLElement, actionUpdated?: (rerender: boolean) => void): void {
 		const element = this.element = container;
 		this._renderDisposables.add(Gesture.addTarget(container));
 
