@@ -754,6 +754,65 @@ function registerSplitEditorCommands() {
 	});
 }
 
+function registerMoveEditorCommands() {
+	[
+		{ id: MOVE_EDITOR_INTO_ABOVE_GROUP, to: 'up' as const },
+		{ id: MOVE_EDITOR_INTO_BELOW_GROUP, to: 'down' as const },
+		{ id: MOVE_EDITOR_INTO_LEFT_GROUP, to: 'left' as const },
+		{ id: MOVE_EDITOR_INTO_RIGHT_GROUP, to: 'right' as const }
+	].forEach(({ id, to }) => {
+		CommandsRegistry.registerCommand(id, function (accessor, ...args) {
+			const resolvedContext = resolveCommandsContext(args, accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IListService));
+			moveEditorsToGroup(resolvedContext, to, accessor);
+		});
+	});
+}
+
+function moveEditorsToGroup(resolvedContext: IResolvedEditorCommandsContext, direction: 'up' | 'down' | 'left' | 'right', accessor: ServicesAccessor): void {
+	if (!resolvedContext.groupedEditors.length) {
+		return;
+	}
+
+	// Only support moving from one source group
+	const { group: sourceGroup, editors } = resolvedContext.groupedEditors[0];
+	const editorGroupsService = accessor.get(IEditorGroupsService);
+
+	let targetGroup: IEditorGroup | undefined;
+
+	switch (direction) {
+		case 'left':
+			targetGroup = editorGroupsService.findGroup({ direction: GroupDirection.LEFT }, sourceGroup);
+			if (!targetGroup) {
+				targetGroup = editorGroupsService.addGroup(sourceGroup, GroupDirection.LEFT);
+			}
+			break;
+		case 'right':
+			targetGroup = editorGroupsService.findGroup({ direction: GroupDirection.RIGHT }, sourceGroup);
+			if (!targetGroup) {
+				targetGroup = editorGroupsService.addGroup(sourceGroup, GroupDirection.RIGHT);
+			}
+			break;
+		case 'up':
+			targetGroup = editorGroupsService.findGroup({ direction: GroupDirection.UP }, sourceGroup);
+			if (!targetGroup) {
+				targetGroup = editorGroupsService.addGroup(sourceGroup, GroupDirection.UP);
+			}
+			break;
+		case 'down':
+			targetGroup = editorGroupsService.findGroup({ direction: GroupDirection.DOWN }, sourceGroup);
+			if (!targetGroup) {
+				targetGroup = editorGroupsService.addGroup(sourceGroup, GroupDirection.DOWN);
+			}
+			break;
+	}
+
+	if (targetGroup) {
+		const editorsWithOptions = prepareMoveCopyEditors(sourceGroup, editors);
+		sourceGroup.moveEditors(editorsWithOptions, targetGroup);
+		targetGroup.focus();
+	}
+}
+
 function registerCloseEditorCommands() {
 
 	// A special handler for "Close Editor" depending on context
@@ -1397,5 +1456,6 @@ export function setup(): void {
 	registerFocusSideEditorsCommands();
 	registerFocusEditorGroupAtIndexCommands();
 	registerSplitEditorCommands();
+	registerMoveEditorCommands();
 	registerFocusEditorGroupWihoutWrapCommands();
 }
