@@ -77,11 +77,8 @@ export class ToolBar extends Disposable {
 	private hiddenActions: { action: IAction; size: number }[] = [];
 	private readonly disposables = this._register(new DisposableStore());
 
-	private readonly _onDidRerenderItem = this._register(new Emitter<void>());
-	public readonly onDidRerenderItem = this._onDidRerenderItem.event;
-
-	private readonly _onDidRerenderItem = this._register(new Emitter<void>());
-	public readonly onDidRerenderItem = this._onDidRerenderItem.event;
+	private readonly _onDidChangeToolbarSize = this._register(new Emitter<void>());
+	public readonly onDidChangeToolbarSize = this._onDidChangeToolbarSize.event;
 
 	constructor(private readonly container: HTMLElement, contextMenuProvider: IContextMenuProvider, options: IToolBarOptions = { orientation: ActionsOrientation.HORIZONTAL }) {
 		super();
@@ -162,7 +159,7 @@ export class ToolBar extends Disposable {
 		}));
 
 		this._register(this.actionBar.onDidRerenderItem(() => {
-			this._onDidRerenderItem.fire();
+			this._onDidChangeToolbarSize.fire();
 		}));
 
 		// Responsive support
@@ -302,6 +299,8 @@ export class ToolBar extends Disposable {
 		// takes precedence over the action label.
 		const actionBarWidth = () => this.actionBar.length() * ACTION_MIN_WIDTH;
 
+		const initialActionBarWidth = actionBarWidth();
+
 		// Action bar fits and there are no hidden actions to show
 		if (actionBarWidth() <= containerWidth && this.hiddenActions.length === 0) {
 			return;
@@ -377,6 +376,10 @@ export class ToolBar extends Disposable {
 		if (this.originalSecondaryActions.length > 0 || hiddenActions.length > 0) {
 			const secondaryActions = this.originalSecondaryActions.slice(0);
 			this.toggleMenuAction.menuActions = Separator.join(hiddenActions, secondaryActions);
+		}
+
+		if (initialActionBarWidth !== actionBarWidth()) {
+			this._onDidChangeToolbarSize.fire();
 		}
 	}
 
