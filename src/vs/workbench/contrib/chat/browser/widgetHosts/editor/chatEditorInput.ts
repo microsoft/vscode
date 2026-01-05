@@ -5,7 +5,7 @@
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Disposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { truncate } from '../../../../../../base/common/strings.js';
@@ -17,26 +17,20 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { registerIcon } from '../../../../../../platform/theme/common/iconRegistry.js';
 import { EditorInputCapabilities, IEditorIdentifier, IEditorSerializer, IUntypedEditorInput, Verbosity } from '../../../../../common/editor.js';
 import { EditorInput, IEditorCloseHandler } from '../../../../../common/editor/editorInput.js';
-import { IChatEditingSession, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
-import { IChatModel } from '../../../common/model/chatModel.js';
 import { IChatModelReference, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
-import { LocalChatSessionUri, getChatSessionType } from '../../../common/model/chatUri.js';
 import { ChatAgentLocation, ChatEditorTitleMaxLength } from '../../../common/constants.js';
+import { IChatEditingSession, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
+import { IChatModel } from '../../../common/model/chatModel.js';
+import { LocalChatSessionUri, getChatSessionType } from '../../../common/model/chatUri.js';
 import { IClearEditingSessionConfirmationOptions } from '../../actions/chatActions.js';
 import type { IChatEditorOptions } from './chatEditor.js';
 
 const ChatEditorIcon = registerIcon('chat-editor-label-icon', Codicon.chatSparkle, nls.localize('chatEditorLabelIcon', 'Icon of the chat editor label.'));
 
 export class ChatEditorInput extends EditorInput implements IEditorCloseHandler {
-	/** Maps input name strings to sets of active editor counts */
-	static readonly countsInUseMap = new Map<string, Set<number>>();
-
 	static readonly TypeID: string = 'workbench.input.chatSession';
 	static readonly EditorID: string = 'workbench.editor.chatSession';
-
-	private readonly inputCount: number;
-	private readonly inputName: string;
 
 	private _sessionResource: URI | undefined;
 
@@ -47,7 +41,6 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	 */
 	public get sessionResource(): URI | undefined { return this._sessionResource; }
 
-	private hasCustomTitle: boolean = false;
 	private didTransferOutEditingSession = false;
 	private cachedIcon: ThemeIcon | URI | undefined;
 
@@ -59,15 +52,6 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 
 	static getNewEditorUri(): URI {
 		return ChatEditorUri.getNewEditorUri();
-	}
-
-	private static getNextCount(inputName: string): number {
-		let count = 0;
-		while (ChatEditorInput.countsInUseMap.get(inputName)?.has(count)) {
-			count++;
-		}
-
-		return count;
 	}
 
 	constructor(
@@ -92,36 +76,6 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 			this._sessionResource = resource;
 		} else {
 			this._sessionResource = resource;
-		}
-
-		// Check if we already have a custom title for this session
-		const hasExistingCustomTitle = this._sessionResource && (
-			this.chatService.getSessionTitle(this._sessionResource)?.trim()
-		);
-
-		this.hasCustomTitle = Boolean(hasExistingCustomTitle);
-
-		// Input counts are unique to the displayed fallback title
-		this.inputName = options.title?.fallback ?? '';
-		if (!ChatEditorInput.countsInUseMap.has(this.inputName)) {
-			ChatEditorInput.countsInUseMap.set(this.inputName, new Set());
-		}
-
-		// Only allocate a count if we don't already have a custom title
-		if (!this.hasCustomTitle) {
-			this.inputCount = ChatEditorInput.getNextCount(this.inputName);
-			ChatEditorInput.countsInUseMap.get(this.inputName)?.add(this.inputCount);
-			this._register(toDisposable(() => {
-				// Only remove if we haven't already removed it due to custom title
-				if (!this.hasCustomTitle) {
-					ChatEditorInput.countsInUseMap.get(this.inputName)?.delete(this.inputCount);
-					if (ChatEditorInput.countsInUseMap.get(this.inputName)?.size === 0) {
-						ChatEditorInput.countsInUseMap.delete(this.inputName);
-					}
-				}
-			}));
-		} else {
-			this.inputCount = 0; // Not used when we have a custom title
 		}
 	}
 
@@ -195,9 +149,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		}
 
 		// Fall back to default naming pattern
-		const inputCountSuffix = (this.inputCount > 0 ? ` ${this.inputCount + 1}` : '');
-		const defaultName = this.options.title?.fallback ?? nls.localize('chatEditorName', "Chat");
-		return defaultName + inputCountSuffix;
+		return this.options.title?.fallback ?? nls.localize('chatEditorName', "Chat");
 	}
 
 	override getTitle(verbosity?: Verbosity): string {
@@ -277,14 +229,6 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		this._sessionResource = this.model.sessionResource;
 
 		this._register(this.model.onDidChange((e) => {
-			// When a custom title is set, we no longer need the numeric count
-			if (e && e.kind === 'setCustomTitle' && !this.hasCustomTitle) {
-				this.hasCustomTitle = true;
-				ChatEditorInput.countsInUseMap.get(this.inputName)?.delete(this.inputCount);
-				if (ChatEditorInput.countsInUseMap.get(this.inputName)?.size === 0) {
-					ChatEditorInput.countsInUseMap.delete(this.inputName);
-				}
-			}
 			// Invalidate icon cache when label changes
 			this.cachedIcon = undefined;
 			this._onDidChangeLabel.fire();

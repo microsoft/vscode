@@ -1555,7 +1555,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				}, context, templateData);
 
 				if (thinkingPart instanceof ChatThinkingContentPart) {
-					thinkingPart.appendItem(part?.domNode, toolInvocation.toolId, toolInvocation);
+					thinkingPart.appendItem(part?.domNode, toolInvocation.toolId, toolInvocation, templateData.value);
 					thinkingPart.addDisposable(part);
 					thinkingPart.addDisposable(thinkingPart.onDidChangeHeight(() => {
 						this.updateItemHeight(templateData);
@@ -1567,7 +1567,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 			if (this.shouldPinPart(toolInvocation, context.element)) {
 				if (lastThinking && part?.domNode && toolInvocation.presentation !== 'hidden') {
-					lastThinking.appendItem(part?.domNode, toolInvocation.toolId, toolInvocation);
+					lastThinking.appendItem(part?.domNode, toolInvocation.toolId, toolInvocation, templateData.value);
 					lastThinking.addDisposable(part);
 				}
 			} else {
