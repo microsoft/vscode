@@ -7802,7 +7802,7 @@ declare module 'vscode' {
 		 *
 		 * Note that the possible values are currently defined as any of the following:
 		 * 'bash', 'cmd', 'csh', 'fish', 'gitbash', 'julia', 'ksh', 'node', 'nu', 'pwsh', 'python',
-		 * 'sh', 'wsl', 'zsh'.
+		 * 'sh', 'wsl', 'xonsh', 'zsh'.
 		 */
 		readonly shell: string | undefined;
 	}

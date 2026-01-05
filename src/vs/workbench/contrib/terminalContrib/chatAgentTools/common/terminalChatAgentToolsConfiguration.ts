@@ -227,6 +227,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			'Get-Location': true,
 			'Write-Host': true,
 			'Write-Output': true,
+			'Out-String': true,
 			'Split-Path': true,
 			'Join-Path': true,
 			'Start-Sleep': true,

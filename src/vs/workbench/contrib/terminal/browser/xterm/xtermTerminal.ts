@@ -1008,6 +1008,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	override dispose(): void {
 		this._anyTerminalFocusContextKey.reset();
 		this._anyFocusedTerminalHasSelection.reset();
+		this._disposeOfWebglRenderer();
 		this._onDidDispose.fire();
 		super.dispose();
 	}
