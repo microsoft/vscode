@@ -171,7 +171,7 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 		}
 		if (this._attachedContainer !== container) {
 			container.classList.add('chat-terminal-output-terminal');
-			terminal.attachToElement(container);
+			terminal.attachToElement(container, { enableGpu: false });
 			this._attachedContainer = container;
 		}
 	}
@@ -267,6 +267,7 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 			rows: ChatTerminalMirrorMetrics.MirrorRowCount,
 			readonly: true,
 			processInfo: new DetachedProcessInfo({ initialCwd: '' }),
+			disableOverviewRuler: true,
 			colorProvider
 		});
 		if (this._isDisposed) {
