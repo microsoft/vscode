@@ -28,7 +28,7 @@ export interface ISnippetsService {
 
 	updateUsageTimestamp(snippet: Snippet): void;
 
-	getSnippets(languageId: string | undefined, opt?: ISnippetGetOptions, resourceUri?: URI): Promise<Snippet[]>;
+	getSnippets(languageId: string | undefined, resourceUri?: URI, opt?: ISnippetGetOptions): Promise<Snippet[]>;
 
-	getSnippetsSync(languageId: string, opt?: ISnippetGetOptions, resourceUri?: URI): Snippet[];
+	getSnippetsSync(languageId: string, resourceUri?: URI, opt?: ISnippetGetOptions): Snippet[];
 }

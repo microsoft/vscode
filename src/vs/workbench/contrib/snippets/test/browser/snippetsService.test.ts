@@ -22,14 +22,19 @@ import { CompletionModel } from '../../../../../editor/contrib/suggest/browser/c
 import { CompletionItem } from '../../../../../editor/contrib/suggest/browser/suggest.js';
 import { WordDistance } from '../../../../../editor/contrib/suggest/browser/wordDistance.js';
 import { EditorOptions } from '../../../../../editor/common/config/editorOptions.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 class SimpleSnippetService implements ISnippetsService {
 	declare readonly _serviceBrand: undefined;
 	constructor(readonly snippets: Snippet[]) { }
-	getSnippets() {
-		return Promise.resolve(this.getSnippetsSync());
+	getSnippets(languageId?: string, resourceUri?: URI) {
+		return Promise.resolve(this.getSnippetsSync(languageId!, resourceUri));
 	}
-	getSnippetsSync(): Snippet[] {
+	getSnippetsSync(languageId?: string, resourceUri?: URI): Snippet[] {
+		// Filter snippets based on resourceUri if provided
+		if (resourceUri) {
+			return this.snippets.filter(snippet => snippet.isFileIncluded(resourceUri));
+		}
 		return this.snippets;
 	}
 	getSnippetFiles(): any {
@@ -1056,5 +1061,77 @@ suite('SnippetsService', function () {
 			assert.strictEqual(result2.suggestions[0].insertText, 'one'); // /whiletrue matches where (WHilEtRuE)
 			assert.strictEqual(result2.suggestions.length, 1);
 		}
+	});
+
+	test('getSnippetsSync - include pattern', function () {
+		snippetService = new SimpleSnippetService([
+			new Snippet(false, ['fooLang'], 'TestSnippet', 'test', '', 'snippet', 'test', SnippetSource.User, generateUuid(), ['**/*.test.ts']),
+			new Snippet(false, ['fooLang'], 'SpecSnippet', 'spec', '', 'snippet', 'test', SnippetSource.User, generateUuid(), ['**/*.spec.ts']),
+			new Snippet(false, ['fooLang'], 'AllSnippet', 'all', '', 'snippet', 'test', SnippetSource.User, generateUuid()),
+		]);
+
+		// Test file should only get TestSnippet and AllSnippet
+		let snippets = snippetService.getSnippetsSync('fooLang', URI.file('/project/src/foo.test.ts'));
+		assert.strictEqual(snippets.length, 2);
+		assert.ok(snippets.some(s => s.name === 'TestSnippet'));
+		assert.ok(snippets.some(s => s.name === 'AllSnippet'));
+
+		// Spec file should only get SpecSnippet and AllSnippet
+		snippets = snippetService.getSnippetsSync('fooLang', URI.file('/project/src/foo.spec.ts'));
+		assert.strictEqual(snippets.length, 2);
+		assert.ok(snippets.some(s => s.name === 'SpecSnippet'));
+		assert.ok(snippets.some(s => s.name === 'AllSnippet'));
+
+		// Regular file should only get AllSnippet
+		snippets = snippetService.getSnippetsSync('fooLang', URI.file('/project/src/foo.ts'));
+		assert.strictEqual(snippets.length, 1);
+		assert.strictEqual(snippets[0].name, 'AllSnippet');
+
+		// Without URI, all snippets should be returned (backward compatibility)
+		snippets = snippetService.getSnippetsSync('fooLang');
+		assert.strictEqual(snippets.length, 3);
+	});
+
+	test('getSnippetsSync - exclude pattern', function () {
+		snippetService = new SimpleSnippetService([
+			new Snippet(false, ['fooLang'], 'ProdSnippet', 'prod', '', 'snippet', 'test', SnippetSource.User, generateUuid(), undefined, ['**/*.min.js', '**/dist/**']),
+			new Snippet(false, ['fooLang'], 'AllSnippet', 'all', '', 'snippet', 'test', SnippetSource.User, generateUuid()),
+		]);
+
+		// Regular .js file should get both snippets
+		let snippets = snippetService.getSnippetsSync('fooLang', URI.file('/project/src/foo.js'));
+		assert.strictEqual(snippets.length, 2);
+
+		// Minified file should only get AllSnippet (ProdSnippet is excluded)
+		snippets = snippetService.getSnippetsSync('fooLang', URI.file('/project/src/foo.min.js'));
+		assert.strictEqual(snippets.length, 1);
+		assert.strictEqual(snippets[0].name, 'AllSnippet');
+
+		// File in dist folder should only get AllSnippet
+		snippets = snippetService.getSnippetsSync('fooLang', URI.file('/project/dist/bundle.js'));
+		assert.strictEqual(snippets.length, 1);
+		assert.strictEqual(snippets[0].name, 'AllSnippet');
+	});
+
+	test('getSnippetsSync - include and exclude patterns together', function () {
+		snippetService = new SimpleSnippetService([
+			new Snippet(false, ['fooLang'], 'TestSnippet', 'test', '', 'snippet', 'test', SnippetSource.User, generateUuid(), ['**/*.test.ts', '**/*.spec.ts'], ['**/*.perf.test.ts']),
+		]);
+
+		// Regular test file should get the snippet
+		let snippets = snippetService.getSnippetsSync('fooLang', URI.file('/project/src/foo.test.ts'));
+		assert.strictEqual(snippets.length, 1);
+
+		// Spec file should get the snippet
+		snippets = snippetService.getSnippetsSync('fooLang', URI.file('/project/src/foo.spec.ts'));
+		assert.strictEqual(snippets.length, 1);
+
+		// Performance test file should NOT get the snippet (excluded)
+		snippets = snippetService.getSnippetsSync('fooLang', URI.file('/project/src/foo.perf.test.ts'));
+		assert.strictEqual(snippets.length, 0);
+
+		// Regular file should NOT get the snippet (not included)
+		snippets = snippetService.getSnippetsSync('fooLang', URI.file('/project/src/foo.ts'));
+		assert.strictEqual(snippets.length, 0);
 	});
 });

@@ -150,7 +150,7 @@ export class Snippet {
 		if (this.exclude) {
 			if (!this._parsedExclude) {
 				const expression: IExpression = {};
-				for (const pattern of this.exclude.filter(p => Boolean(p))) {
+				for (const pattern of this.exclude.filter(Boolean)) {
 					expression[pattern] = true;
 				}
 				this._parsedExclude = parseGlob(expression, { ignoreCase: true });
@@ -163,7 +163,7 @@ export class Snippet {
 		if (this.include) {
 			if (!this._parsedInclude) {
 				const expression: IExpression = {};
-				for (const pattern of this.include.filter(p => Boolean(p))) {
+				for (const pattern of this.include.filter(Boolean)) {
 					expression[pattern] = true;
 				}
 				this._parsedInclude = parseGlob(expression, { ignoreCase: true });
@@ -220,28 +220,24 @@ export class SnippetFile {
 		this.isUserSnippets = !this._extension;
 	}
 
-	select(selector: string, bucket: Snippet[], resourceUri?: URI): void {
+	select(selector: string, bucket: Snippet[]): void {
 		if (this.isGlobalSnippets || !this.isUserSnippets) {
-			this._scopeSelect(selector, bucket, resourceUri);
+			this._scopeSelect(selector, bucket);
 		} else {
 			this._filepathSelect(selector, bucket);
 		}
 	}
 
 	private _filepathSelect(selector: string, bucket: Snippet[]): void {
-		// for `fooLang.json` files all snippets are accepted
+		// for `fooLang.json` files apply inclusion/exclusion rules only
 		if (selector + '.json' === basename(this.location.path)) {
 			bucket.push(...this.data);
 		}
 	}
 
-	private _scopeSelect(selector: string, bucket: Snippet[], resourceUri?: URI): void {
+	private _scopeSelect(selector: string, bucket: Snippet[]): void {
 		// for `my.code-snippets` files we need to look at each snippet
 		for (const snippet of this.data) {
-			if (resourceUri && !snippet.isFileIncluded(resourceUri)) {
-				continue;
-			}
-
 			const len = snippet.scopes.length;
 			if (len === 0) {
 				// always accept
@@ -260,7 +256,7 @@ export class SnippetFile {
 
 		const idx = selector.lastIndexOf('.');
 		if (idx >= 0) {
-			this._scopeSelect(selector.substring(0, idx), bucket, resourceUri);
+			this._scopeSelect(selector.substring(0, idx), bucket);
 		}
 	}
 
