@@ -103,6 +103,17 @@ abstract class AbstractCellRenderer extends Disposable {
 		this.editorOptions = this._register(new CellEditorOptions(this.notebookEditor.getBaseCellEditorOptions(language), this.notebookEditor.notebookOptions, configurationService));
 	}
 
+	protected syncListItemHeight(element: CellViewModel, details: IListElementRenderDetails | undefined): void {
+		if (!details || details.height === undefined) {
+			return;
+		}
+
+		const targetHeight = element.layoutInfo.totalHeight;
+		if (Math.abs(details.height - targetHeight) > 1) {
+			this.notebookEditor.layoutNotebookCell(element, targetHeight);
+		}
+	}
+
 	override dispose() {
 		super.dispose();
 		this.dndController = undefined;
@@ -213,10 +224,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 			throw new Error('The notebook editor is not attached with view model yet.');
 		}
 
-		// details.height reflects the list's cached height; keep it in sync with the model's layout info.
-		if (details?.height !== undefined && details.height !== element.layoutInfo.totalHeight) {
-			this.notebookEditor.layoutNotebookCell(element, element.layoutInfo.totalHeight);
-		}
+		this.syncListItemHeight(element, details);
 
 		templateData.currentRenderedCell = element;
 		templateData.currentEditor = undefined;
@@ -389,10 +397,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			throw new Error('The notebook editor is not attached with view model yet.');
 		}
 
-		// details.height reflects the list's cached height; keep it in sync with the model's layout info.
-		if (details?.height !== undefined && details.height !== element.layoutInfo.totalHeight) {
-			this.notebookEditor.layoutNotebookCell(element, element.layoutInfo.totalHeight);
-		}
+		this.syncListItemHeight(element, details);
 
 		templateData.currentRenderedCell = element;
 
