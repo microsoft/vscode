@@ -159,4 +159,26 @@ suite('Default Document Colors Computer', () => {
 
 		assert.strictEqual(colors.length, 1, 'Should detect one hsl color');
 	});
+
+	test('argb() colors should be detected', () => {
+		const model = new TestDocumentModel(`const color = argb(0.5, 255, 0, 0);`);
+		const colors = computeDefaultDocumentColors(model);
+
+		assert.strictEqual(colors.length, 1, 'Should detect one argb color');
+		assert.strictEqual(colors[0].color.red, 1, 'Red component should be 1');
+		assert.strictEqual(colors[0].color.green, 0, 'Green component should be 0');
+		assert.strictEqual(colors[0].color.blue, 0, 'Blue component should be 0');
+		assert.ok(Math.abs(colors[0].color.alpha - 0.5) < 0.01, `Alpha should be 0.5 but was ${colors[0].color.alpha}`);
+	});
+
+	test('argb() colors with integer alpha should be detected', () => {
+		const model = new TestDocumentModel(`const color = argb(1, 0, 255, 0);`);
+		const colors = computeDefaultDocumentColors(model);
+
+		assert.strictEqual(colors.length, 1, 'Should detect one argb color');
+		assert.strictEqual(colors[0].color.red, 0);
+		assert.strictEqual(colors[0].color.green, 1);
+		assert.strictEqual(colors[0].color.blue, 0);
+		assert.strictEqual(colors[0].color.alpha, 1);
+	});
 });

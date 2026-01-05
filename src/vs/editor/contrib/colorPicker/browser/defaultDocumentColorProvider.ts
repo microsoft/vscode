@@ -20,17 +20,19 @@ export class DefaultDocumentColorProvider implements DocumentColorProvider {
 	) { }
 
 	async provideDocumentColors(model: ITextModel, _token: CancellationToken): Promise<IColorInformation[] | null> {
-		const colorFormat = this._configurationService.getValue<'rgba' | 'argb'>('editor.colorDecoratorsHexFormat', { resource: model.uri }) ?? 'rgba';
+		const colorFormat = this._configurationService.getValue<'rgba' | 'argb'>('editor.colorDecoratorFormat', { resource: model.uri }) ?? 'rgba';
 		return this._editorWorkerService.computeDefaultDocumentColors(model.uri, colorFormat);
 	}
 
-	provideColorPresentations(_model: ITextModel, colorInfo: IColorInformation, _token: CancellationToken): IColorPresentation[] {
+	provideColorPresentations(model: ITextModel, colorInfo: IColorInformation, _token: CancellationToken): IColorPresentation[] {
 		const range = colorInfo.range;
 		const colorFromInfo: IColor = colorInfo.color;
 		const alpha = colorFromInfo.alpha;
 		const color = new Color(new RGBA(Math.round(255 * colorFromInfo.red), Math.round(255 * colorFromInfo.green), Math.round(255 * colorFromInfo.blue), alpha));
 
-		const rgb = alpha ? Color.Format.CSS.formatRGBA(color) : Color.Format.CSS.formatRGB(color);
+		const colorFormat = this._configurationService.getValue<'rgba' | 'argb'>('editor.colorDecoratorFormat', { resource: model.uri }) ?? 'rgba';
+
+		const rgb = alpha ? (colorFormat === 'argb' ? Color.Format.CSS.formatARGB(color) : Color.Format.CSS.formatRGBA(color)) : Color.Format.CSS.formatRGB(color);
 		const hsl = alpha ? Color.Format.CSS.formatHSLA(color) : Color.Format.CSS.formatHSL(color);
 		const hex = alpha ? Color.Format.CSS.formatHexA(color) : Color.Format.CSS.formatHex(color);
 

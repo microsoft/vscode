@@ -202,7 +202,7 @@ export enum EditorOption {
 	codeLensFontSize = 25,
 	colorDecorators = 26,
 	colorDecoratorsLimit = 27,
-	colorDecoratorsHexFormat = 28,
+	colorDecoratorFormat = 28,
 	columnSelection = 29,
 	comments = 30,
 	contextmenu = 31,

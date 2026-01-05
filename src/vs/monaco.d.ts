@@ -3561,9 +3561,9 @@ declare namespace monaco.editor {
 		 */
 		colorDecoratorsLimit?: number;
 		/**
-		 * Controls the hexadecimal color format used by color decorators.
+		 * Controls the color format for parsing colors and for color decorators. RGBA is standard for web (CSS), while ARGB is used by Qt and some other frameworks.
 		 */
-		colorDecoratorsHexFormat?: 'rgba' | 'argb';
+		colorDecoratorFormat?: 'rgba' | 'argb';
 		/**
 		 * Control the behaviour of comments in the editor.
 		 */
@@ -5093,7 +5093,7 @@ declare namespace monaco.editor {
 		codeLensFontSize = 25,
 		colorDecorators = 26,
 		colorDecoratorsLimit = 27,
-		colorDecoratorsHexFormat = 28,
+		colorDecoratorFormat = 28,
 		columnSelection = 29,
 		comments = 30,
 		contextmenu = 31,
@@ -5272,7 +5272,7 @@ declare namespace monaco.editor {
 		colorDecorators: IEditorOption<EditorOption.colorDecorators, boolean>;
 		colorDecoratorActivatedOn: IEditorOption<EditorOption.colorDecoratorsActivatedOn, 'hover' | 'clickAndHover' | 'click'>;
 		colorDecoratorsLimit: IEditorOption<EditorOption.colorDecoratorsLimit, number>;
-		colorDecoratorsHexFormat: IEditorOption<EditorOption.colorDecoratorsHexFormat, 'rgba' | 'argb'>;
+		colorDecoratorFormat: IEditorOption<EditorOption.colorDecoratorFormat, 'rgba' | 'argb'>;
 		columnSelection: IEditorOption<EditorOption.columnSelection, boolean>;
 		comments: IEditorOption<EditorOption.comments, Readonly<Required<IEditorCommentsOptions>>>;
 		contextmenu: IEditorOption<EditorOption.contextmenu, boolean>;

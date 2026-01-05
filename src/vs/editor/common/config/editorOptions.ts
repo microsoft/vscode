@@ -415,9 +415,9 @@ export interface IEditorOptions {
 	 */
 	colorDecoratorsLimit?: number;
 	/**
-	 * Controls the hexadecimal color format used by color decorators.
+	 * Controls the color format for parsing colors and for color decorators. RGBA is standard for web (CSS), while ARGB is used by Qt and some other frameworks.
 	 */
-	colorDecoratorsHexFormat?: 'rgba' | 'argb';
+	colorDecoratorFormat?: 'rgba' | 'argb';
 	/**
 	 * Control the behaviour of comments in the editor.
 	 */
@@ -5755,7 +5755,7 @@ export const enum EditorOption {
 	codeLensFontSize,
 	colorDecorators,
 	colorDecoratorsLimit,
-	colorDecoratorsHexFormat,
+	colorDecoratorFormat,
 	columnSelection,
 	comments,
 	contextmenu,
@@ -6112,15 +6112,15 @@ export const EditorOptions = {
 			markdownDescription: nls.localize('colorDecoratorsLimit', "Controls the max number of color decorators that can be rendered in an editor at once.")
 		}
 	)),
-	colorDecoratorsHexFormat: register(new EditorStringEnumOption(
-		EditorOption.colorDecoratorsHexFormat, 'colorDecoratorsHexFormat', 'rgba' as 'rgba' | 'argb',
+	colorDecoratorFormat: register(new EditorStringEnumOption(
+		EditorOption.colorDecoratorFormat, 'colorDecoratorFormat', 'rgba' as 'rgba' | 'argb',
 		['rgba', 'argb'] as const,
 		{
 			enumDescriptions: [
-				nls.localize('editor.colorDecoratorsHexFormat.rgba', "Use RGBA format (#RRGGBBAA)"),
-				nls.localize('editor.colorDecoratorsHexFormat.argb', "Use ARGB format (#AARRGGBB)")
+				nls.localize('editor.colorDecoratorFormat.rgba', "Use RGBA format (#RRGGBBAA and rgba(r, g, b, a))"),
+				nls.localize('editor.colorDecoratorFormat.argb', "Use ARGB format (#AARRGGBB and argb(a, r, g, b))")
 			],
-			markdownDescription: nls.localize('colorDecoratorsHexFormat', "Controls the hexadecimal color format for parsing colors. RGBA is standard for web (CSS), while ARGB is used by Qt and some other frameworks.")
+			markdownDescription: nls.localize('colorDecoratorFormat', "Controls the color format for parsing colors and for color decorators. RGBA is standard for web (CSS), while ARGB is used by Qt and some other frameworks.")
 		}
 	)),
 	columnSelection: register(new EditorBooleanOption(

@@ -615,6 +615,10 @@ export namespace Color {
 				return `rgba(${color.rgba.r}, ${color.rgba.g}, ${color.rgba.b}, ${+(color.rgba.a).toFixed(2)})`;
 			}
 
+			export function formatARGB(color: Color): string {
+				return `argb(${+(color.rgba.a).toFixed(2)}, ${color.rgba.r}, ${color.rgba.g}, ${color.rgba.b})`;
+			}
+
 			export function formatHSL(color: Color): string {
 				if (color.hsla.a === 1) {
 					return `hsl(${color.hsla.h}, ${Math.round(color.hsla.s * 100)}%, ${Math.round(color.hsla.l * 100)}%)`;
@@ -683,6 +687,17 @@ export namespace Color {
 					const g = parseInt(color.groups?.g ?? '0');
 					const b = parseInt(color.groups?.b ?? '0');
 					const a = parseFloat(color.groups?.a ?? '0');
+					return new Color(new RGBA(r, g, b, a));
+				}
+				if (css.startsWith('argb(')) {
+					const color = css.match(/argb\((?<a>(?:\+|-)?\d+(\.\d+)?), *(?<r>(?:\+|-)?\d+), *(?<g>(?:\+|-)?\d+), *(?<b>(?:\+|-)?\d+)\)/);
+					if (!color) {
+						throw new Error('Invalid color format ' + css);
+					}
+					const a = parseFloat(color.groups?.a ?? '0');
+					const r = parseInt(color.groups?.r ?? '0');
+					const g = parseInt(color.groups?.g ?? '0');
+					const b = parseInt(color.groups?.b ?? '0');
 					return new Color(new RGBA(r, g, b, a));
 				}
 				if (css.startsWith('rgb(')) {
