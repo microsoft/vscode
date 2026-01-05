@@ -5,7 +5,7 @@
 
 import type * as vscode from 'vscode';
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import * as languages from '../../../editor/common/languages.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { ExtHostChatInlineCompletionsShape, IMainContext, MainContext, MainThreadChatInlineCompletionsShape } from './extHost.protocol.js';
@@ -14,13 +14,9 @@ import { checkProposedApiEnabled } from '../../services/extensions/common/extens
 
 /**
  * Adapter for a single chat inline completion provider.
- * Manages lifecycle of completion results and converts between VS Code API types
- * and internal language service types.
+ * Converts between VS Code API types and internal language service types.
  */
 class ChatInlineCompletionAdapter {
-	private readonly _disposables = new Map<number, DisposableStore>();
-	private _nextId = 0;
-
 	constructor(
 		private readonly _provider: vscode.ChatInlineCompletionItemProvider
 	) { }
@@ -35,10 +31,6 @@ class ChatInlineCompletionAdapter {
 		if (!result) {
 			return undefined;
 		}
-
-		const completionId = this._nextId++;
-		const disposables = new DisposableStore();
-		this._disposables.set(completionId, disposables);
 
 		// Normalize result format: VS Code API allows providers to return either
 		// an array of items (convenience) or an InlineCompletionList object (with metadata).
@@ -59,28 +51,6 @@ class ChatInlineCompletionAdapter {
 			insertText: typeof item.insertText === 'string' ? item.insertText : { snippet: item.insertText.value },
 			range: item.range ? typeConvert.Range.from(item.range) : undefined,
 		};
-	}
-
-	/**
-	 * Dispose completion list resources for a given completion ID.
-	 * This allows for proper cleanup of any resources associated with completions.
-	 */
-	disposeCompletions(completionId: number): void {
-		const disposables = this._disposables.get(completionId);
-		if (disposables) {
-			disposables.dispose();
-			this._disposables.delete(completionId);
-		}
-	}
-
-	/**
-	 * Dispose all remaining completion resources.
-	 */
-	disposeAll(): void {
-		for (const disposables of this._disposables.values()) {
-			disposables.dispose();
-		}
-		this._disposables.clear();
 	}
 }
 
@@ -115,11 +85,7 @@ export class ExtHostChatInlineCompletions extends Disposable implements ExtHostC
 		this._proxy.$registerChatInlineCompletionsProvider(handle);
 
 		return toDisposable(() => {
-			const adapter = this._providers.get(handle);
-			if (adapter) {
-				adapter.disposeAll();
-				this._providers.delete(handle);
-			}
+			this._providers.delete(handle);
 			this._proxy.$unregisterChatInlineCompletionsProvider(handle);
 		});
 	}
