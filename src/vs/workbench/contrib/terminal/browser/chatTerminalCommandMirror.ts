@@ -59,7 +59,7 @@ abstract class DetachedTerminalMirror extends Disposable {
 		container.classList.add('chat-terminal-output-terminal');
 		const needsAttach = this._attachedContainer !== container || container.firstChild === null;
 		if (needsAttach) {
-			terminal.attachToElement(container);
+			terminal.attachToElement(container, { enableGpu: false });
 			this._attachedContainer = container;
 		}
 		return terminal;
