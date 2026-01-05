@@ -164,7 +164,7 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 		}
 
 		// Source control provider status bar entry
-		if (this.scmService.repositoryCount > 1) {
+		if (this.scmViewService.repositories.length > 1) {
 			const icon = getSCMRepositoryIcon(activeRepository, activeRepository.repository);
 			const repositoryStatusbarEntry: IStatusbarEntry = {
 				name: localize('status.scm.provider', "Source Control Provider"),
