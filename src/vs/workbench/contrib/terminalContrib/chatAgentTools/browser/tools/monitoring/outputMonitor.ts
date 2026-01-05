@@ -14,12 +14,12 @@ import { isObject, isString } from '../../../../../../../base/common/types.js';
 import { localize } from '../../../../../../../nls.js';
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
 import { IChatWidgetService } from '../../../../../chat/browser/chat.js';
-import { ChatElicitationRequestPart } from '../../../../../chat/browser/chatElicitationRequestPart.js';
-import { ChatModel } from '../../../../../chat/common/chatModel.js';
-import { ElicitationState, IChatService } from '../../../../../chat/common/chatService.js';
+import { ChatElicitationRequestPart } from '../../../../../chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
+import { ChatModel } from '../../../../../chat/common/model/chatModel.js';
+import { ElicitationState, IChatService } from '../../../../../chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../../chat/common/constants.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../../../../chat/common/languageModels.js';
-import { IToolInvocationContext } from '../../../../../chat/common/languageModelToolsService.js';
+import { IToolInvocationContext } from '../../../../../chat/common/tools/languageModelToolsService.js';
 import { ITaskService } from '../../../../../tasks/common/taskService.js';
 import { ILinkLocation } from '../../taskHelpers.js';
 import { IConfirmationPrompt, IExecution, IPollingResult, OutputMonitorState, PollingConsts } from './types.js';
@@ -28,7 +28,7 @@ import { IConfigurationService } from '../../../../../../../platform/configurati
 import { TerminalChatAgentToolsSettingId } from '../../../common/terminalChatAgentToolsConfiguration.js';
 import { ILogService } from '../../../../../../../platform/log/common/log.js';
 import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
-import { LocalChatSessionUri } from '../../../../../chat/common/chatUri.js';
+import { LocalChatSessionUri } from '../../../../../chat/common/model/chatUri.js';
 
 export interface IOutputMonitor extends Disposable {
 	readonly pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
