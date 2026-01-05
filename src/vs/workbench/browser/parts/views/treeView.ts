@@ -751,16 +751,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			},
 			multipleSelectionSupport: this.canSelectMany,
 			dnd: this.treeViewDnd,
-			overrideStyles: getLocationBasedViewColors(this.viewLocation).listOverrideStyles,
-			twistieAdditionalCssClass: (element) => {
-				if (!(element.parent instanceof Root)) {
-					return undefined;
-				}
-				if (element.parent.children?.every(child => child.collapsibleState === TreeItemCollapsibleState.None)) {
-					return 'no-twisty';
-				}
-				return undefined;
-			}
+			overrideStyles: getLocationBasedViewColors(this.viewLocation).listOverrideStyles
 		}));
 
 		this.treeDisposables.add(renderer.onDidChangeMenuContext(e => e.forEach(e => this.tree?.rerender(e))));
