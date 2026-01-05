@@ -696,20 +696,15 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 	function focusFirstFocusableOrContainerInOutput(cellOrOutputId: string, alternateId?: string) {
 		const cellOutputContainer = window.document.getElementById(cellOrOutputId) ??
-			(alternateId ? window.document.getElementById(alternateId) : undefined);
-		if (cellOutputContainer) {
+			(!!alternateId ? window.document.getElementById(alternateId) : undefined);
+		if (!!cellOutputContainer) {
 			if (cellOutputContainer.contains(window.document.activeElement)) {
 				return;
 			}
-			const id = cellOutputContainer.id;
 			let focusableElement = cellOutputContainer.querySelector('[tabindex="0"], [href], button, input, option, select, textarea') as HTMLElement | null;
 			if (!focusableElement) {
 				focusableElement = cellOutputContainer;
 				focusableElement.tabIndex = -1;
-				postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused: false, id });
-			} else {
-				const inputFocused = hasActiveEditableElement(focusableElement, focusableElement.ownerDocument);
-				postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused, id });
 			}
 
 			if (lastFocusedOutput?.id !== cellOutputContainer.id) {
