@@ -191,9 +191,11 @@ suite('Resolving Editor Commands Context', () => {
 		const input1 = input();
 		const input2 = input();
 		await group.openEditor(input1, { pinned: true });
-		await group.openEditor(input2, { pinned: true, activate: true });
+		await group.openEditor(input2, { pinned: true });
 
-		// input2 is active, but we right-click on input1
+		// input2 is now active (last opened), but we simulate right-click on input1
+		assert.strictEqual(group.activeEditor, input2);
+
 		const editorCommandContext: IEditorCommandsContext = {
 			groupId: group.id,
 			editorIndex: group.getIndexOfEditor(input1),
