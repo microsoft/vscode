@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, ImmortalReference, IReference } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, ImmortalReference, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import type { IMarker as IXtermMarker, Terminal as RawXtermTerminal } from '@xterm/xterm';
@@ -151,15 +151,10 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
-	}
-
-	public override dispose(): void {
-		if (this._isDisposed) {
-			return;
-		}
-		this._isDisposed = true;
-		this._stopStreaming();
-		super.dispose();
+		this._register(toDisposable(() => {
+			this._isDisposed = true;
+			this._stopStreaming();
+		}));
 	}
 
 	async attach(container: HTMLElement): Promise<void> {
