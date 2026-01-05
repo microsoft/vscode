@@ -446,7 +446,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		};
 		const commandLineAnalyzerResults = await Promise.all(this._commandLineAnalyzers.map(e => e.analyze(commandLineAnalyzerOptions)));
 
-		const disclaimersRaw = commandLineAnalyzerResults.filter(e => e.disclaimers).flatMap(e => e.disclaimers!);
+		const disclaimersRaw = commandLineAnalyzerResults.map(e => e.disclaimers).filter(e => !!e).flatMap(e => e);
 		let disclaimer: IMarkdownString | undefined;
 		if (disclaimersRaw.length > 0) {
 			const disclaimerTexts = disclaimersRaw.map(d => typeof d === 'string' ? d : d.value);
