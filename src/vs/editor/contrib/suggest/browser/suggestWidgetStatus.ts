@@ -27,7 +27,7 @@ export class SuggestWidgetStatus {
 	constructor(
 		container: HTMLElement,
 		private readonly _menuId: MenuId,
-		options: ISuggestWidgetStatusOptions,
+		options: ISuggestWidgetStatusOptions | undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMenuService private _menuService: IMenuService,
 		@IContextKeyService private _contextKeyService: IContextKeyService,
@@ -35,7 +35,7 @@ export class SuggestWidgetStatus {
 		this.element = dom.append(container, dom.$('.suggest-status-bar'));
 
 		const actionViewItemProvider = <IActionViewItemProvider>(action => {
-			if (options.allowIcons) {
+			if (options?.allowIcons) {
 				return action instanceof MenuItemAction ? instantiationService.createInstance(MenuEntryActionViewItem, action, undefined) : undefined;
 			} else {
 				return action instanceof MenuItemAction ? instantiationService.createInstance(TextOnlyMenuEntryActionViewItem, action, { useComma: false }) : undefined;
