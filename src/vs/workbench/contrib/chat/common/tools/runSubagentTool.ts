@@ -36,12 +36,12 @@ import {
 	VSCodeToolReference,
 	IToolAndToolSetEnablementMap
 } from '../languageModelToolsService.js';
-import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isLocation } from '../../../../../editor/common/languages.js';
 import { ComputeAutomaticInstructions } from '../promptSyntax/computeAutomaticInstructions.js';
 import { ManageTodoListToolToolId } from './manageTodoListTool.js';
 import { createToolSimpleTextResult } from './toolHelpers.js';
+import { Schemas } from '../../../../../base/common/network.js';
 
 export const RunSubagentToolId = 'runSubagent';
 
@@ -213,7 +213,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 
 						if (part.kind === 'inlineReference') {
 							// Convert inline references into markdown links for the tool result
-							markdownParts.push(inlineReferenceToMarkdown(part));
+							markdownParts.push(inlineReferenceToUriString(part));
 						} else {
 							// Collect markdown content for the tool result
 							markdownParts.push(part.content.value);
@@ -297,7 +297,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 	}
 }
 
-function inlineReferenceToMarkdown(part: IChatContentInlineReference): string {
+function inlineReferenceToUriString(part: IChatContentInlineReference): string {
 	const reference = part.inlineReference;
 	let refUri: URI;
 	if (URI.isUri(reference)) {
@@ -308,16 +308,9 @@ function inlineReferenceToMarkdown(part: IChatContentInlineReference): string {
 		const rangeFragment = range ? `L${range.startLineNumber}-L${range.endLineNumber}` : undefined;
 		refUri = rangeFragment ? uri.with({ fragment: rangeFragment }) : uri;
 	}
-	let label: string;
-	if (part.name) {
-		label = part.name;
-	} else if (URI.isUri(reference)) {
-		label = basename(reference);
-	} else if (isLocation(reference)) {
-		label = basename(reference.uri);
-	} else {
-		label = reference.name ?? basename(reference.location.uri);
+	if (refUri.scheme === Schemas.file || refUri.scheme === Schemas.vscodeRemote) {
+		return refUri.fsPath + (refUri.fragment ? `#${refUri.fragment}` : '');
 	}
-	const escapedLabel = label.replace(/[[\]()\\]/g, '\\$&');
-	return `[${escapedLabel}](${refUri.toString()})\n`;
+	return refUri.toString();
+
 }
