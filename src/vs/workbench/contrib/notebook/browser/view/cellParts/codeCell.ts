@@ -876,13 +876,35 @@ export class CodeCellLayout {
 		let editorContentHeight: number;
 		const isInit = !this._initialized && reason === 'init';
 		if (isInit) {
-			// When a Monaco editor instance is reused from the pool for a new cell, its
-			// `getContentHeight()` value can still reflect the previous cell's content.
-			// For the very first layout of a cell we therefore trust the cell's own
-			// initial editor dimension instead of the pooled editor's transient value.
+			// CONTENT HEIGHT SELECTION (INIT)
+			// -------------------------------
+			// Editors are pooled and may be re-attached to different cells as the user scrolls.
+			// At the moment a pooled editor is first attached to a new cell, Monaco can still
+			// report the previous cell's `getContentHeight()` (for example a tall multi-line
+			// cell) even though the new cell only contains a single line. If we trusted that
+			// stale value here, the very first layout of the new cell would render with an
+			// oversized editor and visually overlap the next cell.
+			//
+			// To avoid this, the initial layout ignores `getContentHeight()` entirely and uses
+			// the notebook's own notion of the editor height for this cell
+			// (`_initialEditorDimension.height`). This value is derived from the cell model
+			// (line count + padding) and is stable across editor reuse. Once the model has
+			// been resolved and Monaco reports a real content height, subsequent layout
+			// reasons (`onDidContentSizeChange`, `viewCellLayoutChange`, `nbLayoutChange`)
+			// will refresh `_establishedContentHeight` in the normal way.
 			editorContentHeight = this._initialEditorDimension.height;
 			this._establishedContentHeight = editorContentHeight;
 		} else {
+			// CONTENT HEIGHT SELECTION (NON-INIT)
+			// -----------------------------------
+			// For all non-init reasons, we rely on Monaco's `getContentHeight()` together with
+			// `_establishedContentHeight` to keep the notebook list layout stable while
+			// scrolling and resizing:
+			//  - `onDidContentSizeChange` / `viewCellLayoutChange` / `nbLayoutChange` update
+			//    `_establishedContentHeight` to the latest full content height.
+			//  - `nbDidScroll` reuses `_establishedContentHeight` so that transient, smaller
+			//    values reported while the editor itself is clipped do not shrink the row
+			//    height (which would otherwise cause overlapping cells).
 			const gotContentHeight = editor.getContentHeight();
 			// If we've already calculated the editor content height once before and the contents haven't changed, use that.
 			const fallbackEditorContentHeight = gotContentHeight === -1 ? Math.max(editor.getLayoutInfo().height, this._initialEditorDimension.height) : gotContentHeight;
