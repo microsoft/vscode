@@ -54,7 +54,8 @@ import { NotebookCellEditorPool } from '../notebookCellEditorPool.js';
 
 const $ = DOM.$;
 
-// Allow a small tolerance when comparing cached list heights with the model.
+// Allow a small tolerance when comparing cached list heights with the model to absorb
+// subpixel rounding differences from browsers and list measurements during fast scroll.
 const HEIGHT_SYNC_TOLERANCE = 1;
 
 export class NotebookCellListDelegate extends Disposable implements IListVirtualDelegate<CellViewModel> {
