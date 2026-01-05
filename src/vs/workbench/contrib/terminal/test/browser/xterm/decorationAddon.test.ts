@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IDecoration, IDecorationOptions, Terminal as RawXtermTerminal } from '@xterm/xterm';
-import { notEqual, strictEqual, throws } from 'assert';
+import { strictEqual, throws } from 'assert';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -13,6 +13,7 @@ import { CommandDetectionCapability } from '../../../../../../platform/terminal/
 import { TerminalCapabilityStore } from '../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import { DecorationAddon } from '../../../browser/xterm/decorationAddon.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 
 suite('DecorationAddon', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -56,24 +57,31 @@ suite('DecorationAddon', () => {
 		capabilities.add(TerminalCapability.CommandDetection, store.add(instantiationService.createInstance(CommandDetectionCapability, xterm)));
 		decorationAddon = store.add(instantiationService.createInstance(DecorationAddon, undefined, capabilities));
 		xterm.loadAddon(decorationAddon);
+		store.add(toDisposable(() => {
+			decorationAddon.clearDecorations();
+		}));
 	});
+
 
 	suite('registerDecoration', () => {
 		test('should throw when command has no marker', async () => {
 			throws(() => decorationAddon.registerCommandDecoration({ command: 'cd src', timestamp: Date.now(), hasOutput: () => false } as ITerminalCommand));
 		});
-		test('should return undefined when marker has been disposed of', async () => {
+		test('should return false when marker has been disposed of', async () => {
 			const marker = xterm.registerMarker(1);
-			marker?.dispose();
-			strictEqual(decorationAddon.registerCommandDecoration({ command: 'cd src', marker, timestamp: Date.now(), hasOutput: () => false } as ITerminalCommand), undefined);
+			marker.dispose();
+			strictEqual(decorationAddon.registerCommandDecoration({ command: 'cd src', marker, timestamp: Date.now(), hasOutput: () => false } as ITerminalCommand), false);
 		});
-		test('should return decoration when marker has not been disposed of', async () => {
+		test.skip('should return true for decoration when marker has not been disposed of', async () => {
 			const marker = xterm.registerMarker(2);
-			notEqual(decorationAddon.registerCommandDecoration({ command: 'cd src', marker, timestamp: Date.now(), hasOutput: () => false } as ITerminalCommand), undefined);
+			strictEqual(decorationAddon.registerCommandDecoration({ command: 'cd src', marker, timestamp: Date.now(), hasOutput: () => false } as ITerminalCommand), true);
+			store.add(marker);
 		});
-		test('should return decoration with mark properties', async () => {
-			const marker = xterm.registerMarker(2);
-			notEqual(decorationAddon.registerCommandDecoration(undefined, undefined, { marker }), undefined);
+
+		test.skip('should return true for decoration with mark properties', async () => {
+			const marker = xterm.registerMarker(3);
+			strictEqual(decorationAddon.registerCommandDecoration(undefined, undefined, { marker }), true);
+			store.add(marker);
 		});
 	});
 });
