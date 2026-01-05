@@ -21064,6 +21064,22 @@ declare module 'vscode' {
 		readonly inputSchema: object | undefined;
 
 		/**
+		 * An optional JSON Schema object defining the structure of the tool's output returned in
+		 * the structuredContent field.
+		 */
+		readonly outputSchema: object | undefined;
+
+		/**
+		 * Optional additional tool information.
+		 */
+		readonly annotations: object | undefined;
+
+		/**
+		 * See [General fields: `_meta`](/specification/draft/basic/index#meta) for notes on `_meta` usage.
+		 */
+		readonly _meta: object | undefined;
+
+		/**
 		 * A set of tags, declared by the tool, that roughly describe the tool's capabilities. A tool user may use these to filter
 		 * the set of tools to just ones that are relevant for the task at hand.
 		 */

@@ -41,6 +41,9 @@ export interface IToolData {
 	readonly userDescription?: string;
 	readonly modelDescription: string;
 	readonly inputSchema?: IJSONSchema;
+	readonly outputSchema?: IJSONSchema;
+	readonly annotations?: object;
+	readonly _meta?: { [key: string]: unknown };
 	readonly canBeReferencedInPrompt?: boolean;
 	/**
 	 * True if the tool runs in the (possibly remote) workspace, false if it runs

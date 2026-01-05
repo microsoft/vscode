@@ -31,6 +31,9 @@ class Tool {
 			get name() { return that._data.id; },
 			get description() { return that._data.modelDescription; },
 			get inputSchema() { return that._data.inputSchema; },
+			get outputSchema() { return that._data.outputSchema; },
+			get annotations() { return that._data.annotations; },
+			get _meta() { return that._data._meta; },
 			get tags() { return that._data.tags ?? []; },
 			get source() { return undefined; }
 		});
@@ -44,6 +47,9 @@ class Tool {
 			get name() { return that._data.id; },
 			get description() { return that._data.modelDescription; },
 			get inputSchema() { return that._data.inputSchema; },
+			get outputSchema() { return that._data.outputSchema; },
+			get annotations() { return that._data.annotations; },
+			get _meta() { return that._data._meta; },
 			get tags() { return that._data.tags ?? []; },
 			get source() { return source; }
 		});

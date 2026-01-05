@@ -1486,6 +1486,9 @@ export interface IToolDataDto {
 	modelDescription: string;
 	source: Dto<ToolDataSource>;
 	inputSchema?: IJSONSchema;
+	outputSchema?: IJSONSchema;
+	annotations?: object;
+	_meta?: { [key: string]: unknown };
 }
 
 export interface MainThreadLanguageModelToolsShape extends IDisposable {
