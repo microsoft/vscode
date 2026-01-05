@@ -28,7 +28,7 @@ import { IMcpDevModeConfig, IMcpServerConfiguration } from '../../../../platform
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceFolder, IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchLocalMcpServer, IWorkbencMcpServerInstallOptions } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
-import { ToolProgress } from '../../chat/common/languageModelToolsService.js';
+import { ToolProgress } from '../../chat/common/tools/languageModelToolsService.js';
 import { IMcpServerSamplingConfiguration } from './mcpConfiguration.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
 import { MCP } from './modelContextProtocol.js';

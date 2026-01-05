@@ -81,7 +81,6 @@ export interface Worktree {
 	readonly path: string;
 	readonly ref: string;
 	readonly detached: boolean;
-	readonly commitDetails?: Commit;
 }
 
 export const enum Status {
@@ -121,11 +120,17 @@ export interface Change {
 	readonly status: Status;
 }
 
+export interface DiffChange extends Change {
+	readonly insertions: number;
+	readonly deletions: number;
+}
+
 export interface RepositoryState {
 	readonly HEAD: Branch | undefined;
 	readonly refs: Ref[];
 	readonly remotes: Remote[];
 	readonly submodules: Submodule[];
+	readonly worktrees: Worktree[];
 	readonly rebaseCommit: Commit | undefined;
 
 	readonly mergeChanges: Change[];
@@ -256,6 +261,7 @@ export interface Repository {
 	diffBlobs(object1: string, object2: string): Promise<string>;
 	diffBetween(ref1: string, ref2: string): Promise<Change[]>;
 	diffBetween(ref1: string, ref2: string, path: string): Promise<string>;
+	diffBetweenWithStats(ref1: string, ref2: string, path?: string): Promise<DiffChange[]>;
 
 	hashObject(data: string): Promise<string>;
 

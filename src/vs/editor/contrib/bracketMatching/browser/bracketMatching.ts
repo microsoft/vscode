@@ -21,8 +21,7 @@ import * as nls from '../../../../nls.js';
 import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { registerColor } from '../../../../platform/theme/common/colorRegistry.js';
-import { registerThemingParticipant, themeColorFromId } from '../../../../platform/theme/common/themeService.js';
-import { editorBracketMatchForeground } from '../../../common/core/editorColorRegistry.js';
+import { themeColorFromId } from '../../../../platform/theme/common/themeService.js';
 
 const overviewRulerBracketMatchForeground = registerColor('editorOverviewRuler.bracketMatchForeground', '#A0A0A0', nls.localize('overviewRulerBracketMatchForeground', 'Overview ruler marker color for matching brackets.'));
 
@@ -300,7 +299,7 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 	private static readonly _DECORATION_OPTIONS_WITH_OVERVIEW_RULER = ModelDecorationOptions.register({
 		description: 'bracket-match-overview',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		inlineClassName: 'bracket-match',
+		className: 'bracket-match',
 		overviewRuler: {
 			color: themeColorFromId(overviewRulerBracketMatchForeground),
 			position: OverviewRulerLane.Center
@@ -310,7 +309,7 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 	private static readonly _DECORATION_OPTIONS_WITHOUT_OVERVIEW_RULER = ModelDecorationOptions.register({
 		description: 'bracket-match-no-overview',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		inlineClassName: 'bracket-match'
+		className: 'bracket-match'
 	});
 
 	private _updateBrackets(): void {
@@ -414,13 +413,4 @@ MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
 		title: nls.localize({ key: 'miGoToBracket', comment: ['&& denotes a mnemonic'] }, "Go to &&Bracket")
 	},
 	order: 2
-});
-
-// Theming participant to ensure bracket-match color overrides bracket pair colorization
-registerThemingParticipant((theme, collector) => {
-	const bracketMatchForeground = theme.getColor(editorBracketMatchForeground);
-	if (bracketMatchForeground) {
-		// Use higher specificity to override bracket pair colorization
-		collector.addRule(`.monaco-editor .bracket-match { color: ${bracketMatchForeground} !important; }`);
-	}
 });

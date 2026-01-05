@@ -31,7 +31,7 @@ import { IWorkbenchEnvironmentService } from '../../../../../../services/environ
 import { IFilesConfigurationService } from '../../../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { IUserDataProfileService } from '../../../../../../services/userDataProfile/common/userDataProfile.js';
 import { TestContextService, TestUserDataProfileService } from '../../../../../../test/common/workbenchTestServices.js';
-import { ChatRequestVariableSet, isPromptFileVariableEntry, toFileVariableEntry } from '../../../../common/chatVariableEntries.js';
+import { ChatRequestVariableSet, isPromptFileVariableEntry, toFileVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { ComputeAutomaticInstructions, newInstructionsCollectionEvent } from '../../../../common/promptSyntax/computeAutomaticInstructions.js';
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
 import { INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
@@ -1367,12 +1367,22 @@ suite('PromptsService', () => {
 					path: '/home/user/.claude/skills/not-a-skill/other-file.md',
 					contents: ['Not a skill file'],
 				},
+				{
+					path: '/home/user/.copilot/skills/copilot-skill-1/SKILL.md',
+					contents: [
+						'---',
+						'name: "Copilot Skill 1"',
+						'description: "A Copilot skill for testing"',
+						'---',
+						'This is Copilot skill 1 content',
+					],
+				},
 			]);
 
 			const result = await service.findAgentSkills(CancellationToken.None);
 
 			assert.ok(result, 'Should return results when agent skills are enabled');
-			assert.strictEqual(result.length, 3, 'Should find 3 skills total');
+			assert.strictEqual(result.length, 4, 'Should find 4 skills total');
 
 			// Check project skills (both from .github/skills and .claude/skills)
 			const projectSkills = result.filter(skill => skill.type === 'project');
@@ -1390,12 +1400,17 @@ suite('PromptsService', () => {
 
 			// Check personal skills
 			const personalSkills = result.filter(skill => skill.type === 'personal');
-			assert.strictEqual(personalSkills.length, 1, 'Should find 1 personal skill');
+			assert.strictEqual(personalSkills.length, 2, 'Should find 2 personal skills');
 
-			const personalSkill1 = personalSkills[0];
-			assert.strictEqual(personalSkill1.name, 'Personal Skill 1');
+			const personalSkill1 = personalSkills.find(skill => skill.name === 'Personal Skill 1');
+			assert.ok(personalSkill1, 'Should find Personal Skill 1');
 			assert.strictEqual(personalSkill1.description, 'A personal skill for testing');
 			assert.strictEqual(personalSkill1.uri.path, '/home/user/.claude/skills/personal-skill-1/SKILL.md');
+
+			const copilotSkill1 = personalSkills.find(skill => skill.name === 'Copilot Skill 1');
+			assert.ok(copilotSkill1, 'Should find Copilot Skill 1');
+			assert.strictEqual(copilotSkill1.description, 'A Copilot skill for testing');
+			assert.strictEqual(copilotSkill1.uri.path, '/home/user/.copilot/skills/copilot-skill-1/SKILL.md');
 		});
 
 		test('should handle parsing errors gracefully', async () => {

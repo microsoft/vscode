@@ -217,6 +217,21 @@ export interface ITerminalChatService {
 	 * @returns True if the session has auto approval enabled
 	 */
 	hasChatSessionAutoApproval(chatSessionId: string): boolean;
+
+	/**
+	 * Add a session-scoped auto-approve rule.
+	 * @param chatSessionId The chat session ID to associate the rule with
+	 * @param key The rule key (command or regex pattern)
+	 * @param value The rule value (approval boolean or object with approve and matchCommandLine)
+	 */
+	addSessionAutoApproveRule(chatSessionId: string, key: string, value: boolean | { approve: boolean; matchCommandLine?: boolean }): void;
+
+	/**
+	 * Get all session-scoped auto-approve rules for a specific chat session.
+	 * @param chatSessionId The chat session ID to get rules for
+	 * @returns A record of all session-scoped auto-approve rules for the session
+	 */
+	getSessionAutoApproveRules(chatSessionId: string): Readonly<Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>>;
 }
 
 /**
@@ -727,7 +742,7 @@ export interface ITerminalInstanceHost {
 	/**
 	 * Reveal and focus the instance, regardless of its location.
 	 */
-	focusInstance(instance: ITerminalInstance): void;
+	focusInstance(instance: ITerminalInstance): Promise<void>;
 	/**
 	 * Reveal and focus the active instance, regardless of its location.
 	 */
@@ -1289,6 +1304,16 @@ export interface IXtermTerminal extends IDisposable {
 	 * Event fired when focus enters (fires with true) or leaves (false) the terminal.
 	 */
 	readonly onDidChangeFocus: Event<boolean>;
+
+	/**
+	 * Fires after a search is performed.
+	 */
+	readonly onAfterSearch: Event<void>;
+
+	/**
+	 * Fires before a search is performed.
+	 */
+	readonly onBeforeSearch: Event<void>;
 
 	/**
 	 * Gets a view of the current texture atlas used by the renderers.

@@ -57,15 +57,16 @@ export const AGENTS_SOURCE_FOLDER = '.github/agents';
  * Default agent skills workspace source folders.
  */
 export const DEFAULT_AGENT_SKILLS_WORKSPACE_FOLDERS = [
-	'.github/skills',
-	'.claude/skills'
+	{ path: '.github/skills', type: 'github-workspace' },
+	{ path: '.claude/skills', type: 'claude-workspace' }
 ] as const;
 
 /**
  * Default agent skills user home source folders.
  */
 export const DEFAULT_AGENT_SKILLS_USER_HOME_FOLDERS = [
-	'.claude/skills'
+	{ path: '.copilot/skills', type: 'copilot-personal' },
+	{ path: '.claude/skills', type: 'claude-personal' }
 ] as const;
 
 /**
