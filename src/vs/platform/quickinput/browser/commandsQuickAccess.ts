@@ -27,7 +27,6 @@ import { IQuickAccessProviderRunOptions } from '../common/quickAccess.js';
 import { IKeyMods, IQuickPickSeparator } from '../common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../storage/common/storage.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { CommandsRegistry } from '../../commands/common/commands.js';
 import { Categories } from '../../action/common/actionCommonCategories.js';
 
 export interface ICommandQuickPick extends IPickerQuickAccessItem {
