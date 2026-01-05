@@ -54,6 +54,9 @@ import { NotebookCellEditorPool } from '../notebookCellEditorPool.js';
 
 const $ = DOM.$;
 
+// Allow a small tolerance when comparing cached list heights with the model.
+const HEIGHT_SYNC_TOLERANCE = 1;
+
 export class NotebookCellListDelegate extends Disposable implements IListVirtualDelegate<CellViewModel> {
 	private readonly lineHeight: number;
 
@@ -109,7 +112,7 @@ abstract class AbstractCellRenderer extends Disposable {
 		}
 
 		const targetHeight = element.layoutInfo.totalHeight;
-		if (Math.abs(details.height - targetHeight) > 1) {
+		if (Math.abs(details.height - targetHeight) > HEIGHT_SYNC_TOLERANCE) {
 			this.notebookEditor.layoutNotebookCell(element, targetHeight);
 		}
 	}
