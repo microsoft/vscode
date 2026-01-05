@@ -56,7 +56,6 @@ class AnnounceCursorPosition extends Action2 {
 			id: 'editor.action.announceCursorPosition',
 			title: nls.localize2('announceCursorPosition', "Announce Cursor Position"),
 			f1: true,
-			// TODO: Get suggestion on Keybinding!. Something with ctrl+g since people are used to it?
 			metadata: {
 				description: nls.localize2('announceCursorPosition.description', "Announce the current cursor position (line and column) via screen reader.")
 			}
