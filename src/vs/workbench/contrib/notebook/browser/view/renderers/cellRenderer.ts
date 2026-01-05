@@ -213,6 +213,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 			throw new Error('The notebook editor is not attached with view model yet.');
 		}
 
+		// details.height reflects the list's cached height; keep it in sync with the model's layout info.
 		if (details?.height !== undefined && details.height !== element.layoutInfo.totalHeight) {
 			this.notebookEditor.layoutNotebookCell(element, element.layoutInfo.totalHeight);
 		}
@@ -388,6 +389,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			throw new Error('The notebook editor is not attached with view model yet.');
 		}
 
+		// details.height reflects the list's cached height; keep it in sync with the model's layout info.
 		if (details?.height !== undefined && details.height !== element.layoutInfo.totalHeight) {
 			this.notebookEditor.layoutNotebookCell(element, element.layoutInfo.totalHeight);
 		}
