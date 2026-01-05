@@ -751,7 +751,16 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			},
 			multipleSelectionSupport: this.canSelectMany,
 			dnd: this.treeViewDnd,
-			overrideStyles: getLocationBasedViewColors(this.viewLocation).listOverrideStyles
+			overrideStyles: getLocationBasedViewColors(this.viewLocation).listOverrideStyles,
+			twistieAdditionalCssClass: (element) => {
+				if (!(element.parent instanceof Root)) {
+					return undefined;
+				}
+				if (element.parent.children?.every(child => child.collapsibleState === TreeItemCollapsibleState.None)) {
+					return 'no-twisty';
+				}
+				return undefined;
+			}
 		}));
 
 		this.treeDisposables.add(renderer.onDidChangeMenuContext(e => e.forEach(e => this.tree?.rerender(e))));
@@ -1494,13 +1503,6 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			templateData.actionBar.actionRunner = this._actionRunner;
 		}
 		this.setAlignment(templateData.container, node);
-		if (node.parent instanceof Root) {
-			if (node.collapsibleState === TreeItemCollapsibleState.None) {
-				templateData.container.classList.add('no-twisty');
-			} else {
-				templateData.container.classList.remove('no-twisty');
-			}
-		}
 
 		// remember rendered element, an element can be rendered multiple times
 		const renderedItems = this._renderedElements.get(element.element.handle) ?? [];
