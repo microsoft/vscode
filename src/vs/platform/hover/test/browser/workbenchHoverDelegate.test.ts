@@ -6,11 +6,10 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { WorkbenchHoverDelegate } from '../../browser/hover.js';
-import { NullHoverService } from './nullHoverService.js';
 import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { IQuickInputService } from '../../../quickinput/common/quickInput.js';
-import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IHoverService } from '../../browser/hover.js';
 
 suite('WorkbenchHoverDelegate', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -24,47 +23,69 @@ suite('WorkbenchHoverDelegate', () => {
 			onHide: onHideEmitter.event,
 		} as any;
 
-		const instantiationService = new TestInstantiationService();
-		instantiationService.stub(IQuickInputService, mockQuickInputService);
-
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('workbench', { hover: { delay: 500 } });
+
+		// Track calls to showInstantHover to verify suppression behavior
+		let hoverCallCount = 0;
+		const mockHoverService: IHoverService = {
+			showInstantHover: () => {
+				hoverCallCount++;
+				return undefined;
+			},
+			hideHover: () => { },
+			showDelayedHover: () => undefined,
+			setupDelayedHover: () => ({ dispose: () => { } }),
+			setupDelayedHoverAtMouse: () => ({ dispose: () => { } }),
+			setupManagedHover: () => ({
+				dispose: () => { },
+				show: () => { },
+				hide: () => { },
+				update: () => { }
+			}),
+			showAndFocusLastHover: () => { },
+			showManagedHover: () => { }
+		} as any;
 
 		const delegate = store.add(new WorkbenchHoverDelegate(
 			'element',
 			undefined,
 			{},
 			configService,
-			NullHoverService,
+			mockHoverService,
 			mockQuickInputService
 		));
 
-		// Initially, hover should work (return something)
-		const result1 = delegate.showHover({
+		// Initially, hover processing should occur
+		hoverCallCount = 0;
+		delegate.showHover({
 			content: 'test',
 			target: document.createElement('div')
 		});
-		assert.strictEqual(result1, undefined, 'Initially hover returns undefined from NullHoverService');
+		assert.strictEqual(hoverCallCount, 1, 'Hover service should be called initially');
 
 		// Trigger QuickInput show
 		onShowEmitter.fire();
 
-		// Now hover should be suppressed (return undefined immediately)
-		const result2 = delegate.showHover({
+		// Now hover should be suppressed (showInstantHover not called)
+		hoverCallCount = 0;
+		const result = delegate.showHover({
 			content: 'test',
 			target: document.createElement('div')
 		});
-		assert.strictEqual(result2, undefined, 'Hover should be suppressed when QuickInput is visible');
+		assert.strictEqual(result, undefined, 'showHover should return undefined when suppressed');
+		assert.strictEqual(hoverCallCount, 0, 'Hover service should not be called when QuickInput is visible');
 
 		// Trigger QuickInput hide
 		onHideEmitter.fire();
 
-		// Hover should work again
-		const result3 = delegate.showHover({
+		// Hover processing should work again
+		hoverCallCount = 0;
+		delegate.showHover({
 			content: 'test',
 			target: document.createElement('div')
 		});
-		assert.strictEqual(result3, undefined, 'After QuickInput is hidden, hover returns undefined from NullHoverService');
+		assert.strictEqual(hoverCallCount, 1, 'Hover service should be called after QuickInput is hidden');
 
 		onShowEmitter.dispose();
 		onHideEmitter.dispose();
