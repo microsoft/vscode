@@ -60,6 +60,7 @@ import { DisassemblyViewInput } from '../common/disassemblyViewInput.js';
 import * as icons from './debugIcons.js';
 import { DisassemblyView } from './disassemblyView.js';
 import { equals } from '../../../../base/common/arrays.js';
+import { hasKey } from '../../../../base/common/types.js';
 
 const $ = dom.$;
 
@@ -1823,7 +1824,7 @@ export function getBreakpointMessageAndIcon(state: State, breakpointsActivated: 
 	}
 
 	const appendMessage = (text: string): string => {
-		return ('message' in breakpoint && breakpoint.message) ? text.concat(', ' + breakpoint.message) : text;
+		return breakpoint.message ? text.concat(', ' + breakpoint.message) : text;
 	};
 
 	if (debugActive && breakpoint instanceof Breakpoint && breakpoint.pending) {
@@ -1835,7 +1836,7 @@ export function getBreakpointMessageAndIcon(state: State, breakpointsActivated: 
 	if (debugActive && !breakpoint.verified) {
 		return {
 			icon: breakpointIcon.unverified,
-			message: ('message' in breakpoint && breakpoint.message) ? breakpoint.message : (breakpoint.logMessage ? localize('unverifiedLogpoint', "Unverified Logpoint") : localize('unverifiedBreakpoint', "Unverified Breakpoint")),
+			message: breakpoint.message ? breakpoint.message : (breakpoint.logMessage ? localize('unverifiedLogpoint', "Unverified Logpoint") : localize('unverifiedBreakpoint', "Unverified Breakpoint")),
 			showAdapterUnverifiedMessage: true
 		};
 	}
@@ -1935,7 +1936,7 @@ export function getBreakpointMessageAndIcon(state: State, breakpointsActivated: 
 		};
 	}
 
-	const message = ('message' in breakpoint && breakpoint.message) ? breakpoint.message : breakpoint instanceof Breakpoint && labelService ? labelService.getUriLabel(breakpoint.uri) : localize('breakpoint', "Breakpoint");
+	const message = breakpoint.message ? breakpoint.message : breakpoint instanceof Breakpoint && labelService ? labelService.getUriLabel(breakpoint.uri) : localize('breakpoint', "Breakpoint");
 	return {
 		icon: breakpointIcon.regular,
 		message
@@ -2047,7 +2048,7 @@ abstract class MemoryBreakpointAction extends Action2 {
 			}));
 			disposables.add(input.onDidAccept(() => {
 				const r = this.parseAddress(input.value, true);
-				if ('error' in r) {
+				if (hasKey(r, { error: true })) {
 					input.validationMessage = r.error;
 				} else {
 					resolve(r);

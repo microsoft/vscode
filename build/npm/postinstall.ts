@@ -110,7 +110,7 @@ function setNpmrcConfig(dir: string, env: NodeJS.ProcessEnv) {
 }
 
 function removeParcelWatcherPrebuild(dir: string) {
-	const parcelModuleFolder = path.join(root, dir, 'node_modules', '@parcel');
+	const parcelModuleFolder = path.join(root, dir, 'node_modules', '@vscode');
 	if (!fs.existsSync(parcelModuleFolder)) {
 		return;
 	}
@@ -120,7 +120,7 @@ function removeParcelWatcherPrebuild(dir: string) {
 		if (moduleName.startsWith('watcher-')) {
 			const modulePath = path.join(parcelModuleFolder, moduleName);
 			fs.rmSync(modulePath, { recursive: true, force: true });
-			log(dir, `Removed @parcel/watcher prebuilt module ${modulePath}`);
+			log(dir, `Removed @vscode/watcher prebuilt module ${modulePath}`);
 		}
 	}
 }

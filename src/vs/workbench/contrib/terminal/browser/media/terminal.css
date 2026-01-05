@@ -144,8 +144,8 @@
 	position: relative;
 }
 
-.monaco-workbench .terminal-editor .terminal-wrapper > div,
-.monaco-workbench .pane-body.integrated-terminal .terminal-wrapper > div {
+.monaco-workbench .terminal-editor .terminal-wrapper > .terminal-xterm-host,
+.monaco-workbench .pane-body.integrated-terminal .terminal-wrapper > .terminal-xterm-host {
 	height: 100%;
 }
 
@@ -543,6 +543,7 @@
 	box-sizing: border-box;
 	transform: translateX(3px);
 	pointer-events: none;
+	margin-left: -20px;
 }
 .terminal-command-guide.top {
 	border-top-left-radius: 1px;
