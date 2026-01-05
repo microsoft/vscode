@@ -84,6 +84,7 @@ import { ChatListDelegate, ChatListItemRenderer, IChatListItemTemplate, IChatRen
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatViewWelcomePart, IChatSuggestedPrompts, IChatViewWelcomeContent } from '../viewsWelcome/chatViewWelcomeController.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
+import { IStickyNodes } from '../../../../../base/browser/ui/tree/abstractTree.js';
 
 const $ = dom.$;
 
@@ -106,6 +107,26 @@ export interface IChatWidgetContrib extends IDisposable {
 	 * Called with the result of getInputState when navigating input history.
 	 */
 	setInputState?(contrib: Readonly<Record<string, unknown>>): void;
+}
+
+class ChatStickyNodes implements IStickyNodes<ChatTreeItem> {
+
+	readonly onDidChange = Event.None;
+
+	constructor(private readonly _chatViewModelProvider: () => ChatViewModel | undefined) { }
+
+	getStickyChildElements(element: ChatTreeItem | null): ChatTreeItem[] {
+		if (element !== null) {
+			return [];
+		}
+
+		const viewModel = this._chatViewModelProvider();
+		if (!viewModel) {
+			return [];
+		}
+
+		return viewModel.getItems().filter(item => isRequestVM(item));
+	}
 }
 
 interface IChatRequestInputOptions {
@@ -1532,6 +1553,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				setRowLineHeight: false,
 				filter: this.viewOptions.filter ? { filter: this.viewOptions.filter.bind(this.viewOptions), } : undefined,
 				scrollToActiveElement: true,
+				stickyNodes: new ChatStickyNodes(() => this.viewModel),
 				overrideStyles: {
 					listFocusBackground: this.styles.listBackground,
 					listInactiveFocusBackground: this.styles.listBackground,

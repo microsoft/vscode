@@ -1316,6 +1316,13 @@ export interface IStickyScrollDelegate<T, TFilterData> {
 	constrainStickyScrollNodes(stickyNodes: StickyScrollNode<T, TFilterData>[], stickyScrollMaxItemCount: number, maxWidgetHeight: number): StickyScrollNode<T, TFilterData>[];
 }
 
+export interface IStickyNodes<T> {
+
+	getStickyChildElements(element: T | null): T[];
+
+	readonly onDidChange: Event<void>;
+}
+
 class DefaultStickyScrollDelegate<T, TFilterData> implements IStickyScrollDelegate<T, TFilterData> {
 
 	constrainStickyScrollNodes(stickyNodes: StickyScrollNode<T, TFilterData>[], stickyScrollMaxItemCount: number, maxWidgetHeight: number): StickyScrollNode<T, TFilterData>[] {
@@ -1338,6 +1345,7 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 	readonly onContextMenu: Event<ITreeContextMenuEvent<T>>;
 
 	private readonly stickyScrollDelegate: IStickyScrollDelegate<T, TFilterData>;
+	private readonly stickyNodes: IStickyNodes<T> | undefined;
 
 	private stickyScrollMaxItemCount: number;
 	private readonly maxWidgetViewRatio = 0.4;
@@ -1360,6 +1368,7 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 		this.stickyScrollMaxItemCount = stickyScrollOptions.stickyScrollMaxItemCount;
 
 		this.stickyScrollDelegate = options.stickyScrollDelegate ?? new DefaultStickyScrollDelegate();
+		this.stickyNodes = options.stickyNodes;
 		this.paddingTop = options.paddingTop ?? 0;
 
 		this._widget = this._register(new StickyScrollWidget(view.getScrollableElement(), view, tree, renderers, treeDelegate, options.accessibilityProvider));
@@ -1406,6 +1415,74 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 
 	getNode(node: ITreeNode<T, TFilterData>): StickyScrollNode<T, TFilterData> | undefined {
 		return this._widget.getNode(node);
+	}
+
+	/**
+	 * Finds a sticky element node that should stick before the given ancestor node.
+	 * Returns the first sticky element that has the same parent as the nextAncestor
+	 * and comes before it in the tree (has a lower index).
+	 */
+	private findStickyElementBeforeAncestor(nextAncestor: ITreeNode<T, TFilterData>, previousStickyNode: ITreeNode<T, TFilterData> | undefined): ITreeNode<T, TFilterData> | undefined {
+		if (!this.stickyNodes) {
+			return undefined;
+		}
+
+		const nextAncestorIndex = this.getNodeIndex(nextAncestor);
+		const nextAncestorParent = this.getParentNode(nextAncestor);
+
+		// Use root node if parent is undefined
+		const parentNode = nextAncestorParent ?? this.model.getNode();
+
+		const stickyChildElements = this.stickyNodes.getStickyChildElements(parentNode.element);
+		if (stickyChildElements.length === 0) {
+			return undefined;
+		}
+
+		// Create a set for quick lookup
+		const stickyElementSet = new Set(stickyChildElements);
+
+		let bestCandidate: ITreeNode<T, TFilterData> | undefined;
+		let bestCandidateIndex = -1;
+
+		// Iterate through parent's children to find sticky elements
+		for (const childNode of parentNode.children) {
+			if (!stickyElementSet.has(childNode.element)) {
+				continue;
+			}
+
+			const stickyNodeIndex = this.getNodeIndex(childNode);
+
+			// Skip if the index is invalid (node may have been removed)
+			if (stickyNodeIndex < 0) {
+				continue;
+			}
+
+			// Skip if this is the same as the previous sticky node
+			if (previousStickyNode && childNode.element === previousStickyNode.element) {
+				continue;
+			}
+
+			// Skip if the sticky node is after the next ancestor
+			if (stickyNodeIndex > nextAncestorIndex) {
+				continue;
+			}
+
+			// Skip if the sticky node is before or at the previous sticky node
+			if (previousStickyNode) {
+				const previousIndex = this.getNodeIndex(previousStickyNode);
+				if (stickyNodeIndex <= previousIndex) {
+					continue;
+				}
+			}
+
+			// Find the first (lowest index) sticky element that qualifies
+			if (!bestCandidate || stickyNodeIndex < bestCandidateIndex) {
+				bestCandidate = childNode;
+				bestCandidateIndex = stickyNodeIndex;
+			}
+		}
+
+		return bestCandidate;
 	}
 
 	private getNodeAtHeight(height: number): ITreeNode<T, TFilterData> | undefined {
@@ -1466,12 +1543,23 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 	}
 
 	private getNextStickyNode(firstVisibleNodeUnderWidget: ITreeNode<T, TFilterData>, previousStickyNode: ITreeNode<T, TFilterData> | undefined, stickyNodesHeight: number): StickyScrollNode<T, TFilterData> | undefined {
-		const nextStickyNode = this.getAncestorUnderPrevious(firstVisibleNodeUnderWidget, previousStickyNode);
-		if (!nextStickyNode) {
+		const nextChildStickyNode = this.getAncestorUnderPrevious(firstVisibleNodeUnderWidget, previousStickyNode);
+
+		// Check if there's a sticky element node that should stick before the ancestor node
+		const stickyElementNode = this.findStickyElementBeforeAncestor(nextChildStickyNode ?? firstVisibleNodeUnderWidget, previousStickyNode);
+		if (stickyElementNode) {
+			// A sticky element was found that should stick before the ancestor
+			// Check if it should be shown (not aligned with sticky nodes bottom)
+			if (!this.nodeTopAlignsWithStickyNodesBottom(stickyElementNode, stickyNodesHeight)) {
+				return this.createStickyScrollNode(stickyElementNode, stickyNodesHeight);
+			}
+		}
+
+		if (!nextChildStickyNode) {
 			return undefined;
 		}
 
-		if (nextStickyNode === firstVisibleNodeUnderWidget) {
+		if (nextChildStickyNode === firstVisibleNodeUnderWidget) {
 			if (!this.nodeIsUncollapsedParent(firstVisibleNodeUnderWidget)) {
 				return undefined;
 			}
@@ -1481,7 +1569,7 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 			}
 		}
 
-		return this.createStickyScrollNode(nextStickyNode, stickyNodesHeight);
+		return this.createStickyScrollNode(nextChildStickyNode, stickyNodesHeight);
 	}
 
 	private nodeTopAlignsWithStickyNodesBottom(node: ITreeNode<T, TFilterData>, stickyNodesHeight: number): boolean {
@@ -1500,23 +1588,57 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 		return { node, position, height, startIndex, endIndex };
 	}
 
-	private getAncestorUnderPrevious(node: ITreeNode<T, TFilterData>, previousAncestor: ITreeNode<T, TFilterData> | undefined = undefined): ITreeNode<T, TFilterData> | undefined {
+	private findAncestorUnderParent(node: ITreeNode<T, TFilterData>, targetParent: ITreeNode<T, TFilterData> | undefined): ITreeNode<T, TFilterData> | undefined {
 		let currentAncestor: ITreeNode<T, TFilterData> = node;
 		let parentOfcurrentAncestor: ITreeNode<T, TFilterData> | undefined = this.getParentNode(currentAncestor);
 
 		while (parentOfcurrentAncestor) {
-			if (parentOfcurrentAncestor === previousAncestor) {
+			if (parentOfcurrentAncestor === targetParent) {
 				return currentAncestor;
 			}
 			currentAncestor = parentOfcurrentAncestor;
 			parentOfcurrentAncestor = this.getParentNode(currentAncestor);
 		}
 
-		if (previousAncestor === undefined) {
+		// If targetParent is undefined, return the root ancestor
+		if (targetParent === undefined) {
 			return currentAncestor;
 		}
 
 		return undefined;
+	}
+
+	private getAncestorUnderPrevious(node: ITreeNode<T, TFilterData>, previousAncestor: ITreeNode<T, TFilterData> | undefined = undefined): ITreeNode<T, TFilterData> | undefined {
+		const result = this.findAncestorUnderParent(node, previousAncestor);
+		if (result !== undefined) {
+			return result;
+		}
+
+		// Handle the case where previousAncestor is a sibling node (from stickyNodesSet)
+		// In this case, we need to find the common parent and return the ancestor under it
+		if (previousAncestor !== undefined && this.isStickyElement(previousAncestor)) {
+			const previousParent = this.getParentNode(previousAncestor);
+			if (previousParent) {
+				// Try to find an ancestor of node that has the same parent as previousAncestor
+				return this.findAncestorUnderParent(node, previousParent);
+			}
+		}
+
+		return undefined;
+	}
+
+	/**
+	 * Checks if a node's element is a sticky child of its parent.
+	 */
+	private isStickyElement(node: ITreeNode<T, TFilterData>): boolean {
+		if (!this.stickyNodes) {
+			return false;
+		}
+
+		const parent = this.getParentNode(node);
+
+		const stickyChildren = this.stickyNodes.getStickyChildElements(parent?.element ?? null);
+		return stickyChildren.includes(node.element);
 	}
 
 	private calculateStickyNodePosition(lastDescendantIndex: number, stickyRowPositionTop: number, stickyNodeHeight: number): number {
@@ -1594,6 +1716,16 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 	private getNodeRange(node: ITreeNode<T, TFilterData>): { startIndex: number; endIndex: number } {
 		const nodeLocation = this.model.getNodeLocation(node);
 		const startIndex = this.model.getListIndex(nodeLocation);
+
+		if (!this.model.isCollapsible(nodeLocation)) {
+			const parentLocation = this.model.getParentNodeLocation(nodeLocation);
+
+			const endIndex = this.model.rootRef === parentLocation ?
+				this.model.getListRenderCount(this.model.rootRef) - 1 :
+				this.getNodeRange(this.model.getNode(parentLocation)).endIndex;
+
+			return { startIndex, endIndex };
+		}
 
 		if (startIndex < 0) {
 			throw new Error('Node not found in tree');
@@ -2217,6 +2349,7 @@ export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTr
 	readonly findWidgetStyles?: IFindWidgetStyles;
 	readonly defaultFindVisibility?: TreeVisibility | ((e: T) => TreeVisibility);
 	readonly stickyScrollDelegate?: IStickyScrollDelegate<T, TFilterData>;
+	readonly stickyNodes?: IStickyNodes<T>;
 	readonly disableExpandOnSpacebar?: boolean; // defaults to false
 }
 

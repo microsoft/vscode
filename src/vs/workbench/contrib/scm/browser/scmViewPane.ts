@@ -27,8 +27,8 @@ import { IThemeService, IFileIconTheme } from '../../../../platform/theme/common
 import { isSCMResource, isSCMResourceGroup, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider, isSCMActionButton, isSCMViewService, isSCMResourceNode, connectPrimaryMenu } from './util.js';
 import { WorkbenchCompressibleAsyncDataTree, IOpenEvent } from '../../../../platform/list/browser/listService.js';
 import { IConfigurationService, ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
-import { disposableTimeout, Sequencer, ThrottledDelayer, Throttler } from '../../../../base/common/async.js';
-import { ITreeNode, ITreeFilter, ITreeSorter, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeDragOverReaction, IAsyncDataSource } from '../../../../base/browser/ui/tree/tree.js';
+import { Sequencer, ThrottledDelayer, Throttler } from '../../../../base/common/async.js';
+import { ITreeNode, ITreeFilter, ITreeSorter, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeDragOverReaction, IAsyncDataSource, ITreeElementRenderDetails } from '../../../../base/browser/ui/tree/tree.js';
 import { ResourceTree, IResourceNode } from '../../../../base/common/resourceTree.js';
 import { ICompressibleTreeRenderer, ICompressibleKeyboardNavigationLabelProvider } from '../../../../base/browser/ui/tree/objectTree.js';
 import { Iterable } from '../../../../base/common/iterator.js';
@@ -68,7 +68,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { AnchorAlignment } from '../../../../base/browser/ui/contextview/contextview.js';
 import { RepositoryActionRunner, RepositoryRenderer } from './scmRepositoryRenderer.js';
 import { isDark } from '../../../../platform/theme/common/theme.js';
-import { LabelFuzzyScore } from '../../../../base/browser/ui/tree/abstractTree.js';
+import { LabelFuzzyScore, IStickyNodes } from '../../../../base/browser/ui/tree/abstractTree.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from '../../../browser/parts/editor/editorCommands.js';
 import { createActionViewItem, getFlatActionBarActions, getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -323,7 +323,7 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 		return { inputWidget, inputWidgetHeight: InputRenderer.DEFAULT_HEIGHT, elementDisposables: new DisposableStore(), templateDisposable };
 	}
 
-	renderElement(node: ITreeNode<ISCMInput, FuzzyScore>, index: number, templateData: InputTemplate): void {
+	renderElement(node: ITreeNode<ISCMInput, FuzzyScore>, index: number, templateData: InputTemplate, details?: ITreeElementRenderDetails): void {
 		const input = node.element;
 		templateData.inputWidget.input = input;
 
@@ -352,24 +352,24 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 		templateData.inputWidgetHeight = InputRenderer.DEFAULT_HEIGHT;
 
 		// Rerender the element whenever the editor content height changes
-		const onDidChangeContentHeight = () => {
-			const contentHeight = templateData.inputWidget.getContentHeight();
-			this.contentHeights.set(input, contentHeight);
+		/* 		const onDidChangeContentHeight = () => {
+					const contentHeight = templateData.inputWidget.getContentHeight();
+					this.contentHeights.set(input, contentHeight);
 
-			if (templateData.inputWidgetHeight !== contentHeight) {
-				this.updateHeight(input, contentHeight + 10);
-				templateData.inputWidgetHeight = contentHeight;
-				templateData.inputWidget.layout();
-			}
-		};
+					if (templateData.inputWidgetHeight !== contentHeight) {
+						this.updateHeight(input, contentHeight + 10);
+						templateData.inputWidgetHeight = contentHeight;
+						templateData.inputWidget.layout();
+					}
+				};
 
-		const startListeningContentHeightChange = () => {
-			templateData.elementDisposables.add(templateData.inputWidget.onDidChangeContentHeight(onDidChangeContentHeight));
-			onDidChangeContentHeight();
-		};
+				const startListeningContentHeightChange = () => {
+					templateData.elementDisposables.add(templateData.inputWidget.onDidChangeContentHeight(onDidChangeContentHeight));
+					onDidChangeContentHeight();
+				};
 
-		// Setup height change listener on next tick
-		disposableTimeout(startListeningContentHeightChange, 0, templateData.elementDisposables);
+				// Setup height change listener on next tick
+				disposableTimeout(startListeningContentHeightChange, 0, templateData.elementDisposables);*/
 
 		// Layout the editor whenever the outer layout happens
 		const layoutEditor = () => templateData.inputWidget.layout();
@@ -756,6 +756,36 @@ class SCMTreeFilter implements ITreeFilter<TreeElement> {
 		} else {
 			return true;
 		}
+	}
+}
+
+class SCMStickyNodes implements IStickyNodes<TreeElement> {
+
+	readonly onDidChange = Event.None;
+
+	constructor(
+		protected readonly configurationService: IConfigurationService
+	) { }
+
+	getStickyChildElements(element: TreeElement | null): TreeElement[] {
+		// Root element has no sticky children
+		if (element === null) {
+			return [];
+		}
+
+		// Only repository elements have sticky children
+		if (!isSCMRepository(element)) {
+			return [];
+		}
+
+		const stickyChildren: TreeElement[] = [];
+
+		// Add input box if visible
+		if (element.input.visible) {
+			stickyChildren.push(element.input);
+		}
+
+		return stickyChildren;
 	}
 }
 
@@ -2444,6 +2474,7 @@ export class SCMViewPane extends ViewPane {
 
 					return undefined;
 				},
+				stickyNodes: new SCMStickyNodes(this.configurationService),
 			}) as WorkbenchCompressibleAsyncDataTree<ISCMViewService, TreeElement, FuzzyScore>;
 
 		this.disposables.add(this.tree);

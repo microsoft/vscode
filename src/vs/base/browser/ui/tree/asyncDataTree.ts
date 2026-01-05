@@ -7,7 +7,7 @@ import { IDragAndDropData } from '../../dnd.js';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListDragAndDrop, IListDragOverReaction, IListMouseEvent, IListTouchEvent, IListVirtualDelegate } from '../list/list.js';
 import { ElementsDragAndDropData, ListViewTargetSector } from '../list/listView.js';
 import { IListStyles } from '../list/listWidget.js';
-import { ComposedTreeDelegate, TreeFindMode as TreeFindMode, IAbstractTreeOptions, IAbstractTreeOptionsUpdate, TreeFindMatchType, AbstractTreePart, LabelFuzzyScore, FindFilter, FindController, ITreeFindToggleChangeEvent, IFindControllerOptions, IStickyScrollDelegate, AbstractTree } from './abstractTree.js';
+import { ComposedTreeDelegate, TreeFindMode as TreeFindMode, IAbstractTreeOptions, IAbstractTreeOptionsUpdate, TreeFindMatchType, AbstractTreePart, LabelFuzzyScore, FindFilter, FindController, ITreeFindToggleChangeEvent, IFindControllerOptions, IStickyScrollDelegate, IStickyNodes, AbstractTree } from './abstractTree.js';
 import { ICompressedTreeElement, ICompressedTreeNode } from './compressedObjectTreeModel.js';
 import { getVisibleState, isFilterResult } from './indexTreeModel.js';
 import { CompressibleObjectTree, ICompressibleKeyboardNavigationLabelProvider, ICompressibleObjectTreeOptions, ICompressibleTreeRenderer, IObjectTreeOptions, IObjectTreeSetChildrenOptions, ObjectTree } from './objectTree.js';
@@ -492,7 +492,20 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 				return (options.defaultFindVisibility as ((e: T) => TreeVisibility))(e.element as T);
 			}
 		},
-		stickyScrollDelegate: options.stickyScrollDelegate as IStickyScrollDelegate<IAsyncDataTreeNode<TInput, T>, TFilterData> | undefined
+		stickyScrollDelegate: options.stickyScrollDelegate as IStickyScrollDelegate<IAsyncDataTreeNode<TInput, T>, TFilterData> | undefined,
+		stickyNodes: options.stickyNodes && {
+			getStickyChildElements(node: IAsyncDataTreeNode<TInput, T> | null): IAsyncDataTreeNode<TInput, T>[] {
+				if (!node) {
+					// Root level - no access to children nodes here, return empty
+					// The user's stickyNodes returns T[], but we need to return wrapper nodes
+					return [];
+				}
+				const stickyElements = options.stickyNodes!.getStickyChildElements(node.element as T);
+				// Find the child nodes that match the sticky elements
+				return node.children.filter((child: IAsyncDataTreeNode<TInput, T>) => stickyElements.includes(child.element as T));
+			},
+			onDidChange: options.stickyNodes.onDidChange
+		} satisfies IStickyNodes<IAsyncDataTreeNode<TInput, T>>
 	};
 }
 export interface IAsyncDataTreeOptionsUpdate<T> extends IAbstractTreeOptionsUpdate<T> { }
@@ -1483,7 +1496,8 @@ function asCompressibleObjectTreeOptions<TInput, T, TFilterData>(options?: IComp
 				return options.keyboardNavigationLabelProvider!.getCompressedNodeKeyboardNavigationLabel(els.map(e => e.element as T));
 			}
 		},
-		stickyScrollDelegate: objectTreeOptions.stickyScrollDelegate as IStickyScrollDelegate<IAsyncDataTreeNode<TInput, T>, TFilterData> | undefined
+		stickyScrollDelegate: objectTreeOptions.stickyScrollDelegate as IStickyScrollDelegate<IAsyncDataTreeNode<TInput, T>, TFilterData> | undefined,
+		stickyNodes: objectTreeOptions.stickyNodes as IStickyNodes<IAsyncDataTreeNode<TInput, T>> | undefined
 	};
 }
 
