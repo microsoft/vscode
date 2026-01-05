@@ -72,8 +72,8 @@ export interface IFontToken {
 	readonly startIndex: number;
 	readonly endIndex: number;
 	readonly fontFamily: string | null;
-	readonly fontSizeMultiplier: number | null;
-	readonly lineHeightMultiplier: number | null;
+	readonly fontSize: number | null;
+	readonly lineHeight: number | null;
 }
 
 /**
