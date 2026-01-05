@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, ImmortalReference, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, ImmortalReference, IReference } from '../../../../base/common/lifecycle.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import type { IMarker as IXtermMarker, Terminal as RawXtermTerminal } from '@xterm/xterm';
 import type { ITerminalCommand } from '../../../../platform/terminal/common/capabilities/capabilities.js';
@@ -140,6 +141,7 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 	private _dirtyScheduled = false;
 	private _isStreaming = false;
 	private _sourceRaw: RawXtermTerminal | undefined;
+	private _isDisposed = false;
 
 	constructor(
 		private readonly _xtermTerminal: XtermTerminal,
@@ -149,11 +151,33 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
-		this._register(toDisposable(() => this._stopStreaming()));
+	}
+
+	public override dispose(): void {
+		if (this._isDisposed) {
+			return;
+		}
+		this._isDisposed = true;
+		this._stopStreaming();
+		super.dispose();
 	}
 
 	async attach(container: HTMLElement): Promise<void> {
-		const terminal = await this._getOrCreateTerminal();
+		if (this._isDisposed) {
+			return;
+		}
+		let terminal: IDetachedTerminalInstance;
+		try {
+			terminal = await this._getOrCreateTerminal();
+		} catch (error) {
+			if (error instanceof CancellationError) {
+				return;
+			}
+			throw error;
+		}
+		if (this._isDisposed) {
+			return;
+		}
 		if (this._attachedContainer !== container) {
 			container.classList.add('chat-terminal-output-terminal');
 			terminal.attachToElement(container);
@@ -162,7 +186,21 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 	}
 
 	async renderCommand(): Promise<{ lineCount?: number } | undefined> {
-		const detached = await this._getOrCreateTerminal();
+		if (this._isDisposed) {
+			return undefined;
+		}
+		let detached: IDetachedTerminalInstance;
+		try {
+			detached = await this._getOrCreateTerminal();
+		} catch (error) {
+			if (error instanceof CancellationError) {
+				return undefined;
+			}
+			throw error;
+		}
+		if (this._isDisposed) {
+			return undefined;
+		}
 		let vt;
 		try {
 			vt = await this._getCommandOutputAsVT(this._xtermTerminal);
@@ -170,6 +208,9 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 			// ignore and treat as no output
 		}
 		if (!vt) {
+			return undefined;
+		}
+		if (this._isDisposed) {
 			return undefined;
 		}
 
@@ -200,6 +241,9 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 	}
 
 	private async _getCommandOutputAsVT(source: XtermTerminal): Promise<{ text: string; lineCount: number } | undefined> {
+		if (this._isDisposed) {
+			return undefined;
+		}
 		const executedMarker = this._command.executedMarker ?? (this._command as unknown as ICurrentPartialCommand).commandExecutedMarker;
 		if (!executedMarker) {
 			return undefined;
@@ -207,6 +251,9 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 
 		const endMarker = this._command.endMarker;
 		const text = await source.getRangeAsVT(executedMarker, endMarker, endMarker?.line !== executedMarker.line);
+		if (this._isDisposed) {
+			return undefined;
+		}
 		if (!text) {
 			return { text: '', lineCount: 0 };
 		}
@@ -218,6 +265,9 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 		if (this._detachedTerminal) {
 			return this._detachedTerminal;
 		}
+		if (this._isDisposed) {
+			throw new CancellationError();
+		}
 		const targetRef = this._terminalLocation ?? new ImmortalReference<TerminalLocation | undefined>(undefined);
 		const colorProvider = this._instantiationService.createInstance(TerminalInstanceColorProvider, targetRef);
 		const detached = await this._terminalService.createDetachedTerminal({
@@ -227,13 +277,17 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 			processInfo: new DetachedProcessInfo({ initialCwd: '' }),
 			colorProvider
 		});
+		if (this._isDisposed) {
+			detached.dispose();
+			throw new CancellationError();
+		}
 		this._detachedTerminal = detached;
 		this._register(detached);
 		return detached;
 	}
 
 	private _startStreaming(raw: RawXtermTerminal): void {
-		if (this._isStreaming) {
+		if (this._isDisposed || this._isStreaming) {
 			return;
 		}
 		this._isStreaming = true;
@@ -248,10 +302,11 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 		this._streamingDisposables.clear();
 		this._isStreaming = false;
 		this._lowestDirtyCursorY = undefined;
+		this._sourceRaw = undefined;
 	}
 
 	private _handleCursorEvent(): void {
-		if (!this._sourceRaw) {
+		if (this._isDisposed || !this._sourceRaw) {
 			return;
 		}
 		const cursorY = this._getAbsoluteCursorY(this._sourceRaw);
@@ -260,18 +315,21 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 	}
 
 	private _scheduleFlush(): void {
-		if (this._dirtyScheduled) {
+		if (this._dirtyScheduled || this._isDisposed) {
 			return;
 		}
 		this._dirtyScheduled = true;
 		Promise.resolve().then(() => {
 			this._dirtyScheduled = false;
+			if (this._isDisposed) {
+				return;
+			}
 			this._flushDirtyRange();
 		});
 	}
 
 	private _flushDirtyRange(): void {
-		if (this._flushPromise) {
+		if (this._isDisposed || this._flushPromise) {
 			return;
 		}
 		this._flushPromise = this._doFlushDirtyRange().finally(() => {
@@ -280,9 +338,25 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 	}
 
 	private async _doFlushDirtyRange(): Promise<void> {
+		if (this._isDisposed) {
+			return;
+		}
 		const sourceRaw = this._xtermTerminal.raw;
-		const detached = this._detachedTerminal ?? await this._getOrCreateTerminal();
-		const detachedRaw = detached.xterm;
+		let detached = this._detachedTerminal;
+		if (!detached) {
+			try {
+				detached = await this._getOrCreateTerminal();
+			} catch (error) {
+				if (error instanceof CancellationError) {
+					return;
+				}
+				throw error;
+			}
+		}
+		if (this._isDisposed) {
+			return;
+		}
+		const detachedRaw = detached?.xterm;
 		if (!sourceRaw || !detachedRaw) {
 			return;
 		}
@@ -297,6 +371,9 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 		// Ensure we resolve any pending flush even when no actual new output is available.
 		const vt = await this._getCommandOutputAsVT(this._xtermTerminal);
 		if (!vt) {
+			return;
+		}
+		if (this._isDisposed) {
 			return;
 		}
 
