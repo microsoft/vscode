@@ -24,7 +24,6 @@ import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../pla
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -425,7 +424,6 @@ export class LanguageModelsService implements ILanguageModelsService {
 		@ILanguageModelsConfigurationService private readonly _languageModelsConfigurationService: ILanguageModelsConfigurationService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@ISecretStorageService private readonly _secretStorageService: ISecretStorageService,
-		@IProductService private readonly _productService: IProductService,
 	) {
 		this._hasUserSelectableModels = ChatContextKeys.languageModelsAreUserSelectable.bindTo(_contextKeyService);
 		this._modelPickerUserPreferences = this._storageService.getObject<IStringDictionary<boolean>>('chatModelPickerPreferences', StorageScope.PROFILE, this._modelPickerUserPreferences);
@@ -551,19 +549,17 @@ export class LanguageModelsService implements ILanguageModelsService {
 					languageModelsGroups.push({ models: modelsMetadata });
 				}
 
-				if (this._productService.quality !== 'stable') {
-					const groups = this._languageModelsConfigurationService.getLanguageModelsProviderGroups();
-					for (const group of groups) {
-						if (group.vendor !== vendorId) {
-							continue;
-						}
+				const groups = this._languageModelsConfigurationService.getLanguageModelsProviderGroups();
+				for (const group of groups) {
+					if (group.vendor !== vendorId) {
+						continue;
+					}
 
-						const configuration = await this._resolveConfiguration(group, vendor.configuration);
+					const configuration = await this._resolveConfiguration(group, vendor.configuration);
 
-						const modelsMetadata = await this._resolveLanguageModels(vendorId, provider, { silent, configuration });
-						if (modelsMetadata.length) {
-							languageModelsGroups.push({ group, models: modelsMetadata });
-						}
+					const modelsMetadata = await this._resolveLanguageModels(vendorId, provider, { silent, configuration });
+					if (modelsMetadata.length) {
+						languageModelsGroups.push({ group, models: modelsMetadata });
 					}
 				}
 
