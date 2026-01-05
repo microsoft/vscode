@@ -478,8 +478,8 @@ export interface ITokenColorizationSetting {
 	background?: string;
 	fontStyle?: string; /* [italic|bold|underline|strikethrough] */
 	fontFamily?: string;
-	fontSize?: number;
-	lineHeight?: number;
+	fontSizeMultiplier?: number;
+	lineHeightMultiplier?: number;
 }
 
 export interface ISemanticTokenColorizationSetting {

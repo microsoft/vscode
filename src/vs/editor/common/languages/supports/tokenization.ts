@@ -429,10 +429,10 @@ export function generateTokensCSSForFontMap(fontMap: readonly IFontTokenOptions[
 	const fonts = new Set<string>();
 	for (let i = 1, len = fontMap.length; i < len; i++) {
 		const font = fontMap[i];
-		if (!font.fontFamily && !font.fontSize) {
+		if (!font.fontFamily && !font.fontSizeMultiplier) {
 			continue;
 		}
-		const className = classNameForFontTokenDecorations(font.fontFamily ?? '', font.fontSize ? font.fontSize * defaultFontSize : 0);
+		const className = classNameForFontTokenDecorations(font.fontFamily ?? '', font.fontSizeMultiplier ? font.fontSizeMultiplier * defaultFontSize : 0);
 		if (fonts.has(className)) {
 			continue;
 		}
@@ -441,8 +441,8 @@ export function generateTokensCSSForFontMap(fontMap: readonly IFontTokenOptions[
 		if (font.fontFamily) {
 			rule += `font-family: ${font.fontFamily};`;
 		}
-		if (font.fontSize) {
-			rule += `font-size: ${font.fontSize * defaultFontSize}px;`;
+		if (font.fontSizeMultiplier) {
+			rule += `font-size: ${font.fontSizeMultiplier * defaultFontSize}px;`;
 		}
 		rule += `}`;
 		rules.push(rule);
