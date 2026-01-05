@@ -210,18 +210,24 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 				const selection = codeEditor?.getSelection();
 				const visibleRanges = codeEditor?.getVisibleRanges() || [];
 				newValue = activeCell.uri;
-				if (isEqual(codeEditor?.getModel()?.uri, activeCell.uri)) {
+				const cellModel = codeEditor?.getModel();
+				if (cellModel && isEqual(cellModel.uri, activeCell.uri)) {
 					if (selection && !selection.isEmpty()) {
 						newValue = { uri: activeCell.uri, range: selection } satisfies Location;
 						isSelection = true;
 					} else if (visibleRanges.length > 0) {
-						// Merge visible ranges. Maybe the reference value could actually be an array of Locations?
-						// Something like a Location with an array of Ranges?
-						let range = visibleRanges[0];
-						visibleRanges.slice(1).forEach(r => {
-							range = range.plusRange(r);
-						});
-						newValue = { uri: activeCell.uri, range } satisfies Location;
+						// If the entire cell is visible, just use the cell URI, no need to specify range.
+						if (visibleRanges.length === 1 && visibleRanges[0].startLineNumber === 1 && visibleRanges[0].startColumn === 1 && visibleRanges[0].endLineNumber === cellModel.getLineCount() && visibleRanges[0].endColumn === cellModel.getLineMaxColumn(visibleRanges[0].endLineNumber)) {
+							// entire cell is visible.
+						} else {
+							// Merge visible ranges. Maybe the reference value could actually be an array of Locations?
+							// Something like a Location with an array of Ranges?
+							let range = visibleRanges[0];
+							visibleRanges.slice(1).forEach(r => {
+								range = range.plusRange(r);
+							});
+							newValue = { uri: activeCell.uri, range } satisfies Location;
+						}
 					}
 				}
 			} else {
