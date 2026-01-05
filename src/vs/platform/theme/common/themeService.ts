@@ -83,7 +83,7 @@ export interface IColorTheme {
 
 export class IFontTokenOptions {
 	fontFamily?: string;
-	fontSize?: string;
+	fontSize?: number;
 	lineHeight?: number;
 }
 

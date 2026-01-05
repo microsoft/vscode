@@ -348,7 +348,8 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 		this._grammarFactory?.setTheme(this._currentTheme, this._currentTokenColorMap);
 		const colorMap = toColorMap(this._currentTokenColorMap);
 		const colorCssRules = generateTokensCSSForColorMap(colorMap);
-		const fontCssRules = generateTokensCSSForFontMap(this._currentTokenFontMap);
+		const fontSize = this._configurationService.getValue<number>('editor.fontSize');
+		const fontCssRules = generateTokensCSSForFontMap(this._currentTokenFontMap, fontSize);
 
 		this._styleElement.textContent = colorCssRules + fontCssRules;
 		TokenizationRegistry.setColorMap(colorMap);

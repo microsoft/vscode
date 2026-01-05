@@ -424,7 +424,7 @@ export function generateTokensCSSForColorMap(colorMap: readonly Color[]): string
 	return rules.join('\n');
 }
 
-export function generateTokensCSSForFontMap(fontMap: readonly IFontTokenOptions[]): string {
+export function generateTokensCSSForFontMap(fontMap: readonly IFontTokenOptions[], defaultFontSize: number): string {
 	const rules: string[] = [];
 	const fonts = new Set<string>();
 	for (let i = 1, len = fontMap.length; i < len; i++) {
@@ -432,7 +432,7 @@ export function generateTokensCSSForFontMap(fontMap: readonly IFontTokenOptions[
 		if (!font.fontFamily && !font.fontSize) {
 			continue;
 		}
-		const className = classNameForFontTokenDecorations(font.fontFamily ?? '', font.fontSize ?? '');
+		const className = classNameForFontTokenDecorations(font.fontFamily ?? '', font.fontSize ? font.fontSize * defaultFontSize : 0);
 		if (fonts.has(className)) {
 			continue;
 		}
@@ -442,7 +442,7 @@ export function generateTokensCSSForFontMap(fontMap: readonly IFontTokenOptions[
 			rule += `font-family: ${font.fontFamily};`;
 		}
 		if (font.fontSize) {
-			rule += `font-size: ${font.fontSize};`;
+			rule += `font-size: ${font.fontSize * defaultFontSize}px;`;
 		}
 		rule += `}`;
 		rules.push(rule);
@@ -450,6 +450,6 @@ export function generateTokensCSSForFontMap(fontMap: readonly IFontTokenOptions[
 	return rules.join('\n');
 }
 
-export function classNameForFontTokenDecorations(fontFamily: string, fontSize: string): string {
-	return `font-decoration-${fontFamily.toLowerCase()}-${fontSize.toLowerCase()}`;
+export function classNameForFontTokenDecorations(fontFamily: string, fontSize: number): string {
+	return `font-decoration-${fontFamily.toLowerCase()}-${fontSize}`;
 }

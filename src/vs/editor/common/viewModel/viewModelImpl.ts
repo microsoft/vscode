@@ -447,25 +447,10 @@ export class ViewModel extends Disposable implements IViewModel {
 		const allowVariableLineHeights = this._configuration.options.get(EditorOption.allowVariableLineHeights);
 		if (allowVariableLineHeights) {
 			this._register(this.model.onDidChangeLineHeight((e) => {
-				const filteredChanges = e.changes.filter((change) => change.ownerId === this._editorId || change.ownerId === 0);
-
-				this.viewLayout.changeSpecialLineHeights((accessor: ILineHeightChangeAccessor) => {
-					for (const change of filteredChanges) {
-						const { decorationId, lineNumber, lineHeight } = change;
-						const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber)));
-						if (lineHeight !== null) {
-							accessor.insertOrChangeCustomLineHeight(decorationId, viewRange.startLineNumber, viewRange.endLineNumber, lineHeight);
-						} else {
-							accessor.removeCustomLineHeight(decorationId);
-						}
-					}
-				});
-
-				// recreate the model event using the filtered changes
-				if (filteredChanges.length > 0) {
-					const filteredEvent = new textModelEvents.ModelLineHeightChangedEvent(filteredChanges);
-					this._eventDispatcher.emitOutgoingEvent(new ModelLineHeightChangedEvent(filteredEvent));
-				}
+				this._onDidChangeLineHeight(e);
+			}));
+			this._register(this.model.onDidChangeLineHeightMultiplier((e) => {
+				this._onDidChangeLineHeight(e);
 			}));
 		}
 
@@ -541,6 +526,41 @@ export class ViewModel extends Disposable implements IViewModel {
 
 	private readonly hiddenAreasModel = new HiddenAreasModel();
 	private previousHiddenAreas: readonly Range[] = [];
+
+	private _onDidChangeLineHeight(e: textModelEvents.ModelLineHeightChangedEvent | textModelEvents.ModelLineHeightMultiplierChangedEvent): void {
+		let modelLineHeightChangedEvent: textModelEvents.ModelLineHeightChangedEvent;
+		if (e instanceof textModelEvents.ModelLineHeightChangedEvent) {
+			modelLineHeightChangedEvent = e;
+		} else {
+			const changes = e.changes.map(change => {
+				return new textModelEvents.ModelLineHeightChanged(
+					change.ownerId,
+					change.decorationId,
+					change.lineNumber,
+					change.lineHeightMultiplier ? change.lineHeightMultiplier * this._configuration.options.get(EditorOption.lineHeight) : null);
+			});
+			modelLineHeightChangedEvent = new textModelEvents.ModelLineHeightChangedEvent(changes);
+		}
+		const filteredChanges = modelLineHeightChangedEvent.changes.filter((change) => change.ownerId === this._editorId || change.ownerId === 0);
+
+		this.viewLayout.changeSpecialLineHeights((accessor: ILineHeightChangeAccessor) => {
+			for (const change of filteredChanges) {
+				const { decorationId, lineNumber, lineHeight } = change;
+				const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber)));
+				if (lineHeight !== null) {
+					accessor.insertOrChangeCustomLineHeight(decorationId, viewRange.startLineNumber, viewRange.endLineNumber, lineHeight);
+				} else {
+					accessor.removeCustomLineHeight(decorationId);
+				}
+			}
+		});
+
+		// recreate the model event using the filtered changes
+		if (filteredChanges.length > 0) {
+			const filteredEvent = new textModelEvents.ModelLineHeightChangedEvent(filteredChanges);
+			this._eventDispatcher.emitOutgoingEvent(new ModelLineHeightChangedEvent(filteredEvent));
+		}
+	}
 
 	public getFontSizeAtPosition(position: IPosition): string | null {
 		const allowVariableFonts = this._configuration.options.get(EditorOption.effectiveAllowVariableFonts);

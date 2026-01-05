@@ -162,11 +162,11 @@ export interface IFontTokenOption {
 	/**
 	 * Font size of the token.
 	 */
-	readonly fontSize?: string;
+	readonly fontSizeMultiplier?: number;
 	/**
 	 * Line height of the token.
 	 */
-	readonly lineHeight?: number;
+	readonly lineHeightMultiplier?: number;
 }
 
 /**
@@ -189,8 +189,8 @@ export function serializeFontTokenOptions(): (options: IFontTokenOption) => IFon
 	return (annotation: IFontTokenOption) => {
 		return {
 			fontFamily: annotation.fontFamily ?? '',
-			fontSize: annotation.fontSize ?? '',
-			lineHeight: annotation.lineHeight ?? 0
+			fontSizeMultiplier: annotation.fontSizeMultiplier ?? 0,
+			lineHeightMultiplier: annotation.lineHeightMultiplier ?? 0
 		};
 	};
 }
@@ -202,8 +202,8 @@ export function deserializeFontTokenOptions(): (options: IFontTokenOption) => IF
 	return (annotation: IFontTokenOption) => {
 		return {
 			fontFamily: annotation.fontFamily ? String(annotation.fontFamily) : undefined,
-			fontSize: annotation.fontSize ? String(annotation.fontSize) : undefined,
-			lineHeight: annotation.lineHeight ? Number(annotation.lineHeight) : undefined
+			fontSizeMultiplier: annotation.fontSizeMultiplier ? Number(annotation.fontSizeMultiplier) : undefined,
+			lineHeightMultiplier: annotation.lineHeightMultiplier ? Number(annotation.lineHeightMultiplier) : undefined
 		};
 	};
 }
@@ -355,6 +355,36 @@ export class ModelLineHeightChanged {
 		this.decorationId = decorationId;
 		this.lineNumber = lineNumber;
 		this.lineHeight = lineHeight;
+	}
+}
+
+/**
+ * An event describing that a line height has changed in the model.
+ * @internal
+ */
+export class ModelLineHeightMultiplierChanged {
+	/**
+	 * Editor owner ID
+	 */
+	public readonly ownerId: number;
+	/**
+	 * The decoration ID that has changed.
+	 */
+	public readonly decorationId: string;
+	/**
+	 * The line that has changed.
+	 */
+	public readonly lineNumber: number;
+	/**
+	 * The line height multiplier on the line.
+	 */
+	public readonly lineHeightMultiplier: number | null;
+
+	constructor(ownerId: number, decorationId: string, lineNumber: number, lineHeightMultiplier: number | null) {
+		this.ownerId = ownerId;
+		this.decorationId = decorationId;
+		this.lineNumber = lineNumber;
+		this.lineHeightMultiplier = lineHeightMultiplier;
 	}
 }
 
@@ -514,6 +544,37 @@ export class ModelLineHeightChangedEvent {
 	public readonly changes: ModelLineHeightChanged[];
 
 	constructor(changes: ModelLineHeightChanged[]) {
+		this.changes = changes;
+	}
+
+	public affects(rangeOrPosition: IRange | IPosition) {
+		if (Range.isIRange(rangeOrPosition)) {
+			for (const change of this.changes) {
+				if (change.lineNumber >= rangeOrPosition.startLineNumber && change.lineNumber <= rangeOrPosition.endLineNumber) {
+					return true;
+				}
+			}
+			return false;
+		} else {
+			for (const change of this.changes) {
+				if (change.lineNumber === rangeOrPosition.lineNumber) {
+					return true;
+				}
+			}
+			return false;
+		}
+	}
+}
+
+/**
+ * An event describing a change of a line height.
+ * @internal
+ */
+export class ModelLineHeightMultiplierChangedEvent {
+
+	public readonly changes: ModelLineHeightMultiplierChanged[];
+
+	constructor(changes: ModelLineHeightMultiplierChanged[]) {
 		this.changes = changes;
 	}
 

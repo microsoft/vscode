@@ -478,7 +478,7 @@ export interface ITokenColorizationSetting {
 	background?: string;
 	fontStyle?: string; /* [italic|bold|underline|strikethrough] */
 	fontFamily?: string;
-	fontSize?: string;
+	fontSize?: number;
 	lineHeight?: number;
 }
 

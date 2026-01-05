@@ -19,7 +19,7 @@ import { IWordAtPosition } from './core/wordHelper.js';
 import { FormattingOptions } from './languages.js';
 import { ILanguageSelection } from './languages/language.js';
 import { IBracketPairsTextModelPart } from './textModelBracketPairs.js';
-import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelFontChangedEvent, ModelInjectedTextChangedEvent, ModelLineHeightChangedEvent } from './textModelEvents.js';
+import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelFontChangedEvent, ModelInjectedTextChangedEvent, ModelLineHeightChangedEvent, ModelLineHeightMultiplierChangedEvent } from './textModelEvents.js';
 import { IModelContentChange } from './model/mirrorTextModel.js';
 import { IGuidesTextModelPart } from './textModelGuides.js';
 import { ITokenizationTextModelPart } from './tokenizationTextModelPart.js';
@@ -1310,6 +1310,14 @@ export interface ITextModel {
 	 * @event
 	 */
 	readonly onDidChangeLineHeight: Event<ModelLineHeightChangedEvent>;
+	/**
+	 * An event emitted when line height multipliers from decorations changes.
+	 * This event is emitted only when adding, removing or changing a decoration
+	 * and not when doing edits in the model (i.e. when decoration ranges change)
+	 * @internal
+	 * @event
+	 */
+	readonly onDidChangeLineHeightMultiplier: Event<ModelLineHeightMultiplierChangedEvent>;
 	/**
 	* An event emitted when the font from decorations changes.
 	* This event is emitted only when adding, removing or changing a decoration

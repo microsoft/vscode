@@ -1014,7 +1014,7 @@ class TokenFontIndex {
 		this._font2id = new Map();
 	}
 
-	public add(fontFamily: string | undefined, fontSize: string | undefined, lineHeight: number | undefined): number {
+	public add(fontFamily: string | undefined, fontSize: number | undefined, lineHeight: number | undefined): number {
 		const font: IFontTokenOptions = { fontFamily, fontSize, lineHeight };
 		let value = this._font2id.get(font);
 		if (value) {

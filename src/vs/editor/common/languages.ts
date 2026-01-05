@@ -72,7 +72,7 @@ export interface IFontToken {
 	readonly startIndex: number;
 	readonly endIndex: number;
 	readonly fontFamily: string | null;
-	readonly fontSize: string | null;
+	readonly fontSize: number | null;
 	readonly lineHeight: number | null;
 }
 
