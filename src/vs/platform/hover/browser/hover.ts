@@ -10,6 +10,7 @@ import { IConfigurationService } from '../../configuration/common/configuration.
 import { addStandardDisposableListener, isHTMLElement } from '../../../base/browser/dom.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
 import type { IHoverDelegate2, IHoverOptions, IHoverWidget, IManagedHoverContentOrFactory } from '../../../base/browser/ui/hover/hover.js';
+import { IQuickInputService } from '../../quickinput/common/quickInput.js';
 
 export const IHoverService = createDecorator<IHoverService>('hoverService');
 
@@ -41,6 +42,7 @@ export class WorkbenchHoverDelegate extends Disposable implements IHoverDelegate
 	}
 
 	private readonly hoverDisposables = this._register(new DisposableStore());
+	private isQuickInputVisible = false;
 
 	constructor(
 		public readonly placement: 'mouse' | 'element',
@@ -48,6 +50,7 @@ export class WorkbenchHoverDelegate extends Disposable implements IHoverDelegate
 		private overrideOptions: Partial<IHoverOptions> | ((options: IHoverDelegateOptions, focus?: boolean) => Partial<IHoverOptions>) = {},
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
 	) {
 		super();
 
@@ -57,9 +60,22 @@ export class WorkbenchHoverDelegate extends Disposable implements IHoverDelegate
 				this._delay = this.configurationService.getValue<number>('workbench.hover.delay');
 			}
 		}));
+
+		// Track QuickInput visibility to suppress hovers during QuickPick interactions
+		this._register(this.quickInputService.onShow(() => {
+			this.isQuickInputVisible = true;
+		}));
+		this._register(this.quickInputService.onHide(() => {
+			this.isQuickInputVisible = false;
+		}));
 	}
 
 	showHover(options: IHoverDelegateOptions, focus?: boolean): IHoverWidget | undefined {
+		// Suppress hover display when QuickInput is active to prevent tooltip interference
+		if (this.isQuickInputVisible) {
+			return undefined;
+		}
+
 		const overrideOptions = typeof this.overrideOptions === 'function' ? this.overrideOptions(options, focus) : this.overrideOptions;
 
 		// close hover on escape
