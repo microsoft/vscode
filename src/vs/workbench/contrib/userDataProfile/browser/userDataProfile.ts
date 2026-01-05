@@ -32,8 +32,8 @@ import { IHostService } from '../../../services/host/browser/host.js';
 import { IUserDataProfilesEditor } from '../common/userDataProfile.js';
 import { IURLService } from '../../../../platform/url/common/url.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../services/environment/browser/environmentService.js';
-import { endsWithIgnoreCase } from '../../../../base/common/strings.js';
 import { Extensions as DndExtensions, IDragAndDropContributionRegistry, IResourceDropHandler } from '../../../../platform/dnd/browser/dnd.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 
 export const OpenProfileMenu = new MenuId('OpenProfile');
 const ProfilesMenu = new MenuId('Profiles');
@@ -129,12 +129,13 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		const that = this;
 		this._register(dndRegistry.registerDropHandler(new class UserDataProfileDropHandler implements IResourceDropHandler {
 			async handleDrop(resource: URI, accessor: ServicesAccessor): Promise<boolean> {
-				if (endsWithIgnoreCase(resource.path, `.${PROFILE_EXTENSION}`)) {
+				const uriIdentityService = accessor.get(IUriIdentityService);
+				if (uriIdentityService.extUri.extname(resource) === `.${PROFILE_EXTENSION}`) {
 					const editor = await that.openProfilesEditor();
 					if (editor) {
 						editor.createNewProfile(resource);
-						return true;
 					}
+					return true;
 				}
 				return false;
 			}
