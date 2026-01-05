@@ -54,17 +54,17 @@ import { WorkspaceTrustRequestOptions } from '../../../platform/workspace/common
 import { SaveReason } from '../../common/editor.js';
 import { IRevealOptions, ITreeItem, IViewBadge } from '../../common/views.js';
 import { CallHierarchyItem } from '../../contrib/callHierarchy/common/callHierarchy.js';
-import { IChatAgentMetadata, IChatAgentRequest, IChatAgentResult, UserSelectedTools } from '../../contrib/chat/common/chatAgents.js';
-import { ICodeMapperRequest, ICodeMapperResult } from '../../contrib/chat/common/chatCodeMapperService.js';
-import { IChatContextItem, IChatContextSupport } from '../../contrib/chat/common/chatContext.js';
-import { IChatRelatedFile, IChatRelatedFileProviderMetadata as IChatRelatedFilesProviderMetadata, IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
-import { IChatProgressHistoryResponseContent, IChatRequestVariableData } from '../../contrib/chat/common/chatModel.js';
-import { ChatResponseClearToPreviousToolInvocationReason, IChatContentInlineReference, IChatExternalEditsDto, IChatFollowup, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatProgress, IChatTask, IChatTaskDto, IChatUserActionEvent, IChatVoteAction } from '../../contrib/chat/common/chatService.js';
+import { IChatAgentMetadata, IChatAgentRequest, IChatAgentResult, UserSelectedTools } from '../../contrib/chat/common/participants/chatAgents.js';
+import { ICodeMapperRequest, ICodeMapperResult } from '../../contrib/chat/common/editing/chatCodeMapperService.js';
+import { IChatContextItem, IChatContextSupport } from '../../contrib/chat/common/contextContrib/chatContext.js';
+import { IChatRelatedFile, IChatRelatedFileProviderMetadata as IChatRelatedFilesProviderMetadata, IChatRequestDraft } from '../../contrib/chat/common/editing/chatEditingService.js';
+import { IChatProgressHistoryResponseContent, IChatRequestVariableData } from '../../contrib/chat/common/model/chatModel.js';
+import { ChatResponseClearToPreviousToolInvocationReason, IChatContentInlineReference, IChatExternalEditsDto, IChatFollowup, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatProgress, IChatTask, IChatTaskDto, IChatUserActionEvent, IChatVoteAction } from '../../contrib/chat/common/chatService/chatService.js';
 import { IChatSessionItem, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem } from '../../contrib/chat/common/chatSessionsService.js';
-import { IChatRequestVariableValue } from '../../contrib/chat/common/chatVariables.js';
+import { IChatRequestVariableValue } from '../../contrib/chat/common/attachments/chatVariables.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IChatMessage, IChatResponsePart, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatSelector } from '../../contrib/chat/common/languageModels.js';
-import { IPreparedToolInvocation, IToolInvocation, IToolInvocationPreparationContext, IToolProgressStep, IToolResult, ToolDataSource } from '../../contrib/chat/common/languageModelToolsService.js';
+import { IPreparedToolInvocation, IToolInvocation, IToolInvocationPreparationContext, IToolProgressStep, IToolResult, ToolDataSource } from '../../contrib/chat/common/tools/languageModelToolsService.js';
 import { ICustomAgentQueryOptions, IExternalCustomAgent } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { DebugConfigurationProviderTriggerKind, IAdapterDescriptor, IConfig, IDebugSessionReplMode, IDebugTestRunReference, IDebugVisualization, IDebugVisualizationContext, IDebugVisualizationTreeItem, MainThreadDebugVisualization } from '../../contrib/debug/common/debug.js';
 import { McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch } from '../../contrib/mcp/common/mcpTypes.js';
@@ -3156,6 +3156,23 @@ export interface IMcpAuthenticationOptions {
 	forceNewRegistration?: boolean;
 }
 
+export const enum McpAuthResourceMetadataSource {
+	Header = 'header',
+	WellKnown = 'wellKnown',
+	None = 'none',
+}
+
+export const enum McpAuthServerMetadataSource {
+	ResourceMetadata = 'resourceMetadata',
+	WellKnown = 'wellKnown',
+	Default = 'default',
+}
+
+export interface IMcpAuthSetupTelemetry {
+	resourceMetadataSource: McpAuthResourceMetadataSource;
+	serverMetadataSource: McpAuthServerMetadataSource;
+}
+
 export interface MainThreadMcpShape {
 	$onDidChangeState(id: number, state: McpConnectionState): void;
 	$onDidPublishLog(id: number, level: LogLevel, log: string): void;
@@ -3164,6 +3181,7 @@ export interface MainThreadMcpShape {
 	$deleteMcpCollection(collectionId: string): void;
 	$getTokenFromServerMetadata(id: number, authDetails: IMcpAuthenticationDetails, options?: IMcpAuthenticationOptions): Promise<string | undefined>;
 	$getTokenForProviderId(id: number, providerId: string, scopes: string[], options?: IMcpAuthenticationOptions): Promise<string | undefined>;
+	$logMcpAuthSetup(data: IMcpAuthSetupTelemetry): void;
 }
 
 export interface MainThreadDataChannelsShape extends IDisposable {
@@ -3305,6 +3323,7 @@ export interface MainThreadChatSessionsShape extends IDisposable {
 	$registerChatSessionContentProvider(handle: number, chatSessionScheme: string): void;
 	$unregisterChatSessionContentProvider(handle: number): void;
 	$onDidChangeChatSessionOptions(handle: number, sessionResource: UriComponents, updates: ReadonlyArray<ChatSessionOptionUpdateDto2>): void;
+	$onDidChangeChatSessionProviderOptions(handle: number): void;
 
 	$handleProgressChunk(handle: number, sessionResource: UriComponents, requestId: string, chunks: (IChatProgressDto | [IChatProgressDto, number])[]): Promise<void>;
 	$handleAnchorResolve(handle: number, sessionResource: UriComponents, requestId: string, requestHandle: string, anchor: Dto<IChatContentInlineReference>): void;
