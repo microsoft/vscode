@@ -25,6 +25,7 @@
     "contribViewsWelcome",
     "editSessionIdentityProvider",
     "quickDiffProvider",
+    "quickInputButtonLocation",
     "quickPickSortByLabel",
     "scmActionButton",
     "scmArtifactProvider",

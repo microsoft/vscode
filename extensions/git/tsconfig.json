@@ -13,6 +13,7 @@
 		"../../src/vscode-dts/vscode.proposed.canonicalUriProvider.d.ts",
 		"../../src/vscode-dts/vscode.proposed.editSessionIdentityProvider.d.ts",
 		"../../src/vscode-dts/vscode.proposed.quickDiffProvider.d.ts",
+		"../../src/vscode-dts/vscode.proposed.quickInputButtonLocation.d.ts",
 		"../../src/vscode-dts/vscode.proposed.quickPickSortByLabel.d.ts",
 		"../../src/vscode-dts/vscode.proposed.scmActionButton.d.ts",
 		"../../src/vscode-dts/vscode.proposed.scmArtifactProvider.d.ts",
