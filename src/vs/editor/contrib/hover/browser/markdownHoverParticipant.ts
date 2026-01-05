@@ -8,17 +8,15 @@ import { asArray, compareBy, numberComparator } from '../../../../base/common/ar
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { IMarkdownString, isEmptyMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { MarkdownRenderer } from '../../../browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { DECREASE_HOVER_VERBOSITY_ACTION_ID, INCREASE_HOVER_VERBOSITY_ACTION_ID } from './hoverActionIds.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import { IModelDecoration, ITextModel } from '../../../common/model.js';
-import { ILanguageService } from '../../../common/languages/language.js';
 import { HoverAnchor, HoverAnchorType, HoverRangeAnchor, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart, IRenderedHoverParts, RenderedHoverParts } from './hoverTypes.js';
 import * as nls from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { Hover, HoverContext, HoverProvider, HoverVerbosityAction } from '../../../common/languages.js';
@@ -30,7 +28,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { ClickAction, HoverPosition, KeyDownAction } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { IHoverService, WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
-import { AsyncIterableObject } from '../../../../base/common/async.js';
+import { AsyncIterableProducer } from '../../../../base/common/async.js';
 import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry.js';
 import { getHoverProviderResultsAsAsyncIterable } from './getHover.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -87,8 +85,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 
 	constructor(
 		protected readonly _editor: ICodeEditor,
-		@ILanguageService private readonly _languageService: ILanguageService,
-		@IOpenerService private readonly _openerService: IOpenerService,
+		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILanguageFeaturesService protected readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
@@ -155,14 +152,14 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 
 	public computeAsync(anchor: HoverAnchor, lineDecorations: IModelDecoration[], source: HoverStartSource, token: CancellationToken): AsyncIterable<MarkdownHover> {
 		if (!this._editor.hasModel() || anchor.type !== HoverAnchorType.Range) {
-			return AsyncIterableObject.EMPTY;
+			return AsyncIterableProducer.EMPTY;
 		}
 
 		const model = this._editor.getModel();
 
 		const hoverProviderRegistry = this._languageFeaturesService.hoverProvider;
 		if (!hoverProviderRegistry.has(model)) {
-			return AsyncIterableObject.EMPTY;
+			return AsyncIterableProducer.EMPTY;
 		}
 		return this._getMarkdownHovers(hoverProviderRegistry, model, anchor, token);
 	}
@@ -186,12 +183,11 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			context.fragment,
 			this,
 			this._editor,
-			this._languageService,
-			this._openerService,
 			this._commandService,
 			this._keybindingService,
 			this._hoverService,
 			this._configurationService,
+			this._markdownRendererService,
 			context.onContentsChanged
 		);
 		return this._renderedHoverParts;
@@ -245,12 +241,11 @@ class MarkdownRenderedHoverParts implements IRenderedHoverParts<MarkdownHover> {
 		hoverPartsContainer: DocumentFragment,
 		private readonly _hoverParticipant: MarkdownHoverParticipant,
 		private readonly _editor: ICodeEditor,
-		private readonly _languageService: ILanguageService,
-		private readonly _openerService: IOpenerService,
 		private readonly _commandService: ICommandService,
 		private readonly _keybindingService: IKeybindingService,
 		private readonly _hoverService: IHoverService,
 		private readonly _configurationService: IConfigurationService,
+		private readonly _markdownRendererService: IMarkdownRendererService,
 		private readonly _onFinishedRendering: () => void,
 	) {
 		this.renderedHoverParts = this._renderHoverParts(hoverParts, hoverPartsContainer, this._onFinishedRendering);
@@ -315,8 +310,7 @@ class MarkdownRenderedHoverParts implements IRenderedHoverParts<MarkdownHover> {
 		const renderedMarkdownHover = renderMarkdown(
 			this._editor,
 			markdownHover,
-			this._languageService,
-			this._openerService,
+			this._markdownRendererService,
 			onFinishedRendering,
 		);
 		return renderedMarkdownHover;
@@ -327,7 +321,7 @@ class MarkdownRenderedHoverParts implements IRenderedHoverParts<MarkdownHover> {
 		const isActionIncrease = action === HoverVerbosityAction.Increase;
 		const actionElement = dom.append(container, $(ThemeIcon.asCSSSelector(isActionIncrease ? increaseHoverVerbosityIcon : decreaseHoverVerbosityIcon)));
 		actionElement.tabIndex = 0;
-		const hoverDelegate = new WorkbenchHoverDelegate('mouse', undefined, { target: container, position: { hoverPosition: HoverPosition.LEFT } }, this._configurationService, this._hoverService);
+		const hoverDelegate = store.add(new WorkbenchHoverDelegate('mouse', undefined, { target: container, position: { hoverPosition: HoverPosition.LEFT } }, this._configurationService, this._hoverService));
 		store.add(this._hoverService.setupManagedHover(hoverDelegate, actionElement, labelForHoverVerbosityAction(this._keybindingService, action)));
 		if (!actionEnabled) {
 			actionElement.classList.add('disabled');
@@ -476,8 +470,7 @@ export function renderMarkdownHovers(
 	context: IEditorHoverRenderContext,
 	markdownHovers: MarkdownHover[],
 	editor: ICodeEditor,
-	languageService: ILanguageService,
-	openerService: IOpenerService,
+	markdownRendererService: IMarkdownRendererService,
 ): IRenderedHoverParts<MarkdownHover> {
 
 	// Sort hover parts to keep them stable since they might come in async, out-of-order
@@ -487,8 +480,7 @@ export function renderMarkdownHovers(
 		const renderedHoverPart = renderMarkdown(
 			editor,
 			markdownHover,
-			languageService,
-			openerService,
+			markdownRendererService,
 			context.onContentsChanged,
 		);
 		context.fragment.appendChild(renderedHoverPart.hoverElement);
@@ -500,8 +492,7 @@ export function renderMarkdownHovers(
 function renderMarkdown(
 	editor: ICodeEditor,
 	markdownHover: MarkdownHover,
-	languageService: ILanguageService,
-	openerService: IOpenerService,
+	markdownRendererService: IMarkdownRendererService,
 	onFinishedRendering: () => void,
 ): IRenderedHoverPart<MarkdownHover> {
 	const disposables = new DisposableStore();
@@ -515,9 +506,9 @@ function renderMarkdown(
 		}
 		const markdownHoverElement = $('div.markdown-hover');
 		const hoverContentsElement = dom.append(markdownHoverElement, $('div.hover-contents'));
-		const renderer = new MarkdownRenderer({ editor }, languageService, openerService);
 
-		const renderedContents = disposables.add(renderer.render(markdownString, {
+		const renderedContents = disposables.add(markdownRendererService.render(markdownString, {
+			context: editor,
 			asyncRenderCallback: () => {
 				hoverContentsElement.className = 'hover-contents code-hover-contents';
 				onFinishedRendering();

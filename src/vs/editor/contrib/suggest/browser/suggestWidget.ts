@@ -26,8 +26,7 @@ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { activeContrastBorder, editorForeground, editorWidgetBackground, editorWidgetBorder, listFocusHighlightForeground, listHighlightForeground, quickInputListFocusBackground, quickInputListFocusForeground, quickInputListFocusIconForeground, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
-import { isHighContrast } from '../../../../platform/theme/common/theme.js';
-import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { CompletionModel } from './completionModel.js';
 import { ResizableHTMLElement } from '../../../../base/browser/ui/resizable/resizable.js';
 import { CompletionItem, Context as SuggestContext, suggestWidgetStatusbarMenu } from './suggest.js';
@@ -131,6 +130,7 @@ export class SuggestWidget implements IDisposable {
 	private readonly _ctxSuggestWidgetDetailsVisible: IContextKey<boolean>;
 	private readonly _ctxSuggestWidgetMultipleSuggestions: IContextKey<boolean>;
 	private readonly _ctxSuggestWidgetHasFocusedSuggestion: IContextKey<boolean>;
+	private readonly _ctxSuggestWidgetDetailsFocused: IContextKey<boolean>;
 
 	private readonly _showTimeout = new TimeoutTimer();
 	private readonly _disposables = new DisposableStore();
@@ -270,12 +270,9 @@ export class SuggestWidget implements IDisposable {
 			listInactiveFocusOutline: activeContrastBorder
 		}));
 
-		this._status = instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, suggestWidgetStatusbarMenu);
+		this._status = instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, suggestWidgetStatusbarMenu, { allowIcons: true });
 		const applyStatusBarStyle = () => this.element.domNode.classList.toggle('with-status-bar', this.editor.getOption(EditorOption.suggest).showStatusBar);
 		applyStatusBarStyle();
-
-		this._disposables.add(_themeService.onDidColorThemeChange(t => this._onThemeChange(t)));
-		this._onThemeChange(_themeService.getColorTheme());
 
 		this._disposables.add(this._list.onMouseDown(e => this._onListMouseDownOrTap(e)));
 		this._disposables.add(this._list.onTap(e => this._onListMouseDownOrTap(e)));
@@ -296,6 +293,12 @@ export class SuggestWidget implements IDisposable {
 		this._ctxSuggestWidgetDetailsVisible = SuggestContext.DetailsVisible.bindTo(_contextKeyService);
 		this._ctxSuggestWidgetMultipleSuggestions = SuggestContext.MultipleSuggestions.bindTo(_contextKeyService);
 		this._ctxSuggestWidgetHasFocusedSuggestion = SuggestContext.HasFocusedSuggestion.bindTo(_contextKeyService);
+		this._ctxSuggestWidgetDetailsFocused = SuggestContext.DetailsFocused.bindTo(_contextKeyService);
+
+		const detailsFocusTracker = dom.trackFocus(this._details.widget.domNode);
+		this._disposables.add(detailsFocusTracker);
+		this._disposables.add(detailsFocusTracker.onDidFocus(() => this._ctxSuggestWidgetDetailsFocused.set(true)));
+		this._disposables.add(detailsFocusTracker.onDidBlur(() => this._ctxSuggestWidgetDetailsFocused.set(false)));
 
 		this._disposables.add(dom.addStandardDisposableListener(this._details.widget.domNode, 'keydown', e => {
 			this._onDetailsKeydown.fire(e);
@@ -360,10 +363,6 @@ export class SuggestWidget implements IDisposable {
 			this._onDidSelect.fire({ item, index, model: completionModel });
 			this.editor.focus();
 		}
-	}
-
-	private _onThemeChange(theme: IColorTheme) {
-		this._details.widget.borderWidth = isHighContrast(theme.type) ? 2 : 1;
 	}
 
 	private _onListFocus(e: IListEvent<CompletionItem>): void {
@@ -873,7 +872,7 @@ export class SuggestWidget implements IDisposable {
 			}
 
 			const forceRenderingAboveRequiredSpace = 150;
-			if (height > maxHeightBelow || (this._forceRenderingAbove && availableSpaceAbove > forceRenderingAboveRequiredSpace)) {
+			if ((height > maxHeightBelow && maxHeightAbove > maxHeightBelow) || (this._forceRenderingAbove && availableSpaceAbove > forceRenderingAboveRequiredSpace)) {
 				this._contentWidget.setPreference(ContentWidgetPositionPreference.ABOVE);
 				this.element.enableSashes(true, true, false, false);
 				maxHeight = maxHeightAbove;
@@ -921,7 +920,7 @@ export class SuggestWidget implements IDisposable {
 		const fontInfo = this.editor.getOption(EditorOption.fontInfo);
 		const itemHeight = clamp(this.editor.getOption(EditorOption.suggestLineHeight) || fontInfo.lineHeight, 8, 1000);
 		const statusBarHeight = !this.editor.getOption(EditorOption.suggest).showStatusBar || this._state === State.Empty || this._state === State.Loading ? 0 : itemHeight;
-		const borderWidth = this._details.widget.borderWidth;
+		const borderWidth = this._details.widget.getLayoutInfo().borderWidth;
 		const borderHeight = 2 * borderWidth;
 
 		return {
@@ -1045,4 +1044,3 @@ export class SuggestContentWidget implements IContentWidget {
 		this._position = position;
 	}
 }
-

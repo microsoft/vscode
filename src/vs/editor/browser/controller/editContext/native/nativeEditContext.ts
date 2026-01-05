@@ -5,7 +5,7 @@
 
 import './nativeEditContext.css';
 import { isFirefox } from '../../../../../base/browser/browser.js';
-import { addDisposableListener, getWindow, getWindowId } from '../../../../../base/browser/dom.js';
+import { addDisposableListener, getActiveElement, getWindow, getWindowId } from '../../../../../base/browser/dom.js';
 import { FastDomNode } from '../../../../../base/browser/fastDomNode.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
@@ -14,9 +14,9 @@ import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { EndOfLinePreference, IModelDeltaDecoration } from '../../../../common/model.js';
 import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent, ViewDecorationsChangedEvent, ViewFlushedEvent, ViewLinesChangedEvent, ViewLinesDeletedEvent, ViewLinesInsertedEvent, ViewScrollChangedEvent, ViewZonesChangedEvent } from '../../../../common/viewEvents.js';
 import { ViewContext } from '../../../../common/viewModel/viewContext.js';
-import { RestrictedRenderingContext, RenderingContext } from '../../../view/renderingContext.js';
+import { RestrictedRenderingContext, RenderingContext, HorizontalPosition } from '../../../view/renderingContext.js';
 import { ViewController } from '../../../view/viewController.js';
-import { ClipboardEventUtils, ClipboardStoredMetadata, getDataToCopy, InMemoryClipboardMetadataManager } from '../clipboardUtils.js';
+import { ensureClipboardGetsEditorSelection, computePasteData } from '../clipboardUtils.js';
 import { AbstractEditContext } from '../editContext.js';
 import { editContextAddDisposableListener, FocusTracker, ITypeData } from './nativeEditContextUtils.js';
 import { ScreenReaderSupport } from './screenReaderSupport.js';
@@ -31,6 +31,8 @@ import { IEditorAriaOptions } from '../../../editorBrowser.js';
 import { isHighSurrogate, isLowSurrogate } from '../../../../../base/common/strings.js';
 import { IME } from '../../../../../base/common/ime.js';
 import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { inputLatency } from '../../../../../base/browser/performance.js';
 
 // Corresponds to classes in nativeEditContext.css
 enum CompositionClassName {
@@ -58,7 +60,7 @@ export class NativeEditContext extends AbstractEditContext {
 	private _editContextPrimarySelection: Selection = new Selection(1, 1, 1, 1);
 
 	// Overflow guard container
-	private _parent: HTMLElement | undefined;
+	private readonly _parent: HTMLElement;
 	private _decorations: string[] = [];
 	private _primarySelection: Selection = new Selection(1, 1, 1, 1);
 
@@ -75,7 +77,8 @@ export class NativeEditContext extends AbstractEditContext {
 		overflowGuardContainer: FastDomNode<HTMLElement>,
 		private readonly _viewController: ViewController,
 		private readonly _visibleRangeProvider: IVisibleRangeProvider,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super(context);
 
@@ -97,7 +100,8 @@ export class NativeEditContext extends AbstractEditContext {
 		overflowGuardContainer.appendChild(this._imeTextArea);
 		this._parent = overflowGuardContainer.domNode;
 
-		this._focusTracker = this._register(new FocusTracker(this.domNode.domNode, (newFocusValue: boolean) => {
+		this._focusTracker = this._register(new FocusTracker(logService, this.domNode.domNode, (newFocusValue: boolean) => {
+			logService.trace('NativeEditContext#handleFocusChange : ', newFocusValue);
 			this._screenReaderSupport.handleFocusChange(newFocusValue);
 			this._context.viewModel.setHasFocus(newFocusValue);
 		}));
@@ -108,13 +112,21 @@ export class NativeEditContext extends AbstractEditContext {
 
 		this._screenReaderSupport = this._register(instantiationService.createInstance(ScreenReaderSupport, this.domNode, context, this._viewController));
 
-		this._register(addDisposableListener(this.domNode.domNode, 'copy', (e) => this._ensureClipboardGetsEditorSelection(e)));
+		this._register(addDisposableListener(this.domNode.domNode, 'copy', (e) => {
+			this.logService.trace('NativeEditContext#copy');
+			ensureClipboardGetsEditorSelection(e, this._context, this.logService, isFirefox);
+		}));
 		this._register(addDisposableListener(this.domNode.domNode, 'cut', (e) => {
+			this.logService.trace('NativeEditContext#cut');
 			// Pretend here we touched the text area, as the `cut` event will most likely
 			// result in a `selectionchange` event which we want to ignore
 			this._screenReaderSupport.onWillCut();
-			this._ensureClipboardGetsEditorSelection(e);
+			ensureClipboardGetsEditorSelection(e, this._context, this.logService, isFirefox);
+			this.logService.trace('NativeEditContext#cut (before viewController.cut)');
 			this._viewController.cut();
+		}));
+		this._register(addDisposableListener(this.domNode.domNode, 'selectionchange', () => {
+			inputLatency.onSelectionChange();
 		}));
 
 		this._register(addDisposableListener(this.domNode.domNode, 'keyup', (e) => this._onKeyUp(e)));
@@ -122,31 +134,19 @@ export class NativeEditContext extends AbstractEditContext {
 		this._register(addDisposableListener(this._imeTextArea.domNode, 'keyup', (e) => this._onKeyUp(e)));
 		this._register(addDisposableListener(this._imeTextArea.domNode, 'keydown', async (e) => this._onKeyDown(e)));
 		this._register(addDisposableListener(this.domNode.domNode, 'beforeinput', async (e) => {
+			inputLatency.onBeforeInput();
 			if (e.inputType === 'insertParagraph' || e.inputType === 'insertLineBreak') {
 				this._onType(this._viewController, { text: '\n', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 });
 			}
 		}));
 		this._register(addDisposableListener(this.domNode.domNode, 'paste', (e) => {
-			e.preventDefault();
-			if (!e.clipboardData) {
+			this.logService.trace('NativeEditContext#paste');
+			const pasteData = computePasteData(e, this._context, this.logService);
+			if (!pasteData) {
 				return;
 			}
-			let [text, metadata] = ClipboardEventUtils.getTextData(e.clipboardData);
-			if (!text) {
-				return;
-			}
-			metadata = metadata || InMemoryClipboardMetadataManager.INSTANCE.get(text);
-			let pasteOnNewLine = false;
-			let multicursorText: string[] | null = null;
-			let mode: string | null = null;
-			if (metadata) {
-				const options = this._context.configuration.options;
-				const emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
-				pasteOnNewLine = emptySelectionClipboard && !!metadata.isFromEmptySelection;
-				multicursorText = typeof metadata.multicursorText !== 'undefined' ? metadata.multicursorText : null;
-				mode = metadata.mode;
-			}
-			this._viewController.paste(text, pasteOnNewLine, multicursorText, mode);
+			this.logService.trace('NativeEditContext#paste (before viewController.paste)');
+			this._viewController.paste(pasteData.text, pasteData.pasteOnNewLine, pasteData.multicursorText, pasteData.mode);
 		}));
 
 		// Edit context events
@@ -154,6 +154,7 @@ export class NativeEditContext extends AbstractEditContext {
 		this._register(editContextAddDisposableListener(this._editContext, 'characterboundsupdate', (e) => this._updateCharacterBounds(e)));
 		let highSurrogateCharacter: string | undefined;
 		this._register(editContextAddDisposableListener(this._editContext, 'textupdate', (e) => {
+			inputLatency.onInput();
 			const text = e.text;
 			if (text.length === 1) {
 				const charCode = text.charCodeAt(0);
@@ -177,6 +178,7 @@ export class NativeEditContext extends AbstractEditContext {
 			this._emitTypeEvent(this._viewController, e);
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionstart', (e) => {
+			this._updateEditContext();
 			// Utlimately fires onDidCompositionStart() on the editor to notify for example suggest model of composition state
 			// Updates the composition state of the cursor controller which determines behavior of typing with interceptors
 			this._viewController.compositionStart();
@@ -184,6 +186,7 @@ export class NativeEditContext extends AbstractEditContext {
 			this._context.viewModel.onCompositionStart();
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionend', (e) => {
+			this._updateEditContext();
 			// Utlimately fires compositionEnd() on the editor to notify for example suggest model of composition state
 			// Updates the composition state of the cursor controller which determines behavior of typing with interceptors
 			this._viewController.compositionEnd();
@@ -227,9 +230,13 @@ export class NativeEditContext extends AbstractEditContext {
 		return this._primarySelection.getPosition();
 	}
 
-	public prepareRender(ctx: RenderingContext): void {
+	public override prepareRender(ctx: RenderingContext): void {
 		this._screenReaderSupport.prepareRender(ctx);
-		this._updateSelectionAndControlBounds(ctx);
+		this._updateSelectionAndControlBoundsData(ctx);
+	}
+
+	public override onDidRender(): void {
+		this._updateSelectionAndControlBoundsAfterRender();
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
@@ -291,11 +298,17 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	public onWillPaste(): void {
+		this.logService.trace('NativeEditContext#onWillPaste');
 		this._onWillPaste();
 	}
 
 	private _onWillPaste(): void {
 		this._screenReaderSupport.onWillPaste();
+	}
+
+	public onWillCopy(): void {
+		this.logService.trace('NativeEditContext#onWillCopy');
+		this.logService.trace('NativeEditContext#isFocused : ', this.domNode.domNode === getActiveElement());
 	}
 
 	public writeScreenReaderContent(): void {
@@ -331,10 +344,12 @@ export class NativeEditContext extends AbstractEditContext {
 	// --- Private methods ---
 
 	private _onKeyUp(e: KeyboardEvent) {
+		inputLatency.onKeyUp();
 		this._viewController.emitKeyUp(new StandardKeyboardEvent(e));
 	}
 
 	private _onKeyDown(e: KeyboardEvent) {
+		inputLatency.onKeyDown();
 		const standardKeyboardEvent = new StandardKeyboardEvent(e);
 		// When the IME is visible, the keys, like arrow-left and arrow-right, should be used to navigate in the IME, and should not be propagated further
 		if (standardKeyboardEvent.keyCode === KeyCode.KEY_IN_COMPOSITION) {
@@ -463,26 +478,35 @@ export class NativeEditContext extends AbstractEditContext {
 		this._decorations = this._context.viewModel.model.deltaDecorations(this._decorations, decorations);
 	}
 
-	private _updateSelectionAndControlBounds(ctx: RenderingContext) {
-		if (!this._parent) {
-			return;
+	private _linesVisibleRanges: HorizontalPosition | null = null;
+	private _updateSelectionAndControlBoundsData(ctx: RenderingContext): void {
+		const viewSelection = this._context.viewModel.coordinatesConverter.convertModelRangeToViewRange(this._primarySelection);
+		if (this._primarySelection.isEmpty()) {
+			const linesVisibleRanges = ctx.visibleRangeForPosition(viewSelection.getStartPosition());
+			this._linesVisibleRanges = linesVisibleRanges;
+		} else {
+			this._linesVisibleRanges = null;
 		}
+	}
+
+	private _updateSelectionAndControlBoundsAfterRender() {
 		const options = this._context.configuration.options;
 		const contentLeft = options.get(EditorOption.layoutInfo).contentLeft;
-		const parentBounds = this._parent.getBoundingClientRect();
+
 		const viewSelection = this._context.viewModel.coordinatesConverter.convertModelRangeToViewRange(this._primarySelection);
 		const verticalOffsetStart = this._context.viewLayout.getVerticalOffsetForLineNumber(viewSelection.startLineNumber);
-
-		const top = parentBounds.top + verticalOffsetStart - this._scrollTop;
 		const verticalOffsetEnd = this._context.viewLayout.getVerticalOffsetAfterLineNumber(viewSelection.endLineNumber);
+
+		// Make sure this doesn't force an extra layout (i.e. don't call it before rendering finished)
+		const parentBounds = this._parent.getBoundingClientRect();
+		const top = parentBounds.top + verticalOffsetStart - this._scrollTop;
 		const height = verticalOffsetEnd - verticalOffsetStart;
 		let left = parentBounds.left + contentLeft - this._scrollLeft;
 		let width: number;
 
 		if (this._primarySelection.isEmpty()) {
-			const linesVisibleRanges = ctx.visibleRangeForPosition(viewSelection.getStartPosition());
-			if (linesVisibleRanges) {
-				left += linesVisibleRanges.left;
+			if (this._linesVisibleRanges) {
+				left += this._linesVisibleRanges.left;
 			}
 			width = 0;
 		} else {
@@ -495,9 +519,6 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	private _updateCharacterBounds(e: CharacterBoundsUpdateEvent): void {
-		if (!this._parent) {
-			return;
-		}
 		const options = this._context.configuration.options;
 		const typicalHalfWidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
 		const contentLeft = options.get(EditorOption.layoutInfo).contentLeft;
@@ -530,29 +551,5 @@ export class NativeEditContext extends AbstractEditContext {
 			characterBounds.push(new DOMRect(parentBounds.left + contentLeft + left - this._scrollLeft, top, width, lineHeight));
 		}
 		this._editContext.updateCharacterBounds(e.rangeStart, characterBounds);
-	}
-
-	private _ensureClipboardGetsEditorSelection(e: ClipboardEvent): void {
-		const options = this._context.configuration.options;
-		const emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
-		const copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
-		const selections = this._context.viewModel.getCursorStates().map(cursorState => cursorState.modelState.selection);
-		const dataToCopy = getDataToCopy(this._context.viewModel, selections, emptySelectionClipboard, copyWithSyntaxHighlighting);
-		const storedMetadata: ClipboardStoredMetadata = {
-			version: 1,
-			isFromEmptySelection: dataToCopy.isFromEmptySelection,
-			multicursorText: dataToCopy.multicursorText,
-			mode: dataToCopy.mode
-		};
-		InMemoryClipboardMetadataManager.INSTANCE.set(
-			// When writing "LINE\r\n" to the clipboard and then pasting,
-			// Firefox pastes "LINE\n", so let's work around this quirk
-			(isFirefox ? dataToCopy.text.replace(/\r\n/g, '\n') : dataToCopy.text),
-			storedMetadata
-		);
-		e.preventDefault();
-		if (e.clipboardData) {
-			ClipboardEventUtils.setTextData(e.clipboardData, dataToCopy.text, dataToCopy.html, storedMetadata);
-		}
 	}
 }

@@ -10,15 +10,16 @@ import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService, createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { TRUSTED_DOMAINS_STORAGE_KEY, readStaticTrustedDomains } from './trustedDomains.js';
-import { isURLDomainTrusted } from '../common/trustedDomains.js';
+import { isURLDomainTrusted } from '../../../../platform/url/common/trustedDomains.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 
 export const ITrustedDomainService = createDecorator<ITrustedDomainService>('ITrustedDomainService');
 
 export interface ITrustedDomainService {
 	_serviceBrand: undefined;
-	onDidChangeTrustedDomains: Event<void>;
+	readonly onDidChangeTrustedDomains: Event<void>;
 	isValid(resource: URI): boolean;
+	readonly trustedDomains: string[];
 }
 
 export class TrustedDomainService extends Disposable implements ITrustedDomainService {
@@ -27,7 +28,7 @@ export class TrustedDomainService extends Disposable implements ITrustedDomainSe
 	private _staticTrustedDomainsResult!: WindowIdleValue<string[]>;
 
 	private _onDidChangeTrustedDomains: Emitter<void> = this._register(new Emitter<void>());
-	onDidChangeTrustedDomains: Event<void> = this._onDidChangeTrustedDomains.event;
+	readonly onDidChangeTrustedDomains: Event<void> = this._onDidChangeTrustedDomains.event;
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -50,6 +51,10 @@ export class TrustedDomainService extends Disposable implements ITrustedDomainSe
 			this._staticTrustedDomainsResult = initStaticDomainsResult();
 			this._onDidChangeTrustedDomains.fire();
 		}));
+	}
+
+	get trustedDomains(): string[] {
+		return this._staticTrustedDomainsResult.value;
 	}
 
 	isValid(resource: URI): boolean {

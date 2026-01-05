@@ -13,6 +13,8 @@ import { Task, ITaskEvent, KeyedTaskIdentifier } from './tasks.js';
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 
 import { IShellLaunchConfig } from '../../../../platform/terminal/common/terminal.js';
+import { IMarkerData } from '../../../../platform/markers/common/markers.js';
+import type { SingleOrMany } from '../../../../base/common/types.js';
 
 export const enum TaskErrors {
 	NotConfigured,
@@ -135,7 +137,7 @@ export interface ITaskSystemInfoResolver {
 }
 
 export interface ITaskSystem {
-	onDidStateChange: Event<ITaskEvent>;
+	readonly onDidStateChange: Event<ITaskEvent>;
 	reconnect(task: Task, resolver: ITaskResolver): ITaskExecuteResult;
 	run(task: Task, resolver: ITaskResolver): ITaskExecuteResult;
 	rerun(): ITaskExecuteResult | undefined;
@@ -150,8 +152,9 @@ export interface ITaskSystem {
 	revealTask(task: Task): boolean;
 	customExecutionComplete(task: Task, result: number): Promise<void>;
 	isTaskVisible(task: Task): boolean;
-	getTaskForTerminal(instanceId: number): Task | undefined;
-	getTerminalForTask(task: Task): URI | undefined;
+	getTaskForTerminal(instanceId: number): Promise<Task | undefined>;
+	getTerminalsForTasks(tasks: SingleOrMany<Task>): URI[] | undefined;
+	getTaskProblems(instanceId: number): Map<string, { resources: URI[]; markers: IMarkerData[] }> | undefined;
 	getFirstInstance(task: Task): Task | undefined;
 	get lastTask(): VerifiedTask | undefined;
 	set lastTask(task: VerifiedTask);

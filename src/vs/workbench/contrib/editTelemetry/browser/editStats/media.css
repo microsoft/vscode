@@ -19,6 +19,7 @@
 		align-items: center;
 		color: var(--vscode-descriptionForeground);
 		margin-bottom: 4px;
+		font-size: 12px;
 		font-weight: 600;
 	}
 

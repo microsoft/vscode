@@ -69,7 +69,7 @@ export class TestCommandService implements ICommandService {
 		this._instantiationService = instantiationService;
 	}
 
-	public executeCommand<T>(id: string, ...args: any[]): Promise<T> {
+	public executeCommand<T>(id: string, ...args: unknown[]): Promise<T> {
 		const command = CommandsRegistry.getCommand(id);
 		if (!command) {
 			return Promise.reject(new Error(`command '${id}' not found`));

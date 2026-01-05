@@ -38,7 +38,10 @@ export const terminalSendSequenceCommand = async (accessor: ServicesAccessor, ar
 
 	const instance = terminalService.activeInstance;
 	if (instance) {
-		let text = isObject(args) && 'text' in args ? toOptionalString(args.text) : undefined;
+		function isTextArg(obj: unknown): obj is { text: string } {
+			return isObject(obj) && 'text' in obj;
+		}
+		let text = isTextArg(args) ? toOptionalString(args.text) : undefined;
 
 		// If no text provided, prompt user for input and process special characters
 		if (!text) {
@@ -67,7 +70,7 @@ export const terminalSendSequenceCommand = async (accessor: ServicesAccessor, ar
 			text = processedText;
 		}
 
-		const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(instance.isRemote ? Schemas.vscodeRemote : Schemas.file);
+		const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(instance.hasRemoteAuthority ? Schemas.vscodeRemote : Schemas.file);
 		const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) ?? undefined : undefined;
 		const resolvedText = await configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, text);
 		instance.sendText(resolvedText, false);
@@ -158,8 +161,9 @@ registerSendSequenceKeybinding('\x1b[1;2H', { // Shift+home
 });
 
 // Map alt+arrow to ctrl+arrow to allow word navigation in most shells to just work with alt. This
-// is non-standard behavior, but a lot of terminals act like this (see #190629). Note that
-// macOS uses different sequences here to get the desired behavior.
+// is non-standard behavior, but a lot of terminals act like this (see
+// https://github.com/microsoft/vscode/issues/190629). Note that macOS uses different sequences here
+// to get the desired behavior.
 registerSendSequenceKeybinding('\x1b[1;5A', {
 	when: ContextKeyExpr.and(TerminalContextKeys.focus),
 	primary: KeyMod.Alt | KeyCode.UpArrow
@@ -238,9 +242,4 @@ registerSendSequenceKeybinding('\u0000', {
 registerSendSequenceKeybinding('\u001e', {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Digit6,
 	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Digit6 }
-});
-// US (Undo): ctrl+/
-registerSendSequenceKeybinding('\u001f', {
-	primary: KeyMod.CtrlCmd | KeyCode.Slash,
-	mac: { primary: KeyMod.WinCtrl | KeyCode.Slash }
 });

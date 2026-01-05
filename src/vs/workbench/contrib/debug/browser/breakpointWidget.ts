@@ -141,7 +141,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 				this.dispose();
 			}
 		}));
-		this.codeEditorService.registerDecorationType('breakpoint-widget', DECORATION_KEY, {});
+		this.store.add(this.codeEditorService.registerDecorationType('breakpoint-widget', DECORATION_KEY, {}));
 
 		this.create();
 	}
@@ -214,11 +214,11 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		] satisfies ISelectOptionItem[], this.context, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('breakpointType', 'Breakpoint Type'), useCustomDrawn: !hasNativeContextMenu(this._configurationService) }));
 		this.selectContainer = $('.breakpoint-select-container');
 		selectBox.render(dom.append(container, this.selectContainer));
-		selectBox.onDidSelect(e => {
+		this.store.add(selectBox.onDidSelect(e => {
 			this.rememberInput();
 			this.context = e.index;
 			this.updateContextInput();
-		});
+		}));
 
 		this.createModesInput(container);
 
@@ -290,15 +290,14 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 			});
 		}
 
-		const selectBreakpointBox = this.selectBreakpointBox = new SelectBox(breakpointOptions, index + 1, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('selectBreakpoint', 'Select breakpoint'), useCustomDrawn: !hasNativeContextMenu(this._configurationService) });
-		selectBreakpointBox.onDidSelect(e => {
+		const selectBreakpointBox = this.selectBreakpointBox = this.store.add(new SelectBox(breakpointOptions, index + 1, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('selectBreakpoint', 'Select breakpoint'), useCustomDrawn: !hasNativeContextMenu(this._configurationService) }));
+		this.store.add(selectBreakpointBox.onDidSelect(e => {
 			if (e.index === 0) {
 				this.triggeredByBreakpointInput = undefined;
 			} else {
 				this.triggeredByBreakpointInput = breakpoints[e.index - 1];
 			}
-		});
-		this.store.add(selectBreakpointBox);
+		}));
 		this.selectBreakpointContainer = $('.select-breakpoint-container');
 		this.store.add(dom.addDisposableListener(this.selectBreakpointContainer, dom.EventType.KEY_DOWN, e => {
 			const event = new StandardKeyboardEvent(e);
@@ -368,8 +367,8 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 			const decorations = !!value ? [] : createDecorations(this.themeService.getColorTheme(), this.placeholder);
 			this.input.setDecorationsByType('breakpoint-widget', DECORATION_KEY, decorations);
 		};
-		this.input.getModel().onDidChangeContent(() => setDecorations());
-		this.themeService.onDidColorThemeChange(() => setDecorations());
+		this.store.add(this.input.getModel().onDidChangeContent(() => setDecorations()));
+		this.store.add(this.themeService.onDidColorThemeChange(() => setDecorations()));
 
 		this.store.add(this.languageFeaturesService.completionProvider.register({ scheme: DEBUG_SCHEME, hasAccessToAllModels: true }, {
 			_debugDisplayName: 'breakpointWidget',
@@ -549,7 +548,7 @@ class CloseBreakpointWidgetCommand extends EditorCommand {
 		});
 	}
 
-	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: unknown): void {
 		const debugContribution = editor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID);
 		if (debugContribution) {
 			// if focus is in outer editor we need to use the debug contribution to close

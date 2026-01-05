@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { assertNever } from '../../../../../../base/common/assert.js';
 import { Color } from '../../../../../../base/common/color.js';
 import { BugIndicatingError } from '../../../../../../base/common/errors.js';
 import { IObservable, observableFromEventOpts } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
 import { buttonBackground, buttonForeground, buttonSecondaryBackground, buttonSecondaryForeground, diffInserted, diffInsertedLine, diffRemoved, editorBackground } from '../../../../../../platform/theme/common/colorRegistry.js';
-import { ColorIdentifier, darken, registerColor, transparent } from '../../../../../../platform/theme/common/colorUtils.js';
+import { asCssVariable, ColorIdentifier, darken, registerColor, transparent } from '../../../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
+import { InlineCompletionEditorType } from '../../model/provideInlineCompletions.js';
 import { InlineEditTabAction } from './inlineEditsViewInterface.js';
 
 export const originalBackgroundColor = registerColor(
@@ -97,19 +99,19 @@ export const inlineEditIndicatorSecondaryBackground = registerColor(
 	localize('inlineEdit.gutterIndicator.secondaryBackground', 'Background color for the secondary inline edit gutter indicator.')
 );
 
-export const inlineEditIndicatorsuccessfulForeground = registerColor(
+export const inlineEditIndicatorSuccessfulForeground = registerColor(
 	'inlineEdit.gutterIndicator.successfulForeground',
 	buttonForeground,
 	localize('inlineEdit.gutterIndicator.successfulForeground', 'Foreground color for the successful inline edit gutter indicator.')
 );
-export const inlineEditIndicatorsuccessfulBorder = registerColor(
+export const inlineEditIndicatorSuccessfulBorder = registerColor(
 	'inlineEdit.gutterIndicator.successfulBorder',
 	buttonBackground,
 	localize('inlineEdit.gutterIndicator.successfulBorder', 'Border color for the successful inline edit gutter indicator.')
 );
-export const inlineEditIndicatorsuccessfulBackground = registerColor(
+export const inlineEditIndicatorSuccessfulBackground = registerColor(
 	'inlineEdit.gutterIndicator.successfulBackground',
-	inlineEditIndicatorsuccessfulBorder,
+	inlineEditIndicatorSuccessfulBorder,
 	localize('inlineEdit.gutterIndicator.successfulBackground', 'Background color for the successful inline edit gutter indicator.')
 );
 
@@ -188,14 +190,31 @@ export function getEditorBlendedColor(colorIdentifier: ColorIdentifier | IObserv
 
 	const backgroundColor = observeColor(editorBackground, themeService);
 
-	return color.map((c, reader) => c.makeOpaque(backgroundColor.read(reader)));
+	return color.map((c, reader) => /** @description makeOpaque */ c.makeOpaque(backgroundColor.read(reader)));
 }
+
+export function getEditorBackgroundColor(editorType: InlineCompletionEditorType): string {
+	let color;
+	switch (editorType) {
+		case InlineCompletionEditorType.TextEditor:
+			color = editorBackground; break;
+		case InlineCompletionEditorType.DiffEditor:
+			color = editorBackground; break;
+		case InlineCompletionEditorType.Notebook:
+			color = 'notebook.cellEditorBackground'; break;
+		default:
+			assertNever(editorType, 'Not supported editor type yet');
+	}
+	return asCssVariable(color);
+}
+
 
 export function observeColor(colorIdentifier: ColorIdentifier, themeService: IThemeService): IObservable<Color> {
 	return observableFromEventOpts(
 		{
 			owner: { observeColor: colorIdentifier },
 			equalsFn: (a: Color, b: Color) => a.equals(b),
+			debugName: () => `observeColor(${colorIdentifier})`
 		},
 		themeService.onDidColorThemeChange,
 		() => {
@@ -207,3 +226,6 @@ export function observeColor(colorIdentifier: ColorIdentifier, themeService: ITh
 		}
 	);
 }
+
+// Styles
+export const INLINE_EDITS_BORDER_RADIUS = 3; // also used in CSS file

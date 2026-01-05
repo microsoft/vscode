@@ -76,6 +76,13 @@ export interface Remote {
 	readonly isReadOnly: boolean;
 }
 
+export interface Worktree {
+	readonly name: string;
+	readonly path: string;
+	readonly ref: string;
+	readonly detached: boolean;
+}
+
 export const enum Status {
 	INDEX_MODIFIED,
 	INDEX_ADDED,
@@ -113,11 +120,17 @@ export interface Change {
 	readonly status: Status;
 }
 
+export interface DiffChange extends Change {
+	readonly insertions: number;
+	readonly deletions: number;
+}
+
 export interface RepositoryState {
 	readonly HEAD: Branch | undefined;
 	readonly refs: Ref[];
 	readonly remotes: Remote[];
 	readonly submodules: Submodule[];
+	readonly worktrees: Worktree[];
 	readonly rebaseCommit: Commit | undefined;
 
 	readonly mergeChanges: Change[];
@@ -183,11 +196,24 @@ export interface InitOptions {
 	defaultBranch?: string;
 }
 
+export interface CloneOptions {
+	parentPath?: Uri;
+	/**
+	 * ref is only used if the repository cache is missed.
+	 */
+	ref?: string;
+	recursive?: boolean;
+	/**
+	 * If no postCloneAction is provided, then the users setting for git.openAfterClone is used.
+	 */
+	postCloneAction?: 'none';
+}
+
 export interface RefQuery {
 	readonly contains?: string;
 	readonly count?: number;
 	readonly pattern?: string | string[];
-	readonly sort?: 'alphabetically' | 'committerdate';
+	readonly sort?: 'alphabetically' | 'committerdate' | 'creatordate';
 }
 
 export interface BranchQuery extends RefQuery {
@@ -224,15 +250,18 @@ export interface Repository {
 	diff(cached?: boolean): Promise<string>;
 	diffWithHEAD(): Promise<Change[]>;
 	diffWithHEAD(path: string): Promise<string>;
+	diffWithHEADShortStats(path?: string): Promise<CommitShortStat>;
 	diffWith(ref: string): Promise<Change[]>;
 	diffWith(ref: string, path: string): Promise<string>;
 	diffIndexWithHEAD(): Promise<Change[]>;
 	diffIndexWithHEAD(path: string): Promise<string>;
+	diffIndexWithHEADShortStats(path?: string): Promise<CommitShortStat>;
 	diffIndexWith(ref: string): Promise<Change[]>;
 	diffIndexWith(ref: string, path: string): Promise<string>;
 	diffBlobs(object1: string, object2: string): Promise<string>;
 	diffBetween(ref1: string, ref2: string): Promise<Change[]>;
 	diffBetween(ref1: string, ref2: string, path: string): Promise<string>;
+	diffBetweenWithStats(ref1: string, ref2: string, path?: string): Promise<DiffChange[]>;
 
 	hashObject(data: string): Promise<string>;
 
@@ -249,7 +278,7 @@ export interface Repository {
 
 	getMergeBase(ref1: string, ref2: string): Promise<string | undefined>;
 
-	tag(name: string, upstream: string): Promise<void>;
+	tag(name: string, message: string, ref?: string | undefined): Promise<void>;
 	deleteTag(name: string): Promise<void>;
 
 	status(): Promise<void>;
@@ -271,9 +300,15 @@ export interface Repository {
 	merge(ref: string): Promise<void>;
 	mergeAbort(): Promise<void>;
 
+	createStash(options?: { message?: string; includeUntracked?: boolean; staged?: boolean }): Promise<void>;
 	applyStash(index?: number): Promise<void>;
 	popStash(index?: number): Promise<void>;
 	dropStash(index?: number): Promise<void>;
+
+	createWorktree(options?: { path?: string; commitish?: string; branch?: string }): Promise<string>;
+	deleteWorktree(path: string, options?: { force?: boolean }): Promise<void>;
+
+	migrateChanges(sourceRepositoryPath: string, options?: { confirmation?: boolean; deleteFromSource?: boolean; untracked?: boolean }): Promise<void>;
 }
 
 export interface RemoteSource {
@@ -365,8 +400,15 @@ export interface API {
 	toGitUri(uri: Uri, ref: string): Uri;
 	getRepository(uri: Uri): Repository | null;
 	getRepositoryRoot(uri: Uri): Promise<Uri | null>;
+	getRepositoryWorkspace(uri: Uri): Promise<Uri[] | null>;
 	init(root: Uri, options?: InitOptions): Promise<Repository | null>;
-	openRepository(root: Uri): Promise<Repository | null>
+	/**
+	 * Checks the cache of known cloned repositories, and clones if the repository is not found.
+	 * Make sure to pass `postCloneAction` 'none' if you want to have the uri where you can find the repository returned.
+	 * @returns The URI of a folder or workspace file which, when opened, will open the cloned repository.
+	 */
+	clone(uri: Uri, options?: CloneOptions): Promise<Uri | null>;
+	openRepository(root: Uri): Promise<Repository | null>;
 
 	registerRemoteSourcePublisher(publisher: RemoteSourcePublisher): Disposable;
 	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable;
@@ -442,5 +484,6 @@ export const enum GitErrorCodes {
 	CherryPickEmpty = 'CherryPickEmpty',
 	CherryPickConflict = 'CherryPickConflict',
 	WorktreeContainsChanges = 'WorktreeContainsChanges',
-	WorktreeAlreadyExists = 'WorktreeAlreadyExists'
+	WorktreeAlreadyExists = 'WorktreeAlreadyExists',
+	WorktreeBranchAlreadyUsed = 'WorktreeBranchAlreadyUsed'
 }

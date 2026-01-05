@@ -12,7 +12,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IUserDataSyncEnablementService } from '../../../../platform/userDataSync/common/userDataSync.js';
-import { ExtensionIdentifier, IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 import { URI } from '../../../../base/common/uri.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { FileAccess } from '../../../../base/common/network.js';
@@ -33,7 +33,6 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { checkGlobFileExists } from '../../../services/extensions/common/workspaceContains.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
 import { asWebviewUri } from '../../webview/common/webview.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { extensionDefaultIcon } from '../../../services/extensionManagement/common/extensionsIcons.js';
@@ -131,7 +130,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 	private readonly _onDidProgressStep = new Emitter<IResolvedWalkthroughStep>();
 	readonly onDidProgressStep: Event<IResolvedWalkthroughStep> = this._onDidProgressStep.event;
 
-	private memento: Memento;
+	private memento: Memento<Record<string, StepProgress | undefined>>;
 	private stepProgress: Record<string, StepProgress | undefined>;
 
 	private sessionEvents = new Set<string>();
@@ -161,7 +160,6 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 		@IViewsService private readonly viewsService: IViewsService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkbenchAssignmentService private readonly tasExperimentService: IWorkbenchAssignmentService,
-		@IProductService private readonly productService: IProductService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IEditorService private readonly editorService: IEditorService
 	) {
@@ -245,14 +243,6 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 		});
 
 		this._register(this.extensionManagementService.onDidInstallExtensions((result) => {
-
-			if (result.some(e => ExtensionIdentifier.equals(this.productService.defaultChatAgent?.extensionId, e.identifier.id) && !e?.context?.[EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT])) {
-				result.forEach(e => {
-					this.sessionInstalledExtensions.add(e.identifier.id.toLowerCase());
-					this.progressByEvent(`extensionInstalled:${e.identifier.id.toLowerCase()}`);
-				});
-				return;
-			}
 
 			for (const e of result) {
 				const skipWalkthrough = e?.context?.[EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT] || e?.context?.[EXTENSION_INSTALL_DEP_PACK_CONTEXT];
@@ -607,6 +597,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 	}
 
 	private registerDoneListeners(step: IWalkthroughStep) {
+		// eslint-disable-next-line local/code-no-any-casts
 		if ((step as any).doneOn) {
 			console.error(`wakthrough step`, step, `uses deprecated 'doneOn' property. Adopt 'completionEvents' to silence this warning`);
 			return;

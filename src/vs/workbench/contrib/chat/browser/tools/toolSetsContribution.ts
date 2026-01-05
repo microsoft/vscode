@@ -24,7 +24,7 @@ import { IExtensionService } from '../../../../services/extensions/common/extens
 import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
 import { CHAT_CATEGORY, CHAT_CONFIG_MENU_ID } from '../actions/chatActions.js';
-import { ILanguageModelToolsService, IToolData, ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, ToolDataSource, ToolSet } from '../../common/tools/languageModelToolsService.js';
 import { IRawToolSetContribution } from '../../common/tools/languageModelToolsContribution.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { Codicon, getAllCodicons } from '../../../../../base/common/codicons.js';
@@ -36,7 +36,7 @@ import * as JSONContributionRegistry from '../../../../../platform/jsonschemas/c
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ChatViewId } from '../chat.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 
 
 const toolEnumValues: string[] = [];
@@ -70,7 +70,7 @@ const toolSetsSchema: IJSONSchema = {
 				}
 			},
 			icon: {
-				description: localize('schema.icon', "Icon to use for this tool set in the UI. Uses the `\\$(name)`-syntax, like `\\$(zap)`"),
+				description: localize('schema.icon', 'Icon to use for this tool set in the UI. Uses the "\\$(name)"-syntax, like "\\$(zap)"'),
 				type: 'string',
 				enum: Array.from(getAllCodicons(), icon => icon.id),
 				markdownEnumDescriptions: Array.from(getAllCodicons(), icon => `$(${icon.id})`),
@@ -327,7 +327,7 @@ export class ConfigureToolSets extends Action2 {
 				id: CHAT_CONFIG_MENU_ID,
 				when: ContextKeyExpr.equals('view', ChatViewId),
 				order: 11,
-				group: '0_level'
+				group: '2_level'
 			},
 		});
 	}

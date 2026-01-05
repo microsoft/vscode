@@ -16,7 +16,7 @@ import { ISingleEditOperation } from '../../../../editor/common/core/editOperati
 import { ITextEditorModel } from '../../../../editor/common/services/resolverService.js';
 import * as nls from '../../../../nls.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ConfigurationDefaultValueSource, ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry, IRegisteredConfigurationPropertySchema, OVERRIDE_PROPERTY_REGEX } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { ConfigurationDefaultValueSource, ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry, IRegisteredConfigurationPropertySchema, OVERRIDE_PROPERTY_REGEX } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorModel } from '../../../common/editor/editorModel.js';
@@ -512,10 +512,18 @@ export class DefaultSettings extends Disposable {
 	}
 
 	getRegisteredGroups(): ISettingsGroup[] {
-		const configurations = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurations().slice();
-		const groups = this.removeEmptySettingsGroups(configurations.sort(this.compareConfigurationNodes)
-			.reduce<ISettingsGroup[]>((result, config, index, array) => this.parseConfig(config, result, array), []));
+		const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+		const allConfigurations: IStringDictionary<IRegisteredConfigurationPropertySchema> = { ...registry.getConfigurationProperties() };
+		const excludedConfigurations = registry.getExcludedConfigurationProperties();
 
+		for (const policyKey of this.configurationService.keys().policy ?? []) {
+			const policyConfiguration = excludedConfigurations[policyKey];
+			if (policyConfiguration) {
+				allConfigurations[policyKey] = policyConfiguration;
+			}
+		}
+
+		const groups = this.removeEmptySettingsGroups(this.parseProperties(allConfigurations).sort(this.compareGroups));
 		return this.sortGroups(groups);
 	}
 
@@ -575,43 +583,68 @@ export class DefaultSettings extends Disposable {
 		} satisfies ISettingsGroup;
 	}
 
-	private parseConfig(config: IConfigurationNode, result: ISettingsGroup[], configurations: IConfigurationNode[], settingsGroup?: ISettingsGroup, seenSettings?: { [key: string]: boolean }): ISettingsGroup[] {
-		seenSettings = seenSettings ? seenSettings : {};
-		let title = config.title;
-		if (!title) {
-			const configWithTitleAndSameId = configurations.find(c => (c.id === config.id) && c.title);
-			if (configWithTitleAndSameId) {
-				title = configWithTitleAndSameId.title;
+	private parseProperties(properties: IStringDictionary<IRegisteredConfigurationPropertySchema>): ISettingsGroup[] {
+		const result: ISettingsGroup[] = [];
+		const byTitle = new Map<string, ISettingsGroup[]>();
+		const byId = new Map<string, ISettingsGroup[]>();
+		for (const [key, property] of Object.entries(properties)) {
+			if (!property.section) {
+				continue;
 			}
-		}
-		if (title) {
-			if (!settingsGroup) {
-				settingsGroup = result.find(g => g.title === title && g.extensionInfo?.id === config.extensionInfo?.id);
-				if (!settingsGroup) {
-					settingsGroup = { sections: [{ settings: [] }], id: config.id || '', title: title || '', titleRange: nullRange, order: config.order, range: nullRange, extensionInfo: config.extensionInfo };
-					result.push(settingsGroup);
+
+			let settingsGroup: ISettingsGroup | undefined;
+
+			if (property.section.title) {
+				const groups = byTitle.get(property.section.title);
+				if (groups) {
+					const extensionId = property.section.extensionInfo?.id;
+					settingsGroup = groups.find(g => g.extensionInfo?.id === extensionId);
 				}
-			} else {
-				settingsGroup.sections[settingsGroup.sections.length - 1].title = title;
 			}
-		}
-		if (config.properties) {
+
+			if (!settingsGroup && property.section.id) {
+				const groups = byId.get(property.section.id);
+				if (groups) {
+					const extensionId = property.section.extensionInfo?.id;
+					settingsGroup = groups.find(g => g.extensionInfo?.id === extensionId && !g.title);
+				}
+				if (settingsGroup && !settingsGroup?.title && property.section.title) {
+					settingsGroup.title = property.section.title;
+					const byTitleGroups = byTitle.get(property.section.title);
+					if (byTitleGroups) {
+						byTitleGroups.push(settingsGroup);
+					} else {
+						byTitle.set(property.section.title, [settingsGroup]);
+					}
+				}
+			}
+
 			if (!settingsGroup) {
-				settingsGroup = { sections: [{ settings: [] }], id: config.id || '', title: config.id || '', titleRange: nullRange, order: config.order, range: nullRange, extensionInfo: config.extensionInfo };
+				settingsGroup = { sections: [{ title: property.section.title, settings: [] }], id: property.section.id || '', title: property.section.title ?? '', titleRange: nullRange, order: property.section.order, range: nullRange, extensionInfo: property.source };
 				result.push(settingsGroup);
-			}
-			const configurationSettings: ISetting[] = [];
-			for (const setting of [...settingsGroup.sections[settingsGroup.sections.length - 1].settings, ...this.parseSettings(config)]) {
-				if (!seenSettings[setting.key]) {
-					configurationSettings.push(setting);
-					seenSettings[setting.key] = true;
+				if (property.section.title) {
+					const byTitleGroups = byTitle.get(property.section.title);
+					if (byTitleGroups) {
+						byTitleGroups.push(settingsGroup);
+					} else {
+						byTitle.set(property.section.title, [settingsGroup]);
+					}
+				}
+				if (property.section.id) {
+					const byIdGroups = byId.get(property.section.id);
+					if (byIdGroups) {
+						byIdGroups.push(settingsGroup);
+					} else {
+						byId.set(property.section.id, [settingsGroup]);
+					}
 				}
 			}
-			if (configurationSettings.length) {
-				settingsGroup.sections[settingsGroup.sections.length - 1].settings = configurationSettings;
+
+			const setting = this.parseSetting(key, property);
+			if (setting) {
+				settingsGroup.sections[0].settings.push(setting);
 			}
 		}
-		config.allOf?.forEach(c => this.parseConfig(c, result, configurations, settingsGroup, seenSettings));
 		return result;
 	}
 
@@ -626,110 +659,99 @@ export class DefaultSettings extends Disposable {
 		return result;
 	}
 
-	private parseSettings(config: IConfigurationNode): ISetting[] {
-		const result: ISetting[] = [];
+	private parseSetting(key: string, prop: IRegisteredConfigurationPropertySchema): ISetting | undefined {
+		if (!this.matchesScope(prop)) {
+			return undefined;
+		}
 
-		const settingsObject = config.properties;
-		const extensionInfo = config.extensionInfo;
-
-		// Try using the title if the category id wasn't given
-		// (in which case the category id is the same as the extension id)
-		const categoryLabel = config.extensionInfo?.id === config.id ? config.title : config.id;
-
-		for (const key in settingsObject) {
-			const prop: IConfigurationPropertySchema = settingsObject[key];
-			if (this.matchesScope(prop)) {
-				const value = prop.default;
-				let description = (prop.markdownDescription || prop.description || '');
-				if (typeof description !== 'string') {
-					description = '';
-				}
-				const descriptionLines = description.split('\n');
-				const overrides = OVERRIDE_PROPERTY_REGEX.test(key) ? this.parseOverrideSettings(prop.default) : [];
-				let listItemType: string | undefined;
-				if (prop.type === 'array' && prop.items && !Array.isArray(prop.items) && prop.items.type) {
-					if (prop.items.enum) {
-						listItemType = 'enum';
-					} else if (!Array.isArray(prop.items.type)) {
-						listItemType = prop.items.type;
-					}
-				}
-
-				const objectProperties = prop.type === 'object' ? prop.properties : undefined;
-				const objectPatternProperties = prop.type === 'object' ? prop.patternProperties : undefined;
-				const objectAdditionalProperties = prop.type === 'object' ? prop.additionalProperties : undefined;
-
-				let enumToUse = prop.enum;
-				let enumDescriptions = prop.markdownEnumDescriptions ?? prop.enumDescriptions;
-				let enumDescriptionsAreMarkdown = !!prop.markdownEnumDescriptions;
-				if (listItemType === 'enum' && !Array.isArray(prop.items)) {
-					enumToUse = prop.items!.enum;
-					enumDescriptions = prop.items!.markdownEnumDescriptions ?? prop.items!.enumDescriptions;
-					enumDescriptionsAreMarkdown = !!prop.items!.markdownEnumDescriptions;
-				}
-
-				let allKeysAreBoolean = false;
-				if (prop.type === 'object' && !prop.additionalProperties && prop.properties && Object.keys(prop.properties).length) {
-					allKeysAreBoolean = Object.keys(prop.properties).every(key => {
-						return prop.properties![key].type === 'boolean';
-					});
-				}
-
-				let isLanguageTagSetting = false;
-				if (OVERRIDE_PROPERTY_REGEX.test(key)) {
-					isLanguageTagSetting = true;
-				}
-
-				let defaultValueSource: ConfigurationDefaultValueSource | undefined;
-				if (!isLanguageTagSetting) {
-					const registeredConfigurationProp = prop as IRegisteredConfigurationPropertySchema;
-					if (registeredConfigurationProp && registeredConfigurationProp.defaultValueSource) {
-						defaultValueSource = registeredConfigurationProp.defaultValueSource;
-					}
-				}
-
-				if (!enumToUse && (prop.enumItemLabels || enumDescriptions || enumDescriptionsAreMarkdown)) {
-					console.error(`The setting ${key} has enum-related fields, but doesn't have an enum field. This setting may render improperly in the Settings editor.`);
-				}
-
-				result.push({
-					key,
-					value,
-					description: descriptionLines,
-					descriptionIsMarkdown: !!prop.markdownDescription,
-					range: nullRange,
-					keyRange: nullRange,
-					valueRange: nullRange,
-					descriptionRanges: [],
-					overrides,
-					scope: prop.scope,
-					type: prop.type,
-					arrayItemType: listItemType,
-					objectProperties,
-					objectPatternProperties,
-					objectAdditionalProperties,
-					enum: enumToUse,
-					enumDescriptions: enumDescriptions,
-					enumDescriptionsAreMarkdown: enumDescriptionsAreMarkdown,
-					enumItemLabels: prop.enumItemLabels,
-					uniqueItems: prop.uniqueItems,
-					tags: prop.tags,
-					disallowSyncIgnore: prop.disallowSyncIgnore,
-					restricted: prop.restricted,
-					extensionInfo: extensionInfo,
-					deprecationMessage: prop.markdownDeprecationMessage || prop.deprecationMessage,
-					deprecationMessageIsMarkdown: !!prop.markdownDeprecationMessage,
-					validator: createValidator(prop),
-					allKeysAreBoolean,
-					editPresentation: prop.editPresentation,
-					order: prop.order,
-					nonLanguageSpecificDefaultValueSource: defaultValueSource,
-					isLanguageTagSetting,
-					categoryLabel
-				});
+		const value = prop.default;
+		let description = (prop.markdownDescription || prop.description || '');
+		if (typeof description !== 'string') {
+			description = '';
+		}
+		const descriptionLines = description.split('\n');
+		const overrides = OVERRIDE_PROPERTY_REGEX.test(key) ? this.parseOverrideSettings(prop.default) : [];
+		let listItemType: string | undefined;
+		if (prop.type === 'array' && prop.items && !Array.isArray(prop.items) && prop.items.type) {
+			if (prop.items.enum) {
+				listItemType = 'enum';
+			} else if (!Array.isArray(prop.items.type)) {
+				listItemType = prop.items.type;
 			}
 		}
-		return result;
+
+		const objectProperties = prop.type === 'object' ? prop.properties : undefined;
+		const objectPatternProperties = prop.type === 'object' ? prop.patternProperties : undefined;
+		const objectAdditionalProperties = prop.type === 'object' ? prop.additionalProperties : undefined;
+
+		let enumToUse = prop.enum;
+		let enumDescriptions = prop.markdownEnumDescriptions ?? prop.enumDescriptions;
+		let enumDescriptionsAreMarkdown = !!prop.markdownEnumDescriptions;
+		if (listItemType === 'enum' && !Array.isArray(prop.items)) {
+			enumToUse = prop.items!.enum;
+			enumDescriptions = prop.items!.markdownEnumDescriptions ?? prop.items!.enumDescriptions;
+			enumDescriptionsAreMarkdown = !!prop.items!.markdownEnumDescriptions;
+		}
+
+		let allKeysAreBoolean = false;
+		if (prop.type === 'object' && !prop.additionalProperties && prop.properties && Object.keys(prop.properties).length) {
+			allKeysAreBoolean = Object.keys(prop.properties).every(key => {
+				return prop.properties![key].type === 'boolean';
+			});
+		}
+
+		let isLanguageTagSetting = false;
+		if (OVERRIDE_PROPERTY_REGEX.test(key)) {
+			isLanguageTagSetting = true;
+		}
+
+		let defaultValueSource: ConfigurationDefaultValueSource | undefined;
+		if (!isLanguageTagSetting) {
+			const registeredConfigurationProp = prop as IRegisteredConfigurationPropertySchema;
+			if (registeredConfigurationProp && registeredConfigurationProp.defaultValueSource) {
+				defaultValueSource = registeredConfigurationProp.defaultValueSource;
+			}
+		}
+
+		if (!enumToUse && (prop.enumItemLabels || enumDescriptions || enumDescriptionsAreMarkdown)) {
+			console.error(`The setting ${key} has enum-related fields, but doesn't have an enum field. This setting may render improperly in the Settings editor.`);
+		}
+
+		return {
+			key,
+			value,
+			description: descriptionLines,
+			descriptionIsMarkdown: !!prop.markdownDescription,
+			range: nullRange,
+			keyRange: nullRange,
+			valueRange: nullRange,
+			descriptionRanges: [],
+			overrides,
+			scope: prop.scope,
+			type: prop.type,
+			arrayItemType: listItemType,
+			objectProperties,
+			objectPatternProperties,
+			objectAdditionalProperties,
+			enum: enumToUse,
+			enumDescriptions: enumDescriptions,
+			enumDescriptionsAreMarkdown: enumDescriptionsAreMarkdown,
+			enumItemLabels: prop.enumItemLabels,
+			uniqueItems: prop.uniqueItems,
+			tags: prop.tags,
+			disallowSyncIgnore: prop.disallowSyncIgnore,
+			restricted: prop.restricted,
+			extensionInfo: prop.source,
+			deprecationMessage: prop.markdownDeprecationMessage || prop.deprecationMessage,
+			deprecationMessageIsMarkdown: !!prop.markdownDeprecationMessage,
+			validator: createValidator(prop),
+			allKeysAreBoolean,
+			editPresentation: prop.editPresentation,
+			order: prop.order,
+			nonLanguageSpecificDefaultValueSource: defaultValueSource,
+			isLanguageTagSetting,
+			categoryLabel: prop.source?.id === prop.section?.id ? prop.title : prop.section?.id
+		};
 	}
 
 	private parseOverrideSettings(overrideSettings: any): ISetting[] {
@@ -759,11 +781,11 @@ export class DefaultSettings extends Disposable {
 		return true;
 	}
 
-	private compareConfigurationNodes(c1: IConfigurationNode, c2: IConfigurationNode): number {
-		if (typeof c1.order !== 'number') {
+	private compareGroups(c1: ISettingsGroup, c2: ISettingsGroup): number {
+		if (typeof c1?.order !== 'number') {
 			return 1;
 		}
-		if (typeof c2.order !== 'number') {
+		if (typeof c2?.order !== 'number') {
 			return -1;
 		}
 		if (c1.order === c2.order) {
@@ -1006,9 +1028,7 @@ class SettingsContentBuilder {
 		const groupStart = this.lineCountWithOffset + 1;
 		for (const section of group.sections) {
 			if (section.title) {
-				const sectionTitleStart = this.lineCountWithOffset + 1;
 				this.addDescription([section.title], indent, this._contentByLines);
-				section.titleRange = { startLineNumber: sectionTitleStart, startColumn: 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length };
 			}
 
 			if (section.settings.length) {

@@ -1,0 +1,255 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.agent-sessions-viewer {
+
+	flex: 1 1 auto;
+	height: 100%;
+	min-height: 0;
+
+	.monaco-list-row .force-no-twistie {
+		display: none !important;
+	}
+
+	.monaco-list-row.selected .agent-session-details-row {
+		color: unset;
+
+		.rendered-markdown {
+			a {
+				color: unset;
+			}
+		}
+
+		.agent-session-diff-container {
+			background-color: unset;
+			outline: 1px solid var(--vscode-agentSessionSelectedBadge-border);
+
+			.agent-session-diff-files,
+			.agent-session-diff-added,
+			.agent-session-diff-removed {
+				color: unset;
+			}
+		}
+
+		.agent-session-badge {
+			background-color: unset;
+			outline: 1px solid var(--vscode-agentSessionSelectedBadge-border);
+		}
+	}
+
+	.monaco-list:not(:focus) .monaco-list-row.selected .agent-session-details-row .agent-session-diff-container,
+	.monaco-list:not(:focus) .monaco-list-row.selected .agent-session-details-row .agent-session-badge {
+		outline: 1px solid var(--vscode-agentSessionSelectedUnfocusedBadge-border);
+	}
+
+	.monaco-list-row .agent-session-title-toolbar {
+		/* for the absolute positioning of the toolbar below */
+		position: relative;
+
+		.monaco-toolbar {
+			/* this is required because the overal height (including the padding needed for hover feedback) would push down the title otherwise */
+			position: absolute;
+			right: 0;
+			top: 0;
+			display: none;
+		}
+	}
+
+	.monaco-list-row:hover .agent-session-title-toolbar,
+	.monaco-list-row.focused .agent-session-title-toolbar {
+		width: 22px;
+
+		.monaco-toolbar {
+			display: block;
+		}
+	}
+
+	.agent-session-item {
+		display: flex;
+		flex-direction: row;
+		/* to offset from possible scrollbar */
+		padding: 8px 12px 8px 8px;
+
+		&.archived {
+			color: var(--vscode-descriptionForeground);
+		}
+
+		.agent-session-main-col,
+		.agent-session-title-row,
+		.agent-session-details-row {
+			flex: 1;
+			min-width: 0;
+		}
+
+		.agent-session-icon-col {
+			display: flex;
+			align-items: flex-start;
+
+			.agent-session-icon {
+				flex-shrink: 0;
+				font-size: 16px;
+
+				&.codicon.codicon-session-in-progress {
+					color: var(--vscode-textLink-foreground);
+				}
+
+				&.codicon.codicon-error {
+					color: var(--vscode-errorForeground);
+				}
+
+				&.codicon.codicon-report {
+					color: var(--vscode-textLink-foreground);
+				}
+
+				&.codicon.codicon-circle-filled {
+					color: var(--vscode-textLink-foreground);
+				}
+
+				&.codicon.codicon-circle-small-filled {
+					color: var(--vscode-agentSessionReadIndicator-foreground);
+				}
+			}
+		}
+
+		.agent-session-main-col {
+			padding-left: 8px;
+		}
+
+		.agent-session-title-row,
+		.agent-session-details-row {
+			display: flex;
+			align-items: center;
+			line-height: 16px;
+		}
+
+		.agent-session-title-row {
+			padding-bottom: 4px;
+		}
+
+		.agent-session-details-row {
+			gap: 4px;
+			font-size: 12px;
+			color: var(--vscode-descriptionForeground);
+
+			.rendered-markdown {
+				p {
+					display: flex;
+					align-items: center;
+					margin: 0;
+
+					> span.codicon {
+						margin-right: 2px;
+					}
+				}
+
+				a {
+					color: var(--vscode-descriptionForeground);
+				}
+			}
+
+			.agent-session-diff-container {
+				background-color: var(--vscode-toolbar-hoverBackground);
+				font-weight: 500;
+				display: flex;
+				gap: 4px;
+				padding: 0 4px;
+				font-variant-numeric: tabular-nums;
+				border-radius: 5px;
+
+				&:not(.has-diff) {
+					display: none;
+				}
+
+				.agent-session-diff-files {
+					color: var(--vscode-descriptionForeground);
+				}
+
+				.agent-session-diff-added {
+					color: var(--vscode-chat-linesAddedForeground);
+				}
+
+				.agent-session-diff-removed {
+					color: var(--vscode-chat-linesRemovedForeground);
+				}
+			}
+
+			.agent-session-badge {
+				background-color: var(--vscode-toolbar-hoverBackground);
+				font-weight: 500;
+				padding: 0 4px;
+				font-variant-numeric: tabular-nums;
+				border-radius: 5px;
+				overflow: hidden;
+
+				&:not(.has-badge) {
+					display: none;
+				}
+
+				.codicon {
+					font-size: 12px;
+				}
+			}
+		}
+
+		.agent-session-title,
+		.agent-session-description {
+			/* push other items to the end */
+			flex: 1;
+			text-overflow: ellipsis;
+			overflow: hidden;
+		}
+
+		.agent-session-status {
+			padding-left: 8px;
+			font-variant-numeric: tabular-nums;
+		}
+	}
+
+	.agent-session-section {
+		display: flex;
+		align-items: center;
+		font-size: 11px;
+		color: var(--vscode-descriptionForeground);
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+		/* align with session item padding */
+		padding: 0 12px 0 8px;
+
+		.agent-session-section-label {
+			flex: 1;
+		}
+
+		.agent-session-section-toolbar {
+			/* for the absolute positioning of the toolbar below */
+			position: relative;
+
+			.monaco-toolbar {
+				/* this is required because the overal height (including the padding needed for hover feedback) would push down the label otherwise */
+				position: absolute;
+				right: 0;
+				top: 0;
+				display: none;
+			}
+		}
+	}
+
+	.monaco-list-row:hover .agent-session-section .agent-session-section-toolbar,
+	.monaco-list-row.focused .agent-session-section .agent-session-section-toolbar {
+		width: 22px;
+
+		.monaco-toolbar {
+			display: block;
+		}
+	}
+
+	.monaco-list:focus .monaco-list-row.focused.selected .agent-session-section-label,
+	.monaco-list:focus .monaco-list-row.selected .agent-session-section-label {
+		color: var(--vscode-list-activeSelectionForeground);
+	}
+
+	.monaco-list:not(:focus) .monaco-list-row.selected .agent-session-section-label {
+		color: var(--vscode-list-inactiveSelectionForeground);
+	}
+}

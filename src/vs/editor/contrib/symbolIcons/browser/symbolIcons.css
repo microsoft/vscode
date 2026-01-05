@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* stylelint-disable layer-checker */
+
 .monaco-editor .codicon.codicon-symbol-array,
 .monaco-workbench .codicon.codicon-symbol-array { color: var(--vscode-symbolIcon-arrayForeground); }
 .monaco-editor .codicon.codicon-symbol-boolean,

@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* eslint-disable no-restricted-syntax */
+
 import assert from 'assert';
 import { fillInIncompleteTokens, renderMarkdown, renderAsPlaintext } from '../../browser/markdownRenderer.js';
 import { IMarkdownString, MarkdownString } from '../../common/htmlContent.js';
@@ -166,7 +168,7 @@ suite('MarkdownRenderer', () => {
 			mds.appendMarkdown(`[$(zap)-link](#link)`);
 
 			const result: HTMLElement = store.add(renderMarkdown(mds)).element;
-			assert.strictEqual(result.innerHTML, `<p><a data-href="#link" href="" title="#link" draggable="false"><span class="codicon codicon-zap"></span>-link</a></p>`);
+			assert.strictEqual(result.innerHTML, `<p><a href="" title="#link" draggable="false" data-href="#link"><span class="codicon codicon-zap"></span>-link</a></p>`);
 		});
 
 		test('render icon in table', () => {
@@ -186,7 +188,7 @@ suite('MarkdownRenderer', () => {
 </thead>
 <tbody><tr>
 <td><span class="codicon codicon-zap"></span></td>
-<td><a data-href="#link" href="" title="#link" draggable="false"><span class="codicon codicon-zap"></span>-link</a></td>
+<td><a href="" title="#link" draggable="false" data-href="#link"><span class="codicon codicon-zap"></span>-link</a></td>
 </tr>
 </tbody></table>
 `);
@@ -217,6 +219,36 @@ suite('MarkdownRenderer', () => {
 
 			const result: HTMLElement = store.add(renderMarkdown(mds)).element;
 			assert.strictEqual(result.innerHTML, `<p>$(zap) $(not a theme icon) $(add)</p>`);
+		});
+	});
+
+	suite('Alerts', () => {
+		test('Should render alert with data-severity attribute and icon', () => {
+			const markdown = new MarkdownString('> [!NOTE]\n> This is a note alert', { supportAlertSyntax: true });
+			const result = store.add(renderMarkdown(markdown)).element;
+
+			const blockquote = result.querySelector('blockquote[data-severity="note"]');
+			assert.ok(blockquote, 'Should have blockquote with data-severity="note"');
+			assert.ok(result.innerHTML.includes('This is a note alert'), 'Should contain alert text');
+			assert.ok(result.innerHTML.includes('codicon-info'), 'Should contain info icon');
+		});
+
+		test('Should render regular blockquote when supportAlertSyntax is disabled', () => {
+			const markdown = new MarkdownString('> [!NOTE]\n> This should be a regular blockquote');
+			const result = store.add(renderMarkdown(markdown)).element;
+
+			const blockquote = result.querySelector('blockquote');
+			assert.ok(blockquote, 'Should have blockquote');
+			assert.strictEqual(blockquote?.getAttribute('data-severity'), null, 'Should not have data-severity attribute');
+			assert.ok(result.innerHTML.includes('[!NOTE]'), 'Should contain literal [!NOTE] text');
+		});
+
+		test('Should not transform blockquotes without alert syntax', () => {
+			const markdown = new MarkdownString('> This is a regular blockquote', { supportAlertSyntax: true });
+			const result = store.add(renderMarkdown(markdown)).element;
+
+			const blockquote = result.querySelector('blockquote');
+			assert.strictEqual(blockquote?.getAttribute('data-severity'), null, 'Should not have data-severity attribute');
 		});
 	});
 
@@ -253,7 +285,28 @@ suite('MarkdownRenderer', () => {
 		});
 
 		const result: HTMLElement = store.add(renderMarkdown(md)).element;
-		assert.strictEqual(result.innerHTML, `<p><a data-href="command:doFoo" href="" title="command:doFoo" draggable="false">command1</a> <a data-href="command:doFoo" href="">command2</a></p>`);
+		assert.strictEqual(result.innerHTML, `<p><a href="" title="command:doFoo" draggable="false" data-href="command:doFoo">command1</a> <a href="" data-href="command:doFoo">command2</a></p>`);
+	});
+
+	test('Should remove relative links if there is no base url', () => {
+		const md = new MarkdownString(`[text](./foo) <a href="./bar">bar</a>`, {
+			isTrusted: true,
+			supportHtml: true,
+		});
+
+		const result = store.add(renderMarkdown(md)).element;
+		assert.strictEqual(result.innerHTML, `<p>text bar</p>`);
+	});
+
+	test('Should support relative links if baseurl is set', () => {
+		const md = new MarkdownString(`[text](./foo) <a href="./bar">bar</a> <img src="cat.gif">`, {
+			isTrusted: true,
+			supportHtml: true,
+		});
+		md.baseUri = URI.parse('https://example.com/path/');
+
+		const result = store.add(renderMarkdown(md)).element;
+		assert.strictEqual(result.innerHTML, `<p><a href="" title="./foo" draggable="false" data-href="https://example.com/path/foo">text</a> <a href="" data-href="https://example.com/path/bar">bar</a> <img src="https://example.com/path/cat.gif"></p>`);
 	});
 
 	suite('PlaintextMarkdownRender', () => {
@@ -345,6 +398,17 @@ suite('MarkdownRenderer', () => {
 
 			const result = store.add(renderMarkdown(mds)).element;
 			assert.strictEqual(result.innerHTML, `<img src="vscode-file://vscode-app/images/cat.gif">`);
+		});
+
+		test('Should only allow checkbox inputs', () => {
+			const mds = new MarkdownString(
+				'text: <input type="text">\ncheckbox:<input type="checkbox">',
+				{ supportHtml: true });
+
+			const result = store.add(renderMarkdown(mds)).element;
+
+			// Inputs should always be disabled too
+			assert.strictEqual(result.innerHTML, `<p>text: \ncheckbox:<input type="checkbox" disabled=""></p>`);
 		});
 	});
 

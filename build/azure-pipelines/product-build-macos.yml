@@ -28,6 +28,8 @@ variables:
     value: ${{ parameters.VSCODE_QUALITY }}
   - name: VSCODE_CIBUILD
     value: ${{ in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI') }}
+  - name: VSCODE_STEP_ON_IT
+    value: false
   - name: skipComponentGovernanceDetection
     value: true
   - name: ComponentDetection.Timeout
@@ -53,8 +55,6 @@ extends:
       tsa:
         enabled: true
         configFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/tsaoptions.json
-      binskim:
-        analyzeTargetGlob: '+:file|$(Agent.BuildDirectory)/VSCode-*/**/*.exe;+:file|$(Agent.BuildDirectory)/VSCode-*/**/*.node;+:file|$(Agent.BuildDirectory)/VSCode-*/**/*.dll;-:file|$(Build.SourcesDirectory)/.build/**/system-setup/VSCodeSetup*.exe;-:file|$(Build.SourcesDirectory)/.build/**/user-setup/VSCodeUserSetup*.exe'
       codeql:
         runSourceLanguagesInSourceAnalysis: true
         compiled:
@@ -73,64 +73,34 @@ extends:
         image: onebranch.azurecr.io/linux/ubuntu-2004-arm64:latest
     stages:
       - stage: Compile
+        pool:
+          name: AcesShared
+          os: macOS
+          demands:
+            - ImageOverride -equals ACES_VM_SharedPool_Sequoia
         jobs:
-          - job: Compile
-            timeoutInMinutes: 90
-            pool:
-              name: ACESLabTest
-              os: macOS
-            steps:
-              - template: build/azure-pipelines/product-compile.yml@self
-                parameters:
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+          - template: build/azure-pipelines/product-compile.yml@self
 
       - stage: macOS
         dependsOn:
           - Compile
         pool:
-          name: ACESLabTest
+          name: AcesShared
           os: macOS
+          demands:
+            - ImageOverride -equals ACES_VM_SharedPool_Sequoia
         variables:
           BUILDSECMON_OPT_IN: true
         jobs:
-          - job: macOSElectronTest
-            displayName: Electron Tests
-            timeoutInMinutes: 30
-            variables:
-              VSCODE_ARCH: arm64
-            steps:
-              - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
-                parameters:
-                  VSCODE_ARCH: arm64
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_TEST_ARTIFACT_NAME: electron
-                  VSCODE_RUN_ELECTRON_TESTS: true
-
-          - job: macOSBrowserTest
-            displayName: Browser Tests
-            timeoutInMinutes: 30
-            variables:
-              VSCODE_ARCH: arm64
-            steps:
-              - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
-                parameters:
-                  VSCODE_ARCH: arm64
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_TEST_ARTIFACT_NAME: browser
-                  VSCODE_RUN_BROWSER_TESTS: true
-
-          - job: macOSRemoteTest
-            displayName: Remote Tests
-            timeoutInMinutes: 30
-            variables:
-              VSCODE_ARCH: arm64
-            steps:
-              - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
-                parameters:
-                  VSCODE_ARCH: arm64
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_TEST_ARTIFACT_NAME: remote
-                  VSCODE_RUN_REMOTE_TESTS: true
+          - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
+            parameters:
+              VSCODE_CIBUILD: true
+              VSCODE_TEST_SUITE: Electron
+          - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
+            parameters:
+              VSCODE_CIBUILD: true
+              VSCODE_TEST_SUITE: Browser
+          - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
+            parameters:
+              VSCODE_CIBUILD: true
+              VSCODE_TEST_SUITE: Remote

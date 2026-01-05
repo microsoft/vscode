@@ -679,12 +679,12 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 				get reactionHandler(): ReactionHandler | undefined { return that.reactionHandler; },
 				set reactionHandler(handler: ReactionHandler | undefined) { that.reactionHandler = handler; },
 				// get activeComment(): vscode.Comment | undefined { return that.activeComment; },
-				get activeCommentThread(): vscode.CommentThread2 | undefined { return that.activeCommentThread; },
-				createCommentThread(uri: vscode.Uri, range: vscode.Range | undefined, comments: vscode.Comment[]): vscode.CommentThread | vscode.CommentThread2 {
-					return that.createCommentThread(uri, range, comments).value;
+				get activeCommentThread(): vscode.CommentThread | undefined { return that.activeCommentThread as vscode.CommentThread | undefined; },
+				createCommentThread(uri: vscode.Uri, range: vscode.Range | undefined, comments: vscode.Comment[]): vscode.CommentThread {
+					return that.createCommentThread(uri, range, comments).value as vscode.CommentThread;
 				},
 				dispose: () => { that.dispose(); },
-			}) as any; // TODO @alexr00 remove this cast when the proposed API is stable
+			});
 
 			this._localDisposables = [];
 			this._localDisposables.push({

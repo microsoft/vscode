@@ -13,18 +13,21 @@ import { autorun, derived } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { nativeHoverDelegate } from '../../../../../platform/hover/browser/hover.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IStatusbarService, StatusbarAlignment } from '../../../../services/statusbar/browser/statusbar.js';
 import { AI_STATS_SETTING_ID } from '../settingIds.js';
 import type { AiStatsFeature } from './aiStatsFeature.js';
 import './media.css';
 
 export class AiStatsStatusBar extends Disposable {
-	public static readonly hot = createHotClass(AiStatsStatusBar);
+	public static readonly hot = createHotClass(this);
 
 	constructor(
 		private readonly _aiStatsFeature: AiStatsFeature,
 		@IStatusbarService private readonly _statusbarService: IStatusbarService,
 		@ICommandService private readonly _commandService: ICommandService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -39,6 +42,7 @@ export class AiStatsStatusBar extends Disposable {
 				text: '',
 				tooltip: {
 					element: async (_token) => {
+						this._sendHoverTelemetry();
 						store.clear();
 						const elem = this._createStatusBarHover();
 						return elem.keepUpdated(store).element;
@@ -50,6 +54,21 @@ export class AiStatsStatusBar extends Disposable {
 		}));
 	}
 
+	private _sendHoverTelemetry(): void {
+		this._telemetryService.publicLog2<{
+			aiRate: number;
+		}, {
+			owner: 'hediet';
+			comment: 'Fired when the AI stats status bar hover tooltip is shown';
+			aiRate: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The current AI rate percentage' };
+		}>(
+			'aiStatsStatusBar.hover',
+			{
+				aiRate: this._aiStatsFeature.aiRate.get(),
+			}
+		);
+	}
+
 
 	private _createStatusBar() {
 		return n.div({
@@ -58,6 +77,8 @@ export class AiStatsStatusBar extends Disposable {
 				display: 'flex',
 				alignItems: 'center',
 				justifyContent: 'center',
+				marginLeft: '3px',
+				marginRight: '3px',
 			}
 		}, [
 			n.div(
@@ -71,7 +92,8 @@ export class AiStatsStatusBar extends Disposable {
 						height: 6,
 
 						borderRadius: 6,
-						border: '1px solid var(--vscode-statusBar-foreground)',
+						borderWidth: '1px',
+						borderStyle: 'solid',
 					}
 				},
 				[
@@ -89,7 +111,7 @@ export class AiStatsStatusBar extends Disposable {
 						n.div({
 							style: {
 								width: this._aiStatsFeature.aiRate.map(v => `${v * 100}%`),
-								backgroundColor: 'var(--vscode-statusBar-foreground)',
+								backgroundColor: 'currentColor',
 							}
 						})
 					])
@@ -107,9 +129,6 @@ export class AiStatsStatusBar extends Disposable {
 			n.div({
 				class: 'header',
 				style: {
-					fontWeight: 'bold',
-					fontSize: '14px',
-					marginBottom: '4px',
 					minWidth: '200px',
 				}
 			},
@@ -118,22 +137,22 @@ export class AiStatsStatusBar extends Disposable {
 					n.div({ style: { marginLeft: 'auto' } }, actionBar([
 						{
 							action: {
-								id: 'foo',
+								id: 'aiStats.statusBar.settings',
 								label: '',
 								enabled: true,
 								run: () => openSettingsCommand({ ids: [AI_STATS_SETTING_ID] }).run(this._commandService),
 								class: ThemeIcon.asClassName(Codicon.gear),
-								tooltip: ''
+								tooltip: localize('aiStats.statusBar.configure', "Configure")
 							},
-							options: { icon: true, label: false, }
+							options: { icon: true, label: false, hoverDelegate: nativeHoverDelegate }
 						}
 					]))
 				]
 			),
 
 			n.div({ style: { display: 'flex' } }, [
-				n.div({ style: { flex: 1 } }, [
-					localize('text1', "Manual vs. AI typing ratio: {0}", aiRatePercent.get()),
+				n.div({ style: { flex: 1, paddingRight: '4px' } }, [
+					localize('text1', "AI vs Typing Average: {0}", aiRatePercent.get()),
 				]),
 				/*
 				TODO: Write article that explains the ratio and link to it.
@@ -152,8 +171,9 @@ export class AiStatsStatusBar extends Disposable {
 					}
 				]))*/
 			]),
-
-			localize('text2', "Accepted inline suggestions today: {0}", this._aiStatsFeature.acceptedInlineSuggestionsToday.get()),
+			n.div({ style: { flex: 1, paddingRight: '4px' } }, [
+				localize('text2', "Accepted inline suggestions today: {0}", this._aiStatsFeature.acceptedInlineSuggestionsToday.get()),
+			]),
 		]);
 	}
 }

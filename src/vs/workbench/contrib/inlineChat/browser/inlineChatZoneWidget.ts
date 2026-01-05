@@ -20,8 +20,9 @@ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IChatWidgetViewOptions } from '../../chat/browser/chat.js';
-import { IChatWidgetLocationOptions } from '../../chat/browser/chatWidget.js';
-import { isResponseVM } from '../../chat/common/chatViewModel.js';
+import { IChatWidgetLocationOptions } from '../../chat/browser/widget/chatWidget.js';
+import { ChatMode } from '../../chat/common/chatModes.js';
+import { isResponseVM } from '../../chat/common/model/chatViewModel.js';
 import { INotebookEditor } from '../../notebook/browser/notebookBrowser.js';
 import { ACTION_REGENERATE_RESPONSE, ACTION_REPORT_ISSUE, ACTION_TOGGLE_DIFF, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, MENU_INLINE_CHAT_SIDE, MENU_INLINE_CHAT_WIDGET_SECONDARY, MENU_INLINE_CHAT_WIDGET_STATUS } from '../common/inlineChat.js';
 import { EditorBasedInlineChatWidget } from './inlineChatWidget.js';
@@ -52,6 +53,8 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		location: IChatWidgetLocationOptions,
 		options: IChatWidgetViewOptions | undefined,
 		editors: { editor: ICodeEditor; notebookEditor?: INotebookEditor },
+		/** @deprecated should go away with inline2 */
+		clearDelegate: () => Promise<void>,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@ILogService private _logService: ILogService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -86,6 +89,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 					telemetrySource: 'interactiveEditorWidget-toolbar',
 					inputSideToolbar: MENU_INLINE_CHAT_SIDE
 				},
+				clear: clearDelegate,
 				...options,
 				rendererOptions: {
 					renderTextEditsAsSummary: (uri) => {
@@ -95,6 +99,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 					renderDetectedCommandsWithRequest: true,
 					...options?.rendererOptions
 				},
+				defaultMode: ChatMode.Ask
 			}
 		});
 		this._disposables.add(this.widget);
@@ -285,7 +290,6 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		const scrollState = StableEditorBottomScrollState.capture(this.editor);
 		this._scrollUp.disable();
 		this._ctxCursorPosition.reset();
-		this.widget.reset();
 		this.widget.chatWidget.setVisible(false);
 		super.hide();
 		aria.status(localize('inlineChatClosed', 'Closed inline chat widget'));

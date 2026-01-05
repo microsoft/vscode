@@ -6,25 +6,26 @@
 import { IAction } from '../../../common/actions.js';
 import { Codicon } from '../../../common/codicons.js';
 import { Emitter, Event } from '../../../common/event.js';
+import { IMarkdownString, isMarkdownString } from '../../../common/htmlContent.js';
+import { getCodiconAriaLabel, stripIcons } from '../../../common/iconLabels.js';
 import { KeyCode } from '../../../common/keyCodes.js';
 import { ThemeIcon } from '../../../common/themables.js';
-import { $, addDisposableListener, EventType, isActiveElement } from '../../dom.js';
+import { $, addDisposableListener, EventType, isActiveElement, isHTMLElement } from '../../dom.js';
 import { IKeyboardEvent } from '../../keyboardEvent.js';
 import { BaseActionViewItem, IActionViewItemOptions } from '../actionbar/actionViewItems.js';
-import type { IManagedHover } from '../hover/hover.js';
-import { IHoverDelegate } from '../hover/hoverDelegate.js';
+import { IActionViewItemProvider } from '../actionbar/actionbar.js';
+import { HoverStyle, IHoverLifecycleOptions } from '../hover/hover.js';
 import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
-import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
 import { Widget } from '../widget.js';
 import './toggle.css';
 
 export interface IToggleOpts extends IToggleStyles {
 	readonly actionClassName?: string;
 	readonly icon?: ThemeIcon;
-	readonly title: string;
+	readonly title: string | IMarkdownString | HTMLElement;
 	readonly isChecked: boolean;
 	readonly notFocusable?: boolean;
-	readonly hoverDelegate?: IHoverDelegate;
+	readonly hoverLifecycleOptions?: IHoverLifecycleOptions;
 }
 
 export interface IToggleStyles {
@@ -40,7 +41,7 @@ export interface ICheckboxStyles {
 	readonly checkboxDisabledBackground: string | undefined;
 	readonly checkboxDisabledForeground: string | undefined;
 	readonly size?: number;
-	readonly hoverDelegate?: IHoverDelegate;
+	readonly hoverLifecycleOptions?: IHoverLifecycleOptions;
 }
 
 export const unthemedToggleStyles = {
@@ -66,7 +67,6 @@ export class ToggleActionViewItem extends BaseActionViewItem {
 			inputActiveOptionBackground: options.toggleStyles?.inputActiveOptionBackground,
 			inputActiveOptionBorder: options.toggleStyles?.inputActiveOptionBorder,
 			inputActiveOptionForeground: options.toggleStyles?.inputActiveOptionForeground,
-			hoverDelegate: options.hoverDelegate
 		}));
 		this._register(this.toggle.onChange(() => {
 			this._action.checked = !!this.toggle && this.toggle.checked;
@@ -122,22 +122,23 @@ export class ToggleActionViewItem extends BaseActionViewItem {
 export class Toggle extends Widget {
 
 	private readonly _onChange = this._register(new Emitter<boolean>());
-	readonly onChange: Event<boolean /* via keyboard */> = this._onChange.event;
+	get onChange(): Event<boolean /* via keyboard */> { return this._onChange.event; }
 
 	private readonly _onKeyDown = this._register(new Emitter<IKeyboardEvent>());
-	readonly onKeyDown: Event<IKeyboardEvent> = this._onKeyDown.event;
+	get onKeyDown(): Event<IKeyboardEvent> { return this._onKeyDown.event; }
 
 	private readonly _opts: IToggleOpts;
+	private _title: string | IMarkdownString | HTMLElement;
 	private _icon: ThemeIcon | undefined;
 	readonly domNode: HTMLElement;
 
 	private _checked: boolean;
-	private _hover: IManagedHover;
 
 	constructor(opts: IToggleOpts) {
 		super();
 
 		this._opts = opts;
+		this._title = this._opts.title;
 		this._checked = this._opts.isChecked;
 
 		const classes = ['monaco-custom-toggle'];
@@ -153,15 +154,18 @@ export class Toggle extends Widget {
 		}
 
 		this.domNode = document.createElement('div');
-		this._hover = this._register(getBaseLayerHoverDelegate().setupManagedHover(opts.hoverDelegate ?? getDefaultHoverDelegate('mouse'), this.domNode, this._opts.title));
+		this._register(getBaseLayerHoverDelegate().setupDelayedHover(this.domNode, () => ({
+			content: !isMarkdownString(this._title) && !isHTMLElement(this._title) ? stripIcons(this._title) : this._title,
+			style: HoverStyle.Pointer,
+		}), this._opts.hoverLifecycleOptions));
 		this.domNode.classList.add(...classes);
 		if (!this._opts.notFocusable) {
 			this.domNode.tabIndex = 0;
 		}
 		this.domNode.setAttribute('role', 'checkbox');
 		this.domNode.setAttribute('aria-checked', String(this._checked));
-		this.domNode.setAttribute('aria-label', this._opts.title);
 
+		this.setTitle(this._opts.title);
 		this.applyStyles();
 
 		this.onclick(this.domNode, (ev) => {
@@ -244,9 +248,12 @@ export class Toggle extends Widget {
 		this.domNode.classList.add('disabled');
 	}
 
-	setTitle(newTitle: string): void {
-		this._hover.update(newTitle);
-		this.domNode.setAttribute('aria-label', newTitle);
+	setTitle(newTitle: string | IMarkdownString | HTMLElement): void {
+		this._title = newTitle;
+
+		const ariaLabel = typeof newTitle === 'string' ? newTitle : isMarkdownString(newTitle) ? newTitle.value : newTitle.textContent;
+
+		this.domNode.setAttribute('aria-label', getCodiconAriaLabel(ariaLabel));
 	}
 
 	set visible(visible: boolean) {
@@ -316,7 +323,7 @@ abstract class BaseCheckbox extends Widget {
 
 export class Checkbox extends BaseCheckbox {
 	constructor(title: string, isChecked: boolean, styles: ICheckboxStyles) {
-		const toggle = new Toggle({ title, isChecked, icon: Codicon.check, actionClassName: BaseCheckbox.CLASS_NAME, hoverDelegate: styles.hoverDelegate, ...unthemedToggleStyles });
+		const toggle = new Toggle({ title, isChecked, icon: Codicon.check, actionClassName: BaseCheckbox.CLASS_NAME, hoverLifecycleOptions: styles.hoverLifecycleOptions, ...unthemedToggleStyles });
 		super(toggle, toggle.domNode, styles);
 
 		this._register(toggle);
@@ -348,7 +355,7 @@ export class Checkbox extends BaseCheckbox {
 export class TriStateCheckbox extends BaseCheckbox {
 	constructor(
 		title: string,
-		private _state: boolean | 'partial',
+		private _state: boolean | 'mixed',
 		styles: ICheckboxStyles
 	) {
 		let icon: ThemeIcon | undefined;
@@ -356,7 +363,7 @@ export class TriStateCheckbox extends BaseCheckbox {
 			case true:
 				icon = Codicon.check;
 				break;
-			case 'partial':
+			case 'mixed':
 				icon = Codicon.dash;
 				break;
 			case false:
@@ -368,7 +375,7 @@ export class TriStateCheckbox extends BaseCheckbox {
 			isChecked: _state === true,
 			icon,
 			actionClassName: Checkbox.CLASS_NAME,
-			hoverDelegate: styles.hoverDelegate,
+			hoverLifecycleOptions: styles.hoverLifecycleOptions,
 			...unthemedToggleStyles
 		});
 		super(
@@ -385,11 +392,11 @@ export class TriStateCheckbox extends BaseCheckbox {
 		}));
 	}
 
-	get checked(): boolean | 'partial' {
+	get checked(): boolean | 'mixed' {
 		return this._state;
 	}
 
-	set checked(newState: boolean | 'partial') {
+	set checked(newState: boolean | 'mixed') {
 		if (this._state !== newState) {
 			this._state = newState;
 			this.checkbox.checked = newState === true;
@@ -402,7 +409,7 @@ export class TriStateCheckbox extends BaseCheckbox {
 			case true:
 				this.checkbox.setIcon(Codicon.check);
 				break;
-			case 'partial':
+			case 'mixed':
 				this.checkbox.setIcon(Codicon.dash);
 				break;
 			case false:
@@ -494,4 +501,22 @@ export class CheckboxActionViewItem extends BaseActionViewItem {
 		this.toggle.domNode.tabIndex = focusable ? 0 : -1;
 	}
 
+}
+
+/**
+ * Creates an action view item provider that renders toggles for actions with a checked state
+ * and falls back to default button rendering for regular actions.
+ *
+ * @param toggleStyles - Optional styles to apply to toggle items
+ * @returns An IActionViewItemProvider that can be used with ActionBar
+ */
+export function createToggleActionViewItemProvider(toggleStyles?: IToggleStyles): IActionViewItemProvider {
+	return (action: IAction, options: IActionViewItemOptions) => {
+		// Only render as a toggle if the action has a checked property
+		if (action.checked !== undefined) {
+			return new ToggleActionViewItem(null, action, { ...options, toggleStyles });
+		}
+		// Return undefined to fall back to default button rendering
+		return undefined;
+	};
 }

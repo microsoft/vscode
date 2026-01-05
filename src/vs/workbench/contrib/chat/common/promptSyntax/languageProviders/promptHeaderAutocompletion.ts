@@ -5,22 +5,21 @@
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CharCode } from '../../../../../../base/common/charCode.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { Position } from '../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { CompletionContext, CompletionItem, CompletionItemInsertTextRule, CompletionItemKind, CompletionItemProvider, CompletionList } from '../../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
-import { ILanguageFeaturesService } from '../../../../../../editor/common/services/languageFeatures.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
-import { ILanguageModelToolsService } from '../../languageModelToolsService.js';
-import { InstructionsHeader } from '../parsers/promptHeader/instructionsHeader.js';
-import { PromptToolsMetadata } from '../parsers/promptHeader/metadata/tools.js';
-import { ModeHeader } from '../parsers/promptHeader/modeHeader.js';
-import { PromptHeader } from '../parsers/promptHeader/promptHeader.js';
-import { ALL_PROMPTS_LANGUAGE_SELECTOR, getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
+import { ILanguageModelToolsService } from '../../tools/languageModelToolsService.js';
+import { IChatModeService } from '../../chatModes.js';
+import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
+import { Iterable } from '../../../../../../base/common/iterator.js';
+import { PromptHeader, PromptHeaderAttributes } from '../promptFileParser.js';
+import { getValidAttributeNames, isGithubTarget, knownGithubCopilotTools } from './promptValidator.js';
+import { localize } from '../../../../../../nls.js';
 
-export class PromptHeaderAutocompletion extends Disposable implements CompletionItemProvider {
+export class PromptHeaderAutocompletion implements CompletionItemProvider {
 	/**
 	 * Debug display name for this provider.
 	 */
@@ -33,13 +32,10 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 
 	constructor(
 		@IPromptsService private readonly promptsService: IPromptsService,
-		@ILanguageFeaturesService private readonly languageService: ILanguageFeaturesService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
+		@IChatModeService private readonly chatModeService: IChatModeService,
 	) {
-		super();
-
-		this._register(this.languageService.completionProvider.register(ALL_PROMPTS_LANGUAGE_SELECTOR, this));
 	}
 
 	/**
@@ -59,27 +55,32 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 			return undefined;
 		}
 
-		const parser = this.promptsService.getSyntaxParserFor(model);
-		await parser.start(token).settled();
-
-		if (token.isCancellationRequested) {
-			return undefined;
+		if (/^\s*$/.test(model.getValue())) {
+			return {
+				suggestions: [{
+					label: localize('promptHeaderAutocompletion.addHeader', "Add Prompt Header"),
+					kind: CompletionItemKind.Snippet,
+					insertText: [
+						`---`,
+						`description: $1`,
+						`---`,
+						`$0`
+					].join('\n'),
+					insertTextRules: CompletionItemInsertTextRule.InsertAsSnippet,
+					range: model.getFullModelRange(),
+				}]
+			};
 		}
 
-		const header = parser.header;
+
+		const parsedAST = this.promptsService.getParsedPromptFile(model);
+		const header = parsedAST.header;
 		if (!header) {
 			return undefined;
 		}
 
-		const completed = await header.settled;
-		if (!completed || token.isCancellationRequested) {
-			return undefined;
-		}
-
-		const fullHeaderRange = parser.header.range;
-		const headerRange = new Range(fullHeaderRange.startLineNumber + 1, 0, fullHeaderRange.endLineNumber - 1, model.getLineMaxColumn(fullHeaderRange.endLineNumber - 1),);
-
-		if (!headerRange.containsPosition(position)) {
+		const headerRange = parsedAST.header.range;
+		if (position.lineNumber < headerRange.startLineNumber || position.lineNumber >= headerRange.endLineNumber) {
 			// if the position is not inside the header, we don't provide any completions
 			return undefined;
 		}
@@ -89,42 +90,45 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 		const colonPosition = colonIndex !== -1 ? new Position(position.lineNumber, colonIndex + 1) : undefined;
 
 		if (!colonPosition || position.isBeforeOrEqual(colonPosition)) {
-			return this.providePropertyCompletions(model, position, headerRange, colonPosition, promptType);
+			return this.provideAttributeNameCompletions(model, position, header, colonPosition, promptType);
 		} else if (colonPosition && colonPosition.isBefore(position)) {
 			return this.provideValueCompletions(model, position, header, colonPosition, promptType);
 		}
 		return undefined;
 	}
-	private async providePropertyCompletions(
+	private async provideAttributeNameCompletions(
 		model: ITextModel,
 		position: Position,
-		headerRange: Range,
+		header: PromptHeader,
 		colonPosition: Position | undefined,
-		promptType: string,
+		promptType: PromptsType,
 	): Promise<CompletionList | undefined> {
 
 		const suggestions: CompletionItem[] = [];
-		const supportedProperties = this.getSupportedProperties(promptType);
-		this.removeUsedProperties(supportedProperties, model, headerRange, position);
 
-		const getInsertText = (property: string): string => {
+		const isGitHubTarget = isGithubTarget(promptType, header.target);
+		const attributesToPropose = new Set(getValidAttributeNames(promptType, false, isGitHubTarget));
+		for (const attr of header.attributes) {
+			attributesToPropose.delete(attr.key);
+		}
+		const getInsertText = (key: string): string => {
 			if (colonPosition) {
-				return property;
+				return key;
 			}
-			const valueSuggestions = this.getValueSuggestions(promptType, property);
+			const valueSuggestions = this.getValueSuggestions(promptType, key);
 			if (valueSuggestions.length > 0) {
-				return `${property}: \${0:${valueSuggestions[0]}}`;
+				return `${key}: \${0:${valueSuggestions[0]}}`;
 			} else {
-				return `${property}: \$0`;
+				return `${key}: \$0`;
 			}
 		};
 
 
-		for (const property of supportedProperties) {
+		for (const attribute of attributesToPropose) {
 			const item: CompletionItem = {
-				label: property,
+				label: attribute,
 				kind: CompletionItemKind.Property,
-				insertText: getInsertText(property),
+				insertText: getInsertText(attribute),
 				insertTextRules: CompletionItemInsertTextRule.InsertAsSnippet,
 				range: new Range(position.lineNumber, 1, position.lineNumber, !colonPosition ? model.getLineMaxColumn(position.lineNumber) : colonPosition.column),
 			};
@@ -137,39 +141,36 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 	private async provideValueCompletions(
 		model: ITextModel,
 		position: Position,
-		header: PromptHeader | ModeHeader | InstructionsHeader,
+		header: PromptHeader,
 		colonPosition: Position,
-		promptType: string,
+		promptType: PromptsType,
 	): Promise<CompletionList | undefined> {
 
 		const suggestions: CompletionItem[] = [];
 		const lineContent = model.getLineContent(position.lineNumber);
-		const property = lineContent.substring(0, colonPosition.column - 1).trim();
+		const attribute = lineContent.substring(0, colonPosition.column - 1).trim();
 
-		if (!this.getSupportedProperties(promptType).has(property)) {
+		const isGitHubTarget = isGithubTarget(promptType, header.target);
+		if (!getValidAttributeNames(promptType, true, isGitHubTarget).includes(attribute)) {
 			return undefined;
 		}
 
-		if (header instanceof PromptHeader || header instanceof ModeHeader) {
-			const tools = header.metadataUtility.tools;
-			if (tools) {
-				// if the position is inside the tools metadata, we provide tool name completions
-				const result = this.provideToolCompletions(model, position, tools);
-				if (result) {
-					return result;
-				}
+		if (promptType === PromptsType.prompt || promptType === PromptsType.agent) {
+			// if the position is inside the tools metadata, we provide tool name completions
+			const result = this.provideToolCompletions(model, position, header, isGitHubTarget);
+			if (result) {
+				return result;
 			}
 		}
 
-
 		const bracketIndex = lineContent.indexOf('[');
 		if (bracketIndex !== -1 && bracketIndex <= position.column - 1) {
-			// if the property is already inside a bracket, we don't provide value completions
+			// if the value is already inside a bracket, we don't provide value completions
 			return undefined;
 		}
 
 		const whilespaceAfterColon = (lineContent.substring(colonPosition.column).match(/^\s*/)?.[0].length) ?? 0;
-		const values = this.getValueSuggestions(promptType, property);
+		const values = this.getValueSuggestions(promptType, attribute);
 		for (const value of values) {
 			const item: CompletionItem = {
 				label: value,
@@ -179,45 +180,64 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 			};
 			suggestions.push(item);
 		}
+		if (attribute === PromptHeaderAttributes.handOffs && (promptType === PromptsType.agent)) {
+			const value = [
+				'',
+				'  - label: Start Implementation',
+				'    agent: agent',
+				'    prompt: Implement the plan',
+				'    send: true'
+			].join('\n');
+			const item: CompletionItem = {
+				label: localize('promptHeaderAutocompletion.handoffsExample', "Handoff Example"),
+				kind: CompletionItemKind.Value,
+				insertText: whilespaceAfterColon === 0 ? ` ${value}` : value,
+				range: new Range(position.lineNumber, colonPosition.column + whilespaceAfterColon + 1, position.lineNumber, model.getLineMaxColumn(position.lineNumber)),
+			};
+			suggestions.push(item);
+		}
 		return { suggestions };
 	}
 
-	private getSupportedProperties(promptType: string): Set<string> {
-		switch (promptType) {
-			case PromptsType.instructions:
-				return new Set(['applyTo', 'description']);
-			case PromptsType.prompt:
-				return new Set(['mode', 'tools', 'description', 'model']);
-			default:
-				return new Set(['tools', 'description', 'model']);
-		}
-	}
-
-	private removeUsedProperties(properties: Set<string>, model: ITextModel, headerRange: Range, position: Position): void {
-		for (let i = headerRange.startLineNumber; i <= headerRange.endLineNumber; i++) {
-			if (i !== position.lineNumber) {
-				const lineText = model.getLineContent(i);
-				const colonIndex = lineText.indexOf(':');
-				if (colonIndex !== -1) {
-					const property = lineText.substring(0, colonIndex).trim();
-					properties.delete(property);
+	private getValueSuggestions(promptType: string, attribute: string): string[] {
+		switch (attribute) {
+			case PromptHeaderAttributes.applyTo:
+				if (promptType === PromptsType.instructions) {
+					return [`'**'`, `'**/*.ts, **/*.js'`, `'**/*.php'`, `'**/*.py'`];
 				}
-			}
-		}
-	}
-
-	private getValueSuggestions(promptType: string, property: string): string[] {
-		if (promptType === PromptsType.instructions && property === 'applyTo') {
-			return ['**', '**/*.ts, **/*.js', '**/*.php', '**/*.py'];
-		}
-		if (promptType === PromptsType.prompt && property === 'mode') {
-			return ['agent', 'edit', 'ask'];
-		}
-		if (property === 'tools' && (promptType === PromptsType.prompt || promptType === PromptsType.mode)) {
-			return ['[]', `['codebase', 'editFiles', 'fetch']`];
-		}
-		if (property === 'model' && (promptType === PromptsType.prompt || promptType === PromptsType.mode)) {
-			return this.getModelNames(promptType === PromptsType.mode);
+				break;
+			case PromptHeaderAttributes.agent:
+			case PromptHeaderAttributes.mode:
+				if (promptType === PromptsType.prompt) {
+					// Get all available agents (builtin + custom)
+					const agents = this.chatModeService.getModes();
+					const suggestions: string[] = [];
+					for (const agent of Iterable.concat(agents.builtin, agents.custom)) {
+						suggestions.push(agent.name.get());
+					}
+					return suggestions;
+				}
+				break;
+			case PromptHeaderAttributes.target:
+				if (promptType === PromptsType.agent) {
+					return ['vscode', 'github-copilot'];
+				}
+				break;
+			case PromptHeaderAttributes.tools:
+				if (promptType === PromptsType.prompt || promptType === PromptsType.agent) {
+					return ['[]', `['search', 'edit', 'fetch']`];
+				}
+				break;
+			case PromptHeaderAttributes.model:
+				if (promptType === PromptsType.prompt || promptType === PromptsType.agent) {
+					return this.getModelNames(promptType === PromptsType.agent);
+				}
+				break;
+			case PromptHeaderAttributes.infer:
+				if (promptType === PromptsType.agent) {
+					return ['true', 'false'];
+				}
+				break;
 		}
 		return [];
 	}
@@ -235,14 +255,15 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 		return result;
 	}
 
-	private provideToolCompletions(model: ITextModel, position: Position, node: PromptToolsMetadata): CompletionList | undefined {
-		const tools = node.value;
-		if (!tools || !node.range.containsPosition(position)) {
+	private provideToolCompletions(model: ITextModel, position: Position, header: PromptHeader, isGitHubTarget: boolean): CompletionList | undefined {
+		const toolsAttr = header.getAttribute(PromptHeaderAttributes.tools);
+		if (!toolsAttr || toolsAttr.value.type !== 'array' || !toolsAttr.range.containsPosition(position)) {
 			return undefined;
 		}
 		const getSuggestions = (toolRange: Range) => {
 			const suggestions: CompletionItem[] = [];
-			const addSuggestion = (toolName: string, toolRange: Range) => {
+			const toolNames = isGitHubTarget ? knownGithubCopilotTools : this.languageModelToolsService.getFullReferenceNames();
+			for (const toolName of toolNames) {
 				let insertText: string;
 				if (!toolRange.isEmpty()) {
 					const firstChar = model.getValueInRange(toolRange).charCodeAt(0);
@@ -257,23 +278,14 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 					insertText: insertText,
 					range: toolRange,
 				});
-			};
-			for (const tool of this.languageModelToolsService.getTools()) {
-				if (tool.canBeReferencedInPrompt) {
-					addSuggestion(tool.toolReferenceName ?? tool.displayName, toolRange);
-				}
-			}
-			for (const toolSet of this.languageModelToolsService.toolSets.get()) {
-				addSuggestion(toolSet.referenceName, toolRange);
 			}
 			return { suggestions };
 		};
 
-		for (const tool of tools) {
-			const toolRange = node.getToolRange(tool);
-			if (toolRange?.containsPosition(position)) {
+		for (const toolNameNode of toolsAttr.value.items) {
+			if (toolNameNode.range.containsPosition(position)) {
 				// if the position is inside a tool range, we provide tool name completions
-				return getSuggestions(toolRange);
+				return getSuggestions(toolNameNode.range);
 			}
 		}
 		const prefix = model.getValueInRange(new Range(position.lineNumber, 1, position.lineNumber, position.column));

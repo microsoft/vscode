@@ -101,7 +101,7 @@
 	max-width: 300px;
 }
 
-.monaco-workbench:not(.reduce-motion) .pane > .pane-body .welcome-view-content > .button-container {
+.monaco-workbench.monaco-enable-motion .pane > .pane-body .welcome-view-content > .button-container {
 	transition: 0.2s max-width ease-out;
 }
 
@@ -111,6 +111,13 @@
 
 .monaco-workbench .pane > .pane-body .welcome-view-content > .button-container > .monaco-button {
 	max-width: 300px;
+}
+
+.monaco-workbench .pane > .pane-body .tree-explorer-viewlet-tree-view > .message .button-container > .monaco-button span,
+.monaco-workbench .pane > .pane-body .tree-explorer-viewlet-tree-view > .message .button-container > .monaco-button span {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .monaco-workbench .pane > .pane-body .welcome-view-content > p {
@@ -151,6 +158,9 @@
 	text-overflow: ellipsis;
 	overflow: hidden;
 	flex-wrap: nowrap;
+}
+
+.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item.no-twisty {
 	padding-left: 3px;
 }
 
@@ -182,6 +192,11 @@
 	flex: 1;
 	text-overflow: ellipsis;
 	overflow: hidden;
+}
+
+.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .custom-view-tree-node-item-resourceLabel .monaco-highlighted-label .codicon {
+	position: relative;
+	top: 2px;
 }
 
 .customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .monaco-icon-label-container::after {
@@ -298,9 +313,14 @@
 }
 
 .panel > .title .monaco-action-bar .action-item.viewpane-filter-container {
-	max-width: 400px;
+	max-width: 200px;
 	min-width: 150px;
 	margin-right: 10px;
+}
+
+.panel > .title .monaco-action-bar .action-item.viewpane-filter-container:active,
+.panel > .title .monaco-action-bar .action-item.viewpane-filter-container:focus-within {
+	max-width: 400px;
 }
 
 .pane-body .viewpane-filter-container:not(:empty) {
@@ -313,8 +333,13 @@
 	margin-right: 4px;
 }
 
-.viewpane-filter > .viewpane-filter-controls .monaco-action-bar .action-label.codicon.codicon-filter.checked {
-	border-color: var(--vscode-inputOption-activeBorder);
+.viewpane-filter > .viewpane-filter-controls .monaco-action-bar .action-label {
+	padding: 2px;
+}
+
+.viewpane-filter > .viewpane-filter-controls .monaco-action-bar .monaco-dropdown .action-label.codicon.codicon-filter.checked {
 	color: var(--vscode-inputOption-activeForeground);
 	background-color: var(--vscode-inputOption-activeBackground);
+	border: 1px solid var(--vscode-inputOption-activeBorder);
+	padding: 1px;
 }

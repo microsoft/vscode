@@ -31,6 +31,7 @@ import { IViewModel } from '../common/viewModel.js';
 import { ISelection } from '../common/core/selection.js';
 import { getActiveElement, isEditableElement } from '../../base/browser/dom.js';
 import { EnterOperation } from '../common/cursor/cursorTypeEditOperations.js';
+import { TextEditorSelectionSource } from '../../platform/editor/common/editor.js';
 
 const CORE_WEIGHT = KeybindingWeight.EditorCore;
 
@@ -49,12 +50,12 @@ export abstract class CoreEditorCommand<T> extends EditorCommand {
 
 export namespace EditorScroll_ {
 
-	const isEditorScrollArgs = function (arg: any): boolean {
+	const isEditorScrollArgs = function (arg: unknown): boolean {
 		if (!types.isObject(arg)) {
 			return false;
 		}
 
-		const scrollArg: RawArguments = arg;
+		const scrollArg: RawArguments = arg as RawArguments;
 
 		if (!types.isString(scrollArg.to)) {
 			return false;
@@ -235,12 +236,12 @@ export namespace EditorScroll_ {
 
 export namespace RevealLine_ {
 
-	const isRevealLineArgs = function (arg: any): boolean {
+	const isRevealLineArgs = function (arg: unknown): boolean {
 		if (!types.isObject(arg)) {
 			return false;
 		}
 
-		const reveaLineArg: RawArguments = arg;
+		const reveaLineArg: RawArguments = arg as RawArguments;
 
 		if (!types.isNumber(reveaLineArg.lineNumber) && !types.isString(reveaLineArg.lineNumber)) {
 			return false;
@@ -604,13 +605,16 @@ export namespace CoreNavigationCommands {
 		}
 
 		private _runCursorMove(viewModel: IViewModel, source: string | null | undefined, args: CursorMove_.ParsedArguments): void {
+			// If noHistory is true, use PROGRAMMATIC source to prevent adding to navigation history
+			const effectiveSource = args.noHistory ? TextEditorSelectionSource.PROGRAMMATIC : source;
+
 			viewModel.model.pushStackElement();
 			viewModel.setCursorStates(
-				source,
+				effectiveSource,
 				CursorChangeReason.Explicit,
 				CursorMoveImpl._move(viewModel, viewModel.getCursorStates(), args)
 			);
-			viewModel.revealAllCursors(source, true);
+			viewModel.revealAllCursors(effectiveSource, true);
 		}
 
 		private static _move(viewModel: IViewModel, cursors: CursorState[], args: CursorMove_.ParsedArguments): PartialCursorState[] | null {
@@ -1319,8 +1323,7 @@ export namespace CoreNavigationCommands {
 				EditorScroll_.Unit.WrappedLine,
 				EditorScroll_.Unit.Page,
 				EditorScroll_.Unit.HalfPage,
-				EditorScroll_.Unit.Editor,
-				EditorScroll_.Unit.Column
+				EditorScroll_.Unit.Editor
 			];
 			const horizontalDirections = [EditorScroll_.Direction.Left, EditorScroll_.Direction.Right];
 			const verticalDirections = [EditorScroll_.Direction.Up, EditorScroll_.Direction.Down];
@@ -1355,11 +1358,13 @@ export namespace CoreNavigationCommands {
 			if (args.revealCursor) {
 				// must ensure cursor is in new visible range
 				const desiredVisibleViewRange = viewModel.getCompletelyVisibleViewRangeAtScrollTop(desiredScrollTop);
+				const paddedRange = viewModel.getViewRangeWithCursorPadding(desiredVisibleViewRange);
+
 				viewModel.setCursorStates(
 					source,
 					CursorChangeReason.Explicit,
 					[
-						CursorMoveCommands.findPositionInViewportIfOutside(viewModel, viewModel.getPrimaryCursorState(), desiredVisibleViewRange, args.select)
+						CursorMoveCommands.findPositionInViewportIfOutside(viewModel, viewModel.getPrimaryCursorState(), paddedRange, args.select)
 					]
 				);
 			}

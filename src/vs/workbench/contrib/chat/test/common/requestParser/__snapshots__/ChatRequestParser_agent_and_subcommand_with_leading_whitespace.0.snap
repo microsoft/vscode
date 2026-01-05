@@ -1,0 +1,99 @@
+{
+  parts: [
+    {
+      range: {
+        start: 0,
+        endExclusive: 10
+      },
+      editorRange: {
+        startLineNumber: 1,
+        startColumn: 1,
+        endLineNumber: 2,
+        endColumn: 5
+      },
+      text: "    \r\n\t   ",
+      kind: "text"
+    },
+    {
+      range: {
+        start: 10,
+        endExclusive: 16
+      },
+      editorRange: {
+        startLineNumber: 2,
+        startColumn: 5,
+        endLineNumber: 2,
+        endColumn: 11
+      },
+      agent: {
+        id: "agent",
+        name: "agent",
+        extensionId: {
+          value: "nullExtensionDescription",
+          _lower: "nullextensiondescription"
+        },
+        extensionVersion: undefined,
+        publisherDisplayName: "",
+        extensionDisplayName: "",
+        extensionPublisherId: "",
+        locations: [ "panel" ],
+        modes: [ "ask" ],
+        metadata: {  },
+        slashCommands: [
+          {
+            name: "subCommand",
+            description: ""
+          }
+        ],
+        disambiguation: [  ]
+      },
+      kind: "agent"
+    },
+    {
+      range: {
+        start: 16,
+        endExclusive: 23
+      },
+      editorRange: {
+        startLineNumber: 2,
+        startColumn: 11,
+        endLineNumber: 3,
+        endColumn: 5
+      },
+      text: " \r\n\t   ",
+      kind: "text"
+    },
+    {
+      range: {
+        start: 23,
+        endExclusive: 34
+      },
+      editorRange: {
+        startLineNumber: 3,
+        startColumn: 5,
+        endLineNumber: 3,
+        endColumn: 16
+      },
+      command: {
+        name: "subCommand",
+        description: ""
+      },
+      kind: "subcommand"
+    },
+    {
+      range: {
+        start: 34,
+        endExclusive: 41
+      },
+      editorRange: {
+        startLineNumber: 3,
+        startColumn: 16,
+        endLineNumber: 3,
+        endColumn: 23
+      },
+      text: " Thanks",
+      kind: "text"
+    }
+  ],
+  text: "    \r\n\t   @agent \r\n\t   /subCommand Thanks"
+}

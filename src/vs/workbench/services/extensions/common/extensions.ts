@@ -418,19 +418,19 @@ export interface IExtensionService {
 	 *
 	 * @returns the extensions that got registered
 	 */
-	onDidRegisterExtensions: Event<void>;
+	readonly onDidRegisterExtensions: Event<void>;
 
 	/**
 	 * @event
 	 * Fired when extensions status changes.
 	 * The event contains the ids of the extensions that have changed.
 	 */
-	onDidChangeExtensionsStatus: Event<ExtensionIdentifier[]>;
+	readonly onDidChangeExtensionsStatus: Event<ExtensionIdentifier[]>;
 
 	/**
 	 * Fired when the available extensions change (i.e. when extensions are added or removed).
 	 */
-	onDidChangeExtensions: Event<{ readonly added: readonly IExtensionDescription[]; readonly removed: readonly IExtensionDescription[] }>;
+	readonly onDidChangeExtensions: Event<{ readonly added: readonly IExtensionDescription[]; readonly removed: readonly IExtensionDescription[] }>;
 
 	/**
 	 * All registered extensions.
@@ -443,19 +443,19 @@ export interface IExtensionService {
 	/**
 	 * An event that is fired when activation happens.
 	 */
-	onWillActivateByEvent: Event<IWillActivateEvent>;
+	readonly onWillActivateByEvent: Event<IWillActivateEvent>;
 
 	/**
 	 * An event that is fired when an extension host changes its
 	 * responsive-state.
 	 */
-	onDidChangeResponsiveChange: Event<IResponsiveStateChangeEvent>;
+	readonly onDidChangeResponsiveChange: Event<IResponsiveStateChangeEvent>;
 
 	/**
 	 * Fired before stop of extension hosts happens. Allows listeners to veto against the
 	 * stop to prevent it from happening.
 	 */
-	onWillStop: Event<WillStopExtensionHostsEvent>;
+	readonly onWillStop: Event<WillStopExtensionHostsEvent>;
 
 	/**
 	 * Send an activation event and activate interested extensions.
@@ -593,12 +593,12 @@ export function toExtensionDescription(extension: IExtension, isUnderDevelopment
 
 export class NullExtensionService implements IExtensionService {
 	declare readonly _serviceBrand: undefined;
-	onDidRegisterExtensions: Event<void> = Event.None;
-	onDidChangeExtensionsStatus: Event<ExtensionIdentifier[]> = Event.None;
+	readonly onDidRegisterExtensions: Event<void> = Event.None;
+	readonly onDidChangeExtensionsStatus: Event<ExtensionIdentifier[]> = Event.None;
 	onDidChangeExtensions = Event.None;
-	onWillActivateByEvent: Event<IWillActivateEvent> = Event.None;
-	onDidChangeResponsiveChange: Event<IResponsiveStateChangeEvent> = Event.None;
-	onWillStop: Event<WillStopExtensionHostsEvent> = Event.None;
+	readonly onWillActivateByEvent: Event<IWillActivateEvent> = Event.None;
+	readonly onDidChangeResponsiveChange: Event<IResponsiveStateChangeEvent> = Event.None;
+	readonly onWillStop: Event<WillStopExtensionHostsEvent> = Event.None;
 	readonly extensions = [];
 	activateByEvent(_activationEvent: string): Promise<void> { return Promise.resolve(undefined); }
 	activateById(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void> { return Promise.resolve(undefined); }

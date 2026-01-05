@@ -8,7 +8,7 @@ import { timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IShellLaunchConfig } from '../../../../platform/terminal/common/terminal.js';
 import { IViewDescriptorService } from '../../../common/views.js';
@@ -21,6 +21,7 @@ import { TerminalViewPane } from './terminalView.js';
 import { TERMINAL_VIEW_ID } from '../common/terminal.js';
 import { TerminalContextKeys } from '../common/terminalContextKey.js';
 import { asArray } from '../../../../base/common/arrays.js';
+import type { SingleOrMany } from '../../../../base/common/types.js';
 
 export class TerminalGroupService extends Disposable implements ITerminalGroupService {
 	declare _serviceBrand: undefined;
@@ -32,8 +33,6 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	}
 
 	lastAccessedMenu: 'inline-tab' | 'tab-list' = 'inline-tab';
-
-	private _terminalGroupCountContextKey: IContextKey<number>;
 
 	private _container: HTMLElement | undefined;
 
@@ -71,10 +70,16 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	) {
 		super();
 
-		this._terminalGroupCountContextKey = TerminalContextKeys.groupCount.bindTo(this._contextKeyService);
+		const terminalGroupCountContextKey = TerminalContextKeys.groupCount.bindTo(this._contextKeyService);
+		this._register(Event.runAndSubscribe(this.onDidChangeGroups, () => terminalGroupCountContextKey.set(this.groups.length)));
+
+		const splitTerminalActiveContextKey = TerminalContextKeys.splitTerminalActive.bindTo(this._contextKeyService);
+		this._register(Event.runAndSubscribe(this.onDidFocusInstance, () => {
+			const activeInstance = this.activeInstance;
+			splitTerminalActiveContextKey.set(activeInstance ? this.instanceIsSplit(activeInstance) : false);
+		}));
 
 		this._register(this.onDidDisposeGroup(group => this._removeGroup(group)));
-		this._register(this.onDidChangeGroups(() => this._terminalGroupCountContextKey.set(this.groups.length)));
 		this._register(Event.any(this.onDidChangeActiveGroup, this.onDidChangeInstances)(() => this.updateVisibility()));
 		this._register(this._quickInputService.onShow(() => this._isQuickInputOpened = true));
 		this._register(this._quickInputService.onHide(() => this._isQuickInputOpened = false));
@@ -143,8 +148,11 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		pane?.terminalTabbedView?.focusHover();
 	}
 
-	async focusInstance(_: ITerminalInstance): Promise<void> {
-		return this.showPanel(true);
+	async focusInstance(instance: ITerminalInstance): Promise<void> {
+		if (this.instances.includes(instance)) {
+			this.setActiveInstance(instance);
+		}
+		await this.showPanel(true);
 	}
 
 	async focusActiveInstance(): Promise<void> {
@@ -335,7 +343,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		);
 	};
 
-	moveGroup(source: ITerminalInstance | ITerminalInstance[], target: ITerminalInstance) {
+	moveGroup(source: SingleOrMany<ITerminalInstance>, target: ITerminalInstance) {
 		source = asArray(source);
 		const sourceGroups = this._getValidTerminalGroups(source);
 		const targetGroup = this.getGroupForInstance(target);
@@ -372,7 +380,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		this._onDidChangeInstances.fire();
 	}
 
-	moveGroupToEnd(source: ITerminalInstance | ITerminalInstance[]): void {
+	moveGroupToEnd(source: SingleOrMany<ITerminalInstance>): void {
 		source = asArray(source);
 		const sourceGroups = this._getValidTerminalGroups(source);
 		if (sourceGroups.size === 0) {

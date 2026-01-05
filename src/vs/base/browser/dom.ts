@@ -5,7 +5,7 @@
 
 import * as browser from './browser.js';
 import { BrowserFeatures } from './canIUse.js';
-import { IKeyboardEvent, StandardKeyboardEvent } from './keyboardEvent.js';
+import { hasModifierKeys, IKeyboardEvent, StandardKeyboardEvent } from './keyboardEvent.js';
 import { IMouseEvent, StandardMouseEvent } from './mouseEvent.js';
 import { AbstractIdleValue, IntervalTimer, TimeoutTimer, _runWhenIdle, IdleDeadline } from '../common/async.js';
 import { BugIndicatingError, onUnexpectedError } from '../common/errors.js';
@@ -18,7 +18,7 @@ import { URI } from '../common/uri.js';
 import { hash } from '../common/hash.js';
 import { CodeWindow, ensureCodeWindow, mainWindow } from './window.js';
 import { isPointWithinTriangle } from '../common/numbers.js';
-import { IObservable, derived, derivedOpts, IReader, observableValue } from '../common/observable.js';
+import { IObservable, derived, derivedOpts, IReader, observableValue, isObservable } from '../common/observable.js';
 
 export interface IRegisteredCodeWindow {
 	readonly window: CodeWindow;
@@ -166,15 +166,15 @@ export function addDisposableListener(node: EventTarget, type: string, handler: 
 }
 
 export interface IAddStandardDisposableListenerSignature {
-	(node: HTMLElement, type: 'click', handler: (event: IMouseEvent) => void, useCapture?: boolean): IDisposable;
-	(node: HTMLElement, type: 'mousedown', handler: (event: IMouseEvent) => void, useCapture?: boolean): IDisposable;
-	(node: HTMLElement, type: 'keydown', handler: (event: IKeyboardEvent) => void, useCapture?: boolean): IDisposable;
-	(node: HTMLElement, type: 'keypress', handler: (event: IKeyboardEvent) => void, useCapture?: boolean): IDisposable;
-	(node: HTMLElement, type: 'keyup', handler: (event: IKeyboardEvent) => void, useCapture?: boolean): IDisposable;
-	(node: HTMLElement, type: 'pointerdown', handler: (event: PointerEvent) => void, useCapture?: boolean): IDisposable;
-	(node: HTMLElement, type: 'pointermove', handler: (event: PointerEvent) => void, useCapture?: boolean): IDisposable;
-	(node: HTMLElement, type: 'pointerup', handler: (event: PointerEvent) => void, useCapture?: boolean): IDisposable;
-	(node: HTMLElement, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
+	(node: HTMLElement | Element | Document, type: 'click', handler: (event: IMouseEvent) => void, useCapture?: boolean): IDisposable;
+	(node: HTMLElement | Element | Document, type: 'mousedown', handler: (event: IMouseEvent) => void, useCapture?: boolean): IDisposable;
+	(node: HTMLElement | Element | Document, type: 'keydown', handler: (event: IKeyboardEvent) => void, useCapture?: boolean): IDisposable;
+	(node: HTMLElement | Element | Document, type: 'keypress', handler: (event: IKeyboardEvent) => void, useCapture?: boolean): IDisposable;
+	(node: HTMLElement | Element | Document, type: 'keyup', handler: (event: IKeyboardEvent) => void, useCapture?: boolean): IDisposable;
+	(node: HTMLElement | Element | Document, type: 'pointerdown', handler: (event: PointerEvent) => void, useCapture?: boolean): IDisposable;
+	(node: HTMLElement | Element | Document, type: 'pointermove', handler: (event: PointerEvent) => void, useCapture?: boolean): IDisposable;
+	(node: HTMLElement | Element | Document, type: 'pointerup', handler: (event: PointerEvent) => void, useCapture?: boolean): IDisposable;
+	(node: HTMLElement | Element | Document, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
 }
 function _wrapAsStandardMouseEvent(targetWindow: Window, handler: (e: IMouseEvent) => void): (e: MouseEvent) => void {
 	return function (e: MouseEvent) {
@@ -186,7 +186,7 @@ function _wrapAsStandardKeyboardEvent(handler: (e: IKeyboardEvent) => void): (e:
 		return handler(new StandardKeyboardEvent(e));
 	};
 }
-export const addStandardDisposableListener: IAddStandardDisposableListenerSignature = function addStandardDisposableListener(node: HTMLElement, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+export const addStandardDisposableListener: IAddStandardDisposableListenerSignature = function addStandardDisposableListener(node: HTMLElement | Element | Document, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable {
 	let wrapHandler = handler;
 
 	if (type === 'click' || type === 'mousedown' || type === 'contextmenu') {
@@ -421,13 +421,13 @@ export interface IEventMerger<R, E> {
 }
 
 const MINIMUM_TIME_MS = 8;
-const DEFAULT_EVENT_MERGER: IEventMerger<Event, Event> = function (lastEvent: Event | null, currentEvent: Event) {
+function DEFAULT_EVENT_MERGER<T>(_lastEvent: unknown, currentEvent: T) {
 	return currentEvent;
-};
+}
 
 class TimeoutThrottledDomListener<R, E extends Event> extends Disposable {
 
-	constructor(node: any, type: string, handler: (event: R) => void, eventMerger: IEventMerger<R, E> = <any>DEFAULT_EVENT_MERGER, minimumTimeMs: number = MINIMUM_TIME_MS) {
+	constructor(node: Node, type: string, handler: (event: R) => void, eventMerger: IEventMerger<R, E> = DEFAULT_EVENT_MERGER as IEventMerger<R, E>, minimumTimeMs: number = MINIMUM_TIME_MS) {
 		super();
 
 		let lastEvent: R | null = null;
@@ -715,6 +715,7 @@ export function getDomNodeZoomLevel(domNode: HTMLElement): number {
 	let testElement: HTMLElement | null = domNode;
 	let zoom = 1.0;
 	do {
+		// eslint-disable-next-line local/code-no-any-casts
 		const elementZoomLevel = (getComputedStyle(testElement) as any).zoom;
 		if (elementZoomLevel !== null && elementZoomLevel !== undefined && elementZoomLevel !== '1') {
 			zoom *= elementZoomLevel;
@@ -798,6 +799,7 @@ export function setParentFlowTo(fromChildElement: HTMLElement, toParentElement: 
 function getParentFlowToElement(node: HTMLElement): HTMLElement | null {
 	const flowToParentId = node.dataset[parentFlowToDataKey];
 	if (typeof flowToParentId === 'string') {
+		// eslint-disable-next-line no-restricted-syntax
 		return node.ownerDocument.getElementById(flowToParentId);
 	}
 	return null;
@@ -994,14 +996,14 @@ export const sharedMutationObserver = new class {
 };
 
 export function createMetaElement(container: HTMLElement = mainWindow.document.head): HTMLMetaElement {
-	return createHeadElement('meta', container) as HTMLMetaElement;
+	return createHeadElement('meta', container);
 }
 
 export function createLinkElement(container: HTMLElement = mainWindow.document.head): HTMLLinkElement {
-	return createHeadElement('link', container) as HTMLLinkElement;
+	return createHeadElement('link', container);
 }
 
-function createHeadElement(tagName: string, container: HTMLElement = mainWindow.document.head): HTMLElement {
+function createHeadElement<K extends keyof HTMLElementTagNameMap>(tagName: K, container: HTMLElement = mainWindow.document.head): HTMLElementTagNameMap[K] {
 	const element = document.createElement(tagName);
 	container.appendChild(element);
 	return element;
@@ -1177,10 +1179,10 @@ export function restoreParentsScrollTop(node: Element, state: number[]): void {
 class FocusTracker extends Disposable implements IFocusTracker {
 
 	private readonly _onDidFocus = this._register(new event.Emitter<void>());
-	readonly onDidFocus = this._onDidFocus.event;
+	get onDidFocus() { return this._onDidFocus.event; }
 
 	private readonly _onDidBlur = this._register(new event.Emitter<void>());
-	readonly onDidBlur = this._onDidBlur.event;
+	get onDidBlur() { return this._onDidBlur.event; }
 
 	private _refreshStateHandler: () => void;
 
@@ -1266,7 +1268,7 @@ export function append<T extends Node>(parent: HTMLElement, ...children: (T | st
 export function append<T extends Node>(parent: HTMLElement, ...children: (T | string)[]): T | void {
 	parent.append(...children);
 	if (children.length === 1 && typeof children[0] !== 'string') {
-		return <T>children[0];
+		return children[0];
 	}
 }
 
@@ -1279,7 +1281,7 @@ export function prepend<T extends Node>(parent: HTMLElement, child: T): T {
  * Removes all children from `parent` and appends `children`
  */
 export function reset(parent: HTMLElement, ...children: Array<Node | string>): void {
-	parent.innerText = '';
+	parent.textContent = '';
 	append(parent, ...children);
 }
 
@@ -1320,6 +1322,7 @@ function _$<T extends Element>(namespace: Namespace, description: string, attrs?
 			}
 
 			if (/^on\w+$/.test(name)) {
+				// eslint-disable-next-line local/code-no-any-casts
 				(<any>result)[name] = value;
 			} else if (name === 'selected') {
 				if (value) {
@@ -1334,7 +1337,7 @@ function _$<T extends Element>(namespace: Namespace, description: string, attrs?
 
 	result.append(...children);
 
-	return result as T;
+	return result;
 }
 
 export function $<T extends HTMLElement>(description: string, attrs?: { [key: string]: any }, ...children: Array<Node | string>): T {
@@ -1514,6 +1517,7 @@ export function windowOpenWithSuccess(url: string, noOpener = true): boolean {
 	if (newTab) {
 		if (noOpener) {
 			// see `windowOpenNoOpener` for details on why this is important
+			// eslint-disable-next-line local/code-no-any-casts
 			(newTab as any).opener = null;
 		}
 		newTab.location.href = url;
@@ -1592,6 +1596,10 @@ export interface INotification extends IDisposable {
 	readonly onClick: event.Event<void>;
 }
 
+function sanitizeNotificationText(text: string): string {
+	return text.replace(/`/g, '\''); // convert backticks to single quotes
+}
+
 export async function triggerNotification(message: string, options?: { detail?: string; sticky?: boolean }): Promise<INotification | undefined> {
 	const permission = await Notification.requestPermission();
 	if (permission !== 'granted') {
@@ -1600,9 +1608,9 @@ export async function triggerNotification(message: string, options?: { detail?: 
 
 	const disposables = new DisposableStore();
 
-	const notification = new Notification(message, {
-		body: options?.detail,
-		requireInteraction: options?.sticky
+	const notification = new Notification(sanitizeNotificationText(message), {
+		body: options?.detail ? sanitizeNotificationText(options.detail) : undefined,
+		requireInteraction: options?.sticky,
 	});
 
 	const onClick = new event.Emitter<void>();
@@ -1649,6 +1657,7 @@ export interface IDetectedFullscreen {
 export function detectFullscreen(targetWindow: Window): IDetectedFullscreen | null {
 
 	// Browser fullscreen: use DOM APIs to detect
+	// eslint-disable-next-line local/code-no-any-casts
 	if (targetWindow.document.fullscreenElement || (<any>targetWindow.document).webkitFullscreenElement || (<any>targetWindow.document).webkitIsFullScreen) {
 		return { mode: DetectedFullscreenMode.DOCUMENT, guess: false };
 	}
@@ -1805,7 +1814,7 @@ export class ModifierKeyEmitter extends event.Emitter<IModifierKeyStatus> {
 	}
 
 	get isModifierPressed(): boolean {
-		return this._keyStatus.altKey || this._keyStatus.ctrlKey || this._keyStatus.metaKey || this._keyStatus.shiftKey;
+		return hasModifierKeys(this._keyStatus);
 	}
 
 	/**
@@ -2001,6 +2010,7 @@ export function h(tag: string, ...args: [] | [attributes: { $: string } & Partia
 		attributes = {};
 		children = args[0];
 	} else {
+		// eslint-disable-next-line local/code-no-any-casts
 		attributes = args[0] as any || {};
 		children = args[1];
 	}
@@ -2103,6 +2113,7 @@ export function svgElem(tag: string, ...args: [] | [attributes: { $: string } & 
 		attributes = {};
 		children = args[0];
 	} else {
+		// eslint-disable-next-line local/code-no-any-casts
 		attributes = args[0] as any || {};
 		children = args[1];
 	}
@@ -2114,6 +2125,7 @@ export function svgElem(tag: string, ...args: [] | [attributes: { $: string } & 
 	}
 
 	const tagName = match.groups['tag'] || 'div';
+	// eslint-disable-next-line local/code-no-any-casts
 	const el = document.createElementNS('http://www.w3.org/2000/svg', tagName) as any as HTMLElement;
 
 	if (match.groups['id']) {
@@ -2276,11 +2288,13 @@ export namespace n {
 			const obsRef = attributes.obsRef;
 			delete attributes.obsRef;
 
+			// eslint-disable-next-line local/code-no-any-casts
 			return new ObserverNodeWithElement(tag as any, ref, obsRef, elementNs, className, attributes, children);
 		};
 	}
 
 	function node<TMap extends Record<string, any>, TKey extends keyof TMap>(tag: TKey, elementNs: string | undefined = undefined): DomCreateFn<TMap[TKey], TMap[TKey]> {
+		// eslint-disable-next-line local/code-no-any-casts
 		const f = nodeNs(elementNs) as any;
 		return (attributes, children) => {
 			return f(tag, attributes, children);
@@ -2308,6 +2322,7 @@ export namespace n {
 				return value;
 			}
 		});
+		// eslint-disable-next-line local/code-no-any-casts
 		return result as any;
 	}
 }
@@ -2419,12 +2434,14 @@ export abstract class ObserverNode<T extends HTMLOrSVGElement = HTMLOrSVGElement
 				if (isObservable(value)) {
 					this._deriveds.push(derived(this, reader => {
 						/** @description set.tabIndex */
+						// eslint-disable-next-line local/code-no-any-casts
 						this._element.tabIndex = value.read(reader) as any;
 					}));
 				} else {
 					this._element.tabIndex = value;
 				}
 			} else if (key.startsWith('on')) {
+				// eslint-disable-next-line local/code-no-any-casts
 				(this._element as any)[key] = value;
 			} else {
 				if (isObservable(value)) {
@@ -2490,7 +2507,43 @@ export abstract class ObserverNode<T extends HTMLOrSVGElement = HTMLOrSVGElement
 		this.keepUpdated(store);
 		return new LiveElement(this._element, store);
 	}
+
+	private _isHovered: IObservable<boolean> | undefined = undefined;
+
+	get isHovered(): IObservable<boolean> {
+		if (!this._isHovered) {
+			const hovered = observableValue<boolean>('hovered', false);
+			this._element.addEventListener('mouseenter', (_e) => hovered.set(true, undefined));
+			this._element.addEventListener('mouseleave', (_e) => hovered.set(false, undefined));
+			this._isHovered = hovered;
+		}
+		return this._isHovered;
+	}
+
+	private _didMouseMoveDuringHover: IObservable<boolean> | undefined = undefined;
+
+	get didMouseMoveDuringHover(): IObservable<boolean> {
+		if (!this._didMouseMoveDuringHover) {
+			let _hovering = false;
+			const hovered = observableValue<boolean>('didMouseMoveDuringHover', false);
+			this._element.addEventListener('mouseenter', (_e) => {
+				_hovering = true;
+			});
+			this._element.addEventListener('mousemove', (_e) => {
+				if (_hovering) {
+					hovered.set(true, undefined);
+				}
+			});
+			this._element.addEventListener('mouseleave', (_e) => {
+				_hovering = false;
+				hovered.set(false, undefined);
+			});
+			this._didMouseMoveDuringHover = hovered;
+		}
+		return this._didMouseMoveDuringHover;
+	}
 }
+
 function setClassName(domNode: HTMLOrSVGElement, className: string) {
 	if (isSVGElement(domNode)) {
 		domNode.setAttribute('class', className);
@@ -2498,6 +2551,7 @@ function setClassName(domNode: HTMLOrSVGElement, className: string) {
 		domNode.className = className;
 	}
 }
+
 function resolve<T>(value: ValueOrList<T>, reader: IReader | undefined, cb: (val: T) => void): void {
 	if (isObservable(value)) {
 		cb(value.read(reader));
@@ -2509,6 +2563,7 @@ function resolve<T>(value: ValueOrList<T>, reader: IReader | undefined, cb: (val
 		}
 		return;
 	}
+	// eslint-disable-next-line local/code-no-any-casts
 	cb(value as any);
 }
 function getClassName(className: ValueOrList<string | undefined | false> | undefined, reader: IReader | undefined): string {
@@ -2564,41 +2619,6 @@ export class ObserverNodeWithElement<T extends HTMLOrSVGElement = HTMLOrSVGEleme
 	public get element() {
 		return this._element;
 	}
-
-	private _isHovered: IObservable<boolean> | undefined = undefined;
-
-	get isHovered(): IObservable<boolean> {
-		if (!this._isHovered) {
-			const hovered = observableValue<boolean>('hovered', false);
-			this._element.addEventListener('mouseenter', (_e) => hovered.set(true, undefined));
-			this._element.addEventListener('mouseleave', (_e) => hovered.set(false, undefined));
-			this._isHovered = hovered;
-		}
-		return this._isHovered;
-	}
-
-	private _didMouseMoveDuringHover: IObservable<boolean> | undefined = undefined;
-
-	get didMouseMoveDuringHover(): IObservable<boolean> {
-		if (!this._didMouseMoveDuringHover) {
-			let _hovering = false;
-			const hovered = observableValue<boolean>('didMouseMoveDuringHover', false);
-			this._element.addEventListener('mouseenter', (_e) => {
-				_hovering = true;
-			});
-			this._element.addEventListener('mousemove', (_e) => {
-				if (_hovering) {
-					hovered.set(true, undefined);
-				}
-			});
-			this._element.addEventListener('mouseleave', (_e) => {
-				_hovering = false;
-				hovered.set(false, undefined);
-			});
-			this._didMouseMoveDuringHover = hovered;
-		}
-		return this._didMouseMoveDuringHover;
-	}
 }
 function setOrRemoveAttribute(element: HTMLOrSVGElement, key: string, value: unknown) {
 	if (value === null || value === undefined) {
@@ -2608,9 +2628,6 @@ function setOrRemoveAttribute(element: HTMLOrSVGElement, key: string, value: unk
 	}
 }
 
-function isObservable<T>(obj: unknown): obj is IObservable<T> {
-	return !!obj && (<IObservable<T>>obj).read !== undefined && (<IObservable<T>>obj).reportChanges !== undefined;
-}
 type ElementAttributeKeys<T> = Partial<{
 	[K in keyof T]: T[K] extends Function ? never : T[K] extends object ? ElementAttributeKeys<T[K]> : Value<number | T[K] | undefined | null>;
 }>;

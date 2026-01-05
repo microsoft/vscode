@@ -10,23 +10,21 @@ import { SnippetController2 } from '../../../../../editor/contrib/snippet/browse
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService, NeverShowAgainScope, Severity } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
 import { getLanguageIdForPromptsType, PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IUserDataSyncEnablementService, SyncResource } from '../../../../../platform/userDataSync/common/userDataSync.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { CONFIGURE_SYNC_COMMAND_ID } from '../../../../services/userDataSync/common/userDataSync.js';
-import { ISnippetsService } from '../../../snippets/browser/snippets.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { askForPromptFileName } from './pickers/askForPromptName.js';
 import { askForPromptSourceFolder } from './pickers/askForPromptSourceFolder.js';
+import { IChatModeService } from '../../common/chatModes.js';
 
 
 class AbstractNewPromptFileAction extends Action2 {
@@ -36,14 +34,14 @@ class AbstractNewPromptFileAction extends Action2 {
 			id,
 			title,
 			f1: false,
-			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
+			precondition: ChatContextKeys.enabled,
 			category: CHAT_CATEGORY,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib
 			},
 			menu: {
 				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled)
+				when: ChatContextKeys.enabled
 			}
 		});
 	}
@@ -57,6 +55,7 @@ class AbstractNewPromptFileAction extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		const fileService = accessor.get(IFileService);
 		const instaService = accessor.get(IInstantiationService);
+		const chatModeService = accessor.get(IChatModeService);
 
 		const selectedFolder = await instaService.invokeFunction(askForPromptSourceFolder, this.type);
 		if (!selectedFolder) {
@@ -81,7 +80,7 @@ class AbstractNewPromptFileAction extends Action2 {
 		if (editor && editor.hasModel() && isEqual(editor.getModel().uri, promptUri)) {
 			SnippetController2.get(editor)?.apply([{
 				range: editor.getModel().getFullModelRange(),
-				template: getDefaultContentSnippet(this.type),
+				template: getDefaultContentSnippet(this.type, chatModeService),
 			}]);
 		}
 
@@ -110,7 +109,7 @@ class AbstractNewPromptFileAction extends Action2 {
 			Severity.Info,
 			localize(
 				'workbench.command.prompts.create.user.enable-sync-notification',
-				"Do you want to backup and sync your user prompt, instruction and mode files with Setting Sync?'",
+				"Do you want to backup and sync your user prompt, instruction and custom agent files with Setting Sync?'",
 			),
 			[
 				{
@@ -139,12 +138,14 @@ class AbstractNewPromptFileAction extends Action2 {
 	}
 }
 
-function getDefaultContentSnippet(promptType: PromptsType): string {
+function getDefaultContentSnippet(promptType: PromptsType, chatModeService: IChatModeService): string {
+	const agents = chatModeService.getModes();
+	const agentNames = agents.builtin.map(agent => agent.name.get()).join(',') + (agents.custom.length ? (',' + agents.custom.map(agent => agent.name.get()).join(',')) : '');
 	switch (promptType) {
 		case PromptsType.prompt:
 			return [
 				`---`,
-				`mode: \${1|ask,edit,agent|}`,
+				`agent: \${1|${agentNames}|}`,
 				`---`,
 				`\${2:Define the task to achieve, including specific requirements, constraints, and success criteria.}`,
 			].join('\n');
@@ -155,22 +156,23 @@ function getDefaultContentSnippet(promptType: PromptsType): string {
 				`---`,
 				`\${2:Provide project context and coding guidelines that AI should follow when generating code, answering questions, or reviewing changes.}`,
 			].join('\n');
-		case PromptsType.mode:
+		case PromptsType.agent:
 			return [
 				`---`,
-				`description: '\${1:Description of the custom chat mode.}'`,
+				`description: '\${1:Describe what this custom agent does and when to use it.}'`,
 				`tools: []`,
 				`---`,
-				`\${2:Define the purpose of this chat mode and how AI should behave: response style, available tools, focus areas, and any mode-specific instructions or constraints.}`,
+				`\${2:Define what this custom agent accomplishes for the user, when to use it, and the edges it won't cross. Specify its ideal inputs/outputs, the tools it may call, and how it reports progress or asks for help.}`,
 			].join('\n');
 		default:
 			throw new Error(`Unknown prompt type: ${promptType}`);
 	}
 }
 
+
 export const NEW_PROMPT_COMMAND_ID = 'workbench.command.new.prompt';
 export const NEW_INSTRUCTIONS_COMMAND_ID = 'workbench.command.new.instructions';
-export const NEW_MODE_COMMAND_ID = 'workbench.command.new.mode';
+export const NEW_AGENT_COMMAND_ID = 'workbench.command.new.agent';
 
 class NewPromptFileAction extends AbstractNewPromptFileAction {
 	constructor() {
@@ -184,9 +186,9 @@ class NewInstructionsFileAction extends AbstractNewPromptFileAction {
 	}
 }
 
-class NewModeFileAction extends AbstractNewPromptFileAction {
+class NewAgentFileAction extends AbstractNewPromptFileAction {
 	constructor() {
-		super(NEW_MODE_COMMAND_ID, localize('commands.new.mode.local.title', "New Mode File..."), PromptsType.mode);
+		super(NEW_AGENT_COMMAND_ID, localize('commands.new.agent.local.title', "New Custom Agent..."), PromptsType.agent);
 	}
 }
 
@@ -196,7 +198,7 @@ class NewUntitledPromptFileAction extends Action2 {
 			id: 'workbench.command.new.untitled.prompt',
 			title: localize2('commands.new.untitled.prompt.title', "New Untitled Prompt File"),
 			f1: true,
-			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
+			precondition: ChatContextKeys.enabled,
 			category: CHAT_CATEGORY,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib
@@ -206,7 +208,7 @@ class NewUntitledPromptFileAction extends Action2 {
 
 	public override async run(accessor: ServicesAccessor) {
 		const editorService = accessor.get(IEditorService);
-		const snippetService = accessor.get(ISnippetsService);
+		const chatModeService = accessor.get(IChatModeService);
 
 		const languageId = getLanguageIdForPromptsType(PromptsType.prompt);
 
@@ -217,16 +219,14 @@ class NewUntitledPromptFileAction extends Action2 {
 				pinned: true
 			}
 		});
+		const type = PromptsType.prompt;
 
 		const editor = getCodeEditor(editorService.activeTextEditorControl);
 		if (editor && editor.hasModel()) {
-			const snippets = await snippetService.getSnippets(languageId, { fileTemplateSnippets: true, noRecencySort: true, includeNoPrefixSnippets: true });
-			if (snippets.length > 0) {
-				SnippetController2.get(editor)?.apply([{
-					range: editor.getModel().getFullModelRange(),
-					template: snippets[0].body
-				}]);
-			}
+			SnippetController2.get(editor)?.apply([{
+				range: editor.getModel().getFullModelRange(),
+				template: getDefaultContentSnippet(type, chatModeService),
+			}]);
 		}
 
 		return input;
@@ -236,6 +236,6 @@ class NewUntitledPromptFileAction extends Action2 {
 export function registerNewPromptFileActions(): void {
 	registerAction2(NewPromptFileAction);
 	registerAction2(NewInstructionsFileAction);
-	registerAction2(NewModeFileAction);
+	registerAction2(NewAgentFileAction);
 	registerAction2(NewUntitledPromptFileAction);
 }

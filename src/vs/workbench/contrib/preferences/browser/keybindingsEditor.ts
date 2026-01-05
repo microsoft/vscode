@@ -23,7 +23,7 @@ import { KeybindingsEditorModel, KEYBINDING_ENTRY_TEMPLATE_ID } from '../../../s
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService, IUserFriendlyKeybinding } from '../../../../platform/keybinding/common/keybinding.js';
 import { DefineKeybindingWidget, KeybindingsSearchWidget } from './keybindingWidgets.js';
-import { CONTEXT_KEYBINDING_FOCUS, CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, KEYBINDINGS_EDITOR_COMMAND_DEFINE_WHEN, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR, KEYBINDINGS_EDITOR_COMMAND_ADD, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND_TITLE, CONTEXT_WHEN_FOCUS } from '../common/preferences.js';
+import { CONTEXT_KEYBINDING_FOCUS, CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, CONTEXT_KEYBINDINGS_SEARCH_HAS_VALUE, KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, KEYBINDINGS_EDITOR_COMMAND_DEFINE_WHEN, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR, KEYBINDINGS_EDITOR_COMMAND_ADD, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND_TITLE, CONTEXT_WHEN_FOCUS } from '../common/preferences.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IKeybindingEditingService } from '../../../services/keybinding/common/keybindingEditing.js';
 import { IListContextMenuEvent } from '../../../../base/browser/ui/list/list.js';
@@ -67,7 +67,11 @@ import { IAccessibilityService } from '../../../../platform/accessibility/common
 
 const $ = DOM.$;
 
-export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorPane {
+interface IKeybindingsEditorMemento {
+	searchHistory?: string[];
+}
+
+export class KeybindingsEditor extends EditorPane<IKeybindingsEditorMemento> implements IKeybindingsEditorPane {
 
 	static readonly ID: string = 'workbench.editor.keybindings';
 
@@ -104,6 +108,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 	private keybindingsEditorContextKey: IContextKey<boolean>;
 	private keybindingFocusContextKey: IContextKey<boolean>;
 	private searchFocusContextKey: IContextKey<boolean>;
+	private searchHasValueContextKey: IContextKey<boolean>;
 
 	private readonly sortByPrecedenceAction: Action;
 	private readonly recordKeysAction: Action;
@@ -134,6 +139,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		this.keybindingsEditorContextKey = CONTEXT_KEYBINDINGS_EDITOR.bindTo(this.contextKeyService);
 		this.searchFocusContextKey = CONTEXT_KEYBINDINGS_SEARCH_FOCUS.bindTo(this.contextKeyService);
 		this.keybindingFocusContextKey = CONTEXT_KEYBINDING_FOCUS.bindTo(this.contextKeyService);
+		this.searchHasValueContextKey = CONTEXT_KEYBINDINGS_SEARCH_HAS_VALUE.bindTo(this.contextKeyService);
 		this.searchHistoryDelayer = new Delayer<void>(500);
 
 		this.recordKeysAction = this._register(new Action(KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, localize('recordKeysLabel', "Record Keys"), ThemeIcon.asClassName(keybindingsRecordKeysIcon)));
@@ -317,6 +323,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 
 	clearSearchResults(): void {
 		this.searchWidget.clear();
+		this.searchHasValueContextKey.set(false);
 	}
 
 	showSimilarKeybindings(keybindingEntry: IKeybindingItemEntry): void {
@@ -365,13 +372,15 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 			ariaLabelledBy: 'keybindings-editor-aria-label-element',
 			recordEnter: true,
 			quoteRecordedKeys: true,
-			history: new Set<string>(this.getMemento(StorageScope.PROFILE, StorageTarget.USER)['searchHistory'] ?? []),
+			history: new Set<string>((this.getMemento(StorageScope.PROFILE, StorageTarget.USER)).searchHistory ?? []),
 			inputBoxStyles: getInputBoxStyle({
 				inputBorder: settingsTextInputBorder
 			})
 		}));
 		this._register(this.searchWidget.onDidChange(searchValue => {
-			clearInputAction.enabled = !!searchValue;
+			const hasValue = !!searchValue;
+			clearInputAction.enabled = hasValue;
+			this.searchHasValueContextKey.set(hasValue);
 			this.delayedFiltering.trigger(() => this.filterKeybindings());
 			this.updateSearchOptions();
 		}));
@@ -578,14 +587,14 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		this.renderKeybindingsEntries(this.searchWidget.hasFocus());
 		this.searchHistoryDelayer.trigger(() => {
 			this.searchWidget.inputBox.addToHistory();
-			this.getMemento(StorageScope.PROFILE, StorageTarget.USER)['searchHistory'] = this.searchWidget.inputBox.getHistory();
+			(this.getMemento(StorageScope.PROFILE, StorageTarget.USER)).searchHistory = this.searchWidget.inputBox.getHistory();
 			this.saveState();
 		});
 	}
 
 	public clearKeyboardShortcutSearchHistory(): void {
 		this.searchWidget.inputBox.clearHistory();
-		this.getMemento(StorageScope.PROFILE, StorageTarget.USER)['searchHistory'] = this.searchWidget.inputBox.getHistory();
+		(this.getMemento(StorageScope.PROFILE, StorageTarget.USER)).searchHistory = this.searchWidget.inputBox.getHistory();
 		this.saveState();
 	}
 
@@ -817,7 +826,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		};
 	}
 
-	private onKeybindingEditingError(error: any): void {
+	private onKeybindingEditingError(error: unknown): void {
 		this.notificationService.error(typeof error === 'string' ? error : localize('error', "Error '{0}' while editing the keybinding. Please open 'keybindings.json' file and check for errors.", `${error}`));
 	}
 }

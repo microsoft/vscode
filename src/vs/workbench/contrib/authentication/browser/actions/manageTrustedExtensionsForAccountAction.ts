@@ -16,6 +16,7 @@ import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../.
 import { AllowedExtension, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { IAuthenticationQueryService, IAccountQuery } from '../../../../services/authentication/common/authenticationQuery.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
+import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 
 export class ManageTrustedExtensionsForAccountAction extends Action2 {
 	constructor() {
@@ -39,13 +40,24 @@ interface TrustedExtensionsQuickPickItem extends IQuickPickItem {
 }
 
 class ManageTrustedExtensionsForAccountActionImpl {
+	private readonly _viewDetailsButton = {
+		tooltip: localize('viewExtensionDetails', "View extension details"),
+		iconClass: ThemeIcon.asClassName(Codicon.info),
+	};
+
+	private readonly _managePreferencesButton = {
+		tooltip: localize('accountPreferences', "Manage account preferences for this extension"),
+		iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
+	};
+
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@IAuthenticationQueryService private readonly _authenticationQueryService: IAuthenticationQueryService,
-		@ICommandService private readonly _commandService: ICommandService
+		@ICommandService private readonly _commandService: ICommandService,
+		@IExtensionsWorkbenchService private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService
 	) { }
 
 	async run(options?: { providerId: string; accountLabel: string }) {
@@ -139,10 +151,11 @@ class ManageTrustedExtensionsForAccountActionImpl {
 		const otherExtensions = filteredExtensions.filter(e => !e.trusted);
 		const sortByLastUsed = (a: AllowedExtension, b: AllowedExtension) => (b.lastUsed || 0) - (a.lastUsed || 0);
 
+		const _toQuickPickItem = this._toQuickPickItem.bind(this);
 		return [
-			...otherExtensions.sort(sortByLastUsed).map(this._toQuickPickItem),
+			...otherExtensions.sort(sortByLastUsed).map(_toQuickPickItem),
 			{ type: 'separator', label: localize('trustedExtensions', "Trusted by Microsoft") } satisfies IQuickPickSeparator,
-			...trustedExtensions.sort(sortByLastUsed).map(this._toQuickPickItem)
+			...trustedExtensions.sort(sortByLastUsed).map(_toQuickPickItem)
 		];
 	}
 
@@ -163,10 +176,7 @@ class ManageTrustedExtensionsForAccountActionImpl {
 			description,
 			tooltip,
 			disabled,
-			buttons: [{
-				tooltip: localize('accountPreferences', "Manage account preferences for this extension"),
-				iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
-			}],
+			buttons: [this._viewDetailsButton, this._managePreferencesButton],
 			picked: extension.allowed === undefined || extension.allowed
 		};
 	}
@@ -179,6 +189,7 @@ class ManageTrustedExtensionsForAccountActionImpl {
 		quickPick.canSelectMany = true;
 		quickPick.customButton = true;
 		quickPick.customLabel = localize('manageTrustedExtensions.cancel', 'Cancel');
+		quickPick.customButtonSecondary = true;
 		quickPick.title = localize('manageTrustedExtensions', "Manage Trusted Extensions");
 		quickPick.placeholder = localize('manageExtensions', "Choose which extensions can access this account");
 
@@ -198,9 +209,13 @@ class ManageTrustedExtensionsForAccountActionImpl {
 
 		disposableStore.add(quickPick.onDidHide(() => disposableStore.dispose()));
 		disposableStore.add(quickPick.onDidCustom(() => quickPick.hide()));
-		disposableStore.add(quickPick.onDidTriggerItemButton(e =>
-			this._commandService.executeCommand('_manageAccountPreferencesForExtension', e.item.extension.id, accountQuery.providerId)
-		));
+		disposableStore.add(quickPick.onDidTriggerItemButton(e => {
+			if (e.button === this._managePreferencesButton) {
+				this._commandService.executeCommand('_manageAccountPreferencesForExtension', e.item.extension.id, accountQuery.providerId);
+			} else if (e.button === this._viewDetailsButton) {
+				this._extensionsWorkbenchService.open(e.item.extension.id);
+			}
+		}));
 
 		return quickPick;
 	}

@@ -68,10 +68,40 @@ if [ -n "${VSCODE_ENV_APPEND:-}" ]; then
 	unset VSCODE_ENV_APPEND
 fi
 
+# Register Python shell activate hooks
+# Prevent multiple activation with guard
+if [ -z "${VSCODE_PYTHON_AUTOACTIVATE_GUARD:-}" ]; then
+	export VSCODE_PYTHON_AUTOACTIVATE_GUARD=1
+	if [ -n "${VSCODE_PYTHON_ZSH_ACTIVATE:-}" ] && [ "$TERM_PROGRAM" = "vscode" ]; then
+		# Prevent crashing by negating exit code
+		if ! builtin eval "$VSCODE_PYTHON_ZSH_ACTIVATE"; then
+			__vsc_activation_status=$?
+			builtin printf '\x1b[0m\x1b[7m * \x1b[0;103m VS Code Python zsh activation failed with exit code %d \x1b[0m' "$__vsc_activation_status"
+		fi
+	fi
+fi
+
+# Report prompt type
+if [ -n "${P9K_SSH:-}" ] || [ -n "${P9K_TTY:-}" ]; then
+	builtin printf '\e]633;P;PromptType=p10k\a'
+	# Force shell integration on for p10k
+	# typeset -g POWERLEVEL9K_TERM_SHELL_INTEGRATION=true
+elif [ -n "${ZSH:-}" ] && [ -n "$ZSH_VERSION" ] && (( ${+functions[omz]} )); then
+	builtin printf '\e]633;P;PromptType=oh-my-zsh\a'
+elif [ -n "${STARSHIP_SESSION_KEY:-}" ]; then
+	builtin printf '\e]633;P;PromptType=starship\a'
+fi
+
 # Shell integration was disabled by the shell, exit without warning assuming either the shell has
 # explicitly disabled shell integration as it's incompatible or it implements the protocol.
 if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
 	builtin return
+fi
+
+# Prevent AI-executed commands from polluting shell history
+if [ "${VSCODE_PREVENT_SHELL_HISTORY:-}" = "1" ]; then
+	builtin setopt HIST_IGNORE_SPACE
+	builtin unset VSCODE_PREVENT_SHELL_HISTORY
 fi
 
 # The property (P) and command (E) codes embed values which require escaping.
@@ -110,22 +140,13 @@ __vsc_current_command=""
 __vsc_nonce="$VSCODE_NONCE"
 unset VSCODE_NONCE
 
-__vscode_shell_env_reporting="$VSCODE_SHELL_ENV_REPORTING"
+__vscode_shell_env_reporting="${VSCODE_SHELL_ENV_REPORTING:-}"
 unset VSCODE_SHELL_ENV_REPORTING
 
 envVarsToReport=()
 IFS=',' read -rA envVarsToReport <<< "$__vscode_shell_env_reporting"
 
 builtin printf "\e]633;P;ContinuationPrompt=%s\a" "$(echo "$PS2" | sed 's/\x1b/\\\\x1b/g')"
-
-# Report prompt type
-if [ -n "$ZSH" ] && [ -n "$ZSH_VERSION" ] && (( ${+functions[omz]} )) ; then
-	builtin printf '\e]633;P;PromptType=oh-my-zsh\a'
-elif [ -n "$STARSHIP_SESSION_KEY" ]; then
-	builtin printf '\e]633;P;PromptType=starship\a'
-elif [ -n "$P9K_SSH" ] || [ -n "$P9K_TTY" ]; then
-	builtin printf '\e]633;P;PromptType=p10k\a'
-fi
 
 # Report this shell supports rich command detection
 builtin printf '\e]633;P;HasRichCommandDetection=True\a'

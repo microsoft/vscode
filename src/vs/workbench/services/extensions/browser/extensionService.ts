@@ -41,7 +41,7 @@ import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { IRemoteExplorerService } from '../../remote/common/remoteExplorerService.js';
 import { IUserDataInitializationService } from '../../userData/browser/userDataInit.js';
 import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
-import { AsyncIterableEmitter, AsyncIterableObject } from '../../../../base/common/async.js';
+import { AsyncIterableEmitter, AsyncIterableProducer } from '../../../../base/common/async.js';
 
 export class ExtensionService extends AbstractExtensionService implements IExtensionService {
 
@@ -152,7 +152,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	}
 
 	protected _resolveExtensions(): AsyncIterable<ResolvedExtensions> {
-		return new AsyncIterableObject(emitter => this._doResolveExtensions(emitter));
+		return new AsyncIterableProducer(emitter => this._doResolveExtensions(emitter));
 	}
 
 	private async _doResolveExtensions(emitter: AsyncIterableEmitter<ResolvedExtensions>): Promise<void> {
@@ -193,12 +193,12 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		// monitor for breakage
 		const connection = this._remoteAgentService.getConnection();
 		if (connection) {
-			connection.onDidStateChange(async (e) => {
+			this._register(connection.onDidStateChange(async (e) => {
 				if (e.type === PersistentConnectionEventType.ConnectionLost) {
 					this._remoteAuthorityResolverService._clearResolvedAuthority(remoteAuthority);
 				}
-			});
-			connection.onReconnecting(() => this._resolveAuthorityAgain());
+			}));
+			this._register(connection.onReconnecting(() => this._resolveAuthorityAgain()));
 		}
 
 		return this._resolveExtensionsDefault(emitter);

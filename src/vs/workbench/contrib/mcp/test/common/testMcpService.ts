@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { observableValue } from '../../../../../base/common/observable.js';
-import { IMcpServer, IMcpService, LazyCollectionState } from '../../common/mcpTypes.js';
+import { IAutostartResult, IMcpServer, IMcpService, LazyCollectionState } from '../../common/mcpTypes.js';
 
 export class TestMcpService implements IMcpService {
 	declare readonly _serviceBrand: undefined;
@@ -14,6 +14,14 @@ export class TestMcpService implements IMcpService {
 	}
 	resetTrust(): void {
 
+	}
+
+	cancelAutostart(): void {
+
+	}
+
+	autostart() {
+		return observableValue<IAutostartResult>(this, { working: false, starting: [], serversRequiringInteraction: [] });
 	}
 
 	public lazyCollectionState = observableValue(this, { state: LazyCollectionState.AllKnown, collections: [] });

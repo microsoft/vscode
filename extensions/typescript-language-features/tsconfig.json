@@ -2,8 +2,10 @@
 	"extends": "../tsconfig.base.json",
 	"compilerOptions": {
 		"outDir": "./out",
+		"typeRoots": [
+			"./node_modules/@types"
+		],
 		"esModuleInterop": true,
-		"experimentalDecorators": true,
 		"types": [
 			"node"
 		]

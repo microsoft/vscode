@@ -244,7 +244,7 @@ export class MovedBlocksLinesFeature extends Disposable {
 				}
 			}
 
-			if (movedText !== m.movedTextToCompare.get()) {
+			if (movedText !== m.movedTextToCompare.read(undefined)) {
 				m.movedTextToCompare.set(undefined, undefined);
 			}
 			m.setActiveMovedText(movedText);

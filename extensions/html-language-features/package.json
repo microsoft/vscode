@@ -182,6 +182,12 @@
           "default": true,
           "description": "%html.suggest.html5.desc%"
         },
+        "html.suggest.hideEndTagSuggestions": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "%html.suggest.hideEndTagSuggestions.desc%"
+        },
         "html.validate.scripts": {
           "type": "boolean",
           "scope": "resource",
@@ -259,7 +265,7 @@
   },
   "dependencies": {
     "@vscode/extension-telemetry": "^0.9.8",
-    "vscode-languageclient": "^10.0.0-next.16",
+    "vscode-languageclient": "^10.0.0-next.18",
     "vscode-uri": "^3.1.0"
   },
   "devDependencies": {
