@@ -18,6 +18,8 @@ import { localize } from '../../../../nls.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IImageResizeService } from '../../../../platform/imageResize/common/imageResizeService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { mcpAppsEnabledConfig } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
@@ -181,6 +183,7 @@ class McpToolImplementation implements IToolImpl {
 	constructor(
 		private readonly _tool: IMcpTool,
 		private readonly _server: IMcpServer,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IProductService private readonly _productService: IProductService,
 		@IFileService private readonly _fileService: IFileService,
 		@IImageResizeService private readonly _imageResizeService: IImageResizeService,
@@ -210,6 +213,8 @@ class McpToolImplementation implements IToolImpl {
 			confirm.confirmResults = true;
 		}
 
+		const mcpUiEnabled = this._configurationService.getValue<boolean>(mcpAppsEnabledConfig);
+
 		return {
 			confirmationMessages: confirm,
 			invocationMessage: new MarkdownString(localize('msg.run', "Running {0}", title)),
@@ -218,7 +223,7 @@ class McpToolImplementation implements IToolImpl {
 			toolSpecificData: {
 				kind: 'input',
 				rawInput: context.parameters,
-				mcpAppData: tool.uiResourceUri ? {
+				mcpAppData: mcpUiEnabled && tool.uiResourceUri ? {
 					resourceUri: tool.uiResourceUri,
 					serverDefinitionId: server.definition.id,
 					collectionId: server.collection.id,
