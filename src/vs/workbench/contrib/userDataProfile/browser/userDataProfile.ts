@@ -33,7 +33,6 @@ import { IUserDataProfilesEditor } from '../common/userDataProfile.js';
 import { IURLService } from '../../../../platform/url/common/url.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../services/environment/browser/environmentService.js';
 import { endsWithIgnoreCase } from '../../../../base/common/strings.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { Extensions as DndExtensions, IDragAndDropContributionRegistry, IResourceDropHandler } from '../../../../platform/dnd/browser/dnd.js';
 
 export const OpenProfileMenu = new MenuId('OpenProfile');
@@ -127,11 +126,15 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 
 	private registerDropHandler(): void {
 		const dndRegistry = Registry.as<IDragAndDropContributionRegistry>(DndExtensions.DragAndDropContribution);
+		const that = this;
 		this._register(dndRegistry.registerDropHandler(new class UserDataProfileDropHandler implements IResourceDropHandler {
 			async handleDrop(resource: URI, accessor: ServicesAccessor): Promise<boolean> {
 				if (endsWithIgnoreCase(resource.path, `.${PROFILE_EXTENSION}`)) {
-					await accessor.get(ICommandService).executeCommand('workbench.profiles.actions.importProfile', resource);
-					return true;
+					const editor = await that.openProfilesEditor();
+					if (editor) {
+						editor.createNewProfile(resource);
+						return true;
+					}
 				}
 				return false;
 			}
@@ -152,7 +155,6 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 
 		this.registerCreateFromCurrentProfileAction();
 		this.registerNewProfileAction();
-		this.registerImportProfileAction();
 		this.registerDeleteProfileAction();
 
 		this.registerHelpAction();
@@ -453,31 +455,6 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			async run(accessor: ServicesAccessor) {
 				const editor = await that.openProfilesEditor();
 				return editor?.createNewProfile();
-			}
-		}));
-	}
-
-	private registerImportProfileAction(): void {
-		const that = this;
-		this._register(registerAction2(class ImportProfileAction extends Action2 {
-			constructor() {
-				super({
-					id: 'workbench.profiles.actions.importProfile',
-					title: localize2('import profile', "Import Profile..."),
-					category: PROFILES_CATEGORY,
-					f1: true
-				});
-			}
-
-			async run(_accessor: ServicesAccessor, profileUri?: URI) {
-				const editor = await that.openProfilesEditor();
-				if (editor) {
-					if (profileUri) {
-						return editor.createNewProfile(profileUri);
-					} else {
-						return editor.importProfile();
-					}
-				}
 			}
 		}));
 	}
