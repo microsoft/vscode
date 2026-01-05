@@ -803,4 +803,143 @@ suite('CellPart', () => {
 			'Expected editor.setScrollTop to resume once pointer is released'
 		);
 	});
+
+	test('CodeCellLayout init ignores stale pooled editor content height', () => {
+		/**
+		 * Regression guard for fast-scroll overlap when editors are pooled.
+		 *
+		 * A Monaco editor instance can be reused between cells. If we trusted the pooled
+		 * editor's `getContentHeight()` during the first layout of a new cell, a short
+		 * cell might inherit a previous tall cell's content height and render with an
+		 * oversized editor, visually overlapping the next cell. The layout should instead
+		 * seed its initial content height from the cell's own initial editor dimension.
+		 */
+		const LINE_HEIGHT = 21;
+		const CELL_TOP_MARGIN = 6;
+		const CELL_OUTLINE_WIDTH = 1;
+		const STATUSBAR_HEIGHT = 22;
+		const VIEWPORT_HEIGHT = 400;
+		const ELEMENT_TOP = 100;
+		const ELEMENT_HEIGHT = 500;
+		const OUTPUT_CONTAINER_OFFSET = 200;
+
+		let pooledContentHeight = 200; // tall previous cell
+		const pooledEditor = {
+			layoutCalls: [] as { width: number; height: number }[],
+			_lastScrollTopSet: -1,
+			getLayoutInfo: () => ({ width: 600, height: pooledContentHeight }),
+			getContentHeight: () => pooledContentHeight,
+			layout: (dim: { width: number; height: number }) => {
+				pooledEditor.layoutCalls.push(dim);
+			},
+			setScrollTop: (v: number) => {
+				pooledEditor._lastScrollTopSet = v;
+			},
+			hasModel: () => true,
+		};
+		const editorPart = { style: { top: '' } };
+		const template: Partial<CodeCellRenderTemplate> = {
+			editor: pooledEditor as unknown as ICodeEditor,
+			editorPart: editorPart as unknown as HTMLElement,
+		};
+
+		// First, layout a tall cell to establish a large content height on the pooled editor.
+		const tallViewCell: Partial<CodeCellViewModel> = {
+			isInputCollapsed: false,
+			layoutInfo: {
+				statusBarHeight: STATUSBAR_HEIGHT,
+				topMargin: CELL_TOP_MARGIN,
+				outlineWidth: CELL_OUTLINE_WIDTH,
+				editorHeight: 200,
+				outputContainerOffset: OUTPUT_CONTAINER_OFFSET,
+				editorWidth: 600,
+			} as unknown as CodeCellLayoutInfo,
+		};
+		const tallNotebookEditor = {
+			scrollTop: 0,
+			get scrollBottom() {
+				return VIEWPORT_HEIGHT;
+			},
+			setScrollTop: (_v: number) => {
+				/* no-op for this test */
+			},
+			getLayoutInfo: () => ({
+				fontInfo: { lineHeight: LINE_HEIGHT },
+				height: VIEWPORT_HEIGHT,
+				stickyHeight: 0,
+			}),
+			getAbsoluteTopOfElement: () => ELEMENT_TOP,
+			getAbsoluteBottomOfElement: () => ELEMENT_TOP + OUTPUT_CONTAINER_OFFSET,
+			getHeightOfElement: () => ELEMENT_HEIGHT,
+			notebookOptions: {
+				getLayoutConfiguration: () => ({ editorTopPadding: 6 }),
+			},
+		};
+
+		const tallLayout = new CodeCellLayout(
+			true,
+			tallNotebookEditor as unknown as IActiveNotebookEditorDelegate,
+			tallViewCell as CodeCellViewModel,
+			template as CodeCellRenderTemplate,
+			{ debug: () => { } },
+			{ width: 600, height: 200 }
+		);
+
+		tallLayout.layoutEditor('init');
+		assert.strictEqual(
+			pooledEditor.layoutCalls.at(-1)?.height,
+			200,
+			'Expected tall cell to lay out using its own height'
+		);
+
+		// Now reuse the same editor for a short cell while leaving the pooled content height large.
+		pooledContentHeight = 200; // simulate stale value from previous cell
+		const shortViewCell: Partial<CodeCellViewModel> = {
+			isInputCollapsed: false,
+			layoutInfo: {
+				statusBarHeight: STATUSBAR_HEIGHT,
+				topMargin: CELL_TOP_MARGIN,
+				outlineWidth: CELL_OUTLINE_WIDTH,
+				editorHeight: 37,
+				outputContainerOffset: OUTPUT_CONTAINER_OFFSET,
+				editorWidth: 600,
+			} as unknown as CodeCellLayoutInfo,
+		};
+		const shortNotebookEditor = {
+			scrollTop: 0,
+			get scrollBottom() {
+				return VIEWPORT_HEIGHT;
+			},
+			setScrollTop: (_v: number) => {
+				/* no-op for this test */
+			},
+			getLayoutInfo: () => ({
+				fontInfo: { lineHeight: LINE_HEIGHT },
+				height: VIEWPORT_HEIGHT,
+				stickyHeight: 0,
+			}),
+			getAbsoluteTopOfElement: () => ELEMENT_TOP,
+			getAbsoluteBottomOfElement: () => ELEMENT_TOP + OUTPUT_CONTAINER_OFFSET,
+			getHeightOfElement: () => ELEMENT_HEIGHT,
+			notebookOptions: {
+				getLayoutConfiguration: () => ({ editorTopPadding: 6 }),
+			},
+		};
+
+		const shortLayout = new CodeCellLayout(
+			true,
+			shortNotebookEditor as unknown as IActiveNotebookEditorDelegate,
+			shortViewCell as CodeCellViewModel,
+			template as CodeCellRenderTemplate,
+			{ debug: () => { } },
+			{ width: 600, height: 37 }
+		);
+
+		shortLayout.layoutEditor('init');
+		assert.strictEqual(
+			pooledEditor.layoutCalls.at(-1)?.height,
+			37,
+			'Init layout for a short cell should use the cell\'s initial height, not the pooled editor\'s stale content height'
+		);
+	});
 });
