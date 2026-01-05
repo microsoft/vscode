@@ -821,9 +821,13 @@ export class StartServer extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, serverId: string, opts?: IMcpServerStartOpts) {
-		const s = accessor.get(IMcpService).servers.get().find(s => s.definition.id === serverId);
-		await s?.start({ promptType: 'all-untrusted', ...opts });
+	async run(accessor: ServicesAccessor, serverId: string | undefined, opts?: IMcpServerStartOpts) {
+		let servers = accessor.get(IMcpService).servers.get();
+		if (serverId !== undefined) {
+			servers = servers.filter(s => s.definition.id === serverId);
+		}
+
+		await Promise.all(servers.map(s => s.start({ promptType: 'all-untrusted', ...opts })));
 	}
 }
 
