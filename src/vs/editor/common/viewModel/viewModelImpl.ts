@@ -693,6 +693,32 @@ export class ViewModel extends Disposable implements IViewModel {
 		);
 	}
 
+	/**
+	 * Applies `cursorSurroundingLines` and `stickyScroll` padding to the given view range.
+	 */
+	public getViewRangeWithCursorPadding(viewRange: Range): Range {
+		const options = this._configuration.options;
+		const cursorSurroundingLines = options.get(EditorOption.cursorSurroundingLines);
+		const stickyScroll = options.get(EditorOption.stickyScroll);
+
+		let { startLineNumber, endLineNumber } = viewRange;
+		const padding = Math.min(
+			Math.max(cursorSurroundingLines, stickyScroll.enabled ? stickyScroll.maxLineCount : 0),
+			Math.floor((endLineNumber - startLineNumber + 1) / 2));
+
+		startLineNumber += padding;
+		endLineNumber -= Math.max(0, padding - 1);
+
+		if (padding === 0 || startLineNumber > endLineNumber) {
+			return viewRange;
+		}
+
+		return new Range(
+			startLineNumber, this.getLineMinColumn(startLineNumber),
+			endLineNumber, this.getLineMaxColumn(endLineNumber)
+		);
+	}
+
 	public saveState(): IViewState {
 		const compatViewState = this.viewLayout.saveState();
 
