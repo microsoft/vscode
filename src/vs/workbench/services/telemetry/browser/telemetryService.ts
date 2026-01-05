@@ -87,7 +87,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 			appenders.push(new TelemetryLogAppender('', false, loggerService, environmentService, productService));
 			const config: ITelemetryServiceConfig = {
 				appenders,
-				commonProperties: resolveWorkbenchCommonProperties(storageService, productService.commit, productService.version, isInternal, environmentService.remoteAuthority, productService.embedderIdentifier, productService.removeTelemetryMachineId, environmentService.options && environmentService.options.resolveCommonTelemetryProperties),
+				commonProperties: resolveWorkbenchCommonProperties(storageService, productService, isInternal, environmentService.remoteAuthority, environmentService.options && environmentService.options.resolveCommonTelemetryProperties),
 				sendErrorTelemetry: this.sendErrorTelemetry,
 			};
 
