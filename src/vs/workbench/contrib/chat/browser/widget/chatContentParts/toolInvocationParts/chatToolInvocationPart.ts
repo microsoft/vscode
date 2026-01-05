@@ -93,7 +93,6 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 
 		const render = () => {
 			partStore.clear();
-			this.mcpAppPart = undefined;
 
 			if (toolInvocation.presentation === ToolInvocationPresentation.HiddenAfterComplete && IChatToolInvocation.isComplete(toolInvocation)) {
 				return;
@@ -131,8 +130,11 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 					appDomNode = this.mcpAppPart.domNode;
 					r.store.add(this.mcpAppPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 				} else {
+					this.mcpAppPart = undefined;
 					dom.clearNode(appDomNode);
 				}
+
+				this._onDidChangeHeight.fire();
 			}));
 		}
 

@@ -236,7 +236,7 @@ export class McpToolCallUI extends Disposable {
 	public async callTool(name: string, params: Record<string, unknown>, token: CancellationToken): Promise<MCP.CallToolResult> {
 		const server = await this._getServer(token);
 		if (!server) {
-			throw new Error('MCP server not found for UI resource');
+			throw new Error('MCP server not found for tool call');
 		}
 
 		await startServerAndWaitForLiveTools(server, undefined, token);

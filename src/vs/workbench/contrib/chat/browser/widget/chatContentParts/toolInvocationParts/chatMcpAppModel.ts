@@ -253,14 +253,32 @@ export class ChatMcpAppModel extends Disposable {
 	 * Injects a Content-Security-Policy meta tag into the HTML.
 	 */
 	private _injectPreamble({ html, csp }: IMcpAppResourceContent): string {
+		// Note: this is not bulletproof against malformed domains. However it does not
+		// need to be. The server is the one giving us both the CSP as well as the HTML
+		// to render in the iframe. MCP Apps give the CSP separately so that systems that
+		// proxy the HTML from a server can set it in a header, but the CSP and the HTML
+		// come from the same source and are within the same trust boundary. We only
+		// process the CSP enough (escaping HTML special characters) to avoid breaking it.
+		//
+		// It would certainly be more durable to use `DOMParser.parseFromString` here
+		// and operate on the DocumentFragment of the HTML, however (even though keeping
+		// it solely as a detached document is safe) this requires making the HTML trusted
+		// in the renderer and bypassing various tsec warnings. I consider the string
+		// munging here to be the lesser of two evils.
+		const cleanDomains = (s: string[] | undefined) => (s?.join(' ') || '')
+			.replaceAll('&', '&amp;')
+			.replaceAll('<', '&lt;')
+			.replaceAll('>', '&gt;')
+			.replaceAll('"', '&quot;');
+
 		const cspContent = `
 			default-src 'none';
 			script-src 'self' 'unsafe-inline';
 			style-src 'self' 'unsafe-inline';
-			connect-src 'self' ${csp?.connectDomains?.join(' ') || ''};
-			img-src 'self' data: ${csp?.resourceDomains?.join(' ') || ''};
-			font-src 'self' ${csp?.resourceDomains?.join(' ') || ''};
-			media-src 'self' data: ${csp?.resourceDomains?.join(' ') || ''};
+			connect-src 'self' ${cleanDomains(csp?.connectDomains)};
+			img-src 'self' data: ${cleanDomains(csp?.resourceDomains)};
+			font-src 'self' ${cleanDomains(csp?.resourceDomains)};
+			media-src 'self' data: ${cleanDomains(csp?.resourceDomains)};
 			frame-src 'none';
 			object-src 'none';
 			base-uri 'self';
