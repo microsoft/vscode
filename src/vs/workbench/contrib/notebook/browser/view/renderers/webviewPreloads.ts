@@ -712,8 +712,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 				postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused, id });
 			}
 
-			lastFocusedOutput = cellOutputContainer;
-			postNotebookMessage<webviewMessages.IOutputFocusMessage>('outputFocus', { id: cellOutputContainer.id });
+			if (lastFocusedOutput?.id !== cellOutputContainer.id) {
+				lastFocusedOutput = cellOutputContainer;
+				postNotebookMessage<webviewMessages.IOutputFocusMessage>('outputFocus', { id: cellOutputContainer.id });
+			}
 			focusableElement.focus();
 		}
 	}
