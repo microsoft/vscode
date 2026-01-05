@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableStore, ImmortalReference } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
+import type { IMarker as IXtermMarker, Terminal as RawXtermTerminal } from '@xterm/xterm';
 import type { ITerminalCommand } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalInstance, ITerminalService, type IDetachedTerminalInstance } from './terminal.js';
 import { DetachedProcessInfo } from './detachedTerminal.js';
@@ -54,23 +54,60 @@ export async function getCommandOutputSnapshot(
 	const executedMarker = command.executedMarker;
 	const endMarker = command.endMarker;
 
-	if (!endMarker || endMarker.isDisposed || !executedMarker) {
+	if (!endMarker || endMarker.isDisposed) {
 		return undefined;
 	}
+
+	if (!executedMarker || executedMarker.isDisposed) {
+		const raw = xtermTerminal.raw;
+		const buffer = raw.buffer.active;
+		const offsets = [
+			-(buffer.baseY + buffer.cursorY),
+			-buffer.baseY,
+			0
+		];
+		let startMarker: IXtermMarker | undefined;
+		for (const offset of offsets) {
+			startMarker = raw.registerMarker(offset);
+			if (startMarker) {
+				break;
+			}
+		}
+		if (!startMarker || startMarker.isDisposed) {
+			return { text: '', lineCount: 0 };
+		}
+		const startLine = startMarker.line;
+		let text: string | undefined;
+		try {
+			text = await xtermTerminal.getRangeAsVT(startMarker, endMarker, true);
+		} catch (error) {
+			log?.('fallback', error);
+			return undefined;
+		} finally {
+			startMarker.dispose();
+		}
+		if (!text) {
+			return { text: '', lineCount: 0 };
+		}
+		const endLine = endMarker.line - 1;
+		const lineCount = Math.max(endLine - startLine + 1, 0);
+		return { text, lineCount };
+	}
+
+	const startLine = executedMarker.line;
+	const endLine = endMarker.line - 1;
+	const lineCount = Math.max(endLine - startLine + 1, 0);
 
 	let text: string | undefined;
 	try {
 		text = await xtermTerminal.getRangeAsVT(executedMarker, endMarker, true);
 	} catch (error) {
-		log?.('fallback', error);
+		log?.('primary', error);
 		return undefined;
 	}
 	if (!text) {
 		return { text: '', lineCount: 0 };
 	}
-	const endLine = endMarker.line - 1;
-	const startLine = executedMarker.line > -1 ? executedMarker.line : 0;
-	const lineCount = Math.max(endLine - startLine + 1, 0);
 
 	return { text, lineCount };
 }
