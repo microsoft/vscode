@@ -293,19 +293,17 @@
 	line-height: 22px;
 }
 
-.debug-pane .debug-breakpoints .monaco-list-row .breakpoint {
-	padding-left: 2px;
-}
-
-.debug-pane .debug-breakpoints .breakpoint.exception {
-	padding-left: 21px;
-}
-
 .debug-pane .debug-breakpoints .breakpoint {
 	display: flex;
 	padding-right: 0.8em;
 	flex: 1;
 	align-items: center;
+	margin-left: -19px;
+}
+
+.debug-pane .debug-breakpoints .breakpoint-folder,
+.debug-pane .debug-breakpoints .exception  {
+	margin-left: 0;
 }
 
 .debug-pane .debug-breakpoints .breakpoint input {

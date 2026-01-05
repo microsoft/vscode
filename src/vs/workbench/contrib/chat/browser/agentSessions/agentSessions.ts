@@ -71,3 +71,6 @@ export const agentSessionSelectedUnfocusedBadgeBorder = registerColor(
 	{ dark: transparent(foreground, 0.3), light: transparent(foreground, 0.3), hcDark: foreground, hcLight: foreground },
 	localize('agentSessionSelectedUnfocusedBadgeBorder', "Border color for the badges in selected agent session items when the view is unfocused.")
 );
+
+export const AGENT_SESSION_RENAME_ACTION_ID = 'agentSession.rename';
+export const AGENT_SESSION_DELETE_ACTION_ID = 'agentSession.delete';

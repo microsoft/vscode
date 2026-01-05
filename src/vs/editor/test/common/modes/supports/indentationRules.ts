@@ -40,3 +40,11 @@ export const luaIndentationRules = {
 	decreaseIndentPattern: /^\s*((\b(elseif|else|end|until)\b)|(\})|(\)))/,
 	increaseIndentPattern: /^((?!(\-\-)).)*((\b(else|function|then|do|repeat)\b((?!\b(end|until)\b).)*)|(\{\s*))$/,
 };
+
+export const vbIndentationRules = {
+	// Decrease indent when line starts with End <keyword>, Else, ElseIf, Case, Catch, Finally, Loop, Next, Wend, Until
+	decreaseIndentPattern: /^\s*((End\s+(If|Sub|Function|Class|Module|Enum|Structure|Interface|Namespace|With|Select|Try|While|For|Property|Get|Set|SyncLock|Using|AddHandler|RaiseEvent|RemoveHandler|Event|Operator))|Else|ElseIf|Case|Catch|Finally|Loop|Next|Wend|Until)\b/i,
+	// Increase indent after lines ending with Then, or lines starting with If/While/For/Do/Select/Sub/Function/Class/etc (block-starting keywords)
+	// The pattern matches lines that start block structures but excludes lines that also end them (like single-line If...Then...End If)
+	increaseIndentPattern: /^\s*((If|ElseIf).*Then(?!\s+(End\s+If))\s*(('|REM).*)?$)|\b(Else|While|For|Do|Select\s+Case|Case|Sub|Function|Class|Module|Enum|Structure|Interface|Namespace|With|Try|Catch|Finally|SyncLock|Using|Property|Get|Set|AddHandler|RaiseEvent|RemoveHandler|Event|Operator)\b(?!.*\bEnd\s+(If|Sub|Function|Class|Module|Enum|Structure|Interface|Namespace|With|Select|Try|While|For|Property|Get|Set|SyncLock|Using|AddHandler|RaiseEvent|RemoveHandler|Event|Operator)\b).*(('|REM).*)?$/i,
+};
