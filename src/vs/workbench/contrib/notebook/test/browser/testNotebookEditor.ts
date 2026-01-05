@@ -313,6 +313,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 		override getViewIndexByModelIndex(index: number) { return listViewInfoAccessor.getViewIndex(viewModel.viewCells[index]); }
 		override getCellRangeFromViewRange(startIndex: number, endIndex: number) { return listViewInfoAccessor.getCellRangeFromViewRange(startIndex, endIndex); }
 		override revealCellRangeInView() { }
+		override async revealInView() { }
 		override setHiddenAreas(_ranges: ICellRange[]): boolean {
 			return cellList.setHiddenAreas(_ranges, true);
 		}

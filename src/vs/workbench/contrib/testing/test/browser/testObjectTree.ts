@@ -58,6 +58,7 @@ class TestObjectTree<T> extends ObjectTree<T, any> {
 	}
 
 	public getRendered(getProperty?: string) {
+		// eslint-disable-next-line no-restricted-syntax
 		const elements = element.querySelectorAll<HTMLElement>('.monaco-tl-contents');
 		const sorted = [...elements].sort((a, b) => pos(a) - pos(b));
 		const chain: SerializedTree[] = [{ e: '', children: [] }];

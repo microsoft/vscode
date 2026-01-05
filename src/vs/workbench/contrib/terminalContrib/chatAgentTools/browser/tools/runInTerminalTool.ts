@@ -4,49 +4,234 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
-import { asArray } from '../../../../../../base/common/arrays.js';
 import { timeout } from '../../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { createCommandUri, MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { basename } from '../../../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../../../base/common/platform.js';
 import { count } from '../../../../../../base/common/strings.js';
-import type { SingleOrMany } from '../../../../../../base/common/types.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, type ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService, ITerminalProfile } from '../../../../../../platform/terminal/common/terminal.js';
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
-import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
-import { openTerminalSettingsLinkCommandId } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolProgressPart.js';
-import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService.js';
-import { ChatConfiguration } from '../../../../chat/common/constants.js';
-import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress, type IToolConfirmationMessages, type ToolConfirmationAction } from '../../../../chat/common/languageModelToolsService.js';
-import { ITerminalService, type ITerminalInstance, ITerminalChatService } from '../../../../terminal/browser/terminal.js';
+import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
+import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
+import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
+import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import type { XtermTerminal } from '../../../../terminal/browser/xterm/xtermTerminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { getRecommendedToolsOverRunInTerminal } from '../alternativeRecommendation.js';
-import { CommandLineAutoApprover, type IAutoApproveRule, type ICommandApprovalResult, type ICommandApprovalResultWithReason } from '../commandLineAutoApprover.js';
-import { CommandSimplifier } from '../commandSimplifier.js';
 import { BasicExecuteStrategy } from '../executeStrategy/basicExecuteStrategy.js';
 import type { ITerminalExecuteStrategy } from '../executeStrategy/executeStrategy.js';
 import { NoneExecuteStrategy } from '../executeStrategy/noneExecuteStrategy.js';
 import { RichExecuteStrategy } from '../executeStrategy/richExecuteStrategy.js';
 import { getOutput } from '../outputHelpers.js';
-import { dedupeRules, generateAutoApproveActions, isPowerShell } from '../runInTerminalHelpers.js';
+import { isFish, isPowerShell, isWindowsPowerShell, isZsh } from '../runInTerminalHelpers.js';
 import { RunInTerminalToolTelemetry } from '../runInTerminalToolTelemetry.js';
-import { splitCommandLineIntoSubCommands } from '../subCommands.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from '../toolTerminalCreator.js';
+import { TreeSitterCommandParser, TreeSitterCommandParserLanguage } from '../treeSitterCommandParser.js';
+import { type ICommandLineAnalyzer, type ICommandLineAnalyzerOptions } from './commandLineAnalyzer/commandLineAnalyzer.js';
+import { CommandLineAutoApproveAnalyzer } from './commandLineAnalyzer/commandLineAutoApproveAnalyzer.js';
+import { CommandLineFileWriteAnalyzer } from './commandLineAnalyzer/commandLineFileWriteAnalyzer.js';
 import { OutputMonitor } from './monitoring/outputMonitor.js';
 import { IPollingResult, OutputMonitorState } from './monitoring/types.js';
+import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
+import type { ICommandLineRewriter } from './commandLineRewriter/commandLineRewriter.js';
+import { CommandLineCdPrefixRewriter } from './commandLineRewriter/commandLineCdPrefixRewriter.js';
+import { CommandLinePreventHistoryRewriter } from './commandLineRewriter/commandLinePreventHistoryRewriter.js';
+import { CommandLinePwshChainOperatorRewriter } from './commandLineRewriter/commandLinePwshChainOperatorRewriter.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IHistoryService } from '../../../../../services/history/common/history.js';
+import { TerminalCommandArtifactCollector } from './terminalCommandArtifactCollector.js';
+import { isNumber, isString } from '../../../../../../base/common/types.js';
+import { ChatConfiguration } from '../../../../chat/common/constants.js';
+import { IChatWidgetService } from '../../../../chat/browser/chat.js';
+
+// #region Tool data
+
+const TOOL_REFERENCE_NAME = 'runInTerminal';
+const LEGACY_TOOL_REFERENCE_FULL_NAMES = ['runCommands/runInTerminal'];
+
+function createPowerShellModelDescription(shell: string): string {
+	const isWinPwsh = isWindowsPowerShell(shell);
+	return [
+		`This tool allows you to execute ${isWinPwsh ? 'Windows PowerShell 5.1' : 'PowerShell'} commands in a persistent terminal session, preserving environment variables, working directory, and other context across multiple commands.`,
+		'',
+		'Command Execution:',
+		// IMPORTANT: PowerShell 5 does not support `&&` so always re-write them to `;`. Note that
+		// the behavior of `&&` differs a little from `;` but in general it's fine
+		isWinPwsh ? '- Use semicolons ; to chain commands on one line, NEVER use && even when asked explicitly' : '- Prefer ; when chaining commands on one line',
+		'- Prefer pipelines | for object-based data flow',
+		'- Never create a sub-shell (eg. powershell -c "command") unless explicitly asked',
+		'',
+		'Directory Management:',
+		'- Must use absolute paths to avoid navigation issues',
+		'- Use $PWD or Get-Location for current directory',
+		'- Use Push-Location/Pop-Location for directory stack',
+		'',
+		'Program Execution:',
+		'- Supports .NET, Python, Node.js, and other executables',
+		'- Install modules via Install-Module, Install-Package',
+		'- Use Get-Command to verify cmdlet/function availability',
+		'',
+		'Background Processes:',
+		'- For long-running tasks (e.g., servers), set isBackground=true',
+		'- Returns a terminal ID for checking status and runtime later',
+		'- Use Start-Job for background PowerShell jobs',
+		'',
+		'Output Management:',
+		'- Output is automatically truncated if longer than 60KB to prevent context overflow',
+		'- Use Select-Object, Where-Object, Format-Table to filter output',
+		'- Use -First/-Last parameters to limit results',
+		'- For pager commands, add | Out-String or | Format-List',
+		'',
+		'Best Practices:',
+		'- Use proper cmdlet names instead of aliases in scripts',
+		'- Quote paths with spaces: "C:\\Path With Spaces"',
+		'- Prefer PowerShell cmdlets over external commands when available',
+		'- Prefer idiomatic PowerShell like Get-ChildItem instead of dir or ls for file listings',
+		'- Use Test-Path to check file/directory existence',
+		'- Be specific with Select-Object properties to avoid excessive output',
+		'- Avoid printing credentials unless absolutely required',
+	].join('\n');
+}
+
+const genericDescription = `
+Command Execution:
+- Use && to chain simple commands on one line
+- Prefer pipelines | over temporary files for data flow
+- Never create a sub-shell (eg. bash -c "command") unless explicitly asked
+
+Directory Management:
+- Must use absolute paths to avoid navigation issues
+- Use $PWD for current directory references
+- Consider using pushd/popd for directory stack management
+- Supports directory shortcuts like ~ and -
+
+Program Execution:
+- Supports Python, Node.js, and other executables
+- Install packages via package managers (brew, apt, etc.)
+- Use which or command -v to verify command availability
+
+Background Processes:
+- For long-running tasks (e.g., servers), set isBackground=true
+- Returns a terminal ID for checking status and runtime later
+
+Output Management:
+- Output is automatically truncated if longer than 60KB to prevent context overflow
+- Use head, tail, grep, awk to filter and limit output size
+- For pager commands, disable paging: git --no-pager or add | cat
+- Use wc -l to count lines before displaying large outputs
+
+Best Practices:
+- Quote variables: "$var" instead of $var to handle spaces
+- Use find with -exec or xargs for file operations
+- Be specific with commands to avoid excessive output
+- Avoid printing credentials unless absolutely required`;
+
+function createBashModelDescription(): string {
+	return [
+		'This tool allows you to execute shell commands in a persistent bash terminal session, preserving environment variables, working directory, and other context across multiple commands.',
+		genericDescription,
+		'- Use [[ ]] for conditional tests instead of [ ]',
+		'- Prefer $() over backticks for command substitution',
+		'- Use set -e at start of complex commands to exit on errors'
+	].join('\n');
+}
+
+function createZshModelDescription(): string {
+	return [
+		'This tool allows you to execute shell commands in a persistent zsh terminal session, preserving environment variables, working directory, and other context across multiple commands.',
+		genericDescription,
+		'- Use type to check command type (builtin, function, alias)',
+		'- Use jobs, fg, bg for job control',
+		'- Use [[ ]] for conditional tests instead of [ ]',
+		'- Prefer $() over backticks for command substitution',
+		'- Use setopt errexit for strict error handling',
+		'- Take advantage of zsh globbing features (**, extended globs)'
+	].join('\n');
+}
+
+function createFishModelDescription(): string {
+	return [
+		'This tool allows you to execute shell commands in a persistent fish terminal session, preserving environment variables, working directory, and other context across multiple commands.',
+		genericDescription,
+		'- Use type to check command type (builtin, function, alias)',
+		'- Use jobs, fg, bg for job control',
+		'- Use test expressions for conditionals (no [[ ]] syntax)',
+		'- Prefer command substitution with () syntax',
+		'- Variables are arrays by default, use $var[1] for first element',
+		'- Use set -e for strict error handling',
+		'- Take advantage of fish\'s autosuggestions and completions'
+	].join('\n');
+}
+
+export async function createRunInTerminalToolData(
+	accessor: ServicesAccessor
+): Promise<IToolData> {
+	const instantiationService = accessor.get(IInstantiationService);
+
+	const profileFetcher = instantiationService.createInstance(TerminalProfileFetcher);
+	const shell = await profileFetcher.getCopilotShell();
+	const os = await profileFetcher.osBackend;
+
+	let modelDescription: string;
+	if (shell && os && isPowerShell(shell, os)) {
+		modelDescription = createPowerShellModelDescription(shell);
+	} else if (shell && os && isZsh(shell, os)) {
+		modelDescription = createZshModelDescription();
+	} else if (shell && os && isFish(shell, os)) {
+		modelDescription = createFishModelDescription();
+	} else {
+		modelDescription = createBashModelDescription();
+	}
+
+	return {
+		id: 'run_in_terminal',
+		toolReferenceName: TOOL_REFERENCE_NAME,
+		legacyToolReferenceFullNames: LEGACY_TOOL_REFERENCE_FULL_NAMES,
+		displayName: localize('runInTerminalTool.displayName', 'Run in Terminal'),
+		modelDescription,
+		userDescription: localize('runInTerminalTool.userDescription', 'Run commands in the terminal'),
+		source: ToolDataSource.Internal,
+		icon: Codicon.terminal,
+		inputSchema: {
+			type: 'object',
+			properties: {
+				command: {
+					type: 'string',
+					description: 'The command to run in the terminal.'
+				},
+				explanation: {
+					type: 'string',
+					description: 'A one-sentence description of what the command does. This will be shown to the user before the command is run.'
+				},
+				isBackground: {
+					type: 'boolean',
+					description: 'Whether the command starts a background process. If true, the command will run in the background and you will not see the output. If false, the tool call will block on the command finishing, and then you will get the output. Examples of background processes: building in watch mode, starting a server. You can check the output of a background process later on by using get_terminal_output.'
+				},
+			},
+			required: [
+				'command',
+				'explanation',
+				'isBackground',
+			]
+		}
+	};
+}
+
+// #endregion
+
+// #region Tool implementation
 
 const enum TerminalToolStorageKeysInternal {
 	TerminalSession = 'chat.terminalSessions'
@@ -58,66 +243,6 @@ interface IStoredTerminalAssociation {
 	shellIntegrationQuality: ShellIntegrationQuality;
 	isBackground?: boolean;
 }
-
-export const RunInTerminalToolData: IToolData = {
-	id: 'run_in_terminal',
-	toolReferenceName: 'runInTerminal',
-	displayName: localize('runInTerminalTool.displayName', 'Run in Terminal'),
-	modelDescription: [
-		'This tool allows you to execute shell commands in a persistent terminal session, preserving environment variables, working directory, and other context across multiple commands.',
-		'',
-		'Command Execution:',
-		// TODO: Multi-line command execution does work, but it requires AST parsing to pull
-		// sub-commands out reliably https://github.com/microsoft/vscode/issues/261794
-		'- Does NOT support multi-line commands',
-		'',
-		'Directory Management:',
-		'- Must use absolute paths to avoid navigation issues.',
-		'',
-		'Program Execution:',
-		'- Supports Python, Node.js, and other executables.',
-		'- Install dependencies via pip, npm, etc.',
-		'',
-		'Background Processes:',
-		'- For long-running tasks (e.g., servers), set isBackground=true.',
-		'- Returns a terminal ID for checking status and runtime later.',
-		'',
-		'Output Management:',
-		'- Output is automatically truncated if longer than 60KB to prevent context overflow',
-		'- Use filters like \'head\', \'tail\', \'grep\' to limit output size',
-		'- For pager commands, disable paging: use \'git --no-pager\' or add \'| cat\'',
-		'',
-		'Best Practices:',
-		'- Be specific with commands to avoid excessive output',
-		'- Use targeted queries instead of broad scans',
-		'- Consider using \'wc -l\' to count before listing many items'
-	].join('\n'),
-	userDescription: localize('runInTerminalTool.userDescription', 'Tool for running commands in the terminal'),
-	source: ToolDataSource.Internal,
-	icon: Codicon.terminal,
-	inputSchema: {
-		type: 'object',
-		properties: {
-			command: {
-				type: 'string',
-				description: 'The command to run in the terminal.'
-			},
-			explanation: {
-				type: 'string',
-				description: 'A one-sentence description of what the command does. This will be shown to the user before the command is run.'
-			},
-			isBackground: {
-				type: 'boolean',
-				description: 'Whether the command starts a background process. If true, the command will run in the background and you will not see the output. If false, the tool call will block on the command finishing, and then you will get the output. Examples of background processes: building in watch mode, starting a server. You can check the output of a background process later on by using get_terminal_output.'
-			},
-		},
-		required: [
-			'command',
-			'explanation',
-			'isBackground',
-		]
-	}
-};
 
 export interface IRunInTerminalInputParams {
 	command: string;
@@ -133,23 +258,20 @@ const telemetryIgnoredSequences = [
 	'\x1b[O', // Focus out
 ];
 
-const promptInjectionWarningCommandsLower = [
-	'curl',
-	'wget',
-];
-const promptInjectionWarningCommandsLowerPwshOnly = [
-	'invoke-restmethod',
-	'invoke-webrequest',
-	'irm',
-	'iwr',
-];
+const altBufferMessage = localize('runInTerminalTool.altBufferMessage', "The command opened the alternate buffer.");
+
 
 export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	private readonly _terminalToolCreator: ToolTerminalCreator;
-	private readonly _commandSimplifier: CommandSimplifier;
+	private readonly _treeSitterCommandParser: TreeSitterCommandParser;
 	private readonly _telemetry: RunInTerminalToolTelemetry;
-	protected readonly _commandLineAutoApprover: CommandLineAutoApprover;
+	private readonly _commandArtifactCollector: TerminalCommandArtifactCollector;
+	protected readonly _profileFetcher: TerminalProfileFetcher;
+
+	private readonly _commandLineRewriters: ICommandLineRewriter[];
+	private readonly _commandLineAnalyzers: ICommandLineAnalyzer[];
+
 	protected readonly _sessionTerminalAssociations: Map<string, IToolTerminal> = new Map();
 
 	// Immutable window state
@@ -165,25 +287,38 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	}
 
 	constructor(
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IChatService protected readonly _chatService: IChatService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IHistoryService private readonly _historyService: IHistoryService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
-		@IStorageService private readonly _storageService: IStorageService,
-		@ITerminalLogService private readonly _logService: ITerminalLogService,
-		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
-		@ITerminalService private readonly _terminalService: ITerminalService,
-		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
-		@IChatService private readonly _chatService: IChatService
+		@IStorageService private readonly _storageService: IStorageService,
+		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
+		@ITerminalLogService private readonly _logService: ITerminalLogService,
+		@ITerminalService private readonly _terminalService: ITerminalService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 	) {
 		super();
 
 		this._osBackend = this._remoteAgentService.getEnvironment().then(remoteEnv => remoteEnv?.os ?? OS);
 
-		this._terminalToolCreator = _instantiationService.createInstance(ToolTerminalCreator);
-		this._commandSimplifier = _instantiationService.createInstance(CommandSimplifier, this._osBackend);
-		this._telemetry = _instantiationService.createInstance(RunInTerminalToolTelemetry);
-		this._commandLineAutoApprover = this._register(_instantiationService.createInstance(CommandLineAutoApprover));
+		this._terminalToolCreator = this._instantiationService.createInstance(ToolTerminalCreator);
+		this._treeSitterCommandParser = this._register(this._instantiationService.createInstance(TreeSitterCommandParser));
+		this._telemetry = this._instantiationService.createInstance(RunInTerminalToolTelemetry);
+		this._commandArtifactCollector = this._instantiationService.createInstance(TerminalCommandArtifactCollector);
+		this._profileFetcher = this._instantiationService.createInstance(TerminalProfileFetcher);
+
+		this._commandLineRewriters = [
+			this._register(this._instantiationService.createInstance(CommandLineCdPrefixRewriter)),
+			this._register(this._instantiationService.createInstance(CommandLinePwshChainOperatorRewriter, this._treeSitterCommandParser)),
+			this._register(this._instantiationService.createInstance(CommandLinePreventHistoryRewriter)),
+		];
+		this._commandLineAnalyzers = [
+			this._register(this._instantiationService.createInstance(CommandLineFileWriteAnalyzer, this._treeSitterCommandParser, (message, args) => this._logService.info(`RunInTerminalTool#CommandLineFileWriteAnalyzer: ${message}`, args))),
+			this._register(this._instantiationService.createInstance(CommandLineAutoApproveAnalyzer, this._treeSitterCommandParser, this._telemetry, (message, args) => this._logService.info(`RunInTerminalTool#CommandLineAutoApproveAnalyzer: ${message}`, args))),
+		];
 
 		// Clear out warning accepted state if the setting is disabled
 		this._register(Event.runAndSubscribe(this._configurationService.onDidChangeConfiguration, e => {
@@ -206,155 +341,159 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		// Listen for chat session disposal to clean up associated terminals
 		this._register(this._chatService.onDidDisposeSession(e => {
-			this._cleanupSessionTerminals(e.sessionId);
+			for (const resource of e.sessionResource) {
+				const localSessionId = LocalChatSessionUri.parseLocalSessionId(resource);
+				if (localSessionId) {
+					this._cleanupSessionTerminals(localSessionId);
+				}
+			}
 		}));
 	}
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const args = context.parameters as IRunInTerminalInputParams;
 
-		const alternativeRecommendation = getRecommendedToolsOverRunInTerminal(args.command, this._languageModelToolsService);
-		const presentation = alternativeRecommendation ? ToolInvocationPresentation.Hidden : undefined;
-
-		const os = await this._osBackend;
-		const shell = await this._getCopilotShell();
+		const instance = context.chatSessionId ? this._sessionTerminalAssociations.get(context.chatSessionId)?.instance : undefined;
+		const [os, shell, cwd] = await Promise.all([
+			this._osBackend,
+			this._profileFetcher.getCopilotShell(),
+			(async () => {
+				let cwd = await instance?.getCwdResource();
+				if (!cwd) {
+					const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
+					const workspaceFolder = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) ?? undefined : undefined;
+					cwd = workspaceFolder?.uri;
+				}
+				return cwd;
+			})()
+		]);
 		const language = os === OperatingSystem.Windows ? 'pwsh' : 'sh';
 
-		const instance = context.chatSessionId ? this._sessionTerminalAssociations.get(context.chatSessionId)?.instance : undefined;
 		const terminalToolSessionId = generateUuid();
+		// Generate a custom command ID to link the command between renderer and pty host
+		const terminalCommandId = `tool-${generateUuid()}`;
 
-		let toolEditedCommand: string | undefined = await this._commandSimplifier.rewriteIfNeeded(args, instance, shell);
-		if (toolEditedCommand === args.command) {
-			toolEditedCommand = undefined;
+		let rewrittenCommand: string | undefined = args.command;
+		for (const rewriter of this._commandLineRewriters) {
+			const rewriteResult = await rewriter.rewrite({
+				commandLine: rewrittenCommand,
+				cwd,
+				shell,
+				os
+			});
+			if (rewriteResult) {
+				rewrittenCommand = rewriteResult.rewritten;
+				this._logService.info(`RunInTerminalTool: Command rewritten by ${rewriter.constructor.name}: ${rewriteResult.reasoning}`);
+			}
 		}
 
-		let autoApproveInfo: IMarkdownString | undefined;
-		let confirmationMessages: IToolConfirmationMessages | undefined;
+		const toolSpecificData: IChatTerminalToolInvocationData = {
+			kind: 'terminal',
+			terminalToolSessionId,
+			terminalCommandId,
+			commandLine: {
+				original: args.command,
+				toolEdited: rewrittenCommand === args.command ? undefined : rewrittenCommand
+			},
+			language,
+		};
+
+		// HACK: Exit early if there's an alternative recommendation, this is a little hacky but
+		// it's the current mechanism for re-routing terminal tool calls to something else.
+		const alternativeRecommendation = getRecommendedToolsOverRunInTerminal(args.command, this._languageModelToolsService);
 		if (alternativeRecommendation) {
-			confirmationMessages = undefined;
-		} else {
-			// Determine auto approval, this happens even when auto approve is off to that reasoning
-			// can be reviewed in the terminal channel. It also allows gauging the effective set of
-			// commands that would be auto approved if it were enabled.
-			const actualCommand = toolEditedCommand ?? args.command;
-			const subCommands = splitCommandLineIntoSubCommands(actualCommand, shell, os);
-			const subCommandResults = subCommands.map(e => this._commandLineAutoApprover.isCommandAutoApproved(e, shell, os));
-			const commandLineResult = this._commandLineAutoApprover.isCommandLineAutoApproved(actualCommand);
-			const autoApproveReasons: string[] = [
-				...subCommandResults.map(e => e.reason),
-				commandLineResult.reason,
-			];
-
-			let isAutoApproved = false;
-			let isDenied = false;
-			let autoApproveReason: 'subCommand' | 'commandLine' | undefined;
-			let autoApproveDefault: boolean | undefined;
-
-			const deniedSubCommandResult = subCommandResults.find(e => e.result === 'denied');
-			if (deniedSubCommandResult) {
-				this._logService.info('autoApprove: Sub-command DENIED auto approval');
-				isDenied = true;
-				autoApproveDefault = deniedSubCommandResult.rule?.isDefaultRule;
-				autoApproveReason = 'subCommand';
-			} else if (commandLineResult.result === 'denied') {
-				this._logService.info('autoApprove: Command line DENIED auto approval');
-				isDenied = true;
-				autoApproveDefault = commandLineResult.rule?.isDefaultRule;
-				autoApproveReason = 'commandLine';
-			} else {
-				if (subCommandResults.every(e => e.result === 'approved')) {
-					this._logService.info('autoApprove: All sub-commands auto-approved');
-					autoApproveReason = 'subCommand';
-					isAutoApproved = true;
-					autoApproveDefault = subCommandResults.every(e => e.rule?.isDefaultRule);
-				} else {
-					this._logService.info('autoApprove: All sub-commands NOT auto-approved');
-					if (commandLineResult.result === 'approved') {
-						this._logService.info('autoApprove: Command line auto-approved');
-						autoApproveReason = 'commandLine';
-						isAutoApproved = true;
-						autoApproveDefault = commandLineResult.rule?.isDefaultRule;
-					} else {
-						this._logService.info('autoApprove: Command line NOT auto-approved');
-					}
-				}
-			}
-
-			// Log detailed auto approval reasoning
-			for (const reason of autoApproveReasons) {
-				this._logService.info(`- ${reason}`);
-			}
-
-			// Apply auto approval or force it off depending on enablement/opt-in state
-			const isAutoApproveEnabled = this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnableAutoApprove) === true;
-			const isAutoApproveWarningAccepted = this._storageService.getBoolean(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION, false);
-			const isAutoApproveAllowed = isAutoApproveEnabled && isAutoApproveWarningAccepted;
-			if (isAutoApproveEnabled) {
-				autoApproveInfo = this._createAutoApproveInfo(
-					isAutoApproved,
-					isDenied,
-					autoApproveReason,
-					subCommandResults,
-					commandLineResult,
-				);
-			} else {
-				isAutoApproved = false;
-			}
-
-			// Send telemetry about auto approval process
-			this._telemetry.logPrepare({
-				terminalToolSessionId,
-				subCommands,
-				autoApproveAllowed: !isAutoApproveEnabled ? 'off' : isAutoApproveWarningAccepted ? 'allowed' : 'needsOptIn',
-				autoApproveResult: isAutoApproved ? 'approved' : isDenied ? 'denied' : 'manual',
-				autoApproveReason,
-				autoApproveDefault
-			});
-
-			// Add a disclaimer warning about prompt injection for common commands that return
-			// content from the web
-			let disclaimer: IMarkdownString | undefined;
-			const subCommandsLowerFirstWordOnly = subCommands.map(command => command.split(' ')[0].toLowerCase());
-			if (!isAutoApproved && (
-				subCommandsLowerFirstWordOnly.some(command => promptInjectionWarningCommandsLower.includes(command)) ||
-				(isPowerShell(shell, os) && subCommandsLowerFirstWordOnly.some(command => promptInjectionWarningCommandsLowerPwshOnly.includes(command)))
-			)) {
-				disclaimer = new MarkdownString(`$(${Codicon.info.id}) ` + localize('runInTerminal.promptInjectionDisclaimer', 'Web content may contain malicious code or attempt prompt injection attacks.'), { supportThemeIcons: true });
-			}
-
-			let customActions: ToolConfirmationAction[] | undefined;
-			if (!isAutoApproved && isAutoApproveEnabled) {
-				customActions = generateAutoApproveActions(actualCommand, subCommands, { subCommandResults, commandLineResult });
-			}
-
-			let shellType = basename(shell, '.exe');
-			if (shellType === 'powershell') {
-				shellType = 'pwsh';
-			}
-			confirmationMessages = (isAutoApproved && isAutoApproveAllowed) ? undefined : {
-				title: args.isBackground
-					? localize('runInTerminal.background', "Run `{0}` command? (background terminal)", shellType)
-					: localize('runInTerminal', "Run `{0}` command?", shellType),
-				message: new MarkdownString(args.explanation),
-				disclaimer,
-				terminalCustomActions: customActions,
+			toolSpecificData.alternativeRecommendation = alternativeRecommendation;
+			return {
+				confirmationMessages: undefined,
+				presentation: ToolInvocationPresentation.Hidden,
+				toolSpecificData,
 			};
 		}
 
+		// Determine auto approval, this happens even when auto approve is off to that reasoning
+		// can be reviewed in the terminal channel. It also allows gauging the effective set of
+		// commands that would be auto approved if it were enabled.
+		const commandLine = rewrittenCommand ?? args.command;
+
+		const isEligibleForAutoApproval = () => {
+			const config = this._configurationService.getValue<Record<string, boolean>>(ChatConfiguration.EligibleForAutoApproval);
+			if (config && typeof config === 'object') {
+				if (Object.prototype.hasOwnProperty.call(config, TOOL_REFERENCE_NAME)) {
+					return config[TOOL_REFERENCE_NAME];
+				}
+				for (const legacyName of LEGACY_TOOL_REFERENCE_FULL_NAMES) {
+					if (Object.prototype.hasOwnProperty.call(config, legacyName)) {
+						return config[legacyName];
+					}
+				}
+			}
+			// Default
+			return true;
+		};
+		const isAutoApproveEnabled = this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnableAutoApprove) === true;
+		const isAutoApproveWarningAccepted = this._storageService.getBoolean(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION, false);
+		const isAutoApproveAllowed = isEligibleForAutoApproval() && isAutoApproveEnabled && isAutoApproveWarningAccepted;
+
+		const commandLineAnalyzerOptions: ICommandLineAnalyzerOptions = {
+			commandLine,
+			cwd,
+			os,
+			shell,
+			treeSitterLanguage: isPowerShell(shell, os) ? TreeSitterCommandParserLanguage.PowerShell : TreeSitterCommandParserLanguage.Bash,
+			terminalToolSessionId,
+			chatSessionId: context.chatSessionId,
+		};
+		const commandLineAnalyzerResults = await Promise.all(this._commandLineAnalyzers.map(e => e.analyze(commandLineAnalyzerOptions)));
+
+		const disclaimersRaw = commandLineAnalyzerResults.filter(e => e.disclaimers).flatMap(e => e.disclaimers);
+		let disclaimer: IMarkdownString | undefined;
+		if (disclaimersRaw.length > 0) {
+			disclaimer = new MarkdownString(`$(${Codicon.info.id}) ` + disclaimersRaw.join(' '), { supportThemeIcons: true });
+		}
+
+		const analyzersIsAutoApproveAllowed = commandLineAnalyzerResults.every(e => e.isAutoApproveAllowed);
+		const customActions = isEligibleForAutoApproval() && analyzersIsAutoApproveAllowed ? commandLineAnalyzerResults.map(e => e.customActions ?? []).flat() : undefined;
+
+		let shellType = basename(shell, '.exe');
+		if (shellType === 'powershell') {
+			shellType = 'pwsh';
+		}
+
+		// Check if the command would be auto-approved based on rules (ignoring warning state)
+		const wouldBeAutoApproved = (
+			// Does at least one analyzer auto approve
+			commandLineAnalyzerResults.some(e => e.isAutoApproved) &&
+			// No analyzer denies auto approval
+			commandLineAnalyzerResults.every(e => e.isAutoApproved !== false) &&
+			// All analyzers allow auto approval
+			analyzersIsAutoApproveAllowed
+		);
+
+		const isFinalAutoApproved = (
+			// Is the setting enabled and the user has opted-in
+			isAutoApproveAllowed &&
+			// Would be auto-approved based on rules
+			wouldBeAutoApproved
+		);
+
+		// Pass autoApproveInfo if command would be auto-approved (even if warning not yet accepted)
+		// This allows the confirmation widget to auto-approve after user accepts the warning
+		if (isFinalAutoApproved || (isAutoApproveEnabled && wouldBeAutoApproved)) {
+			toolSpecificData.autoApproveInfo = commandLineAnalyzerResults.find(e => e.autoApproveInfo)?.autoApproveInfo;
+		}
+
+		const confirmationMessages = isFinalAutoApproved ? undefined : {
+			title: args.isBackground
+				? localize('runInTerminal.background', "Run `{0}` command? (background terminal)", shellType)
+				: localize('runInTerminal', "Run `{0}` command?", shellType),
+			message: new MarkdownString(args.explanation),
+			disclaimer,
+			terminalCustomActions: customActions,
+		};
+
 		return {
 			confirmationMessages,
-			presentation,
-			toolSpecificData: {
-				kind: 'terminal',
-				terminalToolSessionId,
-				commandLine: {
-					original: args.command,
-					toolEdited: toolEditedCommand
-				},
-				language,
-				alternativeRecommendation,
-				autoApproveInfo,
-			}
+			toolSpecificData,
 		};
 	}
 
@@ -363,6 +502,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		if (!toolSpecificData) {
 			throw new Error('toolSpecificData must be provided for this tool');
 		}
+		const commandId = toolSpecificData.terminalCommandId;
 		if (toolSpecificData.alternativeRecommendation) {
 			return {
 				content: [{
@@ -406,7 +546,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			? this._initBackgroundTerminal(chatSessionId, termId, terminalToolSessionId, token)
 			: this._initForegroundTerminal(chatSessionId, termId, terminalToolSessionId, token));
 
-		this._handleTerminalVisibility(toolTerminal);
+		this._handleTerminalVisibility(toolTerminal, chatSessionId);
 
 		const timingConnectMs = Date.now() - timingStart;
 
@@ -414,6 +554,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		if (!xterm) {
 			throw new Error('Instance was disposed before xterm.js was ready');
 		}
+
+		const commandDetection = toolTerminal.instance.capabilities.get(TerminalCapability.CommandDetection);
 
 		let inputUserChars = 0;
 		let inputUserSigint = false;
@@ -429,7 +571,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			let pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
 			try {
 				this._logService.debug(`RunInTerminalTool: Starting background execution \`${command}\``);
-				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command, chatSessionId);
+				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command, chatSessionId, commandId);
 				RunInTerminalTool._backgroundExecutions.set(termId, execution);
 
 				outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, execution, undefined, invocation.context!, token, command));
@@ -439,6 +581,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
 				}
+
+				await this._commandArtifactCollector.capture(toolSpecificData, toolTerminal.instance, commandId);
+				const state = toolSpecificData.terminalCommandState ?? {};
+				state.timestamp = state.timestamp ?? timingStart;
+				toolSpecificData.terminalCommandState = state;
 
 				let resultText = (
 					didUserEditCommand
@@ -453,16 +600,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					resultText += `\n\ The command is still running, with output:\n${pollingResult.output}`;
 				}
 
-				const toolResultMessage = toolSpecificData.autoApproveInfo;
 				return {
-					toolResultMessage: toolResultMessage,
 					toolMetadata: {
 						exitCode: undefined // Background processes don't have immediate exit codes
 					},
 					content: [{
 						kind: 'text',
 						value: resultText,
-					}]
+					}],
 				};
 			} catch (e) {
 				if (termId) {
@@ -506,9 +651,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 			let outputLineCount = -1;
 			let exitCode: number | undefined;
+			let altBufferResult: IToolResult | undefined;
+			const executeCancellation = store.add(new CancellationTokenSource(token));
 			try {
 				let strategy: ITerminalExecuteStrategy;
-				const commandDetection = toolTerminal.instance.capabilities.get(TerminalCapability.CommandDetection);
 				switch (toolTerminal.shellIntegrationQuality) {
 					case ShellIntegrationQuality.None: {
 						strategy = this._instantiationService.createInstance(NoneExecuteStrategy, toolTerminal.instance, () => toolTerminal.receivedUserInput ?? false);
@@ -530,26 +676,58 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, { instance: toolTerminal.instance, sessionId: invocation.context?.sessionId, getOutput: (marker?: IXtermMarker) => getOutput(toolTerminal.instance, marker ?? startMarker) }, undefined, invocation.context, token, command));
 					}
 				}));
-				const executeResult = await strategy.execute(command, token);
+				const executeResult = await strategy.execute(command, executeCancellation.token, commandId);
 				// Reset user input state after command execution completes
 				toolTerminal.receivedUserInput = false;
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
 				}
 
-				this._logService.debug(`RunInTerminalTool: Finished \`${strategy.type}\` execute strategy with exitCode \`${executeResult.exitCode}\`, result.length \`${executeResult.output?.length}\`, error \`${executeResult.error}\``);
-				outputLineCount = executeResult.output === undefined ? 0 : count(executeResult.output.trim(), '\n') + 1;
-				exitCode = executeResult.exitCode;
-				error = executeResult.error;
+				if (executeResult.didEnterAltBuffer) {
+					const state = toolSpecificData.terminalCommandState ?? {};
+					state.timestamp = state.timestamp ?? timingStart;
+					toolSpecificData.terminalCommandState = state;
+					toolResultMessage = altBufferMessage;
+					outputLineCount = 0;
+					error = executeResult.error ?? 'alternateBuffer';
+					altBufferResult = {
+						toolResultMessage,
+						toolMetadata: {
+							exitCode: undefined
+						},
+						content: [{
+							kind: 'text',
+							value: altBufferMessage,
+						}]
+					};
+				} else {
+					await this._commandArtifactCollector.capture(toolSpecificData, toolTerminal.instance, commandId);
+					{
+						const state = toolSpecificData.terminalCommandState ?? {};
+						state.timestamp = state.timestamp ?? timingStart;
+						if (executeResult.exitCode !== undefined) {
+							state.exitCode = executeResult.exitCode;
+							if (state.timestamp !== undefined) {
+								state.duration = state.duration ?? Math.max(0, Date.now() - state.timestamp);
+							}
+						}
+						toolSpecificData.terminalCommandState = state;
+					}
 
-				const resultArr: string[] = [];
-				if (executeResult.output !== undefined) {
-					resultArr.push(executeResult.output);
+					this._logService.debug(`RunInTerminalTool: Finished \`${strategy.type}\` execute strategy with exitCode \`${executeResult.exitCode}\`, result.length \`${executeResult.output?.length}\`, error \`${executeResult.error}\``);
+					outputLineCount = executeResult.output === undefined ? 0 : count(executeResult.output.trim(), '\n') + 1;
+					exitCode = executeResult.exitCode;
+					error = executeResult.error;
+
+					const resultArr: string[] = [];
+					if (executeResult.output !== undefined) {
+						resultArr.push(executeResult.output);
+					}
+					if (executeResult.additionalInformation) {
+						resultArr.push(executeResult.additionalInformation);
+					}
+					terminalResult = resultArr.join('\n\n');
 				}
-				if (executeResult.additionalInformation) {
-					resultArr.push(executeResult.additionalInformation);
-				}
-				terminalResult = resultArr.join('\n\n');
 
 			} catch (e) {
 				this._logService.debug(`RunInTerminalTool: Threw exception`);
@@ -586,6 +764,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				});
 			}
 
+			if (altBufferResult) {
+				return altBufferResult;
+			}
+
 			const resultText: string[] = [];
 			if (didUserEditCommand) {
 				resultText.push(`Note: The user manually edited the command to \`${command}\`, and this is the output of running that command instead:\n`);
@@ -594,17 +776,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 			resultText.push(terminalResult);
 
-			let resolvedToolResultMessage: IMarkdownString | undefined;
-			if (toolSpecificData.autoApproveInfo) {
-				if (toolResultMessage) {
-					resolvedToolResultMessage = new MarkdownString(`${toolSpecificData.autoApproveInfo.value}\n\n${toolResultMessage}`, toolSpecificData.autoApproveInfo);
-				} else {
-					resolvedToolResultMessage = toolSpecificData.autoApproveInfo;
-				}
-			}
-
 			return {
-				toolResultMessage: resolvedToolResultMessage,
+				toolResultMessage,
 				toolMetadata: {
 					exitCode: exitCode
 				},
@@ -616,8 +789,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 	}
 
-	private _handleTerminalVisibility(toolTerminal: IToolTerminal) {
-		if (this._configurationService.getValue(TerminalChatAgentToolsSettingId.OutputLocation) === 'terminal') {
+	private _handleTerminalVisibility(toolTerminal: IToolTerminal, chatSessionId: string) {
+		const chatSessionOpenInWidget = !!this._chatWidgetService.getWidgetBySessionResource(LocalChatSessionUri.forSession(chatSessionId));
+		if (this._configurationService.getValue(TerminalChatAgentToolsSettingId.OutputLocation) === 'terminal' && chatSessionOpenInWidget) {
 			this._terminalService.setActiveInstance(toolTerminal.instance);
 			this._terminalService.revealTerminal(toolTerminal.instance, true);
 		}
@@ -625,76 +799,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	// #region Terminal init
 
-	protected async _getCopilotProfile(): Promise<ITerminalProfile> {
-		const os = await this._osBackend;
-
-		// Check for chat agent terminal profile first
-		const customChatAgentProfile = this._getChatTerminalProfile(os);
-		if (customChatAgentProfile) {
-			return customChatAgentProfile;
-		}
-
-		// When setting is null, use the previous behavior
-		const defaultProfile = await this._terminalProfileResolverService.getDefaultProfile({
-			os,
-			remoteAuthority: this._remoteAgentService.getConnection()?.remoteAuthority
-		});
-
-		// Force pwsh over cmd as cmd doesn't have shell integration
-		if (basename(defaultProfile.path) === 'cmd.exe') {
-			return {
-				...defaultProfile,
-				path: 'C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
-				profileName: 'PowerShell'
-			};
-		}
-
-		// Setting icon: undefined allows the system to use the default Copilot terminal icon (not overridden or removed)
-		return { ...defaultProfile, icon: undefined };
-	}
-
-	private async _getCopilotShell(): Promise<string> {
-		return (await this._getCopilotProfile()).path;
-	}
-
-	private _getChatTerminalProfile(os: OperatingSystem): ITerminalProfile | undefined {
-		let profileSetting: string;
-		switch (os) {
-			case OperatingSystem.Windows:
-				profileSetting = TerminalChatAgentToolsSettingId.TerminalProfileWindows;
-				break;
-			case OperatingSystem.Macintosh:
-				profileSetting = TerminalChatAgentToolsSettingId.TerminalProfileMacOs;
-				break;
-			case OperatingSystem.Linux:
-			default:
-				profileSetting = TerminalChatAgentToolsSettingId.TerminalProfileLinux;
-				break;
-		}
-
-		const profile = this._configurationService.getValue(profileSetting);
-		if (this._isValidChatAgentTerminalProfile(profile)) {
-			return profile;
-		}
-
-		return undefined;
-	}
-
-	private _isValidChatAgentTerminalProfile(profile: unknown): profile is ITerminalProfile {
-		if (profile === null || profile === undefined || typeof profile !== 'object') {
-			return false;
-		}
-		if ('path' in profile && typeof (profile as { path: unknown }).path === 'string') {
-			return true;
-		}
-		return false;
-	}
-
 	private async _initBackgroundTerminal(chatSessionId: string, termId: string, terminalToolSessionId: string | undefined, token: CancellationToken): Promise<IToolTerminal> {
 		this._logService.debug(`RunInTerminalTool: Creating background terminal with ID=${termId}`);
-		const profile = await this._getCopilotProfile();
-		const toolTerminal = await this._terminalToolCreator.createTerminal(profile, token);
+		const profile = await this._profileFetcher.getCopilotProfile();
+		const os = await this._osBackend;
+		const toolTerminal = await this._terminalToolCreator.createTerminal(profile, os, token);
 		this._terminalChatService.registerTerminalInstanceWithToolSession(terminalToolSessionId, toolTerminal.instance);
+		this._terminalChatService.registerTerminalInstanceWithChatSession(chatSessionId, toolTerminal.instance);
 		this._registerInputListener(toolTerminal);
 		this._sessionTerminalAssociations.set(chatSessionId, toolTerminal);
 		if (token.isCancellationRequested) {
@@ -713,9 +824,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			this._terminalChatService.registerTerminalInstanceWithToolSession(terminalToolSessionId, cachedTerminal.instance);
 			return cachedTerminal;
 		}
-		const profile = await this._getCopilotProfile();
-		const toolTerminal = await this._terminalToolCreator.createTerminal(profile, token);
+		const profile = await this._profileFetcher.getCopilotProfile();
+		const os = await this._osBackend;
+		const toolTerminal = await this._terminalToolCreator.createTerminal(profile, os, token);
 		this._terminalChatService.registerTerminalInstanceWithToolSession(terminalToolSessionId, toolTerminal.instance);
+		this._terminalChatService.registerTerminalInstanceWithChatSession(chatSessionId, toolTerminal.instance);
 		this._registerInputListener(toolTerminal);
 		this._sessionTerminalAssociations.set(chatSessionId, toolTerminal);
 		if (token.isCancellationRequested) {
@@ -756,6 +869,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 							shellIntegrationQuality: association.shellIntegrationQuality
 						};
 						this._sessionTerminalAssociations.set(association.sessionId, toolTerminal);
+						this._terminalChatService.registerTerminalInstanceWithChatSession(association.sessionId, instance);
 
 						// Listen for terminal disposal to clean up storage
 						this._register(instance.onDisposed(() => {
@@ -786,7 +900,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				timeout(5000).then(() => { throw new Error('Timeout'); })
 			]);
 
-			if (typeof pid === 'number') {
+			if (isNumber(pid)) {
 				const storedAssociations = this._storageService.get(TerminalToolStorageKeysInternal.TerminalSession, StorageScope.WORKSPACE, '{}');
 				const associations: Record<number, IStoredTerminalAssociation> = JSON.parse(storedAssociations);
 
@@ -845,78 +959,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	}
 
 	// #endregion
-
-	// #region Auto approve
-
-	private _createAutoApproveInfo(
-		isAutoApproved: boolean,
-		isDenied: boolean,
-		autoApproveReason: 'subCommand' | 'commandLine' | undefined,
-		subCommandResults: ICommandApprovalResultWithReason[],
-		commandLineResult: ICommandApprovalResultWithReason,
-	): MarkdownString | undefined {
-		const formatRuleLinks = (result: SingleOrMany<{ result: ICommandApprovalResult; rule?: IAutoApproveRule; reason: string }>): string => {
-			return asArray(result).map(e => {
-				const settingsUri = createCommandUri(openTerminalSettingsLinkCommandId, e.rule!.sourceTarget);
-				return `[\`${e.rule!.sourceText}\`](${settingsUri.toString()} "${localize('ruleTooltip', 'View rule in settings')}")`;
-			}).join(', ');
-		};
-
-		const mdTrustSettings = {
-			isTrusted: {
-				enabledCommands: [openTerminalSettingsLinkCommandId]
-			}
-		};
-
-		const config = this._configurationService.inspect<boolean | Record<string, boolean>>(ChatConfiguration.GlobalAutoApprove);
-		const isGlobalAutoApproved = config?.value ?? config.defaultValue;
-		if (isGlobalAutoApproved) {
-			const settingsUri = createCommandUri(openTerminalSettingsLinkCommandId, 'global');
-			return new MarkdownString(`*${localize('autoApprove.global', 'Auto approved by setting {0}', `[\`${ChatConfiguration.GlobalAutoApprove}\`](${settingsUri.toString()} "${localize('ruleTooltip.global', 'View settings')}")`)}*`, mdTrustSettings);
-		}
-
-		if (isAutoApproved) {
-			switch (autoApproveReason) {
-				case 'commandLine': {
-					if (commandLineResult.rule) {
-						return new MarkdownString(`*${localize('autoApprove.rule', 'Auto approved by rule {0}', formatRuleLinks(commandLineResult))}*`, mdTrustSettings);
-					}
-					break;
-				}
-				case 'subCommand': {
-					const uniqueRules = dedupeRules(subCommandResults);
-					if (uniqueRules.length === 1) {
-						return new MarkdownString(`*${localize('autoApprove.rule', 'Auto approved by rule {0}', formatRuleLinks(uniqueRules))}*`, mdTrustSettings);
-					} else if (uniqueRules.length > 1) {
-						return new MarkdownString(`*${localize('autoApprove.rules', 'Auto approved by rules {0}', formatRuleLinks(uniqueRules))}*`, mdTrustSettings);
-					}
-					break;
-				}
-			}
-		} else if (isDenied) {
-			switch (autoApproveReason) {
-				case 'commandLine': {
-					if (commandLineResult.rule) {
-						return new MarkdownString(`*${localize('autoApproveDenied.rule', 'Auto approval denied by rule {0}', formatRuleLinks(commandLineResult))}*`, mdTrustSettings);
-					}
-					break;
-				}
-				case 'subCommand': {
-					const uniqueRules = dedupeRules(subCommandResults.filter(e => e.result === 'denied'));
-					if (uniqueRules.length === 1) {
-						return new MarkdownString(`*${localize('autoApproveDenied.rule', 'Auto approval denied by rule {0}', formatRuleLinks(uniqueRules))}*`);
-					} else if (uniqueRules.length > 1) {
-						return new MarkdownString(`*${localize('autoApproveDenied.rules', 'Auto approval denied by rules {0}', formatRuleLinks(uniqueRules))}*`);
-					}
-					break;
-				}
-			}
-		}
-
-		return undefined;
-	}
-
-	// #endregion
 }
 
 class BackgroundTerminalExecution extends Disposable {
@@ -926,14 +968,95 @@ class BackgroundTerminalExecution extends Disposable {
 		readonly instance: ITerminalInstance,
 		private readonly _xterm: XtermTerminal,
 		private readonly _commandLine: string,
-		readonly sessionId: string
+		readonly sessionId: string,
+		commandId?: string,
 	) {
 		super();
 
 		this._startMarker = this._register(this._xterm.raw.registerMarker());
-		this.instance.runCommand(this._commandLine, true);
+		this.instance.runCommand(this._commandLine, true, commandId);
 	}
 	getOutput(marker?: IXtermMarker): string {
 		return getOutput(this.instance, marker ?? this._startMarker);
 	}
 }
+
+export class TerminalProfileFetcher {
+
+	readonly osBackend: Promise<OperatingSystem>;
+
+	constructor(
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
+		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
+	) {
+		this.osBackend = this._remoteAgentService.getEnvironment().then(remoteEnv => remoteEnv?.os ?? OS);
+	}
+
+	async getCopilotProfile(): Promise<ITerminalProfile> {
+		const os = await this.osBackend;
+
+		// Check for chat agent terminal profile first
+		const customChatAgentProfile = this._getChatTerminalProfile(os);
+		if (customChatAgentProfile) {
+			return customChatAgentProfile;
+		}
+
+		// When setting is null, use the previous behavior
+		const defaultProfile = await this._terminalProfileResolverService.getDefaultProfile({
+			os,
+			remoteAuthority: this._remoteAgentService.getConnection()?.remoteAuthority
+		});
+
+		// Force pwsh over cmd as cmd doesn't have shell integration
+		if (basename(defaultProfile.path) === 'cmd.exe') {
+			return {
+				...defaultProfile,
+				path: 'C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
+				profileName: 'PowerShell'
+			};
+		}
+
+		// Setting icon: undefined allows the system to use the default AI terminal icon (not overridden or removed)
+		return { ...defaultProfile, icon: undefined };
+	}
+
+	async getCopilotShell(): Promise<string> {
+		return (await this.getCopilotProfile()).path;
+	}
+
+	private _getChatTerminalProfile(os: OperatingSystem): ITerminalProfile | undefined {
+		let profileSetting: string;
+		switch (os) {
+			case OperatingSystem.Windows:
+				profileSetting = TerminalChatAgentToolsSettingId.TerminalProfileWindows;
+				break;
+			case OperatingSystem.Macintosh:
+				profileSetting = TerminalChatAgentToolsSettingId.TerminalProfileMacOs;
+				break;
+			case OperatingSystem.Linux:
+			default:
+				profileSetting = TerminalChatAgentToolsSettingId.TerminalProfileLinux;
+				break;
+		}
+
+		const profile = this._configurationService.getValue(profileSetting);
+		if (this._isValidChatAgentTerminalProfile(profile)) {
+			return profile;
+		}
+
+		return undefined;
+	}
+
+	private _isValidChatAgentTerminalProfile(profile: unknown): profile is ITerminalProfile {
+		if (profile === null || profile === undefined || typeof profile !== 'object') {
+			return false;
+		}
+		if ('path' in profile && isString((profile as { path: unknown }).path)) {
+			return true;
+		}
+		return false;
+	}
+}
+
+// #endregion

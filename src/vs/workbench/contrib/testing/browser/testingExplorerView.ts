@@ -14,7 +14,7 @@ import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/icon
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { DefaultKeyboardNavigationDelegate, IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
 import { ITreeContextMenuEvent, ITreeFilter, ITreeNode, ITreeRenderer, ITreeSorter, TreeFilterResult, TreeVisibility } from '../../../../base/browser/ui/tree/tree.js';
-import { Action, ActionRunner, IAction, Separator } from '../../../../base/common/actions.js';
+import { Action, ActionRunner, IAction, Separator, toAction } from '../../../../base/common/actions.js';
 import { mapFindFirst } from '../../../../base/common/arraysFind.js';
 import { RunOnceScheduler, disposableTimeout } from '../../../../base/common/async.js';
 import { groupBy } from '../../../../base/common/collections.js';
@@ -345,17 +345,15 @@ export class TestingExplorerView extends ViewPane {
 				if (!hasAdded) {
 					hasAdded = true;
 					participatingGroups++;
-					profileActions.push(new Action(`${controller.id}.$root`, controller.label.get(), undefined, false));
+					profileActions.push(toAction({ id: `${controller.id}.$root`, label: controller.label.get(), enabled: false, checked: false, run: () => { } }));
 				}
 
 				hasConfigurable = hasConfigurable || profile.hasConfigurationHandler;
 				participatingProfiles++;
-				profileActions.push(new Action(
-					`${controller.id}.${profile.profileId}`,
-					defaults.includes(profile) ? localize('defaultTestProfile', '{0} (Default)', profile.label) : profile.label,
-					undefined,
-					undefined,
-					() => {
+				profileActions.push(toAction({
+					id: `${controller.id}.${profile.profileId}`,
+					label: defaults.includes(profile) ? localize('defaultTestProfile', '{0} (Default)', profile.label) : profile.label,
+					run: () => {
 						const { include, exclude } = this.getTreeIncludeExclude(profile);
 						this.testService.runResolvedTests({
 							exclude: exclude.map(e => e.item.extId),
@@ -367,7 +365,7 @@ export class TestingExplorerView extends ViewPane {
 							}]
 						});
 					},
-				));
+				}));
 			}
 		}
 
@@ -390,23 +388,19 @@ export class TestingExplorerView extends ViewPane {
 
 		const postActions: IAction[] = [];
 		if (participatingProfiles > 1) {
-			postActions.push(new Action(
-				'selectDefaultTestConfigurations',
-				localize('selectDefaultConfigs', 'Select Default Profile'),
-				undefined,
-				undefined,
-				() => this.commandService.executeCommand<ITestRunProfile>(TestCommandId.SelectDefaultTestProfiles, group),
-			));
+			postActions.push(toAction({
+				id: 'selectDefaultTestConfigurations',
+				label: localize('selectDefaultConfigs', 'Select Default Profile'),
+				run: () => this.commandService.executeCommand<ITestRunProfile>(TestCommandId.SelectDefaultTestProfiles, group),
+			}));
 		}
 
 		if (hasConfigurable) {
-			postActions.push(new Action(
-				'configureTestProfiles',
-				localize('configureTestProfiles', 'Configure Test Profiles'),
-				undefined,
-				undefined,
-				() => this.commandService.executeCommand<ITestRunProfile>(TestCommandId.ConfigureTestProfilesAction, group),
-			));
+			postActions.push(toAction({
+				id: 'configureTestProfiles',
+				label: localize('configureTestProfiles', 'Configure Test Profiles'),
+				run: () => this.commandService.executeCommand<ITestRunProfile>(TestCommandId.ConfigureTestProfilesAction, group),
+			}));
 		}
 
 		// show menu actions if there are any otherwise don't
@@ -1370,7 +1364,7 @@ class TestExplorerActionRunner extends ActionRunner {
 		super();
 	}
 
-	protected override async runAction(action: IAction, context: TestExplorerTreeElement): Promise<any> {
+	protected override async runAction(action: IAction, context: TestExplorerTreeElement): Promise<void> {
 		if (!(action instanceof MenuItemAction)) {
 			return super.runAction(action, context);
 		}

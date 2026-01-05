@@ -106,11 +106,11 @@ export async function askForPromptSourceFolder(
 function getPlaceholderStringforNew(type: PromptsType): string {
 	switch (type) {
 		case PromptsType.instructions:
-			return localize('workbench.command.instructions.create.location.placeholder', "Select a location to create the instructions file in...");
+			return localize('workbench.command.instructions.create.location.placeholder', "Select a location to create the instructions file");
 		case PromptsType.prompt:
-			return localize('workbench.command.prompt.create.location.placeholder', "Select a location to create the prompt file in...");
-		case PromptsType.mode:
-			return localize('workbench.command.mode.create.location.placeholder', "Select a location to create the mode file in...");
+			return localize('workbench.command.prompt.create.location.placeholder', "Select a location to create the prompt file");
+		case PromptsType.agent:
+			return localize('workbench.command.agent.create.location.placeholder', "Select a location to create the agent file");
 		default:
 			throw new Error('Unknown prompt type');
 	}
@@ -120,22 +120,22 @@ function getPlaceholderStringforMove(type: PromptsType, isMove: boolean): string
 	if (isMove) {
 		switch (type) {
 			case PromptsType.instructions:
-				return localize('instructions.move.location.placeholder', "Select a location to move the instructions file to...");
+				return localize('instructions.move.location.placeholder', "Select a location to move the instructions file to");
 			case PromptsType.prompt:
-				return localize('prompt.move.location.placeholder', "Select a location to move the prompt file to...");
-			case PromptsType.mode:
-				return localize('mode.move.location.placeholder', "Select a location to move the mode file to...");
+				return localize('prompt.move.location.placeholder', "Select a location to move the prompt file to");
+			case PromptsType.agent:
+				return localize('agent.move.location.placeholder', "Select a location to move the agent file to");
 			default:
 				throw new Error('Unknown prompt type');
 		}
 	}
 	switch (type) {
 		case PromptsType.instructions:
-			return localize('instructions.copy.location.placeholder', "Select a location to copy the instructions file to...");
+			return localize('instructions.copy.location.placeholder', "Select a location to copy the instructions file to");
 		case PromptsType.prompt:
-			return localize('prompt.copy.location.placeholder', "Select a location to copy the prompt file to...");
-		case PromptsType.mode:
-			return localize('mode.copy.location.placeholder', "Select a location to copy the mode file to...");
+			return localize('prompt.copy.location.placeholder', "Select a location to copy the prompt file to");
+		case PromptsType.agent:
+			return localize('agent.copy.location.placeholder', "Select a location to copy the agent file to");
 		default:
 			throw new Error('Unknown prompt type');
 	}
@@ -177,8 +177,8 @@ function getLearnLabel(type: PromptsType): string {
 			return localize('commands.prompts.create.ask-folder.empty.docs-label', 'Learn how to configure reusable prompts');
 		case PromptsType.instructions:
 			return localize('commands.instructions.create.ask-folder.empty.docs-label', 'Learn how to configure reusable instructions');
-		case PromptsType.mode:
-			return localize('commands.mode.create.ask-folder.empty.docs-label', 'Learn how to configure custom chat modes');
+		case PromptsType.agent:
+			return localize('commands.agent.create.ask-folder.empty.docs-label', 'Learn how to configure custom agents');
 		default:
 			throw new Error('Unknown prompt type');
 	}
@@ -190,8 +190,8 @@ function getMissingSourceFolderString(type: PromptsType): string {
 			return localize('commands.instructions.create.ask-folder.empty.placeholder', 'No instruction source folders found.');
 		case PromptsType.prompt:
 			return localize('commands.prompts.create.ask-folder.empty.placeholder', 'No prompt source folders found.');
-		case PromptsType.mode:
-			return localize('commands.mode.create.ask-folder.empty.placeholder', 'No custom chat mode source folders found.');
+		case PromptsType.agent:
+			return localize('commands.agent.create.ask-folder.empty.placeholder', 'No agent source folders found.');
 		default:
 			throw new Error('Unknown prompt type');
 	}

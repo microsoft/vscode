@@ -8,12 +8,12 @@ import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { isNumber } from '../../../../../../base/common/types.js';
-import type { ICommandDetectionCapability, ITerminalCommand } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
+import type { ICommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { trackIdleOnPrompt, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
-import { setupRecreatingStartMarker } from './strategyHelpers.js';
+import { createAltBufferPromise, setupRecreatingStartMarker } from './strategyHelpers.js';
 
 /**
  * This strategy is used when the terminal has rich shell integration/command detection is
@@ -36,7 +36,7 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 	) {
 	}
 
-	async execute(commandLine: string, token: CancellationToken): Promise<ITerminalExecuteStrategyResult> {
+	async execute(commandLine: string, token: CancellationToken, commandId?: string): Promise<ITerminalExecuteStrategyResult> {
 		const store = new DisposableStore();
 		try {
 			// Ensure xterm is available
@@ -45,14 +45,22 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 			if (!xterm) {
 				throw new Error('Xterm is not available');
 			}
+			const alternateBufferPromise = createAltBufferPromise(xterm, store, this._log.bind(this));
 
-			const onDone: Promise<ITerminalCommand | void> = Promise.race([
+			const onDone = Promise.race([
 				Event.toPromise(this._commandDetection.onCommandFinished, store).then(e => {
 					this._log('onDone via end event');
-					return e;
+					return {
+						'type': 'success',
+						command: e
+					} as const;
 				}),
 				Event.toPromise(token.onCancellationRequested as Event<undefined>, store).then(() => {
 					this._log('onDone via cancellation');
+				}),
+				Event.toPromise(this._instance.onDisposed, store).then(() => {
+					this._log('onDone via terminal disposal');
+					return { type: 'disposal' } as const;
 				}),
 				trackIdleOnPrompt(this._instance, 1000, store).then(() => {
 					this._log('onDone via idle prompt');
@@ -69,11 +77,25 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 
 			// Execute the command
 			this._log(`Executing command line \`${commandLine}\``);
-			this._instance.runCommand(commandLine, true);
+			this._instance.runCommand(commandLine, true, commandId);
 
 			// Wait for the terminal to idle
 			this._log('Waiting for done event');
-			const finishedCommand = await onDone;
+			const onDoneResult = await Promise.race([onDone, alternateBufferPromise.then(() => ({ type: 'alternateBuffer' } as const))]);
+			if (onDoneResult && onDoneResult.type === 'disposal') {
+				throw new Error('The terminal was closed');
+			}
+			if (onDoneResult && onDoneResult.type === 'alternateBuffer') {
+				this._log('Detected alternate buffer entry, skipping output capture');
+				return {
+					output: undefined,
+					exitCode: undefined,
+					error: 'alternateBuffer',
+					didEnterAltBuffer: true
+				};
+			}
+			const finishedCommand = onDoneResult && onDoneResult.type === 'success' ? onDoneResult.command : undefined;
+
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}

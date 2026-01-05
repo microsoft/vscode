@@ -187,9 +187,9 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 					}
 				}
 
-				if ((<IFilePathCondition>condition).pathGlob) {
-					const pathGlob = (<IFilePathCondition>condition).pathGlob;
-					if (processedPathGlobs.get(pathGlob) ?? match((<IFilePathCondition>condition).pathGlob, uri.with({ fragment: '' }).toString())) {
+				const pathGlob = (<IFilePathCondition>condition).pathGlob;
+				if (pathGlob) {
+					if (processedPathGlobs.get(pathGlob) ?? match(pathGlob, uri.with({ fragment: '' }).toString(), { ignoreCase: true })) {
 						pathGlobMatched = true;
 					}
 					processedPathGlobs.set(pathGlob, pathGlobMatched);

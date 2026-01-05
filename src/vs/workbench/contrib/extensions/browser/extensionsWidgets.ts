@@ -75,7 +75,8 @@ export function onClick(element: HTMLElement, callback: () => void): IDisposable
 
 export class ExtensionIconWidget extends ExtensionWidget {
 
-	private readonly disposables = this._register(new DisposableStore());
+	private readonly iconLoadingDisposable = this._register(new MutableDisposable());
+	private readonly iconErrorDisposable = this._register(new MutableDisposable());
 	private readonly element: HTMLElement;
 	private readonly iconElement: HTMLImageElement;
 	private readonly defaultIconElement: HTMLElement;
@@ -103,7 +104,8 @@ export class ExtensionIconWidget extends ExtensionWidget {
 		this.iconElement.src = '';
 		this.iconElement.style.display = 'none';
 		this.defaultIconElement.style.display = 'none';
-		this.disposables.clear();
+		this.iconErrorDisposable.clear();
+		this.iconLoadingDisposable.clear();
 	}
 
 	render(): void {
@@ -113,22 +115,24 @@ export class ExtensionIconWidget extends ExtensionWidget {
 		}
 
 		if (this.extension.iconUrl) {
-			this.iconElement.style.display = 'inherit';
-			this.defaultIconElement.style.display = 'none';
 			if (this.iconUrl !== this.extension.iconUrl) {
+				this.iconElement.style.display = 'inherit';
+				this.defaultIconElement.style.display = 'none';
 				this.iconUrl = this.extension.iconUrl;
-				this.disposables.add(addDisposableListener(this.iconElement, 'error', () => {
+				this.iconErrorDisposable.value = addDisposableListener(this.iconElement, 'error', () => {
 					if (this.extension?.iconUrlFallback) {
 						this.iconElement.src = this.extension.iconUrlFallback;
 					} else {
 						this.iconElement.style.display = 'none';
 						this.defaultIconElement.style.display = 'inherit';
 					}
-				}, { once: true }));
+				}, { once: true });
 				this.iconElement.src = this.iconUrl;
 				if (!this.iconElement.complete) {
 					this.iconElement.style.visibility = 'hidden';
-					this.iconElement.onload = () => this.iconElement.style.visibility = 'inherit';
+					this.iconLoadingDisposable.value = addDisposableListener(this.iconElement, 'load', () => {
+						this.iconElement.style.visibility = 'inherit';
+					});
 				} else {
 					this.iconElement.style.visibility = 'inherit';
 				}
@@ -138,6 +142,8 @@ export class ExtensionIconWidget extends ExtensionWidget {
 			this.iconElement.style.display = 'none';
 			this.iconElement.src = '';
 			this.defaultIconElement.style.display = 'inherit';
+			this.iconErrorDisposable.clear();
+			this.iconLoadingDisposable.clear();
 		}
 	}
 }

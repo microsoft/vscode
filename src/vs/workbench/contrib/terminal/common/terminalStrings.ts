@@ -41,5 +41,6 @@ export const terminalStrings = {
 	newWithCwd: localize2('workbench.action.terminal.newWithCwd', "Create New Terminal Starting in a Custom Working Directory"),
 	renameWithArgs: localize2('workbench.action.terminal.renameWithArg', "Rename the Currently Active Terminal"),
 	scrollToPreviousCommand: localize2('workbench.action.terminal.scrollToPreviousCommand', "Scroll to Previous Command"),
-	scrollToNextCommand: localize2('workbench.action.terminal.scrollToNextCommand', "Scroll to Next Command")
+	scrollToNextCommand: localize2('workbench.action.terminal.scrollToNextCommand', "Scroll to Next Command"),
+	revealCommand: localize2('workbench.action.terminal.revealCommand', "Reveal Command in Terminal"),
 };

@@ -52,6 +52,11 @@ export interface IActionChangeEvent {
 	readonly checked?: boolean;
 }
 
+/**
+ * A concrete implementation of {@link IAction}.
+ *
+ * Note that in most cases you should use the lighter-weight {@linkcode toAction} function instead.
+ */
 export class Action extends Disposable implements IAction {
 
 	protected _onDidChange = this._register(new Emitter<IActionChangeEvent>());
@@ -223,7 +228,7 @@ export class Separator implements IAction {
 	readonly tooltip: string = '';
 	readonly class: string = 'separator';
 	readonly enabled: boolean = false;
-	readonly checked: boolean = false;
+	readonly checked: undefined = undefined;
 	async run() { }
 }
 

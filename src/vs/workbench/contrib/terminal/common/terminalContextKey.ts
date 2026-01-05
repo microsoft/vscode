@@ -7,6 +7,7 @@ import { localize } from '../../../../nls.js';
 import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
 import { TERMINAL_VIEW_ID } from './terminal.js';
+import { TerminalContribContextKeyStrings } from '../terminalContribExports.js';
 
 export const enum TerminalContextKeyStrings {
 	IsOpen = 'terminalIsOpen',
@@ -146,6 +147,7 @@ export namespace TerminalContextKeys {
 	export const shouldShowViewInlineActions = ContextKeyExpr.and(
 		ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
 		ContextKeyExpr.notEquals(`config.${TerminalSettingId.TabsHideCondition}`, 'never'),
+		ContextKeyExpr.not(TerminalContribContextKeyStrings.ChatHasHiddenTerminals),
 		ContextKeyExpr.or(
 			ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`),
 			ContextKeyExpr.and(

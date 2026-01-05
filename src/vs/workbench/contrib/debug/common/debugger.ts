@@ -241,10 +241,9 @@ export class Debugger implements IDebugger, IDebuggerMetadata {
 		}
 
 		// fill in the default configuration attributes shared by all adapters.
-		return Object.keys(this.debuggerContribution.configurationAttributes).map(request => {
+		return Object.entries(this.debuggerContribution.configurationAttributes).map(([request, attributes]) => {
 			const definitionId = `${this.type}:${request}`;
 			const platformSpecificDefinitionId = `${this.type}:${request}:platform`;
-			const attributes: IJSONSchema = this.debuggerContribution.configurationAttributes[request];
 			const defaultRequired = ['name', 'type', 'request'];
 			attributes.required = attributes.required && attributes.required.length ? defaultRequired.concat(attributes.required) : defaultRequired;
 			attributes.additionalProperties = false;

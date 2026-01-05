@@ -7,7 +7,7 @@ import { timeout } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import * as objects from '../../../../base/common/objects.js';
 import * as platform from '../../../../base/common/platform.js';
 import { removeDangerousEnvVariables } from '../../../../base/common/processes.js';
@@ -38,6 +38,7 @@ import { ExtensionHostExtensions, ExtensionHostStartup, IExtensionHost, IExtensi
 import { IHostService } from '../../host/browser/host.js';
 import { ILifecycleService, WillShutdownEvent } from '../../lifecycle/common/lifecycle.js';
 import { parseExtensionDevOptions } from '../common/extensionDevOptions.js';
+import { IDefaultLogLevelsService } from '../../log/common/defaultLogLevels.js';
 
 export interface ILocalProcessExtensionHostInitData {
 	readonly extensions: ExtensionHostExtensions;
@@ -59,7 +60,7 @@ export class ExtensionHostProcess {
 		return this._extensionHostStarter.onDynamicStderr(this._id);
 	}
 
-	public get onMessage(): Event<any> {
+	public get onMessage(): Event<unknown> {
 		return this._extensionHostStarter.onDynamicMessage(this._id);
 	}
 
@@ -87,18 +88,17 @@ export class ExtensionHostProcess {
 	}
 }
 
-export class NativeLocalProcessExtensionHost implements IExtensionHost {
+export class NativeLocalProcessExtensionHost extends Disposable implements IExtensionHost {
 
 	public pid: number | null = null;
 	public readonly remoteAuthority = null;
 	public extensions: ExtensionHostExtensions | null = null;
 
-	private readonly _onExit: Emitter<[number, string]> = new Emitter<[number, string]>();
+	private readonly _onExit: Emitter<[number, string]> = this._register(new Emitter<[number, string]>());
 	public readonly onExit: Event<[number, string]> = this._onExit.event;
 
-	private readonly _onDidSetInspectPort = new Emitter<void>();
+	private readonly _onDidSetInspectPort = this._register(new Emitter<void>());
 
-	private readonly _toDispose = new DisposableStore();
 
 	private readonly _isExtensionDevHost: boolean;
 	private readonly _isExtensionDevDebug: boolean;
@@ -132,7 +132,9 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 		@IProductService private readonly _productService: IProductService,
 		@IShellEnvironmentService private readonly _shellEnvironmentService: IShellEnvironmentService,
 		@IExtensionHostStarter private readonly _extensionHostStarter: IExtensionHostStarter,
+		@IDefaultLogLevelsService private readonly _defaultLogLevelsService: IDefaultLogLevelsService,
 	) {
+		super();
 		const devOpts = parseExtensionDevOptions(this._environmentService);
 		this._isExtensionDevHost = devOpts.isExtensionDevHost;
 		this._isExtensionDevDebug = devOpts.isExtensionDevDebug;
@@ -145,27 +147,26 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 		this._extensionHostProcess = null;
 		this._messageProtocol = null;
 
-		this._toDispose.add(this._onExit);
-		this._toDispose.add(this._lifecycleService.onWillShutdown(e => this._onWillShutdown(e)));
-		this._toDispose.add(this._extensionHostDebugService.onClose(event => {
+		this._register(this._lifecycleService.onWillShutdown(e => this._onWillShutdown(e)));
+		this._register(this._extensionHostDebugService.onClose(event => {
 			if (this._isExtensionDevHost && this._environmentService.debugExtensionHost.debugId === event.sessionId) {
 				this._nativeHostService.closeWindow();
 			}
 		}));
-		this._toDispose.add(this._extensionHostDebugService.onReload(event => {
+		this._register(this._extensionHostDebugService.onReload(event => {
 			if (this._isExtensionDevHost && this._environmentService.debugExtensionHost.debugId === event.sessionId) {
 				this._hostService.reload();
 			}
 		}));
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		if (this._terminating) {
 			return;
 		}
 		this._terminating = true;
-
-		this._toDispose.dispose();
+		super.dispose();
+		this._messageProtocol = null;
 	}
 
 	public start(): Promise<IMessagePassingProtocol> {
@@ -248,8 +249,8 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 
 		// Catch all output coming from the extension host process
 		type Output = { data: string; format: string[] };
-		const onStdout = this._handleProcessOutputStream(this._extensionHostProcess.onStdout, this._toDispose);
-		const onStderr = this._handleProcessOutputStream(this._extensionHostProcess.onStderr, this._toDispose);
+		const onStdout = this._handleProcessOutputStream(this._extensionHostProcess.onStdout);
+		const onStderr = this._handleProcessOutputStream(this._extensionHostProcess.onStderr);
 		const onOutput = Event.any(
 			Event.map(onStdout.event, o => ({ data: `%c${o}`, format: [''] })),
 			Event.map(onStderr.event, o => ({ data: `%c${o}`, format: ['color: red'] }))
@@ -263,13 +264,13 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 		}, 100);
 
 		// Print out extension host output
-		this._toDispose.add(onDebouncedOutput(output => {
+		this._register(onDebouncedOutput(output => {
 			const inspectorUrlMatch = output.data && output.data.match(/ws:\/\/([^\s]+):(\d+)\/([^\s]+)/);
 			if (inspectorUrlMatch) {
 				const [, host, port, auth] = inspectorUrlMatch;
 				const devtoolsUrl = `devtools://devtools/bundled/inspector.html?experiments=true&v8only=true&ws=${host}:${port}/${auth}`;
 				if (!this._environmentService.isBuilt && !this._isExtensionDevTestFromCli) {
-					console.log(`%c[Extension Host] %cdebugger inspector at ${devtoolsUrl}`, 'color: blue', 'color:');
+					console.debug(`%c[Extension Host] %cdebugger inspector at ${devtoolsUrl}`, 'color: blue', 'color:');
 				}
 				if (!this._inspectListener || !this._inspectListener.devtoolsUrl) {
 					this._inspectListener = { host, port: Number(port), devtoolsUrl };
@@ -286,7 +287,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 
 		// Lifecycle
 
-		this._toDispose.add(this._extensionHostProcess.onExit(({ code, signal }) => this._onExtHostProcessExit(code, signal)));
+		this._register(this._extensionHostProcess.onExit(({ code, signal }) => this._onExtHostProcessExit(code, signal)));
 
 		// Notify debugger that we are ready to attach to the process if we run a development extension
 		if (portNumber) {
@@ -349,7 +350,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 				if (this._isExtensionDevDebugBrk) {
 					console.warn(`%c[Extension Host] %cSTOPPED on first line for debugging on port ${port}`, 'color: blue', 'color:');
 				} else {
-					console.info(`%c[Extension Host] %cdebugger listening on port ${port}`, 'color: blue', 'color:');
+					console.debug(`%c[Extension Host] %cdebugger listening on port ${port}`, 'color: blue', 'color:');
 				}
 			}
 		}
@@ -371,9 +372,10 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 			}, 60 * 1000);
 
 			portPromise.then((port) => {
-				this._toDispose.add(toDisposable(() => {
+				this._register(toDisposable(() => {
 					// Close the message port when the extension host is disposed
 					port.close();
+					port.onmessage = null;
 				}));
 				clearTimeout(handle);
 
@@ -485,7 +487,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
 				globalStorageHome: this._userDataProfilesService.defaultProfile.globalStorageHome,
 				workspaceStorageHome: this._environmentService.workspaceStorageHome,
-				extensionLogLevel: this._environmentService.extensionLogLevel
+				extensionLogLevel: this._defaultLogLevelsService.defaultLogLevels.extensions
 			},
 			workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {
 				configuration: workspace.configuration ?? undefined,
@@ -508,7 +510,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 				sessionId: this._telemetryService.sessionId,
 				machineId: this._telemetryService.machineId,
 				sqmId: this._telemetryService.sqmId,
-				devDeviceId: this._telemetryService.devDeviceId,
+				devDeviceId: this._telemetryService.devDeviceId ?? this._telemetryService.machineId,
 				firstSessionDate: this._telemetryService.firstSessionDate,
 				msftInternal: this._telemetryService.msftInternal
 			},
@@ -530,7 +532,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 		this._onExit.fire([code, signal]);
 	}
 
-	private _handleProcessOutputStream(stream: Event<string>, store: DisposableStore) {
+	private _handleProcessOutputStream(stream: Event<string>) {
 		let last = '';
 		let isOmitting = false;
 		const event = new Emitter<string>();
@@ -558,7 +560,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 					event.fire(line + '\n');
 				}
 			}
-		}, undefined, store);
+		}, undefined, this._store);
 
 		return event;
 	}

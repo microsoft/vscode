@@ -130,6 +130,7 @@ export class SuggestWidget implements IDisposable {
 	private readonly _ctxSuggestWidgetDetailsVisible: IContextKey<boolean>;
 	private readonly _ctxSuggestWidgetMultipleSuggestions: IContextKey<boolean>;
 	private readonly _ctxSuggestWidgetHasFocusedSuggestion: IContextKey<boolean>;
+	private readonly _ctxSuggestWidgetDetailsFocused: IContextKey<boolean>;
 
 	private readonly _showTimeout = new TimeoutTimer();
 	private readonly _disposables = new DisposableStore();
@@ -269,7 +270,7 @@ export class SuggestWidget implements IDisposable {
 			listInactiveFocusOutline: activeContrastBorder
 		}));
 
-		this._status = instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, suggestWidgetStatusbarMenu);
+		this._status = instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, suggestWidgetStatusbarMenu, { allowIcons: true });
 		const applyStatusBarStyle = () => this.element.domNode.classList.toggle('with-status-bar', this.editor.getOption(EditorOption.suggest).showStatusBar);
 		applyStatusBarStyle();
 
@@ -292,6 +293,12 @@ export class SuggestWidget implements IDisposable {
 		this._ctxSuggestWidgetDetailsVisible = SuggestContext.DetailsVisible.bindTo(_contextKeyService);
 		this._ctxSuggestWidgetMultipleSuggestions = SuggestContext.MultipleSuggestions.bindTo(_contextKeyService);
 		this._ctxSuggestWidgetHasFocusedSuggestion = SuggestContext.HasFocusedSuggestion.bindTo(_contextKeyService);
+		this._ctxSuggestWidgetDetailsFocused = SuggestContext.DetailsFocused.bindTo(_contextKeyService);
+
+		const detailsFocusTracker = dom.trackFocus(this._details.widget.domNode);
+		this._disposables.add(detailsFocusTracker);
+		this._disposables.add(detailsFocusTracker.onDidFocus(() => this._ctxSuggestWidgetDetailsFocused.set(true)));
+		this._disposables.add(detailsFocusTracker.onDidBlur(() => this._ctxSuggestWidgetDetailsFocused.set(false)));
 
 		this._disposables.add(dom.addStandardDisposableListener(this._details.widget.domNode, 'keydown', e => {
 			this._onDetailsKeydown.fire(e);

@@ -7,7 +7,7 @@ import { localize } from '../../../../nls.js';
 import { distinct, coalesce } from '../../../../base/common/arrays.js';
 import * as strings from '../../../../base/common/strings.js';
 import { OperatingSystem, Language } from '../../../../base/common/platform.js';
-import { IMatch, IFilter, or, matchesContiguousSubString, matchesPrefix, matchesCamelCase, matchesWords } from '../../../../base/common/filters.js';
+import { IMatch, IFilter, or, matchesCamelCase, matchesWords, matchesBaseContiguousSubString, matchesContiguousSubString } from '../../../../base/common/filters.js';
 import { ResolvedKeybinding, ResolvedChord } from '../../../../base/common/keybindings.js';
 import { AriaLabelProvider, UserSettingsLabelProvider, UILabelProvider, ModifierLabels as ModLabels } from '../../../../base/common/keybindingLabels.js';
 import { MenuRegistry } from '../../../../platform/actions/common/actions.js';
@@ -39,7 +39,7 @@ export function createKeybindingCommandQuery(commandId: string, when?: string): 
 	return `@command:${commandId}${whenPart}`;
 }
 
-const wordFilter = or(matchesPrefix, matchesWords, matchesContiguousSubString);
+const wordFilter = or(matchesBaseContiguousSubString, matchesWords);
 const COMMAND_REGEX = /@command:\s*([^\+]+)/i;
 const WHEN_REGEX = /\+when:\s*(.+)/i;
 const SOURCE_REGEX = /@source:\s*(user|default|system|extension)/i;

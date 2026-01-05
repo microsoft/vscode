@@ -46,7 +46,7 @@ import { IQuickInputService, IQuickPick, IQuickPickItem } from '../../../../plat
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { FloatingEditorClickMenu } from '../../../browser/codeeditor.js';
 import { IChatCodeBlockContextProviderService } from '../../chat/browser/chat.js';
-import { ICodeBlockActionContext } from '../../chat/browser/codeBlockPart.js';
+import { ICodeBlockActionContext } from '../../chat/browser/widget/chatContentParts/codeBlockPart.js';
 import { getSimpleEditorOptions } from '../../codeEditor/browser/simpleEditorOptions.js';
 import { AccessibilityCommandId } from '../common/accessibilityCommands.js';
 import { AccessibilityVerbositySettingId, AccessibilityWorkbenchSettingId, accessibilityHelpIsShown, accessibleViewContainsCodeBlocks, accessibleViewCurrentProviderId, accessibleViewGoToSymbolSupported, accessibleViewHasAssignedKeybindings, accessibleViewHasUnassignedKeybindings, accessibleViewInCodeBlock, accessibleViewIsShown, accessibleViewOnLastLine, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from './accessibilityConfiguration.js';
@@ -63,7 +63,7 @@ interface ICodeBlock {
 	endLine: number;
 	code: string;
 	languageId?: string;
-	chatSessionId: string | undefined;
+	chatSessionResource: URI | undefined;
 }
 
 export class AccessibleView extends Disposable implements ITextModelContentProvider {
@@ -261,7 +261,7 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		if (!codeBlock || codeBlockIndex === undefined) {
 			return;
 		}
-		return { code: codeBlock.code, languageId: codeBlock.languageId, codeBlockIndex, element: undefined, chatSessionId: codeBlock.chatSessionId };
+		return { code: codeBlock.code, languageId: codeBlock.languageId, codeBlockIndex, element: undefined, chatSessionResource: codeBlock.chatSessionResource };
 	}
 
 	navigateToCodeBlock(type: 'next' | 'previous'): void {
@@ -405,7 +405,7 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 				inBlock = false;
 				const endLine = i;
 				const code = lines.slice(startLine, endLine).join('\n');
-				this._codeBlocks?.push({ startLine, endLine, code, languageId, chatSessionId: undefined });
+				this._codeBlocks?.push({ startLine, endLine, code, languageId, chatSessionResource: undefined });
 			}
 		});
 		this._accessibleViewContainsCodeBlocks.set(this._codeBlocks.length > 0);

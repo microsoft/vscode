@@ -447,7 +447,7 @@ export interface ITaskConfig {
 	args?: string[] | CommandString[];
 	presentation?: IPresentationOptions;
 	isBackground?: boolean;
-	problemMatcher?: string | string[];
+	problemMatcher?: Types.SingleOrMany<string>;
 	group?: string | TaskGroup;
 }
 

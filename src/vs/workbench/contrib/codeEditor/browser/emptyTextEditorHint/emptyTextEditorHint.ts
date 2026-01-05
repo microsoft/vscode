@@ -28,7 +28,7 @@ import { ChangeLanguageAction } from '../../../../browser/parts/editor/editorSta
 import { LOG_MODE_ID, OUTPUT_MODE_ID } from '../../../../services/output/common/output.js';
 import { SEARCH_RESULT_LANGUAGE_ID } from '../../../../services/search/common/search.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
-import { IChatAgentService } from '../../../chat/common/chatAgents.js';
+import { IChatAgentService } from '../../../chat/common/participants/chatAgents.js';
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
 import { IInlineChatSessionService } from '../../../inlineChat/browser/inlineChatSessionService.js';
 import './emptyTextEditorHint.css';
@@ -266,6 +266,7 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 		const ariaLabel = hasInlineChatProvider ?
 			localize('defaultHintAriaLabelWithInlineChat', 'Execute {0} to ask a question, execute {1} to select a language and get started. Start typing to dismiss.', ...keybindingLabels) :
 			localize('defaultHintAriaLabelWithoutInlineChat', 'Execute {0} to select a language and get started. Start typing to dismiss.', ...keybindingLabels);
+		// eslint-disable-next-line no-restricted-syntax
 		for (const anchor of hintElement.querySelectorAll('a')) {
 			anchor.style.cursor = 'pointer';
 		}

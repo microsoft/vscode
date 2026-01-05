@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IActiveCodeEditor, ICodeEditor, MouseTargetType } from '../../../browser/editorBrowser.js';
+import { IDisposable, Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { ICodeEditor, MouseTargetType } from '../../../browser/editorBrowser.js';
 import { IEditorContribution, ScrollType } from '../../../common/editorCommon.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
 import { EditorOption, RenderLineNumbersType, ConfigurationChangedEvent } from '../../../common/config/editorOptions.js';
@@ -75,6 +75,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	private _showEndForLine: number | undefined;
 	private _minRebuildFromLine: number | undefined;
 	private _mouseTarget: EventTarget | null = null;
+	private _cursorPositionListener: IDisposable | undefined;
 
 	private readonly _onDidChangeStickyScrollHeight = this._register(new Emitter<{ height: number }>());
 	public readonly onDidChangeStickyScrollHeight = this._onDidChangeStickyScrollHeight.event;
@@ -400,7 +401,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				}
 				this._revealPosition({ lineNumber: position.lineNumber, column: 1 });
 			}
-			this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, { uri: this._editor.getModel().uri, range: this._stickyRangeProjectedOnEditor });
+			this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor, { uri: this._editor.getModel().uri, range: this._stickyRangeProjectedOnEditor });
 		}));
 	}
 
@@ -410,6 +411,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._contextMenuService.showContextMenu({
 			menuId: MenuId.StickyScrollContext,
 			getAnchor: () => event,
+			menuActionOptions: { renderShortTitle: true },
 		});
 	}
 
@@ -475,10 +477,17 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 
 		const lineNumberOption = this._editor.getOption(EditorOption.lineNumbers);
 		if (lineNumberOption.renderType === RenderLineNumbersType.Relative) {
-			this._sessionStore.add(this._editor.onDidChangeCursorPosition(() => {
-				this._showEndForLine = undefined;
-				this._renderStickyScroll(0);
-			}));
+			if (!this._cursorPositionListener) {
+				this._cursorPositionListener = this._editor.onDidChangeCursorPosition(() => {
+					this._showEndForLine = undefined;
+					this._renderStickyScroll(0);
+				});
+				this._sessionStore.add(this._cursorPositionListener);
+			}
+		} else if (this._cursorPositionListener) {
+			this._sessionStore.delete(this._cursorPositionListener);
+			this._cursorPositionListener.dispose();
+			this._cursorPositionListener = undefined;
 		}
 	}
 

@@ -7,7 +7,7 @@ import { IStringDictionary } from '../../../../base/common/collections.js';
 import { IDefaultAccount } from '../../../../base/common/defaultAccount.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { AbstractPolicyService, IPolicyService, PolicyDefinition } from '../../../../platform/policy/common/policy.js';
-import { IDefaultAccountService } from '../../accounts/common/defaultAccount.js';
+import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 
 
 export class AccountPolicyService extends AbstractPolicyService implements IPolicyService {
@@ -44,8 +44,7 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 					updated.push(key);
 				}
 			} else {
-				if (this.policies.has(key)) {
-					this.policies.delete(key);
+				if (this.policies.delete(key)) {
 					updated.push(key);
 				}
 			}

@@ -7,7 +7,6 @@ import type { IStringDictionary } from '../../../../../base/common/collections.j
 import { localize } from '../../../../../nls.js';
 import { IConfigurationPropertySchema, IConfigurationNode, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import product from '../../../../../platform/product/common/product.js';
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 
 export const enum TerminalSuggestSettingId {
@@ -22,6 +21,7 @@ export const enum TerminalSuggestSettingId {
 	InlineSuggestion = 'terminal.integrated.suggest.inlineSuggestion',
 	UpArrowNavigatesHistory = 'terminal.integrated.suggest.upArrowNavigatesHistory',
 	SelectionMode = 'terminal.integrated.suggest.selectionMode',
+	InsertTrailingSpace = 'terminal.integrated.suggest.insertTrailingSpace',
 }
 
 export const windowsDefaultExecutableExtensions: string[] = [
@@ -47,7 +47,7 @@ export const terminalSuggestConfigSection = 'terminal.integrated.suggest';
 
 export interface ITerminalSuggestConfiguration {
 	enabled: boolean;
-	quickSuggestions: {
+	quickSuggestions: boolean | {
 		commands: 'off' | 'on';
 		arguments: 'off' | 'on';
 		unknown: 'off' | 'on';
@@ -59,57 +59,78 @@ export interface ITerminalSuggestConfiguration {
 	showStatusBar: boolean;
 	cdPath: 'off' | 'relative' | 'absolute';
 	inlineSuggestion: 'off' | 'alwaysOnTopExceptExactMatch' | 'alwaysOnTop';
+	insertTrailingSpace: boolean;
+}
+
+export interface ITerminalQuickSuggestionsOptions {
+	commands: 'off' | 'on';
+	arguments: 'off' | 'on';
+	unknown: 'off' | 'on';
+}
+
+/**
+ * Normalizes the quickSuggestions config value to an object.
+ * - `true` -> { commands: 'on', arguments: 'on', unknown: 'off' }
+ * - `false` -> { commands: 'off', arguments: 'off', unknown: 'off' }
+ * - object -> passed through as-is
+ */
+export function normalizeQuickSuggestionsConfig(config: ITerminalSuggestConfiguration['quickSuggestions']): ITerminalQuickSuggestionsOptions {
+	if (typeof config === 'boolean') {
+		return config
+			? { commands: 'on', arguments: 'on', unknown: 'off' }
+			: { commands: 'off', arguments: 'off', unknown: 'off' };
+	}
+	return config;
 }
 
 export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	[TerminalSuggestSettingId.Enabled]: {
 		restricted: true,
-		markdownDescription: localize('suggest.enabled', "Enables terminal intellisense suggestions (preview) for supported shells ({0}) when {1} is set to {2}.", 'PowerShell v7+, zsh, bash, fish', `\`#${TerminalSettingId.ShellIntegrationEnabled}#\``, '`true`'),
+		markdownDescription: localize('suggest.enabled', "Enables terminal IntelliSense suggestions (also known as autocomplete) for supported shells ({0}). This requires {1} to be enabled and working or [manually installed](https://code.visualstudio.com/docs/terminal/shell-integration#_manual-installation-install).", 'Windows PowerShell, PowerShell v7+, zsh, bash, fish', `\`#${TerminalSettingId.ShellIntegrationEnabled}#\``),
 		type: 'boolean',
-		default: product.quality !== 'stable',
-		tags: ['preview'],
+		default: true,
 	},
 	[TerminalSuggestSettingId.Providers]: {
 		restricted: true,
 		markdownDescription: localize('suggest.providers', "Providers are enabled by default. Omit them by setting the id of the provider to `false`."),
 		type: 'object',
 		properties: {},
-		tags: ['preview'],
 	},
 	[TerminalSuggestSettingId.QuickSuggestions]: {
 		restricted: true,
 		markdownDescription: localize('suggest.quickSuggestions', "Controls whether suggestions should automatically show up while typing. Also be aware of the {0}-setting which controls if suggestions are triggered by special characters.", `\`#${TerminalSuggestSettingId.SuggestOnTriggerCharacters}#\``),
-		type: 'object',
-		properties: {
-			commands: {
-				description: localize('suggest.quickSuggestions.commands', 'Enable quick suggestions for commands, the first word in a command line input.'),
-				type: 'string',
-				enum: ['off', 'on'],
+		oneOf: [
+			{
+				type: 'boolean',
 			},
-			arguments: {
-				description: localize('suggest.quickSuggestions.arguments', 'Enable quick suggestions for arguments, anything after the first word in a command line input.'),
-				type: 'string',
-				enum: ['off', 'on'],
-			},
-			unknown: {
-				description: localize('suggest.quickSuggestions.unknown', 'Enable quick suggestions when it\'s unclear what the best suggestion is, if this is on files and folders will be suggested as a fallback.'),
-				type: 'string',
-				enum: ['off', 'on'],
-			},
-		},
-		default: {
-			commands: 'on',
-			arguments: 'on',
-			unknown: 'off',
-		},
-		tags: ['preview']
+			{
+				type: 'object',
+				properties: {
+					commands: {
+						description: localize('suggest.quickSuggestions.commands', 'Enable quick suggestions for commands, the first word in a command line input.'),
+						type: 'string',
+						enum: ['off', 'on'],
+					},
+					arguments: {
+						description: localize('suggest.quickSuggestions.arguments', 'Enable quick suggestions for arguments, anything after the first word in a command line input.'),
+						type: 'string',
+						enum: ['off', 'on'],
+					},
+					unknown: {
+						description: localize('suggest.quickSuggestions.unknown', 'Enable quick suggestions when it\'s unclear what the best suggestion is, if this is on files and folders will be suggested as a fallback.'),
+						type: 'string',
+						enum: ['off', 'on'],
+					},
+				},
+			}
+		],
+		default: false,
 	},
 	[TerminalSuggestSettingId.SuggestOnTriggerCharacters]: {
 		restricted: true,
 		markdownDescription: localize('suggest.suggestOnTriggerCharacters', "Controls whether suggestions should automatically show up when typing trigger characters."),
 		type: 'boolean',
-		default: true,
-		tags: ['preview']
+		default: false,
 	},
 	[TerminalSuggestSettingId.RunOnEnter]: {
 		restricted: true,
@@ -122,7 +143,6 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 			localize('runOnEnter.always', "Always run on `Enter`.")
 		],
 		default: 'never',
-		tags: ['preview']
 	},
 	[TerminalSuggestSettingId.SelectionMode]: {
 		markdownDescription: localize('terminal.integrated.selectionMode', "Controls how suggestion selection works in the integrated terminal."),
@@ -134,7 +154,6 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 			localize('terminal.integrated.selectionMode.never', "Never select a suggestion when automatically triggering IntelliSense. The list must be navigated via `Down` before `Enter` or `Tab` can be used to accept the active suggestion."),
 		],
 		default: 'partial',
-		tags: ['preview']
 	},
 	[TerminalSuggestSettingId.WindowsExecutableExtensions]: {
 		restricted: true,
@@ -143,14 +162,12 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		),
 		type: 'object',
 		default: {},
-		tags: ['preview']
 	},
 	[TerminalSuggestSettingId.ShowStatusBar]: {
 		restricted: true,
 		markdownDescription: localize('suggest.showStatusBar', "Controls whether the terminal suggestions status bar should be shown."),
 		type: 'boolean',
 		default: true,
-		tags: ['preview']
 	},
 	[TerminalSuggestSettingId.CdPath]: {
 		restricted: true,
@@ -163,7 +180,6 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 			localize('suggest.cdPath.absolute', "Enable the feature and use absolute paths. This is useful when the shell doesn't natively support `$CDPATH`."),
 		],
 		default: 'absolute',
-		tags: ['preview']
 	},
 	[TerminalSuggestSettingId.InlineSuggestion]: {
 		restricted: true,
@@ -172,18 +188,22 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		enum: ['off', 'alwaysOnTopExceptExactMatch', 'alwaysOnTop'],
 		markdownEnumDescriptions: [
 			localize('suggest.inlineSuggestion.off', "Disable the feature."),
-			localize('suggest.inlineSuggestion.alwaysOnTopExceptExactMatch', "Enable the feature and sort the inline suggestion without forcing it to be on top. This means that exact matches will be will be above the inline suggestion."),
+			localize('suggest.inlineSuggestion.alwaysOnTopExceptExactMatch', "Enable the feature and sort the inline suggestion without forcing it to be on top. This means that exact matches will be above the inline suggestion."),
 			localize('suggest.inlineSuggestion.alwaysOnTop', "Enable the feature and always put the inline suggestion on top."),
 		],
 		default: 'alwaysOnTop',
-		tags: ['preview']
 	},
 	[TerminalSuggestSettingId.UpArrowNavigatesHistory]: {
 		restricted: true,
 		markdownDescription: localize('suggest.upArrowNavigatesHistory', "Determines whether the up arrow key navigates the command history when focus is on the first suggestion and navigation has not yet occurred. When set to false, the up arrow will move focus to the last suggestion instead."),
 		type: 'boolean',
 		default: true,
-		tags: ['preview']
+	},
+	[TerminalSuggestSettingId.InsertTrailingSpace]: {
+		restricted: true,
+		markdownDescription: localize('suggest.insertTrailingSpace', "Controls whether a space is automatically inserted after accepting a suggestion and re-trigger suggestions. Folders and symbolic link folders will never have a trailing space added."),
+		type: 'boolean',
+		default: false,
 	},
 
 };
@@ -195,35 +215,31 @@ export interface ITerminalSuggestProviderInfo {
 
 let terminalSuggestProvidersConfiguration: IConfigurationNode | undefined;
 
-export function registerTerminalSuggestProvidersConfiguration(availableProviders?: ITerminalSuggestProviderInfo[]) {
-	const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-
+export function registerTerminalSuggestProvidersConfiguration(providers?: Map<string, ITerminalSuggestProviderInfo>) {
 	const oldProvidersConfiguration = terminalSuggestProvidersConfiguration;
 
+	providers ??= new Map();
+	if (!providers.has('lsp')) {
+		providers.set('lsp', {
+			id: 'lsp',
+			description: localize('suggest.provider.lsp.description', 'Show suggestions from language servers.')
+		});
+	}
+
 	const providersProperties: IStringDictionary<IConfigurationPropertySchema> = {};
+	for (const id of Array.from(providers.keys()).sort()) {
+		providersProperties[id] = {
+			type: 'boolean',
+			default: id === 'lsp' ? false : true,
+			description:
+				providers.get(id)?.description ??
+				localize('suggest.provider.title', "Show suggestions from {0}.", id)
+		};
+	}
 
-	const lspProviderId = 'lsp';
-	const defaultValue: IStringDictionary<boolean> = {
-		[lspProviderId]: product.quality !== 'stable',
-	};
-	providersProperties[lspProviderId] ??= {
-		type: 'boolean',
-		description: localize('suggest.provider.lsp.description', "Provides completions for language server protocol-specific arguments."),
-		default: product.quality !== 'stable',
-	};
-
-	if (availableProviders) {
-		for (const provider of availableProviders) {
-			if (provider.id in defaultValue) {
-				continue;
-			}
-			providersProperties[provider.id] = {
-				type: 'boolean',
-				description: provider.description || localize('suggest.provider.description', "Whether to enable this provider."),
-				default: true
-			};
-			defaultValue[provider.id] = true;
-		}
+	const defaultValue: IStringDictionary<boolean> = {};
+	for (const key in providersProperties) {
+		defaultValue[key] = providersProperties[key].default as boolean;
 	}
 
 	terminalSuggestProvidersConfiguration = {
@@ -234,19 +250,21 @@ export function registerTerminalSuggestProvidersConfiguration(availableProviders
 		properties: {
 			[TerminalSuggestSettingId.Providers]: {
 				restricted: true,
-				markdownDescription: localize('suggest.providers', "Providers are enabled by default. Omit them by setting the id of the provider to `false`."),
+				markdownDescription: localize('suggest.providersEnabledByDefault', "Controls which suggestions automatically show up while typing. Suggestion providers are enabled by default."),
 				type: 'object',
 				properties: providersProperties,
 				default: defaultValue,
 				tags: ['preview'],
+				additionalProperties: false
 			}
 		}
 	};
 
+	const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 	registry.updateConfigurations({
 		add: [terminalSuggestProvidersConfiguration],
 		remove: oldProvidersConfiguration ? [oldProvidersConfiguration] : []
 	});
 }
 
-registerTerminalSuggestProvidersConfiguration([]);
+registerTerminalSuggestProvidersConfiguration();

@@ -176,7 +176,7 @@ const ALL_SERVER_RESOURCES: ServerResource[] = [...ALL_SYNC_RESOURCES, 'machines
 
 export class UserDataSyncTestServer implements IRequestService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	readonly url: string = 'http://host:3000';
 	private session: string | null = null;
@@ -366,7 +366,7 @@ export class UserDataSyncTestServer implements IRequestService {
 
 export class TestUserDataSyncUtilService implements IUserDataSyncUtilService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	async resolveDefaultCoreIgnoredSettings(): Promise<string[]> {
 		return getDefaultIgnoredSettings();

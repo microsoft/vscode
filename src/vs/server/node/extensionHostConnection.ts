@@ -63,6 +63,9 @@ export async function buildUserEnvironment(startParamsEnv: { [key: string]: stri
 		env.BROWSER = join(binFolder, 'helpers', isWindows ? 'browser.cmd' : 'browser.sh'); // a command that opens a browser on the local machine
 	}
 
+	env.VSCODE_RECONNECTION_GRACE_TIME = String(environmentService.reconnectionGraceTime);
+	logService.trace(`[reconnection-grace-time] Setting VSCODE_RECONNECTION_GRACE_TIME env var for extension host: ${environmentService.reconnectionGraceTime}ms (${Math.floor(environmentService.reconnectionGraceTime / 1000)}s)`);
+
 	removeNulls(env);
 	return env;
 }
@@ -237,7 +240,7 @@ export class ExtensionHostConnection extends Disposable {
 	public async start(startParams: IRemoteExtensionHostStartParams): Promise<void> {
 		try {
 			let execArgv: string[] = process.execArgv ? process.execArgv.filter(a => !/^--inspect(-brk)?=/.test(a)) : [];
-			// eslint-disable-next-line local/code-no-any-casts
+			// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 			if (startParams.port && !(<any>process).pkg) {
 				execArgv = [
 					`--inspect${startParams.break ? '-brk' : ''}=${startParams.port}`,

@@ -94,11 +94,11 @@ export const editorInfoBackground = registerColor('editorInfo.background',
 	nls.localize('editorInfo.background', 'Background color of info text in the editor. The color must not be opaque so as not to hide underlying decorations.'), true);
 
 export const editorInfoForeground = registerColor('editorInfo.foreground',
-	{ dark: '#3794FF', light: '#1a85ff', hcDark: '#3794FF', hcLight: '#1a85ff' },
+	{ dark: '#59a4f9', light: '#0063d3', hcDark: '#59a4f9', hcLight: '#0063d3' },
 	nls.localize('editorInfo.foreground', 'Foreground color of info squigglies in the editor.'));
 
 export const editorInfoBorder = registerColor('editorInfo.border',
-	{ dark: null, light: null, hcDark: Color.fromHex('#3794FF').transparent(0.8), hcLight: '#292929' },
+	{ dark: null, light: null, hcDark: Color.fromHex('#59a4f9').transparent(0.8), hcLight: '#292929' },
 	nls.localize('infoBorder', 'If set, color of double underlines for infos in the editor.'));
 
 

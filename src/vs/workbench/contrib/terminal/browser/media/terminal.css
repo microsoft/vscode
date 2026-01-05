@@ -144,8 +144,8 @@
 	position: relative;
 }
 
-.monaco-workbench .terminal-editor .terminal-wrapper > div,
-.monaco-workbench .pane-body.integrated-terminal .terminal-wrapper > div {
+.monaco-workbench .terminal-editor .terminal-wrapper > .terminal-xterm-host,
+.monaco-workbench .pane-body.integrated-terminal .terminal-wrapper > .terminal-xterm-host {
 	height: 100%;
 }
 
@@ -303,6 +303,14 @@
 .monaco-workbench .pane-body.integrated-terminal .tabs-list-container {
 	height: 100%;
 	overflow: hidden;
+	position: relative;
+	display: flex;
+	flex-direction: column;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .tabs-list-container > .tabs-list {
+	flex: 1;
+	min-height: 0;
 }
 
 .monaco-workbench .pane-body.integrated-terminal .tabs-container > .monaco-toolbar {
@@ -328,8 +336,52 @@
 	text-align: left;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .tabs-list {
+.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry {
+	flex-shrink: 0;
+	height: 22px;
+	line-height: 22px;
+	display: flex;
+	align-items: center;
+	padding: 0;
+	cursor: pointer;
+	background-color: transparent;
+	color: inherit;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry .terminal-tabs-entry {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 4px;
+	width: 100%;
 	height: 100%;
+	padding: 0;
+	box-sizing: border-box;
+	overflow: hidden;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry .terminal-tabs-entry:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.monaco-workbench .pane-body.integrated-terminal .tabs-list-container.drop-target {
+	background-color: var(--vscode-list-dropBackground);
+}
+
+.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry .terminal-tabs-chat-entry-label {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text .terminal-tabs-chat-entry .terminal-tabs-entry {
+	justify-content: center;
+	padding: 0 10px;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry .terminal-tabs-chat-entry-label:empty {
+	display: none;
 }
 
 .monaco-workbench .pane-body.integrated-terminal .tabs-list .terminal-tabs-entry {
@@ -366,6 +418,20 @@
 
 .monaco-workbench .pane-body.integrated-terminal .tabs-list .editable-tab .monaco-icon-name-container {
 	display: none;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .tabs-list .editable-tab .monaco-inputbox {
+	min-width: 0;
+	width: 100%;
+	box-sizing: border-box;
+	height: 22px;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .tabs-list .editable-tab .monaco-inputbox > .ibwrapper > .input {
+	padding: 0 6px;
+	height: 100%;
+	line-height: 22px;
+	box-sizing: border-box;
 }
 
 .monaco-workbench .pane-body.integrated-terminal .tabs-list .actions .action-label {
@@ -477,6 +543,7 @@
 	box-sizing: border-box;
 	transform: translateX(3px);
 	pointer-events: none;
+	margin-left: -20px;
 }
 .terminal-command-guide.top {
 	border-top-left-radius: 1px;

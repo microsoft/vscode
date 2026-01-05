@@ -19,10 +19,10 @@ import { MENU_INLINE_CHAT_WIDGET_SECONDARY } from '../../../inlineChat/common/in
 import { INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
 import { CellEditType, CellKind, NOTEBOOK_EDITOR_ID } from '../../../notebook/common/notebookCommon.js';
 import { NOTEBOOK_IS_ACTIVE_EDITOR } from '../../../notebook/common/notebookContextKeys.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { applyingChatEditsFailedContextKey, isChatEditingActionContext } from '../../common/chatEditingService.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatService } from '../../common/chatService.js';
-import { isResponseVM } from '../../common/chatViewModel.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { applyingChatEditsFailedContextKey, isChatEditingActionContext } from '../../common/editing/chatEditingService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatService } from '../../common/chatService/chatService.js';
+import { isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatModeKind } from '../../common/constants.js';
 import { IChatWidgetService } from '../chat.js';
 import { CHAT_CATEGORY } from './chatActions.js';
@@ -64,7 +64,7 @@ export function registerChatTitleActions() {
 			chatService.notifyUserAction({
 				agentId: item.agent?.id,
 				command: item.slashCommand?.name,
-				sessionId: item.sessionId,
+				sessionResource: item.session.sessionResource,
 				requestId: item.requestId,
 				result: item.result,
 				action: {
@@ -119,7 +119,7 @@ export function registerChatTitleActions() {
 			chatService.notifyUserAction({
 				agentId: item.agent?.id,
 				command: item.slashCommand?.name,
-				sessionId: item.sessionId,
+				sessionResource: item.session.sessionResource,
 				requestId: item.requestId,
 				result: item.result,
 				action: {
@@ -163,7 +163,7 @@ export function registerChatTitleActions() {
 			chatService.notifyUserAction({
 				agentId: item.agent?.id,
 				command: item.slashCommand?.name,
-				sessionId: item.sessionId,
+				sessionResource: item.session.sessionResource,
 				requestId: item.requestId,
 				result: item.result,
 				action: {
@@ -205,20 +205,20 @@ export function registerChatTitleActions() {
 			let item = args[0];
 			if (isChatEditingActionContext(item)) {
 				// Resolve chat editing action context to the last response VM
-				item = chatWidgetService.getWidgetBySessionId(item.sessionId)?.viewModel?.getItems().at(-1);
+				item = chatWidgetService.getWidgetBySessionResource(item.sessionResource)?.viewModel?.getItems().at(-1);
 			}
 			if (!isResponseVM(item)) {
 				return;
 			}
 
 			const chatService = accessor.get(IChatService);
-			const chatModel = chatService.getSession(item.sessionId);
+			const chatModel = chatService.getSession(item.sessionResource);
 			const chatRequests = chatModel?.getRequests();
 			if (!chatRequests) {
 				return;
 			}
 			const itemIndex = chatRequests?.findIndex(request => request.id === item.requestId);
-			const widget = chatWidgetService.getWidgetBySessionId(item.sessionId);
+			const widget = chatWidgetService.getWidgetBySessionResource(item.sessionResource);
 			const mode = widget?.input.currentModeKind;
 			if (chatModel && (mode === ChatModeKind.Edit || mode === ChatModeKind.Agent)) {
 				const configurationService = accessor.get(IConfigurationService);

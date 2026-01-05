@@ -13,7 +13,7 @@ import { ITerminalLogService } from '../../../../../../platform/terminal/common/
 import { trackIdleOnPrompt, waitForIdle, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
-import { setupRecreatingStartMarker } from './strategyHelpers.js';
+import { createAltBufferPromise, setupRecreatingStartMarker } from './strategyHelpers.js';
 
 /**
  * This strategy is used when shell integration is enabled, but rich command detection was not
@@ -53,7 +53,7 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 	) {
 	}
 
-	async execute(commandLine: string, token: CancellationToken): Promise<ITerminalExecuteStrategyResult> {
+	async execute(commandLine: string, token: CancellationToken, commandId?: string): Promise<ITerminalExecuteStrategyResult> {
 		const store = new DisposableStore();
 
 		try {
@@ -66,11 +66,18 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 					this._log('onDone 1 of 2 via end event, waiting for short idle prompt');
 					return idlePromptPromise.then(() => {
 						this._log('onDone 2 of 2 via short idle prompt');
-						return e;
+						return {
+							'type': 'success',
+							command: e
+						} as const;
 					});
 				}),
 				Event.toPromise(token.onCancellationRequested as Event<undefined>, store).then(() => {
 					this._log('onDone via cancellation');
+				}),
+				Event.toPromise(this._instance.onDisposed, store).then(() => {
+					this._log('onDone via terminal disposal');
+					return { type: 'disposal' } as const;
 				}),
 				// A longer idle prompt event is used here as a catch all for unexpected cases where
 				// the end event doesn't fire for some reason.
@@ -85,6 +92,7 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 			if (!xterm) {
 				throw new Error('Xterm is not available');
 			}
+			const alternateBufferPromise = createAltBufferPromise(xterm, store, this._log.bind(this));
 
 			// Wait for the terminal to idle before executing the command
 			this._log('Waiting for idle');
@@ -106,6 +114,9 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 			}
 
 			// Execute the command
+			if (commandId) {
+				this._log(`In basic execute strategy: skipping pre-bound command id ${commandId} because basic shell integration executes via sendText`);
+			}
 			// IMPORTANT: This uses `sendText` not `runCommand` since when basic shell integration
 			// is used as it's more common to not recognize the prompt input which would result in
 			// ^C being sent and also to return the exit code of 130 when from the shell when that
@@ -115,7 +126,26 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 
 			// Wait for the next end execution event - note that this may not correspond to the actual
 			// execution requested
-			const finishedCommand = await onDone;
+			this._log('Waiting for done event');
+			const onDoneResult = await Promise.race([onDone, alternateBufferPromise.then(() => ({ type: 'alternateBuffer' } as const))]);
+			if (onDoneResult && onDoneResult.type === 'disposal') {
+				throw new Error('The terminal was closed');
+			}
+			if (onDoneResult && onDoneResult.type === 'alternateBuffer') {
+				this._log('Detected alternate buffer entry, skipping output capture');
+				return {
+					output: undefined,
+					exitCode: undefined,
+					error: 'alternateBuffer',
+					didEnterAltBuffer: true
+				};
+			}
+			const finishedCommand = onDoneResult && onDoneResult.type === 'success' ? onDoneResult.command : undefined;
+			if (finishedCommand) {
+				this._log(`Finished command id=${finishedCommand.id ?? 'none'} for requested=${commandId ?? 'none'}`);
+			} else if (commandId) {
+				this._log(`No finished command surfaced for requested=${commandId}`);
+			}
 
 			// Wait for the terminal to idle
 			this._log('Waiting for idle');

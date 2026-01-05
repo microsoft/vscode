@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { assertNever } from '../../../../../base/common/assert.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { markdownCommandLink } from '../../../../../base/common/htmlContent.js';
+import { createMarkdownCommandLink } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import Severity from '../../../../../base/common/severity.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -22,8 +23,8 @@ import { McpCommandIds } from '../../../mcp/common/mcpCommandIds.js';
 import { IMcpRegistry } from '../../../mcp/common/mcpRegistryTypes.js';
 import { IMcpServer, IMcpService, IMcpWorkbenchService, McpConnectionState, McpServerCacheState, McpServerEditorTab } from '../../../mcp/common/mcpTypes.js';
 import { startServerAndWaitForLiveTools } from '../../../mcp/common/mcpTypesUtils.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { ILanguageModelToolsService, IToolData, ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { ILanguageModelToolsService, IToolData, ToolDataSource, ToolSet } from '../../common/tools/languageModelToolsService.js';
 import { ConfigureToolSets } from '../tools/toolSetsContribution.js';
 
 const enum BucketOrdinal { User, BuiltIn, Mcp, Extension }
@@ -56,7 +57,8 @@ interface IBucketTreeItem extends IToolTreeItem {
 	toolset?: ToolSet; // For MCP servers where the bucket represents the ToolSet - mutable
 	readonly status?: string;
 	readonly children: AnyTreeItem[];
-	checked: boolean | 'partial' | undefined;
+	checked: boolean | 'mixed' | undefined;
+	readonly sortOrder: number;
 }
 
 /**
@@ -67,7 +69,7 @@ interface IToolSetTreeItem extends IToolTreeItem {
 	readonly itemType: 'toolset';
 	readonly toolset: ToolSet;
 	children: AnyTreeItem[] | undefined;
-	checked: boolean | 'partial';
+	checked: boolean | 'mixed';
 }
 
 /**
@@ -182,14 +184,15 @@ function createToolSetTreeItem(toolset: ToolSet, checked: boolean, editorService
  * @param placeHolder - Placeholder text shown in the picker
  * @param description - Optional description text shown in the picker
  * @param toolsEntries - Optional initial selection state for tools and toolsets
- * @param onUpdate - Optional callback fired when the selection changes
+ * @param token - Optional cancellation token to close the picker when cancelled
  * @returns Promise resolving to the final selection map, or undefined if cancelled
  */
 export async function showToolsPicker(
 	accessor: ServicesAccessor,
 	placeHolder: string,
 	description?: string,
-	getToolsEntries?: () => ReadonlyMap<ToolSet | IToolData, boolean>
+	getToolsEntries?: () => ReadonlyMap<ToolSet | IToolData, boolean>,
+	token?: CancellationToken
 ): Promise<ReadonlyMap<ToolSet | IToolData, boolean> | undefined> {
 
 	const quickPickService = accessor.get(IQuickInputService);
@@ -311,11 +314,12 @@ export async function showToolsPicker(
 					itemType: 'bucket',
 					ordinal: BucketOrdinal.Mcp,
 					id: key,
-					label: localize('mcplabel', "MCP Server: {0}", source.label),
+					label: source.label,
 					checked: undefined,
 					collapsed,
 					children,
 					buttons,
+					sortOrder: 2,
 				};
 				const iconPath = mcpServer.serverMetadata.get()?.icons.getUrl(22);
 				if (iconPath) {
@@ -329,12 +333,13 @@ export async function showToolsPicker(
 					itemType: 'bucket',
 					ordinal: BucketOrdinal.Extension,
 					id: key,
-					label: localize('ext', 'Extension: {0}', source.label),
+					label: source.label,
 					checked: undefined,
 					children: [],
 					buttons: [],
 					collapsed: true,
-					iconClass: ThemeIcon.asClassName(Codicon.extensions)
+					iconClass: ThemeIcon.asClassName(Codicon.extensions),
+					sortOrder: 3,
 				};
 			} else if (source.type === 'internal') {
 				return {
@@ -345,7 +350,8 @@ export async function showToolsPicker(
 					checked: undefined,
 					children: [],
 					buttons: [],
-					collapsed: false
+					collapsed: false,
+					sortOrder: 1,
 				};
 			} else {
 				return {
@@ -356,7 +362,8 @@ export async function showToolsPicker(
 					checked: undefined,
 					children: [],
 					buttons: [],
-					collapsed: true
+					collapsed: true,
+					sortOrder: 4,
 				};
 			}
 		};
@@ -425,9 +432,22 @@ export async function showToolsPicker(
 		}
 
 		// Convert bucket map to sorted tree items
-		const sortedBuckets = Array.from(bucketMap.values()).sort((a, b) => a.ordinal - b.ordinal);
-		treeItems.push(...sortedBuckets);
-
+		const sortedBuckets = Array.from(bucketMap.values()).sort((a, b) => {
+			if (a.sortOrder !== b.sortOrder) {
+				return a.sortOrder - b.sortOrder;
+			}
+			return a.label.localeCompare(b.label);
+		});
+		for (const bucket of sortedBuckets) {
+			treeItems.push(bucket);
+			// Sort children alphabetically
+			bucket.children.sort((a, b) => a.label.localeCompare(b.label));
+			for (const child of bucket.children) {
+				if (isToolSetTreeItem(child) && child.children) {
+					child.children.sort((a, b) => a.label.localeCompare(b.label));
+				}
+			}
+		}
 		if (treeItems.length === 0) {
 			treePicker.placeholder = localize('noTools', "Add tools to chat");
 		} else {
@@ -445,7 +465,7 @@ export async function showToolsPicker(
 	treePicker.description = description;
 	treePicker.matchOnDescription = true;
 	treePicker.matchOnLabel = true;
-
+	treePicker.sortByLabel = false;
 
 	computeItems();
 
@@ -474,7 +494,7 @@ export async function showToolsPicker(
 			traverse(treePicker.itemTree);
 			if (count > toolLimit) {
 				treePicker.severity = Severity.Warning;
-				treePicker.validationMessage = localize('toolLimitExceeded', "{0} tools are enabled. You may experience degraded tool calling above {1} tools.", count, markdownCommandLink({ title: String(toolLimit), id: '_chat.toolPicker.closeAndOpenVirtualThreshold' }));
+				treePicker.validationMessage = localize('toolLimitExceeded', "{0} tools are enabled. You may experience degraded tool calling above {1} tools.", count, createMarkdownCommandLink({ title: String(toolLimit), id: '_chat.toolPicker.closeAndOpenVirtualThreshold' }));
 			} else {
 				treePicker.severity = Severity.Ignore;
 				treePicker.validationMessage = undefined;
@@ -565,6 +585,13 @@ export async function showToolsPicker(
 		}
 		treePicker.hide();
 	}));
+
+	// Close picker when cancelled (e.g., when mode changes)
+	if (token) {
+		store.add(token.onCancellationRequested(() => {
+			treePicker.hide();
+		}));
+	}
 
 	treePicker.show();
 

@@ -15,34 +15,24 @@ import { InlineChatNotebookContribution } from './inlineChatNotebook.js';
 import { IWorkbenchContributionsRegistry, registerWorkbenchContribution2, Extensions as WorkbenchExtensions, WorkbenchPhase } from '../../../common/contributions.js';
 import { InlineChatAccessibleView } from './inlineChatAccessibleView.js';
 import { IInlineChatSessionService } from './inlineChatSessionService.js';
-import { InlineChatEnabler, InlineChatSessionServiceImpl } from './inlineChatSessionServiceImpl.js';
+import { InlineChatEnabler, InlineChatEscapeToolContribution, InlineChatSessionServiceImpl } from './inlineChatSessionServiceImpl.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { CancelAction, ChatSubmitAction } from '../../chat/browser/actions/chatExecuteActions.js';
 import { localize } from '../../../../nls.js';
-import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
+import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { InlineChatAccessibilityHelp } from './inlineChatAccessibilityHelp.js';
-import { InlineChatExpandLineAction, InlineChatHintsController, HideInlineChatHintAction, ShowInlineChatHintAction } from './inlineChatCurrentLine.js';
 
 registerEditorContribution(InlineChatController2.ID, InlineChatController2, EditorContributionInstantiation.Eager); // EAGER because of notebook dispose/create of editors
 registerEditorContribution(INLINE_CHAT_ID, InlineChatController1, EditorContributionInstantiation.Eager); // EAGER because of notebook dispose/create of editors
 registerEditorContribution(InlineChatController.ID, InlineChatController, EditorContributionInstantiation.Eager); // EAGER because of notebook dispose/create of editors
 
 registerAction2(InlineChatActions.KeepSessionAction2);
-registerAction2(InlineChatActions.UndoSessionAction2);
-registerAction2(InlineChatActions.CloseSessionAction2);
-registerAction2(InlineChatActions.RevealWidget);
-registerAction2(InlineChatActions.CancelRequestAction);
+registerAction2(InlineChatActions.UndoAndCloseSessionAction2);
 
 // --- browser
 
 registerSingleton(IInlineChatSessionService, InlineChatSessionServiceImpl, InstantiationType.Delayed);
-
-
-registerAction2(InlineChatExpandLineAction);
-registerAction2(ShowInlineChatHintAction);
-registerAction2(HideInlineChatHintAction);
-registerEditorContribution(InlineChatHintsController.ID, InlineChatHintsController, EditorContributionInstantiation.Eventually);
 
 // --- MENU special ---
 
@@ -117,5 +107,6 @@ const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegist
 workbenchContributionsRegistry.registerWorkbenchContribution(InlineChatNotebookContribution, LifecyclePhase.Restored);
 
 registerWorkbenchContribution2(InlineChatEnabler.Id, InlineChatEnabler, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(InlineChatEscapeToolContribution.Id, InlineChatEscapeToolContribution, WorkbenchPhase.AfterRestored);
 AccessibleViewRegistry.register(new InlineChatAccessibleView());
 AccessibleViewRegistry.register(new InlineChatAccessibilityHelp());

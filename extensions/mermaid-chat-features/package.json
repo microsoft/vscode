@@ -73,7 +73,7 @@
     "compile": "gulp compile-extension:mermaid-chat-features && npm run build-chat-webview",
     "watch": "npm run build-chat-webview && gulp watch-extension:mermaid-chat-features",
     "vscode:prepublish": "npm run build-ext && npm run build-chat-webview",
-    "build-ext": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:mermaid-chat-features",
+    "build-ext": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.mjs compile-extension:mermaid-chat-features",
     "build-chat-webview": "node ./esbuild-chat-webview.mjs",
     "compile-web": "npx webpack-cli --config extension-browser.webpack.config --mode none",
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"

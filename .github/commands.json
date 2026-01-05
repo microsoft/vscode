@@ -654,5 +654,21 @@
 		],
 		"action": "updateLabels",
 		"addLabel": "*edu"
+	},
+	{
+		"type": "label",
+		"name": "~agent-behavior",
+		"action": "close",
+		"reason": "not_planned",
+		"addLabel": "agent-behavior",
+		"removeLabel": "~agent-behavior",
+		"comment": "Unfortunately I think you are hitting a AI quality issue that is not actionable enough for us to track a bug. We would recommend that you try other available models and look at the [Tips and tricks for Copilot in VS Code](https://code.visualstudio.com/docs/copilot/copilot-tips-and-tricks) doc page.\n\nWe are constantly improving AI quality in every release, thank you for the feedback! If you believe this is a technical bug, we recommend you report a new issue including logs described on the [Copilot Issues](https://github.com/microsoft/vscode/wiki/Copilot-Issues) wiki page."
+	},
+	{
+		"type": "label",
+		"name": "~accessibility-sla",
+		"addLabel": "accessibility-sla",
+		"removeLabel": "~accessibility-sla",
+		"comment": "The Visual Studio and VS Code teams have an agreement with the Accessibility team that 3:1 contrast is enough for inside the editor."
 	}
 ]

@@ -371,9 +371,11 @@ export class BrowserWindow extends BaseWindow {
 							});
 						}
 					} else {
-						isAllowedOpener
-							? windowOpenPopup(href)
-							: windowOpenNoOpener(href);
+						if (isAllowedOpener) {
+							windowOpenPopup(href);
+						} else {
+							windowOpenNoOpener(href);
+						}
 					}
 				}
 

@@ -41,12 +41,12 @@ import { SCMHistoryViewPane } from './scmHistoryViewPane.js';
 import { QuickDiffModelService, IQuickDiffModelService } from './quickDiffModel.js';
 import { QuickDiffEditorController } from './quickDiffWidget.js';
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
-import { RemoteNameContext } from '../../../common/contextkeys.js';
+import { RemoteNameContext, ResourceContextKey } from '../../../common/contextkeys.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { SCMAccessibilityHelp } from './scmAccessibilityHelp.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { SCMHistoryItemContextContribution } from './scmHistoryChatContext.js';
-import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
+import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../../chat/browser/actions/chatActions.js';
 import product from '../../../../platform/product/common/product.js';
 
@@ -358,6 +358,12 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: localize('scm.repositories.selectionMode', "Controls the selection mode of the repositories in the Source Control Repositories view."),
 			default: 'multiple'
 		},
+		'scm.repositories.explorer': {
+			type: 'boolean',
+			markdownDescription: localize('scm.repositories.explorer', "Controls whether to show repository artifacts in the Source Control Repositories view. This feature is experimental and only works when {0} is set to `{1}`.", '\`#scm.repositories.selectionMode#\`', 'single'),
+			default: false,
+			tags: ['experimental']
+		},
 		'scm.showActionButton': {
 			type: 'boolean',
 			markdownDescription: localize('showActionButton', "Controls whether an action button can be shown in the Source Control view."),
@@ -409,6 +415,16 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			],
 			description: localize('scm.graph.badges', "Controls which badges are shown in the Source Control Graph view. The badges are shown on the right side of the graph indicating the names of history item groups."),
 			default: 'filter'
+		},
+		'scm.graph.showIncomingChanges': {
+			type: 'boolean',
+			description: localize('scm.graph.showIncomingChanges', "Controls whether to show incoming changes in the Source Control Graph view."),
+			default: true
+		},
+		'scm.graph.showOutgoingChanges': {
+			type: 'boolean',
+			description: localize('scm.graph.showOutgoingChanges', "Controls whether to show outgoing changes in the Source Control Graph view."),
+			default: true
 		}
 	}
 });
@@ -668,6 +684,7 @@ registerAction2(class extends Action2 {
 					ChatContextKeys.Setup.hidden.negate(),
 					ChatContextKeys.Setup.disabled.negate(),
 					ChatContextKeys.Setup.installed.negate(),
+					ContextKeyExpr.in(ResourceContextKey.Resource.key, 'git.mergeChanges'),
 					ContextKeyExpr.equals('git.activeResourceHasMergeConflicts', true)
 				)
 			}

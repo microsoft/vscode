@@ -57,12 +57,10 @@ async function parseAndMigrateExtensions(syncData: ISyncData, extensionManagemen
 		for (const extension of extensions) {
 			// #region Migration from v1 (enabled -> disabled)
 			if (syncData.version === 1) {
-				// eslint-disable-next-line local/code-no-any-casts
-				if ((<any>extension).enabled === false) {
+				if (extension.enabled === false) {
 					extension.disabled = true;
 				}
-				// eslint-disable-next-line local/code-no-any-casts
-				delete (<any>extension).enabled;
+				delete extension.enabled;
 			}
 			// #endregion
 

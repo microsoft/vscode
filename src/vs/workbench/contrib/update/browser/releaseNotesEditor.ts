@@ -65,8 +65,8 @@ export class ReleaseNotesManager extends Disposable {
 			return this.updateHtml();
 		}));
 
-		this._register(_configurationService.onDidChangeConfiguration(this.onDidChangeConfiguration));
-		this._register(_webviewWorkbenchService.onDidChangeActiveWebviewEditor(this.onDidChangeActiveWebviewEditor));
+		this._register(_configurationService.onDidChangeConfiguration((e) => this.onDidChangeConfiguration(e)));
+		this._register(_webviewWorkbenchService.onDidChangeActiveWebviewEditor((e) => this.onDidChangeActiveWebviewEditor(e)));
 		this._simpleSettingRenderer = this._instantiationService.createInstance(SimpleSettingRenderer);
 	}
 
@@ -99,7 +99,7 @@ export class ReleaseNotesManager extends Disposable {
 
 		const activeEditorPane = this._editorService.activeEditorPane;
 		if (this._currentReleaseNotes) {
-			this._currentReleaseNotes.setName(title);
+			this._currentReleaseNotes.setWebviewTitle(title);
 			this._currentReleaseNotes.webview.setHtml(html);
 			this._webviewWorkbenchService.revealWebview(this._currentReleaseNotes, activeEditorPane ? activeEditorPane.group : this._editorGroupService.activeGroup, false);
 		} else {
@@ -119,6 +119,7 @@ export class ReleaseNotesManager extends Disposable {
 				},
 				'releaseNotes',
 				title,
+				undefined,
 				{ group: ACTIVE_GROUP, preserveFocus: false });
 
 			const disposables = new DisposableStore();

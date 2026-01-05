@@ -60,7 +60,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private readonly _editor: ICodeEditor;
 
 	private _state: StickyScrollWidgetState | undefined;
-	private _lineHeight: number;
 	private _renderedStickyLines: RenderedStickyLine[] = [];
 	private _lineNumbers: number[] = [];
 	private _lastLineRelativePosition: number = 0;
@@ -79,7 +78,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		super();
 
 		this._editor = editor;
-		this._lineHeight = editor.getOption(EditorOption.lineHeight);
 		this._lineNumbersDomNode.className = 'sticky-widget-line-numbers';
 		this._lineNumbersDomNode.setAttribute('role', 'none');
 
@@ -101,9 +99,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._register(this._editor.onDidChangeConfiguration((e) => {
 			if (e.hasChanged(EditorOption.stickyScroll)) {
 				updateScrollLeftPosition();
-			}
-			if (e.hasChanged(EditorOption.lineHeight)) {
-				this._lineHeight = this._editor.getOption(EditorOption.lineHeight);
 			}
 		}));
 		this._register(this._editor.onDidScrollChange((e) => {
@@ -278,6 +273,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	}
 
 	private _setFoldingHoverListeners(): void {
+		this._foldingIconStore.clear();
 		const showFoldingControls: 'mouseover' | 'always' | 'never' = this._editor.getOption(EditorOption.showFoldingControls);
 		if (showFoldingControls !== 'mouseover') {
 			return;
@@ -295,92 +291,15 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	}
 
 	private _renderChildNode(viewModel: IViewModel, index: number, line: number, top: number, isLastLine: boolean, foldingModel: FoldingModel | undefined, layoutInfo: EditorLayoutInfo): RenderedStickyLine {
-		const viewLineNumber = viewModel.coordinatesConverter.convertModelPositionToViewPosition(new Position(line, 1)).lineNumber;
-		const lineRenderingData = viewModel.getViewLineRenderingData(viewLineNumber);
-		const lineNumberOption = this._editor.getOption(EditorOption.lineNumbers);
-		const verticalScrollbarSize = this._editor.getOption(EditorOption.scrollbar).verticalScrollbarSize;
-
-		let actualInlineDecorations: LineDecoration[];
-		try {
-			actualInlineDecorations = LineDecoration.filter(lineRenderingData.inlineDecorations, viewLineNumber, lineRenderingData.minColumn, lineRenderingData.maxColumn);
-		} catch (err) {
-			actualInlineDecorations = [];
-		}
-
-		const lineHeight = this._editor.getLineHeightForPosition(new Position(line, 1));
-		const textDirection = viewModel.getTextDirection(line);
-		const renderLineInput: RenderLineInput = new RenderLineInput(true, true, lineRenderingData.content,
-			lineRenderingData.continuesWithWrappedLine,
-			lineRenderingData.isBasicASCII, lineRenderingData.containsRTL, 0,
-			lineRenderingData.tokens, actualInlineDecorations,
-			lineRenderingData.tabSize, lineRenderingData.startVisibleColumn,
-			1, 1, 1, 500, 'none', true, true, null,
-			textDirection, verticalScrollbarSize
-		);
-
-		const sb = new StringBuilder(2000);
-		const renderOutput = renderViewLine(renderLineInput, sb);
-
-		let newLine;
-		if (_ttPolicy) {
-			newLine = _ttPolicy.createHTML(sb.build());
-		} else {
-			newLine = sb.build();
-		}
-
-		const lineHTMLNode = document.createElement('span');
-		lineHTMLNode.setAttribute(STICKY_INDEX_ATTR, String(index));
-		lineHTMLNode.setAttribute(STICKY_IS_LINE_ATTR, '');
-		lineHTMLNode.setAttribute('role', 'listitem');
-		lineHTMLNode.tabIndex = 0;
-		lineHTMLNode.className = 'sticky-line-content';
-		lineHTMLNode.classList.add(`stickyLine${line}`);
-		lineHTMLNode.style.lineHeight = `${lineHeight}px`;
-		lineHTMLNode.innerHTML = newLine as string;
-
-		const lineNumberHTMLNode = document.createElement('span');
-		lineNumberHTMLNode.setAttribute(STICKY_INDEX_ATTR, String(index));
-		lineNumberHTMLNode.setAttribute(STICKY_IS_LINE_NUMBER_ATTR, '');
-		lineNumberHTMLNode.className = 'sticky-line-number';
-		lineNumberHTMLNode.style.lineHeight = `${lineHeight}px`;
-		const lineNumbersWidth = layoutInfo.contentLeft;
-		lineNumberHTMLNode.style.width = `${lineNumbersWidth}px`;
-
-		const innerLineNumberHTML = document.createElement('span');
-		if (lineNumberOption.renderType === RenderLineNumbersType.On || lineNumberOption.renderType === RenderLineNumbersType.Interval && line % 10 === 0) {
-			innerLineNumberHTML.innerText = line.toString();
-		} else if (lineNumberOption.renderType === RenderLineNumbersType.Relative) {
-			innerLineNumberHTML.innerText = Math.abs(line - this._editor.getPosition()!.lineNumber).toString();
-		}
-		innerLineNumberHTML.className = 'sticky-line-number-inner';
-		innerLineNumberHTML.style.width = `${layoutInfo.lineNumbersWidth}px`;
-		innerLineNumberHTML.style.paddingLeft = `${layoutInfo.lineNumbersLeft}px`;
-
-		lineNumberHTMLNode.appendChild(innerLineNumberHTML);
-		const foldingIcon = this._renderFoldingIconForLine(foldingModel, line);
-		if (foldingIcon) {
-			lineNumberHTMLNode.appendChild(foldingIcon.domNode);
-			foldingIcon.domNode.style.left = `${layoutInfo.lineNumbersWidth + layoutInfo.lineNumbersLeft}px`;
-			foldingIcon.domNode.style.lineHeight = `${lineHeight}px`;
-		}
-
-		this._editor.applyFontInfo(lineHTMLNode);
-		this._editor.applyFontInfo(lineNumberHTMLNode);
-
-		lineNumberHTMLNode.style.lineHeight = `${lineHeight}px`;
-		lineHTMLNode.style.lineHeight = `${lineHeight}px`;
-		lineNumberHTMLNode.style.height = `${lineHeight}px`;
-		lineHTMLNode.style.height = `${lineHeight}px`;
 
 		const renderedLine = new RenderedStickyLine(
+			this._editor,
+			viewModel,
+			layoutInfo,
+			foldingModel,
+			this._isOnGlyphMargin,
 			index,
-			line,
-			lineHTMLNode,
-			lineNumberHTMLNode,
-			foldingIcon,
-			renderOutput.characterMapping,
-			lineHTMLNode.scrollWidth,
-			lineHeight
+			line
 		);
 		return this._updatePosition(renderedLine, top, isLastLine);
 	}
@@ -405,25 +324,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		return stickyLine;
 	}
 
-	private _renderFoldingIconForLine(foldingModel: FoldingModel | undefined, line: number): StickyFoldingIcon | undefined {
-		const showFoldingControls: 'mouseover' | 'always' | 'never' = this._editor.getOption(EditorOption.showFoldingControls);
-		if (!foldingModel || showFoldingControls === 'never') {
-			return;
-		}
-		const foldingRegions = foldingModel.regions;
-		const indexOfFoldingRegion = foldingRegions.findRange(line);
-		const startLineNumber = foldingRegions.getStartLineNumber(indexOfFoldingRegion);
-		const isFoldingScope = line === startLineNumber;
-		if (!isFoldingScope) {
-			return;
-		}
-		const isCollapsed = foldingRegions.isCollapsed(indexOfFoldingRegion);
-		const foldingIcon = new StickyFoldingIcon(isCollapsed, startLineNumber, foldingRegions.getEndLineNumber(indexOfFoldingRegion), this._lineHeight);
-		foldingIcon.setVisible(this._isOnGlyphMargin ? true : (isCollapsed || showFoldingControls === 'always'));
-		foldingIcon.domNode.setAttribute(STICKY_IS_FOLDING_ICON_ATTR, '');
-		return foldingIcon;
-	}
-
 	getId(): string {
 		return 'editor.contrib.stickyScrollWidget';
 	}
@@ -435,7 +335,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	getPosition(): IOverlayWidgetPosition | null {
 		return {
 			preference: OverlayWidgetPositionPreference.TOP_CENTER,
-			stackOridinal: 10,
+			stackOrdinal: 10,
 		};
 	}
 
@@ -521,16 +421,127 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 }
 
 class RenderedStickyLine {
+
+	public readonly lineDomNode: HTMLElement;
+	public readonly lineNumberDomNode: HTMLElement;
+
+	public readonly foldingIcon: StickyFoldingIcon | undefined;
+	public readonly characterMapping: CharacterMapping;
+
+	public readonly scrollWidth: number;
+	public readonly height: number;
+
 	constructor(
+		editor: ICodeEditor,
+		viewModel: IViewModel,
+		layoutInfo: EditorLayoutInfo,
+		foldingModel: FoldingModel | undefined,
+		isOnGlyphMargin: boolean,
 		public readonly index: number,
 		public readonly lineNumber: number,
-		public readonly lineDomNode: HTMLElement,
-		public readonly lineNumberDomNode: HTMLElement,
-		public readonly foldingIcon: StickyFoldingIcon | undefined,
-		public readonly characterMapping: CharacterMapping,
-		public readonly scrollWidth: number,
-		public readonly height: number
-	) { }
+	) {
+		const viewLineNumber = viewModel.coordinatesConverter.convertModelPositionToViewPosition(new Position(lineNumber, 1)).lineNumber;
+		const lineRenderingData = viewModel.getViewLineRenderingData(viewLineNumber);
+		const lineNumberOption = editor.getOption(EditorOption.lineNumbers);
+		const verticalScrollbarSize = editor.getOption(EditorOption.scrollbar).verticalScrollbarSize;
+
+		let actualInlineDecorations: LineDecoration[];
+		try {
+			actualInlineDecorations = LineDecoration.filter(lineRenderingData.inlineDecorations, viewLineNumber, lineRenderingData.minColumn, lineRenderingData.maxColumn);
+		} catch (err) {
+			actualInlineDecorations = [];
+		}
+
+		const lineHeight = editor.getLineHeightForPosition(new Position(lineNumber, 1));
+		const textDirection = viewModel.getTextDirection(lineNumber);
+		const renderLineInput: RenderLineInput = new RenderLineInput(true, true, lineRenderingData.content,
+			lineRenderingData.continuesWithWrappedLine,
+			lineRenderingData.isBasicASCII, lineRenderingData.containsRTL, 0,
+			lineRenderingData.tokens, actualInlineDecorations,
+			lineRenderingData.tabSize, lineRenderingData.startVisibleColumn,
+			1, 1, 1, 500, 'none', true, true, null,
+			textDirection, verticalScrollbarSize
+		);
+
+		const sb = new StringBuilder(2000);
+		const renderOutput = renderViewLine(renderLineInput, sb);
+		this.characterMapping = renderOutput.characterMapping;
+
+		let newLine;
+		if (_ttPolicy) {
+			newLine = _ttPolicy.createHTML(sb.build());
+		} else {
+			newLine = sb.build();
+		}
+
+		const lineHTMLNode = document.createElement('span');
+		lineHTMLNode.setAttribute(STICKY_INDEX_ATTR, String(index));
+		lineHTMLNode.setAttribute(STICKY_IS_LINE_ATTR, '');
+		lineHTMLNode.setAttribute('role', 'listitem');
+		lineHTMLNode.tabIndex = 0;
+		lineHTMLNode.className = 'sticky-line-content';
+		lineHTMLNode.classList.add(`stickyLine${lineNumber}`);
+		lineHTMLNode.style.lineHeight = `${lineHeight}px`;
+		lineHTMLNode.innerHTML = newLine as string;
+
+		const lineNumberHTMLNode = document.createElement('span');
+		lineNumberHTMLNode.setAttribute(STICKY_INDEX_ATTR, String(index));
+		lineNumberHTMLNode.setAttribute(STICKY_IS_LINE_NUMBER_ATTR, '');
+		lineNumberHTMLNode.className = 'sticky-line-number';
+		lineNumberHTMLNode.style.lineHeight = `${lineHeight}px`;
+		const lineNumbersWidth = layoutInfo.contentLeft;
+		lineNumberHTMLNode.style.width = `${lineNumbersWidth}px`;
+
+		const innerLineNumberHTML = document.createElement('span');
+		if (lineNumberOption.renderType === RenderLineNumbersType.On || lineNumberOption.renderType === RenderLineNumbersType.Interval && lineNumber % 10 === 0) {
+			innerLineNumberHTML.innerText = lineNumber.toString();
+		} else if (lineNumberOption.renderType === RenderLineNumbersType.Relative) {
+			innerLineNumberHTML.innerText = Math.abs(lineNumber - editor.getPosition()!.lineNumber).toString();
+		}
+		innerLineNumberHTML.className = 'sticky-line-number-inner';
+		innerLineNumberHTML.style.width = `${layoutInfo.lineNumbersWidth}px`;
+		innerLineNumberHTML.style.paddingLeft = `${layoutInfo.lineNumbersLeft}px`;
+
+		lineNumberHTMLNode.appendChild(innerLineNumberHTML);
+		const foldingIcon = this._renderFoldingIconForLine(editor, foldingModel, lineNumber, lineHeight, isOnGlyphMargin);
+		if (foldingIcon) {
+			lineNumberHTMLNode.appendChild(foldingIcon.domNode);
+			foldingIcon.domNode.style.left = `${layoutInfo.lineNumbersWidth + layoutInfo.lineNumbersLeft}px`;
+			foldingIcon.domNode.style.lineHeight = `${lineHeight}px`;
+		}
+
+		editor.applyFontInfo(lineHTMLNode);
+		editor.applyFontInfo(lineNumberHTMLNode);
+
+		lineNumberHTMLNode.style.lineHeight = `${lineHeight}px`;
+		lineHTMLNode.style.lineHeight = `${lineHeight}px`;
+		lineNumberHTMLNode.style.height = `${lineHeight}px`;
+		lineHTMLNode.style.height = `${lineHeight}px`;
+
+		this.scrollWidth = lineHTMLNode.scrollWidth;
+		this.lineDomNode = lineHTMLNode;
+		this.lineNumberDomNode = lineNumberHTMLNode;
+		this.height = lineHeight;
+	}
+
+	private _renderFoldingIconForLine(editor: ICodeEditor, foldingModel: FoldingModel | undefined, line: number, lineHeight: number, isOnGlyphMargin: boolean): StickyFoldingIcon | undefined {
+		const showFoldingControls: 'mouseover' | 'always' | 'never' = editor.getOption(EditorOption.showFoldingControls);
+		if (!foldingModel || showFoldingControls === 'never') {
+			return;
+		}
+		const foldingRegions = foldingModel.regions;
+		const indexOfFoldingRegion = foldingRegions.findRange(line);
+		const startLineNumber = foldingRegions.getStartLineNumber(indexOfFoldingRegion);
+		const isFoldingScope = line === startLineNumber;
+		if (!isFoldingScope) {
+			return;
+		}
+		const isCollapsed = foldingRegions.isCollapsed(indexOfFoldingRegion);
+		const foldingIcon = new StickyFoldingIcon(isCollapsed, startLineNumber, foldingRegions.getEndLineNumber(indexOfFoldingRegion), lineHeight);
+		foldingIcon.setVisible(isOnGlyphMargin ? true : (isCollapsed || showFoldingControls === 'always'));
+		foldingIcon.domNode.setAttribute(STICKY_IS_FOLDING_ICON_ATTR, '');
+		return foldingIcon;
+	}
 }
 
 class StickyFoldingIcon {

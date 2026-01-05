@@ -503,7 +503,7 @@ class WorkspaceMcpResourceManagementService extends AbstractMcpResourceManagemen
 			return undefined;
 		}
 
-		const [mcpServer] = await this.mcpGalleryService.getMcpServersFromGallery([name]);
+		const [mcpServer] = await this.mcpGalleryService.getMcpServersFromGallery([{ name }]);
 		if (!mcpServer) {
 			return undefined;
 		}

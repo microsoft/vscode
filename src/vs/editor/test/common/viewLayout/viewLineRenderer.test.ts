@@ -439,6 +439,46 @@ suite('viewLineRenderer.renderLine', () => {
 		await assertSnapshot(inflated.mapping);
 	});
 
+	test('issue #274604: Mixed LTR and RTL in a single token', async () => {
+		const lineContent = 'test.com##a:-abp-contains(إ)';
+		const lineTokens = createViewLineTokens([
+			createPart(lineContent.length, 1)
+		]);
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent,
+			isBasicASCII: false,
+			containsRTL: true,
+			lineTokens
+		}));
+
+		const inflated = inflateRenderLineOutput(actual);
+		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
+		await assertSnapshot(inflated.mapping);
+	});
+
+	test('issue #277693: Mixed LTR and RTL in a single token with template literal', async () => {
+		const lineContent = 'نام کاربر: ${user.firstName}';
+		const lineTokens = createViewLineTokens([
+			createPart(9, 1),   // نام کاربر (RTL string content)
+			createPart(11, 1),  // : (space)
+			createPart(13, 2),  // ${ (template expression punctuation)
+			createPart(17, 3),  // user (variable)
+			createPart(18, 4),  // . (punctuation)
+			createPart(27, 3),  // firstName (property)
+			createPart(28, 2),  // } (template expression punctuation)
+		]);
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent,
+			isBasicASCII: false,
+			containsRTL: true,
+			lineTokens
+		}));
+
+		const inflated = inflateRenderLineOutput(actual);
+		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
+		await assertSnapshot(inflated.mapping);
+	});
+
 	test('issue #6885: Splits large tokens', async () => {
 		//                                                                                                                  1         1         1
 		//                        1         2         3         4         5         6         7         8         9         0         1         2

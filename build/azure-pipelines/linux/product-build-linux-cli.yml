@@ -51,7 +51,7 @@ jobs:
           tar -xvzf $(Build.ArtifactStagingDirectory)/vscode-internal-openssl-prebuilt-0.0.11.tgz --strip-components=1 --directory=$(Build.ArtifactStagingDirectory)/openssl
         displayName: Extract openssl prebuilt
 
-      - script: node build/setup-npm-registry.js $NPM_REGISTRY build
+      - script: node build/setup-npm-registry.ts $NPM_REGISTRY build
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Registry
 

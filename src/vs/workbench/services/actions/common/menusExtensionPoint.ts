@@ -149,10 +149,15 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.scmSourceControl', "The Source Control menu")
 	},
 	{
-		key: 'scm/sourceControl/title',
+		key: 'scm/repositories/title',
 		id: MenuId.SCMSourceControlTitle,
-		description: localize('menus.scmSourceControlTitle', "The Source Control title menu"),
+		description: localize('menus.scmSourceControlTitle', "The Source Control Repositories title menu"),
 		proposed: 'contribSourceControlTitleMenu'
+	},
+	{
+		key: 'scm/repository',
+		id: MenuId.SCMSourceControlInline,
+		description: localize('menus.scmSourceControlInline', "The Source Control repository menu"),
 	},
 	{
 		key: 'scm/resourceState/context',
@@ -197,6 +202,18 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.SCMHistoryItemRefContext,
 		description: localize('menus.historyItemRefContext', "The Source Control history item reference context menu"),
 		proposed: 'contribSourceControlHistoryItemMenu'
+	},
+	{
+		key: 'scm/artifactGroup/context',
+		id: MenuId.SCMArtifactGroupContext,
+		description: localize('menus.artifactGroupContext', "The Source Control artifact group context menu"),
+		proposed: 'contribSourceControlArtifactGroupMenu'
+	},
+	{
+		key: 'scm/artifact/context',
+		id: MenuId.SCMArtifactContext,
+		description: localize('menus.artifactContext', "The Source Control artifact context menu"),
+		proposed: 'contribSourceControlArtifactMenu'
 	},
 	{
 		key: 'statusBar/remoteIndicator',
@@ -421,6 +438,12 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'contribMergeEditorMenus'
 	},
 	{
+		key: 'multiDiffEditor/content',
+		id: MenuId.MultiDiffEditorContent,
+		description: localize('menus.multiDiffEditorContent', "A prominent button overlaying the multi diff editor"),
+		proposed: 'contribEditorContentMenu'
+	},
+	{
 		key: 'multiDiffEditor/resource/title',
 		id: MenuId.MultiDiffEditorFileToolbar,
 		description: localize('menus.multiDiffEditorResource', "The resource toolbar in the multi diff editor"),
@@ -451,9 +474,23 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'chatParticipantPrivate'
 	},
 	{
+		key: 'chat/input/editing/sessionToolbar',
+		id: MenuId.ChatEditingSessionChangesToolbar,
+		description: localize('menus.chatEditingSessionChangesToolbar', "The Chat Editing widget toolbar menu for session changes."),
+		proposed: 'chatSessionsProvider'
+	},
+	{
+		// TODO: rename this to something like: `chatSessions/item/inline`
 		key: 'chat/chatSessions',
-		id: MenuId.ChatSessionsMenu,
+		id: MenuId.AgentSessionsContext,
 		description: localize('menus.chatSessions', "The Chat Sessions menu."),
+		supportsSubmenus: false,
+		proposed: 'chatSessionsProvider'
+	},
+	{
+		key: 'chatSessions/newSession',
+		id: MenuId.AgentSessionsCreateSubMenu,
+		description: localize('menus.chatSessionsNewSession', "Menu for new chat sessions."),
 		supportsSubmenus: false,
 		proposed: 'chatSessionsProvider'
 	},
@@ -810,7 +847,7 @@ export const commandsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<
 
 commandsExtensionPoint.setHandler(extensions => {
 
-	function handleCommand(userFriendlyCommand: schema.IUserFriendlyCommand, extension: IExtensionPointUser<any>) {
+	function handleCommand(userFriendlyCommand: schema.IUserFriendlyCommand, extension: IExtensionPointUser<unknown>) {
 
 		if (!schema.isValidCommand(userFriendlyCommand, extension.collector)) {
 			return;

@@ -10,7 +10,7 @@ import { IEditObserver } from './inlineChatStrategies.js';
 import { IProgress } from '../../../../platform/progress/common/progress.js';
 import { IntervalTimer, AsyncIterableSource } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { getNWords } from '../../chat/common/chatWordCounter.js';
+import { getNWords } from '../../chat/common/model/chatWordCounter.js';
 import { TextModelEditSource } from '../../../../editor/common/textModelEditSource.js';
 
 
