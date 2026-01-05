@@ -96,6 +96,11 @@ declare module 'vscode' {
 		description?: string | MarkdownString;
 
 		/**
+		 * An optional badge that provides additional context about the chat session.
+		 */
+		badge?: string | MarkdownString;
+
+		/**
 		 * An optional status indicating the current state of the session.
 		 */
 		status?: ChatSessionStatus;
@@ -235,6 +240,14 @@ declare module 'vscode' {
 		 * Event that the provider can fire to signal that the options for a chat session have changed.
 		 */
 		readonly onDidChangeChatSessionOptions?: Event<ChatSessionOptionChangeEvent>;
+
+		/**
+		 * Event that the provider can fire to signal that the available provider options have changed.
+		 *
+		 * When fired, the editor will re-query {@link ChatSessionContentProvider.provideChatSessionProviderOptions}
+		 * and update the UI to reflect the new option groups.
+		 */
+		readonly onDidChangeChatSessionProviderOptions?: Event<void>;
 
 		/**
 		 * Provides the chat session content for a given uri.

@@ -31,7 +31,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { ChatEntitlement, IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
-import { ChatContextKeys } from './chatContextKeys.js';
+import { ChatContextKeys } from './actions/chatContextKeys.js';
 import { ILanguageModelsProviderGroup, ILanguageModelsConfigurationService } from './languageModelsConfiguration.js';
 
 export const enum ChatMessageRole {

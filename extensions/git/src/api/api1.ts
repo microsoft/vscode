@@ -7,7 +7,7 @@
 
 import { Model } from '../model';
 import { Repository as BaseRepository, Resource } from '../repository';
-import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, ForcePushMode, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, RefType, CredentialsProvider, BranchQuery, PushErrorHandler, PublishEvent, FetchOptions, RemoteSourceProvider, RemoteSourcePublisher, PostCommitCommandsProvider, RefQuery, BranchProtectionProvider, InitOptions, SourceControlHistoryItemDetailsProvider, GitErrorCodes, CloneOptions, CommitShortStat } from './git';
+import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, ForcePushMode, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, RefType, CredentialsProvider, BranchQuery, PushErrorHandler, PublishEvent, FetchOptions, RemoteSourceProvider, RemoteSourcePublisher, PostCommitCommandsProvider, RefQuery, BranchProtectionProvider, InitOptions, SourceControlHistoryItemDetailsProvider, GitErrorCodes, CloneOptions, CommitShortStat, DiffChange, Worktree } from './git';
 import { Event, SourceControlInputBox, Uri, SourceControl, Disposable, commands, CancellationToken } from 'vscode';
 import { combinedDisposable, filterEvent, mapEvent } from '../util';
 import { toGitUri } from '../uri';
@@ -52,6 +52,7 @@ export class ApiRepositoryState implements RepositoryState {
 	get refs(): Ref[] { console.warn('Deprecated. Use ApiRepository.getRefs() instead.'); return []; }
 	get remotes(): Remote[] { return [...this.#repository.remotes]; }
 	get submodules(): Submodule[] { return [...this.#repository.submodules]; }
+	get worktrees(): Worktree[] { return this.#repository.worktrees; }
 	get rebaseCommit(): Commit | undefined { return this.#repository.rebaseCommit; }
 
 	get mergeChanges(): Change[] { return this.#repository.mergeGroup.resourceStates.map(r => new ApiChange(r)); }
@@ -199,6 +200,10 @@ export class ApiRepository implements Repository {
 		return this.#repository.diffBetween(ref1, ref2, path);
 	}
 
+	diffBetweenWithStats(ref1: string, ref2: string, path?: string): Promise<DiffChange[]> {
+		return this.#repository.diffBetweenWithStats(ref1, ref2, path);
+	}
+
 	hashObject(data: string): Promise<string> {
 		return this.#repository.hashObject(data);
 	}
@@ -305,6 +310,10 @@ export class ApiRepository implements Repository {
 
 	mergeAbort(): Promise<void> {
 		return this.#repository.mergeAbort();
+	}
+
+	createStash(options?: { message?: string; includeUntracked?: boolean; staged?: boolean }): Promise<void> {
+		return this.#repository.createStash(options?.message, options?.includeUntracked, options?.staged);
 	}
 
 	applyStash(index?: number): Promise<void> {
@@ -545,6 +554,7 @@ export function registerAPICommands(extension: GitExtensionImpl): Disposable {
 			refs: state.refs.map(ref),
 			remotes: state.remotes,
 			submodules: state.submodules,
+			worktrees: state.worktrees,
 			rebaseCommit: state.rebaseCommit,
 			mergeChanges: state.mergeChanges.map(change),
 			indexChanges: state.indexChanges.map(change),

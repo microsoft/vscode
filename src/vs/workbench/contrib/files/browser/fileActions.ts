@@ -163,7 +163,7 @@ async function deleteFiles(explorerService: IExplorerService, workingCopyFileSer
 		distinctElements.length > 1 ? nls.localize('restorePlural', "You can restore these files using the Undo command.") : nls.localize('restore', "You can restore this file using the Undo command.");
 
 	// Check if we need to ask for confirmation at all
-	if (skipConfirm || (useTrash && configurationService.getValue<boolean>(CONFIRM_DELETE_SETTING_KEY) === false)) {
+	if (skipConfirm || configurationService.getValue<boolean>(CONFIRM_DELETE_SETTING_KEY) === false) {
 		confirmation = { confirmed: true };
 	}
 

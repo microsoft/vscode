@@ -137,7 +137,7 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 	// IObserver implementation
 	public beginUpdate(_observable: IObservable<any>): void {
 		if (this._state === AutorunState.upToDate) {
-			this._checkInvariant();
+			this._checkIterations();
 			this._state = AutorunState.dependenciesMightHaveChanged;
 		}
 		this._updateCount++;
@@ -148,7 +148,7 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 			if (this._updateCount === 1) {
 				this._iteration = 1;
 				do {
-					if (this._checkInvariant()) {
+					if (this._checkIterations()) {
 						return;
 					}
 					if (this._state === AutorunState.dependenciesMightHaveChanged) {
@@ -177,7 +177,7 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 
 	public handlePossibleChange(observable: IObservable<any>): void {
 		if (this._state === AutorunState.upToDate && this._isDependency(observable)) {
-			this._checkInvariant();
+			this._checkIterations();
 			this._state = AutorunState.dependenciesMightHaveChanged;
 		}
 	}
@@ -194,7 +194,7 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 					didChange: (o): this is any => o === observable as any,
 				}, this._changeSummary!) : true;
 				if (shouldReact) {
-					this._checkInvariant();
+					this._checkIterations();
 					this._state = AutorunState.stale;
 				}
 			} catch (e) {
@@ -272,7 +272,7 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 		}
 	}
 
-	private _checkInvariant(): boolean {
+	private _checkIterations(): boolean {
 		if (this._iteration > 100) {
 			onBugIndicatingError(new BugIndicatingError(`Autorun '${this.debugName}' is stuck in an infinite update loop.`));
 			return true;

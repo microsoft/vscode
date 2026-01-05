@@ -23,7 +23,7 @@ import { EditSources, TextModelEditSource } from '../../../../common/textModelEd
 import { hasProvider, rawRename } from '../../../rename/browser/rename.js';
 import { renameSymbolCommandId } from '../controller/commandIds.js';
 import { InlineSuggestionItem } from './inlineSuggestionItem.js';
-import { IInlineSuggestDataActionEdit } from './provideInlineCompletions.js';
+import { IInlineSuggestDataActionEdit, InlineCompletionContextWithoutUuid } from './provideInlineCompletions.js';
 import { InlineSuggestAlternativeAction } from './InlineSuggestAlternativeAction.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 
@@ -343,8 +343,8 @@ export class RenameSymbolProcessor extends Disposable {
 		}));
 	}
 
-	public async proposeRenameRefactoring(textModel: ITextModel, suggestItem: InlineSuggestionItem): Promise<InlineSuggestionItem> {
-		if (!suggestItem.supportsRename || suggestItem.action?.kind !== 'edit') {
+	public async proposeRenameRefactoring(textModel: ITextModel, suggestItem: InlineSuggestionItem, context: InlineCompletionContextWithoutUuid): Promise<InlineSuggestionItem> {
+		if (!suggestItem.supportsRename || suggestItem.action?.kind !== 'edit' || context.selectedSuggestionInfo) {
 			return suggestItem;
 		}
 
