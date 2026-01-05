@@ -29,7 +29,7 @@ import { ChatRequestToolReferenceEntry } from './chatVariableEntries.js';
 import { LanguageModelPartAudience } from './languageModels.js';
 import { PromptElementJSON, stringifyPromptElementJSON } from './tools/promptTsxTypes.js';
 
-import { IMcpToolCallUIData } from '../../mcp/common/mcpTypes.js';
+import { MCP } from '../../mcp/common/modelContextProtocol.js';
 
 export interface IToolData {
 	readonly id: string;
@@ -182,19 +182,12 @@ export type ToolInputOutputEmbedded = ToolInputOutputBase & {
 
 export type ToolInputOutputReference = ToolInputOutputBase & { type: 'ref'; uri: URI };
 
-/**
- * MCP App UI output type containing serializable data for rendering an MCP App webview.
- */
-export type ToolMcpUiOutput = {
-	type: 'mcpApp';
-	/** Serializable UI data for rendering the MCP App */
-	uiData: IMcpToolCallUIData;
-};
-
 export interface IToolResultInputOutputDetails {
 	readonly input: string;
-	readonly output: (ToolInputOutputEmbedded | ToolInputOutputReference | ToolMcpUiOutput)[];
+	readonly output: (ToolInputOutputEmbedded | ToolInputOutputReference)[];
 	readonly isError?: boolean;
+	/** Raw MCP tool result for MCP App UI rendering */
+	readonly mcpOutput?: MCP.CallToolResult;
 }
 
 export interface IToolResultOutputDetails {
@@ -209,11 +202,6 @@ export function isToolResultInputOutputDetails(obj: any): obj is IToolResultInpu
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function isToolResultOutputDetails(obj: any): obj is IToolResultOutputDetails {
 	return typeof obj === 'object' && typeof obj?.output === 'object' && typeof obj?.output?.mimeType === 'string' && obj?.output?.type === 'data';
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function isToolMcpUiOutput(obj: any): obj is ToolMcpUiOutput {
-	return typeof obj === 'object' && obj?.type === 'mcpApp' && typeof obj?.uiData === 'object';
 }
 
 export interface IToolResult {

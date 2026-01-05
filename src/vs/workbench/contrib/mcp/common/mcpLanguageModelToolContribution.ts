@@ -12,7 +12,7 @@ import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable }
 import { equals } from '../../../../base/common/objects.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { basename } from '../../../../base/common/resources.js';
-import { isDefined } from '../../../../base/common/types.js';
+import { isDefined, Mutable } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -217,7 +217,12 @@ class McpToolImplementation implements IToolImpl {
 			originMessage: localize('msg.subtitle', "{0} (MCP Server)", server.definition.label),
 			toolSpecificData: {
 				kind: 'input',
-				rawInput: context.parameters
+				rawInput: context.parameters,
+				mcpAppData: tool.uiResourceUri ? {
+					resourceUri: tool.uiResourceUri,
+					serverDefinitionId: server.definition.id,
+					collectionId: server.collection.id,
+				} : undefined,
 			}
 		};
 	}
@@ -229,7 +234,7 @@ class McpToolImplementation implements IToolImpl {
 		};
 
 		const callResult = await this._tool.callWithProgress(invocation.parameters as Record<string, unknown>, progress, { chatRequestId: invocation.chatRequestId, chatSessionId: invocation.context?.sessionId }, token);
-		const details: IToolResultInputOutputDetails = {
+		const details: Mutable<IToolResultInputOutputDetails> = {
 			input: JSON.stringify(invocation.parameters, undefined, 2),
 			output: [],
 			isError: callResult.isError === true,
@@ -346,9 +351,9 @@ class McpToolImplementation implements IToolImpl {
 			result.content.push({ kind: 'text', value: JSON.stringify(callResult.structuredContent), audience: [LanguageModelPartAudience.Assistant] });
 		}
 
-		// Add MCP App UI data if present in the call result
-		if (callResult.ui) {
-			details.output.push({ type: 'mcpApp', uiData: callResult.ui });
+		// Add raw MCP output for MCP App UI rendering if this tool has UI
+		if (this._tool.uiResourceUri) {
+			details.mcpOutput = callResult;
 		}
 
 		result.toolResultDetails = details;

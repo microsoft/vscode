@@ -37,7 +37,7 @@ import { McpIcons, parseAndValidateMcpIcon, StoredMcpIcons } from './mcpIcons.js
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
 import { McpTaskManager } from './mcpTaskManager.js';
-import { ElicitationKind, extensionMcpCollectionPrefix, IMcpElicitationService, IMcpIcons, IMcpPrompt, IMcpPromptMessage, IMcpResource, IMcpResourceTemplate, IMcpSamplingService, IMcpServer, IMcpServerConnection, IMcpServerStartOpts, IMcpTool, IMcpToolCallContext, IMcpToolCallResult, IMcpToolCallUIData, McpCapability, McpCollectionDefinition, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, mcpPromptReplaceSpecialChars, McpResourceURI, McpServerCacheState, McpServerDefinition, McpServerStaticToolAvailability, McpServerTransportType, McpToolName, McpToolVisibility, MpcResponseError, UserInteractionRequiredError } from './mcpTypes.js';
+import { ElicitationKind, extensionMcpCollectionPrefix, IMcpElicitationService, IMcpIcons, IMcpPrompt, IMcpPromptMessage, IMcpResource, IMcpResourceTemplate, IMcpSamplingService, IMcpServer, IMcpServerConnection, IMcpServerStartOpts, IMcpTool, IMcpToolCallContext, McpCapability, McpCollectionDefinition, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, mcpPromptReplaceSpecialChars, McpResourceURI, McpServerCacheState, McpServerDefinition, McpServerStaticToolAvailability, McpServerTransportType, McpToolName, McpToolVisibility, MpcResponseError, UserInteractionRequiredError } from './mcpTypes.js';
 import { MCP } from './modelContextProtocol.js';
 import { McpApps } from './modelContextProtocolApps.js';
 import { UriTemplate } from './uriTemplate.js';
@@ -1018,6 +1018,7 @@ export class McpTool implements IMcpTool {
 	readonly visibility: McpToolVisibility;
 
 	public get definition(): MCP.Tool { return this._definition; }
+	public get uiResourceUri(): string | undefined { return this._definition.uiResourceUri; }
 
 	constructor(
 		private readonly _server: McpServer,
@@ -1031,7 +1032,7 @@ export class McpTool implements IMcpTool {
 		this.visibility = _definition.visibility;
 	}
 
-	async call(params: Record<string, unknown>, context?: IMcpToolCallContext, token?: CancellationToken): Promise<IMcpToolCallResult> {
+	async call(params: Record<string, unknown>, context?: IMcpToolCallContext, token?: CancellationToken): Promise<MCP.CallToolResult> {
 		if (context) { this._server.runningToolCalls.add(context); }
 		try {
 			return await this._callWithProgress(params, undefined, context, token);
@@ -1040,7 +1041,7 @@ export class McpTool implements IMcpTool {
 		}
 	}
 
-	async callWithProgress(params: Record<string, unknown>, progress: ToolProgress, context?: IMcpToolCallContext, token?: CancellationToken): Promise<IMcpToolCallResult> {
+	async callWithProgress(params: Record<string, unknown>, progress: ToolProgress, context?: IMcpToolCallContext, token?: CancellationToken): Promise<MCP.CallToolResult> {
 		if (context) { this._server.runningToolCalls.add(context); }
 		try {
 			return await this._callWithProgress(params, progress, context, token);
@@ -1049,7 +1050,7 @@ export class McpTool implements IMcpTool {
 		}
 	}
 
-	_callWithProgress(params: Record<string, unknown>, progress: ToolProgress | undefined, context?: IMcpToolCallContext, token = CancellationToken.None, allowRetry = true): Promise<IMcpToolCallResult> {
+	_callWithProgress(params: Record<string, unknown>, progress: ToolProgress | undefined, context?: IMcpToolCallContext, token = CancellationToken.None, allowRetry = true): Promise<MCP.CallToolResult> {
 		// serverToolName is always set now, but older cache entries (from 1.99-Insiders) may not have it.
 		const name = this._definition.serverToolName ?? this._definition.name;
 		const progressToken = progress ? generateUuid() : undefined;
@@ -1090,19 +1091,7 @@ export class McpTool implements IMcpTool {
 				// Wait for tools to refresh for dynamic servers (#261611)
 				await this._server.awaitToolRefresh();
 
-				// Add UI data if this tool has an associated MCP App UI
-				const mcpResult: IMcpToolCallResult = result;
-				if (this._definition.uiResourceUri) {
-					const uiData: IMcpToolCallUIData = {
-						resourceUri: this._definition.uiResourceUri,
-						serverDefinitionId: this._server.definition.id,
-						collectionId: this._server.collection.id,
-						rawToolOutput: mcpResult,
-					};
-					return { ...mcpResult, ui: uiData };
-				}
-
-				return mcpResult;
+				return result;
 			} catch (err) {
 				// Handle URL elicitation required error
 				if (err instanceof MpcResponseError && err.code === MCP.URL_ELICITATION_REQUIRED && allowRetry) {

@@ -8,6 +8,7 @@ import { ChatTreeItem, IChatCodeBlockInfo } from '../chat.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../common/codeBlockModelCollection.js';
 import { DiffEditorPool, EditorPool } from './chatContentCodePools.js';
+import { McpAppWebviewPool } from './toolInvocationParts/chatMcpAppWebviewPool.js';
 
 export interface IChatContentPart extends IDisposable {
 	domNode: HTMLElement | undefined;
@@ -48,5 +49,6 @@ export interface IChatContentPartRenderContext {
 	readonly codeBlockStartIndex: number;
 	readonly diffEditorPool: DiffEditorPool;
 	readonly codeBlockModelCollection: CodeBlockModelCollection;
+	readonly mcpAppWebviewPool: McpAppWebviewPool;
 	currentWidth(): number;
 }

@@ -460,16 +460,6 @@ export interface IMcpToolCallUIData {
 	readonly serverDefinitionId: string;
 	/** Reference to the collection containing the server */
 	readonly collectionId: string;
-	/** Original raw tool result. */
-	readonly rawToolOutput: MCP.CallToolResult;
-}
-
-/**
- * Extended result from an MCP tool call that may include UI rendering data.
- */
-export interface IMcpToolCallResult extends MCP.CallToolResult {
-	/** Optional UI data for rendering an MCP App */
-	readonly ui?: IMcpToolCallUIData;
 }
 
 export interface IMcpTool {
@@ -481,18 +471,20 @@ export interface IMcpTool {
 	readonly definition: MCP.Tool;
 	/** Visibility of the tool (Model, App, or both). Defaults to Model | App. */
 	readonly visibility: McpToolVisibility;
+	/** Optional UI resource URI for MCP App rendering */
+	readonly uiResourceUri?: string;
 
 	/**
 	 * Calls a tool
 	 * @throws {@link MpcResponseError} if the tool fails to execute
 	 * @throws {@link McpConnectionFailedError} if the connection to the server fails
 	 */
-	call(params: Record<string, unknown>, context?: IMcpToolCallContext, token?: CancellationToken): Promise<IMcpToolCallResult>;
+	call(params: Record<string, unknown>, context?: IMcpToolCallContext, token?: CancellationToken): Promise<MCP.CallToolResult>;
 
 	/**
 	 * Identical to {@link call}, but reports progress.
 	 */
-	callWithProgress(params: Record<string, unknown>, progress: ToolProgress, context?: IMcpToolCallContext, token?: CancellationToken): Promise<IMcpToolCallResult>;
+	callWithProgress(params: Record<string, unknown>, progress: ToolProgress, context?: IMcpToolCallContext, token?: CancellationToken): Promise<MCP.CallToolResult>;
 }
 
 export const enum McpServerTransportType {
