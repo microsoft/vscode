@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, ImmortalReference, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import type { IMarker as IXtermMarker, Terminal as RawXtermTerminal } from '@xterm/xterm';
@@ -19,9 +19,6 @@ import { editorBackground } from '../../../../platform/theme/common/colorRegistr
 import { Color } from '../../../../base/common/color.js';
 import type { IChatTerminalToolInvocationData } from '../../chat/common/chatService/chatService.js';
 import type { IColorTheme } from '../../../../platform/theme/common/themeService.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { TerminalInstanceColorProvider } from './terminalInstance.js';
-import { TerminalLocation } from '../../../../platform/terminal/common/terminal.js';
 import { ICurrentPartialCommand } from '../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand.js';
 
 function getChatTerminalBackgroundColor(theme: IColorTheme, contextKeyService: IContextKeyService, storedBackground?: string): Color | undefined {
@@ -145,10 +142,9 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 
 	constructor(
 		private readonly _xtermTerminal: XtermTerminal,
-		private readonly _terminalLocation: IReference<TerminalLocation | undefined>,
 		private readonly _command: ITerminalCommand,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super();
 		this._register(toDisposable(() => {
@@ -263,8 +259,9 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 		if (this._isDisposed) {
 			throw new CancellationError();
 		}
-		const targetRef = this._terminalLocation ?? new ImmortalReference<TerminalLocation | undefined>(undefined);
-		const colorProvider = this._instantiationService.createInstance(TerminalInstanceColorProvider, targetRef);
+		const colorProvider = {
+			getBackgroundColor: (theme: IColorTheme) => getChatTerminalBackgroundColor(theme, this._contextKeyService)
+		};
 		const detached = await this._terminalService.createDetachedTerminal({
 			cols: this._xtermTerminal.raw.cols ?? ChatTerminalMirrorMetrics.MirrorColCountFallback,
 			rows: ChatTerminalMirrorMetrics.MirrorRowCount,

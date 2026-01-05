@@ -5,16 +5,14 @@
 
 import { deepStrictEqual, strictEqual } from 'assert';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { ImmortalReference } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import type { ITerminalCommand } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import type { ICurrentPartialCommand } from '../../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand.js';
-import { TerminalLocation } from '../../../../../platform/terminal/common/terminal.js';
-import type { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import type { IDetachedTerminalInstance, ITerminalService } from '../../browser/terminal.js';
 import { DetachedTerminalCommandMirror, getCommandOutputSnapshot } from '../../browser/chatTerminalCommandMirror.js';
 import type { XtermTerminal } from '../../browser/xterm/xtermTerminal.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 
 class TestMarker {
 	public isDisposed = false;
@@ -196,10 +194,9 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 
 			const mirror = store.add(new DetachedTerminalCommandMirror(
 				xterm,
-				new ImmortalReference<TerminalLocation | undefined>(undefined),
 				command,
 				{} as ITerminalService,
-				{} as IInstantiationService
+				{} as IContextKeyService
 			));
 
 			const writes: string[] = [];
@@ -249,10 +246,9 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 
 			const mirror = store.add(new DetachedTerminalCommandMirror(
 				xterm,
-				new ImmortalReference<TerminalLocation | undefined>(undefined),
 				command,
 				{} as ITerminalService,
-				{} as IInstantiationService
+				{} as IContextKeyService
 			));
 
 			const writes: string[] = [];
