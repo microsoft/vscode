@@ -119,7 +119,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		return {
 			dispose: () => {
 				const currentCollections = this._collections.get();
-				this._collections.set(currentCollections.filter(c => c.id !== collection.id), undefined);
+				this._collections.set(currentCollections.filter(c => c !== collection), undefined);
 			}
 		};
 	}
@@ -542,6 +542,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 			launch,
 			logger,
 			opts.errorOnUserInteraction,
+			opts.taskManager,
 		);
 	}
 }

@@ -13,11 +13,13 @@ import { HistoryInputBox, IInputBoxStyles, IInputValidator, IMessage as InputBox
 import { Widget } from '../widget.js';
 import { Emitter, Event } from '../../../common/event.js';
 import { KeyCode } from '../../../common/keyCodes.js';
+import { IAction } from '../../../common/actions.js';
+import type { IActionViewItemProvider } from '../actionbar/actionbar.js';
 import './findInput.css';
 import * as nls from '../../../../nls.js';
 import { DisposableStore, MutableDisposable } from '../../../common/lifecycle.js';
-import { createInstantHoverDelegate } from '../hover/hoverDelegateFactory.js';
 import { IHistory } from '../../../common/history.js';
+import type { IHoverLifecycleOptions } from '../hover/hover.js';
 
 
 export interface IFindInputOptions {
@@ -34,10 +36,13 @@ export interface IFindInputOptions {
 	readonly appendWholeWordsLabel?: string;
 	readonly appendRegexLabel?: string;
 	readonly additionalToggles?: Toggle[];
+	readonly actions?: ReadonlyArray<IAction>;
+	readonly actionViewItemProvider?: IActionViewItemProvider;
 	readonly showHistoryHint?: () => boolean;
 	readonly toggleStyles: IToggleStyles;
 	readonly inputBoxStyles: IInputBoxStyles;
 	readonly history?: IHistory<string>;
+	readonly hoverLifecycleOptions?: IHoverLifecycleOptions;
 }
 
 const NLS_DEFAULT_LABEL = nls.localize('defaultLabel', "input");
@@ -111,16 +116,17 @@ export class FindInput extends Widget {
 			flexibleWidth,
 			flexibleMaxHeight,
 			inputBoxStyles: options.inputBoxStyles,
-			history: options.history
+			history: options.history,
+			actions: options.actions,
+			actionViewItemProvider: options.actionViewItemProvider
 		}));
 
-		const hoverDelegate = this._register(createInstantHoverDelegate());
-
 		if (this.showCommonFindToggles) {
+			const hoverLifecycleOptions: IHoverLifecycleOptions = options?.hoverLifecycleOptions || { groupId: 'find-input' };
 			this.regex = this._register(new RegexToggle({
 				appendTitle: appendRegexLabel,
 				isChecked: false,
-				hoverDelegate,
+				hoverLifecycleOptions,
 				...options.toggleStyles
 			}));
 			this._register(this.regex.onChange(viaKeyboard => {
@@ -137,7 +143,7 @@ export class FindInput extends Widget {
 			this.wholeWords = this._register(new WholeWordsToggle({
 				appendTitle: appendWholeWordsLabel,
 				isChecked: false,
-				hoverDelegate,
+				hoverLifecycleOptions,
 				...options.toggleStyles
 			}));
 			this._register(this.wholeWords.onChange(viaKeyboard => {
@@ -151,7 +157,7 @@ export class FindInput extends Widget {
 			this.caseSensitive = this._register(new CaseSensitiveToggle({
 				appendTitle: appendCaseSensitiveLabel,
 				isChecked: false,
-				hoverDelegate,
+				hoverLifecycleOptions,
 				...options.toggleStyles
 			}));
 			this._register(this.caseSensitive.onChange(viaKeyboard => {
@@ -305,6 +311,10 @@ export class FindInput extends Widget {
 		}
 
 		this.updateInputBoxPadding();
+	}
+
+	public setActions(actions: ReadonlyArray<IAction> | undefined, actionViewItemProvider?: IActionViewItemProvider): void {
+		this.inputBox.setActions(actions, actionViewItemProvider);
 	}
 
 	private updateInputBoxPadding(controlsHidden = false) {

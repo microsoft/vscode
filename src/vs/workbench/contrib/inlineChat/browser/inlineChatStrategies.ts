@@ -22,19 +22,17 @@ import { IEditorWorkerService } from '../../../../editor/common/services/editorW
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { Progress } from '../../../../platform/progress/common/progress.js';
 import { SaveReason } from '../../../common/editor.js';
-import { countWords } from '../../chat/common/chatWordCounter.js';
+import { countWords } from '../../chat/common/model/chatWordCounter.js';
 import { HunkInformation, Session, HunkState } from './inlineChatSession.js';
 import { InlineChatZoneWidget } from './inlineChatZoneWidget.js';
-import { ACTION_TOGGLE_DIFF, CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, InlineChatConfigKeys, MENU_INLINE_CHAT_ZONE, minimapInlineChatDiffInserted, overviewRulerInlineChatDiffInserted } from '../common/inlineChat.js';
+import { ACTION_TOGGLE_DIFF, CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, MENU_INLINE_CHAT_ZONE, minimapInlineChatDiffInserted, overviewRulerInlineChatDiffInserted } from '../common/inlineChat.js';
 import { assertType } from '../../../../base/common/types.js';
 import { performAsyncTextEdit, asProgressiveEdit } from './utils.js';
-import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { IUntitledTextEditorModel } from '../../../services/untitled/common/untitledTextEditorModel.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { DefaultChatTextEditor } from '../../chat/browser/codeBlockPart.js';
+import { DefaultChatTextEditor } from '../../chat/browser/widget/chatContentParts/codeBlockPart.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { ConflictActionsFactory, IContentWidgetAction } from '../../mergeEditor/browser/view/conflictActions.js';
@@ -99,8 +97,8 @@ export class LiveStrategy {
 		private readonly _showOverlayToolbar: boolean,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorWorkerService protected readonly _editorWorkerService: IEditorWorkerService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
-		@IConfigurationService private readonly _configService: IConfigurationService,
+		// @IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		// @IConfigurationService private readonly _configService: IConfigurationService,
 		@IMenuService private readonly _menuService: IMenuService,
 		@IContextKeyService private readonly _contextService: IContextKeyService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
@@ -182,6 +180,7 @@ export class LiveStrategy {
 			modelId: metadata.modelId,
 			extensionId: metadata.extensionId,
 			requestId: metadata.requestId,
+			sessionId: undefined,
 			languageId: this._session.textModelN.getLanguageId(),
 		});
 
@@ -477,10 +476,10 @@ export class LiveStrategy {
 			if (widgetData) {
 				this._zone.reveal(widgetData.position);
 
-				const mode = this._configService.getValue<'on' | 'off' | 'auto'>(InlineChatConfigKeys.AccessibleDiffView);
-				if (mode === 'on' || mode === 'auto' && this._accessibilityService.isScreenReaderOptimized()) {
-					this._zone.widget.showAccessibleHunk(this._session, widgetData.hunk);
-				}
+				// const mode = this._configService.getValue<'on' | 'off' | 'auto'>(InlineChatConfigKeys.AccessibleDiffView);
+				// if (mode === 'on' || mode === 'auto' && this._accessibilityService.isScreenReaderOptimized()) {
+				// 	this._zone.widget.showAccessibleHunk(this._session, widgetData.hunk);
+				// }
 
 				this._ctxCurrentChangeHasDiff.set(Boolean(widgetData.toggleDiff));
 

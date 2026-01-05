@@ -16,6 +16,7 @@ import { ContextKeyExpr, IContextKeyService } from '../../../platform/contextkey
 import { IDialogService, IPromptButton } from '../../../platform/dialogs/common/dialogs.js';
 import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 import { LogLevel } from '../../../platform/log/common/log.js';
+import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
 import { IMcpMessageTransport, IMcpRegistry } from '../../contrib/mcp/common/mcpRegistryTypes.js';
 import { extensionPrefixedIdentifier, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportType, McpServerTrust, UserInteractionRequiredError } from '../../contrib/mcp/common/mcpTypes.js';
 import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
@@ -28,7 +29,7 @@ import { ExtensionHostKind, extensionHostKindToString } from '../../services/ext
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostContext, ExtHostMcpShape, IMcpAuthenticationDetails, IMcpAuthenticationOptions, MainContext, MainThreadMcpShape } from '../common/extHost.protocol.js';
+import { ExtHostContext, ExtHostMcpShape, IMcpAuthenticationDetails, IMcpAuthenticationOptions, IMcpAuthSetupTelemetry, MainContext, MainThreadMcpShape } from '../common/extHost.protocol.js';
 
 @extHostNamedCustomer(MainContext.MainThreadMcp)
 export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
@@ -37,6 +38,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 
 	private readonly _servers = new Map<number, ExtHostMcpServerLaunch>();
 	private readonly _serverDefinitions = new Map<number, McpServerDefinition>();
+	private readonly _serverAuthTracking = new McpServerAuthTracker();
 	private readonly _proxy: Proxied<ExtHostMcpShape>;
 	private readonly _collectionDefinitions = this._register(new DisposableMap<string, {
 		servers: ISettableObservable<readonly McpServerDefinition[]>;
@@ -54,8 +56,10 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		@IDynamicAuthenticationProviderStorageService private readonly _dynamicAuthenticationProviderStorageService: IDynamicAuthenticationProviderStorageService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
+		this._register(_authenticationService.onDidChangeSessions(e => this._onDidChangeAuthSessions(e.providerId, e.label)));
 		const proxy = this._proxy = _extHostContext.getProxy(ExtHostContext.ExtHostMcp);
 		this._register(this._mcpRegistry.registerDelegate({
 			// Prefer Node.js extension hosts when they're available. No CORS issues etc.
@@ -105,7 +109,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 			const serverDefinitions = observableValue<readonly McpServerDefinition[]>('mcpServers', servers);
 			const extensionId = new ExtensionIdentifier(collection.extensionId);
 			const store = new DisposableStore();
-			const handle = new MutableDisposable();
+			const handle = store.add(new MutableDisposable());
 			const register = () => {
 				handle.value ??= this._mcpRegistry.registerCollection({
 					...collection,
@@ -163,6 +167,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 			server.dispose();
 			this._servers.delete(id);
 			this._serverDefinitions.delete(id);
+			this._serverAuthTracking.untrack(id);
 		}
 	}
 
@@ -179,15 +184,27 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		this._servers.get(id)?.pushMessage(message);
 	}
 
+	async $getTokenForProviderId(id: number, providerId: string, scopes: string[], options: IMcpAuthenticationOptions = {}): Promise<string | undefined> {
+		const server = this._serverDefinitions.get(id);
+		if (!server) {
+			return undefined;
+		}
+		return this._getSessionForProvider(id, server, providerId, scopes, undefined, options.errorOnUserInteraction);
+	}
+
 	async $getTokenFromServerMetadata(id: number, authDetails: IMcpAuthenticationDetails, { errorOnUserInteraction, forceNewRegistration }: IMcpAuthenticationOptions = {}): Promise<string | undefined> {
 		const server = this._serverDefinitions.get(id);
 		if (!server) {
 			return undefined;
 		}
 		const authorizationServer = URI.revive(authDetails.authorizationServer);
+		const resourceServer = authDetails.resourceMetadata?.resource ? URI.parse(authDetails.resourceMetadata.resource) : undefined;
 		const resolvedScopes = authDetails.scopes ?? authDetails.resourceMetadata?.scopes_supported ?? authDetails.authorizationServerMetadata.scopes_supported ?? [];
-		let providerId = await this._authenticationService.getOrActivateProviderIdForServer(authorizationServer);
+		let providerId = await this._authenticationService.getOrActivateProviderIdForServer(authorizationServer, resourceServer);
 		if (forceNewRegistration && providerId) {
+			if (!this._authenticationService.isDynamicAuthenticationProvider(providerId)) {
+				throw new Error('Cannot force new registration for a non-dynamic authentication provider.');
+			}
 			this._authenticationService.unregisterAuthenticationProvider(providerId);
 			// TODO: Encapsulate this and the unregister in one call in the auth service
 			await this._dynamicAuthenticationProviderStorageService.removeDynamicProvider(providerId);
@@ -201,7 +218,19 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 			}
 			providerId = provider.id;
 		}
-		const sessions = await this._authenticationService.getSessions(providerId, resolvedScopes, { authorizationServer: authorizationServer }, true);
+
+		return this._getSessionForProvider(id, server, providerId, resolvedScopes, authorizationServer, errorOnUserInteraction);
+	}
+
+	private async _getSessionForProvider(
+		serverId: number,
+		server: McpServerDefinition,
+		providerId: string,
+		scopes: string[],
+		authorizationServer?: URI,
+		errorOnUserInteraction: boolean = false
+	): Promise<string | undefined> {
+		const sessions = await this._authenticationService.getSessions(providerId, scopes, { authorizationServer }, true);
 		const accountNamePreference = this.authenticationMcpServersService.getAccountPreference(server.id, providerId);
 		let matchingAccountPreferenceSession: AuthenticationSession | undefined;
 		if (accountNamePreference) {
@@ -212,12 +241,14 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		if (sessions.length) {
 			// If we have an existing session preference, use that. If not, we'll return any valid session at the end of this function.
 			if (matchingAccountPreferenceSession && this.authenticationMCPServerAccessService.isAccessAllowed(providerId, matchingAccountPreferenceSession.account.label, server.id)) {
-				this.authenticationMCPServerUsageService.addAccountUsage(providerId, matchingAccountPreferenceSession.account.label, resolvedScopes, server.id, server.label);
+				this.authenticationMCPServerUsageService.addAccountUsage(providerId, matchingAccountPreferenceSession.account.label, scopes, server.id, server.label);
+				this._serverAuthTracking.track(providerId, serverId, scopes);
 				return matchingAccountPreferenceSession.accessToken;
 			}
 			// If we only have one account for a single auth provider, lets just check if it's allowed and return it if it is.
 			if (!provider.supportsMultipleAccounts && this.authenticationMCPServerAccessService.isAccessAllowed(providerId, sessions[0].account.label, server.id)) {
-				this.authenticationMCPServerUsageService.addAccountUsage(providerId, sessions[0].account.label, resolvedScopes, server.id, server.label);
+				this.authenticationMCPServerUsageService.addAccountUsage(providerId, sessions[0].account.label, scopes, server.id, server.label);
+				this._serverAuthTracking.track(providerId, serverId, scopes);
 				return sessions[0].accessToken;
 			}
 		}
@@ -236,7 +267,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 				throw new UserInteractionRequiredError('authentication');
 			}
 			session = provider.supportsMultipleAccounts
-				? await this.authenticationMcpServersService.selectSession(providerId, server.id, server.label, resolvedScopes, sessions)
+				? await this.authenticationMcpServersService.selectSession(providerId, server.id, server.label, scopes, sessions)
 				: sessions[0];
 		}
 		else {
@@ -247,7 +278,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 			do {
 				session = await this._authenticationService.createSession(
 					providerId,
-					resolvedScopes,
+					scopes,
 					{
 						activateImmediate: true,
 						account: accountToCreate,
@@ -262,7 +293,8 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 
 		this.authenticationMCPServerAccessService.updateAllowedMcpServers(providerId, session.account.label, [{ id: server.id, name: server.label, allowed: true }]);
 		this.authenticationMcpServersService.updateAccountPreference(server.id, providerId, session.account);
-		this.authenticationMCPServerUsageService.addAccountUsage(providerId, session.account.label, resolvedScopes, server.id, server.label);
+		this.authenticationMCPServerUsageService.addAccountUsage(providerId, session.account.label, scopes, server.id, server.label);
+		this._serverAuthTracking.track(providerId, serverId, scopes);
 		return session.accessToken;
 	}
 
@@ -289,6 +321,50 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		}
 
 		return result.result === chosenAccountLabel;
+	}
+
+	private async _onDidChangeAuthSessions(providerId: string, providerLabel: string): Promise<void> {
+		const serversUsingProvider = this._serverAuthTracking.get(providerId);
+		if (!serversUsingProvider) {
+			return;
+		}
+
+		for (const { serverId, scopes } of serversUsingProvider) {
+			const server = this._servers.get(serverId);
+			const serverDefinition = this._serverDefinitions.get(serverId);
+
+			if (!server || !serverDefinition) {
+				continue;
+			}
+
+			// Only validate servers that are running
+			const state = server.state.get();
+			if (state.state !== McpConnectionState.Kind.Running) {
+				continue;
+			}
+
+			// Validate if the session is still available
+			try {
+				await this._getSessionForProvider(serverId, serverDefinition, providerId, scopes, undefined, true);
+			} catch (e) {
+				if (UserInteractionRequiredError.is(e)) {
+					// Session is no longer valid, stop the server
+					server.pushLog(LogLevel.Warning, nls.localize('mcpAuthSessionRemoved', "Authentication session for {0} removed, stopping server", providerLabel));
+					server.stop();
+				}
+				// Ignore other errors to avoid disrupting other servers
+			}
+		}
+	}
+
+	$logMcpAuthSetup(data: IMcpAuthSetupTelemetry): void {
+		type McpAuthSetupClassification = {
+			owner: 'TylerLeonhardt';
+			comment: 'Tracks how MCP OAuth authentication setup was discovered and configured';
+			resourceMetadataSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How resource metadata was discovered (header, wellKnown, or none)' };
+			serverMetadataSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How authorization server metadata was discovered (resourceMetadata, wellKnown, or default)' };
+		};
+		this._telemetryService.publicLog2<IMcpAuthSetupTelemetry, McpAuthSetupClassification>('mcp/authSetup', data);
 	}
 
 	private async loginPrompt(mcpLabel: string, providerLabel: string, recreatingSession: boolean): Promise<boolean> {
@@ -320,6 +396,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		}
 		this._servers.clear();
 		this._serverDefinitions.clear();
+		this._serverAuthTracking.clear();
 		super.dispose();
 	}
 }
@@ -381,5 +458,53 @@ class ExtHostMcpServerLaunch extends Disposable implements IMcpMessageTransport 
 		}
 
 		super.dispose();
+	}
+}
+
+/**
+ * Tracks which MCP servers are using which authentication providers.
+ * Organized by provider ID for efficient lookup when auth sessions change.
+ */
+class McpServerAuthTracker {
+	// Provider ID -> Array of serverId and scopes used
+	private readonly _tracking = new Map<string, Array<{ serverId: number; scopes: string[] }>>();
+
+	/**
+	 * Track authentication for a server with a specific provider.
+	 * Replaces any existing tracking for this server/provider combination.
+	 */
+	track(providerId: string, serverId: number, scopes: string[]): void {
+		const servers = this._tracking.get(providerId) || [];
+		const filtered = servers.filter(s => s.serverId !== serverId);
+		filtered.push({ serverId, scopes });
+		this._tracking.set(providerId, filtered);
+	}
+
+	/**
+	 * Remove all authentication tracking for a server across all providers.
+	 */
+	untrack(serverId: number): void {
+		for (const [providerId, servers] of this._tracking.entries()) {
+			const filtered = servers.filter(s => s.serverId !== serverId);
+			if (filtered.length === 0) {
+				this._tracking.delete(providerId);
+			} else {
+				this._tracking.set(providerId, filtered);
+			}
+		}
+	}
+
+	/**
+	 * Get all servers using a specific authentication provider.
+	 */
+	get(providerId: string): ReadonlyArray<{ serverId: number; scopes: string[] }> | undefined {
+		return this._tracking.get(providerId);
+	}
+
+	/**
+	 * Clear all tracking data.
+	 */
+	clear(): void {
+		this._tracking.clear();
 	}
 }

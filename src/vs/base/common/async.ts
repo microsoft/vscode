@@ -191,6 +191,10 @@ export interface ITask<T> {
 	(): T;
 }
 
+export interface ICancellableTask<T> {
+	(token: CancellationToken): T;
+}
+
 /**
  * A helper to prevent accumulation of sequential async tasks.
  *
@@ -221,18 +225,19 @@ export class Throttler implements IDisposable {
 
 	private activePromise: Promise<any> | null;
 	private queuedPromise: Promise<any> | null;
-	private queuedPromiseFactory: ITask<Promise<any>> | null;
-
-	private isDisposed = false;
+	private queuedPromiseFactory: ICancellableTask<Promise<any>> | null;
+	private cancellationTokenSource: CancellationTokenSource;
 
 	constructor() {
 		this.activePromise = null;
 		this.queuedPromise = null;
 		this.queuedPromiseFactory = null;
+
+		this.cancellationTokenSource = new CancellationTokenSource();
 	}
 
-	queue<T>(promiseFactory: ITask<Promise<T>>): Promise<T> {
-		if (this.isDisposed) {
+	queue<T>(promiseFactory: ICancellableTask<Promise<T>>): Promise<T> {
+		if (this.cancellationTokenSource.token.isCancellationRequested) {
 			return Promise.reject(new Error('Throttler is disposed'));
 		}
 
@@ -243,7 +248,7 @@ export class Throttler implements IDisposable {
 				const onComplete = () => {
 					this.queuedPromise = null;
 
-					if (this.isDisposed) {
+					if (this.cancellationTokenSource.token.isCancellationRequested) {
 						return;
 					}
 
@@ -263,7 +268,7 @@ export class Throttler implements IDisposable {
 			});
 		}
 
-		this.activePromise = promiseFactory();
+		this.activePromise = promiseFactory(this.cancellationTokenSource.token);
 
 		return new Promise((resolve, reject) => {
 			this.activePromise!.then((result: T) => {
@@ -277,7 +282,7 @@ export class Throttler implements IDisposable {
 	}
 
 	dispose(): void {
-		this.isDisposed = true;
+		this.cancellationTokenSource.cancel();
 	}
 }
 
@@ -306,6 +311,10 @@ export class SequencerByKey<TKey> {
 			});
 		this.promiseMap.set(key, newPromise);
 		return newPromise;
+	}
+
+	peek(key: TKey): Promise<unknown> | undefined {
+		return this.promiseMap.get(key) || undefined;
 	}
 
 	keys(): IterableIterator<TKey> {
@@ -458,7 +467,7 @@ export class ThrottledDelayer<T> {
 		this.throttler = new Throttler();
 	}
 
-	trigger(promiseFactory: ITask<Promise<T>>, delay?: number): Promise<T> {
+	trigger(promiseFactory: ICancellableTask<Promise<T>>, delay?: number): Promise<T> {
 		return this.delayer.trigger(() => this.throttler.queue(promiseFactory), delay) as unknown as Promise<T>;
 	}
 
@@ -918,6 +927,12 @@ export class ResourceQueue implements IDisposable {
 }
 
 export type Task<T = void> = () => (Promise<T> | T);
+
+/**
+ * Wrap a type in an optional promise. This can be useful to avoid the runtime
+ * overhead of creating a promise.
+ */
+export type MaybePromise<T> = Promise<T> | T;
 
 /**
  * Processes tasks in the order they were scheduled.
@@ -1642,8 +1657,8 @@ export class TaskSequentializer {
 			this._queued = {
 				run,
 				promise,
-				promiseResolve: promiseResolve!,
-				promiseReject: promiseReject!
+				promiseResolve,
+				promiseReject
 			};
 		}
 
@@ -2413,6 +2428,42 @@ export class AsyncIterableProducer<T> implements AsyncIterable<T> {
 				emitter.emitOne(mapFn(item));
 			}
 		});
+	}
+
+	public static tee<T>(iterable: AsyncIterable<T>): [AsyncIterableProducer<T>, AsyncIterableProducer<T>] {
+		let emitter1: AsyncIterableEmitter<T> | undefined;
+		let emitter2: AsyncIterableEmitter<T> | undefined;
+
+		const defer = new DeferredPromise<void>();
+
+		const start = async () => {
+			if (!emitter1 || !emitter2) {
+				return; // not yet ready
+			}
+			try {
+				for await (const item of iterable) {
+					emitter1.emitOne(item);
+					emitter2.emitOne(item);
+				}
+			} catch (err) {
+				emitter1.reject(err);
+				emitter2.reject(err);
+			} finally {
+				defer.complete();
+			}
+		};
+
+		const p1 = new AsyncIterableProducer<T>(async (emitter) => {
+			emitter1 = emitter;
+			start();
+			return defer.p;
+		});
+		const p2 = new AsyncIterableProducer<T>(async (emitter) => {
+			emitter2 = emitter;
+			start();
+			return defer.p;
+		});
+		return [p1, p2];
 	}
 
 	public map<R>(mapFn: (item: T) => R): AsyncIterableProducer<R> {

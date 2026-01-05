@@ -42,7 +42,7 @@ import { ActionBar, IActionViewItemProvider } from '../../../../base/browser/ui/
 import { getContextMenuActions, createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId, registerAction2, Action2, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { ColorScheme } from '../../../../platform/theme/common/theme.js';
+import { isDark } from '../../../../platform/theme/common/theme.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from '../../../browser/parts/editor/editorCommands.js';
@@ -693,7 +693,7 @@ export class TimelinePane extends ViewPane {
 		}
 	}
 
-	private *getItems(): Generator<ITreeElement<TreeElement>, any, any> {
+	private *getItems(): Generator<ITreeElement<TreeElement>, void, undefined> {
 		let more = false;
 
 		if (this.uri === undefined || this.timelinesBySource.size === 0) {
@@ -1202,7 +1202,7 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 		const { element: item } = node;
 
 		const theme = this.themeService.getColorTheme();
-		const icon = theme.type === ColorScheme.LIGHT ? item.icon : item.iconDark;
+		const icon = isDark(theme.type) ? item.iconDark : item.icon;
 		const iconUrl = icon ? URI.revive(icon) : null;
 
 		if (iconUrl) {
@@ -1362,9 +1362,7 @@ class TimelinePaneCommands extends Disposable {
 					});
 				}
 				run(accessor: ServicesAccessor, ...args: unknown[]) {
-					if (excluded.has(source.id)) {
-						excluded.delete(source.id);
-					} else {
+					if (!excluded.delete(source.id)) {
 						excluded.add(source.id);
 					}
 

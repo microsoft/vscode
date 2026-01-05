@@ -19,9 +19,11 @@ class TestMarkersModel extends MarkersModel {
 
 		Object.keys(byResource).forEach(key => {
 			const markers = byResource[key];
-			const resource = markers[0].resource;
+			if (markers) {
+				const resource = markers[0].resource;
 
-			this.setResourceMarkers([[resource, markers]]);
+				this.setResourceMarkers([[resource, markers]]);
+			}
 		});
 	}
 }

@@ -940,25 +940,23 @@ export enum TerminalCompletionItemKind {
 
 export class TerminalCompletionItem implements vscode.TerminalCompletionItem {
 	label: string | CompletionItemLabel;
-	icon?: ThemeIcon | undefined;
+	replacementRange: readonly [number, number];
 	detail?: string | undefined;
 	documentation?: string | vscode.MarkdownString | undefined;
+	kind?: TerminalCompletionItemKind | undefined;
 	isFile?: boolean | undefined;
 	isDirectory?: boolean | undefined;
 	isKeyword?: boolean | undefined;
-	replacementIndex: number;
-	replacementLength: number;
 
-	constructor(label: string | CompletionItemLabel, icon?: ThemeIcon, detail?: string, documentation?: string | vscode.MarkdownString, isFile?: boolean, isDirectory?: boolean, isKeyword?: boolean, replacementIndex?: number, replacementLength?: number) {
+	constructor(label: string | CompletionItemLabel, replacementRange: readonly [number, number], kind?: TerminalCompletionItemKind, detail?: string, documentation?: string | vscode.MarkdownString, isFile?: boolean, isDirectory?: boolean, isKeyword?: boolean) {
 		this.label = label;
-		this.icon = icon;
+		this.replacementRange = replacementRange;
+		this.kind = kind;
 		this.detail = detail;
 		this.documentation = documentation;
 		this.isFile = isFile;
 		this.isDirectory = isDirectory;
 		this.isKeyword = isKeyword;
-		this.replacementIndex = replacementIndex ?? 0;
-		this.replacementLength = replacementLength ?? 0;
 	}
 }
 
@@ -992,7 +990,7 @@ export class TerminalCompletionList<T extends TerminalCompletionItem = TerminalC
 
 export interface TerminalCompletionResourceOptions {
 	showFiles?: boolean;
-	showFolders?: boolean;
+	showDirectories?: boolean;
 	fileExtensions?: string[];
 	cwd?: vscode.Uri;
 }
@@ -2544,7 +2542,8 @@ export class DebugVisualization {
 
 export enum QuickInputButtonLocation {
 	Title = 1,
-	Inline = 2
+	Inline = 2,
+	Input = 3
 }
 
 @es5ClassCompat
@@ -3158,9 +3157,25 @@ export class ChatResponseFileTreePart {
 export class ChatResponseMultiDiffPart {
 	value: vscode.ChatResponseDiffEntry[];
 	title: string;
-	constructor(value: vscode.ChatResponseDiffEntry[], title: string) {
+	readOnly?: boolean;
+	constructor(value: vscode.ChatResponseDiffEntry[], title: string, readOnly?: boolean) {
 		this.value = value;
 		this.title = title;
+		this.readOnly = readOnly;
+	}
+}
+
+export class ChatResponseExternalEditPart {
+	applied: Thenable<string>;
+	didGetApplied!: (value: string) => void;
+
+	constructor(
+		public uris: vscode.Uri[],
+		public callback: () => Thenable<unknown>,
+	) {
+		this.applied = new Promise<string>((resolve) => {
+			this.didGetApplied = resolve;
+		});
 	}
 }
 
@@ -3237,10 +3252,12 @@ export class ChatResponseReferencePart {
 
 export class ChatResponseCodeblockUriPart {
 	isEdit?: boolean;
+	undoStopId?: string;
 	value: vscode.Uri;
-	constructor(value: vscode.Uri, isEdit?: boolean) {
+	constructor(value: vscode.Uri, isEdit?: boolean, undoStopId?: string) {
 		this.value = value;
 		this.isEdit = isEdit;
+		this.undoStopId = undoStopId;
 	}
 }
 
@@ -3353,6 +3370,7 @@ export class ChatToolInvocationPart {
 	isComplete?: boolean;
 	toolSpecificData?: ChatTerminalToolInvocationData2;
 	fromSubAgent?: boolean;
+	presentation?: 'hidden' | 'hiddenAfterComplete' | undefined;
 
 	constructor(toolName: string,
 		toolCallId: string,
@@ -3370,7 +3388,8 @@ export class ChatRequestTurn implements vscode.ChatRequestTurn2 {
 		readonly references: vscode.ChatPromptReference[],
 		readonly participant: string,
 		readonly toolReferences: vscode.ChatLanguageModelToolReference[],
-		readonly editedFileEvents?: vscode.ChatRequestEditedFileEvent[]
+		readonly editedFileEvents?: vscode.ChatRequestEditedFileEvent[],
+		readonly id?: string
 	) { }
 }
 
@@ -3407,6 +3426,10 @@ export enum ChatSessionStatus {
 	InProgress = 2
 }
 
+export class ChatSessionChangedFile {
+	constructor(public readonly modifiedUri: vscode.Uri, public readonly insertions: number, public readonly deletions: number, public readonly originalUri?: vscode.Uri) { }
+}
+
 export enum ChatResponseReferencePartStatusKind {
 	Complete = 1,
 	Partial = 2,
@@ -3421,6 +3444,7 @@ export enum ChatResponseClearToPreviousToolInvocationReason {
 
 export class ChatRequestEditorData implements vscode.ChatRequestEditorData {
 	constructor(
+		readonly editor: vscode.TextEditor,
 		readonly document: vscode.TextDocument,
 		readonly selection: vscode.Selection,
 		readonly wholeRange: vscode.Range,
@@ -3783,6 +3807,7 @@ export class ExtendedLanguageModelToolResult extends LanguageModelToolResult {
 	toolResultMessage?: string | MarkdownString;
 	toolResultDetails?: Array<URI | Location>;
 	toolMetadata?: unknown;
+	hasError?: boolean;
 }
 
 export enum LanguageModelChatToolMode {
@@ -3841,6 +3866,11 @@ export enum KeywordRecognitionStatus {
 //#endregion
 
 //#region MCP
+export enum McpToolAvailability {
+	Initial = 0,
+	Dynamic = 1,
+}
+
 export class McpStdioServerDefinition implements vscode.McpStdioServerDefinition {
 	cwd?: URI;
 
@@ -3850,6 +3880,7 @@ export class McpStdioServerDefinition implements vscode.McpStdioServerDefinition
 		public args: string[],
 		public env: Record<string, string | number | null> = {},
 		public version?: string,
+		public metadata?: vscode.McpServerMetadata,
 	) { }
 }
 
@@ -3859,6 +3890,8 @@ export class McpHttpServerDefinition implements vscode.McpHttpServerDefinition {
 		public uri: URI,
 		public headers: Record<string, string> = {},
 		public version?: string,
+		public metadata?: vscode.McpServerMetadata,
+		public authentication?: { providerId: string; scopes: string[] },
 	) { }
 }
 //#endregion

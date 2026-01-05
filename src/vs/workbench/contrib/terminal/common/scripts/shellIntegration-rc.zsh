@@ -84,6 +84,8 @@ fi
 # Report prompt type
 if [ -n "${P9K_SSH:-}" ] || [ -n "${P9K_TTY:-}" ]; then
 	builtin printf '\e]633;P;PromptType=p10k\a'
+	# Force shell integration on for p10k
+	# typeset -g POWERLEVEL9K_TERM_SHELL_INTEGRATION=true
 elif [ -n "${ZSH:-}" ] && [ -n "$ZSH_VERSION" ] && (( ${+functions[omz]} )); then
 	builtin printf '\e]633;P;PromptType=oh-my-zsh\a'
 elif [ -n "${STARSHIP_SESSION_KEY:-}" ]; then
@@ -94,6 +96,12 @@ fi
 # explicitly disabled shell integration as it's incompatible or it implements the protocol.
 if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
 	builtin return
+fi
+
+# Prevent AI-executed commands from polluting shell history
+if [ "${VSCODE_PREVENT_SHELL_HISTORY:-}" = "1" ]; then
+	builtin setopt HIST_IGNORE_SPACE
+	builtin unset VSCODE_PREVENT_SHELL_HISTORY
 fi
 
 # The property (P) and command (E) codes embed values which require escaping.

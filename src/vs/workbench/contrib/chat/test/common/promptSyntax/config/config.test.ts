@@ -22,7 +22,7 @@ function createMock<T>(value: T): IConfigurationService {
 			);
 
 			assert(
-				[PromptsConfig.KEY, PromptsConfig.PROMPT_LOCATIONS_KEY, PromptsConfig.INSTRUCTIONS_LOCATION_KEY, PromptsConfig.MODE_LOCATION_KEY].includes(key),
+				[PromptsConfig.PROMPT_LOCATIONS_KEY, PromptsConfig.INSTRUCTIONS_LOCATION_KEY, PromptsConfig.MODE_LOCATION_KEY].includes(key),
 				`Unsupported configuration key '${key}'.`,
 			);
 
@@ -33,131 +33,6 @@ function createMock<T>(value: T): IConfigurationService {
 
 suite('PromptsConfig', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
-
-	suite('enabled', () => {
-		test('true', () => {
-			const configService = createMock(true);
-
-			assert.strictEqual(
-				PromptsConfig.enabled(configService),
-				true,
-				'Must read correct enablement value.',
-			);
-		});
-
-		test('false', () => {
-			const configService = createMock(false);
-
-			assert.strictEqual(
-				PromptsConfig.enabled(configService),
-				false,
-				'Must read correct enablement value.',
-			);
-		});
-
-		test('null', () => {
-			const configService = createMock(null);
-
-			assert.strictEqual(
-				PromptsConfig.enabled(configService),
-				false,
-				'Must read correct enablement value.',
-			);
-		});
-
-		test('string', () => {
-			const configService = createMock('');
-
-			assert.strictEqual(
-				PromptsConfig.enabled(configService),
-				false,
-				'Must read correct enablement value.',
-			);
-		});
-
-		test('true string', () => {
-			const configService = createMock('TRUE');
-
-			assert.strictEqual(
-				PromptsConfig.enabled(configService),
-				true,
-				'Must read correct enablement value.',
-			);
-		});
-
-		test('false string', () => {
-			const configService = createMock('FaLsE');
-
-			assert.strictEqual(
-				PromptsConfig.enabled(configService),
-				false,
-				'Must read correct enablement value.',
-			);
-		});
-
-		test('number', () => {
-			const configService = createMock(3456);
-
-			assert.strictEqual(
-				PromptsConfig.enabled(configService),
-				false,
-				'Must read correct enablement value.',
-			);
-		});
-
-		test('NaN', () => {
-			const configService = createMock(NaN);
-
-			assert.strictEqual(
-				PromptsConfig.enabled(configService),
-				false,
-				'Must read correct enablement value.',
-			);
-		});
-
-		test('bigint', () => {
-			const configService = createMock(BigInt(5257));
-
-			assert.strictEqual(
-				PromptsConfig.enabled(configService),
-				false,
-				'Must read correct enablement value.',
-			);
-		});
-
-		test('symbol', () => {
-			const configService = createMock(Symbol('test'));
-
-			assert.strictEqual(
-				PromptsConfig.enabled(configService),
-				false,
-				'Must read correct enablement value.',
-			);
-		});
-
-		test('object', () => {
-			const configService = createMock({
-				'.github/prompts': false,
-			});
-
-			assert.strictEqual(
-				PromptsConfig.enabled(configService),
-				false,
-				'Must read correct enablement value.',
-			);
-		});
-
-		test('array', () => {
-			const configService = createMock(['.github/prompts']);
-
-			assert.strictEqual(
-				PromptsConfig.enabled(configService),
-				false,
-				'Must read correct enablement value.',
-			);
-		});
-	});
-
 
 	suite('getLocationsValue', () => {
 		test('undefined', () => {

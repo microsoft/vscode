@@ -10,8 +10,8 @@ import { ServicesAccessor } from '../../../../../platform/instantiation/common/i
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { IChatWidgetService } from '../chat.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { isResponseVM } from '../../common/chatViewModel.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { isResponseVM } from '../../common/model/chatViewModel.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../../platform/accessibility/common/accessibility.js';
 
 export const ACTION_ID_FOCUS_CHAT_CONFIRMATION = 'workbench.action.chat.focusConfirmation';
@@ -34,14 +34,14 @@ class AnnounceChatConfirmationAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const chatWidgetService = accessor.get(IChatWidgetService);
-		const lastFocusedWidget = chatWidgetService.lastFocusedWidget;
+		const pendingWidget = chatWidgetService.getAllWidgets().find(widget => widget.viewModel?.model.requestNeedsInput.get());
 
-		if (!lastFocusedWidget) {
+		if (!pendingWidget) {
 			alert(localize('noChatSession', 'No active chat session found.'));
 			return;
 		}
 
-		const viewModel = lastFocusedWidget.viewModel;
+		const viewModel = pendingWidget.viewModel;
 		if (!viewModel) {
 			alert(localize('chatNotReady', 'Chat interface not ready.'));
 			return;
@@ -52,7 +52,8 @@ class AnnounceChatConfirmationAction extends Action2 {
 
 		const lastResponse = viewModel.getItems()[viewModel.getItems().length - 1];
 		if (isResponseVM(lastResponse)) {
-			const confirmationWidgets = lastFocusedWidget.domNode.querySelectorAll('.chat-confirmation-widget-container');
+			// eslint-disable-next-line no-restricted-syntax
+			const confirmationWidgets = pendingWidget.domNode.querySelectorAll('.chat-confirmation-widget-container');
 			if (confirmationWidgets.length > 0) {
 				firstConfirmationElement = confirmationWidgets[0] as HTMLElement;
 			}

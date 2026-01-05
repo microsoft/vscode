@@ -23,6 +23,13 @@ export function canExpandCompletionItem(item: SimpleCompletionItem | undefined):
 
 export const SuggestDetailsClassName = 'suggest-details';
 
+export const enum SimpleSuggestDetailsPlacement {
+	East = 0,
+	West = 1,
+	South = 2,
+	North = 3
+}
+
 export class SimpleSuggestDetailsWidget {
 
 	readonly domNode: HTMLDivElement;
@@ -134,8 +141,8 @@ export class SimpleSuggestDetailsWidget {
 		if (explainMode) {
 			md += `score: ${item.score[0]}\n`;
 			md += `prefix: ${item.word ?? '(no prefix)'}\n`;
-			md += `replacementIndex: ${item.completion.replacementIndex}\n`;
-			md += `replacementLength: ${item.completion.replacementLength}\n`;
+			const vs = item.completion.replacementRange;
+			md += `valueSelection: ${vs ? `[${vs[0]}, ${vs[1]}]` : 'undefined'}\\n`;
 			md += `index: ${item.idx}\n`;
 			if (this._getAdvancedExplainModeDetails) {
 				const advancedDetails = this._getAdvancedExplainModeDetails();
@@ -147,7 +154,17 @@ export class SimpleSuggestDetailsWidget {
 			documentation = new MarkdownString().appendCodeblock('empty', md);
 		}
 
-		if (!explainMode && !canExpandCompletionItem(item)) {
+		const hasDetail = typeof detail === 'string' ? detail.trim().length > 0 : !!detail;
+		const hasDocs = typeof documentation === 'string'
+			? documentation.trim().length > 0
+			: !!(documentation && documentation.value?.trim().length > 0);
+
+		const updateSize = () => {
+			this.layout(this._size.width, this._type.clientHeight + this._docs.clientHeight);
+			this._onDidChangeContents.fire(this);
+		};
+
+		if (!explainMode && (!canExpandCompletionItem(item) || (!hasDetail && !hasDocs))) {
 			this.clearContents();
 			return;
 		}
@@ -156,7 +173,7 @@ export class SimpleSuggestDetailsWidget {
 
 		// --- details
 
-		if (detail) {
+		if (hasDetail && detail) {
 			const cappedDetail = detail.length > 100000 ? `${detail.substr(0, 100000)}…` : detail;
 			this._type.textContent = cappedDetail;
 			this._type.title = cappedDetail;
@@ -172,24 +189,25 @@ export class SimpleSuggestDetailsWidget {
 		// // --- documentation
 
 		dom.clearNode(this._docs);
-		if (typeof documentation === 'string') {
+		if (hasDocs && typeof documentation === 'string') {
 			this._docs.classList.remove('markdown-docs');
 			this._docs.textContent = documentation;
 
-		} else if (documentation) {
+		} else if (hasDocs && documentation && typeof documentation !== 'string') {
 			this._docs.classList.add('markdown-docs');
 			dom.clearNode(this._docs);
 			const renderedContents = this.markdownRendererService.render(documentation, {
 				asyncRenderCallback: () => {
-					this.layout(this._size.width, this._type.clientHeight + this._docs.clientHeight);
-					this._onDidChangeContents.fire(this);
+					updateSize();
 				}
 			});
 			this._docs.appendChild(renderedContents.element);
 			this._renderDisposeable.add(renderedContents);
+		} else {
+			this._docs.classList.remove('markdown-docs');
 		}
 
-		this.domNode.classList.toggle('detail-and-doc', !!detail && !!documentation);
+		this.domNode.classList.toggle('detail-and-doc', hasDetail && hasDocs);
 
 		this.domNode.style.userSelect = 'text';
 		this.domNode.tabIndex = -1;
@@ -206,8 +224,7 @@ export class SimpleSuggestDetailsWidget {
 
 		this._body.scrollTop = 0;
 
-		this.layout(this._size.width, this._type.clientHeight + this._docs.clientHeight + this.getLayoutInfo().verticalPadding);
-		this._onDidChangeContents.fire(this);
+		updateSize();
 	}
 
 	clearContents() {
@@ -280,16 +297,19 @@ export class SimpleSuggestDetailsOverlay {
 	// private _preferAlignAtTop: boolean = true;
 	private _userSize?: dom.Dimension;
 	private _topLeft?: TopLeftPosition;
+	private readonly _preventPlacements?: ReadonlySet<SimpleSuggestDetailsPlacement>;
 
 	constructor(
 		readonly widget: SimpleSuggestDetailsWidget,
 		private _container: HTMLElement,
+		preventPlacements?: readonly SimpleSuggestDetailsPlacement[]
 	) {
 
 		this._resizable = this._disposables.add(new ResizableHTMLElement());
 		this._resizable.domNode.classList.add('suggest-details-container');
 		this._resizable.domNode.appendChild(widget.domNode);
 		this._resizable.enableSashes(false, true, true, false);
+		this._preventPlacements = preventPlacements && preventPlacements.length ? new Set(preventPlacements) : undefined;
 
 		let topLeftNow: TopLeftPosition | undefined;
 		let sizeNow: dom.Dimension | undefined;
@@ -408,16 +428,38 @@ export class SimpleSuggestDetailsOverlay {
 		})();
 
 		// SOUTH
-		const southPacement: Placement = (function () {
+		const southPlacement: Placement = (function () {
 			const left = anchorBox.left;
 			const top = -info.borderWidth + anchorBox.top + anchorBox.height;
 			const maxSizeBottom = new dom.Dimension(anchorBox.width - info.borderHeight, bodyBox.height - anchorBox.top - anchorBox.height - info.verticalPadding);
 			return { top, left, fit: maxSizeBottom.height - size.height, maxSizeBottom, maxSizeTop: maxSizeBottom, minSize: defaultMinSize.with(maxSizeBottom.width) };
 		})();
 
+		// NORTH
+		const northPlacement: Placement = (function () {
+			const width = Math.max(anchorBox.width - info.borderHeight, 0);
+			const left = anchorBox.left;
+			const maxHeightAbove = Math.max(anchorBox.top - info.verticalPadding, 0);
+			const heightForTop = Math.min(size.height, maxHeightAbove);
+			const top = anchorBox.top - info.borderWidth - heightForTop;
+			const maxSize = new dom.Dimension(width, Math.max(maxHeightAbove, 0));
+			return { top, left, fit: maxSize.height - size.height, maxSizeTop: maxSize, maxSizeBottom: maxSize, minSize: defaultMinSize.with(maxSize.width) };
+		})();
+
 		// take first placement that fits or the first with "least bad" fit
-		const placements = [eastPlacement, westPlacement, southPacement];
-		const placement = placements.find(p => p.fit >= 0) ?? placements.sort((a, b) => b.fit - a.fit)[0];
+		const placementEntries: [SimpleSuggestDetailsPlacement, Placement][] = [
+			[SimpleSuggestDetailsPlacement.East, eastPlacement],
+			[SimpleSuggestDetailsPlacement.South, southPlacement],
+			[SimpleSuggestDetailsPlacement.North, northPlacement],
+			[SimpleSuggestDetailsPlacement.West, westPlacement]
+		];
+		const orientations = (this._preventPlacements
+			? placementEntries.filter(([direction]) => !this._preventPlacements!.has(direction))
+			: placementEntries).map(([, entry]) => entry);
+		const candidates = orientations.length ? orientations : placementEntries.map(([, entry]) => entry);
+		const placement = candidates.find(p => p.fit >= 0)
+			?? candidates.reduce<Placement | undefined>((best, current) => !best || current.fit > best.fit ? current : best, undefined)
+			?? eastPlacement;
 
 		// top/bottom placement
 		const bottom = anchorBox.top + anchorBox.height - info.borderHeight;

@@ -17,8 +17,7 @@ import { IExtensionsWorkbenchService } from '../../../extensions/common/extensio
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { ManageModelsAction } from './manageModelsActions.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 
 class ManageLanguageModelAuthenticationAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.manageLanguageModelAuthentication';
@@ -230,5 +229,4 @@ class ManageLanguageModelAuthenticationAction extends Action2 {
 
 export function registerLanguageModelActions() {
 	registerAction2(ManageLanguageModelAuthenticationAction);
-	registerAction2(ManageModelsAction);
 }

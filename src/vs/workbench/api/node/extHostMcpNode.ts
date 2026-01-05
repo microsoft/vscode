@@ -164,6 +164,8 @@ class McpHTTPHandleNode extends McpHTTPHandle {
 				authority: 'localhost', // HTTP always wants a host (not that we're using it), but if we're using a socket or pipe then localhost is sorta right anyway
 				path: uri.fragment,
 			}).toString(true);
+		} else {
+			return super._fetchInternal(url, init);
 		}
 
 		const undiciResponse = await fetch(httpUrl, undiciInit);

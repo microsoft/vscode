@@ -92,7 +92,7 @@ export class OutputViewPane extends FilterViewPane {
 		super({
 			...options,
 			filterOptions: {
-				placeholder: localize('outputView.filter.placeholder', "Filter"),
+				placeholder: localize('outputView.filter.placeholder', "Filter (e.g. text, !excludeText, text1,text2)"),
 				focusContextKey: OUTPUT_FILTER_FOCUS_CONTEXT.key,
 				text: viewState.filter || '',
 				history: []
@@ -274,12 +274,12 @@ export class OutputEditor extends AbstractTextResourceEditor {
 			ambiguousCharacters: false,
 		};
 
-		const outputConfig = this.configurationService.getValue<any>('[Log]');
+		const outputConfig = this.configurationService.getValue<{ 'editor.minimap.enabled'?: boolean; 'editor.wordWrap'?: 'off' | 'on' | 'wordWrapColumn' | 'bounded' }>('[Log]');
 		if (outputConfig) {
 			if (outputConfig['editor.minimap.enabled']) {
 				options.minimap = { enabled: true };
 			}
-			if ('editor.wordWrap' in outputConfig) {
+			if (outputConfig['editor.wordWrap']) {
 				options.wordWrap = outputConfig['editor.wordWrap'];
 			}
 		}
@@ -443,6 +443,38 @@ export class FilterController extends Disposable implements IEditorContribution 
 		}
 	}
 
+	private shouldShowLine(model: ITextModel, range: Range, positive: string[], negative: string[]): { show: boolean; matches: IModelDeltaDecoration[] } {
+		const matches: IModelDeltaDecoration[] = [];
+
+		// Check negative filters first - if any match, hide the line
+		if (negative.length > 0) {
+			for (const pattern of negative) {
+				const negativeMatches = model.findMatches(pattern, range, false, false, null, false);
+				if (negativeMatches.length > 0) {
+					return { show: false, matches: [] };
+				}
+			}
+		}
+
+		// If there are positive filters, at least one must match
+		if (positive.length > 0) {
+			let hasPositiveMatch = false;
+			for (const pattern of positive) {
+				const positiveMatches = model.findMatches(pattern, range, false, false, null, false);
+				if (positiveMatches.length > 0) {
+					hasPositiveMatch = true;
+					for (const match of positiveMatches) {
+						matches.push({ range: match.range, options: FindDecorations._FIND_MATCH_DECORATION });
+					}
+				}
+			}
+			return { show: hasPositiveMatch, matches };
+		}
+
+		// No positive filters means show everything (that passed negative filters)
+		return { show: true, matches };
+	}
+
 	private compute(model: ITextModel, fromLineNumber: number): { findMatches: IModelDeltaDecoration[]; hiddenAreas: Range[]; categories: Map<string, string> } {
 		const filters = this.outputService.filters;
 		const activeChannel = this.outputService.getActiveChannel();
@@ -472,12 +504,10 @@ export class FilterController extends Disposable implements IEditorContribution 
 					hiddenAreas.push(entry.range);
 					continue;
 				}
-				if (filters.text) {
-					const matches = model.findMatches(filters.text, entry.range, false, false, null, false);
-					if (matches.length) {
-						for (const match of matches) {
-							findMatches.push({ range: match.range, options: FindDecorations._FIND_MATCH_DECORATION });
-						}
+				if (filters.includePatterns.length > 0 || filters.excludePatterns.length > 0) {
+					const result = this.shouldShowLine(model, entry.range, filters.includePatterns, filters.excludePatterns);
+					if (result.show) {
+						findMatches.push(...result.matches);
 					} else {
 						hiddenAreas.push(entry.range);
 					}
@@ -486,18 +516,16 @@ export class FilterController extends Disposable implements IEditorContribution 
 			return { findMatches, hiddenAreas, categories };
 		}
 
-		if (!filters.text) {
+		if (filters.includePatterns.length === 0 && filters.excludePatterns.length === 0) {
 			return { findMatches, hiddenAreas, categories };
 		}
 
 		const lineCount = model.getLineCount();
 		for (let lineNumber = fromLineNumber; lineNumber <= lineCount; lineNumber++) {
 			const lineRange = new Range(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber));
-			const matches = model.findMatches(filters.text, lineRange, false, false, null, false);
-			if (matches.length) {
-				for (const match of matches) {
-					findMatches.push({ range: match.range, options: FindDecorations._FIND_MATCH_DECORATION });
-				}
+			const result = this.shouldShowLine(model, lineRange, filters.includePatterns, filters.excludePatterns);
+			if (result.show) {
+				findMatches.push(...result.matches);
 			} else {
 				hiddenAreas.push(lineRange);
 			}

@@ -29,7 +29,6 @@ import { Categories } from '../../../../platform/action/common/actionCommonCateg
 import { Disposable, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { ILoggerService, LogLevel, LogLevelToLocalizedString, LogLevelToString } from '../../../../platform/log/common/log.js';
-import { IDefaultLogLevelsService } from '../../logs/common/defaultLogLevels.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../platform/accessibility/common/accessibility.js';
@@ -41,6 +40,9 @@ import { ViewAction } from '../../../browser/parts/views/viewPane.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { basename } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { hasKey } from '../../../../base/common/types.js';
+import { IDefaultLogLevelsService } from '../../../services/log/common/defaultLogLevels.js';
 
 const IMPORTED_LOG_ID_PREFIX = 'importedLog.';
 
@@ -426,7 +428,7 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 				if (channel) {
 					const descriptor = outputService.getChannelDescriptors().find(c => c.id === channel.id);
 					if (descriptor) {
-						await outputService.saveOutputAs(descriptor);
+						await outputService.saveOutputAs(undefined, descriptor);
 					}
 				}
 			}
@@ -718,7 +720,7 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 					}],
 				});
 			}
-			async run(accessor: ServicesAccessor): Promise<void> {
+			async run(accessor: ServicesAccessor, arg?: { outputPath?: URI; outputChannelIds?: string[] }): Promise<void> {
 				const outputService = accessor.get(IOutputService);
 				const quickInputService = accessor.get(IQuickInputService);
 				const extensionLogs: IOutputChannelDescriptor[] = [], logs: IOutputChannelDescriptor[] = [], userLogs: IOutputChannelDescriptor[] = [];
@@ -749,9 +751,25 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 				for (const log of userLogs.sort((a, b) => a.label.localeCompare(b.label))) {
 					entries.push(log);
 				}
-				const result = await quickInputService.pick(entries, { placeHolder: nls.localize('selectlog', "Select Log"), canPickMany: true });
-				if (result?.length) {
-					await outputService.saveOutputAs(...result);
+
+				let selectedOutputChannels: IOutputChannelDescriptor[] | undefined;
+				if (arg?.outputChannelIds) {
+					const requestedIdsNormalized = arg.outputChannelIds.map(id => id.trim().toLowerCase());
+					const candidates = entries.filter((e): e is IOutputChannelDescriptor => {
+						const isSeparator = hasKey(e, { type: true }) && e.type === 'separator';
+						return !isSeparator;
+					});
+					if (requestedIdsNormalized.includes('*')) {
+						selectedOutputChannels = candidates;
+					} else {
+						selectedOutputChannels = candidates.filter(candidate => requestedIdsNormalized.includes(candidate.id.toLowerCase()));
+					}
+				} else {
+					selectedOutputChannels = await quickInputService.pick(entries, { placeHolder: nls.localize('selectlog', "Select Log"), canPickMany: true });
+				}
+
+				if (selectedOutputChannels?.length) {
+					await outputService.saveOutputAs(arg?.outputPath, ...selectedOutputChannels);
 				}
 			}
 		}));

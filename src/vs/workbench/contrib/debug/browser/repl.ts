@@ -164,7 +164,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		this.replOptions = this._register(this.instantiationService.createInstance(ReplOptions, this.id, () => this.getLocationBasedColors().background));
 		this._register(this.replOptions.onDidChange(() => this.onDidStyleChange()));
 
-		codeEditorService.registerDecorationType('repl-decoration', DECORATION_KEY, {});
+		this._register(codeEditorService.registerDecorationType('repl-decoration', DECORATION_KEY, {}));
 		this.multiSessionRepl.set(this.isMultiSessionView);
 		this.registerListeners();
 	}

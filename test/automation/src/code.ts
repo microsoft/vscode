@@ -24,6 +24,7 @@ export interface LaunchOptions {
 	readonly logger: Logger;
 	logsPath: string;
 	crashesPath: string;
+	readonly videosPath?: string;
 	verbose?: boolean;
 	useInMemorySecretStorage?: boolean;
 	readonly extraArgs?: string[];
@@ -142,11 +143,11 @@ export class Code {
 		return !(this.quality === Quality.Stable && this.version.major === 1 && this.version.minor < 101);
 	}
 
-	async startTracing(name: string): Promise<void> {
+	async startTracing(name?: string): Promise<void> {
 		return await this.driver.startTracing(name);
 	}
 
-	async stopTracing(name: string, persist: boolean): Promise<void> {
+	async stopTracing(name?: string, persist: boolean = false): Promise<void> {
 		return await this.driver.stopTracing(name, persist);
 	}
 

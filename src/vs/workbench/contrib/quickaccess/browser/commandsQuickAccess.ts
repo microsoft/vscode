@@ -38,7 +38,7 @@ import { createKeybindingCommandQuery } from '../../../services/preferences/brow
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { CHAT_OPEN_ACTION_ID } from '../../chat/browser/actions/chatActions.js';
 import { ASK_QUICK_QUESTION_ACTION_ID } from '../../chat/browser/actions/chatQuickInputActions.js';
-import { IChatAgentService } from '../../chat/common/chatAgents.js';
+import { IChatAgentService } from '../../chat/common/participants/chatAgents.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 
 export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {
@@ -260,6 +260,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 				commandAlias,
 				label: stripIcons(label),
 				commandDescription,
+				commandCategory: category,
 			});
 		}
 

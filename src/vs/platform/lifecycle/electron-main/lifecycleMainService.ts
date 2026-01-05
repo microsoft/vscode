@@ -231,7 +231,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 	private _quitRequested = false;
 	get quitRequested(): boolean { return this._quitRequested; }
 
-	private _wasRestarted: boolean = false;
+	private _wasRestarted = false;
 	get wasRestarted(): boolean { return this._wasRestarted; }
 
 	private _phase = LifecycleMainPhase.Starting;
@@ -433,9 +433,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 			// The window already acknowledged to be closed
 			const windowId = window.id;
-			if (this.windowToCloseRequest.has(windowId)) {
-				this.windowToCloseRequest.delete(windowId);
-
+			if (this.windowToCloseRequest.delete(windowId)) {
 				return;
 			}
 

@@ -27,16 +27,17 @@ import { GitPostCommitCommandsProvider } from './postCommitCommands';
 import { GitEditSessionIdentityProvider } from './editSessionIdentityProvider';
 import { GitCommitInputBoxCodeActionsProvider, GitCommitInputBoxDiagnosticsManager } from './diagnostics';
 import { GitBlameController } from './blame';
+import { CloneManager } from './cloneManager';
 
-const deactivateTasks: { (): Promise<any> }[] = [];
+const deactivateTasks: { (): Promise<void> }[] = [];
 
-export async function deactivate(): Promise<any> {
+export async function deactivate(): Promise<void> {
 	for (const task of deactivateTasks) {
 		await task();
 	}
 }
 
-async function createModel(context: ExtensionContext, logger: LogOutputChannel, telemetryReporter: TelemetryReporter, disposables: Disposable[]): Promise<Model> {
+async function createModel(context: ExtensionContext, logger: LogOutputChannel, telemetryReporter: TelemetryReporter, disposables: Disposable[]): Promise<{ model: Model; cloneManager: CloneManager }> {
 	const pathValue = workspace.getConfiguration('git').get<string | string[]>('path');
 	let pathHints = Array.isArray(pathValue) ? pathValue : pathValue ? [pathValue] : [];
 
@@ -90,6 +91,7 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 	});
 	const model = new Model(git, askpass, context.globalState, context.workspaceState, logger, telemetryReporter);
 	disposables.push(model);
+	const cloneManager = new CloneManager(model, telemetryReporter, model.repositoryCache);
 
 	const onRepository = () => commands.executeCommand('setContext', 'gitOpenRepositoryCount', `${model.repositories.length}`);
 	model.onDidOpenRepository(onRepository, null, disposables);
@@ -108,7 +110,7 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 	git.onOutput.addListener('log', onOutput);
 	disposables.push(toDisposable(() => git.onOutput.removeListener('log', onOutput)));
 
-	const cc = new CommandCenter(git, model, context.globalState, logger, telemetryReporter);
+	const cc = new CommandCenter(git, model, context.globalState, logger, telemetryReporter, cloneManager);
 	disposables.push(
 		cc,
 		new GitFileSystemProvider(model, logger),
@@ -134,7 +136,7 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 	checkGitVersion(info);
 	commands.executeCommand('setContext', 'gitVersion2.35', git.compareGitVersionTo('2.35') >= 0);
 
-	return model;
+	return { model, cloneManager };
 }
 
 async function isGitRepository(folder: WorkspaceFolder): Promise<boolean> {
@@ -210,13 +212,18 @@ export async function _activate(context: ExtensionContext): Promise<GitExtension
 		const onEnabled = filterEvent(onConfigChange, () => workspace.getConfiguration('git', null).get<boolean>('enabled') === true);
 		const result = new GitExtensionImpl();
 
-		eventToPromise(onEnabled).then(async () => result.model = await createModel(context, logger, telemetryReporter, disposables));
+		eventToPromise(onEnabled).then(async () => {
+			const { model, cloneManager } = await createModel(context, logger, telemetryReporter, disposables);
+			result.model = model;
+			result.cloneManager = cloneManager;
+		});
 		return result;
 	}
 
 	try {
-		const model = await createModel(context, logger, telemetryReporter, disposables);
-		return new GitExtensionImpl(model);
+		const { model, cloneManager } = await createModel(context, logger, telemetryReporter, disposables);
+
+		return new GitExtensionImpl({ model, cloneManager });
 	} catch (err) {
 		console.warn(err.message);
 		logger.warn(`[main] Failed to create model: ${err}`);

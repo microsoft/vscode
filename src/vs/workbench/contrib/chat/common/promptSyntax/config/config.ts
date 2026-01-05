@@ -4,18 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { PromptsType } from '../promptTypes.js';
 import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, getPromptFileDefaultLocation } from './promptFileLocations.js';
 
 /**
  * Configuration helper for the `reusable prompts` feature.
- * @see {@link PromptsConfig.KEY}, {@link PromptsConfig.PROMPT_LOCATIONS_KEY}, {@link PromptsConfig.INSTRUCTIONS_LOCATION_KEY}, {@link PromptsConfig.MODE_LOCATION_KEY}, or {@link PromptsConfig.PROMPT_FILES_SUGGEST_KEY}.
+ * @see {@link PromptsConfig.PROMPT_LOCATIONS_KEY}, {@link PromptsConfig.INSTRUCTIONS_LOCATION_KEY}, {@link PromptsConfig.MODE_LOCATION_KEY}, or {@link PromptsConfig.PROMPT_FILES_SUGGEST_KEY}.
  *
  * ### Functions
  *
- * - {@link enabled} allows to check if the feature is enabled
  * - {@link getLocationsValue} allows to current read configuration value
  * - {@link promptSourceFolders} gets list of source folders for prompt files
  * - {@link getPromptFilesRecommendationsValue} gets prompt file recommendation configuration
@@ -46,12 +44,6 @@ import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, getPr
  * ```
  */
 export namespace PromptsConfig {
-	/**
-	 * Configuration key for the `reusable prompts` feature
-	 * (also known as `prompt files`, `prompt instructions`, etc.).
-	 */
-	export const KEY = 'chat.promptFiles';
-
 	/**
 	 * Configuration key for the locations of reusable prompt files.
 	 */
@@ -87,19 +79,9 @@ export namespace PromptsConfig {
 	export const USE_NESTED_AGENT_MD = 'chat.useNestedAgentsMdFiles';
 
 	/**
-	 * Checks if the feature is enabled.
-	 * @see {@link PromptsConfig.KEY}.
+	 * Configuration key for agent skills usage.
 	 */
-	export function enabled(configService: IConfigurationService): boolean {
-		const enabledValue = configService.getValue(PromptsConfig.KEY);
-
-		return asBoolean(enabledValue) ?? false;
-	}
-
-	/**
-	 * Context key expression for the `reusable prompts` feature `enabled` status.
-	 */
-	export const enabledCtx = ContextKeyExpr.equals(`config.${PromptsConfig.KEY}`, true);
+	export const USE_AGENT_SKILLS = 'chat.useAgentSkills';
 
 	/**
 	 * Get value of the `reusable prompt locations` configuration setting.
@@ -227,7 +209,7 @@ export function getPromptFileLocationsConfigKey(type: PromptsType): string {
 			return PromptsConfig.INSTRUCTIONS_LOCATION_KEY;
 		case PromptsType.prompt:
 			return PromptsConfig.PROMPT_LOCATIONS_KEY;
-		case PromptsType.mode:
+		case PromptsType.agent:
 			return PromptsConfig.MODE_LOCATION_KEY;
 		default:
 			throw new Error('Unknown prompt type');

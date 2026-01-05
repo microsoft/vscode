@@ -8,8 +8,9 @@ import * as uri from 'vscode-uri';
 import { ILogger } from '../logging';
 import { MarkdownItEngine } from '../markdownEngine';
 import { MarkdownContributionProvider } from '../markdownExtensions';
-import { escapeAttribute, getNonce } from '../util/dom';
+import { escapeAttribute } from '../util/dom';
 import { WebviewResourceProvider } from '../util/resources';
+import { generateUuid } from '../util/uuid';
 import { MarkdownPreviewConfiguration, MarkdownPreviewConfigurationManager } from './previewConfig';
 import { ContentSecurityPolicyArbiter, MarkdownPreviewSecurityLevel } from './security';
 
@@ -82,7 +83,7 @@ export class MdDocumentRenderer {
 		this._logger.trace('DocumentRenderer', `provideTextDocumentContent - ${markdownDocument.uri}`, initialData);
 
 		// Content Security Policy
-		const nonce = getNonce();
+		const nonce = generateUuid();
 		const csp = this._getCsp(resourceProvider, sourceUri, nonce);
 
 		const body = await this.renderBody(markdownDocument, resourceProvider);

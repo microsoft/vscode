@@ -32,20 +32,21 @@ export function applyCoreTools(server: McpServer, appService: ApplicationService
 	// 	}
 	// );
 
-	// I don't think Playwright needs this
-	// server.tool(
-	// 	'vscode_automation_stop',
-	// 	'Stop the VS Code application',
-	// 	async () => {
-	// 		await app.stop();
-	// 		return {
-	// 			content: [{
-	// 				type: 'text' as const,
-	// 				text: 'VS Code stopped successfully'
-	// 			}]
-	// 		};
-	// 	}
-	// );
+	tools.push(server.tool(
+		'vscode_automation_stop',
+		'Stop the VS Code application',
+		async () => {
+			const app = await appService.getOrCreateApplication();
+			await app.stopTracing(undefined, true);
+			await app.stop();
+			return {
+				content: [{
+					type: 'text' as const,
+					text: 'VS Code stopped successfully'
+				}]
+			};
+		}
+	));
 
 	// This doesn't seem particularly useful
 	// server.tool(

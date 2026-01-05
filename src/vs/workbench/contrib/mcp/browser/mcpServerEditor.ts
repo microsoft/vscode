@@ -38,7 +38,7 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IMcpServerContainer, IMcpServerEditorOptions, IMcpWorkbenchService, IWorkbenchMcpServer, McpServerContainers, McpServerInstallState } from '../common/mcpTypes.js';
 import { StarredWidget, McpServerIconWidget, McpServerStatusWidget, McpServerWidget, onClick, PublisherWidget, McpServerScopeBadgeWidget, LicenseWidget } from './mcpServerWidgets.js';
-import { DropDownAction, InstallAction, InstallingLabelAction, ManageMcpServerAction, McpServerStatusAction, UninstallAction } from './mcpServerActions.js';
+import { ButtonWithDropDownExtensionAction, ButtonWithDropdownExtensionActionViewItem, DropDownAction, InstallAction, InstallingLabelAction, InstallInRemoteAction, InstallInWorkspaceAction, ManageMcpServerAction, McpServerStatusAction, UninstallAction } from './mcpServerActions.js';
 import { McpServerEditorInput } from './mcpServerEditorInput.js';
 import { ILocalMcpServer, IGalleryMcpServerConfiguration, IMcpServerPackage, IMcpServerKeyValueInput, RegistryType } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -47,6 +47,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { getMcpGalleryManifestResourceUri, IMcpGalleryManifestService, McpGalleryResourceType } from '../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { fromNow } from '../../../../base/common/date.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 
 const enum McpServerEditorTab {
 	Readme = 'readme',
@@ -185,6 +186,7 @@ export class McpServerEditor extends EditorPane {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
 		super(McpServerEditor.ID, group, telemetryService, themeService, storageService);
 		this.mcpServerReadme = null;
@@ -240,9 +242,15 @@ export class McpServerEditor extends EditorPane {
 		const description = append(details, $('.description'));
 
 		const actions = [
-			this.instantiationService.createInstance(InstallAction, true),
+			this.instantiationService.createInstance(InstallAction, false),
 			this.instantiationService.createInstance(InstallingLabelAction),
-			this.instantiationService.createInstance(UninstallAction),
+			this.instantiationService.createInstance(ButtonWithDropDownExtensionAction, 'extensions.uninstall', UninstallAction.CLASS, [
+				[
+					this.instantiationService.createInstance(UninstallAction),
+					this.instantiationService.createInstance(InstallInWorkspaceAction, false),
+					this.instantiationService.createInstance(InstallInRemoteAction, false)
+				]
+			]),
 			this.instantiationService.createInstance(ManageMcpServerAction, true),
 		];
 
@@ -251,6 +259,18 @@ export class McpServerEditor extends EditorPane {
 			actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
 				if (action instanceof DropDownAction) {
 					return action.createActionViewItem(options);
+				}
+				if (action instanceof ButtonWithDropDownExtensionAction) {
+					return new ButtonWithDropdownExtensionActionViewItem(
+						action,
+						{
+							...options,
+							icon: true,
+							label: true,
+							menuActionsOrProvider: { getActions: () => action.menuActions },
+							menuActionClassNames: action.menuActionClassNames
+						},
+						this.contextMenuService);
 				}
 				return undefined;
 			},

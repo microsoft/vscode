@@ -25,7 +25,7 @@ export interface IExtensionHostStarter {
 
 	onDynamicStdout(id: string): Event<string>;
 	onDynamicStderr(id: string): Event<string>;
-	onDynamicMessage(id: string): Event<any>;
+	onDynamicMessage(id: string): Event<unknown>;
 	onDynamicExit(id: string): Event<{ code: number; signal: string }>;
 
 	createExtensionHost(): Promise<{ id: string }>;

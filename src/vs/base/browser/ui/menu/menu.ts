@@ -140,9 +140,9 @@ export class Menu extends ActionBar {
 		if (options.enableMnemonics) {
 			this._register(addDisposableListener(menuElement, EventType.KEY_DOWN, (e) => {
 				const key = e.key.toLocaleLowerCase();
-				if (this.mnemonics.has(key)) {
+				const actions = this.mnemonics.get(key);
+				if (actions !== undefined) {
 					EventHelper.stop(e, true);
-					const actions = this.mnemonics.get(key)!;
 
 					if (actions.length === 1) {
 						if (actions[0] instanceof SubmenuMenuActionViewItem && actions[0].container) {
@@ -398,14 +398,12 @@ export class Menu extends ActionBar {
 			if (options.enableMnemonics) {
 				const mnemonic = menuActionViewItem.getMnemonic();
 				if (mnemonic && menuActionViewItem.isEnabled()) {
-					let actionViewItems: BaseMenuActionViewItem[] = [];
-					if (this.mnemonics.has(mnemonic)) {
-						actionViewItems = this.mnemonics.get(mnemonic)!;
+					const actionViewItems = this.mnemonics.get(mnemonic);
+					if (actionViewItems !== undefined) {
+						actionViewItems.push(menuActionViewItem);
+					} else {
+						this.mnemonics.set(mnemonic, [menuActionViewItem]);
 					}
-
-					actionViewItems.push(menuActionViewItem);
-
-					this.mnemonics.set(mnemonic, actionViewItems);
 				}
 			}
 
@@ -423,14 +421,12 @@ export class Menu extends ActionBar {
 			if (options.enableMnemonics) {
 				const mnemonic = menuActionViewItem.getMnemonic();
 				if (mnemonic && menuActionViewItem.isEnabled()) {
-					let actionViewItems: BaseMenuActionViewItem[] = [];
-					if (this.mnemonics.has(mnemonic)) {
-						actionViewItems = this.mnemonics.get(mnemonic)!;
+					const actionViewItems = this.mnemonics.get(mnemonic);
+					if (actionViewItems !== undefined) {
+						actionViewItems.push(menuActionViewItem);
+					} else {
+						this.mnemonics.set(mnemonic, [menuActionViewItem]);
 					}
-
-					actionViewItems.push(menuActionViewItem);
-
-					this.mnemonics.set(mnemonic, actionViewItems);
 				}
 			}
 
