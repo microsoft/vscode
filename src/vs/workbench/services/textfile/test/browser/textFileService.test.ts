@@ -11,6 +11,7 @@ import { TextFileEditorModel } from '../../common/textFileEditorModel.js';
 import { FileOperation } from '../../../../../platform/files/common/files.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { EncodingMode } from '../../common/textfiles.js';
+import { EndOfLineSequence } from '../../../../../editor/common/model.js';
 
 suite('Files - TextFileService', () => {
 
@@ -104,11 +105,11 @@ suite('Files - TextFileService', () => {
 			tabSize: 4,
 			indentSize: 4
 		});
-		model.textEditorModel!.setEOL(0); // EndOfLineSequence.LF = 0
+		model.textEditorModel!.setEOL(EndOfLineSequence.LF);
 
 		assert.strictEqual(model.textEditorModel!.getOptions().insertSpaces, false);
 		assert.strictEqual(model.textEditorModel!.getOptions().tabSize, 4);
-		assert.strictEqual(model.textEditorModel!.getEndOfLineSequence(), 0); // LF
+		assert.strictEqual(model.textEditorModel!.getEndOfLineSequence(), EndOfLineSequence.LF);
 
 		// Save as target
 		const res = await accessor.textFileService.saveAs(model.resource, targetResource);
@@ -120,7 +121,7 @@ suite('Files - TextFileService', () => {
 		assert.ok(targetModel.textEditorModel);
 		assert.strictEqual(targetModel.textEditorModel.getOptions().insertSpaces, false, 'insertSpaces should be preserved');
 		assert.strictEqual(targetModel.textEditorModel.getOptions().tabSize, 4, 'tabSize should be preserved');
-		assert.strictEqual(targetModel.textEditorModel.getEndOfLineSequence(), 0, 'EOL sequence should be preserved');
+		assert.strictEqual(targetModel.textEditorModel.getEndOfLineSequence(), EndOfLineSequence.LF, 'EOL sequence should be preserved');
 	});
 
 	test('revert - file', async function () {
