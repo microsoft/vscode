@@ -6,7 +6,7 @@
 import * as cssJs from '../../../base/browser/cssValue.js';
 import * as dom from '../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
-import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
+import { ToolBar } from '../../../base/browser/ui/toolbar/toolbar.js';
 import { AriaRole } from '../../../base/browser/ui/aria/aria.js';
 import type { IHoverWidget, IManagedHoverTooltipMarkdownString } from '../../../base/browser/ui/hover/hover.js';
 import { IHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegate.js';
@@ -15,7 +15,7 @@ import { IIconLabelValueOptions, IconLabel } from '../../../base/browser/ui/icon
 import { KeybindingLabel } from '../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IListVirtualDelegate } from '../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider, IListStyles } from '../../../base/browser/ui/list/listWidget.js';
-import { Checkbox } from '../../../base/browser/ui/toggle/toggle.js';
+import { Checkbox, createToggleActionViewItemProvider, IToggleStyles } from '../../../base/browser/ui/toggle/toggle.js';
 import { RenderIndentGuides } from '../../../base/browser/ui/tree/abstractTree.js';
 import { IObjectTreeElement, ITreeNode, ITreeRenderer, TreeVisibility } from '../../../base/browser/ui/tree/tree.js';
 import { equals } from '../../../base/common/arrays.js';
@@ -27,7 +27,6 @@ import { Emitter, Event, EventBufferer, IValueWithChangeEvent } from '../../../b
 import { IMatch } from '../../../base/common/filters.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
 import { IParsedLabelWithIcons, getCodiconAriaLabel, matchesFuzzyIconAware, parseLabelWithIcons } from '../../../base/common/iconLabels.js';
-import { KeyCode } from '../../../base/common/keyCodes.js';
 import { Lazy } from '../../../base/common/lazy.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { observableValue, observableValueOpts, transaction } from '../../../base/common/observable.js';
@@ -36,13 +35,15 @@ import { escape, ltrim } from '../../../base/common/strings.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { IAccessibilityService } from '../../accessibility/common/accessibility.js';
+import { IContextMenuService } from '../../contextview/browser/contextView.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { WorkbenchObjectTree } from '../../list/browser/listService.js';
 import { defaultCheckboxStyles } from '../../theme/browser/defaultStyles.js';
 import { isDark } from '../../theme/common/theme.js';
 import { IThemeService } from '../../theme/common/themeService.js';
 import { IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, QuickPickFocus, QuickPickItem } from '../common/quickInput.js';
-import { quickInputButtonToAction } from './quickInputUtils.js';
+import { IQuickInputStyles } from './quickInput.js';
+import { quickInputButtonsToActionArrays } from './quickInputUtils.js';
 
 const $ = dom.$;
 
@@ -76,7 +77,7 @@ interface IQuickInputItemTemplateData {
 	keybinding: KeybindingLabel;
 	detail: IconLabel;
 	separator: HTMLDivElement;
-	actionBar: ActionBar;
+	toolBar: ToolBar;
 	element: IQuickPickElement;
 	toDisposeElement: DisposableStore;
 	toDisposeTemplate: DisposableStore;
@@ -325,6 +326,8 @@ abstract class BaseQuickInputListRenderer<T extends IQuickPickElement> implement
 
 	constructor(
 		private readonly hoverDelegate: IHoverDelegate | undefined,
+		private readonly toggleStyles: IToggleStyles,
+		private readonly contextMenuService: IContextMenuService
 	) { }
 
 	// TODO: only do the common stuff here and have a subclass handle their specific stuff
@@ -371,9 +374,14 @@ abstract class BaseQuickInputListRenderer<T extends IQuickPickElement> implement
 		data.separator = dom.append(data.entry, $('.quick-input-list-separator'));
 
 		// Actions
-		data.actionBar = new ActionBar(data.entry, this.hoverDelegate ? { hoverDelegate: this.hoverDelegate } : undefined);
-		data.actionBar.domNode.classList.add('quick-input-list-entry-action-bar');
-		data.toDisposeTemplate.add(data.actionBar);
+		data.toolBar = new ToolBar(data.entry, this.contextMenuService, {
+			...(this.hoverDelegate ? { hoverDelegate: this.hoverDelegate } : undefined),
+			actionViewItemProvider: createToggleActionViewItemProvider(this.toggleStyles),
+			icon: true,
+			label: false
+		});
+		data.toolBar.getElement().classList.add('quick-input-list-entry-action-bar');
+		data.toDisposeTemplate.add(data.toolBar);
 
 		return data;
 	}
@@ -385,7 +393,7 @@ abstract class BaseQuickInputListRenderer<T extends IQuickPickElement> implement
 
 	disposeElement(_element: ITreeNode<IQuickPickElement, void>, _index: number, data: IQuickInputItemTemplateData): void {
 		data.toDisposeElement.clear();
-		data.actionBar.clear();
+		data.toolBar.setActions([]);
 	}
 
 	// TODO: only do the common stuff here and have a subclass handle their specific stuff
@@ -400,9 +408,11 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 
 	constructor(
 		hoverDelegate: IHoverDelegate | undefined,
+		toggleStyles: IToggleStyles,
+		@IContextMenuService contextMenuService: IContextMenuService,
 		@IThemeService private readonly themeService: IThemeService,
 	) {
-		super(hoverDelegate);
+		super(hoverDelegate, toggleStyles, contextMenuService);
 	}
 
 	get templateId() {
@@ -421,6 +431,9 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 			checkbox = new Checkbox(element.saneLabel, element.checked, { ...defaultCheckboxStyles, size: 15 });
 			data.checkbox.value = checkbox;
 			data.outerLabel.prepend(checkbox.domNode);
+			// Remove checkbox from tab order since tree items are navigable with arrow keys
+			// This prevents the issue where pressing Space toggles both the tabbed checkbox and the focused item
+			checkbox.domNode.tabIndex = -1;
 		} else {
 			checkbox.setTitle(element.saneLabel);
 		}
@@ -525,13 +538,15 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 		// Actions
 		const buttons = mainItem.buttons;
 		if (buttons && buttons.length) {
-			data.actionBar.push(buttons.map((button, index) => quickInputButtonToAction(
-				button,
-				`id-${index}`,
-				() => element.fireButtonTriggered({ button, item: element.item })
-			)), { icon: true, label: false });
+			const { primary, secondary } = quickInputButtonsToActionArrays(
+				buttons,
+				'quick-input-item',
+				(button) => element.fireButtonTriggered({ button, item: element.item })
+			);
+			data.toolBar.setActions(primary, secondary);
 			data.entry.classList.add('has-actions');
 		} else {
+			data.toolBar.setActions([]);
 			data.entry.classList.remove('has-actions');
 		}
 	}
@@ -565,6 +580,14 @@ class QuickPickSeparatorElementRenderer extends BaseQuickInputListRenderer<Quick
 	// This is a frequency map because sticky scroll re-uses the same renderer to render a second
 	// instance of the same separator.
 	private readonly _visibleSeparatorsFrequency = new Map<QuickPickSeparatorElement, number>();
+
+	constructor(
+		hoverDelegate: IHoverDelegate | undefined,
+		toggleStyles: IToggleStyles,
+		@IContextMenuService contextMenuService: IContextMenuService
+	) {
+		super(hoverDelegate, toggleStyles, contextMenuService);
+	}
 
 	get templateId() {
 		return QuickPickSeparatorElementRenderer.ID;
@@ -622,13 +645,15 @@ class QuickPickSeparatorElementRenderer extends BaseQuickInputListRenderer<Quick
 		// Actions
 		const buttons = mainItem.buttons;
 		if (buttons && buttons.length) {
-			data.actionBar.push(buttons.map((button, index) => quickInputButtonToAction(
-				button,
-				`id-${index}`,
-				() => element.fireSeparatorButtonTriggered({ button, separator: element.separator })
-			)), { icon: true, label: false });
+			const { primary, secondary } = quickInputButtonsToActionArrays(
+				buttons,
+				'quick-input-separator',
+				(button) => element.fireSeparatorButtonTriggered({ button, separator: element.separator })
+			);
+			data.toolBar.setActions(primary, secondary);
 			data.entry.classList.add('has-actions');
 		} else {
+			data.toolBar.setActions([]);
 			data.entry.classList.remove('has-actions');
 		}
 
@@ -715,13 +740,14 @@ export class QuickInputList extends Disposable {
 		private hoverDelegate: IHoverDelegate,
 		private linkOpenerDelegate: (content: string) => void,
 		id: string,
+		private styles: IQuickInputStyles,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 		super();
 		this._container = dom.append(this.parent, $('.quick-input-list'));
-		this._separatorRenderer = new QuickPickSeparatorElementRenderer(hoverDelegate);
-		this._itemRenderer = instantiationService.createInstance(QuickPickItemElementRenderer, hoverDelegate);
+		this._separatorRenderer = instantiationService.createInstance(QuickPickSeparatorElementRenderer, hoverDelegate, this.styles.toggle);
+		this._itemRenderer = instantiationService.createInstance(QuickPickItemElementRenderer, hoverDelegate, this.styles.toggle);
 		this._tree = this._register(instantiationService.createInstance(
 			WorkbenchObjectTree<IQuickPickElement, void>,
 			'QuickInput',
@@ -875,7 +901,6 @@ export class QuickInputList extends Disposable {
 	//#region register listeners
 
 	private _registerListeners() {
-		this._registerOnKeyDown();
 		this._registerOnContainerClick();
 		this._registerOnMouseMiddleClick();
 		this._registerOnTreeModelChanged();
@@ -884,20 +909,6 @@ export class QuickInputList extends Disposable {
 		this._registerHoverListeners();
 		this._registerSelectionChangeListener();
 		this._registerSeparatorActionShowingListeners();
-	}
-
-	private _registerOnKeyDown() {
-		// TODO: Should this be added at a higher level?
-		this._register(this._tree.onKeyDown(e => {
-			const event = new StandardKeyboardEvent(e);
-			switch (event.keyCode) {
-				case KeyCode.Space:
-					this.toggleCheckbox();
-					break;
-			}
-
-			this._onKeyDown.fire(event);
-		}));
 	}
 
 	private _registerOnContainerClick() {

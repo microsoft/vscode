@@ -7,34 +7,39 @@ import { ok, strictEqual } from 'assert';
 import { Separator } from '../../../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../../base/common/event.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 import { isLinux, isWindows, OperatingSystem } from '../../../../../../base/common/platform.js';
+import { count } from '../../../../../../base/common/strings.js';
+import { hasKey, type SingleOrMany } from '../../../../../../base/common/types.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { ITreeSitterLibraryService } from '../../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import type { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { ITerminalProfile } from '../../../../../../platform/terminal/common/terminal.js';
+import { IWorkspaceContextService, toWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
+import { Workspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
+import { IHistoryService } from '../../../../../services/history/common/history.js';
+import { TreeSitterLibraryService } from '../../../../../services/treeSitter/browser/treeSitterLibraryService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService.js';
-import { ILanguageModelToolsService, IPreparedToolInvocation, IToolInvocationPreparationContext, type ToolConfirmationAction } from '../../../../chat/common/languageModelToolsService.js';
-import { ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
+import { TestContextService } from '../../../../../test/common/workbenchTestServices.js';
+import { TestIPCFileSystemProvider } from '../../../../../test/electron-browser/workbenchTestServices.js';
+import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
+import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
+import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
+import { ILanguageModelToolsService, IPreparedToolInvocation, IToolInvocationPreparationContext, type ToolConfirmationAction } from '../../../../chat/common/tools/languageModelToolsService.js';
+import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
 import { RunInTerminalTool, type IRunInTerminalInputParams } from '../../browser/tools/runInTerminalTool.js';
 import { ShellIntegrationQuality } from '../../browser/toolTerminalCreator.js';
 import { terminalChatAgentToolsConfiguration, TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
-import { count } from '../../../../../../base/common/strings.js';
-import { ITerminalProfile } from '../../../../../../platform/terminal/common/terminal.js';
-import { ITreeSitterLibraryService } from '../../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
-import { TreeSitterLibraryService } from '../../../../../services/treeSitter/browser/treeSitterLibraryService.js';
-import { FileService } from '../../../../../../platform/files/common/fileService.js';
-import { NullLogService } from '../../../../../../platform/log/common/log.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { Schemas } from '../../../../../../base/common/network.js';
-import { TestIPCFileSystemProvider } from '../../../../../test/electron-browser/workbenchTestServices.js';
-import { arch } from '../../../../../../base/common/process.js';
-import { URI } from '../../../../../../base/common/uri.js';
-import { LocalChatSessionUri } from '../../../../chat/common/chatUri.js';
-import type { SingleOrMany } from '../../../../../../base/common/types.js';
+import { TerminalChatService } from '../../../chat/browser/terminalChatService.js';
+import type { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 
 class TestRunInTerminalTool extends RunInTerminalTool {
 	protected override _osBackend: Promise<OperatingSystem> = Promise.resolve(OperatingSystem.Windows);
@@ -47,21 +52,22 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 	}
 }
 
-// TODO: The powershell grammar can cause an OOM crash on Windows/arm https://github.com/microsoft/vscode/issues/273177
-(isWindows && (arch === 'arm' || arch === 'arm64') ? suite.skip : suite)('RunInTerminalTool', () => {
+suite('RunInTerminalTool', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
 	let fileService: IFileService;
 	let storageService: IStorageService;
+	let workspaceContextService: TestContextService;
 	let terminalServiceDisposeEmitter: Emitter<ITerminalInstance>;
-	let chatServiceDisposeEmitter: Emitter<{ sessionResource: URI; reason: 'cleared' }>;
+	let chatServiceDisposeEmitter: Emitter<{ sessionResource: URI[]; reason: 'cleared' }>;
 
 	let runInTerminalTool: TestRunInTerminalTool;
 
 	setup(() => {
 		configurationService = new TestConfigurationService();
+		workspaceContextService = new TestContextService();
 
 		const logService = new NullLogService();
 		fileService = store.add(new FileService(logService));
@@ -70,12 +76,21 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 
 		setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, true);
 		terminalServiceDisposeEmitter = new Emitter<ITerminalInstance>();
-		chatServiceDisposeEmitter = new Emitter<{ sessionResource: URI; reason: 'cleared' }>();
+		chatServiceDisposeEmitter = new Emitter<{ sessionResource: URI[]; reason: 'cleared' }>();
 
 		instantiationService = workbenchInstantiationService({
 			configurationService: () => configurationService,
 			fileService: () => fileService,
 		}, store);
+
+		instantiationService.stub(IChatService, {
+			onDidDisposeSession: chatServiceDisposeEmitter.event
+		});
+		instantiationService.stub(ITerminalChatService, store.add(instantiationService.createInstance(TerminalChatService)));
+		instantiationService.stub(IWorkspaceContextService, workspaceContextService);
+		instantiationService.stub(IHistoryService, {
+			getLastActiveWorkspaceRoot: () => undefined
+		});
 
 		const treeSitterLibraryService = store.add(instantiationService.createInstance(TreeSitterLibraryService));
 		treeSitterLibraryService.isTest = true;
@@ -87,10 +102,8 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 			},
 		});
 		instantiationService.stub(ITerminalService, {
-			onDidDisposeInstance: terminalServiceDisposeEmitter.event
-		});
-		instantiationService.stub(IChatService, {
-			onDidDisposeSession: chatServiceDisposeEmitter.event
+			onDidDisposeInstance: terminalServiceDisposeEmitter.event,
+			setNextCommandId: async () => { }
 		});
 		instantiationService.stub(ITerminalProfileResolverService, {
 			getDefaultProfile: async () => ({ path: 'bash' } as ITerminalProfile)
@@ -199,6 +212,7 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 			'df -h',
 			'sleep 5',
 			'cd /home/user',
+			'nl -ba path/to/file.txt',
 
 			// Safe git sub-commands
 			'git status',
@@ -214,6 +228,7 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 			'Get-Location',
 			'Write-Host "Hello"',
 			'Write-Output "Test"',
+			'Out-String',
 			'Split-Path C:\\Users\\test',
 			'Join-Path C:\\Users test',
 			'Start-Sleep 2',
@@ -230,6 +245,11 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 			'date +%Y-%m-%d',
 			'find . -name "*.txt"',
 			'grep pattern file.txt',
+			'rg pattern file.txt',
+			'rg --json pattern .',
+			'rg -i --color=never "TODO" src/',
+			'sed "s/foo/bar/g"',
+			'sed -n "1,10p" file.txt',
 			'sort file.txt',
 			'tree directory'
 		];
@@ -282,6 +302,19 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 			'find . -exec rm {} \\;',
 			'find . -execdir rm {} \\;',
 			'find . -fprint output.txt',
+			'rg --pre cat pattern .',
+			'rg --hostname-bin hostname pattern .',
+			'sed -i "s/foo/bar/g" file.txt',
+			'sed -i.bak "s/foo/bar/" file.txt',
+			'sed -Ibak "s/foo/bar/" file.txt',
+			'sed --in-place "s/foo/bar/" file.txt',
+			'sed -e "s/a/b/" file.txt',
+			'sed -f script.sed file.txt',
+			'sed --expression "s/a/b/" file.txt',
+			'sed --file script.sed file.txt',
+			'sed "s/foo/bar/e" file.txt',
+			'sed "s/foo/bar/w output.txt" file.txt',
+			'sed ";W output.txt" file.txt',
 			'sort -o /etc/passwd file.txt',
 			'sort -S 100G file.txt',
 			'tree -o output.txt',
@@ -462,7 +495,9 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 
 	suite('prepareToolInvocation - custom actions for dropdown', () => {
 
-		function assertDropdownActions(result: IPreparedToolInvocation | undefined, items: ({ subCommand: SingleOrMany<string> } | 'commandLine' | '---' | 'configure')[]) {
+		type ActionItemType = { subCommand: SingleOrMany<string>; scope: 'session' | 'workspace' | 'user' } | { commandLine: true; scope: 'session' | 'workspace' | 'user' } | '---' | 'configure' | 'sessionApproval';
+
+		function assertDropdownActions(result: IPreparedToolInvocation | undefined, items: ActionItemType[]) {
 			const actions = result?.confirmationMessages?.terminalCustomActions!;
 			ok(actions, 'Expected custom actions to be defined');
 
@@ -477,16 +512,24 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 					if (item === 'configure') {
 						strictEqual(action.label, 'Configure Auto Approve...');
 						strictEqual(action.data.type, 'configure');
-					} else if (item === 'commandLine') {
-						strictEqual(action.label, 'Always Allow Exact Command Line');
+					} else if (item === 'sessionApproval') {
+						strictEqual(action.label, 'Allow All Commands in this Session');
+						strictEqual(action.data.type, 'sessionApproval');
+					} else if (hasKey(item, { commandLine: true })) {
+						const expectedLabel = item.scope === 'session' ? 'Allow Exact Command Line in this Session'
+							: item.scope === 'workspace' ? 'Allow Exact Command Line in this Workspace'
+								: 'Always Allow Exact Command Line';
+						strictEqual(action.label, expectedLabel);
 						strictEqual(action.data.type, 'newRule');
 						ok(!Array.isArray(action.data.rule), 'Expected rule to be an object');
 					} else {
-						if (Array.isArray(item.subCommand)) {
-							strictEqual(action.label, `Always Allow Commands: ${item.subCommand.join(', ')}`);
-						} else {
-							strictEqual(action.label, `Always Allow Command: ${item.subCommand}`);
-						}
+						const subCommandLabel = Array.isArray(item.subCommand)
+							? `Commands ${item.subCommand.map(e => `\`${e} \u2026\``).join(', ')}`
+							: `\`${item.subCommand} \u2026\``;
+						const expectedLabel = item.scope === 'session' ? `Allow ${subCommandLabel} in this Session`
+							: item.scope === 'workspace' ? `Allow ${subCommandLabel} in this Workspace`
+								: `Always Allow ${subCommandLabel}`;
+						strictEqual(action.label, expectedLabel);
 						strictEqual(action.data.type, 'newRule');
 						ok(Array.isArray(action.data.rule), 'Expected rule to be an array');
 					}
@@ -505,8 +548,15 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 
 			assertConfirmationRequired(result, 'Run `bash` command?');
 			assertDropdownActions(result, [
-				{ subCommand: 'npm run build' },
-				'commandLine',
+				{ subCommand: 'npm run build', scope: 'session' },
+				{ subCommand: 'npm run build', scope: 'workspace' },
+				{ subCommand: 'npm run build', scope: 'user' },
+				'---',
+				{ commandLine: true, scope: 'session' },
+				{ commandLine: true, scope: 'workspace' },
+				{ commandLine: true, scope: 'user' },
+				'---',
+				'sessionApproval',
 				'---',
 				'configure',
 			]);
@@ -520,7 +570,12 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 
 			assertConfirmationRequired(result);
 			assertDropdownActions(result, [
-				{ subCommand: 'foo' },
+				{ subCommand: 'foo', scope: 'session' },
+				{ subCommand: 'foo', scope: 'workspace' },
+				{ subCommand: 'foo', scope: 'user' },
+				'---',
+				'---',
+				'sessionApproval',
 				'---',
 				'configure',
 			]);
@@ -549,6 +604,8 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 
 			assertConfirmationRequired(result, 'Run `bash` command?');
 			assertDropdownActions(result, [
+				'sessionApproval',
+				'---',
 				'configure',
 			]);
 		});
@@ -561,8 +618,15 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 
 			assertConfirmationRequired(result, 'Run `bash` command?');
 			assertDropdownActions(result, [
-				{ subCommand: ['npm install', 'npm run build'] },
-				'commandLine',
+				{ subCommand: ['npm install', 'npm run build'], scope: 'session' },
+				{ subCommand: ['npm install', 'npm run build'], scope: 'workspace' },
+				{ subCommand: ['npm install', 'npm run build'], scope: 'user' },
+				'---',
+				{ commandLine: true, scope: 'session' },
+				{ commandLine: true, scope: 'workspace' },
+				{ commandLine: true, scope: 'user' },
+				'---',
+				'sessionApproval',
 				'---',
 				'configure',
 			]);
@@ -579,8 +643,15 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 
 			assertConfirmationRequired(result, 'Run `bash` command?');
 			assertDropdownActions(result, [
-				{ subCommand: 'foo' },
-				'commandLine',
+				{ subCommand: 'foo', scope: 'session' },
+				{ subCommand: 'foo', scope: 'workspace' },
+				{ subCommand: 'foo', scope: 'user' },
+				'---',
+				{ commandLine: true, scope: 'session' },
+				{ commandLine: true, scope: 'workspace' },
+				{ commandLine: true, scope: 'user' },
+				'---',
+				'sessionApproval',
 				'---',
 				'configure',
 			]);
@@ -611,8 +682,15 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 
 			assertConfirmationRequired(result, 'Run `bash` command?');
 			assertDropdownActions(result, [
-				{ subCommand: ['foo', 'bar'] },
-				'commandLine',
+				{ subCommand: ['foo', 'bar'], scope: 'session' },
+				{ subCommand: ['foo', 'bar'], scope: 'workspace' },
+				{ subCommand: ['foo', 'bar'], scope: 'user' },
+				'---',
+				{ commandLine: true, scope: 'session' },
+				{ commandLine: true, scope: 'workspace' },
+				{ commandLine: true, scope: 'user' },
+				'---',
+				'sessionApproval',
 				'---',
 				'configure',
 			]);
@@ -626,8 +704,15 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 
 			assertConfirmationRequired(result);
 			assertDropdownActions(result, [
-				{ subCommand: 'git status' },
-				'commandLine',
+				{ subCommand: 'git status', scope: 'session' },
+				{ subCommand: 'git status', scope: 'workspace' },
+				{ subCommand: 'git status', scope: 'user' },
+				'---',
+				{ commandLine: true, scope: 'session' },
+				{ commandLine: true, scope: 'workspace' },
+				{ commandLine: true, scope: 'user' },
+				'---',
+				'sessionApproval',
 				'---',
 				'configure',
 			]);
@@ -641,8 +726,15 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 
 			assertConfirmationRequired(result);
 			assertDropdownActions(result, [
-				{ subCommand: 'npm test' },
-				'commandLine',
+				{ subCommand: 'npm test', scope: 'session' },
+				{ subCommand: 'npm test', scope: 'workspace' },
+				{ subCommand: 'npm test', scope: 'user' },
+				'---',
+				{ commandLine: true, scope: 'session' },
+				{ commandLine: true, scope: 'workspace' },
+				{ commandLine: true, scope: 'user' },
+				'---',
+				'sessionApproval',
 				'---',
 				'configure',
 			]);
@@ -656,8 +748,15 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 
 			assertConfirmationRequired(result);
 			assertDropdownActions(result, [
-				{ subCommand: 'npm run build' },
-				'commandLine',
+				{ subCommand: 'npm run build', scope: 'session' },
+				{ subCommand: 'npm run build', scope: 'workspace' },
+				{ subCommand: 'npm run build', scope: 'user' },
+				'---',
+				{ commandLine: true, scope: 'session' },
+				{ commandLine: true, scope: 'workspace' },
+				{ commandLine: true, scope: 'user' },
+				'---',
+				'sessionApproval',
 				'---',
 				'configure',
 			]);
@@ -671,8 +770,15 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 
 			assertConfirmationRequired(result);
 			assertDropdownActions(result, [
-				{ subCommand: 'yarn run test' },
-				'commandLine',
+				{ subCommand: 'yarn run test', scope: 'session' },
+				{ subCommand: 'yarn run test', scope: 'workspace' },
+				{ subCommand: 'yarn run test', scope: 'user' },
+				'---',
+				{ commandLine: true, scope: 'session' },
+				{ commandLine: true, scope: 'workspace' },
+				{ commandLine: true, scope: 'user' },
+				'---',
+				'sessionApproval',
 				'---',
 				'configure',
 			]);
@@ -686,8 +792,15 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 
 			assertConfirmationRequired(result);
 			assertDropdownActions(result, [
-				{ subCommand: 'foo' },
-				'commandLine',
+				{ subCommand: 'foo', scope: 'session' },
+				{ subCommand: 'foo', scope: 'workspace' },
+				{ subCommand: 'foo', scope: 'user' },
+				'---',
+				{ commandLine: true, scope: 'session' },
+				{ commandLine: true, scope: 'workspace' },
+				{ commandLine: true, scope: 'user' },
+				'---',
+				'sessionApproval',
 				'---',
 				'configure',
 			]);
@@ -701,8 +814,15 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 
 			assertConfirmationRequired(result);
 			assertDropdownActions(result, [
-				{ subCommand: 'npm run abc' },
-				'commandLine',
+				{ subCommand: 'npm run abc', scope: 'session' },
+				{ subCommand: 'npm run abc', scope: 'workspace' },
+				{ subCommand: 'npm run abc', scope: 'user' },
+				'---',
+				{ commandLine: true, scope: 'session' },
+				{ commandLine: true, scope: 'workspace' },
+				{ commandLine: true, scope: 'user' },
+				'---',
+				'sessionApproval',
 				'---',
 				'configure',
 			]);
@@ -716,8 +836,15 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 
 			assertConfirmationRequired(result);
 			assertDropdownActions(result, [
-				{ subCommand: ['npm run build', 'git status'] },
-				'commandLine',
+				{ subCommand: ['npm run build', 'git status'], scope: 'session' },
+				{ subCommand: ['npm run build', 'git status'], scope: 'workspace' },
+				{ subCommand: ['npm run build', 'git status'], scope: 'user' },
+				'---',
+				{ commandLine: true, scope: 'session' },
+				{ commandLine: true, scope: 'workspace' },
+				{ commandLine: true, scope: 'user' },
+				'---',
+				'sessionApproval',
 				'---',
 				'configure',
 			]);
@@ -731,8 +858,15 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 
 			assertConfirmationRequired(result);
 			assertDropdownActions(result, [
-				{ subCommand: ['git push', 'echo'] },
-				'commandLine',
+				{ subCommand: ['git push', 'echo'], scope: 'session' },
+				{ subCommand: ['git push', 'echo'], scope: 'workspace' },
+				{ subCommand: ['git push', 'echo'], scope: 'user' },
+				'---',
+				{ commandLine: true, scope: 'session' },
+				{ commandLine: true, scope: 'workspace' },
+				{ commandLine: true, scope: 'user' },
+				'---',
+				'sessionApproval',
 				'---',
 				'configure',
 			]);
@@ -746,8 +880,15 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 
 			assertConfirmationRequired(result);
 			assertDropdownActions(result, [
-				{ subCommand: ['git status', 'git log'] },
-				'commandLine',
+				{ subCommand: ['git status', 'git log'], scope: 'session' },
+				{ subCommand: ['git status', 'git log'], scope: 'workspace' },
+				{ subCommand: ['git status', 'git log'], scope: 'user' },
+				'---',
+				{ commandLine: true, scope: 'session' },
+				{ commandLine: true, scope: 'workspace' },
+				{ commandLine: true, scope: 'user' },
+				'---',
+				'sessionApproval',
 				'---',
 				'configure',
 			]);
@@ -761,8 +902,15 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 
 			assertConfirmationRequired(result);
 			assertDropdownActions(result, [
-				{ subCommand: 'foo' },
-				'commandLine',
+				{ subCommand: 'foo', scope: 'session' },
+				{ subCommand: 'foo', scope: 'workspace' },
+				{ subCommand: 'foo', scope: 'user' },
+				'---',
+				{ commandLine: true, scope: 'session' },
+				{ commandLine: true, scope: 'workspace' },
+				{ commandLine: true, scope: 'user' },
+				'---',
+				'sessionApproval',
 				'---',
 				'configure',
 			]);
@@ -776,6 +924,8 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 
 			assertConfirmationRequired(result);
 			assertDropdownActions(result, [
+				'sessionApproval',
+				'---',
 				'configure',
 			]);
 		});
@@ -788,8 +938,15 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 
 			assertConfirmationRequired(result);
 			assertDropdownActions(result, [
-				{ subCommand: 'npm test' },
-				'commandLine',
+				{ subCommand: 'npm test', scope: 'session' },
+				{ subCommand: 'npm test', scope: 'workspace' },
+				{ subCommand: 'npm test', scope: 'user' },
+				'---',
+				{ commandLine: true, scope: 'session' },
+				{ commandLine: true, scope: 'workspace' },
+				{ commandLine: true, scope: 'user' },
+				'---',
+				'sessionApproval',
 				'---',
 				'configure',
 			]);
@@ -803,8 +960,15 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 
 			assertConfirmationRequired(result);
 			assertDropdownActions(result, [
-				{ subCommand: 'foo' },
-				'commandLine',
+				{ subCommand: 'foo', scope: 'session' },
+				{ subCommand: 'foo', scope: 'workspace' },
+				{ subCommand: 'foo', scope: 'user' },
+				'---',
+				{ commandLine: true, scope: 'session' },
+				{ commandLine: true, scope: 'workspace' },
+				{ commandLine: true, scope: 'user' },
+				'---',
+				'sessionApproval',
 				'---',
 				'configure',
 			]);
@@ -818,7 +982,11 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 
 			assertConfirmationRequired(result);
 			assertDropdownActions(result, [
-				'commandLine',
+				{ commandLine: true, scope: 'session' },
+				{ commandLine: true, scope: 'workspace' },
+				{ commandLine: true, scope: 'user' },
+				'---',
+				'sessionApproval',
 				'---',
 				'configure',
 			]);
@@ -836,8 +1004,29 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 
 			assertConfirmationRequired(result);
 			assertDropdownActions(result, [
+				'sessionApproval',
+				'---',
 				'configure',
 			]);
+		});
+
+		test('should prevent auto approval when writing to a file outside the workspace', async () => {
+			setConfig(TerminalChatAgentToolsSettingId.BlockDetectedFileWrites, 'outsideWorkspace');
+			setAutoApprove({});
+
+			const workspaceFolder = URI.file(isWindows ? 'C:/workspace/project' : '/workspace/project');
+			const workspace = new Workspace('test', [toWorkspaceFolder(workspaceFolder)]);
+			workspaceContextService.setWorkspace(workspace);
+			instantiationService.stub(IHistoryService, {
+				getLastActiveWorkspaceRoot: () => workspaceFolder
+			});
+
+			const result = await executeToolTest({
+				command: 'echo "abc" > ../file.txt'
+			});
+
+			assertConfirmationRequired(result);
+			strictEqual(result?.confirmationMessages?.terminalCustomActions, undefined, 'Expected no custom actions when file write is blocked');
 		});
 	});
 
@@ -859,7 +1048,7 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 
 			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionId), 'Terminal association should exist before disposal');
 
-			chatServiceDisposeEmitter.fire({ sessionResource: LocalChatSessionUri.forSession(sessionId), reason: 'cleared' });
+			chatServiceDisposeEmitter.fire({ sessionResource: [LocalChatSessionUri.forSession(sessionId)], reason: 'cleared' });
 
 			strictEqual(terminalDisposed, true, 'Terminal should have been disposed');
 			ok(!runInTerminalTool.sessionTerminalAssociations.has(sessionId), 'Terminal association should be removed after disposal');
@@ -896,7 +1085,7 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionId1), 'Session 1 terminal association should exist');
 			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionId2), 'Session 2 terminal association should exist');
 
-			chatServiceDisposeEmitter.fire({ sessionResource: LocalChatSessionUri.forSession(sessionId1), reason: 'cleared' });
+			chatServiceDisposeEmitter.fire({ sessionResource: [LocalChatSessionUri.forSession(sessionId1)], reason: 'cleared' });
 
 			strictEqual(terminal1Disposed, true, 'Terminal 1 should have been disposed');
 			strictEqual(terminal2Disposed, false, 'Terminal 2 should NOT have been disposed');
@@ -906,7 +1095,7 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 
 		test('should handle disposal of non-existent session gracefully', () => {
 			strictEqual(runInTerminalTool.sessionTerminalAssociations.size, 0, 'No associations should exist initially');
-			chatServiceDisposeEmitter.fire({ sessionResource: LocalChatSessionUri.forSession('non-existent-session'), reason: 'cleared' });
+			chatServiceDisposeEmitter.fire({ sessionResource: [LocalChatSessionUri.forSession('non-existent-session')], reason: 'cleared' });
 			strictEqual(runInTerminalTool.sessionTerminalAssociations.size, 0, 'No associations should exist after handling non-existent session');
 		});
 	});
@@ -921,6 +1110,23 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 			clearAutoApproveWarningAcceptedState();
 
 			assertConfirmationRequired(await executeToolTest({ command: 'echo hello world' }), 'Run `bash` command?');
+		});
+
+		test('should include autoApproveInfo when command would be auto-approved but warning not accepted', async () => {
+			setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, true);
+			setAutoApprove({
+				echo: true
+			});
+
+			clearAutoApproveWarningAcceptedState();
+
+			const result = await executeToolTest({ command: 'echo hello world' });
+			assertConfirmationRequired(result, 'Run `bash` command?');
+
+			// autoApproveInfo should be set so the confirmation widget knows to auto-approve
+			// after the user accepts the warning modal
+			const terminalData = result!.toolSpecificData as IChatTerminalToolInvocationData;
+			ok(terminalData.autoApproveInfo, 'autoApproveInfo should be set for commands that would be auto-approved');
 		});
 
 		test('should auto-approve commands when both auto-approve enabled and warning accepted', async () => {
@@ -959,6 +1165,34 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 		});
 	});
 
+	suite('session auto approval', () => {
+		test('should auto approve all commands when session has auto approval enabled', async () => {
+			const sessionId = 'test-session-123';
+			const terminalChatService = instantiationService.get(ITerminalChatService);
+
+			const context: IToolInvocationPreparationContext = {
+				parameters: {
+					command: 'rm dangerous-file.txt',
+					explanation: 'Remove a file',
+					isBackground: false
+				} as IRunInTerminalInputParams,
+				chatSessionId: sessionId
+			} as IToolInvocationPreparationContext;
+
+			let result = await runInTerminalTool.prepareToolInvocation(context, CancellationToken.None);
+			assertConfirmationRequired(result);
+
+			terminalChatService.setChatSessionAutoApproval(sessionId, true);
+
+			result = await runInTerminalTool.prepareToolInvocation(context, CancellationToken.None);
+			assertAutoApproved(result);
+
+			const terminalData = result!.toolSpecificData as IChatTerminalToolInvocationData;
+			ok(terminalData.autoApproveInfo, 'Expected autoApproveInfo to be defined');
+			ok(terminalData.autoApproveInfo.value.includes('Auto approved for this session'), 'Expected session approval message');
+		});
+	});
+
 	suite('TerminalProfileFetcher', () => {
 		suite('getCopilotProfile', () => {
 			(isWindows ? test : test.skip)('should return custom profile when configured', async () => {
@@ -978,6 +1212,99 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 				strictEqual(typeof result, 'object');
 				strictEqual((result as ITerminalProfile).path, 'bash');
 			});
+		});
+	});
+
+	suite('denial info in disclaimers', () => {
+		function getDisclaimerValue(disclaimer: string | IMarkdownString | undefined): string | undefined {
+			if (!disclaimer) {
+				return undefined;
+			}
+			return typeof disclaimer === 'string' ? disclaimer : disclaimer.value;
+		}
+
+		test('should include denial reason in disclaimer when command is denied by rule', async () => {
+			setAutoApprove({
+				npm: { approve: false }
+			});
+			const result = await executeToolTest({
+				command: 'npm run build',
+				explanation: 'Build the project'
+			});
+
+			assertConfirmationRequired(result, 'Run `bash` command?');
+			const disclaimerValue = getDisclaimerValue(result?.confirmationMessages?.disclaimer);
+			ok(disclaimerValue, 'Expected disclaimer to be defined');
+			ok(disclaimerValue.includes('denied'), 'Expected disclaimer to mention denial');
+			ok(disclaimerValue.includes('npm'), 'Expected disclaimer to mention the denied rule');
+		});
+
+		test('should include link to settings in denial disclaimer', async () => {
+			setAutoApprove({
+				rm: { approve: false }
+			});
+			const result = await executeToolTest({
+				command: 'rm -rf temp',
+				explanation: 'Remove temp folder'
+			});
+
+			assertConfirmationRequired(result, 'Run `bash` command?');
+			ok(result?.confirmationMessages?.disclaimer, 'Expected disclaimer to be defined');
+			// The disclaimer should have trusted commands enabled for settings links
+			const disclaimer = result.confirmationMessages.disclaimer;
+			ok(typeof disclaimer !== 'string' && disclaimer.isTrusted, 'Expected disclaimer to be trusted for command links');
+		});
+
+		test('should include denial reason for multiple denied sub-commands', async () => {
+			setAutoApprove({
+				rm: { approve: false },
+				sudo: { approve: false }
+			});
+			const result = await executeToolTest({
+				command: 'sudo rm -rf /',
+				explanation: 'Dangerous command'
+			});
+
+			assertConfirmationRequired(result, 'Run `bash` command?');
+			const disclaimerValue = getDisclaimerValue(result?.confirmationMessages?.disclaimer);
+			ok(disclaimerValue, 'Expected disclaimer to be defined');
+			ok(disclaimerValue.includes('denied'), 'Expected disclaimer to mention denial');
+		});
+
+		test('should not include denial info when auto-approve is disabled', async () => {
+			setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, false);
+			setAutoApprove({
+				npm: { approve: false }
+			});
+			const result = await executeToolTest({
+				command: 'npm run build',
+				explanation: 'Build the project'
+			});
+
+			assertConfirmationRequired(result, 'Run `bash` command?');
+			// When auto-approve is disabled, there should be no denial-related disclaimer
+			const disclaimerValue = getDisclaimerValue(result?.confirmationMessages?.disclaimer);
+			if (disclaimerValue) {
+				ok(!disclaimerValue.includes('denied'), 'Should not mention denial when auto-approve is disabled');
+			}
+		});
+
+		test('should not include denial info for commands that are simply not approved', async () => {
+			// Command is not in auto-approve list, but not explicitly denied
+			setAutoApprove({
+				echo: true
+			});
+			const result = await executeToolTest({
+				command: 'npm run build',
+				explanation: 'Build the project'
+			});
+
+			assertConfirmationRequired(result, 'Run `bash` command?');
+			// There should be no denial disclaimer since npm is not explicitly denied
+			const disclaimerValue = getDisclaimerValue(result?.confirmationMessages?.disclaimer);
+			if (disclaimerValue) {
+				ok(!disclaimerValue.includes('denied'), 'Should not mention denial for non-denied commands');
+			}
 		});
 	});
 });

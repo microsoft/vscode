@@ -21,7 +21,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { commentViewThreadStateColorVar, getCommentThreadStateIconColor } from './commentColors.js';
-import { CommentThreadApplicability, CommentThreadState } from '../../../../editor/common/languages.js';
+import { CommentThreadApplicability, CommentThreadState, CommentState } from '../../../../editor/common/languages.js';
 import { Color } from '../../../../base/common/color.js';
 import { IMatch } from '../../../../base/common/filters.js';
 import { FilterOptions } from './commentsFilterOptions.js';
@@ -265,8 +265,11 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		return renderedComment;
 	}
 
-	private getIcon(threadState?: CommentThreadState): ThemeIcon {
-		if (threadState === CommentThreadState.Unresolved) {
+	private getIcon(threadState?: CommentThreadState, hasDraft?: boolean): ThemeIcon {
+		// Priority: draft > unresolved > resolved
+		if (hasDraft) {
+			return Codicon.commentDraft;
+		} else if (threadState === CommentThreadState.Unresolved) {
 			return Codicon.commentUnresolved;
 		} else {
 			return Codicon.comment;
@@ -289,7 +292,9 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 
 		templateData.threadMetadata.icon.classList.remove(...Array.from(templateData.threadMetadata.icon.classList.values())
 			.filter(value => value.startsWith('codicon')));
-		templateData.threadMetadata.icon.classList.add(...ThemeIcon.asClassNameArray(this.getIcon(node.element.threadState)));
+		// Check if any comment in the thread has draft state
+		const hasDraft = node.element.thread.comments?.some(comment => comment.state === CommentState.Draft);
+		templateData.threadMetadata.icon.classList.add(...ThemeIcon.asClassNameArray(this.getIcon(node.element.threadState, hasDraft)));
 		if (node.element.threadState !== undefined) {
 			const color = this.getCommentThreadWidgetStateColor(node.element.threadState, this.themeService.getColorTheme());
 			templateData.threadMetadata.icon.style.setProperty(commentViewThreadStateColorVar, `${color}`);

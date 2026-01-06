@@ -25,7 +25,6 @@ import { askForPromptSourceFolder } from './askForPromptSourceFolder.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { PromptsConfig } from '../../../common/promptSyntax/config/config.js';
-import { ResourceSet } from '../../../../../../base/common/map.js';
 import { PromptFileRewriter } from '../promptFileRewriter.js';
 
 /**
@@ -165,7 +164,7 @@ const UPDATE_INSTRUCTIONS_OPTION: IPromptPickerQuickPickItem = {
 };
 
 /**
- * A quick pick item that starts the 'New Instructions File' command.
+ * A quick pick item that starts the 'New Agent File' command.
  */
 const NEW_AGENT_FILE_OPTION: IPromptPickerQuickPickItem = {
 	type: 'item',
@@ -207,7 +206,7 @@ const RENAME_BUTTON: IQuickInputButton = {
  * Button that copies a prompt file.
  */
 const COPY_BUTTON: IQuickInputButton = {
-	tooltip: localize('copy', "Copy"),
+	tooltip: localize('makeACopy', "Make a Copy"),
 	iconClass: ThemeIcon.asClassName(Codicon.copy),
 };
 
@@ -215,15 +214,16 @@ const COPY_BUTTON: IQuickInputButton = {
  * Button that sets a prompt file to be visible.
  */
 const MAKE_VISIBLE_BUTTON: IQuickInputButton = {
-	tooltip: localize('makeVisible', "Show in Agent Picker"),
-	iconClass: ThemeIcon.asClassName(Codicon.eye),
+	tooltip: localize('makeVisible', "Hidden from chat view agent picker. Click to show."),
+	iconClass: ThemeIcon.asClassName(Codicon.eyeClosed),
+	alwaysVisible: true,
 };
 
 /**
  * Button that sets a prompt file to be invisible.
  */
 const MAKE_INVISIBLE_BUTTON: IQuickInputButton = {
-	tooltip: localize('makeInvisible', "Hide from Agent Picker"),
+	tooltip: localize('makeInvisible', "Hide from agent picker"),
 	iconClass: ThemeIcon.asClassName(Codicon.eyeClosed),
 };
 
@@ -420,7 +420,7 @@ export class PromptFilePickers {
 
 	private async _createPromptPickItem(promptFile: IPromptPath, buttons: IQuickInputButton[] | undefined, visibility: boolean | undefined, token: CancellationToken): Promise<IPromptPickerQuickPickItem> {
 		const parsedPromptFile = await this._promptsService.parseNew(promptFile.uri, token).catch(() => undefined);
-		const promptName = parsedPromptFile?.header?.name ?? promptFile.name ?? getCleanPromptName(promptFile.uri);
+		let promptName = parsedPromptFile?.header?.name ?? promptFile.name ?? getCleanPromptName(promptFile.uri);
 		const promptDescription = parsedPromptFile?.header?.description ?? promptFile.description;
 
 		let tooltip: string | undefined;
@@ -439,8 +439,8 @@ export class PromptFilePickers {
 		let iconClass: string | undefined;
 		if (visibility === false) {
 			buttons = (buttons ?? []).concat(MAKE_VISIBLE_BUTTON);
+			promptName = localize('hiddenLabelInfo', "{0} (hidden)", promptName);
 			tooltip = localize('hiddenInAgentPicker', "Hidden from chat view agent picker");
-			iconClass = ThemeIcon.asClassName(Codicon.eyeClosed);
 		} else if (visibility === true) {
 			buttons = (buttons ?? []).concat(MAKE_INVISIBLE_BUTTON);
 		}
@@ -573,10 +573,8 @@ export class PromptFilePickers {
 		};
 
 		try {
-			const disabled = this._promptsService.getDisabledPromptFiles(type);
 			const items = await this._createPromptPickItems(options, cts.token);
 			quickPick.items = items;
-			quickPick.selectedItems = items.filter(i => isPromptFileItem(i)).filter(i => !disabled.has(i.promptFileUri));
 		} finally {
 			quickPick.busy = false;
 		}
@@ -589,17 +587,10 @@ export class PromptFilePickers {
 			let isClosed = false;
 			let isResolved = false;
 
-			const getDisabled = () => {
-				const selected = quickPick.selectedItems;
-				return new ResourceSet(quickPick.items.filter(i => isPromptFileItem(i)).filter(i => !selected.includes(i)).map(i => i.promptFileUri));
-			};
-
 			const refreshItems = async () => {
 				const active = quickPick.activeItems;
-				const disabled = getDisabled();
 				const newItems = await this._createPromptPickItems(options, CancellationToken.None);
 				quickPick.items = newItems;
-				quickPick.selectedItems = newItems.filter(i => isPromptFileItem(i)).filter(i => !disabled.has(i.promptFileUri));
 				quickPick.activeItems = active;
 			};
 
@@ -615,7 +606,6 @@ export class PromptFilePickers {
 					}
 					return;
 				}
-				this._promptsService.setDisabledPromptFiles(type, getDisabled());
 				isResolved = true;
 				resolve(true);
 				quickPick.hide();

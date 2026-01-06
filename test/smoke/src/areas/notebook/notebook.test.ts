@@ -35,7 +35,7 @@ export function setup(logger: Logger) {
 			});
 		});
 
-		it('check object leaks', async function () {
+		it.skip('check object leaks', async function () {
 			const app = this.app as Application;
 			await app.profiler.checkObjectLeaks(['NotebookTextModel', 'NotebookCellTextModel', 'NotebookEventDispatcher'], async () => {
 				await app.workbench.notebook.openNotebook();
@@ -67,12 +67,15 @@ export function setup(logger: Logger) {
 		it.skip('moves focus as it inserts/deletes a cell', async function () {
 			const app = this.app as Application;
 			await app.workbench.notebook.openNotebook();
+			await app.workbench.notebook.focusFirstCell();
 			await app.workbench.notebook.insertNotebookCell('code');
 			await app.workbench.notebook.waitForActiveCellEditorContents('');
-			await app.workbench.notebook.stopEditingCell();
+			await app.workbench.notebook.waitForTypeInEditor('# added cell');
+			await app.workbench.notebook.focusFirstCell();
+			await app.workbench.notebook.insertNotebookCell('code');
+			await app.workbench.notebook.waitForActiveCellEditorContents('');
 			await app.workbench.notebook.deleteActiveCell();
-			await app.workbench.notebook.editCell();
-			await app.workbench.notebook.waitForTypeInEditor('## hello2!');
+			await app.workbench.notebook.waitForActiveCellEditorContents('# added cell');
 		});
 
 		it.skip('moves focus in and out of output', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/139270

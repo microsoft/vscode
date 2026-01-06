@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../../base/common/uri.js';
-import { basename } from '../../../../../../base/common/path.js';
+import { basename, dirname } from '../../../../../../base/common/path.js';
 import { PromptsType } from '../promptTypes.js';
 
 /**
@@ -54,6 +54,30 @@ export const LEGACY_MODE_DEFAULT_SOURCE_FOLDER = '.github/chatmodes';
 export const AGENTS_SOURCE_FOLDER = '.github/agents';
 
 /**
+ * Default agent skills workspace source folders.
+ */
+export const DEFAULT_AGENT_SKILLS_WORKSPACE_FOLDERS = [
+	{ path: '.github/skills', type: 'github-workspace' },
+	{ path: '.claude/skills', type: 'claude-workspace' }
+] as const;
+
+/**
+ * Default agent skills user home source folders.
+ */
+export const DEFAULT_AGENT_SKILLS_USER_HOME_FOLDERS = [
+	{ path: '.copilot/skills', type: 'copilot-personal' },
+	{ path: '.claude/skills', type: 'claude-personal' }
+] as const;
+
+/**
+ * Helper function to check if a file is directly in the .github/agents/ folder (not in subfolders).
+ */
+function isInAgentsFolder(fileUri: URI): boolean {
+	const dir = dirname(fileUri.path);
+	return dir.endsWith('/' + AGENTS_SOURCE_FOLDER) || dir === AGENTS_SOURCE_FOLDER;
+}
+
+/**
  * Gets the prompt file type from the provided path.
  */
 export function getPromptFileType(fileUri: URI): PromptsType | undefined {
@@ -68,6 +92,11 @@ export function getPromptFileType(fileUri: URI): PromptsType | undefined {
 	}
 
 	if (filename.endsWith(LEGACY_MODE_FILE_EXTENSION) || filename.endsWith(AGENT_FILE_EXTENSION)) {
+		return PromptsType.agent;
+	}
+
+	// Check if it's a .md file in the .github/agents/ folder
+	if (filename.endsWith('.md') && isInAgentsFolder(fileUri)) {
 		return PromptsType.agent;
 	}
 
@@ -128,6 +157,11 @@ export function getCleanPromptName(fileUri: URI): string {
 	}
 
 	if (fileName === COPILOT_CUSTOM_INSTRUCTIONS_FILENAME) {
+		return basename(fileUri.path, '.md');
+	}
+
+	// For .md files in .github/agents/ folder, treat them as agent files
+	if (fileName.endsWith('.md') && isInAgentsFolder(fileUri)) {
 		return basename(fileUri.path, '.md');
 	}
 

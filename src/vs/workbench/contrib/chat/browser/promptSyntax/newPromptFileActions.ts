@@ -20,7 +20,7 @@ import { getLanguageIdForPromptsType, PromptsType } from '../../common/promptSyn
 import { IUserDataSyncEnablementService, SyncResource } from '../../../../../platform/userDataSync/common/userDataSync.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { CONFIGURE_SYNC_COMMAND_ID } from '../../../../services/userDataSync/common/userDataSync.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { askForPromptFileName } from './pickers/askForPromptName.js';
 import { askForPromptSourceFolder } from './pickers/askForPromptSourceFolder.js';
@@ -140,7 +140,7 @@ class AbstractNewPromptFileAction extends Action2 {
 
 function getDefaultContentSnippet(promptType: PromptsType, chatModeService: IChatModeService): string {
 	const agents = chatModeService.getModes();
-	const agentNames = agents.builtin.map(agent => agent.name).join(',') + (agents.custom.length ? (',' + agents.custom.map(agent => agent.name).join(',')) : '');
+	const agentNames = agents.builtin.map(agent => agent.name.get()).join(',') + (agents.custom.length ? (',' + agents.custom.map(agent => agent.name.get()).join(',')) : '');
 	switch (promptType) {
 		case PromptsType.prompt:
 			return [

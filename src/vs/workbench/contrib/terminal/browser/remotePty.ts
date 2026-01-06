@@ -8,6 +8,7 @@ import { ITerminalLaunchResult, IProcessPropertyMap, ITerminalChildProcess, ITer
 import { BasePty } from '../common/basePty.js';
 import { RemoteTerminalChannelClient } from '../common/remote/remoteTerminalChannel.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
+import { hasKey } from '../../../../base/common/types.js';
 
 export class RemotePty extends BasePty implements ITerminalChildProcess {
 	private readonly _startBarrier: Barrier;
@@ -35,7 +36,7 @@ export class RemotePty extends BasePty implements ITerminalChildProcess {
 
 		const startResult = await this._remoteTerminalChannel.start(this.id);
 
-		if (startResult && 'message' in startResult) {
+		if (startResult && hasKey(startResult, { message: true })) {
 			// An error occurred
 			return startResult;
 		}
@@ -114,10 +115,6 @@ export class RemotePty extends BasePty implements ITerminalChildProcess {
 
 	async setUnicodeVersion(version: '6' | '11'): Promise<void> {
 		return this._remoteTerminalChannel.setUnicodeVersion(this.id, version);
-	}
-
-	async setNextCommandId(commandLine: string, commandId: string): Promise<void> {
-		return this._remoteTerminalChannel.setNextCommandId(this.id, commandLine, commandId);
 	}
 
 	async refreshProperty<T extends ProcessPropertyType>(type: T): Promise<IProcessPropertyMap[T]> {

@@ -7,6 +7,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import type { IStringDictionary } from '../../../../base/common/collections.js';
 import { IJSONSchemaSnippet } from '../../../../base/common/jsonSchema.js';
 import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
+import { isString } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
 import { ConfigurationScope, Extensions, IConfigurationRegistry, type IConfigurationPropertySchema } from '../../../../platform/configuration/common/configurationRegistry.js';
 import product from '../../../../platform/product/common/product.js';
@@ -469,10 +470,14 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		default: true
 	},
 	[TerminalSettingId.WindowsUseConptyDll]: {
-		markdownDescription: localize('terminal.integrated.windowsUseConptyDll', "Whether to use the experimental conpty.dll (v1.22.250204002) shipped with VS Code, instead of the one bundled with Windows."),
+		restricted: true,
+		markdownDescription: localize('terminal.integrated.windowsUseConptyDll', "Whether to use the experimental conpty.dll (v1.23.251008001) shipped with VS Code, instead of the one bundled with Windows."),
 		type: 'boolean',
 		tags: ['preview'],
-		default: false
+		default: false,
+		experiment: {
+			mode: 'auto'
+		},
 	},
 	[TerminalSettingId.SplitCwd]: {
 		description: localize('terminal.integrated.splitCwd', "Controls the working directory a split terminal starts with."),
@@ -565,7 +570,15 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		default: true
 	},
 	[TerminalSettingId.CustomGlyphs]: {
-		markdownDescription: localize('terminal.integrated.customGlyphs', "Whether to draw custom glyphs for block element and box drawing characters instead of using the font, which typically yields better rendering with continuous lines. Note that this doesn't work when {0} is disabled.", `\`#${TerminalSettingId.GpuAcceleration}#\``),
+		markdownDescription: localize('terminal.integrated.customGlyphs', "Whether to draw custom glyphs instead of using the font for the following unicode ranges:\n\n{0}\n\nThis will typically result in better rendering with continuous lines, even when line height and letter spacing is used. This feature only works when {1} is enabled.", [
+			'- Box Drawing (U+2500-U+257F)',
+			'- Block Elements (U+2580-U+259F)',
+			'- Braille Patterns (U+2800-U+28FF)',
+			'- Powerline Symbols (U+E0A0-U+E0D4, Private Use Area)',
+			'- Progress Indicators (U+EE00-U+EE0B, Private Use Area)',
+			'- Git Branch Symbols (U+F5D0-U+F60D, Private Use Area)',
+			'- Symbols for Legacy Computing (U+1FB00-U+1FBFF)'
+		].join('\n'), `\`#${TerminalSettingId.GpuAcceleration}#\``),
 		type: 'boolean',
 		default: true
 	},
@@ -680,7 +693,7 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 		migrateFn: (enableBell, accessor) => {
 			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
 			let announcement = accessor('accessibility.signals.terminalBell')?.announcement ?? accessor('accessibility.alert.terminalBell');
-			if (announcement !== undefined && typeof announcement !== 'string') {
+			if (announcement !== undefined && !isString(announcement)) {
 				announcement = announcement ? 'auto' : 'off';
 			}
 			configurationKeyValuePairs.push(['accessibility.signals.terminalBell', { value: { sound: enableBell ? 'on' : 'off', announcement } }]);

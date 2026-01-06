@@ -19,6 +19,8 @@ import { terminalStrings } from '../common/terminalStrings.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { HasSpeechProvider } from '../../speech/common/speechService.js';
+import { hasKey } from '../../../../base/common/types.js';
+import { TerminalContribContextKeyStrings } from '../terminalContribExports.js';
 
 export const enum TerminalContextMenuGroup {
 	Chat = '0_chat',
@@ -409,7 +411,7 @@ export function setupTerminalMenus(): void {
 					group: 'navigation',
 					order: 0,
 					when: ContextKeyExpr.and(
-						ContextKeyExpr.equals('hasChatTerminals', false),
+						ContextKeyExpr.not(TerminalContribContextKeyStrings.ChatHasHiddenTerminals),
 						ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
 						ContextKeyExpr.has(`config.${TerminalSettingId.TabsEnabled}`),
 						ContextKeyExpr.or(
@@ -758,7 +760,7 @@ export function setupTerminalMenus(): void {
 			command: {
 				id: TerminalCommandId.StartVoice,
 				title: localize('workbench.action.terminal.startVoiceEditor', "Start Dictation"),
-				icon: Codicon.run
+				icon: Codicon.mic
 			},
 			group: 'navigation',
 			order: 9,
@@ -787,7 +789,7 @@ export function getTerminalActionBarArgs(location: ITerminalLocationOptions, pro
 } {
 	const dropdownActions: IAction[] = [];
 	const submenuActions: IAction[] = [];
-	const splitLocation = (location === TerminalLocation.Editor || (typeof location === 'object' && 'viewColumn' in location && location.viewColumn === ACTIVE_GROUP)) ? { viewColumn: SIDE_GROUP } : { splitActiveTerminal: true };
+	const splitLocation = (location === TerminalLocation.Editor || (typeof location === 'object' && hasKey(location, { viewColumn: true }) && location.viewColumn === ACTIVE_GROUP)) ? { viewColumn: SIDE_GROUP } : { splitActiveTerminal: true };
 
 	if (location === TerminalLocation.Editor) {
 		location = { viewColumn: ACTIVE_GROUP };

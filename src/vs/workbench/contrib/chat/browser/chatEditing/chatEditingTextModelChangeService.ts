@@ -29,8 +29,8 @@ import { IModelContentChangedEvent } from '../../../../../editor/common/textMode
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { editorSelectionBackground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
-import { ModifiedFileEntryState } from '../../common/chatEditingService.js';
-import { IChatResponseModel } from '../../common/chatModel.js';
+import { ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
+import { IChatResponseModel } from '../../common/model/chatModel.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IDocumentDiff2 } from './chatEditingCodeEditorIntegration.js';
 import { pendingRewriteMinimap } from './chatEditingModifiedFileEntry.js';
@@ -140,6 +140,10 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		}));
 
 		this._register(autorun(r => this.updateLineChangeCount(this._diffInfo.read(r))));
+
+		if (!originalModel.equalsTextBuffer(modifiedModel.getTextBuffer())) {
+			this._updateDiffInfoSeq();
+		}
 	}
 
 	private updateLineChangeCount(diff: IDocumentDiff) {
@@ -285,6 +289,11 @@ export class ChatEditingTextModelChangeService extends Disposable {
 	}
 
 	private _applyEdits(edits: ISingleEditOperation[], source: TextModelEditSource) {
+
+		if (edits.length === 0) {
+			return [];
+		}
+
 		try {
 			this._isEditFromUs = true;
 			// make the actual edit
@@ -431,6 +440,15 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		}
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.editsUndone, { allowManyInParallel: true });
 		return true;
+	}
+
+	public async getDiffInfo() {
+		if (!this._diffOperation) {
+			this._updateDiffInfoSeq();
+		}
+
+		await this._diffOperation;
+		return this._diffInfo.get();
 	}
 
 

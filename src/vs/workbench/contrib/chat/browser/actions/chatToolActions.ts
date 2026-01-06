@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $ } from '../../../../../base/browser/dom.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { markAsSingleton } from '../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -19,12 +21,12 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { ConfirmedReason, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService.js';
-import { isResponseVM } from '../../common/chatViewModel.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { ConfirmedReason, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService/chatService.js';
+import { isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatModeKind } from '../../common/constants.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
-import { ToolsScope } from '../chatSelectedTools.js';
+import { ToolsScope } from '../widget/input/chatSelectedTools.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { showToolsPicker } from './chatToolPicker.js';
 
@@ -140,8 +142,8 @@ class ConfigureToolsAction extends Action2 {
 		let widget = chatWidgetService.lastFocusedWidget;
 		if (!widget) {
 			type ChatActionContext = { widget: IChatWidget };
-			function isChatActionContext(obj: any): obj is ChatActionContext {
-				return obj && typeof obj === 'object' && (obj as ChatActionContext).widget;
+			function isChatActionContext(obj: unknown): obj is ChatActionContext {
+				return !!obj && typeof obj === 'object' && !!(obj as ChatActionContext).widget;
 			}
 			const context = args[0];
 			if (isChatActionContext(context)) {
@@ -163,11 +165,11 @@ class ConfigureToolsAction extends Action2 {
 				break;
 			case ToolsScope.Agent:
 				placeholder = localize('chat.tools.placeholder.agent', "Select tools for this custom agent");
-				description = localize('chat.tools.description.agent', "The selected tools are configured by the '{0}' custom agent. Changes to the tools will be applied to the custom agent file as well.", widget.input.currentModeObs.get().label);
+				description = localize('chat.tools.description.agent', "The selected tools are configured by the '{0}' custom agent. Changes to the tools will be applied to the custom agent file as well.", widget.input.currentModeObs.get().label.get());
 				break;
 			case ToolsScope.Agent_ReadOnly:
 				placeholder = localize('chat.tools.placeholder.readOnlyAgent', "Select tools for this custom agent");
-				description = localize('chat.tools.description.readOnlyAgent', "The selected tools are configured by the '{0}' custom agent. Changes to the tools will only be used for this session and will not change the '{0}' custom agent.", widget.input.currentModeObs.get().label);
+				description = localize('chat.tools.description.readOnlyAgent', "The selected tools are configured by the '{0}' custom agent. Changes to the tools will only be used for this session and will not change the '{0}' custom agent.", widget.input.currentModeObs.get().label.get());
 				break;
 			case ToolsScope.Global:
 				placeholder = localize('chat.tools.placeholder.global', "Select tools that are available to chat.");
@@ -176,9 +178,23 @@ class ConfigureToolsAction extends Action2 {
 
 		}
 
-		const result = await instaService.invokeFunction(showToolsPicker, placeholder, description, () => entriesMap.get());
-		if (result) {
-			widget.input.selectedToolsModel.set(result, false);
+		// Create a cancellation token that cancels when the mode changes
+		const cts = new CancellationTokenSource();
+		const initialMode = widget.input.currentModeObs.get();
+		const modeListener = autorun(reader => {
+			if (initialMode.id !== widget.input.currentModeObs.read(reader).id) {
+				cts.cancel();
+			}
+		});
+
+		try {
+			const result = await instaService.invokeFunction(showToolsPicker, placeholder, description, () => entriesMap.get(), cts.token);
+			if (result) {
+				widget.input.selectedToolsModel.set(result, false);
+			}
+		} finally {
+			modeListener.dispose();
+			cts.dispose();
 		}
 
 		const tools = widget.input.selectedToolsModel.entriesMap.get();

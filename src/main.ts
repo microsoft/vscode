@@ -330,9 +330,8 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 
 	// Following features are disabled from the runtime:
 	// `CalculateNativeWinOcclusion` - Disable native window occlusion tracker (https://groups.google.com/a/chromium.org/g/embedder-dev/c/ZF3uHHyWLKw/m/VDN2hDXMAAAJ)
-	// `FontationsLinuxSystemFonts` - Revert to FreeType for system fonts on Linux Refs https://github.com/microsoft/vscode/issues/260391
 	const featuresToDisable =
-		`CalculateNativeWinOcclusion,FontationsLinuxSystemFonts,${app.commandLine.getSwitchValue('disable-features')}`;
+		`CalculateNativeWinOcclusion,${app.commandLine.getSwitchValue('disable-features')}`;
 	app.commandLine.appendSwitch('disable-features', featuresToDisable);
 
 	// Blink features to configure.
@@ -352,6 +351,10 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 	// to address https://github.com/microsoft/vscode/issues/213780
 	// Runtime sets the default version to 3, refs https://github.com/electron/electron/pull/44426
 	app.commandLine.appendSwitch('xdg-portal-required-version', '4');
+
+	// Increase the maximum number of active WebGL contexts as each terminal may
+	// use up to 2
+	app.commandLine.appendSwitch('max-active-webgl-contexts', '32');
 
 	return argvConfig;
 }
@@ -529,7 +532,8 @@ function configureCrashReporter(): void {
 		productName: process.env['VSCODE_DEV'] ? `${productName} Dev` : productName,
 		submitURL,
 		uploadToServer,
-		compress: true
+		compress: true,
+		ignoreSystemCrashHandler: true
 	});
 }
 

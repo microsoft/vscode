@@ -11,6 +11,7 @@ import { IUntypedEditorInput } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 
 const ChatManagementEditorIcon = registerIcon('ai-management-editor-label-icon', Codicon.copilot, nls.localize('aiManagementEditorLabelIcon', 'Icon of the AI Management editor label.'));
+const ModelsManagementEditorIcon = registerIcon('models-management-editor-label-icon', Codicon.settings, nls.localize('modelsManagementEditorLabelIcon', 'Icon of the Models Management editor label.'));
 
 export const CHAT_MANAGEMENT_SECTION_USAGE = 'usage';
 export const CHAT_MANAGEMENT_SECTION_MODELS = 'models';
@@ -65,11 +66,11 @@ export class ModelsManagementEditorInput extends EditorInput {
 	}
 
 	override getName(): string {
-		return nls.localize('aiManagementEditorInputName', "Manage Copilot");
+		return nls.localize('modelsManagementEditorInputName', "Language Models");
 	}
 
 	override getIcon(): ThemeIcon {
-		return ChatManagementEditorIcon;
+		return ModelsManagementEditorIcon;
 	}
 
 	override async resolve(): Promise<null> {

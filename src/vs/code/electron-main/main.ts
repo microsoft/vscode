@@ -144,6 +144,14 @@ class CodeMain {
 					evt.join('instanceLockfile', promises.unlink(environmentMainService.mainLockfile).catch(() => { /* ignored */ }));
 				});
 
+				// Check if Inno Setup is running
+				const innoSetupActive = await this.checkInnoSetupMutex(productService);
+				if (innoSetupActive) {
+					const message = `${productService.nameShort} is currently being updated. Please wait for the update to complete before launching.`;
+					instantiationService.invokeFunction(this.quit, new Error(message));
+					return;
+				}
+
 				return instantiationService.createInstance(CodeApplication, mainProcessNodeIpcServer, instanceEnvironment).startup();
 			});
 		} catch (error) {
@@ -316,11 +324,6 @@ class CodeMain {
 				throw error;
 			}
 
-			// Since we are the second instance, we do not want to show the dock
-			if (isMacintosh) {
-				app.dock?.hide();
-			}
-
 			// there's a running instance, let's connect to it
 			let client: NodeIPCClient<string>;
 			try {
@@ -420,11 +423,6 @@ class CodeMain {
 			throw new ExpectedError('Terminating...');
 		}
 
-		// dock might be hidden at this case due to a retry
-		if (isMacintosh) {
-			app.dock?.show();
-		}
-
 		// Set the VSCODE_PID variable here when we are sure we are the first
 		// instance to startup. Otherwise we would wrongly overwrite the PID
 		process.env['VSCODE_PID'] = String(process.pid);
@@ -495,6 +493,21 @@ class CodeMain {
 		}
 
 		lifecycleMainService.kill(exitCode);
+	}
+
+	private async checkInnoSetupMutex(productService: IProductService): Promise<boolean> {
+		if (!isWindows || !productService.win32MutexName || productService.quality !== 'insider') {
+			return false;
+		}
+
+		try {
+			const readyMutexName = `${productService.win32MutexName}setup`;
+			const mutex = await import('@vscode/windows-mutex');
+			return mutex.isActive(readyMutexName);
+		} catch (error) {
+			console.error('Failed to check Inno Setup mutex:', error);
+			return false;
+		}
 	}
 
 	//#region Command line arguments utilities

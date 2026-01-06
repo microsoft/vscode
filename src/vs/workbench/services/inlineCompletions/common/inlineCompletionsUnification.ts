@@ -53,7 +53,8 @@ export class InlineCompletionsUnificationImpl extends Disposable implements IInl
 	private readonly _onDidStateChange = this._register(new Emitter<void>());
 	public readonly onDidStateChange = this._onDidStateChange.event;
 
-	private readonly _onDidChangeExtensionUnification = this._register(new Emitter<void>());
+	private readonly _onDidChangeExtensionUnificationState = this._register(new Emitter<void>());
+	private readonly _onDidChangeExtensionUnificationSetting = this._register(new Emitter<void>());
 
 	private readonly _completionsExtensionId: string | undefined;
 	private readonly _chatExtensionId: string | undefined;
@@ -75,8 +76,8 @@ export class InlineCompletionsUnificationImpl extends Disposable implements IInl
 		this.isRunningUnificationExperiment = isRunningUnificationExperiment.bindTo(this._contextKeyService);
 
 		this._assignmentService.addTelemetryAssignmentFilter({
-			exclude: (assignment) => !this._state.extensionUnification && assignment.startsWith(EXTENSION_UNIFICATION_PREFIX),
-			onDidChange: this._onDidChangeExtensionUnification.event
+			exclude: (assignment) => assignment.startsWith(EXTENSION_UNIFICATION_PREFIX) && this._state.extensionUnification !== this._configurationService.getValue<boolean>(ExtensionUnificationSetting),
+			onDidChange: Event.any(this._onDidChangeExtensionUnificationState.event, this._onDidChangeExtensionUnificationSetting.event)
 		});
 
 		this._register(this._extensionEnablementService.onEnablementChanged((extensions) => {
@@ -87,6 +88,7 @@ export class InlineCompletionsUnificationImpl extends Disposable implements IInl
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ExtensionUnificationSetting)) {
 				this._update();
+				this._onDidChangeExtensionUnificationSetting.fire();
 			}
 		}));
 		this._register(this._extensionService.onDidChangeExtensions(({ added }) => {
@@ -125,7 +127,7 @@ export class InlineCompletionsUnificationImpl extends Disposable implements IInl
 		this._onDidStateChange.fire();
 
 		if (previousState.extensionUnification !== this._state.extensionUnification) {
-			this._onDidChangeExtensionUnification.fire();
+			this._onDidChangeExtensionUnificationState.fire();
 		}
 	}
 

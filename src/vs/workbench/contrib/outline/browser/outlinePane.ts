@@ -295,7 +295,6 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 		};
 		updateTree();
 		this._editorControlDisposables.add(newOutline.onDidChange(updateTree));
-		tree.findMode = this._outlineViewState.filterOnType ? TreeFindMode.Filter : TreeFindMode.Highlight;
 
 		// feature: apply panel background to tree
 		this._editorControlDisposables.add(this.viewDescriptorService.onDidChangeLocation(({ views }) => {

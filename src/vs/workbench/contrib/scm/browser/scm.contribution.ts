@@ -41,12 +41,12 @@ import { SCMHistoryViewPane } from './scmHistoryViewPane.js';
 import { QuickDiffModelService, IQuickDiffModelService } from './quickDiffModel.js';
 import { QuickDiffEditorController } from './quickDiffWidget.js';
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
-import { RemoteNameContext } from '../../../common/contextkeys.js';
+import { RemoteNameContext, ResourceContextKey } from '../../../common/contextkeys.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { SCMAccessibilityHelp } from './scmAccessibilityHelp.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { SCMHistoryItemContextContribution } from './scmHistoryChatContext.js';
-import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
+import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../../chat/browser/actions/chatActions.js';
 import product from '../../../../platform/product/common/product.js';
 
@@ -356,7 +356,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				localize('scm.repositories.selectionMode.single', "Only one repository can be selected at a time.")
 			],
 			description: localize('scm.repositories.selectionMode', "Controls the selection mode of the repositories in the Source Control Repositories view."),
-			default: 'single'
+			default: 'multiple'
 		},
 		'scm.repositories.explorer': {
 			type: 'boolean',
@@ -684,6 +684,7 @@ registerAction2(class extends Action2 {
 					ChatContextKeys.Setup.hidden.negate(),
 					ChatContextKeys.Setup.disabled.negate(),
 					ChatContextKeys.Setup.installed.negate(),
+					ContextKeyExpr.in(ResourceContextKey.Resource.key, 'git.mergeChanges'),
 					ContextKeyExpr.equals('git.activeResourceHasMergeConflicts', true)
 				)
 			}

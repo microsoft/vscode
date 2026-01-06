@@ -15,7 +15,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { ISCMMenus, ISCMProvider, ISCMRepository, ISCMRepositoryMenus, ISCMResource, ISCMResourceGroup, ISCMService } from '../common/scm.js';
-import { ISCMArtifactGroup } from '../common/artifact.js';
+import { ISCMArtifact, ISCMArtifactGroup } from '../common/artifact.js';
 
 function actionEquals(a: IAction, b: IAction): boolean {
 	return a.id === b.id;
@@ -184,8 +184,8 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 	private genericRepositoryContextMenu: IMenu | undefined;
 	private contextualRepositoryContextMenus: Map<string /* contextValue */, IContextualMenuItem> | undefined;
 
-	private artifactGroupMenus: Map<string /* artifactGroupId */, IContextualMenuItem> | undefined;
-	private artifactMenus: Map<string /* artifactGroupId */, IContextualMenuItem> | undefined;
+	private artifactGroupMenus = new Map<string /* artifactGroupId */, IContextualMenuItem>();
+	private artifactMenus = new Map<string /* artifactGroupId */, IContextualMenuItem>();
 
 	private readonly resourceGroupMenusItems = new Map<ISCMResourceGroup, SCMMenusItem>();
 
@@ -213,10 +213,6 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 	}
 
 	getArtifactGroupMenu(artifactGroup: ISCMArtifactGroup): IMenu {
-		if (!this.artifactGroupMenus) {
-			this.artifactGroupMenus = new Map<string, IContextualMenuItem>();
-		}
-
 		let item = this.artifactGroupMenus.get(artifactGroup.id);
 
 		if (!item) {
@@ -235,15 +231,18 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 		return item.menu;
 	}
 
-	getArtifactMenu(artifactGroup: ISCMArtifactGroup): IMenu {
-		if (!this.artifactMenus) {
-			this.artifactMenus = new Map<string, IContextualMenuItem>();
-		}
+	getArtifactMenu(artifactGroup: ISCMArtifactGroup, artifact: ISCMArtifact): IMenu {
+		const historyProvider = this.provider.historyProvider.get();
+		const historyItemRef = historyProvider?.historyItemRef.get();
+		const isHistoryItemRef = artifact.id === historyItemRef?.id;
 
-		let item = this.artifactMenus.get(artifactGroup.id);
+		const key = isHistoryItemRef ? `${artifactGroup.id}|historyItemRef` : artifactGroup.id;
+		let item = this.artifactMenus.get(key);
 
 		if (!item) {
-			const contextKeyService = this.contextKeyService.createOverlay([['scmArtifactGroupId', artifactGroup.id]]);
+			const contextKeyService = this.contextKeyService.createOverlay([
+				['scmArtifactGroupId', artifactGroup.id],
+				['scmArtifactIsHistoryItemRef', isHistoryItemRef]]);
 			const menu = this.menuService.createMenu(MenuId.SCMArtifactContext, contextKeyService);
 
 			item = {
@@ -252,7 +251,7 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 				}
 			};
 
-			this.artifactMenus.set(artifactGroup.id, item);
+			this.artifactMenus.set(key, item);
 		}
 
 		return item.menu;

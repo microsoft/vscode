@@ -8,7 +8,7 @@ import * as objects from '../../../base/common/objects.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
 import { IJSONSchema } from '../../../base/common/jsonSchema.js';
 import { ExtensionsRegistry, IExtensionPointUser } from '../../services/extensions/common/extensionsRegistry.js';
-import { IConfigurationNode, IConfigurationRegistry, Extensions, validateProperty, ConfigurationScope, OVERRIDE_PROPERTY_REGEX, IConfigurationDefaults, configurationDefaultsSchemaId, IConfigurationDelta, getDefaultValue, getAllConfigurationProperties, parseScope, CODE_UNIFICATION_DUPLICATE_SETTINGS } from '../../../platform/configuration/common/configurationRegistry.js';
+import { IConfigurationNode, IConfigurationRegistry, Extensions, validateProperty, ConfigurationScope, OVERRIDE_PROPERTY_REGEX, IConfigurationDefaults, configurationDefaultsSchemaId, IConfigurationDelta, getDefaultValue, getAllConfigurationProperties, parseScope, EXTENSION_UNIFICATION_EXTENSION_IDS, overrideIdentifiersFromKey } from '../../../platform/configuration/common/configurationRegistry.js';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from '../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { workspaceSettingsSchemaId, launchSchemaId, tasksSchemaId, mcpSchemaId } from '../../services/configuration/common/configuration.js';
 import { isObject, isUndefined } from '../../../base/common/types.js';
@@ -152,7 +152,7 @@ let _configDelta: IConfigurationDelta | undefined;
 
 
 // BEGIN VSCode extension point `configurationDefaults`
-const defaultConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>({
+const defaultConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IStringDictionary<IStringDictionary<unknown>>>({
 	extensionPoint: 'configurationDefaults',
 	jsonSchema: {
 		$ref: configurationDefaultsSchemaId,
@@ -183,7 +183,7 @@ defaultConfigurationExtPoint.setHandler((extensions, { added, removed }) => {
 		const registeredProperties = configurationRegistry.getConfigurationProperties();
 		const allowedScopes = [ConfigurationScope.MACHINE_OVERRIDABLE, ConfigurationScope.WINDOW, ConfigurationScope.RESOURCE, ConfigurationScope.LANGUAGE_OVERRIDABLE];
 		const addedDefaultConfigurations = added.map<IConfigurationDefaults>(extension => {
-			const overrides: IStringDictionary<any> = objects.deepClone(extension.value);
+			const overrides = objects.deepClone(extension.value);
 			for (const key of Object.keys(overrides)) {
 				const registeredPropertyScheme = registeredProperties[key];
 				if (registeredPropertyScheme?.disallowConfigurationDefault) {
@@ -242,7 +242,7 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 
 	const seenProperties = new Set<string>();
 
-	function handleConfiguration(node: IConfigurationNode, extension: IExtensionPointUser<any>): IConfigurationNode {
+	function handleConfiguration(node: IConfigurationNode, extension: IExtensionPointUser<unknown>): IConfigurationNode {
 		const configuration = objects.deepClone(node);
 
 		if (configuration.title && (typeof configuration.title !== 'string')) {
@@ -258,7 +258,7 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 		return configuration;
 	}
 
-	function validateProperties(configuration: IConfigurationNode, extension: IExtensionPointUser<any>): void {
+	function validateProperties(configuration: IConfigurationNode, extension: IExtensionPointUser<unknown>): void {
 		const properties = configuration.properties;
 		const extensionConfigurationPolicy = product.extensionConfigurationPolicy;
 		if (properties) {
@@ -268,13 +268,13 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 			}
 			for (const key in properties) {
 				const propertyConfiguration = properties[key];
-				const message = validateProperty(key, propertyConfiguration);
+				const message = validateProperty(key, propertyConfiguration, extension.description.identifier.value);
 				if (message) {
 					delete properties[key];
 					extension.collector.warn(message);
 					continue;
 				}
-				if (seenProperties.has(key) && !CODE_UNIFICATION_DUPLICATE_SETTINGS.has(key)) {
+				if (seenProperties.has(key) && !EXTENSION_UNIFICATION_EXTENSION_IDS.has(extension.description.identifier.value.toLowerCase())) {
 					delete properties[key];
 					extension.collector.warn(nls.localize('config.property.duplicate', "Cannot register '{0}'. This property is already registered.", key));
 					continue;
@@ -471,4 +471,58 @@ Registry.as<IExtensionFeaturesRegistry>(ExtensionFeaturesExtensions.ExtensionFea
 		canToggle: false
 	},
 	renderer: new SyncDescriptor(SettingsTableRenderer),
+});
+
+class ConfigurationDefaultsTableRenderer extends Disposable implements IExtensionFeatureTableRenderer {
+
+	readonly type = 'table';
+
+	shouldRender(manifest: IExtensionManifest): boolean {
+		return !!manifest.contributes?.configurationDefaults;
+	}
+
+	render(manifest: IExtensionManifest): IRenderedData<ITableData> {
+		const configurationDefaults = manifest.contributes?.configurationDefaults ?? {};
+
+		const headers = [nls.localize('language', "Languages"), nls.localize('setting', "Setting"), nls.localize('default override value', "Override Value")];
+		const rows: IRowData[][] = [];
+
+		for (const key of Object.keys(configurationDefaults).sort((a, b) => a.localeCompare(b))) {
+			const value = configurationDefaults[key];
+			if (OVERRIDE_PROPERTY_REGEX.test(key)) {
+				const languages = overrideIdentifiersFromKey(key);
+				const languageMarkdown = new MarkdownString().appendMarkdown(`${languages.join(', ')}`);
+				for (const key of Object.keys(value).sort((a, b) => a.localeCompare(b))) {
+					const row: IRowData[] = [];
+					row.push(languageMarkdown);
+					row.push(new MarkdownString().appendMarkdown(`\`${key}\``));
+					row.push(new MarkdownString().appendCodeblock('json', JSON.stringify(value[key], null, 2)));
+					rows.push(row);
+				}
+			} else {
+				const row: IRowData[] = [];
+				row.push('');
+				row.push(new MarkdownString().appendMarkdown(`\`${key}\``));
+				row.push(new MarkdownString().appendCodeblock('json', JSON.stringify(value, null, 2)));
+				rows.push(row);
+			}
+		}
+
+		return {
+			data: {
+				headers,
+				rows
+			},
+			dispose: () => { }
+		};
+	}
+}
+
+Registry.as<IExtensionFeaturesRegistry>(ExtensionFeaturesExtensions.ExtensionFeaturesRegistry).registerExtensionFeature({
+	id: 'configurationDefaults',
+	label: nls.localize('settings default overrides', "Settings Default Overrides"),
+	access: {
+		canToggle: false
+	},
+	renderer: new SyncDescriptor(ConfigurationDefaultsTableRenderer),
 });

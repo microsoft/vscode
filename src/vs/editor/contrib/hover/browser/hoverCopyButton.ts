@@ -9,6 +9,7 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { localize } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { SimpleButton } from '../../find/browser/findWidget.js';
+import { status } from '../../../../base/browser/ui/aria/aria.js';
 
 /**
  * A button that appears in hover parts to copy their content to the clipboard.
@@ -21,7 +22,7 @@ export class HoverCopyButton extends Disposable {
 		private readonly _container: HTMLElement,
 		private readonly _getContent: () => string,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
-		@IHoverService private readonly _hoverService: IHoverService
+		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super();
 
@@ -41,6 +42,7 @@ export class HoverCopyButton extends Disposable {
 		const content = this._getContent();
 		if (content) {
 			await this._clipboardService.writeText(content);
+			status(localize('hover.copied', "Copied to clipboard"));
 		}
 	}
 }

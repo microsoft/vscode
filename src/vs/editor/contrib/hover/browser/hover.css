@@ -15,7 +15,7 @@
 
 .monaco-editor .monaco-resizable-hover > .monaco-hover {
 	border: none;
-	border-radius: none;
+	border-radius: unset;
 }
 
 .monaco-editor .monaco-hover {
@@ -103,6 +103,7 @@
 
 .monaco-editor .monaco-hover .hover-copy-button:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
+	cursor: pointer;
 }
 
 .monaco-editor .monaco-hover .hover-copy-button:focus {

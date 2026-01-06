@@ -34,7 +34,7 @@ import type { IProgressState } from '@xterm/addon-progress';
 import type { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import type { TerminalEditorInput } from './terminalEditorInput.js';
 import type { MaybePromise } from '../../../../base/common/async.js';
-import type { SingleOrMany } from '../../../../base/common/types.js';
+import { isNumber, type SingleOrMany } from '../../../../base/common/types.js';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalConfigurationService = createDecorator<ITerminalConfigurationService>('terminalConfigurationService');
@@ -106,6 +106,15 @@ export interface ITerminalInstanceService {
  * Service enabling communication between the chat tool implementation in terminal contrib and workbench contribs.
  * Acts as a communication mechanism for chat-related terminal features.
  */
+export interface IChatTerminalToolProgressPart {
+	readonly elementIndex: number;
+	readonly contentIndex: number;
+	focusTerminal(): Promise<void>;
+	toggleOutputFromKeyboard(): Promise<void>;
+	focusOutput(): void;
+	getCommandAndOutputAsText(): string | undefined;
+}
+
 export interface ITerminalChatService {
 	readonly _serviceBrand: undefined;
 
@@ -132,7 +141,7 @@ export interface ITerminalChatService {
 	 * Returns the list of terminal instances that have been registered with a tool session id.
 	 * This is used for surfacing tool-driven/background terminals in UI (eg. quick picks).
 	 */
-	getToolSessionTerminalInstances(): readonly ITerminalInstance[];
+	getToolSessionTerminalInstances(hiddenOnly?: boolean): readonly ITerminalInstance[];
 
 	/**
 	 * Returns the tool session ID for a given terminal instance, if it has been registered.
@@ -156,7 +165,73 @@ export interface ITerminalChatService {
 	 */
 	getChatSessionIdForInstance(instance: ITerminalInstance): string | undefined;
 
+	/**
+	 * Check if a terminal is a background terminal (tool-driven terminal that may be hidden from
+	 * normal UI).
+	 * @param terminalToolSessionId The tool session ID to check, if provided
+	 * @returns True if the terminal is a background terminal, false otherwise
+	 */
 	isBackgroundTerminal(terminalToolSessionId?: string): boolean;
+
+	/**
+	 * Register a chat terminal tool progress part for tracking and focus management.
+	 * @param part The progress part to register
+	 * @returns A disposable that unregisters the progress part when disposed
+	 */
+	registerProgressPart(part: IChatTerminalToolProgressPart): IDisposable;
+
+	/**
+	 * Set the currently focused progress part.
+	 * @param part The progress part to focus
+	 */
+	setFocusedProgressPart(part: IChatTerminalToolProgressPart): void;
+
+	/**
+	 * Clear the focused state from a progress part.
+	 * @param part The progress part to clear focus from
+	 */
+	clearFocusedProgressPart(part: IChatTerminalToolProgressPart): void;
+
+	/**
+	 * Get the currently focused progress part, if any.
+	 * @returns The focused progress part or undefined if none is focused
+	 */
+	getFocusedProgressPart(): IChatTerminalToolProgressPart | undefined;
+
+	/**
+	 * Get the most recently registered progress part, if any.
+	 * @returns The most recent progress part or undefined if none exist
+	 */
+	getMostRecentProgressPart(): IChatTerminalToolProgressPart | undefined;
+
+	/**
+	 * Enable or disable auto approval for all commands in a specific session.
+	 * @param chatSessionId The chat session ID
+	 * @param enabled Whether to enable or disable session auto approval
+	 */
+	setChatSessionAutoApproval(chatSessionId: string, enabled: boolean): void;
+
+	/**
+	 * Check if a session has auto approval enabled for all commands.
+	 * @param chatSessionId The chat session ID
+	 * @returns True if the session has auto approval enabled
+	 */
+	hasChatSessionAutoApproval(chatSessionId: string): boolean;
+
+	/**
+	 * Add a session-scoped auto-approve rule.
+	 * @param chatSessionId The chat session ID to associate the rule with
+	 * @param key The rule key (command or regex pattern)
+	 * @param value The rule value (approval boolean or object with approve and matchCommandLine)
+	 */
+	addSessionAutoApproveRule(chatSessionId: string, key: string, value: boolean | { approve: boolean; matchCommandLine?: boolean }): void;
+
+	/**
+	 * Get all session-scoped auto-approve rules for a specific chat session.
+	 * @param chatSessionId The chat session ID to get rules for
+	 * @returns A record of all session-scoped auto-approve rules for the session
+	 */
+	getSessionAutoApproveRules(chatSessionId: string): Readonly<Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>>;
 }
 
 /**
@@ -269,9 +344,10 @@ export interface IDetachedXTermOptions {
 	cols: number;
 	rows: number;
 	colorProvider: IXtermColorProvider;
-	capabilities?: ITerminalCapabilityStore;
+	capabilities?: ITerminalCapabilityStore & IDisposable;
 	readonly?: boolean;
 	processInfo: ITerminalProcessInfo;
+	disableOverviewRuler?: boolean;
 }
 
 /**
@@ -346,7 +422,7 @@ export interface IDetachedTerminalInstance extends IDisposable, IBaseTerminalIns
 	attachToElement(container: HTMLElement, options?: Partial<IXtermAttachToElementOptions>): void;
 }
 
-export const isDetachedTerminalInstance = (t: ITerminalInstance | IDetachedTerminalInstance): t is IDetachedTerminalInstance => typeof (t as ITerminalInstance).instanceId !== 'number';
+export const isDetachedTerminalInstance = (t: ITerminalInstance | IDetachedTerminalInstance): t is IDetachedTerminalInstance => !isNumber((t as ITerminalInstance).instanceId);
 
 export interface ITerminalService extends ITerminalInstanceHost {
 	readonly _serviceBrand: undefined;
@@ -432,6 +508,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	moveIntoNewEditor(source: ITerminalInstance): void;
 	moveToTerminalView(source: ITerminalInstance | URI): Promise<void>;
 	getPrimaryBackend(): ITerminalBackend | undefined;
+	setNextCommandId(id: number, commandLine: string, commandId: string): Promise<void>;
 
 	/**
 	 * Fire the onActiveTabChanged event, this will trigger the terminal dropdown to be updated,
@@ -665,7 +742,7 @@ export interface ITerminalInstanceHost {
 	/**
 	 * Reveal and focus the instance, regardless of its location.
 	 */
-	focusInstance(instance: ITerminalInstance): void;
+	focusInstance(instance: ITerminalInstance): Promise<void>;
 	/**
 	 * Reveal and focus the active instance, regardless of its location.
 	 */
@@ -1229,6 +1306,16 @@ export interface IXtermTerminal extends IDisposable {
 	readonly onDidChangeFocus: Event<boolean>;
 
 	/**
+	 * Fires after a search is performed.
+	 */
+	readonly onAfterSearch: Event<void>;
+
+	/**
+	 * Fires before a search is performed.
+	 */
+	readonly onBeforeSearch: Event<void>;
+
+	/**
 	 * Gets a view of the current texture atlas used by the renderers.
 	 */
 	readonly textureAtlas: Promise<ImageBitmap> | undefined;
@@ -1281,6 +1368,14 @@ export interface IXtermTerminal extends IDisposable {
 	 * Gets the font metrics of this xterm.js instance.
 	 */
 	getFont(): ITerminalFont;
+
+	/**
+	 * Gets the content between two markers as VT sequences.
+	 * @param startMarker The marker to start from.
+	 * @param endMarker The marker to end at.
+	 * @param skipLastLine Whether the last line should be skipped (e.g. when it's the prompt line)
+	 */
+	getRangeAsVT(startMarker: IXtermMarker, endMarker?: IXtermMarker, skipLastLine?: boolean): Promise<string>;
 
 	/**
 	 * Gets whether there's any terminal selection.

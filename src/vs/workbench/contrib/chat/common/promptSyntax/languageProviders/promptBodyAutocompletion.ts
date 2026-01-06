@@ -13,8 +13,8 @@ import { CompletionContext, CompletionItem, CompletionItemKind, CompletionItemPr
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { CharCode } from '../../../../../../base/common/charCode.js';
 import { getWordAtText } from '../../../../../../editor/common/core/wordHelper.js';
-import { chatVariableLeader } from '../../chatParserTypes.js';
-import { ILanguageModelToolsService } from '../../languageModelToolsService.js';
+import { chatVariableLeader } from '../../requestParser/chatParserTypes.js';
+import { ILanguageModelToolsService } from '../../tools/languageModelToolsService.js';
 
 /**
  * Provides autocompletion for the variables inside prompt bodies.
@@ -77,7 +77,7 @@ export class PromptBodyAutocompletion implements CompletionItemProvider {
 	}
 
 	private async collectToolCompletions(model: ITextModel, position: Position, toolRange: Range, suggestions: CompletionItem[]): Promise<void> {
-		for (const toolName of this.languageModelToolsService.getQualifiedToolNames()) {
+		for (const toolName of this.languageModelToolsService.getFullReferenceNames()) {
 			suggestions.push({
 				label: toolName,
 				kind: CompletionItemKind.Value,

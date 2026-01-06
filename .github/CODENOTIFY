@@ -5,6 +5,7 @@ src/vs/base/common/glob.ts @bpasero
 src/vs/base/common/oauth.ts @TylerLeonhardt
 src/vs/base/common/path.ts @bpasero
 src/vs/base/common/stream.ts @bpasero
+src/vs/base/common/uri.ts @jrieken
 src/vs/base/browser/domSanitize.ts @mjbvz
 src/vs/base/browser/** @bpasero
 src/vs/base/node/pfs.ts @bpasero
@@ -40,24 +41,23 @@ src/vs/platform/secrets/** @TylerLeonhardt
 src/vs/platform/sharedProcess/** @bpasero
 src/vs/platform/state/** @bpasero
 src/vs/platform/storage/** @bpasero
+src/vs/platform/terminal/electron-main/** @Tyriar
+src/vs/platform/terminal/node/** @Tyriar
 src/vs/platform/utilityProcess/** @bpasero
 src/vs/platform/window/** @bpasero
 src/vs/platform/windows/** @bpasero
 src/vs/platform/workspace/** @bpasero
 src/vs/platform/workspaces/** @bpasero
+src/vs/platform/actions/common/menuService.ts @jrieken
+src/vs/platform/instantiation/** @jrieken
+
+# Editor Core
+src/vs/editor/contrib/snippet/** @jrieken
+src/vs/editor/contrib/suggest/** @jrieken
+src/vs/editor/contrib/format/** @jrieken
 
 # Bootstrap
-src/bootstrap-cli.ts @bpasero
-src/bootstrap-esm.ts @bpasero
-src/bootstrap-fork.ts @bpasero
-src/bootstrap-import.ts @bpasero
-src/bootstrap-meta.ts @bpasero
-src/bootstrap-node.ts @bpasero
-src/bootstrap-server.ts @bpasero
-src/cli.ts @bpasero
-src/main.ts @bpasero
-src/server-cli.ts @bpasero
-src/server-main.ts @bpasero
+src/*.ts @bpasero
 
 # Electron Main
 src/vs/code/** @bpasero @deepak1556
@@ -101,10 +101,12 @@ src/vs/workbench/electron-browser/** @bpasero
 src/vs/workbench/contrib/authentication/** @TylerLeonhardt
 src/vs/workbench/contrib/files/** @bpasero
 src/vs/workbench/contrib/chat/browser/chatListRenderer.ts @roblourens
-src/vs/workbench/contrib/chat/browser/chatSetup.ts @bpasero
-src/vs/workbench/contrib/chat/browser/chatStatus.ts @bpasero
-src/vs/workbench/contrib/chat/browser/chatInputPart.ts @bpasero
-src/vs/workbench/contrib/chat/browser/chatWidget.ts @bpasero
+src/vs/workbench/contrib/chat/browser/chatSetup/** @bpasero
+src/vs/workbench/contrib/chat/browser/chatStatus/** @bpasero
+src/vs/workbench/contrib/chat/browser/chatViewPane.ts @bpasero
+src/vs/workbench/contrib/chat/browser/media/chatViewPane.css @bpasero
+src/vs/workbench/contrib/chat/browser/chatViewTitleControl.ts @bpasero
+src/vs/workbench/contrib/chat/browser/media/chatViewTitleControl.css @bpasero
 src/vs/workbench/contrib/chat/browser/chatManagement/chatUsageWidget.ts @bpasero
 src/vs/workbench/contrib/chat/browser/chatManagement/media/chatUsageWidget.css @bpasero
 src/vs/workbench/contrib/chat/browser/agentSessions/** @bpasero
@@ -113,10 +115,13 @@ src/vs/workbench/contrib/localization/** @TylerLeonhardt
 src/vs/workbench/contrib/quickaccess/browser/commandsQuickAccess.ts @TylerLeonhardt
 src/vs/workbench/contrib/scm/** @lszomoru
 src/vs/workbench/contrib/update/browser/releaseNotesEditor.ts @alexr00 @joaomoreno
+src/vs/workbench/contrib/preferences/** @rzhao271
 
 # Build
 build/azure-pipelines/** @lszomoru
 build/lib/i18n.ts @TylerLeonhardt
+resources/linux/debian/** @rzhao271
+resources/linux/rpm/** @rzhao271
 
 # Editor contrib
 src/vs/editor/standalone/browser/quickInput/** @TylerLeonhardt
@@ -137,3 +142,7 @@ extensions/github-authentication/** @TylerLeonhardt
 extensions/git/** @lszomoru
 extensions/git-base/** @lszomoru
 extensions/github/** @lszomoru
+
+# Chat Editing, Inline Chat
+src/vs/workbench/contrib/chat/browser/chatEditing/** @jrieken
+src/vs/workbench/contrib/inlineChat/** @jrieken

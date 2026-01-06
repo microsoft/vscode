@@ -137,7 +137,7 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 			lineDecorationsWidth: 0,
 			scrollBeyondLastLine: false,
 			renderLineHighlight: 'none',
-			fixedOverflowWidgets: false,
+			fixedOverflowWidgets: true,
 			acceptSuggestionOnEnter: 'smart',
 			minimap: {
 				enabled: false

@@ -23,6 +23,7 @@ import { localize, localize2 } from '../../../../nls.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { fillInSymbolsDragData, LocalSelectionTransfer } from '../../../../platform/dnd/browser/dnd.js';
@@ -38,7 +39,7 @@ import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js'
 import { EditorResourceAccessor, IEditorPartOptions, SideBySideEditor } from '../../../common/editor.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { ACTIVE_GROUP, ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE } from '../../../services/editor/common/editorService.js';
-import { IOutline } from '../../../services/outline/browser/outline.js';
+import { IOutline, IOutlineService, OutlineTarget } from '../../../services/outline/browser/outline.js';
 import { DraggedEditorIdentifier, fillEditorsDragData } from '../../dnd.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../labels.js';
 import { BreadcrumbsConfig, IBreadcrumbsService } from './breadcrumbs.js';
@@ -47,6 +48,7 @@ import { BreadcrumbsFilePicker, BreadcrumbsOutlinePicker } from './breadcrumbsPi
 import { IEditorGroupView } from './editor.js';
 import './media/breadcrumbscontrol.css';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 
 class OutlineItem extends BreadcrumbsItem {
 
@@ -60,6 +62,8 @@ class OutlineItem extends BreadcrumbsItem {
 	) {
 		super();
 	}
+
+
 
 	dispose(): void {
 		this._disposables.dispose();
@@ -317,6 +321,8 @@ export class BreadcrumbsControl {
 		this._ckBreadcrumbsActive.reset();
 		this._cfUseQuickPick.dispose();
 		this._cfShowIcons.dispose();
+		this._cfTitleScrollbarSizing.dispose();
+		this._cfTitleScrollbarVisibility.dispose();
 		this._widget.dispose();
 		this._labels.dispose();
 		this.domNode.remove();
@@ -686,10 +692,11 @@ registerAction2(class ToggleBreadcrumb extends Action2 {
 		super({
 			id: 'breadcrumbs.toggle',
 			title: localize2('cmd.toggle', "Toggle Breadcrumbs"),
+			shortTitle: localize2('cmd.toggle.short', "Breadcrumbs"),
 			category: Categories.View,
 			toggled: {
 				condition: ContextKeyExpr.equals('config.breadcrumbs.enabled', true),
-				title: localize('cmd.toggle2', "Toggle Breadcrumbs"),
+				title: localize('cmd.toggle2', "Breadcrumbs"),
 				mnemonicTitle: localize({ key: 'miBreadcrumbs2', comment: ['&& denotes a mnemonic'] }, "&&Breadcrumbs")
 			},
 			menu: [
@@ -705,8 +712,10 @@ registerAction2(class ToggleBreadcrumb extends Action2 {
 
 	run(accessor: ServicesAccessor): void {
 		const config = accessor.get(IConfigurationService);
-		const value = BreadcrumbsConfig.IsEnabled.bindTo(config).getValue();
-		BreadcrumbsConfig.IsEnabled.bindTo(config).updateValue(!value);
+		const breadCrumbsConfig = BreadcrumbsConfig.IsEnabled.bindTo(config);
+		const value = breadCrumbsConfig.getValue();
+		breadCrumbsConfig.updateValue(!value);
+		breadCrumbsConfig.dispose();
 	}
 
 });
@@ -779,6 +788,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			await isEnabled.updateValue(true);
 			await timeout(50); // hacky - the widget might not be ready yet...
 		}
+		isEnabled.dispose();
 		return instant.invokeFunction(focusAndSelectHandler, true);
 	}
 });
@@ -944,3 +954,54 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 //#endregion
+
+registerAction2(class CopyBreadcrumbPath extends Action2 {
+	constructor() {
+		super({
+			id: 'breadcrumbs.copyPath',
+			title: localize2('cmd.copyPath', "Copy Breadcrumbs Path"),
+			category: Categories.View,
+			precondition: BreadcrumbsControl.CK_BreadcrumbsVisible,
+			f1: true,
+			menu: [{
+				id: MenuId.EditorTitleContext,
+				group: '1_cutcopypaste',
+				order: 100,
+				when: BreadcrumbsControl.CK_BreadcrumbsPossible
+			}]
+		});
+	}
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const groups = accessor.get(IEditorGroupsService);
+		const clipboardService = accessor.get(IClipboardService);
+		const configurationService = accessor.get(IConfigurationService);
+		const outlineService = accessor.get(IOutlineService);
+
+		if (!groups.activeGroup.activeEditorPane) {
+			return;
+		}
+
+		const outline = await outlineService.createOutline(groups.activeGroup.activeEditorPane, OutlineTarget.Breadcrumbs, CancellationToken.None);
+		if (!outline) {
+			return;
+		}
+
+		const elements = outline.config.breadcrumbsDataSource.getBreadcrumbElements();
+		const labels = elements.map(item => item.label).filter(Boolean);
+
+		outline.dispose();
+
+		if (labels.length === 0) {
+			return;
+		}
+
+		// Get separator with language override support
+		const resource = groups.activeGroup.activeEditorPane.input.resource;
+		const config = BreadcrumbsConfig.SymbolPathSeparator.bindTo(configurationService);
+		const separator = config.getValue(resource && { resource }) ?? '.';
+		config.dispose();
+
+		const path = labels.join(separator);
+		await clipboardService.writeText(path);
+	}
+});

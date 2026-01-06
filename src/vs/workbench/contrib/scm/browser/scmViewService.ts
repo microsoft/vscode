@@ -116,7 +116,6 @@ export class SCMViewService implements ISCMViewService {
 	readonly graphShowIncomingChangesConfig: IObservable<boolean>;
 	readonly graphShowOutgoingChangesConfig: IObservable<boolean>;
 
-	private didFinishLoading: boolean = false;
 	private didSelectRepository: boolean = false;
 	private previousState: ISCMViewServiceState | undefined;
 	private readonly disposables = new DisposableStore();
@@ -124,8 +123,12 @@ export class SCMViewService implements ISCMViewService {
 	private _repositories: ISCMRepositoryView[] = [];
 
 	get repositories(): ISCMRepository[] {
-		return this._repositories.map(r => r.repository);
+		return this._repositories
+			.filter(r => r.repository.provider.isHidden !== true)
+			.map(r => r.repository);
 	}
+
+	readonly didFinishLoadingRepositories = observableValue<boolean>(this, false);
 
 	get visibleRepositories(): ISCMRepository[] {
 		// In order to match the legacy behaviour, when the repositories are sorted by discovery time,
@@ -190,16 +193,12 @@ export class SCMViewService implements ISCMViewService {
 				const removed = new Set(last.removed);
 
 				for (const repository of e.added) {
-					if (removed.has(repository)) {
-						removed.delete(repository);
-					} else {
+					if (!removed.delete(repository)) {
 						added.add(repository);
 					}
 				}
 				for (const repository of e.removed) {
-					if (added.has(repository)) {
-						added.delete(repository);
-					} else {
+					if (!added.delete(repository)) {
 						removed.add(repository);
 					}
 				}
@@ -247,7 +246,7 @@ export class SCMViewService implements ISCMViewService {
 		const explorerEnabledConfig = observableConfigValue<boolean>('scm.repositories.explorer', false, this.configurationService);
 		this.graphShowIncomingChangesConfig = observableConfigValue<boolean>('scm.graph.showIncomingChanges', true, this.configurationService);
 		this.graphShowOutgoingChangesConfig = observableConfigValue<boolean>('scm.graph.showOutgoingChanges', true, this.configurationService);
-		this.selectionModeConfig = observableConfigValue<ISCMRepositorySelectionMode>('scm.repositories.selectionMode', ISCMRepositorySelectionMode.Single, this.configurationService);
+		this.selectionModeConfig = observableConfigValue<ISCMRepositorySelectionMode>('scm.repositories.selectionMode', ISCMRepositorySelectionMode.Multiple, this.configurationService);
 		this.explorerEnabledConfig = derived(reader => {
 			return explorerEnabledConfig.read(reader) === true && this.selectionModeConfig.read(reader) === ISCMRepositorySelectionMode.Single;
 		});
@@ -343,12 +342,12 @@ export class SCMViewService implements ISCMViewService {
 		// or during a profile switch.
 		extensionService.onWillStop(() => {
 			this.onWillSaveState();
-			this.didFinishLoading = false;
+			this.didFinishLoadingRepositories.set(false, undefined);
 		}, this, this.disposables);
 	}
 
 	private onDidAddRepository(repository: ISCMRepository): void {
-		if (!this.didFinishLoading) {
+		if (!this.didFinishLoadingRepositories.get()) {
 			this.eventuallyFinishLoading();
 		}
 
@@ -358,7 +357,7 @@ export class SCMViewService implements ISCMViewService {
 
 		let removed: Iterable<ISCMRepository> = Iterable.empty();
 
-		if (this.previousState && !this.didFinishLoading) {
+		if (this.previousState && !this.didFinishLoadingRepositories.get()) {
 			const index = this.previousState.all.indexOf(getProviderStorageKey(repository.provider));
 
 			if (index === -1) {
@@ -425,7 +424,7 @@ export class SCMViewService implements ISCMViewService {
 	}
 
 	private onDidRemoveRepository(repository: ISCMRepository): void {
-		if (!this.didFinishLoading) {
+		if (!this.didFinishLoadingRepositories.get()) {
 			this.eventuallyFinishLoading();
 		}
 
@@ -566,7 +565,8 @@ export class SCMViewService implements ISCMViewService {
 	}
 
 	private onWillSaveState(): void {
-		if (!this.didFinishLoading) { // don't remember state, if the workbench didn't really finish loading
+		if (!this.didFinishLoadingRepositories.get()) {
+			// Don't remember state, if the workbench didn't really finish loading
 			return;
 		}
 
@@ -583,11 +583,11 @@ export class SCMViewService implements ISCMViewService {
 	}
 
 	private finishLoading(): void {
-		if (this.didFinishLoading) {
+		if (this.didFinishLoadingRepositories.get()) {
 			return;
 		}
 
-		this.didFinishLoading = true;
+		this.didFinishLoadingRepositories.set(true, undefined);
 	}
 
 	dispose(): void {

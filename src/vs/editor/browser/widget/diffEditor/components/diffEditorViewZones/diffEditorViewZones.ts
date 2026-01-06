@@ -245,7 +245,7 @@ export class DiffEditorViewZones extends Disposable {
 								this._editors.modified,
 								a.diff,
 								this._diffEditorWidget,
-								result.viewLineCounts,
+								result,
 								this._editors.original.getModel()!,
 								this._contextMenuService,
 								this._clipboardService,

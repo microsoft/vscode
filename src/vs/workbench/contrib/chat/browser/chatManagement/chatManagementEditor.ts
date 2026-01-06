@@ -30,6 +30,8 @@ import { Dimension } from '../../../../../base/browser/dom.js';
 import { registerColor } from '../../../../../platform/theme/common/colorRegistry.js';
 import { PANEL_BORDER } from '../../../../common/theme.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { CONTEXT_MODELS_EDITOR } from '../../common/constants.js';
 
 const $ = DOM.$;
 
@@ -42,14 +44,18 @@ export class ModelsManagementEditor extends EditorPane {
 	private modelsWidget: ChatModelsWidget | undefined;
 	private bodyContainer: HTMLElement | undefined;
 
+	private readonly inModelsEditorContextKey: IContextKey<boolean>;
+
 	constructor(
 		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super(ModelsManagementEditor.ID, group, telemetryService, themeService, storageService);
+		this.inModelsEditorContextKey = CONTEXT_MODELS_EDITOR.bindTo(contextKeyService);
 	}
 
 	protected override createEditor(parent: HTMLElement): void {
@@ -60,10 +66,12 @@ export class ModelsManagementEditor extends EditorPane {
 	}
 
 	override async setInput(input: ModelsManagementEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+		this.inModelsEditorContextKey.set(true);
 		await super.setInput(input, options, context, token);
 		if (this.dimension) {
 			this.layout(this.dimension);
 		}
+		this.modelsWidget?.render();
 	}
 
 	override layout(dimension: Dimension): void {
@@ -76,6 +84,15 @@ export class ModelsManagementEditor extends EditorPane {
 	override focus(): void {
 		super.focus();
 		this.modelsWidget?.focusSearch();
+	}
+
+	override clearInput(): void {
+		this.inModelsEditorContextKey.set(false);
+		super.clearInput();
+	}
+
+	clearSearch(): void {
+		this.modelsWidget?.clearSearch();
 	}
 }
 

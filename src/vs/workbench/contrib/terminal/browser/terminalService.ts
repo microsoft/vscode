@@ -56,6 +56,7 @@ import { createInstanceCapabilityEventMultiplexer } from './terminalEvents.js';
 import { isAuxiliaryWindow, mainWindow } from '../../../../base/browser/window.js';
 import { GroupIdentifier } from '../../../common/editor.js';
 import { getActiveWindow } from '../../../../base/browser/dom.js';
+import { hasKey, isString } from '../../../../base/common/types.js';
 
 interface IBackgroundTerminal {
 	instance: ITerminalInstance;
@@ -242,7 +243,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		if (!result) {
 			return;
 		}
-		if (typeof result === 'string') {
+		if (isString(result)) {
 			return;
 		}
 		const keyMods: IKeyMods | undefined = result.keyMods;
@@ -251,14 +252,14 @@ export class TerminalService extends Disposable implements ITerminalService {
 			const defaultLocation = this._terminalConfigurationService.defaultLocation;
 			let instance;
 
-			if (result.config && 'id' in result?.config) {
+			if (result.config && hasKey(result.config, { id: true })) {
 				await this.createContributedTerminalProfile(result.config.extensionIdentifier, result.config.id, {
 					icon: result.config.options?.icon,
 					color: result.config.options?.color,
 					location: !!(keyMods?.alt && activeInstance) ? { splitActiveTerminal: true } : defaultLocation
 				});
 				return;
-			} else if (result.config && 'profileName' in result.config) {
+			} else if (result.config && hasKey(result.config, { profileName: true })) {
 				if (keyMods?.alt && activeInstance) {
 					// create split, only valid if there's an active instance
 					instance = await this.createTerminal({ location: { parentTerminal: activeInstance }, config: result.config, cwd });
@@ -339,6 +340,13 @@ export class TerminalService extends Disposable implements ITerminalService {
 		return this._primaryBackend;
 	}
 
+	async setNextCommandId(id: number, commandLine: string, commandId: string): Promise<void> {
+		if (!this._primaryBackend || id <= 0) {
+			return;
+		}
+		await this._primaryBackend.setNextCommandId(id, commandLine, commandId);
+	}
+
 	private _forwardInstanceHostEvents(host: ITerminalInstanceHost) {
 		this._register(host.onDidChangeInstances(this._onDidChangeInstances.fire, this._onDidChangeInstances));
 		this._register(host.onDidDisposeInstance(this._onDidDisposeInstance.fire, this._onDidDisposeInstance));
@@ -388,10 +396,14 @@ export class TerminalService extends Disposable implements ITerminalService {
 	}
 
 	async focusInstance(instance: ITerminalInstance): Promise<void> {
-		if (instance.target === TerminalLocation.Editor) {
-			return this._terminalEditorService.focusInstance(instance);
+		if (this._activeInstance !== instance) {
+			this.setActiveInstance(instance);
 		}
-		return this._terminalGroupService.focusInstance(instance);
+		if (instance.target === TerminalLocation.Editor) {
+			await this._terminalEditorService.focusInstance(instance);
+			return;
+		}
+		await this._terminalGroupService.focusInstance(instance);
 	}
 
 	async focusActiveInstance(): Promise<void> {
@@ -773,6 +785,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 	openResource(resource: URI): void {
 		const instance = this.getInstanceFromResource(resource);
 		if (instance) {
+			this.setActiveInstance(instance);
 			this.revealTerminal(instance);
 			const commands = instance.capabilities.get(TerminalCapability.CommandDetection)?.commands;
 			const params = new URLSearchParams(resource.query);
@@ -950,9 +963,9 @@ export class TerminalService extends Disposable implements ITerminalService {
 			if (location === TerminalLocation.Editor) {
 				return this._terminalEditorService;
 			} else if (typeof location === 'object') {
-				if ('viewColumn' in location) {
+				if (hasKey(location, { viewColumn: true })) {
 					return this._terminalEditorService;
-				} else if ('parentTerminal' in location) {
+				} else if (hasKey(location, { parentTerminal: true })) {
 					return (await location.parentTerminal).target === TerminalLocation.Editor ? this._terminalEditorService : this._terminalGroupService;
 				}
 			} else {
@@ -966,9 +979,9 @@ export class TerminalService extends Disposable implements ITerminalService {
 		// Await the initialization of available profiles as long as this is not a pty terminal or a
 		// local terminal in a remote workspace as profile won't be used in those cases and these
 		// terminals need to be launched before remote connections are established.
+		const isLocalInRemoteTerminal = this._remoteAgentService.getConnection() && URI.isUri(options?.cwd) && options?.cwd.scheme === Schemas.file;
 		if (this._terminalProfileService.availableProfiles.length === 0) {
-			const isPtyTerminal = options?.config && 'customPtyImplementation' in options.config;
-			const isLocalInRemoteTerminal = this._remoteAgentService.getConnection() && URI.isUri(options?.cwd) && options?.cwd.scheme === Schemas.vscodeFileResource;
+			const isPtyTerminal = options?.config && hasKey(options.config, { customPtyImplementation: true });
 			if (!isPtyTerminal && !isLocalInRemoteTerminal) {
 				if (this._connectionState === TerminalConnectionState.Connecting) {
 					mark(`code/terminal/willGetProfiles`);
@@ -980,13 +993,26 @@ export class TerminalService extends Disposable implements ITerminalService {
 			}
 		}
 
-		const config = options?.config || this._terminalProfileService.getDefaultProfile();
-		const shellLaunchConfig = config && 'extensionIdentifier' in config ? {} : this._terminalInstanceService.convertProfileToShellLaunchConfig(config || {});
+		let config = options?.config;
+		if (!config && isLocalInRemoteTerminal) {
+			const backend = await this._terminalInstanceService.getBackend(undefined);
+			const executable = await backend?.getDefaultSystemShell();
+			if (executable) {
+				config = { executable };
+			}
+		}
+
+		if (!config) {
+			config = this._terminalProfileService.getDefaultProfile();
+		}
+		const shellLaunchConfig = config && hasKey(config, { extensionIdentifier: true }) ? {} : this._terminalInstanceService.convertProfileToShellLaunchConfig(config || {});
 
 		// Get the contributed profile if it was provided
 		const contributedProfile = options?.skipContributedProfileCheck ? undefined : await this._getContributedProfile(shellLaunchConfig, options);
 
-		const splitActiveTerminal = typeof options?.location === 'object' && 'splitActiveTerminal' in options.location ? options.location.splitActiveTerminal : typeof options?.location === 'object' ? 'parentTerminal' in options.location : false;
+		const splitActiveTerminal = typeof options?.location === 'object' && hasKey(options.location, { splitActiveTerminal: true })
+			? options.location.splitActiveTerminal
+			: typeof options?.location === 'object' ? hasKey(options.location, { parentTerminal: true }) : false;
 
 		await this._resolveCwd(shellLaunchConfig, splitActiveTerminal, options);
 
@@ -999,7 +1025,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 			if (splitActiveTerminal) {
 				location = resolvedLocation === TerminalLocation.Editor ? { viewColumn: SIDE_GROUP } : { splitActiveTerminal: true };
 			} else {
-				location = typeof options?.location === 'object' && 'viewColumn' in options.location ? options.location : resolvedLocation;
+				location = typeof options?.location === 'object' && hasKey(options.location, { viewColumn: true }) ? options.location : resolvedLocation;
 			}
 			await this.createContributedTerminalProfile(contributedProfile.extensionIdentifier, contributedProfile.id, {
 				icon: contributedProfile.icon,
@@ -1035,6 +1061,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 					this._onDidDisposeInstance.fire(instance);
 				})
 			]);
+			this._onDidChangeInstances.fire();
 			return instance;
 		}
 
@@ -1062,7 +1089,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 	}
 
 	private async _getContributedProfile(shellLaunchConfig: IShellLaunchConfig, options?: ICreateTerminalOptions): Promise<IExtensionTerminalProfile | undefined> {
-		if (options?.config && 'extensionIdentifier' in options.config) {
+		if (options?.config && hasKey(options.config, { extensionIdentifier: true })) {
 			return options.config;
 		}
 
@@ -1071,18 +1098,20 @@ export class TerminalService extends Disposable implements ITerminalService {
 
 	async createDetachedTerminal(options: IDetachedXTermOptions): Promise<IDetachedTerminalInstance> {
 		const ctor = await TerminalInstance.getXtermConstructor(this._keybindingService, this._contextKeyService);
+		const capabilities = options.capabilities ?? new TerminalCapabilityStore();
 		const xterm = this._instantiationService.createInstance(XtermTerminal, undefined, ctor, {
 			cols: options.cols,
 			rows: options.rows,
 			xtermColorProvider: options.colorProvider,
-			capabilities: options.capabilities || new TerminalCapabilityStore(),
+			capabilities,
+			disableOverviewRuler: options.disableOverviewRuler,
 		}, undefined);
 
 		if (options.readonly) {
 			xterm.raw.attachCustomKeyEventHandler(() => false);
 		}
 
-		const instance = new DetachedTerminal(xterm, options, this._instantiationService);
+		const instance = new DetachedTerminal(xterm, { ...options, capabilities }, this._instantiationService);
 		this._detachedXterms.add(instance);
 		const l = xterm.onDidDispose(() => {
 			this._detachedXterms.delete(instance);
@@ -1099,7 +1128,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 				shellLaunchConfig.cwd = options.cwd;
 			} else if (splitActiveTerminal && options?.location) {
 				let parent = this.activeInstance;
-				if (typeof options.location === 'object' && 'parentTerminal' in options.location) {
+				if (typeof options.location === 'object' && hasKey(options.location, { parentTerminal: true })) {
 					parent = await options.location.parentTerminal;
 				}
 				if (!parent) {
@@ -1151,13 +1180,13 @@ export class TerminalService extends Disposable implements ITerminalService {
 
 	async resolveLocation(location?: ITerminalLocationOptions): Promise<TerminalLocation | undefined> {
 		if (location && typeof location === 'object') {
-			if ('parentTerminal' in location) {
+			if (hasKey(location, { parentTerminal: true })) {
 				// since we don't set the target unless it's an editor terminal, this is necessary
 				const parentTerminal = await location.parentTerminal;
 				return !parentTerminal.target ? TerminalLocation.Panel : parentTerminal.target;
-			} else if ('viewColumn' in location) {
+			} else if (hasKey(location, { viewColumn: true })) {
 				return TerminalLocation.Editor;
-			} else if ('splitActiveTerminal' in location) {
+			} else if (hasKey(location, { splitActiveTerminal: true })) {
 				// since we don't set the target unless it's an editor terminal, this is necessary
 				return !this._activeInstance?.target ? TerminalLocation.Panel : this._activeInstance?.target;
 			}
@@ -1166,16 +1195,16 @@ export class TerminalService extends Disposable implements ITerminalService {
 	}
 
 	private async _getSplitParent(location?: ITerminalLocationOptions): Promise<ITerminalInstance | undefined> {
-		if (location && typeof location === 'object' && 'parentTerminal' in location) {
+		if (location && typeof location === 'object' && hasKey(location, { parentTerminal: true })) {
 			return location.parentTerminal;
-		} else if (location && typeof location === 'object' && 'splitActiveTerminal' in location) {
+		} else if (location && typeof location === 'object' && hasKey(location, { splitActiveTerminal: true })) {
 			return this.activeInstance;
 		}
 		return undefined;
 	}
 
 	private _getEditorOptions(location?: ITerminalLocationOptions): TerminalEditorLocation | undefined {
-		if (location && typeof location === 'object' && 'viewColumn' in location) {
+		if (location && typeof location === 'object' && hasKey(location, { viewColumn: true })) {
 			// Terminal-specific workaround to resolve the active group in auxiliary windows to
 			// override the locked editor behavior.
 			if (location.viewColumn === ACTIVE_GROUP && isAuxiliaryWindow(getActiveWindow())) {
@@ -1191,7 +1220,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 	private _evaluateLocalCwd(shellLaunchConfig: IShellLaunchConfig) {
 		// Add welcome message and title annotation for local terminals launched within remote or
 		// virtual workspaces
-		if (typeof shellLaunchConfig.cwd !== 'string' && shellLaunchConfig.cwd?.scheme === Schemas.file) {
+		if (!isString(shellLaunchConfig.cwd) && shellLaunchConfig.cwd?.scheme === Schemas.file) {
 			if (VirtualWorkspaceContext.getValue(this._contextKeyService)) {
 				shellLaunchConfig.initialText = formatMessageForTerminal(nls.localize('localTerminalVirtualWorkspace', "This shell is open to a {0}local{1} folder, NOT to the virtual folder", '\x1b[3m', '\x1b[23m'), { excludeLeadingNewLine: true, loudFormatting: true });
 				shellLaunchConfig.type = 'Local';
@@ -1296,7 +1325,7 @@ class TerminalEditorStyle extends Themable {
 			let uri = undefined;
 			if (icon instanceof URI) {
 				uri = icon;
-			} else if (icon instanceof Object && 'light' in icon && 'dark' in icon) {
+			} else if (icon instanceof Object && hasKey(icon, { light: true, dark: true })) {
 				uri = isDark(colorTheme.type) ? icon.dark : icon.light;
 			}
 			const iconClasses = getUriClasses(instance, colorTheme.type);

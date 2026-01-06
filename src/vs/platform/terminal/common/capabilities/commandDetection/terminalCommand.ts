@@ -7,6 +7,7 @@ import { IMarkProperties, ISerializedTerminalCommand, ITerminalCommand } from '.
 import { ITerminalOutputMatcher, ITerminalOutputMatch } from '../../terminal.js';
 import type { IBuffer, IBufferLine, IMarker, Terminal } from '@xterm/headless';
 import { generateUuid } from '../../../../../base/common/uuid.js';
+import { isString } from '../../../../../base/common/types.js';
 
 export interface ITerminalCommandProperties {
 	command: string;
@@ -153,7 +154,7 @@ export class TerminalCommand implements ITerminalCommand {
 		const buffer = this._xterm.buffer.active;
 		const startLine = Math.max(this.executedMarker.line, 0);
 		const matcher = outputMatcher.lineMatcher;
-		const linesToCheck = typeof matcher === 'string' ? 1 : outputMatcher.length || countNewLines(matcher);
+		const linesToCheck = isString(matcher) ? 1 : outputMatcher.length || countNewLines(matcher);
 		const lines: string[] = [];
 		let match: RegExpMatchArray | null | undefined;
 		if (outputMatcher.anchor === 'bottom') {
@@ -280,6 +281,11 @@ export class PartialTerminalCommand implements ICurrentPartialCommand {
 
 	isTrusted?: boolean;
 	isInvalid?: boolean;
+	/**
+	 * Track temporarily if the command was recently cleared, this can be used for marker
+	 * adjustments
+	 */
+	wasCleared?: boolean;
 
 	constructor(
 		private readonly _xterm: Terminal,
@@ -421,7 +427,7 @@ function countNewLines(regex: RegExp): number {
 }
 
 function getPromptRowCount(command: ITerminalCommand | ICurrentPartialCommand, buffer: IBuffer): number {
-	const marker = 'hasOutput' in command ? command.marker : command.commandStartMarker;
+	const marker = isFullTerminalCommand(command) ? command.marker : command.commandStartMarker;
 	if (!marker || !command.promptStartMarker) {
 		return 1;
 	}
@@ -436,17 +442,21 @@ function getPromptRowCount(command: ITerminalCommand | ICurrentPartialCommand, b
 }
 
 function getCommandRowCount(command: ITerminalCommand | ICurrentPartialCommand): number {
-	const marker = 'hasOutput' in command ? command.marker : command.commandStartMarker;
-	const executedMarker = 'hasOutput' in command ? command.executedMarker : command.commandExecutedMarker;
+	const marker = isFullTerminalCommand(command) ? command.marker : command.commandStartMarker;
+	const executedMarker = isFullTerminalCommand(command) ? command.executedMarker : command.commandExecutedMarker;
 	if (!marker || !executedMarker) {
 		return 1;
 	}
 	const commandExecutedLine = Math.max(executedMarker.line, marker.line);
 	let commandRowCount = commandExecutedLine - marker.line + 1;
 	// Trim the last line if the cursor X is in the left-most cell
-	const executedX = 'hasOutput' in command ? command.executedX : command.commandExecutedX;
+	const executedX = isFullTerminalCommand(command) ? command.executedX : command.commandExecutedX;
 	if (executedX === 0) {
 		commandRowCount--;
 	}
 	return commandRowCount;
+}
+
+export function isFullTerminalCommand(command: ITerminalCommand | ICurrentPartialCommand): command is ITerminalCommand {
+	return !!(command as ITerminalCommand).hasOutput;
 }

@@ -492,7 +492,23 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		if (!idFilters || !idFilters.size) {
 			return true;
 		}
-		return idFilters.has(this.setting.key);
+
+		// Check for exact match first
+		if (idFilters.has(this.setting.key)) {
+			return true;
+		}
+
+		// Check for wildcard patterns (ending with .*)
+		for (const filter of idFilters) {
+			if (filter.endsWith('*')) {
+				const prefix = filter.slice(0, -1); // Remove '*' suffix
+				if (this.setting.key.startsWith(prefix)) {
+					return true;
+				}
+			}
+		}
+
+		return false;
 	}
 
 	matchesAllLanguages(languageFilter?: string): boolean {

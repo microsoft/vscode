@@ -445,7 +445,7 @@ export interface IDebugSession extends ITreeElement, IDisposable {
 
 	sendBreakpoints(modelUri: uri, bpts: IBreakpoint[], sourceModified: boolean): Promise<void>;
 	sendFunctionBreakpoints(fbps: IFunctionBreakpoint[]): Promise<void>;
-	dataBreakpointInfo(name: string, variablesReference?: number): Promise<IDataBreakpointInfoResponse | undefined>;
+	dataBreakpointInfo(name: string, variablesReference?: number, frameId?: number): Promise<IDataBreakpointInfoResponse | undefined>;
 	dataBytesBreakpointInfo(address: string, bytes: number): Promise<IDataBreakpointInfoResponse | undefined>;
 	sendDataBreakpoints(dbps: IDataBreakpoint[]): Promise<void>;
 	sendInstructionBreakpoints(dbps: IInstructionBreakpoint[]): Promise<void>;
@@ -553,6 +553,7 @@ export interface IScope extends IExpressionContainer {
 	readonly expensive: boolean;
 	readonly range?: IRange;
 	readonly hasChildren: boolean;
+	readonly childrenHaveBeenLoaded: boolean;
 }
 
 export interface IStackFrame extends ITreeElement {
@@ -1207,7 +1208,7 @@ export interface IDebugService {
 	 * Removes all breakpoints. If id is passed only removes the breakpoint associated with that id.
 	 * Notifies debug adapter of breakpoint changes.
 	 */
-	removeBreakpoints(id?: string): Promise<void>;
+	removeBreakpoints(id?: string | string[]): Promise<void>;
 
 	/**
 	 * Adds a new function breakpoint for the given name.

@@ -28,7 +28,7 @@ import { IMcpDevModeConfig, IMcpServerConfiguration } from '../../../../platform
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceFolder, IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchLocalMcpServer, IWorkbencMcpServerInstallOptions } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
-import { ToolProgress } from '../../chat/common/languageModelToolsService.js';
+import { ToolProgress } from '../../chat/common/tools/languageModelToolsService.js';
 import { IMcpServerSamplingConfiguration } from './mcpConfiguration.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
 import { MCP } from './modelContextProtocol.js';
@@ -184,6 +184,7 @@ export namespace McpServerDefinition {
 	export function equals(a: McpServerDefinition, b: McpServerDefinition): boolean {
 		return a.id === b.id
 			&& a.label === b.label
+			&& a.cacheNonce === b.cacheNonce
 			&& arraysEqual(a.roots, b.roots, (a, b) => a.toString() === b.toString())
 			&& objectsEqual(a.launch, b.launch)
 			&& objectsEqual(a.presentation, b.presentation)
@@ -314,7 +315,6 @@ export namespace McpServerTrust {
 		Unknown,
 	}
 }
-
 
 export interface IMcpServer extends IDisposable {
 	readonly collection: McpCollectionReference;
@@ -479,6 +479,17 @@ export interface McpServerTransportStdio {
 	readonly envFile: string | undefined;
 }
 
+export interface McpServerTransportHTTPAuthentication {
+	/**
+	 * Authentication provider ID to use to get a session for the initial MCP server connection.
+	 */
+	readonly providerId: string;
+	/**
+	 * Scopes to use to get a session for the initial MCP server connection.
+	 */
+	readonly scopes: string[];
+}
+
 /**
  * MCP server launched on the command line which communicated over SSE or Streamable HTTP.
  * https://spec.modelcontextprotocol.io/specification/2024-11-05/basic/transports/#http-with-sse
@@ -488,6 +499,7 @@ export interface McpServerTransportHTTP {
 	readonly type: McpServerTransportType.HTTP;
 	readonly uri: URI;
 	readonly headers: [string, string][];
+	readonly authentication?: McpServerTransportHTTPAuthentication;
 }
 
 export type McpServerLaunch =
@@ -496,7 +508,7 @@ export type McpServerLaunch =
 
 export namespace McpServerLaunch {
 	export type Serialized =
-		| { type: McpServerTransportType.HTTP; uri: UriComponents; headers: [string, string][] }
+		| { type: McpServerTransportType.HTTP; uri: UriComponents; headers: [string, string][]; authentication?: McpServerTransportHTTPAuthentication }
 		| { type: McpServerTransportType.Stdio; cwd: string | undefined; command: string; args: readonly string[]; env: Record<string, string | number | null>; envFile: string | undefined };
 
 	export function toSerialized(launch: McpServerLaunch): McpServerLaunch.Serialized {
@@ -506,7 +518,7 @@ export namespace McpServerLaunch {
 	export function fromSerialized(launch: McpServerLaunch.Serialized): McpServerLaunch {
 		switch (launch.type) {
 			case McpServerTransportType.HTTP:
-				return { type: launch.type, uri: URI.revive(launch.uri), headers: launch.headers };
+				return { type: launch.type, uri: URI.revive(launch.uri), headers: launch.headers, authentication: launch.authentication };
 			case McpServerTransportType.Stdio:
 				return {
 					type: launch.type,
@@ -556,9 +568,9 @@ export interface IMcpServerConnection extends IDisposable {
 /** Client methods whose implementations are passed through the server connection. */
 export interface IMcpClientMethods {
 	/** Handler for `sampling/createMessage` */
-	createMessageRequestHandler?(req: MCP.CreateMessageRequest['params']): Promise<MCP.CreateMessageResult>;
+	createMessageRequestHandler?(req: MCP.CreateMessageRequest['params'], token?: CancellationToken): Promise<MCP.CreateMessageResult>;
 	/** Handler for `elicitation/create` */
-	elicitationRequestHandler?(req: MCP.ElicitRequest['params']): Promise<MCP.ElicitResult>;
+	elicitationRequestHandler?(req: MCP.ElicitRequest['params'], token?: CancellationToken): Promise<MCP.ElicitResult>;
 }
 
 /**
@@ -851,7 +863,7 @@ export interface ISamplingResult {
 export interface IMcpSamplingService {
 	_serviceBrand: undefined;
 
-	sample(opts: ISamplingOptions): Promise<ISamplingResult>;
+	sample(opts: ISamplingOptions, token?: CancellationToken): Promise<ISamplingResult>;
 
 	/** Whether MCP sampling logs are available for this server */
 	hasLogs(server: IMcpServer): boolean;
@@ -906,8 +918,31 @@ export interface IMcpElicitationService {
 	 * @param elicitation Request to elicit a response.
 	 * @returns A promise that resolves to an {@link ElicitationResult}.
 	 */
-	elicit(server: IMcpServer, context: IMcpToolCallContext | undefined, elicitation: MCP.ElicitRequest['params'], token: CancellationToken): Promise<MCP.ElicitResult>;
+	elicit(server: IMcpServer, context: IMcpToolCallContext | undefined, elicitation: MCP.ElicitRequest['params'], token: CancellationToken): Promise<ElicitResult>;
 }
+
+export const enum ElicitationKind {
+	Form,
+	URL,
+}
+
+export interface IUrlModeElicitResult extends IDisposable {
+	kind: ElicitationKind.URL;
+	value: MCP.ElicitResult;
+	/**
+	 * Waits until the server tells us the elicitation is completed before resolving.
+	 * Rejects with a CancellationError if the server stops before elicitation is
+	 * complete, or if the token is cancelled.
+	 */
+	wait: Promise<void>;
+}
+
+export interface IFormModeElicitResult extends IDisposable {
+	kind: ElicitationKind.Form;
+	value: MCP.ElicitResult;
+}
+
+export type ElicitResult = IUrlModeElicitResult | IFormModeElicitResult;
 
 export const IMcpElicitationService = createDecorator<IMcpElicitationService>('IMcpElicitationService');
 

@@ -2277,7 +2277,7 @@ written authorization of the copyright holder.
 
 ---------------------------------------------------------
 
-vscode-codicons 0.0.14 - MIT and Creative Commons Attribution 4.0
+vscode-codicons 0.0.41 - MIT and Creative Commons Attribution 4.0
 https://github.com/microsoft/vscode-codicons
 
 Attribution 4.0 International
@@ -2675,6 +2675,10 @@ the avoidance of doubt, this paragraph does not form part of the
 public licenses.
 
 Creative Commons may be contacted at creativecommons.org.
+
+---
+
+Git Logo by [Jason Long](https://bsky.app/profile/jasonlong.me) is licensed under the [Creative Commons Attribution 3.0 Unported License](https://creativecommons.org/licenses/by/3.0/).
 ---------------------------------------------------------
 
 ---------------------------------------------------------

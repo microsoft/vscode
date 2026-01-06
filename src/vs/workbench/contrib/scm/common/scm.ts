@@ -82,6 +82,7 @@ export interface ISCMProvider extends IDisposable {
 
 	readonly rootUri?: URI;
 	readonly iconPath?: URI | { light: URI; dark: URI } | ThemeIcon;
+	readonly isHidden?: boolean;
 	readonly inputBoxTextModel: ITextModel;
 	readonly contextValue: IObservable<string | undefined>;
 	readonly count: IObservable<number | undefined>;
@@ -201,7 +202,7 @@ export interface ISCMRepositoryMenus {
 	getResourceMenu(resource: ISCMResource): IMenu;
 	getResourceFolderMenu(group: ISCMResourceGroup): IMenu;
 	getArtifactGroupMenu(artifactGroup: ISCMArtifactGroup): IMenu;
-	getArtifactMenu(artifact: ISCMArtifact): IMenu;
+	getArtifactMenu(artifactGroup: ISCMArtifactGroup, artifact: ISCMArtifact): IMenu;
 }
 
 export interface ISCMMenus {
@@ -237,6 +238,7 @@ export interface ISCMViewService {
 
 	repositories: ISCMRepository[];
 	readonly onDidChangeRepositories: Event<ISCMViewVisibleRepositoryChangeEvent>;
+	readonly didFinishLoadingRepositories: IObservable<boolean>;
 
 	visibleRepositories: readonly ISCMRepository[];
 	readonly onDidChangeVisibleRepositories: Event<ISCMViewVisibleRepositoryChangeEvent>;
