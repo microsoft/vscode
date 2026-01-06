@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { registerTerminalSuggestProvidersConfiguration } from '../../common/terminalSuggestConfiguration.js';
+import { normalizeQuickSuggestionsConfig, registerTerminalSuggestProvidersConfiguration } from '../../common/terminalSuggestConfiguration.js';
 
 suite('Terminal Suggest Dynamic Configuration', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -34,5 +34,54 @@ suite('Terminal Suggest Dynamic Configuration', () => {
 		// This should not throw and should set up default configuration
 		registerTerminalSuggestProvidersConfiguration(undefined);
 		assert.ok(true);
+	});
+});
+
+suite('normalizeQuickSuggestionsConfig', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('should normalize boolean true to on for commands and arguments, off for unknown', () => {
+		const result = normalizeQuickSuggestionsConfig(true);
+		assert.strictEqual(result.commands, 'on');
+		assert.strictEqual(result.arguments, 'on');
+		assert.strictEqual(result.unknown, 'off');
+	});
+
+	test('should normalize boolean false to off for all', () => {
+		const result = normalizeQuickSuggestionsConfig(false);
+		assert.strictEqual(result.commands, 'off');
+		assert.strictEqual(result.arguments, 'off');
+		assert.strictEqual(result.unknown, 'off');
+	});
+
+	test('should normalize string "on" to on for commands and arguments, off for unknown', () => {
+		const result = normalizeQuickSuggestionsConfig('on');
+		assert.strictEqual(result.commands, 'on');
+		assert.strictEqual(result.arguments, 'on');
+		assert.strictEqual(result.unknown, 'off');
+	});
+
+	test('should normalize string "off" to off for all', () => {
+		const result = normalizeQuickSuggestionsConfig('off');
+		assert.strictEqual(result.commands, 'off');
+		assert.strictEqual(result.arguments, 'off');
+		assert.strictEqual(result.unknown, 'off');
+	});
+
+	test('should normalize string "all" to on for all', () => {
+		const result = normalizeQuickSuggestionsConfig('all');
+		assert.strictEqual(result.commands, 'on');
+		assert.strictEqual(result.arguments, 'on');
+		assert.strictEqual(result.unknown, 'on');
+	});
+
+	test('should pass through object configuration as-is', () => {
+		const config = {
+			commands: 'on' as const,
+			arguments: 'off' as const,
+			unknown: 'on' as const
+		};
+		const result = normalizeQuickSuggestionsConfig(config);
+		assert.deepStrictEqual(result, config);
 	});
 });

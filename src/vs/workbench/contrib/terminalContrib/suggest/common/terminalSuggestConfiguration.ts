@@ -47,7 +47,7 @@ export const terminalSuggestConfigSection = 'terminal.integrated.suggest';
 
 export interface ITerminalSuggestConfiguration {
 	enabled: boolean;
-	quickSuggestions: boolean | {
+	quickSuggestions: boolean | 'off' | 'on' | 'all' | {
 		commands: 'off' | 'on';
 		arguments: 'off' | 'on';
 		unknown: 'off' | 'on';
@@ -70,8 +70,9 @@ export interface ITerminalQuickSuggestionsOptions {
 
 /**
  * Normalizes the quickSuggestions config value to an object.
- * - `true` -> { commands: 'on', arguments: 'on', unknown: 'off' }
- * - `false` -> { commands: 'off', arguments: 'off', unknown: 'off' }
+ * - `true` or `'on'` -> { commands: 'on', arguments: 'on', unknown: 'off' }
+ * - `false` or `'off'` -> { commands: 'off', arguments: 'off', unknown: 'off' }
+ * - `'all'` -> { commands: 'on', arguments: 'on', unknown: 'on' }
  * - object -> passed through as-is
  */
 export function normalizeQuickSuggestionsConfig(config: ITerminalSuggestConfiguration['quickSuggestions']): ITerminalQuickSuggestionsOptions {
@@ -79,6 +80,17 @@ export function normalizeQuickSuggestionsConfig(config: ITerminalSuggestConfigur
 		return config
 			? { commands: 'on', arguments: 'on', unknown: 'off' }
 			: { commands: 'off', arguments: 'off', unknown: 'off' };
+	}
+	if (typeof config === 'string') {
+		switch (config) {
+			case 'on':
+				return { commands: 'on', arguments: 'on', unknown: 'off' };
+			case 'all':
+				return { commands: 'on', arguments: 'on', unknown: 'on' };
+			case 'off':
+			default:
+				return { commands: 'off', arguments: 'off', unknown: 'off' };
+		}
 	}
 	return config;
 }
@@ -100,6 +112,15 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		restricted: true,
 		markdownDescription: localize('suggest.quickSuggestions', "Controls whether suggestions should automatically show up while typing. Also be aware of the {0}-setting which controls if suggestions are triggered by special characters.", `\`#${TerminalSuggestSettingId.SuggestOnTriggerCharacters}#\``),
 		oneOf: [
+			{
+				type: 'string',
+				enum: ['off', 'on', 'all'],
+				enumDescriptions: [
+					localize('suggest.quickSuggestions.off', 'Disable quick suggestions.'),
+					localize('suggest.quickSuggestions.on', 'Enable quick suggestions for commands and arguments.'),
+					localize('suggest.quickSuggestions.all', 'Enable quick suggestions for commands, arguments, and when unclear (shows files and folders as fallback).')
+				],
+			},
 			{
 				type: 'boolean',
 			},
@@ -124,7 +145,7 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 				},
 			}
 		],
-		default: false,
+		default: 'off',
 	},
 	[TerminalSuggestSettingId.SuggestOnTriggerCharacters]: {
 		restricted: true,
