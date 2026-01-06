@@ -294,8 +294,8 @@ registerTerminalAction({
 });
 registerTerminalAction({
 	id: TerminalSuggestCommandId.ChangeSelectionModePartial,
-	title: localize2('workbench.action.terminal.changeSelectionMode.partial', 'Selection Mode: Partial (Tab)'),
-	tooltip: localize2('workbench.action.terminal.changeSelectionMode.partial.tooltip', 'Partially select the top suggestion, Tab will accept a suggestion when visible.\n\nClick to rotate between options.'),
+	title: localize2('workbench.action.terminal.changeSelectionMode.partial', 'Selection Mode: Partial'),
+	tooltip: localize2('workbench.action.terminal.changeSelectionMode.partial.tooltip', 'Partially select the top suggestion, accepting will insert the selected suggestion when visible.\n\nClick to rotate between options.'),
 	f1: false,
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
@@ -316,8 +316,8 @@ registerTerminalAction({
 });
 registerTerminalAction({
 	id: TerminalSuggestCommandId.ChangeSelectionModeAlways,
-	title: localize2('workbench.action.terminal.changeSelectionMode.always', 'Selection Mode: Always (Tab or Enter)'),
-	tooltip: localize2('workbench.action.terminal.changeSelectionMode.always.tooltip', 'Always select the top suggestion, Tab or Enter will accept a suggestion when visible.\n\nClick to rotate between options.'),
+	title: localize2('workbench.action.terminal.changeSelectionMode.always', 'Selection Mode: Always'),
+	tooltip: localize2('workbench.action.terminal.changeSelectionMode.always.tooltip', 'Always select the top suggestion, accepting will insert the selected suggestion when visible.\n\nClick to rotate between options.'),
 	f1: false,
 	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
 	menu: {
