@@ -40,6 +40,9 @@ export class QuickInputBox extends Disposable {
 		input.role = 'textbox';
 		input.ariaHasPopup = 'menu';
 		input.ariaAutoComplete = 'list';
+
+		// Disable tooltips for Quick Input to prevent obscuring dropdown results
+		this.findInput.inputBox.setTooltip = () => { /* no-op */ };
 	}
 
 	get onKeyDown() {
