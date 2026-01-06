@@ -7,6 +7,7 @@ import { SequencerByKey } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
+import { getErrorMessage } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { hash } from '../../../../base/common/hash.js';
 import { Iterable } from '../../../../base/common/iterator.js';
@@ -275,6 +276,10 @@ export interface ILanguageModelChatInfoOptions {
 export interface ILanguageModelsGroup {
 	readonly group?: ILanguageModelsProviderGroup;
 	readonly models: ILanguageModelChatMetadata[];
+	readonly status?: {
+		readonly message: string;
+		readonly severity: Severity;
+	};
 }
 
 export interface ILanguageModelsService {
@@ -540,39 +545,55 @@ export class LanguageModelsService implements ILanguageModelsService {
 		}
 
 		return this._resolveLMSequencer.queue(vendorId, async () => {
+
+			const languageModelsGroups: ILanguageModelsGroup[] = [];
+
 			try {
-
-				const languageModelsGroups: ILanguageModelsGroup[] = [];
-
 				const modelsMetadata = await this._resolveLanguageModels(vendorId, provider, { silent });
 				if (modelsMetadata.length) {
 					languageModelsGroups.push({ models: modelsMetadata });
 				}
-
-				const groups = this._languageModelsConfigurationService.getLanguageModelsProviderGroups();
-				for (const group of groups) {
-					if (group.vendor !== vendorId) {
-						continue;
+			} catch (error) {
+				languageModelsGroups.push({
+					models: [],
+					status: {
+						message: getErrorMessage(error),
+						severity: Severity.Error
 					}
+				});
+			}
 
-					const configuration = await this._resolveConfiguration(group, vendor.configuration);
+			const groups = this._languageModelsConfigurationService.getLanguageModelsProviderGroups();
+			for (const group of groups) {
+				if (group.vendor !== vendorId) {
+					continue;
+				}
 
+				const configuration = await this._resolveConfiguration(group, vendor.configuration);
+
+				try {
 					const modelsMetadata = await this._resolveLanguageModels(vendorId, provider, { silent, configuration });
 					if (modelsMetadata.length) {
 						languageModelsGroups.push({ group, models: modelsMetadata });
 					}
+				} catch (error) {
+					languageModelsGroups.push({
+						group,
+						models: [],
+						status: {
+							message: getErrorMessage(error),
+							severity: Severity.Error
+						}
+					});
 				}
+			}
 
-				this._modelsGroups.set(vendorId, languageModelsGroups);
-				this._clearModelCache(vendorId);
-				for (const group of languageModelsGroups) {
-					for (const model of group.models) {
-						this._modelCache.set(model.id, model);
-					}
+			this._modelsGroups.set(vendorId, languageModelsGroups);
+			this._clearModelCache(vendorId);
+			for (const group of languageModelsGroups) {
+				for (const model of group.models) {
+					this._modelCache.set(model.id, model);
 				}
-
-			} catch (error) {
-				this._logService.error(`[LM] Error resolving language models for vendor ${vendorId}:`, error);
 			}
 			this._onLanguageModelChange.fire(vendorId);
 		});

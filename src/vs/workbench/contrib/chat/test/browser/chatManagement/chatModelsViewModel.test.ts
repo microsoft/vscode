@@ -8,7 +8,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelChatSelector, ILanguageModelsGroup, ILanguageModelsService, IUserFriendlyLanguageModel } from '../../../common/languageModels.js';
-import { ChatModelGroup, ChatModelsViewModel, ILanguageModelEntry, ILanguageModelProviderEntry, isLanguageModelProviderEntry, isLanguageModelGroupEntry, ILanguageModelGroupEntry } from '../../../browser/chatManagement/chatModelsViewModel.js';
+import { ChatModelGroup, ChatModelsViewModel, ILanguageModelEntry, ILanguageModelProviderEntry, isLanguageModelProviderEntry, isLanguageModelGroupEntry, ILanguageModelGroupEntry, isStatusEntry } from '../../../browser/chatManagement/chatModelsViewModel.js';
 import { IChatEntitlementService, ChatEntitlement } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
@@ -786,8 +786,8 @@ suite('ChatModelsViewModel', () => {
 		assert.strictEqual(groups[0].id, 'visible');
 		assert.strictEqual(groups[1].id, 'hidden');
 
-		const visibleModels = results.filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r) && r.model.metadata.isUserSelectable) as ILanguageModelEntry[];
-		const hiddenModels = results.filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r) && !r.model.metadata.isUserSelectable) as ILanguageModelEntry[];
+		const visibleModels = results.filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r) && !isStatusEntry(r) && r.model.metadata.isUserSelectable) as ILanguageModelEntry[];
+		const hiddenModels = results.filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r) && !isStatusEntry(r) && !r.model.metadata.isUserSelectable) as ILanguageModelEntry[];
 
 		assert.strictEqual(visibleModels.length, 3);
 		assert.strictEqual(hiddenModels.length, 1);
@@ -846,7 +846,7 @@ suite('ChatModelsViewModel', () => {
 		viewModel.groupBy = ChatModelGroup.Visibility;
 		const results = viewModel.filter('');
 
-		const visibleModels = results.filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r) && r.model.metadata.isUserSelectable) as ILanguageModelEntry[];
+		const visibleModels = results.filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r) && !isStatusEntry(r) && r.model.metadata.isUserSelectable) as ILanguageModelEntry[];
 
 		assert.strictEqual(visibleModels.length, 4);
 		assert.strictEqual(visibleModels[0].model.metadata.name, 'GPT-4');
@@ -870,7 +870,7 @@ suite('ChatModelsViewModel', () => {
 		// Hidden: GPT-4 Vision
 
 		// Toggle GPT-4 Vision to visible
-		const hiddenModel = viewModel.viewModelEntries.find(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r) && r.model.identifier === 'openai-gpt-4-vision') as ILanguageModelEntry;
+		const hiddenModel = viewModel.viewModelEntries.find(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r) && !isStatusEntry(r) && r.model.identifier === 'openai-gpt-4-vision') as ILanguageModelEntry;
 		assert.ok(hiddenModel);
 		const initialIndex = viewModel.viewModelEntries.indexOf(hiddenModel);
 

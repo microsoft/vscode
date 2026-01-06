@@ -23,7 +23,7 @@ import { IContextMenuService } from '../../../../../platform/contextview/browser
 import { IAction, toAction, Action, Separator, SubmenuAction } from '../../../../../base/common/actions.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { ChatModelsViewModel, ILanguageModel, ILanguageModelEntry, ILanguageModelProviderEntry, ILanguageModelGroupEntry, SEARCH_SUGGESTIONS, isLanguageModelProviderEntry, isLanguageModelGroupEntry, ChatModelGroup } from './chatModelsViewModel.js';
+import { ChatModelsViewModel, ILanguageModel, ILanguageModelEntry, ILanguageModelProviderEntry, ILanguageModelGroupEntry, SEARCH_SUGGESTIONS, isLanguageModelProviderEntry, isLanguageModelGroupEntry, ChatModelGroup, IViewModelEntry, isStatusEntry, IStatusEntry } from './chatModelsViewModel.js';
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
 import { SuggestEnabledInput } from '../../../codeEditor/browser/suggestEnabledInput/suggestEnabledInput.js';
 import { Delayer } from '../../../../../base/common/async.js';
@@ -39,14 +39,13 @@ import { IEditorProgressService } from '../../../../../platform/progress/common/
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { CONTEXT_MODELS_SEARCH_FOCUS } from '../../common/constants.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import Severity from '../../../../../base/common/severity.js';
 
 const $ = DOM.$;
 
 const HEADER_HEIGHT = 30;
 const VENDOR_ROW_HEIGHT = 30;
 const MODEL_ROW_HEIGHT = 26;
-
-type TableEntry = ILanguageModelEntry | ILanguageModelProviderEntry | ILanguageModelGroupEntry;
 
 export function getModelHoverContent(model: ILanguageModel): MarkdownString {
 	const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
@@ -256,9 +255,9 @@ class ModelsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionVie
 	}
 }
 
-class Delegate implements ITableVirtualDelegate<TableEntry> {
+class Delegate implements ITableVirtualDelegate<IViewModelEntry> {
 	readonly headerRowHeight = HEADER_HEIGHT;
-	getHeight(element: TableEntry): number {
+	getHeight(element: IViewModelEntry): number {
 		return isLanguageModelProviderEntry(element) || isLanguageModelGroupEntry(element) ? VENDOR_ROW_HEIGHT : MODEL_ROW_HEIGHT;
 	}
 }
@@ -269,22 +268,26 @@ interface IModelTableColumnTemplateData {
 	readonly elementDisposables: DisposableStore;
 }
 
-abstract class ModelsTableColumnRenderer<T extends IModelTableColumnTemplateData> implements ITableRenderer<TableEntry, T> {
+abstract class ModelsTableColumnRenderer<T extends IModelTableColumnTemplateData> implements ITableRenderer<IViewModelEntry, T> {
 	abstract readonly templateId: string;
 	abstract renderTemplate(container: HTMLElement): T;
 
-	renderElement(element: TableEntry, index: number, templateData: T): void {
+	renderElement(element: IViewModelEntry, index: number, templateData: T): void {
 		templateData.elementDisposables.clear();
 		const isVendor = isLanguageModelProviderEntry(element);
 		const isGroup = isLanguageModelGroupEntry(element);
+		const isStatus = isStatusEntry(element);
 		templateData.container.classList.add('models-table-column');
 		templateData.container.parentElement!.classList.toggle('models-vendor-row', isVendor || isGroup);
 		templateData.container.parentElement!.classList.toggle('models-model-row', !isVendor && !isGroup);
-		templateData.container.parentElement!.classList.toggle('model-hidden', !isVendor && !isGroup && !element.model.metadata.isUserSelectable);
+		templateData.container.parentElement!.classList.toggle('models-status-row', isStatus);
+		templateData.container.parentElement!.classList.toggle('model-hidden', !isVendor && !isGroup && !isStatus && !element.model.metadata.isUserSelectable);
 		if (isVendor) {
 			this.renderVendorElement(element, index, templateData);
 		} else if (isGroup) {
 			this.renderGroupElement(element, index, templateData);
+		} else if (isStatus) {
+			this.renderStatusElement(element, index, templateData);
 		} else {
 			this.renderModelElement(element, index, templateData);
 		}
@@ -293,6 +296,8 @@ abstract class ModelsTableColumnRenderer<T extends IModelTableColumnTemplateData
 	abstract renderVendorElement(element: ILanguageModelProviderEntry, index: number, templateData: T): void;
 	abstract renderGroupElement(element: ILanguageModelGroupEntry, index: number, templateData: T): void;
 	abstract renderModelElement(element: ILanguageModelEntry, index: number, templateData: T): void;
+
+	protected renderStatusElement(element: IStatusEntry, index: number, templateData: T): void { }
 
 	disposeTemplate(templateData: T): void {
 		templateData.elementDisposables.dispose();
@@ -332,7 +337,7 @@ class GutterColumnRenderer extends ModelsTableColumnRenderer<IToggleCollapseColu
 		};
 	}
 
-	override renderElement(entry: TableEntry, index: number, templateData: IToggleCollapseColumnTemplateData): void {
+	override renderElement(entry: IViewModelEntry, index: number, templateData: IToggleCollapseColumnTemplateData): void {
 		templateData.actionBar.clear();
 		super.renderElement(entry, index, templateData);
 	}
@@ -411,9 +416,10 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 		};
 	}
 
-	override renderElement(entry: TableEntry, index: number, templateData: IModelNameColumnTemplateData): void {
+	override renderElement(entry: IViewModelEntry, index: number, templateData: IModelNameColumnTemplateData): void {
 		DOM.clearNode(templateData.statusIcon);
 		templateData.actionBar.clear();
+		templateData.nameLabel.element.classList.remove('error-status', 'warning-status', 'info-status');
 		super.renderElement(entry, index, templateData);
 	}
 
@@ -466,6 +472,26 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 				skipFadeInAnimation: true,
 			}
 		})));
+	}
+
+	protected override renderStatusElement(entry: IStatusEntry, index: number, templateData: IModelNameColumnTemplateData): void {
+		templateData.statusIcon.className = 'model-status-icon';
+		templateData.statusIcon.style.display = '';
+		switch (entry.severity) {
+			case Severity.Error:
+				templateData.nameLabel.element.classList.add('error-status');
+				templateData.statusIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.error));
+				break;
+			case Severity.Warning:
+				templateData.nameLabel.element.classList.add('warning-status');
+				templateData.statusIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.warning));
+				break;
+			case Severity.Info:
+				templateData.nameLabel.element.classList.add('info-status');
+				templateData.statusIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.info));
+				break;
+		}
+		templateData.nameLabel.set(entry.message, undefined);
 	}
 }
 
@@ -547,7 +573,7 @@ class TokenLimitsColumnRenderer extends ModelsTableColumnRenderer<ITokenLimitsCo
 		};
 	}
 
-	override renderElement(entry: TableEntry, index: number, templateData: ITokenLimitsColumnTemplateData): void {
+	override renderElement(entry: IViewModelEntry, index: number, templateData: ITokenLimitsColumnTemplateData): void {
 		DOM.clearNode(templateData.tokenLimitsElement);
 		super.renderElement(entry, index, templateData);
 	}
@@ -620,7 +646,7 @@ class CapabilitiesColumnRenderer extends ModelsTableColumnRenderer<ICapabilities
 		};
 	}
 
-	override renderElement(entry: TableEntry, index: number, templateData: ICapabilitiesColumnTemplateData): void {
+	override renderElement(entry: IViewModelEntry, index: number, templateData: ICapabilitiesColumnTemplateData): void {
 		DOM.clearNode(templateData.metadataRow);
 		super.renderElement(entry, index, templateData);
 	}
@@ -709,7 +735,7 @@ class ActionsColumnRenderer extends ModelsTableColumnRenderer<IActionsColumnTemp
 		};
 	}
 
-	override renderElement(entry: TableEntry, index: number, templateData: IActionsColumnTemplateData): void {
+	override renderElement(entry: IViewModelEntry, index: number, templateData: IActionsColumnTemplateData): void {
 		templateData.actionBar.setActions([]);
 		super.renderElement(entry, index, templateData);
 	}
@@ -829,7 +855,7 @@ export class ChatModelsWidget extends Disposable {
 	readonly element: HTMLElement;
 	private searchWidget!: SuggestEnabledInput;
 	private searchActionsContainer!: HTMLElement;
-	private table!: WorkbenchTable<TableEntry>;
+	private table!: WorkbenchTable<IViewModelEntry>;
 	private tableContainer!: HTMLElement;
 	private addButtonContainer!: HTMLElement;
 	private addButton!: Button;
@@ -1007,7 +1033,7 @@ export class ChatModelsWidget extends Disposable {
 				minimumWidth: 40,
 				maximumWidth: 40,
 				templateId: GutterColumnRenderer.TEMPLATE_ID,
-				project(row: TableEntry): TableEntry { return row; }
+				project(row: IViewModelEntry): IViewModelEntry { return row; }
 			},
 			{
 				label: localize('modelName', 'Name'),
@@ -1015,7 +1041,7 @@ export class ChatModelsWidget extends Disposable {
 				weight: 0.35,
 				minimumWidth: 200,
 				templateId: ModelNameColumnRenderer.TEMPLATE_ID,
-				project(row: TableEntry): TableEntry { return row; }
+				project(row: IViewModelEntry): IViewModelEntry { return row; }
 			}
 		];
 
@@ -1026,7 +1052,7 @@ export class ChatModelsWidget extends Disposable {
 				weight: 0.15,
 				minimumWidth: 100,
 				templateId: ProviderColumnRenderer.TEMPLATE_ID,
-				project(row: TableEntry): TableEntry { return row; }
+				project(row: IViewModelEntry): IViewModelEntry { return row; }
 			});
 		}
 
@@ -1037,7 +1063,7 @@ export class ChatModelsWidget extends Disposable {
 				weight: 0.1,
 				minimumWidth: 140,
 				templateId: TokenLimitsColumnRenderer.TEMPLATE_ID,
-				project(row: TableEntry): TableEntry { return row; }
+				project(row: IViewModelEntry): IViewModelEntry { return row; }
 			},
 			{
 				label: localize('capabilities', 'Capabilities'),
@@ -1045,7 +1071,7 @@ export class ChatModelsWidget extends Disposable {
 				weight: 0.25,
 				minimumWidth: 180,
 				templateId: CapabilitiesColumnRenderer.TEMPLATE_ID,
-				project(row: TableEntry): TableEntry { return row; }
+				project(row: IViewModelEntry): IViewModelEntry { return row; }
 			},
 			{
 				label: localize('cost', 'Multiplier'),
@@ -1053,7 +1079,7 @@ export class ChatModelsWidget extends Disposable {
 				weight: 0.05,
 				minimumWidth: 60,
 				templateId: MultiplierColumnRenderer.TEMPLATE_ID,
-				project(row: TableEntry): TableEntry { return row; }
+				project(row: IViewModelEntry): IViewModelEntry { return row; }
 			},
 			{
 				label: '',
@@ -1062,7 +1088,7 @@ export class ChatModelsWidget extends Disposable {
 				minimumWidth: 64,
 				maximumWidth: 64,
 				templateId: ActionsColumnRenderer.TEMPLATE_ID,
-				project(row: TableEntry): TableEntry { return row; }
+				project(row: IViewModelEntry): IViewModelEntry { return row; }
 			}
 		);
 
@@ -1082,14 +1108,16 @@ export class ChatModelsWidget extends Disposable {
 				providerColumnRenderer
 			],
 			{
-				identityProvider: { getId: (e: TableEntry) => e.id },
+				identityProvider: { getId: (e: IViewModelEntry) => e.id },
 				horizontalScrolling: false,
 				accessibilityProvider: {
-					getAriaLabel: (e: TableEntry) => {
+					getAriaLabel: (e: IViewModelEntry) => {
 						if (isLanguageModelProviderEntry(e)) {
 							return localize('vendor.ariaLabel', '{0} Models', e.vendorEntry.group.name);
 						} else if (isLanguageModelGroupEntry(e)) {
 							return e.id === 'visible' ? localize('visible.ariaLabel', 'Visible Models') : localize('hidden.ariaLabel', 'Hidden Models');
+						} else if (isStatusEntry(e)) {
+							return localize('status.ariaLabel', 'Status: {0}', e.message);
 						}
 						const ariaLabels = [];
 						ariaLabels.push(localize('model.name', '{0} from {1}', e.model.metadata.name, e.model.provider.vendor.displayName));
@@ -1117,7 +1145,7 @@ export class ChatModelsWidget extends Disposable {
 				openOnSingleClick: true,
 				alwaysConsumeMouseWheel: false,
 			}
-		)) as WorkbenchTable<TableEntry>;
+		)) as WorkbenchTable<IViewModelEntry>;
 
 		this.tableDisposables.add(this.table.onContextMenu(e => {
 			if (!e.element) {
@@ -1167,6 +1195,9 @@ export class ChatModelsWidget extends Disposable {
 
 		this.tableDisposables.add(this.table.onDidOpen(async ({ element, browserEvent }) => {
 			if (!element) {
+				return;
+			}
+			if (isStatusEntry(element)) {
 				return;
 			}
 			if (isLanguageModelProviderEntry(element) || isLanguageModelGroupEntry(element)) {
