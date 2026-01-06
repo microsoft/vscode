@@ -190,7 +190,8 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 		const autoRevealButton: IQuickInputButton = {
 			iconClass: ThemeIcon.asClassName(Codicon.eye),
 			tooltip: localize('gotoLineAutoRevealToggleButton', "Toggle Auto Reveal"),
-			location: QuickInputButtonLocation.Input,
+			location: QuickInputButtonLocation.Inline,
+			secondary: true,
 			toggle: { checked: !this.disableAutoReveal }
 		};
 
