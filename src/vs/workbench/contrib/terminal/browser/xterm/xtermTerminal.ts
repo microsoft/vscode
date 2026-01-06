@@ -106,6 +106,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	get lastInputEvent(): string | undefined { return this._lastInputEvent; }
 	private _progressState: IProgressState = { state: 0, value: 0 };
 	get progressState(): IProgressState { return this._progressState; }
+	get buffer() { return this.raw.buffer; }
 
 	// Always on addons
 	private _markNavigationAddon: MarkNavigationAddon;

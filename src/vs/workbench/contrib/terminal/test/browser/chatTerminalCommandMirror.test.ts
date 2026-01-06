@@ -129,10 +129,29 @@ class MockCommandDetectionCapability extends Disposable {
 }
 
 function createDetachedTerminal(writes: string[]): IDetachedTerminalInstance {
+	let cursorY = 0;
+	let baseY = 0;
 	return {
 		xterm: {
-			write: (data: string) => {
+			write: (data: string, callback?: () => void) => {
 				writes.push(data);
+				// Simulate cursor position updates based on line feeds
+				const lines = data.split('\r\n');
+				cursorY += lines.length - 1;
+				// If cursor goes beyond visible area, update baseY (scrollback)
+				if (cursorY >= 10) {
+					baseY += cursorY - 9;
+					cursorY = 9;
+				}
+				if (callback) {
+					callback();
+				}
+			},
+			buffer: {
+				active: {
+					get baseY() { return baseY; },
+					get cursorY() { return cursorY; }
+				}
 			}
 		},
 		attachToElement: () => { /* no-op */ },
@@ -274,7 +293,10 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 			const detached = createDetachedTerminal(writes);
 
 			// Bypass actual detached terminal creation for this focused unit test.
-			(mirror as unknown as Record<string, unknown>)['_getOrCreateTerminal'] = async () => detached;
+			(mirror as unknown as Record<string, unknown>)['_getOrCreateTerminal'] = async () => {
+				(mirror as unknown as Record<string, unknown>)['_detachedTerminal'] = detached;
+				return detached;
+			};
 
 			const result = await mirror.renderCommand();
 
@@ -307,7 +329,10 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 			const writes: string[] = [];
 			const detached = createDetachedTerminal(writes);
 
-			(mirror as unknown as Record<string, unknown>)['_getOrCreateTerminal'] = async () => detached;
+			(mirror as unknown as Record<string, unknown>)['_getOrCreateTerminal'] = async () => {
+				(mirror as unknown as Record<string, unknown>)['_detachedTerminal'] = detached;
+				return detached;
+			};
 
 			const result = await mirror.renderCommand();
 
@@ -379,7 +404,10 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 				const writes: string[] = [];
 				const detached = createDetachedTerminal(writes);
 
-				(mirror as unknown as Record<string, unknown>)['_getOrCreateTerminal'] = async () => detached;
+				(mirror as unknown as Record<string, unknown>)['_getOrCreateTerminal'] = async () => {
+					(mirror as unknown as Record<string, unknown>)['_detachedTerminal'] = detached;
+					return detached;
+				};
 
 				const expectedText = await xterm.getRangeAsVT(executedMarker, endMarker, true);
 				const result = await mirror.renderCommand();
@@ -408,7 +436,10 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 				const writes: string[] = [];
 				const detached = createDetachedTerminal(writes);
 
-				(mirror as unknown as Record<string, unknown>)['_getOrCreateTerminal'] = async () => detached;
+				(mirror as unknown as Record<string, unknown>)['_getOrCreateTerminal'] = async () => {
+					(mirror as unknown as Record<string, unknown>)['_detachedTerminal'] = detached;
+					return detached;
+				};
 
 				const vt1 = await xterm.getRangeAsVT(executedMarker, firstEndMarker, true) ?? '';
 				await mirror.renderCommand();
@@ -448,7 +479,10 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 				const writes: string[] = [];
 				const detached = createDetachedTerminal(writes);
 
-				(mirror as unknown as Record<string, unknown>)['_getOrCreateTerminal'] = async () => detached;
+				(mirror as unknown as Record<string, unknown>)['_getOrCreateTerminal'] = async () => {
+					(mirror as unknown as Record<string, unknown>)['_detachedTerminal'] = detached;
+					return detached;
+				};
 
 				const expectedText = await xterm.getRangeAsVT(commandExecutedMarker, endMarker, true);
 				const result = await mirror.renderCommand();
@@ -478,7 +512,10 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 				const writes: string[] = [];
 				const detached = createDetachedTerminal(writes);
 
-				(mirror as unknown as Record<string, unknown>)['_getOrCreateTerminal'] = async () => detached;
+				(mirror as unknown as Record<string, unknown>)['_getOrCreateTerminal'] = async () => {
+					(mirror as unknown as Record<string, unknown>)['_detachedTerminal'] = detached;
+					return detached;
+				};
 
 				const expectedText = await xterm.getRangeAsVT(executedMarker, undefined, true);
 				const result = await mirror.renderCommand();

@@ -205,19 +205,25 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 			return undefined;
 		}
 
-		if (!this._lastVT) {
-			if (vt.text) {
-				detached.xterm.write(vt.text);
+		await new Promise<void>(resolve => {
+			if (!this._lastVT) {
+				if (vt.text) {
+					detached.xterm.write(vt.text, resolve);
+				} else {
+					resolve();
+				}
+			} else {
+				const appended = vt.text.slice(this._lastVT.length);
+				if (appended) {
+					detached.xterm.write(appended, resolve);
+				} else {
+					resolve();
+				}
 			}
-		} else {
-			const appended = vt.text.slice(this._lastVT.length);
-			if (appended) {
-				detached.xterm.write(appended);
-			}
-		}
+		});
 
 		this._lastVT = vt.text;
-		this._lineCount = vt.lineCount;
+		this._lineCount = this._getRenderedLineCount();
 
 		const sourceRaw = this._xtermTerminal.raw;
 		if (sourceRaw) {
@@ -228,10 +234,10 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 			}
 		}
 
-		return { lineCount: vt.lineCount };
+		return { lineCount: this._lineCount };
 	}
 
-	private async _getCommandOutputAsVT(source: XtermTerminal): Promise<{ text: string; lineCount: number } | undefined> {
+	private async _getCommandOutputAsVT(source: XtermTerminal): Promise<{ text: string } | undefined> {
 		if (this._isDisposed) {
 			return undefined;
 		}
@@ -246,10 +252,51 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 			return undefined;
 		}
 		if (!text) {
-			return { text: '', lineCount: 0 };
+			return { text: '' };
 		}
 
-		return { text, lineCount: text.split('\r\n').length };
+		return { text };
+	}
+
+	private _getRenderedLineCount(): number {
+		if (!this._detachedTerminal) {
+			return this._lineCount;
+		}
+		const buffer = this._detachedTerminal.xterm.buffer.active;
+		const baseY = buffer.baseY;
+		const cursorY = buffer.cursorY;
+		const cursorX = buffer.cursorX;
+
+		// Total lines is baseY (scrollback) + cursorY (visible position) + 1
+		// But if cursor is at column 0 on the current line, it means the previous
+		// line ended with a newline and the cursor moved to an empty line.
+		// In that case, don't count the empty line.
+		let totalLines = baseY + cursorY + 1;
+		if (cursorX === 0 && totalLines > 1) {
+			// Check if the current line is empty (cursor at start of an empty line)
+			const line = buffer.getLine(baseY + cursorY);
+			if (line && line.translateToString(true).length === 0) {
+				totalLines = totalLines - 1;
+			}
+		}
+
+		// Also calculate minimum expected lines from the VT text as a sanity check.
+		// This handles cases where the buffer cursor position hasn't fully updated yet.
+		const textLineCount = this._lastVT ? this._countLinesFromText(this._lastVT) : 0;
+		return Math.max(totalLines, textLineCount);
+	}
+
+	private _countLinesFromText(text: string): number {
+		if (!text) {
+			return 0;
+		}
+		// Count line breaks in the text. VT sequences use \r\n for newlines.
+		const lines = text.split(/\r\n|\n|\r/);
+		// If text ends with a newline, don't count the empty trailing element
+		if (lines.length > 0 && lines[lines.length - 1] === '') {
+			return lines.length - 1;
+		}
+		return lines.length;
 	}
 
 	private async _getOrCreateTerminal(): Promise<IDetachedTerminalInstance> {
@@ -371,7 +418,6 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 		}
 
 		if (vt.text === this._lastVT) {
-			this._lineCount = vt.lineCount;
 			this._lastUpToDateCursorY = currentCursor;
 			if (this._command.endMarker && !this._command.endMarker.isDisposed) {
 				this._stopStreaming();
@@ -380,19 +426,25 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 		}
 
 		const canAppend = !!this._lastVT && startLine >= previousCursor;
-		if (!this._lastVT || !canAppend) {
-			if (vt.text) {
-				detachedRaw.write(vt.text);
+		await new Promise<void>(resolve => {
+			if (!this._lastVT || !canAppend) {
+				if (vt.text) {
+					detachedRaw.write(vt.text, resolve);
+				} else {
+					resolve();
+				}
+			} else {
+				const appended = vt.text.slice(this._lastVT.length);
+				if (appended) {
+					detachedRaw.write(appended, resolve);
+				} else {
+					resolve();
+				}
 			}
-		} else {
-			const appended = vt.text.slice(this._lastVT.length);
-			if (appended) {
-				detachedRaw.write(appended);
-			}
-		}
+		});
 
 		this._lastVT = vt.text;
-		this._lineCount = vt.lineCount;
+		this._lineCount = this._getRenderedLineCount();
 		this._lastUpToDateCursorY = currentCursor;
 		this._onDidUpdateEmitter.fire(this._lineCount);
 

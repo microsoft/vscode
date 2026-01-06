@@ -1476,6 +1476,18 @@ export interface IDetachedXtermTerminal extends IXtermTerminal {
 	 * Resizes the terminal.
 	 */
 	resize(columns: number, rows: number): void;
+
+	/**
+	 * Access to the terminal buffer for reading cursor position and content.
+	 */
+	readonly buffer: {
+		readonly active: {
+			readonly baseY: number;
+			readonly cursorY: number;
+			readonly cursorX: number;
+			getLine(y: number): { translateToString(trimRight?: boolean): string } | undefined;
+		};
+	};
 }
 
 export interface IInternalXtermTerminal {
