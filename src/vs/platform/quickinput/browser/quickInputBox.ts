@@ -5,7 +5,6 @@
 
 import * as dom from '../../../base/browser/dom.js';
 import { FindInput } from '../../../base/browser/ui/findinput/findInput.js';
-import { getBaseLayerHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegate2.js';
 import { IInputBoxStyles, IRange, MessageType } from '../../../base/browser/ui/inputbox/inputBox.js';
 import { createToggleActionViewItemProvider, IToggleStyles, Toggle } from '../../../base/browser/ui/toggle/toggle.js';
 import { IAction } from '../../../base/common/actions.js';
@@ -35,17 +34,13 @@ export class QuickInputBox extends Disposable {
 				label: '',
 				inputBoxStyles,
 				toggleStyles,
-				actionViewItemProvider: createToggleActionViewItemProvider(toggleStyles)
+				actionViewItemProvider: createToggleActionViewItemProvider(toggleStyles),
+				hideHoverOnKeyDown: true
 			}));
 		const input = this.findInput.inputBox.inputElement;
 		input.role = 'textbox';
 		input.ariaHasPopup = 'menu';
 		input.ariaAutoComplete = 'list';
-
-		// Hide tooltip when user starts typing to prevent obscuring dropdown results
-		this._register(dom.addDisposableListener(input, dom.EventType.KEY_DOWN, () => {
-			getBaseLayerHoverDelegate().hideHover();
-		}));
 	}
 
 	get onKeyDown() {

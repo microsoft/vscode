@@ -40,6 +40,7 @@ export interface IInputOptions {
 	readonly actionViewItemProvider?: IActionViewItemProvider;
 	readonly inputBoxStyles: IInputBoxStyles;
 	readonly history?: IHistory<string>;
+	readonly hideHoverOnKeyDown?: boolean;
 }
 
 export interface IInputBoxStyles {
@@ -200,6 +201,12 @@ export class InputBox extends Widget {
 		this.oninput(this.input, () => this.onValueChange());
 		this.onblur(this.input, () => this.onBlur());
 		this.onfocus(this.input, () => this.onFocus());
+
+		if (this.options.hideHoverOnKeyDown) {
+			this._register(dom.addDisposableListener(this.input, dom.EventType.KEY_DOWN, () => {
+				getBaseLayerHoverDelegate().hideHover();
+			}));
+		}
 
 		this._register(this.ignoreGesture(this.input));
 
