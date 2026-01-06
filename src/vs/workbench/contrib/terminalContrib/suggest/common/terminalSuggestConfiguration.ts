@@ -47,11 +47,7 @@ export const terminalSuggestConfigSection = 'terminal.integrated.suggest';
 
 export interface ITerminalSuggestConfiguration {
 	enabled: boolean;
-	quickSuggestions: boolean | 'off' | 'on' | 'all' | {
-		commands: 'off' | 'on';
-		arguments: 'off' | 'on';
-		unknown: 'off' | 'on';
-	};
+	quickSuggestions: boolean | ITerminalQuickSuggestionsOptions;
 	suggestOnTriggerCharacters: boolean;
 	runOnEnter: 'never' | 'exactMatch' | 'exactMatchIgnoreExtension' | 'always';
 	windowsExecutableExtensions: { [key: string]: boolean };
@@ -63,37 +59,60 @@ export interface ITerminalSuggestConfiguration {
 }
 
 export interface ITerminalQuickSuggestionsOptions {
-	commands: 'off' | 'on';
-	arguments: 'off' | 'on';
-	unknown: 'off' | 'on';
+	commands?: boolean | 'off' | 'on';
+	arguments?: boolean | 'off' | 'on';
+	unknown?: boolean | 'off' | 'on';
+}
+
+export interface ITerminalQuickSuggestionsInternalOptions {
+	readonly commands: 'off' | 'on';
+	readonly arguments: 'off' | 'on';
+	readonly unknown: 'off' | 'on';
 }
 
 /**
- * Normalizes the quickSuggestions config value to an object.
- * - `true` or `'on'` → `{ commands: 'on', arguments: 'on', unknown: 'off' }`
- * - `false` or `'off'` → `{ commands: 'off', arguments: 'off', unknown: 'off' }`
- * - `'all'` → `{ commands: 'on', arguments: 'on', unknown: 'on' }`
- * - object → passed through as-is
- * - any other string value → defaults to `'off'` behavior
+ * Normalizes the quickSuggestions config value to an internal normalized object.
+ * - `true` → `{ commands: 'on', arguments: 'on', unknown: 'off' }`
+ * - `false` → `{ commands: 'off', arguments: 'off', unknown: 'off' }`
+ * - object → each property is normalized (boolean → 'on'/'off', string → validated)
  */
-export function normalizeQuickSuggestionsConfig(config: ITerminalSuggestConfiguration['quickSuggestions']): ITerminalQuickSuggestionsOptions {
+export function normalizeQuickSuggestionsConfig(config: ITerminalSuggestConfiguration['quickSuggestions']): ITerminalQuickSuggestionsInternalOptions {
+	const defaults: ITerminalQuickSuggestionsInternalOptions = {
+		commands: 'off',
+		arguments: 'off',
+		unknown: 'off'
+	};
+
 	if (typeof config === 'boolean') {
+		// When true, enable commands and arguments but keep unknown off
+		// When false, disable everything
 		return config
 			? { commands: 'on', arguments: 'on', unknown: 'off' }
 			: { commands: 'off', arguments: 'off', unknown: 'off' };
 	}
-	if (typeof config === 'string') {
-		switch (config) {
-			case 'on':
-				return { commands: 'on', arguments: 'on', unknown: 'off' };
-			case 'all':
-				return { commands: 'on', arguments: 'on', unknown: 'on' };
-			case 'off':
-			default:
-				return { commands: 'off', arguments: 'off', unknown: 'off' };
-		}
+
+	if (!config || typeof config !== 'object') {
+		return defaults;
 	}
-	return config;
+
+	const normalizeValue = (value: boolean | 'off' | 'on' | undefined, defaultValue: 'off' | 'on'): 'off' | 'on' => {
+		if (value === undefined) {
+			return defaultValue;
+		}
+		if (typeof value === 'boolean') {
+			return value ? 'on' : 'off';
+		}
+		if (value === 'on' || value === 'off') {
+			return value;
+		}
+		return defaultValue;
+	};
+
+	return {
+		commands: normalizeValue(config.commands, defaults.commands),
+		arguments: normalizeValue(config.arguments, defaults.arguments),
+		unknown: normalizeValue(config.unknown, defaults.unknown)
+	};
 }
 
 export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
@@ -111,15 +130,49 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 	},
 	[TerminalSuggestSettingId.QuickSuggestions]: {
 		restricted: true,
-		markdownDescription: localize('suggest.quickSuggestions', "Controls whether suggestions should automatically show up while typing. Also be aware of the {0}-setting which controls if suggestions are triggered by special characters.", `\`#${TerminalSuggestSettingId.SuggestOnTriggerCharacters}#\``),
-		type: 'string',
-		enum: ['off', 'on', 'all'],
-		enumDescriptions: [
-			localize('suggest.quickSuggestions.off', 'Disable quick suggestions.'),
-			localize('suggest.quickSuggestions.on', 'Enable quick suggestions for commands and arguments.'),
-			localize('suggest.quickSuggestions.all', 'Enable quick suggestions for commands, arguments, and when unclear (shows files and folders as fallback).')
-		],
-		default: 'off',
+		markdownDescription: localize('suggest.quickSuggestions', "Controls whether suggestions should automatically show up while typing. This can be controlled for commands, arguments, and unknown contexts. Also be aware of the {0}-setting which controls if suggestions are triggered by special characters.", `\`#${TerminalSuggestSettingId.SuggestOnTriggerCharacters}#\``),
+		type: 'object',
+		additionalProperties: false,
+		properties: {
+			commands: {
+				anyOf: [
+					{ type: 'boolean' },
+					{
+						type: 'string',
+						enum: ['on', 'off'],
+					}
+				],
+				default: 'off',
+				description: localize('suggest.quickSuggestions.commands', 'Enable quick suggestions for commands, the first word in a command line input.')
+			},
+			arguments: {
+				anyOf: [
+					{ type: 'boolean' },
+					{
+						type: 'string',
+						enum: ['on', 'off'],
+					}
+				],
+				default: 'off',
+				description: localize('suggest.quickSuggestions.arguments', 'Enable quick suggestions for arguments, anything after the first word in a command line input.')
+			},
+			unknown: {
+				anyOf: [
+					{ type: 'boolean' },
+					{
+						type: 'string',
+						enum: ['on', 'off'],
+					}
+				],
+				default: 'off',
+				description: localize('suggest.quickSuggestions.unknown', 'Enable quick suggestions when it\'s unclear what the best suggestion is, if this is on files and folders will be suggested as a fallback.')
+			},
+		},
+		default: {
+			commands: 'off',
+			arguments: 'off',
+			unknown: 'off'
+		},
 	},
 	[TerminalSuggestSettingId.SuggestOnTriggerCharacters]: {
 		restricted: true,

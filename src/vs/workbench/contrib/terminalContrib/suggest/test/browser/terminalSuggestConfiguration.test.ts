@@ -54,34 +54,63 @@ suite('normalizeQuickSuggestionsConfig', () => {
 		assert.strictEqual(result.unknown, 'off');
 	});
 
-	test('should normalize string "on" to on for commands and arguments, off for unknown', () => {
-		const result = normalizeQuickSuggestionsConfig('on');
+	test('should normalize object with boolean values', () => {
+		const result = normalizeQuickSuggestionsConfig({
+			commands: true,
+			arguments: false,
+			unknown: true
+		});
 		assert.strictEqual(result.commands, 'on');
-		assert.strictEqual(result.arguments, 'on');
+		assert.strictEqual(result.arguments, 'off');
+		assert.strictEqual(result.unknown, 'on');
+	});
+
+	test('should normalize object with string values', () => {
+		const result = normalizeQuickSuggestionsConfig({
+			commands: 'on',
+			arguments: 'off',
+			unknown: 'on'
+		});
+		assert.strictEqual(result.commands, 'on');
+		assert.strictEqual(result.arguments, 'off');
+		assert.strictEqual(result.unknown, 'on');
+	});
+
+	test('should normalize object with mixed boolean and string values', () => {
+		const result = normalizeQuickSuggestionsConfig({
+			commands: true,
+			arguments: 'off',
+			unknown: false
+		});
+		assert.strictEqual(result.commands, 'on');
+		assert.strictEqual(result.arguments, 'off');
 		assert.strictEqual(result.unknown, 'off');
 	});
 
-	test('should normalize string "off" to off for all', () => {
-		const result = normalizeQuickSuggestionsConfig('off');
+	test('should use defaults for missing properties', () => {
+		const result = normalizeQuickSuggestionsConfig({
+			commands: 'on'
+		});
+		assert.strictEqual(result.commands, 'on');
+		assert.strictEqual(result.arguments, 'off');
+		assert.strictEqual(result.unknown, 'off');
+	});
+
+	test('should handle empty object', () => {
+		const result = normalizeQuickSuggestionsConfig({});
 		assert.strictEqual(result.commands, 'off');
 		assert.strictEqual(result.arguments, 'off');
 		assert.strictEqual(result.unknown, 'off');
 	});
 
-	test('should normalize string "all" to on for all', () => {
-		const result = normalizeQuickSuggestionsConfig('all');
-		assert.strictEqual(result.commands, 'on');
-		assert.strictEqual(result.arguments, 'on');
-		assert.strictEqual(result.unknown, 'on');
-	});
-
-	test('should pass through object configuration as-is', () => {
-		const config = {
-			commands: 'on' as const,
-			arguments: 'off' as const,
-			unknown: 'on' as const
-		};
-		const result = normalizeQuickSuggestionsConfig(config);
-		assert.deepStrictEqual(result, config);
+	test('should handle invalid values by using defaults', () => {
+		const result = normalizeQuickSuggestionsConfig({
+			commands: 'invalid' as any,
+			arguments: 123 as any,
+			unknown: null as any
+		});
+		assert.strictEqual(result.commands, 'off');
+		assert.strictEqual(result.arguments, 'off');
+		assert.strictEqual(result.unknown, 'off');
 	});
 });
