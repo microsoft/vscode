@@ -384,24 +384,25 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 
 	private static _ttPolicy = createTrustedTypesPolicy('editorViewLayer', {
 		createHTML: (value: string) => {
-			if (mainWindow?.cspNonce) {
-				const stylePattern: RegExp = new RegExp('style\\s*=\\s*([\"\'])(.*?)\\1', 'g');
+			if (mainWindow.cspNonce) {
+				const stylePattern = new RegExp('style\\s*=\\s*([\"\'])(.*?)\\1', 'g');
 				const styleMatches = Array.from(value.matchAll(stylePattern)).reverse();
-				const classNames = Array.from({ length: styleMatches.length }, () => 'csp-' + Math.random().toString(36).substring(7));
+				const classNames = Array.from({ length: styleMatches.length }, () => 'editorViewLayer-' + Math.random().toString(36).substring(7));
 				styleMatches.forEach((match, i) => {
-					const tagStart = value.slice(0, match.index).lastIndexOf('<');
-					const tagEnd = match.index + value.slice(match.index).indexOf('>');
-					const classMatch = value.slice(tagStart, tagEnd).match('class\\s*=\\s*([\"\'])(.*?)\\1');
-					value = value.slice(0, tagEnd + 1) + `<style nonce="${mainWindow.cspNonce}">.${classNames[i]}{${match[2]}}</style>` + value.slice(tagEnd + 1);
+					const htmlTagStart = value.slice(0, match.index).lastIndexOf('<');
+					const htmlTagEnd = match.index + value.slice(match.index).indexOf('>');
+					const classMatch = value.slice(htmlTagStart, htmlTagEnd).match('class\\s*=\\s*([\"\'])(.*?)\\1');
+					value = value.slice(0, htmlTagEnd + 1) + `<style nonce="${mainWindow.cspNonce}">.${classNames[i]}{${match[2]}}</style>` + value.slice(htmlTagEnd + 1);
 					if (classMatch?.index !== undefined) {
-						const classEnd = tagStart + classMatch.index + classMatch[0].length;
+						const classEnd = htmlTagStart + classMatch.index + classMatch[0].length;
 						value = value.slice(0, classEnd - 1) + ` ${classNames[i]}` + value.slice(classEnd - 1);
 					} else {
-						value = value.slice(0, tagEnd) + ` class="${classNames[i]}"` + value.slice(tagEnd);
+						value = value.slice(0, htmlTagEnd) + ` class="${classNames[i]}"` + value.slice(htmlTagEnd);
 					}
+					return value.replace(stylePattern, '');
 				});
 			}
-			return value
+			return value;
 		}
 	});
 
