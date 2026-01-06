@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
+import { StringSHA1 } from '../../../../../../base/common/hash.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IJSONSchema, IJSONSchemaMap } from '../../../../../../base/common/jsonSchema.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
@@ -14,6 +15,7 @@ import { localize } from '../../../../../../nls.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IChatAgentRequest, IChatAgentService, UserSelectedTools } from '../../participants/chatAgents.js';
 import { ChatModel, IChatRequestModeInstructions } from '../../model/chatModel.js';
 import { IChatModeService } from '../../chatModes.js';
@@ -42,6 +44,12 @@ import { createToolSimpleTextResult } from './toolHelpers.js';
 
 export const RunSubagentToolId = 'runSubagent';
 
+function hashAgentName(agentName: string): string {
+	const sha1 = new StringSHA1();
+	sha1.update(agentName);
+	return sha1.digest();
+}
+
 const BaseModelDescription = `Launch a new agent to handle complex, multi-step tasks autonomously. This tool is good at researching complex questions, searching for code, and executing multi-step tasks. When you are searching for a keyword or file and are not confident that you will find the right match in the first few tries, use this agent to perform the search for you.
 
 - Agents do not run async or in the background, you will wait for the agent\'s result.
@@ -55,6 +63,26 @@ interface IRunSubagentToolInputParams {
 	description: string;
 	agentName?: string;
 }
+
+type ChatSubagentInvokedEvent = {
+	hashedAgentName: string | undefined;
+	usingCustomAgent: boolean;
+	modelId: string | undefined;
+	requestId: string | undefined;
+	chatSessionId: string | undefined;
+	fromSubAgent: boolean | undefined;
+};
+
+type ChatSubagentInvokedClassification = {
+	hashedAgentName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The hashed name of the specific agent invoked.' };
+	usingCustomAgent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether a specific agent was requested.' };
+	modelId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model that invoked the subagent tool.' };
+	requestId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The request that invoked the subagent tool.' };
+	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session that invoked the subagent tool.' };
+	fromSubAgent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the tool was invoked by a subagent.' };
+	owner: 'roblourens';
+	comment: 'Provides insight into the usage of subagent tool specific agent invocation.';
+};
 
 export class RunSubagentTool extends Disposable implements IToolImpl {
 
@@ -70,6 +98,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 		this.onDidUpdateToolData = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.SubagentToolCustomAgents));
@@ -116,6 +145,15 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		const args = invocation.parameters as IRunSubagentToolInputParams;
 
 		this.logService.debug(`RunSubagentTool: Invoking with prompt: ${args.prompt.substring(0, 100)}...`);
+
+		this.telemetryService.publicLog2<ChatSubagentInvokedEvent, ChatSubagentInvokedClassification>('chatSubagentInvoked', {
+			hashedAgentName: args.agentName ? hashAgentName(args.agentName) : undefined,
+			usingCustomAgent: !!args.agentName,
+			modelId: invocation.modelId,
+			requestId: invocation.chatRequestId,
+			chatSessionId: invocation.context?.sessionId,
+			fromSubAgent: invocation.fromSubAgent
+		});
 
 		if (!invocation.context) {
 			throw new Error('toolInvocationToken is required for this tool');
