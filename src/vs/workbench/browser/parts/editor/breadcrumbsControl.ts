@@ -1057,7 +1057,6 @@ registerAction2(class CopyBreadcrumbPath extends Action2 {
 	}
 });
 
-registerAction2(class CopyBreadcrumbPath extends Action2 {
 	constructor() {
 		super({
 			id: 'breadcrumbs.copyResourcePath',
