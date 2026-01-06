@@ -159,7 +159,8 @@ export function registerNewChatActions() {
 			icon: Codicon.arrowLeft,
 		},
 		group: 'navigation',
-		order: 1
+		order: 1,
+		when: ChatContextKeys.inChatEditor.negate()
 	});
 
 	registerAction2(class UndoChatEditInteractionAction extends EditingSessionAction {
