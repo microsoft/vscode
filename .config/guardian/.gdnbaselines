@@ -1,0 +1,465 @@
+{
+  "properties": {
+    "helpUri": "https://eng.ms/docs/microsoft-security/security/azure-security/cloudai-security-fundamentals-engineering/security-integration/guardian-wiki/microsoft-guardian/general/baselines"
+  },
+  "version": "1.0.0",
+  "baselines": {
+    "default": {
+      "name": "default",
+      "createdDate": "2025-01-28 06:29:05Z",
+      "lastUpdatedDate": "2025-01-28 06:29:05Z"
+    }
+  },
+  "results": {
+    "ea3b2bf4f5b3d0bd8a6ad35cc61e49f2a1596660fd66d17d740e4806e7ed7dcc": {
+      "signature": "ea3b2bf4f5b3d0bd8a6ad35cc61e49f2a1596660fd66d17d740e4806e7ed7dcc",
+      "alternativeSignatures": [
+        "ff528c0b5a010ae7b5e9178b004a8b816a429a28ba98ce8336466b490a09dcef"
+      ],
+      "target": ".build/win32-arm64/system-setup/VSCodeSetup-arm64-1.97.0-insider.exe",
+      "memberOf": [
+        "default"
+      ],
+      "tool": "binskim",
+      "ruleId": "BA2009",
+      "createdDate": "2025-01-30 19:19:49Z",
+      "expirationDate": "2025-07-19 21:12:48Z",
+      "justification": "This error is baselined with an expiration date of 180 days from 2025-01-30 21:12:48Z"
+    },
+    "12babbc85192ed1c8d927693da788537c1eef199bbecbe226f940a2d0e97637c": {
+      "signature": "12babbc85192ed1c8d927693da788537c1eef199bbecbe226f940a2d0e97637c",
+      "alternativeSignatures": [
+        "35b0519e201e56fb87fc6fb085e6fb1df5b89715142bb9086a5b2006e0fd4ced"
+      ],
+      "target": ".build/win32-arm64/system-setup/VSCodeSetup-arm64-1.97.0-insider.exe",
+      "memberOf": [
+        "default"
+      ],
+      "tool": "binskim",
+      "ruleId": "BA2018",
+      "createdDate": "2025-01-30 19:19:49Z",
+      "expirationDate": "2025-07-19 21:12:48Z",
+      "justification": "This error is baselined with an expiration date of 180 days from 2025-01-30 21:12:48Z"
+    },
+    "49163bd1dc9d965d3baced1694dc8c43305b8bf96e884f478d8e4bd124454ba0": {
+      "signature": "49163bd1dc9d965d3baced1694dc8c43305b8bf96e884f478d8e4bd124454ba0",
+      "alternativeSignatures": [
+        "aa80bcf44aa8ddd20fb9802e9032c1257048b973896a944ded70bb195f060b2a"
+      ],
+      "target": ".build/win32-arm64/user-setup/VSCodeUserSetup-arm64-1.97.0-insider.exe",
+      "memberOf": [
+        "default"
+      ],
+      "tool": "binskim",
+      "ruleId": "BA2009",
+      "createdDate": "2025-01-30 19:21:17Z",
+      "expirationDate": "2025-07-19 21:12:48Z",
+      "justification": "This error is baselined with an expiration date of 180 days from 2025-01-30 21:12:48Z"
+    },
+    "c405af02e021c3a473d4e45ec4daa658db1527ea7430c6be968d182e7b50fbd1": {
+      "signature": "c405af02e021c3a473d4e45ec4daa658db1527ea7430c6be968d182e7b50fbd1",
+      "alternativeSignatures": [
+        "619d2a1a77f55b4181493b8cfdf09be5261e539115752af2e4938f5ac04af132"
+      ],
+      "target": ".build/win32-arm64/user-setup/VSCodeUserSetup-arm64-1.97.0-insider.exe",
+      "memberOf": [
+        "default"
+      ],
+      "tool": "binskim",
+      "ruleId": "BA2018",
+      "createdDate": "2025-01-30 19:21:17Z",
+      "expirationDate": "2025-07-19 21:12:48Z",
+      "justification": "This error is baselined with an expiration date of 180 days from 2025-01-30 21:12:48Z"
+    },
+    "71b8515b2eb51cfd5eace11cedb15189d51ce9e479095a5938334416088cbc03": {
+      "signature": "71b8515b2eb51cfd5eace11cedb15189d51ce9e479095a5938334416088cbc03",
+      "alternativeSignatures": [
+        "b34279fc5fec828b8dcd9ca873804e85d7d9cd78554ec109d2dd493351a7a244"
+      ],
+      "target": ".build/win32-x64/system-setup/VSCodeSetup-x64-1.97.0-insider.exe",
+      "memberOf": [
+        "default"
+      ],
+      "tool": "binskim",
+      "ruleId": "BA2009",
+      "createdDate": "2025-01-30 19:51:51Z",
+      "expirationDate": "2025-07-19 21:12:48Z",
+      "justification": "This error is baselined with an expiration date of 180 days from 2025-01-30 21:12:48Z"
+    },
+    "9238de77a5320039def14694d1b6f501cc2288f13c9c688d2e0501fc5a56ee61": {
+      "signature": "9238de77a5320039def14694d1b6f501cc2288f13c9c688d2e0501fc5a56ee61",
+      "alternativeSignatures": [
+        "1d17616a549e9f36d814c4e802d651b1af453ce0a23d4478eef39be81adcc16b"
+      ],
+      "target": ".build/win32-x64/system-setup/VSCodeSetup-x64-1.97.0-insider.exe",
+      "memberOf": [
+        "default"
+      ],
+      "tool": "binskim",
+      "ruleId": "BA2018",
+      "createdDate": "2025-01-30 19:51:51Z",
+      "expirationDate": "2025-07-19 21:12:48Z",
+      "justification": "This error is baselined with an expiration date of 180 days from 2025-01-30 21:12:48Z"
+    },
+    "bad8b698b48c1da9ece953903581c66bf98bc829ae1a6adcd3b5c2056a6fcd01": {
+      "signature": "bad8b698b48c1da9ece953903581c66bf98bc829ae1a6adcd3b5c2056a6fcd01",
+      "alternativeSignatures": [
+        "057376d31b97e8ce3ecf6a180a553b932d7e5be6e2b07a08027d5dfabe35e82c"
+      ],
+      "target": ".build/win32-x64/user-setup/VSCodeUserSetup-x64-1.97.0-insider.exe",
+      "memberOf": [
+        "default"
+      ],
+      "tool": "binskim",
+      "ruleId": "BA2009",
+      "createdDate": "2025-01-30 19:53:13Z",
+      "expirationDate": "2025-07-19 21:12:48Z",
+      "justification": "This error is baselined with an expiration date of 180 days from 2025-01-30 21:12:48Z"
+    },
+    "cc7c248b0fd4c105e9a393ae232bf0d314ec50e65357a5e7e7d68f6f10c77077": {
+      "signature": "cc7c248b0fd4c105e9a393ae232bf0d314ec50e65357a5e7e7d68f6f10c77077",
+      "alternativeSignatures": [
+        "f3867098aff3368682df9926e85a35ec05cf905f27d0c157430021c3169f899d"
+      ],
+      "target": ".build/win32-x64/user-setup/VSCodeUserSetup-x64-1.97.0-insider.exe",
+      "memberOf": [
+        "default"
+      ],
+      "tool": "binskim",
+      "ruleId": "BA2018",
+      "createdDate": "2025-01-30 19:53:13Z",
+      "expirationDate": "2025-07-19 21:12:48Z",
+      "justification": "This error is baselined with an expiration date of 180 days from 2025-01-30 21:12:48Z"
+    },
+    "8c53250a171412b84dedcbb22cdab9ec365d9b52d74b09c070097fff45372de0": {
+      "signature": "8c53250a171412b84dedcbb22cdab9ec365d9b52d74b09c070097fff45372de0",
+      "alternativeSignatures": [
+        "314267784b0ea867006e00b809a93498fae3264e42d1a3a7745ab13180a5b6ef"
+      ],
+      "target": ".build/win32-arm64/system-setup/VSCodeSetup-arm64-1.98.0-insider.exe",
+      "memberOf": [
+        "default"
+      ],
+      "tool": "binskim",
+      "ruleId": "BA2009",
+      "createdDate": "2025-02-04 06:16:33Z",
+      "expirationDate": "2025-07-24 07:25:17Z",
+      "justification": "This error is baselined with an expiration date of 180 days from 2025-02-04 07:25:17Z"
+    },
+    "a6a58d971da858f4af219672cef73ffd0aacc47f1e2c12b8b44a428e1330d3de": {
+      "signature": "a6a58d971da858f4af219672cef73ffd0aacc47f1e2c12b8b44a428e1330d3de",
+      "alternativeSignatures": [
+        "4e40f2f1683f0bf2245f35d0ebbcf2f446274d84b1db09d8e76ddfdcad5d4479"
+      ],
+      "target": ".build/win32-arm64/system-setup/VSCodeSetup-arm64-1.98.0-insider.exe",
+      "memberOf": [
+        "default"
+      ],
+      "tool": "binskim",
+      "ruleId": "BA2018",
+      "createdDate": "2025-02-04 06:16:33Z",
+      "expirationDate": "2025-07-24 07:25:17Z",
+      "justification": "This error is baselined with an expiration date of 180 days from 2025-02-04 07:25:17Z"
+    },
+    "90e0f060e01e4a55620f609ac3241b62e8f54a059e9f4d292e93a4305fd3c39e": {
+      "signature": "90e0f060e01e4a55620f609ac3241b62e8f54a059e9f4d292e93a4305fd3c39e",
+      "alternativeSignatures": [
+        "377fe43ff8404d07f4a6ca763175004f360397ded6cf5d55b655646ada90e39c"
+      ],
+      "target": ".build/win32-arm64/user-setup/VSCodeUserSetup-arm64-1.98.0-insider.exe",
+      "memberOf": [
+        "default"
+      ],
+      "tool": "binskim",
+      "ruleId": "BA2009",
+      "createdDate": "2025-02-04 06:17:54Z",
+      "expirationDate": "2025-07-24 07:25:17Z",
+      "justification": "This error is baselined with an expiration date of 180 days from 2025-02-04 07:25:17Z"
+    },
+    "f36c3dc19566098a923877d16d6ebfcbd971f8fcd8210afb8f5558fb5ba1f203": {
+      "signature": "f36c3dc19566098a923877d16d6ebfcbd971f8fcd8210afb8f5558fb5ba1f203",
+      "alternativeSignatures": [
+        "1af1f475c1617701e3d7a8fd465916bcc60c3125b8807af5d47d49137d9d468c"
+      ],
+      "target": ".build/win32-arm64/user-setup/VSCodeUserSetup-arm64-1.98.0-insider.exe",
+      "memberOf": [
+        "default"
+      ],
+      "tool": "binskim",
+      "ruleId": "BA2018",
+      "createdDate": "2025-02-04 06:17:54Z",
+      "expirationDate": "2025-07-24 07:25:17Z",
+      "justification": "This error is baselined with an expiration date of 180 days from 2025-02-04 07:25:17Z"
+    },
+    "71193d108c53bb802f5c491276365bcff0645fb380be57288f3fbd6896166d3a": {
+      "signature": "71193d108c53bb802f5c491276365bcff0645fb380be57288f3fbd6896166d3a",
+      "alternativeSignatures": [
+        "420cae2e6e34b93d7b74fc1ffddfdf23b57650ae989d838bb2d67f28e4e1db0e"
+      ],
+      "target": ".build/win32-x64/system-setup/VSCodeSetup-x64-1.98.0-insider.exe",
+      "memberOf": [
+        "default"
+      ],
+      "tool": "binskim",
+      "ruleId": "BA2009",
+      "createdDate": "2025-02-04 07:11:19Z",
+      "expirationDate": "2025-07-24 07:25:17Z",
+      "justification": "This error is baselined with an expiration date of 180 days from 2025-02-04 07:25:17Z"
+    },
+    "444c302f49bdedcafe772322a09727b2279e3265d99deb2e307defeae3ef200b": {
+      "signature": "444c302f49bdedcafe772322a09727b2279e3265d99deb2e307defeae3ef200b",
+      "alternativeSignatures": [
+        "4ff6ccbdb0745d43d3b61f82fb2f4d8a64fe9787525df81a6d7b825e79282085"
+      ],
+      "target": ".build/win32-x64/system-setup/VSCodeSetup-x64-1.98.0-insider.exe",
+      "memberOf": [
+        "default"
+      ],
+      "tool": "binskim",
+      "ruleId": "BA2018",
+      "createdDate": "2025-02-04 07:11:19Z",
+      "expirationDate": "2025-07-24 07:25:17Z",
+      "justification": "This error is baselined with an expiration date of 180 days from 2025-02-04 07:25:17Z"
+    },
+    "4670c7c096a69ca428429ffa1f5250aac9f2e07beac0ffe587ffb37bdb1da4d4": {
+      "signature": "4670c7c096a69ca428429ffa1f5250aac9f2e07beac0ffe587ffb37bdb1da4d4",
+      "alternativeSignatures": [
+        "7cead96cb508ab6e37e27bcc0f8b7ed8d0761b77f4793958c46c5ff3892ab1b6"
+      ],
+      "target": ".build/win32-x64/user-setup/VSCodeUserSetup-x64-1.98.0-insider.exe",
+      "memberOf": [
+        "default"
+      ],
+      "tool": "binskim",
+      "ruleId": "BA2009",
+      "createdDate": "2025-02-04 07:13:22Z",
+      "expirationDate": "2025-07-24 07:25:17Z",
+      "justification": "This error is baselined with an expiration date of 180 days from 2025-02-04 07:25:17Z"
+    },
+    "a359b4a5ed2378a73f3bba93e3fb1c595db7423c3082635d12d101bbeb0a51b8": {
+      "signature": "a359b4a5ed2378a73f3bba93e3fb1c595db7423c3082635d12d101bbeb0a51b8",
+      "alternativeSignatures": [
+        "125b52a21ef619a95e695085deb9492280bcf2c1decdd5e87e6416af5982d02d"
+      ],
+      "target": ".build/win32-x64/user-setup/VSCodeUserSetup-x64-1.98.0-insider.exe",
+      "memberOf": [
+        "default"
+      ],
+      "tool": "binskim",
+      "ruleId": "BA2018",
+      "createdDate": "2025-02-04 07:13:22Z",
+      "expirationDate": "2025-07-24 07:25:17Z",
+      "justification": "This error is baselined with an expiration date of 180 days from 2025-02-04 07:25:17Z"
+    },
+    "6216d3477ad4f56cb4ec316a9aaff02e9530a10d56469a4ef4063b8d02fe344b": {
+      "signature": "6216d3477ad4f56cb4ec316a9aaff02e9530a10d56469a4ef4063b8d02fe344b",
+      "alternativeSignatures": [
+        "46ad210995b2ff199f3bee5f271938a4251ed7a60058041ace1beaa53e36b51c"
+      ],
+      "target": "file:///D:/a/_work/1/vscode-server-win32-x64/node.exe",
+      "memberOf": [
+        "default"
+      ],
+      "tool": "binskim",
+      "ruleId": "BA2008",
+      "createdDate": "2025-06-02 21:46:49Z",
+      "expirationDate": "2025-11-19 21:48:17Z",
+      "justification": "This error is baselined with an expiration date of 180 days from 2025-06-02 21:48:17Z"
+    },
+    "b8a4702fb4b855719e5e5033c3b629fbe6267d516ce8a18bd8f3be3b9962434b": {
+      "signature": "b8a4702fb4b855719e5e5033c3b629fbe6267d516ce8a18bd8f3be3b9962434b",
+      "alternativeSignatures": [
+        "52d986be88f1c5696fc87d7794279d02f5084c645440e2dd2c3b5a2176b6bf52"
+      ],
+      "target": "file:///D:/a/_work/1/vscode-server-win32-x64-web/node.exe",
+      "memberOf": [
+        "default"
+      ],
+      "tool": "binskim",
+      "ruleId": "BA2008",
+      "createdDate": "2025-06-02 21:46:49Z",
+      "expirationDate": "2025-11-19 21:48:17Z",
+      "justification": "This error is baselined with an expiration date of 180 days from 2025-06-02 21:48:17Z"
+    },
+    "471f3e40d545a9d29754f7169c1e4e5b44c067f60ace4c4750b7e9abbaa76e4a": {
+      "signature": "471f3e40d545a9d29754f7169c1e4e5b44c067f60ace4c4750b7e9abbaa76e4a",
+      "alternativeSignatures": [
+        "d8d66858e7ba56494a7b5cdc42278362e5191797dc9622de92f494928e0d8fa0"
+      ],
+      "target": "file:///D:/a/_work/1/vscode-server-win32-x64/node_modules/@vscode/ripgrep/bin/rg.exe",
+      "memberOf": [
+        "default"
+      ],
+      "tool": "binskim",
+      "ruleId": "BA2008",
+      "createdDate": "2025-06-02 21:46:49Z",
+      "expirationDate": "2025-11-19 21:48:17Z",
+      "justification": "This error is baselined with an expiration date of 180 days from 2025-06-02 21:48:17Z"
+    },
+    "216e2ac9cb596796224b47799f656570a01fa0d9b5f935608b47d15ab613c8e8": {
+      "signature": "216e2ac9cb596796224b47799f656570a01fa0d9b5f935608b47d15ab613c8e8",
+      "alternativeSignatures": [
+        "07746898f43afab7cc50931b33154c2d9e1a35f82a649dbe8aecf785b3d5a813"
+      ],
+      "target": "file:///D:/a/_work/1/vscode-server-win32-x64/node_modules/@vscode/vsce-sign/bin/vsce-sign.exe",
+      "memberOf": [
+        "default"
+      ],
+      "tool": "binskim",
+      "ruleId": "BA2008",
+      "createdDate": "2025-06-02 21:46:49Z",
+      "expirationDate": "2025-11-19 21:48:17Z",
+      "justification": "This error is baselined with an expiration date of 180 days from 2025-06-02 21:48:17Z"
+    },
+    "1d4a48ebc63e3b652146bc16309b2d960a7168d299c7ac94cf794347c06265ef": {
+      "signature": "1d4a48ebc63e3b652146bc16309b2d960a7168d299c7ac94cf794347c06265ef",
+      "alternativeSignatures": [
+        "679d725f3dda5ced7103a135600f67fb2b4ee66b286aa995205feb4eafa2e3b0"
+      ],
+      "target": "file:///D:/a/_work/1/vscode-server-win32-x64-web/node_modules/@vscode/ripgrep/bin/rg.exe",
+      "memberOf": [
+        "default"
+      ],
+      "tool": "binskim",
+      "ruleId": "BA2008",
+      "createdDate": "2025-06-02 21:46:49Z",
+      "expirationDate": "2025-11-19 21:48:17Z",
+      "justification": "This error is baselined with an expiration date of 180 days from 2025-06-02 21:48:17Z"
+    },
+    "77797a3e44634bb2994bd13ccc95ff4575bba474585dbd2cf3068a1c16bc0624": {
+      "signature": "77797a3e44634bb2994bd13ccc95ff4575bba474585dbd2cf3068a1c16bc0624",
+      "alternativeSignatures": [
+        "4a6cb67bd4b401e9669c13a2162660aaefc0a94a4122e5b50c198414db545672"
+      ],
+      "target": "file:///D:/a/_work/1/vscode-server-win32-x64-web/node_modules/@vscode/vsce-sign/bin/vsce-sign.exe",
+      "memberOf": [
+        "default"
+      ],
+      "tool": "binskim",
+      "ruleId": "BA2008",
+      "createdDate": "2025-06-02 21:46:49Z",
+      "expirationDate": "2025-11-19 21:48:17Z",
+      "justification": "This error is baselined with an expiration date of 180 days from 2025-06-02 21:48:17Z"
+    },
+    "21b8091cf937b1be55c7a300483182fec206bc0cd8e2666727b29c8c200aa101": {
+      "signature": "21b8091cf937b1be55c7a300483182fec206bc0cd8e2666727b29c8c200aa101",
+      "alternativeSignatures": [
+        "09571db1cc8ea8e8292e9fcb6da3592a734a2314b4fc98ea97a87a7559ecdeea"
+      ],
+      "target": "file:///D:/a/_work/1/vscode-server-win32-x64/node_modules/@parcel/watcher/build/Release/watcher.node",
+      "memberOf": [
+        "default"
+      ],
+      "tool": "binskim",
+      "ruleId": "BA2007",
+      "createdDate": "2025-06-02 21:46:49Z",
+      "expirationDate": "2025-11-19 21:48:17Z",
+      "justification": "This error is baselined with an expiration date of 180 days from 2025-06-02 21:48:17Z"
+    },
+    "4b3cc578ca0d51fe370dfe0fb2a654dc70cd8d498a62f1efa74028df9637d53b": {
+      "signature": "4b3cc578ca0d51fe370dfe0fb2a654dc70cd8d498a62f1efa74028df9637d53b",
+      "alternativeSignatures": [
+        "ea934f0443da15b7f887884d4bf909c876fe2f689893677d63f95ee12f2b34ab"
+      ],
+      "target": "file:///D:/a/_work/1/vscode-server-win32-x64/node_modules/@parcel/watcher/build/Release/watcher.node",
+      "memberOf": [
+        "default"
+      ],
+      "tool": "binskim",
+      "ruleId": "BA2008",
+      "createdDate": "2025-06-02 21:46:49Z",
+      "expirationDate": "2025-11-19 21:48:17Z",
+      "justification": "This error is baselined with an expiration date of 180 days from 2025-06-02 21:48:17Z"
+    },
+    "5fbddbcdd6dae78e3e2876c3198594a1f23b03bc4a2d34d1054c907e90f0f525": {
+      "signature": "5fbddbcdd6dae78e3e2876c3198594a1f23b03bc4a2d34d1054c907e90f0f525",
+      "alternativeSignatures": [
+        "9b7cbe3971924b7a57556d4d37b67bc6d6624a19cdab5d0be6f70b588d25d273"
+      ],
+      "target": "file:///D:/a/_work/1/vscode-server-win32-x64-web/node_modules/@parcel/watcher/build/Release/watcher.node",
+      "memberOf": [
+        "default"
+      ],
+      "tool": "binskim",
+      "ruleId": "BA2007",
+      "createdDate": "2025-06-02 21:46:49Z",
+      "expirationDate": "2025-11-19 21:48:17Z",
+      "justification": "This error is baselined with an expiration date of 180 days from 2025-06-02 21:48:17Z"
+    },
+    "5dade33533dba7144ce169a70ac1858e734d5bb95fd056b107b1dc7955ac140b": {
+      "signature": "5dade33533dba7144ce169a70ac1858e734d5bb95fd056b107b1dc7955ac140b",
+      "alternativeSignatures": [
+        "d899dddcd071df9a15daf7cb3c5dd0a69d86903e5199f06afa07f1ca10de9ff2"
+      ],
+      "target": "file:///D:/a/_work/1/vscode-server-win32-x64-web/node_modules/@parcel/watcher/build/Release/watcher.node",
+      "memberOf": [
+        "default"
+      ],
+      "tool": "binskim",
+      "ruleId": "BA2008",
+      "createdDate": "2025-06-02 21:46:49Z",
+      "expirationDate": "2025-11-19 21:48:17Z",
+      "justification": "This error is baselined with an expiration date of 180 days from 2025-06-02 21:48:17Z"
+    },
+    "8314c7866547b515200d8a02a7ad2d86053f170172ca056ae2b71ace5fd79a04": {
+      "signature": "8314c7866547b515200d8a02a7ad2d86053f170172ca056ae2b71ace5fd79a04",
+      "alternativeSignatures": [
+        "d33a0c2987713428bb7fc768be76919de7d7ea04d44d0339f561a044a2616eb8"
+      ],
+      "target": "file:///D:/a/_work/1/VSCode-win32-x64/resources/app/node_modules/@vscode/ripgrep/bin/rg.exe",
+      "memberOf": [
+        "default"
+      ],
+      "tool": "binskim",
+      "ruleId": "BA2008",
+      "createdDate": "2025-06-02 21:46:49Z",
+      "expirationDate": "2025-11-19 21:48:17Z",
+      "justification": "This error is baselined with an expiration date of 180 days from 2025-06-02 21:48:17Z"
+    },
+    "30418bcc5269eaeb2832a2404465784431d4e72a2af332320c2b1db4768902ad": {
+      "signature": "30418bcc5269eaeb2832a2404465784431d4e72a2af332320c2b1db4768902ad",
+      "alternativeSignatures": [
+        "b7b9eb974d7d3a4ae14df8695ca5a62592c8c9d20b7eda70a6535d50cbda3e7f"
+      ],
+      "target": "file:///D:/a/_work/1/VSCode-win32-x64/resources/app/node_modules/@vscode/vsce-sign/bin/vsce-sign.exe",
+      "memberOf": [
+        "default"
+      ],
+      "tool": "binskim",
+      "ruleId": "BA2008",
+      "createdDate": "2025-06-02 21:46:49Z",
+      "expirationDate": "2025-11-19 21:48:17Z",
+      "justification": "This error is baselined with an expiration date of 180 days from 2025-06-02 21:48:17Z"
+    },
+    "d23a7cc83e649f9a9c5831255cb7569d363799adb5490ff7e299685ea7cf5000": {
+      "signature": "d23a7cc83e649f9a9c5831255cb7569d363799adb5490ff7e299685ea7cf5000",
+      "alternativeSignatures": [
+        "e4084ce79a4fed95d29189c3b10811b131a35328957ed32f16366d110fcfeafd"
+      ],
+      "target": "file:///D:/a/_work/1/VSCode-win32-x64/resources/app/node_modules/@parcel/watcher/build/Release/watcher.node",
+      "memberOf": [
+        "default"
+      ],
+      "tool": "binskim",
+      "ruleId": "BA2007",
+      "createdDate": "2025-06-02 21:46:49Z",
+      "expirationDate": "2025-11-19 21:48:17Z",
+      "justification": "This error is baselined with an expiration date of 180 days from 2025-06-02 21:48:17Z"
+    },
+    "bb5daeeb456c17015d07ff8744bc8058ee8c66d6542554fc0d81296c179c3e1f": {
+      "signature": "bb5daeeb456c17015d07ff8744bc8058ee8c66d6542554fc0d81296c179c3e1f",
+      "alternativeSignatures": [
+        "40b43227b215520ac1cb5683304d90b739718b97e8863c69164e2871065b6720"
+      ],
+      "target": "file:///D:/a/_work/1/VSCode-win32-x64/resources/app/node_modules/@parcel/watcher/build/Release/watcher.node",
+      "memberOf": [
+        "default"
+      ],
+      "tool": "binskim",
+      "ruleId": "BA2008",
+      "createdDate": "2025-06-02 21:46:49Z",
+      "expirationDate": "2025-11-19 21:48:17Z",
+      "justification": "This error is baselined with an expiration date of 180 days from 2025-06-02 21:48:17Z"
+    }
+  }
+}

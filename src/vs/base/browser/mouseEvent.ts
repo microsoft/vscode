@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
-import { IframeUtils } from 'vs/base/browser/iframe';
-import * as platform from 'vs/base/common/platform';
+import * as browser from './browser.js';
+import { IframeUtils } from './iframe.js';
+import * as platform from '../common/platform.js';
 
 export interface IMouseEvent {
 	readonly browserEvent: MouseEvent;
@@ -22,6 +22,7 @@ export interface IMouseEvent {
 	readonly altKey: boolean;
 	readonly metaKey: boolean;
 	readonly timestamp: number;
+	readonly defaultPrevented: boolean;
 
 	preventDefault(): void;
 	stopPropagation(): void;
@@ -44,6 +45,7 @@ export class StandardMouseEvent implements IMouseEvent {
 	public readonly altKey: boolean;
 	public readonly metaKey: boolean;
 	public readonly timestamp: number;
+	public readonly defaultPrevented: boolean;
 
 	constructor(targetWindow: Window, e: MouseEvent) {
 		this.timestamp = Date.now();
@@ -52,6 +54,7 @@ export class StandardMouseEvent implements IMouseEvent {
 		this.middleButton = e.button === 1;
 		this.rightButton = e.button === 2;
 		this.buttons = e.buttons;
+		this.defaultPrevented = e.defaultPrevented;
 
 		this.target = <HTMLElement>e.target;
 
@@ -136,6 +139,15 @@ export class StandardWheelEvent {
 		this.deltaY = deltaY;
 		this.deltaX = deltaX;
 
+		let shouldFactorDPR: boolean = false;
+		if (browser.isChrome) {
+			// Chrome version >= 123 contains the fix to factor devicePixelRatio into the wheel event.
+			// See https://chromium.googlesource.com/chromium/src.git/+/be51b448441ff0c9d1f17e0f25c4bf1ab3f11f61
+			const chromeVersionMatch = navigator.userAgent.match(/Chrome\/(\d+)/);
+			const chromeMajorVersion = chromeVersionMatch ? parseInt(chromeVersionMatch[1]) : 123;
+			shouldFactorDPR = chromeMajorVersion <= 122;
+		}
+
 		if (e) {
 			// Old (deprecated) wheel events
 			const e1 = <IWebKitMouseWheelEvent><any>e;
@@ -144,7 +156,7 @@ export class StandardWheelEvent {
 
 			// vertical delta scroll
 			if (typeof e1.wheelDeltaY !== 'undefined') {
-				if (browser.isChrome) {
+				if (shouldFactorDPR) {
 					// Refs https://github.com/microsoft/vscode/issues/146403#issuecomment-1854538928
 					this.deltaY = e1.wheelDeltaY / (120 * devicePixelRatio);
 				} else {
@@ -173,7 +185,7 @@ export class StandardWheelEvent {
 			if (typeof e1.wheelDeltaX !== 'undefined') {
 				if (browser.isSafari && platform.isWindows) {
 					this.deltaX = - (e1.wheelDeltaX / 120);
-				} else if (browser.isChrome) {
+				} else if (shouldFactorDPR) {
 					// Refs https://github.com/microsoft/vscode/issues/146403#issuecomment-1854538928
 					this.deltaX = e1.wheelDeltaX / (120 * devicePixelRatio);
 				} else {
@@ -200,7 +212,7 @@ export class StandardWheelEvent {
 
 			// Assume a vertical scroll if nothing else worked
 			if (this.deltaY === 0 && this.deltaX === 0 && e.wheelDelta) {
-				if (browser.isChrome) {
+				if (shouldFactorDPR) {
 					// Refs https://github.com/microsoft/vscode/issues/146403#issuecomment-1854538928
 					this.deltaY = e.wheelDelta / (120 * devicePixelRatio);
 				} else {

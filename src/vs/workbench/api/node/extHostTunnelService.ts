@@ -3,26 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import { exec } from 'child_process';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Emitter } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { MovingAverage } from 'vs/base/common/numbers';
-import { isLinux } from 'vs/base/common/platform';
-import * as resources from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import * as pfs from 'vs/base/node/pfs';
-import { ISocket, SocketCloseEventType } from 'vs/base/parts/ipc/common/ipc.net';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ManagedSocket, RemoteSocketHalf, connectManagedSocket } from 'vs/platform/remote/common/managedSocket';
-import { ManagedRemoteConnection } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { ISignService } from 'vs/platform/sign/common/sign';
-import { isAllInterfaces, isLocalhost } from 'vs/platform/tunnel/common/tunnel';
-import { NodeRemoteTunnel } from 'vs/platform/tunnel/node/tunnelService';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { ExtHostTunnelService } from 'vs/workbench/api/common/extHostTunnelService';
-import { CandidatePort, parseAddress } from 'vs/workbench/services/remote/common/tunnelModel';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { Emitter } from '../../../base/common/event.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { MovingAverage } from '../../../base/common/numbers.js';
+import { isLinux } from '../../../base/common/platform.js';
+import * as resources from '../../../base/common/resources.js';
+import { URI } from '../../../base/common/uri.js';
+import * as pfs from '../../../base/node/pfs.js';
+import { ISocket, SocketCloseEventType } from '../../../base/parts/ipc/common/ipc.net.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { ManagedSocket, RemoteSocketHalf, connectManagedSocket } from '../../../platform/remote/common/managedSocket.js';
+import { ManagedRemoteConnection } from '../../../platform/remote/common/remoteAuthorityResolver.js';
+import { ISignService } from '../../../platform/sign/common/sign.js';
+import { isAllInterfaces, isLocalhost } from '../../../platform/tunnel/common/tunnel.js';
+import { NodeRemoteTunnel } from '../../../platform/tunnel/node/tunnelService.js';
+import { IExtHostInitDataService } from '../common/extHostInitDataService.js';
+import { IExtHostRpcService } from '../common/extHostRpcService.js';
+import { ExtHostTunnelService } from '../common/extHostTunnelService.js';
+import { CandidatePort, parseAddress } from '../../services/remote/common/tunnelModel.js';
 import * as vscode from 'vscode';
 
 export function getSockets(stdout: string): Record<string, { pid: number; socket: number }> {
@@ -37,10 +38,10 @@ export function getSockets(stdout: string): Record<string, { pid: number; socket
 			});
 		}
 	});
-	const socketMap = mapped.reduce((m, socket) => {
+	const socketMap = mapped.reduce((m: Record<string, typeof mapped[0]>, socket) => {
 		m[socket.socket] = socket;
 		return m;
-	}, {} as Record<string, typeof mapped[0]>);
+	}, {});
 	return socketMap;
 }
 
@@ -96,14 +97,17 @@ export function loadConnectionTable(stdout: string): Record<string, string>[] {
 	const lines = stdout.trim().split('\n');
 	const names = lines.shift()!.trim().split(/\s+/)
 		.filter(name => name !== 'rx_queue' && name !== 'tm->when');
-	const table = lines.map(line => line.trim().split(/\s+/).reduce((obj, value, i) => {
+	const table = lines.map(line => line.trim().split(/\s+/).reduce((obj: Record<string, string>, value, i) => {
 		obj[names[i] || i] = value;
 		return obj;
-	}, {} as Record<string, string>));
+	}, {}));
 	return table;
 }
 
 function knownExcludeCmdline(command: string): boolean {
+	if (command.length > 500) {
+		return false;
+	}
 	return !!command.match(/.*\.vscode-server-[a-zA-Z]+\/bin.*/)
 		|| (command.indexOf('out/server-main.js') !== -1)
 		|| (command.indexOf('_productName=VSCode') !== -1);
@@ -126,10 +130,10 @@ export function getRootProcesses(stdout: string) {
 }
 
 export async function findPorts(connections: { socket: number; ip: string; port: number }[], socketMap: Record<string, { pid: number; socket: number }>, processes: { pid: number; cwd: string; cmd: string }[]): Promise<CandidatePort[]> {
-	const processMap = processes.reduce((m, process) => {
+	const processMap = processes.reduce((m: Record<string, typeof processes[0]>, process) => {
 		m[process.pid] = process;
 		return m;
-	}, {} as Record<string, typeof processes[0]>);
+	}, {});
 
 	const ports: CandidatePort[] = [];
 	connections.forEach(({ socket, ip, port }) => {
@@ -243,8 +247,8 @@ export class NodeExtHostTunnelService extends ExtHostTunnelService {
 		let tcp: string = '';
 		let tcp6: string = '';
 		try {
-			tcp = await pfs.Promises.readFile('/proc/net/tcp', 'utf8');
-			tcp6 = await pfs.Promises.readFile('/proc/net/tcp6', 'utf8');
+			tcp = await fs.promises.readFile('/proc/net/tcp', 'utf8');
+			tcp6 = await fs.promises.readFile('/proc/net/tcp6', 'utf8');
 		} catch (e) {
 			// File reading error. No additional handling needed.
 		}
@@ -265,10 +269,10 @@ export class NodeExtHostTunnelService extends ExtHostTunnelService {
 			try {
 				const pid: number = Number(childName);
 				const childUri = resources.joinPath(URI.file('/proc'), childName);
-				const childStat = await pfs.Promises.stat(childUri.fsPath);
+				const childStat = await fs.promises.stat(childUri.fsPath);
 				if (childStat.isDirectory() && !isNaN(pid)) {
-					const cwd = await pfs.Promises.readlink(resources.joinPath(childUri, 'cwd').fsPath);
-					const cmd = await pfs.Promises.readFile(resources.joinPath(childUri, 'cmdline').fsPath, 'utf8');
+					const cwd = await fs.promises.readlink(resources.joinPath(childUri, 'cwd').fsPath);
+					const cmd = await fs.promises.readFile(resources.joinPath(childUri, 'cmdline').fsPath, 'utf8');
 					processes.push({ pid, cwd, cmd });
 				}
 			} catch (e) {

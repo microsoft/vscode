@@ -3,18 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Selection } from 'vs/editor/common/core/selection';
-import { EndOfLineSequence, ICursorStateComputer, IValidEditOperation, ITextModel } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { IUndoRedoService, IResourceUndoRedoElement, UndoRedoElementType, IWorkspaceUndoRedoElement, UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
-import { URI } from 'vs/base/common/uri';
-import { TextChange, compressConsecutiveTextChanges } from 'vs/editor/common/core/textChange';
-import * as buffer from 'vs/base/common/buffer';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { basename } from 'vs/base/common/resources';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
+import * as nls from '../../../nls.js';
+import { onUnexpectedError } from '../../../base/common/errors.js';
+import { Selection } from '../core/selection.js';
+import { EndOfLineSequence, ICursorStateComputer, IValidEditOperation, ITextModel } from '../model.js';
+import { TextModel } from './textModel.js';
+import { IUndoRedoService, IResourceUndoRedoElement, UndoRedoElementType, IWorkspaceUndoRedoElement, UndoRedoGroup } from '../../../platform/undoRedo/common/undoRedo.js';
+import { URI } from '../../../base/common/uri.js';
+import { TextChange, compressConsecutiveTextChanges } from '../core/textChange.js';
+import * as buffer from '../../../base/common/buffer.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
+import { basename } from '../../../base/common/resources.js';
+import { ISingleEditOperation } from '../core/editOperation.js';
+import { EditReasons, TextModelEditReason } from '../textModelEditReason.js';
 
 function uriGetComparisonKey(resource: URI): string {
 	return resource.toString();
@@ -424,9 +425,9 @@ export class EditStack {
 		editStackElement.append(this._model, [], getModelEOL(this._model), this._model.getAlternativeVersionId(), null);
 	}
 
-	public pushEditOperation(beforeCursorState: Selection[] | null, editOperations: ISingleEditOperation[], cursorStateComputer: ICursorStateComputer | null, group?: UndoRedoGroup): Selection[] | null {
+	public pushEditOperation(beforeCursorState: Selection[] | null, editOperations: ISingleEditOperation[], cursorStateComputer: ICursorStateComputer | null, group?: UndoRedoGroup, reason: TextModelEditReason = EditReasons.unknown({ name: 'pushEditOperation' })): Selection[] | null {
 		const editStackElement = this._getOrCreateEditStackElement(beforeCursorState, group);
-		const inverseEditOperations = this._model.applyEdits(editOperations, true);
+		const inverseEditOperations = this._model.applyEdits(editOperations, true, reason);
 		const afterCursorState = EditStack._computeCursorState(cursorStateComputer, inverseEditOperations);
 		const textChanges = inverseEditOperations.map((op, index) => ({ index: index, textChange: op.textChange }));
 		textChanges.sort((a, b) => {

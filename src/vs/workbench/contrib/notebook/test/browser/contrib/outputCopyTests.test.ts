@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICellOutputViewModel, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { mock } from 'vs/base/test/common/mock';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ILogService } from 'vs/platform/log/common/log';
-import * as assert from 'assert';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { copyCellOutput } from 'vs/workbench/contrib/notebook/browser/contrib/clipboard/cellOutputClipboard';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { ICellOutputViewModel, ICellViewModel } from '../../../browser/notebookBrowser.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
+import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
+import assert from 'assert';
+import { VSBuffer } from '../../../../../../base/common/buffer.js';
+import { IOutputItemDto } from '../../../common/notebookCommon.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { copyCellOutput } from '../../../browser/viewModel/cellOutputTextHelper.js';
 
 suite('Cell Output Clipboard Tests', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -126,4 +126,25 @@ suite('Cell Output Clipboard Tests', () => {
 		assert.strictEqual(clipboard.clipboardContent, 'stdoutstderr');
 	});
 
+	test('error output uses the value in the stack', async () => {
+		const clipboard = new ClipboardService();
+
+		const data = VSBuffer.fromString(`{"name":"Error Name","message":"error message","stack":"error stack"}`);
+		const output = createOutputViewModel([{ data, mime: 'application/vnd.code.notebook.error' }]);
+
+		await copyCellOutput('application/vnd.code.notebook.error', output, clipboard as unknown as IClipboardService, logService);
+
+		assert.strictEqual(clipboard.clipboardContent, 'error stack');
+	});
+
+	test('error without stack uses the name and message', async () => {
+		const clipboard = new ClipboardService();
+
+		const data = VSBuffer.fromString(`{"name":"Error Name","message":"error message"}`);
+		const output = createOutputViewModel([{ data, mime: 'application/vnd.code.notebook.error' }]);
+
+		await copyCellOutput('application/vnd.code.notebook.error', output, clipboard as unknown as IClipboardService, logService);
+
+		assert.strictEqual(clipboard.clipboardContent, 'Error Name: error message');
+	});
 });

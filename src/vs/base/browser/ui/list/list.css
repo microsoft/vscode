@@ -60,16 +60,6 @@
 	outline: 0 !important;
 }
 
-/* Dnd */
-.monaco-drag-image {
-	display: inline-block;
-	padding: 1px 7px;
-	border-radius: 10px;
-	font-size: 12px;
-	position: absolute;
-	z-index: 1000;
-}
-
 /* Filter */
 
 .monaco-list-type-filter-message {

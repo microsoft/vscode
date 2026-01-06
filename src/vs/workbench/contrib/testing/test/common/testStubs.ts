@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { MainThreadTestCollection } from 'vs/workbench/contrib/testing/common/mainThreadTestCollection';
-import { ITestItem, TestsDiff } from 'vs/workbench/contrib/testing/common/testTypes';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { createTestItemChildren, ITestItemApi, ITestItemLike, TestItemCollection, TestItemEventOp } from 'vs/workbench/contrib/testing/common/testItemCollection';
+import { URI } from '../../../../../base/common/uri.js';
+import { MainThreadTestCollection } from '../../common/mainThreadTestCollection.js';
+import { ITestItem, TestsDiff } from '../../common/testTypes.js';
+import { TestId } from '../../common/testId.js';
+import { createTestItemChildren, ITestItemApi, ITestItemChildren, ITestItemLike, TestItemCollection, TestItemEventOp } from '../../common/testItemCollection.js';
 
 export class TestTestItem implements ITestItemLike {
 	private readonly props: ITestItem;
@@ -39,15 +39,17 @@ export class TestTestItem implements ITestItemLike {
 		return this._extId.localId;
 	}
 
-	public api: ITestItemApi<TestTestItem> = { controllerId: this._extId.controllerId };
+	public api: ITestItemApi<TestTestItem>;
 
-	public children = createTestItemChildren(this.api, i => i.api, TestTestItem);
+	public children: ITestItemChildren<TestTestItem>;
 
 	constructor(
 		private readonly _extId: TestId,
 		label: string,
 		uri?: URI,
 	) {
+		this.api = { controllerId: this._extId.controllerId };
+		this.children = createTestItemChildren(this.api, i => i.api, TestTestItem);
 		this.props = {
 			extId: _extId.toString(),
 			busy: false,
@@ -111,6 +113,26 @@ export const getInitializedMainTestCollection = async (singleUse = testStubs.nes
 	c.apply(singleUse.collectDiff());
 	singleUse.dispose();
 	return c;
+};
+
+type StubTreeIds = Readonly<{ [id: string]: StubTreeIds | undefined }>;
+
+export const makeSimpleStubTree = (ids: StubTreeIds): TestTestCollection => {
+	const collection = new TestTestCollection();
+
+	const add = (parent: TestTestItem, children: StubTreeIds, path: readonly string[]) => {
+		for (const id of Object.keys(children)) {
+			const item = new TestTestItem(new TestId([...path, id]), id);
+			parent.children.add(item);
+			if (children[id]) {
+				add(item, children[id]!, [...path, id]);
+			}
+		}
+	};
+
+	add(collection.root, ids, ['ctrlId']);
+
+	return collection;
 };
 
 export const testStubs = {

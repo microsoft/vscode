@@ -78,6 +78,13 @@ export class TestId {
 	}
 
 	/**
+	 * Splits a test ID into its parts.
+	 */
+	public static split(idString: string) {
+		return idString.split(TestIdPathParts.Delimiter);
+	}
+
+	/**
 	 * Gets the string ID resulting from adding b to the base ID.
 	 */
 	public static joinToString(base: string | TestId, b: string) {
@@ -105,7 +112,7 @@ export class TestId {
 	 * todo@connor4312: review usages of this to see if using the WellDefinedPrefixTree is better
 	 */
 	public static isChild(maybeParent: string, maybeChild: string) {
-		return maybeChild.startsWith(maybeParent) && maybeChild[maybeParent.length] === TestIdPathParts.Delimiter;
+		return maybeChild[maybeParent.length] === TestIdPathParts.Delimiter && maybeChild.startsWith(maybeParent);
 	}
 
 	/**
@@ -126,6 +133,27 @@ export class TestId {
 		}
 
 		return TestPosition.Disconnected;
+	}
+
+	public static getLengthOfCommonPrefix(length: number, getId: (i: number) => TestId): number {
+		if (length === 0) {
+			return 0;
+		}
+
+		let commonPrefix = 0;
+		while (commonPrefix < length - 1) {
+			for (let i = 1; i < length; i++) {
+				const a = getId(i - 1);
+				const b = getId(i);
+				if (a.path[commonPrefix] !== b.path[commonPrefix]) {
+					return commonPrefix;
+				}
+			}
+
+			commonPrefix++;
+		}
+
+		return commonPrefix;
 	}
 
 	constructor(

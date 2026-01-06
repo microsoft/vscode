@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
-import * as cp from 'child_process';
-import * as fs from 'fs';
-import * as File from 'vinyl';
-import * as es from 'event-stream';
-import * as filter from 'gulp-filter';
+import path from 'path';
+import cp from 'child_process';
+import fs from 'fs';
+import File from 'vinyl';
+import es from 'event-stream';
+import filter from 'gulp-filter';
 import { Stream } from 'stream';
 
 const watcherPath = path.join(__dirname, 'watcher.exe');
@@ -70,7 +70,7 @@ function watch(root: string): Stream {
 
 const cache: { [cwd: string]: Stream } = Object.create(null);
 
-module.exports = function (pattern: string | string[] | filter.FileFunction, options?: { cwd?: string; base?: string }) {
+module.exports = function (pattern: string | string[] | filter.FileFunction, options?: { cwd?: string; base?: string; dot?: boolean }) {
 	options = options || {};
 
 	const cwd = path.normalize(options.cwd || process.cwd());
@@ -86,8 +86,8 @@ module.exports = function (pattern: string | string[] | filter.FileFunction, opt
 	});
 
 	return watcher
-		.pipe(filter(['**', '!.git{,/**}'])) // ignore all things git
-		.pipe(filter(pattern))
+		.pipe(filter(['**', '!.git{,/**}'], { dot: options.dot })) // ignore all things git
+		.pipe(filter(pattern, { dot: options.dot }))
 		.pipe(es.map(function (file: File, cb) {
 			fs.stat(file.path, function (err, stat) {
 				if (err && err.code === 'ENOENT') { return cb(undefined, file); }

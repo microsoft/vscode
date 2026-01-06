@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { RemoteAgentConnectionContext, IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
-import { Event } from 'vs/base/common/event';
-import { PersistentConnectionEvent } from 'vs/platform/remote/common/remoteAgentConnection';
-import { ITelemetryData, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { timeout } from 'vs/base/common/async';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { RemoteAgentConnectionContext, IRemoteAgentEnvironment } from '../../../../platform/remote/common/remoteAgentEnvironment.js';
+import { IChannel, IServerChannel } from '../../../../base/parts/ipc/common/ipc.js';
+import { IDiagnosticInfoOptions, IDiagnosticInfo } from '../../../../platform/diagnostics/common/diagnostics.js';
+import { Event } from '../../../../base/common/event.js';
+import { PersistentConnectionEvent } from '../../../../platform/remote/common/remoteAgentConnection.js';
+import { ITelemetryData, TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
+import { timeout } from '../../../../base/common/async.js';
 
 export const IRemoteAgentService = createDecorator<IRemoteAgentService>('remoteAgentService');
 
@@ -37,6 +37,11 @@ export interface IRemoteAgentService {
 	 */
 	getRoundTripTime(): Promise<number | undefined>;
 
+	/**
+	 * Gracefully ends the current connection, if any.
+	 */
+	endConnection(): Promise<void>;
+
 	getDiagnosticInfo(options: IDiagnosticInfoOptions): Promise<IDiagnosticInfo | undefined>;
 	updateTelemetryLevel(telemetryLevel: TelemetryLevel): Promise<void>;
 	logTelemetry(eventName: string, data?: ITelemetryData): Promise<void>;
@@ -54,6 +59,7 @@ export interface IRemoteAgentConnection {
 	readonly onReconnecting: Event<void>;
 	readonly onDidStateChange: Event<PersistentConnectionEvent>;
 
+	end(): Promise<void>;
 	dispose(): void;
 	getChannel<T extends IChannel>(channelName: string): T;
 	withChannel<T extends IChannel, R>(channelName: string, callback: (channel: T) => Promise<R>): Promise<R>;

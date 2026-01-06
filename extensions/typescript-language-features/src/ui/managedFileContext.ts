@@ -10,7 +10,7 @@ import { isSupportedLanguageMode } from '../configuration/languageIds';
 import { Disposable } from '../utils/dispose';
 import { ActiveJsTsEditorTracker } from './activeJsTsEditorTracker';
 
-/**E
+/**
  * When clause context set when the current file is managed by vscode's built-in typescript extension.
  */
 export default class ManagedFileContextManager extends Disposable {

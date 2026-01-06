@@ -1,10 +1,10 @@
 steps:
-  - template: ./install-rust-posix.yml
+  - template: ./install-rust-posix.yml@self
 
-  - script: rustup component add clippy && cargo clippy -- -D warnings
+  - script: cargo clippy -- -D warnings
     workingDirectory: cli
     displayName: Clippy lint
 
   - script: cargo test
     workingDirectory: cli
-    displayName: Run unit tests
+    displayName: 🧪 Run unit tests

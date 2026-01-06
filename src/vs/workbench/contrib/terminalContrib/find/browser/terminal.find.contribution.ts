@@ -3,23 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDimension } from 'vs/base/browser/dom';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Lazy } from 'vs/base/common/lazy';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { localize2 } from 'vs/nls';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { findInFilesCommand } from 'vs/workbench/contrib/search/browser/searchActionsFind';
-import { IDetachedTerminalInstance, ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal, isDetachedTerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { registerActiveInstanceAction, registerActiveXtermAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
-import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
-import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ITerminalProcessInfo, ITerminalProcessManager, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { TerminalFindWidget } from 'vs/workbench/contrib/terminalContrib/find/browser/terminalFindWidget';
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
+import { IDimension } from '../../../../../base/browser/dom.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { Lazy } from '../../../../../base/common/lazy.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { localize2 } from '../../../../../nls.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { findInFilesCommand } from '../../../search/browser/searchActionsFind.js';
+import { IDetachedTerminalInstance, ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal, isDetachedTerminalInstance } from '../../../terminal/browser/terminal.js';
+import { registerActiveInstanceAction, registerActiveXtermAction } from '../../../terminal/browser/terminalActions.js';
+import { registerTerminalContribution, type IDetachedCompatibleTerminalContributionContext, type ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
+import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
+import { TerminalFindCommandId } from '../common/terminal.find.js';
+import './media/terminalFind.css';
+import { TerminalFindWidget } from './terminalFindWidget.js';
+
+// #region Terminal Contributions
 
 class TerminalFindContribution extends Disposable implements ITerminalContribution {
 	static readonly ID = 'terminal.find';
@@ -40,35 +42,33 @@ class TerminalFindContribution extends Disposable implements ITerminalContributi
 	get findWidget(): TerminalFindWidget { return this._findWidget.value; }
 
 	constructor(
-		private readonly _instance: ITerminalInstance | IDetachedTerminalInstance,
-		processManager: ITerminalProcessManager | ITerminalProcessInfo,
-		widgetManager: TerminalWidgetManager,
+		ctx: ITerminalContributionContext | IDetachedCompatibleTerminalContributionContext,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ITerminalService terminalService: ITerminalService
+		@ITerminalService terminalService: ITerminalService,
 	) {
 		super();
 
 		this._findWidget = new Lazy(() => {
-			const findWidget = instantiationService.createInstance(TerminalFindWidget, this._instance);
+			const findWidget = instantiationService.createInstance(TerminalFindWidget, ctx.instance);
 
 			// Track focus and set state so we can force the scroll bar to be visible
 			findWidget.focusTracker.onDidFocus(() => {
 				TerminalFindContribution.activeFindWidget = this;
-				this._instance.forceScrollbarVisibility();
-				if (!isDetachedTerminalInstance(this._instance)) {
-					terminalService.setActiveInstance(this._instance);
+				ctx.instance.forceScrollbarVisibility();
+				if (!isDetachedTerminalInstance(ctx.instance)) {
+					terminalService.setActiveInstance(ctx.instance);
 				}
 			});
 			findWidget.focusTracker.onDidBlur(() => {
 				TerminalFindContribution.activeFindWidget = undefined;
-				this._instance.resetScrollbarVisibility();
+				ctx.instance.resetScrollbarVisibility();
 			});
 
-			if (!this._instance.domElement) {
+			if (!ctx.instance.domElement) {
 				throw new Error('FindWidget expected terminal DOM to be initialized');
 			}
 
-			this._instance.domElement?.appendChild(findWidget.getDomNode());
+			ctx.instance.domElement?.appendChild(findWidget.getDomNode());
 			if (this._lastLayoutDimensions) {
 				findWidget.layout(this._lastLayoutDimensions.width);
 			}
@@ -97,8 +97,12 @@ class TerminalFindContribution extends Disposable implements ITerminalContributi
 }
 registerTerminalContribution(TerminalFindContribution.ID, TerminalFindContribution, true);
 
+// #endregion
+
+// #region Actions
+
 registerActiveXtermAction({
-	id: TerminalCommandId.FindFocus,
+	id: TerminalFindCommandId.FindFocus,
 	title: localize2('workbench.action.terminal.focusFind', 'Focus Find'),
 	keybinding: {
 		primary: KeyMod.CtrlCmd | KeyCode.KeyF,
@@ -113,7 +117,7 @@ registerActiveXtermAction({
 });
 
 registerActiveXtermAction({
-	id: TerminalCommandId.FindHide,
+	id: TerminalFindCommandId.FindHide,
 	title: localize2('workbench.action.terminal.hideFind', 'Hide Find'),
 	keybinding: {
 		primary: KeyCode.Escape,
@@ -129,12 +133,12 @@ registerActiveXtermAction({
 });
 
 registerActiveXtermAction({
-	id: TerminalCommandId.ToggleFindRegex,
+	id: TerminalFindCommandId.ToggleFindRegex,
 	title: localize2('workbench.action.terminal.toggleFindRegex', 'Toggle Find Using Regex'),
 	keybinding: {
 		primary: KeyMod.Alt | KeyCode.KeyR,
 		mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyR },
-		when: ContextKeyExpr.or(TerminalContextKeys.focusInAny, TerminalContextKeys.findFocus),
+		when: TerminalContextKeys.findVisible,
 		weight: KeybindingWeight.WorkbenchContrib
 	},
 	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
@@ -146,12 +150,12 @@ registerActiveXtermAction({
 });
 
 registerActiveXtermAction({
-	id: TerminalCommandId.ToggleFindWholeWord,
+	id: TerminalFindCommandId.ToggleFindWholeWord,
 	title: localize2('workbench.action.terminal.toggleFindWholeWord', 'Toggle Find Using Whole Word'),
 	keybinding: {
 		primary: KeyMod.Alt | KeyCode.KeyW,
 		mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyW },
-		when: ContextKeyExpr.or(TerminalContextKeys.focusInAny, TerminalContextKeys.findFocus),
+		when: TerminalContextKeys.findVisible,
 		weight: KeybindingWeight.WorkbenchContrib
 	},
 	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
@@ -163,12 +167,12 @@ registerActiveXtermAction({
 });
 
 registerActiveXtermAction({
-	id: TerminalCommandId.ToggleFindCaseSensitive,
+	id: TerminalFindCommandId.ToggleFindCaseSensitive,
 	title: localize2('workbench.action.terminal.toggleFindCaseSensitive', 'Toggle Find Using Case Sensitive'),
 	keybinding: {
 		primary: KeyMod.Alt | KeyCode.KeyC,
 		mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyC },
-		when: ContextKeyExpr.or(TerminalContextKeys.focusInAny, TerminalContextKeys.findFocus),
+		when: TerminalContextKeys.findVisible,
 		weight: KeybindingWeight.WorkbenchContrib
 	},
 	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
@@ -180,7 +184,7 @@ registerActiveXtermAction({
 });
 
 registerActiveXtermAction({
-	id: TerminalCommandId.FindNext,
+	id: TerminalFindCommandId.FindNext,
 	title: localize2('workbench.action.terminal.findNext', 'Find Next'),
 	keybinding: [
 		{
@@ -207,7 +211,7 @@ registerActiveXtermAction({
 });
 
 registerActiveXtermAction({
-	id: TerminalCommandId.FindPrevious,
+	id: TerminalFindCommandId.FindPrevious,
 	title: localize2('workbench.action.terminal.findPrevious', 'Find Previous'),
 	keybinding: [
 		{
@@ -235,7 +239,7 @@ registerActiveXtermAction({
 
 // Global workspace file search
 registerActiveInstanceAction({
-	id: TerminalCommandId.SearchWorkspace,
+	id: TerminalFindCommandId.SearchWorkspace,
 	title: localize2('workbench.action.terminal.searchWorkspace', 'Search Workspace'),
 	keybinding: [
 		{
@@ -246,3 +250,5 @@ registerActiveInstanceAction({
 	],
 	run: (activeInstance, c, accessor) => findInFilesCommand(accessor, { query: activeInstance.selection })
 });
+
+// #endregion

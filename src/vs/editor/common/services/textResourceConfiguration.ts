@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { IPosition } from 'vs/editor/common/core/position';
-import { ConfigurationTarget, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Event } from '../../../base/common/event.js';
+import { URI } from '../../../base/common/uri.js';
+import { IPosition } from '../core/position.js';
+import { ConfigurationTarget, IConfigurationValue } from '../../../platform/configuration/common/configuration.js';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 
 export const ITextResourceConfigurationService = createDecorator<ITextResourceConfigurationService>('textResourceConfigurationService');
 
@@ -72,7 +72,7 @@ export interface ITextResourceConfigurationService {
 	 * @param configurationTarget Optional target into which the configuration has to be updated.
 	 * If not specified, target will be derived by checking where the configuration is defined.
 	 */
-	updateValue(resource: URI, key: string, value: any, configurationTarget?: ConfigurationTarget): Promise<void>;
+	updateValue(resource: URI | undefined, key: string, value: unknown, configurationTarget?: ConfigurationTarget): Promise<void>;
 
 }
 

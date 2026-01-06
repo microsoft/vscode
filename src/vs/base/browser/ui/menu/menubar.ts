@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
-import * as DOM from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { EventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
-import { cleanMnemonic, Direction, IMenuOptions, IMenuStyles, Menu, MENU_ESCAPED_MNEMONIC_REGEX, MENU_MNEMONIC_REGEX } from 'vs/base/browser/ui/menu/menu';
-import { ActionRunner, IAction, IActionRunner, Separator, SubmenuAction } from 'vs/base/common/actions';
-import { asArray } from 'vs/base/common/arrays';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { Emitter, Event } from 'vs/base/common/event';
-import { KeyCode, KeyMod, ScanCode, ScanCodeUtils } from 'vs/base/common/keyCodes';
-import { ResolvedKeybinding } from 'vs/base/common/keybindings';
-import { Disposable, DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { isMacintosh } from 'vs/base/common/platform';
-import * as strings from 'vs/base/common/strings';
-import 'vs/css!./menubar';
-import * as nls from 'vs/nls';
-import { mainWindow } from 'vs/base/browser/window';
+import * as browser from '../../browser.js';
+import * as DOM from '../../dom.js';
+import { StandardKeyboardEvent } from '../../keyboardEvent.js';
+import { StandardMouseEvent } from '../../mouseEvent.js';
+import { EventType, Gesture, GestureEvent } from '../../touch.js';
+import { cleanMnemonic, HorizontalDirection, IMenuDirection, IMenuOptions, IMenuStyles, Menu, MENU_ESCAPED_MNEMONIC_REGEX, MENU_MNEMONIC_REGEX, VerticalDirection } from './menu.js';
+import { ActionRunner, IAction, IActionRunner, Separator, SubmenuAction } from '../../../common/actions.js';
+import { asArray } from '../../../common/arrays.js';
+import { RunOnceScheduler } from '../../../common/async.js';
+import { Codicon } from '../../../common/codicons.js';
+import { ThemeIcon } from '../../../common/themables.js';
+import { Emitter, Event } from '../../../common/event.js';
+import { KeyCode, KeyMod, ScanCode, ScanCodeUtils } from '../../../common/keyCodes.js';
+import { ResolvedKeybinding } from '../../../common/keybindings.js';
+import { Disposable, DisposableStore, dispose, IDisposable } from '../../../common/lifecycle.js';
+import { isMacintosh } from '../../../common/platform.js';
+import * as strings from '../../../common/strings.js';
+import './menubar.css';
+import * as nls from '../../../../nls.js';
+import { mainWindow } from '../../window.js';
 
 const $ = DOM.$;
 
@@ -32,7 +32,7 @@ export interface IMenuBarOptions {
 	visibility?: string;
 	getKeybinding?: (action: IAction) => ResolvedKeybinding | undefined;
 	alwaysOnMnemonics?: boolean;
-	compactMode?: Direction;
+	compactMode?: IMenuDirection;
 	actionRunner?: IActionRunner;
 	getCompactMenuActions?: () => IAction[];
 }
@@ -333,9 +333,9 @@ export class MenuBar extends Disposable {
 			} else {
 				triggerKeys.push(KeyCode.Space);
 
-				if (this.options.compactMode === Direction.Right) {
+				if (this.options.compactMode?.horizontal === HorizontalDirection.Right) {
 					triggerKeys.push(KeyCode.RightArrow);
-				} else if (this.options.compactMode === Direction.Left) {
+				} else if (this.options.compactMode?.horizontal === HorizontalDirection.Left) {
 					triggerKeys.push(KeyCode.LeftArrow);
 				}
 			}
@@ -741,6 +741,12 @@ export class MenuBar extends Disposable {
 				}
 
 				if (this.focusedMenu) {
+					// When the menu is toggled on, it may be in compact state and trying to
+					// focus the first menu. In this case we should focus the overflow instead.
+					if (this.focusedMenu.index === 0 && this.numMenusShown === 0) {
+						this.focusedMenu.index = MenuBar.OVERFLOW_INDEX;
+					}
+
 					if (this.focusedMenu.index === MenuBar.OVERFLOW_INDEX) {
 						this.overflowMenu.buttonElement.focus();
 					} else {
@@ -1007,16 +1013,23 @@ export class MenuBar extends Disposable {
 		const titleBoundingRect = customMenu.titleElement.getBoundingClientRect();
 		const titleBoundingRectZoom = DOM.getDomNodeZoomLevel(customMenu.titleElement);
 
-		if (this.options.compactMode === Direction.Right) {
-			menuHolder.style.top = `${titleBoundingRect.top}px`;
+		if (this.options.compactMode?.horizontal === HorizontalDirection.Right) {
 			menuHolder.style.left = `${titleBoundingRect.left + this.container.clientWidth}px`;
-		} else if (this.options.compactMode === Direction.Left) {
-			menuHolder.style.top = `${titleBoundingRect.top}px`;
-			menuHolder.style.right = `${this.container.clientWidth}px`;
+		} else if (this.options.compactMode?.horizontal === HorizontalDirection.Left) {
+			const windowWidth = DOM.getWindow(this.container).innerWidth;
+			menuHolder.style.right = `${windowWidth - titleBoundingRect.left}px`;
 			menuHolder.style.left = 'auto';
 		} else {
-			menuHolder.style.top = `${titleBoundingRect.bottom * titleBoundingRectZoom}px`;
 			menuHolder.style.left = `${titleBoundingRect.left * titleBoundingRectZoom}px`;
+		}
+
+		if (this.options.compactMode?.vertical === VerticalDirection.Above) {
+			// TODO@benibenj Do not hardcode the height of the menu holder
+			menuHolder.style.top = `${titleBoundingRect.top - this.menus.length * 30 + this.container.clientHeight}px`;
+		} else if (this.options.compactMode?.vertical === VerticalDirection.Below) {
+			menuHolder.style.top = `${titleBoundingRect.top}px`;
+		} else {
+			menuHolder.style.top = `${titleBoundingRect.bottom * titleBoundingRectZoom}px`;
 		}
 
 		customMenu.buttonElement.appendChild(menuHolder);
@@ -1026,7 +1039,7 @@ export class MenuBar extends Disposable {
 			actionRunner: this.actionRunner,
 			enableMnemonics: this.options.alwaysOnMnemonics || (this.mnemonicsInUse && this.options.enableMnemonics),
 			ariaLabel: customMenu.buttonElement.getAttribute('aria-label') ?? undefined,
-			expandDirection: this.isCompact ? this.options.compactMode : Direction.Right,
+			expandDirection: this.isCompact ? this.options.compactMode : { horizontal: HorizontalDirection.Right, vertical: VerticalDirection.Below },
 			useEventAsContext: true
 		};
 

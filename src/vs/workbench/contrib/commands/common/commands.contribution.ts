@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { safeStringify } from '../../../../base/common/objects.js';
+import * as nls from '../../../../nls.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 
 type RunnableCommand = string | { command: string; args: any[] };
 
@@ -22,7 +23,7 @@ class RunCommands extends Action2 {
 	constructor() {
 		super({
 			id: 'runCommands',
-			title: { value: nls.localize('runCommands', "Run Commands"), original: 'Run Commands' },
+			title: nls.localize2('runCommands', "Run Commands"),
 			f1: false,
 			metadata: {
 				description: nls.localize('runCommands.description', "Run several commands"),
@@ -99,14 +100,14 @@ class RunCommands extends Action2 {
 
 				const cmd = args.commands[i];
 
-				logService.debug(`runCommands: executing ${i}-th command: ${JSON.stringify(cmd)}`);
+				logService.debug(`runCommands: executing ${i}-th command: ${safeStringify(cmd)}`);
 
-				const r = await this._runCommand(commandService, cmd);
+				await this._runCommand(commandService, cmd);
 
-				logService.debug(`runCommands: executed ${i}-th command with return value: ${JSON.stringify(r)}`);
+				logService.debug(`runCommands: executed ${i}-th command`);
 			}
 		} catch (err) {
-			logService.debug(`runCommands: executing ${i}-th command resulted in an error: ${err instanceof Error ? err.message : JSON.stringify(err)}`);
+			logService.debug(`runCommands: executing ${i}-th command resulted in an error: ${err instanceof Error ? err.message : safeStringify(err)}`);
 
 			notificationService.error(err);
 		}

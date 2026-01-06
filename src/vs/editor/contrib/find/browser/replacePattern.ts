@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { buildReplaceStringWithCasePreserved } from 'vs/base/common/search';
+import { CharCode } from '../../../../base/common/charCode.js';
+import { buildReplaceStringWithCasePreserved } from '../../../../base/common/search.js';
 
 const enum ReplacePatternKind {
 	StaticValue = 0,

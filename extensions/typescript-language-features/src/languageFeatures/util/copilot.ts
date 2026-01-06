@@ -69,8 +69,10 @@ export class EditorChatFollowUp implements Command {
 							expand.action.changes.flatMap((c) => c.textChanges)
 						)
 						: expand.range;
+		const initialSelection = initialRange ? new vscode.Selection(initialRange.start, initialRange.end) : undefined;
 		await vscode.commands.executeCommand('vscode.editorChat.start', {
 			initialRange,
+			initialSelection,
 			message,
 			autoSend: true,
 		});

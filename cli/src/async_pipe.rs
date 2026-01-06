@@ -227,7 +227,7 @@ impl hyper::server::accept::Accept for PollableAsyncListener {
 	}
 }
 
-/// Gets a random name for a pipe/socket on the paltform
+/// Gets a random name for a pipe/socket on the platform
 pub fn get_socket_name() -> PathBuf {
 	cfg_if::cfg_if! {
 		if #[cfg(unix)] {

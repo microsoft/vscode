@@ -3,51 +3,56 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
-import { Memento } from 'vs/workbench/common/memento';
-import { SIDE_BAR_FOREGROUND } from 'vs/workbench/common/theme';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { IChatViewPane } from 'vs/workbench/contrib/chat/browser/chat';
-import { IChatViewState, ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
-import { IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-
-export interface IChatViewOptions {
-	readonly providerId: string;
-}
+import { $, getWindow } from '../../../../base/browser/dom.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { MarshalledId } from '../../../../base/common/marshallingIds.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IViewPaneOptions, ViewPane } from '../../../browser/parts/views/viewPane.js';
+import { Memento } from '../../../common/memento.js';
+import { SIDE_BAR_FOREGROUND } from '../../../common/theme.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
+import { IChatViewTitleActionContext } from '../common/chatActions.js';
+import { IChatAgentService } from '../common/chatAgents.js';
+import { ChatContextKeys } from '../common/chatContextKeys.js';
+import { IChatModel } from '../common/chatModel.js';
+import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
+import { IChatService } from '../common/chatService.js';
+import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
+import { ChatWidget, IChatViewState } from './chatWidget.js';
+import { ChatViewWelcomeController, IViewWelcomeDelegate } from './viewsWelcome/chatViewWelcomeController.js';
 
 interface IViewPaneState extends IChatViewState {
 	sessionId?: string;
+	hasMigratedCurrentSession?: boolean;
 }
 
-export const CHAT_SIDEBAR_PANEL_ID = 'workbench.panel.chatSidebar';
-export class ChatViewPane extends ViewPane implements IChatViewPane {
-	static ID = 'workbench.panel.chat.view';
-
+export const CHAT_SIDEBAR_OLD_VIEW_PANEL_ID = 'workbench.panel.chatSidebar';
+export const CHAT_SIDEBAR_PANEL_ID = 'workbench.panel.chat';
+export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private _widget!: ChatWidget;
 	get widget(): ChatWidget { return this._widget; }
 
-	private modelDisposables = this._register(new DisposableStore());
+	private readonly modelDisposables = this._register(new DisposableStore());
 	private memento: Memento;
 	private readonly viewState: IViewPaneState;
-	private didProviderRegistrationFail = false;
+
+	private _restoringSession: Promise<void> | undefined;
 
 	constructor(
-		private readonly chatViewOptions: IChatViewOptions,
+		private readonly chatOptions: { location: ChatAgentLocation.Panel },
 		options: IViewPaneOptions,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -57,80 +62,158 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IChatService private readonly chatService: IChatService,
+		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@ILogService private readonly logService: ILogService,
+		@ILayoutService private readonly layoutService: ILayoutService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		// View state for the ViewPane is currently global per-provider basically, but some other strictly per-model state will require a separate memento.
-		this.memento = new Memento('interactive-session-view-' + this.chatViewOptions.providerId, this.storageService);
+		this.memento = new Memento('interactive-session-view-' + CHAT_PROVIDER_ID, this.storageService);
 		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IViewPaneState;
-		this._register(this.chatService.onDidRegisterProvider(({ providerId }) => {
-			if (providerId === this.chatViewOptions.providerId && !this._widget?.viewModel) {
-				const sessionId = this.getSessionId();
-				const model = sessionId ? this.chatService.getOrRestoreSession(sessionId) : undefined;
 
-				// The widget may be hidden at this point, because welcome views were allowed. Use setVisible to
-				// avoid doing a render while the widget is hidden. This is changing the condition in `shouldShowWelcome`
-				// so it should fire onDidChangeViewWelcomeState.
-				try {
-					this._widget.setVisible(false);
-					this.updateModel(model);
-					this._onDidChangeViewWelcomeState.fire();
-				} finally {
-					this.widget.setVisible(true);
+		if (this.chatOptions.location === ChatAgentLocation.Panel && !this.viewState.hasMigratedCurrentSession) {
+			const editsMemento = new Memento('interactive-session-view-' + CHAT_PROVIDER_ID + `-edits`, this.storageService);
+			const lastEditsState = editsMemento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IViewPaneState;
+			if (lastEditsState.sessionId) {
+				this.logService.trace(`ChatViewPane: last edits session was ${lastEditsState.sessionId}`);
+				if (!this.chatService.isPersistedSessionEmpty(lastEditsState.sessionId)) {
+					this.logService.info(`ChatViewPane: migrating ${lastEditsState.sessionId} to unified view`);
+					this.viewState.sessionId = lastEditsState.sessionId;
+					this.viewState.inputValue = lastEditsState.inputValue;
+					this.viewState.inputState = {
+						...lastEditsState.inputState,
+						chatMode: lastEditsState.inputState?.chatMode ?? ChatModeKind.Edit
+					};
+					this.viewState.hasMigratedCurrentSession = true;
 				}
 			}
+		}
+
+		this._register(this.chatAgentService.onDidChangeAgents(() => {
+			if (this.chatAgentService.getDefaultAgent(this.chatOptions?.location)) {
+				if (!this._widget?.viewModel && !this._restoringSession) {
+					const info = this.getTransferredOrPersistedSessionInfo();
+					this._restoringSession =
+						(info.sessionId ? this.chatService.getOrRestoreSession(info.sessionId) : Promise.resolve(undefined)).then(async model => {
+							if (!this._widget) {
+								// renderBody has not been called yet
+								return;
+							}
+
+							// The widget may be hidden at this point, because welcome views were allowed. Use setVisible to
+							// avoid doing a render while the widget is hidden. This is changing the condition in `shouldShowWelcome`
+							// so it should fire onDidChangeViewWelcomeState.
+							const wasVisible = this._widget.visible;
+							try {
+								this._widget.setVisible(false);
+								await this.updateModel(model, info.inputValue || info.mode ? { inputState: { chatMode: info.mode }, inputValue: info.inputValue } : undefined);
+							} finally {
+								this.widget.setVisible(wasVisible);
+							}
+						});
+					this._restoringSession.finally(() => this._restoringSession = undefined);
+				}
+			}
+
+			this._onDidChangeViewWelcomeState.fire();
 		}));
+
+		// Location context key
+		ChatContextKeys.panelLocation.bindTo(contextKeyService).set(viewDescriptorService.getViewLocationById(options.id) ?? ViewContainerLocation.AuxiliaryBar);
 	}
 
-	private updateModel(model?: IChatModel | undefined, viewState?: IViewPaneState): void {
+	override getActionsContext(): IChatViewTitleActionContext | undefined {
+		return this.widget?.viewModel ? {
+			sessionId: this.widget.viewModel.sessionId,
+			$mid: MarshalledId.ChatViewContext
+		} : undefined;
+	}
+
+	private async updateModel(model?: IChatModel | undefined, viewState?: IChatViewState): Promise<void> {
 		this.modelDisposables.clear();
 
-		model = model ?? (this.chatService.transferredSessionData?.sessionId
-			? this.chatService.getOrRestoreSession(this.chatService.transferredSessionData.sessionId)
-			: this.chatService.startSession(this.chatViewOptions.providerId, CancellationToken.None));
+		model = model ?? (this.chatService.transferredSessionData?.sessionId && this.chatService.transferredSessionData?.location === this.chatOptions.location
+			? await this.chatService.getOrRestoreSession(this.chatService.transferredSessionData.sessionId)
+			: this.chatService.startSession(this.chatOptions.location, CancellationToken.None));
 		if (!model) {
 			throw new Error('Could not start chat session');
 		}
 
-		this._widget.setModel(model, { ...(viewState ?? this.viewState) });
+		if (viewState) {
+			this.updateViewState(viewState);
+		}
+
 		this.viewState.sessionId = model.sessionId;
+		this._widget.setModel(model, { ...this.viewState });
+
+		// Update the toolbar context with new sessionId
+		this.updateActions();
 	}
 
 	override shouldShowWelcome(): boolean {
-		const noPersistedSessions = !this.chatService.hasSessions(this.chatViewOptions.providerId);
-		return !this._widget?.viewModel && (noPersistedSessions || this.didProviderRegistrationFail);
+		const noPersistedSessions = !this.chatService.hasSessions();
+		const hasCoreAgent = this.chatAgentService.getAgents().some(agent => agent.isCore && agent.locations.includes(this.chatOptions.location));
+		const hasDefaultAgent = this.chatAgentService.getDefaultAgent(this.chatOptions.location) !== undefined; // only false when Hide Copilot has run and unregistered the setup agents
+		const shouldShow = !hasCoreAgent && (!hasDefaultAgent || !this._widget?.viewModel && noPersistedSessions);
+		this.logService.trace(`ChatViewPane#shouldShowWelcome(${this.chatOptions.location}) = ${shouldShow}: hasCoreAgent=${hasCoreAgent} hasDefaultAgent=${hasDefaultAgent} || noViewModel=${!this._widget?.viewModel} && noPersistedSessions=${noPersistedSessions}`);
+		return !!shouldShow;
 	}
 
-	private getSessionId() {
-		let sessionId: string | undefined;
-		if (this.chatService.transferredSessionData) {
-			sessionId = this.chatService.transferredSessionData.sessionId;
-			this.viewState.inputValue = this.chatService.transferredSessionData.inputValue;
+	private getTransferredOrPersistedSessionInfo(): { sessionId?: string; inputValue?: string; mode?: ChatModeKind } {
+		if (this.chatService.transferredSessionData?.location === this.chatOptions.location) {
+			const sessionId = this.chatService.transferredSessionData.sessionId;
+			return {
+				sessionId,
+				inputValue: this.chatService.transferredSessionData.inputValue,
+				mode: this.chatService.transferredSessionData.mode
+			};
 		} else {
-			sessionId = this.viewState.sessionId;
+			return { sessionId: this.viewState.sessionId };
 		}
-		return sessionId;
 	}
 
-	protected override renderBody(parent: HTMLElement): void {
+	protected override async renderBody(parent: HTMLElement): Promise<void> {
 		try {
 			super.renderBody(parent);
 
-			const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService]));
+			this._register(this.instantiationService.createInstance(ChatViewWelcomeController, parent, this, this.chatOptions.location));
+
+			const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
+			const locationBasedColors = this.getLocationBasedColors();
+			const editorOverflowNode = this.layoutService.getContainer(getWindow(parent)).appendChild($('.chat-editor-overflow.monaco-editor'));
+			this._register({ dispose: () => editorOverflowNode.remove() });
 
 			this._widget = this._register(scopedInstantiationService.createInstance(
 				ChatWidget,
+				this.chatOptions.location,
 				{ viewId: this.id },
-				{ supportsFileReferences: true },
+				{
+					autoScroll: mode => mode !== ChatModeKind.Ask,
+					renderFollowups: this.chatOptions.location === ChatAgentLocation.Panel,
+					supportsFileReferences: true,
+					rendererOptions: {
+						renderTextEditsAsSummary: (uri) => {
+							return true;
+						},
+						referencesExpandedWhenEmptyResponse: false,
+						progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask,
+					},
+					editorOverflowWidgetsDomNode: editorOverflowNode,
+					enableImplicitContext: this.chatOptions.location === ChatAgentLocation.Panel,
+					enableWorkingSet: 'explicit',
+					supportsChangingModes: true,
+				},
 				{
 					listForeground: SIDE_BAR_FOREGROUND,
-					listBackground: this.getBackgroundColor(),
-					inputEditorBackground: this.getBackgroundColor(),
-					resultEditorBackground: editorBackground
+					listBackground: locationBasedColors.background,
+					overlayBackground: locationBasedColors.overlayBackground,
+					inputEditorBackground: locationBasedColors.background,
+					resultEditorBackground: editorBackground,
+
 				}));
 			this._register(this.onDidChangeBodyVisibility(visible => {
 				this._widget.setVisible(visible);
@@ -138,19 +221,10 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 			this._register(this._widget.onDidClear(() => this.clear()));
 			this._widget.render(parent);
 
-			const sessionId = this.getSessionId();
-			// Render the welcome view if this session gets disposed at any point,
-			// including if the provider registration fails
-			const disposeListener = sessionId ? this._register(this.chatService.onDidDisposeSession((e) => {
-				if (e.reason === 'initializationFailed' && e.providerId === this.chatViewOptions.providerId) {
-					this.didProviderRegistrationFail = true;
-					disposeListener?.dispose();
-					this._onDidChangeViewWelcomeState.fire();
-				}
-			})) : undefined;
-			const model = sessionId ? this.chatService.getOrRestoreSession(sessionId) : undefined;
+			const info = this.getTransferredOrPersistedSessionInfo();
+			const model = info.sessionId ? await this.chatService.getOrRestoreSession(info.sessionId) : undefined;
 
-			this.updateModel(model);
+			await this.updateModel(model, info.inputValue || info.mode ? { inputState: { chatMode: info.mode }, inputValue: info.inputValue } : undefined);
 		} catch (e) {
 			this.logService.error(e);
 			throw e;
@@ -161,20 +235,26 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 		this._widget.acceptInput(query);
 	}
 
-	async clear(): Promise<void> {
+	private async clear(): Promise<void> {
 		if (this.widget.viewModel) {
-			this.chatService.clearSession(this.widget.viewModel.sessionId);
+			await this.chatService.clearSession(this.widget.viewModel.sessionId);
 		}
-		this.updateModel(undefined, { ...this.viewState, inputValue: undefined });
+
+		// Grab the widget's latest view state because it will be loaded back into the widget
+		this.updateViewState();
+		await this.updateModel(undefined);
+
+		// Update the toolbar context with new sessionId
+		this.updateActions();
 	}
 
-	loadSession(sessionId: string): void {
+	async loadSession(sessionId: string, viewState?: IChatViewState): Promise<void> {
 		if (this.widget.viewModel) {
-			this.chatService.clearSession(this.widget.viewModel.sessionId);
+			await this.chatService.clearSession(this.widget.viewModel.sessionId);
 		}
 
-		const newModel = this.chatService.getOrRestoreSession(sessionId);
-		this.updateModel(newModel);
+		const newModel = await this.chatService.getOrRestoreSession(sessionId);
+		await this.updateModel(newModel, viewState);
 	}
 
 	focusInput(): void {
@@ -197,12 +277,18 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 			// TODO multiple chat views will overwrite each other
 			this._widget.saveState();
 
-			const widgetViewState = this._widget.getViewState();
-			this.viewState.inputValue = widgetViewState.inputValue;
-			this.viewState.inputState = widgetViewState.inputState;
+			this.updateViewState();
 			this.memento.saveMemento();
 		}
 
 		super.saveState();
+	}
+
+	private updateViewState(viewState?: IChatViewState): void {
+		const newViewState = viewState ?? this._widget.getViewState();
+		for (const [key, value] of Object.entries(newViewState)) {
+			// Assign all props to the memento so they get saved
+			(this.viewState as any)[key] = value;
+		}
 	}
 }

@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { CancellationError, onUnexpectedExternalError } from 'vs/base/common/errors';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { InlayHint, InlayHintList, InlayHintsProvider, Command } from 'vs/editor/common/languages';
-import { ITextModel } from 'vs/editor/common/model';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationError, onUnexpectedExternalError } from '../../../../base/common/errors.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IPosition, Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry.js';
+import { InlayHint, InlayHintList, InlayHintsProvider, Command } from '../../../common/languages.js';
+import { ITextModel } from '../../../common/model.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { URI } from '../../../../base/common/uri.js';
 
 export class InlayHintAnchor {
 	constructor(readonly range: Range, readonly direction: 'before' | 'after') { }

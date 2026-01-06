@@ -139,9 +139,9 @@ suite('vscode API - quick input', function () {
 		};
 
 		const quickPick = createQuickPick({
-			events: ['active', 'selection', 'accept', 'active', 'selection', 'active', 'selection', 'accept', 'hide'],
-			activeItems: [['eins'], [], ['drei']],
-			selectionItems: [['eins'], [], ['drei']],
+			events: ['active', 'selection', 'accept', 'active', 'selection', 'accept', 'hide'],
+			activeItems: [['eins'], ['drei']],
+			selectionItems: [['eins'], ['drei']],
 			acceptedItems: {
 				active: [['eins'], ['drei']],
 				selection: [['eins'], ['drei']],

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { extractRangeFromFilter } from 'vs/workbench/contrib/search/common/search';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { extractRangeFromFilter } from '../../common/search.js';
 
 suite('extractRangeFromFilter', () => {
 
@@ -98,4 +98,3 @@ suite('extractRangeFromFilter', () => {
 		}
 	});
 });
-

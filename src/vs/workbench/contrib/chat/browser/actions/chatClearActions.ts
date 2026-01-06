@@ -3,27 +3,45 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { localize2 } from 'vs/nls';
-import { Action2, IAction2Options, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
-import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
-import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
-import { clearChatEditor } from 'vs/workbench/contrib/chat/browser/actions/chatClear';
-import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
-import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
-import { CONTEXT_IN_CHAT_SESSION, CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
+import { localize2 } from '../../../../../nls.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ActiveEditorContext } from '../../../../common/contextkeys.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { IChatEditingSession } from '../../common/chatEditingService.js';
+import { ChatModeKind } from '../../common/constants.js';
+import { ChatViewId, IChatWidget } from '../chat.js';
+import { EditingSessionAction } from '../chatEditing/chatEditingActions.js';
+import { ChatEditorInput } from '../chatEditorInput.js';
+import { ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION, CHAT_CATEGORY, handleCurrentEditingSession } from './chatActions.js';
+import { clearChatEditor } from './chatClear.js';
 
-export const ACTION_ID_NEW_CHAT = `workbench.action.chat.newChat`;
+export interface INewEditSessionActionContext {
+	/**
+	 * An initial prompt to write to the chat.
+	 */
+	inputValue?: string;
+
+	/**
+	 * Selects opening in agent mode or not. If not set, the current mode is used.
+	 * This is ignored when coming from a chat view title context.
+	 */
+	agentMode?: boolean;
+
+	/**
+	 * Whether the inputValue is partial and should wait for further user input. If false or not set, the prompt is sent immediately.
+	 */
+	isPartialQuery?: boolean;
+}
 
 export function registerNewChatActions() {
-
 	registerAction2(class NewChatEditorAction extends Action2 {
 		constructor() {
 			super({
@@ -31,91 +49,139 @@ export function registerNewChatActions() {
 				title: localize2('chat.newChat.label', "New Chat"),
 				icon: Codicon.plus,
 				f1: false,
-				precondition: CONTEXT_PROVIDER_EXISTS,
-				menu: [{
-					id: MenuId.EditorTitle,
+				precondition: ChatContextKeys.enabled,
+				menu: [MenuId.EditorTitle, MenuId.CompactWindowEditorTitle].map(id => ({
+					id,
 					group: 'navigation',
-					order: 0,
 					when: ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
-				}]
+					order: 1
+				}))
 			});
 		}
 		async run(accessor: ServicesAccessor, ...args: any[]) {
-			announceChatCleared(accessor);
+			announceChatCleared(accessor.get(IAccessibilitySignalService));
 			await clearChatEditor(accessor);
 		}
 	});
 
-
-	registerAction2(class GlobalClearChatAction extends Action2 {
+	registerAction2(class NewChatAction extends EditingSessionAction {
 		constructor() {
 			super({
 				id: ACTION_ID_NEW_CHAT,
-				title: localize2('chat.newChat.label', "New Chat"),
+				title: localize2('chat.newEdits.label', "New Chat"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.plus,
-				precondition: CONTEXT_PROVIDER_EXISTS,
+				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.editingParticipantRegistered),
 				f1: true,
-				keybinding: {
-					weight: KeybindingWeight.WorkbenchContrib,
-					primary: KeyMod.CtrlCmd | KeyCode.KeyL,
-					mac: {
-						primary: KeyMod.WinCtrl | KeyCode.KeyL
-					},
-					when: CONTEXT_IN_CHAT_SESSION
-				},
-				menu: {
+				menu: [{
 					id: MenuId.ChatContext,
 					group: 'z_clear'
+				},
+				{
+					id: MenuId.ViewTitle,
+					when: ContextKeyExpr.equals('view', ChatViewId),
+					group: 'navigation',
+					order: -1
+				}],
+				keybinding: {
+					weight: KeybindingWeight.WorkbenchContrib + 1,
+					primary: KeyMod.CtrlCmd | KeyCode.KeyN,
+					secondary: [KeyMod.CtrlCmd | KeyCode.KeyL],
+					mac: {
+						primary: KeyMod.CtrlCmd | KeyCode.KeyN,
+						secondary: [KeyMod.WinCtrl | KeyCode.KeyL]
+					},
+					when: ChatContextKeys.inChatSession
 				}
 			});
 		}
 
-		run(accessor: ServicesAccessor, ...args: any[]) {
-			const widgetService = accessor.get(IChatWidgetService);
 
-			const widget = widgetService.lastFocusedWidget;
-			if (!widget) {
+		async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, widget: IChatWidget, ...args: any[]) {
+			const context: INewEditSessionActionContext | undefined = args[0];
+			const accessibilitySignalService = accessor.get(IAccessibilitySignalService);
+			const dialogService = accessor.get(IDialogService);
+
+			if (!(await handleCurrentEditingSession(editingSession, undefined, dialogService))) {
 				return;
 			}
 
-			announceChatCleared(accessor);
+			announceChatCleared(accessibilitySignalService);
+
+			await editingSession.stop();
 			widget.clear();
+			await widget.waitForReady();
+			widget.attachmentModel.clear(true);
+			widget.input.relatedFiles?.clear();
 			widget.focusInput();
+
+			if (!context) {
+				return;
+			}
+
+			if (typeof context.agentMode === 'boolean') {
+				widget.input.setChatMode(context.agentMode ? ChatModeKind.Agent : ChatModeKind.Edit);
+			}
+
+			if (context.inputValue) {
+				if (context.isPartialQuery) {
+					widget.setInput(context.inputValue);
+				} else {
+					widget.acceptInput(context.inputValue);
+				}
+			}
+		}
+	});
+	CommandsRegistry.registerCommandAlias(ACTION_ID_NEW_EDIT_SESSION, ACTION_ID_NEW_CHAT);
+
+
+	registerAction2(class UndoChatEditInteractionAction extends EditingSessionAction {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.undoEdit',
+				title: localize2('chat.undoEdit.label', "Undo Last Request"),
+				category: CHAT_CATEGORY,
+				icon: Codicon.discard,
+				precondition: ContextKeyExpr.and(ChatContextKeys.chatEditingCanUndo, ChatContextKeys.enabled, ChatContextKeys.editingParticipantRegistered),
+				f1: true,
+				menu: [{
+					id: MenuId.ViewTitle,
+					when: ContextKeyExpr.equals('view', ChatViewId),
+					group: 'navigation',
+					order: -3
+				}]
+			});
+		}
+
+		async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession) {
+			await editingSession.undoInteraction();
+		}
+	});
+
+	registerAction2(class RedoChatEditInteractionAction extends EditingSessionAction {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.redoEdit',
+				title: localize2('chat.redoEdit.label', "Redo Last Request"),
+				category: CHAT_CATEGORY,
+				icon: Codicon.redo,
+				precondition: ContextKeyExpr.and(ChatContextKeys.chatEditingCanRedo, ChatContextKeys.enabled, ChatContextKeys.editingParticipantRegistered),
+				f1: true,
+				menu: [{
+					id: MenuId.ViewTitle,
+					when: ContextKeyExpr.equals('view', ChatViewId),
+					group: 'navigation',
+					order: -2
+				}]
+			});
+		}
+
+		async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession) {
+			await editingSession.redoInteraction();
 		}
 	});
 }
 
-const getNewChatActionDescriptorForViewTitle = (viewId: string, providerId: string): Readonly<IAction2Options> & { viewId: string } => ({
-	viewId,
-	id: `workbench.action.chat.${providerId}.newChat`,
-	title: localize2('chat.newChat.label', "New Chat"),
-	menu: {
-		id: MenuId.ViewTitle,
-		when: ContextKeyExpr.equals('view', viewId),
-		group: 'navigation',
-		order: -1
-	},
-	precondition: CONTEXT_PROVIDER_EXISTS,
-	category: CHAT_CATEGORY,
-	icon: Codicon.plus,
-	f1: false
-});
-
-export function getNewChatAction(viewId: string, providerId: string) {
-	return class NewChatAction extends ViewAction<ChatViewPane> {
-		constructor() {
-			super(getNewChatActionDescriptorForViewTitle(viewId, providerId));
-		}
-
-		async runInView(accessor: ServicesAccessor, view: ChatViewPane) {
-			announceChatCleared(accessor);
-			await view.clear();
-			view.widget.focusInput();
-		}
-	};
-}
-
-function announceChatCleared(accessor: ServicesAccessor): void {
-	accessor.get(IAudioCueService).playAudioCue(AudioCue.clear);
+function announceChatCleared(accessibilitySignalService: IAccessibilitySignalService): void {
+	accessibilitySignalService.playSignal(AccessibilitySignal.clear);
 }

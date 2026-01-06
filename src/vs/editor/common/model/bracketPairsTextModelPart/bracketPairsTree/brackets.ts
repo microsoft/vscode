@@ -2,13 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
-import { ResolvedLanguageConfiguration } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { BracketKind } from 'vs/editor/common/languages/supports/languageBracketsConfiguration';
-import { BracketAstNode } from './ast';
-import { toLength } from './length';
-import { DenseKeyProvider, identityKeyProvider, SmallImmutableSet } from './smallImmutableSet';
-import { OpeningBracketId, Token, TokenKind } from './tokenizer';
+import { escapeRegExpCharacters } from '../../../../../base/common/strings.js';
+import { ResolvedLanguageConfiguration } from '../../../languages/languageConfigurationRegistry.js';
+import { BracketKind } from '../../../languages/supports/languageBracketsConfiguration.js';
+import { BracketAstNode } from './ast.js';
+import { toLength } from './length.js';
+import { DenseKeyProvider, identityKeyProvider, SmallImmutableSet } from './smallImmutableSet.js';
+import { OpeningBracketId, Token, TokenKind } from './tokenizer.js';
 
 export class BracketTokens {
 	static createFromLanguage(configuration: ResolvedLanguageConfiguration, denseKeyProvider: DenseKeyProvider<string>): BracketTokens {

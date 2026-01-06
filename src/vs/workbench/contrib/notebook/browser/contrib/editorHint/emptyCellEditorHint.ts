@@ -3,66 +3,44 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { EmptyTextEditorHintContribution, IEmptyTextEditorHintOptions } from 'vs/workbench/contrib/codeEditor/browser/emptyTextEditorHint/emptyTextEditorHint';
-import { IInlineChatSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSessionService';
-import { IInlineChatService } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Schemas } from '../../../../../../base/common/network.js';
+import { ICodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
+import { EditorContributionInstantiation, registerEditorContribution } from '../../../../../../editor/browser/editorExtensions.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IChatAgentService } from '../../../../chat/common/chatAgents.js';
+import { EmptyTextEditorHintContribution } from '../../../../codeEditor/browser/emptyTextEditorHint/emptyTextEditorHint.js';
+import { IInlineChatSessionService } from '../../../../inlineChat/browser/inlineChatSessionService.js';
+import { getNotebookEditorFromEditorPane } from '../../notebookBrowser.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 
 export class EmptyCellEditorHintContribution extends EmptyTextEditorHintContribution {
 	public static readonly CONTRIB_ID = 'notebook.editor.contrib.emptyCellEditorHint';
 	constructor(
 		editor: ICodeEditor,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
-		@ICommandService commandService: ICommandService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService,
 		@IInlineChatSessionService inlineChatSessionService: IInlineChatSessionService,
-		@IInlineChatService inlineChatService: IInlineChatService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IProductService productService: IProductService
+		@IChatAgentService chatAgentService: IChatAgentService,
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super(
 			editor,
-			editorGroupsService,
-			commandService,
 			configurationService,
-			keybindingService,
 			inlineChatSessionService,
-			inlineChatService,
-			telemetryService,
-			productService
+			chatAgentService,
+			instantiationService
 		);
 
 		const activeEditor = getNotebookEditorFromEditorPane(this._editorService.activeEditorPane);
-
 		if (!activeEditor) {
 			return;
 		}
 
-		this.toDispose.push(activeEditor.onDidChangeActiveCell(() => this.update()));
+		this._register(activeEditor.onDidChangeActiveCell(() => this.update()));
 	}
 
-	protected override _getOptions(): IEmptyTextEditorHintOptions {
-		return { clickable: false };
-	}
-
-	protected override _shouldRenderHint(): boolean {
-		const shouldRenderHint = super._shouldRenderHint();
-		if (!shouldRenderHint) {
-			return false;
-		}
-
+	protected override shouldRenderHint(): boolean {
 		const model = this.editor.getModel();
 		if (!model) {
 			return false;
@@ -74,7 +52,12 @@ export class EmptyCellEditorHintContribution extends EmptyTextEditorHintContribu
 		}
 
 		const activeEditor = getNotebookEditorFromEditorPane(this._editorService.activeEditorPane);
-		if (!activeEditor) {
+		if (!activeEditor || !activeEditor.isDisposed) {
+			return false;
+		}
+
+		const shouldRenderHint = super.shouldRenderHint();
+		if (!shouldRenderHint) {
 			return false;
 		}
 

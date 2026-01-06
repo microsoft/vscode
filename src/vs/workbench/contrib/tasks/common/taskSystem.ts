@@ -3,14 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import Severity from 'vs/base/common/severity';
-import { TerminateResponse } from 'vs/base/common/processes';
-import { Event } from 'vs/base/common/event';
-import { Platform } from 'vs/base/common/platform';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { Task, ITaskEvent, KeyedTaskIdentifier } from './tasks';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { URI } from '../../../../base/common/uri.js';
+import Severity from '../../../../base/common/severity.js';
+import { TerminateResponse } from '../../../../base/common/processes.js';
+import { Event } from '../../../../base/common/event.js';
+import { Platform } from '../../../../base/common/platform.js';
+import { IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
+import { Task, ITaskEvent, KeyedTaskIdentifier } from './tasks.js';
+import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
+
+import { IShellLaunchConfig } from '../../../../platform/terminal/common/terminal.js';
 
 export const enum TaskErrors {
 	NotConfigured,
@@ -21,6 +23,38 @@ export const enum TaskErrors {
 	TaskNotFound,
 	NoValidTaskRunner,
 	UnknownError
+}
+
+export class VerifiedTask {
+	readonly task: Task;
+	readonly resolver: ITaskResolver;
+	readonly trigger: string;
+	resolvedVariables?: IResolvedVariables;
+	systemInfo?: ITaskSystemInfo;
+	workspaceFolder?: IWorkspaceFolder;
+	shellLaunchConfig?: IShellLaunchConfig;
+
+	constructor(task: Task, resolver: ITaskResolver, trigger: string) {
+		this.task = task;
+		this.resolver = resolver;
+		this.trigger = trigger;
+	}
+
+	public verify(): boolean {
+		let verified = false;
+		if (this.trigger && this.resolvedVariables && this.workspaceFolder && (this.shellLaunchConfig !== undefined)) {
+			verified = true;
+		}
+		return verified;
+	}
+
+	public getVerifiedTask(): { task: Task; resolver: ITaskResolver; trigger: string; resolvedVariables: IResolvedVariables; systemInfo: ITaskSystemInfo; workspaceFolder: IWorkspaceFolder; shellLaunchConfig: IShellLaunchConfig } {
+		if (this.verify()) {
+			return { task: this.task, resolver: this.resolver, trigger: this.trigger, resolvedVariables: this.resolvedVariables!, systemInfo: this.systemInfo!, workspaceFolder: this.workspaceFolder!, shellLaunchConfig: this.shellLaunchConfig! };
+		} else {
+			throw new Error('VerifiedTask was not checked. verify must be checked before getVerifiedTask.');
+		}
+	}
 }
 
 export class TaskError {
@@ -116,4 +150,8 @@ export interface ITaskSystem {
 	revealTask(task: Task): boolean;
 	customExecutionComplete(task: Task, result: number): Promise<void>;
 	isTaskVisible(task: Task): boolean;
+	getTaskForTerminal(instanceId: number): Task | undefined;
+	getFirstInstance(task: Task): Task | undefined;
+	get lastTask(): VerifiedTask | undefined;
+	set lastTask(task: VerifiedTask);
 }

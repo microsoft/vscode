@@ -1,0 +1,11 @@
+# Ensure that Lad and Joao review changes to the Code OSS actions
+.github/workflows/pr-darwin-test.yml @lszomoru @joaomoreno
+.github/workflows/pr-linux-cli-test.yml @lszomoru @joaomoreno
+.github/workflows/pr-linux-test.yml @lszomoru @joaomoreno
+.github/workflows/pr-node-modules.yml @lszomoru @joaomoreno
+.github/workflows/pr-win32-test.yml @lszomoru @joaomoreno
+.github/workflows/pr.yml @lszomoru @joaomoreno
+
+# ensure the API police is aware of changes to the vscode-dts file
+# this is only about the final API, not about proposed API changes
+src/vscode-dts/vscode.d.ts @jrieken @mjbvz

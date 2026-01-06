@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import * as strings from 'vs/base/common/strings';
-import { IViewLineTokens, LineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { ILanguageIdCodec, IState, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/languages';
-import { LanguageId } from 'vs/editor/common/encodedTokenAttributes';
-import { NullState, nullTokenizeEncoded } from 'vs/editor/common/languages/nullTokenize';
-import { ILanguageService } from 'vs/editor/common/languages/language';
+import { CharCode } from '../../../base/common/charCode.js';
+import * as strings from '../../../base/common/strings.js';
+import { IViewLineTokens, LineTokens } from '../tokens/lineTokens.js';
+import { ILanguageIdCodec, IState, ITokenizationSupport, TokenizationRegistry } from '../languages.js';
+import { LanguageId } from '../encodedTokenAttributes.js';
+import { NullState, nullTokenizeEncoded } from './nullTokenize.js';
+import { ILanguageService } from './language.js';
 
 export type IReducedTokenizationSupport = Omit<ITokenizationSupport, 'tokenize'>;
 

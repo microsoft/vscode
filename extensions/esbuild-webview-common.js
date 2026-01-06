@@ -75,6 +75,9 @@ module.exports.run = async function (config, args, didBuild) {
 	const resolvedOptions = {
 		entryPoints: config.entryPoints,
 		outdir,
+		logOverride: {
+			'import-is-undefined': 'error',
+		},
 		...(config.additionalOptions || {}),
 	};
 

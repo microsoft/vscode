@@ -1,7 +1,7 @@
 declare module "event-stream" {
 	import { Stream } from 'stream';
 	import { ThroughStream as _ThroughStream } from 'through';
-	import * as File from 'vinyl';
+	import File from 'vinyl';
 
 	export interface ThroughStream extends _ThroughStream {
 		queue(data: File | null): any;

@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
-import { Emitter } from 'vs/base/common/event';
-import { FuzzyScore } from 'vs/base/common/filters';
-import { Iterable } from 'vs/base/common/iterator';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage, getChildrenForParent, testIdentityProvider } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
-import { ISerializedTestTreeCollapseState, isCollapsedInSerializedTestTree } from 'vs/workbench/contrib/testing/browser/explorerProjections/testingViewState';
-import { IComputedStateAndDurationAccessor, refreshComputedState } from 'vs/workbench/contrib/testing/common/getComputedState';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
-import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
-import { ITestItemUpdate, InternalTestItem, TestDiffOpType, TestItemExpandState, TestResultState, TestsDiff, applyTestItemUpdate } from 'vs/workbench/contrib/testing/common/testTypes';
+import { ObjectTree } from '../../../../../base/browser/ui/tree/objectTree.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { FuzzyScore } from '../../../../../base/common/filters.js';
+import { Iterable } from '../../../../../base/common/iterator.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage, getChildrenForParent, testIdentityProvider } from './index.js';
+import { ISerializedTestTreeCollapseState, isCollapsedInSerializedTestTree } from './testingViewState.js';
+import { IComputedStateAndDurationAccessor, refreshComputedState } from '../../common/getComputedState.js';
+import { TestId } from '../../common/testId.js';
+import { TestResultItemChangeReason } from '../../common/testResult.js';
+import { ITestResultService } from '../../common/testResultService.js';
+import { ITestService } from '../../common/testService.js';
+import { ITestItemUpdate, InternalTestItem, TestDiffOpType, TestItemExpandState, TestResultState, TestsDiff, applyTestItemUpdate } from '../../common/testTypes.js';
 
 const computedStateAccessor: IComputedStateAndDurationAccessor<TreeTestItemElement> = {
 	getOwnState: i => i instanceof TestItemTreeElement ? i.ownState : TestResultState.Unset,
@@ -223,9 +223,11 @@ export class TreeProjection extends Disposable implements ITestTreeProjection {
 						break;
 					}
 
-					// The first element will cause the root to be hidden
+					// Removing the first element will cause the root to be hidden.
+					// Changing first-level elements will need the root to re-render if
+					// there are no other controllers with items.
 					const parent = toRemove.parent;
-					const affectsRootElement = toRemove.depth === 1 && parent?.children.size === 1;
+					const affectsRootElement = toRemove.depth === 1 && (parent?.children.size === 1 || !Iterable.some(this.rootsWithChildren, (_, i) => i === 1));
 					this.changedParents.add(affectsRootElement ? null : parent);
 
 					const queue: Iterable<TestExplorerTreeElement>[] = [[toRemove]];
@@ -253,21 +255,20 @@ export class TreeProjection extends Disposable implements ITestTreeProjection {
 	 * @inheritdoc
 	 */
 	public applyTo(tree: ObjectTree<TestExplorerTreeElement, FuzzyScore>) {
-		for (const s of [this.changedParents, this.resortedParents]) {
-			for (const element of s) {
-				if (element && !tree.hasElement(element)) {
-					s.delete(element);
-				}
+		for (const parent of this.changedParents) {
+			if (!parent || tree.hasElement(parent)) {
+				tree.setChildren(parent, getChildrenForParent(this.lastState, this.rootsWithChildren, parent), { diffIdentityProvider: testIdentityProvider });
 			}
 		}
 
-		for (const parent of this.changedParents) {
-			tree.setChildren(parent, getChildrenForParent(this.lastState, this.rootsWithChildren, parent), { diffIdentityProvider: testIdentityProvider });
+		for (const parent of this.resortedParents) {
+			if (!parent || tree.hasElement(parent)) {
+				tree.resort(parent, false);
+			}
 		}
 
-		for (const parent of this.resortedParents) {
-			tree.resort(parent, false);
-		}
+		this.changedParents.clear();
+		this.resortedParents.clear();
 	}
 
 	/**
@@ -302,9 +303,14 @@ export class TreeProjection extends Disposable implements ITestTreeProjection {
 		treeElement.parent?.children.add(treeElement);
 		this.items.set(treeElement.test.item.extId, treeElement);
 
-		// The first element will cause the root to be shown
-		const affectsRootElement = treeElement.depth === 1 && treeElement.parent?.children.size === 1;
-		this.changedParents.add(affectsRootElement ? null : treeElement.parent);
+		// The first element will cause the root to be shown. The first element of
+		// a parent may need to re-render it for #204805.
+		const affectsParent = treeElement.parent?.children.size === 1;
+		const affectedParent = affectsParent ? treeElement.parent.parent : treeElement.parent;
+		this.changedParents.add(affectedParent);
+		if (affectedParent?.depth === 0) {
+			this.changedParents.add(null);
+		}
 
 		if (treeElement.depth === 0 || isCollapsedInSerializedTestTree(this.lastState, treeElement.test.item.extId) === false) {
 			this.expandElement(treeElement, 0);

@@ -35,7 +35,7 @@ export class StatusBar {
 	}
 
 	async waitForStatusbarText(title: string, text: string): Promise<void> {
-		await this.code.waitForTextContent(`${this.mainSelector} .statusbar-item[title="${title}"]`, text);
+		await this.code.waitForTextContent(`${this.mainSelector} .statusbar-item[aria-label="${title}"]`, text);
 	}
 
 	private getSelector(element: StatusBarElement): string {

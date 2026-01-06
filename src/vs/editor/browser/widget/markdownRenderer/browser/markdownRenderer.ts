@@ -3,20 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MarkdownRenderOptions, MarkedOptions, renderMarkdown } from 'vs/base/browser/markdownRenderer';
-import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter } from 'vs/base/common/event';
-import { IMarkdownString, MarkdownStringTrustedOptions } from 'vs/base/common/htmlContent';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import 'vs/css!./renderedMarkdown';
-import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { tokenizeToString } from 'vs/editor/common/languages/textToHtmlTokenizer';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { MarkdownRenderOptions, MarkedOptions, renderMarkdown } from '../../../../../base/browser/markdownRenderer.js';
+import { createTrustedTypesPolicy } from '../../../../../base/browser/trustedTypes.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
+import { IMarkdownString, MarkdownStringTrustedOptions } from '../../../../../base/common/htmlContent.js';
+import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { EditorOption } from '../../../../common/config/editorOptions.js';
+import { ILanguageService } from '../../../../common/languages/language.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../common/languages/modesRegistry.js';
+import { tokenizeToString } from '../../../../common/languages/textToHtmlTokenizer.js';
+import { applyFontInfo } from '../../../config/domFontInfo.js';
+import { ICodeEditor } from '../../../editorBrowser.js';
+import './renderedMarkdown.css';
 
 export interface IMarkdownRenderResult extends IDisposable {
 	readonly element: HTMLElement;
@@ -40,18 +39,11 @@ export class MarkdownRenderer {
 		}
 	});
 
-	private readonly _onDidRenderAsync = new Emitter<void>();
-	readonly onDidRenderAsync = this._onDidRenderAsync.event;
-
 	constructor(
 		private readonly _options: IMarkdownRendererOptions,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 	) { }
-
-	dispose(): void {
-		this._onDidRenderAsync.dispose();
-	}
 
 	render(markdown: IMarkdownString | undefined, options?: MarkdownRenderOptions, markedOptions?: MarkedOptions): IMarkdownRenderResult {
 		if (!markdown) {
@@ -68,7 +60,7 @@ export class MarkdownRenderer {
 		};
 	}
 
-	protected _getRenderOptions(markdown: IMarkdownString, disposables: DisposableStore): MarkdownRenderOptions {
+	private _getRenderOptions(markdown: IMarkdownString, disposables: DisposableStore): MarkdownRenderOptions {
 		return {
 			codeBlockRenderer: async (languageAlias, value) => {
 				// In markdown,
@@ -103,21 +95,25 @@ export class MarkdownRenderer {
 
 				return element;
 			},
-			asyncRenderCallback: () => this._onDidRenderAsync.fire(),
 			actionHandler: {
-				callback: (link) => openLinkFromMarkdown(this._openerService, link, markdown.isTrusted),
-				disposables: disposables
+				callback: (link) => this.openMarkdownLink(link, markdown),
+				disposables
 			}
 		};
 	}
+
+	protected async openMarkdownLink(link: string, markdown: IMarkdownString) {
+		await openLinkFromMarkdown(this._openerService, link, markdown.isTrusted);
+	}
 }
 
-export async function openLinkFromMarkdown(openerService: IOpenerService, link: string, isTrusted: boolean | MarkdownStringTrustedOptions | undefined): Promise<boolean> {
+export async function openLinkFromMarkdown(openerService: IOpenerService, link: string, isTrusted: boolean | MarkdownStringTrustedOptions | undefined, skipValidation?: boolean): Promise<boolean> {
 	try {
 		return await openerService.open(link, {
 			fromUserGesture: true,
 			allowContributedOpeners: true,
 			allowCommands: toAllowCommandsOption(isTrusted),
+			skipValidation
 		});
 	} catch (e) {
 		onUnexpectedError(e);

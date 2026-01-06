@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { readFileSync } from 'fs';
-import path = require('path');
+import path from 'path';
 
 const RE_VAR_PROP = /var\(\s*(--([\w\-\.]+))/g;
 
@@ -18,6 +18,8 @@ function getKnownVariableNames() {
 	return knownVariables;
 }
 
+const iconVariable = /^--vscode-icon-.+-(content|font-family)$/;
+
 export interface IValidator {
 	(value: string, report: (message: string) => void): void;
 }
@@ -29,7 +31,7 @@ export function getVariableNameValidator(): IValidator {
 		let match;
 		while (match = RE_VAR_PROP.exec(value)) {
 			const variableName = match[1];
-			if (variableName && !allVariables.has(variableName)) {
+			if (variableName && !allVariables.has(variableName) && !iconVariable.test(variableName)) {
 				report(variableName);
 			}
 		}

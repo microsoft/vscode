@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
-import { IModelDecoration, ITextModel, PositionAffinity } from 'vs/editor/common/model';
-import { IViewModelLines } from 'vs/editor/common/viewModel/viewModelLines';
-import { ICoordinatesConverter, InlineDecoration, InlineDecorationType, ViewModelDecoration } from 'vs/editor/common/viewModel';
-import { filterValidationDecorations } from 'vs/editor/common/config/editorOptions';
-import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
+import { IDisposable } from '../../../base/common/lifecycle.js';
+import { Position } from '../core/position.js';
+import { Range } from '../core/range.js';
+import { IEditorConfiguration } from '../config/editorConfiguration.js';
+import { IModelDecoration, ITextModel, PositionAffinity } from '../model.js';
+import { IViewModelLines } from './viewModelLines.js';
+import { filterFontDecorations, filterValidationDecorations } from '../config/editorOptions.js';
+import { isModelDecorationVisible, ViewModelDecoration } from './viewModelDecoration.js';
+import { InlineDecoration, InlineDecorationType } from './inlineDecorations.js';
+import { ICoordinatesConverter } from '../coordinatesConverter.js';
 
 export interface IDecorationsViewportData {
 	/**
@@ -22,6 +23,10 @@ export interface IDecorationsViewportData {
 	 * inline decorations grouped by each line in the viewport.
 	 */
 	readonly inlineDecorations: InlineDecoration[][];
+	/**
+	 * Whether the decorations affects the fonts.
+	 */
+	readonly hasVariableFonts: boolean;
 }
 
 export class ViewModelDecorations implements IDisposable {
@@ -110,13 +115,14 @@ export class ViewModelDecorations implements IDisposable {
 		return this._cachedModelDecorationsResolver!;
 	}
 
-	public getInlineDecorationsOnLine(lineNumber: number, onlyMinimapDecorations: boolean = false, onlyMarginDecorations: boolean = false): InlineDecoration[] {
+	public getInlineDecorationsOnLine(lineNumber: number, onlyMinimapDecorations: boolean = false, onlyMarginDecorations: boolean = false): { inlineDecorations: InlineDecoration[]; hasVariableFonts: boolean } {
 		const range = new Range(lineNumber, this._linesCollection.getViewLineMinColumn(lineNumber), lineNumber, this._linesCollection.getViewLineMaxColumn(lineNumber));
-		return this._getDecorationsInRange(range, onlyMinimapDecorations, onlyMarginDecorations).inlineDecorations[0];
+		const decorations = this._getDecorationsInRange(range, onlyMinimapDecorations, onlyMarginDecorations);
+		return { inlineDecorations: decorations.inlineDecorations[0], hasVariableFonts: decorations.hasVariableFonts };
 	}
 
 	private _getDecorationsInRange(viewRange: Range, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean): IDecorationsViewportData {
-		const modelDecorations = this._linesCollection.getDecorationsInRange(viewRange, this.editorId, filterValidationDecorations(this.configuration.options), onlyMinimapDecorations, onlyMarginDecorations);
+		const modelDecorations = this._linesCollection.getDecorationsInRange(viewRange, this.editorId, filterValidationDecorations(this.configuration.options), filterFontDecorations(this.configuration.options), onlyMinimapDecorations, onlyMarginDecorations);
 		const startLineNumber = viewRange.startLineNumber;
 		const endLineNumber = viewRange.endLineNumber;
 
@@ -127,6 +133,7 @@ export class ViewModelDecorations implements IDisposable {
 			inlineDecorations[j - startLineNumber] = [];
 		}
 
+		let hasVariableFonts = false;
 		for (let i = 0, len = modelDecorations.length; i < len; i++) {
 			const modelDecoration = modelDecorations[i];
 			const decorationOptions = modelDecoration.options;
@@ -168,69 +175,15 @@ export class ViewModelDecorations implements IDisposable {
 					inlineDecorations[viewRange.endLineNumber - startLineNumber].push(inlineDecoration);
 				}
 			}
+			if (decorationOptions.affectsFont) {
+				hasVariableFonts = true;
+			}
 		}
 
 		return {
 			decorations: decorationsInViewport,
-			inlineDecorations: inlineDecorations
+			inlineDecorations: inlineDecorations,
+			hasVariableFonts
 		};
 	}
-}
-
-export function isModelDecorationVisible(model: ITextModel, decoration: IModelDecoration): boolean {
-	if (decoration.options.hideInCommentTokens && isModelDecorationInComment(model, decoration)) {
-		return false;
-	}
-
-	if (decoration.options.hideInStringTokens && isModelDecorationInString(model, decoration)) {
-		return false;
-	}
-
-	return true;
-}
-
-export function isModelDecorationInComment(model: ITextModel, decoration: IModelDecoration): boolean {
-	return testTokensInRange(
-		model,
-		decoration.range,
-		(tokenType) => tokenType === StandardTokenType.Comment
-	);
-}
-
-export function isModelDecorationInString(model: ITextModel, decoration: IModelDecoration): boolean {
-	return testTokensInRange(
-		model,
-		decoration.range,
-		(tokenType) => tokenType === StandardTokenType.String
-	);
-}
-
-/**
- * Calls the callback for every token that intersects the range.
- * If the callback returns `false`, iteration stops and `false` is returned.
- * Otherwise, `true` is returned.
- */
-function testTokensInRange(model: ITextModel, range: Range, callback: (tokenType: StandardTokenType) => boolean): boolean {
-	for (let lineNumber = range.startLineNumber; lineNumber <= range.endLineNumber; lineNumber++) {
-		const lineTokens = model.tokenization.getLineTokens(lineNumber);
-		const isFirstLine = lineNumber === range.startLineNumber;
-		const isEndLine = lineNumber === range.endLineNumber;
-
-		let tokenIdx = isFirstLine ? lineTokens.findTokenIndexAtOffset(range.startColumn - 1) : 0;
-		while (tokenIdx < lineTokens.getCount()) {
-			if (isEndLine) {
-				const startOffset = lineTokens.getStartOffset(tokenIdx);
-				if (startOffset > range.endColumn - 1) {
-					break;
-				}
-			}
-
-			const callbackResult = callback(lineTokens.getStandardTokenType(tokenIdx));
-			if (!callbackResult) {
-				return false;
-			}
-			tokenIdx++;
-		}
-	}
-	return true;
 }

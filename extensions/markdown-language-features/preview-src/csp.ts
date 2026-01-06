@@ -11,45 +11,45 @@ import { getStrings } from './strings';
  * Shows an alert when there is a content security policy violation.
  */
 export class CspAlerter {
-	private didShow = false;
-	private didHaveCspWarning = false;
+	private _didShow = false;
+	private _didHaveCspWarning = false;
 
-	private messaging?: MessagePoster;
+	private _messaging?: MessagePoster;
 
 	constructor(
-		private readonly settingsManager: SettingsManager,
+		private readonly _settingsManager: SettingsManager,
 	) {
 		document.addEventListener('securitypolicyviolation', () => {
-			this.onCspWarning();
+			this._onCspWarning();
 		});
 
 		window.addEventListener('message', (event) => {
 			if (event && event.data && event.data.name === 'vscode-did-block-svg') {
-				this.onCspWarning();
+				this._onCspWarning();
 			}
 		});
 	}
 
 	public setPoster(poster: MessagePoster) {
-		this.messaging = poster;
-		if (this.didHaveCspWarning) {
-			this.showCspWarning();
+		this._messaging = poster;
+		if (this._didHaveCspWarning) {
+			this._showCspWarning();
 		}
 	}
 
-	private onCspWarning() {
-		this.didHaveCspWarning = true;
-		this.showCspWarning();
+	private _onCspWarning() {
+		this._didHaveCspWarning = true;
+		this._showCspWarning();
 	}
 
-	private showCspWarning() {
+	private _showCspWarning() {
 		const strings = getStrings();
-		const settings = this.settingsManager.settings;
+		const settings = this._settingsManager.settings;
 
-		if (this.didShow || settings.disableSecurityWarnings || !this.messaging) {
+		if (this._didShow || settings.disableSecurityWarnings || !this._messaging) {
 			return;
 		}
-		this.didShow = true;
+		this._didShow = true;
 
 		const notification = document.createElement('a');
 		notification.innerText = strings.cspAlertMessageText;
@@ -59,7 +59,7 @@ export class CspAlerter {
 		notification.setAttribute('role', 'button');
 		notification.setAttribute('aria-label', strings.cspAlertMessageLabel);
 		notification.onclick = () => {
-			this.messaging!.postMessage('showPreviewSecuritySelector', { source: settings.source });
+			this._messaging!.postMessage('showPreviewSecuritySelector', { source: settings.source });
 		};
 		document.body.appendChild(notification);
 	}

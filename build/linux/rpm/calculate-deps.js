@@ -4,7 +4,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.generatePackageDeps = void 0;
+exports.generatePackageDeps = generatePackageDeps;
 const child_process_1 = require("child_process");
 const fs_1 = require("fs");
 const dep_lists_1 = require("./dep-lists");
@@ -14,7 +14,6 @@ function generatePackageDeps(files) {
     dependencies.push(additionalDepsSet);
     return dependencies;
 }
-exports.generatePackageDeps = generatePackageDeps;
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:chrome/installer/linux/rpm/calculate_package_deps.py.
 function calculatePackageDeps(binaryPath) {
     try {

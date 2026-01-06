@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IProcessDataEvent } from 'vs/platform/terminal/common/terminal';
+import { Event } from '../../../base/common/event.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
+import { IProcessDataEvent } from './terminal.js';
 
 interface TerminalDataBuffer extends IDisposable {
 	data: string[];
-	timeoutId: any;
+	timeoutId: Timeout;
 }
 
 export class TerminalDataBufferer implements IDisposable {
@@ -37,7 +37,7 @@ export class TerminalDataBufferer implements IDisposable {
 			const timeoutId = setTimeout(() => this.flushBuffer(id), throttleBy);
 			buffer = {
 				data: [data],
-				timeoutId: timeoutId,
+				timeoutId,
 				dispose: () => {
 					clearTimeout(timeoutId);
 					this.flushBuffer(id);

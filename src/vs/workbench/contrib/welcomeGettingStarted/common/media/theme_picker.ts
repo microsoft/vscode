@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { escape } from 'vs/base/common/strings';
-import { localize } from 'vs/nls';
-import { ThemeSettingDefaults } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { escape } from '../../../../../base/common/strings.js';
+import { localize } from '../../../../../nls.js';
+import { ThemeSettingDefaults } from '../../../../services/themes/common/workbenchThemeService.js';
 
 export default () => `
 <checklist>

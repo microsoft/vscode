@@ -87,5 +87,5 @@ export function activate(context: vscode.ExtensionContext) {
 
 function isWeb(): boolean {
 	// @ts-expect-error
-	return typeof navigator !== 'undefined' && vscode.env.uiKind === vscode.UIKind.Web;
+	return !(typeof process === 'object' && !!process.versions.node) && vscode.env.uiKind === vscode.UIKind.Web;
 }

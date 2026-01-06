@@ -34,7 +34,7 @@ steps:
 
   - bash: |
       # Install build dependencies
-      (cd build && yarn)
+      (cd build && npm ci)
       node build/azure-pipelines/publish-types/check-version.js
     displayName: Check version
 

@@ -276,8 +276,12 @@
 	background-color: var(--vscode-diffEditorGutter-insertedLineBackground, var(--vscode-diffEditor-insertedLineBackground), var(--vscode-diffEditor-insertedTextBackground));
 }
 
-.monaco-editor .char-delete, .monaco-diff-editor .char-delete {
+.monaco-editor .char-delete, .monaco-diff-editor .char-delete, .monaco-editor .inline-deleted-text {
 	background-color: var(--vscode-diffEditor-removedTextBackground);
+}
+
+.monaco-editor .inline-deleted-text {
+	text-decoration: line-through;
 }
 
 .monaco-editor .line-delete, .monaco-diff-editor .line-delete {
@@ -292,6 +296,11 @@
 .monaco-diff-editor.side-by-side .editor.modified {
 	box-shadow: -6px 0 5px -5px var(--vscode-scrollbar-shadow);
 	border-left: 1px solid var(--vscode-diffEditor-border);
+}
+
+.monaco-diff-editor.side-by-side .editor.original {
+	box-shadow: 6px 0 5px -5px var(--vscode-scrollbar-shadow);
+	border-right: 1px solid var(--vscode-diffEditor-border);
 }
 
 .monaco-diff-editor .diffViewport {
@@ -315,4 +324,105 @@
 		#0000 62.5%, #0000 100%
 	);
 	background-size: 8px 8px;
+}
+
+.monaco-diff-editor .gutter {
+	position: relative;
+	overflow: hidden;
+	flex-shrink: 0;
+	flex-grow: 0;
+
+	& > div {
+		position: absolute;
+	}
+
+	.gutterItem {
+		opacity: 0;
+		transition: opacity 0.7s;
+
+		&.showAlways {
+			opacity: 1;
+			transition: none;
+		}
+
+		&.noTransition {
+			transition: none;
+		}
+	}
+
+	&:hover .gutterItem {
+		opacity: 1;
+		transition: opacity 0.1s ease-in-out;
+	}
+
+	.gutterItem {
+		.background {
+			position: absolute;
+			height: 100%;
+			left: 50%;
+			width: 1px;
+
+			border-left: 2px var(--vscode-menu-separatorBackground) solid;
+		}
+
+		.buttons {
+			position: absolute;
+			/*height: 100%;*/
+			width: 100%;
+
+			display: flex;
+			justify-content: center;
+			align-items: center;
+
+			.monaco-toolbar {
+				height: fit-content;
+				.monaco-action-bar  {
+					line-height: 1;
+
+					.actions-container {
+						width: fit-content;
+						border-radius: 4px;
+						background: var(--vscode-editorGutter-itemBackground);
+
+						.action-item {
+							&:hover {
+								background: var(--vscode-toolbar-hoverBackground);
+							}
+
+							.action-label {
+								color: var(--vscode-editorGutter-itemGlyphForeground);
+								padding: 1px 2px;
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+
+.monaco-diff-editor .diff-hidden-lines-compact {
+	display: flex;
+	height: 11px;
+	.line-left, .line-right {
+		height: 1px;
+		border-top: 1px solid;
+		border-color: var(--vscode-editorCodeLens-foreground);
+		opacity: 0.5;
+		margin: auto;
+		width: 100%;
+	}
+
+	.line-left {
+		width: 20px;
+	}
+
+	.text {
+		color: var(--vscode-editorCodeLens-foreground);
+		text-wrap: nowrap;
+		font-size: 11px;
+		line-height: 11px;
+		margin: 0 4px;
+	}
 }

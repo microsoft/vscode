@@ -9,6 +9,7 @@
 	left: 0;
 	top: 0;
 	box-sizing: border-box;
+	height: 100%;
 }
 
 .monaco-editor .margin-view-overlays .current-line {
@@ -17,8 +18,11 @@
 	left: 0;
 	top: 0;
 	box-sizing: border-box;
+	height: 100%;
 }
 
-.monaco-editor .margin-view-overlays .current-line.current-line-margin.current-line-margin-both {
+.monaco-editor
+	.margin-view-overlays
+	.current-line.current-line-margin.current-line-margin-both {
 	border-right: 0;
 }

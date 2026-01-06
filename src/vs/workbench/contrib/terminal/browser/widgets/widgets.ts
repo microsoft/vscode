@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
 
 export interface ITerminalWidget extends IDisposable {
 	/**

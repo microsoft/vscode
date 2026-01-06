@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { Range } from 'vs/editor/common/core/range';
-import { IModelDecoration } from 'vs/editor/common/model';
+import { Event } from '../../../base/common/event.js';
+import { Range } from '../core/range.js';
+import { IModelDecoration } from '../model.js';
 
 export interface DecorationProvider {
 	/**

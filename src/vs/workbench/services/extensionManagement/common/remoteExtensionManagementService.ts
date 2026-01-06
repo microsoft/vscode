@@ -3,38 +3,41 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { URI } from 'vs/base/common/uri';
-import { DidChangeProfileEvent, IProfileAwareExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IRemoteUserDataProfilesService } from 'vs/workbench/services/userDataProfile/common/remoteUserDataProfiles';
-import { ProfileAwareExtensionManagementChannelClient } from 'vs/workbench/services/extensionManagement/common/extensionManagementChannelClient';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { ExtensionEventResult } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
+import { URI } from '../../../../base/common/uri.js';
+import { DidChangeProfileEvent, IProfileAwareExtensionManagementService } from './extensionManagement.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IRemoteUserDataProfilesService } from '../../userDataProfile/common/remoteUserDataProfiles.js';
+import { ProfileAwareExtensionManagementChannelClient } from './extensionManagementChannelClient.js';
+import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
+import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IAllowedExtensionsService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 
 export class RemoteExtensionManagementService extends ProfileAwareExtensionManagementChannelClient implements IProfileAwareExtensionManagementService {
 
 	constructor(
 		channel: IChannel,
+		@IProductService productService: IProductService,
+		@IAllowedExtensionsService allowedExtensionsService: IAllowedExtensionsService,
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IRemoteUserDataProfilesService private readonly remoteUserDataProfilesService: IRemoteUserDataProfilesService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService
 	) {
-		super(channel, userDataProfileService, uriIdentityService);
+		super(channel, productService, allowedExtensionsService, userDataProfileService, uriIdentityService);
 	}
 
-	protected async filterEvent(e: ExtensionEventResult): Promise<boolean> {
-		if (e.applicationScoped) {
+	protected async filterEvent(profileLocation: URI, applicationScoped: boolean): Promise<boolean> {
+		if (applicationScoped) {
 			return true;
 		}
-		if (!e.profileLocation && this.userDataProfileService.currentProfile.isDefault) {
+		if (!profileLocation && this.userDataProfileService.currentProfile.isDefault) {
 			return true;
 		}
 		const currentRemoteProfile = await this.remoteUserDataProfilesService.getRemoteProfile(this.userDataProfileService.currentProfile);
-		if (this.uriIdentityService.extUri.isEqual(currentRemoteProfile.extensionsResource, e.profileLocation)) {
+		if (this.uriIdentityService.extUri.isEqual(currentRemoteProfile.extensionsResource, profileLocation)) {
 			return true;
 		}
 		return false;

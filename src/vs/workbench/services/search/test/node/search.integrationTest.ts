@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as path from 'vs/base/common/path';
-import * as platform from 'vs/base/common/platform';
-import { joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { IFolderQuery, QueryType, IRawFileMatch } from 'vs/workbench/services/search/common/search';
-import { Engine as FileSearchEngine, FileWalker } from 'vs/workbench/services/search/node/fileSearch';
-import { flakySuite } from 'vs/base/test/node/testUtils';
-import { FileAccess } from 'vs/base/common/network';
+import assert from 'assert';
+import * as path from '../../../../../base/common/path.js';
+import * as platform from '../../../../../base/common/platform.js';
+import { joinPath } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IFolderQuery, QueryType, IRawFileMatch } from '../../common/search.js';
+import { Engine as FileSearchEngine, FileWalker } from '../../node/fileSearch.js';
+import { flakySuite } from '../../../../../base/test/node/testUtils.js';
+import { FileAccess } from '../../../../../base/common/network.js';
 
 const TEST_FIXTURES = path.normalize(FileAccess.asFileUri('vs/workbench/services/search/test/node/fixtures').fsPath);
 const EXAMPLES_FIXTURES = URI.file(path.join(TEST_FIXTURES, 'examples'));
@@ -499,15 +499,17 @@ flakySuite('FileSearchEngine', () => {
 		const folderQueries: IFolderQuery[] = [
 			{
 				folder: EXAMPLES_FIXTURES,
-				excludePattern: {
-					'**/anotherfile.txt': true
-				}
+				excludePattern: [{
+					pattern: { '**/anotherfile.txt': true }
+				}]
 			},
 			{
 				folder: MORE_FIXTURES,
-				excludePattern: {
-					'**/file.txt': true
-				}
+				excludePattern: [{
+					pattern: {
+						'**/file.txt': true
+					}
+				}]
 			}
 		];
 
@@ -755,7 +757,9 @@ flakySuite('FileWalker', () => {
 		const folderQueries: IFolderQuery[] = [
 			{
 				folder: URI.file(TEST_FIXTURES),
-				excludePattern: { '**/subfolder': true }
+				excludePattern: [{
+					pattern: { '**/subfolder': true }
+				}]
 			}
 		];
 

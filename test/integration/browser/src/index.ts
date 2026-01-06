@@ -49,7 +49,7 @@ if (args.help) {
 	--workspacePath <path>             Path to the workspace (folder or *.code-workspace file) to open in the test
 	--extensionDevelopmentPath <path>  Path to the extension to test
 	--extensionTestsPath <path>        Path to the extension tests
-	--browser <browser>                Browser in which integration tests should run
+	--browser <browser>                Browser in which integration tests should run. separate the channel with a dash, e.g. 'chromium-msedge' or 'chromium-chrome'
 	--debug                            Do not run browsers headless
 	--help                             Print this help message
 	`);
@@ -61,9 +61,10 @@ const width = 1200;
 const height = 800;
 
 type BrowserType = 'chromium' | 'firefox' | 'webkit';
+type BrowserChannel = 'msedge' | 'chrome';
 
-async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWithStringQuery, server: cp.ChildProcess): Promise<void> {
-	const browser = await playwright[browserType].launch({ headless: !Boolean(args.debug) });
+async function runTestsInBrowser(browserType: BrowserType, browserChannel: BrowserChannel, endpoint: url.UrlWithStringQuery, server: cp.ChildProcess): Promise<void> {
+	const browser = await playwright[browserType].launch({ headless: !Boolean(args.debug), channel: browserChannel });
 	const context = await browser.newContext();
 
 	const page = await context.newPage();
@@ -103,6 +104,10 @@ async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWith
 			}
 		} catch (error) {
 			console.error(`Error saving web client logs (${error})`);
+		}
+
+		if (args.debug) {
+			return;
 		}
 
 		try {
@@ -150,7 +155,7 @@ function consoleLogFn(msg: playwright.ConsoleMessage) {
 	return console.log;
 }
 
-async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.UrlWithStringQuery; server: cp.ChildProcess }> {
+async function launchServer(browserType: BrowserType, browserChannel: BrowserChannel): Promise<{ endpoint: url.UrlWithStringQuery; server: cp.ChildProcess }> {
 
 	// Ensure a tmp user-data-dir is used for the tests
 	const tmpDir = tmp.dirSync({ prefix: 't' });
@@ -160,11 +165,11 @@ async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.U
 	const userDataDir = path.join(testDataPath, 'd');
 
 	const env = {
-		VSCODE_BROWSER: browserType,
+		VSCODE_BROWSER: browserChannel ? `${browserType}-${browserChannel}` : browserType,
 		...process.env
 	};
 
-	const serverArgs = ['--enable-proposed-api', '--disable-telemetry', '--server-data-dir', userDataDir, '--accept-server-license-terms', '--disable-workspace-trust'];
+	const serverArgs = ['--enable-proposed-api', '--disable-telemetry', '--disable-experiments', '--server-data-dir', userDataDir, '--accept-server-license-terms', '--disable-workspace-trust'];
 
 	let serverLocation: string;
 	if (process.env.VSCODE_REMOTE_SERVER_PATH) {
@@ -188,11 +193,11 @@ async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.U
 	serverArgs.push('--logsPath', serverLogsPath);
 
 	const stdio: cp.StdioOptions = args.debug ? 'pipe' : ['ignore', 'pipe', 'ignore'];
-
+	const shell: boolean = (process.platform === 'win32');
 	const serverProcess = cp.spawn(
 		serverLocation,
 		serverArgs,
-		{ env, stdio }
+		{ env, stdio, shell }
 	);
 
 	if (args.debug) {
@@ -220,8 +225,9 @@ async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.U
 	});
 }
 
-launchServer(args.browser).then(async ({ endpoint, server }) => {
-	return runTestsInBrowser(args.browser, endpoint, server);
+const [browserType, browserChannel] = args.browser.split('-');
+launchServer(browserType, browserChannel).then(async ({ endpoint, server }) => {
+	return runTestsInBrowser(browserType, browserChannel, endpoint, server);
 }, error => {
 	console.error(error);
 	process.exit(1);

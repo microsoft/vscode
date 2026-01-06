@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { assertIsDefined } from 'vs/base/common/types';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IProgressIndicator } from 'vs/platform/progress/common/progress';
-import { PaneCompositeDescriptor } from 'vs/workbench/browser/panecomposite';
-import { AuxiliaryBarPart } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart';
-import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
-import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
-import { IPaneComposite } from 'vs/workbench/common/panecomposite';
-import { ViewContainerLocation, ViewContainerLocations } from 'vs/workbench/common/views';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IPaneCompositePart } from 'vs/workbench/browser/parts/paneCompositePart';
+import { Event } from '../../../base/common/event.js';
+import { assertReturnsDefined } from '../../../base/common/types.js';
+import { InstantiationType, registerSingleton } from '../../../platform/instantiation/common/extensions.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { IProgressIndicator } from '../../../platform/progress/common/progress.js';
+import { PaneCompositeDescriptor } from '../panecomposite.js';
+import { AuxiliaryBarPart } from './auxiliarybar/auxiliaryBarPart.js';
+import { PanelPart } from './panel/panelPart.js';
+import { SidebarPart } from './sidebar/sidebarPart.js';
+import { IPaneComposite } from '../../common/panecomposite.js';
+import { ViewContainerLocation, ViewContainerLocations } from '../../common/views.js';
+import { IPaneCompositePartService } from '../../services/panecomposite/browser/panecomposite.js';
+import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { IPaneCompositePart } from './paneCompositePart.js';
 
 export class PaneCompositePartService extends Disposable implements IPaneCompositePartService {
 
@@ -69,6 +69,10 @@ export class PaneCompositePartService extends Disposable implements IPaneComposi
 		return this.getPartByLocation(viewContainerLocation).getVisiblePaneCompositeIds();
 	}
 
+	getPaneCompositeIds(viewContainerLocation: ViewContainerLocation): string[] {
+		return this.getPartByLocation(viewContainerLocation).getPaneCompositeIds();
+	}
+
 	getProgressIndicator(id: string, viewContainerLocation: ViewContainerLocation): IProgressIndicator | undefined {
 		return this.getPartByLocation(viewContainerLocation).getProgressIndicator(id);
 	}
@@ -82,7 +86,7 @@ export class PaneCompositePartService extends Disposable implements IPaneComposi
 	}
 
 	private getPartByLocation(viewContainerLocation: ViewContainerLocation): IPaneCompositePart {
-		return assertIsDefined(this.paneCompositeParts.get(viewContainerLocation));
+		return assertReturnsDefined(this.paneCompositeParts.get(viewContainerLocation));
 	}
 
 }

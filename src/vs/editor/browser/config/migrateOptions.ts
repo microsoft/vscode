@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IEditorOptions } from '../../common/config/editorOptions.js';
 
 export interface ISettingsReader {
 	(key: string): any;
@@ -93,6 +93,7 @@ registerSimpleEditorSettingMigration('renderFinalNewline', [[true, 'on'], [false
 registerSimpleEditorSettingMigration('cursorSmoothCaretAnimation', [[true, 'on'], [false, 'off']]);
 registerSimpleEditorSettingMigration('occurrencesHighlight', [[true, 'singleFile'], [false, 'off']]);
 registerSimpleEditorSettingMigration('wordBasedSuggestions', [[true, 'matchingDocuments'], [false, 'off']]);
+registerSimpleEditorSettingMigration('defaultColorDecorators', [[true, 'auto'], [false, 'never']]);
 
 registerEditorSettingMigration('autoClosingBrackets', (value, read, write) => {
 	if (value === false) {
@@ -195,6 +196,17 @@ registerEditorSettingMigration('experimental.stickyScroll.maxLineCount', (value,
 	}
 });
 
+// Edit Context
+
+registerEditorSettingMigration('editor.experimentalEditContextEnabled', (value, read, write) => {
+	if (typeof value === 'boolean') {
+		write('editor.experimentalEditContextEnabled', undefined);
+		if (typeof read('editor.editContext') === 'undefined') {
+			write('editor.editContext', value);
+		}
+	}
+});
+
 // Code Actions on Save
 registerEditorSettingMigration('codeActionsOnSave', (value, read, write) => {
 	if (value && typeof value === 'object') {
@@ -231,3 +243,10 @@ registerEditorSettingMigration('lightbulb.enabled', (value, read, write) => {
 	}
 });
 
+// NES Code Shifting
+registerEditorSettingMigration('inlineSuggest.edits.codeShifting', (value, read, write) => {
+	if (typeof value === 'boolean') {
+		write('inlineSuggest.edits.codeShifting', undefined);
+		write('inlineSuggest.edits.allowCodeShifting', value ? 'always' : 'never');
+	}
+});

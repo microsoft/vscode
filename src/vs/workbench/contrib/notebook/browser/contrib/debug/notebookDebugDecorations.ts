@@ -3,17 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { debugIconBreakpointForeground } from 'vs/workbench/contrib/debug/browser/breakpointEditorContribution';
-import { focusedStackFrameColor, topStackFrameColor } from 'vs/workbench/contrib/debug/browser/callStackEditorContribution';
-import { IDebugService, IStackFrame } from 'vs/workbench/contrib/debug/common/debug';
-import { INotebookCellDecorationOptions, INotebookDeltaDecoration, INotebookEditor, INotebookEditorContribution, NotebookOverviewRulerLane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { runningCellRulerDecorationColor } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { CellUri, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { Delayer } from '../../../../../../base/common/async.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { IRange, Range } from '../../../../../../editor/common/core/range.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { debugIconBreakpointForeground } from '../../../../debug/browser/breakpointEditorContribution.js';
+import { focusedStackFrameColor, topStackFrameColor } from '../../../../debug/browser/callStackEditorContribution.js';
+import { IDebugService, IStackFrame } from '../../../../debug/common/debug.js';
+import { INotebookCellDecorationOptions, INotebookDeltaCellDecoration, INotebookEditor, INotebookEditorContribution, NotebookOverviewRulerLane } from '../../notebookBrowser.js';
+import { registerNotebookContribution } from '../../notebookEditorExtensions.js';
+import { runningCellRulerDecorationColor } from '../../notebookEditorWidget.js';
+import { CellUri, NotebookCellExecutionState } from '../../../common/notebookCommon.js';
+import { INotebookExecutionStateService, NotebookExecutionType } from '../../../common/notebookExecutionStateService.js';
 
 interface ICellAndRange {
 	handle: number;
@@ -34,11 +35,12 @@ export class PausedCellDecorationContribution extends Disposable implements INot
 	) {
 		super();
 
+		const delayer = this._register(new Delayer(200));
 		this._register(_debugService.getModel().onDidChangeCallStack(() => this.updateExecutionDecorations()));
 		this._register(_debugService.getViewModel().onDidFocusStackFrame(() => this.updateExecutionDecorations()));
 		this._register(_notebookExecutionStateService.onDidChangeExecution(e => {
 			if (e.type === NotebookExecutionType.cell && this._notebookEditor.textModel && e.affectsNotebook(this._notebookEditor.textModel.uri)) {
-				this.updateExecutionDecorations();
+				delayer.trigger(() => this.updateExecutionDecorations());
 			}
 		}));
 	}
@@ -94,7 +96,7 @@ export class PausedCellDecorationContribution extends Disposable implements INot
 	}
 
 	private setTopFrameDecoration(handlesAndRanges: ICellAndRange[]): void {
-		const newDecorations = handlesAndRanges.map(({ handle, range }) => {
+		const newDecorations: INotebookDeltaCellDecoration[] = handlesAndRanges.map(({ handle, range }) => {
 			const options: INotebookCellDecorationOptions = {
 				overviewRuler: {
 					color: topStackFrameColor,
@@ -103,14 +105,17 @@ export class PausedCellDecorationContribution extends Disposable implements INot
 					position: NotebookOverviewRulerLane.Full
 				}
 			};
-			return { handle, options };
+			return {
+				handle,
+				options
+			};
 		});
 
 		this._currentTopDecorations = this._notebookEditor.deltaCellDecorations(this._currentTopDecorations, newDecorations);
 	}
 
 	private setFocusedFrameDecoration(focusedFrameCellAndRange: ICellAndRange | undefined): void {
-		let newDecorations: INotebookDeltaDecoration[] = [];
+		let newDecorations: INotebookDeltaCellDecoration[] = [];
 		if (focusedFrameCellAndRange) {
 			const options: INotebookCellDecorationOptions = {
 				overviewRuler: {
@@ -120,14 +125,17 @@ export class PausedCellDecorationContribution extends Disposable implements INot
 					position: NotebookOverviewRulerLane.Full
 				}
 			};
-			newDecorations = [{ handle: focusedFrameCellAndRange.handle, options }];
+			newDecorations = [{
+				handle: focusedFrameCellAndRange.handle,
+				options
+			}];
 		}
 
 		this._currentOtherDecorations = this._notebookEditor.deltaCellDecorations(this._currentOtherDecorations, newDecorations);
 	}
 
 	private setExecutingCellDecorations(handles: number[]): void {
-		const newDecorations = handles.map(handle => {
+		const newDecorations: INotebookDeltaCellDecoration[] = handles.map(handle => {
 			const options: INotebookCellDecorationOptions = {
 				overviewRuler: {
 					color: runningCellRulerDecorationColor,
@@ -136,7 +144,10 @@ export class PausedCellDecorationContribution extends Disposable implements INot
 					position: NotebookOverviewRulerLane.Left
 				}
 			};
-			return { handle, options };
+			return {
+				handle,
+				options
+			};
 		});
 
 		this._executingCellDecorations = this._notebookEditor.deltaCellDecorations(this._executingCellDecorations, newDecorations);
@@ -178,7 +189,7 @@ export class NotebookBreakpointDecorations extends Disposable implements INotebo
 					}
 				};
 				return { handle: parsed.handle, options };
-			}).filter(x => !!x) as INotebookDeltaDecoration[]
+			}).filter(x => !!x) as INotebookDeltaCellDecoration[]
 			: [];
 		this._currentDecorations = this._notebookEditor.deltaCellDecorations(this._currentDecorations, newDecorations);
 	}

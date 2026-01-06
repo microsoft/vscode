@@ -3,11 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { getNonWhitespacePrefix } from 'vs/workbench/contrib/snippets/browser/snippetsService';
-import { Position } from 'vs/editor/common/core/position';
+import assert from 'assert';
+import { getNonWhitespacePrefix } from '../../browser/snippetsService.js';
+import { Position } from '../../../../../editor/common/core/position.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 suite('getNonWhitespacePrefix', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function assertGetNonWhitespacePrefix(line: string, column: number, expected: string): void {
 		const model = {

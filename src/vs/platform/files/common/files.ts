@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { IExpression, IRelativePattern } from 'vs/base/common/glob';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
-import { sep } from 'vs/base/common/path';
-import { ReadableStreamEvents } from 'vs/base/common/stream';
-import { startsWithIgnoreCase } from 'vs/base/common/strings';
-import { isNumber } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { isWeb } from 'vs/base/common/platform';
-import { Schemas } from 'vs/base/common/network';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { Lazy } from 'vs/base/common/lazy';
+import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from '../../../base/common/buffer.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Event } from '../../../base/common/event.js';
+import { IExpression, IRelativePattern } from '../../../base/common/glob.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
+import { TernarySearchTree } from '../../../base/common/ternarySearchTree.js';
+import { sep } from '../../../base/common/path.js';
+import { ReadableStreamEvents } from '../../../base/common/stream.js';
+import { startsWithIgnoreCase } from '../../../base/common/strings.js';
+import { isNumber } from '../../../base/common/types.js';
+import { URI } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { isWeb } from '../../../base/common/platform.js';
+import { Schemas } from '../../../base/common/network.js';
+import { IMarkdownString } from '../../../base/common/htmlContent.js';
+import { Lazy } from '../../../base/common/lazy.js';
 
 //#region file service & providers
 
@@ -134,6 +134,14 @@ export interface IFileService {
 	stat(resource: URI): Promise<IFileStatWithPartialMetadata>;
 
 	/**
+	 * Attempts to resolve the real path of the provided resource. The real path can be
+	 * different from the resource path for example when it is a symlink.
+	 *
+	 * Will return `undefined` if the real path cannot be resolved.
+	 */
+	realpath(resource: URI): Promise<URI | undefined>;
+
+	/**
 	 * Finds out if a file/folder identified by the resource exists.
 	 */
 	exists(resource: URI): Promise<boolean>;
@@ -240,16 +248,10 @@ export interface IFileService {
 	 *
 	 * The watcher runs correlated and thus, file events will be reported on the returned
 	 * `IFileSystemWatcher` and not on the generic `IFileService.onDidFilesChange` event.
-	 */
-	createWatcher(resource: URI, options: IWatchOptionsWithoutCorrelation): IFileSystemWatcher;
-
-	/**
-	 * Allows to start a watcher that reports file/folder change events on the provided resource.
 	 *
-	 * The watcher runs correlated and thus, file events will be reported on the returned
-	 * `IFileSystemWatcher` and not on the generic `IFileService.onDidFilesChange` event.
+	 * Note: only non-recursive file watching supports event correlation for now.
 	 */
-	watch(resource: URI, options: IWatchOptionsWithCorrelation): IFileSystemWatcher;
+	createWatcher(resource: URI, options: IWatchOptionsWithoutCorrelation & { recursive: false }): IFileSystemWatcher;
 
 	/**
 	 * Allows to start a watcher that reports file/folder change events on the provided resource.
@@ -527,6 +529,15 @@ export interface IWatchOptionsWithoutCorrelation {
 	 * always matched relative to the watched folder.
 	 */
 	includes?: Array<string | IRelativePattern>;
+
+	/**
+	 * If provided, allows to filter the events that the watcher should consider
+	 * for emitting. If not provided, all events are emitted.
+	 *
+	 * For example, to emit added and updated events, set to:
+	 * `FileChangeFilter.ADDED | FileChangeFilter.UPDATED`.
+	 */
+	filter?: FileChangeFilter;
 }
 
 export interface IWatchOptions extends IWatchOptionsWithoutCorrelation {
@@ -537,6 +548,12 @@ export interface IWatchOptions extends IWatchOptionsWithoutCorrelation {
 	 * id.
 	 */
 	readonly correlationId?: number;
+}
+
+export const enum FileChangeFilter {
+	UPDATED = 1 << 1,
+	ADDED = 1 << 2,
+	DELETED = 1 << 3
 }
 
 export interface IWatchOptionsWithCorrelation extends IWatchOptions {
@@ -626,7 +643,12 @@ export const enum FileSystemProviderCapabilities {
 	/**
 	 * Provider support to clone files atomically.
 	 */
-	FileClone = 1 << 17
+	FileClone = 1 << 17,
+
+	/**
+	 * Provider support to resolve real paths.
+	 */
+	FileRealpath = 1 << 18
 }
 
 export interface IFileSystemProvider {
@@ -682,6 +704,14 @@ export interface IFileSystemProviderWithFileCloneCapability extends IFileSystemP
 
 export function hasFileCloneCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileCloneCapability {
 	return !!(provider.capabilities & FileSystemProviderCapabilities.FileClone);
+}
+
+export interface IFileSystemProviderWithFileRealpathCapability extends IFileSystemProvider {
+	realpath(resource: URI): Promise<string>;
+}
+
+export function hasFileRealpathCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileRealpathCapability {
+	return !!(provider.capabilities & FileSystemProviderCapabilities.FileRealpath);
 }
 
 export interface IFileSystemProviderWithOpenReadWriteCloseCapability extends IFileSystemProvider {
@@ -1453,7 +1483,7 @@ export interface IGlobPatterns {
 }
 
 export interface IFilesConfiguration {
-	files: IFilesConfigurationNode;
+	files?: IFilesConfigurationNode;
 }
 
 export interface IFilesConfigurationNode {
@@ -1463,6 +1493,7 @@ export interface IFilesConfigurationNode {
 	watcherInclude: string[];
 	encoding: string;
 	autoGuessEncoding: boolean;
+	candidateGuessEncodings: string[];
 	defaultLanguage: string;
 	trimTrailingWhitespace: boolean;
 	autoSave: string;

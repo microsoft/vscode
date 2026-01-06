@@ -3,11 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Emitter, Event } from 'vs/base/common/event';
-import { ISettableObservable, autorun, derived, ITransaction, observableFromEvent, observableValue, transaction, keepObserved } from 'vs/base/common/observable';
-import { BaseObservable, IObservable, IObserver } from 'vs/base/common/observableInternal/base';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import { setUnexpectedErrorHandler } from '../../common/errors.js';
+import { Emitter, Event } from '../../common/event.js';
+import { DisposableStore, toDisposable } from '../../common/lifecycle.js';
+import { IDerivedReader, IObservableWithChange, autorun, autorunHandleChanges, autorunWithStoreHandleChanges, derived, derivedDisposable, IObservable, IObserver, ISettableObservable, ITransaction, keepObserved, observableFromEvent, observableSignal, observableValue, recordChanges, transaction, waitForState, derivedHandleChanges, runOnChange } from '../../common/observable.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
+// eslint-disable-next-line local/code-no-deep-import-of-internal
+import { observableReducer } from '../../common/observableInternal/experimental/reducer.js';
+// eslint-disable-next-line local/code-no-deep-import-of-internal
+import { BaseObservable } from '../../common/observableInternal/observables/baseObservable.js';
 
 suite('observables', () => {
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
@@ -18,11 +23,15 @@ suite('observables', () => {
 	suite('tutorial', () => {
 		test('observable + autorun', () => {
 			const log = new Log();
-			// This creates a new observable value. The name is only used for debugging purposes.
+			// This creates a variable that stores a value and whose value changes can be observed.
+			// The name is only used for debugging purposes.
 			// The second arg is the initial value.
 			const myObservable = observableValue('myObservable', 0);
 
-			// This creates an autorun. The @description is only used for debugging purposes.
+			// This creates an autorun: It runs immediately and then again whenever any of the
+			// dependencies change. Dependencies are tracked by reading observables with the `reader` parameter.
+			//
+			// The @description is only used for debugging purposes.
 			// The autorun has to be disposed! This is very important.
 			ds.add(autorun(reader => {
 				/** @description myAutorun */
@@ -31,7 +40,7 @@ suite('observables', () => {
 
 				// Use the `reader` to read observable values and track the dependency to them.
 				// If you use `observable.get()` instead of `observable.read(reader)`, you will just
-				// get the value and not track the dependency.
+				// get the value and not subscribe to it.
 				log.log(`myAutorun.run(myObservable: ${myObservable.read(reader)})`);
 
 				// Now that all dependencies are tracked, the autorun is re-run whenever any of the
@@ -295,6 +304,51 @@ suite('observables', () => {
 			// which could cause memory-leaks.
 			// So instead, when the last observer of a derived is disposed, we dispose our subscriptions to our dependencies.
 			// `keepObserved` just prevents this from happening.
+		});
+
+		test('autorun that receives deltas of signals', () => {
+			const log = new Log();
+
+			// A signal is an observable without a value.
+			// However, it can ship change information when it is triggered.
+			// Readers can process/aggregate this change information.
+			const signal = observableSignal<{ msg: string }>('signal');
+
+			const disposable = autorunHandleChanges({
+				changeTracker: {
+					// The change summary is used to collect the changes
+					createChangeSummary: () => ({ msgs: [] as string[] }),
+					handleChange(context, changeSummary) {
+						if (context.didChange(signal)) {
+							// We just push the changes into an array
+							changeSummary.msgs.push(context.change.msg);
+						}
+						return true; // We want to handle the change
+					},
+				}
+			}, (reader, changeSummary) => {
+				// When handling the change, make sure to read the signal!
+				signal.read(reader);
+				log.log('msgs: ' + changeSummary.msgs.join(', '));
+			});
+
+
+			signal.trigger(undefined, { msg: 'foobar' });
+
+			transaction(tx => {
+				// You can batch triggering signals.
+				// No delta information is lost!
+				signal.trigger(tx, { msg: 'hello' });
+				signal.trigger(tx, { msg: 'world' });
+			});
+
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				'msgs: ',
+				'msgs: foobar',
+				'msgs: hello, world'
+			]);
+
+			disposable.dispose();
 		});
 
 		// That is the end of the tutorial.
@@ -1076,6 +1130,31 @@ suite('observables', () => {
 		]);
 	});
 
+	test('bug: Event.fromObservable always should get events', () => {
+		const emitter = new Emitter();
+		const log = new Log();
+		let i = 0;
+		const obs = observableFromEvent(emitter.event, () => i);
+
+		i++;
+		emitter.fire(1);
+
+		const evt2 = Event.fromObservable(obs);
+		const d = evt2(e => {
+			log.log(`event fired ${e}`);
+		});
+
+		i++;
+		emitter.fire(2);
+		assert.deepStrictEqual(log.getAndClearEntries(), ["event fired 2"]);
+
+		i++;
+		emitter.fire(3);
+		assert.deepStrictEqual(log.getAndClearEntries(), ["event fired 3"]);
+
+		d.dispose();
+	});
+
 	test('dont run autorun after dispose', () => {
 		const log = new Log();
 		const myObservable = new LoggingObservableValue('myObservable', 0, log);
@@ -1099,6 +1178,566 @@ suite('observables', () => {
 			'myObservable.lastObserverRemoved',
 		]);
 	});
+
+	suite('waitForState', () => {
+		test('resolve', async () => {
+			const log = new Log();
+			const myObservable = new LoggingObservableValue('myObservable', { state: 'initializing' as 'initializing' | 'ready' | 'error' }, log);
+
+			const p = waitForState(myObservable, p => p.state === 'ready', p => p.state === 'error').then(r => {
+				log.log(`resolved ${JSON.stringify(r)}`);
+			}, (err) => {
+				log.log(`rejected ${JSON.stringify(err)}`);
+			});
+
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				'myObservable.firstObserverAdded',
+				'myObservable.get',
+			]);
+
+			myObservable.set({ state: 'ready' }, undefined);
+
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				'myObservable.set (value [object Object])',
+				'myObservable.get',
+				'myObservable.lastObserverRemoved',
+			]);
+
+			await p;
+
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				'resolved {\"state\":\"ready\"}',
+			]);
+		});
+
+		test('resolveImmediate', async () => {
+			const log = new Log();
+			const myObservable = new LoggingObservableValue('myObservable', { state: 'ready' as 'initializing' | 'ready' | 'error' }, log);
+
+			const p = waitForState(myObservable, p => p.state === 'ready', p => p.state === 'error').then(r => {
+				log.log(`resolved ${JSON.stringify(r)}`);
+			}, (err) => {
+				log.log(`rejected ${JSON.stringify(err)}`);
+			});
+
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				'myObservable.firstObserverAdded',
+				'myObservable.get',
+				'myObservable.lastObserverRemoved',
+			]);
+
+			myObservable.set({ state: 'error' }, undefined);
+
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				'myObservable.set (value [object Object])',
+			]);
+
+			await p;
+
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				'resolved {\"state\":\"ready\"}',
+			]);
+		});
+
+		test('reject', async () => {
+			const log = new Log();
+			const myObservable = new LoggingObservableValue('myObservable', { state: 'initializing' as 'initializing' | 'ready' | 'error' }, log);
+
+			const p = waitForState(myObservable, p => p.state === 'ready', p => p.state === 'error').then(r => {
+				log.log(`resolved ${JSON.stringify(r)}`);
+			}, (err) => {
+				log.log(`rejected ${JSON.stringify(err)}`);
+			});
+
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				'myObservable.firstObserverAdded',
+				'myObservable.get',
+			]);
+
+			myObservable.set({ state: 'error' }, undefined);
+
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				'myObservable.set (value [object Object])',
+				'myObservable.get',
+				'myObservable.lastObserverRemoved',
+			]);
+
+			await p;
+
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				'rejected {\"state\":\"error\"}'
+			]);
+		});
+
+		test('derived as lazy', () => {
+			const store = new DisposableStore();
+			const log = new Log();
+			let i = 0;
+			const d = derivedDisposable(() => {
+				const id = i++;
+				log.log('myDerived ' + id);
+				return {
+					dispose: () => log.log(`disposed ${id}`)
+				};
+			});
+
+			d.get();
+			assert.deepStrictEqual(log.getAndClearEntries(), ['myDerived 0', 'disposed 0']);
+			d.get();
+			assert.deepStrictEqual(log.getAndClearEntries(), ['myDerived 1', 'disposed 1']);
+
+			d.keepObserved(store);
+			assert.deepStrictEqual(log.getAndClearEntries(), []);
+			d.get();
+			assert.deepStrictEqual(log.getAndClearEntries(), ['myDerived 2']);
+			d.get();
+			assert.deepStrictEqual(log.getAndClearEntries(), []);
+
+			store.dispose();
+
+			assert.deepStrictEqual(log.getAndClearEntries(), ['disposed 2']);
+		});
+	});
+
+	test('observableValue', () => {
+		const log = new Log();
+		const myObservable1 = observableValue<number>('myObservable1', 0);
+		const myObservable2 = observableValue<number, { message: string }>('myObservable2', 0);
+
+		const d = autorun(reader => {
+			/** @description update */
+			const v1 = myObservable1.read(reader);
+			const v2 = myObservable2.read(reader);
+			log.log('autorun, myObservable1:' + v1 + ', myObservable2:' + v2);
+		});
+
+		assert.deepStrictEqual(log.getAndClearEntries(), [
+			'autorun, myObservable1:0, myObservable2:0'
+		]);
+
+		// Doesn't trigger the autorun, because no delta was provided and the value did not change
+		myObservable1.set(0, undefined);
+
+		assert.deepStrictEqual(log.getAndClearEntries(), [
+		]);
+
+		// Triggers the autorun. The value did not change, but a delta value was provided
+		myObservable2.set(0, undefined, { message: 'change1' });
+
+		assert.deepStrictEqual(log.getAndClearEntries(), [
+			'autorun, myObservable1:0, myObservable2:0'
+		]);
+
+		d.dispose();
+	});
+
+	suite('autorun error handling', () => {
+		test('immediate throw', () => {
+			const log = new Log();
+
+			setUnexpectedErrorHandler(e => {
+				log.log(`error: ${e.message}`);
+			});
+
+			const myObservable = new LoggingObservableValue('myObservable', 0, log);
+
+			const d = autorun(reader => {
+				myObservable.read(reader);
+				throw new Error('foobar');
+			});
+
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				"myObservable.firstObserverAdded",
+				"myObservable.get",
+				"error: foobar"
+			]);
+
+			myObservable.set(1, undefined);
+
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				"myObservable.set (value 1)",
+				"myObservable.get",
+				"error: foobar",
+			]);
+
+			d.dispose();
+		});
+
+		test('late throw', () => {
+			const log = new Log();
+
+			setUnexpectedErrorHandler(e => {
+				log.log(`error: ${e.message}`);
+			});
+
+			const myObservable = new LoggingObservableValue('myObservable', 0, log);
+
+			const d = autorun(reader => {
+				const value = myObservable.read(reader);
+				if (value >= 1) {
+					throw new Error('foobar');
+				}
+			});
+
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				"myObservable.firstObserverAdded",
+				"myObservable.get",
+			]);
+
+			myObservable.set(1, undefined);
+
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				"myObservable.set (value 1)",
+				"myObservable.get",
+				"error: foobar",
+			]);
+
+			myObservable.set(2, undefined);
+
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				"myObservable.set (value 2)",
+				"myObservable.get",
+				"error: foobar",
+			]);
+
+			d.dispose();
+		});
+	});
+
+	test('recomputeInitiallyAndOnChange should work when a dependency sets an observable', () => {
+		const store = new DisposableStore();
+		const log = new Log();
+
+		const myObservable = new LoggingObservableValue('myObservable', 0, log);
+
+		let shouldUpdate = true;
+
+		const myDerived = derived(reader => {
+			/** @description myDerived */
+
+			log.log('myDerived.computed start');
+
+			const val = myObservable.read(reader);
+
+			if (shouldUpdate) {
+				shouldUpdate = false;
+				myObservable.set(1, undefined);
+			}
+
+			log.log('myDerived.computed end');
+
+			return val;
+		});
+
+		assert.deepStrictEqual(log.getAndClearEntries(), ([]));
+
+		myDerived.recomputeInitiallyAndOnChange(store, val => {
+			log.log(`recomputeInitiallyAndOnChange, myDerived: ${val}`);
+		});
+
+		assert.deepStrictEqual(log.getAndClearEntries(), [
+			"myDerived.computed start",
+			"myObservable.firstObserverAdded",
+			"myObservable.get",
+			"myObservable.set (value 1)",
+			"myDerived.computed end",
+			"myDerived.computed start",
+			"myObservable.get",
+			"myDerived.computed end",
+			"recomputeInitiallyAndOnChange, myDerived: 1",
+		]);
+
+		myDerived.get();
+		assert.deepStrictEqual(log.getAndClearEntries(), ([]));
+
+		store.dispose();
+	});
+
+	suite('prevent invalid usage', () => {
+		suite('reading outside of compute function', () => {
+			test('derived', () => {
+				let fn: () => void = () => { };
+
+				const obs = observableValue('obs', 0);
+				const d = derived(reader => {
+					fn = () => { obs.read(reader); };
+					return obs.read(reader);
+				});
+
+				const disp = autorun(reader => {
+					d.read(reader);
+				});
+
+				assert.throws(() => {
+					fn();
+				});
+
+				disp.dispose();
+			});
+
+			test('autorun', () => {
+				let fn: () => void = () => { };
+
+				const obs = observableValue('obs', 0);
+				const disp = autorun(reader => {
+					fn = () => { obs.read(reader); };
+					obs.read(reader);
+				});
+
+				assert.throws(() => {
+					fn();
+				});
+
+				disp.dispose();
+			});
+		});
+
+		test.skip('catches cyclic dependencies', () => {
+			const log = new Log();
+
+			setUnexpectedErrorHandler((e) => {
+				log.log(e.toString());
+			});
+
+			const obs = observableValue('obs', 0);
+			const d1 = derived(reader => {
+				log.log('d1.computed start');
+				const x = obs.read(reader) + d2.read(reader);
+				log.log('d1.computed end');
+				return x;
+			});
+			const d2 = derived(reader => {
+				log.log('d2.computed start');
+				d1.read(reader);
+				log.log('d2.computed end');
+				return 0;
+			});
+
+			const disp = autorun(reader => {
+				log.log('autorun start');
+				d1.read(reader);
+				log.log('autorun end');
+				return 0;
+			});
+
+			assert.deepStrictEqual(log.getAndClearEntries(), ([
+				"autorun start",
+				"d1.computed start",
+				"d2.computed start",
+				"Error: Cyclic deriveds are not supported yet!",
+				"d1.computed end",
+				"autorun end"
+			]));
+
+			disp.dispose();
+		});
+	});
+
+	suite('observableReducer', () => {
+		test('main', () => {
+			const store = new DisposableStore();
+			const log = new Log();
+
+			const myObservable1 = observableValue<number, number>('myObservable1', 5);
+			const myObservable2 = observableValue<number, number>('myObservable2', 9);
+
+			const sum = observableReducer(this, {
+				initial: () => {
+					log.log('createInitial');
+					return myObservable1.get() + myObservable2.get();
+				},
+				disposeFinal: (values) => {
+					log.log(`disposeFinal ${values}`);
+				},
+				changeTracker: recordChanges({ myObservable1, myObservable2 }),
+				update: (reader: IDerivedReader<number>, previousValue, changes) => {
+					log.log(`update ${JSON.stringify(changes)}`);
+					let delta = 0;
+					for (const change of changes.changes) {
+						delta += change.change;
+					}
+
+					reader.reportChange(delta);
+					const resultValue = previousValue + delta;
+					log.log(`update -> ${resultValue}`);
+					return resultValue;
+				}
+			});
+
+			assert.deepStrictEqual(log.getAndClearEntries(), ([]));
+
+			store.add(autorunWithStoreHandleChanges({
+				changeTracker: recordChanges({ sum })
+			}, (_reader, changes) => {
+				log.log(`autorun ${JSON.stringify(changes)}`);
+			}));
+
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				"createInitial",
+				'update {"changes":[],"myObservable1":5,"myObservable2":9}',
+				"update -> 14",
+				'autorun {"changes":[],"sum":14}',
+			]);
+
+			transaction(tx => {
+				myObservable1.set(myObservable1.get() + 1, tx, 1);
+				myObservable2.set(myObservable2.get() + 3, tx, 3);
+			});
+
+			assert.deepStrictEqual(log.getAndClearEntries(), ([
+				"update {\"changes\":[{\"key\":\"myObservable1\",\"change\":1},{\"key\":\"myObservable2\",\"change\":3}],\"myObservable1\":6,\"myObservable2\":12}",
+				"update -> 18",
+				"autorun {\"changes\":[{\"key\":\"sum\",\"change\":4}],\"sum\":18}"
+			]));
+
+			transaction(tx => {
+				myObservable1.set(myObservable1.get() + 1, tx, 1);
+				const s = sum.get();
+				log.log(`sum.get() ${s}`);
+				myObservable2.set(myObservable2.get() + 3, tx, 3);
+			});
+
+			assert.deepStrictEqual(log.getAndClearEntries(), ([
+				"update {\"changes\":[{\"key\":\"myObservable1\",\"change\":1}],\"myObservable1\":7,\"myObservable2\":12}",
+				"update -> 19",
+				"sum.get() 19",
+				"update {\"changes\":[{\"key\":\"myObservable2\",\"change\":3}],\"myObservable1\":7,\"myObservable2\":15}",
+				"update -> 22",
+				"autorun {\"changes\":[{\"key\":\"sum\",\"change\":1}],\"sum\":22}"
+			]));
+
+			store.dispose();
+
+			assert.deepStrictEqual(log.getAndClearEntries(), ([
+				"disposeFinal 22"
+			]));
+		});
+	});
+
+	suite('disposableStores', () => {
+		test('derived with store', () => {
+			const log = new Log();
+			const observable1 = observableValue('myObservableValue1', 0);
+
+			const computed1 = derived((reader) => {
+				const value = observable1.read(reader);
+				log.log(`computed ${value}`);
+				reader.store.add(toDisposable(() => {
+					log.log(`computed1: ${value} disposed`);
+				}));
+				return value;
+			});
+
+			const a = autorun(reader => {
+				log.log(`a: ${computed1.read(reader)}`);
+			});
+
+			assert.deepStrictEqual(log.getAndClearEntries(), ([
+				"computed 0",
+				"a: 0"
+			]));
+
+			observable1.set(1, undefined);
+
+			assert.deepStrictEqual(log.getAndClearEntries(), ([
+				"computed1: 0 disposed",
+				"computed 1",
+				"a: 1"
+			]));
+
+			a.dispose();
+
+			assert.deepStrictEqual(log.getAndClearEntries(), ([
+				"computed1: 1 disposed"
+			]));
+		});
+
+		test('derived with delayedStore', () => {
+			const log = new Log();
+			const observable1 = observableValue('myObservableValue1', 0);
+
+			const computed1 = derived((reader) => {
+				const value = observable1.read(reader);
+				log.log(`computed ${value}`);
+				reader.delayedStore.add(toDisposable(() => {
+					log.log(`computed1: ${value} disposed`);
+				}));
+				return value;
+			});
+
+			const a = autorun(reader => {
+				log.log(`a: ${computed1.read(reader)}`);
+			});
+
+			assert.deepStrictEqual(log.getAndClearEntries(), ([
+				"computed 0",
+				"a: 0"
+			]));
+
+			observable1.set(1, undefined);
+
+			assert.deepStrictEqual(log.getAndClearEntries(), ([
+				"computed 1",
+				"computed1: 0 disposed",
+				"a: 1"
+			]));
+
+			a.dispose();
+
+			assert.deepStrictEqual(log.getAndClearEntries(), ([
+				"computed1: 1 disposed"
+			]));
+		});
+	});
+
+	test('derivedHandleChanges with reportChanges', () => {
+		const log = new Log();
+
+		const signal1 = observableSignal<{ message: string }>('signal1');
+		const signal2 = observableSignal<{ message: string }>('signal2');
+
+		const signal2Derived = derivedHandleChanges(
+			{ changeTracker: recordChanges({ signal2 }) },
+			(reader: IDerivedReader<{ message: string }>, changeSummary) => {
+				for (const c of changeSummary.changes) {
+					reader.reportChange({ message: c.change.message + ' (derived)' });
+				}
+			}
+		);
+
+		const d = derivedHandleChanges({
+			changeTracker: recordChanges({ signal1, signal2Derived }),
+		}, (r: IDerivedReader<string>, changes) => {
+			const log = changes.changes.map(c => `${c.key}: ${c.change.message}`).join(', ');
+			r.reportChange(log);
+		});
+
+		const disp = runOnChange(d, (_val, _prev, changes) => {
+			log.log(`runOnChange ${JSON.stringify(changes)}`);
+		});
+
+		assert.deepStrictEqual(log.getAndClearEntries(), ([]));
+
+		transaction(tx => {
+			signal1.trigger(tx, { message: 'foo' });
+			signal2.trigger(tx, { message: 'bar' });
+		});
+
+		assert.deepStrictEqual(log.getAndClearEntries(), ([
+			"runOnChange [\"signal1: foo, signal2Derived: bar (derived)\"]"
+		]));
+
+
+		transaction(tx => {
+			signal2.trigger(tx, { message: 'baz' });
+		});
+
+		assert.deepStrictEqual(log.getAndClearEntries(), ([
+			"runOnChange [\"signal2Derived: baz (derived)\"]"
+		]));
+
+		disp.dispose();
+	});
 });
 
 export class LoggingObserver implements IObserver {
@@ -1107,18 +1746,18 @@ export class LoggingObserver implements IObserver {
 	constructor(public readonly debugName: string, private readonly log: Log) {
 	}
 
-	beginUpdate<T>(observable: IObservable<T, void>): void {
+	beginUpdate<T>(observable: IObservable<T>): void {
 		this.count++;
 		this.log.log(`${this.debugName}.beginUpdate (count ${this.count})`);
 	}
-	endUpdate<T>(observable: IObservable<T, void>): void {
+	endUpdate<T>(observable: IObservable<T>): void {
 		this.log.log(`${this.debugName}.endUpdate (count ${this.count})`);
 		this.count--;
 	}
-	handleChange<T, TChange>(observable: IObservable<T, TChange>, change: TChange): void {
+	handleChange<T, TChange>(observable: IObservableWithChange<T, TChange>, change: TChange): void {
 		this.log.log(`${this.debugName}.handleChange (count ${this.count})`);
 	}
-	handlePossibleChange<T>(observable: IObservable<T, unknown>): void {
+	handlePossibleChange<T>(observable: IObservable<T>): void {
 		this.log.log(`${this.debugName}.handlePossibleChange`);
 	}
 }
@@ -1128,21 +1767,21 @@ export class LoggingObservableValue<T, TChange = void>
 	implements ISettableObservable<T, TChange> {
 	private value: T;
 
-	constructor(public readonly debugName: string, initialValue: T, private readonly log: Log) {
+	constructor(public readonly debugName: string, initialValue: T, private readonly logger: Log) {
 		super();
 		this.value = initialValue;
 	}
 
 	protected override onFirstObserverAdded(): void {
-		this.log.log(`${this.debugName}.firstObserverAdded`);
+		this.logger.log(`${this.debugName}.firstObserverAdded`);
 	}
 
 	protected override onLastObserverRemoved(): void {
-		this.log.log(`${this.debugName}.lastObserverRemoved`);
+		this.logger.log(`${this.debugName}.lastObserverRemoved`);
 	}
 
 	public get(): T {
-		this.log.log(`${this.debugName}.get`);
+		this.logger.log(`${this.debugName}.get`);
 		return this.value;
 	}
 
@@ -1158,11 +1797,11 @@ export class LoggingObservableValue<T, TChange = void>
 			return;
 		}
 
-		this.log.log(`${this.debugName}.set (value ${value})`);
+		this.logger.log(`${this.debugName}.set (value ${value})`);
 
 		this.value = value;
 
-		for (const observer of this.observers) {
+		for (const observer of this._observers) {
 			tx.updateObserver(observer, this);
 			observer.handleChange(this, change);
 		}
