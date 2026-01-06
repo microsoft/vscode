@@ -12,7 +12,7 @@ import { IEditorContribution, IScrollEvent } from '../../../common/editorCommon.
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IHoverWidget } from './hoverTypes.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
-import { isMousePositionWithinElement, shouldShowHover } from './hoverUtils.js';
+import { isMousePositionWithinElement, isTriggerModifierPressed, shouldShowHover } from './hoverUtils.js';
 import './hover.css';
 import { GlyphHoverWidget } from './glyphHoverWidget.js';
 
@@ -206,6 +206,15 @@ export class GlyphHoverController extends Disposable implements IEditorContribut
 		if (!this._editor.hasModel()) {
 			return;
 		}
+
+		if (this._hoverSettings.enabled === 'onKeyboardModifier'
+			&& isTriggerModifierPressed(this._editor.getOption(EditorOption.multiCursorModifier), e)
+			&& this._mouseMoveEvent) {
+			if (this._tryShowHoverWidget(this._mouseMoveEvent)) {
+				return;
+			}
+		}
+
 		if (isModifierKey(e.keyCode)) {
 			// Do not hide hover when a modifier key is pressed
 			return;
