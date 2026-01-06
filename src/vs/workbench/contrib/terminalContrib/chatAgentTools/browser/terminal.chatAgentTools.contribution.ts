@@ -17,7 +17,7 @@ import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribu
 import { IChatWidgetService } from '../../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../../chat/common/chatContextKeys.js';
 import { IChatService } from '../../../chat/common/chatService.js';
-import { ILanguageModelToolsService, ToolDataSource, VSCodeToolReference } from '../../../chat/common/languageModelToolsService.js';
+import { ILanguageModelToolsService } from '../../../chat/common/languageModelToolsService.js';
 import { registerActiveInstanceAction, sharedWhenClause } from '../../../terminal/browser/terminalActions.js';
 import { TerminalContextMenuGroup } from '../../../terminal/browser/terminalMenus.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
