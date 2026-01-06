@@ -1772,14 +1772,9 @@ export class Repository {
 		return result.stdout.trim();
 	}
 
-	async diffBetweenPatch(ref: string, options: { root?: boolean; path?: string }): Promise<string> {
-		const args = ['diff'];
+	async diffBetweenPatch(ref: string, options: { path?: string }): Promise<string> {
+		const args = ['diff', ref, '--'];
 
-		if (options.root) {
-			args.push('--root');
-		}
-
-		args.push(...[ref, '--']);
 		if (options.path) {
 			args.push(this.sanitizeRelativePath(options.path));
 		}

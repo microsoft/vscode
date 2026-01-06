@@ -1254,10 +1254,8 @@ export class Repository implements Disposable {
 	}
 
 	diffBetweenPatch(ref1: string, ref2: string, path?: string): Promise<string> {
-		const ref = ref1 === this._EMPTY_TREE ? ref2 : `${ref1}...${ref2}`;
-
 		return this.run(Operation.Diff, () =>
-			this.repository.diffBetweenPatch(ref, { root: ref1 === this._EMPTY_TREE, path }));
+			this.repository.diffBetweenPatch(`${ref1}...${ref2}`, { path }));
 	}
 
 	diffBetweenWithStats(ref1: string, ref2: string, path?: string): Promise<DiffChange[]> {
