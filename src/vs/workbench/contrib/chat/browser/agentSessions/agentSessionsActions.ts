@@ -728,6 +728,7 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 
 		const sideBySideMinWidth = 600 + 1;	// account for possible theme border
 		const stackedMaxWidth = sideBySideMinWidth - 1;
+		const resizeTolerance = 1; // pixels - avoid unnecessary resize for small differences
 
 		// Check if we need to resize for the new orientation
 		if (newOrientation === AgentSessionsViewerOrientation.SideBySide && currentSize.width >= sideBySideMinWidth) {
@@ -755,7 +756,7 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 		}
 
 		// Only resize if the width is actually different
-		if (Math.abs(currentSize.width - newWidth) > 1) { // allow 1px tolerance for rounding
+		if (Math.abs(currentSize.width - newWidth) > resizeTolerance) {
 			layoutService.setSize(part, {
 				width: newWidth,
 				height: currentSize.height
