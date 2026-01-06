@@ -9,9 +9,9 @@ import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IChatAgentAttachmentCapabilities } from '../../common/chatAgents.js';
-import { IChatModel } from '../../common/chatModel.js';
-import { IChatService } from '../../common/chatService.js';
+import { IChatAgentAttachmentCapabilities } from '../../common/participants/chatAgents.js';
+import { IChatModel } from '../../common/model/chatModel.js';
+import { IChatService } from '../../common/chatService/chatService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionGroup, IChatSessionsExtensionPoint, IChatSessionsService, SessionOptionsChangedCallback } from '../../common/chatSessionsService.js';
 
 export class MockChatSessionsService implements IChatSessionsService {

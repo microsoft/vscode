@@ -14,7 +14,7 @@ import { Model } from './model';
 import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
 import { DiffEditorSelectionHunkToolbarContext, LineChange, applyLineChanges, getIndexDiffInformation, getModifiedRange, getWorkingTreeDiffInformation, intersectDiffWithRange, invertLineChange, toLineChanges, toLineRanges, compareLineChanges } from './staging';
 import { fromGitUri, toGitUri, isGitUri, toMergeUris, toMultiFileDiffEditorUris } from './uri';
-import { DiagnosticSeverityConfig, dispose, fromNow, getHistoryItemDisplayName, getStashDescription, grep, isDefined, isDescendant, isLinuxSnap, isRemote, isWindows, pathEquals, relativePath, subject, toDiagnosticSeverity, truncate } from './util';
+import { coalesce, DiagnosticSeverityConfig, dispose, fromNow, getHistoryItemDisplayName, getStashDescription, grep, isDefined, isDescendant, isLinuxSnap, isRemote, isWindows, pathEquals, relativePath, subject, toDiagnosticSeverity, truncate } from './util';
 import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
 import { getRemoteSourceActions, pickRemoteSource } from './remoteSource';
@@ -56,19 +56,6 @@ class RefItemSeparator implements QuickPickItem {
 	}
 
 	constructor(private readonly refType: RefType) { }
-}
-
-class WorktreeItem implements QuickPickItem {
-
-	get label(): string {
-		return `$(list-tree) ${this.worktree.name}`;
-	}
-
-	get description(): string {
-		return this.worktree.path;
-	}
-
-	constructor(readonly worktree: Worktree) { }
 }
 
 class RefItem implements QuickPickItem {
@@ -240,7 +227,40 @@ class RemoteTagDeleteItem extends RefItem {
 	}
 }
 
+class WorktreeItem implements QuickPickItem {
+
+	get label(): string {
+		return `$(list-tree) ${this.worktree.name}`;
+	}
+
+	get description(): string | undefined {
+		return this.worktree.path;
+	}
+
+	constructor(readonly worktree: Worktree) { }
+}
+
 class WorktreeDeleteItem extends WorktreeItem {
+	override get description(): string | undefined {
+		if (!this.worktree.commitDetails) {
+			return undefined;
+		}
+
+		return coalesce([
+			this.worktree.detached ? l10n.t('detached') : this.worktree.ref.substring(11),
+			this.worktree.commitDetails.hash.substring(0, this.shortCommitLength),
+			this.worktree.commitDetails.message.split('\n')[0]
+		]).join(' \u2022 ');
+	}
+
+	get detail(): string {
+		return this.worktree.path;
+	}
+
+	constructor(worktree: Worktree, private readonly shortCommitLength: number) {
+		super(worktree);
+	}
+
 	async run(mainRepository: Repository): Promise<void> {
 		if (!this.worktree.path) {
 			return;
@@ -2417,7 +2437,7 @@ export class CommandCenter {
 			let pick: string | undefined = commitToNewBranch;
 
 			if (branchProtectionPrompt === 'alwaysPrompt') {
-				const message = l10n.t('You are trying to commit to a protected branch and you might not have permission to push your commits to the remote.\n\nHow would you like to proceed?');
+				const message = l10n.t('You are trying to commit to a protected branch. How would you like to proceed?');
 				const commit = l10n.t('Commit Anyway');
 
 				pick = await window.showWarningMessage(message, { modal: true }, commitToNewBranch, commit);
@@ -3178,7 +3198,7 @@ export class CommandCenter {
 		}
 
 		try {
-			const changes = await repository.diffBetween2(ref1.id, ref2.id);
+			const changes = await repository.diffBetweenWithStats(ref1.id, ref2.id);
 
 			if (changes.length === 0) {
 				window.showInformationMessage(l10n.t('There are no changes between "{0}" and "{1}".', ref1.displayId ?? ref1.id, ref2.displayId ?? ref2.id));
@@ -3437,6 +3457,10 @@ export class CommandCenter {
 			return;
 		}
 
+		await this._createWorktree(repository);
+	}
+
+	async _createWorktree(repository: Repository): Promise<void> {
 		const config = workspace.getConfiguration('git');
 		const branchPrefix = config.get<string>('branchPrefix')!;
 
@@ -3662,11 +3686,14 @@ export class CommandCenter {
 
 	@command('git.deleteWorktree', { repository: true, repositoryFilter: ['repository', 'submodule'] })
 	async deleteWorktreeFromPalette(repository: Repository): Promise<void> {
+		const config = workspace.getConfiguration('git', Uri.file(repository.root));
+		const commitShortHashLength = config.get<number>('commitShortHashLength') ?? 7;
+
 		const worktreePicks = async (): Promise<WorktreeDeleteItem[] | QuickPickItem[]> => {
-			const worktrees = await repository.getWorktrees();
+			const worktrees = await repository.getWorktreeDetails();
 			return worktrees.length === 0
 				? [{ label: l10n.t('$(info) This repository has no worktrees.') }]
-				: worktrees.map(worktree => new WorktreeDeleteItem(worktree));
+				: worktrees.map(worktree => new WorktreeDeleteItem(worktree, commitShortHashLength));
 		};
 
 		const placeHolder = l10n.t('Select a worktree to delete');
@@ -4758,7 +4785,7 @@ export class CommandCenter {
 
 		const commit = await repository.getCommit(item.ref);
 		const commitParentId = commit.parents.length > 0 ? commit.parents[0] : await repository.getEmptyTree();
-		const changes = await repository.diffBetween2(commitParentId, commit.hash);
+		const changes = await repository.diffBetweenWithStats(commitParentId, commit.hash);
 		const resources = changes.map(c => toMultiFileDiffEditorUris(c, commitParentId, commit.hash));
 
 		const title = `${item.shortRef} - ${subject(commit.message)}`;
@@ -5032,7 +5059,7 @@ export class CommandCenter {
 
 		const multiDiffSourceUri = Uri.from({ scheme: 'scm-history-item', path: `${repository.root}/${historyItemParentId}..${historyItemId}` });
 
-		const changes = await repository.diffBetween2(historyItemParentId, historyItemId);
+		const changes = await repository.diffBetweenWithStats(historyItemParentId, historyItemId);
 		const resources = changes.map(c => toMultiFileDiffEditorUris(c, historyItemParentId, historyItemId));
 		const reveal = revealUri ? { modifiedUri: toGitUri(revealUri, historyItemId) } : undefined;
 
@@ -5081,6 +5108,15 @@ export class CommandCenter {
 		}
 
 		await this._createTag(repository);
+	}
+
+	@command('git.repositories.createWorktree', { repository: true })
+	async artifactGroupCreateWorktree(repository: Repository): Promise<void> {
+		if (!repository) {
+			return;
+		}
+
+		await this._createWorktree(repository);
 	}
 
 	@command('git.repositories.checkout', { repository: true })
@@ -5291,6 +5327,35 @@ export class CommandCenter {
 		}
 
 		await this._stashDrop(repository, parseInt(match[1]), artifact.name);
+	}
+
+	@command('git.repositories.openWorktree', { repository: true })
+	async artifactOpenWorktree(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		const uri = Uri.file(artifact.id);
+		await commands.executeCommand('vscode.openFolder', uri, { forceReuseWindow: true });
+	}
+
+	@command('git.repositories.openWorktreeInNewWindow', { repository: true })
+	async artifactOpenWorktreeInNewWindow(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		const uri = Uri.file(artifact.id);
+		await commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: true });
+	}
+
+	@command('git.repositories.deleteWorktree', { repository: true })
+	async artifactDeleteWorktree(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		await repository.deleteWorktree(artifact.id);
 	}
 
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {

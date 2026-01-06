@@ -243,4 +243,50 @@ suite('Debug - Link Detector', () => {
 		assert.strictEqual(expectedOutput, output.outerHTML);
 		assertElementIsLink(output.firstElementChild!);
 	});
+
+	test('csharpStackTraceFormatWithLine', () => {
+		const input = isWindows ? 'C:\\foo\\bar.cs:line 6' : '/Users/foo/bar.cs:line 6';
+		const expectedOutput = isWindows ? '<span><a tabindex="0">C:\\foo\\bar.cs:line 6<\/a><\/span>' : '<span><a tabindex="0">/Users/foo/bar.cs:line 6<\/a><\/span>';
+		const output = linkDetector.linkify(input);
+
+		assert.strictEqual(1, output.children.length);
+		assert.strictEqual('SPAN', output.tagName);
+		assert.strictEqual('A', output.firstElementChild!.tagName);
+		assert.strictEqual(expectedOutput, output.outerHTML);
+		assertElementIsLink(output.firstElementChild!);
+		assert.strictEqual(isWindows ? 'C:\\foo\\bar.cs:line 6' : '/Users/foo/bar.cs:line 6', output.firstElementChild!.textContent);
+	});
+
+	test('csharpStackTraceFormatWithLineAndColumn', () => {
+		const input = isWindows ? 'C:\\foo\\bar.cs:line 6:10' : '/Users/foo/bar.cs:line 6:10';
+		const expectedOutput = isWindows ? '<span><a tabindex="0">C:\\foo\\bar.cs:line 6:10<\/a><\/span>' : '<span><a tabindex="0">/Users/foo/bar.cs:line 6:10<\/a><\/span>';
+		const output = linkDetector.linkify(input);
+
+		assert.strictEqual(1, output.children.length);
+		assert.strictEqual('SPAN', output.tagName);
+		assert.strictEqual('A', output.firstElementChild!.tagName);
+		assert.strictEqual(expectedOutput, output.outerHTML);
+		assertElementIsLink(output.firstElementChild!);
+		assert.strictEqual(isWindows ? 'C:\\foo\\bar.cs:line 6:10' : '/Users/foo/bar.cs:line 6:10', output.firstElementChild!.textContent);
+	});
+
+	test('mixedStackTraceFormats', () => {
+		const input = isWindows ? 'C:\\foo\\bar.js:12:34 and C:\\baz\\qux.cs:line 6' :
+			'/Users/foo/bar.js:12:34 and /Users/baz/qux.cs:line 6';
+		// Use flexible path separator matching for cross-platform compatibility
+		const expectedOutput = isWindows ?
+			/^<span><a tabindex="0">.*\\foo\\bar\.js:12:34<\/a> and <a tabindex="0">.*\\baz\\qux\.cs:line 6<\/a><\/span>$/ :
+			/^<span><a tabindex="0">.*\/foo\/bar\.js:12:34<\/a> and <a tabindex="0">.*\/baz\/qux\.cs:line 6<\/a><\/span>$/;
+		const output = linkDetector.linkify(input);
+
+		assert.strictEqual(2, output.children.length);
+		assert.strictEqual('SPAN', output.tagName);
+		assert.strictEqual('A', output.children[0].tagName);
+		assert.strictEqual('A', output.children[1].tagName);
+		assert(expectedOutput.test(output.outerHTML));
+		assertElementIsLink(output.children[0]);
+		assertElementIsLink(output.children[1]);
+		assert.strictEqual(isWindows ? 'C:\\foo\\bar.js:12:34' : '/Users/foo/bar.js:12:34', output.children[0].textContent);
+		assert.strictEqual(isWindows ? 'C:\\baz\\qux.cs:line 6' : '/Users/baz/qux.cs:line 6', output.children[1].textContent);
+	});
 });
