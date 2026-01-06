@@ -3,16 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { Terminal, IMarker as IXtermMarker } from '@xterm/xterm';
 import { deepStrictEqual, strictEqual } from 'assert';
+import { importAMDNodeModule } from '../../../../../amdX.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import type { IMarker as IXtermMarker } from '@xterm/xterm';
-import type { ITerminalCommand } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import type { IEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ICommandDetectionCapability, TerminalCapability, type ITerminalCommand } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { TerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import type { ICurrentPartialCommand } from '../../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand.js';
 import type { IDetachedTerminalInstance, ITerminalService } from '../../browser/terminal.js';
 import { DetachedTerminalCommandMirror, getCommandOutputSnapshot } from '../../browser/chatTerminalCommandMirror.js';
-import type { XtermTerminal } from '../../browser/xterm/xtermTerminal.js';
+import { XtermTerminal } from '../../browser/xterm/xtermTerminal.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestXtermAddonImporter } from './xterm/xtermTestUtils.js';
+
+const defaultTerminalConfig = {
+	fontFamily: 'monospace',
+	fontWeight: 'normal',
+	fontWeightBold: 'normal',
+	gpuAcceleration: 'off',
+	scrollback: 10,
+	fastScrollSensitivity: 2,
+	mouseWheelScrollSensitivity: 1,
+	unicodeVersion: '6'
+};
 
 class TestMarker {
 	public isDisposed = false;
@@ -77,6 +96,58 @@ function createCommand(executedMarker: IXtermMarker | undefined, endMarker: IXte
 		endMarker
 	} as unknown as ITerminalCommand;
 	return command;
+}
+
+class MockCommandDetectionCapability extends Disposable {
+	public readonly commands: ITerminalCommand[] = [];
+
+	private readonly _onCommandStarted = this._register(new Emitter<ITerminalCommand>());
+	readonly onCommandStarted = this._onCommandStarted.event;
+
+	private readonly _onCommandFinished = this._register(new Emitter<ITerminalCommand>());
+	readonly onCommandFinished = this._onCommandFinished.event;
+
+	private readonly _onCommandExecuted = this._register(new Emitter<ITerminalCommand>());
+	readonly onCommandExecuted = this._onCommandExecuted.event;
+
+	private readonly _onCommandInvalidated = this._register(new Emitter<ITerminalCommand[]>());
+	readonly onCommandInvalidated = this._onCommandInvalidated.event;
+
+	private readonly _onCurrentCommandInvalidated = this._register(new Emitter<unknown>());
+	readonly onCurrentCommandInvalidated = this._onCurrentCommandInvalidated.event;
+
+	private readonly _onSetRichCommandDetection = this._register(new Emitter<boolean>());
+	readonly onSetRichCommandDetection = this._onSetRichCommandDetection.event;
+
+	addCommand(command: ITerminalCommand): void {
+		this.commands.push(command);
+		// For the purposes of these tests, immediately signal a full command lifecycle.
+		this._onCommandStarted.fire(command);
+		this._onCommandExecuted.fire(command);
+		this._onCommandFinished.fire(command);
+	}
+}
+
+function createDetachedTerminal(writes: string[]): IDetachedTerminalInstance {
+	return {
+		xterm: {
+			write: (data: string) => {
+				writes.push(data);
+			}
+		},
+		attachToElement: () => { /* no-op */ },
+		dispose: () => { /* no-op */ },
+		capabilities: {
+			has: () => false
+		},
+		selection: undefined,
+		hasSelection: () => false,
+		clearSelection: () => { /* no-op */ },
+		focus: () => { /* no-op */ },
+		forceScrollbarVisibility: () => { /* no-op */ },
+		resetScrollbarVisibility: () => { /* no-op */ },
+		getContribution: () => null
+	} as unknown as IDetachedTerminalInstance;
 }
 
 suite('Workbench - ChatTerminalCommandMirror', () => {
@@ -200,25 +271,7 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 			));
 
 			const writes: string[] = [];
-			const detached = {
-				xterm: {
-					write: (data: string) => {
-						writes.push(data);
-					}
-				},
-				attachToElement: () => { /* no-op */ },
-				dispose: () => { /* no-op */ },
-				capabilities: {
-					has: () => false
-				},
-				selection: undefined,
-				hasSelection: () => false,
-				clearSelection: () => { /* no-op */ },
-				focus: () => { /* no-op */ },
-				forceScrollbarVisibility: () => { /* no-op */ },
-				resetScrollbarVisibility: () => { /* no-op */ },
-				getContribution: () => null
-			} as unknown as IDetachedTerminalInstance;
+			const detached = createDetachedTerminal(writes);
 
 			// Bypass actual detached terminal creation for this focused unit test.
 			(mirror as unknown as Record<string, unknown>)['_getOrCreateTerminal'] = async () => detached;
@@ -252,25 +305,7 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 			));
 
 			const writes: string[] = [];
-			const detached = {
-				xterm: {
-					write: (data: string) => {
-						writes.push(data);
-					}
-				},
-				attachToElement: () => { /* no-op */ },
-				dispose: () => { /* no-op */ },
-				capabilities: {
-					has: () => false
-				},
-				selection: undefined,
-				hasSelection: () => false,
-				clearSelection: () => { /* no-op */ },
-				focus: () => { /* no-op */ },
-				forceScrollbarVisibility: () => { /* no-op */ },
-				resetScrollbarVisibility: () => { /* no-op */ },
-				getContribution: () => null
-			} as unknown as IDetachedTerminalInstance;
+			const detached = createDetachedTerminal(writes);
 
 			(mirror as unknown as Record<string, unknown>)['_getOrCreateTerminal'] = async () => detached;
 
@@ -279,6 +314,179 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 			deepStrictEqual(writes, ['only-line']);
 			strictEqual(result?.lineCount, 1);
 		});
+
+		suite('with XtermTerminal', () => {
+			let instantiationService: TestInstantiationService;
+			let configurationService: TestConfigurationService;
+			let xterm: XtermTerminal;
+			let XTermBaseCtor: typeof Terminal;
+			let commandDetection: MockCommandDetectionCapability;
+
+			function write(data: string): Promise<void> {
+				return new Promise<void>((resolve) => {
+					xterm.write(data, resolve);
+				});
+			}
+
+			setup(async () => {
+				configurationService = new TestConfigurationService({
+					editor: {
+						fastScrollSensitivity: 2,
+						mouseWheelScrollSensitivity: 1
+					} as Partial<IEditorOptions>,
+					files: {},
+					terminal: {
+						integrated: defaultTerminalConfig
+					},
+				});
+
+				instantiationService = workbenchInstantiationService({
+					configurationService: () => configurationService
+				}, store);
+
+				XTermBaseCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
+
+				const capabilities = store.add(new TerminalCapabilityStore());
+				commandDetection = store.add(new MockCommandDetectionCapability());
+				capabilities.add(TerminalCapability.CommandDetection, commandDetection as unknown as ICommandDetectionCapability);
+
+				xterm = store.add(instantiationService.createInstance(XtermTerminal, undefined, XTermBaseCtor, {
+					cols: 80,
+					rows: 10,
+					xtermColorProvider: { getBackgroundColor: () => undefined },
+					capabilities,
+					disableShellIntegrationReporting: true,
+					xtermAddonImporter: new TestXtermAddonImporter(),
+				}, undefined));
+			});
+
+			test('renderCommand mirrors VT output from XtermTerminal', async () => {
+				await write('prompt$ ');
+				const executedMarker = xterm.raw.registerMarker(0)!;
+				await write('echo one\r\necho two\r\n');
+				const endMarker = xterm.raw.registerMarker(0)!;
+
+				const command = createCommand(executedMarker, endMarker);
+				commandDetection.addCommand(command);
+
+				const mirror = store.add(new DetachedTerminalCommandMirror(
+					xterm,
+					command,
+					{} as ITerminalService,
+					{} as IContextKeyService
+				));
+
+				const writes: string[] = [];
+				const detached = createDetachedTerminal(writes);
+
+				(mirror as unknown as Record<string, unknown>)['_getOrCreateTerminal'] = async () => detached;
+
+				const expectedText = await xterm.getRangeAsVT(executedMarker, endMarker, true);
+				const result = await mirror.renderCommand();
+
+				strictEqual(writes.join(''), expectedText);
+				const expectedLineCount = expectedText ? expectedText.split('\r\n').length : 0;
+				strictEqual(result?.lineCount, expectedLineCount);
+			});
+
+			test('renderCommand appends only new VT on repeated calls', async () => {
+				await write('prompt$ ');
+				const executedMarker = xterm.raw.registerMarker(0)!;
+				await write('line1\r\n');
+				const firstEndMarker = xterm.raw.registerMarker(0)!;
+
+				const command = createCommand(executedMarker, firstEndMarker);
+				commandDetection.addCommand(command);
+
+				const mirror = store.add(new DetachedTerminalCommandMirror(
+					xterm,
+					command,
+					{} as ITerminalService,
+					{} as IContextKeyService
+				));
+
+				const writes: string[] = [];
+				const detached = createDetachedTerminal(writes);
+
+				(mirror as unknown as Record<string, unknown>)['_getOrCreateTerminal'] = async () => detached;
+
+				const vt1 = await xterm.getRangeAsVT(executedMarker, firstEndMarker, true) ?? '';
+				await mirror.renderCommand();
+
+				await write('line2\r\n');
+				const secondEndMarker = xterm.raw.registerMarker(0)!;
+				command.endMarker = secondEndMarker;
+
+				const vt2 = await xterm.getRangeAsVT(executedMarker, secondEndMarker, true) ?? '';
+				await mirror.renderCommand();
+
+				strictEqual(writes.length, 2);
+				strictEqual(writes[0], vt1);
+				strictEqual(writes[1], vt2.slice(vt1.length));
+			});
+
+			test('renderCommand mirrors VT output for partial commands via commandExecutedMarker', async () => {
+				await write('prompt$ ');
+				const commandExecutedMarker = xterm.raw.registerMarker(0)!;
+				await write('partial output\r\n');
+				const endMarker = xterm.raw.registerMarker(0)!;
+
+				const command = {
+					endMarker,
+					executedMarker: undefined,
+					commandExecutedMarker
+				} as unknown as ITerminalCommand & ICurrentPartialCommand;
+				commandDetection.addCommand(command);
+
+				const mirror = store.add(new DetachedTerminalCommandMirror(
+					xterm,
+					command,
+					{} as ITerminalService,
+					{} as IContextKeyService
+				));
+
+				const writes: string[] = [];
+				const detached = createDetachedTerminal(writes);
+
+				(mirror as unknown as Record<string, unknown>)['_getOrCreateTerminal'] = async () => detached;
+
+				const expectedText = await xterm.getRangeAsVT(commandExecutedMarker, endMarker, true);
+				const result = await mirror.renderCommand();
+
+				strictEqual(writes.join(''), expectedText);
+				const expectedLineCount = expectedText ? expectedText.split('\r\n').length : 0;
+				strictEqual(result?.lineCount, expectedLineCount);
+			});
+
+			test('renderCommand mirrors VT output for in progress command (with no endMarker)', async () => {
+				await write('prompt$ ');
+				const executedMarker = xterm.raw.registerMarker(0)!;
+				await write('partial output\r\n');
+
+				const command = {
+					executedMarker,
+				} as unknown as ITerminalCommand & ICurrentPartialCommand;
+				commandDetection.addCommand(command);
+
+				const mirror = store.add(new DetachedTerminalCommandMirror(
+					xterm,
+					command,
+					{} as ITerminalService,
+					{} as IContextKeyService
+				));
+
+				const writes: string[] = [];
+				const detached = createDetachedTerminal(writes);
+
+				(mirror as unknown as Record<string, unknown>)['_getOrCreateTerminal'] = async () => detached;
+
+				const expectedText = await xterm.getRangeAsVT(executedMarker, undefined, true);
+				const result = await mirror.renderCommand();
+
+				strictEqual(writes.join(''), expectedText);
+				const expectedLineCount = expectedText ? expectedText.split('\r\n').length : 0;
+				strictEqual(result?.lineCount, expectedLineCount);
+			});
+		});
 	});
 });
-
