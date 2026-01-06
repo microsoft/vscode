@@ -636,11 +636,18 @@ class CoverageToolbarWidget extends Disposable implements IOverlayWidget {
 		this.actionBar = this._register(instaService.createInstance(ActionBar, this._domNode.toolbar, {
 			orientation: ActionsOrientation.HORIZONTAL,
 			actionViewItemProvider: (action, options) => {
-				const vm = new CodiconActionViewItem(undefined, action, options);
 				if (action instanceof ActionWithIcon) {
+					if (action.iconOnly) {
+						action.class = ThemeIcon.asClassName(action.icon);
+						return new ActionViewItem(undefined, action, { ...options, label: false, icon: true });
+					}
+
+					const vm = new CodiconActionViewItem(undefined, action, options);
 					vm.themeIcon = action.icon;
+					return vm;
 				}
-				return vm;
+
+				return undefined;
 			}
 		}));
 
@@ -704,8 +711,8 @@ class CoverageToolbarWidget extends Disposable implements IOverlayWidget {
 		const toggleAction = new ActionWithIcon(
 			'toggleInline',
 			this.coverage.showInline.get()
-				? localize('testing.hideInlineCoverage', 'Hide Inline Coverage')
-				: localize('testing.showInlineCoverage', 'Show Inline Coverage'),
+				? localize('testing.hideInlineCoverage', 'Hide Inline')
+				: localize('testing.showInlineCoverage', 'Show Inline'),
 			testingCoverageReport,
 			undefined,
 			() => this.coverage.showInline.set(!this.coverage.showInline.get(), undefined),
@@ -716,24 +723,27 @@ class CoverageToolbarWidget extends Disposable implements IOverlayWidget {
 			toggleAction.tooltip = `${TOGGLE_INLINE_COMMAND_TEXT} (${kb.getLabel()})`;
 		}
 
-		this.actionBar.push(toggleAction);
-
+		const hasUncoveredStmt = current.coverage.statement.covered < current.coverage.statement.total;
 		// Navigation buttons for missed coverage lines
 		this.actionBar.push(new ActionWithIcon(
 			'goToPreviousMissed',
 			GO_TO_PREVIOUS_MISSED_LINE_TITLE.value,
 			Codicon.arrowUp,
-			undefined,
+			hasUncoveredStmt,
 			() => this.commandService.executeCommand(TestCommandId.CoverageGoToPreviousMissedLine),
+			true,
 		));
 
 		this.actionBar.push(new ActionWithIcon(
 			'goToNextMissed',
 			GO_TO_NEXT_MISSED_LINE_TITLE.value,
 			Codicon.arrowDown,
-			undefined,
+			hasUncoveredStmt,
 			() => this.commandService.executeCommand(TestCommandId.CoverageGoToNextMissedLine),
+			true,
 		));
+
+		this.actionBar.push(toggleAction);
 
 		if (current.testId) {
 			const testItem = current.coverage.fromResult.getTestById(current.testId.toString());
@@ -848,7 +858,7 @@ registerAction2(class ToggleCoverageToolbar extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.CoverageToggleToolbar,
-			title: localize2('testing.toggleToolbarTitle', "Test Coverage Toolbar"),
+			title: localize2('testing.toggleToolbarTitle', "Show Test Coverage Toolbar"),
 			metadata: {
 				description: localize2('testing.toggleToolbarDesc', 'Toggle the sticky coverage bar in the editor.')
 			},
@@ -859,7 +869,7 @@ registerAction2(class ToggleCoverageToolbar extends Action2 {
 			menu: [
 				{ id: MenuId.CommandPalette, when: TestingContextKeys.isTestCoverageOpen },
 				{ id: MenuId.StickyScrollContext, when: TestingContextKeys.isTestCoverageOpen },
-				{ id: MenuId.EditorTitle, when: TestingContextKeys.hasCoverageInFile, group: 'coverage@1' },
+				{ id: MenuId.EditorTitle, when: TestingContextKeys.hasCoverageInFile, group: 'coverage', order: 1 },
 			]
 		});
 	}
@@ -1020,7 +1030,7 @@ registerAction2(class GoToNextMissedCoverageLine extends Action2 {
 			},
 			menu: [
 				{ id: MenuId.CommandPalette, when: TestingContextKeys.isTestCoverageOpen },
-				{ id: MenuId.EditorTitle, when: TestingContextKeys.hasCoverageInFile, group: 'coverage@2' },
+				{ id: MenuId.EditorTitle, when: TestingContextKeys.hasCoverageInFile, group: 'coverage', order: 2 },
 			]
 		});
 	}
@@ -1056,7 +1066,7 @@ registerAction2(class GoToPreviousMissedCoverageLine extends Action2 {
 			},
 			menu: [
 				{ id: MenuId.CommandPalette, when: TestingContextKeys.isTestCoverageOpen },
-				{ id: MenuId.EditorTitle, when: TestingContextKeys.hasCoverageInFile, group: 'coverage@3' },
+				{ id: MenuId.EditorTitle, when: TestingContextKeys.hasCoverageInFile, group: 'coverage', order: 3 },
 			]
 		});
 	}
@@ -1074,7 +1084,7 @@ registerAction2(class GoToPreviousMissedCoverageLine extends Action2 {
 });
 
 class ActionWithIcon extends Action {
-	constructor(id: string, title: string, public readonly icon: ThemeIcon, enabled: boolean | undefined, run: () => void) {
+	constructor(id: string, title: string, public readonly icon: ThemeIcon, enabled: boolean | undefined, run: () => void, public iconOnly = false) {
 		super(id, title, undefined, enabled, run);
 	}
 }

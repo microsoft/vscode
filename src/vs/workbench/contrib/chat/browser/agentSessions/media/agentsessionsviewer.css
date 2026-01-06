@@ -181,6 +181,7 @@
 				padding: 0 4px;
 				font-variant-numeric: tabular-nums;
 				border-radius: 5px;
+				overflow: hidden;
 
 				&:not(.has-badge) {
 					display: none;
@@ -203,10 +204,6 @@
 		.agent-session-status {
 			padding-left: 8px;
 			font-variant-numeric: tabular-nums;
-
-			/* In case the changes toolbar to the left is greedy, we give up space */
-			overflow: hidden;
-			text-overflow: ellipsis;
 		}
 	}
 
@@ -245,5 +242,14 @@
 		.monaco-toolbar {
 			display: block;
 		}
+	}
+
+	.monaco-list:focus .monaco-list-row.focused.selected .agent-session-section-label,
+	.monaco-list:focus .monaco-list-row.selected .agent-session-section-label {
+		color: var(--vscode-list-activeSelectionForeground);
+	}
+
+	.monaco-list:not(:focus) .monaco-list-row.selected .agent-session-section-label {
+		color: var(--vscode-list-inactiveSelectionForeground);
 	}
 }

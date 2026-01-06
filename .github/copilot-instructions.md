@@ -136,3 +136,4 @@ function f(x: number, y: string): void { }
 - Do not use `any` or `unknown` as the type for variables, parameters, or return values unless absolutely necessary. If they need type annotations, they should have proper types or interfaces defined.
 - When adding file watching, prefer correlated file watchers (via fileService.createWatcher) to shared ones.
 - When adding tooltips to UI elements, prefer the use of IHoverService service.
+- Do not duplicate code. Always look for existing utility functions, helpers, or patterns in the codebase before implementing new functionality. Reuse and extend existing code whenever possible.
