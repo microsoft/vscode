@@ -23,12 +23,26 @@ export interface ITelemetryServiceConfig {
 	sendErrorTelemetry?: boolean;
 	commonProperties?: ICommonProperties;
 	piiPaths?: string[];
+	/**
+	 * If true, telemetry events will be buffered until setExperimentProperty is called
+	 * (up to 10 seconds) to ensure experiment context is attached to all events.
+	 */
+	waitForExperimentProperties?: boolean;
+}
+
+interface IPendingEvent {
+	eventName: string;
+	eventLevel: TelemetryLevel;
+	data: ITelemetryData | undefined;
 }
 
 export class TelemetryService implements ITelemetryService {
 
 	static readonly IDLE_START_EVENT_NAME = 'UserIdleStart';
 	static readonly IDLE_STOP_EVENT_NAME = 'UserIdleStop';
+
+	private static readonly BUFFER_FLUSH_TIMEOUT = 10000; // 10 seconds
+	private static readonly MAX_BUFFER_SIZE = 1000;
 
 	declare readonly _serviceBrand: undefined;
 
@@ -45,6 +59,10 @@ export class TelemetryService implements ITelemetryService {
 	private _piiPaths: string[];
 	private _telemetryLevel: TelemetryLevel;
 	private _sendErrorTelemetry: boolean;
+
+	private _pendingEvents: IPendingEvent[] = [];
+	private _isExperimentPropertySet = false;
+	private _flushTimeout: ReturnType<typeof setTimeout> | undefined;
 
 	private readonly _disposables = new DisposableStore();
 	private _cleanupPatterns: RegExp[] = [];
@@ -90,10 +108,42 @@ export class TelemetryService implements ITelemetryService {
 				this._updateTelemetryLevel();
 			}
 		}));
+
+		// Buffer events until experiment properties are set (or timeout expires).
+		// This ensures early events include experiment context when available.
+		if (config.waitForExperimentProperties) {
+			this._flushTimeout = setTimeout(() => this._flushPendingEvents(), TelemetryService.BUFFER_FLUSH_TIMEOUT);
+		} else {
+			this._isExperimentPropertySet = true;
+		}
 	}
 
 	setExperimentProperty(name: string, value: string): void {
 		this._experimentProperties[name] = value;
+
+		// On first call, flush all pending events that were buffered waiting for experiment properties
+		if (!this._isExperimentPropertySet) {
+			this._flushPendingEvents();
+		}
+	}
+
+	private _flushPendingEvents(): void {
+		if (this._isExperimentPropertySet) {
+			return;
+		}
+
+		this._isExperimentPropertySet = true;
+
+		if (this._flushTimeout !== undefined) {
+			clearTimeout(this._flushTimeout);
+			this._flushTimeout = undefined;
+		}
+
+		// Send all buffered events now that experiment properties are available
+		for (const event of this._pendingEvents) {
+			this._doLog(event.eventName, event.eventLevel, event.data);
+		}
+		this._pendingEvents = [];
 	}
 
 	private _updateTelemetryLevel(): void {
@@ -119,6 +169,8 @@ export class TelemetryService implements ITelemetryService {
 	}
 
 	dispose(): void {
+		// Flush any remaining pending events before disposing
+		this._flushPendingEvents();
 		this._disposables.dispose();
 	}
 
@@ -128,6 +180,18 @@ export class TelemetryService implements ITelemetryService {
 			return;
 		}
 
+		// Buffer events until experiment properties are set (or timeout expires)
+		if (!this._isExperimentPropertySet) {
+			if (this._pendingEvents.length < TelemetryService.MAX_BUFFER_SIZE) {
+				this._pendingEvents.push({ eventName, eventLevel, data });
+			}
+			return;
+		}
+
+		this._doLog(eventName, eventLevel, data);
+	}
+
+	private _doLog(eventName: string, eventLevel: TelemetryLevel, data?: ITelemetryData) {
 		// add experiment properties
 		data = mixin(data, this._experimentProperties);
 
