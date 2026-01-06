@@ -5,6 +5,7 @@
 
 import * as dom from '../../../base/browser/dom.js';
 import { FindInput } from '../../../base/browser/ui/findinput/findInput.js';
+import { getBaseLayerHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegate2.js';
 import { IInputBoxStyles, IRange, MessageType } from '../../../base/browser/ui/inputbox/inputBox.js';
 import { createToggleActionViewItemProvider, IToggleStyles, Toggle } from '../../../base/browser/ui/toggle/toggle.js';
 import { IAction } from '../../../base/common/actions.js';
@@ -41,13 +42,9 @@ export class QuickInputBox extends Disposable {
 		input.ariaHasPopup = 'menu';
 		input.ariaAutoComplete = 'list';
 
-		// Handle tooltip visibility based on input state
-		this._register(this.findInput.onDidChange(() => {
-			if (this.value) {
-				this.findInput.inputBox.clearTooltip();
-			} else if (this.placeholder) {
-				this.findInput.inputBox.setTooltip(this.placeholder);
-			}
+		// Hide tooltip when user starts typing to prevent obscuring dropdown results
+		this._register(dom.addDisposableListener(input, dom.EventType.KEY_DOWN, () => {
+			getBaseLayerHoverDelegate().hideHover();
 		}));
 	}
 
@@ -85,9 +82,6 @@ export class QuickInputBox extends Disposable {
 
 	setPlaceholder(placeholder: string): void {
 		this.findInput.inputBox.setPlaceHolder(placeholder);
-		if (!this.value) {
-			this.findInput.inputBox.setTooltip(placeholder);
-		}
 	}
 
 	get placeholder() {
@@ -96,9 +90,6 @@ export class QuickInputBox extends Disposable {
 
 	set placeholder(placeholder: string) {
 		this.findInput.inputBox.setPlaceHolder(placeholder);
-		if (!this.value) {
-			this.findInput.inputBox.setTooltip(placeholder);
-		}
 	}
 
 	get password() {

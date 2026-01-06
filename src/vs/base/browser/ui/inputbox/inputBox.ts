@@ -261,11 +261,6 @@ export class InputBox extends Widget {
 		}
 	}
 
-	public clearTooltip(): void {
-		getBaseLayerHoverDelegate().hideHover();
-		this.hover.clear();
-	}
-
 	public setAriaLabel(label: string): void {
 		this.ariaLabel = label;
 
