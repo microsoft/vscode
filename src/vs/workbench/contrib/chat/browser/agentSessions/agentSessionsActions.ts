@@ -750,8 +750,8 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 		if (newOrientation === AgentSessionsViewerOrientation.SideBySide) {
 			newWidth = Math.max(sideBySideMinWidth, lastWidthForOrientation || Math.round(layoutService.mainContainerDimension.width / 2));
 		} else {
-			// For stacked orientation, restore previous width if available, otherwise use default narrow width
-			newWidth = lastWidthForOrientation ?? stackedMaxWidth;
+			// For stacked orientation, restore previous width if available (clamped to max), otherwise use default narrow width
+			newWidth = Math.min(lastWidthForOrientation ?? stackedMaxWidth, stackedMaxWidth);
 		}
 
 		// Only resize if the width is actually different
