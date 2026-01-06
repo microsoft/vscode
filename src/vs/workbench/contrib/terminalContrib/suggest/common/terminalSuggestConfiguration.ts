@@ -165,7 +165,7 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 					}
 				],
 				default: 'off',
-				description: localize('suggest.quickSuggestions.unknown', 'Enable quick suggestions when it\'s unclear what the best suggestion is, if this is on files and folders will be suggested as a fallback.')
+				description: localize('suggest.quickSuggestions.unknown', 'Enable quick suggestions when it\'s unclear what the best suggestion is. If enabled, files and folders will be suggested as a fallback.')
 			},
 		},
 		default: {
