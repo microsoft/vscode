@@ -84,7 +84,7 @@ export class AnnotatedString<T> implements IAnnotatedString<T> {
 			startIndex = startIndexWhereToReplace;
 		} else {
 			const candidate = this._annotations[- (startIndexWhereToReplace + 2)]?.range;
-			if (candidate && offset >= candidate.start && offset <= candidate.endExclusive) {
+			if (candidate && offset >= candidate.start && offset < candidate.endExclusive) {
 				startIndex = - (startIndexWhereToReplace + 2);
 			} else {
 				startIndex = - (startIndexWhereToReplace + 1);
@@ -103,7 +103,7 @@ export class AnnotatedString<T> implements IAnnotatedString<T> {
 			endIndexExclusive = endIndexWhereToReplace + 1;
 		} else {
 			const candidate = this._annotations[-(endIndexWhereToReplace + 1)]?.range;
-			if (candidate && offset >= candidate.start && offset <= candidate.endExclusive) {
+			if (candidate && offset > candidate.start && offset <= candidate.endExclusive) {
 				endIndexExclusive = - endIndexWhereToReplace;
 			} else {
 				endIndexExclusive = - (endIndexWhereToReplace + 1);

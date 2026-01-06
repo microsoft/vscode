@@ -332,19 +332,19 @@ suite('Annotations Suite', () => {
 		assert.strictEqual(result1.length, 2);
 		assert.deepStrictEqual(result1.map(a => a.annotation), ['1', '2']);
 		const result2 = vas.getAnnotationsIntersecting(new OffsetRange(0, 22));
-		assert.strictEqual(result2.length, 3);
-		assert.deepStrictEqual(result2.map(a => a.annotation), ['1', '2', '3']);
+		assert.strictEqual(result2.length, 2);
+		assert.deepStrictEqual(result2.map(a => a.annotation), ['1', '2']);
 	});
 
 	test('getAnnotationsIntersecting 2', () => {
 		const vas = fromVisual('[1:Lorem] [2:i]p[3:s]');
 
 		const result1 = vas.getAnnotationsIntersecting(new OffsetRange(5, 7));
-		assert.strictEqual(result1.length, 2);
-		assert.deepStrictEqual(result1.map(a => a.annotation), ['1', '2']);
+		assert.strictEqual(result1.length, 1);
+		assert.deepStrictEqual(result1.map(a => a.annotation), ['2']);
 		const result2 = vas.getAnnotationsIntersecting(new OffsetRange(5, 9));
-		assert.strictEqual(result2.length, 3);
-		assert.deepStrictEqual(result2.map(a => a.annotation), ['1', '2', '3']);
+		assert.strictEqual(result2.length, 2);
+		assert.deepStrictEqual(result2.map(a => a.annotation), ['2', '3']);
 	});
 
 	test('getAnnotationsIntersecting 3', () => {
@@ -370,8 +370,8 @@ suite('Annotations Suite', () => {
 	test('getAnnotationsIntersecting 5', () => {
 		const vas = fromVisual('[1:Lorem ipsum] [2:dol] [3:or]');
 		const result = vas.getAnnotationsIntersecting(new OffsetRange(1, 16));
-		assert.strictEqual(result.length, 3);
-		assert.deepStrictEqual(result.map(a => a.annotation), ['1', '2', '3']);
+		assert.strictEqual(result.length, 2);
+		assert.deepStrictEqual(result.map(a => a.annotation), ['1', '2']);
 	});
 
 	test('applyEdit 1 - deletion within annotation', () => {
