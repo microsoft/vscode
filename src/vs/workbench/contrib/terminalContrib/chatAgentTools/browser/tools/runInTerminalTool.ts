@@ -279,10 +279,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	protected readonly _osBackend: Promise<OperatingSystem>;
 
 	private static readonly _backgroundExecutions = new Map<string, BackgroundTerminalExecution>();
-	public static getBackgroundOutput(id: string): string {
+	public static getBackgroundOutput(id: string): string | undefined {
 		const backgroundExecution = RunInTerminalTool._backgroundExecutions.get(id);
 		if (!backgroundExecution) {
-			throw new Error('Invalid terminal ID');
+			return undefined;
 		}
 		return backgroundExecution.getOutput();
 	}

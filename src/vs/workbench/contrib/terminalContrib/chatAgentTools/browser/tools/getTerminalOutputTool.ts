@@ -46,10 +46,19 @@ export class GetTerminalOutputTool extends Disposable implements IToolImpl {
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
 		const args = invocation.parameters as IGetTerminalOutputInputParams;
+		const output = RunInTerminalTool.getBackgroundOutput(args.id);
+		if (output === undefined) {
+			return {
+				content: [{
+					kind: 'text',
+					value: localize('getTerminalOutputTool.noTerminal', "No background terminal found for ID={0}. It may have completed or been canceled.", args.id)
+				}]
+			};
+		}
 		return {
 			content: [{
 				kind: 'text',
-				value: `Output of terminal ${args.id}:\n${RunInTerminalTool.getBackgroundOutput(args.id)}`
+				value: `Output of terminal ${args.id}:\n${output}`
 			}]
 		};
 	}
