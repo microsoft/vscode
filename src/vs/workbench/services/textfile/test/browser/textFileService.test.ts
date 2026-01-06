@@ -119,8 +119,10 @@ suite('Files - TextFileService', () => {
 		const targetModel = accessor.textFileService.files.get(targetResource);
 		assert.ok(targetModel);
 		assert.ok(targetModel.textEditorModel);
-		assert.strictEqual(targetModel.textEditorModel.getOptions().insertSpaces, false, 'insertSpaces should be preserved');
-		assert.strictEqual(targetModel.textEditorModel.getOptions().tabSize, 4, 'tabSize should be preserved');
+
+		const targetOptions = targetModel.textEditorModel.getOptions();
+		assert.strictEqual(targetOptions.insertSpaces, false, 'insertSpaces should be preserved');
+		assert.strictEqual(targetOptions.tabSize, 4, 'tabSize should be preserved');
 		assert.strictEqual(targetModel.textEditorModel.getEndOfLineSequence(), EndOfLineSequence.LF, 'EOL sequence should be preserved');
 	});
 
