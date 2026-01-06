@@ -74,6 +74,7 @@ export interface ITerminalQuickSuggestionsOptions {
  * - `false` or `'off'` -> { commands: 'off', arguments: 'off', unknown: 'off' }
  * - `'all'` -> { commands: 'on', arguments: 'on', unknown: 'on' }
  * - object -> passed through as-is
+ * - any other string value -> defaults to 'off' behavior
  */
 export function normalizeQuickSuggestionsConfig(config: ITerminalSuggestConfiguration['quickSuggestions']): ITerminalQuickSuggestionsOptions {
 	if (typeof config === 'boolean') {
