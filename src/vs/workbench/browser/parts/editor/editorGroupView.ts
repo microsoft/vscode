@@ -2209,9 +2209,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._onWillDispose.fire();
 
 		this.whenRestored = undefined!;
-		this.whenRestoredPromise.cancel().catch(() => {
-			// ignore
-		});
 		this.whenRestoredPromise = undefined!;
 
 		super.dispose();
