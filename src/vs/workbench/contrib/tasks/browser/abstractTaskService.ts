@@ -2191,8 +2191,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				await this.run(updatedTask);
 			} else {
 				const success = await this.run(task);
-				if (success?.exitCode === 1) {
-					// Task no longer exists, show warning
+				if (!success || success.exitCode !== 0) {
+					// Task no longer exists or failed to run, show warning
 					this._notificationService.warn(nls.localize('TaskSystem.taskNoLongerExists', 'Task {0} no longer exists or has been really modified. Cannot restart.', task.configurationProperties.name));
 				}
 			}
