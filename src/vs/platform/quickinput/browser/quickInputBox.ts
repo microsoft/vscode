@@ -41,8 +41,14 @@ export class QuickInputBox extends Disposable {
 		input.ariaHasPopup = 'menu';
 		input.ariaAutoComplete = 'list';
 
-		// Disable tooltips for Quick Input to prevent obscuring dropdown results
-		this.findInput.inputBox.setTooltip = () => { /* no-op */ };
+		// Handle tooltip visibility based on input state
+		this._register(this.findInput.onDidChange(() => {
+			if (this.value) {
+				this.findInput.inputBox.clearTooltip();
+			} else if (this.placeholder) {
+				this.findInput.inputBox.setTooltip(this.placeholder);
+			}
+		}));
 	}
 
 	get onKeyDown() {
@@ -79,6 +85,9 @@ export class QuickInputBox extends Disposable {
 
 	setPlaceholder(placeholder: string): void {
 		this.findInput.inputBox.setPlaceHolder(placeholder);
+		if (!this.value) {
+			this.findInput.inputBox.setTooltip(placeholder);
+		}
 	}
 
 	get placeholder() {
@@ -87,6 +96,9 @@ export class QuickInputBox extends Disposable {
 
 	set placeholder(placeholder: string) {
 		this.findInput.inputBox.setPlaceHolder(placeholder);
+		if (!this.value) {
+			this.findInput.inputBox.setTooltip(placeholder);
+		}
 	}
 
 	get password() {
