@@ -105,7 +105,6 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 		this._listenersStore.add(this._editor.onMouseUp(() => this._onEditorMouseUp()));
 		this._listenersStore.add(this._editor.onMouseMove((e: IEditorMouseEvent) => this._onEditorMouseMove(e)));
 		this._listenersStore.add(this._editor.onKeyDown((e: IKeyboardEvent) => this._onKeyDown(e)));
-		this._listenersStore.add(this._editor.onKeyUp((e: IKeyboardEvent) => this._onKeyUp(e)));
 		this._listenersStore.add(this._editor.onMouseLeave((e) => this._onEditorMouseLeave(e)));
 		this._listenersStore.add(this._editor.onDidChangeModel(() => this._cancelSchedulerAndHide()));
 		this._listenersStore.add(this._editor.onDidChangeModelContent(() => this._cancelScheduler()));
@@ -290,26 +289,6 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 			return;
 		}
 		this.hideContentHover();
-	}
-
-	private _onKeyUp(e: IKeyboardEvent): void {
-		if (this._ignoreMouseEvents) {
-			return;
-		}
-		// Hide hover when modifier key is released in onKeyboardModifier mode
-		if (this._hoverSettings.enabled === 'onKeyboardModifier' && this._contentWidget?.isVisible) {
-			const multiCursorModifier = this._editor.getOption(EditorOption.multiCursorModifier);
-			// Check if the released key was the trigger modifier
-			const wasTriggerModifier = (e.keyCode === KeyCode.Ctrl && multiCursorModifier !== 'altKey')
-				|| (e.keyCode === KeyCode.Meta && multiCursorModifier !== 'altKey')
-				|| (e.keyCode === KeyCode.Alt && multiCursorModifier === 'altKey');
-			if (wasTriggerModifier) {
-				// Only hide if not hovering over the widget itself
-				if (this._mouseMoveEvent && !this._isMouseOnContentHoverWidget(this._mouseMoveEvent)) {
-					this.hideContentHover();
-				}
-			}
-		}
 	}
 
 	private _isPotentialKeyboardShortcut(e: IKeyboardEvent): boolean {
