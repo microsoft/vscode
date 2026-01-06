@@ -7,7 +7,6 @@ import type { IStringDictionary } from '../../../../../base/common/collections.j
 import { localize } from '../../../../../nls.js';
 import { IConfigurationPropertySchema, IConfigurationNode, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import product from '../../../../../platform/product/common/product.js';
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 
 export const enum TerminalSuggestSettingId {
@@ -48,7 +47,7 @@ export const terminalSuggestConfigSection = 'terminal.integrated.suggest';
 
 export interface ITerminalSuggestConfiguration {
 	enabled: boolean;
-	quickSuggestions: {
+	quickSuggestions: boolean | {
 		commands: 'off' | 'on';
 		arguments: 'off' | 'on';
 		unknown: 'off' | 'on';
@@ -63,15 +62,33 @@ export interface ITerminalSuggestConfiguration {
 	insertTrailingSpace: boolean;
 }
 
+export interface ITerminalQuickSuggestionsOptions {
+	commands: 'off' | 'on';
+	arguments: 'off' | 'on';
+	unknown: 'off' | 'on';
+}
+
+/**
+ * Normalizes the quickSuggestions config value to an object.
+ * - `true` -> { commands: 'on', arguments: 'on', unknown: 'off' }
+ * - `false` -> { commands: 'off', arguments: 'off', unknown: 'off' }
+ * - object -> passed through as-is
+ */
+export function normalizeQuickSuggestionsConfig(config: ITerminalSuggestConfiguration['quickSuggestions']): ITerminalQuickSuggestionsOptions {
+	if (typeof config === 'boolean') {
+		return config
+			? { commands: 'on', arguments: 'on', unknown: 'off' }
+			: { commands: 'off', arguments: 'off', unknown: 'off' };
+	}
+	return config;
+}
+
 export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	[TerminalSuggestSettingId.Enabled]: {
 		restricted: true,
-		markdownDescription: localize('suggest.enabled', "Enables terminal intellisense suggestions (preview) for supported shells ({0}) when {1} is set to {2}.", 'PowerShell v7+, zsh, bash, fish', `\`#${TerminalSettingId.ShellIntegrationEnabled}#\``, '`true`'),
+		markdownDescription: localize('suggest.enabled', "Enables terminal IntelliSense suggestions (also known as autocomplete) for supported shells ({0}). This requires {1} to be enabled and working or [manually installed](https://code.visualstudio.com/docs/terminal/shell-integration#_manual-installation-install).", 'Windows PowerShell, PowerShell v7+, zsh, bash, fish', `\`#${TerminalSettingId.ShellIntegrationEnabled}#\``),
 		type: 'boolean',
-		default: product.quality !== 'stable',
-		experiment: {
-			mode: 'auto',
-		},
+		default: true,
 	},
 	[TerminalSuggestSettingId.Providers]: {
 		restricted: true,
@@ -82,35 +99,38 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 	[TerminalSuggestSettingId.QuickSuggestions]: {
 		restricted: true,
 		markdownDescription: localize('suggest.quickSuggestions', "Controls whether suggestions should automatically show up while typing. Also be aware of the {0}-setting which controls if suggestions are triggered by special characters.", `\`#${TerminalSuggestSettingId.SuggestOnTriggerCharacters}#\``),
-		type: 'object',
-		properties: {
-			commands: {
-				description: localize('suggest.quickSuggestions.commands', 'Enable quick suggestions for commands, the first word in a command line input.'),
-				type: 'string',
-				enum: ['off', 'on'],
+		oneOf: [
+			{
+				type: 'boolean',
 			},
-			arguments: {
-				description: localize('suggest.quickSuggestions.arguments', 'Enable quick suggestions for arguments, anything after the first word in a command line input.'),
-				type: 'string',
-				enum: ['off', 'on'],
-			},
-			unknown: {
-				description: localize('suggest.quickSuggestions.unknown', 'Enable quick suggestions when it\'s unclear what the best suggestion is, if this is on files and folders will be suggested as a fallback.'),
-				type: 'string',
-				enum: ['off', 'on'],
-			},
-		},
-		default: {
-			commands: 'on',
-			arguments: 'on',
-			unknown: 'off',
-		},
+			{
+				type: 'object',
+				properties: {
+					commands: {
+						description: localize('suggest.quickSuggestions.commands', 'Enable quick suggestions for commands, the first word in a command line input.'),
+						type: 'string',
+						enum: ['off', 'on'],
+					},
+					arguments: {
+						description: localize('suggest.quickSuggestions.arguments', 'Enable quick suggestions for arguments, anything after the first word in a command line input.'),
+						type: 'string',
+						enum: ['off', 'on'],
+					},
+					unknown: {
+						description: localize('suggest.quickSuggestions.unknown', 'Enable quick suggestions when it\'s unclear what the best suggestion is, if this is on files and folders will be suggested as a fallback.'),
+						type: 'string',
+						enum: ['off', 'on'],
+					},
+				},
+			}
+		],
+		default: false,
 	},
 	[TerminalSuggestSettingId.SuggestOnTriggerCharacters]: {
 		restricted: true,
 		markdownDescription: localize('suggest.suggestOnTriggerCharacters', "Controls whether suggestions should automatically show up when typing trigger characters."),
 		type: 'boolean',
-		default: true,
+		default: false,
 	},
 	[TerminalSuggestSettingId.RunOnEnter]: {
 		restricted: true,
@@ -210,7 +230,7 @@ export function registerTerminalSuggestProvidersConfiguration(providers?: Map<st
 	for (const id of Array.from(providers.keys()).sort()) {
 		providersProperties[id] = {
 			type: 'boolean',
-			default: true,
+			default: id === 'lsp' ? false : true,
 			description:
 				providers.get(id)?.description ??
 				localize('suggest.provider.title', "Show suggestions from {0}.", id)
