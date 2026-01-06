@@ -72,25 +72,25 @@ export const terminalSandboxPropertySchema: IJSONSchema = {
 			type: 'boolean',
 			description: localize('terminalSandbox.enabled', "Controls whether to run commands in a sandboxed terminal for the run in terminal tool."),
 		},
-		fileSystem: {
+		filesystem: {
 			type: 'object',
 			description: localize('terminalSandbox.fileSystem', "Controls file system access in the terminal sandbox."),
 			properties: {
 				denyRead: {
 					type: 'array',
-					description: localize('terminalSandbox.fileSystem.denyRead', "List of denied file system paths for reading."),
+					description: localize('terminalSandbox.fileSystem.denyRead', "Array of paths to deny read access. Empty array = full read access."),
 					items: { type: 'string' },
 					default: []
 				},
 				allowWrite: {
 					type: 'array',
-					description: localize('terminalSandbox.fileSystem.allowWrite', "List of allowed file system paths for writing."),
+					description: localize('terminalSandbox.fileSystem.allowWrite', "Array of paths to allow write access. Empty array = no write access."),
 					items: { type: 'string' },
 					default: []
 				},
 				denyWrite: {
 					type: 'array',
-					description: localize('terminalSandbox.fileSystem.denyWrite', "List of denied file system paths for writing."),
+					description: localize('terminalSandbox.fileSystem.denyWrite', "Array of paths to deny write access within allowed paths (takes precedence over allowWrite)."),
 					items: { type: 'string' },
 					default: []
 				}
@@ -102,13 +102,13 @@ export const terminalSandboxPropertySchema: IJSONSchema = {
 			properties: {
 				allowedDomains: {
 					type: 'array',
-					description: localize('terminalSandbox.network.allowedDomains', "List of allowed network domains."),
+					description: localize('terminalSandbox.network.allowedDomains', "Array of allowed domains (supports wildcards like *.example.com). Empty array = no network access."),
 					items: { type: 'string' },
 					default: []
 				},
 				deniedDomains: {
 					type: 'array',
-					description: localize('terminalSandbox.network.deniedDomains', "List of denied network domains."),
+					description: localize('terminalSandbox.network.deniedDomains', "Array of denied domains (checked first, takes precedence over allowedDomains)."),
 					items: { type: 'string' },
 					default: []
 				}
@@ -493,10 +493,6 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 				denyRead: [],
 				denyWrite: [],
 				allowWrite: ['.']
-			},
-			network: {
-				allowedDomains: [],
-				deniedDomains: []
 			}
 		},
 
