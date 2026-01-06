@@ -18,7 +18,7 @@ import { Position } from '../../../../common/core/position.js';
 import { Selection } from '../../../../common/core/selection.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { ensureClipboardGetsEditorSelection, computePasteData, InMemoryClipboardMetadataManager, IPasteData, getPasteDataFromMetadata } from '../clipboardUtils.js';
+import { ensureClipboardGetsEditorSelection, computePasteData, InMemoryClipboardMetadataManager, IPasteData, getPasteDataFromMetadata, PasteOptions } from '../clipboardUtils.js';
 import { _debugComposition, ITextAreaWrapper, ITypeData, TextAreaState } from './textAreaEditContextState.js';
 import { ViewContext } from '../../../../common/viewModel/viewContext.js';
 
@@ -372,6 +372,9 @@ export class TextAreaInput extends Disposable {
 		}));
 
 		this._register(this._textArea.onPaste((e) => {
+			if (PasteOptions.electronBugWorkaroundPasteEventHasFired2 === true) {
+				return;
+			}
 			this._logService.trace(`TextAreaInput#onPaste`, e);
 			// Pretend here we touched the text area, as the `paste` event will most likely
 			// result in a `selectionchange` event which we want to ignore

@@ -170,6 +170,7 @@ export const CopyOptions = {
 
 export const PasteOptions = {
 	electronBugWorkaroundPasteEventHasFired: false,
+	electronBugWorkaroundPasteEventHasFired2: false,
 	electronBugWorkaroundPasteEventLock: false
 };
 

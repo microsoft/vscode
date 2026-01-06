@@ -16,7 +16,7 @@ import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent, ViewDecorat
 import { ViewContext } from '../../../../common/viewModel/viewContext.js';
 import { RestrictedRenderingContext, RenderingContext, HorizontalPosition } from '../../../view/renderingContext.js';
 import { ViewController } from '../../../view/viewController.js';
-import { ensureClipboardGetsEditorSelection, computePasteData } from '../clipboardUtils.js';
+import { ensureClipboardGetsEditorSelection, computePasteData, PasteOptions } from '../clipboardUtils.js';
 import { AbstractEditContext } from '../editContext.js';
 import { editContextAddDisposableListener, FocusTracker, ITypeData } from './nativeEditContextUtils.js';
 import { ScreenReaderSupport } from './screenReaderSupport.js';
@@ -141,6 +141,9 @@ export class NativeEditContext extends AbstractEditContext {
 		}));
 		this._register(addDisposableListener(this.domNode.domNode, 'paste', (e) => {
 			this.logService.trace('NativeEditContext#paste');
+			if (PasteOptions.electronBugWorkaroundPasteEventHasFired2 === true) {
+				return;
+			}
 			const pasteData = computePasteData(e, this._context, this.logService);
 			if (!pasteData) {
 				return;
