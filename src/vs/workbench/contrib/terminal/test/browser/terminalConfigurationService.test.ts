@@ -186,6 +186,53 @@ suite('Workbench - TerminalConfigurationService', () => {
 			strictEqual(terminalConfigurationService.getFont(getActiveWindow()).fontSize, EDITOR_FONT_DEFAULTS.fontSize, 'The default editor font size should be used when terminal.integrated.fontSize is not set');
 		});
 
+		test('fontSize 11.5 (decimal)', () => {
+			const terminalConfigurationService = createTerminalConfigationService({
+				editor: {
+					fontFamily: 'foo',
+					fontSize: 9
+				},
+				terminal: {
+					integrated: {
+						fontFamily: 'bar',
+						fontSize: 11.5
+					}
+				}
+			});
+			strictEqual(terminalConfigurationService.getFont(getActiveWindow()).fontSize, 11.5, 'terminal.integrated.fontSize should preserve decimal values');
+		});
+
+		test('fontSize 13.25 (decimal)', () => {
+			const terminalConfigurationService = createTerminalConfigationService({
+				editor: {
+					fontFamily: 'foo',
+					fontSize: 9
+				},
+				terminal: {
+					integrated: {
+						fontFamily: 'bar',
+						fontSize: 13.25
+					}
+				}
+			});
+			strictEqual(terminalConfigurationService.getFont(getActiveWindow()).fontSize, 13.25, 'terminal.integrated.fontSize should preserve decimal values like 13.25');
+		});
+
+		test('fontSize decimal (Linux Ubuntu)', () => {
+			const terminalConfigurationService = createTerminalConfigationService({
+				editor: {
+					fontFamily: 'foo'
+				},
+				terminal: {
+					integrated: {
+						fontFamily: null,
+						fontSize: 10.5
+					}
+				}
+			}, LinuxDistro.Ubuntu);
+			strictEqual(terminalConfigurationService.getFont(getActiveWindow()).fontSize, 12.5, 'Ubuntu font size adjustment should preserve decimal values (10.5 + 2 = 12.5)');
+		});
+
 		test('lineHeight 2', () => {
 			const terminalConfigurationService = createTerminalConfigationService({
 				editor: {

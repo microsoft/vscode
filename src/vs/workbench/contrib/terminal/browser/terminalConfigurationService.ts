@@ -120,7 +120,7 @@ export class TerminalFontMetrics extends Disposable {
 		const editorConfig = this._configurationService.getValue<IEditorOptions>('editor');
 
 		let fontFamily = this._terminalConfigurationService.config.fontFamily || editorConfig.fontFamily || EDITOR_FONT_DEFAULTS.fontFamily || 'monospace';
-		let fontSize = clampInt(this._terminalConfigurationService.config.fontSize, FontConstants.MinimumFontSize, FontConstants.MaximumFontSize, EDITOR_FONT_DEFAULTS.fontSize);
+		let fontSize = clampFloat(this._terminalConfigurationService.config.fontSize, FontConstants.MinimumFontSize, FontConstants.MaximumFontSize, EDITOR_FONT_DEFAULTS.fontSize);
 
 		// Work around bad font on Fedora/Ubuntu
 		if (!this._terminalConfigurationService.config.fontFamily) {
@@ -131,7 +131,7 @@ export class TerminalFontMetrics extends Disposable {
 				fontFamily = '\'Ubuntu Mono\'';
 
 				// Ubuntu mono is somehow smaller, so set fontSize a bit larger to get the same perceived size.
-				fontSize = clampInt(fontSize + 2, FontConstants.MinimumFontSize, FontConstants.MaximumFontSize, EDITOR_FONT_DEFAULTS.fontSize);
+				fontSize = clampFloat(fontSize + 2, FontConstants.MinimumFontSize, FontConstants.MaximumFontSize, EDITOR_FONT_DEFAULTS.fontSize);
 			}
 		}
 
@@ -251,6 +251,17 @@ function clampInt<T>(source: string | number, minimum: number, maximum: number, 
 		return fallback;
 	}
 	const r = isString(source) ? parseInt(source, 10) : source;
+	if (isNaN(r)) {
+		return fallback;
+	}
+	return clamp(r, minimum, maximum);
+}
+
+function clampFloat<T>(source: string | number, minimum: number, maximum: number, fallback: T): number | T {
+	if (source === null || source === undefined) {
+		return fallback;
+	}
+	const r = isString(source) ? parseFloat(source) : source;
 	if (isNaN(r)) {
 		return fallback;
 	}
