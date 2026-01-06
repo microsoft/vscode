@@ -62,28 +62,22 @@
 	&.chat-view-location-panel,
 	&.chat-view-location-auxiliarybar {
 		.chat-view-title-container {
-			padding: 0 12px 0 16px;
+			padding: 4px 12px 4px 16px;
 		}
 	}
 
 	/* Auxiliarybar with non-default activity bar position */
 	&.activity-bar-location-other.chat-view-location-auxiliarybar {
 		.chat-view-title-container {
-			padding: 0 8px 0 16px;
+			padding: 0 8px 4px 16px;
 		}
 	}
 
-	/* Side-by-side sessions: left position (any activity bar) */
-	&.has-sessions-control.sessions-control-orientation-sidebyside.chat-view-position-left {
-		.chat-view-title-container {
-			padding: 0 8px;
-		}
-	}
-
-	/* Side-by-side sessions: right position (default activity bar only) */
+	/* Side-by-side sessions: left and right position (default activity bar only) */
+	&.activity-bar-location-default.has-sessions-control.sessions-control-orientation-sidebyside.chat-view-position-left,
 	&.activity-bar-location-default.has-sessions-control.sessions-control-orientation-sidebyside.chat-view-position-right {
 		.chat-view-title-container {
-			padding: 0 8px 0 16px;
+			padding: 4px 8px 4px 16px;
 		}
 	}
 }

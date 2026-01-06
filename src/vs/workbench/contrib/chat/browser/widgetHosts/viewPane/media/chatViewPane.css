@@ -138,7 +138,7 @@
 
 	/* Base padding: left-aligned content */
 	.agent-sessions-title-container {
-		padding: 0 8px 0 20px;
+		padding: 4px 8px 4px 20px;
 	}
 
 	.agent-session-section {
@@ -149,7 +149,7 @@
 	&.sessions-control-orientation-sidebyside.chat-view-position-right {
 
 		.agent-sessions-title-container {
-			padding: 0 8px;
+			padding: 4px 8px;
 		}
 
 		.agent-session-section {
@@ -162,6 +162,7 @@
 
 		.agent-sessions-title-container {
 			padding-right: 4px;
+			padding-top: 0;
 		}
 
 		/* Right position needs adjusted left padding too */
