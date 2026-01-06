@@ -1772,6 +1772,22 @@ export class Repository {
 		return result.stdout.trim();
 	}
 
+	async diffBetweenPatch(ref: string, options: { root?: boolean; path?: string }): Promise<string> {
+		const args = ['diff'];
+
+		if (options.root) {
+			args.push('--root');
+		}
+
+		args.push(...[ref, '--']);
+		if (options.path) {
+			args.push(this.sanitizeRelativePath(options.path));
+		}
+
+		const result = await this.exec(args);
+		return result.stdout;
+	}
+
 	async diffBetweenWithStats(ref: string, options: { path?: string; similarityThreshold?: number }): Promise<DiffChange[]> {
 		const args = ['diff', '--raw', '--numstat', '--diff-filter=ADMR', '-z',];
 
