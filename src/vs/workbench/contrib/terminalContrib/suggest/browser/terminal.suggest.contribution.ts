@@ -39,6 +39,7 @@ import { ITextModelService } from '../../../../../editor/common/services/resolve
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 import { getTerminalLspSupportedLanguageObj } from './lspTerminalUtil.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 
 registerSingleton(ITerminalCompletionService, TerminalCompletionService, InstantiationType.Delayed);
 
@@ -231,7 +232,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		const container = this._resolveAddonContainer(xtermElement);
 		addon.setContainerWithOverflow(container);
 		// eslint-disable-next-line no-restricted-syntax
-		const screenElement = xtermElement.querySelector('.xterm-screen');
+		const screenElement = xtermElement?.querySelector('.xterm-screen');
 		if (dom.isHTMLElement(screenElement)) {
 			addon.setScreen(screenElement);
 		}
@@ -270,20 +271,106 @@ registerTerminalContribution(TerminalSuggestContribution.ID, TerminalSuggestCont
 // #region Actions
 
 registerTerminalAction({
-	id: TerminalSuggestCommandId.ConfigureSettings,
-	title: localize2('workbench.action.terminal.configureSuggestSettings', 'Configure'),
+	id: TerminalSuggestCommandId.ChangeSelectionModeNever,
+	title: localize2('workbench.action.terminal.changeSelectionMode.never', 'Selection Mode: None'),
+	tooltip: localize2('workbench.action.terminal.changeSelectionMode.never.tooltip', 'Do not select the top suggestion until down is pressed, at which point Tab or Enter will accept the suggestion.\n\nClick to rotate between options.'),
+	f1: false,
+	precondition: ContextKeyExpr.and(
+		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		TerminalContextKeys.focus,
+		TerminalContextKeys.isOpen,
+		TerminalContextKeys.suggestWidgetVisible,
+		ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.SelectionMode}`, 'never')
+	),
+	menu: {
+		id: MenuId.MenubarTerminalSuggestStatusMenu,
+		group: 'left',
+		order: 1,
+		when: ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.SelectionMode}`, 'never')
+	},
+	run: (c, accessor) => {
+		accessor.get(IConfigurationService).updateValue(TerminalSuggestSettingId.SelectionMode, 'partial');
+	}
+});
+registerTerminalAction({
+	id: TerminalSuggestCommandId.ChangeSelectionModePartial,
+	title: localize2('workbench.action.terminal.changeSelectionMode.partial', 'Selection Mode: Partial (Tab)'),
+	tooltip: localize2('workbench.action.terminal.changeSelectionMode.partial.tooltip', 'Partially select the top suggestion, Tab will accept a suggestion when visible.\n\nClick to rotate between options.'),
+	f1: false,
+	precondition: ContextKeyExpr.and(
+		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		TerminalContextKeys.focus,
+		TerminalContextKeys.isOpen,
+		TerminalContextKeys.suggestWidgetVisible,
+		ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.SelectionMode}`, 'partial')
+	),
+	menu: {
+		id: MenuId.MenubarTerminalSuggestStatusMenu,
+		group: 'left',
+		order: 1,
+		when: ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.SelectionMode}`, 'partial')
+	},
+	run: (c, accessor) => {
+		accessor.get(IConfigurationService).updateValue(TerminalSuggestSettingId.SelectionMode, 'always');
+	}
+});
+registerTerminalAction({
+	id: TerminalSuggestCommandId.ChangeSelectionModeAlways,
+	title: localize2('workbench.action.terminal.changeSelectionMode.always', 'Selection Mode: Always (Tab or Enter)'),
+	tooltip: localize2('workbench.action.terminal.changeSelectionMode.always.tooltip', 'Always select the top suggestion, Tab or Enter will accept a suggestion when visible.\n\nClick to rotate between options.'),
 	f1: false,
 	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
-	keybinding: {
-		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Comma,
-		weight: KeybindingWeight.WorkbenchContrib
+	menu: {
+		id: MenuId.MenubarTerminalSuggestStatusMenu,
+		group: 'left',
+		order: 1,
+		when: ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.SelectionMode}`, 'always')
 	},
+	run: (c, accessor) => {
+		accessor.get(IConfigurationService).updateValue(TerminalSuggestSettingId.SelectionMode, 'never');
+	}
+});
+
+registerTerminalAction({
+	id: TerminalSuggestCommandId.DoNotShowOnType,
+	title: localize2('workbench.action.terminal.doNotShowSuggestOnType', 'Don\'t show IntelliSense unless triggered explicitly. This disables the quick suggestions and suggest on trigger characters settings.'),
+	f1: false,
+	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
+	icon: Codicon.eye,
 	menu: {
 		id: MenuId.MenubarTerminalSuggestStatusMenu,
 		group: 'right',
-		order: 1
+		order: 1,
+		when: ContextKeyExpr.and(
+			ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.QuickSuggestions}`, true),
+			ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.SuggestOnTriggerCharacters}`, true),
+		),
 	},
-	run: (c, accessor) => accessor.get(IPreferencesService).openSettings({ query: terminalSuggestConfigSection })
+	run: (c, accessor) => {
+		accessor.get(IConfigurationService).updateValue(TerminalSuggestSettingId.QuickSuggestions, false);
+		accessor.get(IConfigurationService).updateValue(TerminalSuggestSettingId.SuggestOnTriggerCharacters, false);
+	}
+});
+
+registerTerminalAction({
+	id: TerminalSuggestCommandId.ShowOnType,
+	title: localize2('workbench.action.terminal.showSuggestOnType', 'Show IntelliSense while typing. This enables the quick suggestions for commands and arguments, and suggest on trigger characters settings.'),
+	f1: false,
+	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
+	icon: Codicon.eyeClosed,
+	menu: {
+		id: MenuId.MenubarTerminalSuggestStatusMenu,
+		group: 'right',
+		order: 1,
+		when: ContextKeyExpr.or(
+			ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.QuickSuggestions}`, false),
+			ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.SuggestOnTriggerCharacters}`, false),
+		),
+	},
+	run: (c, accessor) => {
+		accessor.get(IConfigurationService).updateValue(TerminalSuggestSettingId.QuickSuggestions, true);
+		accessor.get(IConfigurationService).updateValue(TerminalSuggestSettingId.SuggestOnTriggerCharacters, true);
+	}
 });
 
 registerTerminalAction({
@@ -291,19 +378,29 @@ registerTerminalAction({
 	title: localize2('workbench.action.terminal.learnMore', 'Learn More'),
 	f1: false,
 	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
+	icon: Codicon.question,
 	menu: {
 		id: MenuId.MenubarTerminalSuggestStatusMenu,
-		group: 'center',
-		order: 1
-	},
-	keybinding: {
-		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyL,
-		weight: KeybindingWeight.WorkbenchContrib + 1,
-		when: TerminalContextKeys.suggestWidgetVisible
+		group: 'right',
+		order: 2
 	},
 	run: (c, accessor) => {
 		(accessor.get(IOpenerService)).open('https://aka.ms/vscode-terminal-intellisense');
 	}
+});
+
+registerTerminalAction({
+	id: TerminalSuggestCommandId.ConfigureSettings,
+	title: localize2('workbench.action.terminal.configureSuggestSettings', 'Configure'),
+	f1: false,
+	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
+	icon: Codicon.gear,
+	menu: {
+		id: MenuId.MenubarTerminalSuggestStatusMenu,
+		group: 'right',
+		order: 3
+	},
+	run: (c, accessor) => accessor.get(IPreferencesService).openSettings({ query: terminalSuggestConfigSection })
 });
 
 registerActiveInstanceAction({
@@ -436,11 +533,6 @@ registerActiveInstanceAction({
 		when: ContextKeyExpr.and(SimpleSuggestContext.HasFocusedSuggestion, ContextKeyExpr.or(ContextKeyExpr.notEquals(`config.${TerminalSuggestSettingId.SelectionMode}`, 'partial'), ContextKeyExpr.or(SimpleSuggestContext.FirstSuggestionFocused.toNegated(), SimpleSuggestContext.HasNavigated))),
 		weight: KeybindingWeight.WorkbenchContrib + 1
 	}],
-	menu: {
-		id: MenuId.MenubarTerminalSuggestStatusMenu,
-		order: 1,
-		group: 'left'
-	},
 	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.acceptSelectedSuggestion()
 });
 
