@@ -76,3 +76,55 @@ This project has adopted the [Microsoft Open Source Code of Conduct](https://ope
 Copyright (c) Microsoft Corporation. All rights reserved.
 
 Licensed under the [MIT](LICENSE.txt) license.
+
+---
+
+## AI Fullcode UI Editor - Development Setup
+
+This fork includes the **AI Fullcode UI Editor** extension integrated into VSCode OSS.
+
+### Prerequisites
+
+- **Node.js**: v22.21.1 (specified in `.nvmrc`)
+- **npm**: v10 or later
+- **macOS** (for this setup)
+
+### Quick Start
+
+1. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+2. **Compile VSCode OSS (minimum required)**
+   ```bash
+   npm run gulp compile
+   ```
+   This generates the `out/` directory (takes a few minutes).
+
+3. **Build the extension**
+   ```bash
+   cd extensions/ai-fullcode-ui-editor
+   npm install
+   npm run compile
+   cd ../..
+   ```
+
+4. **Start VSCode OSS in Electron Dev Mode**
+   ```bash
+   export VSCODE_DEV=1
+   ./scripts/code.sh
+   ```
+
+### Verify Extension Activation
+
+1. Open **Help > Toggle Developer Tools**
+2. Check the Console for:
+   - `[AI Fullcode UI Editor] Extension activated`
+   - `[AI Fullcode UI Editor] 初期化開始...`
+
+### Notes
+
+- **Electron mode only**: This setup uses Electron (Desktop) mode, not Web mode
+- **No Web build required**: The `@vscode/test-web` issues are completely avoided
+- **Extension location**: `extensions/ai-fullcode-ui-editor/`

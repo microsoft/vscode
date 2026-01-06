@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "module": "CommonJS",
+    "target": "ES2020",
+    "outDir": "build/lib",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "moduleResolution": "node",
+    "allowSyntheticDefaultImports": true,
+    "strict": false,
+    "declaration": false,
+    "noEmit": false
+  },
+  "include": ["build/lib/extensions.ts"],
+  "exclude": ["node_modules"]
+}
+

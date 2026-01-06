@@ -1,0 +1,72 @@
+{
+  "name": "ai-fullcode-ui-editor",
+  "displayName": "AI Fullcode UI Editor",
+  "version": "1.0.0",
+  "description": "AI Fullcode UI Editor - VSCode OSS統合版",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+      "contributes": {
+        "commands": [
+          {
+            "command": "ai-fullcode-ui-editor.storage.listFiles",
+            "title": "AI Fullcode UI Editor: プロジェクトファイル一覧を表示"
+          },
+          {
+            "command": "ai-fullcode-ui-editor.storage.createTestFile",
+            "title": "AI Fullcode UI Editor: テストファイルを作成"
+          },
+          {
+            "command": "ai-fullcode-ui-editor.storage.loadTestFile",
+            "title": "AI Fullcode UI Editor: テストファイルを読み込み"
+          },
+          {
+            "command": "ai-fullcode-ui-editor.preview.show",
+            "title": "AI Fullcode UI Editor: Previewを表示"
+          },
+          {
+            "command": "ai-fullcode-ui-editor.catalog.selectPage",
+            "title": "Select Page"
+          },
+          {
+            "command": "ai-fullcode-ui-editor.catalog.selectComponent",
+            "title": "Select Component"
+          },
+          {
+            "command": "ai-fullcode-ui-editor.catalog.refresh",
+            "title": "Refresh Catalog"
+          }
+        ],
+        "views": {
+          "explorer": [
+            {
+              "id": "ai-fullcode-ui-editor-catalog",
+              "name": "Component Catalog",
+              "when": "false"
+            }
+          ]
+        }
+      },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "dependencies": {
+    "ts-morph": "^27.0.2",
+    "vite": "^6.0.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.80.0",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "typescript": "^5.9.3"
+  }
+}
+
