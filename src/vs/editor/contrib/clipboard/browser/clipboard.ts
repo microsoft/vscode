@@ -329,6 +329,7 @@ if (PasteAction) {
 						// Ensure this doesn't run twice, what appears to be happening is
 						// triggerPasteis called once but it's handler is called multiple times
 						// when it reproduces
+						logService.trace('(triggerPaste) PasteOptions.electronBugWorkaroundPasteEventLock : ', PasteOptions.electronBugWorkaroundPasteEventLock);
 						if (PasteOptions.electronBugWorkaroundPasteEventLock === true) {
 							return;
 						}
