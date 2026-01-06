@@ -39,6 +39,7 @@ import { RunInTerminalTool, type IRunInTerminalInputParams } from '../../browser
 import { ShellIntegrationQuality } from '../../browser/toolTerminalCreator.js';
 import { terminalChatAgentToolsConfiguration, TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { TerminalChatService } from '../../../chat/browser/terminalChatService.js';
+import type { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 
 class TestRunInTerminalTool extends RunInTerminalTool {
 	protected override _osBackend: Promise<OperatingSystem> = Promise.resolve(OperatingSystem.Windows);
@@ -1211,6 +1212,99 @@ suite('RunInTerminalTool', () => {
 				strictEqual(typeof result, 'object');
 				strictEqual((result as ITerminalProfile).path, 'bash');
 			});
+		});
+	});
+
+	suite('denial info in disclaimers', () => {
+		function getDisclaimerValue(disclaimer: string | IMarkdownString | undefined): string | undefined {
+			if (!disclaimer) {
+				return undefined;
+			}
+			return typeof disclaimer === 'string' ? disclaimer : disclaimer.value;
+		}
+
+		test('should include denial reason in disclaimer when command is denied by rule', async () => {
+			setAutoApprove({
+				npm: { approve: false }
+			});
+			const result = await executeToolTest({
+				command: 'npm run build',
+				explanation: 'Build the project'
+			});
+
+			assertConfirmationRequired(result, 'Run `bash` command?');
+			const disclaimerValue = getDisclaimerValue(result?.confirmationMessages?.disclaimer);
+			ok(disclaimerValue, 'Expected disclaimer to be defined');
+			ok(disclaimerValue.includes('denied'), 'Expected disclaimer to mention denial');
+			ok(disclaimerValue.includes('npm'), 'Expected disclaimer to mention the denied rule');
+		});
+
+		test('should include link to settings in denial disclaimer', async () => {
+			setAutoApprove({
+				rm: { approve: false }
+			});
+			const result = await executeToolTest({
+				command: 'rm -rf temp',
+				explanation: 'Remove temp folder'
+			});
+
+			assertConfirmationRequired(result, 'Run `bash` command?');
+			ok(result?.confirmationMessages?.disclaimer, 'Expected disclaimer to be defined');
+			// The disclaimer should have trusted commands enabled for settings links
+			const disclaimer = result.confirmationMessages.disclaimer;
+			ok(typeof disclaimer !== 'string' && disclaimer.isTrusted, 'Expected disclaimer to be trusted for command links');
+		});
+
+		test('should include denial reason for multiple denied sub-commands', async () => {
+			setAutoApprove({
+				rm: { approve: false },
+				sudo: { approve: false }
+			});
+			const result = await executeToolTest({
+				command: 'sudo rm -rf /',
+				explanation: 'Dangerous command'
+			});
+
+			assertConfirmationRequired(result, 'Run `bash` command?');
+			const disclaimerValue = getDisclaimerValue(result?.confirmationMessages?.disclaimer);
+			ok(disclaimerValue, 'Expected disclaimer to be defined');
+			ok(disclaimerValue.includes('denied'), 'Expected disclaimer to mention denial');
+		});
+
+		test('should not include denial info when auto-approve is disabled', async () => {
+			setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, false);
+			setAutoApprove({
+				npm: { approve: false }
+			});
+			const result = await executeToolTest({
+				command: 'npm run build',
+				explanation: 'Build the project'
+			});
+
+			assertConfirmationRequired(result, 'Run `bash` command?');
+			// When auto-approve is disabled, there should be no denial-related disclaimer
+			const disclaimerValue = getDisclaimerValue(result?.confirmationMessages?.disclaimer);
+			if (disclaimerValue) {
+				ok(!disclaimerValue.includes('denied'), 'Should not mention denial when auto-approve is disabled');
+			}
+		});
+
+		test('should not include denial info for commands that are simply not approved', async () => {
+			// Command is not in auto-approve list, but not explicitly denied
+			setAutoApprove({
+				echo: true
+			});
+			const result = await executeToolTest({
+				command: 'npm run build',
+				explanation: 'Build the project'
+			});
+
+			assertConfirmationRequired(result, 'Run `bash` command?');
+			// There should be no denial disclaimer since npm is not explicitly denied
+			const disclaimerValue = getDisclaimerValue(result?.confirmationMessages?.disclaimer);
+			if (disclaimerValue) {
+				ok(!disclaimerValue.includes('denied'), 'Should not mention denial for non-denied commands');
+			}
 		});
 	});
 });

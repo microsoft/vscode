@@ -310,7 +310,13 @@ export class McpHTTPHandle extends Disposable {
 			'Mcp-Session-Id': sessionId,
 		};
 
-		await this._addAuthHeader(headers);
+		try {
+			await this._addAuthHeader(headers, { errorOnUserInteraction: true });
+		} catch (e) {
+			// If auth is no longer available (e.g. user signed out), skip the close request
+			this._log(LogLevel.Debug, `Skipping session close: authentication no longer available`);
+			return;
+		}
 
 		// no fetch with retry here -- don't try to auth if we get an auth failure
 		await this._fetch(
@@ -616,7 +622,8 @@ export class McpHTTPHandle extends Disposable {
 		} while (!chunk.done);
 	}
 
-	private async _addAuthHeader(headers: Record<string, string>, forceNewRegistration?: boolean) {
+	private async _addAuthHeader(headers: Record<string, string>, options?: { forceNewRegistration?: boolean; errorOnUserInteraction?: boolean }) {
+		const errorOnUserInteraction = options?.errorOnUserInteraction ?? this._errorOnUserInteraction;
 		if (this._authMetadata) {
 			try {
 				const authDetails: IMcpAuthenticationDetails = {
@@ -629,8 +636,8 @@ export class McpHTTPHandle extends Disposable {
 					this._id,
 					authDetails,
 					{
-						errorOnUserInteraction: this._errorOnUserInteraction,
-						forceNewRegistration
+						errorOnUserInteraction,
+						forceNewRegistration: options?.forceNewRegistration
 					});
 				if (token) {
 					headers['Authorization'] = `Bearer ${token}`;
@@ -651,8 +658,8 @@ export class McpHTTPHandle extends Disposable {
 					this._launch.authentication.providerId,
 					this._launch.authentication.scopes,
 					{
-						errorOnUserInteraction: this._errorOnUserInteraction,
-						forceNewRegistration
+						errorOnUserInteraction,
+						forceNewRegistration: options?.forceNewRegistration
 					}
 				);
 				if (token) {
@@ -724,7 +731,7 @@ export class McpHTTPHandle extends Disposable {
 		if (headers['Authorization'] && isAuthStatusCode(res.status)) {
 			const errorText = await this._getErrText(res);
 			this._log(LogLevel.Info, `Received ${res.status} status with Authorization header, retrying with new auth registration. Error details: ${errorText || 'no additional details'}`);
-			await this._addAuthHeader(headers, true);
+			await this._addAuthHeader(headers, { forceNewRegistration: true });
 			res = await doFetch();
 		}
 		return res;
