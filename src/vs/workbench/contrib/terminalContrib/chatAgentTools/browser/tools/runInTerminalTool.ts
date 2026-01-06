@@ -55,6 +55,7 @@ import { TerminalCommandArtifactCollector } from './terminalCommandArtifactColle
 import { isNumber, isString } from '../../../../../../base/common/types.js';
 import { ChatConfiguration } from '../../../../chat/common/constants.js';
 import { IChatWidgetService } from '../../../../chat/browser/chat.js';
+import { TerminalChatCommandId } from '../../../chat/browser/terminalChat.js';
 
 // #region Tool data
 
@@ -445,10 +446,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		};
 		const commandLineAnalyzerResults = await Promise.all(this._commandLineAnalyzers.map(e => e.analyze(commandLineAnalyzerOptions)));
 
-		const disclaimersRaw = commandLineAnalyzerResults.filter(e => e.disclaimers).flatMap(e => e.disclaimers);
+		const disclaimersRaw = commandLineAnalyzerResults.map(e => e.disclaimers).filter(e => !!e).flatMap(e => e);
 		let disclaimer: IMarkdownString | undefined;
 		if (disclaimersRaw.length > 0) {
-			disclaimer = new MarkdownString(`$(${Codicon.info.id}) ` + disclaimersRaw.join(' '), { supportThemeIcons: true });
+			const disclaimerTexts = disclaimersRaw.map(d => typeof d === 'string' ? d : d.value);
+			const hasMarkdownDisclaimer = disclaimersRaw.some(d => typeof d !== 'string');
+			const mdOptions = hasMarkdownDisclaimer
+				? { supportThemeIcons: true, isTrusted: { enabledCommands: [TerminalChatCommandId.OpenTerminalSettingsLink] } }
+				: { supportThemeIcons: true };
+			disclaimer = new MarkdownString(`$(${Codicon.info.id}) ` + disclaimerTexts.join(' '), mdOptions);
 		}
 
 		const analyzersIsAutoApproveAllowed = commandLineAnalyzerResults.every(e => e.isAutoApproveAllowed);
@@ -476,9 +482,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			wouldBeAutoApproved
 		);
 
-		// Pass autoApproveInfo if command would be auto-approved (even if warning not yet accepted)
-		// This allows the confirmation widget to auto-approve after user accepts the warning
-		if (isFinalAutoApproved || (isAutoApproveEnabled && wouldBeAutoApproved)) {
+		// Pass auto approve info if the command:
+		// - Was auto approved
+		// - Would have be auto approved, but the opt-in warning was not accepted
+		// - Was denied explicitly by a rule
+		//
+		// This allows surfacing this information to the user.
+		if (isFinalAutoApproved || (isAutoApproveEnabled && commandLineAnalyzerResults.some(e => e.autoApproveInfo))) {
 			toolSpecificData.autoApproveInfo = commandLineAnalyzerResults.find(e => e.autoApproveInfo)?.autoApproveInfo;
 		}
 

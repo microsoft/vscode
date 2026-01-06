@@ -2843,7 +2843,8 @@ function guessShellTypeFromExecutable(os: OperatingSystem, executable: string): 
 		[GeneralShellType.Node, /^node$/],
 		[GeneralShellType.NuShell, /^nu$/],
 		[GeneralShellType.PowerShell, /^pwsh(-preview)?|powershell$/],
-		[GeneralShellType.Python, /^py(?:thon)?$/]
+		[GeneralShellType.Python, /^py(?:thon)?$/],
+		[GeneralShellType.Xonsh, /^xonsh/]
 	]);
 	for (const [shellType, pattern] of generalShellTypeMap) {
 		if (exeBasename.match(pattern)) {

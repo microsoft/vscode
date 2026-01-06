@@ -272,7 +272,7 @@ class WordHighlighter {
 				return;
 			}
 
-			this.runDelayer.trigger(() => { this._onPositionChanged(e); });
+			this.runDelayer.trigger(() => { this._onPositionChanged(e); }).catch(onUnexpectedError);
 		}));
 		this.toUnhook.add(editor.onDidFocusEditorText((e) => {
 			if (this.occurrencesHighlightEnablement === 'off') {
@@ -281,7 +281,7 @@ class WordHighlighter {
 			}
 
 			if (!this.workerRequest) {
-				this.runDelayer.trigger(() => { this._run(); });
+				this.runDelayer.trigger(() => { this._run(); }).catch(onUnexpectedError);
 			}
 		}));
 		this.toUnhook.add(editor.onDidChangeModelContent((e) => {
@@ -364,7 +364,7 @@ class WordHighlighter {
 		}
 
 		this.runDelayer.cancel();
-		this.runDelayer.trigger(() => { this._run(false, delay); });
+		this.runDelayer.trigger(() => { this._run(false, delay); }).catch(onUnexpectedError);
 	}
 
 	public trigger() {

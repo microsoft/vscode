@@ -879,6 +879,9 @@ export class Repository implements Disposable {
 	private _historyProvider: GitHistoryProvider;
 	get historyProvider(): GitHistoryProvider { return this._historyProvider; }
 
+	private _isHidden: boolean;
+	get isHidden(): boolean { return this._isHidden; }
+
 	private isRepositoryHuge: false | { limit: number } = false;
 	private didWarnAboutLimit = false;
 
@@ -956,11 +959,11 @@ export class Repository implements Disposable {
 		// This is a temporary solution to hide worktrees created by Copilot
 		// when the main repository is opened. Users can still manually open
 		// the worktree from the Repositories view.
-		const hidden = repository.kind === 'worktree' &&
+		this._isHidden = repository.kind === 'worktree' &&
 			isCopilotWorktree(repository.root) && parent !== undefined;
 
 		const root = Uri.file(repository.root);
-		this._sourceControl = scm.createSourceControl('git', 'Git', root, icon, hidden, parent);
+		this._sourceControl = scm.createSourceControl('git', 'Git', root, icon, this._isHidden, parent);
 		this._sourceControl.contextValue = repository.kind;
 
 		this._sourceControl.quickDiffProvider = this;
