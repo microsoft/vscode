@@ -136,8 +136,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	private readonly containerToolBarMenuDisposable = this._register(new MutableDisposable());
 
-	private readonly whenRestoredPromise = new DeferredPromise<void>();
-	readonly whenRestored = this.whenRestoredPromise.p;
+	private whenRestoredPromise = new DeferredPromise<void>();
+	whenRestored = this.whenRestoredPromise.p;
 
 	constructor(
 		from: IEditorGroupView | ISerializedEditorGroupModel | null,
@@ -2207,6 +2207,12 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._disposed = true;
 
 		this._onWillDispose.fire();
+
+		this.whenRestored = undefined!;
+		this.whenRestoredPromise.cancel().catch(() => {
+			// ignore
+		});
+		this.whenRestoredPromise = undefined!;
 
 		super.dispose();
 	}
