@@ -273,7 +273,7 @@ registerTerminalContribution(TerminalSuggestContribution.ID, TerminalSuggestCont
 registerTerminalAction({
 	id: TerminalSuggestCommandId.ChangeSelectionModeNever,
 	title: localize2('workbench.action.terminal.changeSelectionMode.never', 'Selection Mode: None'),
-	tooltip: localize2('workbench.action.terminal.changeSelectionMode.never.tooltip', 'Do not select the top suggestion until down is pressed, at which point Tab or Enter will accept the suggestion.\n\nClick to rotate between options.'),
+	tooltip: localize2('workbench.action.terminal.changeSelectionMode.never.tooltip', 'Do not select the top suggestion until down is pressed, at which point accepting will insert the selected suggestion.\n\nClick to rotate between options.'),
 	f1: false,
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
