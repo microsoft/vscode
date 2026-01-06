@@ -87,6 +87,42 @@ suite('Files - TextFileService', () => {
 		assert.ok(!accessor.textFileService.isDirty(model.resource));
 	});
 
+	test('saveAs - file preserves indentation and EOL', async function () {
+		const sourceResource = toResource.call(this, '/path/source.txt');
+		const targetResource = toResource.call(this, '/path/target.txt');
+
+		const model: TextFileEditorModel = disposables.add(instantiationService.createInstance(TextFileEditorModel, sourceResource, 'utf8', undefined));
+		(<ITestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
+		accessor.fileDialogService.setPickFileToSave(targetResource);
+
+		await model.resolve();
+		model.textEditorModel!.setValue('foo\nbar\nbaz');
+
+		// Set custom indentation (tabs, tabSize 4, indentSize 4) and EOL (LF)
+		model.textEditorModel!.updateOptions({
+			insertSpaces: false,
+			tabSize: 4,
+			indentSize: 4
+		});
+		model.textEditorModel!.setEOL(0); // EndOfLineSequence.LF = 0
+
+		assert.strictEqual(model.textEditorModel!.getOptions().insertSpaces, false);
+		assert.strictEqual(model.textEditorModel!.getOptions().tabSize, 4);
+		assert.strictEqual(model.textEditorModel!.getEndOfLineSequence(), 0); // LF
+
+		// Save as target
+		const res = await accessor.textFileService.saveAs(model.resource, targetResource);
+		assert.strictEqual(res!.toString(), targetResource.toString());
+
+		// Verify target model has the same indentation and EOL settings
+		const targetModel = accessor.textFileService.files.get(targetResource);
+		assert.ok(targetModel);
+		assert.ok(targetModel.textEditorModel);
+		assert.strictEqual(targetModel.textEditorModel.getOptions().insertSpaces, false, 'insertSpaces should be preserved');
+		assert.strictEqual(targetModel.textEditorModel.getOptions().tabSize, 4, 'tabSize should be preserved');
+		assert.strictEqual(targetModel.textEditorModel.getEndOfLineSequence(), 0, 'EOL sequence should be preserved');
+	});
+
 	test('revert - file', async function () {
 		const model: TextFileEditorModel = disposables.add(instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined));
 		(<ITestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
