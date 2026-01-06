@@ -7227,10 +7227,9 @@ DEALINGS IN THE SOFTWARE.
 
 rand_core 0.5.1 - MIT OR Apache-2.0
 rand_core 0.6.4 - MIT OR Apache-2.0
-https://github.com/rust-random/rand
+https://github.com/rust-random/rand_core
 
-Copyright 2018 Developers of the Rand project
-Copyright (c) 2014 The Rust Project Developers
+Copyright (c) 2018-2025 The Rand Project Developers
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
@@ -8591,7 +8590,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 
 [//]: # (crates)
 
-[`ascon‑hash`]: ./ascon-hash
+[`ascon‑hash`]: ./ascon-hash256
 [`bash‑hash`]: ./bash-hash
 [`belt‑hash`]: ./belt-hash
 [`blake2`]: ./blake2
@@ -8687,7 +8686,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 
 [//]: # (crates)
 
-[`ascon‑hash`]: ./ascon-hash
+[`ascon‑hash`]: ./ascon-hash256
 [`bash‑hash`]: ./bash-hash
 [`belt‑hash`]: ./belt-hash
 [`blake2`]: ./blake2
