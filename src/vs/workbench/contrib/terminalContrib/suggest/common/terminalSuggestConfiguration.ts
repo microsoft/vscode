@@ -131,43 +131,48 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 	[TerminalSuggestSettingId.QuickSuggestions]: {
 		restricted: true,
 		markdownDescription: localize('suggest.quickSuggestions', "Controls whether suggestions should automatically show up while typing. This can be controlled for commands, arguments, and unknown contexts. Also be aware of the {0}-setting which controls if suggestions are triggered by special characters.", `\`#${TerminalSuggestSettingId.SuggestOnTriggerCharacters}#\``),
-		type: 'object',
-		additionalProperties: false,
-		properties: {
-			commands: {
-				anyOf: [
-					{ type: 'boolean' },
-					{
-						type: 'string',
-						enum: ['on', 'off'],
-					}
-				],
-				default: 'off',
-				description: localize('suggest.quickSuggestions.commands', 'Enable quick suggestions for commands, the first word in a command line input.')
-			},
-			arguments: {
-				anyOf: [
-					{ type: 'boolean' },
-					{
-						type: 'string',
-						enum: ['on', 'off'],
-					}
-				],
-				default: 'off',
-				description: localize('suggest.quickSuggestions.arguments', 'Enable quick suggestions for arguments, anything after the first word in a command line input.')
-			},
-			unknown: {
-				anyOf: [
-					{ type: 'boolean' },
-					{
-						type: 'string',
-						enum: ['on', 'off'],
-					}
-				],
-				default: 'off',
-				description: localize('suggest.quickSuggestions.unknown', 'Enable quick suggestions when it\'s unclear what the best suggestion is. If enabled, files and folders will be suggested as a fallback.')
-			},
-		},
+		anyOf: [
+			{ type: 'boolean' },
+			{
+				type: 'object',
+				additionalProperties: false,
+				properties: {
+					commands: {
+						anyOf: [
+							{ type: 'boolean' },
+							{
+								type: 'string',
+								enum: ['on', 'off'],
+							}
+						],
+						default: 'off',
+						description: localize('suggest.quickSuggestions.commands', 'Enable quick suggestions for commands, the first word in a command line input.')
+					},
+					arguments: {
+						anyOf: [
+							{ type: 'boolean' },
+							{
+								type: 'string',
+								enum: ['on', 'off'],
+							}
+						],
+						default: 'off',
+						description: localize('suggest.quickSuggestions.arguments', 'Enable quick suggestions for arguments, anything after the first word in a command line input.')
+					},
+					unknown: {
+						anyOf: [
+							{ type: 'boolean' },
+							{
+								type: 'string',
+								enum: ['on', 'off'],
+							}
+						],
+						default: 'off',
+						description: localize('suggest.quickSuggestions.unknown', 'Enable quick suggestions when it\'s unclear what the best suggestion is. If enabled, files and folders will be suggested as a fallback.')
+					},
+				},
+			}
+		],
 		default: {
 			commands: 'off',
 			arguments: 'off',
