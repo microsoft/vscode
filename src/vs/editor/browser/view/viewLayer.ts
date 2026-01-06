@@ -399,8 +399,8 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 					} else {
 						value = value.slice(0, htmlTagEnd) + ` class="${classNames[i]}"` + value.slice(htmlTagEnd);
 					}
-					return value.replace(stylePattern, '');
 				});
+				return value.replace(stylePattern, '');
 			}
 			return value;
 		}
