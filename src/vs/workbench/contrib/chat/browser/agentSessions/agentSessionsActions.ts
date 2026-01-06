@@ -729,11 +729,9 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 		const sideBySideMinWidth = 600 + 1;	// account for possible theme border
 		const stackedMaxWidth = sideBySideMinWidth - 1;
 
-		if (
-			(newOrientation === AgentSessionsViewerOrientation.SideBySide && currentSize.width >= sideBySideMinWidth) ||	// already wide enough to show side by side
-			newOrientation === AgentSessionsViewerOrientation.Stacked														// always wide enough to show stacked
-		) {
-			return; // size suffices
+		// Check if we need to resize for the new orientation
+		if (newOrientation === AgentSessionsViewerOrientation.SideBySide && currentSize.width >= sideBySideMinWidth) {
+			return; // already wide enough to show side by side
 		}
 
 		if (!canResizeView) {
@@ -747,17 +745,22 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 
 		const lastWidthForOrientation = chatView?.getLastDimensions(newOrientation)?.width;
 
+		// Determine the desired width for the orientation
 		let newWidth: number;
 		if (newOrientation === AgentSessionsViewerOrientation.SideBySide) {
 			newWidth = Math.max(sideBySideMinWidth, lastWidthForOrientation || Math.round(layoutService.mainContainerDimension.width / 2));
 		} else {
-			newWidth = Math.min(stackedMaxWidth, lastWidthForOrientation || stackedMaxWidth);
+			// For stacked orientation, restore previous width if available
+			newWidth = lastWidthForOrientation || Math.min(stackedMaxWidth, currentSize.width);
 		}
 
-		layoutService.setSize(part, {
-			width: newWidth,
-			height: currentSize.height
-		});
+		// Only resize if the width is actually different
+		if (Math.abs(currentSize.width - newWidth) > 1) { // allow 1px tolerance for rounding
+			layoutService.setSize(part, {
+				width: newWidth,
+				height: currentSize.height
+			});
+		}
 	}
 
 	abstract getOrientation(): AgentSessionsViewerOrientation;
