@@ -29,6 +29,8 @@ import { ILanguageModelIgnoredFilesService } from '../../common/ignoredFiles.js'
 import { getPromptsTypeForLanguageId } from '../../common/promptSyntax/promptTypes.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { IChatContextService } from '../contextContrib/chatContextService.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
+import { IRange } from '../../../../../editor/common/core/range.js';
 
 export class ChatImplicitContextContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'chat.implicitContext';
@@ -210,18 +212,22 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 				const selection = codeEditor?.getSelection();
 				const visibleRanges = codeEditor?.getVisibleRanges() || [];
 				newValue = activeCell.uri;
-				if (isEqual(codeEditor?.getModel()?.uri, activeCell.uri)) {
+				const cellModel = codeEditor?.getModel();
+				if (cellModel && isEqual(cellModel.uri, activeCell.uri)) {
 					if (selection && !selection.isEmpty()) {
 						newValue = { uri: activeCell.uri, range: selection } satisfies Location;
 						isSelection = true;
 					} else if (visibleRanges.length > 0) {
-						// Merge visible ranges. Maybe the reference value could actually be an array of Locations?
-						// Something like a Location with an array of Ranges?
-						let range = visibleRanges[0];
-						visibleRanges.slice(1).forEach(r => {
-							range = range.plusRange(r);
-						});
-						newValue = { uri: activeCell.uri, range } satisfies Location;
+						// If the entire cell is visible, just use the cell URI, no need to specify range.
+						if (!isEntireCellVisible(cellModel, visibleRanges)) {
+							// Merge visible ranges. Maybe the reference value could actually be an array of Locations?
+							// Something like a Location with an array of Ranges?
+							let range = visibleRanges[0];
+							visibleRanges.slice(1).forEach(r => {
+								range = range.plusRange(r);
+							});
+							newValue = { uri: activeCell.uri, range } satisfies Location;
+						}
 					}
 				}
 			} else {
@@ -265,6 +271,13 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 			}
 		}
 	}
+}
+
+function isEntireCellVisible(cellModel: ITextModel, visibleRanges: IRange[]): boolean {
+	if (visibleRanges.length === 1 && visibleRanges[0].startLineNumber === 1 && visibleRanges[0].startColumn === 1 && visibleRanges[0].endLineNumber === cellModel.getLineCount() && visibleRanges[0].endColumn === cellModel.getLineMaxColumn(visibleRanges[0].endLineNumber)) {
+		return true;
+	}
+	return false;
 }
 
 export class ChatImplicitContext extends Disposable implements IChatRequestImplicitVariableEntry {

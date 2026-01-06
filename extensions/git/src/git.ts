@@ -678,6 +678,7 @@ export class Git {
 
 		options.env = assign({}, process.env, this.env, options.env || {}, {
 			VSCODE_GIT_COMMAND: args[0],
+			LANGUAGE: 'en',
 			LC_ALL: 'en_US.UTF-8',
 			LANG: 'en_US.UTF-8',
 			GIT_PAGER: 'cat'
@@ -1769,6 +1770,17 @@ export class Repository {
 		const result = await this.exec(args);
 
 		return result.stdout.trim();
+	}
+
+	async diffBetweenPatch(ref: string, options: { path?: string }): Promise<string> {
+		const args = ['diff', ref, '--'];
+
+		if (options.path) {
+			args.push(this.sanitizeRelativePath(options.path));
+		}
+
+		const result = await this.exec(args);
+		return result.stdout;
 	}
 
 	async diffBetweenWithStats(ref: string, options: { path?: string; similarityThreshold?: number }): Promise<DiffChange[]> {
