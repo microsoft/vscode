@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IOpenEvent, WorkbenchCompressibleAsyncDataTree } from '../../../../../platform/list/browser/listService.js';
 import { $, append, EventHelper } from '../../../../../base/browser/dom.js';
-import { IAgentSession, IAgentSessionsModel, isAgentSession, isAgentSessionSection } from './agentSessionsModel.js';
+import { IAgentSession, IAgentSessionsModel, IMarshalledAgentSessionContext, isAgentSession, isAgentSessionSection } from './agentSessionsModel.js';
 import { AgentSessionListItem, AgentSessionRenderer, AgentSessionsAccessibilityProvider, AgentSessionsCompressionDelegate, AgentSessionsDataSource, AgentSessionsDragAndDrop, AgentSessionsIdentityProvider, AgentSessionsKeyboardNavigationLabelProvider, AgentSessionsListDelegate, AgentSessionSectionRenderer, AgentSessionsSorter, IAgentSessionsFilter, IAgentSessionsSorterOptions } from './agentSessionsViewer.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
@@ -21,21 +21,24 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ITreeContextMenuEvent } from '../../../../../base/browser/ui/tree/tree.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { Separator } from '../../../../../base/common/actions.js';
-import { TreeFindMode } from '../../../../../base/browser/ui/tree/abstractTree.js';
+import { RenderIndentGuides, TreeFindMode } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
 import { IStyleOverride } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { IAgentSessionsControl, IMarshalledChatSessionContext } from './agentSessions.js';
+import { IAgentSessionsControl } from './agentSessions.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { openSession } from './agentSessionsOpener.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 
 export interface IAgentSessionsControlOptions extends IAgentSessionsSorterOptions {
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
 	readonly filter?: IAgentSessionsFilter;
 
 	getHoverPosition(): HoverPosition;
+	trackActiveEditorSession(): boolean;
 }
 
 type AgentSessionOpenedClassification = {
@@ -70,6 +73,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		@IMenuService private readonly menuService: IMenuService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
 
@@ -78,6 +82,37 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		this.focusedAgentSessionTypeContextKey = ChatContextKeys.agentSessionType.bindTo(this.contextKeyService);
 
 		this.createList(this.container);
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this._register(this.editorService.onDidActiveEditorChange(() => this.revealAndFocusActiveEditorSession()));
+	}
+
+	private revealAndFocusActiveEditorSession(): void {
+		if (
+			!this.options.trackActiveEditorSession() ||
+			!this.visible
+		) {
+			return;
+		}
+
+		const input = this.editorService.activeEditor;
+		const resource = (input instanceof ChatEditorInput) ? input.sessionResource : input?.resource;
+		if (!resource) {
+			return;
+		}
+
+		const matchingSession = this.agentSessionsService.model.getSession(resource);
+		if (matchingSession && this.sessionsList?.hasNode(matchingSession)) {
+			if (this.sessionsList.getRelativeTop(matchingSession) === null) {
+				this.sessionsList.reveal(matchingSession, 0.5); // only reveal when not already visible
+			}
+
+			this.sessionsList.setFocus([matchingSession]);
+			this.sessionsList.setSelection([matchingSession]);
+		}
 	}
 
 	private createList(container: HTMLElement): void {
@@ -107,6 +142,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				expandOnlyOnTwistieClick: true,
 				twistieAdditionalCssClass: () => 'force-no-twistie',
 				collapseByDefault: () => false,
+				renderIndentGuides: RenderIndentGuides.None,
 			}
 		)) as WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, AgentSessionListItem, FuzzyScore>;
 
@@ -176,7 +212,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		contextOverlay.push([ChatContextKeys.agentSessionType.key, element.providerType]);
 		const menu = this.menuService.createMenu(MenuId.AgentSessionsContext, this.contextKeyService.createOverlay(contextOverlay));
 
-		const marshalledSession: IMarshalledChatSessionContext = { session: element, $mid: MarshalledId.ChatSessionContext };
+		const marshalledSession: IMarshalledAgentSessionContext = { session: element, $mid: MarshalledId.AgentSessionContext };
 		this.contextMenuService.showContextMenu({
 			getActions: () => Separator.join(...menu.getActions({ arg: marshalledSession, shouldForwardArgs: true }).map(([, actions]) => actions)),
 			getAnchor: () => anchor,

@@ -179,16 +179,20 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 		this._register(this._extensionManagementService.onDidInstallExtensions((result) => {
 			const extensions: IExtension[] = [];
+			const toRemove: string[] = [];
 			for (const { local, operation } of result) {
 				if (local && local.isValid && operation !== InstallOperation.Migrate && this._safeInvokeIsEnabled(local)) {
 					extensions.push(local);
+					if (operation === InstallOperation.Update) {
+						toRemove.push(local.identifier.id);
+					}
 				}
 			}
 			if (extensions.length) {
 				if (isCI) {
 					this._logService.info(`AbstractExtensionService.onDidInstallExtensions fired for ${extensions.map(e => e.identifier.id).join(', ')}`);
 				}
-				this._handleDeltaExtensions(new DeltaExtensionsQueueItem(extensions, []));
+				this._handleDeltaExtensions(new DeltaExtensionsQueueItem(extensions, toRemove));
 			}
 		}));
 

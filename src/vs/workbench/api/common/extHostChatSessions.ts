@@ -14,7 +14,7 @@ import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../platform/log/common/log.js';
-import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/chatAgents.js';
+import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/participants/chatAgents.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionProviderOptionItem } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
@@ -25,7 +25,7 @@ import { ExtHostLanguageModels } from './extHostLanguageModels.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
-import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData, IPromptFileVariableEntry, ISymbolVariableEntry, PromptFileVariableKind } from '../../contrib/chat/common/chatVariableEntries.js';
+import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData, IPromptFileVariableEntry, ISymbolVariableEntry, PromptFileVariableKind } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
 import { basename } from '../../../base/common/resources.js';
 import { Diagnostic } from './extHostTypeConverters.js';
 import { SymbolKind, SymbolKinds } from '../../../editor/common/languages.js';
@@ -96,7 +96,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 
 		commands.registerArgumentProcessor({
 			processArgument: (arg) => {
-				if (arg && arg.$mid === MarshalledId.ChatSessionContext) {
+				if (arg && arg.$mid === MarshalledId.AgentSessionContext) {
 					const id = arg.session.resource || arg.sessionId;
 					const sessionContent = this._sessionItems.get(id);
 					if (sessionContent) {
@@ -148,6 +148,12 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		if (provider.onDidChangeChatSessionOptions) {
 			disposables.add(provider.onDidChangeChatSessionOptions(evt => {
 				this._proxy.$onDidChangeChatSessionOptions(handle, evt.resource, evt.updates);
+			}));
+		}
+
+		if (provider.onDidChangeChatSessionProviderOptions) {
+			disposables.add(provider.onDidChangeChatSessionProviderOptions(() => {
+				this._proxy.$onDidChangeChatSessionProviderOptions(handle);
 			}));
 		}
 

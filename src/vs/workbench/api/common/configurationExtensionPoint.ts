@@ -487,12 +487,12 @@ class ConfigurationDefaultsTableRenderer extends Disposable implements IExtensio
 		const headers = [nls.localize('language', "Languages"), nls.localize('setting', "Setting"), nls.localize('default override value', "Override Value")];
 		const rows: IRowData[][] = [];
 
-		for (const key of Object.keys(configurationDefaults)) {
+		for (const key of Object.keys(configurationDefaults).sort((a, b) => a.localeCompare(b))) {
 			const value = configurationDefaults[key];
 			if (OVERRIDE_PROPERTY_REGEX.test(key)) {
 				const languages = overrideIdentifiersFromKey(key);
 				const languageMarkdown = new MarkdownString().appendMarkdown(`${languages.join(', ')}`);
-				for (const key of Object.keys(value)) {
+				for (const key of Object.keys(value).sort((a, b) => a.localeCompare(b))) {
 					const row: IRowData[] = [];
 					row.push(languageMarkdown);
 					row.push(new MarkdownString().appendMarkdown(`\`${key}\``));
@@ -520,7 +520,7 @@ class ConfigurationDefaultsTableRenderer extends Disposable implements IExtensio
 
 Registry.as<IExtensionFeaturesRegistry>(ExtensionFeaturesExtensions.ExtensionFeaturesRegistry).registerExtensionFeature({
 	id: 'configurationDefaults',
-	label: nls.localize('settings default overrides', "Settings Defaults Overrides"),
+	label: nls.localize('settings default overrides', "Settings Default Overrides"),
 	access: {
 		canToggle: false
 	},

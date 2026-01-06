@@ -141,7 +141,7 @@ const isSelectedEditorsMoveCopyArg = function (arg: SelectedEditorsMoveCopyArgum
 	return true;
 };
 
-function registerActiveEditorMoveCopyCommand(): void {
+function registerEditorMoveCopyCommand(): void {
 
 	const moveCopyJSONSchema: IJSONSchema = {
 		'type': 'object',
@@ -199,6 +199,20 @@ function registerActiveEditorMoveCopyCommand(): void {
 		}
 	});
 
+	[
+		{ id: MOVE_EDITOR_INTO_ABOVE_GROUP, to: 'up' as const },
+		{ id: MOVE_EDITOR_INTO_BELOW_GROUP, to: 'down' as const },
+		{ id: MOVE_EDITOR_INTO_LEFT_GROUP, to: 'left' as const },
+		{ id: MOVE_EDITOR_INTO_RIGHT_GROUP, to: 'right' as const }
+	].forEach(({ id, to }) => {
+		CommandsRegistry.registerCommand(id, function (accessor, ...args) {
+			const resolvedContext = resolveCommandsContext(args, accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IListService));
+			if (resolvedContext.groupedEditors.length) {
+				moveCopyEditorsToGroup(true, { to, by: 'group' }, resolvedContext.groupedEditors[0].group, resolvedContext.groupedEditors[0].editors, accessor);
+			}
+		});
+	});
+
 	function moveCopySelectedEditors(isMove: boolean, args: SelectedEditorsMoveCopyArguments = Object.create(null), accessor: ServicesAccessor): void {
 		args.to = args.to || 'right';
 		args.by = args.by || 'tab';
@@ -214,7 +228,7 @@ function registerActiveEditorMoveCopyCommand(): void {
 					}
 					break;
 				case 'group':
-					return moveCopyActiveEditorToGroup(isMove, args, activeGroup, selectedEditors, accessor);
+					return moveCopyEditorsToGroup(isMove, args, activeGroup, selectedEditors, accessor);
 			}
 		}
 	}
@@ -259,7 +273,7 @@ function registerActiveEditorMoveCopyCommand(): void {
 		group.moveEditor(editor, group, { index });
 	}
 
-	function moveCopyActiveEditorToGroup(isMove: boolean, args: SelectedEditorsMoveCopyArguments, sourceGroup: IEditorGroup, editors: EditorInput[], accessor: ServicesAccessor): void {
+	function moveCopyEditorsToGroup(isMove: boolean, args: SelectedEditorsMoveCopyArguments, sourceGroup: IEditorGroup, editors: EditorInput[], accessor: ServicesAccessor): void {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const configurationService = accessor.get(IConfigurationService);
 
@@ -730,6 +744,7 @@ export function splitEditor(editorGroupsService: IEditorGroupsService, direction
 	const newGroup = editorGroupsService.addGroup(group, direction);
 
 	for (const editorToCopy of editors) {
+
 		// Split editor (if it can be split)
 		if (editorToCopy && !editorToCopy.hasCapability(EditorInputCapabilities.Singleton)) {
 			group.copyEditor(editorToCopy, newGroup, { preserveFocus });
@@ -1386,7 +1401,7 @@ function registerOtherEditorCommands(): void {
 }
 
 export function setup(): void {
-	registerActiveEditorMoveCopyCommand();
+	registerEditorMoveCopyCommand();
 	registerEditorGroupsLayoutCommands();
 	registerDiffEditorCommands();
 	registerOpenEditorAPICommands();

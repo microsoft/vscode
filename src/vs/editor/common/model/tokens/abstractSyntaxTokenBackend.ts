@@ -12,7 +12,7 @@ import { StandardTokenType } from '../../encodedTokenAttributes.js';
 import { ILanguageIdCodec } from '../../languages.js';
 import { IAttachedView } from '../../model.js';
 import { TextModel } from '../textModel.js';
-import { IModelContentChangedEvent, IModelTokensChangedEvent } from '../../textModelEvents.js';
+import { IModelContentChangedEvent, IModelTokensChangedEvent, IModelFontTokensChangedEvent } from '../../textModelEvents.js';
 import { BackgroundTokenizationState } from '../../tokenizationTextModelPart.js';
 import { LineTokens } from '../../tokens/lineTokens.js';
 import { derivedOpts, IObservable, ISettableObservable, observableSignal, observableValueOpts } from '../../../../base/common/observable.js';
@@ -144,6 +144,10 @@ export abstract class AbstractSyntaxTokenBackend extends Disposable {
 	protected readonly _onDidChangeTokens = this._register(new Emitter<IModelTokensChangedEvent>());
 	/** @internal, should not be exposed by the text model! */
 	public readonly onDidChangeTokens: Event<IModelTokensChangedEvent> = this._onDidChangeTokens.event;
+
+	protected readonly _onDidChangeFontTokens: Emitter<IModelFontTokensChangedEvent> = this._register(new Emitter<IModelFontTokensChangedEvent>());
+	/** @internal, should not be exposed by the text model! */
+	public readonly onDidChangeFontTokens: Event<IModelFontTokensChangedEvent> = this._onDidChangeFontTokens.event;
 
 	constructor(
 		protected readonly _languageIdCodec: ILanguageIdCodec,

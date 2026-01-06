@@ -5,9 +5,9 @@
 
 import type { BeforeSendResponse, BrowserWindow, BrowserWindowConstructorOptions, Event, OnBeforeSendHeadersListenerDetails } from 'electron';
 import { Queue, raceTimeout, TimeoutTimer } from '../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { createSingleCallFunction } from '../../../base/common/functional.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { equalsIgnoreCase } from '../../../base/common/strings.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
@@ -28,6 +28,7 @@ export class WebPageLoader extends Disposable {
 	private static readonly TIMEOUT = 30000; // 30 seconds
 	private static readonly POST_LOAD_TIMEOUT = 5000; // 5 seconds - increased for dynamic content
 	private static readonly FRAME_TIMEOUT = 500; // 0.5 seconds
+	private static readonly EXTRACT_CONTENT_TIMEOUT = 2000; // 2 seconds
 	private static readonly IDLE_DEBOUNCE_TIME = 500; // 0.5 seconds - wait after last network request
 	private static readonly MIN_CONTENT_LENGTH = 100; // Minimum content length to consider extraction successful
 
@@ -44,7 +45,8 @@ export class WebPageLoader extends Disposable {
 		browserWindowFactory: (options: BrowserWindowConstructorOptions) => BrowserWindow,
 		private readonly _logger: ILogService,
 		private readonly _uri: URI,
-		private readonly _options?: IWebContentExtractorOptions,
+		private readonly _options: IWebContentExtractorOptions | undefined,
+		private readonly _isTrustedDomain: (uri: URI) => boolean,
 	) {
 		super();
 
@@ -201,11 +203,28 @@ export class WebPageLoader extends Disposable {
 		this.trace(`Received 'will-navigate' or 'will-redirect' event, url: ${url}`);
 		if (!this._options?.followRedirects) {
 			const toURI = URI.parse(url);
-			if (!equalsIgnoreCase(toURI.authority, this._uri.authority)) {
-				event.preventDefault();
-				this._onResult({ status: 'redirect', toURI });
+
+			// Allow redirect if authority is the same when ignoring www prefix
+			if (this.normalizeAuthority(toURI.authority) === this.normalizeAuthority(this._uri.authority)) {
+				return;
 			}
+
+			// Allow redirect if target is a trusted domain
+			if (this._isTrustedDomain(toURI)) {
+				return;
+			}
+
+			// Otherwise, prevent redirect and report it
+			event.preventDefault();
+			this._onResult({ status: 'redirect', toURI });
 		}
+	}
+
+	/**
+	 * Normalizes an authority by removing the 'www.' prefix if present.
+	 */
+	private normalizeAuthority(authority: string): string {
+		return authority.toLowerCase().replace(/^www\./, '');
 	}
 
 	/**
@@ -312,11 +331,23 @@ export class WebPageLoader extends Disposable {
 		try {
 			const title = this._window.webContents.getTitle();
 
-			let result = await this.extractAccessibilityTreeContent() ?? '';
-			if (result.length < WebPageLoader.MIN_CONTENT_LENGTH) {
-				this.trace(`Accessibility tree extraction yielded insufficient content, trying main DOM element extraction`);
-				const domContent = await this.extractMainDomElementContent() ?? '';
-				result = domContent.length > result.length ? domContent : result;
+			let result = '';
+			const cts = new CancellationTokenSource();
+			try {
+				await raceTimeout((async () => {
+					if (!cts.token.isCancellationRequested) {
+						result = await this.extractAccessibilityTreeContent() ?? '';
+					}
+
+					if (!cts.token.isCancellationRequested && result.length < WebPageLoader.MIN_CONTENT_LENGTH) {
+						this.trace(`Accessibility tree extraction yielded insufficient content, trying main DOM element extraction`);
+						const domContent = await this.extractMainDomElementContent() ?? '';
+						result = domContent.length > result.length ? domContent : result;
+					}
+				})(), WebPageLoader.EXTRACT_CONTENT_TIMEOUT);
+			} finally {
+				cts.cancel();
+				cts.dispose();
 			}
 
 			if (result.length === 0) {
