@@ -66,7 +66,7 @@ export interface IWebviewService {
 	 * Allows us to avoid re-parenting the webview (which destroys its contents) when
 	 * moving webview around the workbench.
 	 */
-	createWebviewOverlay(initInfo: WebviewOverlayInitInfo): IOverlayWebview;
+	createWebviewOverlay(initInfo: WebviewInitInfo): IOverlayWebview;
 }
 
 export interface WebviewInitInfo {
@@ -79,10 +79,6 @@ export interface WebviewInitInfo {
 	readonly contentOptions: WebviewContentOptions;
 
 	readonly extension: WebviewExtensionDescription | undefined;
-}
-
-export interface WebviewOverlayInitInfo extends WebviewInitInfo {
-	readonly container?: HTMLElement;
 }
 
 export const enum WebviewContentPurpose {

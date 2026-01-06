@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension, getWindow, getWindowById } from '../../../../base/browser/dom.js';
+import { Dimension, getWindowById } from '../../../../base/browser/dom.js';
 import { FastDomNode } from '../../../../base/browser/fastDomNode.js';
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
-import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, observableValue } from '../../../../base/common/observable.js';
@@ -16,7 +15,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { IContextKey, IContextKeyService, IScopedContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
-import { IOverlayWebview, IWebview, IWebviewElement, IWebviewService, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_ENABLED, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, WebviewContentOptions, WebviewExtensionDescription, WebviewMessageReceivedEvent, WebviewOptions, WebviewOverlayInitInfo } from './webview.js';
+import { IOverlayWebview, IWebview, IWebviewElement, IWebviewService, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_ENABLED, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, WebviewContentOptions, WebviewExtensionDescription, WebviewInitInfo, WebviewMessageReceivedEvent, WebviewOptions } from './webview.js';
 
 /**
  * Webview that is absolutely positioned over another element and that can creates and destroys an underlying webview as needed.
@@ -53,11 +52,8 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 
 	private _container: FastDomNode<HTMLDivElement> | undefined;
 
-	/** Optional explicit parent container for the webview */
-	private readonly _parentContainer: HTMLElement | undefined;
-
 	public constructor(
-		initInfo: WebviewOverlayInitInfo,
+		initInfo: WebviewInitInfo,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@IWebviewService private readonly _webviewService: IWebviewService,
 		@IContextKeyService private readonly _baseContextKeyService: IContextKeyService
@@ -71,7 +67,6 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		this._extension = initInfo.extension;
 		this._options = initInfo.options;
 		this._contentOptions = initInfo.contentOptions;
-		this._parentContainer = initInfo.container;
 	}
 
 	public get isFocused() {
@@ -113,9 +108,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 
 			// Webviews cannot be reparented in the dom as it will destroy their contents.
 			// Mount them to a high level node to avoid this.
-			// If an explicit parent container was provided, use that instead.
-			const parent = this._parentContainer ?? this._layoutService.getContainer(this.window);
-			parent.appendChild(node);
+			this._layoutService.getContainer(this.window).appendChild(node);
 		}
 
 		return this._container.domNode;
@@ -124,14 +117,6 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	public claim(owner: any, targetWindow: CodeWindow, scopedContextKeyService: IContextKeyService | undefined) {
 		if (this._isDisposed) {
 			return;
-		}
-
-		// Validate that target window matches the parent container's window if one was provided
-		if (this._parentContainer) {
-			const containerWindow = getWindow(this._parentContainer);
-			if (containerWindow !== targetWindow) {
-				throw new BugIndicatingError('Cannot claim overlay webview with a different window than its container');
-			}
 		}
 
 		const oldOwner = this._owner;

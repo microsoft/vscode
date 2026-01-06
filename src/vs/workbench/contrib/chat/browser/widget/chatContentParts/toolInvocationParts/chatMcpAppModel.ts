@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getWindow } from '../../../../../../../base/browser/dom.js';
+import * as dom from '../../../../../../../base/browser/dom.js';
 import { softAssertNever } from '../../../../../../../base/common/assert.js';
 import { disposableTimeout } from '../../../../../../../base/common/async.js';
 import { decodeBase64 } from '../../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
-import { autorun, autorunSelfDisposable, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
+import { Disposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { autorun, autorunSelfDisposable, derived, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { basename } from '../../../../../../../base/common/resources.js';
 import { isFalsyOrWhitespace } from '../../../../../../../base/common/strings.js';
 import { hasKey, isDefined } from '../../../../../../../base/common/types.js';
@@ -24,7 +24,7 @@ import { IMcpAppResourceContent, McpToolCallUI } from '../../../../../mcp/browse
 import { McpResourceURI } from '../../../../../mcp/common/mcpTypes.js';
 import { MCP } from '../../../../../mcp/common/modelContextProtocol.js';
 import { McpApps } from '../../../../../mcp/common/modelContextProtocolApps.js';
-import { IOverlayWebview, IWebviewService, WebviewContentPurpose, WebviewOriginStore } from '../../../../../webview/browser/webview.js';
+import { IWebviewElement, IWebviewService, WebviewContentPurpose, WebviewOriginStore } from '../../../../../webview/browser/webview.js';
 import { IChatRequestVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, IToolResult } from '../../../../common/tools/languageModelToolsService.js';
@@ -52,8 +52,8 @@ export class ChatMcpAppModel extends Disposable {
 	/** Origin store for persistent webview origins per server */
 	private readonly _originStore: WebviewOriginStore;
 
-	/** The overlay webview instance */
-	private readonly _webview: IOverlayWebview;
+	/** The webview element instance */
+	private readonly _webview: IWebviewElement;
 
 	/** Tool call UI for loading resources and proxying calls */
 	private readonly _mcpToolCallUI: McpToolCallUI;
@@ -79,21 +79,15 @@ export class ChatMcpAppModel extends Disposable {
 	public readonly onDidChangeHeight: Event<void> = this._onDidChangeHeight.event;
 
 	/** Host context observable combining tool call UI context with viewport */
-	private readonly _viewportObs = observableValue<McpApps.McpUiHostContext['viewport']>(this, undefined);
+	private readonly _viewportObs = observableValue<Required<McpApps.McpUiHostContext['viewport']>>(this, undefined);
 
 	/** Full host context for the MCP App */
 	public readonly hostContext: IObservable<McpApps.McpUiHostContext>;
 
-	/** Disposable for autorun that sends host context updates */
-	private readonly _hostContextAutorun = this._register(new DisposableStore());
-
-	/** The current claimant of the webview */
-	private _currentClaimant: object | undefined;
-
 	constructor(
 		public readonly toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
 		public readonly renderData: IMcpAppRenderData,
-		container: HTMLElement | undefined,
+		private readonly _container: HTMLElement,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IWebviewService private readonly _webviewService: IWebviewService,
@@ -108,8 +102,8 @@ export class ChatMcpAppModel extends Disposable {
 		this._webviewOrigin = this._originStore.getOrigin('mcpApp', renderData.serverDefinitionId);
 		this._mcpToolCallUI = this._register(this._instantiationService.createInstance(McpToolCallUI, renderData));
 
-		// Create the overlay webview
-		this._webview = this._register(this._webviewService.createWebviewOverlay({
+		// Create the webview element
+		this._webview = this._register(this._webviewService.createWebviewElement({
 			origin: this._webviewOrigin,
 			title: localize('mcpAppTitle', 'MCP App'),
 			options: {
@@ -124,9 +118,33 @@ export class ChatMcpAppModel extends Disposable {
 				allowForms: true,
 			},
 			extension: undefined,
-			container,
 		}));
 
+		// Mount the webview to the container
+		const targetWindow = dom.getWindow(this._container);
+		this._webview.mountTo(this._container, targetWindow);
+
+		// Set up resize observer for viewport and size notifications
+		const updateViewport = () => {
+			this._viewportObs.set({
+				width: targetWindow.innerWidth,
+				height: targetWindow.innerHeight,
+				maxWidth: targetWindow.innerWidth,
+				maxHeight: targetWindow.innerHeight * ChatMcpAppModel.maxWebviewHeightPct,
+			}, undefined);
+
+			if (this._announcedCapabilities) {
+				this._sendNotification({
+					method: 'ui/notifications/size-changed',
+					params: { width: this._container.clientWidth, height: this._container.clientHeight },
+				});
+			}
+		};
+
+		const resizeObserver = new ResizeObserver(updateViewport);
+		resizeObserver.observe(this._container);
+		this._register(toDisposable(() => resizeObserver.disconnect()));
+		updateViewport();
 
 		// Build host context observable
 		this.hostContext = this._mcpToolCallUI.hostContext.map((context, reader) => ({
@@ -138,18 +156,44 @@ export class ChatMcpAppModel extends Disposable {
 			},
 		}));
 
+		// Set up host context change notifications
+		this._register(autorun(reader => {
+			const context = this.hostContext.read(reader);
+			if (this._announcedCapabilities) {
+				this._sendNotification({
+					method: 'ui/notifications/host-context-changed',
+					params: context
+				});
+			}
+		}));
+
 		// Set up message handling
 		this._register(this._webview.onMessage(async ({ message }) => {
 			await this._handleWebviewMessage(message as McpApps.AppMessage);
 		}));
 
-		// Handle wheel events for scroll delegation
-		this._register(this._webview.onDidWheel(e => {
-			this._chatWidgetService.getWidgetBySessionResource(this.renderData.sessionResource)?.delegateScrollFromMouseWheelEvent({
-				...e,
-				preventDefault: () => { },
-				stopPropagation: () => { }
-			});
+		const canScrollWithin = derived(reader => {
+			const contentSize = this._webview.intrinsicContentSize.read(reader);
+			const viewportSize = this._viewportObs.read(reader);
+			if (!contentSize || !viewportSize) {
+				return false;
+			}
+
+			return contentSize.height > viewportSize.maxHeight;
+		});
+
+		// Handle wheel events for scroll delegation when the webview can scroll
+		this._register(autorun(reader => {
+			if (!canScrollWithin.read(reader)) {
+				const widget = this._chatWidgetService.getWidgetBySessionResource(this.renderData.sessionResource);
+				reader.store.add(this._webview.onDidWheel(e => {
+					widget?.delegateScrollFromMouseWheelEvent({
+						...e,
+						preventDefault: () => { },
+						stopPropagation: () => { }
+					});
+				}));
+			}
 		}));
 
 		// Start loading the content
@@ -163,64 +207,17 @@ export class ChatMcpAppModel extends Disposable {
 		return this._height;
 	}
 
-	/**
-	 * Claims the webview for rendering.
-	 */
-	public claim(claimant: object, domNode: HTMLElement): void {
-		this._currentClaimant = claimant;
-
-		const targetWindow = getWindow(domNode);
-		this._webview.claim(claimant, targetWindow, undefined);
-
-		// Set up host context change notifications
-		this._hostContextAutorun.add(autorun(reader => {
-			const context = this.hostContext.read(reader);
-			if (this._announcedCapabilities) {
-				this._sendNotification({
-					method: 'ui/notifications/host-context-changed',
-					params: context
-				});
-			}
-		}));
-
-		const listener = () => {
-			this._viewportObs.set({
-				width: targetWindow.innerWidth,
-				height: targetWindow.innerHeight,
-				maxWidth: targetWindow.innerWidth,
-				maxHeight: targetWindow.innerHeight * ChatMcpAppModel.maxWebviewHeightPct,
-			}, undefined);
-
-			this._sendNotification({
-				method: 'ui/notifications/size-changed',
-				params: { width: domNode.clientWidth, height: domNode.clientHeight },
-			});
-		};
-
-		const resizeObserver = new ResizeObserver(listener);
-		resizeObserver.observe(domNode);
-		this._hostContextAutorun.add(toDisposable(() => resizeObserver.disconnect()));
-		listener();
-
-		this._webview.container.style.zIndex = '1';
+	public remount() {
+		this._webview.reinitializeAfterDismount();
+		this._announcedCapabilities = false;
 	}
 
 	/**
-	 * Releases the webview.
+	 * Retries loading the MCP App content.
 	 */
-	public release(claimant: object): void {
-		if (this._currentClaimant === claimant) {
-			this._webview.release(claimant);
-			this._currentClaimant = undefined;
-			this._hostContextAutorun.clear();
-		}
-	}
-
-	/**
-	 * Layouts the webview over a placeholder element.
-	 */
-	public layoutOverElement(element: HTMLElement): void {
-		this._webview.layoutWebviewOverElement(element);
+	public retry(): void {
+		this._loadState.set({ status: 'loading' }, undefined);
+		this._loadContent();
 	}
 
 	/**
@@ -238,6 +235,9 @@ export class ChatMcpAppModel extends Disposable {
 
 			// Inject CSP into the HTML
 			const htmlWithCsp = this._injectPreamble(resourceContent);
+
+			// Reset the state
+			this._announcedCapabilities = false;
 
 			// Set the HTML content
 			this._webview.setHtml(htmlWithCsp);
