@@ -50,8 +50,10 @@ class WrappedStyleElement {
 export function createStyleSheet(container: HTMLElement = mainWindow.document.head, beforeAppend?: (style: HTMLStyleElement) => void, disposableStore?: DisposableStore): HTMLStyleElement {
 	const style = document.createElement('style');
 	style.type = 'text/css';
-	style.nonce = mainWindow.cspNonce;
 	style.media = 'screen';
+	if (mainWindow.cspNonce) {
+		style.nonce = mainWindow.cspNonce;
+	}
 	beforeAppend?.(style);
 	container.appendChild(style);
 
