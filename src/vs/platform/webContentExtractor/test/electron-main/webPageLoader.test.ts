@@ -815,6 +815,34 @@ suite('WebPageLoader', () => {
 		assert.ok(window.webContents.executeJavaScript.called);
 	}));
 
+	test('returns error when accessibility tree extraction hangs', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = URI.parse('https://example.com/page');
+		const loader = createWebPageLoader(uri);
+
+		window.webContents.debugger.sendCommand.callsFake((command: string) => {
+			switch (command) {
+				case 'Network.enable':
+					return Promise.resolve();
+				case 'Accessibility.getFullAXTree':
+					// Return a promise that never resolves to simulate hanging
+					return new Promise(() => { });
+				default:
+					assert.fail(`Unexpected command: ${command}`);
+			}
+		});
+
+		const loadPromise = loader.load();
+		window.webContents.emit('did-start-loading');
+		const result = await loadPromise;
+
+		assert.strictEqual(result.status, 'error');
+		if (result.status === 'error') {
+			assert.ok(result.error.includes('Failed to extract meaningful content'));
+		}
+		// Verify executeJavaScript was NOT called for DOM extraction
+		assert.ok(!window.webContents.executeJavaScript.called);
+	}));
+
 	test('returns error when both accessibility tree and DOM extraction yield no content', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const uri = URI.parse('https://example.com/empty-page');
 

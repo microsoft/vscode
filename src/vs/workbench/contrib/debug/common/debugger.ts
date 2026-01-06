@@ -21,6 +21,7 @@ import { cleanRemoteAuthority } from '../../../../platform/telemetry/common/tele
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { filter } from '../../../../base/common/objects.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 
 export class Debugger implements IDebugger, IDebuggerMetadata {
 
@@ -41,6 +42,7 @@ export class Debugger implements IDebugger, IDebuggerMetadata {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IDebugService private readonly debugService: IDebugService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		this.debuggerContribution = { type: dbgContribution.type };
 		this.merge(dbgContribution, extensionDescription);
@@ -226,7 +228,7 @@ export class Debugger implements IDebugger, IDebuggerMetadata {
 			return undefined;
 		}
 
-		const sendErrorTelemtry = cleanRemoteAuthority(this.environmentService.remoteAuthority) !== 'other';
+		const sendErrorTelemtry = cleanRemoteAuthority(this.environmentService.remoteAuthority, this.productService) !== 'other';
 		return {
 			id: `${this.getMainExtensionDescriptor().publisher}.${this.type}`,
 			aiKey,
