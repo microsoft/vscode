@@ -20,7 +20,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { fromNow, getDurationString } from '../../../../../base/common/date.js';
 import { FuzzyScore, createMatches } from '../../../../../base/common/filters.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
-import { allowedChatMarkdownHtmlTags } from '../chatContentMarkdownRenderer.js';
+import { allowedChatMarkdownHtmlTags } from '../widget/chatContentMarkdownRenderer.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
 import { ListViewTargetSector } from '../../../../../base/browser/ui/list/listView.js';
@@ -34,7 +34,7 @@ import { IntervalTimer } from '../../../../../base/common/async.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { Event } from '../../../../../base/common/event.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
@@ -284,26 +284,26 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 				session.element.timing.inProgressTime &&
 				session.element.timing.finishedOrFailedTime > session.element.timing.inProgressTime
 			) {
-				const duration = this.toDuration(session.element.timing.inProgressTime, session.element.timing.finishedOrFailedTime);
+				const duration = this.toDuration(session.element.timing.inProgressTime, session.element.timing.finishedOrFailedTime, false);
 
 				template.description.textContent = session.element.status === AgentSessionStatus.Failed ?
 					localize('chat.session.status.failedAfter', "Failed after {0}.", duration ?? '1s') :
-					localize('chat.session.status.completedAfter', "Finished in {0}.", duration ?? '1s');
+					localize('chat.session.status.completedAfter', "Completed in {0}.", duration ?? '1s');
 			} else {
 				template.description.textContent = session.element.status === AgentSessionStatus.Failed ?
 					localize('chat.session.status.failed', "Failed") :
-					localize('chat.session.status.completed', "Finished");
+					localize('chat.session.status.completed', "Completed");
 			}
 		}
 	}
 
-	private toDuration(startTime: number, endTime: number): string | undefined {
+	private toDuration(startTime: number, endTime: number, useFullTimeWords: boolean): string | undefined {
 		const elapsed = Math.round((endTime - startTime) / 1000) * 1000;
 		if (elapsed < 1000) {
 			return undefined;
 		}
 
-		return getDurationString(elapsed);
+		return getDurationString(elapsed, useFullTimeWords);
 	}
 
 	private renderStatus(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
@@ -311,7 +311,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		const getStatus = (session: IAgentSession) => {
 			let timeLabel: string | undefined;
 			if (session.status === AgentSessionStatus.InProgress && session.timing.inProgressTime) {
-				timeLabel = this.toDuration(session.timing.inProgressTime, Date.now());
+				timeLabel = this.toDuration(session.timing.inProgressTime, Date.now(), false);
 			}
 
 			if (!timeLabel) {
@@ -374,12 +374,12 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 		// Duration or start time
 		if (session.timing.finishedOrFailedTime && session.timing.inProgressTime) {
-			const duration = this.toDuration(session.timing.inProgressTime, session.timing.finishedOrFailedTime);
+			const duration = this.toDuration(session.timing.inProgressTime, session.timing.finishedOrFailedTime, true);
 			if (duration) {
 				details.push(duration);
 			}
 		} else {
-			details.push(fromNow(session.timing.startTime));
+			details.push(fromNow(session.timing.startTime, true, true));
 		}
 
 		lines.push(details.join(' • '));

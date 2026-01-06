@@ -38,6 +38,7 @@ import { ExtensionHostExtensions, ExtensionHostStartup, IExtensionHost, IExtensi
 import { IHostService } from '../../host/browser/host.js';
 import { ILifecycleService, WillShutdownEvent } from '../../lifecycle/common/lifecycle.js';
 import { parseExtensionDevOptions } from '../common/extensionDevOptions.js';
+import { IDefaultLogLevelsService } from '../../log/common/defaultLogLevels.js';
 
 export interface ILocalProcessExtensionHostInitData {
 	readonly extensions: ExtensionHostExtensions;
@@ -131,6 +132,7 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 		@IProductService private readonly _productService: IProductService,
 		@IShellEnvironmentService private readonly _shellEnvironmentService: IShellEnvironmentService,
 		@IExtensionHostStarter private readonly _extensionHostStarter: IExtensionHostStarter,
+		@IDefaultLogLevelsService private readonly _defaultLogLevelsService: IDefaultLogLevelsService,
 	) {
 		super();
 		const devOpts = parseExtensionDevOptions(this._environmentService);
@@ -485,7 +487,7 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
 				globalStorageHome: this._userDataProfilesService.defaultProfile.globalStorageHome,
 				workspaceStorageHome: this._environmentService.workspaceStorageHome,
-				extensionLogLevel: this._environmentService.extensionLogLevel
+				extensionLogLevel: this._defaultLogLevelsService.defaultLogLevels.extensions
 			},
 			workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {
 				configuration: workspace.configuration ?? undefined,
@@ -512,6 +514,8 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 				firstSessionDate: this._telemetryService.firstSessionDate,
 				msftInternal: this._telemetryService.msftInternal
 			},
+			remoteExtensionTips: this._productService.remoteExtensionTips,
+			virtualWorkspaceExtensionTips: this._productService.virtualWorkspaceExtensionTips,
 			logLevel: this._logService.getLevel(),
 			loggers: [...this._loggerService.getRegisteredLoggers()],
 			logsLocation: this._environmentService.extHostLogsPath,
