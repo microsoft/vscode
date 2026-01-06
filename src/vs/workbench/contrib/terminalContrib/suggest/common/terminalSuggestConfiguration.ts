@@ -111,39 +111,12 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 	[TerminalSuggestSettingId.QuickSuggestions]: {
 		restricted: true,
 		markdownDescription: localize('suggest.quickSuggestions', "Controls whether suggestions should automatically show up while typing. Also be aware of the {0}-setting which controls if suggestions are triggered by special characters.", `\`#${TerminalSuggestSettingId.SuggestOnTriggerCharacters}#\``),
-		oneOf: [
-			{
-				type: 'string',
-				enum: ['off', 'on', 'all'],
-				enumDescriptions: [
-					localize('suggest.quickSuggestions.off', 'Disable quick suggestions.'),
-					localize('suggest.quickSuggestions.on', 'Enable quick suggestions for commands and arguments.'),
-					localize('suggest.quickSuggestions.all', 'Enable quick suggestions for commands, arguments, and when unclear (shows files and folders as fallback).')
-				],
-			},
-			{
-				type: 'boolean',
-			},
-			{
-				type: 'object',
-				properties: {
-					commands: {
-						description: localize('suggest.quickSuggestions.commands', 'Enable quick suggestions for commands, the first word in a command line input.'),
-						type: 'string',
-						enum: ['off', 'on'],
-					},
-					arguments: {
-						description: localize('suggest.quickSuggestions.arguments', 'Enable quick suggestions for arguments, anything after the first word in a command line input.'),
-						type: 'string',
-						enum: ['off', 'on'],
-					},
-					unknown: {
-						description: localize('suggest.quickSuggestions.unknown', 'Enable quick suggestions when it\'s unclear what the best suggestion is, if this is on files and folders will be suggested as a fallback.'),
-						type: 'string',
-						enum: ['off', 'on'],
-					},
-				},
-			}
+		type: 'string',
+		enum: ['off', 'on', 'all'],
+		enumDescriptions: [
+			localize('suggest.quickSuggestions.off', 'Disable quick suggestions.'),
+			localize('suggest.quickSuggestions.on', 'Enable quick suggestions for commands and arguments.'),
+			localize('suggest.quickSuggestions.all', 'Enable quick suggestions for commands, arguments, and when unclear (shows files and folders as fallback).')
 		],
 		default: 'off',
 	},
