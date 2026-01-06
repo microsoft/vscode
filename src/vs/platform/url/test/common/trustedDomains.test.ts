@@ -18,6 +18,8 @@ suite('trustedDomains', () => {
 			assert.strictEqual(isURLDomainTrusted(URI.parse('http://localhost:3000'), []), true);
 			assert.strictEqual(isURLDomainTrusted(URI.parse('http://127.0.0.1:3000'), []), true);
 			assert.strictEqual(isURLDomainTrusted(URI.parse('http://subdomain.localhost'), []), true);
+			assert.strictEqual(isURLDomainTrusted(URI.parse('https://[::1]'), []), true);
+			assert.strictEqual(isURLDomainTrusted(URI.parse('http://[::1]:3000'), []), true);
 		});
 
 		test('wildcard (*) matches everything', () => {
@@ -116,11 +118,20 @@ suite('trustedDomains', () => {
 			assert.strictEqual(isLocalhostAuthority('SUB.LOCALHOST'), true);
 		});
 
+		test('recognizes IPv6 localhost [::1]', () => {
+			assert.strictEqual(isLocalhostAuthority('[::1]'), true);
+			assert.strictEqual(isLocalhostAuthority('[::1]:3000'), true);
+			assert.strictEqual(isLocalhostAuthority('[::1]:8080'), true);
+		});
+
 		test('does not match non-localhost authorities', () => {
 			assert.strictEqual(isLocalhostAuthority('example.com'), false);
 			assert.strictEqual(isLocalhostAuthority('notlocalhost.com'), false);
 			assert.strictEqual(isLocalhostAuthority('127.0.0.2'), false);
 			assert.strictEqual(isLocalhostAuthority('192.168.1.1'), false);
+			assert.strictEqual(isLocalhostAuthority('[::]'), false);
+			assert.strictEqual(isLocalhostAuthority('[::2]'), false);
+			assert.strictEqual(isLocalhostAuthority('[::1'), false);
 		});
 	});
 });
