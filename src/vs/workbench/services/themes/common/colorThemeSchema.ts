@@ -176,7 +176,7 @@ const textmateColorSchema: IJSONSchema = {
 				},
 				fontSize: {
 					type: 'number',
-					description: nls.localize('schema.token.fontSize', 'Font size multiplier for the token (e.g., 1.2 will use 1.2 times the default height).')
+					description: nls.localize('schema.token.fontSize', 'Font size multiplier for the token (e.g., 1.2 will use 1.2 times the default font size).')
 				},
 				lineHeight: {
 					type: 'number',

@@ -554,7 +554,6 @@ export class ViewModel extends Disposable implements IViewModel {
 				}
 			}
 		});
-
 		// recreate the model event using the filtered changes
 		if (filteredChanges.length > 0) {
 			const filteredEvent = new textModelEvents.ModelLineHeightChangedEvent(filteredChanges);

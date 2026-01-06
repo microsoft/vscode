@@ -137,7 +137,7 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 			const annotationEndPosition = this.textModel.getPositionAt(annotation.range.endExclusive);
 			const range = Range.fromPositions(annotationStartPosition, annotationEndPosition);
 			const anno = annotation.annotation;
-			const defaultFontSize = this.configurationService.getValue<number>('editor.fontSize');
+			const defaultFontSize = this.configurationService.getValue<number>('editor.fontSize') ?? 0;
 			const className = classNameForFontTokenDecorations(anno.fontToken.fontFamily ?? '', anno.fontToken.fontSizeMultiplier ? anno.fontToken.fontSizeMultiplier * defaultFontSize : 0);
 			const affectsFont = !!(anno.fontToken.fontFamily || anno.fontToken.fontSizeMultiplier);
 			const id = anno.decorationId;
