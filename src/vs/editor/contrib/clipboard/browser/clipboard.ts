@@ -318,11 +318,13 @@ if (PasteAction) {
 
 			logService.trace('registerExecCommandImpl (before triggerPaste)');
 			PasteOptions.electronBugWorkaroundPasteEventHasFired = false;
+			logService.trace('(before triggerPaste) PasteOptions.electronBugWorkaroundPasteEventHasFired : ', PasteOptions.electronBugWorkaroundPasteEventHasFired);
 			const triggerPaste = clipboardService.triggerPaste(getActiveWindow().vscodeWindowId);
 			if (triggerPaste) {
 				logService.trace('registerExecCommandImpl (triggerPaste defined)');
 				PasteOptions.electronBugWorkaroundPasteEventLock = false;
 				return triggerPaste.then(async () => {
+					logService.trace('(triggerPaste) PasteOptions.electronBugWorkaroundPasteEventHasFired : ', PasteOptions.electronBugWorkaroundPasteEventHasFired);
 					if (PasteOptions.electronBugWorkaroundPasteEventHasFired === false) {
 						// Ensure this doesn't run twice, what appears to be happening is
 						// triggerPasteis called once but it's handler is called multiple times
