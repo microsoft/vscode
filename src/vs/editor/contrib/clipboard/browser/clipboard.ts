@@ -323,7 +323,11 @@ if (PasteAction) {
 			if (triggerPaste) {
 				logService.trace('registerExecCommandImpl (triggerPaste defined)');
 				PasteOptions.electronBugWorkaroundPasteEventLock = false;
-				return triggerPaste.then(async () => {
+				const copyPasteController = CopyPasteController.get(focusedEditor);
+				if (!copyPasteController) {
+					return Promise.resolve();
+				}
+				return copyPasteController.finishedPaste().then(async () => {
 					logService.trace('(triggerPaste) PasteOptions.electronBugWorkaroundPasteEventHasFired : ', PasteOptions.electronBugWorkaroundPasteEventHasFired);
 					if (PasteOptions.electronBugWorkaroundPasteEventHasFired === false) {
 						// Ensure this doesn't run twice, what appears to be happening is
@@ -337,7 +341,7 @@ if (PasteAction) {
 						return pasteWithNavigatorAPI(focusedEditor, clipboardService, logService);
 					}
 					logService.trace('registerExecCommandImpl (after triggerPaste)');
-					return CopyPasteController.get(focusedEditor)?.finishedPaste() ?? Promise.resolve();
+					return Promise.resolve();
 				});
 			} else {
 				logService.trace('registerExecCommandImpl (triggerPaste undefined)');
