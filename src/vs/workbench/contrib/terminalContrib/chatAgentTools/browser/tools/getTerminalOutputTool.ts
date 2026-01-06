@@ -51,7 +51,7 @@ export class GetTerminalOutputTool extends Disposable implements IToolImpl {
 			return {
 				content: [{
 					kind: 'text',
-					value: localize('getTerminalOutputTool.noTerminal', "No background terminal found for ID={0}. It may have completed or been canceled.", args.id)
+					value: localize('getTerminalOutputTool.noTerminal', "No background terminal found for ID `{0}`. It may have completed or been canceled.", args.id)
 				}]
 			};
 		}
