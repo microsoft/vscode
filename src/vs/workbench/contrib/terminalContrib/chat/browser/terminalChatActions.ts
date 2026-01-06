@@ -11,9 +11,9 @@ import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../p
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ChatViewId, IChatWidgetService } from '../../../chat/browser/chat.js';
-import { ChatContextKeys } from '../../../chat/common/chatContextKeys.js';
-import { IChatService } from '../../../chat/common/chatService.js';
-import { LocalChatSessionUri } from '../../../chat/common/chatUri.js';
+import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
+import { IChatService } from '../../../chat/common/chatService/chatService.js';
+import { LocalChatSessionUri } from '../../../chat/common/model/chatUri.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../chat/common/constants.js';
 import { AbstractInline1ChatAction } from '../../../inlineChat/browser/inlineChatActions.js';
 import { isDetachedTerminalInstance, ITerminalChatService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../terminal/browser/terminal.js';
@@ -379,16 +379,10 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 			const chatSessionId = terminalChatService.getChatSessionIdForInstance(instance);
 			let chatSessionTitle: string | undefined;
 			if (chatSessionId) {
-				const sessionUri = LocalChatSessionUri.forSession(chatSessionId);
-				// Try to get title from active session first, then fall back to persisted title
-				chatSessionTitle = chatService.getSession(sessionUri)?.title || chatService.getPersistedSessionTitle(sessionUri);
+				chatSessionTitle = chatService.getSessionTitle(LocalChatSessionUri.forSession(chatSessionId));
 			}
 
-			let description: string | undefined;
-			if (chatSessionTitle) {
-				description = `${chatSessionTitle}`;
-			}
-
+			const description = chatSessionTitle;
 			let detail: string | undefined;
 			let tooltip: string | IMarkdownString | undefined;
 			if (lastCommand) {

@@ -101,6 +101,7 @@ export function computePasteData(e: ClipboardEvent, context: ViewContext, logSer
 		return;
 	}
 	PasteOptions.electronBugWorkaroundPasteEventHasFired = true;
+	logService.trace('(computePasteData) PasteOptions.electronBugWorkaroundPasteEventHasFired : ', PasteOptions.electronBugWorkaroundPasteEventHasFired);
 	metadata = metadata || InMemoryClipboardMetadataManager.INSTANCE.get(text);
 	return getPasteDataFromMetadata(text, metadata, context);
 }
@@ -168,7 +169,8 @@ export const CopyOptions = {
 };
 
 export const PasteOptions = {
-	electronBugWorkaroundPasteEventHasFired: false
+	electronBugWorkaroundPasteEventHasFired: false,
+	electronBugWorkaroundPasteEventLock: false
 };
 
 interface InMemoryClipboardMetadata {

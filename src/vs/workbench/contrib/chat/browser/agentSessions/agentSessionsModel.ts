@@ -474,7 +474,7 @@ interface ISerializedAgentSession extends Omit<IAgentSessionData, 'iconPath' | '
 	readonly providerType: string;
 	readonly providerLabel: string;
 
-	readonly resource: UriComponents;
+	readonly resource: UriComponents /* old shape */ | string /* new shape that is more compact */;
 
 	readonly status: AgentSessionStatus;
 
@@ -500,7 +500,7 @@ interface ISerializedAgentSession extends Omit<IAgentSessionData, 'iconPath' | '
 }
 
 interface ISerializedAgentSessionState extends IAgentSessionState {
-	readonly resource: UriComponents;
+	readonly resource: UriComponents /* old shape */ | string /* new shape that is more compact */;
 }
 
 class AgentSessionsCache {
@@ -519,7 +519,7 @@ class AgentSessionsCache {
 			providerType: session.providerType,
 			providerLabel: session.providerLabel,
 
-			resource: session.resource.toJSON(),
+			resource: session.resource.toString(),
 
 			icon: session.icon.id,
 			label: session.label,
@@ -553,7 +553,7 @@ class AgentSessionsCache {
 				providerType: session.providerType,
 				providerLabel: session.providerLabel,
 
-				resource: URI.revive(session.resource),
+				resource: typeof session.resource === 'string' ? URI.parse(session.resource) : URI.revive(session.resource),
 
 				icon: ThemeIcon.fromId(session.icon),
 				label: session.label,
@@ -587,7 +587,7 @@ class AgentSessionsCache {
 
 	saveSessionStates(states: ResourceMap<IAgentSessionState>): void {
 		const serialized: ISerializedAgentSessionState[] = Array.from(states.entries()).map(([resource, state]) => ({
-			resource: resource.toJSON(),
+			resource: resource.toString(),
 			archived: state.archived,
 			read: state.read
 		}));
@@ -607,7 +607,7 @@ class AgentSessionsCache {
 			const cached = JSON.parse(statesCache) as ISerializedAgentSessionState[];
 
 			for (const entry of cached) {
-				states.set(URI.revive(entry.resource), {
+				states.set(typeof entry.resource === 'string' ? URI.parse(entry.resource) : URI.revive(entry.resource), {
 					archived: entry.archived,
 					read: entry.read
 				});

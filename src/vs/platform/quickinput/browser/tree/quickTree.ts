@@ -36,11 +36,12 @@ export class QuickTree<T extends IQuickTreeItem> extends QuickInput implements I
 	private readonly _onDidChangeCheckboxState = this._register(new Emitter<T>());
 	readonly onDidChangeCheckboxState: Event<T> = this._onDidChangeCheckboxState.event;
 
+	private readonly _onDidAcceptEmitter = this._register(new Emitter<void>());
 	readonly onDidAccept: Event<void>;
 
 	constructor(ui: QuickInputUI) {
 		super(ui);
-		this.onDidAccept = ui.onDidAccept;
+		this.onDidAccept = Event.any(ui.onDidAccept, this._onDidAcceptEmitter.event);
 		this._registerAutoruns();
 		this._register(ui.tree.onDidChangeCheckedLeafItems(e => this._onDidChangeCheckedLeafItems.fire(e as T[])));
 		this._register(ui.tree.onDidChangeCheckboxState(e => this._onDidChangeCheckboxState.fire(e.item as T)));
@@ -90,9 +91,6 @@ export class QuickTree<T extends IQuickTreeItem> extends QuickInput implements I
 		return this.ui.tree.tree.getParentElement(element) as T ?? undefined;
 	}
 
-	setCheckboxState(element: T, checked: boolean | 'mixed'): void {
-		this.ui.tree.check(element, checked);
-	}
 	expand(element: T): void {
 		this.ui.tree.tree.expand(element);
 	}
@@ -243,7 +241,6 @@ export class QuickTree<T extends IQuickTreeItem> extends QuickInput implements I
 	 * @param inBackground Whether you are accepting an item in the background and keeping the picker open.
 	 */
 	accept(_inBackground?: boolean): void {
-		// No-op for now since we expect only multi-select quick trees which don't need
-		// the speed of accept.
+		this._onDidAcceptEmitter.fire();
 	}
 }
