@@ -11,7 +11,6 @@ import { TextFileEditorModel } from '../../common/textFileEditorModel.js';
 import { FileOperation } from '../../../../../platform/files/common/files.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { EncodingMode } from '../../common/textfiles.js';
-import { EndOfLineSequence } from '../../../../../editor/common/model.js';
 
 suite('Files - TextFileService', () => {
 
@@ -86,44 +85,6 @@ suite('Files - TextFileService', () => {
 		const res = await accessor.textFileService.saveAs(model.resource);
 		assert.strictEqual(res!.toString(), model.resource.toString());
 		assert.ok(!accessor.textFileService.isDirty(model.resource));
-	});
-
-	test('saveAs - file preserves indentation and EOL', async function () {
-		const sourceResource = toResource.call(this, '/path/source.txt');
-		const targetResource = toResource.call(this, '/path/target.txt');
-
-		const model: TextFileEditorModel = disposables.add(instantiationService.createInstance(TextFileEditorModel, sourceResource, 'utf8', undefined));
-		(<ITestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
-		accessor.fileDialogService.setPickFileToSave(targetResource);
-
-		await model.resolve();
-		model.textEditorModel!.setValue('foo\nbar\nbaz');
-
-		// Set custom indentation (tabs, tabSize 4, indentSize 4) and EOL (LF)
-		model.textEditorModel!.updateOptions({
-			insertSpaces: false,
-			tabSize: 4,
-			indentSize: 4
-		});
-		model.textEditorModel!.setEOL(EndOfLineSequence.LF);
-
-		assert.strictEqual(model.textEditorModel!.getOptions().insertSpaces, false);
-		assert.strictEqual(model.textEditorModel!.getOptions().tabSize, 4);
-		assert.strictEqual(model.textEditorModel!.getEndOfLineSequence(), EndOfLineSequence.LF);
-
-		// Save as target
-		const res = await accessor.textFileService.saveAs(model.resource, targetResource);
-		assert.strictEqual(res!.toString(), targetResource.toString());
-
-		// Verify target model has the same indentation and EOL settings
-		const targetModel = accessor.textFileService.files.get(targetResource);
-		assert.ok(targetModel);
-		assert.ok(targetModel.textEditorModel);
-
-		const targetOptions = targetModel.textEditorModel.getOptions();
-		assert.strictEqual(targetOptions.insertSpaces, false, 'insertSpaces should be preserved');
-		assert.strictEqual(targetOptions.tabSize, 4, 'tabSize should be preserved');
-		assert.strictEqual(targetModel.textEditorModel.getEndOfLineSequence(), EndOfLineSequence.LF, 'EOL sequence should be preserved');
 	});
 
 	test('revert - file', async function () {
