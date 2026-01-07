@@ -207,15 +207,29 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 * Converts cached resources to IPromptPath entries.
 	 */
 	private cachedResourcesToPromptPaths(cached: ICachedPromptFileResource[], extension: IExtensionDescription, type: PromptsType): IExtensionPromptPath[] {
-		return cached.map(r => ({
-			uri: URI.parse(r.uri),
-			name: r.name,
-			description: r.description,
-			storage: PromptsStorage.extension,
-			type,
-			extension,
-			source: ExtensionAgentSourceType.provider
-		} satisfies IExtensionPromptPath));
+		const result: IExtensionPromptPath[] = [];
+
+		for (const r of cached) {
+			let uri: URI;
+			try {
+				uri = URI.parse(r.uri);
+			} catch (error) {
+				this.logService.warn('Failed to parse cached prompt file URI', r.uri, error);
+				continue;
+			}
+
+			result.push({
+				uri,
+				name: r.name,
+				description: r.description,
+				storage: PromptsStorage.extension,
+				type,
+				extension,
+				source: ExtensionAgentSourceType.provider
+			} satisfies IExtensionPromptPath);
+		}
+
+		return result;
 	}
 
 	/**
