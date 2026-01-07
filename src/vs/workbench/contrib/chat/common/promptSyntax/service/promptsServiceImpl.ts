@@ -310,6 +310,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 		if (activationEvent) {
 			const providerFiles = await this.listFromProviders(type, activationEvent, token);
 			return [...contributedFiles, ...providerFiles];
+		} else {
+			this.logger.warn(`[getExtensionPromptFiles] No activation event found for prompt type: ${type}`);
 		}
 
 		return contributedFiles;
