@@ -453,7 +453,8 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		this._loadingTimeout?.dispose();
 
 		const selectionMode = this._options?.selectionModeSettingId ? this._configurationService.getValue<SuggestSelectionMode>(this._options.selectionModeSettingId) : undefined;
-		const noFocus = selectionMode === SuggestSelectionMode.Never;
+		// When explicitly invoked (not auto), always select the first item regardless of selectionMode
+		const noFocus = !this._explicitlyInvoked && selectionMode === SuggestSelectionMode.Never;
 
 		// this._currentSuggestionDetails?.cancel();
 		// this._currentSuggestionDetails = undefined;
@@ -694,6 +695,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		this._loadingTimeout?.dispose();
 		this._ctxSuggestWidgetHasBeenNavigated.reset();
 		this._ctxFirstSuggestionFocused.reset();
+		this._explicitlyInvoked = false;
 		this._setState(State.Hidden);
 		this._onDidHide.fire(this);
 		dom.hide(this.element.domNode);
