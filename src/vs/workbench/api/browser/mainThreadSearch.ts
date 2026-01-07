@@ -37,6 +37,7 @@ export class MainThreadSearch implements MainThreadSearchShape {
 	dispose(): void {
 		this._searchProvider.forEach(value => value.dispose());
 		this._searchProvider.clear();
+		this._aiSearchProviderHandles.clear();
 		Constants.SearchContext.hasAIResultProvider.bindTo(this.contextKeyService).set(false);
 	}
 
