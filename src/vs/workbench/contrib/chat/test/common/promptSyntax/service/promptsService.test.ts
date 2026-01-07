@@ -36,7 +36,7 @@ import { ComputeAutomaticInstructions, newInstructionsCollectionEvent } from '..
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
 import { INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
-import { ExtensionAgentSourceType, ICustomAgent, IChatContributionQueryOptions, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { ExtensionAgentSourceType, ICustomAgent, IPromptFileQueryOptions, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
 import { mockFiles } from '../testUtils/mockFilesystem.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../../platform/storage/common/storage.js';
@@ -1103,7 +1103,7 @@ suite('PromptsService', () => {
 			]);
 
 			const provider = {
-				provideContributions: async (_options: IChatContributionQueryOptions, _token: CancellationToken) => {
+				provideContributions: async (_options: IPromptFileQueryOptions, _token: CancellationToken) => {
 					return [
 						{
 							name: 'myAgent',
@@ -1114,7 +1114,7 @@ suite('PromptsService', () => {
 				}
 			};
 
-			const registered = service.registerContributionsProvider(extension, PromptsType.agent, provider);
+			const registered = service.registerPromptFileProvider(extension, PromptsType.agent, provider);
 
 			const actual = await service.getCustomAgents(CancellationToken.None);
 			assert.strictEqual(actual.length, 1);
@@ -1164,7 +1164,7 @@ suite('PromptsService', () => {
 			]);
 
 			const provider = {
-				provideContributions: async (_options: IChatContributionQueryOptions, _token: CancellationToken) => {
+				provideContributions: async (_options: IPromptFileQueryOptions, _token: CancellationToken) => {
 					return [
 						{
 							name: 'readonlyAgent',
@@ -1182,7 +1182,7 @@ suite('PromptsService', () => {
 				}
 			};
 
-			const registered = service.registerContributionsProvider(extension, PromptsType.agent, provider);
+			const registered = service.registerPromptFileProvider(extension, PromptsType.agent, provider);
 
 			// Spy on updateReadonly to verify it's called correctly
 			const filesConfigService = instaService.get(IFilesConfigurationService);
@@ -1279,7 +1279,7 @@ suite('PromptsService', () => {
 		]);
 
 		const provider = {
-			provideContributions: async (_options: IChatContributionQueryOptions, _token: CancellationToken) => {
+			provideContributions: async (_options: IPromptFileQueryOptions, _token: CancellationToken) => {
 				return [
 					{
 						name: 'testInstruction',
@@ -1290,7 +1290,7 @@ suite('PromptsService', () => {
 			}
 		};
 
-		const registered = service.registerContributionsProvider(extension, PromptsType.instructions, provider);
+		const registered = service.registerPromptFileProvider(extension, PromptsType.instructions, provider);
 
 		const actual = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
 		const providerInstruction = actual.find(i => i.name === 'testInstruction');
@@ -1335,7 +1335,7 @@ suite('PromptsService', () => {
 		]);
 
 		const provider = {
-			provideContributions: async (_options: IChatContributionQueryOptions, _token: CancellationToken) => {
+			provideContributions: async (_options: IPromptFileQueryOptions, _token: CancellationToken) => {
 				return [
 					{
 						name: 'readonlyInstruction',
@@ -1353,7 +1353,7 @@ suite('PromptsService', () => {
 			}
 		};
 
-		const registered = service.registerContributionsProvider(extension, PromptsType.instructions, provider);
+		const registered = service.registerPromptFileProvider(extension, PromptsType.instructions, provider);
 
 		// Spy on updateReadonly to verify it's called correctly
 		const filesConfigService = instaService.get(IFilesConfigurationService);

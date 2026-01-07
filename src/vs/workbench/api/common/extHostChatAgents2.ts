@@ -35,7 +35,7 @@ import { ExtHostLanguageModels } from './extHostLanguageModels.js';
 import { ExtHostLanguageModelTools } from './extHostLanguageModelTools.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
-import { IChatContributionQueryOptions, IChatContributionResource } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
+import { IPromptFileQueryOptions, IPromptFileResource } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors.js';
 
 export class ChatAgentResponseStream {
@@ -500,7 +500,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 		if (changeEvent) {
 			disposables.add(changeEvent(() => {
-				this._proxy.$onDidChangeContributions(handle);
+				this._proxy.$onDidChangePromptFiles(handle);
 			}));
 		}
 
@@ -522,7 +522,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return await provider.provider.provideRelatedFiles(extRequestDraft, token) ?? undefined;
 	}
 
-	async $provideContributions(handle: number, options: IChatContributionQueryOptions, token: CancellationToken): Promise<IChatContributionResource[] | undefined> {
+	async $provideContributions(handle: number, options: IPromptFileQueryOptions, token: CancellationToken): Promise<IPromptFileResource[] | undefined> {
 		const providerData = this._promptFileProviders.get(handle);
 		if (!providerData) {
 			return Promise.resolve(undefined);

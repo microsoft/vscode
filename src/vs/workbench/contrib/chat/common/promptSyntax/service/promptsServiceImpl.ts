@@ -32,7 +32,7 @@ import { getCleanPromptName } from '../config/promptFileLocations.js';
 import { PROMPT_LANGUAGE_ID, PromptsType, getPromptsTypeForLanguageId } from '../promptTypes.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
-import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IAgentSkill, IUserPromptPath, PromptsStorage, ExtensionAgentSourceType, CHAT_CONTRIBUTIONS_PROVIDER_ACTIVATION_EVENT, IChatContributionQueryOptions, IChatContributionResource } from './promptsService.js';
+import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IAgentSkill, IUserPromptPath, PromptsStorage, ExtensionAgentSourceType, CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT, IPromptFileQueryOptions, IPromptFileResource } from './promptsService.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 
@@ -165,22 +165,25 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	/**
-	 * Registry of ChatContributionsProvider instances. Extensions can register providers via the proposed API.
+	 * Registry of prompt file provider instances (custom agents, instructions, prompt files).
+	 * Extensions can register providers via the proposed API.
 	 */
 	private readonly contributionsProviders: Array<{
 		extension: IExtensionDescription;
 		type: PromptsType;
 		onDidChangeContributions?: Event<void>;
-		provideContributions: (options: IChatContributionQueryOptions, token: CancellationToken) => Promise<IChatContributionResource[] | undefined>;
+		provideContributions: (options: IPromptFileQueryOptions, token: CancellationToken) => Promise<IPromptFileResource[] | undefined>;
 	}> = [];
 
 	/**
-	 * Registers a ChatContributionsProvider. This will be called by the extension host bridge when
-	 * an extension registers a provider via vscode.chat.registerContributionsProvider().
+	 * Registers a prompt file provider (CustomAgentProvider, InstructionsProvider, or PromptFileProvider).
+	 * This will be called by the extension host bridge when
+	 * an extension registers a provider via vscode.chat.registerCustomAgentProvider(),
+	 * registerInstructionsProvider(), or registerPromptFileProvider().
 	 */
-	public registerContributionsProvider(extension: IExtensionDescription, type: PromptsType, provider: {
+	public registerPromptFileProvider(extension: IExtensionDescription, type: PromptsType, provider: {
 		onDidChangeContributions?: Event<void>;
-		provideContributions: (options: IChatContributionQueryOptions, token: CancellationToken) => Promise<IChatContributionResource[] | undefined>;
+		provideContributions: (options: IPromptFileQueryOptions, token: CancellationToken) => Promise<IPromptFileResource[] | undefined>;
 	}): IDisposable {
 		const providerEntry = { extension, type, ...provider };
 		this.contributionsProviders.push(providerEntry);
@@ -229,7 +232,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const result: IPromptPath[] = [];
 
 		// Activate extensions that might provide custom agents
-		await this.extensionService.activateByEvent(CHAT_CONTRIBUTIONS_PROVIDER_ACTIVATION_EVENT);
+		await this.extensionService.activateByEvent(CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT);
 
 		const providers = this.contributionsProviders.filter(p => p.type === PromptsType.agent);
 		if (providers.length === 0) {
@@ -276,7 +279,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const result: IPromptPath[] = [];
 
 		// Activate extensions that might provide instructions
-		await this.extensionService.activateByEvent(CHAT_CONTRIBUTIONS_PROVIDER_ACTIVATION_EVENT);
+		await this.extensionService.activateByEvent(INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT);
 
 		const providers = this.contributionsProviders.filter(p => p.type === PromptsType.instructions);
 		if (providers.length === 0) {

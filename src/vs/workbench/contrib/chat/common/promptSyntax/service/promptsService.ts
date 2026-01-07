@@ -16,19 +16,21 @@ import { IHandOff, ParsedPromptFile } from '../promptFileParser.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 
 /**
- * Activation event for chat contributions providers.
+ * Activation events for prompt file providers.
  */
-export const CHAT_CONTRIBUTIONS_PROVIDER_ACTIVATION_EVENT = 'onChatContributionsProvider';
+export const CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT = 'onCustomAgentProvider';
+export const INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT = 'onInstructionsProvider';
+export const PROMPT_FILE_PROVIDER_ACTIVATION_EVENT = 'onPromptFileProvider';
 
 /**
- * Options for querying chat contributions.
+ * Options for querying prompt files.
  */
-export interface IChatContributionQueryOptions { }
+export interface IPromptFileQueryOptions { }
 
 /**
- * Represents a chat contribution resource from an external provider.
+ * Represents a prompt file resource from an external provider.
  */
-export interface IChatContributionResource {
+export interface IPromptFileResource {
 	/**
 	 * The unique identifier/name of the custom agent resource.
 	 */
@@ -316,16 +318,17 @@ export interface IPromptsService extends IDisposable {
 	setDisabledPromptFiles(type: PromptsType, uris: ResourceSet): void;
 
 	/**
-	 * Registers a ChatContributionsProvider that can provide chat contributions for repositories.
+	 * Registers a prompt file provider (CustomAgentProvider, InstructionsProvider, or PromptFileProvider)
+	 * that can provide prompt files for repositories.
 	 * This is part of the proposed API and requires the chatParticipantPrivate proposal.
 	 * @param extension The extension registering the provider.
-	 * @param type The type of contribution (e.g. 'instruction', 'custom agent', 'prompt').
+	 * @param type The type of contribution (e.g. 'agent', 'instructions', 'prompt').
 	 * @param provider The provider implementation with optional change event.
 	 * @returns A disposable that unregisters the provider when disposed.
 	 */
-	registerContributionsProvider(extension: IExtensionDescription, type: PromptsType, provider: {
+	registerPromptFileProvider(extension: IExtensionDescription, type: PromptsType, provider: {
 		onDidChangeContributions?: Event<void>;
-		provideContributions: (options: IChatContributionQueryOptions, token: CancellationToken) => Promise<IChatContributionResource[] | undefined>;
+		provideContributions: (options: IPromptFileQueryOptions, token: CancellationToken) => Promise<IPromptFileResource[] | undefined>;
 	}): IDisposable;
 
 	/**

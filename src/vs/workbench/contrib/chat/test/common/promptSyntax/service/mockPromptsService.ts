@@ -11,7 +11,7 @@ import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { IExtensionDescription } from '../../../../../../../platform/extensions/common/extensions.js';
 import { PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
 import { ParsedPromptFile } from '../../../../common/promptSyntax/promptFileParser.js';
-import { IAgentSkill, ICustomAgent, IChatContributionQueryOptions, IChatContributionResource, IPromptPath, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { IAgentSkill, ICustomAgent, IPromptFileQueryOptions, IPromptFileResource, IPromptPath, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { ResourceSet } from '../../../../../../../base/common/map.js';
 
 export class MockPromptsService implements IPromptsService {
@@ -60,7 +60,7 @@ export class MockPromptsService implements IPromptsService {
 	getAgentFileURIFromModeFile(oldURI: URI): URI | undefined { throw new Error('Not implemented'); }
 	getDisabledPromptFiles(type: PromptsType): ResourceSet { throw new Error('Method not implemented.'); }
 	setDisabledPromptFiles(type: PromptsType, uris: ResourceSet): void { throw new Error('Method not implemented.'); }
-	registerContributionsProvider(extension: IExtensionDescription, type: PromptsType, provider: { provideContributions: (options: IChatContributionQueryOptions, token: CancellationToken) => Promise<IChatContributionResource[] | undefined> }): IDisposable { throw new Error('Method not implemented.'); }
+	registerPromptFileProvider(extension: IExtensionDescription, type: PromptsType, provider: { provideContributions: (options: IPromptFileQueryOptions, token: CancellationToken) => Promise<IPromptFileResource[] | undefined> }): IDisposable { throw new Error('Method not implemented.'); }
 	findAgentSkills(token: CancellationToken): Promise<IAgentSkill[] | undefined> { throw new Error('Method not implemented.'); }
 	dispose(): void { }
 }

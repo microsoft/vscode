@@ -26,7 +26,7 @@ import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIde
 import { IChatWidgetService } from '../../contrib/chat/browser/chat.js';
 import { AddDynamicVariableAction, IAddDynamicVariableContext } from '../../contrib/chat/browser/attachments/chatDynamicVariables.js';
 import { IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../contrib/chat/common/participants/chatAgents.js';
-import { IChatContributionQueryOptions, IPromptsService } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
+import { IPromptFileQueryOptions, IPromptsService } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { isValidPromptType } from '../../contrib/chat/common/promptSyntax/promptTypes.js';
 import { IChatEditingService, IChatRelatedFileProviderMetadata } from '../../contrib/chat/common/editing/chatEditingService.js';
 import { IChatModel } from '../../contrib/chat/common/model/chatModel.js';
@@ -439,7 +439,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 	async $registerPromptFileProvider(handle: number, type: string, extensionId: ExtensionIdentifier): Promise<void> {
 		const extension = await this._extensionService.getExtension(extensionId.value);
 		if (!extension) {
-			this._logService.error(`[MainThreadChatAgents2] Could not find extension for ChatContributionsProvider: ${extensionId.value}`);
+			this._logService.error(`[MainThreadChatAgents2] Could not find extension for prompt file provider: ${extensionId.value}`);
 			return;
 		}
 
@@ -451,9 +451,9 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		const emitter = new Emitter<void>();
 		this._promptFileProviderEmitters.set(handle, emitter);
 
-		const disposable = this._promptsService.registerContributionsProvider(extension, type, {
+		const disposable = this._promptsService.registerPromptFileProvider(extension, type, {
 			onDidChangeContributions: emitter.event,
-			provideContributions: async (options: IChatContributionQueryOptions, token: CancellationToken) => {
+			provideContributions: async (options: IPromptFileQueryOptions, token: CancellationToken) => {
 				const contributions = await this._proxy.$provideContributions(handle, options, token);
 				if (!contributions) {
 					return undefined;
@@ -474,7 +474,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._promptFileProviderEmitters.deleteAndDispose(handle);
 	}
 
-	$onDidChangeContributions(handle: number): void {
+	$onDidChangePromptFiles(handle: number): void {
 		const emitter = this._promptFileProviderEmitters.get(handle);
 		if (emitter) {
 			emitter.fire();
