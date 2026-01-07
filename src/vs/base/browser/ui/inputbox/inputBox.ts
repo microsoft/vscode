@@ -202,12 +202,6 @@ export class InputBox extends Widget {
 		this.onblur(this.input, () => this.onBlur());
 		this.onfocus(this.input, () => this.onFocus());
 
-		if (this.options.hideHoverOnKeyDown) {
-			this._register(dom.addDisposableListener(this.input, dom.EventType.KEY_DOWN, () => {
-				getBaseLayerHoverDelegate().hideHover();
-			}));
-		}
-
 		this._register(this.ignoreGesture(this.input));
 
 		setTimeout(() => this.updateMirror(), 0);
@@ -575,6 +569,10 @@ export class InputBox extends Widget {
 
 		if (this.state === 'open' && this.contextViewProvider) {
 			this.contextViewProvider.layout();
+		}
+
+		if (this.options.hideHoverOnKeyDown) {
+			getBaseLayerHoverDelegate().hideHover();
 		}
 	}
 
