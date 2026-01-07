@@ -57,9 +57,9 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			const untitledString = untitledTextModel?.textEditorModel?.getValue();
 			const untitledDocumentData = untitledString ? VSBuffer.fromString(untitledString) : undefined;
 
-			// If we're taking over an untitled text editor, mark its content as transferred
-			// so it's no longer tracked as a dirty working copy (fixes #125293).
-			untitledTextModel?.markContentTransferred();
+			// If we're taking over an untitled text editor, revert it so it's no longer
+			// tracked as a dirty working copy (fixes #125293).
+			untitledTextModel?.revert();
 
 			const webview = accessor.get(IWebviewService).createWebviewOverlay({
 				providedViewType: init.viewType,
