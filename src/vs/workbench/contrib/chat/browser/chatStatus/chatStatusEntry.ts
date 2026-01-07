@@ -83,7 +83,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		this._register(this.editorService.onDidActiveEditorChange(() => this.onDidActiveEditorChange()));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(product.defaultChatAgent.completionsEnablementSetting)) {
+			if (e.affectsConfiguration(product.defaultChatAgent?.completionsEnablementSetting)) {
 				this.update();
 			}
 		}));
