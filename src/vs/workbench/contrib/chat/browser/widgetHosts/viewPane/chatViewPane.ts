@@ -750,7 +750,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const newModelRef = await this.chatService.loadSessionForResource(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
 			clearWidget.dispose();
 			await queue;
-			return this.showModel(newModelRef);
+
+			const chatModel = await this.showModel(newModelRef);
+			if (chatModel) {
+				this._widget.input.setWorkingSetCollapsed(false);
+			}
+
+			return chatModel;
 		});
 	}
 
