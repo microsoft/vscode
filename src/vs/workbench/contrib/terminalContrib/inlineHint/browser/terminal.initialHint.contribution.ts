@@ -81,7 +81,7 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 	static get(instance: ITerminalInstance | IDetachedTerminalInstance): TerminalInitialHintContribution | null {
 		return instance.getContribution<TerminalInitialHintContribution>(TerminalInitialHintContribution.ID);
 	}
-	private _decoration: IDecoration | undefined;
+	private readonly _decoration = this._register(new MutableDisposable<IDecoration>());
 	private _xterm: IXtermTerminal & { raw: RawXtermTerminal } | undefined;
 	private readonly _cursorMoveListener = this._register(new MutableDisposable());
 
@@ -112,8 +112,7 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 	private _disposeHint(): void {
 		this._hintWidget?.remove();
 		this._hintWidget = undefined;
-		this._decoration?.dispose();
-		this._decoration = undefined;
+		this._decoration.clear();
 	}
 
 	private _createHint(): void {
@@ -127,7 +126,7 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 			return;
 		}
 
-		if (!this._decoration) {
+		if (!this._decoration.value) {
 			const marker = this._xterm.raw.registerMarker();
 			if (!marker) {
 				return;
@@ -137,19 +136,13 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 				return;
 			}
 			this._register(marker);
-			this._decoration = this._xterm.raw.registerDecoration({
+			this._decoration.value = this._xterm.raw.registerDecoration({
 				marker,
 				x: this._xterm.raw.buffer.active.cursorX + 1,
 			});
-			if (this._decoration) {
-				this._register(this._decoration);
-			}
 		}
 
-		this._register(this._xterm.raw.onKey(() => {
-			this._cursorMoveListener.clear();
-			this.dispose();
-		}));
+		this._register(this._xterm.raw.onKey(() => this.dispose()));
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TerminalInitialHintSettingId.Enabled) && !this._configurationService.getValue(TerminalInitialHintSettingId.Enabled)) {
@@ -161,7 +154,6 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 		if (inputModel) {
 			this._register(inputModel.onDidChangeInput(() => {
 				if (inputModel.value) {
-					this._cursorMoveListener.clear();
 					this.dispose();
 				}
 			}));
@@ -176,11 +168,10 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 			}
 		});
 
-		if (!this._decoration) {
+		if (!this._decoration.value) {
 			return;
 		}
-		this._register(this._decoration);
-		this._register(this._decoration.onRender((e) => {
+		this._register(this._decoration.value.onRender((e) => {
 			if (!this._hintWidget && this._xterm?.isFocused) {
 				const widget = this._register(this._instantiationService.createInstance(TerminalInitialHintWidget, instance));
 				this._addon?.dispose();
