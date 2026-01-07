@@ -6,14 +6,27 @@
 import * as playwright from '@playwright/test';
 import type { Protocol } from 'playwright-core/types/protocol';
 import { dirname, join } from 'path';
-import { promises } from 'fs';
+import { promises, readFileSync } from 'fs';
 import { IWindowDriver } from './driver';
 import { measureAndLog } from './logger';
 import { LaunchOptions } from './code';
 import { teardown } from './processes';
 import { ChildProcess } from 'child_process';
+import type { AxeResults, RunOptions } from 'axe-core';
+
+// Load axe-core source for injection into pages (works with Electron)
+const axeSource = readFileSync(require.resolve('axe-core/axe.min.js'), 'utf-8');
 
 type PageFunction<Arg, T> = (arg: Arg) => T | Promise<T>;
+
+export interface AccessibilityScanOptions {
+	/** Specific selector to scan. If not provided, scans the entire page. */
+	selector?: string;
+	/** WCAG tags to include (e.g., 'wcag2a', 'wcag2aa', 'wcag21aa'). Defaults to WCAG 2.1 AA. */
+	tags?: string[];
+	/** Rule IDs to disable for this scan. */
+	disableRules?: string[];
+}
 
 export class PlaywrightDriver {
 
@@ -336,8 +349,88 @@ export class PlaywrightDriver {
 			return false;
 		}
 	}
+
+	/**
+	 * Run an accessibility scan on the current page using axe-core.
+	 * Uses direct script injection to work with Electron.
+	 * @param options Configuration options for the accessibility scan.
+	 * @returns The axe-core scan results including any violations found.
+	 */
+	async runAccessibilityScan(options?: AccessibilityScanOptions): Promise<AxeResults> {
+		// Inject axe-core into the page if not already present
+		await this.page.evaluate(axeSource);
+
+		// Build axe-core run options
+		const runOptions: RunOptions = {
+			runOnly: {
+				type: 'tag',
+				values: options?.tags ?? ['wcag2a', 'wcag2aa', 'wcag21aa']
+			},
+			rules: {}
+		};
+
+		// Disable specific rules if requested
+		if (options?.disableRules && options.disableRules.length > 0) {
+			for (const ruleId of options.disableRules) {
+				runOptions.rules![ruleId] = { enabled: false };
+			}
+		}
+
+		// Build context for axe.run
+		const context: { include?: string[]; exclude?: string[][] } = {};
+
+		if (options?.selector) {
+			context.include = [options.selector];
+		}
+
+		// Exclude known problematic areas
+		context.exclude = [
+			['.monaco-editor .view-lines'],
+			['.xterm-screen canvas']
+		];
+
+		// Run axe-core analysis
+		const results = await measureAndLog(
+			() => this.page.evaluate(
+				([ctx, opts]) => {
+					// @ts-expect-error axe is injected globally
+					return window.axe.run(ctx.include ? ctx.include[0] : document, opts);
+				},
+				[context, runOptions] as const
+			),
+			'runAccessibilityScan',
+			this.options.logger
+		);
+
+		return results as AxeResults;
+	}
+
+	/**
+	 * Run an accessibility scan and throw an error if any violations are found.
+	 * @param options Configuration options for the accessibility scan.
+	 * @throws Error if accessibility violations are detected.
+	 */
+	async assertNoAccessibilityViolations(options?: AccessibilityScanOptions): Promise<void> {
+		const results = await this.runAccessibilityScan(options);
+
+		if (results.violations.length > 0) {
+			const violationMessages = results.violations.map(violation => {
+				const nodes = violation.nodes.map(node =>
+					`  - ${node.target.join(' > ')}: ${node.failureSummary}`
+				).join('\n');
+				return `[${violation.id}] ${violation.help} (${violation.impact})\n${nodes}`;
+			}).join('\n\n');
+
+			throw new Error(
+				`Accessibility violations found:\n\n${violationMessages}\n\n` +
+				`Total: ${results.violations.length} violation(s) affecting ${results.violations.reduce((sum, v) => sum + v.nodes.length, 0)} element(s)`
+			);
+		}
+	}
 }
 
 export function wait(ms: number): Promise<void> {
 	return new Promise<void>(resolve => setTimeout(resolve, ms));
 }
+
+export type { AxeResults };
