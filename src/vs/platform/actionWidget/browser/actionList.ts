@@ -334,10 +334,28 @@ export class ActionList<T> extends Disposable {
 				// eslint-disable-next-line no-restricted-syntax
 				const element = this.domNode.ownerDocument.getElementById(this._list.getElementID(index));
 				if (element) {
-					element.style.width = 'auto';
+					const originalWidth = element.style.width;
+					const originalMaxWidth = element.style.maxWidth;
+					const originalDisplay = element.style.display;
+
+					element.style.width = 'max-content';
+					element.style.maxWidth = 'none';
+					element.style.display = 'flex';
+
 					const width = element.getBoundingClientRect().width;
-					element.style.width = '';
-					return width;
+
+					element.style.width = originalWidth;
+					element.style.maxWidth = originalMaxWidth;
+					element.style.display = originalDisplay;
+
+					const computedStyle = dom.getWindow(element).getComputedStyle(element);
+					const paddingLeft = parseFloat(computedStyle.paddingLeft) || 0;
+					const paddingRight = parseFloat(computedStyle.paddingRight) || 0;
+					const marginLeft = parseFloat(computedStyle.marginLeft) || 0;
+					const marginRight = parseFloat(computedStyle.marginRight) || 0;
+					const horizontalSpacing = paddingLeft + paddingRight + marginLeft + marginRight;
+
+					return width + horizontalSpacing;
 				}
 				return 0;
 			});
