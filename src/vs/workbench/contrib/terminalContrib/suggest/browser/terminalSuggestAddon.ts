@@ -305,7 +305,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 
 		const quickSuggestionsConfig = normalizeQuickSuggestionsConfig(this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).quickSuggestions);
-		const allowFallbackCompletions = explicitlyInvoked || quickSuggestionsConfig.unknown;
+		const allowFallbackCompletions = explicitlyInvoked || quickSuggestionsConfig.unknown === 'on';
 		this._logService.trace('SuggestAddon#_handleCompletionProviders provideCompletions');
 		// Trim ghost text from the prompt value when requesting completions
 		const ghostTextIndex = this._mostRecentPromptInputState?.ghostTextIndex === undefined ? -1 : this._mostRecentPromptInputState?.ghostTextIndex;
@@ -532,8 +532,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				if (!this._terminalSuggestWidgetVisibleContextKey.get()) {
 					const commandLineHasSpace = promptInputState.prefix.trim().match(/\s/);
 					if (
-						(!commandLineHasSpace && quickSuggestions.commands) ||
-						(commandLineHasSpace && quickSuggestions.arguments)
+						(!commandLineHasSpace && quickSuggestions.commands === 'on') ||
+						(commandLineHasSpace && quickSuggestions.arguments === 'on')
 					) {
 						if (promptInputState.prefix.match(/[^\s]$/)) {
 							sent = this._requestTriggerCharQuickSuggestCompletions();

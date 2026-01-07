@@ -59,21 +59,23 @@ export interface ITerminalSuggestConfiguration {
 }
 
 export interface ITerminalQuickSuggestionsOptions {
-	commands: boolean;
-	arguments: boolean;
-	unknown: boolean;
+	commands: 'on' | 'off';
+	arguments: 'on' | 'off';
+	unknown: 'on' | 'off';
 }
 
 /**
  * Normalizes the quickSuggestions config value to an object.
  * Handles migration from boolean values:
- * - `true` -> { commands: true, arguments: true, unknown: true }
- * - `false` -> { commands: false, arguments: false, unknown: false }
+ * - `true` -> { commands: 'on', arguments: 'on', unknown: 'on' }
+ * - `false` -> { commands: 'off', arguments: 'off', unknown: 'off' }
  * - object -> passed through as-is
  */
 export function normalizeQuickSuggestionsConfig(config: ITerminalSuggestConfiguration['quickSuggestions']): ITerminalQuickSuggestionsOptions {
 	if (typeof config === 'boolean') {
-		return { commands: config, arguments: config, unknown: config };
+		return config
+			? { commands: 'on', arguments: 'on', unknown: 'on' }
+			: { commands: 'off', arguments: 'off', unknown: 'off' };
 	}
 	return config;
 }
@@ -98,22 +100,25 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		properties: {
 			commands: {
 				description: localize('suggest.quickSuggestions.commands', 'Enable quick suggestions for commands, the first word in a command line input.'),
-				type: 'boolean',
+				type: 'string',
+				enum: ['on', 'off'],
 			},
 			arguments: {
 				description: localize('suggest.quickSuggestions.arguments', 'Enable quick suggestions for arguments, anything after the first word in a command line input.'),
-				type: 'boolean',
+				type: 'string',
+				enum: ['on', 'off'],
 			},
 			unknown: {
 				description: localize('suggest.quickSuggestions.unknown', 'Enable quick suggestions when it\'s unclear what the best suggestion is, if this is on files and folders will be suggested as a fallback.'),
-				type: 'boolean',
+				type: 'string',
+				enum: ['on', 'off'],
 			},
 		},
 		additionalProperties: false,
 		default: {
-			commands: false,
-			arguments: false,
-			unknown: false,
+			commands: 'off',
+			arguments: 'off',
+			unknown: 'off',
 		},
 	},
 	[TerminalSuggestSettingId.SuggestOnTriggerCharacters]: {
