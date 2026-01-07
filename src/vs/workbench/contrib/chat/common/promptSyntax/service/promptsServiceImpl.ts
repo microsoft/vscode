@@ -467,8 +467,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 		}
 
 		// Filter out cached resources that were replaced by provider resources
+		const cachedUris = new ResourceSet(cachedResources.map(c => c.uri));
 		return result.filter(r => {
-			const isCachedResource = cachedResources.some(c => c.uri.toString() === r.uri.toString());
+			const isCachedResource = cachedUris.has(r.uri);
 			if (isCachedResource && seenUris.has(r.uri)) {
 				return false; // Provider has provided this resource, use the provider's version
 			}
