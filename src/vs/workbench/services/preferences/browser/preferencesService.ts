@@ -109,7 +109,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	readonly defaultKeybindingsResource = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/keybindings.json' });
-	private readonly defaultSettingsRawResource = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/defaultSettings.json' });
+	private readonly defaultSettingsRawResource = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/defaultSettings.jsonc' });
 
 	get userSettingsResource(): URI {
 		return this.userDataProfileService.currentProfile.settingsResource;

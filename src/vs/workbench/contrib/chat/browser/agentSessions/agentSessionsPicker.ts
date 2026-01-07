@@ -22,25 +22,45 @@ interface ISessionPickItem extends IQuickPickItem {
 	readonly session: IAgentSession;
 }
 
-const archiveButton: IQuickInputButton = {
+export const archiveButton: IQuickInputButton = {
 	iconClass: ThemeIcon.asClassName(Codicon.archive),
 	tooltip: localize('archiveSession', "Archive")
 };
 
-const unarchiveButton: IQuickInputButton = {
+export const unarchiveButton: IQuickInputButton = {
 	iconClass: ThemeIcon.asClassName(Codicon.inbox),
 	tooltip: localize('unarchiveSession', "Unarchive")
 };
 
-const renameButton: IQuickInputButton = {
+export const renameButton: IQuickInputButton = {
 	iconClass: ThemeIcon.asClassName(Codicon.edit),
 	tooltip: localize('renameSession', "Rename")
 };
 
-const deleteButton: IQuickInputButton = {
+export const deleteButton: IQuickInputButton = {
 	iconClass: ThemeIcon.asClassName(Codicon.trash),
 	tooltip: localize('deleteSession', "Delete")
 };
+
+export function getSessionDescription(session: IAgentSession): string {
+	const descriptionText = typeof session.description === 'string' ? session.description : session.description ? renderAsPlaintext(session.description) : undefined;
+	const timeAgo = fromNow(session.timing.endTime || session.timing.startTime);
+	const descriptionParts = [descriptionText, session.providerLabel, timeAgo].filter(part => !!part);
+
+	return descriptionParts.join(' • ');
+}
+
+export function getSessionButtons(session: IAgentSession): IQuickInputButton[] {
+	const buttons: IQuickInputButton[] = [];
+
+	if (isLocalAgentSessionItem(session)) {
+		buttons.push(renameButton);
+		buttons.push(deleteButton);
+	}
+	buttons.push(session.isArchived() ? unarchiveButton : archiveButton);
+
+	return buttons;
+}
 
 export class AgentSessionsPicker {
 
@@ -68,7 +88,7 @@ export class AgentSessionsPicker {
 					sideBySide: e.inBackground,
 					editorOptions: {
 						preserveFocus: e.inBackground,
-						pinned: false
+						pinned: e.inBackground
 					}
 				});
 			}
@@ -122,17 +142,8 @@ export class AgentSessionsPicker {
 	}
 
 	private toPickItem(session: IAgentSession): ISessionPickItem {
-		const descriptionText = typeof session.description === 'string' ? session.description : session.description ? renderAsPlaintext(session.description) : undefined;
-		const timeAgo = fromNow(session.timing.endTime || session.timing.startTime);
-		const descriptionParts = [descriptionText, session.providerLabel, timeAgo].filter(part => !!part);
-		const description = descriptionParts.join(' • ');
-
-		const buttons: IQuickInputButton[] = [];
-		if (isLocalAgentSessionItem(session)) {
-			buttons.push(renameButton);
-			buttons.push(deleteButton);
-		}
-		buttons.push(session.isArchived() ? unarchiveButton : archiveButton);
+		const description = getSessionDescription(session);
+		const buttons = getSessionButtons(session);
 
 		return {
 			id: session.resource.toString(),

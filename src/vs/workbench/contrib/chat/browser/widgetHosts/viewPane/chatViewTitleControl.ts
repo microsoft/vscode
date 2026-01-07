@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatViewTitleControl.css';
-import { addDisposableListener, EventType, h } from '../../../../../../base/browser/dom.js';
+import { addDisposableListener, EventType, h, hide, show } from '../../../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
 import { Gesture, EventType as TouchEventType } from '../../../../../../base/browser/touch.js';
 import { Emitter } from '../../../../../../base/common/event.js';
@@ -271,8 +271,10 @@ class ChatViewTitleLabel extends ActionViewItem {
 
 		if (this.icon) {
 			this.titleIcon.className = ThemeIcon.asClassName(this.icon);
+			show(this.titleIcon);
 		} else {
 			this.titleIcon.className = '';
+			hide(this.titleIcon);
 		}
 	}
 }

@@ -161,13 +161,27 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 		});
 
 		// Prompt injection warning for common commands that return content from the web
-		const disclaimers: string[] = [];
+		const disclaimers: (string | IMarkdownString)[] = [];
 		const subCommandsLowerFirstWordOnly = subCommands.map(command => command.split(' ')[0].toLowerCase());
 		if (!isAutoApproved && (
 			subCommandsLowerFirstWordOnly.some(command => promptInjectionWarningCommandsLower.includes(command)) ||
 			(isPowerShell(options.shell, options.os) && subCommandsLowerFirstWordOnly.some(command => promptInjectionWarningCommandsLowerPwshOnly.includes(command)))
 		)) {
 			disclaimers.push(localize('runInTerminal.promptInjectionDisclaimer', 'Web content may contain malicious code or attempt prompt injection attacks.'));
+		}
+
+		// Add denial reason to disclaimers when auto-approve is enabled but command was denied by a rule
+		if (isAutoApproveEnabled && isDenied) {
+			const denialInfo = this._createAutoApproveInfo(
+				isAutoApproved,
+				isDenied,
+				autoApproveReason,
+				subCommandResults,
+				commandLineResult,
+			);
+			if (denialInfo) {
+				disclaimers.push(denialInfo);
+			}
 		}
 
 		if (!isAutoApproved && isAutoApproveEnabled) {
@@ -270,9 +284,9 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 				case 'subCommand': {
 					const uniqueRules = dedupeRules(subCommandResults.filter(e => e.result === 'denied'));
 					if (uniqueRules.length === 1) {
-						return new MarkdownString(localize('autoApproveDenied.rule', 'Auto approval denied by rule {0}', formatRuleLinks(uniqueRules)));
+						return new MarkdownString(localize('autoApproveDenied.rule', 'Auto approval denied by rule {0}', formatRuleLinks(uniqueRules)), mdTrustSettings);
 					} else if (uniqueRules.length > 1) {
-						return new MarkdownString(localize('autoApproveDenied.rules', 'Auto approval denied by rules {0}', formatRuleLinks(uniqueRules)));
+						return new MarkdownString(localize('autoApproveDenied.rules', 'Auto approval denied by rules {0}', formatRuleLinks(uniqueRules)), mdTrustSettings);
 					}
 					break;
 				}

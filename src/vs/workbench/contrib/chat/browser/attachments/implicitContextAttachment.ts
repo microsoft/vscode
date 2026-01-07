@@ -14,7 +14,7 @@ import { Disposable, DisposableStore } from '../../../../../base/common/lifecycl
 import { Schemas } from '../../../../../base/common/network.js';
 import { basename, dirname } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { Location } from '../../../../../editor/common/languages.js';
+import { isLocation, Location } from '../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../nls.js';
@@ -214,7 +214,11 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 			this.attachmentModel.addContext(context);
 		} else {
 			const file = URI.isUri(this.attachment.value) ? this.attachment.value : this.attachment.value.uri;
-			this.attachmentModel.addFile(file);
+			if (file.scheme === Schemas.vscodeNotebookCell && isLocation(this.attachment.value)) {
+				this.attachmentModel.addFile(file, this.attachment.value.range);
+			} else {
+				this.attachmentModel.addFile(file);
+			}
 		}
 		this.widgetRef()?.focusInput();
 	}

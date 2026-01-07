@@ -13,7 +13,11 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 
 export interface ISuggestWidgetStatusOptions {
-	readonly allowIcons?: boolean;
+	/**
+	 * Whether to show icons instead of text where possible and avoid
+	 * keybindings all together.
+	 */
+	readonly showIconsNoKeybindings?: boolean;
 }
 
 export class SuggestWidgetStatus {
@@ -27,7 +31,7 @@ export class SuggestWidgetStatus {
 	constructor(
 		container: HTMLElement,
 		private readonly _menuId: MenuId,
-		options: ISuggestWidgetStatusOptions,
+		options: ISuggestWidgetStatusOptions | undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMenuService private _menuService: IMenuService,
 		@IContextKeyService private _contextKeyService: IContextKeyService,
@@ -35,7 +39,7 @@ export class SuggestWidgetStatus {
 		this.element = dom.append(container, dom.$('.suggest-status-bar'));
 
 		const actionViewItemProvider = <IActionViewItemProvider>(action => {
-			if (options.allowIcons) {
+			if (options?.showIconsNoKeybindings) {
 				return action instanceof MenuItemAction ? instantiationService.createInstance(MenuEntryActionViewItem, action, undefined) : undefined;
 			} else {
 				return action instanceof MenuItemAction ? instantiationService.createInstance(TextOnlyMenuEntryActionViewItem, action, { useComma: false }) : undefined;

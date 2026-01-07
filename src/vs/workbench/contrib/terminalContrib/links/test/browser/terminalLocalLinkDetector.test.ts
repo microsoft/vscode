@@ -28,6 +28,7 @@ import { IUriIdentityService } from '../../../../../../platform/uriIdentity/comm
 import { UriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentityService.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { isString } from '../../../../../../base/common/types.js';
+import { TestXtermLogger } from '../../../../../../platform/terminal/test/common/terminalTestHelpers.js';
 
 const unixLinks: (string | { link: string; resource: URI })[] = [
 	// Absolute
@@ -242,7 +243,7 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 		validResources = [];
 
 		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
-		xterm = new TerminalCtor({ allowProposedApi: true, cols: 80, rows: 30 });
+		xterm = new TerminalCtor({ allowProposedApi: true, cols: 80, rows: 30, logger: TestXtermLogger });
 	});
 
 	suite('platform independent', () => {

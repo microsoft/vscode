@@ -271,13 +271,19 @@ export class RenameInferenceEngine {
 
 class RenameSymbolRunnable {
 
+	private readonly _requestUuid: string;
 	private readonly _cancellationTokenSource: CancellationTokenSource;
 	private readonly _promise: Promise<WorkspaceEdit & Rejection>;
 	private _result: WorkspaceEdit & Rejection | undefined = undefined;
 
-	constructor(languageFeaturesService: ILanguageFeaturesService, textModel: ITextModel, position: Position, newName: string) {
+	constructor(languageFeaturesService: ILanguageFeaturesService, textModel: ITextModel, position: Position, newName: string, requestUuid: string) {
+		this._requestUuid = requestUuid;
 		this._cancellationTokenSource = new CancellationTokenSource();
 		this._promise = rawRename(languageFeaturesService.renameProvider, textModel, position, newName, this._cancellationTokenSource.token);
+	}
+
+	public get requestUuid(): string {
+		return this._requestUuid;
 	}
 
 	public cancel(): void {
@@ -285,8 +291,11 @@ class RenameSymbolRunnable {
 	}
 
 	public async getCount(): Promise<number> {
+		if (this._cancellationTokenSource.token.isCancellationRequested) {
+			return 0;
+		}
 		const result = await this.getResult();
-		if (result === undefined) {
+		if (result === undefined || this._cancellationTokenSource.token.isCancellationRequested) {
 			return 0;
 		}
 
@@ -298,10 +307,13 @@ class RenameSymbolRunnable {
 	}
 
 	private async getResult(): Promise<WorkspaceEdit | undefined> {
+		if (this._cancellationTokenSource.token.isCancellationRequested) {
+			return undefined;
+		}
 		if (this._result === undefined) {
 			this._result = await this._promise;
 		}
-		if (this._result.rejectReason) {
+		if (this._result.rejectReason || this._cancellationTokenSource.token.isCancellationRequested) {
 			return undefined;
 		}
 		return this._result;
@@ -312,7 +324,7 @@ export class RenameSymbolProcessor extends Disposable {
 
 	private readonly _renameInferenceEngine = new RenameInferenceEngine();
 
-	private _renameRunnable: { id: string; runnable: RenameSymbolRunnable } | undefined;
+	private _renameRunnable: RenameSymbolRunnable | undefined = undefined;
 
 	constructor(
 		@ICommandService private readonly _commandService: ICommandService,
@@ -321,25 +333,22 @@ export class RenameSymbolProcessor extends Disposable {
 		@IBulkEditService bulkEditService: IBulkEditService,
 	) {
 		super();
-		const self = this;
-		this._register(CommandsRegistry.registerCommand(renameSymbolCommandId, async (_: ServicesAccessor, textModel: ITextModel, position: Position, newName: string, source: TextModelEditSource, id: string) => {
-			if (self._renameRunnable === undefined) {
+		this._register(CommandsRegistry.registerCommand(renameSymbolCommandId, async (_: ServicesAccessor, source: TextModelEditSource, renameRunnable: RenameSymbolRunnable | undefined) => {
+			if (renameRunnable === undefined) {
 				return;
 			}
-			let workspaceEdit: WorkspaceEdit | undefined;
-			if (self._renameRunnable.id !== id) {
-				self._renameRunnable.runnable.cancel();
-				self._renameRunnable = undefined;
-				const runnable = new RenameSymbolRunnable(self._languageFeaturesService, textModel, position, newName);
-				workspaceEdit = await runnable.getWorkspaceEdit();
-			} else {
-				workspaceEdit = await self._renameRunnable.runnable.getWorkspaceEdit();
-				self._renameRunnable = undefined;
+
+			try {
+				const workspaceEdit = await renameRunnable.getWorkspaceEdit();
+				if (workspaceEdit === undefined) {
+					return;
+				}
+				bulkEditService.apply(workspaceEdit, { reason: source });
+			} finally {
+				if (this._renameRunnable === renameRunnable) {
+					this._renameRunnable = undefined;
+				}
 			}
-			if (workspaceEdit === undefined) {
-				return;
-			}
-			bulkEditService.apply(workspaceEdit, { reason: source });
 		}));
 	}
 
@@ -367,7 +376,7 @@ export class RenameSymbolProcessor extends Disposable {
 		// Check asynchronously if a rename is possible
 		let timedOut = false;
 		const check = await raceTimeout<RenameKind>(this.checkRenamePrecondition(suggestItem, textModel, position, oldName, newName), 100, () => { timedOut = true; });
-		const renamePossible = check === RenameKind.yes || check === RenameKind.maybe;
+		const renamePossible = this.isRenamePossible(suggestItem, check);
 
 		suggestItem.setRenameProcessingInfo({
 			createdRename: renamePossible,
@@ -382,13 +391,9 @@ export class RenameSymbolProcessor extends Disposable {
 		}
 
 		// Prepare the rename edits
-		const id = suggestItem.identity.id;
-		if (this._renameRunnable !== undefined) {
-			this._renameRunnable.runnable.cancel();
-			this._renameRunnable = undefined;
+		if (this._renameRunnable === undefined) {
+			this._renameRunnable = new RenameSymbolRunnable(this._languageFeaturesService, textModel, position, newName, suggestItem.requestUuid);
 		}
-		const runnable = new RenameSymbolRunnable(this._languageFeaturesService, textModel, position, newName);
-		this._renameRunnable = { id, runnable };
 
 		// Create alternative action
 		const source = EditSources.inlineCompletionAccept({
@@ -401,13 +406,13 @@ export class RenameSymbolProcessor extends Disposable {
 		const command: Command = {
 			id: renameSymbolCommandId,
 			title: localize('rename', "Rename"),
-			arguments: [textModel, position, newName, source, id],
+			arguments: [source, this._renameRunnable],
 		};
 		const alternativeAction: InlineSuggestAlternativeAction = {
 			label: localize('rename', "Rename"),
 			icon: Codicon.replaceAll,
 			command,
-			count: runnable.getCount(),
+			count: this._renameRunnable.getCount(),
 		};
 		const renameAction: IInlineSuggestDataActionEdit = {
 			kind: 'edit',
@@ -422,12 +427,6 @@ export class RenameSymbolProcessor extends Disposable {
 	}
 
 	private async checkRenamePrecondition(suggestItem: InlineSuggestionItem, textModel: ITextModel, position: Position, oldName: string, newName: string): Promise<RenameKind> {
-		// const result = await prepareRename(this._languageFeaturesService.renameProvider, textModel, position, CancellationToken.None);
-		// if (result === undefined || result.rejectReason) {
-		// 	return RenameKind.no;
-		// }
-		// return oldName === result.text ? RenameKind.yes : RenameKind.no;
-
 		try {
 			const result = await this._commandService.executeCommand<RenameKind>('github.copilot.nes.prepareRename', textModel.uri, position, oldName, newName, suggestItem.requestUuid);
 			if (result === undefined) {
@@ -437,6 +436,22 @@ export class RenameSymbolProcessor extends Disposable {
 			}
 		} catch (error) {
 			return RenameKind.no;
+		}
+	}
+
+	private isRenamePossible(suggestItem: InlineSuggestionItem, check: RenameKind | undefined): boolean {
+		if (check === undefined || check === RenameKind.no) {
+			return false;
+		}
+		if (this._renameRunnable === undefined) {
+			return true;
+		}
+		if (this._renameRunnable.requestUuid === suggestItem.requestUuid) {
+			return false;
+		} else {
+			this._renameRunnable.cancel();
+			this._renameRunnable = undefined;
+			return true;
 		}
 	}
 }

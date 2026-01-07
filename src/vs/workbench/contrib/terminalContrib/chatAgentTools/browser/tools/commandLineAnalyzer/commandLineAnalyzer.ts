@@ -60,7 +60,7 @@ export interface ICommandLineAnalyzerResult {
 	 * - `undefined`: This analyzer does not make an approval/denial decision
 	 */
 	readonly isAutoApproved?: boolean;
-	readonly disclaimers?: readonly string[];
+	readonly disclaimers?: readonly (string | IMarkdownString)[];
 	readonly autoApproveInfo?: IMarkdownString;
 	readonly customActions?: ToolConfirmationAction[];
 }

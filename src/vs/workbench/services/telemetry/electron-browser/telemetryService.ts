@@ -17,6 +17,7 @@ import { TelemetryService as BaseTelemetryService, ITelemetryServiceConfig } fro
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ClassifiedEvent, StrictPropertyCheck, OmitMetadata, IGDPRProperty } from '../../../../platform/telemetry/common/gdprTypings.js';
 import { process } from '../../../../base/parts/sandbox/electron-browser/globals.js';
+import { experimentsEnabled } from '../common/workbenchTelemetryUtils.js';
 
 export class TelemetryService extends Disposable implements ITelemetryService {
 
@@ -46,9 +47,21 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 			const channel = sharedProcessService.getChannel('telemetryAppender');
 			const config: ITelemetryServiceConfig = {
 				appenders: [new TelemetryAppenderClient(channel)],
-				commonProperties: resolveWorkbenchCommonProperties(storageService, environmentService.os.release, environmentService.os.hostname, productService.commit, productService.version, environmentService.machineId, environmentService.sqmId, environmentService.devDeviceId, isInternal, process, productService.date, environmentService.remoteAuthority),
+				commonProperties: resolveWorkbenchCommonProperties(
+					storageService,
+					productService,
+					environmentService.os.release,
+					environmentService.os.hostname,
+					environmentService.machineId,
+					environmentService.sqmId,
+					environmentService.devDeviceId,
+					isInternal,
+					process,
+					environmentService.remoteAuthority
+				),
 				piiPaths: getPiiPathsFromEnvironment(environmentService),
-				sendErrorTelemetry: true
+				sendErrorTelemetry: true,
+				waitForExperimentProperties: experimentsEnabled(configurationService, productService, environmentService),
 			};
 
 			this.impl = this._register(new BaseTelemetryService(config, configurationService, productService));

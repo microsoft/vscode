@@ -12,11 +12,52 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../services/environment/browser/environmentService.js';
+import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { createScanner, SyntaxKind } from '../../../../base/common/json.js';
 
 const TRUSTED_DOMAINS_URI = URI.parse('trustedDomains:/Trusted Domains');
 
 export const TRUSTED_DOMAINS_STORAGE_KEY = 'http.linkProtectionTrustedDomains';
 export const TRUSTED_DOMAINS_CONTENT_STORAGE_KEY = 'http.linkProtectionTrustedDomainsContent';
+
+async function openInEditor(editorService: IEditorService, resource: URI): Promise<void> {
+	await editorService.openEditor({
+		resource,
+		languageId: 'jsonc',
+		options: { pinned: true }
+	});
+
+	const editor = editorService.activeTextEditorControl;
+	if (!isCodeEditor(editor)) {
+		return;
+	}
+
+	const model = editor.getModel();
+	if (!model || !isEqual(model.uri, resource)) {
+		return;
+	}
+
+	// Find first token after [ to place cursor there
+	const scanner = createScanner(model.getValue(), true);
+	let offset: number | undefined;
+	for (let token = scanner.scan(); token !== SyntaxKind.EOF; token = scanner.scan()) {
+		if (token === SyntaxKind.OpenBracketToken) {
+			offset = scanner.getTokenOffset() + scanner.getTokenLength();
+			const nextToken = scanner.scan();
+			if (nextToken !== SyntaxKind.EOF && nextToken !== SyntaxKind.CloseBracketToken) {
+				offset = scanner.getTokenOffset();
+			}
+			break;
+		}
+	}
+
+	if (offset !== undefined) {
+		const position = model.getPositionAt(offset);
+		editor.setPosition(position);
+		editor.revealPositionInCenter(position);
+	}
+}
 
 export const manageTrustedDomainSettingsCommand = {
 	id: 'workbench.action.manageTrustedDomain',
@@ -26,7 +67,7 @@ export const manageTrustedDomainSettingsCommand = {
 	},
 	handler: async (accessor: ServicesAccessor) => {
 		const editorService = accessor.get(IEditorService);
-		editorService.openEditor({ resource: TRUSTED_DOMAINS_URI, languageId: 'jsonc', options: { pinned: true } });
+		await openInEditor(editorService, TRUSTED_DOMAINS_URI);
 		return;
 	}
 };
@@ -98,13 +139,11 @@ export async function configureOpenerTrustedDomainsHandler(
 
 	if (pickedResult && pickedResult.id) {
 		switch (pickedResult.id) {
-			case 'manage':
-				await editorService.openEditor({
-					resource: TRUSTED_DOMAINS_URI.with({ fragment: resource.toString() }),
-					languageId: 'jsonc',
-					options: { pinned: true }
-				});
+			case 'manage': {
+				const uriWithFragment = TRUSTED_DOMAINS_URI.with({ fragment: resource.toString() });
+				await openInEditor(editorService, uriWithFragment);
 				return trustedDomains;
+			}
 			case 'trust': {
 				const itemToTrust = pickedResult.toTrust;
 				if (trustedDomains.indexOf(itemToTrust) === -1) {

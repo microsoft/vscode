@@ -55,6 +55,7 @@ import { EditorOpenSource } from '../../../../../platform/editor/common/editor.j
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { AbstractTreePart } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 
 
 function hasExpandedRootChild(tree: WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>, treeInput: ExplorerItem[]): boolean {
@@ -213,7 +214,8 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		@IFileService private readonly fileService: IFileService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IOpenerService openerService: IOpenerService
+		@IOpenerService openerService: IOpenerService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -448,7 +450,14 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 		this._register(createFileIconThemableTreeContainerScope(container, this.themeService));
 
-		const isCompressionEnabled = () => this.configurationService.getValue<boolean>('explorer.compactFolders');
+		const isCompressionEnabled = () => {
+			const configValue = this.configurationService.getValue<boolean>('explorer.compactFolders');
+			// Disable compact folders when screen reader is optimized for better accessibility
+			if (this.accessibilityService.isScreenReaderOptimized()) {
+				return false;
+			}
+			return configValue;
+		};
 
 		const getFileNestingSettings = (item?: ExplorerItem) => this.configurationService.getValue<IFilesConfiguration>({ resource: item?.root.resource }).explorer.fileNesting;
 
@@ -510,6 +519,11 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		// Bind configuration
 		const onDidChangeCompressionConfiguration = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('explorer.compactFolders'));
 		this._register(onDidChangeCompressionConfiguration(_ => this.tree.updateOptions({ compressionEnabled: isCompressionEnabled() })));
+
+		// Update compression when screen reader mode changes
+		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => {
+			this.tree.updateOptions({ compressionEnabled: isCompressionEnabled() });
+		}));
 
 		// Bind context keys
 		FilesExplorerFocusedContext.bindTo(this.tree.contextKeyService);

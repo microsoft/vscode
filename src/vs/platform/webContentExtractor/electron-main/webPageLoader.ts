@@ -5,6 +5,7 @@
 
 import type { BeforeSendResponse, BrowserWindow, BrowserWindowConstructorOptions, Event, OnBeforeSendHeadersListenerDetails } from 'electron';
 import { Queue, raceTimeout, TimeoutTimer } from '../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { createSingleCallFunction } from '../../../base/common/functional.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
@@ -27,6 +28,7 @@ export class WebPageLoader extends Disposable {
 	private static readonly TIMEOUT = 30000; // 30 seconds
 	private static readonly POST_LOAD_TIMEOUT = 5000; // 5 seconds - increased for dynamic content
 	private static readonly FRAME_TIMEOUT = 500; // 0.5 seconds
+	private static readonly EXTRACT_CONTENT_TIMEOUT = 2000; // 2 seconds
 	private static readonly IDLE_DEBOUNCE_TIME = 500; // 0.5 seconds - wait after last network request
 	private static readonly MIN_CONTENT_LENGTH = 100; // Minimum content length to consider extraction successful
 
@@ -329,11 +331,23 @@ export class WebPageLoader extends Disposable {
 		try {
 			const title = this._window.webContents.getTitle();
 
-			let result = await this.extractAccessibilityTreeContent() ?? '';
-			if (result.length < WebPageLoader.MIN_CONTENT_LENGTH) {
-				this.trace(`Accessibility tree extraction yielded insufficient content, trying main DOM element extraction`);
-				const domContent = await this.extractMainDomElementContent() ?? '';
-				result = domContent.length > result.length ? domContent : result;
+			let result = '';
+			const cts = new CancellationTokenSource();
+			try {
+				await raceTimeout((async () => {
+					if (!cts.token.isCancellationRequested) {
+						result = await this.extractAccessibilityTreeContent() ?? '';
+					}
+
+					if (!cts.token.isCancellationRequested && result.length < WebPageLoader.MIN_CONTENT_LENGTH) {
+						this.trace(`Accessibility tree extraction yielded insufficient content, trying main DOM element extraction`);
+						const domContent = await this.extractMainDomElementContent() ?? '';
+						result = domContent.length > result.length ? domContent : result;
+					}
+				})(), WebPageLoader.EXTRACT_CONTENT_TIMEOUT);
+			} finally {
+				cts.cancel();
+				cts.dispose();
 			}
 
 			if (result.length === 0) {

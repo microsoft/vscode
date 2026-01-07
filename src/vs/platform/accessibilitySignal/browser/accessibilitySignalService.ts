@@ -695,7 +695,6 @@ export class AccessibilitySignal {
 		name: localize('accessibilitySignals.chatUserActionRequired', 'Chat User Action Required'),
 		sound: Sound.chatUserActionRequired,
 		announcementMessage: localize('accessibility.signals.chatUserActionRequired', 'Chat User Action Required'),
-		settingsKey: 'accessibility.signals.chatUserActionRequired',
-		managesOwnEnablement: true
+		settingsKey: 'accessibility.signals.chatUserActionRequired'
 	});
 }

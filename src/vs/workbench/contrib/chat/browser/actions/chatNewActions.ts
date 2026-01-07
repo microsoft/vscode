@@ -22,6 +22,7 @@ import { EditingSessionAction, getEditingSessionContext } from '../chatEditing/c
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION, CHAT_CATEGORY, handleCurrentEditingSession } from './chatActions.js';
 import { clearChatEditor } from './chatClear.js';
+import { AgentSessionsViewerOrientation } from '../agentSessions/agentSessions.js';
 
 export interface INewEditSessionActionContext {
 
@@ -158,6 +159,7 @@ export function registerNewChatActions() {
 			title: localize2('chat.goBack', "Go Back"),
 			icon: Codicon.arrowLeft,
 		},
+		when: ChatContextKeys.agentSessionsViewerOrientation.notEqualsTo(AgentSessionsViewerOrientation.SideBySide), // when sessions show side by side, no need for a back button
 		group: 'navigation',
 		order: 1
 	});

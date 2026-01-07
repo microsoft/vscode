@@ -5,11 +5,13 @@
 
 import { $ } from '../../../../../../base/browser/dom.js';
 import { ButtonWithIcon } from '../../../../../../base/browser/ui/button/button.js';
+import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
@@ -18,6 +20,7 @@ import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IRenderedMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
 
 
 export abstract class ChatCollapsibleContentPart extends Disposable implements IChatContentPart {
@@ -32,9 +35,21 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 	protected _isExpanded = observableValue<boolean>(this, false);
 	protected _collapseButton: ButtonWithIcon | undefined;
 
+	private readonly _overrideIcon = observableValue<ThemeIcon | undefined>(this, undefined);
+
+	public get icon(): ThemeIcon | undefined {
+		return this._overrideIcon.get();
+	}
+
+	public set icon(value: ThemeIcon | undefined) {
+		this._overrideIcon.set(value, undefined);
+	}
+
 	constructor(
 		private title: IMarkdownString | string,
 		protected readonly context: IChatContentPartRenderContext,
+		private readonly hoverMessage: IMarkdownString | undefined,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
 		this.hasFollowingContent = this.context.contentIndex + 1 < this.context.content.length;
@@ -65,6 +80,13 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 		this._domNode = $('.chat-used-context', undefined, buttonElement);
 		collapseButton.label = referencesLabel;
 
+		if (this.hoverMessage) {
+			this._register(this.hoverService.setupDelayedHover(collapseButton.iconElement, {
+				content: this.hoverMessage,
+				style: HoverStyle.Pointer,
+			}));
+		}
+
 		this._register(collapseButton.onDidClick(() => {
 			const value = this._isExpanded.get();
 			this._isExpanded.set(!value, undefined);
@@ -72,7 +94,7 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 
 		this._register(autorun(r => {
 			const expanded = this._isExpanded.read(r);
-			collapseButton.icon = expanded ? Codicon.chevronDown : Codicon.chevronRight;
+			collapseButton.icon = this._overrideIcon.read(r) ?? (expanded ? Codicon.chevronDown : Codicon.chevronRight);
 			this._domNode?.classList.toggle('chat-used-context-collapsed', !expanded);
 			this.updateAriaLabel(collapseButton.element, typeof referencesLabel === 'string' ? referencesLabel : referencesLabel.value, expanded);
 

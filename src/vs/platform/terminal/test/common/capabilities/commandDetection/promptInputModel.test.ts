@@ -14,6 +14,7 @@ import { timeout } from '../../../../../../base/common/async.js';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { GeneralShellType, PosixShellType } from '../../../../common/terminal.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
+import { TestXtermLogger } from '../../terminalTestHelpers.js';
 
 suite('PromptInputModel', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -63,7 +64,7 @@ suite('PromptInputModel', () => {
 
 	setup(async () => {
 		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
-		xterm = store.add(new TerminalCtor({ allowProposedApi: true }));
+		xterm = store.add(new TerminalCtor({ allowProposedApi: true, logger: TestXtermLogger }));
 		onCommandStart = store.add(new Emitter());
 		onCommandStartChanged = store.add(new Emitter());
 		onCommandExecuted = store.add(new Emitter());

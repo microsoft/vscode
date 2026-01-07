@@ -6,18 +6,19 @@
 import { $, append } from '../../../../../../base/browser/dom.js';
 import { alert } from '../../../../../../base/browser/ui/aria/aria.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { createMarkdownCommandLink, MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IRenderedMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { localize } from '../../../../../../nls.js';
-import { IChatProgressMessage, IChatTask, IChatTaskSerialized, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { IChatProgressMessage, IChatTask, IChatTaskSerialized, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import { IChatRendererContent, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
 import { renderFileWidgets } from './chatInlineAnchorWidget.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
+import { getToolApprovalMessage } from './toolInvocationParts/chatToolPartUtilities.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { AccessibilityWorkbenchSettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
@@ -104,40 +105,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 	}
 
 	private createApprovalMessage(): IMarkdownString | undefined {
-		if (!this.toolInvocation) {
-			return undefined;
-		}
-
-		const reason = IChatToolInvocation.executionConfirmedOrDenied(this.toolInvocation);
-		if (!reason || typeof reason === 'boolean') {
-			return undefined;
-		}
-
-		let md: string;
-		switch (reason.type) {
-			case ToolConfirmKind.Setting:
-				md = localize('chat.autoapprove.setting', 'Auto approved by {0}', createMarkdownCommandLink({ title: '`' + reason.id + '`', id: 'workbench.action.openSettings', arguments: [reason.id] }, false));
-				break;
-			case ToolConfirmKind.LmServicePerTool:
-				md = reason.scope === 'session'
-					? localize('chat.autoapprove.lmServicePerTool.session', 'Auto approved for this session')
-					: reason.scope === 'workspace'
-						? localize('chat.autoapprove.lmServicePerTool.workspace', 'Auto approved for this workspace')
-						: localize('chat.autoapprove.lmServicePerTool.profile', 'Auto approved for this profile');
-				md += ' (' + createMarkdownCommandLink({ title: localize('edit', 'Edit'), id: 'workbench.action.chat.editToolApproval', arguments: [reason.scope] }) + ')';
-				break;
-			case ToolConfirmKind.UserAction:
-			case ToolConfirmKind.Denied:
-			case ToolConfirmKind.ConfirmationNotNeeded:
-			default:
-				return;
-		}
-
-		if (!md) {
-			return undefined;
-		}
-
-		return new MarkdownString(md, { isTrusted: true });
+		return this.toolInvocation && getToolApprovalMessage(this.toolInvocation);
 	}
 }
 

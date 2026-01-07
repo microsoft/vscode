@@ -63,7 +63,6 @@ const VoiceChatSessionContexts: VoiceChatSessionContext[] = ['view', 'inline', '
 // Global Context Keys (set on global context key service)
 const CanVoiceChat = ContextKeyExpr.and(ChatContextKeys.enabled, HasSpeechProvider);
 const FocusInChatInput = ContextKeyExpr.or(CTX_INLINE_CHAT_FOCUSED, ChatContextKeys.inChatInput);
-const AnyChatRequestInProgress = ChatContextKeys.requestInProgress;
 
 // Scoped Context Keys (set on per-chat-context scoped context key service)
 const ScopedVoiceChatGettingReady = new RawContextKey<boolean>('scopedVoiceChatGettingReady', false, { type: 'boolean', description: localize('scopedVoiceChatGettingReady', "True when getting ready for receiving voice input from the microphone for voice chat. This key is only defined scoped, per chat context.") });
@@ -432,10 +431,7 @@ export class VoiceChatInChatViewAction extends VoiceChatWithHoldModeAction {
 			id: VoiceChatInChatViewAction.ID,
 			title: localize2('workbench.action.chat.voiceChatInView.label', "Voice Chat in Chat View"),
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(
-				CanVoiceChat,
-				ChatContextKeys.requestInProgress.negate() // disable when a chat request is in progress
-			),
+			precondition: CanVoiceChat,
 			f1: true
 		}, 'view');
 	}
@@ -509,7 +505,6 @@ export class InlineVoiceChatAction extends VoiceChatWithHoldModeAction {
 			precondition: ContextKeyExpr.and(
 				CanVoiceChat,
 				ActiveEditorContext,
-				ChatContextKeys.requestInProgress.negate() // disable when a chat request is in progress
 			),
 			f1: true
 		}, 'inline');
@@ -525,10 +520,7 @@ export class QuickVoiceChatAction extends VoiceChatWithHoldModeAction {
 			id: QuickVoiceChatAction.ID,
 			title: localize2('workbench.action.chat.quickVoiceChat.label', "Quick Voice Chat"),
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(
-				CanVoiceChat,
-				ChatContextKeys.requestInProgress.negate() // disable when a chat request is in progress
-			),
+			precondition: CanVoiceChat,
 			f1: true
 		}, 'quick');
 	}
@@ -574,7 +566,6 @@ export class StartVoiceChatAction extends Action2 {
 			precondition: ContextKeyExpr.and(
 				CanVoiceChat,
 				ScopedVoiceChatGettingReady.negate(),	// disable when voice chat is getting ready
-				AnyChatRequestInProgress?.negate(),		// disable when any chat request is in progress
 				SpeechToTextInProgress.negate()			// disable when speech to text is in progress
 			),
 			menu: primaryVoiceActionMenu(ContextKeyExpr.and(
@@ -685,8 +676,7 @@ class ChatSynthesizerSessionController {
 		const contextKeyService = accessor.get(IContextKeyService);
 		let chatWidget = chatWidgetService.getWidgetBySessionResource(response.session.sessionResource);
 		if (chatWidget?.location === ChatAgentLocation.EditorInline) {
-			// workaround for https://github.com/microsoft/vscode/issues/212785
-			chatWidget = chatWidgetService.lastFocusedWidget;
+			chatWidget = chatWidgetService.lastFocusedWidget; // workaround for https://github.com/microsoft/vscode/issues/212785
 		}
 
 		return {
@@ -868,8 +858,8 @@ export class ReadChatResponseAloud extends Action2 {
 				when: ContextKeyExpr.and(
 					CanVoiceChat,
 					ChatContextKeys.isResponse,						// only for responses
-					ScopedChatSynthesisInProgress.negate(),	// but not when already in progress
-					ChatContextKeys.responseIsFiltered.negate(),		// and not when response is filtered
+					ScopedChatSynthesisInProgress.negate(),			// but not when already in progress
+					ChatContextKeys.responseIsFiltered.negate(),	// and not when response is filtered
 				),
 				group: 'navigation',
 				order: -10 // first
@@ -878,7 +868,7 @@ export class ReadChatResponseAloud extends Action2 {
 				when: ContextKeyExpr.and(
 					CanVoiceChat,
 					ChatContextKeys.isResponse,						// only for responses
-					ScopedChatSynthesisInProgress.negate(),	// but not when already in progress
+					ScopedChatSynthesisInProgress.negate(),			// but not when already in progress
 					ChatContextKeys.responseIsFiltered.negate()		// and not when response is filtered
 				),
 				group: 'navigation',
@@ -977,7 +967,7 @@ export class StopReadChatItemAloud extends Action2 {
 				{
 					id: MenuId.ChatMessageFooter,
 					when: ContextKeyExpr.and(
-						ScopedChatSynthesisInProgress,		// only when in progress
+						ScopedChatSynthesisInProgress,				// only when in progress
 						ChatContextKeys.isResponse,					// only for responses
 						ChatContextKeys.responseIsFiltered.negate()	// but not when response is filtered
 					),
@@ -987,7 +977,7 @@ export class StopReadChatItemAloud extends Action2 {
 				{
 					id: MENU_INLINE_CHAT_WIDGET_SECONDARY,
 					when: ContextKeyExpr.and(
-						ScopedChatSynthesisInProgress,		// only when in progress
+						ScopedChatSynthesisInProgress,				// only when in progress
 						ChatContextKeys.isResponse,					// only for responses
 						ChatContextKeys.responseIsFiltered.negate()	// but not when response is filtered
 					),

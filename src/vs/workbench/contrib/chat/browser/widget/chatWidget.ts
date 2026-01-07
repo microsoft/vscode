@@ -305,6 +305,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.logService.debug('ChatWidget#setViewModel: no viewModel');
 		}
 
+		this.currentRequest = undefined;
 		this._onDidChangeViewModel.fire({ previousSessionResource, currentSessionResource: this._viewModel?.sessionResource });
 	}
 

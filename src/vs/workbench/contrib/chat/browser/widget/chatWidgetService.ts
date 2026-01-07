@@ -231,6 +231,10 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 		this._widgets.push(newWidget);
 		this._onDidAddWidget.fire(newWidget);
 
+		if (!this._lastFocusedWidget) {
+			this.setLastFocusedWidget(newWidget);
+		}
+
 		return combinedDisposable(
 			newWidget.onDidFocus(() => this.setLastFocusedWidget(newWidget)),
 			newWidget.onDidChangeViewModel(({ previousSessionResource, currentSessionResource }) => {
@@ -245,7 +249,12 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 					}
 				});
 			}),
-			toDisposable(() => this._widgets.splice(this._widgets.indexOf(newWidget), 1))
+			toDisposable(() => {
+				this._widgets.splice(this._widgets.indexOf(newWidget), 1);
+				if (this._lastFocusedWidget === newWidget) {
+					this.setLastFocusedWidget(undefined);
+				}
+			})
 		);
 	}
 }

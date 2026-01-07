@@ -232,13 +232,13 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 						const optedIn = await this._showAutoApproveWarning();
 						if (optedIn) {
 							this.storageService.store(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, true, StorageScope.APPLICATION, StorageTarget.USER);
-							// This is good to auto approve immediately
-							if (!terminalCustomActions) {
+							// If this command would have been auto-approved, approve immediately
+							if (terminalData.autoApproveInfo) {
 								toolConfirmKind = ToolConfirmKind.UserAction;
 							}
 							// If this would not have been auto approved, enable the options and
 							// do not complete
-							else {
+							else if (terminalCustomActions) {
 								for (const action of terminalCustomActions) {
 									if (!(action instanceof Separator)) {
 										action.disabled = false;
@@ -329,18 +329,18 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 						const parts: string[] = [];
 						if (sessionRules.length > 0) {
 							parts.push(sessionRules.length === 1
-								? localize('newRule.session', 'Session rule {0} added', formatRuleLinks(sessionRules, 'session'))
-								: localize('newRule.session.plural', 'Session rules {0} added', formatRuleLinks(sessionRules, 'session')));
+								? localize('newRule.session', 'Session auto approve rule {0} added', formatRuleLinks(sessionRules, 'session'))
+								: localize('newRule.session.plural', 'Session auto approve rules {0} added', formatRuleLinks(sessionRules, 'session')));
 						}
 						if (workspaceRules.length > 0) {
 							parts.push(workspaceRules.length === 1
-								? localize('newRule.workspace', 'Workspace rule {0} added', formatRuleLinks(workspaceRules, 'workspace'))
-								: localize('newRule.workspace.plural', 'Workspace rules {0} added', formatRuleLinks(workspaceRules, 'workspace')));
+								? localize('newRule.workspace', 'Workspace auto approve rule {0} added', formatRuleLinks(workspaceRules, 'workspace'))
+								: localize('newRule.workspace.plural', 'Workspace auto approve rules {0} added', formatRuleLinks(workspaceRules, 'workspace')));
 						}
 						if (userRules.length > 0) {
 							parts.push(userRules.length === 1
-								? localize('newRule.user', 'User rule {0} added', formatRuleLinks(userRules, 'user'))
-								: localize('newRule.user.plural', 'User rules {0} added', formatRuleLinks(userRules, 'user')));
+								? localize('newRule.user', 'User auto approve rule {0} added', formatRuleLinks(userRules, 'user'))
+								: localize('newRule.user.plural', 'User auto approve rules {0} added', formatRuleLinks(userRules, 'user')));
 						}
 						if (parts.length > 0) {
 							terminalData.autoApproveInfo = new MarkdownString(parts.join(', '), mdTrustSettings);

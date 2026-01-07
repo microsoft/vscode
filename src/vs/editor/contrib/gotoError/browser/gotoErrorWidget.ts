@@ -358,7 +358,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 		}
 		this._icon.className = `codicon ${SeverityIcon.className(MarkerSeverity.toSeverity(this._severity))}`;
 
-		this.editor.revealPositionNearTop(position, ScrollType.Smooth);
+		this.editor.revealPositionInCenterIfOutsideViewport(position, ScrollType.Smooth);
 		this.editor.focus();
 	}
 

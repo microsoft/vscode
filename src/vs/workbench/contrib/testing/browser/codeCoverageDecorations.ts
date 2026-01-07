@@ -1021,7 +1021,6 @@ registerAction2(class GoToNextMissedCoverageLine extends Action2 {
 			},
 			category: Categories.Test,
 			icon: Codicon.arrowDown,
-			f1: true,
 			precondition: TestingContextKeys.hasCoverageInFile,
 			keybinding: {
 				when: ActiveEditorContext,
@@ -1057,7 +1056,6 @@ registerAction2(class GoToPreviousMissedCoverageLine extends Action2 {
 			},
 			category: Categories.Test,
 			icon: Codicon.arrowUp,
-			f1: true,
 			precondition: TestingContextKeys.hasCoverageInFile,
 			keybinding: {
 				when: ActiveEditorContext,

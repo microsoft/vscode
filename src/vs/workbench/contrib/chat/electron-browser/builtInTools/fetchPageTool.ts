@@ -218,15 +218,21 @@ export class FetchWebPageTool implements IToolImpl {
 			}
 		}
 
+		let confirmationNotNeededReason: string | undefined;
 		if (context.chatSessionId) {
 			const model = this._chatService.getSession(LocalChatSessionUri.forSession(context.chatSessionId));
 			const userMessages = model?.getRequests().map(r => r.message.text.toLowerCase());
+			let urlsMentionedInPrompt = false;
 			for (const uri of urlsNeedingConfirmation) {
 				// Normalize to lowercase and remove any trailing slash
 				const toToCheck = uri.toString(true).toLowerCase().replace(/\/$/, '');
 				if (userMessages?.some(m => m.includes(toToCheck))) {
 					urlsNeedingConfirmation.delete(uri);
+					urlsMentionedInPrompt = true;
 				}
+			}
+			if (urlsMentionedInPrompt && urlsNeedingConfirmation.size === 0) {
+				confirmationNotNeededReason = localize('fetchWebPage.urlMentionedInPrompt', 'Auto approved because URL was in prompt');
 			}
 		}
 
@@ -255,7 +261,8 @@ export class FetchWebPageTool implements IToolImpl {
 			message: confirmationMessage,
 			confirmResults: urlsNeedingConfirmation.size > 0,
 			allowAutoConfirm: true,
-			disclaimer: new MarkdownString('$(info) ' + localize('fetchWebPage.confirmationMessage.plural', 'Web content may contain malicious code or attempt prompt injection attacks.'), { supportThemeIcons: true })
+			disclaimer: new MarkdownString('$(info) ' + localize('fetchWebPage.confirmationMessage.plural', 'Web content may contain malicious code or attempt prompt injection attacks.'), { supportThemeIcons: true }),
+			confirmationNotNeededReason
 		};
 		return result;
 	}
