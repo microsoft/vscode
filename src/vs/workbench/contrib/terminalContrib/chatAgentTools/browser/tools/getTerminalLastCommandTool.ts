@@ -8,12 +8,13 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
 import { TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { ToolDataSource, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type CountTokensCallback, type ToolProgress } from '../../../../chat/common/languageModelToolsService.js';
+import { ToolDataSource, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type CountTokensCallback, type ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { ITerminalService } from '../../../../terminal/browser/terminal.js';
 
 export const GetTerminalLastCommandToolData: IToolData = {
 	id: 'terminal_last_command',
 	toolReferenceName: 'terminalLastCommand',
+	legacyToolReferenceFullNames: ['runCommands/terminalLastCommand'],
 	displayName: localize('terminalLastCommandTool.displayName', 'Get Terminal Last Command'),
 	modelDescription: 'Get the last command run in the active terminal.',
 	source: ToolDataSource.Internal,

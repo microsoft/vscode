@@ -31,6 +31,7 @@
 
 .monaco-workbench .terminal-inline-chat .interactive-session {
 	margin: initial;
+	max-width: unset;
 }
 
 .monaco-workbench .terminal-inline-chat.hide {

@@ -272,8 +272,7 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 
 	removeNotebookEditor(editor: INotebookEditor): void {
 		const notebookUri = editor.getViewModel()?.notebookDocument.uri;
-		if (this._notebookEditors.has(editor.getId())) {
-			this._notebookEditors.delete(editor.getId());
+		if (this._notebookEditors.delete(editor.getId())) {
 			this._onNotebookEditorsRemove.fire(editor);
 		}
 		if (this._mostRecentRepl.get() === notebookUri?.toString()) {

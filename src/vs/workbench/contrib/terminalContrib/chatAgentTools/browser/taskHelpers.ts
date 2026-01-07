@@ -13,7 +13,7 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkerData } from '../../../../../platform/markers/common/markers.js';
-import { IToolInvocationContext, ToolProgress } from '../../../chat/common/languageModelToolsService.js';
+import { IToolInvocationContext, ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
 import { ConfiguringTask, ITaskDependency, Task } from '../../../tasks/common/tasks.js';
 import { ITaskService } from '../../../tasks/common/taskService.js';
 import { ITerminalInstance } from '../../../terminal/browser/terminal.js';

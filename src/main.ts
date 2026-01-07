@@ -352,6 +352,10 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 	// Runtime sets the default version to 3, refs https://github.com/electron/electron/pull/44426
 	app.commandLine.appendSwitch('xdg-portal-required-version', '4');
 
+	// Increase the maximum number of active WebGL contexts as each terminal may
+	// use up to 2
+	app.commandLine.appendSwitch('max-active-webgl-contexts', '32');
+
 	return argvConfig;
 }
 
@@ -528,7 +532,8 @@ function configureCrashReporter(): void {
 		productName: process.env['VSCODE_DEV'] ? `${productName} Dev` : productName,
 		submitURL,
 		uploadToServer,
-		compress: true
+		compress: true,
+		ignoreSystemCrashHandler: true
 	});
 }
 
