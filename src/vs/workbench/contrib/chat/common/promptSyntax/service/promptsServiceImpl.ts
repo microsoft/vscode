@@ -198,6 +198,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 					this.cachedCustomAgents.refresh();
 				} else if (type === PromptsType.instructions) {
 					this.cachedFileLocations[PromptsType.instructions] = undefined;
+				} else if (type === PromptsType.prompt) {
+					this.cachedFileLocations[PromptsType.prompt] = undefined;
+					this.cachedSlashCommands.refresh();
 				}
 			}));
 		}
@@ -208,6 +211,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 			this.cachedCustomAgents.refresh();
 		} else if (type === PromptsType.instructions) {
 			this.cachedFileLocations[PromptsType.instructions] = undefined;
+		} else if (type === PromptsType.prompt) {
+			this.cachedFileLocations[PromptsType.prompt] = undefined;
+			this.cachedSlashCommands.refresh();
 		}
 
 		disposables.add({
@@ -220,6 +226,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 						this.cachedCustomAgents.refresh();
 					} else if (type === PromptsType.instructions) {
 						this.cachedFileLocations[PromptsType.instructions] = undefined;
+					} else if (type === PromptsType.prompt) {
+						this.cachedFileLocations[PromptsType.prompt] = undefined;
+						this.cachedSlashCommands.refresh();
 					}
 				}
 			}
@@ -322,6 +331,53 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return result;
 	}
 
+	private async listPromptFilesFromProvider(token: CancellationToken): Promise<IPromptPath[]> {
+		const result: IPromptPath[] = [];
+
+		// Activate extensions that might provide prompt files
+		await this.extensionService.activateByEvent('onPromptFile');
+
+		const providers = this.contributionsProviders.filter(p => p.type === PromptsType.prompt);
+		if (providers.length === 0) {
+			return result;
+		}
+
+		// Collect prompt files from all providers
+		for (const providerEntry of providers) {
+			try {
+				const promptFiles = await providerEntry.provideContributions({}, token);
+				if (!promptFiles || token.isCancellationRequested) {
+					continue;
+				}
+
+				for (const promptFile of promptFiles) {
+					if (!promptFile.isEditable) {
+						try {
+							await this.filesConfigService.updateReadonly(promptFile.uri, true);
+						} catch (e) {
+							const msg = e instanceof Error ? e.message : String(e);
+							this.logger.error(`[listPromptFilesFromProvider] Failed to make prompt file readonly: ${promptFile.uri}`, msg);
+						}
+					}
+
+					result.push({
+						uri: promptFile.uri,
+						name: promptFile.name,
+						description: promptFile.description,
+						storage: PromptsStorage.extension,
+						type: PromptsType.prompt,
+						extension: providerEntry.extension,
+						source: ExtensionAgentSourceType.provider
+					} satisfies IExtensionPromptPath);
+				}
+			} catch (e) {
+				this.logger.error(`[listPromptFilesFromProvider] Failed to get prompt files from provider`, e instanceof Error ? e.message : String(e));
+			}
+		}
+
+		return result;
+	}
+
 
 
 	public async listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, token: CancellationToken): Promise<readonly IPromptPath[]> {
@@ -347,6 +403,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 		if (type === PromptsType.instructions) {
 			const providerInstructions = await this.listInstructionsFromProvider(token);
 			return [...contributedFiles, ...providerInstructions];
+		}
+		if (type === PromptsType.prompt) {
+			const providerPromptFiles = await this.listPromptFilesFromProvider(token);
+			return [...contributedFiles, ...providerPromptFiles];
 		}
 		return contributedFiles;
 	}

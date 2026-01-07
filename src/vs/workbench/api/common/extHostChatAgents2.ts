@@ -493,11 +493,14 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 		// Listen to provider change events and notify main thread
 		// Check for the appropriate event based on the provider type
-		const changeEvent = type === PromptsType.agent
-			? (provider as vscode.CustomAgentProvider).onDidChangeCustomAgents
-			: type === PromptsType.instructions
-				? (provider as vscode.InstructionsProvider).onDidChangeInstructions
-				: (provider as vscode.PromptFileProvider).onDidChangePromptFiles;
+		let changeEvent: vscode.Event<void> | undefined;
+		if ('onDidChangeCustomAgents' in provider) {
+			changeEvent = provider.onDidChangeCustomAgents;
+		} else if ('onDidChangeInstructions' in provider) {
+			changeEvent = provider.onDidChangeInstructions;
+		} else if ('onDidChangePromptFiles' in provider) {
+			changeEvent = provider.onDidChangePromptFiles;
+		}
 
 		if (changeEvent) {
 			disposables.add(changeEvent(() => {

@@ -1378,6 +1378,123 @@ suite('PromptsService', () => {
 		registered.dispose();
 	});
 
+	test('Prompt file provider', async () => {
+		const promptUri = URI.parse('file://extensions/my-extension/myPrompt.prompt.md');
+		const extension = {
+			identifier: { value: 'test.my-extension' },
+			enabledApiProposals: ['chatParticipantPrivate']
+		} as unknown as IExtensionDescription;
+
+		// Mock the prompt file content
+		await mockFiles(fileService, [
+			{
+				path: promptUri.path,
+				contents: [
+					'# Test prompt content'
+				]
+			}
+		]);
+
+		const provider = {
+			provideContributions: async (_options: IPromptFileQueryOptions, _token: CancellationToken) => {
+				return [
+					{
+						name: 'testPrompt',
+						description: 'Test prompt from provider',
+						uri: promptUri
+					}
+				];
+			}
+		};
+
+		const registered = service.registerPromptFileProvider(extension, PromptsType.prompt, provider);
+
+		const actual = await service.listPromptFiles(PromptsType.prompt, CancellationToken.None);
+		const providerPrompt = actual.find(i => i.name === 'testPrompt');
+
+		assert.ok(providerPrompt, 'Provider prompt should be found');
+		assert.strictEqual(providerPrompt!.uri.toString(), promptUri.toString());
+		assert.strictEqual(providerPrompt!.name, 'testPrompt');
+		assert.strictEqual(providerPrompt!.description, 'Test prompt from provider');
+		assert.strictEqual(providerPrompt!.storage, PromptsStorage.extension);
+		assert.strictEqual(providerPrompt!.source, ExtensionAgentSourceType.provider);
+
+		registered.dispose();
+
+		// After disposal, the prompt should no longer be listed
+		const actualAfterDispose = await service.listPromptFiles(PromptsType.prompt, CancellationToken.None);
+		const foundAfterDispose = actualAfterDispose.find(i => i.name === 'testPrompt');
+		assert.strictEqual(foundAfterDispose, undefined);
+	});
+
+	test('Prompt file provider with isEditable flag', async () => {
+		const readonlyPromptUri = URI.parse('file://extensions/my-extension/readonly.prompt.md');
+		const editablePromptUri = URI.parse('file://extensions/my-extension/editable.prompt.md');
+		const extension = {
+			identifier: { value: 'test.my-extension' },
+			enabledApiProposals: ['chatParticipantPrivate']
+		} as unknown as IExtensionDescription;
+
+		// Mock the prompt file content
+		await mockFiles(fileService, [
+			{
+				path: readonlyPromptUri.path,
+				contents: [
+					'# Readonly prompt content'
+				]
+			},
+			{
+				path: editablePromptUri.path,
+				contents: [
+					'# Editable prompt content'
+				]
+			}
+		]);
+
+		const provider = {
+			provideContributions: async (_options: IPromptFileQueryOptions, _token: CancellationToken) => {
+				return [
+					{
+						name: 'readonlyPrompt',
+						description: 'Readonly prompt from provider',
+						uri: readonlyPromptUri,
+						isEditable: false
+					},
+					{
+						name: 'editablePrompt',
+						description: 'Editable prompt from provider',
+						uri: editablePromptUri,
+						isEditable: true
+					}
+				];
+			}
+		};
+
+		const registered = service.registerPromptFileProvider(extension, PromptsType.prompt, provider);
+
+		// Spy on updateReadonly to verify it's called correctly
+		const filesConfigService = instaService.get(IFilesConfigurationService);
+		const updateReadonlySpy = sinon.spy(filesConfigService, 'updateReadonly');
+
+		// List prompt files to trigger the readonly check
+		await service.listPromptFiles(PromptsType.prompt, CancellationToken.None);
+
+		// Verify updateReadonly was called only for the non-editable prompt
+		assert.strictEqual(updateReadonlySpy.callCount, 1, 'updateReadonly should be called once');
+		assert.ok(updateReadonlySpy.calledWith(readonlyPromptUri, true), 'updateReadonly should be called with readonly prompt URI and true');
+
+		const actual = await service.listPromptFiles(PromptsType.prompt, CancellationToken.None);
+		const readonlyPrompt = actual.find(i => i.name === 'readonlyPrompt');
+		const editablePrompt = actual.find(i => i.name === 'editablePrompt');
+
+		assert.ok(readonlyPrompt, 'Readonly prompt should be found');
+		assert.ok(editablePrompt, 'Editable prompt should be found');
+		assert.strictEqual(readonlyPrompt!.description, 'Readonly prompt from provider');
+		assert.strictEqual(editablePrompt!.description, 'Editable prompt from provider');
+
+		registered.dispose();
+	});
+
 	suite('findAgentSkills', () => {
 		teardown(() => {
 			sinon.restore();
