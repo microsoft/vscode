@@ -184,6 +184,8 @@ export interface IToolResultInputOutputDetails {
 	readonly input: string;
 	readonly output: (ToolInputOutputEmbedded | ToolInputOutputReference)[];
 	readonly isError?: boolean;
+	/** Raw MCP tool result for MCP App UI rendering */
+	readonly mcpOutput?: unknown;
 }
 
 export interface IToolResultOutputDetails {

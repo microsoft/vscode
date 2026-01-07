@@ -6,10 +6,10 @@
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../../../base/common/observable.js';
+import { autorun, derived } from '../../../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
-import { IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
+import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { IChatRendererContent } from '../../../../common/model/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../../../common/widget/codeBlockModelCollection.js';
 import { isToolResultInputOutputDetails, isToolResultOutputDetails, ToolInvocationPresentation } from '../../../../common/tools/languageModelToolsService.js';
@@ -19,6 +19,7 @@ import { IChatContentPart, IChatContentPartRenderContext } from '../chatContentP
 import { CollapsibleListPool } from '../chatReferencesContentPart.js';
 import { ExtensionsInstallConfirmationWidgetSubPart } from './chatExtensionsInstallToolSubPart.js';
 import { ChatInputOutputMarkdownProgressPart } from './chatInputOutputMarkdownProgressPart.js';
+import { ChatMcpAppSubPart, IMcpAppRenderData } from './chatMcpAppSubPart.js';
 import { ChatResultListSubPart } from './chatResultListSubPart.js';
 import { ChatTerminalToolConfirmationSubPart } from './chatTerminalToolConfirmationSubPart.js';
 import { ChatTerminalToolProgressPart } from './chatTerminalToolProgressPart.js';
@@ -35,7 +36,11 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	public get codeblocks(): IChatCodeBlockInfo[] {
-		return this.subPart?.codeblocks ?? [];
+		const codeblocks = this.subPart?.codeblocks ?? [];
+		if (this.mcpAppPart) {
+			codeblocks.push(...this.mcpAppPart.codeblocks);
+		}
+		return codeblocks;
 	}
 
 	public get codeblocksPartId(): string | undefined {
@@ -43,6 +48,9 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 	}
 
 	private subPart!: BaseChatToolInvocationSubPart;
+	private mcpAppPart: ChatMcpAppSubPart | undefined;
+
+	private readonly _onDidRemount = this._register(new Emitter<void>());
 
 	constructor(
 		private readonly toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
@@ -78,9 +86,12 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		// This part is a bit different, since IChatToolInvocation is not an immutable model object. So this part is able to rerender itself.
 		// If this turns out to be a typical pattern, we could come up with a more reusable pattern, like telling the list to rerender an element
 		// when the model changes, or trying to make the model immutable and swap out one content part for a new one based on user actions in the view.
+		// Note that `node.replaceWith` is used to ensure order is preserved when an mpc app is present.
 		const partStore = this._register(new DisposableStore());
+		let subPartDomNode: HTMLElement = document.createElement('div');
+		this.domNode.appendChild(subPartDomNode);
+
 		const render = () => {
-			dom.clearNode(this.domNode);
 			partStore.clear();
 
 			if (toolInvocation.presentation === ToolInvocationPresentation.HiddenAfterComplete && IChatToolInvocation.isComplete(toolInvocation)) {
@@ -88,12 +99,44 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			}
 
 			this.subPart = partStore.add(this.createToolInvocationSubPart());
-			this.domNode.appendChild(this.subPart.domNode);
+			subPartDomNode.replaceWith(this.subPart.domNode);
+			subPartDomNode = this.subPart.domNode;
+
 			partStore.add(this.subPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 			partStore.add(this.subPart.onNeedsRerender(render));
-
 			this._onDidChangeHeight.fire();
 		};
+
+		const mcpAppRenderData = this.getMcpAppRenderData();
+		if (mcpAppRenderData) {
+			const shouldRender = derived(r => {
+				const outcome = IChatToolInvocation.executionConfirmedOrDenied(toolInvocation, r);
+				return !!outcome && outcome.type !== ToolConfirmKind.Denied && outcome.type !== ToolConfirmKind.Skipped;
+			});
+
+			let appDomNode: HTMLElement = document.createElement('div');
+			this.domNode.appendChild(appDomNode);
+
+			this._register(autorun(r => {
+				if (shouldRender.read(r)) {
+					this.mcpAppPart = r.store.add(this.instantiationService.createInstance(
+						ChatMcpAppSubPart,
+						this.toolInvocation,
+						this._onDidRemount.event,
+						mcpAppRenderData
+					));
+					appDomNode.replaceWith(this.mcpAppPart.domNode);
+					appDomNode = this.mcpAppPart.domNode;
+					r.store.add(this.mcpAppPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+				} else {
+					this.mcpAppPart = undefined;
+					dom.clearNode(appDomNode);
+				}
+
+				this._onDidChangeHeight.fire();
+			}));
+		}
+
 		render();
 	}
 
@@ -157,6 +200,35 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		}
 
 		return this.instantiationService.createInstance(ChatToolProgressSubPart, this.toolInvocation, this.context, this.renderer, this.announcedToolProgressKeys);
+	}
+
+	/**
+	 * Gets MCP App render data if this tool invocation has MCP App UI.
+	 * Returns data from either:
+	 * - toolSpecificData.mcpAppData (for in-progress tools)
+	 * - result details mcpOutput (for completed tools)
+	 */
+	private getMcpAppRenderData(): IMcpAppRenderData | undefined {
+		const toolSpecificData = this.toolInvocation.toolSpecificData;
+		if (toolSpecificData?.kind === 'input' && toolSpecificData.mcpAppData) {
+			const rawInput = typeof toolSpecificData.rawInput === 'string'
+				? toolSpecificData.rawInput
+				: JSON.stringify(toolSpecificData.rawInput, null, 2);
+
+			return {
+				resourceUri: toolSpecificData.mcpAppData.resourceUri,
+				serverDefinitionId: toolSpecificData.mcpAppData.serverDefinitionId,
+				collectionId: toolSpecificData.mcpAppData.collectionId,
+				input: rawInput,
+				sessionResource: this.context.element.sessionResource,
+			};
+		}
+
+		return undefined;
+	}
+
+	onDidRemount(): void {
+		this._onDidRemount.fire();
 	}
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
