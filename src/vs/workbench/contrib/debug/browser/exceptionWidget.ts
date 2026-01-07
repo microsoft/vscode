@@ -104,8 +104,8 @@ export class ExceptionWidget extends ZoneWidget {
 			const hoverBehaviour: DebugLinkHoverBehaviorTypeData = {
 				store: this._disposables,
 				type: DebugLinkHoverBehavior.Rich,
-			}
-			const linkedStackTrace = linkDetector.linkify(this.exceptionInfo.details.stackTrace, hoverBehaviour, true, this.debugSession ? this.debugSession.root : undefined, undefined,);
+			};
+			const linkedStackTrace = linkDetector.linkify(this.exceptionInfo.details.stackTrace, hoverBehaviour, true, this.debugSession ? this.debugSession.root : undefined, undefined);
 			stackTrace.appendChild(linkedStackTrace);
 			dom.append(container, stackTrace);
 			ariaLabel += ', ' + this.exceptionInfo.details.stackTrace;
