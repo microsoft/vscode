@@ -1718,7 +1718,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 
 			if (this.shouldPinPart(markdown, context.element) && isComplete) {
-				const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
 				if (lastThinking && markdownPart?.domNode) {
 					lastThinking.appendItem(markdownPart.domNode, markdownPart.codeblocksPartId, markdown, templateData.value);
 				}
