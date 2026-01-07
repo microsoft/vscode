@@ -97,8 +97,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 	private readonly _chatRelatedFilesProviders = this._register(new DisposableMap<number, IDisposable>());
 
-	private readonly _contributionsProviders = this._register(new DisposableMap<number, IDisposable>());
-	private readonly _contributionsProviderEmitters = this._register(new DisposableMap<number, Emitter<void>>());
+	private readonly _promptFileProviders = this._register(new DisposableMap<number, IDisposable>());
+	private readonly _promptFileProviderEmitters = this._register(new DisposableMap<number, Emitter<void>>());
 
 	private readonly _pendingProgress = new Map<string, { progress: (parts: IChatProgress[]) => void; chatSession: IChatModel | undefined }>();
 	private readonly _proxy: ExtHostChatAgentsShape2;
@@ -436,7 +436,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._chatRelatedFilesProviders.deleteAndDispose(handle);
 	}
 
-	async $registerContributionsProvider(handle: number, type: string, extensionId: ExtensionIdentifier): Promise<void> {
+	async $registerPromptFileProvider(handle: number, type: string, extensionId: ExtensionIdentifier): Promise<void> {
 		const extension = await this._extensionService.getExtension(extensionId.value);
 		if (!extension) {
 			this._logService.error(`[MainThreadChatAgents2] Could not find extension for ChatContributionsProvider: ${extensionId.value}`);
@@ -449,7 +449,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		}
 
 		const emitter = new Emitter<void>();
-		this._contributionsProviderEmitters.set(handle, emitter);
+		this._promptFileProviderEmitters.set(handle, emitter);
 
 		const disposable = this._promptsService.registerContributionsProvider(extension, type, {
 			onDidChangeContributions: emitter.event,
@@ -466,16 +466,16 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			}
 		});
 
-		this._contributionsProviders.set(handle, disposable);
+		this._promptFileProviders.set(handle, disposable);
 	}
 
-	$unregisterContributionsProvider(handle: number): void {
-		this._contributionsProviders.deleteAndDispose(handle);
-		this._contributionsProviderEmitters.deleteAndDispose(handle);
+	$unregisterPromptFileProvider(handle: number): void {
+		this._promptFileProviders.deleteAndDispose(handle);
+		this._promptFileProviderEmitters.deleteAndDispose(handle);
 	}
 
 	$onDidChangeContributions(handle: number): void {
-		const emitter = this._contributionsProviderEmitters.get(handle);
+		const emitter = this._promptFileProviderEmitters.get(handle);
 		if (emitter) {
 			emitter.fire();
 		}

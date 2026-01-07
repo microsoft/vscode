@@ -486,7 +486,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 	registerPromptFileProvider(extension: IExtensionDescription, type: 'agent' | 'instructions' | 'prompt', provider: vscode.CustomAgentProvider | vscode.InstructionsProvider | vscode.PromptFileProvider): vscode.Disposable {
 		const handle = ExtHostChatAgents2._contributionsProviderIdPool++;
 		this._promptFileProviders.set(handle, { extension, provider });
-		this._proxy.$registerContributionsProvider(handle, type, extension.identifier);
+		this._proxy.$registerPromptFileProvider(handle, type, extension.identifier);
 
 		const disposables = new DisposableStore();
 
@@ -506,7 +506,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 		disposables.add(toDisposable(() => {
 			this._promptFileProviders.delete(handle);
-			this._proxy.$unregisterContributionsProvider(handle);
+			this._proxy.$unregisterPromptFileProvider(handle);
 		}));
 
 		return disposables;

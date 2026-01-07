@@ -1394,8 +1394,8 @@ export interface MainThreadChatAgentsShape2 extends IChatAgentProgressShape, IDi
 	$unregisterChatParticipantDetectionProvider(handle: number): void;
 	$registerRelatedFilesProvider(handle: number, metadata: IChatRelatedFilesProviderMetadata): void;
 	$unregisterRelatedFilesProvider(handle: number): void;
-	$registerContributionsProvider(handle: number, type: string, extension: ExtensionIdentifier): void;
-	$unregisterContributionsProvider(handle: number): void;
+	$registerPromptFileProvider(handle: number, type: string, extension: ExtensionIdentifier): void;
+	$unregisterPromptFileProvider(handle: number): void;
 	$onDidChangeContributions(handle: number): void;
 	$registerAgentCompletionsProvider(handle: number, id: string, triggerCharacters: string[]): void;
 	$unregisterAgentCompletionsProvider(handle: number, id: string): void;
