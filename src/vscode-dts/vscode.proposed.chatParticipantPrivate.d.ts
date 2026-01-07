@@ -323,6 +323,16 @@ declare module 'vscode' {
 	// #region CustomAgentProvider
 
 	/**
+	 * Private metadata for resource files.
+	 */
+	export interface ResourceMetadata {
+		/**
+		 * The source to be displayed in the resource dropdown.
+		 */
+		readonly customSource?: string;
+	}
+
+	/**
 	 * Represents a custom agent resource file (e.g., .agent.md) available for a repository.
 	 */
 	export interface CustomAgentResource {
@@ -345,6 +355,16 @@ declare module 'vscode' {
 		 * Indicates whether the custom agent is editable. Defaults to false.
 		 */
 		readonly isEditable?: boolean;
+	}
+
+	/**
+	 * Private extension of CustomAgentResource with additional metadata.
+	 */
+	export interface CustomAgentResource {
+		/**
+		 * Optional metadata for the custom agent resource.
+		 */
+		readonly metadata?: ResourceMetadata;
 	}
 
 	/**
@@ -400,6 +420,16 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Private extension of InstructionsResource with additional metadata.
+	 */
+	export interface InstructionsResource {
+		/**
+		 * Optional metadata for the instructions resource.
+		 */
+		readonly metadata?: ResourceMetadata;
+	}
+
+	/**
 	 * Options for querying instructions.
 	 */
 	export interface InstructionsQueryOptions { }
@@ -449,6 +479,16 @@ declare module 'vscode' {
 		 * Indicates whether the prompt file is editable. Defaults to false.
 		 */
 		readonly isEditable?: boolean;
+	}
+
+	/**
+	 * Private extension of PromptFileResource with additional metadata.
+	 */
+	export interface PromptFileResource {
+		/**
+		 * Optional metadata for the prompt file resource.
+		 */
+		readonly metadata?: ResourceMetadata;
 	}
 
 	/**
