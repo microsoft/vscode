@@ -16,18 +16,20 @@ import { localize } from '../../../../nls.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IQuickInputService, IQuickPick, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
-import { ChatElicitationRequestPart } from '../../chat/browser/chatElicitationRequestPart.js';
-import { ChatModel } from '../../chat/common/chatModel.js';
-import { IChatService } from '../../chat/common/chatService.js';
-import { LocalChatSessionUri } from '../../chat/common/chatUri.js';
+import { ChatElicitationRequestPart } from '../../chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
+import { ChatModel } from '../../chat/common/model/chatModel.js';
+import { ElicitationState, IChatService } from '../../chat/common/chatService/chatService.js';
+import { LocalChatSessionUri } from '../../chat/common/model/chatUri.js';
 import { ElicitationKind, ElicitResult, IFormModeElicitResult, IMcpElicitationService, IMcpServer, IMcpToolCallContext, IUrlModeElicitResult, McpConnectionState, MpcResponseError } from '../common/mcpTypes.js';
 import { mcpServerToSourceData } from '../common/mcpTypesUtils.js';
 import { MCP } from '../common/modelContextProtocol.js';
 
 const noneItem: IQuickPickItem = { id: undefined, label: localize('mcp.elicit.enum.none', 'None'), description: localize('mcp.elicit.enum.none.description', 'No selection'), alwaysShow: true };
 
-function isFormElicitation(params: MCP.ElicitRequest['params']): params is MCP.ElicitRequestFormParams {
-	return params.mode === 'form';
+type Pre20251125ElicitationParams = Omit<MCP.ElicitRequestFormParams, 'mode'> & { mode?: undefined };
+
+function isFormElicitation(params: MCP.ElicitRequest['params'] | Pre20251125ElicitationParams): params is (MCP.ElicitRequestFormParams | Pre20251125ElicitationParams) {
+	return params.mode === 'form' || (params.mode === undefined && !!(params as Pre20251125ElicitationParams).requestedSchema);
 }
 
 function isUrlElicitation(params: MCP.ElicitRequest['params']): params is MCP.ElicitRequestURLParams {
@@ -80,7 +82,7 @@ export class McpElicitationService implements IMcpElicitationService {
 		}
 	}
 
-	private async _elicitForm(server: IMcpServer, context: IMcpToolCallContext | undefined, elicitation: MCP.ElicitRequestFormParams, token: CancellationToken): Promise<IFormModeElicitResult> {
+	private async _elicitForm(server: IMcpServer, context: IMcpToolCallContext | undefined, elicitation: MCP.ElicitRequestFormParams | Pre20251125ElicitationParams, token: CancellationToken): Promise<IFormModeElicitResult> {
 		const store = new DisposableStore();
 		const value = await new Promise<MCP.ElicitResult>(resolve => {
 			const chatModel = context?.chatSessionId && this._chatService.getSession(LocalChatSessionUri.forSession(context.chatSessionId));
@@ -97,13 +99,12 @@ export class McpElicitationService implements IMcpElicitationService {
 							const p = this._doElicitForm(elicitation, token);
 							resolve(p);
 							const result = await p;
-							part.state = result.action === 'accept' ? 'accepted' : 'rejected';
 							part.acceptedResult = result.content;
+							return result.action === 'accept' ? ElicitationState.Accepted : ElicitationState.Rejected;
 						},
 						() => {
 							resolve({ action: 'decline' });
-							part.state = 'rejected';
-							return Promise.resolve();
+							return Promise.resolve(ElicitationState.Rejected);
 						},
 						mcpServerToSourceData(server),
 					);
@@ -166,12 +167,12 @@ export class McpElicitationService implements IMcpElicitationService {
 						async () => {
 							const result = await this._doElicitUrl(elicitation, token);
 							resolve(result);
-							part.state = result.action === 'accept' ? 'accepted' : 'rejected';
+							completePromise.then(() => part.hide());
+							return result.action === 'accept' ? ElicitationState.Accepted : ElicitationState.Rejected;
 						},
 						() => {
 							resolve({ action: 'decline' });
-							part.state = 'rejected';
-							return Promise.resolve();
+							return Promise.resolve(ElicitationState.Rejected);
 						},
 						mcpServerToSourceData(server),
 					);
@@ -216,7 +217,7 @@ export class McpElicitationService implements IMcpElicitationService {
 		return { action: 'decline' };
 	}
 
-	private async _doElicitForm(elicitation: MCP.ElicitRequestFormParams, token: CancellationToken): Promise<MCP.ElicitResult> {
+	private async _doElicitForm(elicitation: MCP.ElicitRequestFormParams | Pre20251125ElicitationParams, token: CancellationToken): Promise<MCP.ElicitResult> {
 		const quickPick = this._quickInputService.createQuickPick<IQuickPickItem>();
 		const store = new DisposableStore();
 

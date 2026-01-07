@@ -5,7 +5,6 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isNumber } from '../../../../../base/common/types.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -15,9 +14,9 @@ import { IInstantiationService, ServicesAccessor } from '../../../../../platform
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IChatWidgetService } from '../../../chat/browser/chat.js';
-import { ChatContextKeys } from '../../../chat/common/chatContextKeys.js';
-import { IChatService } from '../../../chat/common/chatService.js';
-import { ILanguageModelToolsService } from '../../../chat/common/languageModelToolsService.js';
+import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
+import { IChatService } from '../../../chat/common/chatService/chatService.js';
+import { ILanguageModelToolsService } from '../../../chat/common/tools/languageModelToolsService.js';
 import { registerActiveInstanceAction, sharedWhenClause } from '../../../terminal/browser/terminalActions.js';
 import { TerminalContextMenuGroup } from '../../../terminal/browser/terminalMenus.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
@@ -68,17 +67,12 @@ class ChatAgentToolsContribution extends Disposable implements IWorkbenchContrib
 		this._register(toolsService.registerTool(ConfirmTerminalCommandToolData, confirmTerminalCommandTool));
 		const getTerminalOutputTool = instantiationService.createInstance(GetTerminalOutputTool);
 		this._register(toolsService.registerTool(GetTerminalOutputToolData, getTerminalOutputTool));
-
-		const runCommandsToolSet = this._register(toolsService.createToolSet(ToolDataSource.Internal, 'runCommands', VSCodeToolReference.runCommands, {
-			icon: ThemeIcon.fromId(Codicon.terminal.id),
-			description: localize('toolset.runCommands', 'Runs commands in the terminal')
-		}));
-		this._register(runCommandsToolSet.addTool(GetTerminalOutputToolData));
+		this._register(toolsService.executeToolSet.addTool(GetTerminalOutputToolData));
 
 		instantiationService.invokeFunction(createRunInTerminalToolData).then(runInTerminalToolData => {
 			const runInTerminalTool = instantiationService.createInstance(RunInTerminalTool);
 			this._register(toolsService.registerTool(runInTerminalToolData, runInTerminalTool));
-			this._register(runCommandsToolSet.addTool(runInTerminalToolData));
+			this._register(toolsService.executeToolSet.addTool(runInTerminalToolData));
 		});
 
 		const getTerminalSelectionTool = instantiationService.createInstance(GetTerminalSelectionTool);
@@ -87,8 +81,8 @@ class ChatAgentToolsContribution extends Disposable implements IWorkbenchContrib
 		const getTerminalLastCommandTool = instantiationService.createInstance(GetTerminalLastCommandTool);
 		this._register(toolsService.registerTool(GetTerminalLastCommandToolData, getTerminalLastCommandTool));
 
-		this._register(runCommandsToolSet.addTool(GetTerminalSelectionToolData));
-		this._register(runCommandsToolSet.addTool(GetTerminalLastCommandToolData));
+		this._register(toolsService.readToolSet.addTool(GetTerminalSelectionToolData));
+		this._register(toolsService.readToolSet.addTool(GetTerminalLastCommandToolData));
 
 		// #endregion
 
@@ -102,13 +96,9 @@ class ChatAgentToolsContribution extends Disposable implements IWorkbenchContrib
 
 		const createAndRunTaskTool = instantiationService.createInstance(CreateAndRunTaskTool);
 		this._register(toolsService.registerTool(CreateAndRunTaskToolData, createAndRunTaskTool));
-
-		const runTasksToolSet = this._register(toolsService.createToolSet(ToolDataSource.Internal, 'runTasks', 'runTasks', {
-			description: localize('toolset.runTasks', 'Runs tasks and gets their output for your workspace'),
-		}));
-		runTasksToolSet.addTool(RunTaskToolData);
-		runTasksToolSet.addTool(GetTaskOutputToolData);
-		runTasksToolSet.addTool(CreateAndRunTaskToolData);
+		this._register(toolsService.executeToolSet.addTool(RunTaskToolData));
+		this._register(toolsService.executeToolSet.addTool(CreateAndRunTaskToolData));
+		this._register(toolsService.readToolSet.addTool(GetTaskOutputToolData));
 
 		// #endregion
 	}

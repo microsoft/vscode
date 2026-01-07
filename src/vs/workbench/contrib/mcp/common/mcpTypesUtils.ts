@@ -7,9 +7,10 @@ import { disposableTimeout, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../base/common/observable.js';
-import { ToolDataSource } from '../../chat/common/languageModelToolsService.js';
+import { autorun, IReader } from '../../../../base/common/observable.js';
+import { ToolDataSource } from '../../chat/common/tools/languageModelToolsService.js';
 import { IMcpServer, IMcpServerStartOpts, IMcpService, McpConnectionState, McpServerCacheState, McpServerTransportType } from './mcpTypes.js';
+import { MCP } from './modelContextProtocol.js';
 
 
 /**
@@ -81,8 +82,8 @@ export async function startServerAndWaitForLiveTools(server: IMcpServer, opts?: 
 	return ok;
 }
 
-export function mcpServerToSourceData(server: IMcpServer): ToolDataSource {
-	const metadata = server.serverMetadata.get();
+export function mcpServerToSourceData(server: IMcpServer, reader?: IReader): ToolDataSource {
+	const metadata = server.serverMetadata.read(reader);
 	return {
 		type: 'mcp',
 		serverLabel: metadata?.serverName,
@@ -105,11 +106,15 @@ export function canLoadMcpNetworkResourceDirectly(resource: URL, server: IMcpSer
 	let isResourceRequestValid = false;
 	if (resource.protocol === 'http:') {
 		const launch = server?.connection.get()?.launchDefinition;
-		if (launch && launch.type === McpServerTransportType.HTTP && launch.uri.authority.toLowerCase() === resource.hostname.toLowerCase()) {
+		if (launch && launch.type === McpServerTransportType.HTTP && launch.uri.authority.toLowerCase() === resource.host.toLowerCase()) {
 			isResourceRequestValid = true;
 		}
 	} else if (resource.protocol === 'https:') {
 		isResourceRequestValid = true;
 	}
 	return isResourceRequestValid;
+}
+
+export function isTaskResult(obj: MCP.Result | MCP.CreateTaskResult): obj is MCP.CreateTaskResult {
+	return (obj as MCP.CreateTaskResult).task !== undefined;
 }

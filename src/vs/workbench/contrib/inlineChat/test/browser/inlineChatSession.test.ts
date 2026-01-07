@@ -45,32 +45,33 @@ import { workbenchInstantiationService } from '../../../../test/browser/workbenc
 import { TestContextService, TestExtensionService } from '../../../../test/common/workbenchTestServices.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { IChatAccessibilityService, IChatWidgetService, IQuickChatService } from '../../../chat/browser/chat.js';
-import { ChatSessionsService } from '../../../chat/browser/chatSessions.contribution.js';
-import { ChatVariablesService } from '../../../chat/browser/chatVariables.js';
-import { ChatWidget } from '../../../chat/browser/chatWidget.js';
-import { ChatAgentService, IChatAgentService } from '../../../chat/common/chatAgents.js';
-import { IChatEditingService, IChatEditingSession } from '../../../chat/common/chatEditingService.js';
-import { IChatRequestModel } from '../../../chat/common/chatModel.js';
-import { IChatService } from '../../../chat/common/chatService.js';
-import { ChatService } from '../../../chat/common/chatServiceImpl.js';
+import { ChatSessionsService } from '../../../chat/browser/chatSessions/chatSessions.contribution.js';
+import { ChatVariablesService } from '../../../chat/browser/attachments/chatVariables.js';
+import { ChatWidget } from '../../../chat/browser/widget/chatWidget.js';
+import { ChatAgentService, IChatAgentService } from '../../../chat/common/participants/chatAgents.js';
+import { IChatEditingService, IChatEditingSession } from '../../../chat/common/editing/chatEditingService.js';
+import { IChatRequestModel } from '../../../chat/common/model/chatModel.js';
+import { IChatService } from '../../../chat/common/chatService/chatService.js';
+import { ChatService } from '../../../chat/common/chatService/chatServiceImpl.js';
 import { IChatSessionsService } from '../../../chat/common/chatSessionsService.js';
-import { ChatSlashCommandService, IChatSlashCommandService } from '../../../chat/common/chatSlashCommands.js';
-import { ChatTransferService, IChatTransferService } from '../../../chat/common/chatTransferService.js';
-import { IChatVariablesService } from '../../../chat/common/chatVariables.js';
-import { IChatResponseViewModel } from '../../../chat/common/chatViewModel.js';
-import { ChatWidgetHistoryService, IChatWidgetHistoryService } from '../../../chat/common/chatWidgetHistoryService.js';
+import { ChatSlashCommandService, IChatSlashCommandService } from '../../../chat/common/participants/chatSlashCommands.js';
+import { ChatTransferService, IChatTransferService } from '../../../chat/common/model/chatTransferService.js';
+import { IChatVariablesService } from '../../../chat/common/attachments/chatVariables.js';
+import { IChatResponseViewModel } from '../../../chat/common/model/chatViewModel.js';
+import { ChatWidgetHistoryService, IChatWidgetHistoryService } from '../../../chat/common/widget/chatWidgetHistoryService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../chat/common/constants.js';
 import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
-import { ILanguageModelToolsService } from '../../../chat/common/languageModelToolsService.js';
+import { ILanguageModelToolsService } from '../../../chat/common/tools/languageModelToolsService.js';
 import { NullLanguageModelsService } from '../../../chat/test/common/languageModels.js';
-import { MockLanguageModelToolsService } from '../../../chat/test/common/mockLanguageModelToolsService.js';
+import { MockLanguageModelToolsService } from '../../../chat/test/common/tools/mockLanguageModelToolsService.js';
 import { IMcpService } from '../../../mcp/common/mcpTypes.js';
 import { TestMcpService } from '../../../mcp/test/common/testMcpService.js';
 import { HunkState } from '../../browser/inlineChatSession.js';
 import { IInlineChatSessionService } from '../../browser/inlineChatSessionService.js';
 import { InlineChatSessionServiceImpl } from '../../browser/inlineChatSessionServiceImpl.js';
 import { TestWorkerService } from './testWorkerService.js';
-import { ChatWidgetService } from '../../../chat/browser/chatWidgetService.js';
+import { ChatWidgetService } from '../../../chat/browser/widget/chatWidgetService.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 suite('InlineChatSession', function () {
 
@@ -122,8 +123,8 @@ suite('InlineChatSession', function () {
 				override editingSessionsObs: IObservable<readonly IChatEditingSession[]> = constObservable([]);
 			}],
 			[IChatAccessibilityService, new class extends mock<IChatAccessibilityService>() {
-				override acceptResponse(chatWidget: ChatWidget, container: HTMLElement, response: IChatResponseViewModel | undefined, requestId: number): void { }
-				override acceptRequest(): number { return -1; }
+				override acceptResponse(chatWidget: ChatWidget, container: HTMLElement, response: IChatResponseViewModel | undefined, requestId: URI | undefined): void { }
+				override acceptRequest(): URI | undefined { return undefined; }
 				override acceptElicitation(): void { }
 			}],
 			[IAccessibleViewService, new class extends mock<IAccessibleViewService>() {
@@ -144,6 +145,7 @@ suite('InlineChatSession', function () {
 		instaService = store.add(workbenchInstantiationService(undefined, store).createChild(serviceCollection));
 		inlineChatSessionService = store.add(instaService.get(IInlineChatSessionService));
 		store.add(instaService.get(IChatSessionsService) as ChatSessionsService);  // Needs to be disposed in between test runs to clear extensionPoint contribution
+		store.add(instaService.get(IChatService) as ChatService);
 
 		instaService.get(IChatAgentService).registerDynamicAgent({
 			extensionId: nullExtensionDescription.identifier,
@@ -171,8 +173,9 @@ suite('InlineChatSession', function () {
 		editor = store.add(instantiateTestCodeEditor(instaService, model));
 	});
 
-	teardown(function () {
+	teardown(async function () {
 		store.clear();
+		await instaService.get(IChatService).waitForModelDisposals();
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

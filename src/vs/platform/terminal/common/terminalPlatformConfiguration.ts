@@ -228,7 +228,7 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 						'${env:windir}\\System32\\cmd.exe'
 					],
 					args: [],
-					icon: Codicon.terminalCmd,
+					icon: Codicon.terminalCmd.id,
 				},
 				'Git Bash': {
 					source: 'Git Bash',

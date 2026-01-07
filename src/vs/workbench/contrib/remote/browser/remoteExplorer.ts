@@ -800,10 +800,9 @@ class ProcAutomaticPortForwarding extends Disposable {
 				}
 				await this.remoteExplorerService.close(value, TunnelCloseReason.AutoForwardEnd);
 				removedPorts.push(value.port);
-			} else if (this.notifiedOnly.has(key)) {
-				this.notifiedOnly.delete(key);
+			} else if (this.notifiedOnly.delete(key)) {
 				removedPorts.push(value.port);
-			} else if (this.initialCandidates.has(key)) {
+			} else {
 				this.initialCandidates.delete(key);
 			}
 		}
