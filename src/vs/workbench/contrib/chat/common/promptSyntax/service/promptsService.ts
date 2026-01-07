@@ -50,6 +50,17 @@ export interface IPromptFileResource {
 	 * Indicates whether the custom agent resource is editable. Defaults to false.
 	 */
 	readonly isEditable?: boolean;
+
+	/**
+	 * Optional metadata for the resource.
+	 */
+	readonly metadata?: {
+		/**
+		 * Optional source label for grouping resources in menus.
+		 * If provided, resources will be grouped by this label instead of by extension.
+		 */
+		readonly source?: string;
+	};
 }
 
 /**
@@ -113,6 +124,11 @@ export interface IExtensionPromptPath extends IPromptPathBase {
 	readonly source: ExtensionAgentSourceType;
 	readonly name?: string;
 	readonly description?: string;
+	/**
+	 * Optional source label for grouping in menus.
+	 * If provided, this will be used as the category name instead of just "Extension".
+	 */
+	readonly sourceLabel?: string;
 }
 export interface ILocalPromptPath extends IPromptPathBase {
 	readonly storage: PromptsStorage.local;

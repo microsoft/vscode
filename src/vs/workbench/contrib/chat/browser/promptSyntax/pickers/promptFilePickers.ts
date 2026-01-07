@@ -7,7 +7,7 @@ import { localize } from '../../../../../../nls.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
-import { IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { IExtensionPromptPath, IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { dirname, extUri, joinPath } from '../../../../../../base/common/resources.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
@@ -387,7 +387,6 @@ export class PromptFilePickers {
 
 		const exts = await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.extension, token);
 		if (exts.length) {
-			result.push({ type: 'separator', label: localize('separator.extensions', "Extensions") });
 			const extButtons: IQuickInputButton[] = [];
 			if (options.optionEdit !== false) {
 				extButtons.push(EDIT_BUTTON);
@@ -395,7 +394,24 @@ export class PromptFilePickers {
 			if (options.optionCopy !== false) {
 				extButtons.push(COPY_BUTTON);
 			}
-			result.push(...await Promise.all(exts.map(e => this._createPromptPickItem(e, extButtons, getVisibility(e), token))));
+
+			// Group extension resources by sourceLabel, falling back to "Extensions" for those without a sourceLabel
+			const groupedExts = new Map<string, IPromptPath[]>();
+			const defaultExtGroupLabel = localize('separator.extensions', "Extensions");
+			for (const ext of exts) {
+				const extPath = ext as IExtensionPromptPath;
+				const groupLabel = extPath.sourceLabel ?? defaultExtGroupLabel;
+				if (!groupedExts.has(groupLabel)) {
+					groupedExts.set(groupLabel, []);
+				}
+				groupedExts.get(groupLabel)!.push(ext);
+			}
+
+			// Add items grouped by their source labels
+			for (const [groupLabel, groupExts] of groupedExts) {
+				result.push({ type: 'separator', label: groupLabel });
+				result.push(...await Promise.all(groupExts.map(e => this._createPromptPickItem(e, extButtons, getVisibility(e), token))));
+			}
 		}
 		const users = await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.user, token);
 		if (users.length) {

@@ -37,6 +37,18 @@ import { Delayer } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 
 /**
+ * The proposed API name that grants access to metadata.source.
+ */
+const CHAT_PARTICIPANT_PRIVATE_API = 'chatParticipantPrivate';
+
+/**
+ * Checks if an extension has access to the chatParticipantPrivate proposed API.
+ */
+function hasAccessToChatParticipantPrivateApi(extension: IExtensionDescription): boolean {
+	return extension.enabledApiProposals?.includes(CHAT_PARTICIPANT_PRIVATE_API) ?? false;
+}
+
+/**
  * Provides prompt services.
  */
 export class PromptsService extends Disposable implements IPromptsService {
@@ -266,6 +278,16 @@ export class PromptsService extends Disposable implements IPromptsService {
 						}
 					}
 
+					// Only use metadata.source if the extension has access to chatParticipantPrivate API
+					let sourceLabel: string | undefined;
+					if (agent.metadata?.source) {
+						if (hasAccessToChatParticipantPrivateApi(providerEntry.extension)) {
+							sourceLabel = agent.metadata.source;
+						} else {
+							this.logger.warn(`[listCustomAgentsFromProvider] Extension '${providerEntry.extension.identifier.value}' provided metadata.source but does not have access to chatParticipantPrivate API. The source property will be ignored.`);
+						}
+					}
+
 					result.push({
 						uri: agent.uri,
 						name: agent.name,
@@ -273,7 +295,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 						storage: PromptsStorage.extension,
 						type: PromptsType.agent,
 						extension: providerEntry.extension,
-						source: ExtensionAgentSourceType.provider
+						source: ExtensionAgentSourceType.provider,
+						sourceLabel
 					} satisfies IExtensionPromptPath);
 				}
 			} catch (e) {
@@ -313,6 +336,16 @@ export class PromptsService extends Disposable implements IPromptsService {
 						}
 					}
 
+					// Only use metadata.source if the extension has access to chatParticipantPrivate API
+					let sourceLabel: string | undefined;
+					if (instruction.metadata?.source) {
+						if (hasAccessToChatParticipantPrivateApi(providerEntry.extension)) {
+							sourceLabel = instruction.metadata.source;
+						} else {
+							this.logger.warn(`[listInstructionsFromProvider] Extension '${providerEntry.extension.identifier.value}' provided metadata.source but does not have access to chatParticipantPrivate API. The source property will be ignored.`);
+						}
+					}
+
 					result.push({
 						uri: instruction.uri,
 						name: instruction.name,
@@ -320,7 +353,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 						storage: PromptsStorage.extension,
 						type: PromptsType.instructions,
 						extension: providerEntry.extension,
-						source: ExtensionAgentSourceType.provider
+						source: ExtensionAgentSourceType.provider,
+						sourceLabel
 					} satisfies IExtensionPromptPath);
 				}
 			} catch (e) {
@@ -360,6 +394,16 @@ export class PromptsService extends Disposable implements IPromptsService {
 						}
 					}
 
+					// Only use metadata.source if the extension has access to chatParticipantPrivate API
+					let sourceLabel: string | undefined;
+					if (promptFile.metadata?.source) {
+						if (hasAccessToChatParticipantPrivateApi(providerEntry.extension)) {
+							sourceLabel = promptFile.metadata.source;
+						} else {
+							this.logger.warn(`[listPromptFilesFromProvider] Extension '${providerEntry.extension.identifier.value}' provided metadata.source but does not have access to chatParticipantPrivate API. The source property will be ignored.`);
+						}
+					}
+
 					result.push({
 						uri: promptFile.uri,
 						name: promptFile.name,
@@ -367,7 +411,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 						storage: PromptsStorage.extension,
 						type: PromptsType.prompt,
 						extension: providerEntry.extension,
-						source: ExtensionAgentSourceType.provider
+						source: ExtensionAgentSourceType.provider,
+						sourceLabel
 					} satisfies IExtensionPromptPath);
 				}
 			} catch (e) {

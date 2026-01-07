@@ -319,4 +319,48 @@ declare module 'vscode' {
 	}
 
 	// #endregion
+
+	// #region ResourceMetadata
+
+	/**
+	 * Private metadata for resource files.
+	 */
+	export interface ResourceMetadata {
+		/**
+		 * The source to be displayed in the resource dropdown.
+		 */
+		readonly source?: string;
+	}
+
+	/**
+	 * Private extension of CustomAgentResource with additional metadata.
+	 */
+	export interface CustomAgentResource {
+		/**
+		 * Optional metadata for the custom agent resource.
+		 */
+		readonly metadata?: ResourceMetadata;
+	}
+
+	/**
+	 * Private extension of InstructionsResource with additional metadata.
+	 */
+	export interface InstructionsResource {
+		/**
+		 * Optional metadata for the instructions resource.
+		 */
+		readonly metadata?: ResourceMetadata;
+	}
+
+	/**
+	 * Private extension of PromptFileResource with additional metadata.
+	 */
+	export interface PromptFileResource {
+		/**
+		 * Optional metadata for the prompt file resource.
+		 */
+		readonly metadata?: ResourceMetadata;
+	}
+
+	// #endregion
 }
