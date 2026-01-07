@@ -399,7 +399,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 	private readonly _relatedFilesProviders = new Map<number, ExtHostRelatedFilesProvider>();
 
 	private static _contributionsProviderIdPool = 0;
-	private readonly _contributionsProviders = new Map<number, { extension: IExtensionDescription; provider: vscode.ChatContributionsProvider }>();
+	private readonly _promptFileProviders = new Map<number, { extension: IExtensionDescription; provider: vscode.CustomAgentProvider | vscode.InstructionsProvider | vscode.PromptFileProvider }>();
 
 	private readonly _sessionDisposables: DisposableResourceMap<DisposableStore> = this._register(new DisposableResourceMap());
 	private readonly _completionDisposables: DisposableMap<number, DisposableStore> = this._register(new DisposableMap());
@@ -479,22 +479,33 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		});
 	}
 
-	registerContributionsProvider(extension: IExtensionDescription, type: vscode.PromptsType, provider: vscode.ChatContributionsProvider): vscode.Disposable {
+	/**
+	 * Internal method that handles all prompt file provider types.
+	 * Routes custom agents, instructions, and prompt files to the unified internal implementation.
+	 */
+	registerPromptFileProvider(extension: IExtensionDescription, type: 'agent' | 'instructions' | 'prompt', provider: vscode.CustomAgentProvider | vscode.InstructionsProvider | vscode.PromptFileProvider): vscode.Disposable {
 		const handle = ExtHostChatAgents2._contributionsProviderIdPool++;
-		this._contributionsProviders.set(handle, { extension, provider });
+		this._promptFileProviders.set(handle, { extension, provider });
 		this._proxy.$registerContributionsProvider(handle, type, extension.identifier);
 
 		const disposables = new DisposableStore();
 
 		// Listen to provider change events and notify main thread
-		if (provider.onDidChangeContributions) {
-			disposables.add(provider.onDidChangeContributions(() => {
+		// Check for the appropriate event based on the provider type
+		const changeEvent = type === 'agent'
+			? (provider as vscode.CustomAgentProvider).onDidChangeCustomAgents
+			: type === 'instructions'
+				? (provider as vscode.InstructionsProvider).onDidChangeInstructions
+				: (provider as vscode.PromptFileProvider).onDidChangePromptFiles;
+
+		if (changeEvent) {
+			disposables.add(changeEvent(() => {
 				this._proxy.$onDidChangeContributions(handle);
 			}));
 		}
 
 		disposables.add(toDisposable(() => {
-			this._contributionsProviders.delete(handle);
+			this._promptFileProviders.delete(handle);
 			this._proxy.$unregisterContributionsProvider(handle);
 		}));
 
@@ -512,12 +523,21 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 	}
 
 	async $provideContributions(handle: number, options: IChatContributionQueryOptions, token: CancellationToken): Promise<IChatContributionResource[] | undefined> {
-		const providerData = this._contributionsProviders.get(handle);
+		const providerData = this._promptFileProviders.get(handle);
 		if (!providerData) {
 			return Promise.resolve(undefined);
 		}
 
-		return await providerData.provider.provideContributions(options, token) ?? undefined;
+		const provider = providerData.provider;
+		// Call the appropriate method based on the provider type
+		if ('provideCustomAgents' in provider) {
+			return await provider.provideCustomAgents(options, token) ?? undefined;
+		} else if ('provideInstructions' in provider) {
+			return await provider.provideInstructions(options, token) ?? undefined;
+		} else if ('providePromptFiles' in provider) {
+			return await provider.providePromptFiles(options, token) ?? undefined;
+		}
+		return undefined;
 	}
 
 	async $detectChatParticipant(handle: number, requestDto: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, options: { location: ChatAgentLocation; participants?: vscode.ChatParticipantMetadata[] }, token: CancellationToken): Promise<vscode.ChatParticipantDetectionResult | null | undefined> {
