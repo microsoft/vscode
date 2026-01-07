@@ -106,8 +106,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 		// Initialize installed extensions first and do it only after workbench is ready
 		lifecycleService.when(LifecyclePhase.Ready).then(async () => {
-			await this._userDataInitializationService.initializeInstalledExtensions(this._instantiationService);
-			this._initialize();
+			await this._initialize();
 		});
 
 		this._initFetchFileSystem();
@@ -117,6 +116,11 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		const provider = new FetchFileSystemProvider();
 		this._register(this._fileService.registerProvider(Schemas.http, provider));
 		this._register(this._fileService.registerProvider(Schemas.https, provider));
+	}
+
+	protected override async _initialize(): Promise<void> {
+		await this._userDataInitializationService.initializeInstalledExtensions(this._instantiationService);
+		await super._initialize();
 	}
 
 	private _scanWebExtensionsPromise: Promise<IExtensionDescription[]> | undefined;
