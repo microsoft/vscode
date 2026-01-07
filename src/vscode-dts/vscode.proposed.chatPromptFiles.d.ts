@@ -32,11 +32,6 @@ declare module 'vscode' {
 		 * Indicates whether the custom agent is editable. Defaults to false.
 		 */
 		readonly isEditable?: boolean;
-
-		/**
-		 * Indicates whether the editor should cache and use the URI on startup before activation. Defaults to true.
-		 */
-		readonly isCacheable?: boolean;
 	}
 
 	/**
@@ -89,11 +84,6 @@ declare module 'vscode' {
 		 * Indicates whether the instructions are editable. Defaults to false.
 		 */
 		readonly isEditable?: boolean;
-
-		/**
-		 * Indicates whether the editor should cache and use the URI on startup before activation. Defaults to true.
-		 */
-		readonly isCacheable?: boolean;
 	}
 
 	/**
@@ -146,11 +136,6 @@ declare module 'vscode' {
 		 * Indicates whether the prompt file is editable. Defaults to false.
 		 */
 		readonly isEditable?: boolean;
-
-		/**
-		 * Indicates whether the editor should cache and use and use the URI on startup before activation. Defaults to true.
-		 */
-		readonly isCacheable?: boolean;
 	}
 
 	/**

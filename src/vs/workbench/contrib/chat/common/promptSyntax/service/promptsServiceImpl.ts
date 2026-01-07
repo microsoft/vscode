@@ -32,21 +32,11 @@ import { getCleanPromptName } from '../config/promptFileLocations.js';
 import { PROMPT_LANGUAGE_ID, PromptsType, getPromptsTypeForLanguageId } from '../promptTypes.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
-import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IAgentSkill, IUserPromptPath, PromptsStorage, ExtensionAgentSourceType, CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT, IPromptFileQueryOptions, IPromptFileResource } from './promptsService.js';
+import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IAgentSkill, IUserPromptPath, PromptsStorage, ExtensionAgentSourceType, CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT, IPromptFileQueryOptions, IPromptFileResource, PROMPT_FILE_PROVIDER_ACTIVATION_EVENT } from './promptsService.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 
-/**
- * The proposed API name that grants access to metadata.source.
- */
 const CHAT_PARTICIPANT_PRIVATE_API = 'chatParticipantPrivate';
-
-/**
- * Checks if an extension has access to the chatParticipantPrivate proposed API.
- */
-function hasAccessToChatParticipantPrivateApi(extension: IExtensionDescription): boolean {
-	return extension.enabledApiProposals?.includes(CHAT_PARTICIPANT_PRIVATE_API) ?? false;
-}
 
 /**
  * Provides prompt services.
@@ -249,174 +239,61 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return disposables;
 	}
 
-	private async listCustomAgentsFromProvider(token: CancellationToken): Promise<IPromptPath[]> {
+	/**
+	 * Shared helper to list prompt files from registered providers for a given type.
+	 */
+	private async listFromProviders(type: PromptsType, activationEvent: string, token: CancellationToken): Promise<IPromptPath[]> {
 		const result: IPromptPath[] = [];
 
-		// Activate extensions that might provide custom agents
-		await this.extensionService.activateByEvent(CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT);
+		// Activate extensions that might provide files for this type
+		await this.extensionService.activateByEvent(activationEvent);
 
-		const providers = this.promptFileProviders.filter(p => p.type === PromptsType.agent);
+		const providers = this.promptFileProviders.filter(p => p.type === type);
 		if (providers.length === 0) {
 			return result;
 		}
 
-		// Collect agents from all providers
+		// Collect files from all providers
 		for (const providerEntry of providers) {
 			try {
-				const agents = await providerEntry.providePromptFiles({}, token);
-				if (!agents || token.isCancellationRequested) {
+				const files = await providerEntry.providePromptFiles({}, token);
+				if (!files || token.isCancellationRequested) {
 					continue;
 				}
 
-				for (const agent of agents) {
-					if (!agent.isEditable) {
+				for (const file of files) {
+					if (!file.isEditable) {
 						try {
-							await this.filesConfigService.updateReadonly(agent.uri, true);
+							await this.filesConfigService.updateReadonly(file.uri, true);
 						} catch (e) {
 							const msg = e instanceof Error ? e.message : String(e);
-							this.logger.error(`[listCustomAgentsFromProvider] Failed to make agent file readonly: ${agent.uri}`, msg);
+							this.logger.error(`[listFromProviders] Failed to make file readonly: ${file.uri}`, msg);
 						}
 					}
 
 					// Only use metadata.source if the extension has access to chatParticipantPrivate API
 					let sourceLabel: string | undefined;
-					if (agent.metadata?.source) {
-						if (hasAccessToChatParticipantPrivateApi(providerEntry.extension)) {
-							sourceLabel = agent.metadata.source;
+					if (file.metadata?.source) {
+						if (providerEntry.extension.enabledApiProposals?.includes(CHAT_PARTICIPANT_PRIVATE_API)) {
+							sourceLabel = file.metadata.source;
 						} else {
 							this.logger.warn(`[listCustomAgentsFromProvider] Extension '${providerEntry.extension.identifier.value}' provided metadata.source but does not have access to chatParticipantPrivate API. The source property will be ignored.`);
 						}
 					}
 
 					result.push({
-						uri: agent.uri,
-						name: agent.name,
-						description: agent.description,
+						uri: file.uri,
+						name: file.name,
+						description: file.description,
 						storage: PromptsStorage.extension,
-						type: PromptsType.agent,
+						type,
 						extension: providerEntry.extension,
 						source: ExtensionAgentSourceType.provider,
 						sourceLabel
 					} satisfies IExtensionPromptPath);
 				}
 			} catch (e) {
-				this.logger.error(`[listCustomAgentsFromProvider] Failed to get custom agents from provider`, e instanceof Error ? e.message : String(e));
-			}
-		}
-
-		return result;
-	}
-
-	private async listInstructionsFromProvider(token: CancellationToken): Promise<IPromptPath[]> {
-		const result: IPromptPath[] = [];
-
-		// Activate extensions that might provide instructions
-		await this.extensionService.activateByEvent(INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT);
-
-		const providers = this.promptFileProviders.filter(p => p.type === PromptsType.instructions);
-		if (providers.length === 0) {
-			return result;
-		}
-
-		// Collect instructions from all providers
-		for (const providerEntry of providers) {
-			try {
-				const instructions = await providerEntry.providePromptFiles({}, token);
-				if (!instructions || token.isCancellationRequested) {
-					continue;
-				}
-
-				for (const instruction of instructions) {
-					if (!instruction.isEditable) {
-						try {
-							await this.filesConfigService.updateReadonly(instruction.uri, true);
-						} catch (e) {
-							const msg = e instanceof Error ? e.message : String(e);
-							this.logger.error(`[listInstructionsFromProvider] Failed to make instruction file readonly: ${instruction.uri}`, msg);
-						}
-					}
-
-					// Only use metadata.source if the extension has access to chatParticipantPrivate API
-					let sourceLabel: string | undefined;
-					if (instruction.metadata?.source) {
-						if (hasAccessToChatParticipantPrivateApi(providerEntry.extension)) {
-							sourceLabel = instruction.metadata.source;
-						} else {
-							this.logger.warn(`[listInstructionsFromProvider] Extension '${providerEntry.extension.identifier.value}' provided metadata.source but does not have access to chatParticipantPrivate API. The source property will be ignored.`);
-						}
-					}
-
-					result.push({
-						uri: instruction.uri,
-						name: instruction.name,
-						description: instruction.description,
-						storage: PromptsStorage.extension,
-						type: PromptsType.instructions,
-						extension: providerEntry.extension,
-						source: ExtensionAgentSourceType.provider,
-						sourceLabel
-					} satisfies IExtensionPromptPath);
-				}
-			} catch (e) {
-				this.logger.error(`[listInstructionsFromProvider] Failed to get instructions from provider`, e instanceof Error ? e.message : String(e));
-			}
-		}
-
-		return result;
-	}
-
-	private async listPromptFilesFromProvider(token: CancellationToken): Promise<IPromptPath[]> {
-		const result: IPromptPath[] = [];
-
-		// Activate extensions that might provide prompt files
-		await this.extensionService.activateByEvent('onPromptFile');
-
-		const providers = this.promptFileProviders.filter(p => p.type === PromptsType.prompt);
-		if (providers.length === 0) {
-			return result;
-		}
-
-		// Collect prompt files from all providers
-		for (const providerEntry of providers) {
-			try {
-				const promptFiles = await providerEntry.providePromptFiles({}, token);
-				if (!promptFiles || token.isCancellationRequested) {
-					continue;
-				}
-
-				for (const promptFile of promptFiles) {
-					if (!promptFile.isEditable) {
-						try {
-							await this.filesConfigService.updateReadonly(promptFile.uri, true);
-						} catch (e) {
-							const msg = e instanceof Error ? e.message : String(e);
-							this.logger.error(`[listPromptFilesFromProvider] Failed to make prompt file readonly: ${promptFile.uri}`, msg);
-						}
-					}
-
-					// Only use metadata.source if the extension has access to chatParticipantPrivate API
-					let sourceLabel: string | undefined;
-					if (promptFile.metadata?.source) {
-						if (hasAccessToChatParticipantPrivateApi(providerEntry.extension)) {
-							sourceLabel = promptFile.metadata.source;
-						} else {
-							this.logger.warn(`[listPromptFilesFromProvider] Extension '${providerEntry.extension.identifier.value}' provided metadata.source but does not have access to chatParticipantPrivate API. The source property will be ignored.`);
-						}
-					}
-
-					result.push({
-						uri: promptFile.uri,
-						name: promptFile.name,
-						description: promptFile.description,
-						storage: PromptsStorage.extension,
-						type: PromptsType.prompt,
-						extension: providerEntry.extension,
-						source: ExtensionAgentSourceType.provider,
-						sourceLabel
-					} satisfies IExtensionPromptPath);
-				}
-			} catch (e) {
-				this.logger.error(`[listPromptFilesFromProvider] Failed to get prompt files from provider`, e instanceof Error ? e.message : String(e));
+				this.logger.error(`[listFromProviders] Failed to get ${type} files from provider`, e instanceof Error ? e.message : String(e));
 			}
 		}
 
@@ -441,19 +318,29 @@ export class PromptsService extends Disposable implements IPromptsService {
 	private async getExtensionPromptFiles(type: PromptsType, token: CancellationToken): Promise<IPromptPath[]> {
 		await this.extensionService.whenInstalledExtensionsRegistered();
 		const contributedFiles = await Promise.all(this.contributedFiles[type].values());
-		if (type === PromptsType.agent) {
-			const providerAgents = await this.listCustomAgentsFromProvider(token);
-			return [...contributedFiles, ...providerAgents];
+
+		const activationEvent = this.getProviderActivationEvent(type);
+		if (activationEvent) {
+			const providerFiles = await this.listFromProviders(type, activationEvent, token);
+			return [...contributedFiles, ...providerFiles];
+		} else {
+			this.logger.warn(`[getExtensionPromptFiles] No activation event found for prompt type: ${type}`);
 		}
-		if (type === PromptsType.instructions) {
-			const providerInstructions = await this.listInstructionsFromProvider(token);
-			return [...contributedFiles, ...providerInstructions];
-		}
-		if (type === PromptsType.prompt) {
-			const providerPromptFiles = await this.listPromptFilesFromProvider(token);
-			return [...contributedFiles, ...providerPromptFiles];
-		}
+
 		return contributedFiles;
+	}
+
+	private getProviderActivationEvent(type: PromptsType): string | undefined {
+		switch (type) {
+			case PromptsType.agent:
+				return CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT;
+			case PromptsType.instructions:
+				return INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT;
+			case PromptsType.prompt:
+				return PROMPT_FILE_PROVIDER_ACTIVATION_EVENT;
+			default:
+				return undefined;
+		}
 	}
 
 	public getSourceFolders(type: PromptsType): readonly IPromptPath[] {
