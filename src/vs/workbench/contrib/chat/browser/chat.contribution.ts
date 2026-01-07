@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { timeout } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { MarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
@@ -15,13 +16,16 @@ import * as nls from '../../../../nls.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationNode, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { McpAccessValue, McpAutoStartValue, mcpAccessConfig, mcpAutoStartConfig, mcpGalleryServiceEnablementConfig, mcpGalleryServiceUrlConfig } from '../../../../platform/mcp/common/mcpManagement.js';
 import product from '../../../../platform/product/common/product.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
@@ -54,9 +58,9 @@ import { ILanguageModelToolsConfirmationService } from '../common/tools/language
 import { ILanguageModelToolsService } from '../common/tools/languageModelToolsService.js';
 import { ChatPromptFilesExtensionPointHandler } from '../common/promptSyntax/chatPromptFilesContribution.js';
 import { PromptsConfig } from '../common/promptSyntax/config/config.js';
-import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_FILE_EXTENSION, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../common/promptSyntax/config/promptFileLocations.js';
+import { AGENTS_SOURCE_FOLDER, DEFAULT_AGENT_SKILLS_USER_HOME_FOLDERS, DEFAULT_AGENT_SKILLS_WORKSPACE_FOLDERS, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_FILE_EXTENSION, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../common/promptSyntax/config/promptFileLocations.js';
 import { PromptLanguageFeaturesProvider } from '../common/promptSyntax/promptFileContributions.js';
-import { AGENT_DOCUMENTATION_URL, INSTRUCTIONS_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL } from '../common/promptSyntax/promptTypes.js';
+import { AGENT_DOCUMENTATION_URL, INSTRUCTIONS_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL, PromptsType } from '../common/promptSyntax/promptTypes.js';
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../common/promptSyntax/service/promptsServiceImpl.js';
 import { LanguageModelToolsExtensionPointHandler } from '../common/tools/languageModelToolsContribution.js';
@@ -109,6 +113,7 @@ import { agentSlashCommandToMarkdown, agentToMarkdown } from './widget/chatConte
 import { ChatOutputRendererService, IChatOutputRendererService } from './chatOutputItemRenderer.js';
 import { ChatCompatibilityNotifier, ChatExtensionPointHandler } from './chatParticipant.contribution.js';
 import { ChatPasteProvidersFeature } from './widget/input/editor/chatPasteProviders.js';
+import { IPathService } from '../../../services/path/common/pathService.js';
 import { QuickChatService } from './widgetHosts/chatQuick.js';
 import { ChatResponseAccessibleView } from './accessibility/chatResponseAccessibleView.js';
 import { ChatTerminalOutputAccessibleView } from './accessibility/chatTerminalOutputAccessibleView.js';
@@ -1096,6 +1101,11 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 		@IChatAgentService chatAgentService: IChatAgentService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IPromptsService promptsService: IPromptsService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IWorkspaceContextService workspaceService: IWorkspaceContextService,
+		@IProductService productService: IProductService,
+		@IPathService pathService: IPathService,
 	) {
 		super();
 		this._store.add(slashCommandService.registerSlashCommand({
@@ -1158,6 +1168,256 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 			// Without this, the response will be done before it renders and so it will not stream. This ensures that if the response starts
 			// rendering during the next 200ms, then it will be streamed. Once it starts streaming, the whole response streams even after
 			// it has received all response data has been received.
+			await timeout(200);
+		}));
+
+		// Register /agentInfo slash command for diagnostics
+		this._store.add(slashCommandService.registerSlashCommand({
+			command: 'agentInfo',
+			detail: nls.localize('agentInfo', "Show customization diagnostics for instructions, skills, and agents"),
+			sortText: 'z3_agentInfo',
+			executeImmediately: true,
+			locations: [ChatAgentLocation.Chat]
+		}, async (_prompt, progress, _history, _location, _sessionResource, token) => {
+			const workspace = workspaceService.getWorkspace();
+			const userHome = await pathService.userHome();
+
+			let content = '# Copilot Customization Diagnostics\n\n';
+			content += '*This shows where instructions, skills, agents, and other customization files are loaded from.*\n\n';
+
+			// System Information
+			content += '## System Information\n\n';
+			content += `| Property | Value |\n`;
+			content += `|----------|-------|\n`;
+			content += `| Generated | ${new Date().toISOString()} |\n`;
+			content += `| Product | ${productService.nameLong} ${productService.version} |\n`;
+			content += `| Commit | ${productService.commit || 'n/a'} |\n\n`;
+
+			// Workspace Information
+			content += '## Workspace Information\n\n';
+			if (workspace.folders.length > 0) {
+				content += '| Folder | Path |\n';
+				content += '|--------|------|\n';
+				for (const folder of workspace.folders) {
+					content += `| ${folder.name} | ${folder.uri.fsPath} |\n`;
+				}
+				content += '\n';
+			} else {
+				content += '*No workspace folders open*\n\n';
+			}
+
+			content += `**User Home Directory**: \`${userHome.fsPath}\`\n\n`;
+
+			// Configuration Settings
+			content += '## Configuration Settings\n\n';
+			content += '| Setting | Value |\n';
+			content += '|---------|-------|\n';
+			content += `| ${PromptsConfig.USE_COPILOT_INSTRUCTION_FILES} | ${configurationService.getValue(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES)} |\n`;
+			content += `| ${PromptsConfig.USE_AGENT_MD} | ${configurationService.getValue(PromptsConfig.USE_AGENT_MD)} |\n`;
+			content += `| ${PromptsConfig.USE_NESTED_AGENT_MD} | ${configurationService.getValue(PromptsConfig.USE_NESTED_AGENT_MD)} |\n`;
+			content += `| ${PromptsConfig.USE_AGENT_SKILLS} | ${configurationService.getValue(PromptsConfig.USE_AGENT_SKILLS)} |\n\n`;
+
+			progress.report({ content: new MarkdownString(content), kind: 'markdownContent' });
+
+			// Instruction Files Section
+			content = '## Instruction Files\n\n';
+			content += '### Lookup Paths\n\n';
+			const instructionLocations = PromptsConfig.promptSourceFolders(configurationService, PromptsType.instructions);
+			if (instructionLocations.length === 0) {
+				instructionLocations.push(INSTRUCTIONS_DEFAULT_SOURCE_FOLDER);
+			}
+			content += '| Source | Path |\n';
+			content += '|--------|------|\n';
+			for (const folder of workspace.folders) {
+				for (const location of instructionLocations) {
+					content += `| Workspace: ${folder.name} | \`${folder.uri.fsPath}/${location}\` |\n`;
+				}
+			}
+			content += `| User Data | (Stored in VS Code user data profile) |\n\n`;
+
+			content += '### Active Instruction Files\n\n';
+			try {
+				const instructionFiles = await promptsService.listPromptFiles(PromptsType.instructions, token);
+				if (instructionFiles.length > 0) {
+					content += '| Name | Storage | Path |\n';
+					content += '|------|---------|------|\n';
+					for (const file of instructionFiles) {
+						const label = promptsService.getPromptLocationLabel(file);
+						content += `| ${file.uri.path.split('/').pop()} | ${file.storage} | ${label} |\n`;
+					}
+					content += '\n';
+				} else {
+					content += '*No instruction files found*\n\n';
+				}
+			} catch (e) {
+				content += `*Error loading instruction files: ${e}*\n\n`;
+			}
+
+			progress.report({ content: new MarkdownString(content), kind: 'markdownContent' });
+
+			// Copilot Instructions
+			content = '### Copilot Instructions (.github/copilot-instructions.md)\n\n';
+			try {
+				const copilotInstructions = await promptsService.listCopilotInstructionsMDs(token);
+				if (copilotInstructions.length > 0) {
+					content += '| Path |\n';
+					content += '|------|\n';
+					for (const uri of copilotInstructions) {
+						content += `| \`${uri.fsPath}\` |\n`;
+					}
+					content += '\n';
+				} else {
+					content += '*No copilot-instructions.md files found*\n\n';
+				}
+			} catch (e) {
+				content += `*Error: ${e}*\n\n`;
+			}
+
+			progress.report({ content: new MarkdownString(content), kind: 'markdownContent' });
+
+			// AGENTS.md Files
+			content = '## AGENTS.md Files\n\n';
+			content += '### Lookup Paths\n\n';
+			content += '| Source | Path |\n';
+			content += '|--------|------|\n';
+			for (const folder of workspace.folders) {
+				content += `| Workspace Root: ${folder.name} | \`${folder.uri.fsPath}/AGENTS.md\` |\n`;
+			}
+			if (configurationService.getValue(PromptsConfig.USE_NESTED_AGENT_MD)) {
+				content += `| Nested (all subfolders) | \`**/AGENTS.md\` |\n`;
+			}
+			content += '\n';
+
+			content += '### Active AGENTS.md Files\n\n';
+			try {
+				const includeNested = configurationService.getValue<boolean>(PromptsConfig.USE_NESTED_AGENT_MD) ?? false;
+				const agentMDs = await promptsService.listAgentMDs(token, includeNested);
+				if (agentMDs.length > 0) {
+					content += '| Path |\n';
+					content += '|------|\n';
+					for (const uri of agentMDs) {
+						content += `| \`${uri.fsPath}\` |\n`;
+					}
+					content += '\n';
+				} else {
+					content += '*No AGENTS.md files found*\n\n';
+				}
+			} catch (e) {
+				content += `*Error: ${e}*\n\n`;
+			}
+
+			progress.report({ content: new MarkdownString(content), kind: 'markdownContent' });
+
+			// Custom Agents Section
+			content = '## Custom Agents\n\n';
+			content += '### Lookup Paths\n\n';
+			const agentLocations = PromptsConfig.promptSourceFolders(configurationService, PromptsType.agent);
+			agentLocations.push(AGENTS_SOURCE_FOLDER);
+			content += '| Source | Path |\n';
+			content += '|--------|------|\n';
+			for (const folder of workspace.folders) {
+				for (const location of [...new Set(agentLocations)]) {
+					content += `| Workspace: ${folder.name} | \`${folder.uri.fsPath}/${location}\` |\n`;
+				}
+			}
+			content += `| User Data | (Stored in VS Code user data profile) |\n\n`;
+
+			content += '### Active Custom Agents\n\n';
+			try {
+				const customAgents = await promptsService.getCustomAgents(token);
+				if (customAgents.length > 0) {
+					content += '| Name | Description | Source | Path |\n';
+					content += '|------|-------------|--------|------|\n';
+					for (const agent of customAgents) {
+						const sourceLabel = agent.source.storage === 'extension'
+							? `Extension: ${agent.source.extensionId.value}`
+							: agent.source.storage;
+						content += `| ${agent.name} | ${agent.description || '-'} | ${sourceLabel} | \`${agent.uri.fsPath}\` |\n`;
+					}
+					content += '\n';
+				} else {
+					content += '*No custom agents found*\n\n';
+				}
+			} catch (e) {
+				content += `*Error: ${e}*\n\n`;
+			}
+
+			progress.report({ content: new MarkdownString(content), kind: 'markdownContent' });
+
+			// Agent Skills Section
+			content = '## Agent Skills\n\n';
+			content += '### Lookup Paths\n\n';
+			content += '**Workspace Skills:**\n\n';
+			content += '| Source | Path |\n';
+			content += '|--------|------|\n';
+			for (const folder of workspace.folders) {
+				for (const { path, type } of DEFAULT_AGENT_SKILLS_WORKSPACE_FOLDERS) {
+					content += `| ${type} | \`${folder.uri.fsPath}/${path}/<skill-name>/SKILL.md\` |\n`;
+				}
+			}
+			content += '\n**Personal Skills (User Home):**\n\n';
+			content += '| Source | Path |\n';
+			content += '|--------|------|\n';
+			for (const { path, type } of DEFAULT_AGENT_SKILLS_USER_HOME_FOLDERS) {
+				content += `| ${type} | \`${userHome.fsPath}/${path}/<skill-name>/SKILL.md\` |\n`;
+			}
+			content += '\n';
+
+			content += '### Active Agent Skills\n\n';
+			try {
+				const skills = await promptsService.findAgentSkills(CancellationToken.None);
+				if (skills && skills.length > 0) {
+					content += '| Name | Description | Type | Path |\n';
+					content += '|------|-------------|------|------|\n';
+					for (const skill of skills) {
+						content += `| ${skill.name} | ${skill.description || '-'} | ${skill.type} | \`${skill.uri.fsPath}\` |\n`;
+					}
+					content += '\n';
+				} else {
+					content += '*No agent skills found (skills may be disabled via settings)*\n\n';
+				}
+			} catch (e) {
+				content += `*Error: ${e}*\n\n`;
+			}
+
+			progress.report({ content: new MarkdownString(content), kind: 'markdownContent' });
+
+			// Prompt Files Section
+			content = '## Prompt Files\n\n';
+			content += '### Lookup Paths\n\n';
+			const promptLocations = PromptsConfig.promptSourceFolders(configurationService, PromptsType.prompt);
+			if (promptLocations.length === 0) {
+				promptLocations.push(PROMPT_DEFAULT_SOURCE_FOLDER);
+			}
+			content += '| Source | Path |\n';
+			content += '|--------|------|\n';
+			for (const folder of workspace.folders) {
+				for (const location of promptLocations) {
+					content += `| Workspace: ${folder.name} | \`${folder.uri.fsPath}/${location}\` |\n`;
+				}
+			}
+			content += `| User Data | (Stored in VS Code user data profile) |\n\n`;
+
+			content += '### Active Prompt Files\n\n';
+			try {
+				const promptFiles = await promptsService.listPromptFiles(PromptsType.prompt, token);
+				if (promptFiles.length > 0) {
+					content += '| Name | Storage | Path |\n';
+					content += '|------|---------|------|\n';
+					for (const file of promptFiles) {
+						const label = promptsService.getPromptLocationLabel(file);
+						content += `| ${file.uri.path.split('/').pop()} | ${file.storage} | ${label} |\n`;
+					}
+					content += '\n';
+				} else {
+					content += '*No prompt files found*\n\n';
+				}
+			} catch (e) {
+				content += `*Error: ${e}*\n\n`;
+			}
+
+			progress.report({ content: new MarkdownString(content), kind: 'markdownContent' });
+
 			await timeout(200);
 		}));
 	}
