@@ -716,6 +716,7 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 		}
 
 		const newOrientation = this.getOrientation();
+		const lastWidthForOrientation = chatView?.getLastDimensions(newOrientation)?.width;
 
 		if ((!canResizeView || validatedConfiguredOrientation === 'sideBySide') && newOrientation === AgentSessionsViewerOrientation.Stacked) {
 			chatView.updateConfiguredSessionsViewerOrientation('stacked');
@@ -723,21 +724,21 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 			chatView.updateConfiguredSessionsViewerOrientation('sideBySide');
 		}
 
+		if (!canResizeView) {
+			return; // location does not allow for resize (panel top or bottom)
+		}
+
 		const part = getPartByLocation(chatLocation);
 		let currentSize = layoutService.getSize(part);
 
-		const sideBySideMinWidth = 600 + 1;	// account for possible theme border
-		const stackedMaxWidth = sideBySideMinWidth - 1;
+		const chatViewDefaultWidth = 300;
+		const sideBySideMinWidth = (chatViewDefaultWidth * 2) + 1;	// account for possible theme border
 
 		if (
-			(newOrientation === AgentSessionsViewerOrientation.SideBySide && currentSize.width >= sideBySideMinWidth) ||	// already wide enough to show side by side
-			newOrientation === AgentSessionsViewerOrientation.Stacked														// always wide enough to show stacked
+			(newOrientation === AgentSessionsViewerOrientation.SideBySide && currentSize.width >= sideBySideMinWidth) ||													// already wide enough to show side by side
+			(newOrientation === AgentSessionsViewerOrientation.Stacked && chatLocation === ViewContainerLocation.AuxiliaryBar && layoutService.isAuxiliaryBarMaximized()) 	// try to not leave maximized state if maximized
 		) {
-			return; // size suffices
-		}
-
-		if (!canResizeView) {
-			return; // location does not allow for resize (panel top or bottom)
+			return;
 		}
 
 		if (chatLocation === ViewContainerLocation.AuxiliaryBar) {
@@ -745,19 +746,14 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 			currentSize = layoutService.getSize(part);
 		}
 
-		const lastWidthForOrientation = chatView?.getLastDimensions(newOrientation)?.width;
-
 		let newWidth: number;
 		if (newOrientation === AgentSessionsViewerOrientation.SideBySide) {
 			newWidth = Math.max(sideBySideMinWidth, lastWidthForOrientation || Math.round(layoutService.mainContainerDimension.width / 2));
 		} else {
-			newWidth = Math.min(stackedMaxWidth, lastWidthForOrientation || stackedMaxWidth);
+			newWidth = lastWidthForOrientation || chatViewDefaultWidth;
 		}
 
-		layoutService.setSize(part, {
-			width: newWidth,
-			height: currentSize.height
-		});
+		layoutService.setSize(part, { width: newWidth, height: currentSize.height });
 	}
 
 	abstract getOrientation(): AgentSessionsViewerOrientation;
