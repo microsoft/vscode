@@ -52,8 +52,15 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	): EditorInput {
 		return instantiationService.invokeFunction(accessor => {
 			// If it's an untitled file we must populate the untitledDocumentData
-			const untitledString = accessor.get(IUntitledTextEditorService).getValue(init.resource);
+			const untitledTextEditorService = accessor.get(IUntitledTextEditorService);
+			const untitledTextModel = untitledTextEditorService.get(init.resource);
+			const untitledString = untitledTextModel?.textEditorModel?.getValue();
 			const untitledDocumentData = untitledString ? VSBuffer.fromString(untitledString) : undefined;
+
+			// If we're taking over an untitled text editor, mark its content as transferred
+			// so it's no longer tracked as a dirty working copy (fixes #125293).
+			untitledTextModel?.markContentTransferred();
+
 			const webview = accessor.get(IWebviewService).createWebviewOverlay({
 				providedViewType: init.viewType,
 				title: init.webviewTitle,

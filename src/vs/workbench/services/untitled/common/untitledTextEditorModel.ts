@@ -62,6 +62,12 @@ export interface IUntitledTextEditorModel extends ITextEditorModel, ILanguageSup
 	setEncoding(encoding: string): Promise<void>;
 
 	/**
+	 * Marks the content as transferred to another editor (e.g. custom editor).
+	 * This clears the dirty state without triggering revert behavior.
+	 */
+	markContentTransferred(): void;
+
+	/**
 	 * Resolves the untitled model.
 	 */
 	resolve(): Promise<void>;
@@ -266,6 +272,12 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 		this.dirty = dirty;
 		this._onDidChangeDirty.fire();
+	}
+
+	markContentTransferred(): void {
+		// Clear dirty state without triggering revert.
+		// Used when content is transferred to another editor (e.g. custom editor).
+		this.setDirty(false);
 	}
 
 	//#endregion
