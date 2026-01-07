@@ -271,6 +271,8 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		const providersToResolve = Array.from(this.providersToResolve);
 		this.providersToResolve.clear();
 
+		this.logService.trace(`[agent sessions] Resolving agent sessions for providers: ${providersToResolve.map(p => p ?? 'all').join(', ')}`);
+
 		const mapSessionContributionToType = new Map<string, IChatSessionsExtensionPoint>();
 		for (const contribution of this.chatSessionsService.getAllChatSessionContributions()) {
 			mapSessionContributionToType.set(contribution.type, contribution);
@@ -286,6 +288,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			let providerSessions: IChatSessionItem[];
 			try {
 				providerSessions = await provider.provideChatSessionItems(token);
+				this.logService.trace(`[agent sessions] Resolved ${providerSessions.length} agent sessions for provider ${provider.chatSessionType}`);
 			} catch (error) {
 				this.logService.error(`Failed to resolve sessions for provider ${provider.chatSessionType}`, error);
 				continue; // skip: failed to resolve sessions for provider
@@ -396,6 +399,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		}
 
 		this._sessions = sessions;
+		this.logService.trace(`[agent sessions] Total resolved agent sessions:`, Array.from(this._sessions.values()));
 
 		for (const [resource] of this.mapSessionToState) {
 			if (!sessions.has(resource)) {
