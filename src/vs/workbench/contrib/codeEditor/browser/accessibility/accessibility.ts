@@ -15,6 +15,7 @@ import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { AccessibilityHelpNLS } from '../../../../../editor/common/standaloneStrings.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { alert } from '../../../../../base/browser/ui/aria/aria.js';
+import { CursorColumns } from '../../../../../editor/common/core/cursorColumns.js';
 
 class ToggleScreenReaderMode extends Action2 {
 
@@ -73,10 +74,15 @@ class AnnounceCursorPosition extends Action2 {
 			return;
 		}
 		const position = editor.getPosition();
-		if (!position) {
+		const model = editor.getModel();
+		if (!position || !model) {
 			return;
 		}
-		alert(nls.localize('screenReader.lineColPosition', "Line {0}, Column {1}", position.lineNumber, position.column));
+		// Use visible column to match status bar display (accounts for tabs)
+		const tabSize = model.getOptions().tabSize;
+		const lineContent = model.getLineContent(position.lineNumber);
+		const visibleColumn = CursorColumns.visibleColumnFromColumn(lineContent, position.column, tabSize) + 1;
+		alert(nls.localize('screenReader.lineColPosition', "Line {0}, Column {1}", position.lineNumber, visibleColumn));
 	}
 }
 
