@@ -329,6 +329,9 @@ export class ActionList<T> extends Disposable {
 		if (this._allMenuItems.length >= 50) {
 			maxWidth = 380;
 		} else {
+			// Cache computed style values since they're consistent across all list items
+			let cachedHorizontalSpacing: number | undefined;
+
 			// For finding width dynamically (not using resize observer)
 			const itemWidths: number[] = this._allMenuItems.map((_, index): number => {
 				// eslint-disable-next-line no-restricted-syntax
@@ -348,14 +351,17 @@ export class ActionList<T> extends Disposable {
 					element.style.maxWidth = originalMaxWidth;
 					element.style.display = originalDisplay;
 
-					const computedStyle = dom.getWindow(element).getComputedStyle(element);
-					const paddingLeft = parseFloat(computedStyle.paddingLeft) || 0;
-					const paddingRight = parseFloat(computedStyle.paddingRight) || 0;
-					const marginLeft = parseFloat(computedStyle.marginLeft) || 0;
-					const marginRight = parseFloat(computedStyle.marginRight) || 0;
-					const horizontalSpacing = paddingLeft + paddingRight + marginLeft + marginRight;
+					// Only compute style values once for the first element, then reuse for all others
+					if (cachedHorizontalSpacing === undefined) {
+						const computedStyle = dom.getWindow(element).getComputedStyle(element);
+						const paddingLeft = parseFloat(computedStyle.paddingLeft) || 0;
+						const paddingRight = parseFloat(computedStyle.paddingRight) || 0;
+						const marginLeft = parseFloat(computedStyle.marginLeft) || 0;
+						const marginRight = parseFloat(computedStyle.marginRight) || 0;
+						cachedHorizontalSpacing = paddingLeft + paddingRight + marginLeft + marginRight;
+					}
 
-					return width + horizontalSpacing;
+					return width + cachedHorizontalSpacing;
 				}
 				return 0;
 			});
