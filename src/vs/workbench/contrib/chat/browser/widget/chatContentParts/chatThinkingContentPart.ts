@@ -24,6 +24,7 @@ import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../../common/languageModels.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import './media/chatThinkingContent.css';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 
 
 function extractTextFromPart(content: IChatThinkingPart): string {
@@ -105,12 +106,13 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
+		@IHoverService hoverService: IHoverService,
 	) {
 		const initialText = extractTextFromPart(content);
 		const extractedTitle = extractTitleFromThinkingContent(initialText)
 			?? 'Thinking...';
 
-		super(extractedTitle, context);
+		super(extractedTitle, context, undefined, hoverService);
 
 		this.id = content.id;
 		this.content = content;
