@@ -566,7 +566,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		}));
 		this._register(toDisposable(() => {
 			this.ptyProcessReady = undefined!;
-		}))
+		}));
 	}
 
 	async getBackendOS(): Promise<OperatingSystem> {
