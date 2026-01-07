@@ -93,6 +93,7 @@ import { ChatToolInvocationPart } from './chatContentParts/toolInvocationParts/c
 import { ChatMarkdownDecorationsRenderer } from './chatContentParts/chatMarkdownDecorationsRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatCodeBlockContentProvider, CodeBlockPart } from './chatContentParts/codeBlockPart.js';
+import { observableValue } from '../../../../../base/common/observable.js';
 
 const $ = dom.$;
 
@@ -193,7 +194,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private readonly _treePool: TreePool;
 	private readonly _contentReferencesListPool: CollapsibleListPool;
 
-	private _currentLayoutWidth: number = 0;
+	private _currentLayoutWidth = observableValue(this, 0);
 	private _isVisible = true;
 	private _onDidChangeVisibility = this._register(new Emitter<boolean>());
 
@@ -337,16 +338,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	layout(width: number): void {
 		const newWidth = width - 40; // padding
-		if (newWidth !== this._currentLayoutWidth) {
-			this._currentLayoutWidth = newWidth;
+		if (newWidth !== this._currentLayoutWidth.get()) {
+			this._currentLayoutWidth.set(newWidth, undefined);
 			for (const editor of this._editorPool.inUse()) {
-				editor.layout(this._currentLayoutWidth);
+				editor.layout(newWidth);
 			}
 			for (const toolEditor of this._toolEditorPool.inUse()) {
-				toolEditor.layout(this._currentLayoutWidth);
+				toolEditor.layout(newWidth);
 			}
 			for (const diffEditor of this._diffEditorPool.inUse()) {
-				diffEditor.layout(this._currentLayoutWidth);
+				diffEditor.layout(newWidth);
 			}
 		}
 	}
@@ -861,7 +862,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				editorPool: this._editorPool,
 				diffEditorPool: this._diffEditorPool,
 				codeBlockModelCollection: this.codeBlockModelCollection,
-				currentWidth: () => this._currentLayoutWidth,
+				currentWidth: this._currentLayoutWidth,
+				onDidChangeVisibility: this._onDidChangeVisibility.event,
 				get codeBlockStartIndex() {
 					return context.preceedingContentParts.reduce((acc, part) => acc + (part.codeblocks?.length ?? 0), 0);
 				},
@@ -1037,7 +1039,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				editorPool: this._editorPool,
 				diffEditorPool: this._diffEditorPool,
 				codeBlockModelCollection: this.codeBlockModelCollection,
-				currentWidth: () => this._currentLayoutWidth,
+				currentWidth: this._currentLayoutWidth,
+				onDidChangeVisibility: this._onDidChangeVisibility.event,
 				get codeBlockStartIndex() {
 					return context.preceedingContentParts.reduce((acc, part) => acc + (part.codeblocks?.length ?? 0), 0);
 				},
@@ -1547,7 +1550,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private renderToolInvocation(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): IChatContentPart | undefined {
 		const codeBlockStartIndex = context.codeBlockStartIndex;
-		const part = this.instantiationService.createInstance(ChatToolInvocationPart, toolInvocation, context, this.chatContentMarkdownRenderer, this._contentReferencesListPool, this._toolEditorPool, () => this._currentLayoutWidth, this._toolInvocationCodeBlockCollection, this._announcedToolProgressKeys, codeBlockStartIndex);
+		const part = this.instantiationService.createInstance(ChatToolInvocationPart, toolInvocation, context, this.chatContentMarkdownRenderer, this._contentReferencesListPool, this._toolEditorPool, () => this._currentLayoutWidth.get(), this._toolInvocationCodeBlockCollection, this._announcedToolProgressKeys, codeBlockStartIndex);
 		part.addDisposable(part.onDidChangeHeight(() => {
 			this.updateItemHeight(templateData);
 		}));
@@ -1644,9 +1647,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private renderTextEdit(context: IChatContentPartRenderContext, chatTextEdit: IChatTextEditGroup, templateData: IChatListItemTemplate): IChatContentPart {
-		const textEditPart = this.instantiationService.createInstance(ChatTextEditContentPart, chatTextEdit, context, this.rendererOptions, this._diffEditorPool, this._currentLayoutWidth);
+		const textEditPart = this.instantiationService.createInstance(ChatTextEditContentPart, chatTextEdit, context, this.rendererOptions, this._diffEditorPool, this._currentLayoutWidth.get());
 		textEditPart.addDisposable(textEditPart.onDidChangeHeight(() => {
-			textEditPart.layout(this._currentLayoutWidth);
+			textEditPart.layout(this._currentLayoutWidth.get());
 			this.updateItemHeight(templateData);
 		}));
 
@@ -1658,7 +1661,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const element = context.element;
 		const fillInIncompleteTokens = isResponseVM(element) && (!element.isComplete || element.isCanceled || element.errorDetails?.responseIsFiltered || element.errorDetails?.responseIsIncomplete || !!element.renderData);
 		const codeBlockStartIndex = context.codeBlockStartIndex;
-		const markdownPart = templateData.instantiationService.createInstance(ChatMarkdownContentPart, markdown, context, this._editorPool, fillInIncompleteTokens, codeBlockStartIndex, this.chatContentMarkdownRenderer, undefined, this._currentLayoutWidth, this.codeBlockModelCollection, {});
+		const markdownPart = templateData.instantiationService.createInstance(ChatMarkdownContentPart, markdown, context, this._editorPool, fillInIncompleteTokens, codeBlockStartIndex, this.chatContentMarkdownRenderer, undefined, this._currentLayoutWidth.get(), this.codeBlockModelCollection, {});
 		if (isRequestVM(element)) {
 			markdownPart.domNode.tabIndex = 0;
 			if (this.configService.getValue<string>('chat.editRequests') === 'inline' && this.rendererOptions.editable) {
@@ -1706,7 +1709,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		markdownPart.addDisposable(markdownPart.onDidChangeHeight(() => {
-			markdownPart.layout(this._currentLayoutWidth);
+			markdownPart.layout(this._currentLayoutWidth.get());
 			this.updateItemHeight(templateData);
 		}));
 
