@@ -415,11 +415,25 @@ export class PlaywrightDriver {
 
 		if (results.violations.length > 0) {
 			const violationMessages = results.violations.map(violation => {
-				const nodes = violation.nodes.map(node =>
-					`  - ${node.target.join(' > ')}: ${node.failureSummary}`
-				).join('\n');
-				return `[${violation.id}] ${violation.help} (${violation.impact})\n${nodes}`;
-			}).join('\n\n');
+				const nodes = violation.nodes.map(node => {
+					const target = node.target.join(' > ');
+					const html = node.html || 'N/A';
+					// Extract class from HTML for easier identification
+					const classMatch = html.match(/class="([^"]+)"/);
+					const className = classMatch ? classMatch[1] : 'no class';
+					return [
+						`  Element: ${target}`,
+						`    Class: ${className}`,
+						`    HTML: ${html}`,
+						`    Issue: ${node.failureSummary}`
+					].join('\n');
+				}).join('\n\n');
+				return [
+					`[${violation.id}] ${violation.help} (${violation.impact})`,
+					`  Help URL: ${violation.helpUrl}`,
+					nodes
+				].join('\n');
+			}).join('\n\n---\n\n');
 
 			throw new Error(
 				`Accessibility violations found:\n\n${violationMessages}\n\n` +
