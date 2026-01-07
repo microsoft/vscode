@@ -11,7 +11,6 @@
 	font-size: 12px;
 	display: flex;
 	overflow: hidden;
-	padding-top: 1px;
 }
 
 .monaco-workbench.monaco-enable-motion .part.statusbar {
@@ -33,7 +32,7 @@
 	/* Top border only visible unless focused to make room for focus outline */
 	content: '';
 	position: absolute;
-	top: 0;
+	top: -1px;
 	left: 0;
 	z-index: 5;
 	pointer-events: none;
