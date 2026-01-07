@@ -104,7 +104,7 @@ export class SetAgentSessionsOrientationSideBySideAction extends Action2 {
 			menu: {
 				id: agentSessionsOrientationSubmenu,
 				group: 'navigation',
-				order: 3
+				order: 1
 			}
 		});
 	}
