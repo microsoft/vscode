@@ -1330,7 +1330,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private renderChatContentPart(content: IChatRendererContent, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext): IChatContentPart | undefined {
 		try {
-			const collapsedToolsMode = this.configService.getValue<CollapsedToolsDisplayMode>('chat.agent.thinking.collapsedTools');
 			// if we get an empty thinking part, mark thinking as finished
 			if (content.kind === 'thinking' && (Array.isArray(content.value) ? content.value.length === 0 : content.value === '')) {
 				const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
@@ -1338,24 +1337,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return this.renderNoContent(other => content.kind === other.kind);
 			}
 
-			const lastRenderedPart = context.preceedingContentParts.length ? context.preceedingContentParts[context.preceedingContentParts.length - 1] : undefined;
-			const previousContent = context.contentIndex > 0 ? context.content[context.contentIndex - 1] : undefined;
-
-			// Special handling for "create" tool invocations- do not end thinking if previous part is a create tool invocation and config is set.
-			const shouldKeepThinkingForCreateTool = collapsedToolsMode !== CollapsedToolsDisplayMode.Off && lastRenderedPart instanceof ChatToolInvocationPart && this.isCreateToolInvocationContent(previousContent);
-
-			const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
 			const isResponseElement = isResponseVM(context.element);
 			const shouldPin = this.shouldPinPart(content, isResponseElement ? context.element : undefined);
-			if (!shouldKeepThinkingForCreateTool && lastThinking && lastThinking.getIsActive()) {
-				if (!shouldPin && !isResponseElement) {
-					const followsThinkingPart = previousContent?.kind === 'thinking' || previousContent?.kind === 'toolInvocation' || previousContent?.kind === 'prepareToolInvocation' || previousContent?.kind === 'toolInvocationSerialized' || previousContent?.kind === 'textEditGroup' || (previousContent?.kind === 'markdownContent' && this.hasCodeblockUri(previousContent));
-
-					if (context.element.isComplete || followsThinkingPart) {
-						this.finalizeCurrentThinkingPart(context, templateData);
-					}
-				}
-			}
 
 			// sometimes content is rendered out of order on re-renders so instead of looking at the current chat content part's
 			// context and templateData, we have to look globally to find the active thinking part.
@@ -1755,9 +1738,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 
 			if (this.shouldPinPart(markdown, context.element) && isComplete) {
-				const lastThinking2 = this.getLastThinkingPart(templateData.renderedParts);
-				if (lastThinking2 && markdownPart?.domNode) {
-					lastThinking2.appendItem(markdownPart.domNode, markdownPart.codeblocksPartId, markdown, templateData.value);
+				const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
+				if (lastThinking && markdownPart?.domNode) {
+					lastThinking.appendItem(markdownPart.domNode, markdownPart.codeblocksPartId, markdown, templateData.value);
 				}
 			} else if (!this.shouldPinPart(markdown, context.element)) {
 				this.finalizeCurrentThinkingPart(context, templateData);

@@ -77,7 +77,7 @@
 			.code:has(.chat-codeblock-pill-container) {
 				margin-bottom: 0px;
 
-				.code-codeblock-pill-container {
+				.chat-codeblock-pill-container {
 					margin-bottom: 0px;
 				}
 			}

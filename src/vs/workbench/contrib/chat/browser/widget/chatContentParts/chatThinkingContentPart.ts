@@ -535,10 +535,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 				const message = typeof toolInvocationOrMarkdown.invocationMessage === 'string' ? toolInvocationOrMarkdown.invocationMessage : toolInvocationOrMarkdown.invocationMessage.value;
 				toolCallLabel = message;
 
-				if (toolInvocationOrMarkdown) {
-					this.toolInvocations.push(toolInvocationOrMarkdown);
-				}
-
 				if (toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized')) {
 					this.toolInvocations.push(toolInvocationOrMarkdown);
 				}
