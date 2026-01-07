@@ -3600,7 +3600,9 @@ export class CommandCenter {
 		const defaultWorktreeRoot = this.globalState.get<string>(`${Repository.WORKTREE_ROOT_STORAGE_KEY}:${repository.root}`);
 		const defaultWorktreePath = defaultWorktreeRoot
 			? path.join(defaultWorktreeRoot, worktreeName)
-			: path.join(path.dirname(repository.root), `${path.basename(repository.root)}.worktrees`, worktreeName);
+			: repository.kind === 'worktree'
+				? path.join(path.dirname(repository.root), worktreeName)
+				: path.join(path.dirname(repository.root), `${path.basename(repository.root)}.worktrees`, worktreeName);
 
 		const disposables: Disposable[] = [];
 		const inputBox = window.createInputBox();

@@ -1253,6 +1253,11 @@ export class Repository implements Disposable {
 		return this.run(Operation.Diff, () => this.repository.diffBetween(ref1, ref2, path));
 	}
 
+	diffBetweenPatch(ref1: string, ref2: string, path?: string): Promise<string> {
+		return this.run(Operation.Diff, () =>
+			this.repository.diffBetweenPatch(`${ref1}...${ref2}`, { path }));
+	}
+
 	diffBetweenWithStats(ref1: string, ref2: string, path?: string): Promise<DiffChange[]> {
 		if (ref1 === this._EMPTY_TREE) {
 			// Use git diff-tree to get the

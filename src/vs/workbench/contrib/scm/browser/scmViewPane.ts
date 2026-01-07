@@ -1054,6 +1054,10 @@ class RepositoryVisibilityActionController {
 	}
 
 	private onDidAddRepository(repository: ISCMRepository): void {
+		if (repository.provider.isHidden) {
+			return;
+		}
+
 		const action = registerAction2(class extends RepositoryVisibilityAction {
 			constructor() {
 				super(repository);
