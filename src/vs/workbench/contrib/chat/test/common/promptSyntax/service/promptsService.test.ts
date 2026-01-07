@@ -1185,10 +1185,11 @@ suite('PromptsService', () => {
 			const filesConfigService = instaService.get(IFilesConfigurationService);
 			const updateReadonlySpy = sinon.spy(filesConfigService, 'updateReadonly');
 
+			// Get custom agents to trigger the readonly check
+			const actual = await service.getCustomAgents(CancellationToken.None);
+
 			assert.strictEqual(updateReadonlySpy.callCount, 1, 'updateReadonly should be called once');
 			assert.ok(updateReadonlySpy.calledWith(readonlyAgentUri, true), 'updateReadonly should be called with readonly agent URI and true');
-
-			const actual = await service.getCustomAgents(CancellationToken.None);
 			assert.strictEqual(actual.length, 2);
 
 			const readonlyAgent = actual.find(a => a.name === 'readonlyAgent');
