@@ -62,6 +62,7 @@ export const SimpleSuggestContext = {
 	HasFocusedSuggestion: new RawContextKey<boolean>('simpleSuggestWidgetHasFocusedSuggestion', false, localize('simpleSuggestWidgetHasFocusedSuggestion', "Whether any simple suggestion is focused")),
 	HasNavigated: new RawContextKey<boolean>('simpleSuggestWidgetHasNavigated', false, localize('simpleSuggestWidgetHasNavigated', "Whether the simple suggestion widget has been navigated downwards")),
 	FirstSuggestionFocused: new RawContextKey<boolean>('simpleSuggestWidgetFirstSuggestionFocused', false, localize('simpleSuggestWidgetFirstSuggestionFocused', "Whether the first simple suggestion is focused")),
+	ExplicitlyInvoked: new RawContextKey<boolean>('simpleSuggestWidgetExplicitlyInvoked', false, localize('simpleSuggestWidgetExplicitlyInvoked', "Whether the simple suggestion widget was explicitly invoked")),
 };
 
 export interface IWorkbenchSuggestWidgetOptions {
@@ -153,6 +154,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 	private readonly _ctxSuggestWidgetHasFocusedSuggestion: IContextKey<boolean>;
 	private readonly _ctxSuggestWidgetHasBeenNavigated: IContextKey<boolean>;
 	private readonly _ctxFirstSuggestionFocused: IContextKey<boolean>;
+	private readonly _ctxSuggestWidgetExplicitlyInvoked: IContextKey<boolean>;
 
 	constructor(
 		private readonly _container: HTMLElement,
@@ -174,6 +176,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		this._ctxSuggestWidgetHasFocusedSuggestion = SimpleSuggestContext.HasFocusedSuggestion.bindTo(_contextKeyService);
 		this._ctxSuggestWidgetHasBeenNavigated = SimpleSuggestContext.HasNavigated.bindTo(_contextKeyService);
 		this._ctxFirstSuggestionFocused = SimpleSuggestContext.FirstSuggestionFocused.bindTo(_contextKeyService);
+		this._ctxSuggestWidgetExplicitlyInvoked = SimpleSuggestContext.ExplicitlyInvoked.bindTo(_contextKeyService);
 
 		class ResizeState {
 			constructor(
@@ -441,6 +444,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		}
 		this._cursorPosition = cursorPosition;
 		this._explicitlyInvoked = !!explicitlyInvoked;
+		this._ctxSuggestWidgetExplicitlyInvoked.set(this._explicitlyInvoked);
 
 		if (this._explicitlyInvoked) {
 			this._loadingTimeout = disposableTimeout(() => this._setState(State.Loading), 250);
@@ -698,6 +702,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		this._ctxSuggestWidgetHasBeenNavigated.reset();
 		this._ctxFirstSuggestionFocused.reset();
 		this._explicitlyInvoked = false;
+		this._ctxSuggestWidgetExplicitlyInvoked.reset();
 		this._setState(State.Hidden);
 		this._onDidHide.fire(this);
 		dom.hide(this.element.domNode);
