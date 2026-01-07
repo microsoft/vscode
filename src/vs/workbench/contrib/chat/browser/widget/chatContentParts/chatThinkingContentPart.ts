@@ -283,7 +283,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.id = undefined;
 	}
 
-
 	public collapseContent(): void {
 		this.setExpanded(false);
 	}
