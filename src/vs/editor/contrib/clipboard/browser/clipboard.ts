@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as browser from '../../../../base/browser/browser.js';
-import { getActiveDocument, getActiveWindow } from '../../../../base/browser/dom.js';
+import { getActiveDocument } from '../../../../base/browser/dom.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import * as platform from '../../../../base/common/platform.js';
 import * as nls from '../../../../nls.js';
@@ -14,7 +14,7 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { CopyOptions, generateDataToCopyAndStoreInMemory, InMemoryClipboardMetadataManager, PasteOptions } from '../../../browser/controller/editContext/clipboardUtils.js';
+import { CopyOptions, generateDataToCopyAndStoreInMemory, InMemoryClipboardMetadataManager } from '../../../browser/controller/editContext/clipboardUtils.js';
 import { NativeEditContextRegistry } from '../../../browser/controller/editContext/native/nativeEditContextRegistry.js';
 import { IActiveCodeEditor, ICodeEditor } from '../../../browser/editorBrowser.js';
 import { Command, EditorAction, MultiCommand, registerEditorAction } from '../../../browser/editorExtensions.js';
@@ -308,41 +308,21 @@ if (PasteAction) {
 		const focusedEditor = codeEditorService.getFocusedCodeEditor();
 		if (focusedEditor && focusedEditor.hasModel() && focusedEditor.hasTextFocus()) {
 			// execCommand(paste) does not work with edit context
-			const editContextEnabled = focusedEditor.getOption(EditorOption.effectiveEditContext);
-			if (editContextEnabled) {
+			let result: boolean;
+			const editContext = focusedEditor.getOption(EditorOption.editContext);
+			if (editContext) {
 				const nativeEditContext = NativeEditContextRegistry.get(focusedEditor.getId());
 				if (nativeEditContext) {
-					nativeEditContext.onWillPaste();
+					result = nativeEditContext.executePaste();
+				} else {
+					result = false;
 				}
-			}
-
-			logService.trace('registerExecCommandImpl (before triggerPaste)');
-			PasteOptions.electronBugWorkaroundPasteEventHasFired = false;
-			logService.trace('(before triggerPaste) PasteOptions.electronBugWorkaroundPasteEventHasFired : ', PasteOptions.electronBugWorkaroundPasteEventHasFired);
-			const triggerPaste = clipboardService.triggerPaste(getActiveWindow().vscodeWindowId);
-			if (triggerPaste) {
-				logService.trace('registerExecCommandImpl (triggerPaste defined)');
-				PasteOptions.electronBugWorkaroundPasteEventLock = false;
-				return triggerPaste.then(async () => {
-					logService.trace('(triggerPaste) PasteOptions.electronBugWorkaroundPasteEventHasFired : ', PasteOptions.electronBugWorkaroundPasteEventHasFired);
-					if (PasteOptions.electronBugWorkaroundPasteEventHasFired === false) {
-						// Ensure this doesn't run twice, what appears to be happening is
-						// triggerPasteis called once but it's handler is called multiple times
-						// when it reproduces
-						logService.trace('(triggerPaste) PasteOptions.electronBugWorkaroundPasteEventLock : ', PasteOptions.electronBugWorkaroundPasteEventLock);
-						if (PasteOptions.electronBugWorkaroundPasteEventLock === true) {
-							return;
-						}
-						PasteOptions.electronBugWorkaroundPasteEventLock = true;
-						return pasteWithNavigatorAPI(focusedEditor, clipboardService, logService);
-					}
-					logService.trace('registerExecCommandImpl (after triggerPaste)');
-					return CopyPasteController.get(focusedEditor)?.finishedPaste() ?? Promise.resolve();
-				});
 			} else {
-				logService.trace('registerExecCommandImpl (triggerPaste undefined)');
+				result = focusedEditor.getContainerDomNode().ownerDocument.execCommand('paste');
 			}
-			if (platform.isWeb) {
+			if (result) {
+				return CopyPasteController.get(focusedEditor)?.finishedPaste() ?? Promise.resolve();
+			} else if (platform.isWeb) {
 				logService.trace('registerExecCommandImpl (Paste handling on web)');
 				// Use the clipboard service if document.execCommand('paste') was not successful
 				return pasteWithNavigatorAPI(focusedEditor, clipboardService, logService);
@@ -356,8 +336,8 @@ if (PasteAction) {
 	PasteAction.addImplementation(0, 'generic-dom', (accessor: ServicesAccessor, args: unknown) => {
 		const logService = accessor.get(ILogService);
 		logService.trace('registerExecCommandImpl (addImplementation generic-dom for : paste)');
-		const triggerPaste = accessor.get(IClipboardService).triggerPaste(getActiveWindow().vscodeWindowId);
-		return triggerPaste ?? false;
+		getActiveDocument().execCommand('paste');
+		return true;
 	});
 }
 

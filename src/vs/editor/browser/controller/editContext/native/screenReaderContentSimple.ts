@@ -95,6 +95,10 @@ export class SimpleScreenReaderContent extends Disposable implements IScreenRead
 		this._accessibilityPageSize = options.get(EditorOption.accessibilityPageSize);
 	}
 
+	public onPaste(): void {
+		this._setIgnoreSelectionChangeTime('onPaste');
+	}
+
 	public onWillCut(): void {
 		this._setIgnoreSelectionChangeTime('onCut');
 	}
