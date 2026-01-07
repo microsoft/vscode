@@ -318,17 +318,15 @@ export interface IPromptsService extends IDisposable {
 	setDisabledPromptFiles(type: PromptsType, uris: ResourceSet): void;
 
 	/**
-	 * Registers a prompt file provider (CustomAgentProvider, InstructionsProvider, or PromptFileProvider)
-	 * that can provide prompt files for repositories.
-	 * This is part of the proposed API and requires the chatParticipantPrivate proposal.
+	 * Registers a prompt file provider that can provide prompt files for repositories.
 	 * @param extension The extension registering the provider.
-	 * @param type The type of contribution (e.g. 'agent', 'instructions', 'prompt').
+	 * @param type The type of contribution.
 	 * @param provider The provider implementation with optional change event.
 	 * @returns A disposable that unregisters the provider when disposed.
 	 */
 	registerPromptFileProvider(extension: IExtensionDescription, type: PromptsType, provider: {
-		onDidChangeContributions?: Event<void>;
-		provideContributions: (options: IPromptFileQueryOptions, token: CancellationToken) => Promise<IPromptFileResource[] | undefined>;
+		onDidChangePromptFiles?: Event<void>;
+		providePromptFiles: (options: IPromptFileQueryOptions, token: CancellationToken) => Promise<IPromptFileResource[] | undefined>;
 	}): IDisposable;
 
 	/**

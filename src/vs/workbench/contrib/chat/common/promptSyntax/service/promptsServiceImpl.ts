@@ -168,11 +168,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 * Registry of prompt file provider instances (custom agents, instructions, prompt files).
 	 * Extensions can register providers via the proposed API.
 	 */
-	private readonly contributionsProviders: Array<{
+	private readonly promptFileProviders: Array<{
 		extension: IExtensionDescription;
 		type: PromptsType;
-		onDidChangeContributions?: Event<void>;
-		provideContributions: (options: IPromptFileQueryOptions, token: CancellationToken) => Promise<IPromptFileResource[] | undefined>;
+		onDidChangePromptFiles?: Event<void>;
+		providePromptFiles: (options: IPromptFileQueryOptions, token: CancellationToken) => Promise<IPromptFileResource[] | undefined>;
 	}> = [];
 
 	/**
@@ -182,17 +182,17 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 * registerInstructionsProvider(), or registerPromptFileProvider().
 	 */
 	public registerPromptFileProvider(extension: IExtensionDescription, type: PromptsType, provider: {
-		onDidChangeContributions?: Event<void>;
-		provideContributions: (options: IPromptFileQueryOptions, token: CancellationToken) => Promise<IPromptFileResource[] | undefined>;
+		onDidChangePromptFiles?: Event<void>;
+		providePromptFiles: (options: IPromptFileQueryOptions, token: CancellationToken) => Promise<IPromptFileResource[] | undefined>;
 	}): IDisposable {
 		const providerEntry = { extension, type, ...provider };
-		this.contributionsProviders.push(providerEntry);
+		this.promptFileProviders.push(providerEntry);
 
 		const disposables = new DisposableStore();
 
 		// Listen to provider change events to rerun computeListPromptFiles
-		if (provider.onDidChangeContributions) {
-			disposables.add(provider.onDidChangeContributions(() => {
+		if (provider.onDidChangePromptFiles) {
+			disposables.add(provider.onDidChangePromptFiles(() => {
 				if (type === PromptsType.agent) {
 					this.cachedFileLocations[PromptsType.agent] = undefined;
 					this.cachedCustomAgents.refresh();
@@ -218,9 +218,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 		disposables.add({
 			dispose: () => {
-				const index = this.contributionsProviders.findIndex((p) => p === providerEntry);
+				const index = this.promptFileProviders.findIndex((p) => p === providerEntry);
 				if (index >= 0) {
-					this.contributionsProviders.splice(index, 1);
+					this.promptFileProviders.splice(index, 1);
 					if (type === PromptsType.agent) {
 						this.cachedFileLocations[PromptsType.agent] = undefined;
 						this.cachedCustomAgents.refresh();
@@ -243,7 +243,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		// Activate extensions that might provide custom agents
 		await this.extensionService.activateByEvent(CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT);
 
-		const providers = this.contributionsProviders.filter(p => p.type === PromptsType.agent);
+		const providers = this.promptFileProviders.filter(p => p.type === PromptsType.agent);
 		if (providers.length === 0) {
 			return result;
 		}
@@ -251,7 +251,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		// Collect agents from all providers
 		for (const providerEntry of providers) {
 			try {
-				const agents = await providerEntry.provideContributions({}, token);
+				const agents = await providerEntry.providePromptFiles({}, token);
 				if (!agents || token.isCancellationRequested) {
 					continue;
 				}
@@ -290,7 +290,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		// Activate extensions that might provide instructions
 		await this.extensionService.activateByEvent(INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT);
 
-		const providers = this.contributionsProviders.filter(p => p.type === PromptsType.instructions);
+		const providers = this.promptFileProviders.filter(p => p.type === PromptsType.instructions);
 		if (providers.length === 0) {
 			return result;
 		}
@@ -298,7 +298,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		// Collect instructions from all providers
 		for (const providerEntry of providers) {
 			try {
-				const instructions = await providerEntry.provideContributions({}, token);
+				const instructions = await providerEntry.providePromptFiles({}, token);
 				if (!instructions || token.isCancellationRequested) {
 					continue;
 				}
@@ -337,7 +337,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		// Activate extensions that might provide prompt files
 		await this.extensionService.activateByEvent('onPromptFile');
 
-		const providers = this.contributionsProviders.filter(p => p.type === PromptsType.prompt);
+		const providers = this.promptFileProviders.filter(p => p.type === PromptsType.prompt);
 		if (providers.length === 0) {
 			return result;
 		}
@@ -345,7 +345,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		// Collect prompt files from all providers
 		for (const providerEntry of providers) {
 			try {
-				const promptFiles = await providerEntry.provideContributions({}, token);
+				const promptFiles = await providerEntry.providePromptFiles({}, token);
 				if (!promptFiles || token.isCancellationRequested) {
 					continue;
 				}

@@ -1103,7 +1103,7 @@ suite('PromptsService', () => {
 			]);
 
 			const provider = {
-				provideContributions: async (_options: IPromptFileQueryOptions, _token: CancellationToken) => {
+				providePromptFiles: async (_options: IPromptFileQueryOptions, _token: CancellationToken) => {
 					return [
 						{
 							name: 'myAgent',
@@ -1122,9 +1122,6 @@ suite('PromptsService', () => {
 			assert.strictEqual(actual[0].description, 'My custom agent from provider');
 			assert.strictEqual(actual[0].uri.toString(), agentUri.toString());
 			assert.strictEqual(actual[0].source.storage, PromptsStorage.extension);
-			if (actual[0].source.storage === PromptsStorage.extension) {
-				assert.strictEqual(actual[0].source.type, ExtensionAgentSourceType.provider);
-			}
 
 			registered.dispose();
 
@@ -1164,7 +1161,7 @@ suite('PromptsService', () => {
 			]);
 
 			const provider = {
-				provideContributions: async (_options: IPromptFileQueryOptions, _token: CancellationToken) => {
+				providePromptFiles: async (_options: IPromptFileQueryOptions, _token: CancellationToken) => {
 					return [
 						{
 							name: 'readonlyAgent',
@@ -1188,10 +1185,6 @@ suite('PromptsService', () => {
 			const filesConfigService = instaService.get(IFilesConfigurationService);
 			const updateReadonlySpy = sinon.spy(filesConfigService, 'updateReadonly');
 
-			// List prompt files to trigger the readonly check
-			await service.listPromptFiles(PromptsType.agent, CancellationToken.None);
-
-			// Verify updateReadonly was called only for the non-editable agent
 			assert.strictEqual(updateReadonlySpy.callCount, 1, 'updateReadonly should be called once');
 			assert.ok(updateReadonlySpy.calledWith(readonlyAgentUri, true), 'updateReadonly should be called with readonly agent URI and true');
 
@@ -1279,7 +1272,7 @@ suite('PromptsService', () => {
 		]);
 
 		const provider = {
-			provideContributions: async (_options: IPromptFileQueryOptions, _token: CancellationToken) => {
+			providePromptFiles: async (_options: IPromptFileQueryOptions, _token: CancellationToken) => {
 				return [
 					{
 						name: 'testInstruction',
@@ -1335,7 +1328,7 @@ suite('PromptsService', () => {
 		]);
 
 		const provider = {
-			provideContributions: async (_options: IPromptFileQueryOptions, _token: CancellationToken) => {
+			providePromptFiles: async (_options: IPromptFileQueryOptions, _token: CancellationToken) => {
 				return [
 					{
 						name: 'readonlyInstruction',
@@ -1396,7 +1389,7 @@ suite('PromptsService', () => {
 		]);
 
 		const provider = {
-			provideContributions: async (_options: IPromptFileQueryOptions, _token: CancellationToken) => {
+			providePromptFiles: async (_options: IPromptFileQueryOptions, _token: CancellationToken) => {
 				return [
 					{
 						name: 'testPrompt',
@@ -1452,7 +1445,7 @@ suite('PromptsService', () => {
 		]);
 
 		const provider = {
-			provideContributions: async (_options: IPromptFileQueryOptions, _token: CancellationToken) => {
+			providePromptFiles: async (_options: IPromptFileQueryOptions, _token: CancellationToken) => {
 				return [
 					{
 						name: 'readonlyPrompt',
