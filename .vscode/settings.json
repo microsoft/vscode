@@ -2,8 +2,6 @@
 	// --- Chat ---
 	"inlineChat.enableV2": true,
 	"chat.tools.terminal.autoApprove": {
-		"/^npm (test|lint|run compile)\\b/": true,
-		"/^npx tsc\\b.*--noEmit/": true,
 		"scripts/test.bat": true,
 		"scripts/test.sh": true,
 		"scripts/test-integration.bat": true,
@@ -131,6 +129,7 @@
 	"git.ignoreLimitWarning": true,
 	"git.branchProtection": [
 		"main",
+		"main-*",
 		"distro",
 		"release/*"
 	],
@@ -212,4 +211,5 @@
 	"azureMcp.serverMode": "all",
 	"azureMcp.readOnly": true,
 	"chat.tools.terminal.outputLocation": "none",
+	"debug.breakpointsView.presentation": "tree"
 }

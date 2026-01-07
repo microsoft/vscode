@@ -585,6 +585,33 @@
 	white-space: nowrap;
 }
 
+.scm-repositories-view .scm-artifact .timestamp-container {
+	flex-shrink: 0;
+	margin-left: 2px;
+	margin-right: 4px;
+	opacity: 0.5;
+}
+
+.scm-repositories-view .scm-artifact .timestamp-container.duplicate {
+	height: 22px;
+	min-width: 6px;
+	border-left: 1px solid currentColor;
+	opacity: 0.25;
+
+	.timestamp {
+		display: none;
+	}
+}
+
+.scm-repositories-view .monaco-list .monaco-list-row:hover .scm-artifact .timestamp-container.duplicate {
+	border-left: 0;
+	opacity: 0.5;
+
+	.timestamp {
+		display: block;
+	}
+}
+
 /* History item hover */
 
 .monaco-hover.history-item-hover .history-item-hover-container > .rendered-markdown:first-child > p {
