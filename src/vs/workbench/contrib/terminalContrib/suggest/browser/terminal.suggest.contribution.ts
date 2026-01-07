@@ -374,7 +374,7 @@ registerTerminalAction({
 		),
 	},
 	run: (c, accessor) => {
-		accessor.get(IConfigurationService).updateValue(TerminalSuggestSettingId.QuickSuggestions, { commands: true, arguments: true, unknown: true });
+		accessor.get(IConfigurationService).updateValue(TerminalSuggestSettingId.QuickSuggestions, { commands: true, arguments: true, unknown: false });
 		accessor.get(IConfigurationService).updateValue(TerminalSuggestSettingId.SuggestOnTriggerCharacters, true);
 	}
 });
