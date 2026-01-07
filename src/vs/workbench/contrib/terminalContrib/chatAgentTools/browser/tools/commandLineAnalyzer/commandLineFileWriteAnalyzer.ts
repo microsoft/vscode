@@ -58,7 +58,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 						return e;
 					}
 
-					// Surrounding quotes prefix where it's difficult to determine whether this is absolute
+					// Surrounding quotes where it's difficult to determine whether this is absolute
 					// or relative
 					if (/^['"].*['"]$/.test(e)) {
 						// Strip surrounding quotes to get a more reasonable view of the path. Note
