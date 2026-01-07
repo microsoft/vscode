@@ -610,7 +610,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			let homeResource: URI | string | undefined;
 			const home = this._getHomeDir(useWindowsStylePath, capabilities);
 			if (home) {
-				homeResource = URI.joinPath(createUriFromLocalPath(cwd, home), lastWordFolder.slice(1).replaceAll('\\ ', ' '));
+				homeResource = createUriFromLocalPath(cwd, home);
 			}
 			if (!homeResource) {
 				// Use less strong wording here as it's not as strong of a concept on Windows
