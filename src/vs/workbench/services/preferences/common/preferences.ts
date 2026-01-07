@@ -29,6 +29,7 @@ export enum SettingValueType {
 	Integer = 'integer',
 	Number = 'number',
 	Boolean = 'boolean',
+	BooleanOrObject = 'boolean-or-object',
 	Array = 'array',
 	Exclude = 'exclude',
 	Include = 'include',
@@ -73,6 +74,7 @@ export interface ISetting {
 
 	scope?: ConfigurationScope;
 	type?: string | string[];
+	anyOf?: IJSONSchema[];
 	order?: number;
 	arrayItemType?: string;
 	objectProperties?: IJSONSchemaMap;

@@ -706,6 +706,12 @@ interface ISettingBoolItemTemplate extends ISettingItemTemplate<boolean> {
 	checkbox: Toggle;
 }
 
+interface ISettingBoolOrObjectItemTemplate extends ISettingItemTemplate<boolean | Record<string, unknown> | undefined> {
+	masterCheckbox: Toggle;
+	objectCheckboxWidget?: ObjectSettingCheckboxWidget;
+	validationErrorMessageElement: HTMLElement;
+}
+
 interface ISettingExtensionToggleItemTemplate extends ISettingItemTemplate<undefined> {
 	actionButton: Button;
 	dismissButton: Button;
@@ -763,6 +769,7 @@ const SETTINGS_MULTILINE_TEXT_TEMPLATE_ID = 'settings.multilineText.template';
 const SETTINGS_NUMBER_TEMPLATE_ID = 'settings.number.template';
 const SETTINGS_ENUM_TEMPLATE_ID = 'settings.enum.template';
 const SETTINGS_BOOL_TEMPLATE_ID = 'settings.bool.template';
+const SETTINGS_BOOL_OR_OBJECT_TEMPLATE_ID = 'settings.boolOrObject.template';
 const SETTINGS_ARRAY_TEMPLATE_ID = 'settings.array.template';
 const SETTINGS_EXCLUDE_TEMPLATE_ID = 'settings.exclude.template';
 const SETTINGS_INCLUDE_TEMPLATE_ID = 'settings.include.template';
@@ -1631,6 +1638,152 @@ class SettingBoolObjectRenderer extends AbstractSettingObjectRenderer implements
 	}
 }
 
+class SettingBoolOrObjectRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingBoolOrObjectItemTemplate> {
+	templateId = SETTINGS_BOOL_OR_OBJECT_TEMPLATE_ID;
+
+	renderTemplate(container: HTMLElement): ISettingBoolOrObjectItemTemplate {
+		const toDispose = new DisposableStore();
+		container.classList.add('setting-item');
+		container.classList.add('setting-item-bool-or-object');
+
+		const innerContainer = DOM.append(container, $(AbstractSettingRenderer.CONTENTS_SELECTOR));
+		innerContainer.classList.add('settings-row-inner-container');
+
+		// Title section
+		const titleElement = DOM.append(innerContainer, $('.setting-item-title'));
+		const categoryElement = DOM.append(titleElement, $('span.setting-item-category'));
+		const labelElementContainer = DOM.append(titleElement, $('span.setting-item-label'));
+		const labelElement = toDispose.add(new SimpleIconLabel(labelElementContainer));
+		const indicatorsLabel = toDispose.add(this._instantiationService.createInstance(SettingsTreeIndicatorsLabel, titleElement));
+
+		// Description and value section
+		const descriptionAndValueElement = DOM.append(innerContainer, $('.setting-item-value-description'));
+		
+		// Master checkbox for boolean mode
+		const masterControlElement = DOM.append(descriptionAndValueElement, $('.setting-item-bool-control'));
+		const masterCheckbox = new Toggle({ icon: Codicon.check, actionClassName: 'setting-value-checkbox', isChecked: true, title: '', ...unthemedToggleStyles });
+		masterControlElement.appendChild(masterCheckbox.domNode);
+		toDispose.add(masterCheckbox);
+		masterCheckbox.domNode.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
+
+		// Object checkboxes container for object mode
+		const objectControlElement = DOM.append(descriptionAndValueElement, $('.setting-item-object-control'));
+		const widget = this._instantiationService.createInstance(ObjectSettingCheckboxWidget, objectControlElement);
+		toDispose.add(widget);
+
+		const descriptionElement = DOM.append(descriptionAndValueElement, $('.setting-item-description'));
+		const modifiedIndicatorElement = DOM.append(innerContainer, $('.setting-item-modified-indicator'));
+		toDispose.add(this._hoverService.setupDelayedHover(modifiedIndicatorElement, {
+			content: localize('modified', "The setting has been configured in the current scope.")
+		}));
+
+		const deprecationWarningElement = DOM.append(innerContainer, $('.setting-item-deprecation-message'));
+		const validationErrorMessageElement = $('.setting-item-validation-message');
+
+		const toolbarContainer = DOM.append(innerContainer, $('.setting-toolbar-container'));
+		const toolbar = this.renderSettingToolbar(toolbarContainer);
+		toDispose.add(toolbar);
+
+		const template: ISettingBoolOrObjectItemTemplate = {
+			toDispose,
+			elementDisposables: toDispose.add(new DisposableStore()),
+			containerElement: innerContainer,
+			categoryElement,
+			labelElement,
+			controlElement: descriptionAndValueElement,
+			masterCheckbox,
+			objectCheckboxWidget: widget,
+			descriptionElement,
+			deprecationWarningElement,
+			indicatorsLabel,
+			toolbar,
+			validationErrorMessageElement
+		};
+
+		this.addSettingElementFocusHandler(template);
+
+		// Handle master checkbox changes
+		toDispose.add(masterCheckbox.onChange(() => {
+			if (template.context) {
+				const newValue = masterCheckbox.checked;
+				template.onChange?.(newValue);
+				// Update visibility of object controls
+				this.updateControlVisibility(template, typeof template.context.value === 'boolean');
+			}
+		}));
+
+		// Handle object checkbox changes
+		toDispose.add(widget.onDidChangeList(e => {
+			if (template.context && typeof template.context.value === 'object') {
+				const newValue: Record<string, unknown> = {};
+				widget.items.forEach((item) => {
+					newValue[item.key.data] = item.value.data;
+				});
+				template.onChange?.(Object.keys(newValue).length === 0 ? undefined : newValue);
+			}
+		}));
+
+		// Prevent clicks from being handled by list
+		toDispose.add(DOM.addDisposableListener(masterControlElement, 'mousedown', (e: IMouseEvent) => e.stopPropagation()));
+		toDispose.add(DOM.addDisposableListener(objectControlElement, 'mousedown', (e: IMouseEvent) => e.stopPropagation()));
+
+		return template;
+	}
+
+	private updateControlVisibility(template: ISettingBoolOrObjectItemTemplate, isBooleanMode: boolean): void {
+		const masterControl = template.controlElement.querySelector('.setting-item-bool-control') as HTMLElement;
+		const objectControl = template.controlElement.querySelector('.setting-item-object-control') as HTMLElement;
+		
+		if (masterControl && objectControl) {
+			if (isBooleanMode) {
+				masterControl.style.display = '';
+				objectControl.style.display = 'none';
+			} else {
+				masterControl.style.display = 'none';
+				objectControl.style.display = '';
+			}
+		}
+	}
+
+	renderElement(element: ITreeNode<SettingsTreeSettingElement, never>, index: number, templateData: ISettingBoolOrObjectItemTemplate): void {
+		super.renderSettingElement(element, index, templateData);
+	}
+
+	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingBoolOrObjectItemTemplate, onChange: (value: boolean | Record<string, unknown> | undefined) => void): void {
+		const currentValue = dataElement.value;
+		const isBooleanMode = typeof currentValue === 'boolean';
+
+		template.onChange = undefined;
+		template.context = dataElement;
+
+		if (isBooleanMode) {
+			// Render as boolean checkbox
+			template.masterCheckbox.checked = currentValue as boolean;
+		} else {
+			// Render as object with sub-checkboxes
+			const items = getBoolObjectDisplayValue(dataElement);
+			template.objectCheckboxWidget!.setValue(items, {
+				settingKey: dataElement.setting.key
+			});
+		}
+
+		// Update visibility
+		this.updateControlVisibility(template, isBooleanMode);
+
+		// Set up change handler
+		template.onChange = onChange;
+
+		// Disable if policy-controlled
+		if (dataElement.hasPolicyValue) {
+			template.masterCheckbox.disable();
+			template.descriptionElement.classList.add('disabled');
+		} else {
+			template.masterCheckbox.enable();
+			template.descriptionElement.classList.remove('disabled');
+		}
+	}
+}
+
 abstract class SettingIncludeExcludeRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingIncludeExcludeItemTemplate> {
 
 	protected abstract isExclude(): boolean;
@@ -2220,6 +2373,7 @@ export class SettingTreeRenderers extends Disposable {
 		const extensionRenderer = this._instantiationService.createInstance(SettingsExtensionToggleRenderer, [], emptyActionFactory);
 		const settingRenderers = [
 			this._instantiationService.createInstance(SettingBoolRenderer, this.settingActions, actionFactory),
+			this._instantiationService.createInstance(SettingBoolOrObjectRenderer, this.settingActions, actionFactory),
 			this._instantiationService.createInstance(SettingNumberRenderer, this.settingActions, actionFactory),
 			this._instantiationService.createInstance(SettingArrayRenderer, this.settingActions, actionFactory),
 			this._instantiationService.createInstance(SettingComplexRenderer, this.settingActions, actionFactory),
@@ -2509,6 +2663,10 @@ class SettingsTreeDelegate extends CachedListVirtualDelegate<SettingsTreeGroupCh
 
 			if (element.valueType === SettingValueType.Object) {
 				return SETTINGS_OBJECT_TEMPLATE_ID;
+			}
+
+			if (element.valueType === SettingValueType.BooleanOrObject) {
+				return SETTINGS_BOOL_OR_OBJECT_TEMPLATE_ID;
 			}
 
 			if (element.valueType === SettingValueType.BooleanObject) {

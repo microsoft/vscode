@@ -226,6 +226,8 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	private initSettingValueType() {
 		if (isExtensionToggleSetting(this.setting, this.productService)) {
 			this.valueType = SettingValueType.ExtensionToggle;
+		} else if (isBooleanOrObjectSetting(this.setting)) {
+			this.valueType = SettingValueType.BooleanOrObject;
 		} else if (this.setting.enum && (!this.setting.type || settingTypeEnumRenderable(this.setting.type))) {
 			this.valueType = SettingValueType.Enum;
 		} else if (this.setting.type === 'string') {
@@ -882,6 +884,31 @@ function getObjectRenderableSchemaType(schema: IJSONSchema, key: string): 'simpl
 	}
 
 	return false;
+}
+
+function isBooleanOrObjectSetting(setting: ISetting): boolean {
+	// Check if anyOf contains exactly a boolean type and an object type
+	if (!setting.anyOf || !Array.isArray(setting.anyOf) || setting.anyOf.length !== 2) {
+		return false;
+	}
+
+	let hasBoolean = false;
+	let hasObject = false;
+
+	for (const schema of setting.anyOf) {
+		if (schema.type === 'boolean') {
+			hasBoolean = true;
+		} else if (schema.type === 'object' && schema.properties) {
+			// Check if the object has properties with boolean or string enum values
+			const props = schema.properties;
+			const propValues = Object.values(props);
+			if (propValues.length > 0) {
+				hasObject = true;
+			}
+		}
+	}
+
+	return hasBoolean && hasObject;
 }
 
 function getObjectSettingSchemaType({
