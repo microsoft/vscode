@@ -404,7 +404,82 @@ export class PromptFilesLocator {
 				allResults.push(...results.map(uri => ({ uri, type })));
 			}
 		}
+
+		// Also search in additional configured skill folders
+		const additionalFolders = await this.findAgentSkillsInConfiguredLocations(token);
+		allResults.push(...additionalFolders);
+
 		return allResults;
+	}
+
+	/**
+	 * Searches for skills in additional folders configured via the `chat.agentSkillsLocations` setting.
+	 * Each skill is stored in its own subdirectory with a SKILL.md file.
+	 */
+	private async findAgentSkillsInConfiguredLocations(token: CancellationToken): Promise<Array<{ uri: URI; type: string }>> {
+		const configuredLocations = PromptsConfig.getAgentSkillsLocations(this.configService);
+		if (configuredLocations.length === 0) {
+			return [];
+		}
+
+		const allResults: Array<{ uri: URI; type: string }> = [];
+		const { folders } = this.workspaceService.getWorkspace();
+
+		for (const location of configuredLocations) {
+			try {
+				let uris: URI[];
+				if (isAbsolute(location)) {
+					let uri = URI.file(location);
+					const remoteAuthority = this.environmentService.remoteAuthority;
+					if (remoteAuthority) {
+						// If the location is absolute and we are in a remote environment,
+						// we need to convert it to a file URI with the remote authority
+						uri = uri.with({ scheme: Schemas.vscodeRemote, authority: remoteAuthority });
+					}
+					uris = [uri];
+				} else {
+					// Relative paths are resolved from workspace folders
+					uris = folders.map(folder => joinPath(folder.uri, location));
+				}
+
+				for (const uri of uris) {
+					const results = await this.findAgentSkillsInFolderDirect(uri, token);
+					allResults.push(...results.map(skillUri => ({ uri: skillUri, type: 'custom' })));
+				}
+			} catch (error) {
+				this.logService.error(`Failed to resolve agent skills location: ${location}`, error);
+			}
+		}
+
+		return allResults;
+	}
+
+	/**
+	 * Finds skills directly in a folder (the folder itself contains skill subdirectories).
+	 */
+	private async findAgentSkillsInFolderDirect(folderUri: URI, token: CancellationToken): Promise<URI[]> {
+		const result: URI[] = [];
+		try {
+			const stat = await this.fileService.resolve(folderUri);
+			if (token.isCancellationRequested) {
+				return [];
+			}
+			if (stat.isDirectory && stat.children) {
+				for (const skillDir of stat.children) {
+					if (skillDir.isDirectory) {
+						const skillFile = joinPath(skillDir.resource, 'SKILL.md');
+						if (await this.fileService.exists(skillFile)) {
+							result.push(skillFile);
+						}
+					}
+				}
+			}
+		} catch (error) {
+			// No such folder, return empty list
+			return [];
+		}
+
+		return result;
 	}
 
 	/**

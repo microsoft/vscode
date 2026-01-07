@@ -707,11 +707,24 @@ configurationRegistry.registerConfiguration({
 		[PromptsConfig.USE_AGENT_SKILLS]: {
 			type: 'boolean',
 			title: nls.localize('chat.useAgentSkills.title', "Use Agent skills",),
-			markdownDescription: nls.localize('chat.useAgentSkills.description', "Controls whether skills are provided as specialized capabilities to the chat requests. Skills are loaded from `.github/skills`, `~/.copilot/skills`, `.claude/skills`, and `~/.claude/skills`. The language model can load these skills on-demand if the `read` tool is available. Learn more about [Agent Skills](https://aka.ms/vscode-agent-skills).",),
+			markdownDescription: nls.localize('chat.useAgentSkills.description', "Controls whether skills are provided as specialized capabilities to the chat requests. Skills are loaded from `.github/skills`, `~/.copilot/skills`, `.claude/skills`, `~/.claude/skills`, and any additional folders configured in `#chat.agentSkillsLocations#`. The language model can load these skills on-demand if the `read` tool is available. Learn more about [Agent Skills](https://aka.ms/vscode-agent-skills).",),
 			default: false,
 			restricted: true,
 			disallowConfigurationDefault: true,
 			tags: ['experimental', 'prompts', 'reusable prompts', 'prompt snippets', 'instructions']
+		},
+		[PromptsConfig.AGENT_SKILLS_LOCATIONS_KEY]: {
+			type: 'array',
+			items: { type: 'string' },
+			title: nls.localize('chat.agentSkillsLocations.title', "Agent Skills Locations",),
+			markdownDescription: nls.localize('chat.agentSkillsLocations.description', "Specify additional folder locations to load agent skills from. Each folder should contain subdirectories with `SKILL.md` files. Relative paths are resolved from the root folder(s) of your workspace. Absolute paths can also be used.",),
+			default: [],
+			restricted: true,
+			tags: ['experimental', 'prompts', 'reusable prompts', 'prompt snippets', 'instructions'],
+			examples: [
+				['/Users/vscode/my-skills'],
+				['my-project-skills', '/shared/team-skills'],
+			],
 		},
 		[PromptsConfig.PROMPT_FILES_SUGGEST_KEY]: {
 			type: 'object',

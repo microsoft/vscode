@@ -22,7 +22,7 @@ function createMock<T>(value: T): IConfigurationService {
 			);
 
 			assert(
-				[PromptsConfig.PROMPT_LOCATIONS_KEY, PromptsConfig.INSTRUCTIONS_LOCATION_KEY, PromptsConfig.MODE_LOCATION_KEY].includes(key),
+				[PromptsConfig.PROMPT_LOCATIONS_KEY, PromptsConfig.INSTRUCTIONS_LOCATION_KEY, PromptsConfig.MODE_LOCATION_KEY, PromptsConfig.AGENT_SKILLS_LOCATIONS_KEY].includes(key),
 				`Unsupported configuration key '${key}'.`,
 			);
 
@@ -330,6 +330,123 @@ suite('PromptsConfig', () => {
 					'Must read correct value.',
 				);
 			});
+		});
+	});
+
+	suite('getAgentSkillsLocations', () => {
+		test('undefined returns empty array', () => {
+			const configService = createMock(undefined);
+
+			assert.deepStrictEqual(
+				PromptsConfig.getAgentSkillsLocations(configService),
+				[],
+				'Must return empty array for undefined value.',
+			);
+		});
+
+		test('null returns empty array', () => {
+			const configService = createMock(null);
+
+			assert.deepStrictEqual(
+				PromptsConfig.getAgentSkillsLocations(configService),
+				[],
+				'Must return empty array for null value.',
+			);
+		});
+
+		test('non-array returns empty array', () => {
+			const configService = createMock({ path: '/some/path' });
+
+			assert.deepStrictEqual(
+				PromptsConfig.getAgentSkillsLocations(configService),
+				[],
+				'Must return empty array for non-array value.',
+			);
+		});
+
+		test('empty array returns empty array', () => {
+			const configService = createMock([]);
+
+			assert.deepStrictEqual(
+				PromptsConfig.getAgentSkillsLocations(configService),
+				[],
+				'Must return empty array for empty array value.',
+			);
+		});
+
+		test('valid paths are returned', () => {
+			const configService = createMock([
+				'/absolute/path/to/skills',
+				'relative/path/to/skills',
+				'./another/relative/path',
+			]);
+
+			assert.deepStrictEqual(
+				PromptsConfig.getAgentSkillsLocations(configService),
+				[
+					'/absolute/path/to/skills',
+					'relative/path/to/skills',
+					'./another/relative/path',
+				],
+				'Must return all valid paths.',
+			);
+		});
+
+		test('filters out empty and whitespace-only paths', () => {
+			const configService = createMock([
+				'/valid/path',
+				'',
+				'   ',
+				'\t\n',
+				'another/valid/path',
+			]);
+
+			assert.deepStrictEqual(
+				PromptsConfig.getAgentSkillsLocations(configService),
+				[
+					'/valid/path',
+					'another/valid/path',
+				],
+				'Must filter out empty and whitespace-only paths.',
+			);
+		});
+
+		test('filters out non-string values', () => {
+			const configService = createMock([
+				'/valid/path',
+				123,
+				null,
+				undefined,
+				{ path: 'object' },
+				'another/valid/path',
+			]);
+
+			assert.deepStrictEqual(
+				PromptsConfig.getAgentSkillsLocations(configService),
+				[
+					'/valid/path',
+					'another/valid/path',
+				],
+				'Must filter out non-string values.',
+			);
+		});
+
+		test('trims whitespace from paths', () => {
+			const configService = createMock([
+				'  /path/with/leading/space',
+				'/path/with/trailing/space  ',
+				'  /path/with/both  ',
+			]);
+
+			assert.deepStrictEqual(
+				PromptsConfig.getAgentSkillsLocations(configService),
+				[
+					'/path/with/leading/space',
+					'/path/with/trailing/space',
+					'/path/with/both',
+				],
+				'Must trim whitespace from paths.',
+			);
 		});
 	});
 });

@@ -84,6 +84,11 @@ export namespace PromptsConfig {
 	export const USE_AGENT_SKILLS = 'chat.useAgentSkills';
 
 	/**
+	 * Configuration key for the locations of additional agent skills folders.
+	 */
+	export const AGENT_SKILLS_LOCATIONS_KEY = 'chat.agentSkillsLocations';
+
+	/**
 	 * Get value of the `reusable prompt locations` configuration setting.
 	 * @see {@link PROMPT_LOCATIONS_CONFIG_KEY}, {@link INSTRUCTIONS_LOCATIONS_CONFIG_KEY}, {@link MODE_LOCATIONS_CONFIG_KEY}.
 	 */
@@ -199,6 +204,32 @@ export namespace PromptsConfig {
 
 		// Return undefined if no valid suggestions were found
 		return Object.keys(suggestions).length > 0 ? suggestions : undefined;
+	}
+
+	/**
+	 * Get list of additional agent skills folder locations from configuration.
+	 * Returns an array of folder paths where skills should be loaded from.
+	 * @param configService Configuration service instance
+	 * @see {@link AGENT_SKILLS_LOCATIONS_KEY}.
+	 */
+	export function getAgentSkillsLocations(configService: IConfigurationService): string[] {
+		const configValue = configService.getValue<string[]>(AGENT_SKILLS_LOCATIONS_KEY);
+
+		if (!Array.isArray(configValue)) {
+			return [];
+		}
+
+		const result: string[] = [];
+		for (const path of configValue) {
+			if (typeof path === 'string') {
+				const cleanPath = path.trim();
+				if (cleanPath) {
+					result.push(cleanPath);
+				}
+			}
+		}
+
+		return result;
 	}
 
 }
