@@ -28,7 +28,7 @@ export const workbenchDesktop = [
 	createModuleDescription('vs/workbench/workbench.desktop.main')
 ];
 
-export const workbenchWeb = createModuleDescription('vs/workbench/workbench.web.main.internal');
+export const workbenchWeb = createModuleDescription('vs/workbench/workbench.web.main');
 
 export const keyboardMaps = [
 	createModuleDescription('vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.linux'),

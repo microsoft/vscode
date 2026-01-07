@@ -771,6 +771,8 @@ export default tseslint.config(
 			'src/vs/workbench/test/browser/workbenchTestServices.ts',
 			'src/vs/workbench/test/common/workbenchTestServices.ts',
 			'src/vs/workbench/test/electron-browser/workbenchTestServices.ts',
+			'src/vs/workbench/workbench.web.main.internal.ts',
+			'src/vs/workbench/workbench.web.main.ts',
 			// Server
 			'src/vs/server/node/remoteAgentEnvironmentImpl.ts',
 			'src/vs/server/node/remoteExtensionHostAgentServer.ts',
@@ -1858,7 +1860,7 @@ export default tseslint.config(
 						'vs/workbench/api/~',
 						'vs/workbench/services/*/~',
 						'vs/workbench/contrib/*/~',
-						'vs/workbench/workbench.web.main.js'
+						'vs/workbench/workbench.common.main.js'
 					]
 				},
 				{
@@ -1885,7 +1887,7 @@ export default tseslint.config(
 					]
 				},
 				{
-					'target': 'src/vs/{monaco.d.ts,nls.ts}',
+					'target': 'src/vs/{loader.d.ts,monaco.d.ts,nls.ts,nls.messages.ts}',
 					'restrictions': []
 				},
 				{
