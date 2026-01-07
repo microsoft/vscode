@@ -24,7 +24,7 @@ abstract class ExternalTerminalService {
 		return {
 			windows: WindowsExternalTerminalService.getDefaultTerminalWindows(),
 			linux: await LinuxExternalTerminalService.getDefaultTerminalLinuxReady(),
-			osx: 'xterm'
+			osx: DEFAULT_TERMINAL_OSX
 		};
 	}
 }
@@ -209,6 +209,42 @@ export class MacExternalTerminalService extends ExternalTerminalService implemen
 						}
 					}
 				});
+			} else if (terminalApp === 'Ghostty.app') {
+
+				// Ghostty supports launching with: open -na Ghostty.app --args -e <command>
+				// We need to build the command string and pass it via -e flag
+
+				// merge environment variables into a copy of the process.env
+				const env = Object.assign({}, getSanitizedEnvironment(process), envVars);
+
+				// delete environment variables that have a null value
+				Object.keys(env).filter(v => env[v] === null).forEach(key => delete env[key]);
+
+				// Build the command to execute
+				const bashCommand = quote(args);
+
+				const openArgs = ['-na', 'Ghostty.app', '--args', '-e', bashCommand];
+
+				let stderr = '';
+				const cmd = cp.spawn('/usr/bin/open', openArgs, { cwd: dir, env });
+				cmd.on('error', err => {
+					reject(improveError(err));
+				});
+				cmd.stderr.on('data', (data) => {
+					stderr += data.toString();
+				});
+				cmd.on('exit', (code: number) => {
+					if (code === 0) {	// OK
+						resolve(undefined);
+					} else {
+						if (stderr) {
+							const lines = stderr.split('\n', 1);
+							reject(new Error(lines[0]));
+						} else {
+							reject(new Error(nls.localize('mac.terminal.launch.failed', "Launching '{0}' failed with exit code {1}", terminalApp, code)));
+						}
+					}
+				});
 			} else {
 				reject(new Error(nls.localize('mac.terminal.type.not.supported', "'{0}' not supported", terminalApp)));
 			}
@@ -219,9 +255,19 @@ export class MacExternalTerminalService extends ExternalTerminalService implemen
 		const terminalApp = configuration.osxExec || DEFAULT_TERMINAL_OSX;
 
 		return new Promise<void>((c, e) => {
-			const args = ['-a', terminalApp];
-			if (cwd) {
-				args.push(cwd);
+			let args: string[];
+			if (terminalApp === 'Ghostty.app') {
+				// Ghostty requires --working-directory flag to open in a specific directory
+				args = ['-na', terminalApp];
+				if (cwd) {
+					args.push('--args', '--working-directory=' + cwd);
+				}
+			} else {
+				// Terminal.app and iTerm.app accept the directory as a direct argument
+				args = ['-a', terminalApp];
+				if (cwd) {
+					args.push(cwd);
+				}
 			}
 			const env = getSanitizedEnvironment(process);
 			const child = spawner.spawn('/usr/bin/open', args, { cwd, env });
@@ -249,16 +295,23 @@ export class LinuxExternalTerminalService extends ExternalTerminalService implem
 			//termArgs.push('--title');
 			//termArgs.push(`"${TERMINAL_TITLE}"`);
 			execPromise.then(exec => {
+				const bashCommand = `${quote(args)}; echo; read -p "${LinuxExternalTerminalService.WAIT_MESSAGE}" -n1;`;
+
 				if (exec.indexOf('gnome-terminal') >= 0) {
 					termArgs.push('-x');
+					termArgs.push('bash');
+					termArgs.push('-c');
+					termArgs.push(`''${bashCommand}''`);	// wrapping argument in two sets of ' because node is so "friendly" that it removes one set...
+				} else if (exec.indexOf('ghostty') >= 0) {
+					// Ghostty expects the command directly with -e flag, without bash -c wrapper
+					termArgs.push('-e');
+					termArgs.push(bashCommand);
 				} else {
 					termArgs.push('-e');
+					termArgs.push('bash');
+					termArgs.push('-c');
+					termArgs.push(`''${bashCommand}''`);	// wrapping argument in two sets of ' because node is so "friendly" that it removes one set...
 				}
-				termArgs.push('bash');
-				termArgs.push('-c');
-
-				const bashCommand = `${quote(args)}; echo; read -p "${LinuxExternalTerminalService.WAIT_MESSAGE}" -n1;`;
-				termArgs.push(`''${bashCommand}''`);	// wrapping argument in two sets of ' because node is so "friendly" that it removes one set...
 
 
 				// merge environment variables into a copy of the process.env

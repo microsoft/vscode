@@ -165,6 +165,30 @@ suite('ExternalTerminalService', () => {
 		);
 	});
 
+	test(`MacTerminalService - Ghostty.app should be spawned correctly`, done => {
+		const testCwd = 'path/to/workspace';
+		const mockSpawner: any = {
+			spawn: (command: any, args: any, opts: any) => {
+				strictEqual(command, '/usr/bin/open');
+				strictEqual(args[0], '-na');
+				strictEqual(args[1], 'Ghostty.app');
+				strictEqual(args[2], '--args');
+				strictEqual(args[3], '--working-directory=' + testCwd);
+				strictEqual(opts.cwd, testCwd);
+				done();
+				return {
+					on: (evt: any) => evt
+				};
+			}
+		};
+		const testService = new MacExternalTerminalService();
+		testService.spawnTerminal(
+			mockSpawner,
+			{ osxExec: 'Ghostty.app' },
+			testCwd
+		);
+	});
+
 	test(`LinuxTerminalService - uses terminal from configuration`, done => {
 		const testCwd = 'path/to/workspace';
 		const mockSpawner: any = {
@@ -205,5 +229,25 @@ suite('ExternalTerminalService', () => {
 				testCwd
 			);
 		});
+	});
+
+	test(`LinuxTerminalService - ghostty should be spawned correctly`, done => {
+		const testCwd = 'path/to/workspace';
+		const mockSpawner: any = {
+			spawn: (command: any, args: any, opts: any) => {
+				strictEqual(command, 'ghostty');
+				strictEqual(opts.cwd, testCwd);
+				done();
+				return {
+					on: (evt: any) => evt
+				};
+			}
+		};
+		const testService = new LinuxExternalTerminalService();
+		testService.spawnTerminal(
+			mockSpawner,
+			{ linuxExec: 'ghostty' },
+			testCwd
+		);
 	});
 });
