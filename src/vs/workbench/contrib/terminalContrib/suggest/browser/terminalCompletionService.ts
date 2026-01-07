@@ -339,6 +339,15 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 							return undefined;
 						}
 					}
+				} else {
+					// `./` by itself means the current directory, use cwd directly to avoid
+					// trailing slash issues with URI.joinPath on some remote file systems.
+					try {
+						await this._fileService.stat(cwd);
+						lastWordFolderResource = cwd;
+					} catch {
+						return undefined;
+					}
 				}
 			}
 
