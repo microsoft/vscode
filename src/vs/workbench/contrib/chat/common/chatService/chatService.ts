@@ -368,7 +368,10 @@ export interface IChatTerminalToolInvocationData {
 	commandLine: {
 		original: string;
 		userEdited?: string;
+		/** The tool-edited command for execution (may include leading whitespace for history prevention) */
 		toolEdited?: string;
+		/** The tool-edited command for display (trimmed). Falls back to toolEdited if not set. */
+		toolEditedDisplay?: string;
 	};
 	/** Message for model recommending the use of an alternative tool */
 	alternativeRecommendation?: string;

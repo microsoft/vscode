@@ -150,7 +150,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		};
 		const languageId = this.languageService.getLanguageIdByLanguageName(terminalData.language ?? 'sh') ?? 'shellscript';
 		const model = this._register(this.modelService.createModel(
-			terminalData.commandLine.toolEdited ?? terminalData.commandLine.original,
+			terminalData.commandLine.toolEditedDisplay ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original,
 			this.languageService.createById(languageId),
 			this._getUniqueCodeBlockUri(),
 			true

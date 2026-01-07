@@ -513,7 +513,7 @@ class AbstractResponse implements IResponse {
 			if (toolInvocation.toolSpecificData.kind === 'terminal') {
 				message = 'Ran terminal command';
 				const terminalData = migrateLegacyTerminalToolSpecificData(toolInvocation.toolSpecificData);
-				input = terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
+				input = terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEditedDisplay ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
 			}
 		}
 

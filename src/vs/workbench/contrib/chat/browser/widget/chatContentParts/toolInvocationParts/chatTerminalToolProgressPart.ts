@@ -263,7 +263,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		]);
 		this._titleElement = elements.title;
 
-		const command = terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
+		const command = terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEditedDisplay ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
 		this._commandText = command;
 		this._terminalOutputContextKey = ChatContextKeys.inChatTerminalToolOutput.bindTo(this._contextKeyService);
 

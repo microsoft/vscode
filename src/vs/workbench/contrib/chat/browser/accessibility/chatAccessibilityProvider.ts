@@ -49,7 +49,7 @@ export const getToolConfirmationAlert = (accessor: ServicesAccessor, toolInvocat
 		if (v.toolSpecificData) {
 			if (v.toolSpecificData.kind === 'terminal') {
 				const terminalData = migrateLegacyTerminalToolSpecificData(v.toolSpecificData);
-				input = terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
+				input = terminalData.commandLine.toolEditedDisplay ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
 			} else if (v.toolSpecificData.kind === 'extensions') {
 				input = JSON.stringify(v.toolSpecificData.extensions);
 			} else if (v.toolSpecificData.kind === 'input') {

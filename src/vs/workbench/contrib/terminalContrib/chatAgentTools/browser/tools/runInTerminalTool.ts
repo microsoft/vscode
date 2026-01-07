@@ -394,7 +394,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			terminalCommandId,
 			commandLine: {
 				original: args.command,
-				toolEdited: rewrittenCommand === args.command ? undefined : rewrittenCommand
+				toolEdited: rewrittenCommand === args.command ? undefined : rewrittenCommand,
+				toolEditedDisplay: rewrittenCommand === args.command ? undefined : rewrittenCommand.trim()
 			},
 			language,
 		};
