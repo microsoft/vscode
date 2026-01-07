@@ -26,6 +26,8 @@ export interface AccessibilityScanOptions {
 	tags?: string[];
 	/** Rule IDs to disable for this scan. */
 	disableRules?: string[];
+	/** Patterns to exclude from specific rules. Keys are rule IDs, values are strings to match against element target or HTML. */
+	excludeRules?: { [ruleId: string]: string[] };
 }
 
 export class PlaywrightDriver {
@@ -413,8 +415,27 @@ export class PlaywrightDriver {
 	async assertNoAccessibilityViolations(options?: AccessibilityScanOptions): Promise<void> {
 		const results = await this.runAccessibilityScan(options);
 
-		if (results.violations.length > 0) {
-			const violationMessages = results.violations.map(violation => {
+		// Filter out violations for specific elements based on excludeRules
+		let filteredViolations = results.violations;
+		if (options?.excludeRules) {
+			filteredViolations = results.violations.map(violation => {
+				const excludePatterns = options.excludeRules![violation.id];
+				if (!excludePatterns) {
+					return violation;
+				}
+				// Filter out nodes that match any of the exclude patterns
+				const filteredNodes = violation.nodes.filter(node => {
+					const target = node.target.join(' ');
+					const html = node.html || '';
+					// Check if any exclude pattern appears in target or HTML
+					return !excludePatterns.some(pattern => target.includes(pattern) || html.includes(pattern));
+				});
+				return { ...violation, nodes: filteredNodes };
+			}).filter(violation => violation.nodes.length > 0);
+		}
+
+		if (filteredViolations.length > 0) {
+			const violationMessages = filteredViolations.map(violation => {
 				const nodes = violation.nodes.map(node => {
 					const target = node.target.join(' > ');
 					const html = node.html || 'N/A';
@@ -437,7 +458,7 @@ export class PlaywrightDriver {
 
 			throw new Error(
 				`Accessibility violations found:\n\n${violationMessages}\n\n` +
-				`Total: ${results.violations.length} violation(s) affecting ${results.violations.reduce((sum, v) => sum + v.nodes.length, 0)} element(s)`
+				`Total: ${filteredViolations.length} violation(s) affecting ${filteredViolations.reduce((sum, v) => sum + v.nodes.length, 0)} element(s)`
 			);
 		}
 	}
