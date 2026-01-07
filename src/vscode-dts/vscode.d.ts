@@ -12293,10 +12293,13 @@ declare module 'vscode' {
 		description?: string | boolean;
 
 		/**
-		 * The {@link Uri} of the resource representing this item.
+		 * A {@link Uri} representing the resource associated with this item.
 		 *
-		 * Will be used to derive the {@link TreeItem.label label}, when it is not provided.
-		 * Will be used to derive the icon from current file icon theme, when {@link TreeItem.iconPath iconPath} has {@link ThemeIcon} value.
+		 * When set, this property is used to automatically derive several item properties if they are not explicitly provided:
+		 * - **Label**: Derived from the resource's file name when {@link TreeItem.label label} is not provided.
+		 * - **Description**: Derived from the resource's path when {@link TreeItem.description description} is set to `true`.
+		 * - **Icon**: Derived from the current file icon theme when {@link TreeItem.iconPath iconPath} is set to
+		 *   {@link ThemeIcon.File} or {@link ThemeIcon.Folder}.
 		 */
 		resourceUri?: Uri;
 

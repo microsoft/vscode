@@ -429,7 +429,7 @@ export const enum ToolConfirmKind {
 
 export type ConfirmedReason =
 	| { type: ToolConfirmKind.Denied }
-	| { type: ToolConfirmKind.ConfirmationNotNeeded }
+	| { type: ToolConfirmKind.ConfirmationNotNeeded; reason?: string | IMarkdownString }
 	| { type: ToolConfirmKind.Setting; id: string }
 	| { type: ToolConfirmKind.LmServicePerTool; scope: 'session' | 'workspace' | 'profile' }
 	| { type: ToolConfirmKind.UserAction }
