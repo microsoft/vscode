@@ -12,8 +12,9 @@ import { Action2, registerAction2 } from '../../../../../platform/actions/common
 import { accessibilityHelpIsShown } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { alert } from '../../../../../base/browser/ui/aria/aria.js';
 import { AccessibilityHelpNLS } from '../../../../../editor/common/standaloneStrings.js';
+import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
+import { alert } from '../../../../../base/browser/ui/aria/aria.js';
 
 class ToggleScreenReaderMode extends Action2 {
 
@@ -48,3 +49,35 @@ class ToggleScreenReaderMode extends Action2 {
 }
 
 registerAction2(ToggleScreenReaderMode);
+
+class AnnounceCursorPosition extends Action2 {
+	constructor() {
+		super({
+			id: 'editor.action.announceCursorPosition',
+			title: nls.localize2('announceCursorPosition', "Announce Cursor Position"),
+			f1: true,
+			metadata: {
+				description: nls.localize2('announceCursorPosition.description', "Announce the current cursor position (line and column) via screen reader.")
+			},
+			keybinding: {
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyG,
+				weight: KeybindingWeight.WorkbenchContrib + 10
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const codeEditorService = accessor.get(ICodeEditorService);
+		const editor = codeEditorService.getFocusedCodeEditor();
+		if (!editor) {
+			return;
+		}
+		const position = editor.getPosition();
+		if (!position) {
+			return;
+		}
+		alert(nls.localize('screenReader.lineColPosition', "Line {0}, Column {1}", position.lineNumber, position.column));
+	}
+}
+
+registerAction2(AnnounceCursorPosition);

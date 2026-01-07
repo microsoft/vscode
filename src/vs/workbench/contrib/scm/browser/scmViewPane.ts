@@ -1053,6 +1053,10 @@ class RepositoryVisibilityActionController {
 	}
 
 	private onDidAddRepository(repository: ISCMRepository): void {
+		if (repository.provider.isHidden) {
+			return;
+		}
+
 		const action = registerAction2(class extends RepositoryVisibilityAction {
 			constructor() {
 				super(repository);
@@ -3070,6 +3074,8 @@ class SCMTreeDataSource extends Disposable implements IAsyncDataSource<ISCMViewS
 			return result;
 		} else if (isSCMInput(element)) {
 			return element.repository;
+		} else if (isSCMActionButton(element)) {
+			return element.repository;
 		} else if (isSCMResourceGroup(element)) {
 			const repository = this.scmViewService.visibleRepositories.find(r => r.provider === element.provider);
 			if (!repository) {
@@ -3077,6 +3083,8 @@ class SCMTreeDataSource extends Disposable implements IAsyncDataSource<ISCMViewS
 			}
 
 			return repository;
+		} else if (isSCMRepository(element)) {
+			return this.scmViewService;
 		} else {
 			throw new Error('Unexpected call to getParent');
 		}
