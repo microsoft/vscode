@@ -26,7 +26,14 @@ export interface AccessibilityScanOptions {
 	tags?: string[];
 	/** Rule IDs to disable for this scan. */
 	disableRules?: string[];
-	/** Patterns to exclude from specific rules. Keys are rule IDs, values are strings to match against element target or HTML. */
+	/**
+	 * Patterns to exclude from specific rules. Keys are rule IDs, values are strings to match against element target or HTML.
+	 *
+	 * **IMPORTANT**: Adding exclusions here bypasses accessibility checks. Before adding an exclusion:
+	 * 1. File an issue to track the accessibility problem
+	 * 2. Ensure there's a plan to fix the underlying issue (e.g., hover/focus states that axe can't detect)
+	 * 3. Get approval from @anthropics/accessibility team
+	 */
 	excludeRules?: { [ruleId: string]: string[] };
 }
 
