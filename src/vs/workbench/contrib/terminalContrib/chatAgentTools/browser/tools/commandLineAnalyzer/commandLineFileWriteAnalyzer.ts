@@ -86,9 +86,6 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 		return fileWrites;
 	}
 
-	/**
-	 * Strips surrounding quotes (single, double, or backticks) from a file path.
-	 */
 	private _stripSurroundingQuotes(text: string): string {
 		if (
 			(text.startsWith('"') && text.endsWith('"')) ||
