@@ -83,6 +83,7 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 	}
 	private _decoration: IDecoration | undefined;
 	private _xterm: IXtermTerminal & { raw: RawXtermTerminal } | undefined;
+	private readonly _cursorMoveListener = this._register(new MutableDisposable());
 
 	constructor(
 		private readonly _ctx: ITerminalContributionContext | IDetachedCompatibleTerminalContributionContext,
@@ -106,6 +107,13 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 		this._addon = this._register(this._instantiationService.createInstance(InitialHintAddon, this._ctx.instance.capabilities, this._chatAgentService.onDidChangeAgents));
 		this._xterm.raw.loadAddon(this._addon);
 		this._register(this._addon.onDidRequestCreateHint(() => this._createHint()));
+	}
+
+	private _disposeHint(): void {
+		this._hintWidget?.remove();
+		this._hintWidget = undefined;
+		this._decoration?.dispose();
+		this._decoration = undefined;
 	}
 
 	private _createHint(): void {
@@ -138,7 +146,10 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 			}
 		}
 
-		this._register(this._xterm.raw.onKey(() => this.dispose()));
+		this._register(this._xterm.raw.onKey(() => {
+			this._cursorMoveListener.clear();
+			this.dispose();
+		}));
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TerminalInitialHintSettingId.Enabled) && !this._configurationService.getValue(TerminalInitialHintSettingId.Enabled)) {
@@ -150,10 +161,20 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 		if (inputModel) {
 			this._register(inputModel.onDidChangeInput(() => {
 				if (inputModel.value) {
+					this._cursorMoveListener.clear();
 					this.dispose();
 				}
 			}));
 		}
+
+		// Listen to cursor move and recreate the hint (only if no input has been received)
+		// Fixes #286080 an issue where the hint would not reposition correctly when the terminal's prompt changed
+		this._cursorMoveListener.value = this._xterm.raw.onCursorMove(() => {
+			if (!inputModel?.value) {
+				this._disposeHint();
+				this._createHint();
+			}
+		});
 
 		if (!this._decoration) {
 			return;
