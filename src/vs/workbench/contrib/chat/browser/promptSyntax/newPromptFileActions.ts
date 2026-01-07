@@ -25,6 +25,10 @@ import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { askForPromptFileName } from './pickers/askForPromptName.js';
 import { askForPromptSourceFolder } from './pickers/askForPromptSourceFolder.js';
 import { IChatModeService } from '../../common/chatModes.js';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { isValidBasename } from '../../../../../base/common/extpath.js';
+import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
 
 
 class AbstractNewPromptFileAction extends Action2 {
@@ -173,6 +177,7 @@ function getDefaultContentSnippet(promptType: PromptsType, chatModeService: ICha
 export const NEW_PROMPT_COMMAND_ID = 'workbench.command.new.prompt';
 export const NEW_INSTRUCTIONS_COMMAND_ID = 'workbench.command.new.instructions';
 export const NEW_AGENT_COMMAND_ID = 'workbench.command.new.agent';
+export const NEW_SKILL_COMMAND_ID = 'workbench.command.new.skill';
 
 class NewPromptFileAction extends AbstractNewPromptFileAction {
 	constructor() {
@@ -189,6 +194,168 @@ class NewInstructionsFileAction extends AbstractNewPromptFileAction {
 class NewAgentFileAction extends AbstractNewPromptFileAction {
 	constructor() {
 		super(NEW_AGENT_COMMAND_ID, localize('commands.new.agent.local.title', "New Custom Agent..."), PromptsType.agent);
+	}
+}
+
+class NewSkillAction extends Action2 {
+	constructor() {
+		super({
+			id: NEW_SKILL_COMMAND_ID,
+			title: localize2('commands.new.skill.local.title', "New Skill..."),
+			f1: false,
+			precondition: ChatContextKeys.enabled,
+			category: CHAT_CATEGORY,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib
+			},
+			menu: {
+				id: MenuId.CommandPalette,
+				when: ChatContextKeys.enabled
+			}
+		});
+	}
+
+	public override async run(accessor: ServicesAccessor) {
+		const logService = accessor.get(ILogService);
+		const openerService = accessor.get(IOpenerService);
+		const commandService = accessor.get(ICommandService);
+		const notificationService = accessor.get(INotificationService);
+		const userDataSyncEnablementService = accessor.get(IUserDataSyncEnablementService);
+		const editorService = accessor.get(IEditorService);
+		const fileService = accessor.get(IFileService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const workspaceContextService = accessor.get(IWorkspaceContextService);
+		const userDataProfileService = accessor.get(IUserDataProfileService);
+
+		// Skills can be created in either .github/skills or .claude/skills
+		// Ask the user to select which one
+		const skillLocations: Array<{ label: string; path: string; description: string; isUser?: boolean }> = [];
+
+		const { folders } = workspaceContextService.getWorkspace();
+		if (folders.length > 0) {
+			skillLocations.push({
+				label: localize('skill.location.github', ".github/skills"),
+				path: '.github/skills',
+				description: localize('skill.location.github.desc', "Workspace")
+			});
+
+		}
+
+		// Add user home locations
+		skillLocations.push({
+			label: localize('skill.location.copilot.user', "~/.copilot/skills"),
+			path: '.copilot/skills',
+			description: localize('skill.location.copilot.user.desc', "User Home"),
+			isUser: true
+		});
+
+		const selectedLocation = await quickInputService.pick(skillLocations, {
+			placeHolder: localize('skill.location.placeholder', "Select a location to create the skill"),
+			canPickMany: false
+		});
+
+		if (!selectedLocation) {
+			return;
+		}
+
+		// Ask for the skill folder name (not the file name, since we'll create SKILL.md inside)
+		const skillFolderName = await quickInputService.input({
+			placeHolder: localize('skill.folder.placeholder', "Enter the skill folder name (e.g., 'my-skill')"),
+			validateInput: async (value) => {
+				const trimmed = value.trim();
+				if (!trimmed) {
+					return localize('skill.folder.empty', "Please enter a name.");
+				}
+				if (!isValidBasename(trimmed)) {
+					return localize('skill.folder.invalid', "The name contains invalid characters.");
+				}
+				return undefined;
+			}
+		});
+
+		if (!skillFolderName) {
+			return;
+		}
+
+		const trimmedFolderName = skillFolderName.trim();
+
+		// Determine the base URI for the skill folder
+		let baseUri: URI;
+		if (selectedLocation.isUser) {
+			const homeDir = userDataProfileService.currentProfile.location;
+			baseUri = URI.joinPath(homeDir, selectedLocation.path);
+		} else {
+			const firstFolder = folders[0];
+			baseUri = URI.joinPath(firstFolder.uri, selectedLocation.path);
+		}
+
+		// Create the skill folder
+		const skillFolderUri = URI.joinPath(baseUri, trimmedFolderName);
+		await fileService.createFolder(skillFolderUri);
+
+		// Create the SKILL.md file inside the folder
+		const skillFileUri = URI.joinPath(skillFolderUri, 'SKILL.md');
+		await fileService.createFile(skillFileUri);
+
+		// Open the file
+		await openerService.open(skillFileUri);
+
+		// Insert template content
+		const editor = getCodeEditor(editorService.activeTextEditorControl);
+		if (editor && editor.hasModel() && isEqual(editor.getModel().uri, skillFileUri)) {
+			SnippetController2.get(editor)?.apply([{
+				range: editor.getModel().getFullModelRange(),
+				template: [
+					`---`,
+					`name: "\${1:${trimmedFolderName}}"`,
+					`description: "\${2:Describe what this skill does and when to use it.}"`,
+					`---`,
+					`\${3:Provide detailed instructions for this skill, including specific knowledge, procedures, or guidelines that Claude should follow when this skill is loaded.}`,
+				].join('\n'),
+			}]);
+		}
+
+		// Show sync notification if created in user location
+		if (selectedLocation.isUser) {
+			const isConfigured = userDataSyncEnablementService
+				.isResourceEnablementConfigured(SyncResource.Prompts);
+			const isSettingsSyncEnabled = userDataSyncEnablementService.isEnabled();
+
+			if ((isConfigured === true) || (isSettingsSyncEnabled === false)) {
+				return;
+			}
+
+			notificationService.prompt(
+				Severity.Info,
+				localize(
+					'workbench.command.skill.create.user.enable-sync-notification',
+					"Do you want to backup and sync your user skill files with Setting Sync?'",
+				),
+				[
+					{
+						label: localize('enable.capitalized', "Enable"),
+						run: () => {
+							commandService.executeCommand(CONFIGURE_SYNC_COMMAND_ID)
+								.catch((error) => {
+									logService.error(`Failed to run '${CONFIGURE_SYNC_COMMAND_ID}' command: ${error}.`);
+								});
+						},
+					},
+					{
+						label: localize('learnMore.capitalized', "Learn More"),
+						run: () => {
+							openerService.open(URI.parse('https://aka.ms/vscode-settings-sync-help'));
+						},
+					},
+				],
+				{
+					neverShowAgain: {
+						id: 'workbench.command.skill.create.user.enable-sync-notification',
+						scope: NeverShowAgainScope.PROFILE,
+					},
+				},
+			);
+		}
 	}
 }
 
@@ -237,5 +404,6 @@ export function registerNewPromptFileActions(): void {
 	registerAction2(NewPromptFileAction);
 	registerAction2(NewInstructionsFileAction);
 	registerAction2(NewAgentFileAction);
+	registerAction2(NewSkillAction);
 	registerAction2(NewUntitledPromptFileAction);
 }

@@ -9,6 +9,7 @@ import { registerRunPromptActions } from './runPromptAction.js';
 import { registerNewPromptFileActions } from './newPromptFileActions.js';
 import { registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { SaveAsAgentFileAction, SaveAsInstructionsFileAction, SaveAsPromptFileAction } from './saveAsPromptFileActions.js';
+import { registerManageSkillsAction } from './manageSkillsAction.js';
 
 
 /**
@@ -22,4 +23,5 @@ export function registerPromptActions(): void {
 	registerAction2(SaveAsAgentFileAction);
 	registerAgentActions();
 	registerNewPromptFileActions();
+	registerManageSkillsAction();
 }
