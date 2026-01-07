@@ -36,6 +36,7 @@ import { ExtHostLanguageModelTools } from './extHostLanguageModelTools.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
 import { IPromptFileQueryOptions, IPromptFileResource } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
+import { PromptsType } from '../../contrib/chat/common/promptSyntax/promptTypes.js';
 import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors.js';
 
 export class ChatAgentResponseStream {
@@ -483,7 +484,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 	 * Internal method that handles all prompt file provider types.
 	 * Routes custom agents, instructions, and prompt files to the unified internal implementation.
 	 */
-	registerPromptFileProvider(extension: IExtensionDescription, type: 'agent' | 'instructions' | 'prompt', provider: vscode.CustomAgentProvider | vscode.InstructionsProvider | vscode.PromptFileProvider): vscode.Disposable {
+	registerPromptFileProvider(extension: IExtensionDescription, type: PromptsType, provider: vscode.CustomAgentProvider | vscode.InstructionsProvider | vscode.PromptFileProvider): vscode.Disposable {
 		const handle = ExtHostChatAgents2._contributionsProviderIdPool++;
 		this._promptFileProviders.set(handle, { extension, provider });
 		this._proxy.$registerPromptFileProvider(handle, type, extension.identifier);
@@ -492,9 +493,9 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 		// Listen to provider change events and notify main thread
 		// Check for the appropriate event based on the provider type
-		const changeEvent = type === 'agent'
+		const changeEvent = type === PromptsType.agent
 			? (provider as vscode.CustomAgentProvider).onDidChangeCustomAgents
-			: type === 'instructions'
+			: type === PromptsType.instructions
 				? (provider as vscode.InstructionsProvider).onDidChangeInstructions
 				: (provider as vscode.PromptFileProvider).onDidChangePromptFiles;
 
@@ -522,7 +523,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return await provider.provider.provideRelatedFiles(extRequestDraft, token) ?? undefined;
 	}
 
-	async $provideContributions(handle: number, options: IPromptFileQueryOptions, token: CancellationToken): Promise<IPromptFileResource[] | undefined> {
+	async $providePromptFiles(handle: number, options: IPromptFileQueryOptions, token: CancellationToken): Promise<IPromptFileResource[] | undefined> {
 		const providerData = this._promptFileProviders.get(handle);
 		if (!providerData) {
 			return Promise.resolve(undefined);

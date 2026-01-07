@@ -454,7 +454,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		const disposable = this._promptsService.registerPromptFileProvider(extension, type, {
 			onDidChangeContributions: emitter.event,
 			provideContributions: async (options: IPromptFileQueryOptions, token: CancellationToken) => {
-				const contributions = await this._proxy.$provideContributions(handle, options, token);
+				const contributions = await this._proxy.$providePromptFiles(handle, options, token);
 				if (!contributions) {
 					return undefined;
 				}
