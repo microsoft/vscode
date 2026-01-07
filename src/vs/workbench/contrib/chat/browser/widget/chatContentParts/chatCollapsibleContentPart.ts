@@ -80,7 +80,7 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 		this._domNode = $('.chat-used-context', undefined, buttonElement);
 		collapseButton.label = referencesLabel;
 
-		if (this.hoverMessage && this.hoverService) {
+		if (this.hoverMessage) {
 			this._register(this.hoverService.setupDelayedHover(collapseButton.iconElement, {
 				content: this.hoverMessage,
 				style: HoverStyle.Pointer,
