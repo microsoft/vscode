@@ -18,17 +18,18 @@ export async function getServer(appService: ApplicationService): Promise<Server>
 
 	server.tool(
 		'vscode_automation_start',
-		'Start VS Code Build',
+		'Start VS Code Build. If workspacePath is not provided, VS Code will open with the last used workspace or an empty window.',
 		{
-			recordVideo: z.boolean().optional()
+			recordVideo: z.boolean().optional().describe('Whether to record a video of the session'),
+			workspacePath: z.string().optional().describe('Optional path to a workspace or folder to open. If not provided, opens the last used workspace.')
 		},
-		async ({ recordVideo }) => {
-			const app = await appService.getOrCreateApplication({ recordVideo });
+		async ({ recordVideo, workspacePath }) => {
+			const app = await appService.getOrCreateApplication({ recordVideo, workspacePath });
 			await app.startTracing();
 			return {
 				content: [{
 					type: 'text' as const,
-					text: app ? `VS Code started successfully` : `Failed to start VS Code`
+					text: app ? `VS Code started successfully${workspacePath ? ` with workspace: ${workspacePath}` : ''}` : `Failed to start VS Code`
 				}]
 			};
 		}
