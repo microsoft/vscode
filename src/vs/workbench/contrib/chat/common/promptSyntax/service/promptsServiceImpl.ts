@@ -37,6 +37,16 @@ import { Delayer } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 
 /**
+ * Represents a cached prompt file resource stored in storage.
+ */
+interface ICachedPromptFileResource {
+	readonly name: string;
+	readonly description: string;
+	readonly uri: string; // Serialized URI string
+	readonly isEditable?: boolean;
+}
+
+/**
  * Provides prompt services.
  */
 export class PromptsService extends Disposable implements IPromptsService {
@@ -85,6 +95,17 @@ export class PromptsService extends Disposable implements IPromptsService {
 		[PromptsType.agent]: new ResourceMap<Promise<IExtensionPromptPath>>(),
 	};
 
+	/**
+	 * Storage key prefix for cached prompt file resources from providers.
+	 * These are resources that are provided by extensions but can be cached for use before activation.
+	 */
+	private readonly cachedProviderResourcesStorageKeyPrefix = 'chat.cachedProviderResources.';
+
+	/**
+	 * Storage key for tracking extension IDs that have registered prompt file providers.
+	 */
+	private readonly cachedProviderExtensionsStorageKey = 'chat.cachedProviderExtensions';
+
 	constructor(
 		@ILogService public readonly logger: ILogService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -116,6 +137,141 @@ export class PromptsService extends Disposable implements IPromptsService {
 			(token) => this.computePromptSlashCommands(token),
 			() => Event.any(this.getFileLocatorEvent(PromptsType.prompt), Event.filter(modelChangeEvent, e => e.promptType === PromptsType.prompt))
 		));
+	}
+
+	/**
+	 * Gets cached prompt file resources for a specific extension and type.
+	 */
+	private getCachedProviderResources(extensionId: string, type: PromptsType): ICachedPromptFileResource[] {
+		const key = `${this.cachedProviderResourcesStorageKeyPrefix}${extensionId}.${type}`;
+		const value = this.storageService.get(key, StorageScope.PROFILE, '[]');
+		try {
+			const arr = JSON.parse(value);
+			if (Array.isArray(arr)) {
+				return arr;
+			}
+		} catch {
+			// ignore invalid storage values
+		}
+		return [];
+	}
+
+	/**
+	 * Saves cached prompt file resources for a specific extension and type.
+	 * Only resources marked as cacheable (isCacheable !== false) are stored.
+	 */
+	private setCachedProviderResources(extensionId: string, type: PromptsType, resources: IPromptFileResource[]): void {
+		const key = `${this.cachedProviderResourcesStorageKeyPrefix}${extensionId}.${type}`;
+		// Filter to only cacheable resources (isCacheable defaults to true)
+		const cacheableResources: ICachedPromptFileResource[] = resources
+			.filter(r => r.isCacheable !== false)
+			.map(r => ({
+				name: r.name,
+				description: r.description,
+				uri: r.uri.toString(),
+				isEditable: r.isEditable
+			}));
+		this.storageService.store(key, JSON.stringify(cacheableResources), StorageScope.PROFILE, StorageTarget.MACHINE);
+
+		// Track that this extension has registered a provider for this type
+		this.addCachedProviderExtension(extensionId, type);
+	}
+
+	/**
+	 * Gets the set of extension IDs that have registered providers for each type.
+	 */
+	private getCachedProviderExtensions(): { [type in PromptsType]?: string[] } {
+		const value = this.storageService.get(this.cachedProviderExtensionsStorageKey, StorageScope.PROFILE, '{}');
+		try {
+			return JSON.parse(value);
+		} catch {
+			return {};
+		}
+	}
+
+	/**
+	 * Adds an extension ID to the set of cached provider extensions for a type.
+	 */
+	private addCachedProviderExtension(extensionId: string, type: PromptsType): void {
+		const extensions = this.getCachedProviderExtensions();
+		if (!extensions[type]) {
+			extensions[type] = [];
+		}
+		if (!extensions[type]!.includes(extensionId)) {
+			extensions[type]!.push(extensionId);
+			this.storageService.store(this.cachedProviderExtensionsStorageKey, JSON.stringify(extensions), StorageScope.PROFILE, StorageTarget.MACHINE);
+		}
+	}
+
+	/**
+	 * Converts cached resources to IPromptPath entries.
+	 */
+	private cachedResourcesToPromptPaths(cached: ICachedPromptFileResource[], extension: IExtensionDescription, type: PromptsType): IExtensionPromptPath[] {
+		return cached.map(r => ({
+			uri: URI.parse(r.uri),
+			name: r.name,
+			description: r.description,
+			storage: PromptsStorage.extension,
+			type,
+			extension,
+			source: ExtensionAgentSourceType.provider
+		} satisfies IExtensionPromptPath));
+	}
+
+	/**
+	 * Gets cached resources for extensions that have registered providers previously but haven't activated yet.
+	 * This allows showing resources before extension activation.
+	 */
+	private async getCachedResourcesForUnactivatedExtensions(type: PromptsType): Promise<IExtensionPromptPath[]> {
+		const result: IExtensionPromptPath[] = [];
+		const registeredExtensionIds = new Set(this.promptFileProviders.filter(p => p.type === type).map(p => p.extension.identifier.value));
+
+		// Get extension IDs that have previously registered providers
+		const cachedExtensions = this.getCachedProviderExtensions();
+		const cachedExtensionIds = cachedExtensions[type] ?? [];
+
+		for (const extensionId of cachedExtensionIds) {
+			// Skip if this extension has already registered a provider (it will be handled by listXFromProvider)
+			if (registeredExtensionIds.has(extensionId)) {
+				continue;
+			}
+
+			// Get the extension description if available
+			const extensionDescription = await this.extensionService.getExtension(extensionId);
+			if (!extensionDescription) {
+				// Extension is no longer installed, clear its cache
+				this.clearCachedProviderResources(extensionId, type);
+				continue;
+			}
+
+			// Get cached resources for this extension
+			const cached = this.getCachedProviderResources(extensionId, type);
+			if (cached.length > 0) {
+				result.push(...this.cachedResourcesToPromptPaths(cached, extensionDescription, type));
+			}
+		}
+
+		return result;
+	}
+
+	/**
+	 * Clears cached prompt file resources for a specific extension and type.
+	 * Also removes the extension from the tracked provider extensions list.
+	 */
+	private clearCachedProviderResources(extensionId: string, type: PromptsType): void {
+		// Clear the cached resources
+		const key = `${this.cachedProviderResourcesStorageKeyPrefix}${extensionId}.${type}`;
+		this.storageService.remove(key, StorageScope.PROFILE);
+
+		// Remove from tracked extensions list
+		const extensions = this.getCachedProviderExtensions();
+		if (extensions[type]) {
+			const index = extensions[type]!.indexOf(extensionId);
+			if (index >= 0) {
+				extensions[type]!.splice(index, 1);
+				this.storageService.store(this.cachedProviderExtensionsStorageKey, JSON.stringify(extensions), StorageScope.PROFILE, StorageTarget.MACHINE);
+			}
+		}
 	}
 
 	private getFileLocatorEvent(type: PromptsType): Event<void> {
@@ -243,6 +399,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 	private async listFromProviders(type: PromptsType, activationEvent: string, token: CancellationToken): Promise<IPromptPath[]> {
 		const result: IPromptPath[] = [];
 
+		// First, get cached resources for extensions that haven't activated yet
+		const cachedResources = await this.getCachedResourcesForUnactivatedExtensions(type);
+		result.push(...cachedResources);
+
 		// Activate extensions that might provide files for this type
 		await this.extensionService.activateByEvent(activationEvent);
 
@@ -250,6 +410,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 		if (providers.length === 0) {
 			return result;
 		}
+
+		// Track which cached resources should be replaced by provider resources
+		const seenUris = new ResourceSet();
 
 		// Collect files from all providers
 		for (const providerEntry of providers) {
@@ -259,7 +422,12 @@ export class PromptsService extends Disposable implements IPromptsService {
 					continue;
 				}
 
+				// Update cache for this extension's resources
+				this.setCachedProviderResources(providerEntry.extension.identifier.value, type, files);
+
 				for (const file of files) {
+					seenUris.add(file.uri);
+
 					if (!file.isEditable) {
 						try {
 							await this.filesConfigService.updateReadonly(file.uri, true);
@@ -284,10 +452,15 @@ export class PromptsService extends Disposable implements IPromptsService {
 			}
 		}
 
-		return result;
+		// Filter out cached resources that were replaced by provider resources
+		return result.filter(r => {
+			const isCachedResource = cachedResources.some(c => c.uri.toString() === r.uri.toString());
+			if (isCachedResource && seenUris.has(r.uri)) {
+				return false; // Provider has provided this resource, use the provider's version
+			}
+			return true;
+		});
 	}
-
-
 
 	public async listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, token: CancellationToken): Promise<readonly IPromptPath[]> {
 		switch (storage) {
