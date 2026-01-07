@@ -827,7 +827,10 @@ suite('TerminalCompletionService', () => {
 
 				// Check that results exist and have the correct scheme/authority
 				assert.ok(result && result.length > 0, 'Should return completions for remote absolute path');
-				// The completions should have been resolved using the remote file service
+				// Verify completions contain paths resolved via the remote file service (not local file://)
+				const absoluteCompletion = result?.find(c => c.label === '/home/');
+				assert.ok(absoluteCompletion, 'Should have absolute path completion');
+				assert.ok(absoluteCompletion.detail?.includes('/home/'), 'Detail should show remote path');
 			});
 
 			test('~/ should preserve remote authority for tilde expansion', async () => {
@@ -849,6 +852,9 @@ suite('TerminalCompletionService', () => {
 
 				// Check that results exist for remote tilde path
 				assert.ok(result && result.length > 0, 'Should return completions for remote tilde path');
+				// Verify the tilde path was resolved using the remote home directory
+				const documentsCompletion = result?.find(c => c.detail?.includes('Documents'));
+				assert.ok(documentsCompletion, 'Should find Documents folder from remote home');
 			});
 
 			test('./relative should preserve remote authority for relative paths', async () => {
@@ -869,8 +875,9 @@ suite('TerminalCompletionService', () => {
 
 				// Check that results exist for remote relative path
 				assert.ok(result && result.length > 0, 'Should return completions for remote relative path');
-				const srcCompletion = result?.find(c => c.detail?.includes('src'));
-				assert.ok(srcCompletion, 'Should find src folder completion');
+				// Verify completions are from the remote filesystem
+				const srcCompletion = result?.find(c => c.detail?.includes('/home/remoteuser/project/src'));
+				assert.ok(srcCompletion, 'Should find src folder completion with remote path in detail');
 			});
 		});
 	}
