@@ -283,9 +283,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.id = undefined;
 	}
 
-	public getId(): string | undefined {
-		return this.id;
-	}
 
 	public collapseContent(): void {
 		this.setExpanded(false);
@@ -535,9 +532,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 				const message = typeof toolInvocationOrMarkdown.invocationMessage === 'string' ? toolInvocationOrMarkdown.invocationMessage : toolInvocationOrMarkdown.invocationMessage.value;
 				toolCallLabel = message;
 
-				if (toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized')) {
-					this.toolInvocations.push(toolInvocationOrMarkdown);
-				}
+				this.toolInvocations.push(toolInvocationOrMarkdown);
 			} else if (toolInvocationOrMarkdown?.kind === 'markdownContent') {
 				const codeblockInfo = extractCodeblockUrisFromText(toolInvocationOrMarkdown.content.value);
 				if (codeblockInfo?.uri) {
