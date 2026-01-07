@@ -368,7 +368,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			case 'tilde': {
 				const home = this._getHomeDir(useWindowsStylePath, capabilities);
 				if (home) {
-					lastWordFolderResource = URI.joinPath(URI.file(home), lastWordFolder.slice(1).replaceAll('\\ ', ' '));
+					lastWordFolderResource = URI.joinPath(cwd.with({ path: home }), lastWordFolder.slice(1).replaceAll('\\ ', ' '));
 				}
 				if (!lastWordFolderResource) {
 					// Use less strong wording here as it's not as strong of a concept on Windows
@@ -381,9 +381,9 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			}
 			case 'absolute': {
 				if (shellType === WindowsShellType.GitBash) {
-					lastWordFolderResource = URI.file(gitBashToWindowsPath(lastWordFolder, this._processEnv.SystemDrive));
+					lastWordFolderResource = cwd.with({ path: gitBashToWindowsPath(lastWordFolder, this._processEnv.SystemDrive) });
 				} else {
-					lastWordFolderResource = URI.file(lastWordFolder.replaceAll('\\ ', ' '));
+					lastWordFolderResource = cwd.with({ path: lastWordFolder.replaceAll('\\ ', ' ') });
 				}
 				break;
 			}
@@ -549,7 +549,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 						const cdPathEntries = cdPath.split(useWindowsStylePath ? ';' : ':');
 						for (const cdPathEntry of cdPathEntries) {
 							try {
-								const fileStat = await this._fileService.resolve(URI.file(cdPathEntry), { resolveSingleChildDescendants: true });
+								const fileStat = await this._fileService.resolve(cwd.with({ path: cdPathEntry }), { resolveSingleChildDescendants: true });
 								if (fileStat?.children) {
 									for (const child of fileStat.children) {
 										if (!child.isDirectory) {
@@ -610,7 +610,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			let homeResource: URI | string | undefined;
 			const home = this._getHomeDir(useWindowsStylePath, capabilities);
 			if (home) {
-				homeResource = URI.joinPath(URI.file(home), lastWordFolder.slice(1).replaceAll('\\ ', ' '));
+				homeResource = URI.joinPath(cwd.with({ path: home }), lastWordFolder.slice(1).replaceAll('\\ ', ' '));
 			}
 			if (!homeResource) {
 				// Use less strong wording here as it's not as strong of a concept on Windows

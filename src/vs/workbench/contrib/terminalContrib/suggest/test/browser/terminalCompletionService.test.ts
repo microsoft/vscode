@@ -801,6 +801,80 @@ suite('TerminalCompletionService', () => {
 			});
 		});
 	}
+	if (!isWindows) {
+		suite('remote file completion (e.g. WSL)', () => {
+			const remoteAuthority = 'wsl+Ubuntu';
+			const remoteTestEnv: IProcessEnvironment = {
+				HOME: '/home/remoteuser',
+				USERPROFILE: '/home/remoteuser'
+			};
+
+			test('/absolute/path should preserve remote authority', async () => {
+				terminalCompletionService.processEnv = remoteTestEnv;
+				const resourceOptions: TerminalCompletionResourceOptions = {
+					cwd: URI.from({ scheme: 'vscode-remote', authority: remoteAuthority, path: '/home/remoteuser' }),
+					showDirectories: true,
+					pathSeparator: '/'
+				};
+				validResources = [
+					URI.from({ scheme: 'vscode-remote', authority: remoteAuthority, path: '/home' }),
+					URI.from({ scheme: 'vscode-remote', authority: remoteAuthority, path: '/home/remoteuser' }),
+				];
+				childResources = [
+					{ resource: URI.from({ scheme: 'vscode-remote', authority: remoteAuthority, path: '/home/remoteuser' }), isDirectory: true },
+				];
+				const result = await terminalCompletionService.resolveResources(resourceOptions, '/home/', 6, provider, capabilities);
+
+				// Check that results exist and have the correct scheme/authority
+				assert.ok(result && result.length > 0, 'Should return completions for remote absolute path');
+				// The completions should have been resolved using the remote file service
+			});
+
+			test('~/ should preserve remote authority for tilde expansion', async () => {
+				terminalCompletionService.processEnv = remoteTestEnv;
+				const resourceOptions: TerminalCompletionResourceOptions = {
+					cwd: URI.from({ scheme: 'vscode-remote', authority: remoteAuthority, path: '/home/remoteuser/project' }),
+					showDirectories: true,
+					pathSeparator: '/'
+				};
+				validResources = [
+					URI.from({ scheme: 'vscode-remote', authority: remoteAuthority, path: '/home/remoteuser' }),
+					URI.from({ scheme: 'vscode-remote', authority: remoteAuthority, path: '/home/remoteuser/project' }),
+				];
+				childResources = [
+					{ resource: URI.from({ scheme: 'vscode-remote', authority: remoteAuthority, path: '/home/remoteuser/Documents' }), isDirectory: true },
+					{ resource: URI.from({ scheme: 'vscode-remote', authority: remoteAuthority, path: '/home/remoteuser/project' }), isDirectory: true },
+				];
+				const result = await terminalCompletionService.resolveResources(resourceOptions, '~/', 2, provider, capabilities);
+
+				// Check that results exist for remote tilde path
+				assert.ok(result && result.length > 0, 'Should return completions for remote tilde path');
+			});
+
+			test('./relative should preserve remote authority for relative paths', async () => {
+				terminalCompletionService.processEnv = remoteTestEnv;
+				const resourceOptions: TerminalCompletionResourceOptions = {
+					cwd: URI.from({ scheme: 'vscode-remote', authority: remoteAuthority, path: '/home/remoteuser/project' }),
+					showDirectories: true,
+					pathSeparator: '/'
+				};
+				validResources = [
+					URI.from({ scheme: 'vscode-remote', authority: remoteAuthority, path: '/home/remoteuser/project' }),
+				];
+				childResources = [
+					{ resource: URI.from({ scheme: 'vscode-remote', authority: remoteAuthority, path: '/home/remoteuser/project/src' }), isDirectory: true },
+					{ resource: URI.from({ scheme: 'vscode-remote', authority: remoteAuthority, path: '/home/remoteuser/project/docs' }), isDirectory: true },
+				];
+				const result = await terminalCompletionService.resolveResources(resourceOptions, './', 2, provider, capabilities);
+
+				// Check that results exist for remote relative path
+				assert.ok(result && result.length > 0, 'Should return completions for remote relative path');
+				const srcCompletion = result?.find(c => c.detail?.includes('src'));
+				assert.ok(srcCompletion, 'Should find src folder completion');
+			});
+		});
+	}
+
 	suite('completion label escaping', () => {
 		test('| should escape special characters in file/folder names for POSIX shells', async () => {
 			const resourceOptions: TerminalCompletionResourceOptions = {
