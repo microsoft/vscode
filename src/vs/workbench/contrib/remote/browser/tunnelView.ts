@@ -409,6 +409,10 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 	}
 
 	renderButton(element: ActionBarCell, templateData: IActionBarTemplateData): void {
+		// Clear any leftover input box elements from the container
+		const inputBoxElements = templateData.container.querySelectorAll('.monaco-inputbox');
+		inputBoxElements.forEach(el => el.remove());
+
 		templateData.container.style.paddingLeft = '7px';
 		templateData.container.style.height = '28px';
 		templateData.button = this._register(new Button(templateData.container, defaultButtonStyles));
