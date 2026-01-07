@@ -342,12 +342,15 @@ registerTerminalAction({
 		group: 'right',
 		order: 1,
 		when: ContextKeyExpr.and(
-			ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.QuickSuggestions}`, true),
+			ContextKeyExpr.or(
+				ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.QuickSuggestions}.commands`, true),
+				ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.QuickSuggestions}.arguments`, true),
+			),
 			ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.SuggestOnTriggerCharacters}`, true),
 		),
 	},
 	run: (c, accessor) => {
-		accessor.get(IConfigurationService).updateValue(TerminalSuggestSettingId.QuickSuggestions, false);
+		accessor.get(IConfigurationService).updateValue(TerminalSuggestSettingId.QuickSuggestions, { commands: false, arguments: false, unknown: false });
 		accessor.get(IConfigurationService).updateValue(TerminalSuggestSettingId.SuggestOnTriggerCharacters, false);
 	}
 });
@@ -363,12 +366,15 @@ registerTerminalAction({
 		group: 'right',
 		order: 1,
 		when: ContextKeyExpr.or(
-			ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.QuickSuggestions}`, false),
+			ContextKeyExpr.and(
+				ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.QuickSuggestions}.commands`, false),
+				ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.QuickSuggestions}.arguments`, false),
+			),
 			ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.SuggestOnTriggerCharacters}`, false),
 		),
 	},
 	run: (c, accessor) => {
-		accessor.get(IConfigurationService).updateValue(TerminalSuggestSettingId.QuickSuggestions, true);
+		accessor.get(IConfigurationService).updateValue(TerminalSuggestSettingId.QuickSuggestions, { commands: true, arguments: true, unknown: true });
 		accessor.get(IConfigurationService).updateValue(TerminalSuggestSettingId.SuggestOnTriggerCharacters, true);
 	}
 });
