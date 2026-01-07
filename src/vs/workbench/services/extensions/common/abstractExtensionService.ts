@@ -458,6 +458,14 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	//#endregion
 
+	private _initializePromise: Promise<void> | null = null;
+	protected _initializeIfNeeded(): Promise<void> | null {
+		if (!this._initializePromise) {
+			this._initializePromise = this._initialize();
+		}
+		return this._initializePromise;
+	}
+
 	protected async _initialize(): Promise<void> {
 		perf.mark('code/willLoadExtensions');
 		this._startExtensionHostsIfNecessary(true, []);
@@ -969,6 +977,12 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 			if (activationKind === ActivationKind.Immediate) {
 				// Do not wait for the normal start-up of the extension host(s)
+
+				// Note: some callers come in so early that the extension hosts have not even been created yet.
+				// Therefore we kick off the extension host creation, but without awaiting it.
+				// See https://github.com/microsoft/vscode/issues/260061
+				void this._initializeIfNeeded();
+
 				return this._activateByEvent(activationEvent, activationKind);
 			}
 
