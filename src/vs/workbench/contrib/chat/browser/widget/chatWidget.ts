@@ -301,6 +301,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (viewModel) {
 			this.viewModelDisposables.add(viewModel);
 			this.logService.debug('ChatWidget#setViewModel: have viewModel');
+
+			// If switching to a model with a request in progress, play progress sound
+			if (viewModel.model.requestInProgress.get()) {
+				this.chatAccessibilityService.acceptRequest(viewModel.sessionResource);
+			}
 		} else {
 			this.logService.debug('ChatWidget#setViewModel: no viewModel');
 		}
