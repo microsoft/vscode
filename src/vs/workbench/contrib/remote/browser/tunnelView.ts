@@ -395,11 +395,11 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 
 		let editableData: IEditableData | undefined;
 		if (element.editId === TunnelEditId.New && (editableData = this.remoteExplorerService.getEditableData(undefined))) {
-			this.renderInputBox(templateData.container, editableData);
+			templateData.elementDisposable = this.renderInputBox(templateData.container, editableData);
 		} else {
 			editableData = this.remoteExplorerService.getEditableData(element.tunnel, element.editId);
 			if (editableData) {
-				this.renderInputBox(templateData.container, editableData);
+				templateData.elementDisposable = this.renderInputBox(templateData.container, editableData);
 			} else if ((element.tunnel.tunnelType === TunnelType.Add) && (element.menuId === MenuId.TunnelPortInline)) {
 				this.renderButton(element, templateData);
 			} else {
@@ -409,10 +409,6 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 	}
 
 	renderButton(element: ActionBarCell, templateData: IActionBarTemplateData): void {
-		// Clear any leftover input box elements from the container
-		const inputBoxElements = templateData.container.querySelectorAll('.monaco-inputbox');
-		inputBoxElements.forEach(el => el.remove());
-
 		templateData.container.style.paddingLeft = '7px';
 		templateData.container.style.height = '28px';
 		templateData.button = this._register(new Button(templateData.container, defaultButtonStyles));
@@ -529,7 +525,7 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 			if (this.inputDone) {
 				this.inputDone = undefined;
 			}
-			inputBox.element.style.display = 'none';
+			inputBox.element.remove();
 			const inputValue = inputBox.value;
 			if (finishEditing) {
 				return editableData.onFinish(inputValue, success);
