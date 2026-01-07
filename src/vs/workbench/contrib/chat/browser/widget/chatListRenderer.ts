@@ -20,7 +20,7 @@ import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { canceledName } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
-import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, dispose, thenIfNotDisposed, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -1276,26 +1276,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		return part.kind === 'prepareToolInvocation';
-	}
-
-	private isCreateToolInvocationContent(content: IChatRendererContent | undefined): content is IChatToolInvocation | IChatToolInvocationSerialized {
-		if (!content || (content.kind !== 'toolInvocation' && content.kind !== 'toolInvocationSerialized')) {
-			return false;
-		}
-
-		const containsCreate = (value: string | IMarkdownString | undefined) => {
-			if (!value) {
-				return false;
-			}
-			const text = typeof value === 'string' ? value : value.value;
-			return text.toLowerCase().includes('create');
-		};
-
-		if (containsCreate(content.invocationMessage) || containsCreate(content.pastTenseMessage)) {
-			return true;
-		}
-
-		return content.toolId.toLowerCase().includes('create');
 	}
 
 	private getLastThinkingPart(renderedParts: ReadonlyArray<IChatContentPart> | undefined): ChatThinkingContentPart | undefined {
