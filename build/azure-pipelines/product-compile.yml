@@ -102,6 +102,21 @@ jobs:
 
       - script: |
           set -e
+
+          [ -d "out-build" ] || { echo "ERROR: out-build folder is missing" >&2; exit 1; }
+          [ -n "$(find out-build -mindepth 1 2>/dev/null | head -1)" ] || { echo "ERROR: out-build folder is empty" >&2; exit 1; }
+
+          ls -d out-vscode-* >/dev/null 2>&1 || { echo "ERROR: No out-vscode-* folders found" >&2; exit 1; }
+          for folder in out-vscode-*; do
+            [ -d "$folder" ] || { echo "ERROR: $folder is missing" >&2; exit 1; }
+            [ -n "$(find "$folder" -mindepth 1 2>/dev/null | head -1)" ] || { echo "ERROR: $folder is empty" >&2; exit 1; }
+          done
+
+          echo "All required compilation folders exist and are not empty"
+        displayName: Validate extracted compilation folders
+
+      - script: |
+          set -e
           npm run compile
         displayName: Compile smoke test suites (non-OSS)
         workingDirectory: test/smoke
