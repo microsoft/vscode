@@ -505,8 +505,10 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 	private _updateListStyles(): void {
 		if (this._options.selectionModeSettingId) {
 			const selectionMode = this._configurationService.getValue<SuggestSelectionMode>(this._options.selectionModeSettingId);
-			this._list.style(getListStylesWithMode(selectionMode === SuggestSelectionMode.Partial));
-			this.element.domNode.classList.toggle(Classes.PartialSelection, selectionMode === SuggestSelectionMode.Partial);
+			// When explicitly invoked, always show full selection (background) instead of partial (border)
+			const usePartialStyle = !this._explicitlyInvoked && selectionMode === SuggestSelectionMode.Partial;
+			this._list.style(getListStylesWithMode(usePartialStyle));
+			this.element.domNode.classList.toggle(Classes.PartialSelection, usePartialStyle);
 		}
 	}
 
