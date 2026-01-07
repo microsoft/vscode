@@ -273,7 +273,7 @@ registerTerminalContribution(TerminalSuggestContribution.ID, TerminalSuggestCont
 registerTerminalAction({
 	id: TerminalSuggestCommandId.ChangeSelectionModeNever,
 	title: localize2('workbench.action.terminal.changeSelectionMode.never', 'Selection Mode: None'),
-	tooltip: localize2('workbench.action.terminal.changeSelectionMode.never.tooltip', 'Do not select the top suggestion until down is pressed, at which point Tab or Enter will accept the suggestion.\n\nClick to rotate between options.'),
+	tooltip: localize2('workbench.action.terminal.changeSelectionMode.never.tooltip', 'Do not select the top suggestion until down is pressed, at which point Tab or Enter will accept the suggestion. Activate to change.'),
 	f1: false,
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
@@ -295,7 +295,7 @@ registerTerminalAction({
 registerTerminalAction({
 	id: TerminalSuggestCommandId.ChangeSelectionModePartial,
 	title: localize2('workbench.action.terminal.changeSelectionMode.partial', 'Selection Mode: Partial (Tab)'),
-	tooltip: localize2('workbench.action.terminal.changeSelectionMode.partial.tooltip', 'Partially select the top suggestion, Tab will accept a suggestion when visible.\n\nClick to rotate between options.'),
+	tooltip: localize2('workbench.action.terminal.changeSelectionMode.partial.tooltip', 'Partially select the top suggestion, Tab will accept a suggestion when visible. Activate to change.'),
 	f1: false,
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
@@ -317,7 +317,7 @@ registerTerminalAction({
 registerTerminalAction({
 	id: TerminalSuggestCommandId.ChangeSelectionModeAlways,
 	title: localize2('workbench.action.terminal.changeSelectionMode.always', 'Selection Mode: Always (Tab or Enter)'),
-	tooltip: localize2('workbench.action.terminal.changeSelectionMode.always.tooltip', 'Always select the top suggestion, Tab or Enter will accept a suggestion when visible.\n\nClick to rotate between options.'),
+	tooltip: localize2('workbench.action.terminal.changeSelectionMode.always.tooltip', 'Always select the top suggestion, Tab or Enter will accept a suggestion when visible. Activate to change.'),
 	f1: false,
 	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
 	menu: {
