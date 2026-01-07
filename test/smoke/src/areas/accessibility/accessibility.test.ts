@@ -36,7 +36,11 @@ export function setup(logger: Logger) {
 					disableRules: [
 						// Color contrast issues are tracked separately
 						'color-contrast'
-					]
+					],
+					excludeRules: {
+						// Links in chat welcome view show underline on hover/focus which axe-core static analysis cannot detect
+						'link-in-text-block': ['command:workbench.action.chat.generateInstructions']
+					}
 				});
 			});
 
@@ -79,7 +83,11 @@ export function setup(logger: Logger) {
 					disableRules: [
 						// Color contrast issues are tracked separately
 						'color-contrast'
-					]
+					],
+					excludeRules: {
+						// Links in chat welcome view show underline on hover/focus which axe-core static analysis cannot detect
+						'link-in-text-block': ['command:workbench.action.chat.generateInstructions']
+					}
 				});
 			});
 		});
