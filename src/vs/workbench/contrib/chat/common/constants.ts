@@ -32,6 +32,7 @@ export enum ChatConfiguration {
 	RestoreLastPanelSession = 'chat.restoreLastPanelSession',
 	ExitAfterDelegation = 'chat.exitAfterDelegation',
 	SuspendThrottling = 'chat.suspendThrottling',
+	VirtualizedMarkdown = 'chat.experimental.virtualizedMarkdown',
 }
 
 /**

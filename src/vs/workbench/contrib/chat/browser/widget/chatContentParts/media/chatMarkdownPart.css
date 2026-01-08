@@ -21,3 +21,28 @@
 		overflow: hidden;
 	}
 }
+
+/* Virtualized markdown container styles */
+.virtualized-markdown-container {
+	position: relative;
+	width: 100%;
+}
+
+.virtualized-markdown-spacer-top,
+.virtualized-markdown-spacer-bottom {
+	width: 100%;
+	pointer-events: none;
+}
+
+.virtualized-markdown-content {
+	width: 100%;
+}
+
+/* Ensure inline wrappers don't break layout */
+.virtualized-inline-wrapper {
+	display: block;
+}
+
+.virtualized-content-wrapper {
+	display: block;
+}

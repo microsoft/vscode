@@ -398,6 +398,12 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			description: nls.localize('chat.checkpoints.enabled', "Enables checkpoints in chat. Checkpoints allow you to restore the chat to a previous state."),
 		},
+		[ChatConfiguration.VirtualizedMarkdown]: {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('chat.experimental.virtualizedMarkdown', "Enables virtualized rendering for long markdown content in chat. This improves performance when displaying large chat responses by only rendering visible content."),
+			tags: ['experimental']
+		},
 		'chat.checkpoints.showFileChanges': {
 			type: 'boolean',
 			description: nls.localize('chat.checkpoints.showFileChanges', "Controls whether to show chat checkpoint file changes."),
