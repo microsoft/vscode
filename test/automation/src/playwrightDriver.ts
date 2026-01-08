@@ -15,7 +15,14 @@ import { ChildProcess } from 'child_process';
 import type { AxeResults, RunOptions } from 'axe-core';
 
 // Load axe-core source for injection into pages (works with Electron)
-const axeSource = readFileSync(require.resolve('axe-core/axe.min.js'), 'utf-8');
+let axeSource = '';
+try {
+	const axePath = require.resolve('axe-core/axe.min.js');
+	axeSource = readFileSync(axePath, 'utf-8');
+} catch {
+	// axe-core may not be installed; keep axeSource empty to avoid failing module initialization
+	axeSource = '';
+}
 
 type PageFunction<Arg, T> = (arg: Arg) => T | Promise<T>;
 
