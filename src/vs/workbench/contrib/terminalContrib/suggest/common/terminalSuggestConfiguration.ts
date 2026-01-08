@@ -74,7 +74,7 @@ export interface ITerminalQuickSuggestionsOptions {
 export function normalizeQuickSuggestionsConfig(config: ITerminalSuggestConfiguration['quickSuggestions']): ITerminalQuickSuggestionsOptions {
 	if (typeof config === 'boolean') {
 		return config
-			? { commands: 'on', arguments: 'on', unknown: 'on' }
+			? { commands: 'on', arguments: 'on', unknown: 'off' }
 			: { commands: 'off', arguments: 'off', unknown: 'off' };
 	}
 	return config;
