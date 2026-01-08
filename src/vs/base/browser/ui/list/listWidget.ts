@@ -1469,7 +1469,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		private _options: IListOptions<T> = DefaultOptions
 	) {
 		const role = this._options.accessibilityProvider && this._options.accessibilityProvider.getWidgetRole ? this._options.accessibilityProvider?.getWidgetRole() : 'list';
-		this.selection = new SelectionTrait(role !== 'listbox');
+		this.selection = new SelectionTrait(role === 'listbox');
 
 		const baseRenderers: IListRenderer<T, unknown>[] = [this.focus.renderer, this.selection.renderer];
 
@@ -1539,7 +1539,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 			}));
 		}
 
-		if (this._options.multipleSelectionSupport !== false) {
+		if (this._options.multipleSelectionSupport !== false && role === 'listbox') {
 			this.view.domNode.setAttribute('aria-multiselectable', 'true');
 		}
 	}
@@ -1558,7 +1558,8 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this.typeNavigationController?.updateOptions(this._options);
 
 		if (this._options.multipleSelectionController !== undefined) {
-			if (this._options.multipleSelectionSupport) {
+			const role = this.view.domNode.getAttribute('role');
+			if (this._options.multipleSelectionSupport && role === 'listbox') {
 				this.view.domNode.setAttribute('aria-multiselectable', 'true');
 			} else {
 				this.view.domNode.removeAttribute('aria-multiselectable');
