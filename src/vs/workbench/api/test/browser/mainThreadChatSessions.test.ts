@@ -16,11 +16,11 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../platform/log/common/log.js';
-import { ChatSessionsService } from '../../../contrib/chat/browser/chatSessions.contribution.js';
-import { IChatAgentRequest } from '../../../contrib/chat/common/chatAgents.js';
-import { IChatProgress, IChatProgressMessage, IChatService } from '../../../contrib/chat/common/chatService.js';
-import { IChatSessionItem, IChatSessionsService } from '../../../contrib/chat/common/chatSessionsService.js';
-import { LocalChatSessionUri } from '../../../contrib/chat/common/chatUri.js';
+import { ChatSessionsService } from '../../../contrib/chat/browser/chatSessions/chatSessions.contribution.js';
+import { IChatAgentRequest } from '../../../contrib/chat/common/participants/chatAgents.js';
+import { IChatProgress, IChatProgressMessage, IChatService } from '../../../contrib/chat/common/chatService/chatService.js';
+import { IChatSessionProviderOptionGroup, IChatSessionsService } from '../../../contrib/chat/common/chatSessionsService.js';
+import { LocalChatSessionUri } from '../../../contrib/chat/common/model/chatUri.js';
 import { ChatAgentLocation } from '../../../contrib/chat/common/constants.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExtHostContext } from '../../../services/extensions/common/extHostCustomers.js';
@@ -31,7 +31,7 @@ import { mock, TestExtensionService } from '../../../test/common/workbenchTestSe
 import { MainThreadChatSessions, ObservableChatSession } from '../../browser/mainThreadChatSessions.js';
 import { ExtHostChatSessionsShape, IChatProgressDto, IChatSessionProviderOptions } from '../../common/extHost.protocol.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
-import { MockChatService } from '../../../contrib/chat/test/common/mockChatService.js';
+import { MockChatService } from '../../../contrib/chat/test/common/chatService/mockChatService.js';
 
 suite('ObservableChatSession', function () {
 	let disposables: DisposableStore;
@@ -57,7 +57,6 @@ suite('ObservableChatSession', function () {
 			$invokeChatSessionRequestHandler: sinon.stub(),
 			$disposeChatSessionContent: sinon.stub(),
 			$provideChatSessionItems: sinon.stub(),
-			$provideNewChatSessionItem: sinon.stub().resolves({ label: 'New Session' } as IChatSessionItem)
 		};
 	});
 
@@ -341,8 +340,6 @@ suite('MainThreadChatSessions', function () {
 	let chatSessionsService: IChatSessionsService;
 	let disposables: DisposableStore;
 
-	const exampleSessionResource = LocalChatSessionUri.forSession('new-session-id');
-
 	setup(function () {
 		disposables = new DisposableStore();
 		instantiationService = new TestInstantiationService();
@@ -355,7 +352,6 @@ suite('MainThreadChatSessions', function () {
 			$invokeChatSessionRequestHandler: sinon.stub(),
 			$disposeChatSessionContent: sinon.stub(),
 			$provideChatSessionItems: sinon.stub(),
-			$provideNewChatSessionItem: sinon.stub().resolves({ resource: exampleSessionResource, label: 'New Session' } as IChatSessionItem)
 		};
 
 		const extHostContext = new class implements IExtHostContext {
@@ -516,5 +512,44 @@ suite('MainThreadChatSessions', function () {
 		assert.strictEqual(session.isCompleteObs.get(), true);
 
 		mainThread.$unregisterChatSessionContentProvider(1);
+	});
+
+	test('$onDidChangeChatSessionProviderOptions refreshes option groups', async function () {
+		const sessionScheme = 'test-session-type';
+		const handle = 1;
+
+		const optionGroups1: IChatSessionProviderOptionGroup[] = [{
+			id: 'models',
+			name: 'Models',
+			items: [{ id: 'modelA', name: 'Model A' }]
+		}];
+		const optionGroups2: IChatSessionProviderOptionGroup[] = [{
+			id: 'models',
+			name: 'Models',
+			items: [{ id: 'modelB', name: 'Model B' }]
+		}];
+
+		const provideOptionsStub = proxy.$provideChatSessionProviderOptions as sinon.SinonStub;
+		provideOptionsStub.onFirstCall().resolves({ optionGroups: optionGroups1 } as IChatSessionProviderOptions);
+		provideOptionsStub.onSecondCall().resolves({ optionGroups: optionGroups2 } as IChatSessionProviderOptions);
+
+		mainThread.$registerChatSessionContentProvider(handle, sessionScheme);
+
+		// Wait for initial options fetch triggered on registration
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		let storedGroups = chatSessionsService.getOptionGroupsForSessionType(sessionScheme);
+		assert.ok(storedGroups);
+		assert.strictEqual(storedGroups![0].items[0].id, 'modelA');
+
+		// Simulate extension signaling that provider options have changed
+		mainThread.$onDidChangeChatSessionProviderOptions(handle);
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		storedGroups = chatSessionsService.getOptionGroupsForSessionType(sessionScheme);
+		assert.ok(storedGroups);
+		assert.strictEqual(storedGroups![0].items[0].id, 'modelB');
+
+		mainThread.$unregisterChatSessionContentProvider(handle);
 	});
 });

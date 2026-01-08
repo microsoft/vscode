@@ -30,15 +30,16 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IOutputService } from '../../../services/output/common/output.js';
-import { ToolProgress } from '../../chat/common/languageModelToolsService.js';
+import { ToolProgress } from '../../chat/common/tools/languageModelToolsService.js';
 import { mcpActivationEvent } from './mcpConfiguration.js';
 import { McpDevModeServerAttache } from './mcpDevMode.js';
 import { McpIcons, parseAndValidateMcpIcon, StoredMcpIcons } from './mcpIcons.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
 import { McpTaskManager } from './mcpTaskManager.js';
-import { ElicitationKind, extensionMcpCollectionPrefix, IMcpElicitationService, IMcpIcons, IMcpPrompt, IMcpPromptMessage, IMcpResource, IMcpResourceTemplate, IMcpSamplingService, IMcpServer, IMcpServerConnection, IMcpServerStartOpts, IMcpTool, IMcpToolCallContext, McpCapability, McpCollectionDefinition, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, mcpPromptReplaceSpecialChars, McpResourceURI, McpServerCacheState, McpServerDefinition, McpServerStaticToolAvailability, McpServerTransportType, McpToolName, MpcResponseError, UserInteractionRequiredError } from './mcpTypes.js';
+import { ElicitationKind, extensionMcpCollectionPrefix, IMcpElicitationService, IMcpIcons, IMcpPrompt, IMcpPromptMessage, IMcpResource, IMcpResourceTemplate, IMcpSamplingService, IMcpServer, IMcpServerConnection, IMcpServerStartOpts, IMcpTool, IMcpToolCallContext, McpCapability, McpCollectionDefinition, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, mcpPromptReplaceSpecialChars, McpResourceURI, McpServerCacheState, McpServerDefinition, McpServerStaticToolAvailability, McpServerTransportType, McpToolName, McpToolVisibility, MpcResponseError, UserInteractionRequiredError } from './mcpTypes.js';
 import { MCP } from './modelContextProtocol.js';
+import { McpApps } from './modelContextProtocolApps.js';
 import { UriTemplate } from './uriTemplate.js';
 
 type ServerBootData = {
@@ -218,6 +219,18 @@ type ValidatedMcpTool = MCP.Tool & {
 	 * in {@link McpServer._getValidatedTools}.
 	 */
 	serverToolName: string;
+
+	/**
+	 * Visibility of the tool, parsed from `_meta.ui.visibility`.
+	 * Defaults to Model | App if not specified.
+	 */
+	visibility: McpToolVisibility;
+
+	/**
+	 * UI resource URI if this tool has an associated MCP App UI.
+	 * Parsed from `_meta.ui.resourceUri`.
+	 */
+	uiResourceUri?: string;
 };
 
 interface StoredServerMetadata {
@@ -393,6 +406,10 @@ export class McpServer extends Disposable implements IMcpServer {
 
 		return fromServerResult.data?.nonce === currentNonce() ? McpServerCacheState.Live : McpServerCacheState.Outdated;
 	});
+
+	public get logger(): ILogger {
+		return this._logger;
+	}
 
 	private readonly _loggerId: string;
 	private readonly _logger: ILogger;
@@ -741,10 +758,28 @@ export class McpServer extends Disposable implements IMcpServer {
 	}
 
 	private async _normalizeTool(originalTool: MCP.Tool): Promise<ValidatedMcpTool | { error: string[] }> {
+		// Parse MCP Apps UI metadata from _meta.ui
+		const uiMeta = originalTool._meta?.ui as McpApps.McpUiToolMeta | undefined;
+
+		// Compute visibility from _meta.ui.visibility, defaulting to Model | App
+		let visibility: McpToolVisibility = McpToolVisibility.Model | McpToolVisibility.App;
+		if (uiMeta?.visibility && Array.isArray(uiMeta.visibility)) {
+			visibility &= 0;
+
+			if (uiMeta.visibility.includes('model')) {
+				visibility |= McpToolVisibility.Model;
+			}
+			if (uiMeta.visibility.includes('app')) {
+				visibility |= McpToolVisibility.App;
+			}
+		}
+
 		const tool: ValidatedMcpTool = {
 			...originalTool,
 			serverToolName: originalTool.name,
 			_icons: this._parseIcons(originalTool),
+			visibility,
+			uiResourceUri: uiMeta?.resourceUri,
 		};
 		if (!tool.description) {
 			// Ensure a description is provided for each tool, #243919
@@ -980,8 +1015,10 @@ export class McpTool implements IMcpTool {
 	readonly id: string;
 	readonly referenceName: string;
 	readonly icons: IMcpIcons;
+	readonly visibility: McpToolVisibility;
 
 	public get definition(): MCP.Tool { return this._definition; }
+	public get uiResourceUri(): string | undefined { return this._definition.uiResourceUri; }
 
 	constructor(
 		private readonly _server: McpServer,
@@ -992,6 +1029,7 @@ export class McpTool implements IMcpTool {
 		this.referenceName = _definition.name.replaceAll('.', '_');
 		this.id = (idPrefix + _definition.name).replaceAll('.', '_').slice(0, McpToolName.MaxLength);
 		this.icons = McpIcons.fromStored(this._definition._icons);
+		this.visibility = _definition.visibility;
 	}
 
 	async call(params: Record<string, unknown>, context?: IMcpToolCallContext, token?: CancellationToken): Promise<MCP.CallToolResult> {
@@ -1052,6 +1090,7 @@ export class McpTool implements IMcpTool {
 
 				// Wait for tools to refresh for dynamic servers (#261611)
 				await this._server.awaitToolRefresh();
+
 				return result;
 			} catch (err) {
 				// Handle URL elicitation required error

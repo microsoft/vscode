@@ -90,11 +90,9 @@ import type { IMenu } from '../../../../platform/actions/common/actions.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { TerminalContribCommandId } from '../terminalContribExports.js';
 import type { IProgressState } from '@xterm/addon-progress';
-import { refreshShellIntegrationInfoStatus } from './terminalTooltip.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { PromptInputState } from '../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
 import { hasKey, isNumber, isString } from '../../../../base/common/types.js';
-import { TerminalResizeDimensionsOverlay } from './terminalResizeDimensionsOverlay.js';
 
 const enum Constants {
 	/**
@@ -203,7 +201,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _lineDataEventAddon: LineDataEventAddon | undefined;
 	private readonly _scopedContextKeyService: IContextKeyService;
 	private _resizeDebouncer?: TerminalResizeDebouncer;
-	private readonly _terminalResizeDimensionsOverlay: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 
 	readonly capabilities = this._register(new TerminalCapabilityStoreMultiplexer());
 	readonly statusList: ITerminalStatusList;
@@ -467,7 +464,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			capabilityListeners.get(e.id)?.dispose();
 			const refreshInfo = () => {
 				this._labelComputer?.refreshLabel(this);
-				refreshShellIntegrationInfoStatus(this);
+				this._refreshShellIntegrationInfoStatus(this);
 			};
 			switch (e.id) {
 				case TerminalCapability.CwdDetection: {
@@ -501,7 +498,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				}
 			}
 		}));
-		this._register(this.onDidChangeShellType(() => refreshShellIntegrationInfoStatus(this)));
+		this._register(this.onDidChangeShellType(() => this._refreshShellIntegrationInfoStatus(this)));
 		this._register(this.capabilities.onDidRemoveCapability(e => {
 			capabilityListeners.get(e.id)?.dispose();
 		}));
@@ -890,7 +887,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Register and update the terminal's shell integration status
 		this._register(Event.runAndSubscribe(xterm.shellIntegration.onDidChangeSeenSequences, () => {
 			if (xterm.shellIntegration.seenSequences.size > 0) {
-				refreshShellIntegrationInfoStatus(this);
+				this._refreshShellIntegrationInfoStatus(this);
 			}
 		}));
 
@@ -922,6 +919,54 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		return xterm;
+	}
+
+	// Debounce this to avoid impacting input latency while typing into the prompt
+	@debounce(500)
+	private _refreshShellIntegrationInfoStatus(instance: ITerminalInstance) {
+		if (!instance.xterm) {
+			return;
+		}
+		const cmdDetectionType = (
+			instance.capabilities.get(TerminalCapability.CommandDetection)?.hasRichCommandDetection
+				? nls.localize('shellIntegration.rich', 'Rich')
+				: instance.capabilities.has(TerminalCapability.CommandDetection)
+					? nls.localize('shellIntegration.basic', 'Basic')
+					: instance.usedShellIntegrationInjection
+						? nls.localize('shellIntegration.injectionFailed', "Injection failed to activate")
+						: nls.localize('shellIntegration.no', 'No')
+		);
+
+		const detailedAdditions: string[] = [];
+		if (instance.shellType) {
+			detailedAdditions.push(`Shell type: \`${instance.shellType}\``);
+		}
+		const cwd = instance.cwd;
+		if (cwd) {
+			detailedAdditions.push(`Current working directory: \`${cwd}\``);
+		}
+		const seenSequences = Array.from(instance.xterm.shellIntegration.seenSequences);
+		if (seenSequences.length > 0) {
+			detailedAdditions.push(`Seen sequences: ${seenSequences.map(e => `\`${e}\``).join(', ')}`);
+		}
+		const promptType = instance.capabilities.get(TerminalCapability.PromptTypeDetection)?.promptType;
+		if (promptType) {
+			detailedAdditions.push(`Prompt type: \`${promptType}\``);
+		}
+		const combinedString = instance.capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel.getCombinedString();
+		if (combinedString !== undefined) {
+			detailedAdditions.push(`Prompt input: \`\`\`${combinedString}\`\`\``);
+		}
+		const detailedAdditionsString = detailedAdditions.length > 0
+			? '\n\n' + detailedAdditions.map(e => `- ${e}`).join('\n')
+			: '';
+
+		instance.statusList.add({
+			id: TerminalStatus.ShellIntegrationInfo,
+			severity: Severity.Info,
+			tooltip: `${nls.localize('shellIntegration', "Shell integration")}: ${cmdDetectionType}`,
+			detailedTooltip: `${nls.localize('shellIntegration', "Shell integration")}: ${cmdDetectionType}${detailedAdditionsString}`
+		});
 	}
 
 	async runCommand(commandLine: string, shouldExecute: boolean, commandId?: string): Promise<void> {
@@ -1181,17 +1226,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this.layout(this._lastLayoutDimensions);
 		}
 		this.updateConfig();
-
-		// Initialize resize dimensions overlay
-		this.processReady.then(() => {
-			// Wait a second to avoid resize events during startup like when opening a terminal or
-			// when a terminal reconnects. Ideally we'd have an actual event to listen to here.
-			timeout(1000).then(() => {
-				if (!this._store.isDisposed) {
-					this._terminalResizeDimensionsOverlay.value = new TerminalResizeDimensionsOverlay(this._wrapperElement, xterm);
-				}
-			});
-		});
 
 		// If IShellLaunchConfig.waitOnExit was true and the process finished before the terminal
 		// panel was initialized.
@@ -2809,7 +2843,8 @@ function guessShellTypeFromExecutable(os: OperatingSystem, executable: string): 
 		[GeneralShellType.Node, /^node$/],
 		[GeneralShellType.NuShell, /^nu$/],
 		[GeneralShellType.PowerShell, /^pwsh(-preview)?|powershell$/],
-		[GeneralShellType.Python, /^py(?:thon)?$/]
+		[GeneralShellType.Python, /^py(?:thon)?$/],
+		[GeneralShellType.Xonsh, /^xonsh/]
 	]);
 	for (const [shellType, pattern] of generalShellTypeMap) {
 		if (exeBasename.match(pattern)) {

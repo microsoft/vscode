@@ -13,15 +13,16 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IChatEditingSession } from '../../common/chatEditingService.js';
-import { IChatService } from '../../common/chatService.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { IChatEditingSession } from '../../common/editing/chatEditingService.js';
+import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { EditingSessionAction, getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
-import { ChatEditorInput } from '../chatEditorInput.js';
+import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION, CHAT_CATEGORY, handleCurrentEditingSession } from './chatActions.js';
 import { clearChatEditor } from './chatClear.js';
+import { AgentSessionsViewerOrientation } from '../agentSessions/agentSessions.js';
 
 export interface INewEditSessionActionContext {
 
@@ -158,6 +159,7 @@ export function registerNewChatActions() {
 			title: localize2('chat.goBack', "Go Back"),
 			icon: Codicon.arrowLeft,
 		},
+		when: ChatContextKeys.agentSessionsViewerOrientation.notEqualsTo(AgentSessionsViewerOrientation.SideBySide), // when sessions show side by side, no need for a back button
 		group: 'navigation',
 		order: 1
 	});
