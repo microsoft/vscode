@@ -211,7 +211,7 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 					isAutoApproveRule(e.rule))
 				.map(e => {
 					// Session rules cannot be actioned currently so no link
-					const escapedSourceText = e.rule.sourceText.replace(/\$/g, '\\$');
+					const escapedSourceText = e.rule.sourceText.replaceAll('$', '\\$');
 					if (e.rule.sourceTarget === 'session') {
 						return localize('autoApproveRule.sessionIndicator', '{0} (session)', `\`${escapedSourceText}\``);
 					}
