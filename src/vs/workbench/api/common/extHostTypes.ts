@@ -17,6 +17,7 @@ import { nextCharLength } from '../../../base/common/strings.js';
 import { isNumber, isObject, isString, isStringArray } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
+import { stringify as yamlStringify } from '../../../base/common/yaml.js';
 import { TextEditorSelectionSource } from '../../../platform/editor/common/editor.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from '../../../platform/files/common/files.js';
@@ -3906,43 +3907,20 @@ type HeaderValue = string | boolean | string[] | vscode.CustomAgentHandoff[] | u
  * Generates markdown content for a prompt file with YAML frontmatter.
  */
 function generatePromptMarkdown(header: Record<string, HeaderValue>, body: string): string {
-	const lines: string[] = ['---'];
+	const frontmatterObj: Record<string, unknown> = {};
+
 	for (const [key, value] of Object.entries(header)) {
 		if (value === undefined) {
 			continue;
 		}
-		if (typeof value === 'boolean') {
-			lines.push(`${key}: ${value}`);
-		} else if (Array.isArray(value)) {
-			if (value.length === 0) {
-				continue;
-			}
-			// Check if it's an array of handoffs (objects) or strings
-			if (typeof value[0] === 'object') {
-				// Handoffs array - format as YAML array of objects
-				lines.push(`${key}:`);
-				for (const item of value as vscode.CustomAgentHandoff[]) {
-					lines.push(`  - label: "${item.label}"`);
-					lines.push(`    agent: ${item.agent}`);
-					lines.push(`    prompt: "${item.prompt}"`);
-					if (item.send !== undefined) {
-						lines.push(`    send: ${item.send}`);
-					}
-					if (item.showContinueOn !== undefined) {
-						lines.push(`    showContinueOn: ${item.showContinueOn}`);
-					}
-				}
-			} else {
-				// String array
-				lines.push(`${key}: [${(value as string[]).map(v => `'${v}'`).join(', ')}]`);
-			}
-		} else {
-			lines.push(`${key}: "${value}"`);
+		if (Array.isArray(value) && value.length === 0) {
+			continue;
 		}
+		frontmatterObj[key] = value;
 	}
-	lines.push('---');
-	lines.push(body);
-	return lines.join('\n');
+
+	const frontmatter = yamlStringify(frontmatterObj).trim();
+	return `---\n${frontmatter}\n---\n${body}`;
 }
 
 /**
