@@ -8,6 +8,8 @@ import { ChatTreeItem, IChatCodeBlockInfo } from '../../chat.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../../common/widget/codeBlockModelCollection.js';
 import { DiffEditorPool, EditorPool } from './chatContentCodePools.js';
+import { IObservable } from '../../../../../../base/common/observable.js';
+import { Event } from '../../../../../../base/common/event.js';
 
 export interface IChatContentPart extends IDisposable {
 	domNode: HTMLElement | undefined;
@@ -49,5 +51,6 @@ export interface IChatContentPartRenderContext {
 	readonly codeBlockStartIndex: number;
 	readonly diffEditorPool: DiffEditorPool;
 	readonly codeBlockModelCollection: CodeBlockModelCollection;
-	currentWidth(): number;
+	readonly currentWidth: IObservable<number>;
+	readonly onDidChangeVisibility: Event<boolean>;
 }

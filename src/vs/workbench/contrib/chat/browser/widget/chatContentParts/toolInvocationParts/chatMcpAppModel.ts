@@ -9,7 +9,7 @@ import { disposableTimeout } from '../../../../../../../base/common/async.js';
 import { decodeBase64 } from '../../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
-import { Disposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { autorun, autorunSelfDisposable, derived, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { basename } from '../../../../../../../base/common/resources.js';
 import { isFalsyOrWhitespace } from '../../../../../../../base/common/strings.js';
@@ -47,8 +47,6 @@ export type McpAppLoadState =
  * The webview is created lazily on first claim and survives across re-renders.
  */
 export class ChatMcpAppModel extends Disposable {
-	public static maxWebviewHeightPct = 0.8;
-
 	/** Origin store for persistent webview origins per server */
 	private readonly _originStore: WebviewOriginStore;
 
@@ -78,9 +76,6 @@ export class ChatMcpAppModel extends Disposable {
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight: Event<void> = this._onDidChangeHeight.event;
 
-	/** Host context observable combining tool call UI context with viewport */
-	private readonly _viewportObs = observableValue<Required<McpApps.McpUiHostContext['viewport']>>(this, undefined);
-
 	/** Full host context for the MCP App */
 	public readonly hostContext: IObservable<McpApps.McpUiHostContext>;
 
@@ -88,6 +83,8 @@ export class ChatMcpAppModel extends Disposable {
 		public readonly toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
 		public readonly renderData: IMcpAppRenderData,
 		private readonly _container: HTMLElement,
+		maxHeight: IObservable<number>,
+		currentWidth: IObservable<number>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IWebviewService private readonly _webviewService: IWebviewService,
@@ -124,32 +121,13 @@ export class ChatMcpAppModel extends Disposable {
 		const targetWindow = dom.getWindow(this._container);
 		this._webview.mountTo(this._container, targetWindow);
 
-		// Set up resize observer for viewport and size notifications
-		const updateViewport = () => {
-			this._viewportObs.set({
-				width: targetWindow.innerWidth,
-				height: targetWindow.innerHeight,
-				maxWidth: targetWindow.innerWidth,
-				maxHeight: targetWindow.innerHeight * ChatMcpAppModel.maxWebviewHeightPct,
-			}, undefined);
-
-			if (this._announcedCapabilities) {
-				this._sendNotification({
-					method: 'ui/notifications/size-changed',
-					params: { width: this._container.clientWidth, height: this._container.clientHeight },
-				});
-			}
-		};
-
-		const resizeObserver = new ResizeObserver(updateViewport);
-		resizeObserver.observe(this._container);
-		this._register(toDisposable(() => resizeObserver.disconnect()));
-		updateViewport();
-
 		// Build host context observable
 		this.hostContext = this._mcpToolCallUI.hostContext.map((context, reader) => ({
 			...context,
-			viewport: this._viewportObs.read(reader),
+			containerDimensions: {
+				width: currentWidth.read(reader),
+				maxHeight: maxHeight.read(reader),
+			},
 			toolCall: {
 				toolCallId: this.toolInvocation.toolCallId,
 				toolName: this.toolInvocation.toolId,
@@ -174,12 +152,12 @@ export class ChatMcpAppModel extends Disposable {
 
 		const canScrollWithin = derived(reader => {
 			const contentSize = this._webview.intrinsicContentSize.read(reader);
-			const viewportSize = this._viewportObs.read(reader);
-			if (!contentSize || !viewportSize) {
+			const maxHeightValue = maxHeight.read(reader);
+			if (!contentSize) {
 				return false;
 			}
 
-			return contentSize.height > viewportSize.maxHeight;
+			return contentSize.height > maxHeightValue;
 		});
 
 		// Handle wheel events for scroll delegation when the webview can scroll
@@ -288,10 +266,23 @@ export class ChatMcpAppModel extends Disposable {
 
 		// window.top and window.parent get reset to `window` after the vscode API is made.
 		// However, the MCP App SDK by default tries to use these for postMessage. So, wrap them.
+		// We also need to wrap the event listeners otherwise the event.source won't match
+		// the wrapped window.parent/window.top.
 		// https://github.com/microsoft/vscode/blob/2a4c8f5b8a715d45dd2a36778906b5810e4a1905/src/vs/workbench/contrib/webview/browser/pre/index.html#L242-L244
 		const postMessageRehoist = `
 			<script>(() => {
 				const api = acquireVsCodeApi();
+				const setMessageSource = (obj, src) => new Proxy(obj, {
+					get: (target, prop) => {
+						if (prop === 'source')  {
+							return src;
+						}
+						return target[prop];
+					}
+				});
+
+				const wrappedFns = new WeakMap();
+
 				const wrap = target => new Proxy(target, {
 					get: (obj, prop) => {
 						if (prop === 'postMessage') {
@@ -300,8 +291,29 @@ export class ChatMcpAppModel extends Disposable {
 						return obj[prop];
 					},
 				});
+
+				const originalAddEventListener = window.addEventListener.bind(window);
+				window.addEventListener = (type, listener, options) => {
+					if (type === 'message') {
+						const originalListener = listener;
+						const wrappedListener = (event) => {
+							if (event.source.origin === document.location.origin && event.source !== window) { event = setMessageSource(event, window.parent); }
+							originalListener(event);
+						};
+						wrappedFns.set(originalListener, wrappedListener);
+						listener = wrappedListener;
+					}
+
+					return originalAddEventListener(type, listener, options);
+				};
+
+				const originalRemoveEventListener = window.removeEventListener.bind(window);
+				window.removeEventListener = (type, listener, options) => {
+					const wrappedListener = wrappedFns.get(listener) || listener;
+					return originalRemoveEventListener(type, wrappedListener, options);
+				};
+
 				window.parent = wrap(window.parent);
-				window.top = wrap(window.top);
 			})();</script>
 		`;
 

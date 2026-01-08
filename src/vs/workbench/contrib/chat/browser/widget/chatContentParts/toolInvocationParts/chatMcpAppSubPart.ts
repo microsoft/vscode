@@ -9,7 +9,7 @@ import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../../../base/common/observable.js';
+import { autorun, observableValue } from '../../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../../nls.js';
@@ -18,6 +18,7 @@ import { IMarkdownRendererService } from '../../../../../../../platform/markdown
 import { defaultButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
 import { ChatErrorLevel, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
 import { IChatCodeBlockInfo } from '../../../chat.js';
+import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatErrorWidget } from '../chatErrorContentPart.js';
 import { ChatProgressSubPart } from '../chatProgressContentPart.js';
 import { ChatMcpAppModel, McpAppLoadState } from './chatMcpAppModel.js';
@@ -39,6 +40,7 @@ export interface IMcpAppRenderData {
 	readonly sessionResource: URI;
 }
 
+const maxWebviewHeightPct = 0.75;
 
 /**
  * Sub-part for rendering MCP App webviews in chat tool output.
@@ -64,6 +66,7 @@ export class ChatMcpAppSubPart extends BaseChatToolInvocationSubPart {
 	constructor(
 		toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
 		onDidRemount: Event<void>,
+		context: IChatContentPartRenderContext,
 		private readonly _renderData: IMcpAppRenderData,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
@@ -73,17 +76,24 @@ export class ChatMcpAppSubPart extends BaseChatToolInvocationSubPart {
 		// Create the DOM structure
 		this.domNode = dom.$('div.mcp-app-part');
 		this._webviewContainer = dom.$('div.mcp-app-webview');
-		this._webviewContainer.style.maxHeight = `${ChatMcpAppModel.maxWebviewHeightPct * 100}vh`;
+		this._webviewContainer.style.maxHeight = `${maxWebviewHeightPct * 100}vh`;
 		this._webviewContainer.style.minHeight = '100px';
 		this._webviewContainer.style.height = '300px'; // Initial height, will be updated by model
 		this.domNode.appendChild(this._webviewContainer);
+
+		const targetWindow = dom.getWindow(this.domNode);
+		const getMaxHeight = () => maxWebviewHeightPct * targetWindow.innerHeight;
+		const maxHeight = observableValue('mcpAppMaxHeight', getMaxHeight());
+		dom.addDisposableListener(targetWindow, 'resize', () => maxHeight.set(getMaxHeight(), undefined));
 
 		// Create the model - it will mount the webview to the container
 		this._model = this._register(this._instantiationService.createInstance(
 			ChatMcpAppModel,
 			toolInvocation,
 			this._renderData,
-			this._webviewContainer
+			this._webviewContainer,
+			maxHeight,
+			context.currentWidth,
 		));
 
 		// Update container height from model
@@ -99,6 +109,12 @@ export class ChatMcpAppSubPart extends BaseChatToolInvocationSubPart {
 		this._register(this._model.onDidChangeHeight(() => {
 			this._updateContainerHeight();
 			this._onDidChangeHeight.fire();
+		}));
+
+		this._register(context.onDidChangeVisibility(visible => {
+			if (visible) {
+				this._model.remount();
+			}
 		}));
 
 		this._register(onDidRemount(() => {

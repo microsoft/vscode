@@ -61,21 +61,7 @@ export namespace McpApps {
  * ⚠️ Do not edit within `namespace` manually except to update schema versions ⚠️
  */
 export namespace McpApps {
-
-
-	/**
- * MCP Apps Protocol Types (spec.types.ts)
- *
- * This file contains pure TypeScript interface definitions for the MCP Apps protocol.
- * These types are the source of truth and are used to generate Zod schemas via ts-to-zod.
- *
- * - Use `@description` JSDoc tags to generate `.describe()` calls on schemas
- * - Run `npm run generate:schemas` to regenerate schemas from these types
- *
- * @see https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/draft/apps.mdx
- */
-
-	/**
+	/*
 	 * Current protocol version supported by this SDK.
 	 *
 	 * The SDK automatically handles version negotiation during initialization.
@@ -113,6 +99,7 @@ export namespace McpApps {
 		| "--color-text-secondary"
 		| "--color-text-tertiary"
 		| "--color-text-inverse"
+		| "--color-text-ghost"
 		| "--color-text-info"
 		| "--color-text-danger"
 		| "--color-text-success"
@@ -381,17 +368,30 @@ export namespace McpApps {
 		displayMode?: McpUiDisplayMode;
 		/** @description Display modes the host supports. */
 		availableDisplayModes?: string[];
-		/** @description Current and maximum dimensions available to the UI. */
-		viewport?: {
-			/** @description Current viewport width in pixels. */
-			width: number;
-			/** @description Current viewport height in pixels. */
-			height: number;
-			/** @description Maximum available height in pixels (if constrained). */
-			maxHeight?: number;
-			/** @description Maximum available width in pixels (if constrained). */
-			maxWidth?: number;
-		};
+		/**
+		 * @description Container dimensions. Represents the dimensions of the iframe or other
+		 * container holding the app. Specify either width or maxWidth, and either height or maxHeight.
+		 */
+		containerDimensions?: (
+			| {
+				/** @description Fixed container height in pixels. */
+				height: number;
+			}
+			| {
+				/** @description Maximum container height in pixels. */
+				maxHeight?: number | undefined;
+			}
+		) &
+		(
+			| {
+				/** @description Fixed container width in pixels. */
+				width: number;
+			}
+			| {
+				/** @description Maximum container width in pixels. */
+				maxWidth?: number | undefined;
+			}
+		);
 		/** @description User's language and region preference in BCP 47 format. */
 		locale?: string;
 		/** @description User's timezone in IANA format. */
