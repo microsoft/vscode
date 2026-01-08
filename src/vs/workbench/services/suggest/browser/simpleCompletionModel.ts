@@ -8,6 +8,14 @@ import { quickSelect } from '../../../../base/common/arrays.js';
 import { CharCode } from '../../../../base/common/charCode.js';
 import { FuzzyScore, fuzzyScore, fuzzyScoreGracefulAggressive, FuzzyScoreOptions, FuzzyScorer } from '../../../../base/common/filters.js';
 
+// Debug logging function - controlled by env or can be toggled
+const DEBUG_COMPLETION_MODEL = true;
+function debugLog(...args: unknown[]): void {
+	if (DEBUG_COMPLETION_MODEL) {
+		console.log('[SimpleCompletionModel]', ...args);
+	}
+}
+
 export interface ISimpleCompletionStats {
 	pLabelLen: number;
 }
@@ -80,23 +88,40 @@ export class SimpleCompletionModel<T extends SimpleCompletionItem> {
 		}
 	}
 	private _createCachedState(): void {
+		debugLog('_createCachedState START', {
+			refilterKind: this._refilterKind,
+			itemsCount: this._items.length,
+			filteredItemsCount: this._filteredItems?.length
+		});
 
 		// this._providerInfo = new Map();
 
 		const labelLengths: number[] = [];
 
 		const { leadingLineContent, characterCountDelta } = this._lineContext;
+		debugLog('_createCachedState context', {
+			leadingLineContent,
+			characterCountDelta
+		});
 		let word = '';
 		let wordLow = '';
 
 		// incrementally filter less
 		const source = this._refilterKind === Refilter.All ? this._items : this._filteredItems!;
 		const target: T[] = [];
+		debugLog('_createCachedState source selection', {
+			usingAllItems: this._refilterKind === Refilter.All,
+			sourceCount: source.length,
+			sourceLabels: source.slice(0, 20).map(i => i.textLabel) // First 20 labels
+		});
 
 		// picks a score function based on the number of
 		// items that we have to score/filter and based on the
 		// user-configuration
 		const scoreFn: FuzzyScorer = (!this._options.filterGraceful || source.length > 2000) ? fuzzyScore : fuzzyScoreGracefulAggressive;
+		debugLog('_createCachedState scorer', {
+			usingGraceful: this._options.filterGraceful && source.length <= 2000
+		});
 
 		for (let i = 0; i < source.length; i++) {
 
@@ -115,9 +140,20 @@ export class SimpleCompletionModel<T extends SimpleCompletionItem> {
 
 			const overwriteBefore = item.completion.replacementRange ? (item.completion.replacementRange[1] - item.completion.replacementRange[0]) : 0;
 			const wordLen = overwriteBefore + characterCountDelta;
+			const oldWord = word;
 			if (word.length !== wordLen) {
 				word = wordLen === 0 ? '' : leadingLineContent.slice(-wordLen);
 				wordLow = word.toLowerCase();
+				debugLog('_createCachedState word calculation for item', {
+					itemLabel: item.textLabel,
+					replacementRange: item.completion.replacementRange,
+					overwriteBefore,
+					characterCountDelta,
+					wordLen,
+					oldWord,
+					newWord: word,
+					leadingLineContent
+				});
 			}
 
 			// remember the word against which this item was
@@ -171,7 +207,21 @@ export class SimpleCompletionModel<T extends SimpleCompletionItem> {
 				} else {
 					// by default match `word` against the `label`
 					const match = scoreFn(word, wordLow, wordPos, item.textLabel, item.labelLow, 0, this._fuzzyScoreOptions);
+					debugLog('_createCachedState scoring', {
+						itemLabel: item.textLabel,
+						word,
+						wordLow,
+						wordPos,
+						labelLow: item.labelLow,
+						match: match ? `score=${match[0]}` : 'NO MATCH',
+						wordEmpty: word === ''
+					});
 					if (!match && word !== '') {
+						debugLog('_createCachedState FILTERED OUT (no match)', {
+							itemLabel: item.textLabel,
+							word,
+							labelLow: item.labelLow
+						});
 						continue; // NO match
 					}
 					// Use default sorting when word is empty
@@ -179,11 +229,22 @@ export class SimpleCompletionModel<T extends SimpleCompletionItem> {
 				}
 			}
 			item.idx = i;
+			debugLog('_createCachedState KEEPING item', {
+				itemLabel: item.textLabel,
+				score: item.score[0]
+			});
 			target.push(item);
 
 			// update stats
 			labelLengths.push(item.textLabel.length);
 		}
+
+		debugLog('_createCachedState FINAL RESULTS', {
+			totalSource: source.length,
+			keptCount: target.length,
+			filteredOutCount: source.length - target.length,
+			keptLabels: target.slice(0, 30).map(i => i.textLabel) // First 30
+		});
 
 		this._filteredItems = target.sort(this._rawCompareFn?.bind(undefined, leadingLineContent));
 		this._refilterKind = Refilter.Nothing;
@@ -193,5 +254,6 @@ export class SimpleCompletionModel<T extends SimpleCompletionItem> {
 				quickSelect(labelLengths.length - .85, labelLengths, (a, b) => a - b)
 				: 0
 		};
+		debugLog('_createCachedState COMPLETE');
 	}
 }

@@ -371,12 +371,26 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			items.push(this._inlineCompletionItem);
 		}
 
+		this._logService.debug('SuggestAddon#_handleCompletionProviders before model creation', {
+			normalizedLeadingLineContent,
+			cursorIndexDelta: this._cursorIndexDelta,
+			completionsCount: completions.length,
+			itemsCount: items.length,
+			itemLabels: items.slice(0, 30).map(i => i.textLabel),
+			shellType: this.shellType
+		});
+
 		this._logService.trace('TerminalCompletionService#_collectCompletions create model');
 		const model = new TerminalCompletionModel(
 			items,
 			lineContext
 		);
 		this._logService.trace('TerminalCompletionService#_collectCompletions create model done');
+
+		this._logService.debug('SuggestAddon#_handleCompletionProviders model created', {
+			modelItemCount: model.items.length,
+			modelItemLabels: model.items.slice(0, 30).map(i => i.textLabel)
+		});
 
 		if (token.isCancellationRequested) {
 			this._completionRequestTimestamp = undefined;
@@ -638,13 +652,27 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				normalizedLeadingLineContent = normalizePathSeparator(normalizedLeadingLineContent, this._pathSeparator);
 			}
 			const lineContext = new LineContext(normalizedLeadingLineContent, this._cursorIndexDelta);
+			this._logService.debug('SuggestAddon#_sync updating line context', {
+				cursorIndexDelta: this._cursorIndexDelta,
+				requestedCompletionsIndex: this._requestedCompletionsIndex,
+				normalizedLeadingLineContent,
+				isFilteringDirectories: this._isFilteringDirectories,
+				pathSeparator: this._pathSeparator,
+				currentValue: this._currentPromptInputState.value,
+				currentCursorIndex: this._currentPromptInputState.cursorIndex
+			});
 			this._suggestWidget.setLineContext(lineContext);
 		}
 
 		this._refreshInlineCompletion(this._model?.items.map(i => i.completion) || []);
 
 		// Hide and clear model if there are no more items
+		this._logService.debug('SuggestAddon#_sync checking hasCompletions', {
+			hasCompletions: this._suggestWidget.hasCompletions(),
+			modelItemsCount: this._model?.items.length
+		});
 		if (!this._suggestWidget.hasCompletions()) {
+			this._logService.debug('SuggestAddon#_sync hiding widget: no completions');
 			this.hideSuggestWidget(false);
 			return;
 		}

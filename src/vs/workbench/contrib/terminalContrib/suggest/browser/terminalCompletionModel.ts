@@ -9,11 +9,27 @@ import { isString } from '../../../../../base/common/types.js';
 import { SimpleCompletionModel, type LineContext } from '../../../../services/suggest/browser/simpleCompletionModel.js';
 import { TerminalCompletionItemKind, type TerminalCompletionItem } from './terminalCompletionItem.js';
 
+// Debug logging function for terminal completion model
+const DEBUG_TERMINAL_COMPLETION_MODEL = true;
+function debugLog(...args: unknown[]): void {
+	if (DEBUG_TERMINAL_COMPLETION_MODEL) {
+		console.log('[TerminalCompletionModel]', ...args);
+	}
+}
+
 export class TerminalCompletionModel extends SimpleCompletionModel<TerminalCompletionItem> {
 	constructor(
 		items: TerminalCompletionItem[],
 		lineContext: LineContext
 	) {
+		debugLog('constructor', {
+			itemCount: items.length,
+			lineContext: {
+				leadingLineContent: lineContext.leadingLineContent,
+				characterCountDelta: lineContext.characterCountDelta
+			},
+			itemLabels: items.slice(0, 30).map(i => i.textLabel) // First 30 labels
+		});
 		super(items, lineContext, compareCompletionsFn);
 	}
 }
