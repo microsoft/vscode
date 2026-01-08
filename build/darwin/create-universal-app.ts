@@ -30,7 +30,7 @@ async function main(buildDir?: string) {
 		'**/Credits.rtf',
 		'**/policies/{*.mobileconfig,**/*.plist}',
 		// TODO: Should we consider expanding this to other files in this area?
-		'**/node_modules/@vscode/node-addon-api/nothing.target.mk',
+		'**/node_modules/@parcel/node-addon-api/nothing.target.mk',
 	];
 
 	await makeUniversalApp({
