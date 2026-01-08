@@ -64,6 +64,7 @@ import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
 import { HasInstalledMcpServersContext, IMcpSamplingService, IMcpServer, IMcpServerStartOpts, IMcpService, InstalledMcpServersViewId, LazyCollectionState, McpCapability, McpCollectionDefinition, McpConnectionState, McpDefinitionReference, mcpPromptPrefix, McpServerCacheState, McpStartServerInteraction } from '../common/mcpTypes.js';
 import { McpAddConfigurationCommand } from './mcpCommandsAddConfiguration.js';
 import { McpResourceQuickAccess, McpResourceQuickPick } from './mcpResourceQuickAccess.js';
+import { startServerAndWaitForLiveTools } from '../common/mcpTypesUtils.js';
 import './media/mcpServerAction.css';
 import { openPanelChatAndGetWidget } from './openPanelChatAndGetWidget.js';
 
@@ -821,13 +822,18 @@ export class StartServer extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, serverId: string | undefined, opts?: IMcpServerStartOpts) {
+	async run(accessor: ServicesAccessor, serverId: string | null | undefined, opts?: IMcpServerStartOpts & { waitForLiveTools?: boolean }) {
 		let servers = accessor.get(IMcpService).servers.get();
-		if (serverId !== undefined) {
+		if (serverId) {
 			servers = servers.filter(s => s.definition.id === serverId);
 		}
 
-		await Promise.all(servers.map(s => s.start({ promptType: 'all-untrusted', ...opts })));
+		const startOpts: IMcpServerStartOpts = { promptType: 'all-untrusted', ...opts };
+		if (opts?.waitForLiveTools) {
+			await Promise.all(servers.map(s => startServerAndWaitForLiveTools(s, startOpts)));
+		} else {
+			await Promise.all(servers.map(s => s.start(startOpts)));
+		}
 	}
 }
 
