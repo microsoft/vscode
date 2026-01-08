@@ -74,7 +74,7 @@
   "dependencies": {
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
-    "@parcel/watcher": "parcel-bundler/watcher#5389ccbee4407991b77b35da876444c0f40f0a88",
+    "@parcel/watcher": "parcel-bundler/watcher#f503c6eb8df1e883f6989f11743232e43ccb90f6",
     "@types/semver": "^7.5.8",
     "@vscode/deviceid": "^0.1.1",
     "@vscode/iconv-lite-umd": "0.7.1",
