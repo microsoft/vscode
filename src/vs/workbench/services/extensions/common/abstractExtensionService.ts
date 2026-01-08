@@ -45,7 +45,7 @@ import { IResolveAuthorityErrorResult } from './extensionHostProxy.js';
 import { IExtensionManifestPropertiesService } from './extensionManifestPropertiesService.js';
 import { ExtensionRunningLocation, LocalProcessRunningLocation, LocalWebWorkerRunningLocation, RemoteRunningLocation } from './extensionRunningLocation.js';
 import { ExtensionRunningLocationTracker, filterExtensionIdentifiers } from './extensionRunningLocationTracker.js';
-import { ActivationKind, ActivationTimes, ExtensionActivationReason, ExtensionHostStartup, ExtensionPointContribution, IExtensionHost, IExtensionService, IExtensionsStatus, IInternalExtensionService, IMessage, IResponsiveStateChangeEvent, IWillActivateEvent, WillStopExtensionHostsEvent, toExtension, toExtensionDescription } from './extensions.js';
+import { ActivationKind, ActivationTimes, ExtensionActivationReason, ExtensionHostStartup, ExtensionPointContribution, IExtensionHost, IExtensionInspectInfo, IExtensionService, IExtensionsStatus, IInternalExtensionService, IMessage, IResponsiveStateChangeEvent, IWillActivateEvent, WillStopExtensionHostsEvent, toExtension, toExtensionDescription } from './extensions.js';
 import { ExtensionsProposedApi } from './extensionsProposedApi.js';
 import { ExtensionMessageCollector, ExtensionPoint, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from './extensionsRegistry.js';
 import { LazyCreateExtensionHostManager } from './lazyCreateExtensionHostManager.js';
@@ -179,16 +179,20 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 		this._register(this._extensionManagementService.onDidInstallExtensions((result) => {
 			const extensions: IExtension[] = [];
+			const toRemove: string[] = [];
 			for (const { local, operation } of result) {
 				if (local && local.isValid && operation !== InstallOperation.Migrate && this._safeInvokeIsEnabled(local)) {
 					extensions.push(local);
+					if (operation === InstallOperation.Update) {
+						toRemove.push(local.identifier.id);
+					}
 				}
 			}
 			if (extensions.length) {
 				if (isCI) {
 					this._logService.info(`AbstractExtensionService.onDidInstallExtensions fired for ${extensions.map(e => e.identifier.id).join(', ')}`);
 				}
-				this._handleDeltaExtensions(new DeltaExtensionsQueueItem(extensions, []));
+				this._handleDeltaExtensions(new DeltaExtensionsQueueItem(extensions, toRemove));
 			}
 		}));
 
@@ -454,6 +458,14 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	//#endregion
 
+	private _initializePromise: Promise<void> | null = null;
+	protected _initializeIfNeeded(): Promise<void> | null {
+		if (!this._initializePromise) {
+			this._initializePromise = this._initialize();
+		}
+		return this._initializePromise;
+	}
+
 	protected async _initialize(): Promise<void> {
 		perf.mark('code/willLoadExtensions');
 		this._startExtensionHostsIfNecessary(true, []);
@@ -462,13 +474,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		try {
 			await this._resolveAndProcessExtensions(lock);
 			// Start extension hosts which are not automatically started
-			const snapshot = this._registry.getSnapshot();
-			for (const extHostManager of this._extensionHostManagers) {
-				if (extHostManager.startup !== ExtensionHostStartup.EagerAutoStart) {
-					const extensions = this._runningLocations.filterByExtensionHostManager(snapshot.extensions, extHostManager);
-					extHostManager.start(snapshot.versionId, snapshot.extensions, extensions.map(extension => extension.identifier));
-				}
-			}
+			this._startOnDemandExtensionHosts();
 		} finally {
 			lock.dispose();
 		}
@@ -827,8 +833,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	protected _doCreateExtensionHostManager(extensionHost: IExtensionHost, initialActivationEvents: string[]): IExtensionHostManager {
 		const internalExtensionService = this._acquireInternalAPI(extensionHost);
-		if (extensionHost.startup === ExtensionHostStartup.Lazy && initialActivationEvents.length === 0) {
-			return this._instantiationService.createInstance(LazyCreateExtensionHostManager, extensionHost, internalExtensionService);
+		if (extensionHost.startup === ExtensionHostStartup.LazyAutoStart) {
+			return this._instantiationService.createInstance(LazyCreateExtensionHostManager, extensionHost, initialActivationEvents, internalExtensionService);
 		}
 		return this._instantiationService.createInstance(ExtensionHostManager, extensionHost, initialActivationEvents, internalExtensionService);
 	}
@@ -927,11 +933,22 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		const lock = await this._registry.acquireLock('startExtensionHosts');
 		try {
 			this._startExtensionHostsIfNecessary(false, Array.from(this._allRequestedActivateEvents.keys()));
+			this._startOnDemandExtensionHosts();
 
 			const localProcessExtensionHosts = this._getExtensionHostManagers(ExtensionHostKind.LocalProcess);
 			await Promise.all(localProcessExtensionHosts.map(extHost => extHost.ready()));
 		} finally {
 			lock.dispose();
+		}
+	}
+
+	private _startOnDemandExtensionHosts(): void {
+		const snapshot = this._registry.getSnapshot();
+		for (const extHostManager of this._extensionHostManagers) {
+			if (extHostManager.startup !== ExtensionHostStartup.EagerAutoStart) {
+				const extensions = this._runningLocations.filterByExtensionHostManager(snapshot.extensions, extHostManager);
+				extHostManager.start(snapshot.versionId, snapshot.extensions, extensions.map(extension => extension.identifier));
+			}
 		}
 	}
 
@@ -960,6 +977,12 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 			if (activationKind === ActivationKind.Immediate) {
 				// Do not wait for the normal start-up of the extension host(s)
+
+				// Note: some callers come in so early that the extension hosts have not even been created yet.
+				// Therefore we kick off the extension host creation, but without awaiting it.
+				// See https://github.com/microsoft/vscode/issues/260061
+				void this._initializeIfNeeded();
+
 				return this._activateByEvent(activationEvent, activationKind);
 			}
 
@@ -1045,9 +1068,15 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		return result;
 	}
 
-	public async getInspectPorts(extensionHostKind: ExtensionHostKind, tryEnableInspector: boolean): Promise<{ port: number; host: string }[]> {
+	public async getInspectPorts(extensionHostKind: ExtensionHostKind, tryEnableInspector: boolean): Promise<IExtensionInspectInfo[]> {
 		const result = await Promise.all(
-			this._getExtensionHostManagers(extensionHostKind).map(extHost => extHost.getInspectPort(tryEnableInspector))
+			this._getExtensionHostManagers(extensionHostKind).map(async extHost => {
+				let portInfo = await extHost.getInspectPort(tryEnableInspector);
+				if (portInfo !== undefined) {
+					portInfo = { ...portInfo, devtoolsLabel: extHost.friendyName };
+				}
+				return portInfo;
+			})
 		);
 		// remove 0s:
 		return result.filter(isDefined);

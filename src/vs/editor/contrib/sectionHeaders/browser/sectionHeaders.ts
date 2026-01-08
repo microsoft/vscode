@@ -8,7 +8,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../browser/editorExtensions.js';
 import { EditorOption, IEditorMinimapOptions } from '../../../common/config/editorOptions.js';
-import { IEditorContribution } from '../../../common/editorCommon.js';
+import { IEditorContribution, IEditorDecorationsCollection } from '../../../common/editorCommon.js';
 import { StandardTokenType } from '../../../common/encodedTokenAttributes.js';
 import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
 import { IModelDeltaDecoration, MinimapPosition, MinimapSectionHeaderStyle, TrackedRangeStickiness } from '../../../common/model.js';
@@ -21,7 +21,7 @@ export class SectionHeaderDetector extends Disposable implements IEditorContribu
 	public static readonly ID: string = 'editor.sectionHeaderDetector';
 
 	private options: FindSectionHeaderOptions | undefined;
-	private decorations = this.editor.createDecorationsCollection();
+	private decorations: IEditorDecorationsCollection;
 	private computeSectionHeaders: RunOnceScheduler;
 	private computePromise: CancelablePromise<SectionHeader[]> | null;
 	private currentOccurrences: { [decorationId: string]: SectionHeaderOccurrence };
@@ -32,6 +32,7 @@ export class SectionHeaderDetector extends Disposable implements IEditorContribu
 		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService,
 	) {
 		super();
+		this.decorations = this.editor.createDecorationsCollection();
 
 		this.options = this.createOptions(editor.getOption(EditorOption.minimap));
 		this.computePromise = null;
@@ -155,8 +156,10 @@ export class SectionHeaderDetector extends Disposable implements IEditorContribu
 				const tokens = model.tokenization.getLineTokens(validRange.startLineNumber);
 				const idx = tokens.findTokenIndexAtOffset(validRange.startColumn - 1);
 				const tokenType = tokens.getStandardTokenType(idx);
-				const languageId = tokens.getLanguageId(idx);
-				return (languageId === model.getLanguageId() && tokenType === StandardTokenType.Comment);
+
+				const languageIdAtPosition = model.getLanguageIdAtPosition(validRange.startLineNumber, validRange.startColumn);
+				const tokenLanguageId = tokens.getLanguageId(idx);
+				return (tokenLanguageId === languageIdAtPosition && tokenType === StandardTokenType.Comment);
 			});
 		}
 

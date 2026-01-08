@@ -12,7 +12,7 @@ import * as nls from '../../../../nls.js';
 import * as types from '../../../../base/common/types.js';
 import * as resources from '../../../../base/common/resources.js';
 import { Extensions as ColorRegistryExtensions, IColorRegistry, ColorIdentifier, editorBackground, editorForeground, DEFAULT_COLOR_CONFIG_VALUE } from '../../../../platform/theme/common/colorRegistry.js';
-import { ITokenStyle, getThemeTypeSelector } from '../../../../platform/theme/common/themeService.js';
+import { IFontTokenOptions, ITokenStyle, getThemeTypeSelector } from '../../../../platform/theme/common/themeService.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { getParseErrorMessage } from '../../../../base/common/jsonErrorMessages.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -81,6 +81,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 
 	private textMateThemingRules: ITextMateThemingRule[] | undefined = undefined; // created on demand
 	private tokenColorIndex: TokenColorIndex | undefined = undefined; // created on demand
+	private tokenFontIndex: TokenFontIndex | undefined = undefined; // created on demand
 
 	private constructor(id: string, label: string, settingsId: string) {
 		this.id = id;
@@ -120,7 +121,17 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 					if (rule.scope === 'token.info-token') {
 						hasDefaultTokens = true;
 					}
-					result.push({ scope: rule.scope, settings: { foreground: normalizeColor(rule.settings.foreground), background: normalizeColor(rule.settings.background), fontStyle: rule.settings.fontStyle } });
+					const ruleSettings = rule.settings;
+					result.push({
+						scope: rule.scope, settings: {
+							foreground: normalizeColor(ruleSettings.foreground),
+							background: normalizeColor(ruleSettings.background),
+							fontStyle: ruleSettings.fontStyle,
+							fontSize: ruleSettings.fontSize,
+							fontFamily: ruleSettings.fontFamily,
+							lineHeight: ruleSettings.lineHeight
+						}
+					});
 				}
 			}
 
@@ -167,7 +178,10 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 			bold: -1,
 			underline: -1,
 			strikethrough: -1,
-			italic: -1
+			italic: -1,
+			fontFamily: -1,
+			fontSize: -1,
+			lineHeight: -1
 		};
 
 		function _processStyle(matchScore: number, style: TokenStyle, definition: TokenStyleDefinition) {
@@ -270,8 +284,22 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		return this.tokenColorIndex;
 	}
 
+
+	public getTokenFontIndex(): TokenFontIndex {
+		if (!this.tokenFontIndex) {
+			const index = new TokenFontIndex();
+			this.tokenColors.forEach(r => index.add(r.settings.fontFamily, r.settings.fontSize, r.settings.lineHeight));
+			this.tokenFontIndex = index;
+		}
+		return this.tokenFontIndex;
+	}
+
 	public get tokenColorMap(): string[] {
 		return this.getTokenColorIndex().asArray();
+	}
+
+	public get tokenFontMap(): IFontTokenOptions[] {
+		return this.getTokenFontIndex().asArray();
 	}
 
 	public getTokenStyleMetadata(typeWithLanguage: string, modifiers: string[], defaultLanguage: string, useDefault = true, definitions: TokenStyleDefinitions = {}): ITokenStyle | undefined {
@@ -647,6 +675,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 					}
 					case 'themeTokenColors':
 					case 'id': case 'label': case 'settingsId': case 'watch': case 'themeSemanticHighlighting':
+						// eslint-disable-next-line local/code-no-any-casts
 						(theme as any)[key] = data[key];
 						break;
 					case 'semanticTokenRules': {
@@ -821,13 +850,11 @@ function nameMatcher(identifiers: string[], scopes: ProbeScope): number {
 		return -1;
 	}
 
-	let lastIndex = 0;
 	let score: number | undefined = undefined;
-	const every = identifiers.every((identifier, identifierIndex) => {
-		for (let i = lastIndex; i < scopes.length; i++) {
+	const every = identifiers.every((identifier) => {
+		for (let i = scopes.length - 1; i >= 0; i--) {
 			if (scopesAreMatching(scopes[i], identifier)) {
-				score = (identifierIndex + 1) * 0x10000 + identifier.length;
-				lastIndex = i + 1;
+				score = (i + 1) * 0x10000 + identifier.length;
 				return true;
 			}
 		}
@@ -973,7 +1000,43 @@ class TokenColorIndex {
 	public asArray(): string[] {
 		return this._id2color.slice(0);
 	}
+}
 
+class TokenFontIndex {
+
+	private _lastFontId: number;
+	private _id2font: IFontTokenOptions[];
+	private _font2id: Map<IFontTokenOptions, number>;
+
+	constructor() {
+		this._lastFontId = 0;
+		this._id2font = [];
+		this._font2id = new Map();
+	}
+
+	public add(fontFamily: string | undefined, fontSize: string | undefined, lineHeight: number | undefined): number {
+		const font: IFontTokenOptions = { fontFamily, fontSize, lineHeight };
+		let value = this._font2id.get(font);
+		if (value) {
+			return value;
+		}
+		value = ++this._lastFontId;
+		this._font2id.set(font, value);
+		this._id2font[value] = font;
+		return value;
+	}
+
+	public get(font: IFontTokenOptions): number {
+		const value = this._font2id.get(font);
+		if (value) {
+			return value;
+		}
+		return 0;
+	}
+
+	public asArray(): IFontTokenOptions[] {
+		return this._id2font.slice(0);
+	}
 }
 
 function normalizeColor(color: string | Color | undefined | null): string | undefined {

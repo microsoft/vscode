@@ -142,7 +142,7 @@ pub fn make_singleton_server(
 	}
 }
 
-pub async fn start_singleton_server<'a>(
+pub async fn start_singleton_server(
 	args: SingletonServerArgs<'_>,
 ) -> Result<ServerTermination, AnyError> {
 	let shutdown_rx = ShutdownRequest::create_rx([

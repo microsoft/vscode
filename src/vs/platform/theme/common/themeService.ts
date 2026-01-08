@@ -71,9 +71,20 @@ export interface IColorTheme {
 	readonly tokenColorMap: string[];
 
 	/**
+	 * List of all the fonts used with tokens.
+	 */
+	readonly tokenFontMap: IFontTokenOptions[];
+
+	/**
 	 * Defines whether semantic highlighting should be enabled for the theme.
 	 */
 	readonly semanticHighlighting: boolean;
+}
+
+export class IFontTokenOptions {
+	fontFamily?: string;
+	fontSize?: string;
+	lineHeight?: number;
 }
 
 export interface IFileIconTheme {
@@ -100,14 +111,12 @@ export interface IThemingParticipant {
 	(theme: IColorTheme, collector: ICssStyleCollector, environment: IEnvironmentService): void;
 }
 
-export type IThemeChangeEvent = { theme: IColorTheme };
-
 export interface IThemeService {
 	readonly _serviceBrand: undefined;
 
 	getColorTheme(): IColorTheme;
 
-	readonly onDidColorThemeChange: Event<IThemeChangeEvent>;
+	readonly onDidColorThemeChange: Event<IColorTheme>;
 
 	getFileIconTheme(): IFileIconTheme;
 
@@ -136,13 +145,14 @@ export interface IThemingRegistry {
 	readonly onThemingParticipantAdded: Event<IThemingParticipant>;
 }
 
-class ThemingRegistry implements IThemingRegistry {
+class ThemingRegistry extends Disposable implements IThemingRegistry {
 	private themingParticipants: IThemingParticipant[] = [];
 	private readonly onThemingParticipantAddedEmitter: Emitter<IThemingParticipant>;
 
 	constructor() {
+		super();
 		this.themingParticipants = [];
-		this.onThemingParticipantAddedEmitter = new Emitter<IThemingParticipant>();
+		this.onThemingParticipantAddedEmitter = this._register(new Emitter<IThemingParticipant>());
 	}
 
 	public onColorThemeChange(participant: IThemingParticipant): IDisposable {
@@ -184,7 +194,7 @@ export class Themable extends Disposable {
 		this.theme = themeService.getColorTheme();
 
 		// Hook up to theme changes
-		this._register(this.themeService.onDidColorThemeChange(e => this.onThemeChange(e.theme)));
+		this._register(this.themeService.onDidColorThemeChange(theme => this.onThemeChange(theme)));
 	}
 
 	protected onThemeChange(theme: IColorTheme): void {
@@ -232,15 +242,9 @@ export interface IPartsSplash {
 		titleBarHeight: number;
 		activityBarWidth: number;
 		sideBarWidth: number;
-		auxiliarySideBarWidth: number;
+		auxiliaryBarWidth: number;
 		statusBarHeight: number;
 		windowBorder: boolean;
 		windowBorderRadius: string | undefined;
 	} | undefined;
-}
-
-export interface IPartsSplashWorkspaceOverride {
-	layoutInfo: {
-		auxiliarySideBarWidth: [number, string[] /* workspace identifier the override applies to */];
-	};
 }

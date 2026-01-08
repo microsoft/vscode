@@ -12,7 +12,7 @@ import { DeferredPromise, runWhenGlobalIdle } from '../../../../../../base/commo
 import { decodeBase64 } from '../../../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
-import { getExtensionForMimeType } from '../../../../../../base/common/mime.js';
+import { getExtensionForMimeType, isTextStreamMime } from '../../../../../../base/common/mime.js';
 import { FileAccess, Schemas, matchesScheme, matchesSomeScheme } from '../../../../../../base/common/network.js';
 import { equals } from '../../../../../../base/common/objects.js';
 import * as osPath from '../../../../../../base/common/path.js';
@@ -57,6 +57,7 @@ import { IEditorGroup, IEditorGroupsService } from '../../../../../services/edit
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
 import { FromWebviewMessage, IAckOutputHeight, IClickedDataUrlMessage, ICodeBlockHighlightRequest, IContentWidgetTopRequest, IControllerPreload, ICreationContent, ICreationRequestMessage, IFindMatch, IMarkupCellInitialization, RendererMetadata, StaticPreloadMetadata, ToWebviewMessage } from './webviewMessages.js';
+import { getOutputText, getOutputStreamText, TEXT_BASED_MIMETYPES } from '../../viewModel/cellOutputTextHelper.js';
 
 const LINE_COLUMN_REGEX = /:([\d]+)(?::([\d]+))?$/;
 const LineQueryRegex = /line=(\d+)$/;
@@ -762,7 +763,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 								}
 							}
 
-							this.openerService.open(CellUri.generateCellOutputUri(this.documentUri, outputId));
+							this.openerService.open(CellUri.generateCellOutputUriWithId(this.documentUri, outputId));
 							return;
 						}
 						if (uri.path === 'cellOutput.enableScrolling') {
@@ -794,7 +795,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 								'workbench.action.openSettings',
 								'_notebook.selectKernel',
 								// TODO@rebornix explore open output channel with name command
-								'jupyter.viewOutput'
+								'jupyter.viewOutput',
+								'jupyter.createPythonEnvAndSelectController',
 							],
 						});
 						return;
@@ -1677,10 +1679,27 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 	}
 
 	async copyImage(output: ICellOutputViewModel): Promise<void> {
+		// Collect text alternates from the same cell output
+		const textAlternates: { mimeType: string; content: string }[] = [];
+		const cellOutput = output.model;
+
+		for (const outputItem of cellOutput.outputs) {
+			if (TEXT_BASED_MIMETYPES.includes(outputItem.mime)) {
+				const text = isTextStreamMime(outputItem.mime) ?
+					getOutputStreamText(output).text :
+					getOutputText(outputItem.mime, outputItem);
+				textAlternates.push({
+					mimeType: outputItem.mime,
+					content: text
+				});
+			}
+		}
+
 		this._sendMessageToWebview({
 			type: 'copyImage',
 			outputId: output.model.outputId,
-			altOutputId: output.model.alternativeOutputId
+			altOutputId: output.model.alternativeOutputId,
+			textAlternates: textAlternates.length > 0 ? textAlternates : undefined
 		});
 	}
 
@@ -1854,14 +1873,24 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 	}
 
 
-	deltaCellContainerClassNames(cellId: string, added: string[], removed: string[]) {
+	deltaCellOutputContainerClassNames(cellId: string, added: string[], removed: string[]) {
 		this._sendMessageToWebview({
 			type: 'decorations',
 			cellId,
 			addedClassNames: added,
 			removedClassNames: removed
 		});
+	}
 
+	deltaMarkupPreviewClassNames(cellId: string, added: string[], removed: string[]) {
+		if (this.markupPreviewMapping.get(cellId)) {
+			this._sendMessageToWebview({
+				type: 'markupDecorations',
+				cellId,
+				addedClassNames: added,
+				removedClassNames: removed
+			});
+		}
 	}
 
 	updateOutputRenderers() {

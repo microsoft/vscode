@@ -110,7 +110,7 @@ suite('SuggestModel - Context', function () {
 					for (let i = 0; i < tokens.length; i++) {
 						tokens[i] = tokensArr[i];
 					}
-					return new EncodedTokenizationResult(tokens, state);
+					return new EncodedTokenizationResult(tokens, [], state);
 				}
 			}));
 		}
@@ -694,7 +694,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			});
 
 			await assertEvent(model.onDidSuggest, () => {
-				CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+				editor.runCommand(CoreEditingCommands.DeleteLeft, null);
 
 			}, event => {
 				assert.strictEqual(event.triggerOptions.auto, true);

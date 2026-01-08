@@ -65,13 +65,15 @@ export const textSeparatorForeground = registerColor('textSeparator.foreground',
 // ------ text preformat
 
 export const textPreformatForeground = registerColor('textPreformat.foreground',
-	{ light: '#A31515', dark: '#D7BA7D', hcDark: Color.white, hcLight: '#292929' },
+	{ light: '#A31515', dark: '#D7BA7D', hcDark: '#FFFFFF', hcLight: '#FFFFFF' },
 	nls.localize('textPreformatForeground', "Foreground color for preformatted text segments."));
 
 export const textPreformatBackground = registerColor('textPreformat.background',
-	{ light: '#0000001A', dark: '#FFFFFF1A', hcDark: Color.black, hcLight: '#F2F2F2' },
+	{ light: '#0000001A', dark: '#FFFFFF1A', hcDark: null, hcLight: '#09345f' },
 	nls.localize('textPreformatBackground', "Background color for preformatted text segments."));
-
+export const textPreformatBorder = registerColor('textPreformat.border',
+	{ light: null, dark: null, hcDark: contrastBorder, hcLight: null },
+	nls.localize('textPreformatBorder', "Border color for preformatted text segments."));
 
 // ------ text block quote
 

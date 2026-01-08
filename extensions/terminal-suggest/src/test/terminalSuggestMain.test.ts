@@ -6,12 +6,12 @@
 import { deepStrictEqual, strictEqual } from 'assert';
 import 'mocha';
 import { basename } from 'path';
-import { asArray, getCompletionItemsFromSpecs } from '../terminalSuggestMain';
+import { asArray, getCompletionItemsFromSpecs, getCurrentCommandAndArgs } from '../terminalSuggestMain';
 import { getTokenType } from '../tokens';
 import { cdTestSuiteSpec as cdTestSuite } from './completions/cd.test';
-import { codeSpecOptions, codeTestSuite } from './completions/code.test';
+import { codeSpecOptionsAndSubcommands, codeTestSuite, codeTunnelTestSuite } from './completions/code.test';
 import { testPaths, type ISuiteSpec } from './helpers';
-import { codeInsidersTestSuite } from './completions/code-insiders.test';
+import { codeInsidersTestSuite, codeTunnelInsidersTestSuite } from './completions/code-insiders.test';
 import { lsTestSuiteSpec } from './completions/upstream/ls.test';
 import { echoTestSuiteSpec } from './completions/upstream/echo.test';
 import { mkdirTestSuiteSpec } from './completions/upstream/mkdir.test';
@@ -43,6 +43,8 @@ const testSpecs2: ISuiteSpec[] = [
 	cdTestSuite,
 	codeTestSuite,
 	codeInsidersTestSuite,
+	codeTunnelTestSuite,
+	codeTunnelInsidersTestSuite,
 
 	// completions/upstream/
 	echoTestSuiteSpec,
@@ -65,11 +67,11 @@ if (osIsWindows()) {
 			'code.anything',
 		],
 		testSpecs: [
-			{ input: 'code |', expectedCompletions: codeSpecOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
-			{ input: 'code.bat |', expectedCompletions: codeSpecOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
-			{ input: 'code.cmd |', expectedCompletions: codeSpecOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
-			{ input: 'code.exe |', expectedCompletions: codeSpecOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
-			{ input: 'code.anything |', expectedCompletions: codeSpecOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+			{ input: 'code |', expectedCompletions: codeSpecOptionsAndSubcommands, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+			{ input: 'code.bat |', expectedCompletions: codeSpecOptionsAndSubcommands, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+			{ input: 'code.cmd |', expectedCompletions: codeSpecOptionsAndSubcommands, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+			{ input: 'code.exe |', expectedCompletions: codeSpecOptionsAndSubcommands, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+			{ input: 'code.anything |', expectedCompletions: codeSpecOptionsAndSubcommands, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 		]
 	});
 }
@@ -89,16 +91,16 @@ suite('Terminal Suggest', () => {
 				}
 				test(`'${testSpec.input}' -> ${expectedString}`, async () => {
 					const commandLine = testSpec.input.split('|')[0];
-					const cursorPosition = testSpec.input.indexOf('|');
-					const prefix = commandLine.slice(0, cursorPosition).split(' ').at(-1) || '';
-					const filesRequested = testSpec.expectedResourceRequests?.type === 'files' || testSpec.expectedResourceRequests?.type === 'both';
-					const foldersRequested = testSpec.expectedResourceRequests?.type === 'folders' || testSpec.expectedResourceRequests?.type === 'both';
-					const terminalContext = { commandLine, cursorPosition, allowFallbackCompletions: true };
+					const cursorIndex = testSpec.input.indexOf('|');
+					const currentCommandString = getCurrentCommandAndArgs(commandLine, cursorIndex, undefined);
+					const showFiles = testSpec.expectedResourceRequests?.type === 'files' || testSpec.expectedResourceRequests?.type === 'both';
+					const showDirectories = testSpec.expectedResourceRequests?.type === 'folders' || testSpec.expectedResourceRequests?.type === 'both';
+					const terminalContext = { commandLine, cursorIndex };
 					const result = await getCompletionItemsFromSpecs(
 						completionSpecs,
 						terminalContext,
 						availableCommands.map(c => { return { label: c }; }),
-						prefix,
+						currentCommandString,
 						getTokenType(terminalContext, undefined),
 						testPaths.cwd,
 						{},
@@ -106,9 +108,18 @@ suite('Terminal Suggest', () => {
 						undefined,
 						new MockFigExecuteExternals()
 					);
-					deepStrictEqual(result.items.map(i => i.label).sort(), (testSpec.expectedCompletions ?? []).sort());
-					strictEqual(result.filesRequested, filesRequested, 'Files requested different than expected, got: ' + result.filesRequested);
-					strictEqual(result.foldersRequested, foldersRequested, 'Folders requested different than expected, got: ' + result.foldersRequested);
+					deepStrictEqual(
+						// Add detail to the label if it exists
+						result.items.map(i => {
+							if (typeof i.label === 'object' && i.label.detail) {
+								return `${i.label.label}${i.label.detail}`;
+							}
+							return i.label;
+						}).sort(),
+						(testSpec.expectedCompletions ?? []).sort()
+					);
+					strictEqual(result.showFiles, showFiles, 'Show files different than expected, got: ' + result.showFiles);
+					strictEqual(result.showDirectories, showDirectories, 'Show directories different than expected, got: ' + result.showDirectories);
 					if (testSpec.expectedResourceRequests?.cwd) {
 						strictEqual(result.cwd?.fsPath, testSpec.expectedResourceRequests.cwd.fsPath, 'Non matching cwd');
 					}
@@ -137,4 +148,3 @@ class MockFigExecuteExternals implements IFigExecuteExternals {
 		}
 	}
 }
-

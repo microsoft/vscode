@@ -3,8 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isWeb, isWindows } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
-import { ExtensionToggleData } from '../common/preferences.js';
+import { ISetting, ISettingsGroup } from '../../../services/preferences/common/preferences.js';
+
+export interface ITOCFilter {
+	include?: {
+		keyPatterns?: string[];
+		tags?: string[];
+	};
+	exclude?: {
+		keyPatterns?: string[];
+		tags?: string[];
+	};
+}
 
 export interface ITOCEntry<T> {
 	id: string;
@@ -12,28 +24,43 @@ export interface ITOCEntry<T> {
 	order?: number;
 	children?: ITOCEntry<T>[];
 	settings?: Array<T>;
+	hide?: boolean;
 }
 
 const defaultCommonlyUsedSettings: string[] = [
-	'files.autoSave',
 	'editor.fontSize',
+	'editor.formatOnSave',
+	'files.autoSave',
+	'editor.defaultFormatter',
 	'editor.fontFamily',
-	'editor.tabSize',
-	'editor.renderWhitespace',
-	'editor.cursorStyle',
-	'editor.multiCursorModifier',
-	'editor.insertSpaces',
 	'editor.wordWrap',
 	'files.exclude',
-	'files.associations',
-	'workbench.editor.enablePreview'
+	'workbench.colorTheme',
+	'editor.tabSize',
+	'editor.mouseWheelZoom',
+	'editor.formatOnPaste'
 ];
 
-export function getCommonlyUsedData(toggleData: ExtensionToggleData | undefined): ITOCEntry<string> {
+export function getCommonlyUsedData(settingGroups: ISettingsGroup[], commonlyUsed: string[] = defaultCommonlyUsedSettings): ITOCEntry<ISetting> {
+	const allSettings = new Map<string, ISetting>();
+	for (const group of settingGroups) {
+		for (const section of group.sections) {
+			for (const s of section.settings) {
+				allSettings.set(s.key, s);
+			}
+		}
+	}
+	const settings: ISetting[] = [];
+	for (const id of commonlyUsed) {
+		const setting = allSettings.get(id);
+		if (setting) {
+			settings.push(setting);
+		}
+	}
 	return {
 		id: 'commonlyUsed',
 		label: localize('commonlyUsed', "Commonly Used"),
-		settings: toggleData?.commonlyUsed ?? defaultCommonlyUsedSettings
+		settings
 	};
 }
 
@@ -234,12 +261,13 @@ export const tocData: ITOCEntry<string> = {
 				{
 					id: 'features/chat',
 					label: localize('chat', 'Chat'),
-					settings: ['chat.*', 'inlineChat.*']
+					settings: ['chat.*', 'inlineChat.*', 'mcp']
 				},
 				{
 					id: 'features/issueReporter',
 					label: localize('issueReporter', 'Issue Reporter'),
-					settings: ['issueReporter.*']
+					settings: ['issueReporter.*'],
+					hide: !isWeb
 				}
 			]
 		},
@@ -280,7 +308,8 @@ export const tocData: ITOCEntry<string> = {
 				{
 					id: 'application/other',
 					label: localize('other', "Other"),
-					settings: ['application.*']
+					settings: ['application.*'],
+					hide: isWindows
 				}
 			]
 		},
@@ -298,25 +327,3 @@ export const tocData: ITOCEntry<string> = {
 		}
 	]
 };
-
-export const knownAcronyms = new Set<string>();
-[
-	'css',
-	'html',
-	'scss',
-	'less',
-	'json',
-	'js',
-	'ts',
-	'ie',
-	'id',
-	'php',
-	'scm',
-].forEach(str => knownAcronyms.add(str));
-
-export const knownTermMappings = new Map<string, string>();
-knownTermMappings.set('power shell', 'PowerShell');
-knownTermMappings.set('powershell', 'PowerShell');
-knownTermMappings.set('javascript', 'JavaScript');
-knownTermMappings.set('typescript', 'TypeScript');
-knownTermMappings.set('github', 'GitHub');

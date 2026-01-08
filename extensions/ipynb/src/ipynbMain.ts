@@ -8,6 +8,7 @@ import { activate as keepNotebookModelStoreInSync } from './notebookModelStoreSy
 import { notebookImagePasteSetup } from './notebookImagePaste';
 import { AttachmentCleaner } from './notebookAttachmentCleaner';
 import { serializeNotebookToString } from './serializers';
+import { defaultNotebookFormat } from './constants';
 
 // From {nbformat.INotebookMetadata} in @jupyterlab/coreutils
 type NotebookMetadata = {
@@ -86,8 +87,8 @@ export function activate(context: vscode.ExtensionContext, serializer: vscode.No
 		data.metadata = {
 			cells: [],
 			metadata: {},
-			nbformat: 4,
-			nbformat_minor: 2
+			nbformat: defaultNotebookFormat.major,
+			nbformat_minor: defaultNotebookFormat.minor,
 		};
 		const doc = await vscode.workspace.openNotebookDocument('jupyter-notebook', data);
 		await vscode.window.showNotebookDocument(doc);

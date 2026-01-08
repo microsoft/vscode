@@ -10,13 +10,20 @@ export const enum TerminalSuggestCommandId {
 	SelectNextPageSuggestion = 'workbench.action.terminal.selectNextPageSuggestion',
 	AcceptSelectedSuggestion = 'workbench.action.terminal.acceptSelectedSuggestion',
 	AcceptSelectedSuggestionEnter = 'workbench.action.terminal.acceptSelectedSuggestionEnter',
+	ChangeSelectionModeNever = 'workbench.action.terminal.changeSelectionModeNever',
+	ChangeSelectionModePartial = 'workbench.action.terminal.changeSelectionModePartial',
+	ChangeSelectionModeAlways = 'workbench.action.terminal.changeSelectionModeAlways',
 	HideSuggestWidget = 'workbench.action.terminal.hideSuggestWidget',
-	ClearSuggestCache = 'workbench.action.terminal.clearSuggestCache',
-	RequestCompletions = 'workbench.action.terminal.requestCompletions',
+	HideSuggestWidgetAndNavigateHistory = 'workbench.action.terminal.hideSuggestWidgetAndNavigateHistory',
+	TriggerSuggest = 'workbench.action.terminal.triggerSuggest',
 	ResetWidgetSize = 'workbench.action.terminal.resetSuggestWidgetSize',
 	ToggleDetails = 'workbench.action.terminal.suggestToggleDetails',
 	ToggleDetailsFocus = 'workbench.action.terminal.suggestToggleDetailsFocus',
 	ConfigureSettings = 'workbench.action.terminal.configureSuggestSettings',
+	LearnMore = 'workbench.action.terminal.suggestLearnMore',
+	ResetDiscoverability = 'workbench.action.terminal.resetDiscoverability',
+	ShowOnType = 'workbench.action.terminal.showSuggestOnType',
+	DoNotShowOnType = 'workbench.action.terminal.doNotShowSuggestOnType',
 }
 
 export const defaultTerminalSuggestCommandsToSkipShell = [
@@ -27,8 +34,7 @@ export const defaultTerminalSuggestCommandsToSkipShell = [
 	TerminalSuggestCommandId.AcceptSelectedSuggestion,
 	TerminalSuggestCommandId.AcceptSelectedSuggestionEnter,
 	TerminalSuggestCommandId.HideSuggestWidget,
-	TerminalSuggestCommandId.ClearSuggestCache,
-	TerminalSuggestCommandId.RequestCompletions,
+	TerminalSuggestCommandId.TriggerSuggest,
 	TerminalSuggestCommandId.ToggleDetails,
 	TerminalSuggestCommandId.ToggleDetailsFocus,
 ];

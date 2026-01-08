@@ -254,6 +254,7 @@ export interface ICopyImageMessage {
 	readonly type: 'copyImage';
 	readonly outputId: string;
 	readonly altOutputId: string;
+	readonly textAlternates?: { mimeType: string; content: string }[];
 }
 
 export interface IFocusOutputMessage {
@@ -305,7 +306,7 @@ export interface IUpdateRenderersMessage {
 }
 
 export interface IUpdateDecorationsMessage {
-	readonly type: 'decorations';
+	readonly type: 'decorations' | 'markupDecorations';
 	readonly cellId: string;
 	readonly addedClassNames: readonly string[];
 	readonly removedClassNames: readonly string[];

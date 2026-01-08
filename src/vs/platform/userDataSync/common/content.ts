@@ -8,7 +8,7 @@ import { setProperty } from '../../../base/common/jsonEdit.js';
 import { FormattingOptions } from '../../../base/common/jsonFormatter.js';
 
 
-export function edit(content: string, originalPath: JSONPath, value: any, formattingOptions: FormattingOptions): string {
+export function edit(content: string, originalPath: JSONPath, value: unknown, formattingOptions: FormattingOptions): string {
 	const edit = setProperty(content, originalPath, value, formattingOptions)[0];
 	if (edit) {
 		content = content.substring(0, edit.offset) + edit.content + content.substring(edit.offset + edit.length);

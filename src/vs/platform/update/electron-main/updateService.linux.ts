@@ -32,13 +32,15 @@ export class LinuxUpdateService extends AbstractUpdateService {
 		return createUpdateURL(`linux-${process.arch}`, quality, this.productService);
 	}
 
-	protected doCheckForUpdates(context: any): void {
+	protected doCheckForUpdates(explicit: boolean): void {
 		if (!this.url) {
 			return;
 		}
 
-		this.setState(State.CheckingForUpdates(context));
-		this.requestService.request({ url: this.url }, CancellationToken.None)
+		const url = explicit ? this.url : `${this.url}?bg=true`;
+		this.setState(State.CheckingForUpdates(explicit));
+
+		this.requestService.request({ url }, CancellationToken.None)
 			.then<IUpdate | null>(asJson)
 			.then(update => {
 				if (!update || !update.url || !update.version || !update.productVersion) {
@@ -50,7 +52,7 @@ export class LinuxUpdateService extends AbstractUpdateService {
 			.then(undefined, err => {
 				this.logService.error(err);
 				// only show message when explicitly checking for updates
-				const message: string | undefined = !!context ? (err.message || err) : undefined;
+				const message: string | undefined = explicit ? (err.message || err) : undefined;
 				this.setState(State.Idle(UpdateType.Archive, message));
 			});
 	}

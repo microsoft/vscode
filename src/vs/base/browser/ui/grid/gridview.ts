@@ -145,7 +145,7 @@ export interface IViewDeserializer<T extends ISerializableView> {
 
 export interface ISerializedLeafNode {
 	type: 'leaf';
-	data: any;
+	data: unknown;
 	size: number;
 	visible?: boolean;
 	maximized?: boolean;
@@ -193,6 +193,7 @@ export interface GridBranchNode {
 export type GridNode = GridLeafNode | GridBranchNode;
 
 export function isGridBranchNode(node: GridNode): node is GridBranchNode {
+	// eslint-disable-next-line local/code-no-any-casts
 	return !!(node as any).children;
 }
 
@@ -1716,7 +1717,7 @@ export class GridView implements IDisposable {
 		const height = json.height;
 
 		const result = new GridView(options);
-		result._deserialize(json.root as ISerializedBranchNode, orientation, deserializer, height);
+		result._deserialize(json.root, orientation, deserializer, height);
 
 		return result;
 	}
@@ -1728,7 +1729,7 @@ export class GridView implements IDisposable {
 	private _deserializeNode(node: ISerializedNode, orientation: Orientation, deserializer: IViewDeserializer<ISerializableView>, orthogonalSize: number): Node {
 		let result: Node;
 		if (node.type === 'branch') {
-			const serializedChildren = node.data as ISerializedNode[];
+			const serializedChildren = node.data;
 			const children = serializedChildren.map(serializedChild => {
 				return {
 					node: this._deserializeNode(serializedChild, orthogonal(orientation), deserializer, node.size),

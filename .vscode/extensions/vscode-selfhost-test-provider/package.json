@@ -78,7 +78,7 @@
   },
   "devDependencies": {
     "@types/mocha": "^10.0.6",
-    "@types/node": "20.x"
+    "@types/node": "22.x"
   },
   "dependencies": {
     "@jridgewell/trace-mapping": "^0.3.25",

@@ -6,6 +6,7 @@
 import * as nls from '../../../nls.js';
 import { addDisposableListener, getActiveWindow } from '../../../base/browser/dom.js';
 import { createFastDomNode, type FastDomNode } from '../../../base/browser/fastDomNode.js';
+import { Color } from '../../../base/common/color.js';
 import { BugIndicatingError } from '../../../base/common/errors.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import type { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
@@ -22,15 +23,14 @@ import type { ViewContext } from '../../common/viewModel/viewContext.js';
 import { DecorationCssRuleExtractor } from './css/decorationCssRuleExtractor.js';
 import { Event } from '../../../base/common/event.js';
 import { EditorOption, type IEditorOptions } from '../../common/config/editorOptions.js';
-import { InlineDecorationType } from '../../common/viewModel.js';
 import { DecorationStyleCache } from './css/decorationStyleCache.js';
-import { ViewportRenderStrategy } from './renderStrategy/viewportRenderStrategy.js';
+import { InlineDecorationType } from '../../common/viewModel/inlineDecorations.js';
 
 export class ViewGpuContext extends Disposable {
 	/**
 	 * The hard cap for line columns rendered by the GPU renderer.
 	 */
-	readonly maxGpuCols = ViewportRenderStrategy.maxSupportedColumns;
+	readonly maxGpuCols = 2000;
 
 	readonly canvas: FastDomNode<HTMLCanvasElement>;
 	readonly ctx: GPUCanvasContext;
@@ -111,7 +111,7 @@ export class ViewGpuContext extends Disposable {
 			}).then(ref => {
 				ViewGpuContext.deviceSync = ref.object;
 				if (!ViewGpuContext._atlas) {
-					ViewGpuContext._atlas = this._instantiationService.createInstance(TextureAtlas, ref.object.limits.maxTextureDimension2D, undefined);
+					ViewGpuContext._atlas = this._instantiationService.createInstance(TextureAtlas, ref.object.limits.maxTextureDimension2D, undefined, ViewGpuContext.decorationStyleCache);
 				}
 				return ref.object;
 			});
@@ -142,7 +142,7 @@ export class ViewGpuContext extends Disposable {
 		}));
 		this.contentLeft = contentLeft;
 
-		this.rectangleRenderer = this._instantiationService.createInstance(RectangleRenderer, context, this.contentLeft, this.devicePixelRatio, this.canvas.domNode, this.ctx, ViewGpuContext.device);
+		this.rectangleRenderer = this._register(this._instantiationService.createInstance(RectangleRenderer, context, this.contentLeft, this.devicePixelRatio, this.canvas.domNode, this.ctx, ViewGpuContext.device));
 	}
 
 	/**
@@ -224,6 +224,7 @@ export class ViewGpuContext extends Disposable {
 					}
 					for (const r of rule.style) {
 						if (!supportsCssRule(r, rule.style)) {
+							// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 							problemRules.push(`${r}: ${rule.style[r as any]}`);
 							return false;
 						}
@@ -255,6 +256,11 @@ const gpuSupportedDecorationCssRules = [
 	'color',
 	'font-weight',
 	'opacity',
+	'text-decoration',
+	'text-decoration-color',
+	'text-decoration-line',
+	'text-decoration-style',
+	'text-decoration-thickness',
 ];
 
 function supportsCssRule(rule: string, style: CSSStyleDeclaration) {
@@ -263,6 +269,31 @@ function supportsCssRule(rule: string, style: CSSStyleDeclaration) {
 	}
 	// Check for values that aren't supported
 	switch (rule) {
+		case 'text-decoration':
+		case 'text-decoration-line': {
+			const value = style.getPropertyValue(rule);
+			// Only line-through is supported currently
+			return value === 'line-through';
+		}
+		case 'text-decoration-color': {
+			const value = style.getPropertyValue(rule);
+			// Support var(--something, initial/inherit) which falls back to currentcolor
+			if (/^var\(--[^,]+,\s*(?:initial|inherit)\)$/.test(value)) {
+				return true;
+			}
+			// Support parsed color values
+			return Color.Format.CSS.parse(value) !== null;
+		}
+		case 'text-decoration-style': {
+			const value = style.getPropertyValue(rule);
+			// Only 'initial' (solid) is supported
+			return value === 'initial';
+		}
+		case 'text-decoration-thickness': {
+			const value = style.getPropertyValue(rule);
+			// Only pixel values and 'initial' are supported
+			return value === 'initial' || /^\d+(\.\d+)?px$/.test(value);
+		}
 		default: return true;
 	}
 }

@@ -91,6 +91,7 @@ export class TerminalRecorder {
 			// No command restoration is needed when relaunching terminals
 			commands: {
 				isWindowsPty: false,
+				hasRichCommandDetection: false,
 				commands: [],
 				promptInputModel: undefined,
 			}

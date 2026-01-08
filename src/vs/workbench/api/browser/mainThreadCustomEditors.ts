@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { multibyteAwareBtoa } from '../../../base/browser/dom.js';
+import { multibyteAwareBtoa } from '../../../base/common/strings.js';
 import { CancelablePromise, createCancelablePromise } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
@@ -174,7 +174,10 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 					return;
 				}
 
-				webviewInput.webview.onDidDispose(() => {
+				const disposeSub = webviewInput.webview.onDidDispose(() => {
+					disposeSub.dispose();
+					inputDisposeSub.dispose();
+
 					// If the model is still dirty, make sure we have time to save it
 					if (modelRef.object.isDirty()) {
 						const sub = modelRef.object.onDidChangeDirty(() => {
@@ -189,6 +192,14 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 					modelRef.dispose();
 				});
 
+				// Also listen for when the input is disposed (e.g., during SaveAs when the webview is transferred to a new editor).
+				// In this case, webview.onDidDispose won't fire because the webview is reused.
+				const inputDisposeSub = webviewInput.onWillDispose(() => {
+					inputDisposeSub.dispose();
+					disposeSub.dispose();
+					modelRef.dispose();
+				});
+
 				if (capabilities.supportsMove) {
 					webviewInput.onMove(async (newResource: URI) => {
 						const oldModel = modelRef;
@@ -199,7 +210,8 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 				}
 
 				try {
-					await this._proxyCustomEditors.$resolveCustomEditor(this._uriIdentityService.asCanonicalUri(resource), handle, viewType, {
+					const actualResource = modelType === CustomEditorModelType.Text ? this._uriIdentityService.asCanonicalUri(resource) : resource;
+					await this._proxyCustomEditors.$resolveCustomEditor(actualResource, handle, viewType, {
 						title: webviewInput.getTitle(),
 						contentOptions: webviewInput.webview.contentOptions,
 						options: webviewInput.webview.options,
@@ -332,7 +344,7 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 	private _currentEditIndex: number = -1;
 	private _savePoint: number = -1;
 	private readonly _edits: Array<number> = [];
-	private _isDirtyFromContentChange = false;
+	private _isDirtyFromContentChange: boolean;
 
 	private _ongoingSave?: CancelablePromise<void>;
 
@@ -387,17 +399,16 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 
 		this._fromBackup = fromBackup;
 
+		// Normally means we're re-opening an untitled file (set this before registering the working copy
+		// so that dirty state is correct when first queried).
+		this._isDirtyFromContentChange = startDirty;
+
 		if (_editable) {
 			this._register(workingCopyService.registerWorkingCopy(this));
 
 			this._register(extensionService.onWillStop(e => {
 				e.veto(true, localize('vetoExtHostRestart', "An extension provided editor for '{0}' is still open that would close otherwise.", this.name));
 			}));
-		}
-
-		// Normally means we're re-opening an untitled file
-		if (startDirty) {
-			this._isDirtyFromContentChange = true;
 		}
 	}
 
@@ -645,7 +656,9 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 			// TODO: handle cancellation
 			await createCancelablePromise(token => this._proxy.$onSaveAs(this._editorResource, this.viewType, targetResource, token));
 			this.change(() => {
+				this._isDirtyFromContentChange = false;
 				this._savePoint = this._currentEditIndex;
+				this._fromBackup = false;
 			});
 			return true;
 		} else {
@@ -667,6 +680,8 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 		const backupMeta: CustomDocumentBackupData = {
 			viewType: this.viewType,
 			editorResource: this._editorResource,
+			customTitle: primaryEditor.getWebviewTitle(),
+			iconPath: primaryEditor.iconPath,
 			backupId: '',
 			extension: primaryEditor.extension ? {
 				id: primaryEditor.extension.id.value,

@@ -10,6 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { ITerminalCommand } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { CommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/commandDetectionCapability.js';
 import { writeP } from '../../../browser/terminalTestHelpers.js';
+import { TestXtermLogger } from '../../../../../../platform/terminal/test/common/terminalTestHelpers.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 
 type TestTerminalCommandMatch = Pick<ITerminalCommand, 'command' | 'cwd' | 'exitCode'> & { marker: { line: number } };
@@ -35,6 +36,7 @@ suite('CommandDetectionCapability', () => {
 		// Ensure timestamps are set and were captured recently
 		for (const command of capability.commands) {
 			ok(Math.abs(Date.now() - command.timestamp) < 2000);
+			ok(command.id, 'Expected command to have an assigned id');
 		}
 		deepStrictEqual(addEvents, capability.commands);
 		// Clear the commands to avoid re-asserting past commands
@@ -65,7 +67,7 @@ suite('CommandDetectionCapability', () => {
 	setup(async () => {
 		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 
-		xterm = store.add(new TerminalCtor({ allowProposedApi: true, cols: 80 }));
+		xterm = store.add(new TerminalCtor({ allowProposedApi: true, cols: 80, logger: TestXtermLogger }));
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		capability = store.add(instantiationService.createInstance(TestCommandDetectionCapability, xterm));
 		addEvents = [];

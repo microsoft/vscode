@@ -70,20 +70,15 @@ flakySuite('Native Modules (all platforms)', () => {
 		assert.ok(typeof nodePty.spawn === 'function', testErrorMessage('node-pty'));
 	});
 
-	test('open', async () => {
-		const { default: open } = await import('open');
-		assert.ok(typeof open === 'function', testErrorMessage('open'));
-	});
-
 	test('@vscode/spdlog', async () => {
 		const spdlog = await import('@vscode/spdlog');
 		assert.ok(typeof spdlog.createRotatingLogger === 'function', testErrorMessage('@vscode/spdlog'));
 		assert.ok(typeof spdlog.version === 'number', testErrorMessage('@vscode/spdlog'));
 	});
 
-	test('@parcel/watcher', async () => {
-		const parcelWatcher = await import('@parcel/watcher');
-		assert.ok(typeof parcelWatcher.subscribe === 'function', testErrorMessage('@parcel/watcher'));
+	test('@vscode/watcher', async () => {
+		const parcelWatcher = await import('@vscode/watcher');
+		assert.ok(typeof parcelWatcher.subscribe === 'function', testErrorMessage('@vscode/watcher'));
 	});
 
 	test('@vscode/deviceid', async () => {
@@ -120,6 +115,7 @@ flakySuite('Native Modules (all platforms)', () => {
 		const proxyAgent = await import('@vscode/proxy-agent');
 		// This call will load `@vscode/proxy-agent` which is a native module that we want to test on Windows
 		const windowsCerts = await proxyAgent.loadSystemCertificates({
+			loadSystemCertificatesFromNode: () => undefined,
 			log: {
 				trace: () => { },
 				debug: () => { },

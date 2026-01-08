@@ -3,53 +3,55 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getActiveWindow } from '../../../../base/browser/dom.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 import { distinct } from '../../../../base/common/arrays.js';
 import { Queue, RunOnceScheduler, raceTimeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { canceled } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { normalizeDriveLetter } from '../../../../base/common/labels.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, dispose } from '../../../../base/common/lifecycle.js';
+import { Lazy } from '../../../../base/common/lazy.js';
+import { Disposable, DisposableMap, DisposableStore, MutableDisposable, dispose } from '../../../../base/common/lifecycle.js';
 import { mixin } from '../../../../base/common/objects.js';
 import * as platform from '../../../../base/common/platform.js';
 import * as resources from '../../../../base/common/resources.js';
 import Severity from '../../../../base/common/severity.js';
+import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { IPosition, Position } from '../../../../editor/common/core/position.js';
 import { localize } from '../../../../nls.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { FocusMode } from '../../../../platform/native/common/native.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { ICustomEndpointTelemetryService, ITelemetryService, TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { ViewContainerLocation } from '../../../common/views.js';
-import { RawDebugSession } from './rawDebugSession.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
+import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
+import { LiveTestResult } from '../../testing/common/testResult.js';
+import { ITestResultService } from '../../testing/common/testResultService.js';
+import { ITestService } from '../../testing/common/testService.js';
 import { AdapterEndEvent, IBreakpoint, IConfig, IDataBreakpoint, IDataBreakpointInfoResponse, IDebugConfiguration, IDebugLocationReferenced, IDebugService, IDebugSession, IDebugSessionOptions, IDebugger, IExceptionBreakpoint, IExceptionInfo, IFunctionBreakpoint, IInstructionBreakpoint, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IReplElement, IStackFrame, IThread, LoadedSourceEvent, State, VIEWLET_ID, isFrameDeemphasized } from '../common/debug.js';
 import { DebugCompoundRoot } from '../common/debugCompoundRoot.js';
 import { DebugModel, ExpressionContainer, MemoryRegion, Thread } from '../common/debugModel.js';
 import { Source } from '../common/debugSource.js';
 import { filterExceptionsFromTelemetry } from '../common/debugUtils.js';
 import { INewReplElementData, ReplModel } from '../common/replModel.js';
-import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
-import { IHostService } from '../../../services/host/browser/host.js';
-import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
-import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
-import { getActiveWindow } from '../../../../base/browser/dom.js';
-import { mainWindow } from '../../../../base/browser/window.js';
-import { isDefined } from '../../../../base/common/types.js';
-import { ITestService } from '../../testing/common/testService.js';
-import { ITestResultService } from '../../testing/common/testResultService.js';
-import { LiveTestResult } from '../../testing/common/testResult.js';
-import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { RawDebugSession } from './rawDebugSession.js';
 
 const TRIGGERED_BREAKPOINT_MAX_DELAY = 1500;
 
-export class DebugSession implements IDebugSession, IDisposable {
+export class DebugSession implements IDebugSession {
 	parentSession: IDebugSession | undefined;
 	rememberedCapabilities?: DebugProtocol.Capabilities;
 
@@ -64,7 +66,13 @@ export class DebugSession implements IDebugSession, IDisposable {
 	private cancellationMap = new Map<number, CancellationTokenSource[]>();
 	private readonly rawListeners = new DisposableStore();
 	private readonly globalDisposables = new DisposableStore();
-	private fetchThreadsScheduler: RunOnceScheduler | undefined;
+	private fetchThreadsScheduler = new Lazy(() => {
+		const inst = new RunOnceScheduler(() => {
+			this.fetchThreads();
+		}, 100);
+		this.rawListeners.add(inst);
+		return inst;
+	});
 	private passFocusScheduler: RunOnceScheduler;
 	private lastContinuedThreadId: number | undefined;
 	private repl: ReplModel;
@@ -403,6 +411,16 @@ export class DebugSession implements IDebugSession, IDisposable {
 	}
 
 	/**
+	 * Terminate any linked test run.
+	 */
+	cancelCorrelatedTestRun() {
+		if (this.correlatedTestRun && !this.correlatedTestRun.completedAt) {
+			this.didTerminateTestRun = true;
+			this.testService.cancelTestRun(this.correlatedTestRun.id);
+		}
+	}
+
+	/**
 	 * terminate the current debug adapter session
 	 */
 	async terminate(restart = false): Promise<void> {
@@ -415,8 +433,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 		if (this._options.lifecycleManagedByParent && this.parentSession) {
 			await this.parentSession.terminate(restart);
 		} else if (this.correlatedTestRun && !this.correlatedTestRun.completedAt && !this.didTerminateTestRun) {
-			this.didTerminateTestRun = true;
-			this.testService.cancelTestRun(this.correlatedTestRun.id);
+			this.cancelCorrelatedTestRun();
 		} else if (this.raw) {
 			if (this.raw.capabilities.supportsTerminateRequest && this._configuration.resolved.request === 'launch') {
 				await this.raw.terminate(restart);
@@ -556,8 +573,8 @@ export class DebugSession implements IDebugSession, IDisposable {
 		return this._dataBreakpointInfo({ name: address, bytes, asAddress: true });
 	}
 
-	dataBreakpointInfo(name: string, variablesReference?: number): Promise<{ dataId: string | null; description: string; canPersist?: boolean } | undefined> {
-		return this._dataBreakpointInfo({ name, variablesReference });
+	dataBreakpointInfo(name: string, variablesReference?: number, frameId?: number): Promise<{ dataId: string | null; description: string; canPersist?: boolean } | undefined> {
+		return this._dataBreakpointInfo({ name, variablesReference, frameId });
 	}
 
 	private async _dataBreakpointInfo(args: DebugProtocol.DataBreakpointInfoArguments): Promise<{ dataId: string | null; description: string; canPersist?: boolean } | undefined> {
@@ -1088,15 +1105,8 @@ export class DebugSession implements IDebugSession, IDisposable {
 		this.rawListeners.add(this.raw.onDidThread(event => {
 			statusQueue.cancel([event.body.threadId]);
 			if (event.body.reason === 'started') {
-				// debounce to reduce threadsRequest frequency and improve performance
-				if (!this.fetchThreadsScheduler) {
-					this.fetchThreadsScheduler = new RunOnceScheduler(() => {
-						this.fetchThreads();
-					}, 100);
-					this.rawListeners.add(this.fetchThreadsScheduler);
-				}
-				if (!this.fetchThreadsScheduler.isScheduled()) {
-					this.fetchThreadsScheduler.schedule();
+				if (!this.fetchThreadsScheduler.value.isScheduled()) {
+					this.fetchThreadsScheduler.value.schedule();
 				}
 			} else if (event.body.reason === 'exited') {
 				this.model.clearThreads(this.getId(), true, event.body.threadId);
@@ -1119,25 +1129,38 @@ export class DebugSession implements IDebugSession, IDisposable {
 			}
 		}));
 
-		this.rawListeners.add(this.raw.onDidContinued(event => {
+		this.rawListeners.add(this.raw.onDidContinued(async event => {
 			const allThreads = event.body.allThreadsContinued !== false;
 
-			statusQueue.cancel(allThreads ? undefined : [event.body.threadId]);
+			let affectedThreads: number[] | Promise<number[]>;
+			if (!allThreads) {
+				affectedThreads = [event.body.threadId];
+				if (this.threadIds.includes(event.body.threadId)) {
+					affectedThreads = [event.body.threadId];
+				} else {
+					this.fetchThreadsScheduler.rawValue?.cancel();
+					affectedThreads = this.fetchThreads().then(() => [event.body.threadId]);
+				}
+			} else if (this.fetchThreadsScheduler.value.isScheduled()) {
+				this.fetchThreadsScheduler.value.cancel();
+				affectedThreads = this.fetchThreads().then(() => this.threadIds);
+			} else {
+				affectedThreads = this.threadIds;
+			}
 
-			const threadId = allThreads ? undefined : event.body.threadId;
-			if (typeof threadId === 'number') {
+			statusQueue.cancel(allThreads ? undefined : [event.body.threadId]);
+			await statusQueue.run(affectedThreads, threadId => {
 				this.stoppedDetails = this.stoppedDetails.filter(sd => sd.threadId !== threadId);
 				const tokens = this.cancellationMap.get(threadId);
 				this.cancellationMap.delete(threadId);
 				tokens?.forEach(t => t.dispose(true));
-			} else {
-				this.stoppedDetails = [];
-				this.cancelAllRequests();
-			}
-			this.lastContinuedThreadId = threadId;
+				this.model.clearThreads(this.getId(), false, threadId);
+				return Promise.resolve();
+			});
+
 			// We need to pass focus to other sessions / threads with a timeout in case a quick stop event occurs #130321
+			this.lastContinuedThreadId = allThreads ? undefined : event.body.threadId;
 			this.passFocusScheduler.schedule();
-			this.model.clearThreads(this.getId(), false, threadId);
 			this._onDidChangeState.fire();
 		}));
 
@@ -1167,6 +1190,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 
 					resolved.forEach((child) => {
 						// Since we can not display multiple trees in a row, we are displaying these variables one after the other (ignoring their names)
+						// eslint-disable-next-line local/code-no-any-casts
 						(<any>child).name = null;
 						this.appendToRepl({ output: '', expression: child, sev: outputSeverity, source }, event.body.category === 'important');
 					});
@@ -1306,9 +1330,15 @@ export class DebugSession implements IDebugSession, IDisposable {
 				this.cancelAllRequests();
 				this.model.clearThreads(this.getId(), true);
 
-				const details = this.stoppedDetails;
-				this.stoppedDetails.length = 1;
-				await Promise.all(details.map(d => this.handleStop(d)));
+				const details = this.stoppedDetails.slice();
+				this.stoppedDetails.length = 0;
+				if (details.length) {
+					await Promise.all(details.map(d => this.handleStop(d)));
+				} else if (!this.fetchThreadsScheduler.value.isScheduled()) {
+					// threads are fetched as a side-effect of processing the stopped
+					// event(s), but if there are none, schedule a thread update manually (#282777)
+					this.fetchThreadsScheduler.value.schedule();
+				}
 			}
 
 			const viewModel = this.debugService.getViewModel();
@@ -1366,7 +1396,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 								if (this.configurationService.getValue<IDebugConfiguration>('debug').focusWindowOnBreak && !this.workbenchEnvironmentService.extensionTestsLocationURI) {
 									const activeWindow = getActiveWindow();
 									if (!activeWindow.document.hasFocus()) {
-										await this.hostService.focus(mainWindow, { force: true /* Application may not be active */ });
+										await this.hostService.focus(mainWindow, { mode: FocusMode.Force /* Application may not be active */ });
 									}
 								}
 							}
@@ -1465,11 +1495,13 @@ export class DebugSession implements IDebugSession, IDisposable {
 			this.raw.dispose();
 			this.raw = undefined;
 		}
-		this.fetchThreadsScheduler?.dispose();
-		this.fetchThreadsScheduler = undefined;
 		this.passFocusScheduler.cancel();
 		this.passFocusScheduler.dispose();
 		this.model.clearThreads(this.getId(), true);
+		this.sources.clear();
+		this.threads.clear();
+		this.threadIds = [];
+		this.stoppedDetails = [];
 		this._onDidChangeState.fire();
 	}
 
@@ -1477,6 +1509,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 		this.cancelAllRequests();
 		this.rawListeners.dispose();
 		this.globalDisposables.dispose();
+		this._waitToResume = undefined;
 	}
 
 	//---- sources
@@ -1588,7 +1621,7 @@ export class ThreadStatusScheduler extends Disposable {
 	 * Runs the operation.
 	 * If thread is undefined it affects all threads.
 	 */
-	public async run(threadIdsP: Promise<number[]>, operation: (threadId: number, ct: CancellationToken) => Promise<unknown>) {
+	public async run(threadIdsP: Promise<number[]> | number[], operation: (threadId: number, ct: CancellationToken) => Promise<unknown>) {
 		const cancelledWhileLookingUpThreads = new Set<number | undefined>();
 		this.pendingCancellations.push(cancelledWhileLookingUpThreads);
 		const threadIds = await threadIdsP;

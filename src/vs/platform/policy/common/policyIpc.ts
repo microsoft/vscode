@@ -6,8 +6,10 @@
 import { IStringDictionary } from '../../../base/common/collections.js';
 import { Event } from '../../../base/common/event.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { PolicyName } from '../../../base/common/policy.js';
 import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
-import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicyName, PolicyValue } from './policy.js';
+import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicyValue } from './policy.js';
+
 
 export class PolicyChannel implements IServerChannel {
 
@@ -72,5 +74,4 @@ export class PolicyChannelClient extends AbstractPolicyService implements IPolic
 			this.policies.set(name, result[name]);
 		}
 	}
-
 }

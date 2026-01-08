@@ -3,38 +3,51 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from '../../../../nls.js';
 import { createHotClass } from '../../../../base/common/hotReloadHelpers.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorunWithStore, derived } from '../../../../base/common/observable.js';
-import { debouncedObservable } from '../../../../base/common/observableInternal/utils.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { autorunWithStore, debouncedObservable, derived, observableFromEvent } from '../../../../base/common/observable.js';
 import Severity from '../../../../base/common/severity.js';
-import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { InlineCompletionsController } from '../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
+import { localize } from '../../../../nls.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ILanguageStatusService } from '../../../services/languageStatus/common/languageStatusService.js';
 
-export class InlineCompletionLanguageStatusBarContribution extends Disposable {
-	public static readonly hot = createHotClass(InlineCompletionLanguageStatusBarContribution);
+export class InlineCompletionLanguageStatusBarContribution extends Disposable implements IWorkbenchContribution {
+	public static readonly hot = createHotClass(this);
 
-	public static Id = 'vs.editor.contrib.inlineCompletionLanguageStatusBarContribution';
+	public static Id = 'vs.contrib.inlineCompletionLanguageStatusBarContribution';
+	public static readonly languageStatusBarDisposables = new Set<DisposableStore>();
 
-	private readonly _c = InlineCompletionsController.get(this._editor);
-
-	private readonly _state = derived(this, reader => {
-		const model = this._c?.model.read(reader);
-		if (!model) { return undefined; }
-
-		return {
-			model,
-			status: debouncedObservable(model.status, 300),
-		};
-	});
+	private _activeEditor;
+	private _state;
 
 	constructor(
-		private readonly _editor: ICodeEditor,
 		@ILanguageStatusService private readonly _languageStatusService: ILanguageStatusService,
+		@IEditorService private readonly _editorService: IEditorService,
 	) {
 		super();
+
+
+		this._activeEditor = observableFromEvent(this, _editorService.onDidActiveEditorChange, () => this._editorService.activeTextEditorControl);
+		this._state = derived(this, reader => {
+			const editor = this._activeEditor.read(reader);
+			if (!editor || !isCodeEditor(editor)) {
+				return undefined;
+			}
+
+			const c = InlineCompletionsController.get(editor);
+			const model = c?.model.read(reader);
+			if (!model) {
+				return undefined;
+			}
+
+			return {
+				model,
+				status: debouncedObservable(model.status, 300),
+			};
+		});
 
 		this._register(autorunWithStore((reader, store) => {
 			const state = this._state.read(reader);
@@ -55,7 +68,7 @@ export class InlineCompletionLanguageStatusBarContribution extends Disposable {
 				accessibilityInfo: undefined,
 				busy: statusMap[status].loading,
 				command: undefined,
-				detail: localize('inlineSuggestions', "Inline Suggestions"),
+				detail: localize('inlineSuggestionsSmall', "Inline suggestions"),
 				id: 'inlineSuggestions',
 				label: { value: statusMap[status].label, shortValue: statusMap[status].shortLabel },
 				name: localize('inlineSuggestions', "Inline Suggestions"),

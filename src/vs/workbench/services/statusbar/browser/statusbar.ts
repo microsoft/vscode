@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeColor } from '../../../../base/common/themables.js';
 import { Command } from '../../../../editor/common/languages.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
-import { IManagedHoverContentOrFactory } from '../../../../base/browser/ui/hover/hover.js';
+import { IManagedHoverTooltipHTMLElement, IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
 import { ColorIdentifier } from '../../../../platform/theme/common/colorRegistry.js';
 import { IAuxiliaryStatusbarPart, IStatusbarEntryContainer } from '../../../browser/parts/statusbar/statusbarPart.js';
 
@@ -26,7 +26,7 @@ export interface IStatusbarService extends IStatusbarEntryContainer {
 	/**
 	 * Creates a new auxililary status bar part in the provided container.
 	 */
-	createAuxiliaryStatusbarPart(container: HTMLElement): IAuxiliaryStatusbarPart;
+	createAuxiliaryStatusbarPart(container: HTMLElement, instantiationService: IInstantiationService): IAuxiliaryStatusbarPart;
 
 	/**
 	 * Create a scoped status bar service that only operates on the provided
@@ -113,10 +113,10 @@ export interface IStatusbarStyleOverride {
 	readonly border?: ColorIdentifier;
 }
 
-export type StatusbarEntryKind = 'standard' | 'warning' | 'error' | 'prominent' | 'remote' | 'offline' | 'copilot';
-export const StatusbarEntryKinds: StatusbarEntryKind[] = ['standard', 'warning', 'error', 'prominent', 'remote', 'offline', 'copilot'];
+export type StatusbarEntryKind = 'standard' | 'warning' | 'error' | 'prominent' | 'remote' | 'offline';
+export const StatusbarEntryKinds: StatusbarEntryKind[] = ['standard', 'warning', 'error', 'prominent', 'remote', 'offline'];
 
-export type TooltipContent = IMarkdownString | IManagedHoverContentOrFactory;
+export type TooltipContent = string | IMarkdownString | HTMLElement | IManagedHoverTooltipMarkdownString | IManagedHoverTooltipHTMLElement;
 
 export interface ITooltipWithCommands {
 	readonly content: TooltipContent;
@@ -214,6 +214,12 @@ export interface IStatusbarEntry {
 	 * more actions to manage the extension from the status bar entry.
 	 */
 	readonly extensionId?: string;
+
+	/**
+	 * Allows to add content with custom rendering to the status bar entry.
+	 * If possible, use `text` instead.
+	*/
+	readonly content?: HTMLElement;
 }
 
 export interface IStatusbarEntryAccessor extends IDisposable {

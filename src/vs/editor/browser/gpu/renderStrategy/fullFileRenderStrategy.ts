@@ -10,7 +10,7 @@ import { CursorColumns } from '../../../common/core/cursorColumns.js';
 import type { IViewLineTokens } from '../../../common/tokens/lineTokens.js';
 import { ViewEventType, type ViewConfigurationChangedEvent, type ViewDecorationsChangedEvent, type ViewLineMappingChangedEvent, type ViewLinesChangedEvent, type ViewLinesDeletedEvent, type ViewLinesInsertedEvent, type ViewScrollChangedEvent, type ViewThemeChangedEvent, type ViewTokensChangedEvent, type ViewZonesChangedEvent } from '../../../common/viewEvents.js';
 import type { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.js';
-import type { InlineDecoration, ViewLineRenderingData } from '../../../common/viewModel.js';
+import type { ViewLineRenderingData } from '../../../common/viewModel.js';
 import type { ViewContext } from '../../../common/viewModel/viewContext.js';
 import type { ViewLineOptions } from '../../viewParts/viewLines/viewLineOptions.js';
 import type { ITextureAtlasPageGlyph } from '../atlas/atlas.js';
@@ -22,6 +22,7 @@ import { quadVertices } from '../gpuUtils.js';
 import { GlyphRasterizer } from '../raster/glyphRasterizer.js';
 import { ViewGpuContext } from '../viewGpuContext.js';
 import { BaseRenderStrategy } from './baseRenderStrategy.js';
+import { InlineDecoration } from '../../../common/viewModel/inlineDecorations.js';
 
 const enum Constants {
 	IndicesPerCell = 6,
@@ -174,7 +175,7 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 		const dpr = getActiveWindow().devicePixelRatio;
 		this._scrollOffsetValueBuffer[0] = (e?.scrollLeft ?? this._context.viewLayout.getCurrentScrollLeft()) * dpr;
 		this._scrollOffsetValueBuffer[1] = (e?.scrollTop ?? this._context.viewLayout.getCurrentScrollTop()) * dpr;
-		this._device.queue.writeBuffer(this._scrollOffsetBindBuffer, 0, this._scrollOffsetValueBuffer);
+		this._device.queue.writeBuffer(this._scrollOffsetBindBuffer, 0, this._scrollOffsetValueBuffer as Float32Array<ArrayBuffer>);
 		return true;
 	}
 
@@ -256,6 +257,9 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 		let decorationStyleSetBold: boolean | undefined;
 		let decorationStyleSetColor: number | undefined;
 		let decorationStyleSetOpacity: number | undefined;
+		let decorationStyleSetStrikethrough: boolean | undefined;
+		let decorationStyleSetStrikethroughThickness: number | undefined;
+		let decorationStyleSetStrikethroughColor: number | undefined;
 
 		let lineData: ViewLineRenderingData;
 		let decoration: InlineDecoration;
@@ -374,6 +378,9 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 					decorationStyleSetColor = undefined;
 					decorationStyleSetBold = undefined;
 					decorationStyleSetOpacity = undefined;
+					decorationStyleSetStrikethrough = undefined;
+					decorationStyleSetStrikethroughThickness = undefined;
+					decorationStyleSetStrikethroughColor = undefined;
 
 					// Apply supported inline decoration styles to the cell metadata
 					for (decoration of lineData.inlineDecorations) {
@@ -418,6 +425,36 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 										decorationStyleSetOpacity = parsedValue;
 										break;
 									}
+									case 'text-decoration':
+									case 'text-decoration-line': {
+										if (value === 'line-through') {
+											decorationStyleSetStrikethrough = true;
+										}
+										break;
+									}
+									case 'text-decoration-thickness': {
+										const match = value.match(/^(\d+(?:\.\d+)?)px$/);
+										if (match) {
+											decorationStyleSetStrikethroughThickness = parseFloat(match[1]);
+										}
+										break;
+									}
+									case 'text-decoration-color': {
+										let colorValue = value;
+										const varMatch = value.match(/^var\((--[^,]+),\s*(?:initial|inherit)\)$/);
+										if (varMatch) {
+											colorValue = ViewGpuContext.decorationCssRuleExtractor.resolveCssVariable(this._viewGpuContext.canvas.domNode, varMatch[1]);
+										}
+										const parsedColor = Color.Format.CSS.parse(colorValue);
+										if (parsedColor) {
+											decorationStyleSetStrikethroughColor = parsedColor.toNumber32Bit();
+										}
+										break;
+									}
+									case 'text-decoration-style': {
+										// These are validated in canRender and use default behavior
+										break;
+									}
 									default: throw new BugIndicatingError('Unexpected inline decoration style');
 								}
 							}
@@ -442,7 +479,7 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 						continue;
 					}
 
-					const decorationStyleSetId = ViewGpuContext.decorationStyleCache.getOrCreateEntry(decorationStyleSetColor, decorationStyleSetBold, decorationStyleSetOpacity);
+					const decorationStyleSetId = ViewGpuContext.decorationStyleCache.getOrCreateEntry(decorationStyleSetColor, decorationStyleSetBold, decorationStyleSetOpacity, decorationStyleSetStrikethrough, decorationStyleSetStrikethroughThickness, decorationStyleSetStrikethroughColor);
 					glyph = this._viewGpuContext.atlas.getGlyph(this.glyphRasterizer, chars, tokenMetadata, decorationStyleSetId, absoluteOffsetX);
 
 					absoluteOffsetY = Math.round(

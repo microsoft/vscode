@@ -8,8 +8,7 @@ import * as cssJs from '../../cssValue.js';
 import { DomEmitter } from '../../event.js';
 import { renderFormattedText, renderText } from '../../formattedTextRenderer.js';
 import { IHistoryNavigationWidget } from '../../history.js';
-import { MarkdownRenderOptions } from '../../markdownRenderer.js';
-import { ActionBar } from '../actionbar/actionbar.js';
+import { ActionBar, IActionViewItemProvider } from '../actionbar/actionbar.js';
 import * as aria from '../aria/aria.js';
 import { AnchorAlignment, IContextViewProvider } from '../contextview/contextview.js';
 import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
@@ -38,6 +37,7 @@ export interface IInputOptions {
 	readonly flexibleWidth?: boolean;
 	readonly flexibleMaxHeight?: number;
 	readonly actions?: ReadonlyArray<IAction>;
+	readonly actionViewItemProvider?: IActionViewItemProvider;
 	readonly inputBoxStyles: IInputBoxStyles;
 	readonly history?: IHistory<string>;
 }
@@ -118,10 +118,10 @@ export class InputBox extends Widget {
 	private readonly hover: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 
 	private _onDidChange = this._register(new Emitter<string>());
-	public readonly onDidChange: Event<string> = this._onDidChange.event;
+	public get onDidChange(): Event<string> { return this._onDidChange.event; }
 
 	private _onDidHeightChange = this._register(new Emitter<number>());
-	public readonly onDidHeightChange: Event<number> = this._onDidHeightChange.event;
+	public get onDidHeightChange(): Event<number> { return this._onDidHeightChange.event; }
 
 	constructor(container: HTMLElement, contextViewProvider: IContextViewProvider | undefined, options: IInputOptions) {
 		super();
@@ -207,11 +207,27 @@ export class InputBox extends Widget {
 
 		// Support actions
 		if (this.options.actions) {
-			this.actionbar = this._register(new ActionBar(this.element));
+			this.actionbar = this._register(new ActionBar(this.element, {
+				actionViewItemProvider: this.options.actionViewItemProvider
+			}));
 			this.actionbar.push(this.options.actions, { icon: true, label: false });
 		}
 
 		this.applyStyles();
+	}
+
+	public setActions(actions: ReadonlyArray<IAction> | undefined, actionViewItemProvider?: IActionViewItemProvider): void {
+		if (this.actionbar) {
+			this.actionbar.clear();
+			if (actions) {
+				this.actionbar.push(actions, { icon: true, label: false });
+			}
+		} else if (actions) {
+			this.actionbar = this._register(new ActionBar(this.element, {
+				actionViewItemProvider: actionViewItemProvider ?? this.options.actionViewItemProvider
+			}));
+			this.actionbar.push(actions, { icon: true, label: false });
+		}
 	}
 
 	protected onBlur(): void {
@@ -485,14 +501,14 @@ export class InputBox extends Widget {
 				div = dom.append(container, $('.monaco-inputbox-container'));
 				layout();
 
-				const renderOptions: MarkdownRenderOptions = {
-					inline: true,
-					className: 'monaco-inputbox-message'
-				};
 
-				const spanElement = (this.message.formatContent
-					? renderFormattedText(this.message.content!, renderOptions)
-					: renderText(this.message.content!, renderOptions));
+				const spanElement = $('span.monaco-inputbox-message');
+				if (this.message.formatContent) {
+					renderFormattedText(this.message.content!, undefined, spanElement);
+				} else {
+					renderText(this.message.content!, undefined, spanElement);
+				}
+
 				spanElement.classList.add(this.classForType(this.message.type));
 
 				const styles = this.stylesForType(this.message.type);
@@ -535,6 +551,12 @@ export class InputBox extends Widget {
 		}
 
 		this.state = 'idle';
+	}
+
+	private layoutMessage(): void {
+		if (this.state === 'open' && this.contextViewProvider) {
+			this.contextViewProvider.layout();
+		}
 	}
 
 	private onValueChange(): void {
@@ -587,6 +609,7 @@ export class InputBox extends Widget {
 
 	public layout(): void {
 		if (!this.mirror) {
+			this.layoutMessage();
 			return;
 		}
 
@@ -598,6 +621,8 @@ export class InputBox extends Widget {
 			this.input.style.height = this.cachedHeight + 'px';
 			this._onDidHeightChange.fire(this.cachedContentHeight);
 		}
+
+		this.layoutMessage();
 	}
 
 	public insertAtCursor(text: string): void {
@@ -650,7 +675,7 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 		}, ' ({0} for history)', `\u21C5`);
 
 		super(container, contextViewProvider, options);
-		this.history = new HistoryNavigator<string>(options.history, 100);
+		this.history = this._register(new HistoryNavigator<string>(options.history, 100));
 
 		// Function to append the history suffix to the placeholder if necessary
 		const addSuffix = () => {

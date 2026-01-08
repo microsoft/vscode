@@ -574,7 +574,7 @@ https://github.com/marshallpierce/rust-base64
 
 The MIT License (MIT)
 
-Copyright (c) 2015 Alice Maz
+Copyright (c) 2025 Alice Maz
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -693,6 +693,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [`collectable`]: ./collectable
 [`cpufeatures`]: ./cpufeatures
 [`dbl`]: ./dbl
+[`digest-io`]: ./digest-io
 [`hex-literal`]: ./hex-literal
 [`inout`]: ./inout
 [`opaque-debug`]: ./opaque-debug
@@ -737,6 +738,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [`collectable`]: ./collectable
 [`cpufeatures`]: ./cpufeatures
 [`dbl`]: ./dbl
+[`digest-io`]: ./digest-io
 [`hex-literal`]: ./hex-literal
 [`inout`]: ./inout
 [`opaque-debug`]: ./opaque-debug
@@ -907,7 +909,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 cfg-if 1.0.0 - MIT/Apache-2.0
-https://github.com/alexcrichton/cfg-if
+https://github.com/rust-lang/cfg-if
 
 Copyright (c) 2014 Alex Crichton
 
@@ -1514,6 +1516,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [`collectable`]: ./collectable
 [`cpufeatures`]: ./cpufeatures
 [`dbl`]: ./dbl
+[`digest-io`]: ./digest-io
 [`hex-literal`]: ./hex-literal
 [`inout`]: ./inout
 [`opaque-debug`]: ./opaque-debug
@@ -1555,7 +1558,7 @@ SOFTWARE.
 
 ---------------------------------------------------------
 
-crossbeam-channel 0.5.13 - MIT OR Apache-2.0
+crossbeam-channel 0.5.15 - MIT OR Apache-2.0
 https://github.com/crossbeam-rs/crossbeam
 
 The MIT License (MIT)
@@ -2738,7 +2741,7 @@ SOFTWARE.
 ---------------------------------------------------------
 
 gethostname 0.4.3 - Apache-2.0
-https://github.com/swsnr/gethostname.rs
+https://codeberg.org/swsnr/gethostname.rs.git
 
 Apache License
                         Version 2.0, January 2004
@@ -2949,7 +2952,7 @@ getrandom 0.1.16 - MIT OR Apache-2.0
 getrandom 0.2.15 - MIT OR Apache-2.0
 https://github.com/rust-random/getrandom
 
-Copyright (c) 2018-2024 The rust-random Project Developers
+Copyright (c) 2018-2025 The rust-random Project Developers
 Copyright (c) 2014 The Rust Project Developers
 
 Permission is hereby granted, free of charge, to any
@@ -3198,6 +3201,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [`collectable`]: ./collectable
 [`cpufeatures`]: ./cpufeatures
 [`dbl`]: ./dbl
+[`digest-io`]: ./digest-io
 [`hex-literal`]: ./hex-literal
 [`inout`]: ./inout
 [`opaque-debug`]: ./opaque-debug
@@ -3232,7 +3236,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [license-image]: https://img.shields.io/badge/license-Apache2.0/MIT-blue.svg
 [deps-image]: https://deps.rs/repo/github/RustCrypto/MACs/status.svg
 [deps-link]: https://deps.rs/repo/github/RustCrypto/MACs
-[msrv-1.85]: https://img.shields.io/badge/rustc-1.85.0+-blue.svg
+[msrv-1.85]: https://img.shields.io/badge/rustc-1.85+-blue.svg
 
 [//]: # (crates)
 
@@ -4181,6 +4185,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [`collectable`]: ./collectable
 [`cpufeatures`]: ./cpufeatures
 [`dbl`]: ./dbl
+[`digest-io`]: ./digest-io
 [`hex-literal`]: ./hex-literal
 [`inout`]: ./inout
 [`opaque-debug`]: ./opaque-debug
@@ -4385,7 +4390,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 js-sys 0.3.69 - MIT OR Apache-2.0
-https://github.com/rustwasm/wasm-bindgen/tree/master/crates/js-sys
+https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/js-sys
 
 Copyright (c) 2014 Alex Crichton
 
@@ -4417,7 +4422,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 keyring 2.3.3 - MIT OR Apache-2.0
-https://github.com/hwchen/keyring-rs
+https://github.com/open-source-cooperative/keyring-rs
 
 Copyright (c) 2016 keyring Developers
 
@@ -4764,7 +4769,7 @@ The following two notices apply to every file of the project.
 ## The Apache License
 
 ```
-Copyright 2015–2024 The md5 Developers
+Copyright 2015–2025 The md5 Developers
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use
 this file except in compliance with the License. You may obtain a copy of the
@@ -4781,7 +4786,7 @@ specific language governing permissions and limitations under the License.
 ## The MIT License
 
 ```
-Copyright 2015–2024 The md5 Developers
+Copyright 2015–2025 The md5 Developers
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -4890,8 +4895,7 @@ THE SOFTWARE.
 miniz_oxide 0.7.3 - MIT OR Zlib OR Apache-2.0
 https://github.com/Frommi/miniz_oxide/tree/master/miniz_oxide
 
-This library (excluding the miniz C code used for tests) is licensed under the MIT license. The library is based on the miniz C library, of which the parts used are dual-licensed under the [MIT license](https://github.com/Frommi/miniz_oxide/blob/master/miniz/miniz.c#L1) and also the [unlicense](https://github.com/Frommi/miniz_oxide/blob/master/miniz/miniz.c#L577).
-The parts of miniz that are not covered by the unlicense is [some Zip64 code](https://github.com/richgel999/miniz/commit/224d207ce8fffb908e156d27478be3afb5d83e6a#diff-edc0e9ccfae3b5324b85b3ec0a53dc74) which is only MIT licensed. This and other Zip functionality in miniz is not part of the miniz_oxidde and miniz_oxide_c_api rust libraries.
+This library (excluding the original miniz C code used for tests) is dual licensed under the MIT license and Apache 2.0 license. The library is based on the [miniz](https://github.com/richgel999/miniz) C library by Rich Geldreich which is released under the MIT license.
 ---------------------------------------------------------
 
 ---------------------------------------------------------
@@ -5399,8 +5403,8 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-openssl 0.10.70 - Apache-2.0
-https://github.com/sfackler/rust-openssl
+openssl 0.10.72 - Apache-2.0
+https://github.com/rust-openssl/rust-openssl
 
 Copyright 2011-2017 Google Inc.
           2013 Jack Lloyd
@@ -5478,8 +5482,8 @@ DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-openssl-sys 0.9.105 - MIT
-https://github.com/sfackler/rust-openssl
+openssl-sys 0.9.107 - MIT
+https://github.com/rust-openssl/rust-openssl
 
 The MIT License (MIT)
 
@@ -5513,7 +5517,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 opentelemetry 0.19.0 - Apache-2.0
-https://github.com/open-telemetry/opentelemetry-rust
+https://github.com/open-telemetry/opentelemetry-rust/tree/main/opentelemetry
 
 Apache License
                            Version 2.0, January 2004
@@ -5929,7 +5933,7 @@ Apache License
 ---------------------------------------------------------
 
 opentelemetry_sdk 0.19.0 - Apache-2.0
-https://github.com/open-telemetry/opentelemetry-rust
+https://github.com/open-telemetry/opentelemetry-rust/tree/main/opentelemetry-sdk
 
 Apache License
                            Version 2.0, January 2004
@@ -7223,10 +7227,9 @@ DEALINGS IN THE SOFTWARE.
 
 rand_core 0.5.1 - MIT OR Apache-2.0
 rand_core 0.6.4 - MIT OR Apache-2.0
-https://github.com/rust-random/rand
+https://github.com/rust-random/rand_core
 
-Copyright 2018 Developers of the Rand project
-Copyright (c) 2014 The Rust Project Developers
+Copyright (c) 2018-2025 The Rand Project Developers
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
@@ -7379,7 +7382,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 regex-automata 0.4.6 - MIT OR Apache-2.0
-https://github.com/rust-lang/regex/tree/master/regex-automata
+https://github.com/rust-lang/regex
 
 Copyright (c) 2014 The Rust Project Developers
 
@@ -7411,7 +7414,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 regex-syntax 0.8.3 - MIT OR Apache-2.0
-https://github.com/rust-lang/regex/tree/master/regex-syntax
+https://github.com/rust-lang/regex
 
 Copyright (c) 2014 The Rust Project Developers
 
@@ -8584,11 +8587,11 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [license-image]: https://img.shields.io/badge/license-Apache2.0/MIT-blue.svg
 [deps-image]: https://deps.rs/repo/github/RustCrypto/hashes/status.svg
 [deps-link]: https://deps.rs/repo/github/RustCrypto/hashes
-[msrv-1.85]: https://img.shields.io/badge/rustc-1.85.0+-blue.svg
 
 [//]: # (crates)
 
-[`ascon‑hash`]: ./ascon-hash
+[`ascon‑hash`]: ./ascon-hash256
+[`bash‑hash`]: ./bash-hash
 [`belt‑hash`]: ./belt-hash
 [`blake2`]: ./blake2
 [`fsb`]: ./fsb
@@ -8596,6 +8599,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [`groestl`]: ./groestl
 [`jh`]: ./jh
 [`k12`]: ./k12
+[`kupyna`]: ./kupyna
 [`md2`]: ./md2
 [`md4`]: ./md4
 [`md5`]: ./md5
@@ -8631,6 +8635,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [//]: # (algorithms)
 
 [Ascon]: https://ascon.iaik.tugraz.at
+[Bash]: https://apmi.bsu.by/assets/files/std/bash-spec241.pdf
 [BelT]: https://ru.wikipedia.org/wiki/BelT
 [BLAKE2]: https://en.wikipedia.org/wiki/BLAKE_(hash_function)#BLAKE2
 [FSB]: https://en.wikipedia.org/wiki/Fast_syndrome-based_hash
@@ -8638,6 +8643,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [Grøstl]: https://en.wikipedia.org/wiki/Grøstl
 [JH]: https://www3.ntu.edu.sg/home/wuhj/research/jh
 [KangarooTwelve]: https://keccak.team/kangarootwelve.html
+[Kupyna]: https://eprint.iacr.org/2015/885.pdf
 [MD2]: https://en.wikipedia.org/wiki/MD2_(cryptography)
 [MD4]: https://en.wikipedia.org/wiki/MD4
 [MD5]: https://en.wikipedia.org/wiki/MD5
@@ -8677,11 +8683,11 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [license-image]: https://img.shields.io/badge/license-Apache2.0/MIT-blue.svg
 [deps-image]: https://deps.rs/repo/github/RustCrypto/hashes/status.svg
 [deps-link]: https://deps.rs/repo/github/RustCrypto/hashes
-[msrv-1.85]: https://img.shields.io/badge/rustc-1.85.0+-blue.svg
 
 [//]: # (crates)
 
-[`ascon‑hash`]: ./ascon-hash
+[`ascon‑hash`]: ./ascon-hash256
+[`bash‑hash`]: ./bash-hash
 [`belt‑hash`]: ./belt-hash
 [`blake2`]: ./blake2
 [`fsb`]: ./fsb
@@ -8689,6 +8695,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [`groestl`]: ./groestl
 [`jh`]: ./jh
 [`k12`]: ./k12
+[`kupyna`]: ./kupyna
 [`md2`]: ./md2
 [`md4`]: ./md4
 [`md5`]: ./md5
@@ -8724,6 +8731,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [//]: # (algorithms)
 
 [Ascon]: https://ascon.iaik.tugraz.at
+[Bash]: https://apmi.bsu.by/assets/files/std/bash-spec241.pdf
 [BelT]: https://ru.wikipedia.org/wiki/BelT
 [BLAKE2]: https://en.wikipedia.org/wiki/BLAKE_(hash_function)#BLAKE2
 [FSB]: https://en.wikipedia.org/wiki/Fast_syndrome-based_hash
@@ -8731,6 +8739,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [Grøstl]: https://en.wikipedia.org/wiki/Grøstl
 [JH]: https://www3.ntu.edu.sg/home/wuhj/research/jh
 [KangarooTwelve]: https://keccak.team/kangarootwelve.html
+[Kupyna]: https://eprint.iacr.org/2015/885.pdf
 [MD2]: https://en.wikipedia.org/wiki/MD2_(cryptography)
 [MD4]: https://en.wikipedia.org/wiki/MD4
 [MD5]: https://en.wikipedia.org/wiki/MD5
@@ -9395,7 +9404,7 @@ DEALINGS IN THE SOFTWARE.
 tar 0.4.40 - MIT/Apache-2.0
 https://github.com/alexcrichton/tar-rs
 
-Copyright (c) 2014 Alex Crichton
+Copyright (c) The tar-rs Project Contributors
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
@@ -9519,7 +9528,7 @@ DEALINGS IN THE SOFTWARE.
 time 0.3.36 - MIT OR Apache-2.0
 https://github.com/time-rs/time
 
-Copyright (c) 2024 Jacob Pratt et al.
+Copyright (c) Jacob Pratt et al.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -9545,7 +9554,7 @@ SOFTWARE.
 time-core 0.1.2 - MIT OR Apache-2.0
 https://github.com/time-rs/time
 
-Copyright (c) 2024 Jacob Pratt et al.
+Copyright (c) Jacob Pratt et al.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -9621,7 +9630,7 @@ ICU 1.8.1 to ICU 57.1 © 1995-2016 International Business Machines Corporation a
 
 ---------------------------------------------------------
 
-tokio 1.37.0 - MIT
+tokio 1.38.2 - MIT
 https://github.com/tokio-rs/tokio
 
 MIT License
@@ -9649,7 +9658,7 @@ SOFTWARE.
 
 ---------------------------------------------------------
 
-tokio-macros 2.2.0 - MIT
+tokio-macros 2.3.0 - MIT
 https://github.com/tokio-rs/tokio
 
 MIT License
@@ -9799,25 +9808,7 @@ SOFTWARE.
 toml_datetime 0.6.6 - MIT OR Apache-2.0
 https://github.com/toml-rs/toml
 
-Copyright (c) Individual contributors
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+../../LICENSE-MIT
 ---------------------------------------------------------
 
 ---------------------------------------------------------
@@ -9825,25 +9816,7 @@ SOFTWARE.
 toml_edit 0.19.15 - MIT OR Apache-2.0
 https://github.com/toml-rs/toml
 
-Copyright (c) Individual contributors
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+../../LICENSE-MIT
 ---------------------------------------------------------
 
 ---------------------------------------------------------
@@ -10566,7 +10539,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 wasm-bindgen 0.2.92 - MIT OR Apache-2.0
-https://github.com/rustwasm/wasm-bindgen
+https://github.com/wasm-bindgen/wasm-bindgen
 
 Copyright (c) 2014 Alex Crichton
 
@@ -10598,7 +10571,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 wasm-bindgen-backend 0.2.92 - MIT OR Apache-2.0
-https://github.com/rustwasm/wasm-bindgen/tree/master/crates/backend
+https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/backend
 
 Copyright (c) 2014 Alex Crichton
 
@@ -10630,7 +10603,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 wasm-bindgen-futures 0.4.42 - MIT OR Apache-2.0
-https://github.com/rustwasm/wasm-bindgen/tree/master/crates/futures
+https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/futures
 
 Copyright (c) 2014 Alex Crichton
 
@@ -10662,7 +10635,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 wasm-bindgen-macro 0.2.92 - MIT OR Apache-2.0
-https://github.com/rustwasm/wasm-bindgen/tree/master/crates/macro
+https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/macro
 
 Copyright (c) 2014 Alex Crichton
 
@@ -10694,7 +10667,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 wasm-bindgen-macro-support 0.2.92 - MIT OR Apache-2.0
-https://github.com/rustwasm/wasm-bindgen/tree/master/crates/macro-support
+https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/macro-support
 
 Copyright (c) 2014 Alex Crichton
 
@@ -10726,7 +10699,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 wasm-bindgen-shared 0.2.92 - MIT OR Apache-2.0
-https://github.com/rustwasm/wasm-bindgen/tree/master/crates/shared
+https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/shared
 
 Copyright (c) 2014 Alex Crichton
 
@@ -10788,7 +10761,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 web-sys 0.3.69 - MIT OR Apache-2.0
-https://github.com/rustwasm/wasm-bindgen/tree/master/crates/web-sys
+https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/web-sys
 
 Copyright (c) 2014 Alex Crichton
 
@@ -11540,69 +11513,17 @@ ICU 1.8.1 to ICU 57.1 © 1995-2016 International Business Machines Corporation a
 ---------------------------------------------------------
 
 zbus 3.15.2 - MIT
-https://github.com/dbus2/zbus/
+https://github.com/z-galaxy/zbus/
 
-The MIT License (MIT)
-
-Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors
-
-Permission is hereby granted, free of charge, to any
-person obtaining a copy of this software and associated
-documentation files (the "Software"), to deal in the
-Software without restriction, including without
-limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software
-is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice
-shall be included in all copies or substantial portions
-of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
+LICENSE-MIT
 ---------------------------------------------------------
 
 ---------------------------------------------------------
 
 zbus_macros 3.15.2 - MIT
-https://github.com/dbus2/zbus/
+https://github.com/z-galaxy/zbus/
 
-The MIT License (MIT)
-
-Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors
-
-Permission is hereby granted, free of charge, to any
-person obtaining a copy of this software and associated
-documentation files (the "Software"), to deal in the
-Software without restriction, including without
-limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software
-is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice
-shall be included in all copies or substantial portions
-of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
+LICENSE-MIT
 ---------------------------------------------------------
 
 ---------------------------------------------------------
@@ -11610,33 +11531,7 @@ DEALINGS IN THE SOFTWARE.
 zbus_names 2.6.1 - MIT
 https://github.com/dbus2/zbus/
 
-The MIT License (MIT)
-
-Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors
-
-Permission is hereby granted, free of charge, to any
-person obtaining a copy of this software and associated
-documentation files (the "Software"), to deal in the
-Software without restriction, including without
-limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software
-is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice
-shall be included in all copies or substantial portions
-of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
+LICENSE-MIT
 ---------------------------------------------------------
 
 ---------------------------------------------------------
@@ -11748,7 +11643,7 @@ ICU 1.8.1 to ICU 57.1 © 1995-2016 International Business Machines Corporation a
 ---------------------------------------------------------
 
 zeroize 1.7.0 - Apache-2.0 OR MIT
-https://github.com/RustCrypto/utils/tree/master/zeroize
+https://github.com/RustCrypto/utils
 
 All crates licensed under either of
 
@@ -11778,6 +11673,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [`collectable`]: ./collectable
 [`cpufeatures`]: ./cpufeatures
 [`dbl`]: ./dbl
+[`digest-io`]: ./digest-io
 [`hex-literal`]: ./hex-literal
 [`inout`]: ./inout
 [`opaque-debug`]: ./opaque-debug
@@ -11931,33 +11827,7 @@ licences; see files named LICENSE.*.txt for details.
 zvariant 3.15.2 - MIT
 https://github.com/dbus2/zbus/
 
-The MIT License (MIT)
-
-Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors
-
-Permission is hereby granted, free of charge, to any
-person obtaining a copy of this software and associated
-documentation files (the "Software"), to deal in the
-Software without restriction, including without
-limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software
-is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice
-shall be included in all copies or substantial portions
-of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
+LICENSE-MIT
 ---------------------------------------------------------
 
 ---------------------------------------------------------
@@ -11965,33 +11835,7 @@ DEALINGS IN THE SOFTWARE.
 zvariant_derive 3.15.2 - MIT
 https://github.com/dbus2/zbus/
 
-The MIT License (MIT)
-
-Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors
-
-Permission is hereby granted, free of charge, to any
-person obtaining a copy of this software and associated
-documentation files (the "Software"), to deal in the
-Software without restriction, including without
-limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software
-is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice
-shall be included in all copies or substantial portions
-of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
+LICENSE-MIT
 ---------------------------------------------------------
 
 ---------------------------------------------------------
@@ -11999,31 +11843,5 @@ DEALINGS IN THE SOFTWARE.
 zvariant_utils 1.0.1 - MIT
 https://github.com/dbus2/zbus/
 
-The MIT License (MIT)
-
-Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors
-
-Permission is hereby granted, free of charge, to any
-person obtaining a copy of this software and associated
-documentation files (the "Software"), to deal in the
-Software without restriction, including without
-limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software
-is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice
-shall be included in all copies or substantial portions
-of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
+LICENSE-MIT
 ---------------------------------------------------------

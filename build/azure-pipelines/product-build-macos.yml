@@ -1,0 +1,106 @@
+pr: none
+
+trigger: none
+
+parameters:
+  - name: VSCODE_QUALITY
+    displayName: Quality
+    type: string
+    default: insider
+  - name: NPM_REGISTRY
+    displayName: "Custom NPM Registry"
+    type: string
+    default: 'https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/'
+  - name: CARGO_REGISTRY
+    displayName: "Custom Cargo Registry"
+    type: string
+    default: 'sparse+https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/Cargo/index/'
+
+variables:
+  - name: NPM_REGISTRY
+    ${{ if in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI') }}: # disable terrapin when in VSCODE_CIBUILD
+      value: none
+    ${{ else }}:
+      value: ${{ parameters.NPM_REGISTRY }}
+  - name: CARGO_REGISTRY
+    value: ${{ parameters.CARGO_REGISTRY }}
+  - name: VSCODE_QUALITY
+    value: ${{ parameters.VSCODE_QUALITY }}
+  - name: VSCODE_CIBUILD
+    value: ${{ in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI') }}
+  - name: VSCODE_STEP_ON_IT
+    value: false
+  - name: skipComponentGovernanceDetection
+    value: true
+  - name: ComponentDetection.Timeout
+    value: 600
+  - name: Codeql.SkipTaskAutoInjection
+    value: true
+  - name: ARTIFACT_PREFIX
+    value: ''
+
+name: "$(Date:yyyyMMdd).$(Rev:r) (${{ parameters.VSCODE_QUALITY }})"
+
+resources:
+  repositories:
+    - repository: 1ESPipelines
+      type: git
+      name: 1ESPipelineTemplates/1ESPipelineTemplates
+      ref: refs/tags/release
+
+extends:
+  template: v1/1ES.Official.PipelineTemplate.yml@1esPipelines
+  parameters:
+    sdl:
+      tsa:
+        enabled: true
+        configFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/tsaoptions.json
+      codeql:
+        runSourceLanguagesInSourceAnalysis: true
+        compiled:
+          enabled: false
+          justificationForDisabling: "CodeQL breaks ESRP CodeSign on macOS (ICM #520035761, githubcustomers/microsoft-codeql-support#198)"
+      credscan:
+        suppressionsFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/CredScanSuppressions.json
+      eslint:
+        enabled: true
+        enableExclusions: true
+        exclusionsFilePath: $(Build.SourcesDirectory)/.eslint-ignore
+      sourceAnalysisPool: 1es-windows-2022-x64
+      createAdoIssuesForJustificationsForDisablement: false
+    containers:
+      ubuntu-2004-arm64:
+        image: onebranch.azurecr.io/linux/ubuntu-2004-arm64:latest
+    stages:
+      - stage: Compile
+        pool:
+          name: AcesShared
+          os: macOS
+          demands:
+            - ImageOverride -equals ACES_VM_SharedPool_Sequoia
+        jobs:
+          - template: build/azure-pipelines/product-compile.yml@self
+
+      - stage: macOS
+        dependsOn:
+          - Compile
+        pool:
+          name: AcesShared
+          os: macOS
+          demands:
+            - ImageOverride -equals ACES_VM_SharedPool_Sequoia
+        variables:
+          BUILDSECMON_OPT_IN: true
+        jobs:
+          - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
+            parameters:
+              VSCODE_CIBUILD: true
+              VSCODE_TEST_SUITE: Electron
+          - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
+            parameters:
+              VSCODE_CIBUILD: true
+              VSCODE_TEST_SUITE: Browser
+          - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
+            parameters:
+              VSCODE_CIBUILD: true
+              VSCODE_TEST_SUITE: Remote

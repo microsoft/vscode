@@ -72,7 +72,8 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 				FileSystemProviderCapabilities.FileAtomicRead |
 				FileSystemProviderCapabilities.FileAtomicWrite |
 				FileSystemProviderCapabilities.FileAtomicDelete |
-				FileSystemProviderCapabilities.FileClone;
+				FileSystemProviderCapabilities.FileClone |
+				FileSystemProviderCapabilities.FileRealpath;
 
 			if (isLinux) {
 				this._testCapabilities |= FileSystemProviderCapabilities.PathCaseSensitive;
@@ -102,10 +103,13 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 		const res = await super.stat(resource);
 
 		if (this.invalidStatSize) {
+			// eslint-disable-next-line local/code-no-any-casts
 			(res as any).size = String(res.size) as any; // for https://github.com/microsoft/vscode/issues/72909
 		} else if (this.smallStatSize) {
+			// eslint-disable-next-line local/code-no-any-casts
 			(res as any).size = 1;
 		} else if (this.readonly) {
+			// eslint-disable-next-line local/code-no-any-casts
 			(res as any).permissions = FilePermission.Readonly;
 		}
 
@@ -427,7 +431,7 @@ flakySuite('Disk File Service', function () {
 		assert.strictEqual(r2.name, 'deep');
 	});
 
-	test('resolve - folder symbolic link', async () => {
+	test('resolve / realpath - folder symbolic link', async () => {
 		const link = URI.file(join(testDir, 'deep-link'));
 		await promises.symlink(join(testDir, 'deep'), link.fsPath, 'junction');
 
@@ -435,6 +439,10 @@ flakySuite('Disk File Service', function () {
 		assert.strictEqual(resolved.children!.length, 4);
 		assert.strictEqual(resolved.isDirectory, true);
 		assert.strictEqual(resolved.isSymbolicLink, true);
+
+		const realpath = await service.realpath(link);
+		assert.ok(realpath);
+		assert.strictEqual(basename(realpath.fsPath), 'deep');
 	});
 
 	(isWindows ? test.skip /* windows: cannot create file symbolic link without elevated context */ : test)('resolve - file symbolic link', async () => {
@@ -487,6 +495,21 @@ flakySuite('Disk File Service', function () {
 		assert.ok(result.mtime > 0);
 		assert.ok(result.ctime > 0);
 	});
+
+	// The executable bit does not exist on Windows so use a condition not skip
+	if (!isWindows) {
+		test('stat - executable', async () => {
+			const nonExecutable = FileAccess.asFileUri('vs/platform/files/test/node/fixtures/executable/non_executable');
+			let resolved = await service.stat(nonExecutable);
+			assert.strictEqual(resolved.isFile, true);
+			assert.strictEqual(resolved.executable, false);
+
+			const executable = FileAccess.asFileUri('vs/platform/files/test/node/fixtures/executable/executable');
+			resolved = await service.stat(executable);
+			assert.strictEqual(resolved.isFile, true);
+			assert.strictEqual(resolved.executable, true);
+		});
+	}
 
 	test('deleteFile (non recursive)', async () => {
 		return testDeleteFile(false, false);

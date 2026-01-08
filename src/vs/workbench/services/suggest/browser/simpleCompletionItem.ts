@@ -30,6 +30,11 @@ export interface ISimpleCompletion {
 	icon?: ThemeIcon;
 
 	/**
+	 * The completion item's kind that will be included in the aria label.
+	 */
+	kindLabel?: string;
+
+	/**
 	 * The completion's detail which appears on the right of the list.
 	 */
 	detail?: string;
@@ -40,14 +45,10 @@ export interface ISimpleCompletion {
 	documentation?: string | IMarkdownString;
 
 	/**
-	 * The start of the replacement.
+	 * Replacement range (inclusive start, exclusive end) of text in the line to be replaced when
+	 * this completion is applied.
 	 */
-	replacementIndex: number;
-
-	/**
-	 * The length of the replacement.
-	 */
-	replacementLength: number;
+	replacementRange: readonly [number, number] | undefined;
 }
 
 export class SimpleCompletionItem {

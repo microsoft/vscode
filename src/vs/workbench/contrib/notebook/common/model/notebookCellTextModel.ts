@@ -15,12 +15,13 @@ import { createTextBuffer, TextModel } from '../../../../../editor/common/model/
 import { PLAINTEXT_LANGUAGE_ID } from '../../../../../editor/common/languages/modesRegistry.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { NotebookCellOutputTextModel } from './notebookCellOutputTextModel.js';
-import { CellInternalMetadataChangedEvent, CellKind, ICell, ICellDto2, ICellOutput, IOutputDto, IOutputItemDto, NotebookCellCollapseState, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellOutputsSplice, TransientCellMetadata, TransientOptions } from '../notebookCommon.js';
+import { CellInternalMetadataChangedEvent, CellKind, ICell, ICellDto2, ICellOutput, IOutputItemDto, NotebookCellCollapseState, NotebookCellDefaultCollapseConfig, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellOutputsSplice, TransientCellMetadata, TransientOptions } from '../notebookCommon.js';
 import { ThrottledDelayer } from '../../../../../base/common/async.js';
 import { ILanguageDetectionService } from '../../../../services/languageDetection/common/languageDetectionWorkerService.js';
 import { toFormattedString } from '../../../../../base/common/jsonFormatter.js';
 import { IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
 import { splitLines } from '../../../../../base/common/strings.js';
+import { INotebookLoggingService } from '../notebookLoggingService.js';
 
 export class NotebookCellTextModel extends Disposable implements ICell {
 	private readonly _onDidChangeTextModel = this._register(new Emitter<void>());
@@ -116,7 +117,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 			return this._textBuffer;
 		}
 
-		this._textBuffer = this._register(createTextBuffer(this._source, model.DefaultEndOfLine.LF).textBuffer);
+		this._textBuffer = this._register(createTextBuffer(this._source, this._defaultEOL).textBuffer);
 
 		this._register(this._textBuffer.onDidChangeContent(() => {
 			this._hash = null;
@@ -190,28 +191,34 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	private _hasLanguageSetExplicitly: boolean = false;
 	get hasLanguageSetExplicitly(): boolean { return this._hasLanguageSetExplicitly; }
 
+	private _source: string;
+	private _language: string;
+	private _mime: string | undefined;
+	public readonly cellKind: CellKind;
+	public readonly collapseState: NotebookCellCollapseState | undefined;
+
 	constructor(
 		readonly uri: URI,
 		public readonly handle: number,
-		private readonly _source: string,
-		private _language: string,
-		private _mime: string | undefined,
-		public readonly cellKind: CellKind,
-		outputs: IOutputDto[],
-		metadata: NotebookCellMetadata | undefined,
-		internalMetadata: NotebookCellInternalMetadata | undefined,
-		public readonly collapseState: NotebookCellCollapseState | undefined,
+		cell: ICellDto2,
 		public readonly transientOptions: TransientOptions,
 		private readonly _languageService: ILanguageService,
-		private readonly _languageDetectionService: ILanguageDetectionService | undefined = undefined
+		private readonly _defaultEOL: model.DefaultEndOfLine,
+		defaultCollapseConfig: NotebookCellDefaultCollapseConfig | undefined,
+		private readonly _languageDetectionService: ILanguageDetectionService | undefined = undefined,
+		private readonly _notebookLoggingService: INotebookLoggingService
 	) {
 		super();
-		this._outputs = outputs.map(op => new NotebookCellOutputTextModel(op));
-		this._metadata = metadata ?? {};
-		this._internalMetadata = internalMetadata ?? {};
-		this._internalMetadata.cellId = this._internalMetadata.cellId ??
-			this._metadata.id as string ??
-			uri.fragment;
+		this._source = cell.source;
+		this._language = cell.language;
+		this._mime = cell.mime;
+		this.cellKind = cell.cellKind;
+		// Compute collapse state: use cell's state if provided, otherwise use default config for this cell kind
+		const defaultConfig = cell.cellKind === CellKind.Code ? defaultCollapseConfig?.codeCell : defaultCollapseConfig?.markupCell;
+		this.collapseState = cell.collapseState ?? (defaultConfig ?? undefined);
+		this._outputs = cell.outputs.map(op => new NotebookCellOutputTextModel(op));
+		this._metadata = cell.metadata ?? {};
+		this._internalMetadata = cell.internalMetadata ?? {};
 	}
 
 	enableAutoLanguageDetection() {
@@ -324,6 +331,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	}
 
 	spliceNotebookCellOutputs(splice: NotebookCellOutputsSplice): void {
+		this._notebookLoggingService.trace('textModelEdits', `splicing outputs at ${splice.start} length: ${splice.deleteCount} with ${splice.newOutputs.length} new outputs`);
 		if (splice.deleteCount > 0 && splice.newOutputs.length > 0) {
 			const commonLen = Math.min(splice.deleteCount, splice.newOutputs.length);
 			// update
@@ -351,6 +359,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 			return false;
 		}
 
+		this._notebookLoggingService.trace('textModelEdits', `replacing an output item at index ${outputIndex}`);
 		const output = this.outputs[outputIndex];
 		// convert to dto and dispose the cell output model
 		output.replaceData({
@@ -371,6 +380,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		}
 
 		const output = this.outputs[outputIndex];
+		this._notebookLoggingService.trace('textModelEdits', `${append ? 'appending' : 'replacing'} ${items.length} output items to for output index ${outputIndex}`);
 		if (append) {
 			output.appendData(items);
 		} else {
@@ -567,7 +577,7 @@ export function sortObjectPropertiesRecursively(obj: any): any {
 				.reduce<Record<string, any>>((sortedObj, prop) => {
 					sortedObj[prop] = sortObjectPropertiesRecursively(obj[prop]);
 					return sortedObj;
-				}, {}) as any
+				}, {})
 		);
 	}
 	return obj;

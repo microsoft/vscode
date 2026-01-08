@@ -32,7 +32,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IWorkbenchAsyncDataTreeOptions, WorkbenchAsyncDataTree } from '../../../../../platform/list/browser/listService.js';
-import { IColorTheme, IThemeChangeEvent, IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { IColorTheme, IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { FileReferences, OneReference, ReferencesModel } from '../referencesModel.js';
 import { ITreeDragAndDrop, ITreeDragOverReaction } from '../../../../../base/browser/ui/tree/tree.js';
 import { DataTransfers, IDragAndDropData } from '../../../../../base/browser/dnd.js';
@@ -276,7 +276,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		super(editor, { showFrame: false, showArrow: true, isResizeable: true, isAccessible: true, supportOnTitleClick: true }, _instantiationService);
 
 		this._applyTheme(themeService.getColorTheme());
-		this._callOnDispose.add(themeService.onDidColorThemeChange(this._onDidColorThemeChange.bind(this)));
+		this._callOnDispose.add(themeService.onDidColorThemeChange(this._applyTheme.bind(this)));
 		this._peekViewService.addExclusiveWidget(editor, this);
 		this.create();
 	}
@@ -296,10 +296,6 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		dispose(this._previewModelReference);
 		this._splitView.dispose();
 		super.dispose();
-	}
-
-	private _onDidColorThemeChange(e: IThemeChangeEvent): void {
-		this._applyTheme(e.theme);
 	}
 
 	private _applyTheme(theme: IColorTheme) {
@@ -436,7 +432,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		}, undefined));
 
 		// listen on selection and focus
-		const onEvent = (element: any, kind: 'show' | 'goto' | 'side') => {
+		const onEvent = (element: TreeElement | undefined, kind: 'show' | 'goto' | 'side') => {
 			if (element instanceof OneReference) {
 				if (kind === 'show') {
 					this._revealReference(element, false);
@@ -471,7 +467,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		this._splitView.resizeView(0, widthInPixel * this.layoutData.ratio);
 	}
 
-	setSelection(selection: OneReference): Promise<any> {
+	setSelection(selection: OneReference): Promise<unknown> {
 		return this._revealReference(selection, true).then(() => {
 			if (!this._model) {
 				// disposed
@@ -483,7 +479,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		});
 	}
 
-	setModel(newModel: ReferencesModel | undefined): Promise<any> {
+	setModel(newModel: ReferencesModel | undefined): Promise<unknown> {
 		// clean up
 		this._disposeOnNewModel.clear();
 		this._model = newModel;
@@ -493,7 +489,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		return Promise.resolve();
 	}
 
-	private _onNewModel(): Promise<any> {
+	private _onNewModel(): Promise<unknown> {
 		if (!this._model) {
 			return Promise.resolve(undefined);
 		}

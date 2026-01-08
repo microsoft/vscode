@@ -1,0 +1,287 @@
+on:
+  workflow_call:
+    inputs:
+      job_name:
+        type: string
+        required: true
+      electron_tests:
+        type: boolean
+        default: false
+      browser_tests:
+        type: boolean
+        default: false
+      remote_tests:
+        type: boolean
+        default: false
+
+jobs:
+  linux-test:
+    name: ${{ inputs.job_name }}
+    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64 ]
+    env:
+      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}
+      NPM_ARCH: x64
+      VSCODE_ARCH: x64
+    steps:
+      - name: Checkout microsoft/vscode
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Setup system services
+        run: |
+          set -e
+          # Start X server
+          ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get update
+          ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get install -y pkg-config \
+            xvfb \
+            libgtk-3-0 \
+            libxkbfile-dev \
+            libkrb5-dev \
+            libgbm1 \
+            rpm
+          sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
+          sudo chmod +x /etc/init.d/xvfb
+          sudo update-rc.d xvfb defaults
+          sudo service xvfb start
+
+      - name: Prepare node_modules cache key
+        run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts linux $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
+
+      - name: Restore node_modules cache
+        id: cache-node-modules
+        uses: actions/cache/restore@v5
+        with:
+          path: .build/node_modules_cache
+          key: "node_modules-linux-${{ hashFiles('.build/packagelockhash') }}"
+
+      - name: Extract node_modules cache
+        if: steps.cache-node-modules.outputs.cache-hit == 'true'
+        run: tar -xzf .build/node_modules_cache/cache.tgz
+
+      - name: Install build dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        working-directory: build
+        run: |
+          set -e
+
+          for i in {1..5}; do # try 5 times
+            npm ci && break
+            if [ $i -eq 5 ]; then
+              echo "Npm install failed too many times" >&2
+              exit 1
+            fi
+            echo "Npm install failed $i, trying again..."
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: |
+          set -e
+
+          source ./build/azure-pipelines/linux/setup-env.sh
+
+          for i in {1..5}; do # try 5 times
+            npm ci && break
+            if [ $i -eq 5 ]; then
+              echo "Npm install failed too many times" >&2
+              exit 1
+            fi
+            echo "Npm install failed $i, trying again..."
+          done
+        env:
+          npm_config_arch: ${{ env.NPM_ARCH }}
+          VSCODE_ARCH: ${{ env.VSCODE_ARCH }}
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create node_modules archive
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: |
+          set -e
+          node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
+          mkdir -p .build/node_modules_cache
+          tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
+
+      - name: Create .build folder
+        run: mkdir -p .build
+
+      - name: Prepare built-in extensions cache key
+        run: node build/azure-pipelines/common/computeBuiltInDepsCacheKey.ts > .build/builtindepshash
+
+      - name: Restore built-in extensions cache
+        id: cache-builtin-extensions
+        uses: actions/cache/restore@v5
+        with:
+          enableCrossOsArchive: true
+          path: .build/builtInExtensions
+          key: "builtin-extensions-${{ hashFiles('.build/builtindepshash') }}"
+
+      - name: Download built-in extensions
+        if: steps.cache-builtin-extensions.outputs.cache-hit != 'true'
+        run: node build/lib/builtInExtensions.ts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Transpile client and extensions
+        run: npm run gulp transpile-client-esbuild transpile-extensions
+
+      - name: Download Electron and Playwright
+        run: |
+          set -e
+
+          for i in {1..3}; do # try 3 times (matching retryCountOnTaskFailure: 3)
+            if npm exec -- npm-run-all2 -lp "electron ${{ env.VSCODE_ARCH }}" "playwright-install"; then
+              echo "Download successful on attempt $i"
+              break
+            fi
+
+            if [ $i -eq 3 ]; then
+              echo "Download failed after 3 attempts" >&2
+              exit 1
+            fi
+
+            echo "Download failed on attempt $i, retrying..."
+            sleep 5 # optional: add a small delay between retries
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🧪 Run unit tests (Electron)
+        if: ${{ inputs.electron_tests }}
+        timeout-minutes: 15
+        run: ./scripts/test.sh --tfs "Unit Tests"
+        env:
+          DISPLAY: ":10"
+
+      - name: 🧪 Run unit tests (node.js)
+        if: ${{ inputs.electron_tests }}
+        timeout-minutes: 15
+        run: npm run test-node
+
+      - name: 🧪 Run unit tests (Browser, Chromium)
+        if: ${{ inputs.browser_tests }}
+        timeout-minutes: 30
+        run: npm run test-browser-no-install -- --browser chromium --tfs "Browser Unit Tests"
+        env:
+          DEBUG: "*browser*"
+
+      - name: Build integration tests
+        run: |
+          set -e
+          npm run gulp \
+            compile-extension:configuration-editing \
+            compile-extension:css-language-features-server \
+            compile-extension:emmet \
+            compile-extension:git \
+            compile-extension:github-authentication \
+            compile-extension:html-language-features-server \
+            compile-extension:ipynb \
+            compile-extension:notebook-renderers \
+            compile-extension:json-language-features-server \
+            compile-extension:markdown-language-features \
+            compile-extension-media \
+            compile-extension:microsoft-authentication \
+            compile-extension:typescript-language-features \
+            compile-extension:vscode-api-tests \
+            compile-extension:vscode-colorize-tests \
+            compile-extension:vscode-colorize-perf-tests \
+            compile-extension:vscode-test-resolver
+
+      - name: 🧪 Run integration tests (Electron)
+        if: ${{ inputs.electron_tests }}
+        timeout-minutes: 20
+        run: ./scripts/test-integration.sh --tfs "Integration Tests"
+        env:
+          DISPLAY: ":10"
+
+      - name: 🧪 Run integration tests (Browser, Chromium)
+        if: ${{ inputs.browser_tests }}
+        timeout-minutes: 20
+        run: ./scripts/test-web-integration.sh --browser chromium
+
+      - name: 🧪 Run integration tests (Remote)
+        if: ${{ inputs.remote_tests }}
+        timeout-minutes: 20
+        run: ./scripts/test-remote-integration.sh
+        env:
+          DISPLAY: ":10"
+
+      - name: Compile smoke tests
+        working-directory: test/smoke
+        run: npm run compile
+
+      - name: Compile extensions for smoke tests
+        run: npm run gulp compile-extension-media
+
+      - name: Diagnostics before smoke test run (processes, max_user_watches, number of opened file handles)
+        run: |
+          set -e
+          ps -ef
+          cat /proc/sys/fs/inotify/max_user_watches
+          lsof | wc -l
+        continue-on-error: true
+        if: always()
+
+      - name: 🧪 Run smoke tests (Electron)
+        if: ${{ inputs.electron_tests }}
+        timeout-minutes: 20
+        run: npm run smoketest-no-compile -- --tracing
+        env:
+          DISPLAY: ":10"
+
+      - name: 🧪 Run smoke tests (Browser, Chromium)
+        if: ${{ inputs.browser_tests }}
+        timeout-minutes: 20
+        run: npm run smoketest-no-compile -- --web --tracing --headless
+
+      - name: 🧪 Run smoke tests (Remote)
+        if: ${{ inputs.remote_tests }}
+        timeout-minutes: 20
+        run: npm run smoketest-no-compile -- --remote --tracing
+        env:
+          DISPLAY: ":10"
+
+      - name: Diagnostics after smoke test run (processes, max_user_watches, number of opened file handles)
+        run: |
+          set -e
+          ps -ef
+          cat /proc/sys/fs/inotify/max_user_watches
+          lsof | wc -l
+        continue-on-error: true
+        if: always()
+
+      - name: Publish Crash Reports
+        uses: actions/upload-artifact@v6
+        if: failure()
+        continue-on-error: true
+        with:
+          name: ${{ format('crash-dump-linux-{0}-{1}-{2}', env.VSCODE_ARCH, env.ARTIFACT_NAME, github.run_attempt) }}
+          path: .build/crashes
+          if-no-files-found: ignore
+
+      # In order to properly symbolify above crash reports
+      # (if any), we need the compiled native modules too
+      - name: Publish Node Modules
+        uses: actions/upload-artifact@v6
+        if: failure()
+        continue-on-error: true
+        with:
+          name: ${{ format('node-modules-linux-{0}-{1}-{2}', env.VSCODE_ARCH, env.ARTIFACT_NAME, github.run_attempt) }}
+          path: node_modules
+          if-no-files-found: ignore
+
+      - name: Publish Log Files
+        uses: actions/upload-artifact@v6
+        if: always()
+        continue-on-error: true
+        with:
+          name: ${{ format('logs-linux-{0}-{1}-{2}', env.VSCODE_ARCH, env.ARTIFACT_NAME, github.run_attempt) }}
+          path: .build/logs
+          if-no-files-found: ignore

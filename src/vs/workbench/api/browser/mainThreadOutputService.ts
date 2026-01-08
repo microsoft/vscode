@@ -49,7 +49,7 @@ export class MainThreadOutputService extends Disposable implements MainThreadOut
 			this._proxy.$setVisibleChannel(visibleChannel ? visibleChannel.id : null);
 			this._outputStatusItem.value = undefined;
 		};
-		this._register(Event.any<any>(this._outputService.onActiveOutputChannel, Event.filter(this._viewsService.onDidChangeViewVisibility, ({ id }) => id === OUTPUT_VIEW_ID))(() => setVisibleChannel()));
+		this._register(Event.any<unknown>(this._outputService.onActiveOutputChannel, Event.filter(this._viewsService.onDidChangeViewVisibility, ({ id }) => id === OUTPUT_VIEW_ID))(() => setVisibleChannel()));
 		setVisibleChannel();
 	}
 
@@ -106,7 +106,7 @@ export class MainThreadOutputService extends Disposable implements MainThreadOut
 				statusProperties,
 				'status.view.showQuietly',
 				StatusbarAlignment.RIGHT,
-				{ location: { id: 'status.notifications', priority: -Number.MAX_VALUE }, alignment: StatusbarAlignment.LEFT }
+				{ location: { id: 'status.notifications', priority: Number.NEGATIVE_INFINITY }, alignment: StatusbarAlignment.LEFT }
 			);
 		} else {
 			this._outputStatusItem.value.update(statusProperties);

@@ -10,16 +10,18 @@ import { ZoneWidget } from '../../../../editor/contrib/zoneWidget/browser/zoneWi
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { IExceptionInfo, IDebugSession, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID } from '../common/debug.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
-import { IThemeService, IColorTheme, IThemeChangeEvent } from '../../../../platform/theme/common/themeService.js';
+import { IThemeService, IColorTheme } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Color } from '../../../../base/common/color.js';
 import { registerColor } from '../../../../platform/theme/common/colorRegistry.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { DebugLinkHoverBehavior, LinkDetector } from './linkDetector.js';
+import { DebugLinkHoverBehavior, DebugLinkHoverBehaviorTypeData, LinkDetector } from './linkDetector.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Action } from '../../../../base/common/actions.js';
 import { widgetClose } from '../../../../platform/theme/common/iconRegistry.js';
+import { Range } from '../../../../editor/common/core/range.js';
+
 const $ = dom.$;
 
 // theming
@@ -35,22 +37,19 @@ export class ExceptionWidget extends ZoneWidget {
 		editor: ICodeEditor,
 		private exceptionInfo: IExceptionInfo,
 		private debugSession: IDebugSession | undefined,
+		private readonly shouldScroll: () => boolean,
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super(editor, { showFrame: true, showArrow: true, isAccessible: true, frameWidth: 1, className: 'exception-widget-container' });
 
 		this.applyTheme(themeService.getColorTheme());
-		this._disposables.add(themeService.onDidColorThemeChange(this.onDidColorThemeChange.bind(this)));
+		this._disposables.add(themeService.onDidColorThemeChange(this.applyTheme.bind(this)));
 
 		this.create();
 		const onDidLayoutChangeScheduler = new RunOnceScheduler(() => this._doLayout(undefined, undefined), 50);
 		this._disposables.add(this.editor.onDidLayoutChange(() => onDidLayoutChangeScheduler.schedule()));
 		this._disposables.add(onDidLayoutChangeScheduler);
-	}
-
-	private onDidColorThemeChange(e: IThemeChangeEvent): void {
-		this.applyTheme(e.theme);
 	}
 
 	private applyTheme(theme: IColorTheme): void {
@@ -84,7 +83,7 @@ export class ExceptionWidget extends ZoneWidget {
 		label.textContent = this.exceptionInfo.id ? nls.localize('exceptionThrownWithId', 'Exception has occurred: {0}', this.exceptionInfo.id) : nls.localize('exceptionThrown', 'Exception has occurred.');
 		let ariaLabel = label.textContent;
 
-		const actionBar = new ActionBar(actions);
+		const actionBar = this._disposables.add(new ActionBar(actions));
 		actionBar.push(new Action('editor.closeExceptionWidget', nls.localize('close', "Close"), ThemeIcon.asClassName(widgetClose), true, async () => {
 			const contribution = this.editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID);
 			contribution?.closeExceptionWidget();
@@ -102,7 +101,11 @@ export class ExceptionWidget extends ZoneWidget {
 		if (this.exceptionInfo.details && this.exceptionInfo.details.stackTrace) {
 			const stackTrace = $('.stack-trace');
 			const linkDetector = this.instantiationService.createInstance(LinkDetector);
-			const linkedStackTrace = linkDetector.linkify(this.exceptionInfo.details.stackTrace, true, this.debugSession ? this.debugSession.root : undefined, undefined, { type: DebugLinkHoverBehavior.Rich, store: this._disposables });
+			const hoverBehaviour: DebugLinkHoverBehaviorTypeData = {
+				store: this._disposables,
+				type: DebugLinkHoverBehavior.Rich,
+			};
+			const linkedStackTrace = linkDetector.linkify(this.exceptionInfo.details.stackTrace, hoverBehaviour, true, this.debugSession ? this.debugSession.root : undefined, undefined);
 			stackTrace.appendChild(linkedStackTrace);
 			dom.append(container, stackTrace);
 			ariaLabel += ', ' + this.exceptionInfo.details.stackTrace;
@@ -121,6 +124,14 @@ export class ExceptionWidget extends ZoneWidget {
 		this._relayout(computedLinesNumber);
 	}
 
+	protected override revealRange(range: Range, isLastLine: boolean): void {
+		// Only reveal/scroll if this widget should scroll
+		// For inactive editors, skip the reveal to prevent scrolling
+		if (this.shouldScroll()) {
+			super.revealRange(range, isLastLine);
+		}
+	}
+
 	focus(): void {
 		// Focus into the container for accessibility purposes so the exception and stack trace gets read
 		this.container?.focus();
@@ -132,5 +143,17 @@ export class ExceptionWidget extends ZoneWidget {
 		}
 
 		return dom.isAncestorOfActiveElement(this.container);
+	}
+
+	getWhitespaceHeight(): number {
+		// Returns the height of the whitespace zone from the editor's whitespaces
+		// This is more accurate than the container height as it includes the actual zone dimensions
+		if (!this._viewZone || !this._viewZone.id) {
+			return 0;
+		}
+
+		const whitespaces = this.editor.getWhitespaces();
+		const whitespace = whitespaces.find(ws => ws.id === this._viewZone!.id);
+		return whitespace ? whitespace.height : 0;
 	}
 }

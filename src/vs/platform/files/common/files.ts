@@ -134,6 +134,14 @@ export interface IFileService {
 	stat(resource: URI): Promise<IFileStatWithPartialMetadata>;
 
 	/**
+	 * Attempts to resolve the real path of the provided resource. The real path can be
+	 * different from the resource path for example when it is a symlink.
+	 *
+	 * Will return `undefined` if the real path cannot be resolved.
+	 */
+	realpath(resource: URI): Promise<URI | undefined>;
+
+	/**
 	 * Finds out if a file/folder identified by the resource exists.
 	 */
 	exists(resource: URI): Promise<boolean>;
@@ -465,7 +473,13 @@ export enum FilePermission {
 	 * to edit the contents and ask the user upon saving to
 	 * remove the lock.
 	 */
-	Locked = 2
+	Locked = 2,
+
+	/**
+	 * File is executable. Relevant for Unix-like systems where
+	 * the executable bit determines if a file can be run.
+	 */
+	Executable = 4
 }
 
 export interface IStat {
@@ -635,7 +649,12 @@ export const enum FileSystemProviderCapabilities {
 	/**
 	 * Provider support to clone files atomically.
 	 */
-	FileClone = 1 << 17
+	FileClone = 1 << 17,
+
+	/**
+	 * Provider support to resolve real paths.
+	 */
+	FileRealpath = 1 << 18
 }
 
 export interface IFileSystemProvider {
@@ -691,6 +710,14 @@ export interface IFileSystemProviderWithFileCloneCapability extends IFileSystemP
 
 export function hasFileCloneCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileCloneCapability {
 	return !!(provider.capabilities & FileSystemProviderCapabilities.FileClone);
+}
+
+export interface IFileSystemProviderWithFileRealpathCapability extends IFileSystemProvider {
+	realpath(resource: URI): Promise<string>;
+}
+
+export function hasFileRealpathCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileRealpathCapability {
+	return !!(provider.capabilities & FileSystemProviderCapabilities.FileRealpath);
 }
 
 export interface IFileSystemProviderWithOpenReadWriteCloseCapability extends IFileSystemProvider {
@@ -1226,6 +1253,12 @@ export interface IBaseFileStat {
 	 * remove the lock.
 	 */
 	readonly locked?: boolean;
+
+	/**
+	 * File is executable. Relevant for Unix-like systems where
+	 * the executable bit determines if a file can be run.
+	 */
+	readonly executable?: boolean;
 }
 
 export interface IBaseFileStatWithMetadata extends Required<IBaseFileStat> { }
@@ -1266,6 +1299,7 @@ export interface IFileStatWithMetadata extends IFileStat, IBaseFileStatWithMetad
 	readonly size: number;
 	readonly readonly: boolean;
 	readonly locked: boolean;
+	readonly executable: boolean;
 	readonly children: IFileStatWithMetadata[] | undefined;
 }
 

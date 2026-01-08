@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { Emitter } from '../../../base/common/event.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { IFileSystemProviderWithFileReadWriteCapability, IFileChange, IWatchOptions, IStat, IFileOverwriteOptions, FileType, IFileWriteOptions, IFileDeleteOptions, FileSystemProviderCapabilities, IFileSystemProviderWithFileReadStreamCapability, IFileReadStreamOptions, IFileSystemProviderWithFileAtomicReadCapability, hasFileFolderCopyCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileOpenOptions, IFileSystemProviderWithFileAtomicWriteCapability, IFileSystemProviderWithFileAtomicDeleteCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileCloneCapability, hasFileCloneCapability, IFileAtomicReadOptions, IFileAtomicOptions } from '../../files/common/files.js';
 import { URI } from '../../../base/common/uri.js';
@@ -29,14 +29,14 @@ export class FileUserDataProvider extends Disposable implements
 	IFileSystemProviderWithFileAtomicDeleteCapability,
 	IFileSystemProviderWithFileCloneCapability {
 
-	readonly capabilities = this.fileSystemProvider.capabilities;
-	readonly onDidChangeCapabilities = this.fileSystemProvider.onDidChangeCapabilities;
+	readonly capabilities: FileSystemProviderCapabilities;
+	readonly onDidChangeCapabilities: Event<void>;
 
-	private readonly _onDidChangeFile = this._register(new Emitter<readonly IFileChange[]>());
-	readonly onDidChangeFile = this._onDidChangeFile.event;
+	private readonly _onDidChangeFile: Emitter<readonly IFileChange[]>;
+	readonly onDidChangeFile: Event<readonly IFileChange[]>;
 
-	private readonly watchResources = TernarySearchTree.forUris<URI>(() => !(this.capabilities & FileSystemProviderCapabilities.PathCaseSensitive));
-	private readonly atomicReadWriteResources = new ResourceSet((uri) => this.uriIdentityService.extUri.getComparisonKey(this.toFileSystemResource(uri)));
+	private readonly watchResources: TernarySearchTree<URI, URI>;
+	private readonly atomicReadWriteResources: ResourceSet;
 
 	constructor(
 		private readonly fileSystemScheme: string,
@@ -47,6 +47,12 @@ export class FileUserDataProvider extends Disposable implements
 		private readonly logService: ILogService,
 	) {
 		super();
+		this.capabilities = this.fileSystemProvider.capabilities;
+		this.onDidChangeCapabilities = this.fileSystemProvider.onDidChangeCapabilities;
+		this._onDidChangeFile = this._register(new Emitter());
+		this.onDidChangeFile = this._onDidChangeFile.event;
+		this.watchResources = TernarySearchTree.forUris(() => !(this.capabilities & 1024 /* FileSystemProviderCapabilities.PathCaseSensitive */));
+		this.atomicReadWriteResources = new ResourceSet((uri) => this.uriIdentityService.extUri.getComparisonKey(this.toFileSystemResource(uri)));
 		this.updateAtomicReadWritesResources();
 		this._register(userDataProfilesService.onDidChangeProfiles(() => this.updateAtomicReadWritesResources()));
 		this._register(this.fileSystemProvider.onDidChangeFile(e => this.handleFileChanges(e)));

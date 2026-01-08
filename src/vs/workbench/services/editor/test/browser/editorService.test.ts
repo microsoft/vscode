@@ -78,7 +78,7 @@ suite('EditorService', () => {
 
 	test('openEditor() - basics (scoped)', async () => {
 		const [part, service, accessor] = await createEditorService();
-		const scoped = service.createScoped('main', disposables);
+		const scoped = service.createScoped(part, disposables);
 		await part.whenReady;
 
 		await testOpenBasics(scoped, accessor.editorPaneService);
@@ -2319,6 +2319,7 @@ suite('EditorService', () => {
 			isSymbolicLink: false,
 			readonly: false,
 			locked: false,
+			executable: false,
 			children: undefined
 		}));
 		await activeEditorChangePromise;
