@@ -53,6 +53,16 @@ export class Chat {
 		await this.code.dispatchKeybinding('enter', () => Promise.resolve());
 	}
 
+	/**
+	 * Waits for a chat response to complete loading.
+	 *
+	 * This method first waits for a response element to appear in the chat,
+	 * then waits until the response is no longer in a loading state.
+	 *
+	 * @param retryCount The number of retry attempts, with each retry waiting
+	 * approximately 100ms. Default is 200 (~20 seconds). For AI responses that
+	 * may take longer, consider using higher values (e.g., 1500 for ~150 seconds).
+	 */
 	async waitForResponse(retryCount: number = 200): Promise<void> {
 		// First wait for a response element to appear
 		await this.code.waitForElement(CHAT_RESPONSE, undefined, retryCount);
