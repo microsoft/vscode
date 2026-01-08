@@ -1123,7 +1123,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				return false;
 			}
 
-			// Skip processing by xterm.js of keyboard events that resolve to commands definted in
+			// Skip processing by xterm.js of keyboard events that resolve to commands defined in
 			// the commandsToSkipShell setting. Ensure sendKeybindingsToShell is respected here
 			// which will disable this special handling and always opt to send the keystroke to the
 			// shell process
