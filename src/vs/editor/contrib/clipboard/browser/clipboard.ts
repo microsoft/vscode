@@ -321,16 +321,8 @@ if (PasteAction) {
 			const triggerPaste = clipboardService.triggerPaste(getActiveWindow().vscodeWindowId);
 			if (triggerPaste) {
 				logService.trace('registerExecCommandImpl (triggerPaste defined)');
-				PasteOptions.electronBugWorkaroundPasteEventLock = false;
 				return triggerPaste.then(async () => {
 					if (PasteOptions.electronBugWorkaroundPasteEventHasFired === false) {
-						// Ensure this doesn't run twice, what appears to be happening is
-						// triggerPasteis called once but it's handler is called multiple times
-						// when it reproduces
-						if (PasteOptions.electronBugWorkaroundPasteEventLock === true) {
-							return;
-						}
-						PasteOptions.electronBugWorkaroundPasteEventLock = true;
 						return pasteWithNavigatorAPI(focusedEditor, clipboardService, logService);
 					}
 					logService.trace('registerExecCommandImpl (after triggerPaste)');
