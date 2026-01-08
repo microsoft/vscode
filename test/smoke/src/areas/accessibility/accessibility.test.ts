@@ -146,6 +146,13 @@ export function setup(logger: Logger, opts: { web?: boolean }, quality: Quality)
 						}
 					});
 				});
+
+				afterEach(async function () {
+					// Reset chat tools auto-approve setting after each test to avoid leaking state
+					if (app) {
+						await app.workbench.settingsEditor.addUserSetting('chat.tools.global.autoApprove', 'false');
+					}
+				});
 			});
 		}
 	});
