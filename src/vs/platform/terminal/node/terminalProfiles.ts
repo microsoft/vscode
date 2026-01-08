@@ -359,8 +359,8 @@ async function getWslProfiles(wslPath: string, defaultProfileName: string | unde
 	if (!distroOutput) {
 		return [];
 	}
-	const regex = new RegExp(/[\r?\n]/);
-	const distroNames = distroOutput.split(regex).filter(t => t.trim().length > 0 && t !== '');
+	const regex = new RegExp(/\r?\n/);
+	const distroNames = distroOutput.split(regex).filter(t => t.trim().length > 0);
 	for (const distroName of distroNames) {
 		// Skip empty lines
 		if (distroName === '') {
