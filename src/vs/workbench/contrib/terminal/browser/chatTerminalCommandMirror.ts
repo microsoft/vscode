@@ -354,7 +354,7 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 		}
 		this._isStreaming = true;
 		this._streamingDisposables.add(Event.any(raw.onCursorMove, raw.onLineFeed, raw.onWriteParsed)(() => this._handleCursorEvent()));
-		this._streamingDisposables.add(this._xtermTerminal.raw.onData(() => this._handleCursorEvent()));
+		this._streamingDisposables.add(raw.onData(() => this._handleCursorEvent()));
 	}
 
 	private _stopStreaming(): void {
