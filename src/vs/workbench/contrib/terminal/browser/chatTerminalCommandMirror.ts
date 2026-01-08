@@ -41,7 +41,7 @@ function getChatTerminalBackgroundColor(theme: IColorTheme, contextKeyService: I
 interface IDetachedTerminalCommandMirror {
 	attach(container: HTMLElement): Promise<void>;
 	renderCommand(): Promise<{ lineCount?: number } | undefined>;
-	readonly onDidUpdate: Event<number>;
+	onDidUpdate: Event<number>;
 }
 
 const enum ChatTerminalMirrorMetrics {
