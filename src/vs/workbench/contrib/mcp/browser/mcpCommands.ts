@@ -909,7 +909,7 @@ MenuRegistry.appendMenuItem(CHAT_CONFIG_MENU_ID, {
 		id: McpCommandIds.ShowInstalled,
 		title: localize2('mcp.servers', "MCP Servers")
 	},
-	when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.Setup.hidden.negate(), ContextKeyExpr.equals('view', ChatViewId)),
+	when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
 	order: 10,
 	group: '2_level'
 });

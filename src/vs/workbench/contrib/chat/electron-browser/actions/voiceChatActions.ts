@@ -61,7 +61,7 @@ type VoiceChatSessionContext = 'view' | 'inline' | 'quick' | 'editor';
 const VoiceChatSessionContexts: VoiceChatSessionContext[] = ['view', 'inline', 'quick', 'editor'];
 
 // Global Context Keys (set on global context key service)
-const CanVoiceChat = ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.Setup.hidden.negate(), HasSpeechProvider);
+const CanVoiceChat = ContextKeyExpr.and(ChatContextKeys.enabled, HasSpeechProvider);
 const FocusInChatInput = ContextKeyExpr.or(CTX_INLINE_CHAT_FOCUSED, ChatContextKeys.inChatInput);
 
 // Scoped Context Keys (set on per-chat-context scoped context key service)
