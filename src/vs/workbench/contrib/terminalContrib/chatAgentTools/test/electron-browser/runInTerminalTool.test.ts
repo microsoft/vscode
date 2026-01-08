@@ -1041,17 +1041,18 @@ suite('RunInTerminalTool', () => {
 			let terminalDisposed = false;
 			mockTerminal.dispose = () => { terminalDisposed = true; };
 
-			runInTerminalTool.sessionTerminalAssociations.set(sessionId, {
+			const sessionResource = LocalChatSessionUri.forSession(sessionId);
+			runInTerminalTool.sessionTerminalAssociations.set(sessionResource, {
 				instance: mockTerminal,
 				shellIntegrationQuality: ShellIntegrationQuality.None
 			});
 
-			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionId), 'Terminal association should exist before disposal');
+			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionResource), 'Terminal association should exist before disposal');
 
-			chatServiceDisposeEmitter.fire({ sessionResource: [LocalChatSessionUri.forSession(sessionId)], reason: 'cleared' });
+			chatServiceDisposeEmitter.fire({ sessionResource: [sessionResource], reason: 'cleared' });
 
 			strictEqual(terminalDisposed, true, 'Terminal should have been disposed');
-			ok(!runInTerminalTool.sessionTerminalAssociations.has(sessionId), 'Terminal association should be removed after disposal');
+			ok(!runInTerminalTool.sessionTerminalAssociations.has(sessionResource), 'Terminal association should be removed after disposal');
 		});
 
 		test('should not affect other sessions when one session is disposed', () => {
@@ -1073,24 +1074,26 @@ suite('RunInTerminalTool', () => {
 			mockTerminal1.dispose = () => { terminal1Disposed = true; };
 			mockTerminal2.dispose = () => { terminal2Disposed = true; };
 
-			runInTerminalTool.sessionTerminalAssociations.set(sessionId1, {
+			const sessionResource1 = LocalChatSessionUri.forSession(sessionId1);
+			const sessionResource2 = LocalChatSessionUri.forSession(sessionId2);
+			runInTerminalTool.sessionTerminalAssociations.set(sessionResource1, {
 				instance: mockTerminal1,
 				shellIntegrationQuality: ShellIntegrationQuality.None
 			});
-			runInTerminalTool.sessionTerminalAssociations.set(sessionId2, {
+			runInTerminalTool.sessionTerminalAssociations.set(sessionResource2, {
 				instance: mockTerminal2,
 				shellIntegrationQuality: ShellIntegrationQuality.None
 			});
 
-			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionId1), 'Session 1 terminal association should exist');
-			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionId2), 'Session 2 terminal association should exist');
+			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionResource1), 'Session 1 terminal association should exist');
+			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionResource2), 'Session 2 terminal association should exist');
 
-			chatServiceDisposeEmitter.fire({ sessionResource: [LocalChatSessionUri.forSession(sessionId1)], reason: 'cleared' });
+			chatServiceDisposeEmitter.fire({ sessionResource: [sessionResource1], reason: 'cleared' });
 
 			strictEqual(terminal1Disposed, true, 'Terminal 1 should have been disposed');
 			strictEqual(terminal2Disposed, false, 'Terminal 2 should NOT have been disposed');
-			ok(!runInTerminalTool.sessionTerminalAssociations.has(sessionId1), 'Session 1 terminal association should be removed');
-			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionId2), 'Session 2 terminal association should remain');
+			ok(!runInTerminalTool.sessionTerminalAssociations.has(sessionResource1), 'Session 1 terminal association should be removed');
+			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionResource2), 'Session 2 terminal association should remain');
 		});
 
 		test('should handle disposal of non-existent session gracefully', () => {

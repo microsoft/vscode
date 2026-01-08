@@ -11,6 +11,7 @@ import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../../../base/common/map.js';
 import { basename } from '../../../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../../../base/common/platform.js';
 import { count } from '../../../../../../base/common/strings.js';
@@ -44,7 +45,8 @@ import { CommandLineAutoApproveAnalyzer } from './commandLineAnalyzer/commandLin
 import { CommandLineFileWriteAnalyzer } from './commandLineAnalyzer/commandLineFileWriteAnalyzer.js';
 import { OutputMonitor } from './monitoring/outputMonitor.js';
 import { IPollingResult, OutputMonitorState } from './monitoring/types.js';
-import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
+import { chatSessionResourceToId, LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import type { ICommandLineRewriter } from './commandLineRewriter/commandLineRewriter.js';
 import { CommandLineCdPrefixRewriter } from './commandLineRewriter/commandLineCdPrefixRewriter.js';
 import { CommandLinePreventHistoryRewriter } from './commandLineRewriter/commandLinePreventHistoryRewriter.js';
@@ -273,7 +275,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	private readonly _commandLineRewriters: ICommandLineRewriter[];
 	private readonly _commandLineAnalyzers: ICommandLineAnalyzer[];
 
-	protected readonly _sessionTerminalAssociations: Map<string, IToolTerminal> = new Map();
+	protected readonly _sessionTerminalAssociations = new ResourceMap<IToolTerminal>();
 
 	// Immutable window state
 	protected readonly _osBackend: Promise<OperatingSystem>;
@@ -333,9 +335,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		// Restore terminal associations from storage
 		this._restoreTerminalAssociations();
 		this._register(this._terminalService.onDidDisposeInstance(e => {
-			for (const [sessionId, toolTerminal] of this._sessionTerminalAssociations.entries()) {
+			for (const [sessionResource, toolTerminal] of this._sessionTerminalAssociations.entries()) {
 				if (e === toolTerminal.instance) {
-					this._sessionTerminalAssociations.delete(sessionId);
+					this._sessionTerminalAssociations.delete(sessionResource);
 				}
 			}
 		}));
@@ -343,10 +345,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		// Listen for chat session disposal to clean up associated terminals
 		this._register(this._chatService.onDidDisposeSession(e => {
 			for (const resource of e.sessionResource) {
-				const localSessionId = LocalChatSessionUri.parseLocalSessionId(resource);
-				if (localSessionId) {
-					this._cleanupSessionTerminals(localSessionId);
-				}
+				this._cleanupSessionTerminals(resource);
 			}
 		}));
 	}
@@ -354,7 +353,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const args = context.parameters as IRunInTerminalInputParams;
 
-		const instance = context.chatSessionId ? this._sessionTerminalAssociations.get(context.chatSessionId)?.instance : undefined;
+		const chatSessionResource = context.chatSessionResource ?? (context.chatSessionId ? LocalChatSessionUri.forSession(context.chatSessionId) : undefined);
+		const instance = chatSessionResource ? this._sessionTerminalAssociations.get(chatSessionResource)?.instance : undefined;
 		const [os, shell, cwd] = await Promise.all([
 			this._osBackend,
 			this._profileFetcher.getCopilotShell(),
@@ -526,7 +526,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		this._logService.debug(`RunInTerminalTool: Invoking with options ${JSON.stringify(args)}`);
 		let toolResultMessage: string | undefined;
 
-		const chatSessionId = invocation.context?.sessionId ?? 'no-chat-session';
+		const chatSessionResource = invocation.context?.sessionResource ?? LocalChatSessionUri.forSession(invocation.context?.sessionId ?? 'no-chat-session');
+		const chatSessionId = chatSessionResourceToId(chatSessionResource);
 		const command = toolSpecificData.commandLine.userEdited ?? toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original;
 		const didUserEditCommand = (
 			toolSpecificData.commandLine.userEdited !== undefined &&
@@ -543,7 +544,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		let error: string | undefined;
-		const isNewSession = !args.isBackground && !this._sessionTerminalAssociations.has(chatSessionId);
+		const isNewSession = !args.isBackground && !this._sessionTerminalAssociations.has(chatSessionResource);
 
 		const timingStart = Date.now();
 		const termId = generateUuid();
@@ -553,10 +554,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		this._logService.debug(`RunInTerminalTool: Creating ${args.isBackground ? 'background' : 'foreground'} terminal. termId=${termId}, chatSessionId=${chatSessionId}`);
 		const toolTerminal = await (args.isBackground
-			? this._initBackgroundTerminal(chatSessionId, termId, terminalToolSessionId, token)
-			: this._initForegroundTerminal(chatSessionId, termId, terminalToolSessionId, token));
+			? this._initBackgroundTerminal(chatSessionResource, termId, terminalToolSessionId, token)
+			: this._initForegroundTerminal(chatSessionResource, termId, terminalToolSessionId, token));
 
-		this._handleTerminalVisibility(toolTerminal, chatSessionId);
+		this._handleTerminalVisibility(toolTerminal, chatSessionResource);
 
 		const timingConnectMs = Date.now() - timingStart;
 
@@ -799,8 +800,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 	}
 
-	private _handleTerminalVisibility(toolTerminal: IToolTerminal, chatSessionId: string) {
-		const chatSessionOpenInWidget = !!this._chatWidgetService.getWidgetBySessionResource(LocalChatSessionUri.forSession(chatSessionId));
+	private _handleTerminalVisibility(toolTerminal: IToolTerminal, chatSessionResource: URI) {
+		const chatSessionOpenInWidget = !!this._chatWidgetService.getWidgetBySessionResource(chatSessionResource);
 		if (this._configurationService.getValue(TerminalChatAgentToolsSettingId.OutputLocation) === 'terminal' && chatSessionOpenInWidget) {
 			this._terminalService.setActiveInstance(toolTerminal.instance);
 			this._terminalService.revealTerminal(toolTerminal.instance, true);
@@ -809,27 +810,27 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	// #region Terminal init
 
-	private async _initBackgroundTerminal(chatSessionId: string, termId: string, terminalToolSessionId: string | undefined, token: CancellationToken): Promise<IToolTerminal> {
+	private async _initBackgroundTerminal(chatSessionResource: URI, termId: string, terminalToolSessionId: string | undefined, token: CancellationToken): Promise<IToolTerminal> {
 		this._logService.debug(`RunInTerminalTool: Creating background terminal with ID=${termId}`);
 		const profile = await this._profileFetcher.getCopilotProfile();
 		const os = await this._osBackend;
 		const toolTerminal = await this._terminalToolCreator.createTerminal(profile, os, token);
 		this._terminalChatService.registerTerminalInstanceWithToolSession(terminalToolSessionId, toolTerminal.instance);
-		this._terminalChatService.registerTerminalInstanceWithChatSession(chatSessionId, toolTerminal.instance);
+		this._terminalChatService.registerTerminalInstanceWithChatSession(chatSessionResource, toolTerminal.instance);
 		this._registerInputListener(toolTerminal);
-		this._sessionTerminalAssociations.set(chatSessionId, toolTerminal);
+		this._sessionTerminalAssociations.set(chatSessionResource, toolTerminal);
 		if (token.isCancellationRequested) {
 			toolTerminal.instance.dispose();
 			throw new CancellationError();
 		}
-		await this._setupProcessIdAssociation(toolTerminal, chatSessionId, termId, true);
+		await this._setupProcessIdAssociation(toolTerminal, chatSessionResource, termId, true);
 		return toolTerminal;
 	}
 
-	private async _initForegroundTerminal(chatSessionId: string, termId: string, terminalToolSessionId: string | undefined, token: CancellationToken): Promise<IToolTerminal> {
-		const cachedTerminal = this._sessionTerminalAssociations.get(chatSessionId);
+	private async _initForegroundTerminal(chatSessionResource: URI, termId: string, terminalToolSessionId: string | undefined, token: CancellationToken): Promise<IToolTerminal> {
+		const cachedTerminal = this._sessionTerminalAssociations.get(chatSessionResource);
 		if (cachedTerminal) {
-			this._logService.debug(`RunInTerminalTool: Using cached foreground terminal with session ID \`${chatSessionId}\``);
+			this._logService.debug(`RunInTerminalTool: Using cached foreground terminal with session resource \`${chatSessionResource}\``);
 			this._terminalToolCreator.refreshShellIntegrationQuality(cachedTerminal);
 			this._terminalChatService.registerTerminalInstanceWithToolSession(terminalToolSessionId, cachedTerminal.instance);
 			return cachedTerminal;
@@ -838,14 +839,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const os = await this._osBackend;
 		const toolTerminal = await this._terminalToolCreator.createTerminal(profile, os, token);
 		this._terminalChatService.registerTerminalInstanceWithToolSession(terminalToolSessionId, toolTerminal.instance);
-		this._terminalChatService.registerTerminalInstanceWithChatSession(chatSessionId, toolTerminal.instance);
+		this._terminalChatService.registerTerminalInstanceWithChatSession(chatSessionResource, toolTerminal.instance);
 		this._registerInputListener(toolTerminal);
-		this._sessionTerminalAssociations.set(chatSessionId, toolTerminal);
+		this._sessionTerminalAssociations.set(chatSessionResource, toolTerminal);
 		if (token.isCancellationRequested) {
 			toolTerminal.instance.dispose();
 			throw new CancellationError();
 		}
-		await this._setupProcessIdAssociation(toolTerminal, chatSessionId, termId, false);
+		await this._setupProcessIdAssociation(toolTerminal, chatSessionResource, termId, false);
 		return toolTerminal;
 	}
 
@@ -873,13 +874,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				if (instance.processId) {
 					const association = associations[instance.processId];
 					if (association) {
+						// Convert stored string ID to URI for backward compatibility
+						const chatSessionResource = LocalChatSessionUri.forSession(association.sessionId);
 						this._logService.debug(`RunInTerminalTool: Restored terminal association for PID ${instance.processId}, session ${association.sessionId}`);
 						const toolTerminal: IToolTerminal = {
 							instance,
 							shellIntegrationQuality: association.shellIntegrationQuality
 						};
-						this._sessionTerminalAssociations.set(association.sessionId, toolTerminal);
-						this._terminalChatService.registerTerminalInstanceWithChatSession(association.sessionId, instance);
+						this._sessionTerminalAssociations.set(chatSessionResource, toolTerminal);
+						this._terminalChatService.registerTerminalInstanceWithChatSession(chatSessionResource, instance);
 
 						// Listen for terminal disposal to clean up storage
 						this._register(instance.onDisposed(() => {
@@ -893,8 +896,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 	}
 
-	private async _setupProcessIdAssociation(toolTerminal: IToolTerminal, chatSessionId: string, termId: string, isBackground: boolean) {
-		await this._associateProcessIdWithSession(toolTerminal.instance, chatSessionId, termId, toolTerminal.shellIntegrationQuality, isBackground);
+	private async _setupProcessIdAssociation(toolTerminal: IToolTerminal, chatSessionResource: URI, termId: string, isBackground: boolean) {
+		await this._associateProcessIdWithSession(toolTerminal.instance, chatSessionResource, termId, toolTerminal.shellIntegrationQuality, isBackground);
 		this._register(toolTerminal.instance.onDisposed(() => {
 			if (toolTerminal!.instance.processId) {
 				this._removeProcessIdAssociation(toolTerminal!.instance.processId);
@@ -902,7 +905,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}));
 	}
 
-	private async _associateProcessIdWithSession(terminal: ITerminalInstance, sessionId: string, id: string, shellIntegrationQuality: ShellIntegrationQuality, isBackground?: boolean): Promise<void> {
+	private async _associateProcessIdWithSession(terminal: ITerminalInstance, chatSessionResource: URI, id: string, shellIntegrationQuality: ShellIntegrationQuality, isBackground?: boolean): Promise<void> {
 		try {
 			// Wait for process ID with timeout
 			const pid = await Promise.race([
@@ -914,6 +917,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				const storedAssociations = this._storageService.get(TerminalToolStorageKeysInternal.TerminalSession, StorageScope.WORKSPACE, '{}');
 				const associations: Record<number, IStoredTerminalAssociation> = JSON.parse(storedAssociations);
 
+				// Convert URI to string ID for storage (backward compatibility)
+				const sessionId = chatSessionResourceToId(chatSessionResource);
 				const existingAssociation = associations[pid] || {};
 				associations[pid] = {
 					...existingAssociation,
@@ -946,12 +951,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 	}
 
-	private _cleanupSessionTerminals(sessionId: string): void {
-		const toolTerminal = this._sessionTerminalAssociations.get(sessionId);
+	private _cleanupSessionTerminals(chatSessionResource: URI): void {
+		const toolTerminal = this._sessionTerminalAssociations.get(chatSessionResource);
 		if (toolTerminal) {
-			this._logService.debug(`RunInTerminalTool: Cleaning up terminal for disposed chat session ${sessionId}`);
+			this._logService.debug(`RunInTerminalTool: Cleaning up terminal for disposed chat session ${chatSessionResource}`);
 
-			this._sessionTerminalAssociations.delete(sessionId);
+			this._sessionTerminalAssociations.delete(chatSessionResource);
 			toolTerminal.instance.dispose();
 
 			// Clean up any background executions associated with this session
