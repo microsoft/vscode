@@ -381,14 +381,14 @@ export class PlaywrightDriver {
 			runOnly: {
 				type: 'tag',
 				values: options?.tags ?? ['wcag2a', 'wcag2aa', 'wcag21aa']
-			},
-			rules: {}
+			}
 		};
 
 		// Disable specific rules if requested
 		if (options?.disableRules && options.disableRules.length > 0) {
+			runOptions.rules = {};
 			for (const ruleId of options.disableRules) {
-				runOptions.rules![ruleId] = { enabled: false };
+				runOptions.rules[ruleId] = { enabled: false };
 			}
 		}
 
