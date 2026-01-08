@@ -524,6 +524,215 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 				const expectedLineCount = expectedText ? expectedText.split('\r\n').length : 0;
 				strictEqual(result?.lineCount, expectedLineCount);
 			});
+
+			suite('streaming via onDidUpdate', () => {
+				test('onDidUpdate fires when new terminal data arrives after initial render', async () => {
+					await write('prompt$ ');
+					const executedMarker = xterm.raw.registerMarker(0)!;
+					await write('line1\r\n');
+
+					const command = {
+						executedMarker,
+					} as unknown as ITerminalCommand & ICurrentPartialCommand;
+
+					const mirror = store.add(new DetachedTerminalCommandMirror(
+						xterm,
+						command,
+						{} as ITerminalService,
+						{} as IContextKeyService
+					));
+
+					const writes: string[] = [];
+					const detached = createDetachedTerminal(writes);
+
+					(mirror as unknown as Record<string, unknown>)['_getOrCreateTerminal'] = async () => {
+						(mirror as unknown as Record<string, unknown>)['_detachedTerminal'] = detached;
+						return detached;
+					};
+
+					// Initial render starts streaming
+					await mirror.renderCommand();
+
+					// Set up listener for onDidUpdate
+					const updates: number[] = [];
+					store.add(mirror.onDidUpdate(lineCount => updates.push(lineCount)));
+
+					// Write more data to the source terminal
+					await write('line2\r\n');
+
+					// Wait for the streaming flush to occur (microtask + async flush)
+					await new Promise(resolve => setTimeout(resolve, 50));
+
+					// onDidUpdate should have fired with the new line count
+					strictEqual(updates.length >= 1, true, 'onDidUpdate should have fired at least once');
+				});
+
+				test('streaming stops when endMarker is set', async () => {
+					await write('prompt$ ');
+					const executedMarker = xterm.raw.registerMarker(0)!;
+					await write('line1\r\n');
+
+					const command = {
+						executedMarker,
+					} as unknown as ITerminalCommand & ICurrentPartialCommand;
+
+					const mirror = store.add(new DetachedTerminalCommandMirror(
+						xterm,
+						command,
+						{} as ITerminalService,
+						{} as IContextKeyService
+					));
+
+					const writes: string[] = [];
+					const detached = createDetachedTerminal(writes);
+
+					(mirror as unknown as Record<string, unknown>)['_getOrCreateTerminal'] = async () => {
+						(mirror as unknown as Record<string, unknown>)['_detachedTerminal'] = detached;
+						return detached;
+					};
+
+					// Initial render starts streaming
+					await mirror.renderCommand();
+					strictEqual((mirror as unknown as Record<string, unknown>)['_isStreaming'], true, 'should be streaming');
+
+					// Set endMarker and trigger a flush
+					command.endMarker = xterm.raw.registerMarker(0)!;
+					await write('final\r\n');
+
+					// Wait for the streaming flush to complete
+					await new Promise(resolve => setTimeout(resolve, 50));
+
+					// Streaming should have stopped
+					strictEqual((mirror as unknown as Record<string, unknown>)['_isStreaming'], false, 'should stop streaming after endMarker');
+				});
+
+				test('streaming updates mirror with incremental data', async () => {
+					await write('prompt$ ');
+					const executedMarker = xterm.raw.registerMarker(0)!;
+					await write('initial\r\n');
+
+					const command = {
+						executedMarker,
+					} as unknown as ITerminalCommand & ICurrentPartialCommand;
+
+					const mirror = store.add(new DetachedTerminalCommandMirror(
+						xterm,
+						command,
+						{} as ITerminalService,
+						{} as IContextKeyService
+					));
+
+					const writes: string[] = [];
+					const detached = createDetachedTerminal(writes);
+
+					(mirror as unknown as Record<string, unknown>)['_getOrCreateTerminal'] = async () => {
+						(mirror as unknown as Record<string, unknown>)['_detachedTerminal'] = detached;
+						return detached;
+					};
+
+					// Initial render
+					await mirror.renderCommand();
+					const initialWriteCount = writes.length;
+					const initialVT = (mirror as unknown as Record<string, unknown>)['_lastVT'] as string;
+
+					// Write more data
+					await write('streamed1\r\n');
+					await write('streamed2\r\n');
+
+					// Wait for streaming flush
+					await new Promise(resolve => setTimeout(resolve, 50));
+
+					// Should have written additional data to the detached terminal
+					strictEqual(writes.length > initialWriteCount, true, 'should have written more data');
+
+					// The lastVT should have been updated
+					const updatedVT = (mirror as unknown as Record<string, unknown>)['_lastVT'] as string;
+					strictEqual(updatedVT.length > initialVT.length, true, 'VT snapshot should have grown');
+				});
+
+				test('cursor tracking updates dirty range correctly', async () => {
+					await write('prompt$ ');
+					const executedMarker = xterm.raw.registerMarker(0)!;
+					await write('line1\r\n');
+
+					const command = {
+						executedMarker,
+					} as unknown as ITerminalCommand & ICurrentPartialCommand;
+
+					const mirror = store.add(new DetachedTerminalCommandMirror(
+						xterm,
+						command,
+						{} as ITerminalService,
+						{} as IContextKeyService
+					));
+
+					const writes: string[] = [];
+					const detached = createDetachedTerminal(writes);
+
+					(mirror as unknown as Record<string, unknown>)['_getOrCreateTerminal'] = async () => {
+						(mirror as unknown as Record<string, unknown>)['_detachedTerminal'] = detached;
+						return detached;
+					};
+
+					// Initial render sets up cursor tracking
+					await mirror.renderCommand();
+
+					const lastUpToDateCursorY = (mirror as unknown as Record<string, unknown>)['_lastUpToDateCursorY'] as number;
+					strictEqual(typeof lastUpToDateCursorY, 'number', '_lastUpToDateCursorY should be set after render');
+
+					// Write more data to advance cursor
+					await write('more data\r\n');
+
+					// Wait for flush
+					await new Promise(resolve => setTimeout(resolve, 50));
+
+					// Cursor tracking should have updated
+					const newLastUpToDateCursorY = (mirror as unknown as Record<string, unknown>)['_lastUpToDateCursorY'] as number;
+					strictEqual(newLastUpToDateCursorY >= lastUpToDateCursorY, true, 'cursor Y should advance or stay same');
+				});
+
+				test('multiple rapid writes are batched in streaming flush', async () => {
+					await write('prompt$ ');
+					const executedMarker = xterm.raw.registerMarker(0)!;
+					await write('start\r\n');
+
+					const command = {
+						executedMarker,
+					} as unknown as ITerminalCommand & ICurrentPartialCommand;
+
+					const mirror = store.add(new DetachedTerminalCommandMirror(
+						xterm,
+						command,
+						{} as ITerminalService,
+						{} as IContextKeyService
+					));
+
+					const writes: string[] = [];
+					const detached = createDetachedTerminal(writes);
+
+					(mirror as unknown as Record<string, unknown>)['_getOrCreateTerminal'] = async () => {
+						(mirror as unknown as Record<string, unknown>)['_detachedTerminal'] = detached;
+						return detached;
+					};
+
+					// Initial render
+					await mirror.renderCommand();
+					const updateCounts: number[] = [];
+					store.add(mirror.onDidUpdate(count => updateCounts.push(count)));
+
+					// Rapid writes without waiting
+					xterm.write('a\r\n');
+					xterm.write('b\r\n');
+					xterm.write('c\r\n');
+
+					// Wait for batched flush
+					await new Promise(resolve => setTimeout(resolve, 100));
+
+					// The dirty scheduling should batch these, so we expect fewer updates than writes
+					// At minimum we should have at least one update
+					strictEqual(updateCounts.length >= 1, true, 'should have received at least one batched update');
+				});
+			});
 		});
 	});
 });
