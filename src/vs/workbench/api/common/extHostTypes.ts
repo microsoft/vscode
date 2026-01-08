@@ -12,6 +12,7 @@ import { illegalArgument, SerializedError } from '../../../base/common/errors.js
 import { IRelativePattern } from '../../../base/common/glob.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { Mimes } from '../../../base/common/mime.js';
+import { Schemas } from '../../../base/common/network.js';
 import { nextCharLength } from '../../../base/common/strings.js';
 import { isNumber, isObject, isString, isStringArray } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
@@ -3894,5 +3895,159 @@ export class McpHttpServerDefinition implements vscode.McpHttpServerDefinition {
 		public metadata?: vscode.McpServerMetadata,
 		public authentication?: { providerId: string; scopes: string[] },
 	) { }
+}
+//#endregion
+
+//#region Chat Prompt Files
+
+type HeaderValue = string | boolean | string[] | vscode.CustomAgentHandoff[] | undefined;
+
+/**
+ * Generates markdown content for a prompt file with YAML frontmatter.
+ */
+function generatePromptMarkdown(header: Record<string, HeaderValue>, body: string): string {
+	const lines: string[] = ['---'];
+	for (const [key, value] of Object.entries(header)) {
+		if (value === undefined) {
+			continue;
+		}
+		if (typeof value === 'boolean') {
+			lines.push(`${key}: ${value}`);
+		} else if (Array.isArray(value)) {
+			if (value.length === 0) {
+				continue;
+			}
+			// Check if it's an array of handoffs (objects) or strings
+			if (typeof value[0] === 'object') {
+				// Handoffs array - format as YAML array of objects
+				lines.push(`${key}:`);
+				for (const item of value as vscode.CustomAgentHandoff[]) {
+					lines.push(`  - label: "${item.label}"`);
+					lines.push(`    agent: ${item.agent}`);
+					lines.push(`    prompt: "${item.prompt}"`);
+					if (item.send !== undefined) {
+						lines.push(`    send: ${item.send}`);
+					}
+					if (item.showContinueOn !== undefined) {
+						lines.push(`    showContinueOn: ${item.showContinueOn}`);
+					}
+				}
+			} else {
+				// String array
+				lines.push(`${key}: [${(value as string[]).map(v => `'${v}'`).join(', ')}]`);
+			}
+		} else {
+			lines.push(`${key}: "${value}"`);
+		}
+	}
+	lines.push('---');
+	lines.push(body);
+	return lines.join('\n');
+}
+
+/**
+ * Creates a virtual URI for a prompt file with embedded content.
+ */
+function createVirtualPromptUri(name: string, extension: string, content: string): URI {
+	const encodedContent = encodeURIComponent(content);
+	return URI.from({
+		scheme: Schemas.vscodeChatPrompt,
+		path: `/${name}${extension}`,
+		query: encodedContent
+	});
+}
+
+@es5ClassCompat
+export class CustomAgentChatResource implements vscode.CustomAgentChatResource {
+	readonly name: string;
+	readonly description: string;
+	readonly uri: URI;
+	readonly isEditable?: boolean;
+
+	constructor(name: string, description: string, uri: URI, isEditable?: boolean);
+	constructor(options: vscode.CustomAgentOptions);
+	constructor(nameOrOptions: string | vscode.CustomAgentOptions, description?: string, uri?: URI, isEditable?: boolean) {
+		if (typeof nameOrOptions === 'object') {
+			const options = nameOrOptions;
+			this.name = options.name;
+			this.description = options.description;
+			this.isEditable = options.isEditable;
+			const content = generatePromptMarkdown({
+				description: options.description,
+				model: options.model,
+				tools: options.tools,
+				'argument-hint': options.argumentHint,
+				target: options.target,
+				infer: options.infer,
+				handoffs: options.handoffs,
+			}, options.body);
+			this.uri = createVirtualPromptUri(options.name, '.agent.md', content);
+		} else {
+			this.name = nameOrOptions;
+			this.description = description!;
+			this.uri = uri!;
+			this.isEditable = isEditable;
+		}
+	}
+}
+
+@es5ClassCompat
+export class InstructionsChatResource implements vscode.InstructionsChatResource {
+	readonly name: string;
+	readonly description: string;
+	readonly uri: URI;
+	readonly isEditable?: boolean;
+
+	constructor(name: string, description: string, uri: URI, isEditable?: boolean);
+	constructor(options: vscode.InstructionsOptions);
+	constructor(nameOrOptions: string | vscode.InstructionsOptions, description?: string, uri?: URI, isEditable?: boolean) {
+		if (typeof nameOrOptions === 'object') {
+			const options = nameOrOptions;
+			this.name = options.name;
+			this.description = options.description;
+			this.isEditable = options.isEditable;
+			const content = generatePromptMarkdown({
+				description: options.description,
+				applyTo: options.applyTo,
+			}, options.body);
+			this.uri = createVirtualPromptUri(options.name, '.instructions.md', content);
+		} else {
+			this.name = nameOrOptions;
+			this.description = description!;
+			this.uri = uri!;
+			this.isEditable = isEditable;
+		}
+	}
+}
+
+@es5ClassCompat
+export class PromptFileChatResource implements vscode.PromptFileChatResource {
+	readonly name: string;
+	readonly description: string;
+	readonly uri: URI;
+	readonly isEditable?: boolean;
+
+	constructor(name: string, description: string, uri: URI, isEditable?: boolean);
+	constructor(options: vscode.PromptFileOptions);
+	constructor(nameOrOptions: string | vscode.PromptFileOptions, description?: string, uri?: URI, isEditable?: boolean) {
+		if (typeof nameOrOptions === 'object') {
+			const options = nameOrOptions;
+			this.name = options.name;
+			this.description = options.description;
+			this.isEditable = options.isEditable;
+			const content = generatePromptMarkdown({
+				description: options.description,
+				agent: options.agent,
+				model: options.model,
+				tools: options.tools,
+			}, options.body);
+			this.uri = createVirtualPromptUri(options.name, '.prompt.md', content);
+		} else {
+			this.name = nameOrOptions;
+			this.description = description!;
+			this.uri = uri!;
+			this.isEditable = isEditable;
+		}
+	}
 }
 //#endregion
