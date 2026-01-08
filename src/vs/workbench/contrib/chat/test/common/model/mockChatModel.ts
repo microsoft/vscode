@@ -30,6 +30,7 @@ export class MockChatModel extends Disposable implements IChatModel {
 	readonly editingSession = undefined;
 	readonly checkpoint = undefined;
 	readonly willKeepAlive = true;
+	readonly responderUsername: string = 'agent';
 	readonly inputModel: IInputModel = {
 		state: observableValue('inputModelState', undefined),
 		setState: () => { },
@@ -62,7 +63,6 @@ export class MockChatModel extends Disposable implements IChatModel {
 			initialLocation: this.initialLocation,
 			requests: [],
 			responderUsername: '',
-			responderAvatarIconUri: undefined
 		};
 	}
 	toJSON(): ISerializableChatData {
@@ -70,12 +70,10 @@ export class MockChatModel extends Disposable implements IChatModel {
 			version: 3,
 			sessionId: this.sessionId,
 			creationDate: this.timestamp,
-			lastMessageDate: this.lastMessageDate,
 			customTitle: this.customTitle,
 			initialLocation: this.initialLocation,
 			requests: [],
 			responderUsername: '',
-			responderAvatarIconUri: undefined
 		};
 	}
 }

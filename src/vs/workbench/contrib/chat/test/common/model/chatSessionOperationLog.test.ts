@@ -1,0 +1,437 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import { VSBuffer } from '../../../../../../base/common/buffer.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { Adapt } from '../../../common/model/chatSessionOperationLog.js';
+
+suite('ChatSessionOperationLog', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	// Test data types
+	interface TestItem {
+		id: string;
+		value: number;
+	}
+
+	interface TestObject {
+		name: string;
+		count: number;
+		items: TestItem[];
+		metadata?: { tags: string[] };
+	}
+
+	// Helper to create a simple schema for testing
+	function createTestSchema() {
+		const itemSchema = Adapt.object<TestItem, TestItem>({
+			id: Adapt.t(i => i.id, Adapt.key()),
+			value: Adapt.t(i => i.value, Adapt.primitive()),
+		});
+
+		return Adapt.object<TestObject, TestObject>({
+			name: Adapt.t(o => o.name, Adapt.constant()),
+			count: Adapt.t(o => o.count, Adapt.primitive()),
+			items: Adapt.t(o => o.items, Adapt.array(itemSchema)),
+			metadata: Adapt.t(o => o.metadata, Adapt.deepCompare()),
+		});
+	}
+
+	// Helper to simulate file operations
+	function simulateFileRoundtrip(adapter: Adapt.LogAdapter<TestObject, TestObject>, initial: TestObject, updates: TestObject[]): TestObject {
+		let fileContent = adapter.createInitial(initial);
+
+		for (const update of updates) {
+			const result = adapter.write(update);
+			if (result.op === 'replace') {
+				fileContent = result.data;
+			} else {
+				fileContent = VSBuffer.concat([fileContent, result.data]);
+			}
+		}
+
+		// Create new adapter and read back
+		const reader = new Adapt.LogAdapter(createTestSchema());
+		return reader.read(fileContent);
+	}
+
+	suite('Transform factories', () => {
+		test('constant always returns equal', () => {
+			const transform = Adapt.constant<string, string>();
+			assert.strictEqual(transform.equals('a', 'b'), true);
+			assert.strictEqual(transform.equals('x', 'y'), true);
+		});
+
+		test('key uses strict equality by default', () => {
+			const transform = Adapt.key<string>();
+			assert.strictEqual(transform.equals('a', 'a'), true);
+			assert.strictEqual(transform.equals('a', 'b'), false);
+			assert.strictEqual(transform.isKey, true);
+		});
+
+		test('key uses custom comparator', () => {
+			const transform = Adapt.key<{ id: number }>((a, b) => a.id === b.id);
+			assert.strictEqual(transform.equals({ id: 1 }, { id: 1 }), true);
+			assert.strictEqual(transform.equals({ id: 1 }, { id: 2 }), false);
+		});
+
+		test('primitive uses strict equality', () => {
+			const transform = Adapt.primitive<number, number>();
+			assert.strictEqual(transform.equals(1, 1), true);
+			assert.strictEqual(transform.equals(1, 2), false);
+		});
+
+		test('primitive with custom comparator', () => {
+			const transform = Adapt.primitive<string, string>((a, b) => a.toLowerCase() === b.toLowerCase());
+			assert.strictEqual(transform.equals('ABC', 'abc'), true);
+			assert.strictEqual(transform.equals('ABC', 'def'), false);
+		});
+
+		test('deepCompare compares object contents', () => {
+			const transform = Adapt.deepCompare<object, object>();
+			assert.strictEqual(transform.equals({ a: 1 }, { a: 1 }), true);
+			assert.strictEqual(transform.equals({ a: 1 }, { a: 2 }), false);
+			assert.strictEqual(transform.equals({ a: 1, b: 2 }, { a: 1, b: 2 }), true);
+		});
+
+		test('array compares items positionally', () => {
+			const itemTransform = Adapt.primitive<number, number>();
+			const transform = Adapt.array(itemTransform);
+
+			assert.strictEqual(transform.equals([1, 2, 3], [1, 2, 3]), true);
+			assert.strictEqual(transform.equals([1, 2, 3], [1, 2, 4]), false);
+			assert.strictEqual(transform.equals([1, 2], [1, 2, 3]), false);
+		});
+
+		test('object extracts and compares properties', () => {
+			const schema = Adapt.object<{ x: number; y: string }, { x: number; y: string }>({
+				x: Adapt.t(o => o.x, Adapt.primitive()),
+				y: Adapt.t(o => o.y, Adapt.primitive()),
+			});
+
+			const extracted = schema.extract({ x: 1, y: 'test' });
+			assert.strictEqual(extracted.x, 1);
+			assert.strictEqual(extracted.y, 'test');
+
+			assert.strictEqual(schema.equals({ x: 1, y: 'a' }, { x: 1, y: 'a' }), true);
+			assert.strictEqual(schema.equals({ x: 1, y: 'a' }, { x: 1, y: 'b' }), false);
+		});
+
+		test('t composes getter with transform', () => {
+			const transform = Adapt.t(
+				(obj: { nested: { value: number } }) => obj.nested.value,
+				Adapt.primitive<number, number>()
+			);
+
+			assert.strictEqual(transform.extract({ nested: { value: 42 } }), 42);
+		});
+
+		test('differentiated uses separate extract and equals functions', () => {
+			const transform = Adapt.differentiated<{ type: string; data: number }, string>(
+				obj => `${obj.type}:${obj.data}`,
+				(a, b) => a.split(':')[0] === b.split(':')[0], // compare only the type prefix
+			);
+
+			const extracted = transform.extract({ type: 'test', data: 123 });
+			assert.strictEqual(extracted, 'test:123');
+
+			// Same type prefix should be equal
+			assert.strictEqual(transform.equals('test:123', 'test:456'), true);
+			// Different type prefix should not be equal
+			assert.strictEqual(transform.equals('test:123', 'other:123'), false);
+		});
+	});
+
+	suite('LogAdapter', () => {
+		test('createInitial creates valid log entry', () => {
+			const schema = createTestSchema();
+			const adapter = new Adapt.LogAdapter(schema);
+
+			const initial: TestObject = { name: 'test', count: 0, items: [] };
+			const buffer = adapter.createInitial(initial);
+
+			const content = buffer.toString();
+			const entry = JSON.parse(content.trim());
+			assert.strictEqual(entry.kind, 0); // EntryKind.Initial
+			assert.deepStrictEqual(entry.v, initial);
+		});
+
+		test('read reconstructs initial state', () => {
+			const schema = createTestSchema();
+			const adapter = new Adapt.LogAdapter(schema);
+
+			const initial: TestObject = { name: 'test', count: 5, items: [{ id: 'a', value: 1 }] };
+			const buffer = adapter.createInitial(initial);
+
+			const reader = new Adapt.LogAdapter(schema);
+			const result = reader.read(buffer);
+
+			assert.deepStrictEqual(result, initial);
+		});
+
+		test('write returns empty data when no changes', () => {
+			const schema = createTestSchema();
+			const adapter = new Adapt.LogAdapter(schema);
+
+			const obj: TestObject = { name: 'test', count: 0, items: [] };
+			adapter.createInitial(obj);
+
+			const result = adapter.write(obj);
+			assert.strictEqual(result.op, 'append');
+			assert.strictEqual(result.data.toString(), '');
+		});
+
+		test('write detects primitive changes', () => {
+			const schema = createTestSchema();
+			const adapter = new Adapt.LogAdapter(schema);
+
+			const obj: TestObject = { name: 'test', count: 0, items: [] };
+			adapter.createInitial(obj);
+
+			const updated = { ...obj, count: 10 };
+			const result = adapter.write(updated);
+
+			assert.strictEqual(result.op, 'append');
+			const entry = JSON.parse(result.data.toString().trim());
+			assert.strictEqual(entry.kind, 1); // EntryKind.Set
+			assert.deepStrictEqual(entry.k, ['count']);
+			assert.strictEqual(entry.v, 10);
+		});
+
+		test('write detects array append', () => {
+			const schema = createTestSchema();
+			const adapter = new Adapt.LogAdapter(schema);
+
+			const obj: TestObject = { name: 'test', count: 0, items: [{ id: 'a', value: 1 }] };
+			adapter.createInitial(obj);
+
+			const updated: TestObject = { ...obj, items: [...obj.items, { id: 'b', value: 2 }] };
+			const result = adapter.write(updated);
+
+			const entry = JSON.parse(result.data.toString().trim());
+			assert.strictEqual(entry.kind, 2); // EntryKind.Push
+			assert.deepStrictEqual(entry.k, ['items']);
+			assert.deepStrictEqual(entry.v, [{ id: 'b', value: 2 }]);
+			assert.strictEqual(entry.i, undefined);
+		});
+
+		test('write detects array append nested', () => {
+			type Item = { id: string; value: number[] };
+			const itemSchema = Adapt.object<Item, Item>({
+				id: Adapt.t(i => i.id, Adapt.key()),
+				value: Adapt.t(i => i.value, Adapt.array(Adapt.primitive())),
+			});
+
+			type TestObject = { items: Item[] };
+			const schema = Adapt.object<TestObject, TestObject>({
+				items: Adapt.t(o => o.items, Adapt.array(itemSchema)),
+			});
+
+			const adapter = new Adapt.LogAdapter(schema);
+
+			adapter.createInitial({ items: [{ id: 'a', value: [1, 2] }] });
+
+
+			const result1 = adapter.write({ items: [{ id: 'a', value: [1, 2, 3] }] });
+			assert.deepStrictEqual(
+				JSON.parse(result1.data.toString().trim()),
+				{ kind: 2, k: ['items', 0, 'value'], v: [3] },
+			);
+
+			const result2 = adapter.write({ items: [{ id: 'b', value: [1, 2, 3] }] });
+			assert.deepStrictEqual(
+				JSON.parse(result2.data.toString().trim()),
+				{ kind: 2, k: ['items'], i: 0, v: [{ id: 'b', value: [1, 2, 3] }] },
+			);
+		});
+
+		test('write detects array truncation', () => {
+			const schema = createTestSchema();
+			const adapter = new Adapt.LogAdapter(schema);
+
+			const obj: TestObject = { name: 'test', count: 0, items: [{ id: 'a', value: 1 }, { id: 'b', value: 2 }] };
+			adapter.createInitial(obj);
+
+			const updated: TestObject = { ...obj, items: [obj.items[0]] };
+			const result = adapter.write(updated);
+
+			const entry = JSON.parse(result.data.toString().trim());
+			assert.strictEqual(entry.kind, 2); // EntryKind.Push
+			assert.deepStrictEqual(entry.k, ['items']);
+			assert.strictEqual(entry.i, 1);
+			assert.strictEqual(entry.v, undefined);
+		});
+
+		test('write detects array item modification and recurses into object', () => {
+			const schema = createTestSchema();
+			const adapter = new Adapt.LogAdapter(schema);
+
+			const obj: TestObject = {
+				name: 'test',
+				count: 0,
+				items: [{ id: 'a', value: 1 }, { id: 'b', value: 2 }, { id: 'c', value: 3 }]
+			};
+			adapter.createInitial(obj);
+
+			// Modify middle item - key 'id' matches, so we recurse to set the 'value' property
+			const updated: TestObject = {
+				...obj,
+				items: [{ id: 'a', value: 1 }, { id: 'b', value: 999 }, { id: 'c', value: 3 }]
+			};
+			const result = adapter.write(updated);
+
+			const entry = JSON.parse(result.data.toString().trim());
+			assert.strictEqual(entry.kind, 1); // EntryKind.Set - setting individual property
+			assert.deepStrictEqual(entry.k, ['items', 1, 'value']);
+			assert.strictEqual(entry.v, 999);
+		});
+
+		test('write ignores constant property changes', () => {
+			const schema = createTestSchema();
+			const adapter = new Adapt.LogAdapter(schema);
+
+			const obj: TestObject = { name: 'original', count: 0, items: [] };
+			adapter.createInitial(obj);
+
+			// Try to change the constant 'name' property
+			const updated: TestObject = { name: 'changed', count: 0, items: [] };
+			const result = adapter.write(updated);
+
+			// No changes should be detected since 'name' is constant
+			assert.strictEqual(result.data.toString(), '');
+		});
+
+		test('read applies multiple entries correctly', () => {
+			const schema = createTestSchema();
+			const initial: TestObject = { name: 'test', count: 0, items: [] };
+
+			// Build log manually
+			const entries = [
+				{ kind: 0, v: initial },
+				{ kind: 1, k: ['count'], v: 5 },
+				{ kind: 2, k: ['items'], v: [{ id: 'a', value: 1 }] },
+				{ kind: 2, k: ['items'], v: [{ id: 'b', value: 2 }] },
+			];
+			const logContent = entries.map(e => JSON.stringify(e)).join('\n') + '\n';
+
+			const adapter = new Adapt.LogAdapter(schema);
+			const result = adapter.read(VSBuffer.fromString(logContent));
+
+			assert.strictEqual(result.count, 5);
+			assert.strictEqual(result.items.length, 2);
+			assert.deepStrictEqual(result.items[0], { id: 'a', value: 1 });
+			assert.deepStrictEqual(result.items[1], { id: 'b', value: 2 });
+		});
+
+		test('roundtrip preserves data through multiple updates', () => {
+			const schema = createTestSchema();
+			const adapter = new Adapt.LogAdapter(schema);
+
+			const initial: TestObject = { name: 'test', count: 0, items: [] };
+			const updates: TestObject[] = [
+				{ name: 'test', count: 1, items: [] },
+				{ name: 'test', count: 1, items: [{ id: 'a', value: 10 }] },
+				{ name: 'test', count: 2, items: [{ id: 'a', value: 10 }, { id: 'b', value: 20 }] },
+				{ name: 'test', count: 2, items: [{ id: 'a', value: 10 }] }, // Remove item
+			];
+
+			const result = simulateFileRoundtrip(adapter, initial, updates);
+			assert.deepStrictEqual(result, updates[updates.length - 1]);
+		});
+
+		test('compacts log when entry count exceeds threshold', () => {
+			const schema = createTestSchema();
+			const adapter = new Adapt.LogAdapter(schema, 3); // Compact after 3 entries
+
+			const obj: TestObject = { name: 'test', count: 0, items: [] };
+			adapter.createInitial(obj); // Entry 1
+
+			adapter.write({ ...obj, count: 1 }); // Entry 2
+			adapter.write({ ...obj, count: 2 }); // Entry 3
+
+			const before = adapter.write({ ...obj, count: 3 });
+			assert.strictEqual(before.op, 'append');
+
+			// This should trigger compaction
+			const result = adapter.write({ ...obj, count: 4 });
+			assert.strictEqual(result.op, 'replace');
+
+			// Verify the compacted log only has initial entry
+			const lines = result.data.toString().split('\n').filter(l => l.trim());
+			assert.strictEqual(lines.length, 1);
+			const entry = JSON.parse(lines[0]);
+			assert.strictEqual(entry.kind, 0); // EntryKind.Initial
+		});
+
+		test('handles deepCompare property changes', () => {
+			const schema = createTestSchema();
+			const adapter = new Adapt.LogAdapter(schema);
+
+			const obj: TestObject = { name: 'test', count: 0, items: [], metadata: { tags: ['a'] } };
+			adapter.createInitial(obj);
+
+			const updated: TestObject = { ...obj, metadata: { tags: ['a', 'b'] } };
+			const result = adapter.write(updated);
+
+			const entry = JSON.parse(result.data.toString().trim());
+			assert.strictEqual(entry.kind, 1); // EntryKind.Set
+			assert.deepStrictEqual(entry.k, ['metadata']);
+			assert.deepStrictEqual(entry.v, { tags: ['a', 'b'] });
+		});
+
+		test('handles differentiated property changes', () => {
+			// Schema with a differentiated transform that extracts a string
+			// but uses a custom equals that only checks the prefix
+			interface DiffObj {
+				data: { type: string; version: number };
+			}
+			const schema = Adapt.object<DiffObj, { data: string }>({
+				data: Adapt.t(
+					o => o.data,
+					Adapt.differentiated<{ type: string; version: number }, string>(
+						obj => `${obj.type}:${obj.version}`,
+						(a, b) => a.split(':')[0] === b.split(':')[0], // compare only the type prefix
+					)
+				),
+			});
+
+			const adapter = new Adapt.LogAdapter(schema);
+
+			// Initial state: 'foo:1'
+			adapter.createInitial({ data: { type: 'foo', version: 1 } });
+
+			// Change type from 'foo' to 'bar' - should detect change (different prefix)
+			const result1 = adapter.write({ data: { type: 'bar', version: 2 } });
+			assert.notStrictEqual(result1.data.toString(), '', 'different type should trigger change');
+			const entry1 = JSON.parse(result1.data.toString().trim());
+			assert.strictEqual(entry1.kind, 1); // EntryKind.Set
+			assert.deepStrictEqual(entry1.k, ['data']);
+			assert.strictEqual(entry1.v, 'bar:2');
+
+			// Change version but keep type 'bar' - should NOT detect change (same prefix)
+			const result2 = adapter.write({ data: { type: 'bar', version: 3 } });
+			assert.strictEqual(result2.data.toString(), '', 'same type prefix should not trigger change');
+		});
+
+		test('read throws on empty log file', () => {
+			const schema = createTestSchema();
+			const adapter = new Adapt.LogAdapter(schema);
+
+			assert.throws(() => adapter.read(VSBuffer.fromString('')), /Empty log file/);
+		});
+
+		test('write without prior read creates initial entry', () => {
+			const schema = createTestSchema();
+			const adapter = new Adapt.LogAdapter(schema);
+
+			const obj: TestObject = { name: 'test', count: 5, items: [] };
+			const result = adapter.write(obj);
+
+			assert.strictEqual(result.op, 'replace');
+			const entry = JSON.parse(result.data.toString().trim());
+			assert.strictEqual(entry.kind, 0); // EntryKind.Initial
+		});
+	});
+});

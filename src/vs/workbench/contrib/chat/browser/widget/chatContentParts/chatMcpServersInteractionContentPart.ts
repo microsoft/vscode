@@ -20,7 +20,7 @@ import { IOpenerService } from '../../../../../../platform/opener/common/opener.
 import { McpCommandIds } from '../../../../mcp/common/mcpCommandIds.js';
 import { IAutostartResult, IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { startServerAndWaitForLiveTools } from '../../../../mcp/common/mcpTypesUtils.js';
-import { IChatMcpServersStarting } from '../../../common/chatService/chatService.js';
+import { IChatMcpServersStarting, IChatMcpServersStartingSerialized } from '../../../common/chatService/chatService.js';
 import { IChatRendererContent, IChatResponseViewModel, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { ChatProgressContentPart } from './chatProgressContentPart.js';
@@ -47,7 +47,7 @@ export class ChatMcpServersInteractionContentPart extends Disposable implements 
 	});
 
 	constructor(
-		private readonly data: IChatMcpServersStarting,
+		private readonly data: IChatMcpServersStarting | IChatMcpServersStartingSerialized,
 		private readonly context: IChatContentPartRenderContext,
 		@IMcpService private readonly mcpService: IMcpService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,

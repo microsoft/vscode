@@ -18,7 +18,7 @@ import { extUri, extUriIgnorePathCase, IExtUri, isAbsolutePath } from '../../../
 import { consumeStream, isReadableBufferedStream, isReadableStream, listenStream, newWriteableStream, peekReadable, peekStream, transform } from '../../../base/common/stream.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
-import { ensureFileSystemProviderError, etag, ETAG_DISABLED, FileChangesEvent, IFileDeleteOptions, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, hasFileAtomicReadCapability, hasFileFolderCopyCapability, hasFileReadStreamCapability, hasOpenReadWriteCloseCapability, hasReadWriteCapability, ICreateFileOptions, IFileContent, IFileService, IFileStat, IFileStatWithMetadata, IFileStreamContent, IFileSystemProvider, IFileSystemProviderActivationEvent, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IReadFileOptions, IReadFileStreamOptions, IResolveFileOptions, IFileStatResult, IFileStatResultWithMetadata, IResolveMetadataFileOptions, IStat, IFileStatWithPartialMetadata, IWatchOptions, IWriteFileOptions, NotModifiedSinceFileOperationError, toFileOperationResult, toFileSystemProviderErrorCode, hasFileCloneCapability, TooLargeFileOperationError, hasFileAtomicDeleteCapability, hasFileAtomicWriteCapability, IWatchOptionsWithCorrelation, IFileSystemWatcher, IWatchOptionsWithoutCorrelation, hasFileRealpathCapability } from './files.js';
+import { ensureFileSystemProviderError, etag, ETAG_DISABLED, FileChangesEvent, IFileDeleteOptions, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, hasFileAppendCapability, hasFileAtomicReadCapability, hasFileFolderCopyCapability, hasFileReadStreamCapability, hasOpenReadWriteCloseCapability, hasReadWriteCapability, ICreateFileOptions, IFileContent, IFileService, IFileStat, IFileStatWithMetadata, IFileStreamContent, IFileSystemProvider, IFileSystemProviderActivationEvent, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileWriteOptions, IReadFileOptions, IReadFileStreamOptions, IResolveFileOptions, IFileStatResult, IFileStatResultWithMetadata, IResolveMetadataFileOptions, IStat, IFileStatWithPartialMetadata, IWatchOptions, IWriteFileOptions, NotModifiedSinceFileOperationError, toFileOperationResult, toFileSystemProviderErrorCode, hasFileCloneCapability, TooLargeFileOperationError, hasFileAtomicDeleteCapability, hasFileAtomicWriteCapability, IWatchOptionsWithCorrelation, IFileSystemWatcher, IWatchOptionsWithoutCorrelation, hasFileRealpathCapability } from './files.js';
 import { readFileIntoStream } from './io.js';
 import { ILogService } from '../../log/common/log.js';
 import { ErrorNoTelemetry } from '../../../base/common/errors.js';
@@ -426,6 +426,60 @@ export class FileService extends Disposable implements IFileService {
 			this._onDidRunOperation.fire(new FileOperationEvent(resource, FileOperation.WRITE));
 		} catch (error) {
 			throw new FileOperationError(localize('err.write', "Unable to write file '{0}' ({1})", this.resourceForError(resource), ensureFileSystemProviderError(error).toString()), toFileOperationResult(error), writeFileOptions);
+		}
+
+		return this.resolve(resource, { resolveMetadata: true });
+	}
+
+	async appendFile(resource: URI, bufferOrReadableOrStream: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: IWriteFileOptions): Promise<IFileStatWithMetadata> {
+		const provider = this.throwIfFileSystemIsReadonly(await this.withWriteProvider(resource), resource);
+
+		try {
+			// if provider supports append, use it directly
+			if (hasFileAppendCapability(provider)) {
+				const buffer = bufferOrReadableOrStream instanceof VSBuffer
+					? bufferOrReadableOrStream
+					: isReadableStream(bufferOrReadableOrStream)
+						? await streamToBuffer(bufferOrReadableOrStream)
+						: readableToBuffer(bufferOrReadableOrStream);
+
+				const writeOptions: IFileWriteOptions = {
+					create: true,
+					overwrite: false,
+					unlock: options?.unlock ?? false,
+					atomic: options?.atomic ?? false
+				};
+
+				await provider.appendFile(resource, buffer.buffer, writeOptions);
+
+				// events
+				this._onDidRunOperation.fire(new FileOperationEvent(resource, FileOperation.WRITE));
+			} else {
+				// fallback: read existing content and write combined content
+				let existingContent: VSBuffer;
+				try {
+					const fileContent = await this.readFile(resource);
+					existingContent = fileContent.value;
+				} catch (error) {
+					// if file doesn't exist, start with empty content
+					if (toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND) {
+						existingContent = VSBuffer.fromString('');
+					} else {
+						throw error;
+					}
+				}
+
+				const newContent = bufferOrReadableOrStream instanceof VSBuffer
+					? bufferOrReadableOrStream
+					: isReadableStream(bufferOrReadableOrStream)
+						? await streamToBuffer(bufferOrReadableOrStream)
+						: readableToBuffer(bufferOrReadableOrStream);
+
+				const combinedContent = VSBuffer.concat([existingContent, newContent]);
+				await this.writeFile(resource, combinedContent, options);
+			}
+		} catch (error) {
+			throw new FileOperationError(localize('err.append', "Unable to append to file '{0}' ({1})", this.resourceForError(resource), ensureFileSystemProviderError(error).toString()), toFileOperationResult(error), options);
 		}
 
 		return this.resolve(resource, { resolveMetadata: true });

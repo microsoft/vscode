@@ -18,7 +18,7 @@ import { newWriteableStream, ReadableStreamEvents } from '../../../base/common/s
 import { URI } from '../../../base/common/uri.js';
 import { IDirent, Promises, RimRafMode, SymlinkSupport } from '../../../base/node/pfs.js';
 import { localize } from '../../../nls.js';
-import { createFileSystemProviderError, IFileAtomicReadOptions, IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileCloneCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, isFileOpenForWriteOptions, IStat, FilePermission, IFileSystemProviderWithFileAtomicWriteCapability, IFileSystemProviderWithFileAtomicDeleteCapability, IFileChange, IFileSystemProviderWithFileRealpathCapability } from '../common/files.js';
+import { createFileSystemProviderError, IFileAtomicReadOptions, IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileSystemProviderWithFileAppendCapability, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileCloneCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, isFileOpenForWriteOptions, IStat, FilePermission, IFileSystemProviderWithFileAtomicWriteCapability, IFileSystemProviderWithFileAtomicDeleteCapability, IFileChange, IFileSystemProviderWithFileRealpathCapability } from '../common/files.js';
 import { readFileIntoStream } from '../common/io.js';
 import { AbstractNonRecursiveWatcherClient, AbstractUniversalWatcherClient, ILogMessage } from '../common/watcher.js';
 import { AbstractDiskFileSystemProvider } from '../common/diskFileSystemProvider.js';
@@ -30,6 +30,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	IFileSystemProviderWithOpenReadWriteCloseCapability,
 	IFileSystemProviderWithFileReadStreamCapability,
 	IFileSystemProviderWithFileFolderCopyCapability,
+	IFileSystemProviderWithFileAppendCapability,
 	IFileSystemProviderWithFileAtomicReadCapability,
 	IFileSystemProviderWithFileAtomicWriteCapability,
 	IFileSystemProviderWithFileAtomicDeleteCapability,
@@ -51,6 +52,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 				FileSystemProviderCapabilities.FileReadStream |
 				FileSystemProviderCapabilities.FileFolderCopy |
 				FileSystemProviderCapabilities.FileWriteUnlock |
+				FileSystemProviderCapabilities.FileAppend |
 				FileSystemProviderCapabilities.FileAtomicRead |
 				FileSystemProviderCapabilities.FileAtomicWrite |
 				FileSystemProviderCapabilities.FileAtomicDelete |
@@ -333,6 +335,40 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			if (typeof handle === 'number') {
 				await this.close(handle);
 			}
+		}
+	}
+
+	async appendFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
+		// Use fs.appendFile for efficient native append
+		try {
+			const filePath = this.toFilePath(resource);
+
+			// Validate file exists unless { create: true }
+			if (!opts.create) {
+				const fileExists = await Promises.exists(filePath);
+				if (!fileExists) {
+					throw createFileSystemProviderError(localize('fileNotExists', "File does not exist"), FileSystemProviderErrorCode.FileNotFound);
+				}
+			}
+
+			// Unlock if needed
+			if (opts.unlock) {
+				try {
+					const { stat } = await SymlinkSupport.stat(filePath);
+					if (!(stat.mode & 0o200 /* File mode indicating writable by owner */)) {
+						await promises.chmod(filePath, stat.mode | 0o200);
+					}
+				} catch (error) {
+					if (error.code !== 'ENOENT') {
+						this.logService.trace(error);
+					}
+				}
+			}
+
+			// Append using native fs.appendFile
+			await promises.appendFile(filePath, content);
+		} catch (error) {
+			throw await this.toFileSystemProviderWriteError(resource, error);
 		}
 	}
 

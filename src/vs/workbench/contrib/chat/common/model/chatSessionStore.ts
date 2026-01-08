@@ -22,11 +22,12 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 import { Dto } from '../../../../services/extensions/common/proxyIdentifier.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { awaitStatsForSession } from '../chat.js';
-import { ModifiedFileEntryState } from '../editing/chatEditingService.js';
-import { ChatModel, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData } from './chatModel.js';
 import { IChatSessionStats, IChatSessionTiming, ResponseModelState } from '../chatService/chatService.js';
-import { LocalChatSessionUri } from './chatUri.js';
 import { ChatAgentLocation } from '../constants.js';
+import { ModifiedFileEntryState } from '../editing/chatEditingService.js';
+import { ChatModel, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, ISerializedChatDataReference, normalizeSerializableChatData } from './chatModel.js';
+import { ChatSessionOperationLog } from './chatSessionOperationLog.js';
+import { LocalChatSessionUri } from './chatUri.js';
 
 const maxPersistedSessions = 25;
 
@@ -202,7 +203,7 @@ export class ChatSessionStore extends Disposable {
 		}
 	}
 
-	async readTransferredSession(sessionResource: URI): Promise<ISerializableChatData | undefined> {
+	async readTransferredSession(sessionResource: URI): Promise<ISerializedChatDataReference | undefined> {
 		try {
 			const storageLocation = this.getTransferredSessionStorageLocation(sessionResource);
 			const sessionId = LocalChatSessionUri.parseLocalSessionId(sessionResource);
@@ -247,8 +248,21 @@ export class ChatSessionStore extends Disposable {
 		try {
 			const index = this.internalGetIndex();
 			const storageLocation = this.getStorageLocation(session.sessionId);
-			const content = JSON.stringify(session, undefined, 2);
-			await this.fileService.writeFile(storageLocation, VSBuffer.fromString(content));
+			if (session instanceof ChatModel) {
+				if (!session.dataSerializer) {
+					session.dataSerializer = new ChatSessionOperationLog();
+				}
+
+				const { op, data } = session.dataSerializer.write(session);
+				if (op === 'append') {
+					await this.fileService.appendFile(storageLocation, data);
+				} else {
+					await this.fileService.writeFile(storageLocation, data);
+				}
+			} else {
+				const content = JSON.stringify(session, undefined, 2);
+				await this.fileService.writeFile(storageLocation, VSBuffer.fromString(content));
+			}
 
 			// Write succeeded, update index
 			index.entries[session.sessionId] = await getSessionMetadata(session);
@@ -458,14 +472,14 @@ export class ChatSessionStore extends Disposable {
 		await this.flushIndex();
 	}
 
-	public async readSession(sessionId: string): Promise<ISerializableChatData | undefined> {
+	public async readSession(sessionId: string): Promise<ISerializedChatDataReference | undefined> {
 		return await this.storeQueue.queue(async () => {
 			const storageLocation = this.getStorageLocation(sessionId);
 			return this.readSessionFromLocation(storageLocation, sessionId);
 		});
 	}
 
-	private async readSessionFromLocation(storageLocation: URI, sessionId: string): Promise<ISerializableChatData | undefined> {
+	private async readSessionFromLocation(storageLocation: URI, sessionId: string): Promise<ISerializedChatDataReference | undefined> {
 		let rawData: string | undefined;
 		try {
 			rawData = (await this.fileService.readFile(storageLocation)).value.toString();
@@ -482,8 +496,15 @@ export class ChatSessionStore extends Disposable {
 		}
 
 		try {
+			let session: ISerializableChatDataIn;
+			const log = new ChatSessionOperationLog();
+			if (ChatSessionOperationLog.looksLikeLog(rawData)) {
+				session = revive(log.read(rawData));
+			} else {
+				session = revive(JSON.parse(rawData));
+			}
+
 			// TODO Copied from ChatService.ts, cleanup
-			const session: ISerializableChatDataIn = revive(JSON.parse(rawData)); // Revive serialized URIs in session data
 			// Revive serialized markdown strings in response data
 			for (const request of session.requests) {
 				if (Array.isArray(request.response)) {
@@ -498,7 +519,7 @@ export class ChatSessionStore extends Disposable {
 				}
 			}
 
-			return normalizeSerializableChatData(session);
+			return { value: normalizeSerializableChatData(session), serializer: log };
 		} catch (err) {
 			this.reportError('malformedSession', `Malformed session data in ${storageLocation.fsPath}: [${rawData.substring(0, 20)}${rawData.length > 20 ? '...' : ''}]`, err);
 			return undefined;
@@ -609,18 +630,22 @@ async function getSessionMetadata(session: ChatModel | ISerializableChatData): P
 		stats = await awaitStatsForSession(session);
 	}
 
+	const lastMessageDate = session instanceof ChatModel ?
+		session.lastMessageDate :
+		session.requests.at(-1)?.timestamp ?? session.creationDate;
+
 	const timing = session instanceof ChatModel ?
 		session.timing :
 		// session is only ISerializableChatData in the old pre-fs storage data migration scenario
 		{
 			startTime: session.creationDate,
-			endTime: session.lastMessageDate
+			endTime: lastMessageDate
 		};
 
 	return {
 		sessionId: session.sessionId,
 		title: title || localize('newChat', "New Chat"),
-		lastMessageDate: session.lastMessageDate,
+		lastMessageDate,
 		timing,
 		initialLocation: session.initialLocation,
 		hasPendingEdits: session instanceof ChatModel ? (session.editingSession?.entries.get().some(e => e.state.get() === ModifiedFileEntryState.Modified)) : false,

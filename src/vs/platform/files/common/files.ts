@@ -164,6 +164,13 @@ export interface IFileService {
 	writeFile(resource: URI, bufferOrReadableOrStream: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: IWriteFileOptions): Promise<IFileStatWithMetadata>;
 
 	/**
+	 * Appends content to the end of the file.
+	 *
+	 * Emits a `FileOperation.WRITE` file operation event when successful.
+	 */
+	appendFile(resource: URI, bufferOrReadableOrStream: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: IWriteFileOptions): Promise<IFileStatWithMetadata>;
+
+	/**
 	 * Moves the file/folder to a new path identified by the resource.
 	 *
 	 * The optional parameter overwrite can be set to replace an existing file at the location.
@@ -654,7 +661,12 @@ export const enum FileSystemProviderCapabilities {
 	/**
 	 * Provider support to resolve real paths.
 	 */
-	FileRealpath = 1 << 18
+	FileRealpath = 1 << 18,
+
+	/**
+	 * Provider support to append to files.
+	 */
+	FileAppend = 1 << 19
 }
 
 export interface IFileSystemProvider {
@@ -676,6 +688,7 @@ export interface IFileSystemProvider {
 
 	readFile?(resource: URI): Promise<Uint8Array>;
 	writeFile?(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void>;
+	appendFile?(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void>;
 
 	readFileStream?(resource: URI, opts: IFileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array>;
 
@@ -694,6 +707,14 @@ export interface IFileSystemProviderWithFileReadWriteCapability extends IFileSys
 
 export function hasReadWriteCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileReadWriteCapability {
 	return !!(provider.capabilities & FileSystemProviderCapabilities.FileReadWrite);
+}
+
+export interface IFileSystemProviderWithFileAppendCapability extends IFileSystemProvider {
+	appendFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void>;
+}
+
+export function hasFileAppendCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileAppendCapability {
+	return !!(provider.capabilities & FileSystemProviderCapabilities.FileAppend);
 }
 
 export interface IFileSystemProviderWithFileFolderCopyCapability extends IFileSystemProvider {

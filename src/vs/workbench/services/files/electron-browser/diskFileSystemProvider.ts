@@ -92,6 +92,10 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		return this.provider.writeFile(resource, content, opts);
 	}
 
+	appendFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
+		return this.provider.appendFile(resource, content, opts);
+	}
+
 	open(resource: URI, opts: IFileOpenOptions): Promise<number> {
 		return this.provider.open(resource, opts);
 	}
