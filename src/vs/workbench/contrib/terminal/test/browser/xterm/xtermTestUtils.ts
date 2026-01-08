@@ -11,10 +11,14 @@ import { XtermAddonImporter, type IXtermAddonNameToCtor } from '../../../browser
 export class TestWebglAddon implements WebglAddon {
 	static shouldThrow = false;
 	static isEnabled = false;
-	readonly onChangeTextureAtlas = new Emitter<HTMLCanvasElement>().event as IEvent<HTMLCanvasElement>;
-	readonly onAddTextureAtlasCanvas = new Emitter<HTMLCanvasElement>().event as IEvent<HTMLCanvasElement>;
-	readonly onRemoveTextureAtlasCanvas = new Emitter<HTMLCanvasElement>().event as IEvent<HTMLCanvasElement, void>;
-	readonly onContextLoss = new Emitter<void>().event as IEvent<void>;
+	private readonly _onChangeTextureAtlas = new Emitter<HTMLCanvasElement>();
+	private readonly _onAddTextureAtlasCanvas = new Emitter<HTMLCanvasElement>();
+	private readonly _onRemoveTextureAtlasCanvas = new Emitter<HTMLCanvasElement>();
+	private readonly _onContextLoss = new Emitter<void>();
+	readonly onChangeTextureAtlas = this._onChangeTextureAtlas.event as IEvent<HTMLCanvasElement>;
+	readonly onAddTextureAtlasCanvas = this._onAddTextureAtlasCanvas.event as IEvent<HTMLCanvasElement>;
+	readonly onRemoveTextureAtlasCanvas = this._onRemoveTextureAtlasCanvas.event as IEvent<HTMLCanvasElement, void>;
+	readonly onContextLoss = this._onContextLoss.event as IEvent<void>;
 	constructor(preserveDrawingBuffer?: boolean) {
 	}
 	activate(): void {
@@ -25,6 +29,10 @@ export class TestWebglAddon implements WebglAddon {
 	}
 	dispose(): void {
 		TestWebglAddon.isEnabled = false;
+		this._onChangeTextureAtlas.dispose();
+		this._onAddTextureAtlasCanvas.dispose();
+		this._onRemoveTextureAtlasCanvas.dispose();
+		this._onContextLoss.dispose();
 	}
 	clearTextureAtlas(): void { }
 }
