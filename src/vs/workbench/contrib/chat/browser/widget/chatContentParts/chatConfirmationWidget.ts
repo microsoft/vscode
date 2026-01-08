@@ -415,7 +415,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 				this._context.codeBlockStartIndex,
 				this.markdownRendererService,
 				undefined,
-				this._context.currentWidth(),
+				this._context.currentWidth.get(),
 				this._context.codeBlockModelCollection,
 				{
 					allowInlineDiffs: true,
