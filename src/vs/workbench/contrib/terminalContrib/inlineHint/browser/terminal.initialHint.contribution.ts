@@ -24,7 +24,7 @@ import { ITerminalCapabilityStore, TerminalCapability } from '../../../../../pla
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { IChatAgent, IChatAgentService } from '../../../chat/common/participants/chatAgents.js';
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
-import { IDetachedTerminalInstance, ITerminalContribution, ITerminalInstance, IXtermTerminal } from '../../../terminal/browser/terminal.js';
+import { IDetachedTerminalInstance, ITerminalConfigurationService, ITerminalContribution, ITerminalInstance, IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { registerTerminalContribution, type IDetachedCompatibleTerminalContributionContext, type ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
 import { TerminalInstance } from '../../../terminal/browser/terminalInstance.js';
 import { TerminalChatCommandId } from '../../chat/browser/terminalChat.js';
@@ -90,6 +90,7 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 	) {
 		super();
 	}
@@ -101,6 +102,10 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 		}
 		// Don't show if disabled
 		if (!this._configurationService.getValue(TerminalInitialHintSettingId.Enabled)) {
+			return;
+		}
+		// Don't show if keybindings are sent to shell, the hint's keybindings won't work
+		if (this._terminalConfigurationService.config.sendKeybindingsToShell) {
 			return;
 		}
 		this._xterm = xterm;
