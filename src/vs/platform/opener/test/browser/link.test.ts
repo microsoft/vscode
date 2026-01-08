@@ -37,14 +37,19 @@ suite('Link', () => {
 	test('Link should respond to Enter key', async () => {
 		let activated = false;
 
-		const link = instantiationService.createInstance(Link, linkContainer, {
-			label: 'Test Link',
-			href: 'test://link'
-		}, {
-			opener: () => {
-				activated = true;
+		const link = instantiationService.createInstance(
+			Link,
+			linkContainer,
+			{
+				label: 'Test Link',
+				href: 'test://link'
+			},
+			{
+				opener: () => {
+					activated = true;
+				}
 			}
-		});
+		);
 
 		const anchorElement = linkContainer.querySelector('a');
 		assert.ok(anchorElement, 'Link element should exist');
@@ -68,14 +73,19 @@ suite('Link', () => {
 	test('Link should respond to Space key', async () => {
 		let activated = false;
 
-		const link = instantiationService.createInstance(Link, linkContainer, {
-			label: 'Test Link',
-			href: 'test://link'
-		}, {
-			opener: () => {
-				activated = true;
+		const link = instantiationService.createInstance(
+			Link,
+			linkContainer,
+			{
+				label: 'Test Link',
+				href: 'test://link'
+			},
+			{
+				opener: () => {
+					activated = true;
+				}
 			}
-		});
+		);
 
 		const anchorElement = linkContainer.querySelector('a');
 		assert.ok(anchorElement, 'Link element should exist');
@@ -99,14 +109,19 @@ suite('Link', () => {
 	test('Link should respond to click', async () => {
 		let activated = false;
 
-		const link = instantiationService.createInstance(Link, linkContainer, {
-			label: 'Test Link',
-			href: 'test://link'
-		}, {
-			opener: () => {
-				activated = true;
+		const link = instantiationService.createInstance(
+			Link,
+			linkContainer,
+			{
+				label: 'Test Link',
+				href: 'test://link'
+			},
+			{
+				opener: () => {
+					activated = true;
+				}
 			}
-		});
+		);
 
 		const anchorElement = linkContainer.querySelector('a');
 		assert.ok(anchorElement, 'Link element should exist');
@@ -127,14 +142,19 @@ suite('Link', () => {
 	test('Link should not activate when disabled', async () => {
 		let activated = false;
 
-		const link = instantiationService.createInstance(Link, linkContainer, {
-			label: 'Test Link',
-			href: 'test://link'
-		}, {
-			opener: () => {
-				activated = true;
+		const link = instantiationService.createInstance(
+			Link,
+			linkContainer,
+			{
+				label: 'Test Link',
+				href: 'test://link'
+			},
+			{
+				opener: () => {
+					activated = true;
+				}
 			}
-		});
+		);
 
 		link.enabled = false;
 
@@ -158,10 +178,14 @@ suite('Link', () => {
 	});
 
 	test('Link should have role=button', async () => {
-		const link = instantiationService.createInstance(Link, linkContainer, {
-			label: 'Test Link',
-			href: 'test://link'
-		});
+		const link = instantiationService.createInstance(
+			Link,
+			linkContainer,
+			{
+				label: 'Test Link',
+				href: 'test://link'
+			}
+		);
 
 		const anchorElement = linkContainer.querySelector('a');
 		assert.ok(anchorElement, 'Link element should exist');
