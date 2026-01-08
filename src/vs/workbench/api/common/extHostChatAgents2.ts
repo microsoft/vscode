@@ -529,7 +529,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 	async $providePromptFiles(handle: number, options: IPromptFileQueryOptions, token: CancellationToken): Promise<IPromptFileResource[] | undefined> {
 		const providerData = this._promptFileProviders.get(handle);
 		if (!providerData) {
-			return Promise.resolve(undefined);
+			return undefined;
 		}
 
 		const provider = providerData.provider;
