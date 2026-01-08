@@ -32,11 +32,6 @@ export function setup(logger: Logger, opts: { web?: boolean }) {
 
 				await app.code.driver.assertNoAccessibilityViolations({
 					selector: '.monaco-workbench',
-					// Disable rules that may have known issues being addressed separately
-					disableRules: [
-						// Color contrast issues are tracked separately
-						'color-contrast'
-					],
 					excludeRules: {
 						// Links in chat welcome view show underline on hover/focus which axe-core static analysis cannot detect
 						'link-in-text-block': ['command:workbench.action.chat.generateInstructions']
@@ -82,10 +77,6 @@ export function setup(logger: Logger, opts: { web?: boolean }) {
 
 					await app.code.driver.assertNoAccessibilityViolations({
 						selector: 'div[id="workbench.panel.chat"]',
-						disableRules: [
-							// Color contrast issues are tracked separately
-							'color-contrast'
-						],
 						excludeRules: {
 							// Links in chat welcome view show underline on hover/focus which axe-core static analysis cannot detect
 							'link-in-text-block': ['command:workbench.action.chat.generateInstructions']
