@@ -191,6 +191,8 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 	const toDispose: Disposable[] = [];
 
 	let rangeFormatting: Disposable | undefined = undefined;
+	let settingsCache: Settings | undefined = undefined;
+	let schemaAssociationsCache: Promise<ISchemaAssociation[]> | undefined = undefined;
 
 	const documentSelector = languageParticipants.documentSelector;
 
@@ -270,7 +272,7 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 		},
 		middleware: {
 			workspace: {
-				didChangeConfiguration: () => client.sendNotification(DidChangeConfigurationNotification.type, { settings: getSettings() })
+				didChangeConfiguration: () => client.sendNotification(DidChangeConfigurationNotification.type, { settings: getSettings(true) })
 			},
 			provideDiagnostics: async (uriOrDoc, previousResolutId, token, next) => {
 				const diagnostics = await next(uriOrDoc, previousResolutId, token);
@@ -392,7 +394,13 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 			} catch (e) {
 				throw new ResponseError(2, e.toString(), e);
 			}
-		} else if (schemaDownloadEnabled && workspace.isTrusted) {
+		} else if (schemaDownloadEnabled) {
+			if (!workspace.isTrusted) {
+				throw new ResponseError(1, l10n.t('Downloading schemas is disabled in untrusted workspaces'));
+			}
+			if (!await isTrusted(uri)) {
+				throw new ResponseError(6, l10n.t('Schemas {0} is untrusted', uriString));
+			}
 			if (runtime.telemetry && uri.authority === 'schema.management.azure.com') {
 				/* __GDPR__
 					"json.schema" : {
@@ -409,9 +417,6 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 				throw new ResponseError(4, e.toString());
 			}
 		} else {
-			if (!workspace.isTrusted) {
-				throw new ResponseError(1, l10n.t('Downloading schemas is disabled in untrusted workspaces'));
-			}
 			throw new ResponseError(1, l10n.t('Downloading schemas is disabled through setting \'{0}\'', SettingIds.enableSchemaDownload));
 		}
 	});
@@ -506,19 +511,16 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 
 	toDispose.push(commands.registerCommand('_json.retryResolveSchema', handleRetryResolveSchemaCommand));
 
-	client.sendNotification(SchemaAssociationNotification.type, await getSchemaAssociations());
+	client.sendNotification(SchemaAssociationNotification.type, await getSchemaAssociations(false));
 
 	toDispose.push(extensions.onDidChange(async _ => {
-		client.sendNotification(SchemaAssociationNotification.type, await getSchemaAssociations());
+		client.sendNotification(SchemaAssociationNotification.type, await getSchemaAssociations(true));
 	}));
 
-	const associationWatcher = workspace.createFileSystemWatcher(new RelativePattern(
-		Uri.parse(`vscode://schemas-associations/`),
-		'**/schemas-associations.json')
-	);
+	const associationWatcher = workspace.createFileSystemWatcher(new RelativePattern(Uri.parse(`vscode://schemas-associations/`), '**/schemas-associations.json'));
 	toDispose.push(associationWatcher);
 	toDispose.push(associationWatcher.onDidChange(async _e => {
-		client.sendNotification(SchemaAssociationNotification.type, await getSchemaAssociations());
+		client.sendNotification(SchemaAssociationNotification.type, await getSchemaAssociations(true));
 	}));
 
 	// manually register / deregister format provider based on the `json.format.enable` setting avoiding issues with late registration. See #71652.
@@ -533,7 +535,7 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 		} else if (e.affectsConfiguration(SettingIds.enableSchemaDownload)) {
 			updateSchemaDownloadSetting();
 		} else if (e.affectsConfiguration(SettingIds.editorFoldingMaximumRegions) || e.affectsConfiguration(SettingIds.editorColorDecoratorsLimit)) {
-			client.sendNotification(DidChangeConfigurationNotification.type, { settings: getSettings() });
+			client.sendNotification(DidChangeConfigurationNotification.type, { settings: getSettings(true) });
 		}
 	}));
 	toDispose.push(workspace.onDidGrantWorkspaceTrust(updateSchemaDownloadSetting));
@@ -612,6 +614,47 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 		});
 	}
 
+	function getSettings(forceRefresh: boolean): Settings {
+		if (!settingsCache || forceRefresh) {
+			settingsCache = computeSettings();
+		}
+		return settingsCache;
+	}
+
+	async function getSchemaAssociations(forceRefresh: boolean): Promise<ISchemaAssociation[]> {
+		if (!schemaAssociationsCache || forceRefresh) {
+			schemaAssociationsCache = computeSchemaAssociations();
+			runtime.logOutputChannel.info(`Computed schema associations: ${(await schemaAssociationsCache).map(a => `${a.uri} -> [${a.fileMatch.join(', ')}]`).join('\n')}`);
+
+		}
+		return schemaAssociationsCache;
+	}
+
+	async function isTrusted(uri: Uri): Promise<boolean> {
+		if (uri.scheme !== 'http' && uri.scheme !== 'https') {
+			return true;
+		}
+		const uriString = uri.toString(true);
+		const knownAssociations = await getSchemaAssociations(false);
+		for (const association of knownAssociations) {
+			if (association.uri === uriString) {
+				return true;
+			}
+		}
+		const settingsCache = getSettings(false);
+		if (settingsCache.json && settingsCache.json.schemas) {
+			for (const schemaSetting of settingsCache.json.schemas) {
+				const schemaUri = schemaSetting.url;
+				if (schemaUri === uriString) {
+					return true;
+				}
+			}
+		}
+		runtime.logOutputChannel.info(`Untrusted schema request for ${uriString}`);
+		return false;
+	}
+
+
 	return {
 		dispose: async () => {
 			await client.stop();
@@ -621,9 +664,9 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 	};
 }
 
-async function getSchemaAssociations(): Promise<ISchemaAssociation[]> {
-	return getSchemaExtensionAssociations()
-		.concat(await getDynamicSchemaAssociations());
+async function computeSchemaAssociations(): Promise<ISchemaAssociation[]> {
+	const extensionAssociations = getSchemaExtensionAssociations();
+	return extensionAssociations.concat(await getDynamicSchemaAssociations());
 }
 
 function getSchemaExtensionAssociations(): ISchemaAssociation[] {
@@ -680,7 +723,9 @@ async function getDynamicSchemaAssociations(): Promise<ISchemaAssociation[]> {
 	return result;
 }
 
-function getSettings(): Settings {
+
+
+function computeSettings(): Settings {
 	const configuration = workspace.getConfiguration();
 	const httpSettings = workspace.getConfiguration('http');
 
