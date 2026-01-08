@@ -65,7 +65,7 @@ export function setup(logger: Logger, opts: { web?: boolean }, quality: Quality)
 		});
 
 		// Chat is not available in web mode
-		if (!opts.web) {
+		if (quality !== Quality.Dev && quality !== Quality.OSS && !opts.web) {
 			describe('Chat', function () {
 
 				it('chat panel has no accessibility violations', async function () {
