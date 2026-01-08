@@ -732,7 +732,8 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 		let currentSize = layoutService.getSize(part);
 
 		const chatViewDefaultWidth = 300;
-		const sideBySideMinWidth = (chatViewDefaultWidth * 2) + 1;	// account for possible theme border
+		const sessionsViewDefaultWidth = chatViewDefaultWidth;
+		const sideBySideMinWidth = chatViewDefaultWidth + sessionsViewDefaultWidth + 1;	// account for possible theme border
 
 		if (
 			(newOrientation === AgentSessionsViewerOrientation.SideBySide && currentSize.width >= sideBySideMinWidth) ||													// already wide enough to show side by side
@@ -750,7 +751,7 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 		if (newOrientation === AgentSessionsViewerOrientation.SideBySide) {
 			newWidth = Math.max(sideBySideMinWidth, lastWidthForOrientation || Math.round(layoutService.mainContainerDimension.width / 2));
 		} else {
-			newWidth = lastWidthForOrientation || chatViewDefaultWidth;
+			newWidth = lastWidthForOrientation || Math.max(chatViewDefaultWidth, currentSize.width - sessionsViewDefaultWidth);
 		}
 
 		layoutService.setSize(part, { width: newWidth, height: currentSize.height });
