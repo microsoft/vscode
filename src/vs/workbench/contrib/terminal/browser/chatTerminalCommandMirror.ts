@@ -389,7 +389,7 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 			return;
 		}
 		this._dirtyScheduled = true;
-		Promise.resolve().then(() => {
+		queueMicrotask(() => {
 			this._dirtyScheduled = false;
 			if (this._isDisposed) {
 				return;
