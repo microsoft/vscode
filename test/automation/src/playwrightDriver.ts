@@ -410,7 +410,7 @@ export class PlaywrightDriver {
 			() => this.page.evaluate(
 				([ctx, opts]) => {
 					// @ts-expect-error axe is injected globally
-					return window.axe.run(ctx.include ? ctx.include[0] : document, opts);
+					return window.axe.run(ctx, opts);
 				},
 				[context, runOptions] as const
 			),
