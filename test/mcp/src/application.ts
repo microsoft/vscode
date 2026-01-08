@@ -10,71 +10,12 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as vscodetest from '@vscode/test-electron';
 import { createApp, retry } from './utils';
-import * as minimist from 'minimist';
+import { opts } from './options';
 
 const rootPath = path.join(__dirname, '..', '..', '..');
-
-const [, , ...args] = process.argv;
-const opts = minimist(args, {
-	string: [
-		'browser',
-		'build',
-		'stable-build',
-		'wait-time',
-		'test-repo',
-		'electronArgs'
-	],
-	boolean: [
-		'verbose',
-		'remote',
-		'web',
-		'headless',
-		'tracing'
-	],
-	default: {
-		verbose: false
-	}
-}) as {
-	verbose?: boolean;
-	remote?: boolean;
-	headless?: boolean;
-	web?: boolean;
-	tracing?: boolean;
-	build?: string;
-	'stable-build'?: string;
-	browser?: 'chromium' | 'webkit' | 'firefox' | 'chromium-msedge' | 'chromium-chrome' | undefined;
-	electronArgs?: string;
-};
-
-const logsRootPath = (() => {
-	const logsParentPath = path.join(rootPath, '.build', 'logs');
-
-	let logsName: string;
-	if (opts.web) {
-		logsName = 'smoke-tests-browser';
-	} else if (opts.remote) {
-		logsName = 'smoke-tests-remote';
-	} else {
-		logsName = 'smoke-tests-electron';
-	}
-
-	return path.join(logsParentPath, logsName);
-})();
-
-const crashesRootPath = (() => {
-	const crashesParentPath = path.join(rootPath, '.build', 'crashes');
-
-	let crashesName: string;
-	if (opts.web) {
-		crashesName = 'smoke-tests-browser';
-	} else if (opts.remote) {
-		crashesName = 'smoke-tests-remote';
-	} else {
-		crashesName = 'smoke-tests-electron';
-	}
-
-	return path.join(crashesParentPath, crashesName);
-})();
+const logsRootPath = path.join(rootPath, '.build', 'vscode-playwright-mcp', 'logs');
+const crashesRootPath = path.join(rootPath, '.build', 'vscode-playwright-mcp', 'crashes');
+const videoRootPath = path.join(rootPath, '.build', 'vscode-playwright-mcp', 'videos');
 
 const logger = createLogger();
 
@@ -291,7 +232,7 @@ async function setup(): Promise<void> {
 	logger.log('Smoketest setup done!\n');
 }
 
-export async function getApplication() {
+export async function getApplication({ recordVideo }: { recordVideo?: boolean } = {}) {
 	const testCodePath = getDevElectronPath();
 	const electronPath = testCodePath;
 	if (!fs.existsSync(electronPath || '')) {
@@ -306,18 +247,20 @@ export async function getApplication() {
 	const application = createApp({
 		// Pass the alpha version of Playwright down... This is a hack since Playwright MCP
 		// doesn't play nice with Playwright Test: https://github.com/microsoft/playwright-mcp/issues/917
+		// eslint-disable-next-line local/code-no-any-casts
 		playwright: playwright as any,
 		quality,
 		version: parseVersion(version ?? '0.0.0'),
 		codePath: opts.build,
 		workspacePath: rootPath,
 		logger,
-		logsPath: path.join(logsRootPath, 'suite_unknown'),
-		crashesPath: path.join(crashesRootPath, 'suite_unknown'),
+		logsPath: logsRootPath,
+		crashesPath: crashesRootPath,
+		videosPath: (recordVideo || opts.video) ? videoRootPath : undefined,
 		verbose: opts.verbose,
 		remote: opts.remote,
 		web: opts.web,
-		tracing: opts.tracing,
+		tracing: true,
 		headless: opts.headless,
 		browser: opts.browser,
 		extraArgs: (opts.electronArgs || '').split(' ').map(arg => arg.trim()).filter(arg => !!arg),
@@ -332,9 +275,9 @@ export async function getApplication() {
 export class ApplicationService {
 	private _application: Application | undefined;
 	private _closing: Promise<void> | undefined;
-	private _listeners: ((app: Application | undefined) => void)[] = [];
+	private _listeners: ((app: Application | undefined) => Promise<void> | void)[] = [];
 
-	onApplicationChange(listener: (app: Application | undefined) => void): void {
+	onApplicationChange(listener: (app: Application | undefined) => Promise<void> | void): void {
 		this._listeners.push(listener);
 	}
 
@@ -349,31 +292,31 @@ export class ApplicationService {
 		return this._application;
 	}
 
-	async getOrCreateApplication(): Promise<Application> {
+	async getOrCreateApplication({ recordVideo }: { recordVideo?: boolean } = {}): Promise<Application> {
 		if (this._closing) {
 			await this._closing;
 		}
 		if (!this._application) {
-			this._application = await getApplication();
+			this._application = await getApplication({ recordVideo });
 			this._application.code.driver.currentPage.on('close', () => {
 				this._closing = (async () => {
 					if (this._application) {
 						this._application.code.driver.browserContext.removeAllListeners();
 						await this._application.stop();
 						this._application = undefined;
-						this._runAllListeners();
+						await this._runAllListeners();
 					}
 				})();
 			});
-			this._runAllListeners();
+			await this._runAllListeners();
 		}
 		return this._application;
 	}
 
-	private _runAllListeners() {
+	private async _runAllListeners() {
 		for (const listener of this._listeners) {
 			try {
-				listener(this._application);
+				await listener(this._application);
 			} catch (error) {
 				console.error('Error occurred in application change listener:', error);
 			}

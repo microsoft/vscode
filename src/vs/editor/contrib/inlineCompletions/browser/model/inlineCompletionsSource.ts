@@ -5,29 +5,37 @@
 
 import { booleanComparator, compareBy, compareUndefinedSmallest, numberComparator } from '../../../../../base/common/arrays.js';
 import { findLastMax } from '../../../../../base/common/arraysFind.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { equalsIfDefined, itemEquals } from '../../../../../base/common/equals.js';
+import { equalsIfDefined, thisEqualsC } from '../../../../../base/common/equals.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { cloneAndChange } from '../../../../../base/common/objects.js';
 import { derived, IObservable, IObservableWithChange, ITransaction, observableValue, recordChangesLazy, transaction } from '../../../../../base/common/observable.js';
 // eslint-disable-next-line local/code-no-deep-import-of-internal
 import { observableReducerSettable } from '../../../../../base/common/observableInternal/experimental/reducer.js';
-import { isDefined } from '../../../../../base/common/types.js';
+import { isDefined, isObject } from '../../../../../base/common/types.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { DataChannelForwardingTelemetryService, forwardToChannelIf, isCopilotLikeExtension } from '../../../../../platform/dataChannel/browser/forwardingTelemetryService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
+import product from '../../../../../platform/product/common/product.js';
 import { StringEdit } from '../../../../common/core/edits/stringEdit.js';
 import { Position } from '../../../../common/core/position.js';
-import { InlineCompletionEndOfLifeReasonKind, InlineCompletionTriggerKind, InlineCompletionsProvider } from '../../../../common/languages.js';
+import { Range } from '../../../../common/core/range.js';
+import { Command, InlineCompletionEndOfLifeReasonKind, InlineCompletionTriggerKind, InlineCompletionsProvider } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { ITextModel } from '../../../../common/model.js';
 import { offsetEditFromContentChanges } from '../../../../common/model/textModelStringEdit.js';
 import { IFeatureDebounceInformation } from '../../../../common/services/languageFeatureDebounce.js';
 import { IModelContentChangedEvent } from '../../../../common/textModelEvents.js';
 import { formatRecordableLogEntry, IRecordableEditorLogEntry, IRecordableLogEntry, StructuredLogger } from '../structuredLogger.js';
+import { InlineCompletionEndOfLifeEvent, sendInlineCompletionsEndOfLifeTelemetry } from '../telemetry.js';
 import { wait } from '../utils.js';
 import { InlineSuggestionIdentity, InlineSuggestionItem } from './inlineSuggestionItem.js';
 import { InlineCompletionContextWithoutUuid, InlineSuggestRequestInfo, provideInlineCompletions, runWhenCancelled } from './provideInlineCompletions.js';
+import { RenameSymbolProcessor } from './renameSymbolProcessor.js';
 
 export class InlineCompletionsSource extends Disposable {
 	private static _requestId = 0;
@@ -35,6 +43,7 @@ export class InlineCompletionsSource extends Disposable {
 	private readonly _updateOperation = this._register(new MutableDisposable<UpdateOperation>());
 
 	private readonly _loggingEnabled;
+	private readonly _sendRequestData;
 
 	private readonly _structuredFetchLogger;
 
@@ -69,6 +78,10 @@ export class InlineCompletionsSource extends Disposable {
 	public readonly inlineCompletions = this._state.map(this, v => v.inlineCompletions);
 	public readonly suggestWidgetInlineCompletions = this._state.map(this, v => v.suggestWidgetInlineCompletions);
 
+	private readonly _renameProcessor: RenameSymbolProcessor;
+
+	private _completionsEnabled: Record<string, boolean> | undefined = undefined;
+
 	constructor(
 		private readonly _textModel: ITextModel,
 		private readonly _versionId: IObservableWithChange<number | null, IModelContentChangedEvent | undefined>,
@@ -77,10 +90,12 @@ export class InlineCompletionsSource extends Disposable {
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super();
 		this._loggingEnabled = observableConfigValue('editor.inlineSuggest.logFetch', false, this._configurationService).recomputeInitiallyAndOnChange(this._store);
+		this._sendRequestData = observableConfigValue('editor.inlineSuggest.emptyResponseInformation', true, this._configurationService).recomputeInitiallyAndOnChange(this._store);
 		this._structuredFetchLogger = this._register(this._instantiationService.createInstance(StructuredLogger.cast<
 			{ kind: 'start'; requestId: number; context: unknown } & IRecordableEditorLogEntry
 			| { kind: 'end'; error: unknown; durationMs: number; result: unknown; requestId: number } & IRecordableLogEntry
@@ -88,7 +103,30 @@ export class InlineCompletionsSource extends Disposable {
 			'editor.inlineSuggest.logFetch.commandId'
 		));
 
+		this._renameProcessor = this._store.add(this._instantiationService.createInstance(RenameSymbolProcessor));
+
 		this.clearOperationOnTextModelChange.recomputeInitiallyAndOnChange(this._store);
+
+		const enablementSetting = product.defaultChatAgent?.completionsEnablementSetting ?? undefined;
+		if (enablementSetting) {
+			this._updateCompletionsEnablement(enablementSetting);
+			this._register(this._configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(enablementSetting)) {
+					this._updateCompletionsEnablement(enablementSetting);
+				}
+			}));
+		}
+
+		this._state.recomputeInitiallyAndOnChange(this._store);
+	}
+
+	private _updateCompletionsEnablement(enalementSetting: string) {
+		const result = this._configurationService.getValue<Record<string, boolean>>(enalementSetting);
+		if (!isObject(result)) {
+			this._completionsEnabled = undefined;
+		} else {
+			this._completionsEnabled = result;
+		}
 	}
 
 	public readonly clearOperationOnTextModelChange = derived(this, reader => {
@@ -136,8 +174,23 @@ export class InlineCompletionsSource extends Disposable {
 		const source = new CancellationTokenSource();
 
 		const promise = (async () => {
-			this._loadingCount.set(this._loadingCount.get() + 1, undefined);
 			const store = new DisposableStore();
+
+			this._loadingCount.set(this._loadingCount.get() + 1, undefined);
+			let didDecrease = false;
+			const decreaseLoadingCount = () => {
+				if (!didDecrease) {
+					didDecrease = true;
+					this._loadingCount.set(this._loadingCount.get() - 1, undefined);
+				}
+			};
+			const loadingReset = store.add(new RunOnceScheduler(() => decreaseLoadingCount(), 10 * 1000));
+			loadingReset.schedule();
+
+			const inlineSuggestionsProviders = providers.filter(p => p.providerId);
+			const requestResponseInfo = new RequestResponseData(context, requestInfo, inlineSuggestionsProviders);
+
+
 			try {
 				const recommendedDebounceValue = this._debounceValue.get(this._textModel);
 				const debounceValue = findLastMax(
@@ -153,6 +206,7 @@ export class InlineCompletionsSource extends Disposable {
 				}
 
 				if (source.token.isCancellationRequested || this._store.isDisposed || this._textModel.getVersionId() !== request.versionId) {
+					requestResponseInfo.setNoSuggestionReasonIfNotSet('canceled:beforeFetch');
 					return false;
 				}
 
@@ -176,8 +230,9 @@ export class InlineCompletionsSource extends Disposable {
 				runWhenCancelled(source.token, () => providerResult.cancelAndDispose({ kind: 'tokenCancellation' }));
 
 				let shouldStopEarly = false;
+				let producedSuggestion = false;
 
-				const suggestions: InlineSuggestionItem[] = [];
+				const providerSuggestions: InlineSuggestionItem[] = [];
 				for await (const list of providerResult.lists) {
 					if (!list) {
 						continue;
@@ -186,15 +241,20 @@ export class InlineCompletionsSource extends Disposable {
 					store.add(toDisposable(() => list.removeRef(list.inlineSuggestionsData.length === 0 ? { kind: 'empty' } : { kind: 'notTaken' })));
 
 					for (const item of list.inlineSuggestionsData) {
+						producedSuggestion = true;
 						if (!context.includeInlineEdits && (item.isInlineEdit || item.showInlineEditMenu)) {
+							item.setNotShownReason('notInlineEditRequested');
 							continue;
 						}
 						if (!context.includeInlineCompletions && !(item.isInlineEdit || item.showInlineEditMenu)) {
+							item.setNotShownReason('notInlineCompletionRequested');
 							continue;
 						}
 
+						item.addPerformanceMarker('providerReturned');
 						const i = InlineSuggestionItem.create(item, this._textModel);
-						suggestions.push(i);
+						item.addPerformanceMarker('itemCreated');
+						providerSuggestions.push(i);
 						// Stop after first visible inline completion
 						if (!i.isInlineEdit && !i.showInlineEditMenu && context.triggerKind === InlineCompletionTriggerKind.Automatic) {
 							if (i.isVisible(this._textModel, this._cursorPosition.get())) {
@@ -208,6 +268,14 @@ export class InlineCompletionsSource extends Disposable {
 					}
 				}
 
+				providerSuggestions.forEach(s => s.addPerformanceMarker('providersResolved'));
+
+				const suggestions: InlineSuggestionItem[] = await Promise.all(providerSuggestions.map(async s => {
+					return this._renameProcessor.proposeRenameRefactoring(this._textModel, s, context);
+				}));
+
+				suggestions.forEach(s => s.addPerformanceMarker('renameProcessed'));
+
 				providerResult.cancelAndDispose({ kind: 'lostRace' });
 
 				if (this._loggingEnabled.get() || this._structuredFetchLogger.isEnabled.get()) {
@@ -216,13 +284,62 @@ export class InlineCompletionsSource extends Disposable {
 					if (source.token.isCancellationRequested || this._store.isDisposed || this._textModel.getVersionId() !== request.versionId) {
 						error = 'canceled';
 					}
-					const result = suggestions.map(c => ({
-						range: c.editRange.toString(),
-						text: c.insertText,
-						isInlineEdit: !!c.isInlineEdit,
-						source: c.source.provider.groupId,
-					}));
+					const result = suggestions.map(c => {
+						const comp = c.getSourceCompletion();
+						if (comp.doNotLog) {
+							return undefined;
+						}
+						const obj = {
+							insertText: comp.insertText,
+							range: comp.range,
+							additionalTextEdits: comp.additionalTextEdits,
+							uri: comp.uri,
+							command: comp.command,
+							gutterMenuLinkAction: comp.gutterMenuLinkAction,
+							shownCommand: comp.shownCommand,
+							completeBracketPairs: comp.completeBracketPairs,
+							isInlineEdit: comp.isInlineEdit,
+							showInlineEditMenu: comp.showInlineEditMenu,
+							showRange: comp.showRange,
+							warning: comp.warning,
+							hint: comp.hint,
+							supportsRename: comp.supportsRename,
+							correlationId: comp.correlationId,
+							jumpToPosition: comp.jumpToPosition,
+						};
+						return {
+							...(cloneAndChange(obj, v => {
+								if (Range.isIRange(v)) {
+									return Range.lift(v).toString();
+								}
+								if (Position.isIPosition(v)) {
+									return Position.lift(v).toString();
+								}
+								if (Command.is(v)) {
+									return { $commandId: v.id };
+								}
+								return v;
+							}) as object),
+							$providerId: c.source.provider.providerId?.toString(),
+						};
+					}).filter(result => result !== undefined);
+
 					this._log({ sourceId: 'InlineCompletions.fetch', kind: 'end', requestId, durationMs: (Date.now() - startTime.getTime()), error, result, time: Date.now(), didAllProvidersReturn });
+				}
+
+				requestResponseInfo.setRequestUuid(providerResult.contextWithUuid.requestUuid);
+				if (producedSuggestion) {
+					requestResponseInfo.setHasProducedSuggestion();
+					if (suggestions.length > 0 && source.token.isCancellationRequested) {
+						suggestions.forEach(s => s.setNotShownReasonIfNotSet('canceled:whileAwaitingOtherProviders'));
+					}
+				} else {
+					if (source.token.isCancellationRequested) {
+						requestResponseInfo.setNoSuggestionReasonIfNotSet('canceled:whileFetching');
+					} else {
+						const completionsQuotaExceeded = this._contextKeyService.getContextKeyValue<boolean>('completionsQuotaExceeded');
+						requestResponseInfo.setNoSuggestionReasonIfNotSet(completionsQuotaExceeded ? 'completionsQuotaExceeded' : 'noSuggestion');
+					}
 				}
 
 				const remainingTimeToWait = context.earliestShownDateTime - Date.now();
@@ -230,8 +347,17 @@ export class InlineCompletionsSource extends Disposable {
 					await wait(remainingTimeToWait, source.token);
 				}
 
+				suggestions.forEach(s => s.addPerformanceMarker('minShowDelayPassed'));
+
 				if (source.token.isCancellationRequested || this._store.isDisposed || this._textModel.getVersionId() !== request.versionId
 					|| userJumpedToActiveCompletion.get()  /* In the meantime the user showed interest for the active completion so dont hide it */) {
+					const notShownReason =
+						source.token.isCancellationRequested ? 'canceled:afterMinShowDelay' :
+							this._store.isDisposed ? 'canceled:disposed' :
+								this._textModel.getVersionId() !== request.versionId ? 'canceled:documentChanged' :
+									userJumpedToActiveCompletion.get() ? 'canceled:userJumped' :
+										'unknown';
+					suggestions.forEach(s => s.setNotShownReasonIfNotSet(notShownReason));
 					return false;
 				}
 
@@ -260,8 +386,9 @@ export class InlineCompletionsSource extends Disposable {
 					v.suggestWidgetInlineCompletions.dispose();
 				});
 			} finally {
-				this._loadingCount.set(this._loadingCount.get() - 1, undefined);
 				store.dispose();
+				decreaseLoadingCount();
+				this.sendInlineCompletionsRequestTelemetry(requestResponseInfo);
 			}
 
 			return true;
@@ -306,6 +433,82 @@ export class InlineCompletionsSource extends Disposable {
 		});
 	}
 
+	private sendInlineCompletionsRequestTelemetry(
+		requestResponseInfo: RequestResponseData
+	): void {
+		if (!this._sendRequestData.get() && !this._contextKeyService.getContextKeyValue<boolean>('isRunningUnificationExperiment')) {
+			return;
+		}
+
+		if (requestResponseInfo.requestUuid === undefined || requestResponseInfo.hasProducedSuggestion) {
+			return;
+		}
+
+
+		if (!isCompletionsEnabled(this._completionsEnabled, this._textModel.getLanguageId())) {
+			return;
+		}
+
+		if (!requestResponseInfo.providers.some(p => isCopilotLikeExtension(p.providerId?.extensionId))) {
+			return;
+		}
+
+		const emptyEndOfLifeEvent: InlineCompletionEndOfLifeEvent = {
+			opportunityId: requestResponseInfo.requestUuid,
+			noSuggestionReason: requestResponseInfo.noSuggestionReason ?? 'unknown',
+			extensionId: 'vscode-core',
+			extensionVersion: '0.0.0',
+			groupId: 'empty',
+			shown: false,
+			skuPlan: requestResponseInfo.requestInfo.sku?.plan,
+			skuType: requestResponseInfo.requestInfo.sku?.type,
+			editorType: requestResponseInfo.requestInfo.editorType,
+			requestReason: requestResponseInfo.requestInfo.reason,
+			typingInterval: requestResponseInfo.requestInfo.typingInterval,
+			typingIntervalCharacterCount: requestResponseInfo.requestInfo.typingIntervalCharacterCount,
+			languageId: requestResponseInfo.requestInfo.languageId,
+			selectedSuggestionInfo: !!requestResponseInfo.context.selectedSuggestionInfo,
+			availableProviders: requestResponseInfo.providers.map(p => p.providerId?.toString()).filter(isDefined).join(','),
+			...forwardToChannelIf(requestResponseInfo.providers.some(p => isCopilotLikeExtension(p.providerId?.extensionId))),
+			timeUntilProviderRequest: undefined,
+			timeUntilProviderResponse: undefined,
+			viewKind: undefined,
+			preceeded: undefined,
+			superseded: undefined,
+			reason: undefined,
+			acceptedAlternativeAction: undefined,
+			correlationId: undefined,
+			shownDuration: undefined,
+			shownDurationUncollapsed: undefined,
+			timeUntilShown: undefined,
+			partiallyAccepted: undefined,
+			partiallyAcceptedCountSinceOriginal: undefined,
+			partiallyAcceptedRatioSinceOriginal: undefined,
+			partiallyAcceptedCharactersSinceOriginal: undefined,
+			cursorColumnDistance: undefined,
+			cursorLineDistance: undefined,
+			lineCountOriginal: undefined,
+			lineCountModified: undefined,
+			characterCountOriginal: undefined,
+			characterCountModified: undefined,
+			disjointReplacements: undefined,
+			sameShapeReplacements: undefined,
+			longDistanceHintVisible: undefined,
+			longDistanceHintDistance: undefined,
+			notShownReason: undefined,
+			renameCreated: false,
+			renameDuration: undefined,
+			renameTimedOut: false,
+			renameDroppedOtherEdits: undefined,
+			renameDroppedRenameEdits: undefined,
+			performanceMarkers: undefined,
+			editKind: undefined,
+		};
+
+		const dataChannel = this._instantiationService.createInstance(DataChannelForwardingTelemetryService);
+		sendInlineCompletionsEndOfLifeTelemetry(dataChannel, emptyEndOfLifeEvent);
+	}
+
 	public clearSuggestWidgetInlineCompletions(tx: ITransaction): void {
 		if (this._updateOperation.value?.request.context.selectedSuggestionInfo) {
 			this._updateOperation.clear();
@@ -328,7 +531,7 @@ class UpdateRequest {
 
 	public satisfies(other: UpdateRequest): boolean {
 		return this.position.equals(other.position)
-			&& equalsIfDefined(this.context.selectedSuggestionInfo, other.context.selectedSuggestionInfo, itemEquals())
+			&& equalsIfDefined(this.context.selectedSuggestionInfo, other.context.selectedSuggestionInfo, thisEqualsC())
 			&& (other.context.triggerKind === InlineCompletionTriggerKind.Automatic
 				|| this.context.triggerKind === InlineCompletionTriggerKind.Explicit)
 			&& this.versionId === other.versionId
@@ -340,8 +543,44 @@ class UpdateRequest {
 	}
 }
 
+class RequestResponseData {
+	public requestUuid: string | undefined;
+	public noSuggestionReason: string | undefined;
+	public hasProducedSuggestion = false;
+
+	constructor(
+		public readonly context: InlineCompletionContextWithoutUuid,
+		public readonly requestInfo: InlineSuggestRequestInfo,
+		public readonly providers: InlineCompletionsProvider[],
+	) { }
+
+	setRequestUuid(uuid: string) {
+		this.requestUuid = uuid;
+	}
+
+	setNoSuggestionReasonIfNotSet(type: string) {
+		this.noSuggestionReason ??= type;
+	}
+
+	setHasProducedSuggestion() {
+		this.hasProducedSuggestion = true;
+	}
+}
+
 function isSubset<T>(set1: Set<T>, set2: Set<T>): boolean {
 	return [...set1].every(item => set2.has(item));
+}
+
+function isCompletionsEnabled(completionsEnablementObject: Record<string, boolean> | undefined, modeId: string = '*'): boolean {
+	if (completionsEnablementObject === undefined) {
+		return false; // default to disabled if setting is not available
+	}
+
+	if (typeof completionsEnablementObject[modeId] !== 'undefined') {
+		return Boolean(completionsEnablementObject[modeId]); // go with setting if explicitly defined
+	}
+
+	return Boolean(completionsEnablementObject['*']); // fallback to global setting otherwise
 }
 
 class UpdateOperation implements IDisposable {

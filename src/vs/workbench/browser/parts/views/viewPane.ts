@@ -245,7 +245,7 @@ class ViewWelcomeController {
 				if (linkedText.nodes.length === 1 && typeof linkedText.nodes[0] !== 'string') {
 					const node = linkedText.nodes[0];
 					const buttonContainer = append(this.element!, $('.button-container'));
-					const button = new Button(buttonContainer, { title: node.title, supportIcons: true, secondary: renderSecondaryButtons && buttonsCount > 0 ? true : false, ...defaultButtonStyles, });
+					const button = new Button(buttonContainer, { title: node.title, supportIcons: true, secondary: !!(renderSecondaryButtons && buttonsCount > 0), ...defaultButtonStyles, });
 					button.label = node.label;
 					button.onDidClick(_ => {
 						this.openerService.open(node.href, { allowCommands: true });
@@ -613,7 +613,7 @@ export abstract class ViewPane extends Pane implements IView {
 		const viewDescriptor = this.viewDescriptorService.getViewDescriptorById(this.id);
 		const isDefault = this.viewDescriptorService.getDefaultContainerById(this.id) === viewContainer;
 
-		if (!isDefault && viewDescriptor?.containerTitle && model.title !== viewDescriptor.containerTitle) {
+		if (!isDefault && viewDescriptor?.containerTitle && model.title !== viewDescriptor.containerTitle && title !== viewDescriptor.containerTitle) {
 			return `${viewDescriptor.containerTitle}: ${title}`;
 		}
 
@@ -640,12 +640,12 @@ export abstract class ViewPane extends Pane implements IView {
 
 		if (this.progressIndicator === undefined) {
 			const that = this;
-			this.progressIndicator = this._register(new ScopedProgressIndicator(assertReturnsDefined(this.progressBar), new class extends AbstractProgressScope {
+			this.progressIndicator = this._register(new ScopedProgressIndicator(assertReturnsDefined(this.progressBar), this._register(new class extends AbstractProgressScope {
 				constructor() {
 					super(that.id, that.isBodyVisible());
 					this._register(that.onDidChangeBodyVisibility(isVisible => isVisible ? this.onScopeOpened(that.id) : this.onScopeClosed(that.id)));
 				}
-			}()));
+			}())));
 		}
 		return this.progressIndicator;
 	}
@@ -744,7 +744,7 @@ export abstract class FilterViewPane extends ViewPane {
 
 	readonly filterWidget: FilterWidget;
 	private dimension: Dimension | undefined;
-	private filterContainer: HTMLElement | undefined;
+	protected filterContainer: HTMLElement | undefined;
 
 	constructor(
 		options: IFilterViewPaneOptions,
@@ -762,6 +762,7 @@ export abstract class FilterViewPane extends ViewPane {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService, accessibleViewService);
 		const childInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
 		this.filterWidget = this._register(childInstantiationService.createInstance(FilterWidget, options.filterOptions));
+		this._register(this.filterWidget.onDidAcceptFilterText(() => this.focusBodyContent()));
 	}
 
 	override getFilterWidget(): FilterWidget {
@@ -801,6 +802,9 @@ export abstract class FilterViewPane extends ViewPane {
 
 	protected abstract layoutBodyContent(height: number, width: number): void;
 
+	protected focusBodyContent(): void {
+		this.focus();
+	}
 }
 
 export interface IViewPaneLocationColors {
@@ -850,7 +854,7 @@ export abstract class ViewAction<T extends IView> extends Action2 {
 		this.desc = desc;
 	}
 
-	run(accessor: ServicesAccessor, ...args: any[]): unknown {
+	run(accessor: ServicesAccessor, ...args: unknown[]): unknown {
 		const view = accessor.get(IViewsService).getActiveViewWithId(this.desc.viewId);
 		if (view) {
 			return this.runInView(accessor, <T>view, ...args);
@@ -858,5 +862,5 @@ export abstract class ViewAction<T extends IView> extends Action2 {
 		return undefined;
 	}
 
-	abstract runInView(accessor: ServicesAccessor, view: T, ...args: any[]): unknown;
+	abstract runInView(accessor: ServicesAccessor, view: T, ...args: unknown[]): unknown;
 }

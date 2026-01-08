@@ -14,7 +14,7 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { DeferredPromise, RunOnceScheduler } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { parse } from '../../../../base/common/json.js';
-import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import { IJSONSchema, TypeFromJsonSchema } from '../../../../base/common/jsonSchema.js';
 import { UserSettingsLabelProvider } from '../../../../base/common/keybindingLabels.js';
 import { KeybindingParser } from '../../../../base/common/keybindingParser.js';
 import { Keybinding, KeyCodeChord, ResolvedKeybinding, ScanCodeChord } from '../../../../base/common/keybindings.js';
@@ -57,16 +57,6 @@ import { IUserKeybindingItem, KeybindingIO, OutputBuilder } from '../common/keyb
 import { IKeyboard, INavigatorWithKeyboard } from './navigatorKeyboard.js';
 import { getAllUnboundCommands } from './unboundCommands.js';
 
-interface ContributedKeyBinding {
-	command: string;
-	args?: any;
-	key: string;
-	when?: string;
-	mac?: string;
-	linux?: string;
-	win?: string;
-}
-
 function isValidContributedKeyBinding(keyBinding: ContributedKeyBinding, rejects: string[]): boolean {
 	if (!keyBinding) {
 		rejects.push(nls.localize('nonempty', "expected non-empty value."));
@@ -99,9 +89,10 @@ function isValidContributedKeyBinding(keyBinding: ContributedKeyBinding, rejects
 	return true;
 }
 
-const keybindingType: IJSONSchema = {
+const keybindingType = {
 	type: 'object',
 	default: { command: '', key: '' },
+	required: ['command', 'key'],
 	properties: {
 		command: {
 			description: nls.localize('vscode.extension.contributes.keybindings.command', 'Identifier of the command to run when keybinding is triggered.'),
@@ -131,7 +122,9 @@ const keybindingType: IJSONSchema = {
 			type: 'string'
 		},
 	}
-};
+} as const satisfies IJSONSchema;
+
+type ContributedKeyBinding = TypeFromJsonSchema<typeof keybindingType>;
 
 const keybindingsExtPoint = ExtensionsRegistry.registerExtensionPoint<ContributedKeyBinding | ContributedKeyBinding[]>({
 	extensionPoint: 'keybindings',
@@ -846,7 +839,7 @@ class KeybindingsJsonSchema {
 	private readonly commandsSchemas: IJSONSchema[] = [];
 	private readonly commandsEnum: string[] = [];
 	private readonly removalCommandsEnum: string[] = [];
-	private readonly commandsEnumDescriptions: (string | undefined)[] = [];
+	private readonly commandsEnumDescriptions: string[] = [];
 	private readonly schema: IJSONSchema = {
 		id: KeybindingsJsonSchema.schemaId,
 		type: 'array',
@@ -873,7 +866,7 @@ class KeybindingsJsonSchema {
 			'commandNames': {
 				'type': 'string',
 				'enum': this.commandsEnum,
-				'enumDescriptions': <any>this.commandsEnumDescriptions,
+				'enumDescriptions': this.commandsEnumDescriptions,
 				'description': nls.localize('keybindings.json.command', "Name of the command to execute"),
 			},
 			'commandType': {
@@ -884,7 +877,7 @@ class KeybindingsJsonSchema {
 					{
 						'type': 'string',
 						'enum': this.removalCommandsEnum,
-						'enumDescriptions': <any>this.commandsEnumDescriptions,
+						'enumDescriptions': this.commandsEnumDescriptions,
 						'description': nls.localize('keybindings.json.removalCommand', "Name of the command to remove keyboard shortcut for"),
 					},
 					{
@@ -960,7 +953,11 @@ class KeybindingsJsonSchema {
 					knownCommands.add(commandId);
 
 					this.commandsEnum.push(commandId);
-					this.commandsEnumDescriptions.push(isLocalizedString(description) ? description.value : description);
+					this.commandsEnumDescriptions.push(
+						description === undefined
+							? '' // `enumDescriptions` is an array of strings, so we can't use undefined
+							: (isLocalizedString(description) ? description.value : description)
+					);
 
 					// Also add the negative form for keybinding removal
 					this.removalCommandsEnum.push(`-${commandId}`);

@@ -86,6 +86,7 @@ class BrowserWebSocket extends Disposable implements IWebSocket {
 
 		this._fileReader.onload = (event) => {
 			this._isReading = false;
+			// eslint-disable-next-line local/code-no-any-casts
 			const buff = <ArrayBuffer>(<any>event.target).result;
 
 			this.traceSocketEvent(SocketDiagnosticsEventType.Read, buff);

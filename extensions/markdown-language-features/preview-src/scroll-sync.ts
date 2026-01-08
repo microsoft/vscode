@@ -20,7 +20,21 @@ export class CodeLineElement {
 	}
 
 	get isVisible(): boolean {
-		return !this._detailParentElements.some(x => !x.open);
+		if (this._detailParentElements.some(x => !x.open)) {
+			return false;
+		}
+
+		const style = window.getComputedStyle(this.element);
+		if (style.display === 'none' || style.visibility === 'hidden') {
+			return false;
+		}
+
+		const bounds = this.element.getBoundingClientRect();
+		if (bounds.height === 0 || bounds.width === 0) {
+			return false;
+		}
+
+		return true;
 	}
 }
 

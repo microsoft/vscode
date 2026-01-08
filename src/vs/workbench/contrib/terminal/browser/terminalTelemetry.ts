@@ -9,6 +9,7 @@ import { timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { basename } from '../../../../base/common/path.js';
+import { isString } from '../../../../base/common/types.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
@@ -31,7 +32,6 @@ export class TerminalTelemetryContribution extends Disposable implements IWorkbe
 		this._register(terminalService.onDidCreateInstance(async instance => {
 			const store = new DisposableStore();
 			this._store.add(store);
-
 
 			await Promise.race([
 				// Wait for process ready so the shell launch config is fully resolved, then
@@ -74,6 +74,7 @@ export class TerminalTelemetryContribution extends Disposable implements IWorkbe
 			isExtensionOwnedTerminal: boolean;
 			isLoginShell: boolean;
 			isReconnect: boolean;
+			hasRemoteAuthority: boolean;
 
 			shellIntegrationQuality: number;
 			shellIntegrationInjected: boolean;
@@ -94,6 +95,7 @@ export class TerminalTelemetryContribution extends Disposable implements IWorkbe
 			isExtensionOwnedTerminal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the terminal was created by an extension.' };
 			isLoginShell: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the arguments contain -l or --login.' };
 			isReconnect: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the terminal is reconnecting to an existing instance.' };
+			hasRemoteAuthority: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the terminal has a remote authority, this is likely a connection terminal when undefined in a window with a remote authority.' };
 
 			shellIntegrationQuality: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The shell integration quality (rich=2, basic=1 or none=0).' };
 			shellIntegrationInjected: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the shell integration script was injected.' };
@@ -109,12 +111,13 @@ export class TerminalTelemetryContribution extends Disposable implements IWorkbe
 					: 'unknown'),
 
 			shellType: new TelemetryTrustedValue(getSanitizedShellType(slc)),
-			promptType: new TelemetryTrustedValue(commandDetection?.promptType),
+			promptType: new TelemetryTrustedValue(instance.capabilities.get(TerminalCapability.PromptTypeDetection)?.promptType),
 
 			isCustomPtyImplementation: !!slc.customPtyImplementation,
 			isExtensionOwnedTerminal: !!slc.isExtensionOwnedTerminal,
-			isLoginShell: (typeof slc.args === 'string' ? slc.args.split(' ') : slc.args)?.some(arg => arg === '-l' || arg === '--login') ?? false,
+			isLoginShell: (isString(slc.args) ? slc.args.split(' ') : slc.args)?.some(arg => arg === '-l' || arg === '--login') ?? false,
 			isReconnect: !!slc.attachPersistentProcess,
+			hasRemoteAuthority: instance.hasRemoteAuthority,
 
 			shellIntegrationQuality: commandDetection?.hasRichCommandDetection ? 2 : commandDetection ? 1 : 0,
 			shellIntegrationInjected: instance.usedShellIntegrationInjection,

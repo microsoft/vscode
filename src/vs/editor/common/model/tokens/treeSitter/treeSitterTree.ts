@@ -405,7 +405,7 @@ export class TreeSitterTree extends Disposable {
 
 	public createParsedTreeSync(src: string): TreeSitter.Tree | undefined {
 		const parser = new this._parserClass();
-		parser.setLanguage(this._parser.language!);
+		parser.setLanguage(this._parser.language);
 		const tree = parser.parse(src);
 		parser.delete();
 		return tree ?? undefined;

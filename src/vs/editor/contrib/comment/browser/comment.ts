@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import * as nls from '../../../../nls.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { EditorAction, IActionOptions, registerEditorAction, ServicesAccessor } from '../../../browser/editorExtensions.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
@@ -13,9 +16,6 @@ import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
 import { BlockCommentCommand } from './blockCommentCommand.js';
 import { LineCommentCommand, Type } from './lineCommentCommand.js';
-import * as nls from '../../../../nls.js';
-import { MenuId } from '../../../../platform/actions/common/actions.js';
-import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 
 abstract class CommentLineAction extends EditorAction {
 
@@ -94,7 +94,8 @@ class ToggleCommentLineAction extends CommentLineAction {
 				group: '5_insert',
 				title: nls.localize({ key: 'miToggleLineComment', comment: ['&& denotes a mnemonic'] }, "&&Toggle Line Comment"),
 				order: 1
-			}
+			},
+			canTriggerInlineEdits: true,
 		});
 	}
 }
@@ -109,7 +110,8 @@ class AddLineCommentAction extends CommentLineAction {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyC),
 				weight: KeybindingWeight.EditorContrib
-			}
+			},
+			canTriggerInlineEdits: true,
 		});
 	}
 }
@@ -124,7 +126,8 @@ class RemoveLineCommentAction extends CommentLineAction {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyU),
 				weight: KeybindingWeight.EditorContrib
-			}
+			},
+			canTriggerInlineEdits: true,
 		});
 	}
 }
@@ -147,7 +150,8 @@ class BlockCommentAction extends EditorAction {
 				group: '5_insert',
 				title: nls.localize({ key: 'miToggleBlockComment', comment: ['&& denotes a mnemonic'] }, "Toggle &&Block Comment"),
 				order: 2
-			}
+			},
+			canTriggerInlineEdits: true,
 		});
 	}
 

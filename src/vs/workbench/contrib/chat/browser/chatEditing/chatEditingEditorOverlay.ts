@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import '../media/chatEditingEditorOverlay.css';
+import './media/chatEditingEditorOverlay.css';
 import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, derivedOpts, IObservable, observableFromEvent, observableFromEventOpts, observableSignalFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../common/chatEditingService.js';
+import { IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IActionRunner } from '../../../../../base/common/actions.js';
@@ -16,7 +16,7 @@ import { $, addDisposableGenericMouseMoveListener, append } from '../../../../..
 import { assertType } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
 import { AcceptAction, navigationBearingFakeActionId, RejectAction } from './chatEditingEditorActions.js';
-import { IChatService } from '../../common/chatService.js';
+import { IChatService } from '../../common/chatService/chatService.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { EditorGroupView } from '../../../../browser/parts/editor/editorGroupView.js';
@@ -68,7 +68,7 @@ class ChatEditorOverlayWidget extends Disposable {
 		const requestMessage = derived(r => {
 
 			const session = this._session.read(r);
-			const chatModel = this._chatService.getSession(session?.chatSessionId ?? '');
+			const chatModel = session?.chatSessionResource && this._chatService.getSession(session?.chatSessionResource);
 			if (!session || !chatModel) {
 				return undefined;
 			}
@@ -282,11 +282,7 @@ class ChatEditorOverlayWidget extends Disposable {
 							if (!value) {
 								return value;
 							}
-							const kb = that._keybindingService.lookupKeybinding(this.action.id);
-							if (!kb) {
-								return value;
-							}
-							return localize('tooltip', "{0} ({1})", value, kb.getLabel());
+							return that._keybindingService.appendKeybinding(value, action.id);
 						}
 					};
 				}
@@ -385,8 +381,8 @@ class ChatEditingOverlayController {
 				return false;
 			}
 
-			const chatModel = chatService.getSession(session.chatSessionId)!;
-			return chatModel.requestInProgressObs.read(r);
+			const chatModel = chatService.getSession(session.chatSessionResource)!;
+			return chatModel.requestInProgress.read(r);
 		});
 
 		this._store.add(autorun(r => {
@@ -400,7 +396,7 @@ class ChatEditingOverlayController {
 
 			const { session, entry } = data;
 
-			if (!session.isGlobalEditingSession && !inlineChatService.hideOnRequest.read(r)) {
+			if (!session.isGlobalEditingSession) {
 				// inline chat - no chat overlay unless hideOnRequest is on
 				hide();
 				return;

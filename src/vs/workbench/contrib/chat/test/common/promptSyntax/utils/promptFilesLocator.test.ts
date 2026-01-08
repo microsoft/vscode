@@ -27,7 +27,8 @@ import { isValidGlob, PromptFilesLocator } from '../../../../common/promptSyntax
 import { IMockFolder, MockFilesystem } from '../testUtils/mockFilesystem.js';
 import { mockService } from './mock.js';
 import { TestUserDataProfileService } from '../../../../../../test/common/workbenchTestServices.js';
-import { TPromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { runWithFakedTimers } from '../../../../../../../base/test/common/timeTravelScheduler.js';
 
 /**
  * Mocked instance of {@link IConfigurationService}.
@@ -44,7 +45,7 @@ function mockConfigService<T>(value: T): IConfigurationService {
 			}
 
 			assert(
-				[PromptsConfig.KEY, PromptsConfig.PROMPT_LOCATIONS_KEY, PromptsConfig.INSTRUCTIONS_LOCATION_KEY, PromptsConfig.MODE_LOCATION_KEY].includes(key),
+				[PromptsConfig.PROMPT_LOCATIONS_KEY, PromptsConfig.INSTRUCTIONS_LOCATION_KEY, PromptsConfig.MODE_LOCATION_KEY].includes(key),
 				`Unsupported configuration key '${key}'.`,
 			);
 
@@ -68,6 +69,10 @@ function mockWorkspaceService(folders: IWorkspaceFolder[]): IWorkspaceContextSer
 		}
 
 	});
+}
+
+function testT(name: string, fn: () => Promise<void>): Mocha.Test {
+	return test(name, () => runWithFakedTimers({ useFakeTimers: true }, fn));
 }
 
 suite('PromptFilesLocator', () => {
@@ -148,14 +153,13 @@ suite('PromptFilesLocator', () => {
 		const locator = instantiationService.createInstance(PromptFilesLocator);
 
 		return {
-			async listFiles(type: PromptsType, storage: TPromptsStorage, token: CancellationToken): Promise<readonly URI[]> {
+			async listFiles(type: PromptsType, storage: PromptsStorage, token: CancellationToken): Promise<readonly URI[]> {
 				return locator.listFiles(type, storage, token);
 			},
 			getConfigBasedSourceFolders(type: PromptsType): readonly URI[] {
 				return locator.getConfigBasedSourceFolders(type);
 			},
 			async disposeAsync(): Promise<void> {
-				locator.dispose();
 				await mockFs.delete();
 			}
 		};
@@ -165,61 +169,61 @@ suite('PromptFilesLocator', () => {
 		const EMPTY_WORKSPACE: string[] = [];
 
 		suite('empty filesystem', () => {
-			test('no config value', async () => {
+			testT('no config value', async () => {
 				const locator = await createPromptsLocator(undefined, EMPTY_WORKSPACE, []);
 
 				assertOutcome(
-					await locator.listFiles(PromptsType.prompt, 'local', CancellationToken.None),
+					await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 					[],
 					'No prompts must be found.',
 				);
 				await locator.disposeAsync();
 			});
 
-			test('object config value', async () => {
+			testT('object config value', async () => {
 				const locator = await createPromptsLocator({
 					'/Users/legomushroom/repos/prompts/': true,
 					'/tmp/prompts/': false,
 				}, EMPTY_WORKSPACE, []);
 
 				assertOutcome(
-					await locator.listFiles(PromptsType.prompt, 'local', CancellationToken.None),
+					await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 					[],
 					'No prompts must be found.',
 				);
 				await locator.disposeAsync();
 			});
 
-			test('array config value', async () => {
+			testT('array config value', async () => {
 				const locator = await createPromptsLocator([
 					'relative/path/to/prompts/',
 					'/abs/path',
 				], EMPTY_WORKSPACE, []);
 
 				assertOutcome(
-					await locator.listFiles(PromptsType.prompt, 'local', CancellationToken.None),
+					await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 					[],
 					'No prompts must be found.',
 				);
 				await locator.disposeAsync();
 			});
 
-			test('null config value', async () => {
+			testT('null config value', async () => {
 				const locator = await createPromptsLocator(null, EMPTY_WORKSPACE, []);
 
 				assertOutcome(
-					await locator.listFiles(PromptsType.prompt, 'local', CancellationToken.None),
+					await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 					[],
 					'No prompts must be found.',
 				);
 				await locator.disposeAsync();
 			});
 
-			test('string config value', async () => {
+			testT('string config value', async () => {
 				const locator = await createPromptsLocator('/etc/hosts/prompts', EMPTY_WORKSPACE, []);
 
 				assertOutcome(
-					await locator.listFiles(PromptsType.prompt, 'local', CancellationToken.None),
+					await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 					[],
 					'No prompts must be found.',
 				);
@@ -228,7 +232,7 @@ suite('PromptFilesLocator', () => {
 		});
 
 		suite('non-empty filesystem', () => {
-			test('core logic', async () => {
+			testT('core logic', async () => {
 				const locator = await createPromptsLocator(
 					{
 						'/Users/legomushroom/repos/prompts': true,
@@ -272,7 +276,7 @@ suite('PromptFilesLocator', () => {
 					]);
 
 				assertOutcome(
-					await locator.listFiles(PromptsType.prompt, 'local', CancellationToken.None),
+					await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 					[
 						'/Users/legomushroom/repos/prompts/test.prompt.md',
 						'/Users/legomushroom/repos/prompts/refactor-tests.prompt.md',
@@ -284,7 +288,7 @@ suite('PromptFilesLocator', () => {
 			});
 
 			suite('absolute', () => {
-				test('wild card', async () => {
+				testT('wild card', async () => {
 					const settings = [
 						'/Users/legomushroom/repos/vscode/**',
 						'/Users/legomushroom/repos/vscode/**/*.prompt.md',
@@ -348,7 +352,7 @@ suite('PromptFilesLocator', () => {
 						);
 
 						assertOutcome(
-							await locator.listFiles(PromptsType.prompt, 'local', CancellationToken.None),
+							await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 							[
 								'/Users/legomushroom/repos/vscode/deps/text/my.prompt.md',
 								'/Users/legomushroom/repos/vscode/deps/text/nested/specific.prompt.md',
@@ -361,7 +365,7 @@ suite('PromptFilesLocator', () => {
 					}
 				});
 
-				test(`specific`, async () => {
+				testT(`specific`, async () => {
 					const testSettings = [
 						[
 							'/Users/legomushroom/repos/vscode/**/*specific*',
@@ -506,7 +510,7 @@ suite('PromptFilesLocator', () => {
 						);
 
 						assertOutcome(
-							await locator.listFiles(PromptsType.prompt, 'local', CancellationToken.None),
+							await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 							[
 								'/Users/legomushroom/repos/vscode/deps/text/nested/specific.prompt.md',
 								'/Users/legomushroom/repos/vscode/deps/text/nested/unspecific1.prompt.md',
@@ -524,7 +528,7 @@ suite('PromptFilesLocator', () => {
 	suite('single-root workspace', () => {
 		suite('glob pattern', () => {
 			suite('relative', () => {
-				test('wild card', async () => {
+				testT('wild card', async () => {
 					const testSettings = [
 						'**',
 						'**/*.prompt.md',
@@ -588,7 +592,7 @@ suite('PromptFilesLocator', () => {
 						);
 
 						assertOutcome(
-							await locator.listFiles(PromptsType.prompt, 'local', CancellationToken.None),
+							await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 							[
 								'/Users/legomushroom/repos/vscode/deps/text/my.prompt.md',
 								'/Users/legomushroom/repos/vscode/deps/text/nested/specific.prompt.md',
@@ -602,7 +606,7 @@ suite('PromptFilesLocator', () => {
 					}
 				});
 
-				test(`specific`, async () => {
+				testT(`specific`, async () => {
 					const testSettings = [
 						[
 							'**/*specific*',
@@ -747,7 +751,7 @@ suite('PromptFilesLocator', () => {
 						);
 
 						assertOutcome(
-							await locator.listFiles(PromptsType.prompt, 'local', CancellationToken.None),
+							await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 							[
 								'/Users/legomushroom/repos/vscode/deps/text/nested/specific.prompt.md',
 								'/Users/legomushroom/repos/vscode/deps/text/nested/unspecific1.prompt.md',
@@ -761,7 +765,7 @@ suite('PromptFilesLocator', () => {
 			});
 
 			suite('absolute', () => {
-				test('wild card', async () => {
+				testT('wild card', async () => {
 					const settings = [
 						'/Users/legomushroom/repos/vscode/**',
 						'/Users/legomushroom/repos/vscode/**/*.prompt.md',
@@ -826,7 +830,7 @@ suite('PromptFilesLocator', () => {
 						);
 
 						assertOutcome(
-							await locator.listFiles(PromptsType.prompt, 'local', CancellationToken.None),
+							await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 							[
 								'/Users/legomushroom/repos/vscode/deps/text/my.prompt.md',
 								'/Users/legomushroom/repos/vscode/deps/text/nested/specific.prompt.md',
@@ -840,7 +844,7 @@ suite('PromptFilesLocator', () => {
 					}
 				});
 
-				test(`specific`, async () => {
+				testT(`specific`, async () => {
 					const testSettings = [
 						[
 							'/Users/legomushroom/repos/vscode/**/*specific*',
@@ -985,7 +989,7 @@ suite('PromptFilesLocator', () => {
 						);
 
 						assertOutcome(
-							await locator.listFiles(PromptsType.prompt, 'local', CancellationToken.None),
+							await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 							[
 								'/Users/legomushroom/repos/vscode/deps/text/nested/specific.prompt.md',
 								'/Users/legomushroom/repos/vscode/deps/text/nested/unspecific1.prompt.md',
@@ -1001,7 +1005,7 @@ suite('PromptFilesLocator', () => {
 		});
 	});
 
-	test('core logic', async () => {
+	testT('core logic', async () => {
 		const locator = await createPromptsLocator(
 			{
 				'/Users/legomushroom/repos/prompts': true,
@@ -1070,7 +1074,7 @@ suite('PromptFilesLocator', () => {
 			]);
 
 		assertOutcome(
-			await locator.listFiles(PromptsType.prompt, 'local', CancellationToken.None),
+			await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 			[
 				'/Users/legomushroom/repos/vscode/.github/prompts/my.prompt.md',
 				'/Users/legomushroom/repos/prompts/test.prompt.md',
@@ -1083,7 +1087,7 @@ suite('PromptFilesLocator', () => {
 		await locator.disposeAsync();
 	});
 
-	test('with disabled `.github/prompts` location', async () => {
+	testT('with disabled `.github/prompts` location', async () => {
 		const locator = await createPromptsLocator(
 			{
 				'/Users/legomushroom/repos/prompts': true,
@@ -1157,7 +1161,7 @@ suite('PromptFilesLocator', () => {
 			]);
 
 		assertOutcome(
-			await locator.listFiles(PromptsType.prompt, 'local', CancellationToken.None),
+			await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 			[
 				'/Users/legomushroom/repos/prompts/test.prompt.md',
 				'/Users/legomushroom/repos/prompts/refactor-tests.prompt.md',
@@ -1171,7 +1175,7 @@ suite('PromptFilesLocator', () => {
 
 	suite('multi-root workspace', () => {
 		suite('core logic', () => {
-			test('without top-level `.github` folder', async () => {
+			testT('without top-level `.github` folder', async () => {
 				const locator = await createPromptsLocator(
 					{
 						'/Users/legomushroom/repos/prompts': true,
@@ -1278,7 +1282,7 @@ suite('PromptFilesLocator', () => {
 					]);
 
 				assertOutcome(
-					await locator.listFiles(PromptsType.prompt, 'local', CancellationToken.None),
+					await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 					[
 						'/Users/legomushroom/repos/vscode/.github/prompts/default.prompt.md',
 						'/Users/legomushroom/repos/node/.github/prompts/refactor-static-classes.prompt.md',
@@ -1291,7 +1295,7 @@ suite('PromptFilesLocator', () => {
 				await locator.disposeAsync();
 			});
 
-			test('with top-level `.github` folder', async () => {
+			testT('with top-level `.github` folder', async () => {
 				const locator = await createPromptsLocator(
 					{
 						'/Users/legomushroom/repos/prompts': true,
@@ -1399,7 +1403,7 @@ suite('PromptFilesLocator', () => {
 					]);
 
 				assertOutcome(
-					await locator.listFiles(PromptsType.prompt, 'local', CancellationToken.None),
+					await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 					[
 						'/Users/legomushroom/repos/vscode/.github/prompts/default.prompt.md',
 						'/Users/legomushroom/repos/node/.github/prompts/refactor-static-classes.prompt.md',
@@ -1414,7 +1418,7 @@ suite('PromptFilesLocator', () => {
 				await locator.disposeAsync();
 			});
 
-			test('with disabled `.github/prompts` location', async () => {
+			testT('with disabled `.github/prompts` location', async () => {
 				const locator = await createPromptsLocator(
 					{
 						'/Users/legomushroom/repos/prompts': true,
@@ -1523,7 +1527,7 @@ suite('PromptFilesLocator', () => {
 					]);
 
 				assertOutcome(
-					await locator.listFiles(PromptsType.prompt, 'local', CancellationToken.None),
+					await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 					[
 						'/Users/legomushroom/repos/prompts/test.prompt.md',
 						'/Users/legomushroom/repos/prompts/refactor-tests.prompt.md',
@@ -1534,7 +1538,7 @@ suite('PromptFilesLocator', () => {
 				await locator.disposeAsync();
 			});
 
-			test('mixed', async () => {
+			testT('mixed', async () => {
 				const locator = await createPromptsLocator(
 					{
 						'/Users/legomushroom/repos/**/*test*': true,
@@ -1646,7 +1650,7 @@ suite('PromptFilesLocator', () => {
 					]);
 
 				assertOutcome(
-					await locator.listFiles(PromptsType.prompt, 'local', CancellationToken.None),
+					await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 					[
 						// all of these are due to the `.github/prompts` setting
 						'/Users/legomushroom/repos/vscode/.github/prompts/default.prompt.md',
@@ -1667,7 +1671,7 @@ suite('PromptFilesLocator', () => {
 
 		suite('glob pattern', () => {
 			suite('relative', () => {
-				test('wild card', async () => {
+				testT('wild card', async () => {
 					const testSettings = [
 						'**',
 						'**/*.prompt.md',
@@ -1761,7 +1765,7 @@ suite('PromptFilesLocator', () => {
 						);
 
 						assertOutcome(
-							await locator.listFiles(PromptsType.prompt, 'local', CancellationToken.None),
+							await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 							[
 								'/Users/legomushroom/repos/vscode/gen/text/my.prompt.md',
 								'/Users/legomushroom/repos/vscode/gen/text/nested/specific.prompt.md',
@@ -1778,7 +1782,7 @@ suite('PromptFilesLocator', () => {
 					}
 				});
 
-				test(`specific`, async () => {
+				testT(`specific`, async () => {
 					const testSettings = [
 						[
 							'**/my.prompt.md',
@@ -1966,7 +1970,7 @@ suite('PromptFilesLocator', () => {
 						);
 
 						assertOutcome(
-							await locator.listFiles(PromptsType.prompt, 'local', CancellationToken.None),
+							await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 							[
 								'/Users/legomushroom/repos/vscode/gen/text/my.prompt.md',
 								'/Users/legomushroom/repos/vscode/gen/text/nested/specific.prompt.md',
@@ -1985,7 +1989,7 @@ suite('PromptFilesLocator', () => {
 			});
 
 			suite('absolute', () => {
-				test('wild card', async () => {
+				testT('wild card', async () => {
 					const testSettings = [
 						'/Users/legomushroom/repos/**',
 						'/Users/legomushroom/repos/**/*.prompt.md',
@@ -2090,7 +2094,7 @@ suite('PromptFilesLocator', () => {
 						);
 
 						assertOutcome(
-							await locator.listFiles(PromptsType.prompt, 'local', CancellationToken.None),
+							await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 							[
 								'/Users/legomushroom/repos/vscode/gen/text/my.prompt.md',
 								'/Users/legomushroom/repos/vscode/gen/text/nested/specific.prompt.md',
@@ -2107,7 +2111,7 @@ suite('PromptFilesLocator', () => {
 					}
 				});
 
-				test(`specific`, async () => {
+				testT(`specific`, async () => {
 					const testSettings = [
 						[
 							'/Users/legomushroom/repos/**/my.prompt.md',
@@ -2325,7 +2329,7 @@ suite('PromptFilesLocator', () => {
 						);
 
 						assertOutcome(
-							await locator.listFiles(PromptsType.prompt, 'local', CancellationToken.None),
+							await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 							[
 								'/Users/legomushroom/repos/vscode/gen/text/my.prompt.md',
 								'/Users/legomushroom/repos/vscode/gen/text/nested/specific.prompt.md',
@@ -2346,7 +2350,7 @@ suite('PromptFilesLocator', () => {
 	});
 
 	suite('isValidGlob', () => {
-		test('valid patterns', () => {
+		testT('valid patterns', async () => {
 			const globs = [
 				'**',
 				'\*',
@@ -2382,7 +2386,7 @@ suite('PromptFilesLocator', () => {
 			}
 		});
 
-		test('invalid patterns', () => {
+		testT('invalid patterns', async () => {
 			const globs = [
 				'.',
 				'\\*',
@@ -2421,7 +2425,7 @@ suite('PromptFilesLocator', () => {
 	});
 
 	suite('getConfigBasedSourceFolders', () => {
-		test('gets unambiguous list of folders', async () => {
+		testT('gets unambiguous list of folders', async () => {
 			const locator = await createPromptsLocator(
 				{
 					'.github/prompts': true,

@@ -41,10 +41,9 @@ import { isHighContrast } from '../../../../platform/theme/common/theme.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { defaultInputBoxStyles, defaultToggleStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { Selection } from '../../../common/core/selection.js';
-import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IHistory } from '../../../../base/common/history.js';
+import { HoverStyle, type IHoverLifecycleOptions } from '../../../../base/browser/ui/hover/hover.js';
 
 const findCollapsedIcon = registerIcon('find-collapsed', Codicon.chevronRight, nls.localize('findCollapsedIcon', 'Icon to indicate that the editor find widget is collapsed.'));
 const findExpandedIcon = registerIcon('find-expanded', Codicon.chevronDown, nls.localize('findExpandedIcon', 'Icon to indicate that the editor find widget is expanded.'));
@@ -852,10 +851,12 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		}
 
 		if (e.equals(KeyCode.UpArrow)) {
+			// eslint-disable-next-line no-restricted-syntax
 			return stopPropagationForMultiLineUpwards(e, this._findInput.getValue(), this._findInput.domNode.querySelector('textarea'));
 		}
 
 		if (e.equals(KeyCode.DownArrow)) {
+			// eslint-disable-next-line no-restricted-syntax
 			return stopPropagationForMultiLineDownwards(e, this._findInput.getValue(), this._findInput.domNode.querySelector('textarea'));
 		}
 	}
@@ -892,10 +893,12 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		}
 
 		if (e.equals(KeyCode.UpArrow)) {
+			// eslint-disable-next-line no-restricted-syntax
 			return stopPropagationForMultiLineUpwards(e, this._replaceInput.inputBox.value, this._replaceInput.inputBox.element.querySelector('textarea'));
 		}
 
 		if (e.equals(KeyCode.DownArrow)) {
+			// eslint-disable-next-line no-restricted-syntax
 			return stopPropagationForMultiLineDownwards(e, this._replaceInput.inputBox.value, this._replaceInput.inputBox.element.querySelector('textarea'));
 		}
 	}
@@ -907,11 +910,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 	// ----- initialization
 
 	private _keybindingLabelFor(actionId: string): string {
-		const kb = this._keybindingService.lookupKeybinding(actionId);
-		if (!kb) {
-			return '';
-		}
-		return ` (${kb.getLabel()})`;
+		return this._keybindingService.appendKeybinding('', actionId);
 	}
 
 	private _buildDomNode(): void {
@@ -999,14 +998,13 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		this._matchesCount.className = 'matchesCount';
 		this._updateMatchesCount();
 
-		// Create a scoped hover delegate for all find related buttons
-		const hoverDelegate = this._register(createInstantHoverDelegate());
+		const hoverLifecycleOptions: IHoverLifecycleOptions = { groupId: 'find-widget' };
 
 		// Previous button
 		this._prevBtn = this._register(new SimpleButton({
 			label: NLS_PREVIOUS_MATCH_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.PreviousMatchFindAction),
 			icon: findPreviousMatchIcon,
-			hoverDelegate,
+			hoverLifecycleOptions,
 			onTrigger: () => {
 				assertReturnsDefined(this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction)).run().then(undefined, onUnexpectedError);
 			}
@@ -1016,7 +1014,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		this._nextBtn = this._register(new SimpleButton({
 			label: NLS_NEXT_MATCH_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.NextMatchFindAction),
 			icon: findNextMatchIcon,
-			hoverDelegate,
+			hoverLifecycleOptions,
 			onTrigger: () => {
 				assertReturnsDefined(this._codeEditor.getAction(FIND_IDS.NextMatchFindAction)).run().then(undefined, onUnexpectedError);
 			}
@@ -1037,7 +1035,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			icon: findSelectionIcon,
 			title: NLS_TOGGLE_SELECTION_FIND_TITLE + this._keybindingLabelFor(FIND_IDS.ToggleSearchScopeCommand),
 			isChecked: false,
-			hoverDelegate: hoverDelegate,
+			hoverLifecycleOptions,
 			inputActiveOptionBackground: asCssVariable(inputActiveOptionBackground),
 			inputActiveOptionBorder: asCssVariable(inputActiveOptionBorder),
 			inputActiveOptionForeground: asCssVariable(inputActiveOptionForeground),
@@ -1072,7 +1070,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		this._closeBtn = this._register(new SimpleButton({
 			label: NLS_CLOSE_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.CloseFindWidgetCommand),
 			icon: widgetClose,
-			hoverDelegate,
+			hoverLifecycleOptions,
 			onTrigger: () => {
 				this._state.change({ isRevealed: false, searchScope: null }, false);
 			},
@@ -1102,6 +1100,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			showHistoryHint: () => showHistoryKeybindingHint(this._keybindingService),
 			inputBoxStyles: defaultInputBoxStyles,
 			toggleStyles: defaultToggleStyles,
+			hoverLifecycleOptions,
 		}, this._contextKeyService, true));
 		this._replaceInput.setPreserveCase(!!this._state.preserveCase);
 		this._register(this._replaceInput.onKeyDown((e) => this._onReplaceInputKeyDown(e)));
@@ -1134,14 +1133,11 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			}
 		}));
 
-		// Create scoped hover delegate for replace actions
-		const replaceHoverDelegate = this._register(createInstantHoverDelegate());
-
 		// Replace one button
 		this._replaceBtn = this._register(new SimpleButton({
 			label: NLS_REPLACE_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.ReplaceOneAction),
 			icon: findReplaceIcon,
-			hoverDelegate: replaceHoverDelegate,
+			hoverLifecycleOptions,
 			onTrigger: () => {
 				this._controller.replace();
 			},
@@ -1157,7 +1153,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		this._replaceAllBtn = this._register(new SimpleButton({
 			label: NLS_REPLACE_ALL_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.ReplaceAllAction),
 			icon: findReplaceAllIcon,
-			hoverDelegate: replaceHoverDelegate,
+			hoverLifecycleOptions,
 			onTrigger: () => {
 				this._controller.replaceAll();
 			}
@@ -1300,7 +1296,7 @@ export interface ISimpleButtonOpts {
 	readonly label: string;
 	readonly className?: string;
 	readonly icon?: ThemeIcon;
-	readonly hoverDelegate?: IHoverDelegate;
+	readonly hoverLifecycleOptions?: IHoverLifecycleOptions;
 	readonly onTrigger: () => void;
 	readonly onKeyDown?: (e: IKeyboardEvent) => void;
 }
@@ -1330,7 +1326,10 @@ export class SimpleButton extends Widget {
 		this._domNode.className = className;
 		this._domNode.setAttribute('role', 'button');
 		this._domNode.setAttribute('aria-label', this._opts.label);
-		this._register(hoverService.setupManagedHover(opts.hoverDelegate ?? getDefaultHoverDelegate('element'), this._domNode, this._opts.label));
+		this._register(hoverService.setupDelayedHover(this._domNode, {
+			content: this._opts.label,
+			style: HoverStyle.Pointer,
+		}, opts.hoverLifecycleOptions));
 
 		this.onclick(this._domNode, (e) => {
 			this._opts.onTrigger();

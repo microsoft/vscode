@@ -276,7 +276,7 @@
 	justify-content: center;
 }
 
-.monaco-workbench:not(.reduce-motion) .settings-editor > .settings-body .settings-tree-container .setting-toolbar-container > .monaco-toolbar .codicon {
+.monaco-workbench.monaco-enable-motion .settings-editor > .settings-body .settings-tree-container .setting-toolbar-container > .monaco-toolbar .codicon {
 	transition: opacity .3s;
 }
 
@@ -588,6 +588,12 @@
 	color: var(--vscode-textLink-activeForeground);
 }
 
+/* High contrast theme support - ensure proper color visibility */
+.monaco-workbench.hc-light .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown a > code,
+.monaco-workbench.hc-black .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown a > code {
+	color: var(--vscode-textPreformat-foreground);
+}
+
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown a:hover,
 .settings-editor > .settings-body .settings-tree-container .edit-in-settings-button:hover {
 	cursor: pointer;
@@ -603,6 +609,7 @@
 	background-color: var(--vscode-textPreformat-background);
 	padding: 1px 3px;
 	border-radius: 4px;
+	border: 1px solid var(--vscode-textPreformat-border);
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown .monaco-tokenized-source {

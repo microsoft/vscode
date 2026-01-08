@@ -43,8 +43,8 @@ import { TestExplorerTreeElement, TestItemTreeElement } from './explorerProjecti
 import * as icons from './icons.js';
 import { TestingExplorerView } from './testingExplorerView.js';
 import { TestResultsView } from './testingOutputPeek.js';
-import { TestingConfigKeys, getTestingConfiguration } from '../common/configuration.js';
 import { TestCommandId, TestExplorerViewMode, TestExplorerViewSorting, Testing, testConfigurationGroupNames } from '../common/constants.js';
+import { getTestingConfiguration, TestingConfigKeys, TestingResultsViewLayout } from '../common/configuration.js';
 import { ITestCoverageService } from '../common/testCoverageService.js';
 import { TestId } from '../common/testId.js';
 import { ITestProfileService, canUseProfileWithTest } from '../common/testProfileService.js';
@@ -219,7 +219,7 @@ export class RunUsingProfileAction extends Action2 {
 		});
 	}
 
-	public override async run(acessor: ServicesAccessor, ...elements: TestItemTreeElement[]): Promise<any> {
+	public override async run(acessor: ServicesAccessor, ...elements: TestItemTreeElement[]): Promise<void> {
 		const commandService = acessor.get(ICommandService);
 		const testService = acessor.get(ITestService);
 		const profile: ITestRunProfile | undefined = await commandService.executeCommand('vscode.pickTestProfile', {
@@ -295,7 +295,7 @@ export class ContinuousRunTestAction extends Action2 {
 		});
 	}
 
-	public override async run(accessor: ServicesAccessor, ...elements: TestItemTreeElement[]): Promise<any> {
+	public override async run(accessor: ServicesAccessor, ...elements: TestItemTreeElement[]): Promise<void> {
 		const crService = accessor.get(ITestingContinuousRunService);
 		for (const element of elements) {
 			const id = element.test.item.extId;
@@ -329,7 +329,7 @@ export class ContinuousRunUsingProfileTestAction extends Action2 {
 		});
 	}
 
-	public override async run(accessor: ServicesAccessor, ...elements: TestItemTreeElement[]): Promise<any> {
+	public override async run(accessor: ServicesAccessor, ...elements: TestItemTreeElement[]): Promise<void> {
 		const crService = accessor.get(ITestingContinuousRunService);
 		const profileService = accessor.get(ITestProfileService);
 		const notificationService = accessor.get(INotificationService);
@@ -1005,28 +1005,30 @@ async function getTestsAtCursor(testService: ITestService, uriIdentityService: I
 	let bestNodesBefore: InternalTestItem[] = [];
 	let bestRangeBefore: Range | undefined;
 
-	for await (const test of testsInFile(testService, uriIdentityService, uri)) {
-		if (!test.item.range || filter?.(test) === false) {
-			continue;
-		}
-
-		const irange = Range.lift(test.item.range);
-		if (irange.containsPosition(position)) {
-			if (bestRange && Range.equalsRange(test.item.range, bestRange)) {
-				// check that a parent isn't already included (#180760)
-				if (!bestNodes.some(b => TestId.isChild(b.item.extId, test.item.extId))) {
-					bestNodes.push(test);
-				}
-			} else {
-				bestRange = irange;
-				bestNodes = [test];
+	for await (const tests of testsInFile(testService, uriIdentityService, uri)) {
+		for (const test of tests) {
+			if (!test.item.range || filter?.(test) === false) {
+				continue;
 			}
-		} else if (Position.isBefore(irange.getStartPosition(), position)) {
-			if (!bestRangeBefore || bestRangeBefore.getStartPosition().isBefore(irange.getStartPosition())) {
-				bestRangeBefore = irange;
-				bestNodesBefore = [test];
-			} else if (irange.equalsRange(bestRangeBefore) && !bestNodesBefore.some(b => TestId.isChild(b.item.extId, test.item.extId))) {
-				bestNodesBefore.push(test);
+
+			const irange = Range.lift(test.item.range);
+			if (irange.containsPosition(position)) {
+				if (bestRange && Range.equalsRange(test.item.range, bestRange)) {
+					// check that a parent isn't already included (#180760)
+					if (!bestNodes.some(b => TestId.isChild(b.item.extId, test.item.extId))) {
+						bestNodes.push(test);
+					}
+				} else {
+					bestRange = irange;
+					bestNodes = [test];
+				}
+			} else if (Position.isBefore(irange.getStartPosition(), position)) {
+				if (!bestRangeBefore || bestRangeBefore.getStartPosition().isBefore(irange.getStartPosition())) {
+					bestRangeBefore = irange;
+					bestNodesBefore = [test];
+				} else if (irange.equalsRange(bestRangeBefore) && !bestNodesBefore.some(b => TestId.isChild(b.item.extId, test.item.extId))) {
+					bestNodesBefore.push(test);
+				}
 			}
 		}
 	}
@@ -1255,8 +1257,10 @@ abstract class ExecuteTestsInCurrentFile extends Action2 {
 		const testService = accessor.get(ITestService);
 		const discovered: InternalTestItem[] = [];
 		for (const uri of files) {
-			for await (const file of testsInFile(testService, uriIdentity, uri, undefined, true)) {
-				discovered.push(file);
+			for await (const files of testsInFile(testService, uriIdentity, uri, undefined, true)) {
+				for (const file of files) {
+					discovered.push(file);
+				}
 			}
 		}
 
@@ -1843,7 +1847,7 @@ abstract class TestNavigationAction extends SymbolNavigationAction {
 	protected testService!: ITestService; // little hack...
 	protected uriIdentityService!: IUriIdentityService;
 
-	override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]) {
+	override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: unknown[]) {
 		this.testService = accessor.get(ITestService);
 		this.uriIdentityService = accessor.get(IUriIdentityService);
 		return super.runEditorCommand(accessor, editor, ...args);
@@ -1980,6 +1984,31 @@ class PeekRelatedCode extends GoToRelatedCodeAction {
 	}
 }
 
+export class ToggleResultsViewLayoutAction extends Action2 {
+	constructor() {
+		super({
+			id: TestCommandId.ToggleResultsViewLayoutAction,
+			title: localize2('testing.toggleResultsViewLayout', 'Toggle Tree Position'),
+			category,
+			icon: Codicon.arrowSwap,
+			menu: {
+				id: MenuId.ViewTitle,
+				order: ActionOrder.DisplayMode,
+				group: 'navigation',
+				when: ContextKeyExpr.equals('view', Testing.ResultsViewId)
+			}
+		});
+	}
+
+	public override async run(accessor: ServicesAccessor) {
+		const configurationService = accessor.get(IConfigurationService);
+		const currentLayout = getTestingConfiguration(configurationService, TestingConfigKeys.ResultsViewLayout);
+		const newLayout = currentLayout === TestingResultsViewLayout.TreeLeft ? TestingResultsViewLayout.TreeRight : TestingResultsViewLayout.TreeLeft;
+
+		await configurationService.updateValue(TestingConfigKeys.ResultsViewLayout, newLayout);
+	}
+}
+
 export const allTestActions = [
 	CancelTestRefreshAction,
 	CancelTestRunAction,
@@ -2035,6 +2064,7 @@ export const allTestActions = [
 	TestingViewAsListAction,
 	TestingViewAsTreeAction,
 	ToggleInlineTestOutput,
+	ToggleResultsViewLayoutAction,
 	UnhideAllTestsAction,
 	UnhideTestAction,
 	ReRunFailedFromLastRun,

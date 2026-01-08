@@ -81,9 +81,12 @@ suite('Task Terminal Status', () => {
 		instantiationService = store.add(new TestInstantiationService());
 		taskService = new TestTaskService();
 		accessibilitySignalService = new TestaccessibilitySignalService();
+		// eslint-disable-next-line local/code-no-any-casts
 		taskTerminalStatus = store.add(new TaskTerminalStatus(taskService as any, accessibilitySignalService as any));
+		// eslint-disable-next-line local/code-no-any-casts
 		testTerminal = store.add(instantiationService.createInstance(TestTerminal) as any);
 		testTask = instantiationService.createInstance(TestTask) as unknown as Task;
+		// eslint-disable-next-line local/code-no-any-casts
 		problemCollector = store.add(instantiationService.createInstance(TestProblemCollector) as any);
 	});
 	test('Should add failed status when there is an exit code on task end', async () => {

@@ -45,7 +45,6 @@ import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { EXTENSION_CATEGORIES } from '../../../../platform/extensions/common/extensions.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
-import { MementoObject } from '../../../common/memento.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND } from '../../../common/theme.js';
@@ -70,6 +69,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { IExtensionGalleryManifest, IExtensionGalleryManifestService, ExtensionGalleryManifestStatus } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { URI } from '../../../../base/common/uri.js';
 import { DEFAULT_ACCOUNT_SIGN_IN_COMMAND } from '../../../services/accounts/common/defaultAccount.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
 export const ExtensionsSortByContext = new RawContextKey<string>('extensionsSortByValue', '');
 export const SearchMarketplaceExtensionsContext = new RawContextKey<boolean>('searchMarketplaceExtensions', false);
@@ -91,6 +91,10 @@ const SortByUpdateDateContext = new RawContextKey<boolean>('sortByUpdateDate', f
 export const ExtensionsSearchValueContext = new RawContextKey<string>('extensionsSearchValue', '');
 
 const REMOTE_CATEGORY: ILocalizedString = localize2({ key: 'remote', comment: ['Remote as in remote machine'] }, "Remote");
+
+interface IExtensionsViewletState {
+	'query.value'?: string;
+}
 
 export class ExtensionsViewletViewsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -506,7 +510,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 
 }
 
-export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IExtensionsViewPaneContainer {
+export class ExtensionsViewPaneContainer extends ViewPaneContainer<IExtensionsViewletState> implements IExtensionsViewPaneContainer {
 
 	private readonly extensionsSearchValueContextKey: IContextKey<string>;
 	private readonly defaultViewsContextKey: IContextKey<boolean>;
@@ -534,7 +538,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 	private header: HTMLElement | undefined;
 	private searchBox: SuggestEnabledInput | undefined;
 	private notificationContainer: HTMLElement | undefined;
-	private readonly searchViewletState: MementoObject;
+	private readonly searchViewletState: IExtensionsViewletState;
 	private extensionGalleryManifest: IExtensionGalleryManifest | null = null;
 
 	constructor(
@@ -559,6 +563,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ILogService logService: ILogService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super(VIEWLET_ID, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService, logService);
 
@@ -781,8 +786,8 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 					'tabindex': '0',
 					'role': 'button',
 					'aria-label': localize('dismiss', "Dismiss"),
-					'title': localize('dismiss', "Dismiss")
 				}));
+			this.notificationDisposables.value.add(this.hoverService.setupDelayedHover(dismissAction, { content: localize('dismiss hover', "Dismiss") }));
 			this.notificationDisposables.value.add(addDisposableListener(dismissAction, EventType.CLICK, () => status.dismiss()));
 			this.notificationDisposables.value.add(addDisposableListener(dismissAction, EventType.KEY_DOWN, (e: KeyboardEvent) => {
 				const standardKeyboardEvent = new StandardKeyboardEvent(e);

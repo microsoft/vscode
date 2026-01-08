@@ -1,0 +1,148 @@
+# Base Utilities
+src/vs/base/common/extpath.ts @bpasero
+src/vs/base/common/fuzzyScorer.ts @bpasero
+src/vs/base/common/glob.ts @bpasero
+src/vs/base/common/oauth.ts @TylerLeonhardt
+src/vs/base/common/path.ts @bpasero
+src/vs/base/common/stream.ts @bpasero
+src/vs/base/common/uri.ts @jrieken
+src/vs/base/browser/domSanitize.ts @mjbvz
+src/vs/base/browser/** @bpasero
+src/vs/base/node/pfs.ts @bpasero
+src/vs/base/node/unc.ts @bpasero
+src/vs/base/parts/contextmenu/** @bpasero
+src/vs/base/parts/ipc/** @bpasero
+src/vs/base/parts/quickinput/** @TylerLeonhardt
+src/vs/base/parts/sandbox/** @bpasero
+src/vs/base/parts/storage/** @bpasero
+
+# Base Widgets
+src/vs/base/browser/ui/grid/** @joaomoreno @benibenj
+src/vs/base/browser/ui/list/** @joaomoreno @benibenj
+src/vs/base/browser/ui/sash/** @joaomoreno @benibenj
+src/vs/base/browser/ui/splitview/** @joaomoreno @benibenj
+src/vs/base/browser/ui/table/** @joaomoreno @benibenj
+src/vs/base/browser/ui/tree/** @joaomoreno @benibenj
+
+# Platform
+src/vs/platform/auxiliaryWindow/** @bpasero
+src/vs/platform/backup/** @bpasero
+src/vs/platform/dialogs/** @bpasero
+src/vs/platform/editor/** @bpasero
+src/vs/platform/environment/** @bpasero
+src/vs/platform/files/** @bpasero
+src/vs/platform/ipc/** @bpasero
+src/vs/platform/launch/** @bpasero
+src/vs/platform/lifecycle/** @bpasero
+src/vs/platform/menubar/** @bpasero
+src/vs/platform/native/** @bpasero
+src/vs/platform/quickinput/** @TylerLeonhardt
+src/vs/platform/secrets/** @TylerLeonhardt
+src/vs/platform/sharedProcess/** @bpasero
+src/vs/platform/state/** @bpasero
+src/vs/platform/storage/** @bpasero
+src/vs/platform/terminal/electron-main/** @Tyriar
+src/vs/platform/terminal/node/** @Tyriar
+src/vs/platform/utilityProcess/** @bpasero
+src/vs/platform/window/** @bpasero
+src/vs/platform/windows/** @bpasero
+src/vs/platform/workspace/** @bpasero
+src/vs/platform/workspaces/** @bpasero
+src/vs/platform/actions/common/menuService.ts @jrieken
+src/vs/platform/instantiation/** @jrieken
+
+# Editor Core
+src/vs/editor/contrib/snippet/** @jrieken
+src/vs/editor/contrib/suggest/** @jrieken
+src/vs/editor/contrib/format/** @jrieken
+
+# Bootstrap
+src/*.ts @bpasero
+
+# Electron Main
+src/vs/code/** @bpasero @deepak1556
+
+# Workbench Services
+src/vs/workbench/services/activity/** @bpasero
+src/vs/workbench/services/authentication/** @TylerLeonhardt
+src/vs/workbench/services/auxiliaryWindow/** @bpasero
+src/vs/workbench/services/chat/** @bpasero
+src/vs/workbench/services/contextmenu/** @bpasero
+src/vs/workbench/services/dialogs/** @alexr00 @bpasero
+src/vs/workbench/services/editor/** @bpasero
+src/vs/workbench/services/editor/common/customEditorLabelService.ts @benibenj
+src/vs/workbench/services/environment/** @bpasero
+src/vs/workbench/services/files/** @bpasero
+src/vs/workbench/services/filesConfiguration/** @bpasero
+src/vs/workbench/services/history/** @bpasero
+src/vs/workbench/services/host/** @bpasero
+src/vs/workbench/services/label/** @bpasero
+src/vs/workbench/services/languageDetection/** @TylerLeonhardt
+src/vs/workbench/services/layout/** @bpasero
+src/vs/workbench/services/lifecycle/** @bpasero
+src/vs/workbench/services/notification/** @bpasero
+src/vs/workbench/services/path/** @bpasero
+src/vs/workbench/services/progress/** @bpasero
+src/vs/workbench/services/storage/** @bpasero
+src/vs/workbench/services/textfile/** @bpasero
+src/vs/workbench/services/textmodelResolver/** @bpasero
+src/vs/workbench/services/untitled/** @bpasero
+src/vs/workbench/services/utilityProcess/** @bpasero
+src/vs/workbench/services/views/** @sandy081 @benibenj @bpasero
+src/vs/workbench/services/workingCopy/** @bpasero
+src/vs/workbench/services/workspaces/** @bpasero
+
+# Workbench Core
+src/vs/workbench/common/** @bpasero
+src/vs/workbench/browser/** @bpasero
+src/vs/workbench/electron-browser/** @bpasero
+
+# Workbench Contributions
+src/vs/workbench/contrib/authentication/** @TylerLeonhardt
+src/vs/workbench/contrib/files/** @bpasero
+src/vs/workbench/contrib/chat/browser/chatListRenderer.ts @roblourens
+src/vs/workbench/contrib/chat/browser/chatSetup/** @bpasero
+src/vs/workbench/contrib/chat/browser/chatStatus/** @bpasero
+src/vs/workbench/contrib/chat/browser/chatViewPane.ts @bpasero
+src/vs/workbench/contrib/chat/browser/media/chatViewPane.css @bpasero
+src/vs/workbench/contrib/chat/browser/chatViewTitleControl.ts @bpasero
+src/vs/workbench/contrib/chat/browser/media/chatViewTitleControl.css @bpasero
+src/vs/workbench/contrib/chat/browser/chatManagement/chatUsageWidget.ts @bpasero
+src/vs/workbench/contrib/chat/browser/chatManagement/media/chatUsageWidget.css @bpasero
+src/vs/workbench/contrib/chat/browser/agentSessions/** @bpasero
+src/vs/workbench/contrib/chat/browser/chatSessions/** @bpasero
+src/vs/workbench/contrib/localization/** @TylerLeonhardt
+src/vs/workbench/contrib/quickaccess/browser/commandsQuickAccess.ts @TylerLeonhardt
+src/vs/workbench/contrib/scm/** @lszomoru
+src/vs/workbench/contrib/update/browser/releaseNotesEditor.ts @alexr00 @joaomoreno
+src/vs/workbench/contrib/preferences/** @rzhao271
+
+# Build
+build/azure-pipelines/** @lszomoru
+build/lib/i18n.ts @TylerLeonhardt
+resources/linux/debian/** @rzhao271
+resources/linux/rpm/** @rzhao271
+
+# Editor contrib
+src/vs/editor/standalone/browser/quickInput/** @TylerLeonhardt
+
+# Workbench API
+src/vs/workbench/api/common/extHostLocalizationService.ts @TylerLeonhardt
+src/vs/workbench/api/browser/mainThreadAuthentication.ts @TylerLeonhardt
+src/vs/workbench/api/common/extHostAuthentication.ts @TylerLeonhardt
+src/vs/workbench/api/node/extHostAuthentication.ts @TylerLeonhardt
+src/vs/workbench/api/common/extHostMcp.ts @TylerLeonhardt
+src/vs/workbench/api/browser/mainThreadMcp.ts @TylerLeonhardt
+src/vs/workbench/api/common/extHostQuickOpen.ts @TylerLeonhardt
+src/vs/workbench/api/browser/mainThreadSecretState.ts @TylerLeonhardt
+
+# Extensions
+extensions/microsoft-authentication/** @TylerLeonhardt
+extensions/github-authentication/** @TylerLeonhardt
+extensions/git/** @lszomoru
+extensions/git-base/** @lszomoru
+extensions/github/** @lszomoru
+
+# Chat Editing, Inline Chat
+src/vs/workbench/contrib/chat/browser/chatEditing/** @jrieken
+src/vs/workbench/contrib/inlineChat/** @jrieken

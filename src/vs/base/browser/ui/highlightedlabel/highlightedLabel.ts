@@ -22,12 +22,6 @@ export interface IHighlight {
 }
 
 export interface IHighlightedLabelOptions {
-
-	/**
-	 * Whether the label supports rendering icons.
-	 */
-	readonly supportIcons?: boolean;
-
 	readonly hoverDelegate?: IHoverDelegate;
 }
 
@@ -41,7 +35,6 @@ export class HighlightedLabel extends Disposable {
 	private text: string = '';
 	private title: string = '';
 	private highlights: readonly IHighlight[] = [];
-	private supportIcons: boolean;
 	private didEverRender: boolean = false;
 	private customHover: IManagedHover | undefined;
 
@@ -53,7 +46,6 @@ export class HighlightedLabel extends Disposable {
 	constructor(container: HTMLElement, private readonly options?: IHighlightedLabelOptions) {
 		super();
 
-		this.supportIcons = options?.supportIcons ?? false;
 		this.domNode = dom.append(container, dom.$('span.monaco-highlighted-label'));
 	}
 
@@ -73,7 +65,7 @@ export class HighlightedLabel extends Disposable {
 	 * @param escapeNewLines Whether to escape new lines.
 	 * @returns
 	 */
-	set(text: string | undefined, highlights: readonly IHighlight[] = [], title: string = '', escapeNewLines?: boolean) {
+	set(text: string | undefined, highlights: readonly IHighlight[] = [], title: string = '', escapeNewLines?: boolean, supportIcons?: boolean) {
 		if (!text) {
 			text = '';
 		}
@@ -90,10 +82,10 @@ export class HighlightedLabel extends Disposable {
 		this.text = text;
 		this.title = title;
 		this.highlights = highlights;
-		this.render();
+		this.render(supportIcons);
 	}
 
-	private render(): void {
+	private render(supportIcons?: boolean): void {
 
 		const children: Array<HTMLSpanElement | string> = [];
 		let pos = 0;
@@ -105,7 +97,7 @@ export class HighlightedLabel extends Disposable {
 
 			if (pos < highlight.start) {
 				const substring = this.text.substring(pos, highlight.start);
-				if (this.supportIcons) {
+				if (supportIcons) {
 					children.push(...renderLabelWithIcons(substring));
 				} else {
 					children.push(substring);
@@ -114,7 +106,7 @@ export class HighlightedLabel extends Disposable {
 			}
 
 			const substring = this.text.substring(pos, highlight.end);
-			const element = dom.$('span.highlight', undefined, ...this.supportIcons ? renderLabelWithIcons(substring) : [substring]);
+			const element = dom.$('span.highlight', undefined, ...supportIcons ? renderLabelWithIcons(substring) : [substring]);
 
 			if (highlight.extraClasses) {
 				element.classList.add(...highlight.extraClasses);
@@ -126,7 +118,7 @@ export class HighlightedLabel extends Disposable {
 
 		if (pos < this.text.length) {
 			const substring = this.text.substring(pos,);
-			if (this.supportIcons) {
+			if (supportIcons) {
 				children.push(...renderLabelWithIcons(substring));
 			} else {
 				children.push(substring);

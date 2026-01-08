@@ -43,8 +43,16 @@ export interface IQuickItem {
 	 * Whether the item is displayed with a strikethrough.
 	 */
 	strikethrough?: boolean;
+	/**
+	 * Icon classes to be passed on as `IIconLabelValueOptions`
+	 * to the underlying `IconLabel` widget.
+	 */
 	iconClasses?: readonly string[];
 	iconPath?: { dark: URI; light?: URI };
+	/**
+	 * Icon class to be assigned to the quick item container
+	 * directly.
+	 */
 	iconClass?: string;
 	highlights?: IQuickItemHighlights;
 	buttons?: readonly IQuickInputButton[];
@@ -131,6 +139,11 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	 * an optional string to show as placeholder in the input box to guide the user what she picks on
 	 */
 	placeHolder?: string;
+
+	/**
+	 * the text to display underneath the input box
+	 */
+	prompt?: string;
 
 	/**
 	 * an optional flag to include the description when filtering the picks
@@ -301,12 +314,6 @@ export interface IQuickInput extends IDisposable {
 	description: string | undefined;
 
 	/**
-	 * An HTML widget rendered below the input.
-	 * @deprecated Use an IQuickWidget instead.
-	 */
-	widget: any | undefined;
-
-	/**
 	 * The current step of the quick input rendered in the titlebar.
 	 */
 	step: number | undefined;
@@ -377,10 +384,9 @@ export interface IQuickWidget extends IQuickInput {
 	readonly type: QuickInputType.QuickWidget;
 
 	/**
-	 * Should be an HTMLElement (TODO: move this entire file into browser)
-	 * @override
+	 * A HTML element that will be rendered inside the quick input.
 	 */
-	widget: any | undefined;
+	widget: HTMLElement | undefined;
 }
 
 export interface IQuickPickWillAcceptEvent {
@@ -500,6 +506,11 @@ export interface IQuickPick<T extends IQuickPickItem, O extends { useSeparators:
 	placeholder: string | undefined;
 
 	/**
+	 * Text shown below the quick pick input.
+	 */
+	prompt: string | undefined;
+
+	/**
 	 * An event that is fired when the value of the quick pick input changes.
 	 */
 	readonly onDidChangeValue: Event<string>;
@@ -548,6 +559,11 @@ export interface IQuickPick<T extends IQuickPickItem, O extends { useSeparators:
 	 * The hover text for the custom button. The custom button is a button with text rendered to the right of the input.
 	 */
 	customHover: string | undefined;
+
+	/**
+	 * Whether the custom button should be rendered as a secondary button.
+	 */
+	customButtonSecondary?: boolean;
 
 	/**
 	 * An event that is fired when an item button is triggered.
@@ -677,11 +693,6 @@ export interface IQuickPick<T extends IQuickPickItem, O extends { useSeparators:
 	hideCheckAll: boolean;
 
 	/**
-	 * The toggle buttons to be added to the input box.
-	 */
-	toggles: IQuickInputToggle[] | undefined;
-
-	/**
 	 * Focus a particular item in the list. Used internally for keyboard navigation.
 	 * @param focus The focus behavior.
 	 */
@@ -692,17 +703,6 @@ export interface IQuickPick<T extends IQuickPickItem, O extends { useSeparators:
 	 * @param inBackground Whether you are accepting an item in the background and keeping the picker open.
 	 */
 	accept(inBackground?: boolean): void;
-}
-
-/**
- * Represents a toggle for quick input.
- */
-export interface IQuickInputToggle {
-	/**
-	 * Event that is fired when the toggle value changes.
-	 * The boolean value indicates whether the change was triggered via keyboard.
-	 */
-	onChange: Event<boolean>;
 }
 
 /**
@@ -776,7 +776,13 @@ export enum QuickInputButtonLocation {
 	/**
 	 * To the right of the input box.
 	 */
-	Inline = 2
+	Inline = 2,
+
+	/**
+	 * At the far end inside the input box.
+	 * Used by the public API to create toggles.
+	 */
+	Input = 3,
 }
 
 /**
@@ -807,6 +813,26 @@ export interface IQuickInputButton {
 	 * @note This property is ignored if the button was added to a QuickPickItem.
 	 */
 	location?: QuickInputButtonLocation;
+	/**
+	 * When present, indicates that the button is a toggle button that can be checked or unchecked.
+	 * The `checked` property indicates the current state of the toggle and will be updated
+	 * when the button is clicked.
+	 */
+	readonly toggle?: { checked: boolean };
+	/**
+	 * Optional label for the button. When used with secondary actions, this label appears in the overflow menu.
+	 */
+	label?: string;
+	/**
+	 * When true, the button will be rendered as a secondary action in the toolbar overflow menu.
+	 * By default, buttons are rendered as primary actions.
+	 * @note This does not currently apply to buttons in the Input location
+	 */
+	secondary?: boolean;
+}
+
+export interface IQuickInputButtonWithToggle extends IQuickInputButton {
+	readonly toggle: { checked: boolean };
 }
 
 /**
@@ -983,7 +1009,7 @@ export interface IQuickInputService {
 	/**
 	 * Cancels quick input and closes it.
 	 */
-	cancel(): Promise<void>;
+	cancel(reason?: QuickInputHideReason): Promise<void>;
 
 	/**
 	 * Toggles hover for the current quick input item
@@ -1050,6 +1076,11 @@ export interface IQuickTree<T extends IQuickTreeItem> extends IQuickInput {
 	matchOnLabel: boolean;
 
 	/**
+	 * Whether to sort the items by label. Defaults to true.
+	 */
+	sortByLabel: boolean;
+
+	/**
 	 * The currently active items.
 	 */
 	activeItems: ReadonlyArray<T>;
@@ -1092,6 +1123,11 @@ export interface IQuickTree<T extends IQuickTreeItem> extends IQuickInput {
 	readonly onDidChangeCheckedLeafItems: Event<ReadonlyArray<T>>;
 
 	/**
+	 * An event that is fired when the checkbox state of an item changes.
+	 */
+	readonly onDidChangeCheckboxState: Event<T>;
+
+	/**
 	 * An event that is fired when an item button is triggered.
 	 */
 	readonly onDidTriggerItemButton: Event<IQuickTreeItemButtonEvent<T>>;
@@ -1101,13 +1137,6 @@ export interface IQuickTree<T extends IQuickTreeItem> extends IQuickInput {
 	 * @param itemTree The items to display.
 	 */
 	setItemTree(itemTree: T[]): void;
-
-	/**
-	 * Sets the checkbox state of an item.
-	 * @param element The item to update.
-	 * @param checked The new checkbox state.
-	 */
-	setCheckboxState(element: T, checked: boolean | 'partial'): void;
 
 	/**
 	 * Expands an item.
@@ -1151,12 +1180,12 @@ export interface IQuickTree<T extends IQuickTreeItem> extends IQuickInput {
  */
 export interface IQuickTreeItem extends IQuickItem {
 	/**
-	 * The checked state of the item. Can be true, false, or 'partial' for tri-state.
+	 * The checked state of the item. Can be true, false, or 'mixed' for tri-state.
 	 * When canSelectMany is false, this is ignored and the item is treated as a single selection.
 	 * When canSelectMany is true, this indicates the checkbox state of the item.
 	 * If undefined, the item is unchecked by default.
 	 */
-	checked?: boolean | 'partial';
+	checked?: boolean | 'mixed';
 
 	/**
 	 * The collapsible state of the tree item. Defaults to 'Expanded' if children are present.
@@ -1188,7 +1217,7 @@ export interface IQuickTreeCheckboxEvent<T extends IQuickTreeItem> {
 	/**
 	 * The new checked state.
 	 */
-	checked: boolean | 'partial';
+	checked: boolean | 'mixed';
 }
 
 /**

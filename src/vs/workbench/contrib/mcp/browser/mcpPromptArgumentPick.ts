@@ -152,10 +152,11 @@ export class McpPromptArgumentPick extends Disposable {
 			quickPick.items = items;
 
 			const lastActive = items.find(i => previouslyActive.some(a => a.id === i.id)) as PickItem | undefined;
+			const serverSuggestions = asyncPicks[0].observer;
 			// Keep any selection state, but otherwise select the first completion item, and avoid default-selecting the top item unless there are no compltions
 			if (lastActive) {
 				quickPick.activeItems = [lastActive];
-			} else if (items.length > 2) {
+			} else if (serverSuggestions.read(reader).picks?.length) {
 				quickPick.activeItems = [items[3] as PickItem];
 			} else if (busy) {
 				quickPick.activeItems = [];

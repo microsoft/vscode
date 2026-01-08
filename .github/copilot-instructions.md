@@ -48,12 +48,10 @@ Each extension follows the standard VS Code extension structure with `package.js
 
 ## Validating TypeScript changes
 
-You MUST check compilation output before running ANY script or declaring work complete!
+MANDATORY: Always check the `VS Code - Build` watch task output via #runTasks/getTaskOutput for compilation errors before running ANY script or declaring work complete, then fix all compilation errors before moving forward.
 
-1. **ALWAYS** check the `VS Code - Build` watch task output for compilation errors
-2. **NEVER** run tests if there are compilation errors
-3. **NEVER** use `npm run compile` to compile TypeScript files, always check task output
-4. **FIX** all compilation errors before moving forward
+- NEVER run tests if there are compilation errors
+- NEVER use `npm run compile` to compile TypeScript files but call #runTasks/getTaskOutput instead
 
 ### TypeScript compilation steps
 - Monitor the `VS Code - Build` task outputs for real-time compilation errors as you make changes
@@ -132,4 +130,10 @@ function f(x: number, y: string): void { }
 - Don't add tests to the wrong test suite (e.g., adding to end of file instead of inside relevant suite)
 - Look for existing test patterns before creating new structures
 - Use `describe` and `test` consistently with existing patterns
+- Prefer regex capture groups with names over numbered capture groups.
 - If you create any temporary new files, scripts, or helper files for iteration, clean up these files by removing them at the end of the task
+- Never duplicate imports. Always reuse existing imports if they are present.
+- Do not use `any` or `unknown` as the type for variables, parameters, or return values unless absolutely necessary. If they need type annotations, they should have proper types or interfaces defined.
+- When adding file watching, prefer correlated file watchers (via fileService.createWatcher) to shared ones.
+- When adding tooltips to UI elements, prefer the use of IHoverService service.
+- Do not duplicate code. Always look for existing utility functions, helpers, or patterns in the codebase before implementing new functionality. Reuse and extend existing code whenever possible.

@@ -11,13 +11,11 @@ import { Position } from '../../../common/core/position.js';
 import { IModelDecoration } from '../../../common/model.js';
 import { ModelDecorationInjectedTextOptions } from '../../../common/model/textModel.js';
 import { HoverAnchor, HoverForeignElementAnchor, IEditorHoverParticipant } from '../../hover/browser/hoverTypes.js';
-import { ILanguageService } from '../../../common/languages/language.js';
 import { ITextModelService } from '../../../common/services/resolverService.js';
 import { getHoverProviderResultsAsAsyncIterable } from '../../hover/browser/getHover.js';
 import { MarkdownHover, MarkdownHoverParticipant } from '../../hover/browser/markdownHoverParticipant.js';
 import { RenderedInlayHintLabelPart, InlayHintsController } from './inlayHintsController.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { localize } from '../../../../nls.js';
@@ -28,6 +26,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { HoverStartSource } from '../../hover/browser/hoverOperation.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 
 class InlayHintsHoverAnchor extends HoverForeignElementAnchor {
 	constructor(
@@ -46,16 +45,15 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 
 	constructor(
 		editor: ICodeEditor,
-		@ILanguageService languageService: ILanguageService,
-		@IOpenerService openerService: IOpenerService,
+		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IHoverService hoverService: IHoverService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITextModelService private readonly _resolverService: ITextModelService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
-		@ICommandService commandService: ICommandService
+		@ICommandService commandService: ICommandService,
 	) {
-		super(editor, languageService, openerService, configurationService, languageFeaturesService, keybindingService, hoverService, commandService);
+		super(editor, markdownRendererService, configurationService, languageFeaturesService, keybindingService, hoverService, commandService);
 	}
 
 	suggestHoverAnchor(mouseEvent: IEditorMouseEvent): HoverAnchor | null {

@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, isDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { isFalsyOrWhitespace } from '../../../../base/common/strings.js';
+import { equalsIgnoreCase, isFalsyOrWhitespace } from '../../../../base/common/strings.js';
 import { isString } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -81,10 +81,10 @@ const authenticationExtPoint = ExtensionsRegistry.registerExtensionPoint<Authent
 		type: 'array',
 		items: authenticationDefinitionSchema
 	},
-	activationEventsGenerator: (authenticationProviders, result) => {
+	activationEventsGenerator: function* (authenticationProviders) {
 		for (const authenticationProvider of authenticationProviders) {
 			if (authenticationProvider.id) {
-				result.push(`onAuthenticationRequest:${authenticationProvider.id}`);
+				yield `onAuthenticationRequest:${authenticationProvider.id}`;
 			}
 		}
 	}
@@ -136,7 +136,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		}));
 
 		this._registerEnvContributedAuthenticationProviders();
-		this._registerAuthenticationExtentionPointHandler();
+		this._registerAuthenticationExtensionPointHandler();
 	}
 
 	private _declaredProviders: AuthenticationProviderInformation[] = [];
@@ -154,7 +154,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		}
 	}
 
-	private _registerAuthenticationExtentionPointHandler(): void {
+	private _registerAuthenticationExtensionPointHandler(): void {
 		this._register(authenticationExtPoint.setHandler((_extensions, { added, removed }) => {
 			this._logService.debug(`Found authentication providers. added: ${added.length}, removed: ${removed.length}`);
 			added.forEach(point => {
@@ -239,9 +239,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		if (provider) {
 			this._authenticationProviders.delete(id);
 			// If this is a dynamic provider, remove it from the set of dynamic providers
-			if (this._dynamicAuthenticationProviderIds.has(id)) {
-				this._dynamicAuthenticationProviderIds.delete(id);
-			}
+			this._dynamicAuthenticationProviderIds.delete(id);
 			this._onDidUnregisterAuthenticationProvider.fire({ id, label: provider.label });
 		}
 		this._authenticationProviderDisposables.deleteAndDispose(id);
@@ -284,11 +282,12 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id, activateImmediate);
 		if (authProvider) {
 			// Check if the authorization server is in the list of supported authorization servers
-			if (options?.authorizationServer) {
-				const authServerStr = options.authorizationServer.toString(true);
-				// TODO: something is off here...
-				if (!authProvider.authorizationServers?.some(i => i.toString(true) === authServerStr || match(i.toString(true), authServerStr))) {
-					throw new Error(`The authorization server '${authServerStr}' is not supported by the authentication provider '${id}'.`);
+			const server = options?.authorizationServer;
+			if (server) {
+				// Skip the resource server check since the auth provider id contains a specific resource server
+				// TODO@TylerLeonhardt: this can change when we have providers that support multiple resource servers
+				if (!this.matchesProvider(authProvider, server)) {
+					throw new Error(`The authentication provider '${id}' does not support the authorization server '${server.toString(true)}'.`);
 				}
 			}
 			if (isAuthenticationWwwAuthenticateRequest(scopeListOrRequest)) {
@@ -341,9 +340,9 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		}
 	}
 
-	async getOrActivateProviderIdForServer(authorizationServer: URI): Promise<string | undefined> {
+	async getOrActivateProviderIdForServer(authorizationServer: URI, resourceServer?: URI): Promise<string | undefined> {
 		for (const provider of this._authenticationProviders.values()) {
-			if (provider.authorizationServers?.some(i => i.toString(true) === authorizationServer.toString(true) || match(i.toString(true), authorizationServer.toString(true)))) {
+			if (this.matchesProvider(provider, authorizationServer, resourceServer)) {
 				return provider.id;
 			}
 		}
@@ -352,12 +351,13 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		const providers = this._declaredProviders
 			// Only consider providers that are not already registered since we already checked them
 			.filter(p => !this._authenticationProviders.has(p.id))
-			.filter(p => !!p.authorizationServerGlobs?.some(i => match(i, authServerStr)));
+			.filter(p => !!p.authorizationServerGlobs?.some(i => match(i, authServerStr, { ignoreCase: true })));
+
 		// TODO:@TylerLeonhardt fan out?
 		for (const provider of providers) {
 			const activeProvider = await this.tryActivateProvider(provider.id, true);
 			// Check the resolved authorization servers
-			if (activeProvider.authorizationServers?.some(i => match(i.toString(true), authServerStr))) {
+			if (this.matchesProvider(activeProvider, authorizationServer, resourceServer)) {
 				return activeProvider.id;
 			}
 		}
@@ -395,6 +395,28 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		};
 	}
 
+	private matchesProvider(provider: IAuthenticationProvider, authorizationServer: URI, resourceServer?: URI): boolean {
+		// If a resourceServer is provided and the provider has a resourceServer defined, they must match
+		if (resourceServer && provider.resourceServer) {
+			const resourceServerStr = resourceServer.toString(true);
+			const providerResourceServerStr = provider.resourceServer.toString(true);
+			if (!equalsIgnoreCase(providerResourceServerStr, resourceServerStr)) {
+				return false;
+			}
+		}
+
+		if (provider.authorizationServers) {
+			const authServerStr = authorizationServer.toString(true);
+			for (const server of provider.authorizationServers) {
+				const str = server.toString(true);
+				if (equalsIgnoreCase(str, authServerStr) || match(str, authServerStr, { ignoreCase: true })) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
 	private async tryActivateProvider(providerId: string, activateImmediate: boolean): Promise<IAuthenticationProvider> {
 		await this._extensionService.activateByEvent(getAuthenticationProviderActivationEvent(providerId), activateImmediate ? ActivationKind.Immediate : ActivationKind.Normal);
 		let provider = this._authenticationProviders.get(providerId);
@@ -407,6 +429,8 @@ export class AuthenticationService extends Disposable implements IAuthentication
 
 		const store = new DisposableStore();
 		try {
+			// TODO: Remove this timeout and figure out a better way to ensure auth providers
+			// are registered _during_ extension activation.
 			const result = await raceTimeout(
 				raceCancellation(
 					Event.toPromise(
@@ -421,12 +445,12 @@ export class AuthenticationService extends Disposable implements IAuthentication
 				),
 				5000
 			);
-			if (!result) {
-				throw new Error(`Timed out waiting for authentication provider '${providerId}' to register.`);
-			}
-			provider = this._authenticationProviders.get(result.id);
+			provider = this._authenticationProviders.get(providerId);
 			if (provider) {
 				return provider;
+			}
+			if (!result) {
+				throw new Error(`Timed out waiting for authentication provider '${providerId}' to register.`);
 			}
 			throw new Error(`No authentication provider '${providerId}' is currently registered.`);
 		} finally {

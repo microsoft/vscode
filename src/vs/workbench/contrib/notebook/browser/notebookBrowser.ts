@@ -493,9 +493,9 @@ export interface INotebookViewModel {
 	readonly viewCells: ICellViewModel[];
 	layoutInfo: NotebookLayoutInfo | null;
 	viewType: string;
-	onDidChangeViewCells: Event<INotebookViewCellsUpdateEvent>;
-	onDidChangeSelection: Event<string>;
-	onDidFoldingStateChanged: Event<void>;
+	readonly onDidChangeViewCells: Event<INotebookViewCellsUpdateEvent>;
+	readonly onDidChangeSelection: Event<string>;
+	readonly onDidFoldingStateChanged: Event<void>;
 	getNearestVisibleCellIndexUpwards(index: number): number;
 	getTrackedRange(id: string): ICellRange | null;
 	setTrackedRange(id: string | null, newRange: ICellRange | null, newStickiness: TrackedRangeStickiness): string | null;
@@ -539,6 +539,7 @@ export interface INotebookEditor {
 	readonly textModel?: NotebookTextModel;
 	readonly isVisible: boolean;
 	readonly isReadOnly: boolean;
+	readonly isReplHistory: boolean;
 	readonly notebookOptions: NotebookOptions;
 	readonly isDisposed: boolean;
 	readonly activeKernel: INotebookKernel | undefined;

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { assert } from '../../../../base/common/assert.js';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { Iterable } from '../../../../base/common/iterator.js';
@@ -46,7 +47,7 @@ export interface IMainThreadTestHostProxy {
 }
 
 export interface IMainThreadTestCollection extends AbstractIncrementalTestCollection<IncrementalTestCollectionItem> {
-	onBusyProvidersChange: Event<number>;
+	readonly onBusyProvidersChange: Event<number>;
 
 	/**
 	 * Number of providers working to discover tests.
@@ -172,8 +173,12 @@ export const waitForTestToBeIdle = (testService: ITestService, test: Incremental
  * Iterator that expands to and iterates through tests in the file. Iterates
  * in strictly descending order.
  */
-export const testsInFile = async function* (testService: ITestService, ident: IUriIdentityService, uri: URI, waitForIdle = true, descendInFile = true): AsyncIterable<IncrementalTestCollectionItem> {
-	const queue = new LinkedList<Iterable<string>>();
+export const testsInFile = async function* (testService: ITestService, ident: IUriIdentityService, uri: URI, waitForIdle = true, descendInFile = true): AsyncIterable<readonly IncrementalTestCollectionItem[]> {
+	// In this function we go to a bit of effort to avoid awaiting unnecessarily
+	// and bulking the test collections we do collect for consumers. This fixes
+	// a performance issue (#235819) where a large number of tests in a file
+	// would cause a long delay switching editors.
+	const queue = new LinkedList<Iterable<string> | DeferredPromise<Iterable<string>>>();
 
 	const existing = [...testService.collection.getNodeByUrl(uri)].sort((a, b) => a.item.extId.length - b.item.extId.length);
 
@@ -191,8 +196,23 @@ export const testsInFile = async function* (testService: ITestService, ident: IU
 	queue.push(existing.length ? existing.map(e => e.item.extId) : testService.collection.rootIds);
 
 	let n = 0;
+	let gather: IncrementalTestCollectionItem[] = [];
 	while (queue.size > 0) {
-		for (const id of queue.pop()!) {
+		const next = queue.pop()!;
+		let ids: Iterable<string>;
+		if (!(next instanceof DeferredPromise)) {
+			ids = next;
+		} else if (next.isSettled) {
+			ids = next.value || Iterable.empty();
+		} else {
+			if (gather.length) {
+				yield gather;
+				gather = [];
+			}
+			ids = await next.p;
+		}
+
+		for (const id of ids) {
 			n++;
 			const test = testService.collection.getNodeById(id);
 			if (!test) {
@@ -205,7 +225,7 @@ export const testsInFile = async function* (testService: ITestService, ident: IU
 			}
 
 			if (ident.extUri.isEqual(uri, test.item.uri)) {
-				yield test;
+				gather.push(test);
 
 				if (!descendInFile) {
 					continue;
@@ -213,18 +233,29 @@ export const testsInFile = async function* (testService: ITestService, ident: IU
 			}
 
 			if (ident.extUri.isEqualOrParent(uri, test.item.uri)) {
+				let prom: Promise<void> | undefined;
 				if (test.expand === TestItemExpandState.Expandable) {
-					await testService.collection.expand(test.item.extId, 1);
+					prom = testService.collection.expand(test.item.extId, 1);
 				}
 				if (waitForIdle) {
-					await waitForTestToBeIdle(testService, test);
+					if (prom) {
+						prom = prom.then(() => waitForTestToBeIdle(testService, test));
+					} else if (test.item.busy) {
+						prom = waitForTestToBeIdle(testService, test);
+					}
 				}
 
-				if (test.children.size) {
+				if (prom) {
+					queue.push(DeferredPromise.fromPromise(prom.then(() => test.children)));
+				} else if (test.children.size) {
 					queue.push(test.children);
 				}
 			}
 		}
+	}
+
+	if (gather.length) {
+		yield gather;
 	}
 };
 

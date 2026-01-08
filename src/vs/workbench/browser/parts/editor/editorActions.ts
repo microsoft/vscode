@@ -12,7 +12,7 @@ import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser
 import { GoFilter, IHistoryService } from '../../../services/history/common/history.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { CLOSE_EDITOR_COMMAND_ID, MOVE_ACTIVE_EDITOR_COMMAND_ID, SelectedEditorsMoveCopyArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, COPY_ACTIVE_EDITOR_COMMAND_ID, SPLIT_EDITOR, TOGGLE_MAXIMIZE_EDITOR_GROUP, MOVE_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, COPY_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, MOVE_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID, COPY_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID, NEW_EMPTY_EDITOR_WINDOW_COMMAND_ID as NEW_EMPTY_EDITOR_WINDOW_COMMAND_ID, MOVE_EDITOR_INTO_RIGHT_GROUP, MOVE_EDITOR_INTO_LEFT_GROUP, MOVE_EDITOR_INTO_ABOVE_GROUP, MOVE_EDITOR_INTO_BELOW_GROUP } from './editorCommands.js';
+import { CLOSE_EDITOR_COMMAND_ID, MOVE_ACTIVE_EDITOR_COMMAND_ID, SelectedEditorsMoveCopyArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, COPY_ACTIVE_EDITOR_COMMAND_ID, SPLIT_EDITOR, TOGGLE_MAXIMIZE_EDITOR_GROUP, MOVE_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, COPY_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, MOVE_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID, COPY_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID, NEW_EMPTY_EDITOR_WINDOW_COMMAND_ID, MOVE_EDITOR_INTO_RIGHT_GROUP, MOVE_EDITOR_INTO_LEFT_GROUP, MOVE_EDITOR_INTO_ABOVE_GROUP, MOVE_EDITOR_INTO_BELOW_GROUP } from './editorCommands.js';
 import { IEditorGroupsService, IEditorGroup, GroupsArrangement, GroupLocation, GroupDirection, preferredSideBySideGroupDirection, IFindGroupScope, GroupOrientation, EditorGroupLayout, GroupsOrder, MergeGroupMode } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -2053,6 +2053,30 @@ export class MoveEditorRightInGroupAction extends ExecuteCommandAction {
 	}
 }
 
+export class MoveEditorToStartAction extends ExecuteCommandAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.moveEditorToStart',
+			title: localize2('moveEditorToStart', 'Move Editor to Start'),
+			f1: true,
+			category: Categories.View
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'first' } satisfies SelectedEditorsMoveCopyArguments);
+	}
+}
+
+export class MoveEditorToEndAction extends ExecuteCommandAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.moveEditorToEnd',
+			title: localize2('moveEditorToEnd', 'Move Editor to End'),
+			f1: true,
+			category: Categories.View
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'last' } satisfies SelectedEditorsMoveCopyArguments);
+	}
+}
+
 export class MoveEditorToPreviousGroupAction extends ExecuteCommandAction {
 
 	constructor() {
@@ -2099,7 +2123,7 @@ export class MoveEditorToAboveGroupAction extends ExecuteCommandAction {
 			title: localize2('moveEditorToAboveGroup', 'Move Editor into Group Above'),
 			f1: true,
 			category: Categories.View
-		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'up', by: 'group' } satisfies SelectedEditorsMoveCopyArguments);
+		}, MOVE_EDITOR_INTO_ABOVE_GROUP);
 	}
 }
 
@@ -2111,7 +2135,7 @@ export class MoveEditorToBelowGroupAction extends ExecuteCommandAction {
 			title: localize2('moveEditorToBelowGroup', 'Move Editor into Group Below'),
 			f1: true,
 			category: Categories.View
-		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'down', by: 'group' } satisfies SelectedEditorsMoveCopyArguments);
+		}, MOVE_EDITOR_INTO_BELOW_GROUP);
 	}
 }
 
@@ -2123,7 +2147,7 @@ export class MoveEditorToLeftGroupAction extends ExecuteCommandAction {
 			title: localize2('moveEditorToLeftGroup', 'Move Editor into Left Group'),
 			f1: true,
 			category: Categories.View
-		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'left', by: 'group' } satisfies SelectedEditorsMoveCopyArguments);
+		}, MOVE_EDITOR_INTO_LEFT_GROUP);
 	}
 }
 
@@ -2135,7 +2159,7 @@ export class MoveEditorToRightGroupAction extends ExecuteCommandAction {
 			title: localize2('moveEditorToRightGroup', 'Move Editor into Right Group'),
 			f1: true,
 			category: Categories.View
-		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'right', by: 'group' } satisfies SelectedEditorsMoveCopyArguments);
+		}, MOVE_EDITOR_INTO_RIGHT_GROUP);
 	}
 }
 

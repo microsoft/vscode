@@ -9,13 +9,15 @@ import { ICodeEditorService } from '../../../../../editor/browser/services/codeE
 import { EditOperation } from '../../../../../editor/common/core/editOperation.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
-import { IToolAndToolSetEnablementMap, IToolData, ToolSet } from '../../common/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolAndToolSetEnablementMap } from '../../common/tools/languageModelToolsService.js';
+import { PromptHeaderAttributes } from '../../common/promptSyntax/promptFileParser.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 
 export class PromptFileRewriter {
 	constructor(
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
-		@IPromptsService private readonly _promptsService: IPromptsService
+		@IPromptsService private readonly _promptsService: IPromptsService,
+		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService
 	) {
 	}
 
@@ -26,48 +28,58 @@ export class PromptFileRewriter {
 		}
 		const model = editor.getModel();
 
-		const parser = this._promptsService.getParsedPromptFile(model);
-		if (!parser.header) {
+		const promptAST = this._promptsService.getParsedPromptFile(model);
+		if (!promptAST.header) {
 			return undefined;
 		}
 
-		const toolsAttr = parser.header.getAttribute('tools');
+		const toolsAttr = promptAST.header.getAttribute(PromptHeaderAttributes.tools);
 		if (!toolsAttr) {
 			return undefined;
 		}
 
 		editor.setSelection(toolsAttr.range);
-		this.rewriteTools(model, newTools, toolsAttr.range);
+		if (newTools === undefined) {
+			this.rewriteAttribute(model, '', toolsAttr.range);
+			return;
+		} else {
+			this.rewriteTools(model, newTools, toolsAttr.value.range);
+		}
 	}
 
-	public rewriteTools(model: ITextModel, newTools: IToolAndToolSetEnablementMap | undefined, range: Range): void {
-		const newString = newTools === undefined ? '' : `tools: ${this.getNewValueString(newTools)}`;
+	public rewriteTools(model: ITextModel, newTools: IToolAndToolSetEnablementMap, range: Range): void {
+		const newToolNames = this._languageModelToolsService.toFullReferenceNames(newTools);
+		const newValue = `[${newToolNames.map(s => `'${s}'`).join(', ')}]`;
+		this.rewriteAttribute(model, newValue, range);
+	}
+
+	private rewriteAttribute(model: ITextModel, newValue: string, range: Range): void {
 		model.pushStackElement();
-		model.pushEditOperations(null, [EditOperation.replaceMove(range, newString)], () => null);
+		model.pushEditOperations(null, [EditOperation.replaceMove(range, newValue)], () => null);
 		model.pushStackElement();
 	}
 
-	public getNewValueString(tools: IToolAndToolSetEnablementMap): string {
-		const newToolNames: string[] = [];
-		const toolsCoveredBySets = new Set<IToolData>();
-		for (const [item, picked] of tools) {
-			if (picked && item instanceof ToolSet) {
-				for (const tool of item.getTools()) {
-					toolsCoveredBySets.add(tool);
-				}
-			}
+	public async openAndRewriteName(uri: URI, newName: string, token: CancellationToken): Promise<void> {
+		const editor = await this._codeEditorService.openCodeEditor({ resource: uri }, this._codeEditorService.getFocusedCodeEditor());
+		if (!editor || !editor.hasModel()) {
+			return;
 		}
-		for (const [item, picked] of tools) {
-			if (picked) {
-				if (item instanceof ToolSet) {
-					newToolNames.push(item.referenceName);
-				} else if (!toolsCoveredBySets.has(item)) {
-					newToolNames.push(item.toolReferenceName ?? item.displayName);
-				}
-			}
+		const model = editor.getModel();
+
+		const promptAST = this._promptsService.getParsedPromptFile(model);
+		if (!promptAST.header) {
+			return;
 		}
-		return `[${newToolNames.map(s => `'${s}'`).join(', ')}]`;
+
+		const nameAttr = promptAST.header.getAttribute(PromptHeaderAttributes.name);
+		if (!nameAttr) {
+			return;
+		}
+		if (nameAttr.value.type === 'string' && nameAttr.value.value === newName) {
+			return;
+		}
+
+		editor.setSelection(nameAttr.range);
+		this.rewriteAttribute(model, newName, nameAttr.value.range);
 	}
 }
-
-

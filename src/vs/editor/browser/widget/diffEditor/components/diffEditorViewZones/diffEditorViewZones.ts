@@ -199,7 +199,7 @@ export class DiffEditorViewZones extends Disposable {
 						originalModelTokenizationCompleted.read(reader); // Update view-zones once tokenization completes
 
 						const deletedCodeDomNode = document.createElement('div');
-						deletedCodeDomNode.classList.add('view-lines', 'line-delete', 'monaco-mouse-cursor-text');
+						deletedCodeDomNode.classList.add('view-lines', 'line-delete', 'line-delete-selectable', 'monaco-mouse-cursor-text');
 						const originalModel = this._editors.original.getModel()!;
 						// `a.originalRange` can be out of bound when the diff has not been updated yet.
 						// In this case, we do an early return.
@@ -241,10 +241,11 @@ export class DiffEditorViewZones extends Disposable {
 							new InlineDiffDeletedCodeMargin(
 								() => assertReturnsDefined(zoneId),
 								marginDomNode,
+								deletedCodeDomNode,
 								this._editors.modified,
 								a.diff,
 								this._diffEditorWidget,
-								result.viewLineCounts,
+								result,
 								this._editors.original.getModel()!,
 								this._contextMenuService,
 								this._clipboardService,
@@ -273,7 +274,7 @@ export class DiffEditorViewZones extends Disposable {
 							marginDomNode,
 							setZoneId(id) { zoneId = id; },
 							showInHiddenAreas: true,
-							suppressMouseDown: true,
+							suppressMouseDown: false,
 						});
 					}
 

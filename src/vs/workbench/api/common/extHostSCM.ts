@@ -8,10 +8,10 @@
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { Event, Emitter } from '../../../base/common/event.js';
 import { debounce } from '../../../base/common/decorators.js';
-import { DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { asPromise } from '../../../base/common/async.js';
 import { ExtHostCommands } from './extHostCommands.js';
-import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext, ExtHostSCMShape, ICommandDto, MainThreadTelemetryShape, SCMGroupFeatures, SCMHistoryItemDto, SCMHistoryItemChangeDto, SCMHistoryItemRefDto, SCMActionButtonDto } from './extHost.protocol.js';
+import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext, ExtHostSCMShape, ICommandDto, MainThreadTelemetryShape, SCMGroupFeatures, SCMHistoryItemDto, SCMHistoryItemChangeDto, SCMHistoryItemRefDto, SCMActionButtonDto, SCMArtifactGroupDto, SCMArtifactDto } from './extHost.protocol.js';
 import { sortedDiff, equals } from '../../../base/common/arrays.js';
 import { comparePaths } from '../../../base/common/comparers.js';
 import type * as vscode from 'vscode';
@@ -22,7 +22,7 @@ import { ExtensionIdentifierMap, IExtensionDescription } from '../../../platform
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
-import { MarkdownString } from './extHostTypeConverters.js';
+import { MarkdownString, SourceControlInputBoxValidationType } from './extHostTypeConverters.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { ExtHostDocuments } from './extHostDocuments.js';
 import { Schemas } from '../../../base/common/network.js';
@@ -75,11 +75,15 @@ function getHistoryItemIconDto(icon: vscode.Uri | { light: vscode.Uri; dark: vsc
 
 function toSCMHistoryItemDto(historyItem: vscode.SourceControlHistoryItem): SCMHistoryItemDto {
 	const authorIcon = getHistoryItemIconDto(historyItem.authorIcon);
+	const tooltip = Array.isArray(historyItem.tooltip)
+		? MarkdownString.fromMany(historyItem.tooltip)
+		: historyItem.tooltip ? MarkdownString.from(historyItem.tooltip) : undefined;
+
 	const references = historyItem.references?.map(r => ({
 		...r, icon: getHistoryItemIconDto(r.icon)
 	}));
 
-	return { ...historyItem, authorIcon, references };
+	return { ...historyItem, authorIcon, references, tooltip };
 }
 
 function toSCMHistoryItemRefDto(historyItemRef?: vscode.SourceControlHistoryItemRef): SCMHistoryItemRefDto | undefined {
@@ -370,8 +374,7 @@ export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 
 	showValidationMessage(message: string | vscode.MarkdownString, type: vscode.SourceControlInputBoxValidationType) {
 		checkProposedApiEnabled(this._extension, 'scmValidation');
-
-		this.#proxy.$showValidationMessage(this._sourceControlHandle, message, type as any);
+		this.#proxy.$showValidationMessage(this._sourceControlHandle, message, SourceControlInputBoxValidationType.from(type));
 	}
 
 	$onInputBoxValueChange(value: string): void {
@@ -669,6 +672,31 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		}
 	}
 
+	private _artifactProvider: vscode.SourceControlArtifactProvider | undefined;
+	private readonly _artifactProviderDisposable = new MutableDisposable<DisposableStore>();
+
+	get artifactProvider(): vscode.SourceControlArtifactProvider | undefined {
+		checkProposedApiEnabled(this._extension, 'scmArtifactProvider');
+		return this._artifactProvider;
+	}
+
+	set artifactProvider(artifactProvider: vscode.SourceControlArtifactProvider | undefined) {
+		checkProposedApiEnabled(this._extension, 'scmArtifactProvider');
+
+		this._artifactProvider = artifactProvider;
+		this._artifactProviderDisposable.value = new DisposableStore();
+
+		this.#proxy.$updateSourceControl(this.handle, { hasArtifactProvider: !!artifactProvider });
+
+		if (artifactProvider) {
+			this._artifactProviderDisposable.value.add(artifactProvider.onDidChangeArtifacts((groups: string[]) => {
+				if (groups.length !== 0) {
+					this.#proxy.$onDidChangeArtifacts(this.handle, groups);
+				}
+			}));
+		}
+	}
+
 	private _commitTemplate: string | undefined = undefined;
 
 	get commitTemplate(): string | undefined {
@@ -778,6 +806,8 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	private readonly _onDidChangeSelection = new Emitter<boolean>();
 	readonly onDidChangeSelection = this._onDidChangeSelection.event;
 
+	private readonly _artifactCommandsDisposables = new DisposableMap<string /* artifact group */, DisposableStore>();
+
 	readonly handle: number = ExtHostSourceControl._handlePool++;
 
 	constructor(
@@ -789,6 +819,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		private _label: string,
 		private _rootUri?: vscode.Uri,
 		_iconPath?: vscode.IconPath,
+		_isHidden?: boolean,
 		_parent?: ExtHostSourceControl
 	) {
 		this.#proxy = proxy;
@@ -800,7 +831,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		});
 
 		this._inputBox = new ExtHostSCMInputBox(_extension, _extHostDocuments, this.#proxy, this.handle, inputBoxDocumentUri);
-		this.#proxy.$registerSourceControl(this.handle, _parent?.handle, _id, _label, _rootUri, getHistoryItemIconDto(_iconPath), inputBoxDocumentUri);
+		this.#proxy.$registerSourceControl(this.handle, _parent?.handle, _id, _label, _rootUri, getHistoryItemIconDto(_iconPath), _isHidden, inputBoxDocumentUri);
 
 		this.onDidDisposeParent = _parent ? _parent.onDidDispose : Event.None;
 	}
@@ -882,10 +913,28 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		this._onDidChangeSelection.fire(selected);
 	}
 
+	async provideArtifacts(group: string, token: CancellationToken): Promise<SCMArtifactDto[] | undefined> {
+		const commandsDisposables = new DisposableStore();
+		const artifacts = await this.artifactProvider?.provideArtifacts(group, token);
+		const artifactsDto = artifacts?.map(artifact => ({
+			...artifact,
+			icon: getHistoryItemIconDto(artifact.icon),
+			command: artifact.command ? this._commands.converter.toInternal(artifact.command, commandsDisposables) : undefined
+		}));
+
+		this._artifactCommandsDisposables.get(group)?.dispose();
+		this._artifactCommandsDisposables.set(group, commandsDisposables);
+
+		return artifactsDto;
+	}
+
 	dispose(): void {
 		this._acceptInputDisposables.dispose();
 		this._actionButtonDisposables.dispose();
 		this._statusBarDisposables.dispose();
+		this._historyProviderDisposable.dispose();
+		this._artifactProviderDisposable.dispose();
+		this._artifactCommandsDisposables.dispose();
 
 		this._groups.forEach(group => group.dispose());
 		this.#proxy.$unregisterSourceControl(this.handle);
@@ -955,7 +1004,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		});
 	}
 
-	createSourceControl(extension: IExtensionDescription, id: string, label: string, rootUri: vscode.Uri | undefined, iconPath: vscode.IconPath | undefined, parent: vscode.SourceControl | undefined): vscode.SourceControl {
+	createSourceControl(extension: IExtensionDescription, id: string, label: string, rootUri: vscode.Uri | undefined, iconPath: vscode.IconPath | undefined, isHidden: boolean | undefined, parent: vscode.SourceControl | undefined): vscode.SourceControl {
 		this.logService.trace('ExtHostSCM#createSourceControl', extension.identifier.value, id, label, rootUri);
 
 		type TEvent = { extensionId: string };
@@ -969,7 +1018,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		});
 
 		const parentSourceControl = parent ? Iterable.find(this._sourceControls.values(), s => s === parent) : undefined;
-		const sourceControl = new ExtHostSourceControl(extension, this._extHostDocuments, this._proxy, this._commands, id, label, rootUri, iconPath, parentSourceControl);
+		const sourceControl = new ExtHostSourceControl(extension, this._extHostDocuments, this._proxy, this._commands, id, label, rootUri, iconPath, isHidden, parentSourceControl);
 		this._sourceControls.set(sourceControl.handle, sourceControl);
 
 		const sourceControls = this._sourceControlsByExtension.get(extension.identifier) || [];
@@ -1076,6 +1125,9 @@ export class ExtHostSCM implements ExtHostSCMShape {
 
 	$setSelectedSourceControl(selectedSourceControlHandle: number | undefined): Promise<void> {
 		this.logService.trace('ExtHostSCM#$setSelectedSourceControl', selectedSourceControlHandle);
+		if (this._selectedSourceControlHandle === selectedSourceControlHandle) {
+			return Promise.resolve(undefined);
+		}
 
 		if (selectedSourceControlHandle !== undefined) {
 			this._sourceControls.get(selectedSourceControlHandle)?.setSelectionState(true);
@@ -1176,6 +1228,33 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		}
 		catch (err) {
 			this.logService.error('ExtHostSCM#$provideHistoryItemChanges', err);
+			return undefined;
+		}
+	}
+
+	async $provideArtifactGroups(sourceControlHandle: number, token: CancellationToken): Promise<SCMArtifactGroupDto[] | undefined> {
+		try {
+			const artifactProvider = this._sourceControls.get(sourceControlHandle)?.artifactProvider;
+			const groups = await artifactProvider?.provideArtifactGroups(token);
+
+			return groups?.map(group => ({
+				...group,
+				icon: getHistoryItemIconDto(group.icon)
+			}));
+		}
+		catch (err) {
+			this.logService.error('ExtHostSCM#$provideArtifactGroups', err);
+			return undefined;
+		}
+	}
+
+	async $provideArtifacts(sourceControlHandle: number, group: string, token: CancellationToken): Promise<SCMArtifactDto[] | undefined> {
+		try {
+			const sourceControl = this._sourceControls.get(sourceControlHandle);
+			return sourceControl?.provideArtifacts(group, token);
+		}
+		catch (err) {
+			this.logService.error('ExtHostSCM#$provideArtifacts', err);
 			return undefined;
 		}
 	}

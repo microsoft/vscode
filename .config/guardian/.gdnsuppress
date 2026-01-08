@@ -1,5 +1,5 @@
 {
-  "hydrated": false,
+  "hydrated": true,
   "properties": {
     "helpUri": "https://eng.ms/docs/microsoft-security/security/azure-security/cloudai-security-fundamentals-engineering/security-integration/guardian-wiki/microsoft-guardian/general/suppressions"
   },
@@ -7,70 +7,62 @@
   "suppressionSets": {
     "default": {
       "name": "default",
-      "createdDate": "2025-03-17 11:52:32Z",
-      "lastUpdatedDate": "2025-08-06 13:58:56Z"
+      "createdDate": "2025-01-28 06:29:05Z",
+      "lastUpdatedDate": "2025-08-25 17:55:20Z"
     }
   },
   "results": {
-    "216e2ac9cb596796224b47799f656570a01fa0d9b5f935608b47d15ab613c8e8": {
-      "signature": "216e2ac9cb596796224b47799f656570a01fa0d9b5f935608b47d15ab613c8e8",
+    "6216d3477ad4f56cb4ec316a9aaff02e9530a10d56469a4ef4063b8d02fe344b": {
+      "signature": "6216d3477ad4f56cb4ec316a9aaff02e9530a10d56469a4ef4063b8d02fe344b",
       "alternativeSignatures": [
-        "07746898f43afab7cc50931b33154c2d9e1a35f82a649dbe8aecf785b3d5a813"
+        "46ad210995b2ff199f3bee5f271938a4251ed7a60058041ace1beaa53e36b51c"
       ],
+      "target": "file:///D:/a/_work/1/vscode-server-win32-x64/node.exe",
       "memberOf": [
         "default"
       ],
-      "createdDate": "2025-03-17 11:52:32Z"
+      "tool": "binskim",
+      "ruleId": "BA2008",
+      "createdDate": "2025-08-25 17:54:06Z"
     },
-    "77797a3e44634bb2994bd13ccc95ff4575bba474585dbd2cf3068a1c16bc0624": {
-      "signature": "77797a3e44634bb2994bd13ccc95ff4575bba474585dbd2cf3068a1c16bc0624",
+    "b8a4702fb4b855719e5e5033c3b629fbe6267d516ce8a18bd8f3be3b9962434b": {
+      "signature": "b8a4702fb4b855719e5e5033c3b629fbe6267d516ce8a18bd8f3be3b9962434b",
       "alternativeSignatures": [
-        "4a6cb67bd4b401e9669c13a2162660aaefc0a94a4122e5b50c198414db545672"
+        "52d986be88f1c5696fc87d7794279d02f5084c645440e2dd2c3b5a2176b6bf52"
       ],
+      "target": "file:///D:/a/_work/1/vscode-server-win32-x64-web/node.exe",
       "memberOf": [
         "default"
       ],
-      "createdDate": "2025-03-17 11:52:32Z"
+      "tool": "binskim",
+      "ruleId": "BA2008",
+      "createdDate": "2025-08-25 17:54:06Z"
     },
-    "30418bcc5269eaeb2832a2404465784431d4e72a2af332320c2b1db4768902ad": {
-      "signature": "30418bcc5269eaeb2832a2404465784431d4e72a2af332320c2b1db4768902ad",
+		"4dbc45d0405de2e83d53f10227e36b2a9d15eceb2c5e6934da5c4a1bffbfad89": {
+      "signature": "4dbc45d0405de2e83d53f10227e36b2a9d15eceb2c5e6934da5c4a1bffbfad89",
       "alternativeSignatures": [
-        "b7b9eb974d7d3a4ae14df8695ca5a62592c8c9d20b7eda70a6535d50cbda3e7f"
+        "b6bab85ba5e97bc4e6ff2e8a7913cb9f4f3346f7bda435d176e0b1e3cfb883cf"
       ],
+      "target": "file:///D:/a/_work/1/vscode-server-win32-arm64/node.exe",
       "memberOf": [
         "default"
       ],
-      "createdDate": "2025-03-17 11:52:32Z"
+      "tool": "binskim",
+      "ruleId": "BA2008",
+      "createdDate": "2025-08-25 17:45:35Z"
     },
-		"9d60fae9db4b8d511637e4a0f902820fbabf962c64ce2b2b8c8ae54c0c06d3ab": {
-      "signature": "9d60fae9db4b8d511637e4a0f902820fbabf962c64ce2b2b8c8ae54c0c06d3ab",
+    "024ff37af329b63d2d9c83784cc071badf63b7729e3dd0969ab921d2f04d8e09": {
+      "signature": "024ff37af329b63d2d9c83784cc071badf63b7729e3dd0969ab921d2f04d8e09",
       "alternativeSignatures": [
-        "d06382c4909cfa81370526b06d4c47ebdf4425fc0b36053d3f457d5cdf5df8a8"
+        "b46b7d6ed331f3e62eff23c57d3a074f76ef618f108929851065904200f5a572"
       ],
+      "target": "file:///D:/a/_work/1/vscode-server-win32-arm64-web/node.exe",
       "memberOf": [
         "default"
       ],
-      "createdDate": "2025-08-06 13:58:56Z"
-    },
-    "7f0626fd14d60d2810a8ddfc1e9fdf1563b991dc8e1ac5880eca42449f752e90": {
-      "signature": "7f0626fd14d60d2810a8ddfc1e9fdf1563b991dc8e1ac5880eca42449f752e90",
-      "alternativeSignatures": [
-        "6d3dc1d67e5413347520202ce038daf52825c58099670688103db2661facf187"
-      ],
-      "memberOf": [
-        "default"
-      ],
-      "createdDate": "2025-08-06 13:58:56Z"
-    },
-    "40121a40ac42fef69ebcb2b8c2ec7ee659c8d10bc7ab4e95d2a290a48b3d281f": {
-      "signature": "40121a40ac42fef69ebcb2b8c2ec7ee659c8d10bc7ab4e95d2a290a48b3d281f",
-      "alternativeSignatures": [
-        "3f4bc3f870aa2c71232dd65907522d59a1964c148e373105dec71e0d3da9427f"
-      ],
-      "memberOf": [
-        "default"
-      ],
-      "createdDate": "2025-08-06 13:58:56Z"
+      "tool": "binskim",
+      "ruleId": "BA2008",
+      "createdDate": "2025-08-25 17:45:35Z"
     }
   }
 }

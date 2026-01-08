@@ -380,6 +380,7 @@ function addNamedHeaderRendering(md: InstanceType<typeof MarkdownIt>): void {
 	const originalRender = md.render;
 	md.render = function () {
 		slugCounter.clear();
+		// eslint-disable-next-line local/code-no-any-casts
 		return originalRender.apply(this, arguments as any);
 	};
 }

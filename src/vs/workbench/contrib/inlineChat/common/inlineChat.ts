@@ -6,9 +6,10 @@
 import { localize } from '../../../../nls.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { diffInserted, diffRemoved, editorWidgetBackground, editorWidgetBorder, editorWidgetForeground, focusBorder, inputBackground, inputPlaceholderForeground, registerColor, transparent, widgetShadow } from '../../../../platform/theme/common/colorRegistry.js';
+import { NOTEBOOK_IS_ACTIVE_EDITOR } from '../../notebook/common/notebookContextKeys.js';
 
 // settings
 
@@ -16,12 +17,9 @@ export const enum InlineChatConfigKeys {
 	FinishOnType = 'inlineChat.finishOnType',
 	StartWithOverlayWidget = 'inlineChat.startWithOverlayWidget',
 	HoldToSpeech = 'inlineChat.holdToSpeech',
-	AccessibleDiffView = 'inlineChat.accessibleDiffView',
-	LineEmptyHint = 'inlineChat.lineEmptyHint',
-	LineNLHint = 'inlineChat.lineNaturalLanguageHint',
+	/** @deprecated do not read on client */
 	EnableV2 = 'inlineChat.enableV2',
 	notebookAgent = 'inlineChat.notebookAgent',
-	HideOnRequest = 'inlineChat.hideOnRequest'
 }
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
@@ -37,29 +35,6 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			default: true,
 			type: 'boolean'
 		},
-		[InlineChatConfigKeys.AccessibleDiffView]: {
-			description: localize('accessibleDiffView', "Whether the inline chat also renders an accessible diff viewer for its changes."),
-			default: 'auto',
-			type: 'string',
-			enum: ['auto', 'on', 'off'],
-			markdownEnumDescriptions: [
-				localize('accessibleDiffView.auto', "The accessible diff viewer is based on screen reader mode being enabled."),
-				localize('accessibleDiffView.on', "The accessible diff viewer is always enabled."),
-				localize('accessibleDiffView.off', "The accessible diff viewer is never enabled."),
-			],
-		},
-		[InlineChatConfigKeys.LineEmptyHint]: {
-			description: localize('emptyLineHint', "Whether empty lines show a hint to generate code with inline chat."),
-			default: false,
-			type: 'boolean',
-			tags: ['experimental'],
-		},
-		[InlineChatConfigKeys.LineNLHint]: {
-			markdownDescription: localize('lineSuffixHint', "Whether lines that are dominated by natural language or pseudo code show a hint to continue with inline chat. For instance, `class Person with name and hobbies` would show a hint to continue with chat."),
-			default: true,
-			type: 'boolean',
-			tags: ['experimental'],
-		},
 		[InlineChatConfigKeys.EnableV2]: {
 			description: localize('enableV2', "Whether to use the next version of inline chat."),
 			default: false,
@@ -69,22 +44,13 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				mode: 'auto'
 			}
 		},
-		[InlineChatConfigKeys.HideOnRequest]: {
-			markdownDescription: localize('hideOnRequest', "Whether to hide the inline chat widget after making a request. When enabled, the widget hides after a request has been made and instead the chat overlay shows. When hidden, the widget can always be shown again with the inline chat keybinding or from the chat overlay widget. *Note* that this setting requires `#inlineChat.enableV2#` to be enabled."),
-			default: false,
-			type: 'boolean',
-			tags: ['preview'],
-			experiment: {
-				mode: 'auto'
-			}
-		},
 		[InlineChatConfigKeys.notebookAgent]: {
-			markdownDescription: localize('notebookAgent', "Enable agent-like behavior for inline chat widget in notebooks. Depends on the `#inlineChat.enableV2#` setting being enabled."),
+			markdownDescription: localize('notebookAgent', "Enable agent-like behavior for inline chat widget in notebooks."),
 			default: false,
 			type: 'boolean',
 			tags: ['experimental'],
 			experiment: {
-				mode: 'auto'
+				mode: 'startup'
 			}
 		}
 	}
@@ -103,8 +69,9 @@ export const enum InlineChatResponseType {
 }
 
 export const CTX_INLINE_CHAT_POSSIBLE = new RawContextKey<boolean>('inlineChatPossible', false, localize('inlineChatHasPossible', "Whether a provider for inline chat exists and whether an editor for inline chat is open"));
-export const CTX_INLINE_CHAT_HAS_AGENT = new RawContextKey<boolean>('inlineChatHasProvider', false, localize('inlineChatHasProvider', "Whether a provider for interactive editors exists"));
-export const CTX_INLINE_CHAT_HAS_AGENT2 = new RawContextKey<boolean>('inlineChatHasEditsAgent', false, localize('inlineChatHasEditsAgent', "Whether an agent for inliine for interactive editors exists"));
+export const CTX_INLINE_CHAT_HAS_AGENT2 = new RawContextKey<boolean>('inlineChatHasEditsAgent', false, localize('inlineChatHasEditsAgent', "Whether an agent for inline for interactive editors exists"));
+export const CTX_INLINE_CHAT_HAS_NOTEBOOK_INLINE = new RawContextKey<boolean>('inlineChatHasNotebookInline', false, localize('inlineChatHasNotebookInline', "Whether an agent for notebook cells exists"));
+export const CTX_INLINE_CHAT_HAS_NOTEBOOK_AGENT = new RawContextKey<boolean>('inlineChatHasNotebookAgent', false, localize('inlineChatHasNotebookAgent', "Whether an agent for notebook cells exists"));
 export const CTX_INLINE_CHAT_VISIBLE = new RawContextKey<boolean>('inlineChatVisible', false, localize('inlineChatVisible', "Whether the interactive editor input is visible"));
 export const CTX_INLINE_CHAT_FOCUSED = new RawContextKey<boolean>('inlineChatFocused', false, localize('inlineChatFocused', "Whether the interactive editor input is focused"));
 export const CTX_INLINE_CHAT_EDITING = new RawContextKey<boolean>('inlineChatEditing', true, localize('inlineChatEditing', "Whether the user is currently editing or generating code in the inline chat"));
@@ -119,6 +86,14 @@ export const CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF = new RawContextKey<boolean>('inl
 export const CTX_INLINE_CHAT_REQUEST_IN_PROGRESS = new RawContextKey<boolean>('inlineChatRequestInProgress', false, localize('inlineChatRequestInProgress', "Whether an inline chat request is currently in progress"));
 export const CTX_INLINE_CHAT_RESPONSE_TYPE = new RawContextKey<InlineChatResponseType>('inlineChatResponseType', InlineChatResponseType.None, localize('inlineChatResponseTypes', "What type was the responses have been receieved, nothing yet, just messages, or messaged and local edits"));
 
+export const CTX_INLINE_CHAT_V1_ENABLED = ContextKeyExpr.or(
+	ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, CTX_INLINE_CHAT_HAS_NOTEBOOK_INLINE)
+);
+
+export const CTX_INLINE_CHAT_V2_ENABLED = ContextKeyExpr.or(
+	CTX_INLINE_CHAT_HAS_AGENT2,
+	ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, CTX_INLINE_CHAT_HAS_NOTEBOOK_AGENT)
+);
 
 // --- (selected) action identifier
 

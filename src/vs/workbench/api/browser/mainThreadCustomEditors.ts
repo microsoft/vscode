@@ -335,7 +335,7 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 	private _currentEditIndex: number = -1;
 	private _savePoint: number = -1;
 	private readonly _edits: Array<number> = [];
-	private _isDirtyFromContentChange = false;
+	private _isDirtyFromContentChange: boolean;
 
 	private _ongoingSave?: CancelablePromise<void>;
 
@@ -390,17 +390,16 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 
 		this._fromBackup = fromBackup;
 
+		// Normally means we're re-opening an untitled file (set this before registering the working copy
+		// so that dirty state is correct when first queried).
+		this._isDirtyFromContentChange = startDirty;
+
 		if (_editable) {
 			this._register(workingCopyService.registerWorkingCopy(this));
 
 			this._register(extensionService.onWillStop(e => {
 				e.veto(true, localize('vetoExtHostRestart', "An extension provided editor for '{0}' is still open that would close otherwise.", this.name));
 			}));
-		}
-
-		// Normally means we're re-opening an untitled file
-		if (startDirty) {
-			this._isDirtyFromContentChange = true;
 		}
 	}
 
@@ -670,6 +669,8 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 		const backupMeta: CustomDocumentBackupData = {
 			viewType: this.viewType,
 			editorResource: this._editorResource,
+			customTitle: primaryEditor.getWebviewTitle(),
+			iconPath: primaryEditor.iconPath,
 			backupId: '',
 			extension: primaryEditor.extension ? {
 				id: primaryEditor.extension.id.value,
