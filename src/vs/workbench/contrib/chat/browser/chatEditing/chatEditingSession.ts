@@ -236,10 +236,19 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			},
 			setContents: async (uri, content, telemetryInfo) => {
 				const entry = await this._getOrCreateModifiedFileEntry(uri, NotExistBehavior.Create, telemetryInfo);
+
+				// We apply these edits as 'agent edits' which will by default make them get keep
+				// /undo indicators. This is good in the case the edits were never initially accepted,
+				// but if the file was already in an accepted state we should not make it modified again.
+				const state = entry.state.get();
 				if (entry instanceof ChatEditingModifiedNotebookEntry) {
 					await entry.restoreModifiedModelFromSnapshot(content);
 				} else {
 					await entry.acceptAgentEdits(uri, [{ range: new Range(1, 1, Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER), text: content }], true, undefined);
+				}
+
+				if (state !== ModifiedFileEntryState.Modified) {
+					await entry.accept();
 				}
 			}
 		};

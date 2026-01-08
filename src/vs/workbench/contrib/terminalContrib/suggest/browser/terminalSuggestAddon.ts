@@ -532,8 +532,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				if (!this._terminalSuggestWidgetVisibleContextKey.get()) {
 					const commandLineHasSpace = promptInputState.prefix.trim().match(/\s/);
 					if (
-						(!commandLineHasSpace && quickSuggestions.commands !== 'off') ||
-						(commandLineHasSpace && quickSuggestions.arguments !== 'off')
+						(!commandLineHasSpace && quickSuggestions.commands === 'on') ||
+						(commandLineHasSpace && quickSuggestions.arguments === 'on')
 					) {
 						if (promptInputState.prefix.match(/[^\s]$/)) {
 							sent = this._requestTriggerCharQuickSuggestCompletions();

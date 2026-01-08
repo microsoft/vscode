@@ -263,7 +263,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		]);
 		this._titleElement = elements.title;
 
-		const command = terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
+		const command = (terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original).trimStart();
 		this._commandText = command;
 		this._terminalOutputContextKey = ChatContextKeys.inChatTerminalToolOutput.bindTo(this._contextKeyService);
 
@@ -1100,9 +1100,7 @@ export class ToggleChatTerminalOutputAction extends Action implements IAction {
 	}
 
 	private _updateTooltip(): void {
-		const keybinding = this._keybindingService.lookupKeybinding(TerminalContribCommandId.FocusMostRecentChatTerminalOutput);
-		const label = keybinding?.getLabel();
-		this.tooltip = label ? `${this.label} (${label})` : this.label;
+		this.tooltip = this._keybindingService.appendKeybinding(this.label, TerminalContribCommandId.FocusMostRecentChatTerminalOutput);
 	}
 }
 
@@ -1198,8 +1196,6 @@ export class FocusChatInstanceAction extends Action implements IAction {
 	}
 
 	private _updateTooltip(): void {
-		const keybinding = this._keybindingService.lookupKeybinding(TerminalContribCommandId.FocusMostRecentChatTerminal);
-		const label = keybinding?.getLabel();
-		this.tooltip = label ? `${this.label} (${label})` : this.label;
+		this.tooltip = this._keybindingService.appendKeybinding(this.label, TerminalContribCommandId.FocusMostRecentChatTerminal);
 	}
 }
