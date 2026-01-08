@@ -10,74 +10,24 @@ declare module 'vscode' {
 	// #region Resource Classes
 
 	/**
-	 * Represents a hand-off action that allows an agent to delegate to another agent.
+	 * Represents the content of a prompt file resource.
 	 */
-	export interface CustomAgentHandoff {
+	export interface PromptFileContent {
 		/**
-		 * The display label for the hand-off action.
+		 * The header/frontmatter of the prompt file containing metadata.
+		 * Properties vary by resource type. See the documentation links for supported options.
+		 * - Custom instructions: https://code.visualstudio.com/docs/copilot/customization/custom-instructions#_header-optional
+		 * - Prompt files: https://code.visualstudio.com/docs/copilot/customization/prompt-files#_header-optional
+		 * - Custom agents: https://code.visualstudio.com/docs/copilot/customization/custom-agents#_header-optional
 		 */
-		label: string;
+		header?: {
+			[key: string]: unknown;
+		};
 
 		/**
-		 * The name of the agent to hand off to.
-		 */
-		agent: string;
-
-		/**
-		 * The prompt to send when handing off.
-		 */
-		prompt: string;
-
-		/**
-		 * Whether to automatically send the prompt. Defaults to false.
-		 */
-		send?: boolean;
-
-		/**
-		 * Whether to show the "Continue on" option. Defaults to undefined.
-		 */
-		showContinueOn?: boolean;
-	}
-
-	/**
-	 * Properties for creating a custom agent without a URI.
-	 * The markdown content will be generated from these properties.
-	 */
-	export interface CustomAgentProperties {
-		/**
-		 * The body/instructions content of the custom agent.
+		 * The body content of the prompt file.
 		 */
 		body: string;
-
-		/**
-		 * Optional model to use for the custom agent.
-		 */
-		model?: string;
-
-		/**
-		 * Optional list of tools available to the custom agent.
-		 */
-		tools?: string[];
-
-		/**
-		 * Optional argument hint that describes what inputs the agent expects or supports.
-		 */
-		argumentHint?: string;
-
-		/**
-		 * Optional target platform for the agent ('vscode' or 'github-copilot').
-		 */
-		target?: string;
-
-		/**
-		 * Whether the agent should be inferred/suggested automatically based on context.
-		 */
-		infer?: boolean;
-
-		/**
-		 * Optional hand-off actions that allow this agent to delegate to other agents.
-		 */
-		handoffs?: CustomAgentHandoff[];
 	}
 
 	/**
@@ -95,16 +45,6 @@ declare module 'vscode' {
 	 */
 	export class CustomAgentChatResource {
 		/**
-		 * The unique identifier/name of the custom agent.
-		 */
-		readonly name: string;
-
-		/**
-		 * A description of what the custom agent does.
-		 */
-		readonly description: string;
-
-		/**
 		 * The URI to the custom agent resource file.
 		 */
 		readonly uri: Uri;
@@ -116,38 +56,19 @@ declare module 'vscode' {
 
 		/**
 		 * Creates a new custom agent resource from an existing file.
-		 * @param name The unique identifier/name of the custom agent.
-		 * @param description A description of what the custom agent does.
 		 * @param uri The URI to the custom agent resource file.
 		 * @param options Optional settings for the custom agent.
 		 */
-		constructor(name: string, description: string, uri: Uri, options?: CustomAgentOptions);
+		constructor(uri: Uri, options?: CustomAgentOptions);
 
 		/**
-		 * Creates a new custom agent resource from properties. A virtual URI will be generated
-		 * and the markdown content will be constructed from the provided properties.
-		 * @param name The unique identifier/name of the custom agent.
-		 * @param description A description of what the custom agent does.
-		 * @param properties The properties for creating the custom agent.
+		 * Creates a new custom agent resource from content. A virtual URI will be generated
+		 * and the markdown content will be constructed from the provided content.
+		 * @param content The content for creating the custom agent - either a string (body only)
+		 *                or a structured PromptFileContent object with header and body.
 		 * @param options Optional settings for the custom agent.
 		 */
-		constructor(name: string, description: string, properties: CustomAgentProperties, options?: CustomAgentOptions);
-	}
-
-	/**
-	 * Properties for creating instructions without a URI.
-	 * The markdown content will be generated from these properties.
-	 */
-	export interface InstructionsProperties {
-		/**
-		 * The body content of the instructions.
-		 */
-		body: string;
-
-		/**
-		 * Optional glob pattern specifying which files these instructions apply to.
-		 */
-		applyTo?: string;
+		constructor(content: string | PromptFileContent, options?: CustomAgentOptions);
 	}
 
 	/**
@@ -165,16 +86,6 @@ declare module 'vscode' {
 	 */
 	export class InstructionsChatResource {
 		/**
-		 * The unique identifier/name of the instructions.
-		 */
-		readonly name: string;
-
-		/**
-		 * A description of what the instructions provide.
-		 */
-		readonly description: string;
-
-		/**
 		 * The URI to the instructions resource file.
 		 */
 		readonly uri: Uri;
@@ -186,48 +97,19 @@ declare module 'vscode' {
 
 		/**
 		 * Creates a new instructions resource from an existing file.
-		 * @param name The unique identifier/name of the instructions.
-		 * @param description A description of what the instructions provide.
 		 * @param uri The URI to the instructions resource file.
 		 * @param options Optional settings for the instructions.
 		 */
-		constructor(name: string, description: string, uri: Uri, options?: InstructionsOptions);
+		constructor(uri: Uri, options?: InstructionsOptions);
 
 		/**
-		 * Creates a new instructions resource from properties. A virtual URI will be generated
-		 * and the markdown content will be constructed from the provided properties.
-		 * @param name The unique identifier/name of the instructions.
-		 * @param description A description of what the instructions provide.
-		 * @param properties The properties for creating the instructions.
+		 * Creates a new instructions resource from content. A virtual URI will be generated
+		 * and the markdown content will be constructed from the provided content.
+		 * @param content The content for creating the instructions - either a string (body only)
+		 *                or a structured PromptFileContent object with header and body.
 		 * @param options Optional settings for the instructions.
 		 */
-		constructor(name: string, description: string, properties: InstructionsProperties, options?: InstructionsOptions);
-	}
-
-	/**
-	 * Properties for creating a prompt file without a URI.
-	 * The markdown content will be generated from these properties.
-	 */
-	export interface PromptFileProperties {
-		/**
-		 * The body content of the prompt file.
-		 */
-		body: string;
-
-		/**
-		 * Optional agent to use for the prompt file.
-		 */
-		agent?: string;
-
-		/**
-		 * Optional model to use for the prompt file.
-		 */
-		model?: string;
-
-		/**
-		 * Optional list of tools available to the prompt file.
-		 */
-		tools?: string[];
+		constructor(content: string | PromptFileContent, options?: InstructionsOptions);
 	}
 
 	/**
@@ -245,16 +127,6 @@ declare module 'vscode' {
 	 */
 	export class PromptFileChatResource {
 		/**
-		 * The unique identifier/name of the prompt file.
-		 */
-		readonly name: string;
-
-		/**
-		 * A description of what the prompt file does.
-		 */
-		readonly description: string;
-
-		/**
 		 * The URI to the prompt file resource.
 		 */
 		readonly uri: Uri;
@@ -266,22 +138,19 @@ declare module 'vscode' {
 
 		/**
 		 * Creates a new prompt file resource from an existing file.
-		 * @param name The unique identifier/name of the prompt file.
-		 * @param description A description of what the prompt file does.
 		 * @param uri The URI to the prompt file resource file.
 		 * @param options Optional settings for the prompt file.
 		 */
-		constructor(name: string, description: string, uri: Uri, options?: PromptFileOptions);
+		constructor(uri: Uri, options?: PromptFileOptions);
 
 		/**
-		 * Creates a new prompt file resource from properties. A virtual URI will be generated
-		 * and the markdown content will be constructed from the provided properties.
-		 * @param name The unique identifier/name of the prompt file.
-		 * @param description A description of what the prompt file does.
-		 * @param properties The properties for creating the prompt file.
+		 * Creates a new prompt file resource from content. A virtual URI will be generated
+		 * and the markdown content will be constructed from the provided content.
+		 * @param content The content for creating the prompt file - either a string (body only)
+		 *                or a structured PromptFileContent object with header and body.
 		 * @param options Optional settings for the prompt file.
 		 */
-		constructor(name: string, description: string, properties: PromptFileProperties, options?: PromptFileOptions);
+		constructor(content: string | PromptFileContent, options?: PromptFileOptions);
 	}
 
 	// #endregion
