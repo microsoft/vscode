@@ -248,6 +248,8 @@ export class ChatService extends Disposable implements IChatService {
 			try {
 				modelRef = await this.getOrRestoreSession(sessionResource);
 				modelRef?.object.setCustomTitle(title);
+			} catch (e) {
+				this.error('setChatSessionTitle', `Failed to restore session ${sessionResource} to set title: ${toErrorMessage(e)}`);
 			} finally {
 				modelRef?.dispose();
 			}
