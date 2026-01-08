@@ -153,11 +153,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		return this._toolSessionIdByTerminalInstance.get(instance);
 	}
 
-	registerTerminalInstanceWithChatSession(chatSessionResourceOrId: URI | string, instance: ITerminalInstance): void {
-		const chatSessionResource = typeof chatSessionResourceOrId === 'string'
-			? LocalChatSessionUri.forSession(chatSessionResourceOrId)
-			: chatSessionResourceOrId;
-
+	registerTerminalInstanceWithChatSession(chatSessionResource: URI, instance: ITerminalInstance): void {
 		// If already registered with the same session, skip to avoid duplicate listeners
 		const existingResource = this._chatSessionResourceByTerminalInstance.get(instance);
 		if (existingResource && existingResource.toString() === chatSessionResource.toString()) {

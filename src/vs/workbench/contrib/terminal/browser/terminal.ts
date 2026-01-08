@@ -153,10 +153,10 @@ export interface ITerminalChatService {
 	/**
 	 * Associate a chat session with a terminal instance. This is used to retrieve the chat
 	 * session title for display purposes.
-	 * @param chatSessionResourceOrId The chat session resource URI (preferred) or session ID string (@deprecated)
+	 * @param chatSessionResource The chat session resource URI
 	 * @param instance The terminal instance
 	 */
-	registerTerminalInstanceWithChatSession(chatSessionResourceOrId: URI | string, instance: ITerminalInstance): void;
+	registerTerminalInstanceWithChatSession(chatSessionResource: URI, instance: ITerminalInstance): void;
 
 	/**
 	 * Returns the chat session resource for a given terminal instance, if it has been registered.
