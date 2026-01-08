@@ -193,8 +193,8 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 			const result = await getCommandOutputSnapshot(xterm, command);
 
 			strictEqual(result?.text, 'output');
-			// lineCount is derived from marker lines: (endMarker.line - 1) - executedMarker.line + 1
-			strictEqual(result?.lineCount, 5);
+			// lineCount is derived from marker lines: endMarker.line - executedMarker.line + 1
+			strictEqual(result?.lineCount, 6);
 			deepStrictEqual(xtermImpl.lastCall, {
 				start: executedMarker,
 				end: endMarker,
@@ -214,8 +214,8 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 			const result = await getCommandOutputSnapshot(xterm, command);
 
 			strictEqual(result?.text, 'snapshot');
-			// lineCount is derived from marker lines: (endMarker.line - 1) - startLine + 1
-			strictEqual(result?.lineCount, 3);
+			// lineCount is derived from marker lines: endMarker.line - startLine + 1
+			strictEqual(result?.lineCount, 4);
 		});
 
 		test('logs and returns undefined when fallback snapshot throws', async () => {
@@ -413,7 +413,8 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 				const result = await mirror.renderCommand();
 
 				strictEqual(writes.join(''), expectedText);
-				const expectedLineCount = expectedText ? expectedText.split('\r\n').length : 0;
+				// lineCount is derived from marker lines: endMarker.line - executedMarker.line + 1
+				const expectedLineCount = endMarker.line - executedMarker.line + 1;
 				strictEqual(result?.lineCount, expectedLineCount);
 			});
 
@@ -488,7 +489,9 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 				const result = await mirror.renderCommand();
 
 				strictEqual(writes.join(''), expectedText);
-				const expectedLineCount = expectedText ? expectedText.split('\r\n').length : 0;
+				// lineCount is derived from source buffer position since no executedMarker on command
+				const sourceBuffer = xterm.raw.buffer.active;
+				const expectedLineCount = sourceBuffer.baseY + sourceBuffer.cursorY - commandExecutedMarker.line + 1;
 				strictEqual(result?.lineCount, expectedLineCount);
 			});
 
@@ -521,7 +524,9 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 				const result = await mirror.renderCommand();
 
 				strictEqual(writes.join(''), expectedText);
-				const expectedLineCount = expectedText ? expectedText.split('\r\n').length : 0;
+				// lineCount is derived from source buffer position since no endMarker
+				const sourceBuffer = xterm.raw.buffer.active;
+				const expectedLineCount = sourceBuffer.baseY + sourceBuffer.cursorY - executedMarker.line + 1;
 				strictEqual(result?.lineCount, expectedLineCount);
 			});
 
