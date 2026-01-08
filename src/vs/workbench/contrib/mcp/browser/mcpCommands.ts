@@ -822,9 +822,9 @@ export class StartServer extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, serverId: string | null | undefined, opts?: IMcpServerStartOpts & { waitForLiveTools?: boolean }) {
+	async run(accessor: ServicesAccessor, serverId: string, opts?: IMcpServerStartOpts & { waitForLiveTools?: boolean }) {
 		let servers = accessor.get(IMcpService).servers.get();
-		if (serverId) {
+		if (serverId !== '*') {
 			servers = servers.filter(s => s.definition.id === serverId);
 		}
 
