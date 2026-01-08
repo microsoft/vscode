@@ -3156,21 +3156,21 @@ export interface IMcpAuthenticationOptions {
 	forceNewRegistration?: boolean;
 }
 
-export const enum McpAuthResourceMetadataSource {
+export const enum IAuthResourceMetadataSource {
 	Header = 'header',
 	WellKnown = 'wellKnown',
 	None = 'none',
 }
 
-export const enum McpAuthServerMetadataSource {
+export const enum IAuthServerMetadataSource {
 	ResourceMetadata = 'resourceMetadata',
 	WellKnown = 'wellKnown',
 	Default = 'default',
 }
 
-export interface IMcpAuthSetupTelemetry {
-	resourceMetadataSource: McpAuthResourceMetadataSource;
-	serverMetadataSource: McpAuthServerMetadataSource;
+export interface IAuthMetadataSource {
+	resourceMetadataSource: IAuthResourceMetadataSource;
+	serverMetadataSource: IAuthServerMetadataSource;
 }
 
 export interface MainThreadMcpShape {
@@ -3181,7 +3181,7 @@ export interface MainThreadMcpShape {
 	$deleteMcpCollection(collectionId: string): void;
 	$getTokenFromServerMetadata(id: number, authDetails: IMcpAuthenticationDetails, options?: IMcpAuthenticationOptions): Promise<string | undefined>;
 	$getTokenForProviderId(id: number, providerId: string, scopes: string[], options?: IMcpAuthenticationOptions): Promise<string | undefined>;
-	$logMcpAuthSetup(data: IMcpAuthSetupTelemetry): void;
+	$logMcpAuthSetup(data: IAuthMetadataSource): void;
 }
 
 export interface MainThreadDataChannelsShape extends IDisposable {

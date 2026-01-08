@@ -969,8 +969,6 @@ export interface IChatEditorLocationData {
 	document: URI;
 	selection: ISelection;
 	wholeRange: IRange;
-	close: () => void;
-	delegateSessionResource: URI | undefined;
 }
 
 export interface IChatNotebookLocationData {

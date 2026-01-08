@@ -818,14 +818,10 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
-		[ChatConfiguration.RestoreLastPanelSession]: { // TODO@bpasero review this setting later
+		[ChatConfiguration.RestoreLastPanelSession]: {
 			type: 'boolean',
 			description: nls.localize('chat.restoreLastPanelSession', "Controls whether the last session is restored in panel after restart."),
-			default: false,
-			tags: ['experimental'],
-			experiment: {
-				mode: 'auto'
-			}
+			default: false
 		},
 		[ChatConfiguration.ExitAfterDelegation]: {
 			type: 'boolean',
