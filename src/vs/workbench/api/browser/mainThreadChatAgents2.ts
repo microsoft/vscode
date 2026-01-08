@@ -19,6 +19,7 @@ import { getWordAtText } from '../../../editor/common/core/wordHelper.js';
 import { CompletionContext, CompletionItem, CompletionItemKind, CompletionList } from '../../../editor/common/languages.js';
 import { ITextModel } from '../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../editor/common/services/languageFeatures.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../platform/log/common/log.js';
@@ -119,6 +120,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IPromptsService private readonly _promptsService: IPromptsService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatAgents2);
@@ -139,6 +141,19 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 						}
 						break;
 					}
+				}
+			}
+		}));
+
+		// Listen for changes to the chat.disableAIFeatures setting
+		// When AI features are disabled, unregister all agents so that ChatContextKeys.enabled becomes false
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('chat.disableAIFeatures')) {
+				const disableAIFeatures = this._configurationService.getValue<boolean>('chat.disableAIFeatures');
+				if (disableAIFeatures) {
+					// Dispose all registered agents when AI features are disabled
+					this._agents.clearAndDisposeAll();
+					this._logService.trace('[MainThreadChatAgents2] Unregistered all agents due to chat.disableAIFeatures being enabled');
 				}
 			}
 		}));
