@@ -23,6 +23,7 @@ import { createDecorator } from '../../../../../platform/instantiation/common/in
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { asJson, IRequestService } from '../../../../../platform/request/common/request.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ChatContextKeys } from '../actions/chatContextKeys.js';
 import { IChatAgentEditedFileEvent, IChatProgressHistoryResponseContent, IChatRequestModeInstructions, IChatRequestVariableData, ISerializableChatAgentData } from '../model/chatModel.js';
@@ -501,7 +502,12 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 			return [];
 		}
 
-		return data.impl.provideFollowups(request, result, history, token);
+		try {
+			return await data.impl.provideFollowups(request, result, history, token) ?? [];
+		} catch (err) {
+			onUnexpectedError(err);
+			return [];
+		}
 	}
 
 	async getChatTitle(id: string, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<string | undefined> {
@@ -510,7 +516,12 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 			return undefined;
 		}
 
-		return data.impl.provideChatTitle(history, token);
+		try {
+			return await data.impl.provideChatTitle(history, token) ?? undefined;
+		} catch (err) {
+			onUnexpectedError(err);
+			return undefined;
+		}
 	}
 
 	async getChatSummary(id: string, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<string | undefined> {
@@ -519,7 +530,12 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 			return undefined;
 		}
 
-		return data.impl.provideChatSummary(history, token);
+		try {
+			return await data.impl.provideChatSummary(history, token) ?? undefined;
+		} catch (err) {
+			onUnexpectedError(err);
+			return undefined;
+		}
 	}
 
 	registerChatParticipantDetectionProvider(handle: number, provider: IChatParticipantDetectionProvider) {
@@ -550,7 +566,14 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 			return acc;
 		}, []);
 
-		const result = await provider.provideParticipantDetection(request, history, { ...options, participants }, token);
+		let result;
+		try {
+			result = await provider.provideParticipantDetection(request, history, { ...options, participants }, token);
+		} catch (err) {
+			onUnexpectedError(err);
+			return;
+		}
+
 		if (!result) {
 			return;
 		}

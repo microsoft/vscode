@@ -194,13 +194,28 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					return [];
 				}
 
-				return this._proxy.$provideFollowups(request, handle, result, { history }, token);
+				try {
+					return await this._proxy.$provideFollowups(request, handle, result, { history }, token) ?? [];
+				} catch (err) {
+					this._logService.error(err);
+					return [];
+				}
 			},
-			provideChatTitle: (history, token) => {
-				return this._proxy.$provideChatTitle(handle, history, token);
+			provideChatTitle: async (history, token) => {
+				try {
+					return await this._proxy.$provideChatTitle(handle, history, token);
+				} catch (err) {
+					this._logService.error(err);
+					return undefined;
+				}
 			},
-			provideChatSummary: (history, token) => {
-				return this._proxy.$provideChatSummary(handle, history, token);
+			provideChatSummary: async (history, token) => {
+				try {
+					return await this._proxy.$provideChatSummary(handle, history, token);
+				} catch (err) {
+					this._logService.error(err);
+					return undefined;
+				}
 			},
 		};
 
