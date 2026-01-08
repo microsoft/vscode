@@ -14,7 +14,7 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { CopyOptions, generateDataToCopyAndStoreInMemory, InMemoryClipboardMetadataManager, PasteOptions } from '../../../browser/controller/editContext/clipboardUtils.js';
+import { CopyOptions, generateDataToCopyAndStoreInMemory, InMemoryClipboardMetadataManager } from '../../../browser/controller/editContext/clipboardUtils.js';
 import { NativeEditContextRegistry } from '../../../browser/controller/editContext/native/nativeEditContextRegistry.js';
 import { IActiveCodeEditor, ICodeEditor } from '../../../browser/editorBrowser.js';
 import { Command, EditorAction, MultiCommand, registerEditorAction } from '../../../browser/editorExtensions.js';
@@ -208,28 +208,6 @@ function executeClipboardCopyWithWorkaround(editor: IActiveCodeEditor, clipboard
 	}
 }
 
-async function pasteWithNavigatorAPI(editor: IActiveCodeEditor, clipboardService: IClipboardService, logService: ILogService): Promise<void> {
-	const clipboardText = await clipboardService.readText();
-	if (clipboardText !== '') {
-		const metadata = InMemoryClipboardMetadataManager.INSTANCE.get(clipboardText);
-		let pasteOnNewLine = false;
-		let multicursorText: string[] | null = null;
-		let mode: string | null = null;
-		if (metadata) {
-			pasteOnNewLine = (editor.getOption(EditorOption.emptySelectionClipboard) && !!metadata.isFromEmptySelection);
-			multicursorText = (typeof metadata.multicursorText !== 'undefined' ? metadata.multicursorText : null);
-			mode = metadata.mode;
-		}
-		logService.trace('pasteWithNavigatorAPI with id : ', metadata?.id, ', clipboardText.length : ', clipboardText.length);
-		editor.trigger('keyboard', Handler.Paste, {
-			text: clipboardText,
-			pasteOnNewLine,
-			multicursorText,
-			mode
-		});
-	}
-}
-
 function registerExecCommandImpl(target: MultiCommand | undefined, browserCommand: 'cut' | 'copy'): void {
 	if (!target) {
 		return;
@@ -317,25 +295,10 @@ if (PasteAction) {
 			}
 
 			logService.trace('registerExecCommandImpl (before triggerPaste)');
-			PasteOptions.electronBugWorkaroundPasteEventHasFired = false;
-			logService.trace('(before triggerPaste) PasteOptions.electronBugWorkaroundPasteEventHasFired : ', PasteOptions.electronBugWorkaroundPasteEventHasFired);
 			const triggerPaste = clipboardService.triggerPaste(getActiveWindow().vscodeWindowId);
 			if (triggerPaste) {
 				logService.trace('registerExecCommandImpl (triggerPaste defined)');
-				PasteOptions.electronBugWorkaroundPasteEventLock = false;
 				return triggerPaste.then(async () => {
-					logService.trace('(triggerPaste) PasteOptions.electronBugWorkaroundPasteEventHasFired : ', PasteOptions.electronBugWorkaroundPasteEventHasFired);
-					if (PasteOptions.electronBugWorkaroundPasteEventHasFired === false) {
-						// Ensure this doesn't run twice, what appears to be happening is
-						// triggerPasteis called once but it's handler is called multiple times
-						// when it reproduces
-						logService.trace('(triggerPaste) PasteOptions.electronBugWorkaroundPasteEventLock : ', PasteOptions.electronBugWorkaroundPasteEventLock);
-						if (PasteOptions.electronBugWorkaroundPasteEventLock === true) {
-							return;
-						}
-						PasteOptions.electronBugWorkaroundPasteEventLock = true;
-						return pasteWithNavigatorAPI(focusedEditor, clipboardService, logService);
-					}
 					logService.trace('registerExecCommandImpl (after triggerPaste)');
 					return CopyPasteController.get(focusedEditor)?.finishedPaste() ?? Promise.resolve();
 				});
@@ -345,7 +308,27 @@ if (PasteAction) {
 			if (platform.isWeb) {
 				logService.trace('registerExecCommandImpl (Paste handling on web)');
 				// Use the clipboard service if document.execCommand('paste') was not successful
-				return pasteWithNavigatorAPI(focusedEditor, clipboardService, logService);
+				return (async () => {
+					const clipboardText = await clipboardService.readText();
+					if (clipboardText !== '') {
+						const metadata = InMemoryClipboardMetadataManager.INSTANCE.get(clipboardText);
+						let pasteOnNewLine = false;
+						let multicursorText: string[] | null = null;
+						let mode: string | null = null;
+						if (metadata) {
+							pasteOnNewLine = (focusedEditor.getOption(EditorOption.emptySelectionClipboard) && !!metadata.isFromEmptySelection);
+							multicursorText = (typeof metadata.multicursorText !== 'undefined' ? metadata.multicursorText : null);
+							mode = metadata.mode;
+						}
+						logService.trace('registerExecCommandImpl (clipboardText.length : ', clipboardText.length, ' id : ', metadata?.id, ')');
+						focusedEditor.trigger('keyboard', Handler.Paste, {
+							text: clipboardText,
+							pasteOnNewLine,
+							multicursorText,
+							mode
+						});
+					}
+				})();
 			}
 			return true;
 		}

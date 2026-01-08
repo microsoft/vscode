@@ -8,7 +8,7 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { InlineChatController } from '../browser/inlineChatController.js';
-import { AbstractInline1ChatAction, setHoldForSpeech } from '../browser/inlineChatActions.js';
+import { AbstractInlineChatAction, setHoldForSpeech } from '../browser/inlineChatActions.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -27,7 +27,7 @@ export class HoldToSpeak extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'inlineChat.holdForSpeech',
-			category: AbstractInline1ChatAction.category,
+			category: AbstractInlineChatAction.category,
 			precondition: ContextKeyExpr.and(HasSpeechProvider, CTX_INLINE_CHAT_VISIBLE),
 			title: localize2('holdForSpeech', "Hold for Speech"),
 			keybinding: {
