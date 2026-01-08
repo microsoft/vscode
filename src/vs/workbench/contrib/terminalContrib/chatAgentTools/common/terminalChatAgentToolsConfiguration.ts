@@ -242,6 +242,37 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 
 			// #endregion
 
+			// #region Package managers (npm, yarn, pnpm)
+			//
+			// Read-only commands that don't modify files or execute arbitrary code.
+
+			// npm read-only commands
+			'/^npm\\s+(ls|list|outdated|view|info|show|explain|why|root|prefix|bin|search|doctor|fund|repo|bugs|docs|home|help(-search)?)\\b/': true,
+			'/^npm\\s+config\\s+(list|get)\\b/': true,
+			'/^npm\\s+pkg\\s+get\\b/': true,
+			'/^npm\\s+audit$/': true,
+			'/^npm\\s+cache\\s+verify\\b/': true,
+
+			// yarn read-only commands
+			'/^yarn\\s+(list|outdated|info|why|bin|help|versions)\\b/': true,
+			'/^yarn\\s+licenses\\b/': true,
+			'/^yarn\\s+audit\\b(?!.*\\bfix\\b)/': true,
+			'/^yarn\\s+config\\s+(list|get)\\b/': true,
+			'/^yarn\\s+cache\\s+dir\\b/': true,
+
+			// pnpm read-only commands
+			'/^pnpm\\s+(ls|list|outdated|why|root|bin|doctor)\\b/': true,
+			'/^pnpm\\s+licenses\\b/': true,
+			'/^pnpm\\s+audit\\b(?!.*\\bfix\\b)/': true,
+			'/^pnpm\\s+config\\s+list\\b/': true,
+
+			// Safe lockfile-only installs since we trust the workspace and lock file is trusted.
+			'npm ci': true,
+			'/^yarn\\s+install\\s+--frozen-lockfile\\b/': true,
+			'/^pnpm\\s+install\\s+--frozen-lockfile\\b/': true,
+
+			// #endregion
+
 			// #region Safe + disabled args
 			//
 			// Commands that are generally allowed with special cases we block. Note that shell
@@ -351,6 +382,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			eval: false,
 			'Invoke-Expression': false,
 			iex: false,
+
 			// #endregion
 		} satisfies Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>,
 	},
