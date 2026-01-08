@@ -23,7 +23,7 @@ import { EditorGroupView } from '../../../../browser/parts/editor/editorGroupVie
 import { Event } from '../../../../../base/common/event.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { EditorResourceAccessor, IEditorControl, SideBySideEditor } from '../../../../common/editor.js';
+import { EditorResourceAccessor, IEditorPane, SideBySideEditor } from '../../../../common/editor.js';
 import { IInlineChatSessionService } from '../../../inlineChat/browser/inlineChatSessionService.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { ObservableEditorSession } from './chatEditingEditorContextKeys.js';
@@ -327,26 +327,45 @@ class ChatEditingOverlayController {
 
 		let overlayWidget: IDisposable | undefined = undefined;
 
-		const show = (editor: IEditorControl | undefined) => {
-			if (overlayWidget === undefined && isCodeEditor(editor)) {
-				const editorObs = observableCodeEditor(editor);
-				overlayWidget = editorObs.createOverlayWidget({
-					allowEditorOverflow: false,
-					domNode: this._domNode,
-					minContentWidthInPx: constObservable(0),
-					position: constObservable({
-						preference: OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER,
-						stackOridinal: 1
-					})
-				});
-			}
-		};
+		let hide = () => { };
 
-		const hide = () => {
-			if (overlayWidget) {
-				widget.hide();
-				overlayWidget.dispose();
-				overlayWidget = undefined;
+		const show = (editor: IEditorPane) => {
+			const ctrl = editor.getControl();
+
+			if (isCodeEditor(ctrl)) {
+				// code editor special case
+				if (!overlayWidget) {
+					const editorObs = observableCodeEditor(ctrl);
+					overlayWidget = editorObs.createOverlayWidget({
+						allowEditorOverflow: false,
+						domNode: this._domNode,
+						minContentWidthInPx: constObservable(0),
+						position: constObservable({
+							preference: OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER,
+							stackOridinal: 1
+						})
+					});
+
+					hide = () => {
+						if (overlayWidget) {
+							widget.hide();
+							overlayWidget.dispose();
+							overlayWidget = undefined;
+						}
+					};
+				}
+			} else {
+				// generic positioning
+				if (!container.contains(this._domNode)) {
+					container.appendChild(this._domNode);
+				}
+
+				hide = () => {
+					if (container.contains(this._domNode)) {
+						widget.hide();
+						this._domNode.remove();
+					}
+				};
 			}
 		};
 
@@ -420,7 +439,7 @@ class ChatEditingOverlayController {
 				);
 
 				widget.show(session, entry, { entryIndex, changeIndex });
-				show(editorPane?.getControl());
+				show(editorPane);
 
 			} else {
 				// nothing
