@@ -19,7 +19,7 @@ import { ILogService, NullLogService } from '../../../../platform/log/common/log
 import { ChatSessionsService } from '../../../contrib/chat/browser/chatSessions/chatSessions.contribution.js';
 import { IChatAgentRequest } from '../../../contrib/chat/common/participants/chatAgents.js';
 import { IChatProgress, IChatProgressMessage, IChatService } from '../../../contrib/chat/common/chatService/chatService.js';
-import { IChatSessionItem, IChatSessionProviderOptionGroup, IChatSessionsService } from '../../../contrib/chat/common/chatSessionsService.js';
+import { IChatSessionProviderOptionGroup, IChatSessionsService } from '../../../contrib/chat/common/chatSessionsService.js';
 import { LocalChatSessionUri } from '../../../contrib/chat/common/model/chatUri.js';
 import { ChatAgentLocation } from '../../../contrib/chat/common/constants.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -57,7 +57,6 @@ suite('ObservableChatSession', function () {
 			$invokeChatSessionRequestHandler: sinon.stub(),
 			$disposeChatSessionContent: sinon.stub(),
 			$provideChatSessionItems: sinon.stub(),
-			$provideNewChatSessionItem: sinon.stub().resolves({ label: 'New Session' } as IChatSessionItem)
 		};
 	});
 
@@ -341,8 +340,6 @@ suite('MainThreadChatSessions', function () {
 	let chatSessionsService: IChatSessionsService;
 	let disposables: DisposableStore;
 
-	const exampleSessionResource = LocalChatSessionUri.forSession('new-session-id');
-
 	setup(function () {
 		disposables = new DisposableStore();
 		instantiationService = new TestInstantiationService();
@@ -355,7 +352,6 @@ suite('MainThreadChatSessions', function () {
 			$invokeChatSessionRequestHandler: sinon.stub(),
 			$disposeChatSessionContent: sinon.stub(),
 			$provideChatSessionItems: sinon.stub(),
-			$provideNewChatSessionItem: sinon.stub().resolves({ resource: exampleSessionResource, label: 'New Session' } as IChatSessionItem)
 		};
 
 		const extHostContext = new class implements IExtHostContext {
