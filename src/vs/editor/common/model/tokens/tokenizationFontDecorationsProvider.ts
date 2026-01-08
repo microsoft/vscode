@@ -15,7 +15,6 @@ import { Position } from '../../core/position.js';
 import { AnnotatedString, AnnotationsUpdate, IAnnotatedString, IAnnotationUpdate } from './annotations.js';
 import { OffsetRange } from '../../core/ranges/offsetRange.js';
 import { offsetEditFromContentChanges } from '../textModelStringEdit.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 export interface IFontTokenAnnotation {
 	decorationId: string;
@@ -36,8 +35,7 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 
 	constructor(
 		private readonly textModel: ITextModel,
-		private readonly tokenizationTextModelPart: TokenizationTextModelPart,
-		private readonly configurationService: IConfigurationService
+		private readonly tokenizationTextModelPart: TokenizationTextModelPart
 	) {
 		super();
 		this._register(this.tokenizationTextModelPart.onDidChangeFontTokens(fontChanges => {
@@ -137,8 +135,7 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 			const annotationEndPosition = this.textModel.getPositionAt(annotation.range.endExclusive);
 			const range = Range.fromPositions(annotationStartPosition, annotationEndPosition);
 			const anno = annotation.annotation;
-			const defaultFontSize = this.configurationService.getValue<number>('editor.fontSize') ?? 0;
-			const className = classNameForFontTokenDecorations(anno.fontToken.fontFamily ?? '', anno.fontToken.fontSizeMultiplier ? anno.fontToken.fontSizeMultiplier * defaultFontSize : 0);
+			const className = classNameForFontTokenDecorations(anno.fontToken.fontFamily ?? '', anno.fontToken.fontSizeMultiplier ?? 0);
 			const affectsFont = !!(anno.fontToken.fontFamily || anno.fontToken.fontSizeMultiplier);
 			const id = anno.decorationId;
 			decorations.push({

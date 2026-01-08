@@ -424,7 +424,7 @@ export function generateTokensCSSForColorMap(colorMap: readonly Color[]): string
 	return rules.join('\n');
 }
 
-export function generateTokensCSSForFontMap(fontMap: readonly IFontTokenOptions[], defaultFontSize: number): string {
+export function generateTokensCSSForFontMap(fontMap: readonly IFontTokenOptions[]): string {
 	const rules: string[] = [];
 	const fonts = new Set<string>();
 	for (let i = 1, len = fontMap.length; i < len; i++) {
@@ -432,7 +432,7 @@ export function generateTokensCSSForFontMap(fontMap: readonly IFontTokenOptions[
 		if (!font.fontFamily && !font.fontSizeMultiplier) {
 			continue;
 		}
-		const className = classNameForFontTokenDecorations(font.fontFamily ?? '', font.fontSizeMultiplier ? font.fontSizeMultiplier * defaultFontSize : 0);
+		const className = classNameForFontTokenDecorations(font.fontFamily ?? '', font.fontSizeMultiplier ?? 0);
 		if (fonts.has(className)) {
 			continue;
 		}
@@ -442,7 +442,7 @@ export function generateTokensCSSForFontMap(fontMap: readonly IFontTokenOptions[
 			rule += `font-family: ${font.fontFamily};`;
 		}
 		if (font.fontSizeMultiplier) {
-			rule += `font-size: ${font.fontSizeMultiplier * defaultFontSize}px;`;
+			rule += `font-size: calc(var(--editor-font-size)*${font.fontSizeMultiplier});`;
 		}
 		rule += `}`;
 		rules.push(rule);
