@@ -6,7 +6,7 @@
 import { Application, Logger } from '../../../../automation';
 import { installAllHandlers } from '../../utils';
 
-export function setup(logger: Logger) {
+export function setup(logger: Logger, opts: { web?: boolean }) {
 	describe('Accessibility', function () {
 
 		// Increase timeout for accessibility scans
@@ -69,27 +69,30 @@ export function setup(logger: Logger) {
 			});
 		});
 
-		describe('Chat', function () {
+		// Chat is not available in web mode
+		if (!opts.web) {
+			describe('Chat', function () {
 
-			it('chat panel has no accessibility violations', async function () {
-				// Open chat panel
-				await app.workbench.quickaccess.runCommand('workbench.action.chat.open');
+				it('chat panel has no accessibility violations', async function () {
+					// Open chat panel
+					await app.workbench.quickaccess.runCommand('workbench.action.chat.open');
 
-				// Wait for chat view to be visible
-				await app.code.waitForElement('div[id="workbench.panel.chat"]');
+					// Wait for chat view to be visible
+					await app.code.waitForElement('div[id="workbench.panel.chat"]');
 
-				await app.code.driver.assertNoAccessibilityViolations({
-					selector: 'div[id="workbench.panel.chat"]',
-					disableRules: [
-						// Color contrast issues are tracked separately
-						'color-contrast'
-					],
-					excludeRules: {
-						// Links in chat welcome view show underline on hover/focus which axe-core static analysis cannot detect
-						'link-in-text-block': ['command:workbench.action.chat.generateInstructions']
-					}
+					await app.code.driver.assertNoAccessibilityViolations({
+						selector: 'div[id="workbench.panel.chat"]',
+						disableRules: [
+							// Color contrast issues are tracked separately
+							'color-contrast'
+						],
+						excludeRules: {
+							// Links in chat welcome view show underline on hover/focus which axe-core static analysis cannot detect
+							'link-in-text-block': ['command:workbench.action.chat.generateInstructions']
+						}
+					});
 				});
 			});
-		});
+		}
 	});
 }
