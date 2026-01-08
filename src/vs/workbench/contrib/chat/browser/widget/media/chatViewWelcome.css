@@ -113,6 +113,16 @@ div.chat-welcome-view {
 		max-width: 250px;
 		margin: 10px 5px 0px;
 
+		a {
+			color: var(--vscode-textLink-foreground);
+		}
+
+		a:hover,
+		a:focus {
+			text-decoration: underline;
+			outline: 1px solid var(--vscode-focusBorder);
+		}
+
 		.rendered-markdown {
 			gap: 6px;
 			display: flex;
