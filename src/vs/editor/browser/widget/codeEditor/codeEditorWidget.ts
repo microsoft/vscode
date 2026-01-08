@@ -286,7 +286,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._configuration = this._register(this._createConfiguration(codeEditorWidgetOptions.isSimpleWidget || false,
 			codeEditorWidgetOptions.contextMenuId ?? (codeEditorWidgetOptions.isSimpleWidget ? MenuId.SimpleEditorContext : MenuId.EditorContext),
 			options, accessibilityService));
-		this._domElement.style.setProperty('--editor-font-size', this._configuration.options.get(EditorOption.fontSize) + 'px');
+		this._domElement.style?.setProperty('--editor-font-size', this._configuration.options.get(EditorOption.fontSize) + 'px');
 		this._register(this._configuration.onDidChange((e) => {
 			this._onDidChangeConfiguration.fire(e);
 
