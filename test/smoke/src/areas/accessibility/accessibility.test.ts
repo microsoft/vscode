@@ -10,7 +10,7 @@ export function setup(logger: Logger, opts: { web?: boolean }) {
 	describe('Accessibility', function () {
 
 		// Increase timeout for accessibility scans
-		this.timeout(2 * 60 * 1000);
+		this.timeout(30 * 1000);
 
 		// Retry tests to minimize flakiness
 		this.retries(2);
