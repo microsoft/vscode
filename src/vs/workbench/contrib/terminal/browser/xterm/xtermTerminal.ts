@@ -919,16 +919,14 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			this.raw.loadAddon(this._serializeAddon);
 		}
 
-		if (startMarker && startMarker.line === -1) {
-			startMarker = undefined;
-		}
-		if (endMarker && endMarker.line === -1) {
-			endMarker = undefined;
-		}
-
-		let end = endMarker?.line ?? this.raw.buffer.active.length - 1;
-		if (skipLastLine) {
+		const hasValidEndMarker = typeof endMarker?.line === 'number' && endMarker.line >= 0;
+		const start = startMarker?.line ?? 0;
+		let end = hasValidEndMarker ? endMarker!.line : this.raw.buffer.active.length - 1;
+		if (skipLastLine && hasValidEndMarker) {
 			end = end - 1;
+		}
+		if (end < start) {
+			end = start;
 		}
 		return this._serializeAddon.serialize({
 			range: {
