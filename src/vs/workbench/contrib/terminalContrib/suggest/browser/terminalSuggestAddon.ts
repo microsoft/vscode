@@ -296,7 +296,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._requestedCompletionsIndex = this._currentPromptInputState.cursorIndex;
 
 		// Show loading indicator before making async completion request (only for explicit invocations)
-		if (explicitlyInvoked) {
+		if (explicitlyInvoked && this._container) {
 			const suggestWidget = this._ensureSuggestWidget(terminal);
 			const cursorPosition = this._getCursorPosition(terminal);
 			if (cursorPosition) {
@@ -769,7 +769,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 	private _showCompletions(model: TerminalCompletionModel, explicitlyInvoked?: boolean): void {
 		this._logService.trace('SuggestAddon#_showCompletions');
-		if (!this._terminal?.element) {
+		if (!this._terminal?.element || !this._container) {
 			return;
 		}
 		const suggestWidget = this._ensureSuggestWidget(this._terminal);
