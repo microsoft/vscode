@@ -200,8 +200,17 @@ export class MirrorModel extends BaseMirrorModel implements ICommonModel {
 		return matches;
 	}
 
-	public getLinesContent(): string[] {
-		return this._lines.slice(0);
+	public getLinesContent(includeEOL: boolean = false): string[] {
+		if (!includeEOL) {
+			return this._lines.slice(0);
+		}
+		const eol = this._eol;
+		const lines = this._lines;
+		const linesWithEOL = new Array(lines.length);
+		for (let i = 0; i < lines.length; i++) {
+			linesWithEOL[i] = lines[i] + eol;
+		}
+		return linesWithEOL;
 	}
 
 	public getLineCount(): number {
@@ -413,7 +422,7 @@ export interface ICommonModel extends ILinkComputerTarget, IDocumentColorCompute
 	eol: string;
 	getValue(): string;
 
-	getLinesContent(): string[];
+	getLinesContent(includeEOL?: boolean): string[];
 	getLineCount(): number;
 	getLineContent(lineNumber: number): string;
 	getLineWords(lineNumber: number, wordDefinition: RegExp): IWordAtPosition[];

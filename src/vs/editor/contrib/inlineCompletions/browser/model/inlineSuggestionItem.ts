@@ -562,6 +562,7 @@ function getDiffedStringEdit(textModel: ITextModel, editRange: Range, replaceTex
 		splitLines(editReplaceText),
 		{
 			ignoreTrimWhitespace: false,
+			ignoreEOL: true,
 			computeMoves: false,
 			extendToSubwords: true,
 			maxComputationTimeMs: 50,

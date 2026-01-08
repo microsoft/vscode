@@ -54,6 +54,7 @@ export class DiffEditorOptions {
 		this.enableSplitViewResizing = derived(this, reader => this._options.read(reader).enableSplitViewResizing);
 		this.splitViewDefaultRatio = derived(this, reader => this._options.read(reader).splitViewDefaultRatio);
 		this.ignoreTrimWhitespace = derived(this, reader => this._options.read(reader).ignoreTrimWhitespace);
+		this.ignoreEOL = derived(this, reader => this._options.read(reader).ignoreEOL);
 		this.maxComputationTimeMs = derived(this, reader => this._options.read(reader).maxComputationTime);
 		this.showMoves = derived(this, reader => this._options.read(reader).experimental.showMoves! && this.renderSideBySide.read(reader));
 		this.isInEmbeddedEditor = derived(this, reader => this._options.read(reader).isInEmbeddedEditor);
@@ -101,6 +102,7 @@ export class DiffEditorOptions {
 	public readonly enableSplitViewResizing;
 	public readonly splitViewDefaultRatio;
 	public readonly ignoreTrimWhitespace;
+	public readonly ignoreEOL;
 	public readonly maxComputationTimeMs;
 	public readonly showMoves;
 	public readonly isInEmbeddedEditor;
@@ -163,6 +165,7 @@ function validateDiffEditorOptions(options: Readonly<IDiffEditorOptions>, defaul
 		maxComputationTime: clampedInt(options.maxComputationTime, defaults.maxComputationTime, 0, Constants.MAX_SAFE_SMALL_INTEGER),
 		maxFileSize: clampedInt(options.maxFileSize, defaults.maxFileSize, 0, Constants.MAX_SAFE_SMALL_INTEGER),
 		ignoreTrimWhitespace: validateBooleanOption(options.ignoreTrimWhitespace, defaults.ignoreTrimWhitespace),
+		ignoreEOL: validateBooleanOption(options.ignoreEOL, defaults.ignoreEOL),
 		renderIndicators: validateBooleanOption(options.renderIndicators, defaults.renderIndicators),
 		originalEditable: validateBooleanOption(options.originalEditable, defaults.originalEditable),
 		diffCodeLens: validateBooleanOption(options.diffCodeLens, defaults.diffCodeLens),

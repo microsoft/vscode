@@ -37,6 +37,11 @@ export interface IDocumentDiffProviderOptions {
 	ignoreTrimWhitespace: boolean;
 
 	/**
+	 * When set to true, the diff should ignore end-of-line character changes.
+	 */
+	ignoreEOL: boolean;
+
+	/**
 	 * A diff computation should throw if it takes longer than this value.
 	 */
 	maxComputationTimeMs: number;

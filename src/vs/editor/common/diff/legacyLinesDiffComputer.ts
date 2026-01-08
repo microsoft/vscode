@@ -19,6 +19,7 @@ export class LegacyLinesDiffComputer implements ILinesDiffComputer {
 		const diffComputer = new DiffComputer(originalLines, modifiedLines, {
 			maxComputationTime: options.maxComputationTimeMs,
 			shouldIgnoreTrimWhitespace: options.ignoreTrimWhitespace,
+			shouldIgnoreEOL: options.ignoreEOL,
 			shouldComputeCharChanges: true,
 			shouldMakePrettyDiff: true,
 			shouldPostProcessCharChanges: true,
@@ -171,22 +172,22 @@ class LineSequence implements ISequence {
 		return i + 1;
 	}
 
-	public createCharSequence(shouldIgnoreTrimWhitespace: boolean, startIndex: number, endIndex: number): CharSequence {
+	public createCharSequence(shouldIgnoreTrimWhitespace: boolean, shouldIgnoreEOL: boolean, startIndex: number, endIndex: number): CharSequence {
 		const charCodes: number[] = [];
 		const lineNumbers: number[] = [];
 		const columns: number[] = [];
 		let len = 0;
 		for (let index = startIndex; index <= endIndex; index++) {
 			const lineContent = this.lines[index];
-			const startColumn = (shouldIgnoreTrimWhitespace ? this._startColumns[index] : 1);
-			const endColumn = (shouldIgnoreTrimWhitespace ? this._endColumns[index] : lineContent.length + 1);
+			const startColumn = (shouldIgnoreTrimWhitespace || shouldIgnoreEOL ? this._startColumns[index] : 1);
+			const endColumn = (shouldIgnoreTrimWhitespace || shouldIgnoreEOL ? this._endColumns[index] : lineContent.length + 1);
 			for (let col = startColumn; col < endColumn; col++) {
 				charCodes[len] = lineContent.charCodeAt(col - 1);
 				lineNumbers[len] = index + 1;
 				columns[len] = col;
 				len++;
 			}
-			if (!shouldIgnoreTrimWhitespace && index < endIndex) {
+			if ((!shouldIgnoreTrimWhitespace || !shouldIgnoreEOL) && index < endIndex) {
 				// Add \n if trim whitespace is not ignored
 				charCodes[len] = CharCode.LineFeed;
 				lineNumbers[len] = index + 1;
@@ -377,7 +378,7 @@ class LineChange implements ILineChange {
 		this.charChanges = charChanges;
 	}
 
-	public static createFromDiffResult(shouldIgnoreTrimWhitespace: boolean, diffChange: IDiffChange, originalLineSequence: LineSequence, modifiedLineSequence: LineSequence, continueCharDiff: () => boolean, shouldComputeCharChanges: boolean, shouldPostProcessCharChanges: boolean): LineChange {
+	public static createFromDiffResult(shouldIgnoreTrimWhitespace: boolean, shouldIgnoreEOL: boolean, diffChange: IDiffChange, originalLineSequence: LineSequence, modifiedLineSequence: LineSequence, continueCharDiff: () => boolean, shouldComputeCharChanges: boolean, shouldPostProcessCharChanges: boolean): LineChange {
 		let originalStartLineNumber: number;
 		let originalEndLineNumber: number;
 		let modifiedStartLineNumber: number;
@@ -402,8 +403,8 @@ class LineChange implements ILineChange {
 
 		if (shouldComputeCharChanges && diffChange.originalLength > 0 && diffChange.originalLength < 20 && diffChange.modifiedLength > 0 && diffChange.modifiedLength < 20 && continueCharDiff()) {
 			// Compute character changes for diff chunks of at most 20 lines...
-			const originalCharSequence = originalLineSequence.createCharSequence(shouldIgnoreTrimWhitespace, diffChange.originalStart, diffChange.originalStart + diffChange.originalLength - 1);
-			const modifiedCharSequence = modifiedLineSequence.createCharSequence(shouldIgnoreTrimWhitespace, diffChange.modifiedStart, diffChange.modifiedStart + diffChange.modifiedLength - 1);
+			const originalCharSequence = originalLineSequence.createCharSequence(shouldIgnoreTrimWhitespace, shouldIgnoreEOL, diffChange.originalStart, diffChange.originalStart + diffChange.originalLength - 1);
+			const modifiedCharSequence = modifiedLineSequence.createCharSequence(shouldIgnoreTrimWhitespace, shouldIgnoreEOL, diffChange.modifiedStart, diffChange.modifiedStart + diffChange.modifiedLength - 1);
 
 			if (originalCharSequence.getElements().length > 0 && modifiedCharSequence.getElements().length > 0) {
 				let rawChanges = computeDiff(originalCharSequence, modifiedCharSequence, continueCharDiff, true).changes;
@@ -427,6 +428,7 @@ export interface IDiffComputerOpts {
 	shouldComputeCharChanges: boolean;
 	shouldPostProcessCharChanges: boolean;
 	shouldIgnoreTrimWhitespace: boolean;
+	shouldIgnoreEOL: boolean;
 	shouldMakePrettyDiff: boolean;
 	maxComputationTime: number;
 }
@@ -436,6 +438,7 @@ export class DiffComputer {
 	private readonly shouldComputeCharChanges: boolean;
 	private readonly shouldPostProcessCharChanges: boolean;
 	private readonly shouldIgnoreTrimWhitespace: boolean;
+	private readonly shouldIgnoreEOL: boolean;
 	private readonly shouldMakePrettyDiff: boolean;
 	private readonly originalLines: string[];
 	private readonly modifiedLines: string[];
@@ -448,6 +451,7 @@ export class DiffComputer {
 		this.shouldComputeCharChanges = opts.shouldComputeCharChanges;
 		this.shouldPostProcessCharChanges = opts.shouldPostProcessCharChanges;
 		this.shouldIgnoreTrimWhitespace = opts.shouldIgnoreTrimWhitespace;
+		this.shouldIgnoreEOL = opts.shouldIgnoreEOL;
 		this.shouldMakePrettyDiff = opts.shouldMakePrettyDiff;
 		this.originalLines = originalLines;
 		this.modifiedLines = modifiedLines;
@@ -505,7 +509,7 @@ export class DiffComputer {
 		if (this.shouldIgnoreTrimWhitespace) {
 			const lineChanges: LineChange[] = [];
 			for (let i = 0, length = rawChanges.length; i < length; i++) {
-				lineChanges.push(LineChange.createFromDiffResult(this.shouldIgnoreTrimWhitespace, rawChanges[i], this.original, this.modified, this.continueCharDiff, this.shouldComputeCharChanges, this.shouldPostProcessCharChanges));
+				lineChanges.push(LineChange.createFromDiffResult(this.shouldIgnoreTrimWhitespace, this.shouldIgnoreEOL, rawChanges[i], this.original, this.modified, this.continueCharDiff, this.shouldComputeCharChanges, this.shouldPostProcessCharChanges));
 			}
 			return {
 				quitEarly: quitEarly,
@@ -583,7 +587,7 @@ export class DiffComputer {
 
 			if (nextChange) {
 				// Emit the actual change
-				result.push(LineChange.createFromDiffResult(this.shouldIgnoreTrimWhitespace, nextChange, this.original, this.modified, this.continueCharDiff, this.shouldComputeCharChanges, this.shouldPostProcessCharChanges));
+				result.push(LineChange.createFromDiffResult(this.shouldIgnoreTrimWhitespace, this.shouldIgnoreEOL, nextChange, this.original, this.modified, this.continueCharDiff, this.shouldComputeCharChanges, this.shouldPostProcessCharChanges));
 
 				originalLineIndex += nextChange.originalLength;
 				modifiedLineIndex += nextChange.modifiedLength;

@@ -11,6 +11,7 @@ export interface ILinesDiffComputer {
 
 export interface ILinesDiffComputerOptions {
 	readonly ignoreTrimWhitespace: boolean;
+	readonly ignoreEOL: boolean;
 	readonly maxComputationTimeMs: number;
 	readonly computeMoves: boolean;
 	readonly extendToSubwords?: boolean;

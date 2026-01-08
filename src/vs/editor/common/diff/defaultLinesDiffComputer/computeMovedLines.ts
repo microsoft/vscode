@@ -260,8 +260,8 @@ function areLinesSimilar(line1: string, line2: string, timeout: ITimeout): boole
 
 	const myersDiffingAlgorithm = new MyersDiffAlgorithm();
 	const result = myersDiffingAlgorithm.compute(
-		new LinesSliceCharSequence([line1], new Range(1, 1, 1, line1.length), false),
-		new LinesSliceCharSequence([line2], new Range(1, 1, 1, line2.length), false),
+		new LinesSliceCharSequence([line1], new Range(1, 1, 1, line1.length), false, true),
+		new LinesSliceCharSequence([line2], new Range(1, 1, 1, line2.length), false, true),
 		timeout
 	);
 	let commonNonSpaceCharCount = 0;

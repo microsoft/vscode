@@ -566,7 +566,7 @@ export class InlineChatController1 implements IEditorContribution {
 			}
 		}
 		if (didEdit) {
-			const diff = await this._editorWorkerService.computeDiff(this._session.textModel0.uri, this._session.textModelN.uri, { computeMoves: false, maxComputationTimeMs: Number.MAX_SAFE_INTEGER, ignoreTrimWhitespace: false }, 'advanced');
+			const diff = await this._editorWorkerService.computeDiff(this._session.textModel0.uri, this._session.textModelN.uri, { computeMoves: false, maxComputationTimeMs: Number.MAX_SAFE_INTEGER, ignoreTrimWhitespace: false, ignoreEOL: true }, 'advanced');
 			this._session.wholeRange.fixup(diff?.changes ?? []);
 			await this._session.hunkData.recompute(editState, diff);
 
@@ -843,7 +843,7 @@ export class InlineChatController1 implements IEditorContribution {
 
 		store.dispose();
 
-		const diff = await this._editorWorkerService.computeDiff(this._session.textModel0.uri, this._session.textModelN.uri, { computeMoves: false, maxComputationTimeMs: Number.MAX_SAFE_INTEGER, ignoreTrimWhitespace: false }, 'advanced');
+		const diff = await this._editorWorkerService.computeDiff(this._session.textModel0.uri, this._session.textModelN.uri, { computeMoves: false, maxComputationTimeMs: Number.MAX_SAFE_INTEGER, ignoreTrimWhitespace: false, ignoreEOL: true }, 'advanced');
 		this._session.wholeRange.fixup(diff?.changes ?? []);
 		await this._session.hunkData.recompute(editState, diff);
 

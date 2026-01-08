@@ -874,7 +874,7 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 		return this._editorWorkerService.computeDiff(
 			originalUri,
 			modifiedUri,
-			{ ignoreTrimWhitespace: false, computeMoves: false, maxComputationTimeMs: 3000 },
+			{ ignoreTrimWhitespace: false, ignoreEOL: true, computeMoves: false, maxComputationTimeMs: 3000 },
 			'advanced'
 		).then((diff): IEditSessionEntryDiff => {
 			const entryDiff: IEditSessionEntryDiff = {

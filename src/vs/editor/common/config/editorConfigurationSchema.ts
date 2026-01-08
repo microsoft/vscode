@@ -234,6 +234,11 @@ const editorConfiguration: IConfigurationNode = {
 			default: diffEditorDefaultOptions.ignoreTrimWhitespace,
 			description: nls.localize('ignoreTrimWhitespace', "When enabled, the diff editor ignores changes in leading or trailing whitespace.")
 		},
+		'diffEditor.ignoreEOL': {
+			type: 'boolean',
+			default: diffEditorDefaultOptions.ignoreEOL,
+			description: nls.localize('ignoreEOL', "When enabled, the diff editor ignores changes in end-of-line characters.")
+		},
 		'diffEditor.renderIndicators': {
 			type: 'boolean',
 			default: diffEditorDefaultOptions.renderIndicators,
