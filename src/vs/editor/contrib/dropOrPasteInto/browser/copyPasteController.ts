@@ -265,7 +265,6 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 	private async handlePaste(e: ClipboardEvent) {
 		PasteOptions.electronBugWorkaroundPasteEventHasFired = true;
-		this._logService.trace('(handlePaste) PasteOptions.electronBugWorkaroundPasteEventHasFired : ', PasteOptions.electronBugWorkaroundPasteEventHasFired);
 		if (e.clipboardData) {
 			const [text, metadata] = ClipboardEventUtils.getTextData(e.clipboardData);
 			const metadataComputed = metadata || InMemoryClipboardMetadataManager.INSTANCE.get(text);
