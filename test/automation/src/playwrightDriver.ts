@@ -432,25 +432,25 @@ export class PlaywrightDriver {
 		// Filter out violations for specific elements based on excludeRules
 		let filteredViolations = results.violations;
 		if (options?.excludeRules) {
-			filteredViolations = results.violations.map(violation => {
+			filteredViolations = results.violations.map((violation: AxeResults['violations'][number]) => {
 				const excludePatterns = options.excludeRules![violation.id];
 				if (!excludePatterns) {
 					return violation;
 				}
 				// Filter out nodes that match any of the exclude patterns
-				const filteredNodes = violation.nodes.filter(node => {
+				const filteredNodes = violation.nodes.filter((node: AxeResults['violations'][number]['nodes'][number]) => {
 					const target = node.target.join(' ');
 					const html = node.html || '';
 					// Check if any exclude pattern appears in target or HTML
 					return !excludePatterns.some(pattern => target.includes(pattern) || html.includes(pattern));
 				});
 				return { ...violation, nodes: filteredNodes };
-			}).filter(violation => violation.nodes.length > 0);
+			}).filter((violation: AxeResults['violations'][number]) => violation.nodes.length > 0);
 		}
 
 		if (filteredViolations.length > 0) {
-			const violationMessages = filteredViolations.map(violation => {
-				const nodes = violation.nodes.map(node => {
+			const violationMessages = filteredViolations.map((violation: AxeResults['violations'][number]) => {
+				const nodes = violation.nodes.map((node: AxeResults['violations'][number]['nodes'][number]) => {
 					const target = node.target.join(' > ');
 					const html = node.html || 'N/A';
 					// Extract class from HTML for easier identification
@@ -472,7 +472,7 @@ export class PlaywrightDriver {
 
 			throw new Error(
 				`Accessibility violations found:\n\n${violationMessages}\n\n` +
-				`Total: ${filteredViolations.length} violation(s) affecting ${filteredViolations.reduce((sum, v) => sum + v.nodes.length, 0)} element(s)`
+				`Total: ${filteredViolations.length} violation(s) affecting ${filteredViolations.reduce((sum: number, v: AxeResults['violations'][number]) => sum + v.nodes.length, 0)} element(s)`
 			);
 		}
 	}
