@@ -49,26 +49,6 @@ declare module 'vscode' {
 		 */
 		readonly onDidCommitChatSessionItem: Event<{ original: ChatSessionItem /** untitled */; modified: ChatSessionItem /** newly created */ }>;
 
-		/**
-		 * DEPRECATED: Will be removed!
-		 * Creates a new chat session.
-		 *
-		 * @param options Options for the new session including an optional initial prompt and history
-		 * @param token A cancellation token
-		 * @returns Metadata for the chat session
-		 */
-		provideNewChatSessionItem?(options: {
-			/**
-			 * The chat request that initiated the session creation
-			 */
-			readonly request: ChatRequest;
-
-			/**
-			 * Additional metadata to use for session creation
-			 */
-			metadata?: any;
-		}, token: CancellationToken): ProviderResult<ChatSessionItem>;
-
 		// #endregion
 	}
 
