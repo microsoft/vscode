@@ -18,9 +18,8 @@
         "id": "r",
         "extensions": [
           ".R",
-          ".r",
-          ".rhistory",
-          ".rprofile",
+          ".Rhistory",
+          ".Rprofile",
           ".rt"
         ],
         "aliases": [
