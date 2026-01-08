@@ -118,10 +118,32 @@ export async function getCommandOutputSnapshot(
 /**
  * Mirrors a terminal command's output into a detached terminal instance.
  * Used in the chat terminal tool progress part to show command output for example.
- * This implementation streams output by:
- *  - Taking full VT snapshots of the command range.
- *  - Tracking cursor movement and dirty ranges via xterm events and onData.
- *  - Appending only new VT where possible, falling back to full rewrites when needed.
+ *
+ * Streaming approach
+ * ------------------
+ * The mirror maintains a VT snapshot of the command's output and incrementally updates a
+ * detached xterm instance instead of re-rendering the whole range on every change.
+ *
+ * - A *dirty range* is the set of buffer rows that may have diverged between the source
+ *   terminal and the detached mirror. It is tracked by:
+ *     - `_lastUpToDateCursorY`: the last cursor row in the source buffer for which the
+ *       mirror is known to be fully up to date.
+ *     - `_lowestDirtyCursorY`: the smallest (top-most) cursor row that has been affected
+ *       by new data or cursor movement since the last flush.
+ *
+ * - When new data arrives or the cursor moves, xterm events and `onData` callbacks are
+ *   used to update `_lowestDirtyCursorY`. This effectively marks everything from that row
+ *   downwards as potentially stale.
+ *
+ * - If the dirty range starts exactly at the previous end of the mirrored output (that is,
+ *   `_lowestDirtyCursorY` is at or after `_lastUpToDateCursorY` and no earlier rows have
+ *   changed), the mirror can *append* VT that corresponds only to the new rows.
+ *
+ * - If the cursor moves or data is written above the previously mirrored end (for example,
+ *   when the command rewrites lines, uses carriage returns, or modifies earlier rows),
+ *   `_lowestDirtyCursorY` will be before `_lastUpToDateCursorY`. In that case the mirror
+ *   cannot safely append and instead falls back to taking a fresh VT snapshot of the
+ *   entire command range and *rewrites* the detached terminal content.
  */
 export class DetachedTerminalCommandMirror extends Disposable implements IDetachedTerminalCommandMirror {
 	private _detachedTerminal: IDetachedTerminalInstance | undefined;
