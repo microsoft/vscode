@@ -34,6 +34,7 @@ const SHELL_EXECUTABLES = [
 	'julia.exe',
 	'nu.exe',
 	'node.exe',
+	'xonsh.exe',
 ];
 
 const SHELL_EXECUTABLE_REGEXES = [
@@ -162,6 +163,8 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 				return GeneralShellType.Node;
 			case 'nu.exe':
 				return GeneralShellType.NuShell;
+			case 'xonsh.exe':
+				return GeneralShellType.Xonsh;
 			case 'wsl.exe':
 			case 'ubuntu.exe':
 			case 'ubuntu1804.exe':

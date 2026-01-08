@@ -74,7 +74,7 @@ const generalShellTypeMap = new Map<string, GeneralShellType>([
 	['julia', GeneralShellType.Julia],
 	['nu', GeneralShellType.NuShell],
 	['node', GeneralShellType.Node],
-
+	['xonsh', GeneralShellType.Xonsh],
 ]);
 export class TerminalProcess extends Disposable implements ITerminalChildProcess {
 	readonly id = 0;

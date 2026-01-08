@@ -184,6 +184,8 @@ export interface IToolResultInputOutputDetails {
 	readonly input: string;
 	readonly output: (ToolInputOutputEmbedded | ToolInputOutputReference)[];
 	readonly isError?: boolean;
+	/** Raw MCP tool result for MCP App UI rendering */
+	readonly mcpOutput?: unknown;
 }
 
 export interface IToolResultOutputDetails {
@@ -263,6 +265,8 @@ export interface IToolConfirmationMessages {
 	terminalCustomActions?: ToolConfirmationAction[];
 	/** If true, confirmation will be requested after the tool executes and before results are sent to the model */
 	confirmResults?: boolean;
+	/** If title is not set (no confirmation needed), this reason will be shown to explain why confirmation was not needed */
+	confirmationNotNeededReason?: string | IMarkdownString;
 }
 
 export interface IToolConfirmationAction {
