@@ -37,10 +37,10 @@ import { ILifecycleService } from '../../../../services/lifecycle/common/lifecyc
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
-import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingAgentSupportsReadonlyReferencesContextKey, chatEditingResourceContextKey, ChatEditingSessionState, IChatEditingService, IChatEditingSession, IChatRelatedFile, IChatRelatedFilesProvider, IModifiedFileEntry, inChatEditingSessionContextKey, IStreamingEdits, ModifiedFileEntryState, parseChatMultiDiffUri } from '../../common/chatEditingService.js';
-import { ChatModel, ICellTextEditOperation, IChatResponseModel, isCellTextEditOperationArray } from '../../common/chatModel.js';
-import { IChatService } from '../../common/chatService.js';
-import { ChatEditorInput } from '../chatEditorInput.js';
+import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingAgentSupportsReadonlyReferencesContextKey, chatEditingResourceContextKey, ChatEditingSessionState, IChatEditingService, IChatEditingSession, IChatRelatedFile, IChatRelatedFilesProvider, IModifiedFileEntry, inChatEditingSessionContextKey, IStreamingEdits, ModifiedFileEntryState, parseChatMultiDiffUri } from '../../common/editing/chatEditingService.js';
+import { ChatModel, ICellTextEditOperation, IChatResponseModel, isCellTextEditOperationArray } from '../../common/model/chatModel.js';
+import { IChatService } from '../../common/chatService/chatService.js';
+import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { AbstractChatEditingModifiedFileEntry } from './chatEditingModifiedFileEntry.js';
 import { ChatEditingSession } from './chatEditingSession.js';
 import { ChatEditingSnapshotTextModelContentProvider, ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
@@ -82,14 +82,16 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 		// TODO@jrieken
 		// some ugly casting so that this service can pass itself as argument instad as service dependeny
-		// eslint-disable-next-line local/code-no-any-casts
+		// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 		this._register(textModelService.registerTextModelContentProvider(ChatEditingTextModelContentProvider.scheme, _instantiationService.createInstance(ChatEditingTextModelContentProvider as any, this)));
-		// eslint-disable-next-line local/code-no-any-casts
+		// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 		this._register(textModelService.registerTextModelContentProvider(Schemas.chatEditingSnapshotScheme, _instantiationService.createInstance(ChatEditingSnapshotTextModelContentProvider as any, this)));
 
 		this._register(this._chatService.onDidDisposeSession((e) => {
 			if (e.reason === 'cleared') {
-				this.getEditingSession(e.sessionResource)?.stop();
+				for (const resource of e.sessionResource) {
+					this.getEditingSession(resource)?.stop();
+				}
 			}
 		}));
 
@@ -104,9 +106,11 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		this._register(extensionService.onDidChangeExtensions(setReadonlyFilesEnabled));
 
 
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		let storageTask: Promise<any> | undefined;
 
 		this._register(storageService.onWillSaveState(() => {
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			const tasks: Promise<any>[] = [];
 
 			for (const session of this.editingSessionsObs.get()) {

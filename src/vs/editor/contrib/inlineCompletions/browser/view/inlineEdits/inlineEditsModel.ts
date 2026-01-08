@@ -5,8 +5,10 @@
 
 import { Event } from '../../../../../../base/common/event.js';
 import { derived, IObservable } from '../../../../../../base/common/observable.js';
+import { setTimeout0 } from '../../../../../../base/common/platform.js';
 import { InlineCompletionsModel, isSuggestionInViewport } from '../../model/inlineCompletionsModel.js';
 import { InlineSuggestHint } from '../../model/inlineSuggestionItem.js';
+import { InlineCompletionEditorType } from '../../model/provideInlineCompletions.js';
 import { InlineCompletionViewData, InlineCompletionViewKind, InlineEditTabAction } from './inlineEditsViewInterface.js';
 import { InlineEditWithChanges } from './inlineEditWithChanges.js';
 
@@ -16,7 +18,7 @@ import { InlineEditWithChanges } from './inlineEditWithChanges.js';
 */
 export class ModelPerInlineEdit {
 
-	readonly isInDiffEditor: boolean;
+	readonly editorType: InlineCompletionEditorType;
 
 	readonly displayLocation: InlineSuggestHint | undefined;
 
@@ -31,7 +33,7 @@ export class ModelPerInlineEdit {
 		readonly inlineEdit: InlineEditWithChanges,
 		readonly tabAction: IObservable<InlineEditTabAction>,
 	) {
-		this.isInDiffEditor = this._model.isInDiffEditor;
+		this.editorType = this._model.editorType;
 
 		this.displayLocation = this.inlineEdit.inlineCompletion.hint;
 
@@ -39,11 +41,17 @@ export class ModelPerInlineEdit {
 		this.onDidAccept = this._model.onDidAccept;
 	}
 
-	accept() {
-		this._model.accept();
+	accept(alternativeAction?: boolean) {
+		this._model.accept(undefined, alternativeAction);
 	}
 
-	handleInlineEditShown(viewKind: InlineCompletionViewKind, viewData: InlineCompletionViewData) {
-		this._model.handleInlineSuggestionShown(this.inlineEdit.inlineCompletion, viewKind, viewData);
+	handleInlineEditShownNextFrame(viewKind: InlineCompletionViewKind, viewData: InlineCompletionViewData) {
+		const item = this.inlineEdit.inlineCompletion;
+		const timeWhenShown = Date.now();
+		item.addRef();
+		setTimeout0(() => {
+			this._model.handleInlineSuggestionShown(item, viewKind, viewData, timeWhenShown);
+			item.removeRef();
+		});
 	}
 }

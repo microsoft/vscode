@@ -7,8 +7,9 @@ import { booleanComparator, compareBy, compareUndefinedSmallest, numberComparato
 import { findLastMax } from '../../../../../base/common/arraysFind.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { equalsIfDefined, itemEquals } from '../../../../../base/common/equals.js';
+import { equalsIfDefined, thisEqualsC } from '../../../../../base/common/equals.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { cloneAndChange } from '../../../../../base/common/objects.js';
 import { derived, IObservable, IObservableWithChange, ITransaction, observableValue, recordChangesLazy, transaction } from '../../../../../base/common/observable.js';
 // eslint-disable-next-line local/code-no-deep-import-of-internal
 import { observableReducerSettable } from '../../../../../base/common/observableInternal/experimental/reducer.js';
@@ -270,7 +271,7 @@ export class InlineCompletionsSource extends Disposable {
 				providerSuggestions.forEach(s => s.addPerformanceMarker('providersResolved'));
 
 				const suggestions: InlineSuggestionItem[] = await Promise.all(providerSuggestions.map(async s => {
-					return this._renameProcessor.proposeRenameRefactoring(this._textModel, s);
+					return this._renameProcessor.proposeRenameRefactoring(this._textModel, s, context);
 				}));
 
 				suggestions.forEach(s => s.addPerformanceMarker('renameProcessed'));
@@ -283,21 +284,46 @@ export class InlineCompletionsSource extends Disposable {
 					if (source.token.isCancellationRequested || this._store.isDisposed || this._textModel.getVersionId() !== request.versionId) {
 						error = 'canceled';
 					}
-					const result = suggestions.map(c => ({
-						...(mapDeep(c.getSourceCompletion(), v => {
-							if (Range.isIRange(v)) {
-								return v.toString();
-							}
-							if (Position.isIPosition(v)) {
-								return v.toString();
-							}
-							if (Command.is(v)) {
-								return { $commandId: v.id };
-							}
-							return v;
-						}) as object),
-						$providerId: c.source.provider.providerId?.toString(),
-					}));
+					const result = suggestions.map(c => {
+						const comp = c.getSourceCompletion();
+						if (comp.doNotLog) {
+							return undefined;
+						}
+						const obj = {
+							insertText: comp.insertText,
+							range: comp.range,
+							additionalTextEdits: comp.additionalTextEdits,
+							uri: comp.uri,
+							command: comp.command,
+							gutterMenuLinkAction: comp.gutterMenuLinkAction,
+							shownCommand: comp.shownCommand,
+							completeBracketPairs: comp.completeBracketPairs,
+							isInlineEdit: comp.isInlineEdit,
+							showInlineEditMenu: comp.showInlineEditMenu,
+							showRange: comp.showRange,
+							warning: comp.warning,
+							hint: comp.hint,
+							supportsRename: comp.supportsRename,
+							correlationId: comp.correlationId,
+							jumpToPosition: comp.jumpToPosition,
+						};
+						return {
+							...(cloneAndChange(obj, v => {
+								if (Range.isIRange(v)) {
+									return Range.lift(v).toString();
+								}
+								if (Position.isIPosition(v)) {
+									return Position.lift(v).toString();
+								}
+								if (Command.is(v)) {
+									return { $commandId: v.id };
+								}
+								return v;
+							}) as object),
+							$providerId: c.source.provider.providerId?.toString(),
+						};
+					}).filter(result => result !== undefined);
+
 					this._log({ sourceId: 'InlineCompletions.fetch', kind: 'end', requestId, durationMs: (Date.now() - startTime.getTime()), error, result, time: Date.now(), didAllProvidersReturn });
 				}
 
@@ -434,7 +460,8 @@ export class InlineCompletionsSource extends Disposable {
 			extensionVersion: '0.0.0',
 			groupId: 'empty',
 			shown: false,
-			sku: requestResponseInfo.requestInfo.sku,
+			skuPlan: requestResponseInfo.requestInfo.sku?.plan,
+			skuType: requestResponseInfo.requestInfo.sku?.type,
 			editorType: requestResponseInfo.requestInfo.editorType,
 			requestReason: requestResponseInfo.requestInfo.reason,
 			typingInterval: requestResponseInfo.requestInfo.typingInterval,
@@ -449,6 +476,7 @@ export class InlineCompletionsSource extends Disposable {
 			preceeded: undefined,
 			superseded: undefined,
 			reason: undefined,
+			acceptedAlternativeAction: undefined,
 			correlationId: undefined,
 			shownDuration: undefined,
 			shownDurationUncollapsed: undefined,
@@ -465,10 +493,14 @@ export class InlineCompletionsSource extends Disposable {
 			characterCountModified: undefined,
 			disjointReplacements: undefined,
 			sameShapeReplacements: undefined,
+			longDistanceHintVisible: undefined,
+			longDistanceHintDistance: undefined,
 			notShownReason: undefined,
 			renameCreated: false,
 			renameDuration: undefined,
 			renameTimedOut: false,
+			renameDroppedOtherEdits: undefined,
+			renameDroppedRenameEdits: undefined,
 			performanceMarkers: undefined,
 			editKind: undefined,
 		};
@@ -499,7 +531,7 @@ class UpdateRequest {
 
 	public satisfies(other: UpdateRequest): boolean {
 		return this.position.equals(other.position)
-			&& equalsIfDefined(this.context.selectedSuggestionInfo, other.context.selectedSuggestionInfo, itemEquals())
+			&& equalsIfDefined(this.context.selectedSuggestionInfo, other.context.selectedSuggestionInfo, thisEqualsC())
 			&& (other.context.triggerKind === InlineCompletionTriggerKind.Automatic
 				|| this.context.triggerKind === InlineCompletionTriggerKind.Explicit)
 			&& this.versionId === other.versionId
@@ -672,18 +704,4 @@ function moveToFront<T>(item: T, items: T[]): T[] {
 		return [item, ...items.slice(0, index), ...items.slice(index + 1)];
 	}
 	return items;
-}
-
-function mapDeep(value: unknown, replacer: (value: unknown) => unknown): unknown {
-	const val = replacer(value);
-	if (Array.isArray(val)) {
-		return val.map(v => mapDeep(v, replacer));
-	} else if (isObject(val)) {
-		const result: Record<string, unknown> = {};
-		for (const [key, value] of Object.entries(val)) {
-			result[key] = mapDeep(value, replacer);
-		}
-		return result;
-	}
-	return val;
 }

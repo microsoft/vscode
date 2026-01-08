@@ -152,6 +152,7 @@ export const enum GeneralShellType {
 	Julia = 'julia',
 	NuShell = 'nu',
 	Node = 'node',
+	Xonsh = 'xonsh',
 }
 export type TerminalShellType = PosixShellType | WindowsShellType | GeneralShellType | undefined;
 

@@ -286,16 +286,6 @@
 				"cwd": "./build/vite/"
 			},
 			"isBackground": true,
-			"problemMatcher": {
-				"pattern": {
-					"regexp": ""
-				},
-				"background": {
-					"activeOnStart": true,
-					"beginsPattern": "never match",
-					"endsPattern": ".*"
-				}
-			}
 		},
 		{
 			"label": "Launch MCP Server",

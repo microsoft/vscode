@@ -8,6 +8,8 @@
 */
 
 .monaco-editor {
+	--inline-edit-border-radius: 3px;
+
 	.inline-edits-view-indicator {
 		display: flex;
 
@@ -17,7 +19,7 @@
 		color: var(--vscode-inlineEdit-gutterIndicator-primaryForeground);
 		background-color: var(--vscode-inlineEdit-gutterIndicator-background);
 		border: 1px solid var(--vscode-inlineEdit-gutterIndicator-primaryBorder);
-		border-radius: 3px;
+		border-radius: var(--inline-edit-border-radius);
 
 		align-items: center;
 		padding: 2px;
@@ -132,13 +134,13 @@
 		border-bottom: 1px solid var(--vscode-inlineEdit-modifiedBorder); /* TODO: Do not set border inline but create overlaywidget (like deletion view) */
 	}
 	.inlineCompletions-char-insert.single-line-inline.start {
-		border-top-left-radius: 4px;
-		border-bottom-left-radius: 4px;
+		border-top-left-radius: var(--inline-edit-border-radius);
+		border-bottom-left-radius: var(--inline-edit-border-radius);
 		border-left: 1px solid var(--vscode-inlineEdit-modifiedBorder); /* TODO: Do not set border inline but create overlaywidget (like deletion view) */
 	}
 	.inlineCompletions-char-insert.single-line-inline.end {
-		border-top-right-radius: 4px;
-		border-bottom-right-radius: 4px;
+		border-top-right-radius: var(--inline-edit-border-radius);
+		border-bottom-right-radius: var(--inline-edit-border-radius);
 		border-right: 1px solid var(--vscode-inlineEdit-modifiedBorder); /* TODO: Do not set border inline but create overlaywidget (like deletion view) */
 	}
 
@@ -189,29 +191,15 @@
 		background: var(--vscode-editor-background);
 	}
 
-	.inline-edit-jump-to-pill {
-		background-color: rgba(33, 150, 243, 0.3);
-		color: #2196F3;
-		outline: 1px solid #2196F3;
-		padding: 0px 6px 0px 9px;
-		margin: -2px 4px;
-		font-size: 0.9em;
-		font-weight: 500;
-		white-space: nowrap;
-		display: inline-block;
-		vertical-align: middle;
-		position: relative;
-	}
+	.inline-edit-jump-to-widget {
 
-	.inline-edit-jump-to-pill::before {
-		content: '';
-		position: absolute;
-		left: 0;
-		top: 0;
-		bottom: 0;
-		width: 10px;
-		clip-path: polygon(8px 0, 0 50%, 8px 100%, 8px 0);
-		transform: translateX(-1px);
+
+		.monaco-keybinding {
+			.monaco-keybinding-key {
+				font-size: 11px;
+				padding: 1px 2px 2px 2px;
+			}
+		}
 	}
 }
 
@@ -253,7 +241,22 @@
 	background: linear-gradient(to left, var(--vscode-editorWidget-background) 0, transparent 12px);
 }
 
-.inline-edit-rename-label .codicon {
+.hc-black .inline-edits-long-distance-hint-widget .go-to-label::before,
+.hc-light .inline-edits-long-distance-hint-widget .go-to-label::before {
+	/* Remove gradient in high contrast mode for clearer separation */
+	background: var(--vscode-editorWidget-background);
+}
+
+.inline-edit-alternative-action-label .codicon {
 	font-size: 12px !important;
 	padding-right: 4px;
 }
+
+.inline-edit-alternative-action-label .monaco-keybinding-key {
+	padding: 2px 3px;
+}
+
+.inline-edit-alternative-action-label .inline-edit-alternative-action-label-separator {
+	width: 4px;
+}
+

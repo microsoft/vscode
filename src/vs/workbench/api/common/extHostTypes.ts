@@ -868,7 +868,8 @@ export enum TerminalShellType {
 	Python = 10,
 	Julia = 11,
 	NuShell = 12,
-	Node = 13
+	Node = 13,
+	Xonsh = 14
 }
 
 export class TerminalLink implements vscode.TerminalLink {
@@ -990,7 +991,7 @@ export class TerminalCompletionList<T extends TerminalCompletionItem = TerminalC
 
 export interface TerminalCompletionResourceOptions {
 	showFiles?: boolean;
-	showFolders?: boolean;
+	showDirectories?: boolean;
 	fileExtensions?: string[];
 	cwd?: vscode.Uri;
 }
@@ -3370,6 +3371,7 @@ export class ChatToolInvocationPart {
 	isComplete?: boolean;
 	toolSpecificData?: ChatTerminalToolInvocationData2;
 	fromSubAgent?: boolean;
+	presentation?: 'hidden' | 'hiddenAfterComplete' | undefined;
 
 	constructor(toolName: string,
 		toolCallId: string,
@@ -3425,6 +3427,10 @@ export enum ChatSessionStatus {
 	InProgress = 2
 }
 
+export class ChatSessionChangedFile {
+	constructor(public readonly modifiedUri: vscode.Uri, public readonly insertions: number, public readonly deletions: number, public readonly originalUri?: vscode.Uri) { }
+}
+
 export enum ChatResponseReferencePartStatusKind {
 	Complete = 1,
 	Partial = 2,
@@ -3439,6 +3445,7 @@ export enum ChatResponseClearToPreviousToolInvocationReason {
 
 export class ChatRequestEditorData implements vscode.ChatRequestEditorData {
 	constructor(
+		readonly editor: vscode.TextEditor,
 		readonly document: vscode.TextDocument,
 		readonly selection: vscode.Selection,
 		readonly wholeRange: vscode.Range,
@@ -3490,11 +3497,6 @@ export enum ChatErrorLevel {
 	Info = 0,
 	Warning = 1,
 	Error = 2
-}
-
-export enum CustomAgentTarget {
-	GitHubCopilot = 'github-copilot',
-	VSCode = 'vscode',
 }
 
 export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage {

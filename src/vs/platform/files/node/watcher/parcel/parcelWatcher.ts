@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import parcelWatcher from '@parcel/watcher';
+import parcelWatcher from '@vscode/watcher';
 import { promises } from 'fs';
 import { tmpdir, homedir } from 'os';
 import { URI } from '../../../../../base/common/uri.js';
@@ -65,8 +65,9 @@ export class ParcelWatcherInstance extends Disposable {
 	) {
 		super();
 
-		this.includes = this.request.includes ? parseWatcherPatterns(this.request.path, this.request.includes) : undefined;
-		this.excludes = this.request.excludes ? parseWatcherPatterns(this.request.path, this.request.excludes) : undefined;
+		const ignoreCase = !isLinux;
+		this.includes = this.request.includes ? parseWatcherPatterns(this.request.path, this.request.includes, ignoreCase) : undefined;
+		this.excludes = this.request.excludes ? parseWatcherPatterns(this.request.path, this.request.excludes, ignoreCase) : undefined;
 
 		this._register(toDisposable(() => this.subscriptions.clear()));
 	}

@@ -890,13 +890,16 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		const templateDisposables = new DisposableStore();
 		const label = templateDisposables.add(this.labels.create(container, { supportHighlights: true }));
 		templateDisposables.add(label.onDidRender(() => {
-			try {
-				if (templateData.currentContext) {
-					this.updateWidth(templateData.currentContext);
+			// schedule this on the next animation frame to avoid rendering reentry
+			DOM.scheduleAtNextAnimationFrame(DOM.getWindow(templateData.container), () => {
+				try {
+					if (templateData.currentContext) {
+						this.updateWidth(templateData.currentContext);
+					}
+				} catch (e) {
+					// noop since the element might no longer be in the tree, no update of width necessary
 				}
-			} catch (e) {
-				// noop since the element might no longer be in the tree, no update of width necessary
-			}
+			});
 		}));
 
 		const contribs = explorerFileContribRegistry.create(this.instantiationService, container, templateDisposables);

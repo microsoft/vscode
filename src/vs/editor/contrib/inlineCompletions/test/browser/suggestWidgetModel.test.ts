@@ -37,6 +37,8 @@ import { setUnexpectedErrorHandler } from '../../../../../base/common/errors.js'
 import { IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
+import { InlineSuggestionsView } from '../../browser/view/inlineSuggestionsView.js';
 
 suite('Suggest Widget Model', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -180,6 +182,9 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 			}
 
 			await withAsyncTestCodeEditor(text, { ...options, serviceCollection }, async (editor, editorViewModel, instantiationService) => {
+				instantiationService.stubInstance(InlineSuggestionsView, {
+					dispose: () => { }
+				});
 				editor.registerAndInstantiateContribution(SnippetController2.ID, SnippetController2);
 				editor.registerAndInstantiateContribution(SuggestController.ID, SuggestController);
 				editor.registerAndInstantiateContribution(InlineCompletionsController.ID, InlineCompletionsController);
@@ -191,6 +196,7 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 			});
 		} finally {
 			disposableStore.dispose();
+			ModifierKeyEmitter.disposeInstance();
 		}
 	});
 }

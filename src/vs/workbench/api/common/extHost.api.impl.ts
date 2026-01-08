@@ -227,7 +227,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	rpcProtocol.set(ExtHostContext.ExtHostInteractive, new ExtHostInteractive(rpcProtocol, extHostNotebook, extHostDocumentsAndEditors, extHostCommands, extHostLogService));
 	const extHostLanguageModelTools = rpcProtocol.set(ExtHostContext.ExtHostLanguageModelTools, new ExtHostLanguageModelTools(rpcProtocol, extHostLanguageModels));
 	const extHostChatSessions = rpcProtocol.set(ExtHostContext.ExtHostChatSessions, new ExtHostChatSessions(extHostCommands, extHostLanguageModels, rpcProtocol, extHostLogService));
-	const extHostChatAgents2 = rpcProtocol.set(ExtHostContext.ExtHostChatAgents2, new ExtHostChatAgents2(rpcProtocol, extHostLogService, extHostCommands, extHostDocuments, extHostLanguageModels, extHostDiagnostics, extHostLanguageModelTools));
+	const extHostChatAgents2 = rpcProtocol.set(ExtHostContext.ExtHostChatAgents2, new ExtHostChatAgents2(rpcProtocol, extHostLogService, extHostCommands, extHostDocuments, extHostDocumentsAndEditors, extHostLanguageModels, extHostDiagnostics, extHostLanguageModelTools));
 	const extHostChatContext = rpcProtocol.set(ExtHostContext.ExtHostChatContext, new ExtHostChatContext(rpcProtocol));
 	const extHostAiRelatedInformation = rpcProtocol.set(ExtHostContext.ExtHostAiRelatedInformation, new ExtHostRelatedInformation(rpcProtocol));
 	const extHostAiEmbeddingVector = rpcProtocol.set(ExtHostContext.ExtHostAiEmbeddingVector, new ExtHostAiEmbeddingVector(rpcProtocol));
@@ -1061,7 +1061,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					ignoreDeleteEvents: Boolean(ignoreDelete),
 				};
 
-				return extHostFileSystemEvent.createFileSystemWatcher(extHostWorkspace, configProvider, extension, pattern, options);
+				return extHostFileSystemEvent.createFileSystemWatcher(extHostWorkspace, configProvider, extHostFileSystemInfo, extension, pattern, options);
 			},
 			get textDocuments() {
 				return extHostDocuments.getAllDocumentData().map(data => data.document);
@@ -1293,11 +1293,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 				return extHostSCM.getLastInputBox(extension)!; // Strict null override - Deprecated api
 			},
-			createSourceControl(id: string, label: string, rootUri?: vscode.Uri, iconPath?: vscode.IconPath, parent?: vscode.SourceControl): vscode.SourceControl {
-				if (iconPath || parent) {
+			createSourceControl(id: string, label: string, rootUri?: vscode.Uri, iconPath?: vscode.IconPath, isHidden?: boolean, parent?: vscode.SourceControl): vscode.SourceControl {
+				if (iconPath || isHidden || parent) {
 					checkProposedApiEnabled(extension, 'scmProviderOptions');
 				}
-				return extHostSCM.createSourceControl(extension, id, label, rootUri, iconPath, parent);
+				return extHostSCM.createSourceControl(extension, id, label, rootUri, iconPath, isHidden, parent);
 			}
 		};
 
@@ -1469,7 +1469,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		// namespace: interactive
 		const interactive: typeof vscode.interactive = {
-			transferActiveChat(toWorkspace: vscode.Uri) {
+			transferActiveChat(toWorkspace: vscode.Uri): Thenable<void> {
 				checkProposedApiEnabled(extension, 'interactive');
 				return extHostChatAgents2.transferActiveChat(toWorkspace);
 			}
@@ -1864,6 +1864,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			EditSessionIdentityMatch: EditSessionIdentityMatch,
 			InteractiveSessionVoteDirection: extHostTypes.InteractiveSessionVoteDirection,
 			ChatCopyKind: extHostTypes.ChatCopyKind,
+			ChatSessionChangedFile: extHostTypes.ChatSessionChangedFile,
 			ChatEditingSessionActionOutcome: extHostTypes.ChatEditingSessionActionOutcome,
 			InteractiveEditorResponseFeedbackKind: extHostTypes.InteractiveEditorResponseFeedbackKind,
 			DebugStackFrame: extHostTypes.DebugStackFrame,
@@ -1947,7 +1948,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			McpStdioServerDefinition2: extHostTypes.McpStdioServerDefinition,
 			McpToolAvailability: extHostTypes.McpToolAvailability,
 			SettingsSearchResultKind: extHostTypes.SettingsSearchResultKind,
-			CustomAgentTarget: extHostTypes.CustomAgentTarget,
 		};
 	};
 }

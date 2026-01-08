@@ -49,26 +49,6 @@ declare module 'vscode' {
 		 */
 		readonly onDidCommitChatSessionItem: Event<{ original: ChatSessionItem /** untitled */; modified: ChatSessionItem /** newly created */ }>;
 
-		/**
-		 * DEPRECATED: Will be removed!
-		 * Creates a new chat session.
-		 *
-		 * @param options Options for the new session including an optional initial prompt and history
-		 * @param token A cancellation token
-		 * @returns Metadata for the chat session
-		 */
-		provideNewChatSessionItem?(options: {
-			/**
-			 * The chat request that initiated the session creation
-			 */
-			readonly request: ChatRequest;
-
-			/**
-			 * Additional metadata to use for session creation
-			 */
-			metadata?: any;
-		}, token: CancellationToken): ProviderResult<ChatSessionItem>;
-
 		// #endregion
 	}
 
@@ -94,6 +74,11 @@ declare module 'vscode' {
 		 * An optional description that provides additional context about the chat session.
 		 */
 		description?: string | MarkdownString;
+
+		/**
+		 * An optional badge that provides additional context about the chat session.
+		 */
+		badge?: string | MarkdownString;
 
 		/**
 		 * An optional status indicating the current state of the session.
@@ -122,7 +107,7 @@ declare module 'vscode' {
 		/**
 		 * Statistics about the chat session.
 		 */
-		statistics?: {
+		changes?: readonly ChatSessionChangedFile[] | {
 			/**
 			 * Number of files edited during the session.
 			 */
@@ -138,6 +123,30 @@ declare module 'vscode' {
 			 */
 			deletions: number;
 		};
+	}
+
+	export class ChatSessionChangedFile {
+		/**
+		 * URI of the file.
+		 */
+		modifiedUri: Uri;
+
+		/**
+		 * File opened when the user takes the 'compare' action.
+		 */
+		originalUri?: Uri;
+
+		/**
+		 * Number of insertions made during the session.
+		 */
+		insertions: number;
+
+		/**
+		 * Number of deletions made during the session.
+		 */
+		deletions: number;
+
+		constructor(modifiedUri: Uri, insertions: number, deletions: number, originalUri?: Uri);
 	}
 
 	export interface ChatSession {
@@ -180,9 +189,46 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Event fired when chat session options change.
+	 */
+	export interface ChatSessionOptionChangeEvent {
+		/**
+		 * Identifier of the chat session being updated.
+		 */
+		readonly resource: Uri;
+		/**
+		 * Collection of option identifiers and their new values. Only the options that changed are included.
+		 */
+		readonly updates: ReadonlyArray<{
+			/**
+			 * Identifier of the option that changed (for example `model`).
+			 */
+			readonly optionId: string;
+
+			/**
+			 * The new value assigned to the option. When `undefined`, the option is cleared.
+			 */
+			readonly value: string | ChatSessionProviderOptionItem;
+		}>;
+	}
+
+	/**
 	 * Provides the content for a chat session rendered using the native chat UI.
 	 */
 	export interface ChatSessionContentProvider {
+		/**
+		 * Event that the provider can fire to signal that the options for a chat session have changed.
+		 */
+		readonly onDidChangeChatSessionOptions?: Event<ChatSessionOptionChangeEvent>;
+
+		/**
+		 * Event that the provider can fire to signal that the available provider options have changed.
+		 *
+		 * When fired, the editor will re-query {@link ChatSessionContentProvider.provideChatSessionProviderOptions}
+		 * and update the UI to reflect the new option groups.
+		 */
+		readonly onDidChangeChatSessionProviderOptions?: Event<void>;
+
 		/**
 		 * Provides the chat session content for a given uri.
 		 *
@@ -274,6 +320,11 @@ declare module 'vscode' {
 		 * Human-readable name displayed in the UI.
 		 */
 		readonly name: string;
+
+		/**
+		 * Optional description shown in tooltips.
+		 */
+		readonly description?: string;
 
 		/**
 		 * When true, this option is locked and cannot be changed by the user.
