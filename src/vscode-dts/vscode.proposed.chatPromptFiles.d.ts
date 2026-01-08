@@ -14,16 +14,6 @@ declare module 'vscode' {
 	 */
 	export interface CustomAgentResource {
 		/**
-		 * The unique identifier/name of the custom agent.
-		 */
-		readonly name: string;
-
-		/**
-		 * A description of what the custom agent does.
-		 */
-		readonly description: string;
-
-		/**
 		 * The URI to the custom agent resource file.
 		 */
 		readonly uri: Uri;
@@ -35,14 +25,19 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Options for querying custom agents.
+	 * Context for querying custom agents.
 	 */
-	export type CustomAgentQueryOptions = object;
+	export type CustomAgentContext = object;
 
 	/**
 	 * A provider that supplies custom agent resources (from .agent.md files) for repositories.
 	 */
 	export interface CustomAgentProvider {
+		/**
+		 * A human-readable label for this provider.
+		 */
+		readonly label: string;
+
 		/**
 		 * An optional event to signal that custom agents have changed.
 		 */
@@ -50,11 +45,11 @@ declare module 'vscode' {
 
 		/**
 		 * Provide the list of custom agents available.
-		 * @param options Optional query parameters.
+		 * @param context Context for the query.
 		 * @param token A cancellation token.
 		 * @returns An array of custom agent resources or a promise that resolves to such.
 		 */
-		provideCustomAgents(options: CustomAgentQueryOptions, token: CancellationToken): ProviderResult<CustomAgentResource[]>;
+		provideCustomAgents(context: CustomAgentContext, token: CancellationToken): ProviderResult<CustomAgentResource[]>;
 	}
 
 	// #endregion
@@ -65,16 +60,6 @@ declare module 'vscode' {
 	 * Represents an instructions resource file available for a repository.
 	 */
 	export interface InstructionsResource {
-		/**
-		 * The unique identifier/name of the instructions.
-		 */
-		readonly name: string;
-
-		/**
-		 * A description of what the instructions provide.
-		 */
-		readonly description: string;
-
 		/**
 		 * The URI to the instructions resource file.
 		 */
@@ -87,14 +72,19 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Options for querying instructions.
+	 * Context for querying instructions.
 	 */
-	export type InstructionsQueryOptions = object;
+	export type InstructionsContext = object;
 
 	/**
 	 * A provider that supplies instructions resources for repositories.
 	 */
 	export interface InstructionsProvider {
+		/**
+		 * A human-readable label for this provider.
+		 */
+		readonly label: string;
+
 		/**
 		 * An optional event to signal that instructions have changed.
 		 */
@@ -102,11 +92,11 @@ declare module 'vscode' {
 
 		/**
 		 * Provide the list of instructions available.
-		 * @param options Optional query parameters.
+		 * @param context Context for the query.
 		 * @param token A cancellation token.
 		 * @returns An array of instructions resources or a promise that resolves to such.
 		 */
-		provideInstructions(options: InstructionsQueryOptions, token: CancellationToken): ProviderResult<InstructionsResource[]>;
+		provideInstructions(context: InstructionsContext, token: CancellationToken): ProviderResult<InstructionsResource[]>;
 	}
 
 	// #endregion
@@ -117,16 +107,6 @@ declare module 'vscode' {
 	 * Represents a prompt file resource (e.g., .prompt.md) available for a repository.
 	 */
 	export interface PromptFileResource {
-		/**
-		 * The unique identifier/name of the prompt file.
-		 */
-		readonly name: string;
-
-		/**
-		 * A description of what the prompt file does.
-		 */
-		readonly description: string;
-
 		/**
 		 * The URI to the prompt file resource.
 		 */
@@ -139,14 +119,19 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Options for querying prompt files.
+	 * Context for querying prompt files.
 	 */
-	export type PromptFileQueryOptions = object;
+	export type PromptFileContext = object;
 
 	/**
 	 * A provider that supplies prompt file resources (from .prompt.md files) for repositories.
 	 */
 	export interface PromptFileProvider {
+		/**
+		 * A human-readable label for this provider.
+		 */
+		readonly label: string;
+
 		/**
 		 * An optional event to signal that prompt files have changed.
 		 */
@@ -154,11 +139,11 @@ declare module 'vscode' {
 
 		/**
 		 * Provide the list of prompt files available.
-		 * @param options Optional query parameters.
+		 * @param context Context for the query.
 		 * @param token A cancellation token.
 		 * @returns An array of prompt file resources or a promise that resolves to such.
 		 */
-		providePromptFiles(options: PromptFileQueryOptions, token: CancellationToken): ProviderResult<PromptFileResource[]>;
+		providePromptFiles(context: PromptFileContext, token: CancellationToken): ProviderResult<PromptFileResource[]>;
 	}
 
 	// #endregion

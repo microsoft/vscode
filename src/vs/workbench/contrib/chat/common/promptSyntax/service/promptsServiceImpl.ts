@@ -32,7 +32,7 @@ import { getCleanPromptName } from '../config/promptFileLocations.js';
 import { PROMPT_LANGUAGE_ID, PromptsType, getPromptsTypeForLanguageId } from '../promptTypes.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
-import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IAgentSkill, IUserPromptPath, PromptsStorage, ExtensionAgentSourceType, CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT, IPromptFileQueryOptions, IPromptFileResource, PROMPT_FILE_PROVIDER_ACTIVATION_EVENT } from './promptsService.js';
+import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IAgentSkill, IUserPromptPath, PromptsStorage, ExtensionAgentSourceType, CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT, IPromptFileContext, IPromptFileResource, PROMPT_FILE_PROVIDER_ACTIVATION_EVENT } from './promptsService.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 
@@ -172,7 +172,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		extension: IExtensionDescription;
 		type: PromptsType;
 		onDidChangePromptFiles?: Event<void>;
-		providePromptFiles: (options: IPromptFileQueryOptions, token: CancellationToken) => Promise<IPromptFileResource[] | undefined>;
+		providePromptFiles: (context: IPromptFileContext, token: CancellationToken) => Promise<IPromptFileResource[] | undefined>;
 	}> = [];
 
 	/**
@@ -183,7 +183,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 */
 	public registerPromptFileProvider(extension: IExtensionDescription, type: PromptsType, provider: {
 		onDidChangePromptFiles?: Event<void>;
-		providePromptFiles: (options: IPromptFileQueryOptions, token: CancellationToken) => Promise<IPromptFileResource[] | undefined>;
+		providePromptFiles: (context: IPromptFileContext, token: CancellationToken) => Promise<IPromptFileResource[] | undefined>;
 	}): IDisposable {
 		const providerEntry = { extension, type, ...provider };
 		this.promptFileProviders.push(providerEntry);
@@ -271,8 +271,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 					result.push({
 						uri: file.uri,
-						name: file.name,
-						description: file.description,
 						storage: PromptsStorage.extension,
 						type,
 						extension: providerEntry.extension,
@@ -307,17 +305,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const contributedFiles = await Promise.all(this.contributedFiles[type].values());
 
 		const activationEvent = this.getProviderActivationEvent(type);
-		if (activationEvent) {
-			const providerFiles = await this.listFromProviders(type, activationEvent, token);
-			return [...contributedFiles, ...providerFiles];
-		} else {
-			this.logger.warn(`[getExtensionPromptFiles] No activation event found for prompt type: ${type}`);
-		}
-
-		return contributedFiles;
+		const providerFiles = await this.listFromProviders(type, activationEvent, token);
+		return [...contributedFiles, ...providerFiles];
 	}
 
-	private getProviderActivationEvent(type: PromptsType): string | undefined {
+	private getProviderActivationEvent(type: PromptsType): string {
 		switch (type) {
 			case PromptsType.agent:
 				return CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT;
@@ -325,8 +317,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 				return INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT;
 			case PromptsType.prompt:
 				return PROMPT_FILE_PROVIDER_ACTIVATION_EVENT;
-			default:
-				return undefined;
 		}
 	}
 

@@ -36,7 +36,7 @@ import { ComputeAutomaticInstructions, newInstructionsCollectionEvent } from '..
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
 import { INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
-import { ExtensionAgentSourceType, ICustomAgent, IPromptFileQueryOptions, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { ExtensionAgentSourceType, ICustomAgent, IPromptFileContext, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
 import { mockFiles } from '../testUtils/mockFilesystem.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../../platform/storage/common/storage.js';
@@ -1103,11 +1103,9 @@ suite('PromptsService', () => {
 			]);
 
 			const provider = {
-				providePromptFiles: async (_options: IPromptFileQueryOptions, _token: CancellationToken) => {
+				providePromptFiles: async (_context: IPromptFileContext, _token: CancellationToken) => {
 					return [
 						{
-							name: 'myAgent',
-							description: 'My custom agent from provider',
 							uri: agentUri
 						}
 					];
@@ -1161,17 +1159,13 @@ suite('PromptsService', () => {
 			]);
 
 			const provider = {
-				providePromptFiles: async (_options: IPromptFileQueryOptions, _token: CancellationToken) => {
+				providePromptFiles: async (_context: IPromptFileContext, _token: CancellationToken) => {
 					return [
 						{
-							name: 'readonlyAgent',
-							description: 'Readonly agent from provider',
 							uri: readonlyAgentUri,
 							isEditable: false
 						},
 						{
-							name: 'editableAgent',
-							description: 'Editable agent from provider',
 							uri: editableAgentUri,
 							isEditable: true
 						}
@@ -1276,11 +1270,9 @@ suite('PromptsService', () => {
 		]);
 
 		const provider = {
-			providePromptFiles: async (_options: IPromptFileQueryOptions, _token: CancellationToken) => {
+			providePromptFiles: async (_context: IPromptFileContext, _token: CancellationToken) => {
 				return [
 					{
-						name: 'testInstruction',
-						description: 'Test instruction from provider',
 						uri: instructionUri
 					}
 				];
@@ -1290,12 +1282,10 @@ suite('PromptsService', () => {
 		const registered = service.registerPromptFileProvider(extension, PromptsType.instructions, provider);
 
 		const actual = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
-		const providerInstruction = actual.find(i => i.name === 'testInstruction');
+		const providerInstruction = actual.find(i => i.uri.toString() === instructionUri.toString());
 
 		assert.ok(providerInstruction, 'Provider instruction should be found');
 		assert.strictEqual(providerInstruction!.uri.toString(), instructionUri.toString());
-		assert.strictEqual(providerInstruction!.name, 'testInstruction');
-		assert.strictEqual(providerInstruction!.description, 'Test instruction from provider');
 		assert.strictEqual(providerInstruction!.storage, PromptsStorage.extension);
 		assert.strictEqual(providerInstruction!.source, ExtensionAgentSourceType.provider);
 
@@ -1303,7 +1293,7 @@ suite('PromptsService', () => {
 
 		// After disposal, the instruction should no longer be listed
 		const actualAfterDispose = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
-		const foundAfterDispose = actualAfterDispose.find(i => i.name === 'testInstruction');
+		const foundAfterDispose = actualAfterDispose.find(i => i.uri.toString() === instructionUri.toString());
 		assert.strictEqual(foundAfterDispose, undefined);
 	});
 
@@ -1332,17 +1322,13 @@ suite('PromptsService', () => {
 		]);
 
 		const provider = {
-			providePromptFiles: async (_options: IPromptFileQueryOptions, _token: CancellationToken) => {
+			providePromptFiles: async (_context: IPromptFileContext, _token: CancellationToken) => {
 				return [
 					{
-						name: 'readonlyInstruction',
-						description: 'Readonly instruction from provider',
 						uri: readonlyInstructionUri,
 						isEditable: false
 					},
 					{
-						name: 'editableInstruction',
-						description: 'Editable instruction from provider',
 						uri: editableInstructionUri,
 						isEditable: true
 					}
@@ -1364,13 +1350,11 @@ suite('PromptsService', () => {
 		assert.ok(updateReadonlySpy.calledWith(readonlyInstructionUri, true), 'updateReadonly should be called with readonly instruction URI and true');
 
 		const actual = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
-		const readonlyInstruction = actual.find(i => i.name === 'readonlyInstruction');
-		const editableInstruction = actual.find(i => i.name === 'editableInstruction');
+		const readonlyInstruction = actual.find(i => i.uri.toString() === readonlyInstructionUri.toString());
+		const editableInstruction = actual.find(i => i.uri.toString() === editableInstructionUri.toString());
 
 		assert.ok(readonlyInstruction, 'Readonly instruction should be found');
 		assert.ok(editableInstruction, 'Editable instruction should be found');
-		assert.strictEqual(readonlyInstruction!.description, 'Readonly instruction from provider');
-		assert.strictEqual(editableInstruction!.description, 'Editable instruction from provider');
 
 		registered.dispose();
 	});
@@ -1393,11 +1377,9 @@ suite('PromptsService', () => {
 		]);
 
 		const provider = {
-			providePromptFiles: async (_options: IPromptFileQueryOptions, _token: CancellationToken) => {
+			providePromptFiles: async (_context: IPromptFileContext, _token: CancellationToken) => {
 				return [
 					{
-						name: 'testPrompt',
-						description: 'Test prompt from provider',
 						uri: promptUri
 					}
 				];
@@ -1407,12 +1389,10 @@ suite('PromptsService', () => {
 		const registered = service.registerPromptFileProvider(extension, PromptsType.prompt, provider);
 
 		const actual = await service.listPromptFiles(PromptsType.prompt, CancellationToken.None);
-		const providerPrompt = actual.find(i => i.name === 'testPrompt');
+		const providerPrompt = actual.find(i => i.uri.toString() === promptUri.toString());
 
 		assert.ok(providerPrompt, 'Provider prompt should be found');
 		assert.strictEqual(providerPrompt!.uri.toString(), promptUri.toString());
-		assert.strictEqual(providerPrompt!.name, 'testPrompt');
-		assert.strictEqual(providerPrompt!.description, 'Test prompt from provider');
 		assert.strictEqual(providerPrompt!.storage, PromptsStorage.extension);
 		assert.strictEqual(providerPrompt!.source, ExtensionAgentSourceType.provider);
 
@@ -1420,7 +1400,7 @@ suite('PromptsService', () => {
 
 		// After disposal, the prompt should no longer be listed
 		const actualAfterDispose = await service.listPromptFiles(PromptsType.prompt, CancellationToken.None);
-		const foundAfterDispose = actualAfterDispose.find(i => i.name === 'testPrompt');
+		const foundAfterDispose = actualAfterDispose.find(i => i.uri.toString() === promptUri.toString());
 		assert.strictEqual(foundAfterDispose, undefined);
 	});
 
@@ -1449,17 +1429,13 @@ suite('PromptsService', () => {
 		]);
 
 		const provider = {
-			providePromptFiles: async (_options: IPromptFileQueryOptions, _token: CancellationToken) => {
+			providePromptFiles: async (_context: IPromptFileContext, _token: CancellationToken) => {
 				return [
 					{
-						name: 'readonlyPrompt',
-						description: 'Readonly prompt from provider',
 						uri: readonlyPromptUri,
 						isEditable: false
 					},
 					{
-						name: 'editablePrompt',
-						description: 'Editable prompt from provider',
 						uri: editablePromptUri,
 						isEditable: true
 					}
@@ -1481,13 +1457,11 @@ suite('PromptsService', () => {
 		assert.ok(updateReadonlySpy.calledWith(readonlyPromptUri, true), 'updateReadonly should be called with readonly prompt URI and true');
 
 		const actual = await service.listPromptFiles(PromptsType.prompt, CancellationToken.None);
-		const readonlyPrompt = actual.find(i => i.name === 'readonlyPrompt');
-		const editablePrompt = actual.find(i => i.name === 'editablePrompt');
+		const readonlyPrompt = actual.find(i => i.uri.toString() === readonlyPromptUri.toString());
+		const editablePrompt = actual.find(i => i.uri.toString() === editablePromptUri.toString());
 
 		assert.ok(readonlyPrompt, 'Readonly prompt should be found');
 		assert.ok(editablePrompt, 'Editable prompt should be found');
-		assert.strictEqual(readonlyPrompt!.description, 'Readonly prompt from provider');
-		assert.strictEqual(editablePrompt!.description, 'Editable prompt from provider');
 
 		registered.dispose();
 	});
