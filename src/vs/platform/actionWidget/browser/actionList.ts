@@ -329,42 +329,60 @@ export class ActionList<T> extends Disposable {
 		if (this._allMenuItems.length >= 50) {
 			maxWidth = 380;
 		} else {
-			// Cache computed style values since they're consistent across all list items
-			let cachedHorizontalSpacing: number | undefined;
+			// Batch DOM operations to minimize reflows
+			const elements: HTMLElement[] = [];
+			const savedStyles: { width: string; maxWidth: string; display: string }[] = [];
 
-			// For finding width dynamically (not using resize observer)
-			const itemWidths: number[] = this._allMenuItems.map((_, index): number => {
+			// Collect all elements and save their styles
+			for (let index = 0; index < this._allMenuItems.length; index++) {
 				// eslint-disable-next-line no-restricted-syntax
 				const element = this.domNode.ownerDocument.getElementById(this._list.getElementID(index));
 				if (element) {
-					const originalWidth = element.style.width;
-					const originalMaxWidth = element.style.maxWidth;
-					const originalDisplay = element.style.display;
-
-					element.style.width = 'max-content';
-					element.style.maxWidth = 'none';
-					element.style.display = 'flex';
-
-					const width = element.getBoundingClientRect().width;
-
-					element.style.width = originalWidth;
-					element.style.maxWidth = originalMaxWidth;
-					element.style.display = originalDisplay;
-
-					// Only compute style values once for the first element, then reuse for all others
-					if (cachedHorizontalSpacing === undefined) {
-						const computedStyle = dom.getWindow(element).getComputedStyle(element);
-						const paddingLeft = parseFloat(computedStyle.paddingLeft) || 0;
-						const paddingRight = parseFloat(computedStyle.paddingRight) || 0;
-						const marginLeft = parseFloat(computedStyle.marginLeft) || 0;
-						const marginRight = parseFloat(computedStyle.marginRight) || 0;
-						cachedHorizontalSpacing = paddingLeft + paddingRight + marginLeft + marginRight;
-					}
-
-					return width + cachedHorizontalSpacing;
+					elements.push(element);
+					savedStyles.push({
+						width: element.style.width,
+						maxWidth: element.style.maxWidth,
+						display: element.style.display
+					});
 				}
-				return 0;
-			});
+			}
+
+			// Apply all style changes at once (triggers single reflow)
+			for (const element of elements) {
+				element.style.width = 'max-content';
+				element.style.maxWidth = 'none';
+				element.style.display = 'flex';
+			}
+
+			// Measure all widths (single layout pass)
+			const itemWidths: number[] = [];
+			let cachedHorizontalSpacing: number | undefined;
+
+			for (let i = 0; i < elements.length; i++) {
+				const element = elements[i];
+				const width = element.getBoundingClientRect().width;
+
+				// Only compute style values once for the first element, then reuse for all others
+				if (cachedHorizontalSpacing === undefined) {
+					const computedStyle = dom.getWindow(element).getComputedStyle(element);
+					const paddingLeft = parseFloat(computedStyle.paddingLeft) || 0;
+					const paddingRight = parseFloat(computedStyle.paddingRight) || 0;
+					const marginLeft = parseFloat(computedStyle.marginLeft) || 0;
+					const marginRight = parseFloat(computedStyle.marginRight) || 0;
+					cachedHorizontalSpacing = paddingLeft + paddingRight + marginLeft + marginRight;
+				}
+
+				itemWidths.push(width + cachedHorizontalSpacing);
+			}
+
+			// Restore all styles at once (triggers single reflow)
+			for (let i = 0; i < elements.length; i++) {
+				const element = elements[i];
+				const saved = savedStyles[i];
+				element.style.width = saved.width;
+				element.style.maxWidth = saved.maxWidth;
+				element.style.display = saved.display;
+			}
 
 			// resize observer - can be used in the future since list widget supports dynamic height but not width
 			maxWidth = Math.max(...itemWidths, minWidth);
