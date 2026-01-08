@@ -53,6 +53,7 @@ export class NativeEditContext extends AbstractEditContext {
 
 	// Text area used to handle paste events
 	public readonly domNode: FastDomNode<HTMLDivElement>;
+	private readonly _pasteTextArea: FastDomNode<HTMLTextAreaElement>;
 	private readonly _imeTextArea: FastDomNode<HTMLTextAreaElement>;
 	private readonly _editContext: EditContext;
 	private readonly _screenReaderSupport: ScreenReaderSupport;
@@ -85,6 +86,10 @@ export class NativeEditContext extends AbstractEditContext {
 		this.domNode = new FastDomNode(document.createElement('div'));
 		this.domNode.setClassName(`native-edit-context`);
 		this._imeTextArea = new FastDomNode(document.createElement('textarea'));
+		this._pasteTextArea = new FastDomNode(document.createElement('textarea'));
+		this._pasteTextArea.setClassName('native-edit-context-textarea');
+		this._pasteTextArea.setAttribute('tabindex', '-1');
+		this._pasteTextArea.setAttribute('aria-hidden', 'true');
 		this._imeTextArea.setClassName(`ime-text-area`);
 		this._imeTextArea.setAttribute('readonly', 'true');
 		this._imeTextArea.setAttribute('tabindex', '-1');
@@ -97,6 +102,7 @@ export class NativeEditContext extends AbstractEditContext {
 		this._updateDomAttributes();
 
 		overflowGuardContainer.appendChild(this.domNode);
+		overflowGuardContainer.appendChild(this._pasteTextArea);
 		overflowGuardContainer.appendChild(this._imeTextArea);
 		this._parent = overflowGuardContainer.domNode;
 
@@ -139,8 +145,9 @@ export class NativeEditContext extends AbstractEditContext {
 				this._onType(this._viewController, { text: '\n', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 });
 			}
 		}));
-		this._register(addDisposableListener(this.domNode.domNode, 'paste', (e) => {
+		this._register(addDisposableListener(this._pasteTextArea.domNode, 'paste', (e) => {
 			this.logService.trace('NativeEditContext#paste');
+			this._screenReaderSupport.onPaste();
 			const pasteData = computePasteData(e, this._context, this.logService);
 			if (!pasteData) {
 				return;
@@ -217,7 +224,28 @@ export class NativeEditContext extends AbstractEditContext {
 		this.domNode.domNode.blur();
 		this.domNode.domNode.remove();
 		this._imeTextArea.domNode.remove();
+		this._pasteTextArea.domNode.remove();
 		super.dispose();
+	}
+
+	public executePaste(): boolean {
+		this._onWillPaste();
+		try {
+			// pause focus tracking because we don't want to react to focus/blur
+			// events while pasting since we move the focus to the textarea
+			this._focusTracker.pause();
+
+			// Since we can not call execCommand('paste') on a dom node with edit context set
+			// we added a hidden text area that receives the paste execution
+			this._pasteTextArea.focus();
+			const result = this._pasteTextArea.domNode.ownerDocument.execCommand('paste');
+			this._pasteTextArea.domNode.textContent = '';
+			this.domNode.focus();
+			return result;
+		} finally {
+			// resume focus tracking
+			this._focusTracker.resume();
+		}
 	}
 
 	public setAriaOptions(options: IEditorAriaOptions): void {

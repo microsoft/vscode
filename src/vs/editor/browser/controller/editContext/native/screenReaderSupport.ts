@@ -50,6 +50,10 @@ export class ScreenReaderSupport extends Disposable {
 		this._updateDomAttributes();
 	}
 
+	public onPaste(): void {
+		this._state.value?.onPaste();
+	}
+
 	public onWillPaste(): void {
 		this._state.value?.onWillPaste();
 	}

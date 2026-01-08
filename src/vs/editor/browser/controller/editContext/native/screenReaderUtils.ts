@@ -11,6 +11,11 @@ export interface IScreenReaderContent {
 	dispose(): void;
 
 	/**
+	 * Handle screen reader content on pasting the content
+	 */
+	onPaste(): void;
+
+	/**
 	 * Handle screen reader content before cutting the content
 	 */
 	onWillCut(): void;
