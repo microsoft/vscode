@@ -25,7 +25,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
-import { ClipboardEventUtils, CopyOptions, InMemoryClipboardMetadataManager, PasteOptions } from '../../../browser/controller/editContext/clipboardUtils.js';
+import { ClipboardEventUtils, InMemoryClipboardMetadataManager } from '../../../browser/controller/editContext/clipboardUtils.js';
 import { toExternalVSDataTransfer, toVSDataTransfer } from '../../../browser/dataTransfer.js';
 import { ICodeEditor, PastePayload } from '../../../browser/editorBrowser.js';
 import { IBulkEditService } from '../../../browser/services/bulkEditService.js';
@@ -172,7 +172,6 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 	}
 
 	private handleCopy(e: ClipboardEvent) {
-		CopyOptions.electronBugWorkaroundCopyEventHasFired = true;
 		let id: string | null = null;
 		if (e.clipboardData) {
 			const [text, metadata] = ClipboardEventUtils.getTextData(e.clipboardData);
@@ -264,7 +263,6 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 	}
 
 	private async handlePaste(e: ClipboardEvent) {
-		PasteOptions.electronBugWorkaroundPasteEventHasFired = true;
 		if (e.clipboardData) {
 			const [text, metadata] = ClipboardEventUtils.getTextData(e.clipboardData);
 			const metadataComputed = metadata || InMemoryClipboardMetadataManager.INSTANCE.get(text);
