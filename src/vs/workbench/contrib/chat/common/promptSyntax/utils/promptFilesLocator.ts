@@ -424,10 +424,13 @@ export class PromptFilesLocator {
 
 		const allResults: Array<{ uri: URI; type: string }> = [];
 		const { folders } = this.workspaceService.getWorkspace();
+		const userHome = await this.pathService.userHome();
 
 		for (const location of configuredLocations) {
 			try {
 				let uris: URI[];
+				let skillType: string;
+
 				if (isAbsolute(location)) {
 					let uri = URI.file(location);
 					const remoteAuthority = this.environmentService.remoteAuthority;
@@ -437,14 +440,18 @@ export class PromptFilesLocator {
 						uri = uri.with({ scheme: Schemas.vscodeRemote, authority: remoteAuthority });
 					}
 					uris = [uri];
+					// Absolute path starting with home is personal, otherwise other
+					skillType = location.startsWith(userHome.fsPath) ? 'custom-personal' : 'custom-other';
 				} else {
 					// Relative paths are resolved from workspace folders
 					uris = folders.map(folder => joinPath(folder.uri, location));
+					// Relative path without '..' is workspace, otherwise other
+					skillType = location.startsWith('..') ? 'custom-other' : 'custom-workspace';
 				}
 
 				for (const uri of uris) {
 					const results = await this.findAgentSkillsInFolderDirect(uri, token);
-					allResults.push(...results.map(skillUri => ({ uri: skillUri, type: 'custom' })));
+					allResults.push(...results.map(skillUri => ({ uri: skillUri, type: skillType })));
 				}
 			} catch (error) {
 				this.logService.error(`Failed to resolve agent skills location: ${location}`, error);

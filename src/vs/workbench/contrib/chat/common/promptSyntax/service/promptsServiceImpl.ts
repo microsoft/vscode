@@ -672,6 +672,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				githubWorkspace: number;
 				customPersonal: number;
 				customWorkspace: number;
+				customOther: number;
 				skippedDuplicateName: number;
 				skippedMissingName: number;
 				skippedParseFailed: number;
@@ -685,6 +686,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				githubWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of GitHub workspace skills.' };
 				customPersonal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of custom personal skills.' };
 				customWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of custom workspace skills.' };
+				customOther: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of custom other skills.' };
 				skippedDuplicateName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of skills skipped due to duplicate names.' };
 				skippedMissingName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of skills skipped due to missing name attribute.' };
 				skippedParseFailed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of skills skipped due to parse failures.' };
@@ -700,6 +702,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				githubWorkspace: skillTypes.get('github-workspace') ?? 0,
 				customPersonal: skillTypes.get('custom-personal') ?? 0,
 				customWorkspace: skillTypes.get('custom-workspace') ?? 0,
+				customOther: skillTypes.get('custom-other') ?? 0,
 				skippedDuplicateName,
 				skippedMissingName,
 				skippedParseFailed
