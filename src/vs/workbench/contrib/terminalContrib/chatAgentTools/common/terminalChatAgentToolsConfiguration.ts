@@ -264,7 +264,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			'/^pnpm\\s+(ls|list|outdated|why|root|bin|doctor)\\b/': true,
 			'/^pnpm\\s+licenses\\b/': true,
 			'/^pnpm\\s+audit\\b(?!.*\\bfix\\b)/': true,
-			'/^pnpm\\s+config\\s+list\\b/': true,
+			'/^pnpm\\s+config\\s+(list|get)\\b/': true,
 
 			// Safe lockfile-only installs since we trust the workspace and lock file is trusted.
 			'npm ci': true,
