@@ -3941,6 +3941,7 @@ export class CustomAgentChatResource implements vscode.CustomAgentChatResource {
 	readonly description: string;
 	readonly uri: URI;
 	readonly isEditable?: boolean;
+	readonly metadata?: vscode.ResourceMetadata;
 
 	constructor(name: string, description: string, uri: URI, isEditable?: boolean);
 	constructor(options: vscode.CustomAgentOptions);
@@ -3950,6 +3951,7 @@ export class CustomAgentChatResource implements vscode.CustomAgentChatResource {
 			this.name = options.name;
 			this.description = options.description;
 			this.isEditable = options.isEditable;
+			this.metadata = options.metadata;
 			const content = generatePromptMarkdown({
 				description: options.description,
 				model: options.model,
@@ -3975,6 +3977,7 @@ export class InstructionsChatResource implements vscode.InstructionsChatResource
 	readonly description: string;
 	readonly uri: URI;
 	readonly isEditable?: boolean;
+	readonly metadata?: vscode.ResourceMetadata;
 
 	constructor(name: string, description: string, uri: URI, isEditable?: boolean);
 	constructor(options: vscode.InstructionsOptions);
@@ -3984,6 +3987,7 @@ export class InstructionsChatResource implements vscode.InstructionsChatResource
 			this.name = options.name;
 			this.description = options.description;
 			this.isEditable = options.isEditable;
+			this.metadata = options.metadata;
 			const content = generatePromptMarkdown({
 				description: options.description,
 				applyTo: options.applyTo,
@@ -4004,6 +4008,7 @@ export class PromptFileChatResource implements vscode.PromptFileChatResource {
 	readonly description: string;
 	readonly uri: URI;
 	readonly isEditable?: boolean;
+	readonly metadata?: vscode.ResourceMetadata;
 
 	constructor(name: string, description: string, uri: URI, isEditable?: boolean);
 	constructor(options: vscode.PromptFileOptions);
@@ -4013,6 +4018,7 @@ export class PromptFileChatResource implements vscode.PromptFileChatResource {
 			this.name = options.name;
 			this.description = options.description;
 			this.isEditable = options.isEditable;
+			this.metadata = options.metadata;
 			const content = generatePromptMarkdown({
 				description: options.description,
 				agent: options.agent,

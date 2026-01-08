@@ -333,9 +333,9 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Private extension of CustomAgentResource with additional metadata.
+	 * Private extension of CustomAgentOptions with additional metadata.
 	 */
-	export interface CustomAgentResource {
+	export interface CustomAgentOptions {
 		/**
 		 * Optional metadata for the custom agent resource.
 		 */
@@ -343,9 +343,9 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Private extension of InstructionsResource with additional metadata.
+	 * Private extension of InstructionsOptions with additional metadata.
 	 */
-	export interface InstructionsResource {
+	export interface InstructionsOptions {
 		/**
 		 * Optional metadata for the instructions resource.
 		 */
@@ -353,9 +353,9 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Private extension of PromptFileResource with additional metadata.
+	 * Private extension of PromptFileOptions with additional metadata.
 	 */
-	export interface PromptFileResource {
+	export interface PromptFileOptions {
 		/**
 		 * Optional metadata for the prompt file resource.
 		 */
