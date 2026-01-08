@@ -130,8 +130,7 @@ class QuickDiffWidgetEditorAction extends Action {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		const keybinding = keybindingService.lookupKeybinding(action.id);
-		const label = action.label + (keybinding ? ` (${keybinding.getLabel()})` : '');
+		const label = keybindingService.appendKeybinding(action.label, action.id);
 
 		super(action.id, label, cssClass);
 

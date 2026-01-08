@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
-import { timeout } from '../../../../../../base/common/async.js';
+import { timeout, type CancelablePromise } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
@@ -55,6 +55,7 @@ import { TerminalCommandArtifactCollector } from './terminalCommandArtifactColle
 import { isNumber, isString } from '../../../../../../base/common/types.js';
 import { ChatConfiguration } from '../../../../chat/common/constants.js';
 import { IChatWidgetService } from '../../../../chat/browser/chat.js';
+import { TerminalChatCommandId } from '../../../chat/browser/terminalChat.js';
 
 // #region Tool data
 
@@ -219,11 +220,16 @@ export async function createRunInTerminalToolData(
 					type: 'boolean',
 					description: 'Whether the command starts a background process. If true, the command will run in the background and you will not see the output. If false, the tool call will block on the command finishing, and then you will get the output. Examples of background processes: building in watch mode, starting a server. You can check the output of a background process later on by using get_terminal_output.'
 				},
+				timeout: {
+					type: 'number',
+					description: 'An optional timeout in milliseconds. When provided, the tool will stop tracking the command after this duration and return the output collected so far. Be conservative with the timeout duration, give enough time that the command would complete on a low-end machine. Use 0 for no timeout. If it\'s not clear how long the command will take then use 0 to avoid prematurely terminating it, never guess too low.',
+				},
 			},
 			required: [
 				'command',
 				'explanation',
 				'isBackground',
+				'timeout',
 			]
 		}
 	};
@@ -248,6 +254,7 @@ export interface IRunInTerminalInputParams {
 	command: string;
 	explanation: string;
 	isBackground: boolean;
+	timeout?: number;
 }
 
 /**
@@ -445,10 +452,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		};
 		const commandLineAnalyzerResults = await Promise.all(this._commandLineAnalyzers.map(e => e.analyze(commandLineAnalyzerOptions)));
 
-		const disclaimersRaw = commandLineAnalyzerResults.filter(e => e.disclaimers).flatMap(e => e.disclaimers);
+		const disclaimersRaw = commandLineAnalyzerResults.map(e => e.disclaimers).filter(e => !!e).flatMap(e => e);
 		let disclaimer: IMarkdownString | undefined;
 		if (disclaimersRaw.length > 0) {
-			disclaimer = new MarkdownString(`$(${Codicon.info.id}) ` + disclaimersRaw.join(' '), { supportThemeIcons: true });
+			const disclaimerTexts = disclaimersRaw.map(d => typeof d === 'string' ? d : d.value);
+			const hasMarkdownDisclaimer = disclaimersRaw.some(d => typeof d !== 'string');
+			const mdOptions = hasMarkdownDisclaimer
+				? { supportThemeIcons: true, isTrusted: { enabledCommands: [TerminalChatCommandId.OpenTerminalSettingsLink] } }
+				: { supportThemeIcons: true };
+			disclaimer = new MarkdownString(`$(${Codicon.info.id}) ` + disclaimerTexts.join(' '), mdOptions);
 		}
 
 		const analyzersIsAutoApproveAllowed = commandLineAnalyzerResults.every(e => e.isAutoApproveAllowed);
@@ -476,9 +488,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			wouldBeAutoApproved
 		);
 
-		// Pass autoApproveInfo if command would be auto-approved (even if warning not yet accepted)
-		// This allows the confirmation widget to auto-approve after user accepts the warning
-		if (isFinalAutoApproved || (isAutoApproveEnabled && wouldBeAutoApproved)) {
+		// Pass auto approve info if the command:
+		// - Was auto approved
+		// - Would have be auto approved, but the opt-in warning was not accepted
+		// - Was denied explicitly by a rule
+		//
+		// This allows surfacing this information to the user.
+		if (isFinalAutoApproved || (isAutoApproveEnabled && commandLineAnalyzerResults.some(e => e.autoApproveInfo))) {
 			toolSpecificData.autoApproveInfo = commandLineAnalyzerResults.find(e => e.autoApproveInfo)?.autoApproveInfo;
 		}
 
@@ -652,7 +668,24 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			let outputLineCount = -1;
 			let exitCode: number | undefined;
 			let altBufferResult: IToolResult | undefined;
+			let didTimeout = false;
+			let timeoutPromise: CancelablePromise<void> | undefined;
 			const executeCancellation = store.add(new CancellationTokenSource(token));
+
+			// Set up timeout if provided and the setting is enabled
+			if (args.timeout !== undefined && args.timeout > 0) {
+				const shouldEnforceTimeout = this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnforceTimeoutFromModel) === true;
+				if (shouldEnforceTimeout) {
+					timeoutPromise = timeout(args.timeout);
+					timeoutPromise.then(() => {
+						if (!executeCancellation.token.isCancellationRequested) {
+							didTimeout = true;
+							executeCancellation.cancel();
+						}
+					});
+				}
+			}
+
 			try {
 				let strategy: ITerminalExecuteStrategy;
 				switch (toolTerminal.shellIntegrationQuality) {
@@ -730,11 +763,21 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 
 			} catch (e) {
-				this._logService.debug(`RunInTerminalTool: Threw exception`);
-				toolTerminal.instance.dispose();
-				error = e instanceof CancellationError ? 'canceled' : 'unexpectedException';
-				throw e;
+				// Handle timeout case - get output collected so far and return it
+				if (didTimeout && e instanceof CancellationError) {
+					this._logService.debug(`RunInTerminalTool: Timeout reached, returning output collected so far`);
+					error = 'timeout';
+					const timeoutOutput = getOutput(toolTerminal.instance, undefined);
+					outputLineCount = timeoutOutput ? count(timeoutOutput.trim(), '\n') + 1 : 0;
+					terminalResult = timeoutOutput ?? '';
+				} else {
+					this._logService.debug(`RunInTerminalTool: Threw exception`);
+					toolTerminal.instance.dispose();
+					error = e instanceof CancellationError ? 'canceled' : 'unexpectedException';
+					throw e;
+				}
 			} finally {
+				timeoutPromise?.cancel();
 				store.dispose();
 				const timingExecuteMs = Date.now() - timingStart;
 				this._telemetry.logInvoke(toolTerminal.instance, {
