@@ -147,6 +147,7 @@ export async function getCommandOutputSnapshot(
  */
 export class DetachedTerminalCommandMirror extends Disposable implements IDetachedTerminalCommandMirror {
 	private _detachedTerminal: IDetachedTerminalInstance | undefined;
+	private _detachedTerminalPromise: Promise<IDetachedTerminalInstance> | undefined;
 	private _attachedContainer: HTMLElement | undefined;
 	private readonly _streamingDisposables = this._register(new DisposableStore());
 	private readonly _onDidUpdateEmitter = this._register(new Emitter<number>());
@@ -325,27 +326,34 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 		if (this._detachedTerminal) {
 			return this._detachedTerminal;
 		}
+		if (this._detachedTerminalPromise) {
+			return this._detachedTerminalPromise;
+		}
 		if (this._isDisposed) {
 			throw new CancellationError();
 		}
-		const colorProvider = {
-			getBackgroundColor: (theme: IColorTheme) => getChatTerminalBackgroundColor(theme, this._contextKeyService)
-		};
-		const detached = await this._terminalService.createDetachedTerminal({
-			cols: this._xtermTerminal.raw.cols ?? ChatTerminalMirrorMetrics.MirrorColCountFallback,
-			rows: ChatTerminalMirrorMetrics.MirrorRowCount,
-			readonly: true,
-			processInfo: new DetachedProcessInfo({ initialCwd: '' }),
-			disableOverviewRuler: true,
-			colorProvider
-		});
-		if (this._isDisposed) {
-			detached.dispose();
-			throw new CancellationError();
-		}
-		this._detachedTerminal = detached;
-		this._register(detached);
-		return detached;
+		const createPromise = (async () => {
+			const colorProvider = {
+				getBackgroundColor: (theme: IColorTheme) => getChatTerminalBackgroundColor(theme, this._contextKeyService)
+			};
+			const detached = await this._terminalService.createDetachedTerminal({
+				cols: this._xtermTerminal.raw.cols ?? ChatTerminalMirrorMetrics.MirrorColCountFallback,
+				rows: ChatTerminalMirrorMetrics.MirrorRowCount,
+				readonly: true,
+				processInfo: new DetachedProcessInfo({ initialCwd: '' }),
+				disableOverviewRuler: true,
+				colorProvider
+			});
+			if (this._isDisposed) {
+				detached.dispose();
+				throw new CancellationError();
+			}
+			this._detachedTerminal = detached;
+			this._register(detached);
+			return detached;
+		})();
+		this._detachedTerminalPromise = createPromise;
+		return createPromise;
 	}
 
 	private _startStreaming(raw: RawXtermTerminal): void {
