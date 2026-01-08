@@ -40,20 +40,10 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Options for creating a custom agent without a URI.
+	 * Properties for creating a custom agent without a URI.
 	 * The markdown content will be generated from these properties.
 	 */
-	export interface CustomAgentOptions {
-		/**
-		 * The unique identifier/name of the custom agent.
-		 */
-		name: string;
-
-		/**
-		 * A description of what the custom agent does.
-		 */
-		description: string;
-
+	export interface CustomAgentProperties {
 		/**
 		 * The body/instructions content of the custom agent.
 		 */
@@ -88,7 +78,12 @@ declare module 'vscode' {
 		 * Optional hand-off actions that allow this agent to delegate to other agents.
 		 */
 		handoffs?: CustomAgentHandoff[];
+	}
 
+	/**
+	 * Options for creating a custom agent resource.
+	 */
+	export interface CustomAgentOptions {
 		/**
 		 * Indicates whether the custom agent is editable. Defaults to false.
 		 */
@@ -124,33 +119,26 @@ declare module 'vscode' {
 		 * @param name The unique identifier/name of the custom agent.
 		 * @param description A description of what the custom agent does.
 		 * @param uri The URI to the custom agent resource file.
-		 * @param isEditable Whether the custom agent is editable. Defaults to false.
+		 * @param options Optional settings for the custom agent.
 		 */
-		constructor(name: string, description: string, uri: Uri, isEditable?: boolean);
+		constructor(name: string, description: string, uri: Uri, options?: CustomAgentOptions);
 
 		/**
-		 * Creates a new custom agent resource from options. A virtual URI will be generated
+		 * Creates a new custom agent resource from properties. A virtual URI will be generated
 		 * and the markdown content will be constructed from the provided properties.
-		 * @param options The options for creating the custom agent.
+		 * @param name The unique identifier/name of the custom agent.
+		 * @param description A description of what the custom agent does.
+		 * @param properties The properties for creating the custom agent.
+		 * @param options Optional settings for the custom agent.
 		 */
-		constructor(options: CustomAgentOptions);
+		constructor(name: string, description: string, properties: CustomAgentProperties, options?: CustomAgentOptions);
 	}
 
 	/**
-	 * Options for creating instructions without a URI.
+	 * Properties for creating instructions without a URI.
 	 * The markdown content will be generated from these properties.
 	 */
-	export interface InstructionsOptions {
-		/**
-		 * The unique identifier/name of the instructions.
-		 */
-		name: string;
-
-		/**
-		 * A description of what the instructions provide.
-		 */
-		description: string;
-
+	export interface InstructionsProperties {
 		/**
 		 * The body content of the instructions.
 		 */
@@ -160,7 +148,12 @@ declare module 'vscode' {
 		 * Optional glob pattern specifying which files these instructions apply to.
 		 */
 		applyTo?: string;
+	}
 
+	/**
+	 * Options for creating an instructions resource.
+	 */
+	export interface InstructionsOptions {
 		/**
 		 * Indicates whether the instructions are editable. Defaults to false.
 		 */
@@ -196,33 +189,26 @@ declare module 'vscode' {
 		 * @param name The unique identifier/name of the instructions.
 		 * @param description A description of what the instructions provide.
 		 * @param uri The URI to the instructions resource file.
-		 * @param isEditable Whether the instructions are editable. Defaults to false.
+		 * @param options Optional settings for the instructions.
 		 */
-		constructor(name: string, description: string, uri: Uri, isEditable?: boolean);
+		constructor(name: string, description: string, uri: Uri, options?: InstructionsOptions);
 
 		/**
-		 * Creates a new instructions resource from options. A virtual URI will be generated
+		 * Creates a new instructions resource from properties. A virtual URI will be generated
 		 * and the markdown content will be constructed from the provided properties.
-		 * @param options The options for creating the instructions.
+		 * @param name The unique identifier/name of the instructions.
+		 * @param description A description of what the instructions provide.
+		 * @param properties The properties for creating the instructions.
+		 * @param options Optional settings for the instructions.
 		 */
-		constructor(options: InstructionsOptions);
+		constructor(name: string, description: string, properties: InstructionsProperties, options?: InstructionsOptions);
 	}
 
 	/**
-	 * Options for creating a prompt file without a URI.
+	 * Properties for creating a prompt file without a URI.
 	 * The markdown content will be generated from these properties.
 	 */
-	export interface PromptFileOptions {
-		/**
-		 * The unique identifier/name of the prompt file.
-		 */
-		name: string;
-
-		/**
-		 * A description of what the prompt file does.
-		 */
-		description: string;
-
+	export interface PromptFileProperties {
 		/**
 		 * The body content of the prompt file.
 		 */
@@ -242,7 +228,12 @@ declare module 'vscode' {
 		 * Optional list of tools available to the prompt file.
 		 */
 		tools?: string[];
+	}
 
+	/**
+	 * Options for creating a prompt file resource.
+	 */
+	export interface PromptFileOptions {
 		/**
 		 * Indicates whether the prompt file is editable. Defaults to false.
 		 */
@@ -278,16 +269,19 @@ declare module 'vscode' {
 		 * @param name The unique identifier/name of the prompt file.
 		 * @param description A description of what the prompt file does.
 		 * @param uri The URI to the prompt file resource file.
-		 * @param isEditable Whether the prompt file is editable. Defaults to false.
+		 * @param options Optional settings for the prompt file.
 		 */
-		constructor(name: string, description: string, uri: Uri, isEditable?: boolean);
+		constructor(name: string, description: string, uri: Uri, options?: PromptFileOptions);
 
 		/**
-		 * Creates a new prompt file resource from options. A virtual URI will be generated
+		 * Creates a new prompt file resource from properties. A virtual URI will be generated
 		 * and the markdown content will be constructed from the provided properties.
-		 * @param options The options for creating the prompt file.
+		 * @param name The unique identifier/name of the prompt file.
+		 * @param description A description of what the prompt file does.
+		 * @param properties The properties for creating the prompt file.
+		 * @param options Optional settings for the prompt file.
 		 */
-		constructor(options: PromptFileOptions);
+		constructor(name: string, description: string, properties: PromptFileProperties, options?: PromptFileOptions);
 	}
 
 	// #endregion

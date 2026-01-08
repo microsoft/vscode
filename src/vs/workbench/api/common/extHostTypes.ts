@@ -3943,30 +3943,27 @@ export class CustomAgentChatResource implements vscode.CustomAgentChatResource {
 	readonly isEditable?: boolean;
 	readonly metadata?: vscode.ResourceMetadata;
 
-	constructor(name: string, description: string, uri: URI, isEditable?: boolean);
-	constructor(options: vscode.CustomAgentOptions);
-	constructor(nameOrOptions: string | vscode.CustomAgentOptions, description?: string, uri?: URI, isEditable?: boolean) {
-		if (typeof nameOrOptions === 'object') {
-			const options = nameOrOptions;
-			this.name = options.name;
-			this.description = options.description;
-			this.isEditable = options.isEditable;
-			this.metadata = options.metadata;
-			const content = generatePromptMarkdown({
-				description: options.description,
-				model: options.model,
-				tools: options.tools,
-				'argument-hint': options.argumentHint,
-				target: options.target,
-				infer: options.infer,
-				handoffs: options.handoffs,
-			}, options.body);
-			this.uri = createVirtualPromptUri(options.name, '.agent.md', content);
+	constructor(name: string, description: string, uri: URI, options?: vscode.CustomAgentOptions);
+	constructor(name: string, description: string, properties: vscode.CustomAgentProperties, options?: vscode.CustomAgentOptions);
+	constructor(name: string, description: string, uriOrProperties: URI | vscode.CustomAgentProperties, options?: vscode.CustomAgentOptions) {
+		this.name = name;
+		this.description = description;
+		this.isEditable = options?.isEditable;
+		this.metadata = options?.metadata;
+		if (URI.isUri(uriOrProperties)) {
+			this.uri = uriOrProperties;
 		} else {
-			this.name = nameOrOptions;
-			this.description = description!;
-			this.uri = uri!;
-			this.isEditable = isEditable;
+			const properties = uriOrProperties;
+			const content = generatePromptMarkdown({
+				description: description,
+				model: properties.model,
+				tools: properties.tools,
+				'argument-hint': properties.argumentHint,
+				target: properties.target,
+				infer: properties.infer,
+				handoffs: properties.handoffs,
+			}, properties.body);
+			this.uri = createVirtualPromptUri(name, '.agent.md', content);
 		}
 	}
 }
@@ -3979,25 +3976,22 @@ export class InstructionsChatResource implements vscode.InstructionsChatResource
 	readonly isEditable?: boolean;
 	readonly metadata?: vscode.ResourceMetadata;
 
-	constructor(name: string, description: string, uri: URI, isEditable?: boolean);
-	constructor(options: vscode.InstructionsOptions);
-	constructor(nameOrOptions: string | vscode.InstructionsOptions, description?: string, uri?: URI, isEditable?: boolean) {
-		if (typeof nameOrOptions === 'object') {
-			const options = nameOrOptions;
-			this.name = options.name;
-			this.description = options.description;
-			this.isEditable = options.isEditable;
-			this.metadata = options.metadata;
-			const content = generatePromptMarkdown({
-				description: options.description,
-				applyTo: options.applyTo,
-			}, options.body);
-			this.uri = createVirtualPromptUri(options.name, '.instructions.md', content);
+	constructor(name: string, description: string, uri: URI, options?: vscode.InstructionsOptions);
+	constructor(name: string, description: string, properties: vscode.InstructionsProperties, options?: vscode.InstructionsOptions);
+	constructor(name: string, description: string, uriOrProperties: URI | vscode.InstructionsProperties, options?: vscode.InstructionsOptions) {
+		this.name = name;
+		this.description = description;
+		this.isEditable = options?.isEditable;
+		this.metadata = options?.metadata;
+		if (URI.isUri(uriOrProperties)) {
+			this.uri = uriOrProperties;
 		} else {
-			this.name = nameOrOptions;
-			this.description = description!;
-			this.uri = uri!;
-			this.isEditable = isEditable;
+			const properties = uriOrProperties;
+			const content = generatePromptMarkdown({
+				description: description,
+				applyTo: properties.applyTo,
+			}, properties.body);
+			this.uri = createVirtualPromptUri(name, '.instructions.md', content);
 		}
 	}
 }
@@ -4010,27 +4004,24 @@ export class PromptFileChatResource implements vscode.PromptFileChatResource {
 	readonly isEditable?: boolean;
 	readonly metadata?: vscode.ResourceMetadata;
 
-	constructor(name: string, description: string, uri: URI, isEditable?: boolean);
-	constructor(options: vscode.PromptFileOptions);
-	constructor(nameOrOptions: string | vscode.PromptFileOptions, description?: string, uri?: URI, isEditable?: boolean) {
-		if (typeof nameOrOptions === 'object') {
-			const options = nameOrOptions;
-			this.name = options.name;
-			this.description = options.description;
-			this.isEditable = options.isEditable;
-			this.metadata = options.metadata;
-			const content = generatePromptMarkdown({
-				description: options.description,
-				agent: options.agent,
-				model: options.model,
-				tools: options.tools,
-			}, options.body);
-			this.uri = createVirtualPromptUri(options.name, '.prompt.md', content);
+	constructor(name: string, description: string, uri: URI, options?: vscode.PromptFileOptions);
+	constructor(name: string, description: string, properties: vscode.PromptFileProperties, options?: vscode.PromptFileOptions);
+	constructor(name: string, description: string, uriOrProperties: URI | vscode.PromptFileProperties, options?: vscode.PromptFileOptions) {
+		this.name = name;
+		this.description = description;
+		this.isEditable = options?.isEditable;
+		this.metadata = options?.metadata;
+		if (URI.isUri(uriOrProperties)) {
+			this.uri = uriOrProperties;
 		} else {
-			this.name = nameOrOptions;
-			this.description = description!;
-			this.uri = uri!;
-			this.isEditable = isEditable;
+			const properties = uriOrProperties;
+			const content = generatePromptMarkdown({
+				description: description,
+				agent: properties.agent,
+				model: properties.model,
+				tools: properties.tools,
+			}, properties.body);
+			this.uri = createVirtualPromptUri(name, '.prompt.md', content);
 		}
 	}
 }
