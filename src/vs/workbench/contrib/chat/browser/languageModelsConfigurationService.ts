@@ -146,25 +146,6 @@ export class LanguageModelsConfigurationService extends Disposable implements IL
 		codeEditor.focus();
 	}
 
-	// private encodeSecretKey(secretKey: string): string {
-	// 	return format(LanguageModelsConfigurationService.API_KEY, secretKey);
-	// }
-
-	// private decodeSecretKey(vendor: string, apiKey: string): string | undefined {
-	// 	if (!apiKey) {
-	// 		return undefined;
-	// 	}
-	// 	const secretKey = apiKey.substring(apiKey.indexOf(':') + 1, apiKey.length - 1);
-	// 	const [vendorId, , apiKeySegment] = secretKey.split('.');
-	// 	if (vendorId !== vendor) {
-	// 		return undefined;
-	// 	}
-	// 	if (apiKeySegment !== 'apiKey') {
-	// 		return undefined;
-	// 	}
-	// 	return secretKey;
-	// }
-
 	private async withLanguageModelsProviderGroups(update?: (languageModelsProviderGroups: LanguageModelsProviderGroups) => Promise<LanguageModelsProviderGroups>): Promise<LanguageModelsProviderGroups> {
 		const exists = await this.fileService.exists(this.modelsConfigurationFile);
 		if (!exists) {
