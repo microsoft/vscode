@@ -35,7 +35,7 @@ import { ExtHostLanguageModels } from './extHostLanguageModels.js';
 import { ExtHostLanguageModelTools } from './extHostLanguageModelTools.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
-import { IPromptFileQueryOptions, IPromptFileResource } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
+import { IPromptFileContext, IPromptFileResource } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../contrib/chat/common/promptSyntax/promptTypes.js';
 import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors.js';
 
@@ -526,20 +526,20 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return await provider.provider.provideRelatedFiles(extRequestDraft, token) ?? undefined;
 	}
 
-	async $providePromptFiles(handle: number, options: IPromptFileQueryOptions, token: CancellationToken): Promise<IPromptFileResource[] | undefined> {
+	async $providePromptFiles(handle: number, context: IPromptFileContext, token: CancellationToken): Promise<IPromptFileResource[] | undefined> {
 		const providerData = this._promptFileProviders.get(handle);
 		if (!providerData) {
-			return Promise.resolve(undefined);
+			return undefined;
 		}
 
 		const provider = providerData.provider;
 		// Call the appropriate method based on the provider type
 		if ('provideCustomAgents' in provider) {
-			return await provider.provideCustomAgents(options, token) ?? undefined;
+			return await provider.provideCustomAgents(context, token) ?? undefined;
 		} else if ('provideInstructions' in provider) {
-			return await provider.provideInstructions(options, token) ?? undefined;
+			return await provider.provideInstructions(context, token) ?? undefined;
 		} else if ('providePromptFiles' in provider) {
-			return await provider.providePromptFiles(options, token) ?? undefined;
+			return await provider.providePromptFiles(context, token) ?? undefined;
 		}
 		return undefined;
 	}

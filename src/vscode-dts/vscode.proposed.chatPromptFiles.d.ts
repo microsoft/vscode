@@ -163,12 +163,17 @@ declare module 'vscode' {
 	/**
 	 * Options for querying custom agents.
 	 */
-	export type CustomAgentQueryOptions = object;
+	export type CustomAgentContext = object;
 
 	/**
 	 * A provider that supplies custom agent resources (from .agent.md files) for repositories.
 	 */
 	export interface CustomAgentProvider {
+		/**
+		 * A human-readable label for this provider.
+		 */
+		readonly label: string;
+
 		/**
 		 * An optional event to signal that custom agents have changed.
 		 */
@@ -176,22 +181,27 @@ declare module 'vscode' {
 
 		/**
 		 * Provide the list of custom agents available.
-		 * @param options Optional query parameters.
+		 * @param context Context for the query.
 		 * @param token A cancellation token.
 		 * @returns An array of custom agents or a promise that resolves to such.
 		 */
-		provideCustomAgents(options: CustomAgentQueryOptions, token: CancellationToken): ProviderResult<CustomAgentChatResource[]>;
+		provideCustomAgents(context: CustomAgentContext, token: CancellationToken): ProviderResult<CustomAgentChatResource[]>;
 	}
 
 	/**
-	 * Options for querying instructions.
+	 * Context for querying instructions.
 	 */
-	export type InstructionsQueryOptions = object;
+	export type InstructionsContext = object;
 
 	/**
 	 * A provider that supplies instructions resources for repositories.
 	 */
 	export interface InstructionsProvider {
+		/**
+		 * A human-readable label for this provider.
+		 */
+		readonly label: string;
+
 		/**
 		 * An optional event to signal that instructions have changed.
 		 */
@@ -199,22 +209,27 @@ declare module 'vscode' {
 
 		/**
 		 * Provide the list of instructions available.
-		 * @param options Optional query parameters.
+		 * @param context Context for the query.
 		 * @param token A cancellation token.
 		 * @returns An array of instructions or a promise that resolves to such.
 		 */
-		provideInstructions(options: InstructionsQueryOptions, token: CancellationToken): ProviderResult<InstructionsChatResource[]>;
+		provideInstructions(context: InstructionsContext, token: CancellationToken): ProviderResult<InstructionsChatResource[]>;
 	}
 
 	/**
-	 * Options for querying prompt files.
+	 * Context for querying prompt files.
 	 */
-	export type PromptFileQueryOptions = object;
+	export type PromptFileContext = object;
 
 	/**
 	 * A provider that supplies prompt file resources (from .prompt.md files) for repositories.
 	 */
 	export interface PromptFileProvider {
+		/**
+		 * A human-readable label for this provider.
+		 */
+		readonly label: string;
+
 		/**
 		 * An optional event to signal that prompt files have changed.
 		 */
@@ -222,11 +237,11 @@ declare module 'vscode' {
 
 		/**
 		 * Provide the list of prompt files available.
-		 * @param options Optional query parameters.
+		 * @param context Context for the query.
 		 * @param token A cancellation token.
 		 * @returns An array of prompt files or a promise that resolves to such.
 		 */
-		providePromptFiles(options: PromptFileQueryOptions, token: CancellationToken): ProviderResult<PromptFileChatResource[]>;
+		providePromptFiles(context: PromptFileContext, token: CancellationToken): ProviderResult<PromptFileChatResource[]>;
 	}
 
 	// #endregion

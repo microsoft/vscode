@@ -23,9 +23,9 @@ export const INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT = 'onInstructionsProvider';
 export const PROMPT_FILE_PROVIDER_ACTIVATION_EVENT = 'onPromptFileProvider';
 
 /**
- * Options for querying prompt files.
+ * Context for querying prompt files.
  */
-export interface IPromptFileQueryOptions { }
+export interface IPromptFileContext { }
 
 /**
  * Represents a prompt file resource from an external provider.
@@ -323,7 +323,7 @@ export interface IPromptsService extends IDisposable {
 	 */
 	registerPromptFileProvider(extension: IExtensionDescription, type: PromptsType, provider: {
 		onDidChangePromptFiles?: Event<void>;
-		providePromptFiles: (options: IPromptFileQueryOptions, token: CancellationToken) => Promise<IPromptFileResource[] | undefined>;
+		providePromptFiles: (context: IPromptFileContext, token: CancellationToken) => Promise<IPromptFileResource[] | undefined>;
 	}): IDisposable;
 
 	/**

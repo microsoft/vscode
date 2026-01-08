@@ -26,7 +26,7 @@ import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIde
 import { IChatWidgetService } from '../../contrib/chat/browser/chat.js';
 import { AddDynamicVariableAction, IAddDynamicVariableContext } from '../../contrib/chat/browser/attachments/chatDynamicVariables.js';
 import { IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../contrib/chat/common/participants/chatAgents.js';
-import { IPromptFileQueryOptions, IPromptsService } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
+import { IPromptFileContext, IPromptsService } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { isValidPromptType } from '../../contrib/chat/common/promptSyntax/promptTypes.js';
 import { IChatPromptContentStore } from '../../contrib/chat/common/promptSyntax/chatPromptContentStore.js';
 import { IChatEditingService, IChatRelatedFileProviderMetadata } from '../../contrib/chat/common/editing/chatEditingService.js';
@@ -455,8 +455,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 		const disposable = this._promptsService.registerPromptFileProvider(extension, type, {
 			onDidChangePromptFiles: emitter.event,
-			providePromptFiles: async (options: IPromptFileQueryOptions, token: CancellationToken) => {
-				const contributions = await this._proxy.$providePromptFiles(handle, options, token);
+			providePromptFiles: async (context: IPromptFileContext, token: CancellationToken) => {
+				const contributions = await this._proxy.$providePromptFiles(handle, context, token);
 				if (!contributions) {
 					return undefined;
 				}
