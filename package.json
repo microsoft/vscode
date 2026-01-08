@@ -82,7 +82,7 @@
     "@vscode/ripgrep": "^1.15.13",
     "@vscode/spdlog": "^0.15.2",
     "@vscode/sqlite3": "5.1.10-vscode",
-    "@vscode/sudo-prompt": "9.3.1",
+    "@vscode/sudo-prompt": "9.3.2",
     "@vscode/tree-sitter-wasm": "^0.3.0",
     "@vscode/vscode-languagedetection": "1.0.21",
     "@vscode/watcher": "bpasero/watcher#8ecffb4a57df24ac3e6946aa095b9b1f14f8bba9",
