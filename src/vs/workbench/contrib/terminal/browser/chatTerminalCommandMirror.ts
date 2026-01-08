@@ -92,13 +92,13 @@ export async function getCommandOutputSnapshot(
 		if (!text) {
 			return { text: '', lineCount: 0 };
 		}
-		const endLine = endMarker.line - 1;
+		const endLine = endMarker.line;
 		const lineCount = Math.max(endLine - startLine + 1, 0);
 		return { text, lineCount };
 	}
 
 	const startLine = executedMarker.line;
-	const endLine = endMarker.line - 1;
+	const endLine = endMarker.line;
 	const lineCount = Math.max(endLine - startLine + 1, 0);
 
 	let text: string | undefined;
@@ -246,7 +246,6 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 		});
 
 		this._lastVT = vt.text;
-		this._lineCount = this._getRenderedLineCount();
 
 		const sourceRaw = this._xtermTerminal.raw;
 		if (sourceRaw) {
@@ -256,6 +255,8 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 				this._startStreaming(sourceRaw);
 			}
 		}
+
+		this._lineCount = this._getRenderedLineCount();
 
 		return { lineCount: this._lineCount };
 	}
@@ -282,44 +283,23 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 	}
 
 	private _getRenderedLineCount(): number {
-		if (!this._detachedTerminal) {
-			return this._lineCount;
-		}
-		const buffer = this._detachedTerminal.xterm.buffer.active;
-		const baseY = buffer.baseY;
-		const cursorY = buffer.cursorY;
-		const cursorX = buffer.cursorX;
-
-		// Total lines is baseY (scrollback) + cursorY (visible position) + 1
-		// But if cursor is at column 0 on the current line, it means the previous
-		// line ended with a newline and the cursor moved to an empty line.
-		// In that case, don't count the empty line.
-		let totalLines = baseY + cursorY + 1;
-		if (cursorX === 0 && totalLines > 1) {
-			// Check if the current line is empty (cursor at start of an empty line)
-			const line = buffer.getLine(baseY + cursorY);
-			if (line && line.translateToString(true).length === 0) {
-				totalLines = totalLines - 1;
-			}
+		// Calculate line count from the command's markers when available
+		const endMarker = this._command.endMarker;
+		if (this._command.executedMarker && endMarker && !endMarker.isDisposed) {
+			const startLine = this._command.executedMarker.line;
+			const endLine = endMarker.line;
+			return Math.max(endLine - startLine + 1, 0);
 		}
 
-		// Also calculate minimum expected lines from the VT text as a sanity check.
-		// This handles cases where the buffer cursor position hasn't fully updated yet.
-		const textLineCount = this._lastVT ? this._countLinesFromText(this._lastVT) : 0;
-		return Math.max(totalLines, textLineCount);
-	}
+		// During streaming (no end marker), calculate from the source terminal buffer
+		const executedMarker = this._command.executedMarker ?? (this._command as unknown as ICurrentPartialCommand).commandExecutedMarker;
+		if (executedMarker && this._sourceRaw) {
+			const buffer = this._sourceRaw.buffer.active;
+			const currentLine = buffer.baseY + buffer.cursorY;
+			return Math.max(currentLine - executedMarker.line + 1, 0);
+		}
 
-	private _countLinesFromText(text: string): number {
-		if (!text) {
-			return 0;
-		}
-		// Count line breaks in the text. VT sequences use \r\n for newlines.
-		const lines = text.split(/\r\n|\n|\r/);
-		// If text ends with a newline, don't count the empty trailing element
-		if (lines.length > 0 && lines[lines.length - 1] === '') {
-			return lines.length - 1;
-		}
-		return lines.length;
+		return this._lineCount;
 	}
 
 	private async _getOrCreateTerminal(): Promise<IDetachedTerminalInstance> {
