@@ -304,7 +304,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			// If switching to a model with a request in progress, play progress sound
 			if (viewModel.model.requestInProgress.get()) {
-				this.chatAccessibilityService.acceptRequest(viewModel.sessionResource);
+				this.chatAccessibilityService.acceptRequest(viewModel.sessionResource, true);
 			}
 		} else {
 			this.logService.debug('ChatWidget#setViewModel: no viewModel');
