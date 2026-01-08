@@ -50,6 +50,11 @@ export interface IPromptFileResource {
 	 * Indicates whether the custom agent resource is editable. Defaults to false.
 	 */
 	readonly isEditable?: boolean;
+
+	/**
+	 * Indicates whether the editor should cache the URI on startup before activation. Defaults to true.
+	 */
+	readonly isCacheable?: boolean;
 }
 
 /**

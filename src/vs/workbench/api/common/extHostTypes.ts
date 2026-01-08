@@ -3941,6 +3941,7 @@ export class CustomAgentChatResource implements vscode.CustomAgentChatResource {
 	readonly description: string;
 	readonly uri: URI;
 	readonly isEditable?: boolean;
+	readonly isCacheable?: boolean;
 
 	constructor(name: string, description: string, uri: URI, options?: vscode.CustomAgentOptions);
 	constructor(name: string, description: string, properties: vscode.CustomAgentProperties, options?: vscode.CustomAgentOptions);
@@ -3948,6 +3949,7 @@ export class CustomAgentChatResource implements vscode.CustomAgentChatResource {
 		this.name = name;
 		this.description = description;
 		this.isEditable = options?.isEditable;
+		this.isCacheable = options?.isCacheable;
 		if (URI.isUri(uriOrProperties)) {
 			this.uri = uriOrProperties;
 		} else {
@@ -3972,6 +3974,7 @@ export class InstructionsChatResource implements vscode.InstructionsChatResource
 	readonly description: string;
 	readonly uri: URI;
 	readonly isEditable?: boolean;
+	readonly isCacheable?: boolean;
 
 	constructor(name: string, description: string, uri: URI, options?: vscode.InstructionsOptions);
 	constructor(name: string, description: string, properties: vscode.InstructionsProperties, options?: vscode.InstructionsOptions);
@@ -3979,6 +3982,7 @@ export class InstructionsChatResource implements vscode.InstructionsChatResource
 		this.name = name;
 		this.description = description;
 		this.isEditable = options?.isEditable;
+		this.isCacheable = options?.isCacheable;
 		if (URI.isUri(uriOrProperties)) {
 			this.uri = uriOrProperties;
 		} else {
@@ -3998,6 +4002,7 @@ export class PromptFileChatResource implements vscode.PromptFileChatResource {
 	readonly description: string;
 	readonly uri: URI;
 	readonly isEditable?: boolean;
+	readonly isCacheable?: boolean;
 
 	constructor(name: string, description: string, uri: URI, options?: vscode.PromptFileOptions);
 	constructor(name: string, description: string, properties: vscode.PromptFileProperties, options?: vscode.PromptFileOptions);
@@ -4005,6 +4010,7 @@ export class PromptFileChatResource implements vscode.PromptFileChatResource {
 		this.name = name;
 		this.description = description;
 		this.isEditable = options?.isEditable;
+		this.isCacheable = options?.isCacheable;
 		if (URI.isUri(uriOrProperties)) {
 			this.uri = uriOrProperties;
 		} else {
