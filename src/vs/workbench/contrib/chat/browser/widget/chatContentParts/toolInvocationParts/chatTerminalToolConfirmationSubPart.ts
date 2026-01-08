@@ -329,18 +329,18 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 						const parts: string[] = [];
 						if (sessionRules.length > 0) {
 							parts.push(sessionRules.length === 1
-								? localize('newRule.session', 'Session rule {0} added', formatRuleLinks(sessionRules, 'session'))
-								: localize('newRule.session.plural', 'Session rules {0} added', formatRuleLinks(sessionRules, 'session')));
+								? localize('newRule.session', 'Session auto approve rule {0} added', formatRuleLinks(sessionRules, 'session'))
+								: localize('newRule.session.plural', 'Session auto approve rules {0} added', formatRuleLinks(sessionRules, 'session')));
 						}
 						if (workspaceRules.length > 0) {
 							parts.push(workspaceRules.length === 1
-								? localize('newRule.workspace', 'Workspace rule {0} added', formatRuleLinks(workspaceRules, 'workspace'))
-								: localize('newRule.workspace.plural', 'Workspace rules {0} added', formatRuleLinks(workspaceRules, 'workspace')));
+								? localize('newRule.workspace', 'Workspace auto approve rule {0} added', formatRuleLinks(workspaceRules, 'workspace'))
+								: localize('newRule.workspace.plural', 'Workspace auto approve rules {0} added', formatRuleLinks(workspaceRules, 'workspace')));
 						}
 						if (userRules.length > 0) {
 							parts.push(userRules.length === 1
-								? localize('newRule.user', 'User rule {0} added', formatRuleLinks(userRules, 'user'))
-								: localize('newRule.user.plural', 'User rules {0} added', formatRuleLinks(userRules, 'user')));
+								? localize('newRule.user', 'User auto approve rule {0} added', formatRuleLinks(userRules, 'user'))
+								: localize('newRule.user.plural', 'User auto approve rules {0} added', formatRuleLinks(userRules, 'user')));
 						}
 						if (parts.length > 0) {
 							terminalData.autoApproveInfo = new MarkdownString(parts.join(', '), mdTrustSettings);
@@ -384,8 +384,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 
 	private _createButtons(moreActions: (IChatConfirmationButton<TerminalNewAutoApproveButtonData> | Separator)[] | undefined): IChatConfirmationButton<boolean | TerminalNewAutoApproveButtonData>[] {
 		const getLabelAndTooltip = (label: string, actionId: string, tooltipDetail: string = label): { label: string; tooltip: string } => {
-			const keybinding = this.keybindingService.lookupKeybinding(actionId)?.getLabel();
-			const tooltip = keybinding ? `${tooltipDetail} (${keybinding})` : (tooltipDetail);
+			const tooltip = this.keybindingService.appendKeybinding(tooltipDetail, actionId);
 			return { label, tooltip };
 		};
 		return [
