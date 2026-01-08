@@ -473,6 +473,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		].join('\n'),
 	},
 	[TerminalChatAgentToolsSettingId.EnforceTimeoutFromModel]: {
+		restricted: true,
 		type: 'boolean',
 		default: false,
 		tags: ['experimental'],
