@@ -32,16 +32,6 @@ export interface IPromptFileQueryOptions { }
  */
 export interface IPromptFileResource {
 	/**
-	 * The unique identifier/name of the custom agent resource.
-	 */
-	readonly name: string;
-
-	/**
-	 * A description of what the custom agent resource does.
-	 */
-	readonly description: string;
-
-	/**
 	 * The URI to the agent or prompt resource file.
 	 */
 	readonly uri: URI;
@@ -50,6 +40,13 @@ export interface IPromptFileResource {
 	 * Indicates whether the custom agent resource is editable. Defaults to false.
 	 */
 	readonly isEditable?: boolean;
+
+	/**
+	 * The inline content for virtual prompt files. This property is only used
+	 * during IPC transfer from extension host to main thread - the content is
+	 * immediately registered with the ChatPromptContentStore and not passed further.
+	 */
+	readonly content?: string;
 }
 
 /**

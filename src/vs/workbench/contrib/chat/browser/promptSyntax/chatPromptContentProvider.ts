@@ -10,18 +10,22 @@ import { ILanguageService } from '../../../../../editor/common/languages/languag
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ITextModelContentProvider, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { IChatPromptContentStore } from '../../common/promptSyntax/chatPromptContentStore.js';
 import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/promptTypes.js';
 
 /**
  * Content provider for virtual chat prompt files created with inline content.
- * These URIs have the scheme 'vscode-chat-prompt' and store their content
- * in the query string (URL-encoded).
+ * These URIs have the scheme 'vscode-chat-prompt' and retrieve their content
+ * from the {@link IChatPromptContentStore} which maintains an in-memory map
+ * of content indexed by URI. This approach avoids putting content in the URI
+ * query string which is a misuse of URIs.
  */
 export class ChatPromptContentProvider extends Disposable implements ITextModelContentProvider {
 	constructor(
 		@ITextModelService textModelService: ITextModelService,
 		@IModelService private readonly modelService: IModelService,
-		@ILanguageService private readonly languageService: ILanguageService
+		@ILanguageService private readonly languageService: ILanguageService,
+		@IChatPromptContentStore private readonly chatPromptContentStore: IChatPromptContentStore
 	) {
 		super();
 		this._register(textModelService.registerTextModelContentProvider(Schemas.vscodeChatPrompt, this));
@@ -33,8 +37,8 @@ export class ChatPromptContentProvider extends Disposable implements ITextModelC
 			return existing;
 		}
 
-		// Decode the content from the query string
-		const content = decodeURIComponent(resource.query);
+		// Get the content from the content store
+		const content = this.chatPromptContentStore.getContent(resource) ?? '';
 
 		return this.modelService.createModel(
 			content,

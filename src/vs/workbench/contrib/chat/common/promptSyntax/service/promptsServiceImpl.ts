@@ -35,6 +35,7 @@ import { PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../p
 import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IAgentSkill, IUserPromptPath, PromptsStorage, ExtensionAgentSourceType, CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT, IPromptFileQueryOptions, IPromptFileResource, PROMPT_FILE_PROVIDER_ACTIVATION_EVENT } from './promptsService.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
+import { IChatPromptContentStore } from '../chatPromptContentStore.js';
 
 /**
  * Provides prompt services.
@@ -97,7 +98,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IChatPromptContentStore private readonly chatPromptContentStore: IChatPromptContentStore
 	) {
 		super();
 
@@ -271,8 +273,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 					result.push({
 						uri: file.uri,
-						name: file.name,
-						description: file.description,
 						storage: PromptsStorage.extension,
 						type,
 						extension: providerEntry.extension,
@@ -510,10 +510,14 @@ export class PromptsService extends Disposable implements IPromptsService {
 			return this.getParsedPromptFile(model);
 		}
 
-		// Handle virtual prompt URIs with embedded content in query string
+		// Handle virtual prompt URIs - get content from the content store
 		if (uri.scheme === Schemas.vscodeChatPrompt) {
-			const content = decodeURIComponent(uri.query);
-			return new PromptFileParser().parse(uri, content);
+			const content = this.chatPromptContentStore.getContent(uri);
+			if (content !== undefined) {
+				return new PromptFileParser().parse(uri, content);
+			}
+			// Fallback: content not found in store
+			return new PromptFileParser().parse(uri, '');
 		}
 
 		const fileContent = await this.fileService.readFile(uri);

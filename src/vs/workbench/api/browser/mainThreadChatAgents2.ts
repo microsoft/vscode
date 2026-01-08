@@ -28,6 +28,7 @@ import { AddDynamicVariableAction, IAddDynamicVariableContext } from '../../cont
 import { IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../contrib/chat/common/participants/chatAgents.js';
 import { IPromptFileQueryOptions, IPromptsService } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { isValidPromptType } from '../../contrib/chat/common/promptSyntax/promptTypes.js';
+import { IChatPromptContentStore } from '../../contrib/chat/common/promptSyntax/chatPromptContentStore.js';
 import { IChatEditingService, IChatRelatedFileProviderMetadata } from '../../contrib/chat/common/editing/chatEditingService.js';
 import { IChatModel } from '../../contrib/chat/common/model/chatModel.js';
 import { ChatRequestAgentPart } from '../../contrib/chat/common/requestParser/chatParserTypes.js';
@@ -120,6 +121,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IPromptsService private readonly _promptsService: IPromptsService,
+		@IChatPromptContentStore private readonly _chatPromptContentStore: IChatPromptContentStore,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatAgents2);
@@ -458,11 +460,18 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				if (!contributions) {
 					return undefined;
 				}
-				// Convert UriComponents to URI
-				return contributions.map(c => ({
-					...c,
-					uri: URI.revive(c.uri)
-				}));
+				// Convert UriComponents to URI and register any inline content
+				return contributions.map(c => {
+					const uri = URI.revive(c.uri);
+					// If this is a virtual prompt with inline content, register it with the store
+					if (c.content && uri.scheme === Schemas.vscodeChatPrompt) {
+						this._chatPromptContentStore.registerContent(uri, c.content);
+					}
+					return {
+						uri,
+						isEditable: c.isEditable
+					};
+				});
 			}
 		});
 

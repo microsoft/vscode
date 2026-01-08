@@ -64,11 +64,12 @@ declare module 'vscode' {
 		/**
 		 * Creates a new custom agent resource from content. A virtual URI will be generated
 		 * and the markdown content will be constructed from the provided content.
+		 * @param id The unique identifier for this custom agent resource.
 		 * @param content The content for creating the custom agent - either a string (body only)
 		 *                or a structured PromptFileContent object with header and body.
 		 * @param options Optional settings for the custom agent.
 		 */
-		constructor(content: string | PromptFileContent, options?: CustomAgentOptions);
+		constructor(id: string, content: string | PromptFileContent, options?: CustomAgentOptions);
 	}
 
 	/**
@@ -105,11 +106,12 @@ declare module 'vscode' {
 		/**
 		 * Creates a new instructions resource from content. A virtual URI will be generated
 		 * and the markdown content will be constructed from the provided content.
+		 * @param id The unique identifier for this instructions resource.
 		 * @param content The content for creating the instructions - either a string (body only)
 		 *                or a structured PromptFileContent object with header and body.
 		 * @param options Optional settings for the instructions.
 		 */
-		constructor(content: string | PromptFileContent, options?: InstructionsOptions);
+		constructor(id: string, content: string | PromptFileContent, options?: InstructionsOptions);
 	}
 
 	/**
@@ -146,11 +148,12 @@ declare module 'vscode' {
 		/**
 		 * Creates a new prompt file resource from content. A virtual URI will be generated
 		 * and the markdown content will be constructed from the provided content.
+		 * @param id The unique identifier for this prompt file resource.
 		 * @param content The content for creating the prompt file - either a string (body only)
 		 *                or a structured PromptFileContent object with header and body.
 		 * @param options Optional settings for the prompt file.
 		 */
-		constructor(content: string | PromptFileContent, options?: PromptFileOptions);
+		constructor(id: string, content: string | PromptFileContent, options?: PromptFileOptions);
 	}
 
 	// #endregion
