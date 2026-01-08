@@ -116,7 +116,6 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 	private static NO_SUGGESTIONS_MESSAGE: string = localize('suggestWidget.noSuggestions', "No suggestions.");
 
 	private _state: State = State.Hidden;
-	private _explicitlyInvoked: boolean = false;
 	private _loadingTimeout?: IDisposable;
 	private _completionModel?: TModel;
 	private _cappedHeight?: { wanted: number; capped: number };
@@ -443,10 +442,9 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 			return;
 		}
 		this._cursorPosition = cursorPosition;
-		this._explicitlyInvoked = !!explicitlyInvoked;
-		this._ctxSuggestWidgetExplicitlyInvoked.set(this._explicitlyInvoked);
+		this._ctxSuggestWidgetExplicitlyInvoked.set(!!explicitlyInvoked);
 
-		if (this._explicitlyInvoked) {
+		if (this._ctxSuggestWidgetExplicitlyInvoked.get()) {
 			this._loadingTimeout = disposableTimeout(() => this._setState(State.Loading), 250);
 		}
 	}
@@ -458,7 +456,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 
 		const selectionMode = this._options?.selectionModeSettingId ? this._configurationService.getValue<SuggestSelectionMode>(this._options.selectionModeSettingId) : undefined;
 		// When explicitly invoked (not auto), always select the first item regardless of selectionMode
-		const noFocus = !this._explicitlyInvoked && selectionMode === SuggestSelectionMode.Never;
+		const noFocus = !this._ctxSuggestWidgetExplicitlyInvoked.get() && selectionMode === SuggestSelectionMode.Never;
 
 		// this._currentSuggestionDetails?.cancel();
 		// this._currentSuggestionDetails = undefined;
@@ -510,7 +508,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		if (this._options.selectionModeSettingId) {
 			const selectionMode = this._configurationService.getValue<SuggestSelectionMode>(this._options.selectionModeSettingId);
 			// When explicitly invoked, always show full selection (background) instead of partial (border)
-			const usePartialStyle = !this._explicitlyInvoked && selectionMode === SuggestSelectionMode.Partial;
+			const usePartialStyle = !this._ctxSuggestWidgetExplicitlyInvoked.get() && selectionMode === SuggestSelectionMode.Partial;
 			this._list.style(getListStylesWithMode(usePartialStyle));
 			this.element.domNode.classList.toggle(Classes.PartialSelection, usePartialStyle);
 		}
@@ -701,7 +699,6 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		this._loadingTimeout?.dispose();
 		this._ctxSuggestWidgetHasBeenNavigated.reset();
 		this._ctxFirstSuggestionFocused.reset();
-		this._explicitlyInvoked = false;
 		this._ctxSuggestWidgetExplicitlyInvoked.reset();
 		this._setState(State.Hidden);
 		this._onDidHide.fire(this);
