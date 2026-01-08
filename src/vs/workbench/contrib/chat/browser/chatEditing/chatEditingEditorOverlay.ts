@@ -34,7 +34,7 @@ import * as arrays from '../../../../../base/common/arrays.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { observableCodeEditor } from '../../../../../editor/browser/observableCodeEditor.js';
-import { isCodeEditor, OverlayWidgetPositionPreference } from '../../../../../editor/browser/editorBrowser.js';
+import { IOverlayWidgetPosition, isCodeEditor, OverlayWidgetPositionPreference } from '../../../../../editor/browser/editorBrowser.js';
 
 class ChatEditorOverlayWidget extends Disposable {
 
@@ -342,8 +342,8 @@ class ChatEditingOverlayController {
 						minContentWidthInPx: constObservable(0),
 						position: constObservable({
 							preference: OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER,
-							stackOridinal: 1
-						})
+							stackOrdinal: 1
+						} satisfies IOverlayWidgetPosition)
 					});
 
 					hide = () => {
