@@ -54,6 +54,9 @@ export class MockChatModel extends Disposable implements IChatModel {
 		super.dispose();
 	}
 
+	setCustomTitle(title: string): void {
+		this.customTitle = title;
+	}
 	startEditingSession(isGlobalEditingSession?: boolean, transferFromSession?: IChatEditingSession): void { }
 	getRequests(): IChatRequestModel[] { return []; }
 	setCheckpoint(requestId: string | undefined): void { }

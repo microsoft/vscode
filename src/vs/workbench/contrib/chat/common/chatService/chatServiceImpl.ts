@@ -243,6 +243,14 @@ export class ChatService extends Disposable implements IChatService {
 		const model = this._sessionModels.get(sessionResource);
 		if (model) {
 			model.setCustomTitle(title);
+		} else {
+			let modelRef: IChatModelReference | undefined;
+			try {
+				modelRef = await this.getOrRestoreSession(sessionResource);
+				modelRef?.object.setCustomTitle(title);
+			} finally {
+				modelRef?.dispose();
+			}
 		}
 
 		// Update the title in the file storage
