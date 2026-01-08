@@ -1485,6 +1485,7 @@ export interface IDetachedXtermTerminal extends IXtermTerminal {
 			readonly baseY: number;
 			readonly cursorY: number;
 			readonly cursorX: number;
+			readonly length: number;
 			getLine(y: number): { translateToString(trimRight?: boolean): string } | undefined;
 		};
 	};
