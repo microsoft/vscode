@@ -645,5 +645,61 @@ suite('URI', () => {
 		}
 	});
 
+	test('URI.revive should validate scheme from untrusted components', () => {
+		// Test that URI.revive throws an error when scheme contains illegal characters
+		const invalidComponents = {
+			scheme: 'invalid scheme',  // space is illegal in scheme
+			authority: 'example.com',
+			path: '/path',
+			query: '',
+			fragment: ''
+		};
+
+		assert.throws(() => {
+			URI.revive(invalidComponents);
+		}, /Scheme contains illegal characters/);
+	});
+
+	test('URI.revive should validate various invalid schemes', () => {
+		const invalidSchemes = [
+			'invalid scheme',  // contains space
+			'invalid@scheme',  // contains @
+			'invalid/scheme',  // contains /
+			'invalid:scheme',  // contains :
+			'invalid#scheme',  // contains #
+			'123invalid',      // starts with digit
+			'+invalid',        // starts with +
+			'-invalid',        // starts with -
+			'.invalid',        // starts with .
+		];
+
+		for (const scheme of invalidSchemes) {
+			assert.throws(() => {
+				URI.revive({ scheme, authority: '', path: '', query: '', fragment: '' });
+			}, /Scheme contains illegal characters/, `Should throw for scheme: ${scheme}`);
+		}
+	});
+
+	test('URI.revive should allow valid schemes', () => {
+		const validSchemes = [
+			'file',
+			'http',
+			'https',
+			'ftp',
+			'myscheme',
+			'my-scheme',
+			'my.scheme',
+			'my+scheme',
+			'a123',
+			'MyScheme',
+		];
+
+		for (const scheme of validSchemes) {
+			assert.doesNotThrow(() => {
+				URI.revive({ scheme, authority: '', path: '', query: '', fragment: '' });
+			}, `Should not throw for valid scheme: ${scheme}`);
+		}
+	});
+
 
 });
