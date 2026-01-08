@@ -348,36 +348,6 @@ export class ModelLineHeightChanged {
 	/**
 	 * The line height on the line.
 	 */
-	public readonly lineHeight: number | null;
-
-	constructor(ownerId: number, decorationId: string, lineNumber: number, lineHeight: number | null) {
-		this.ownerId = ownerId;
-		this.decorationId = decorationId;
-		this.lineNumber = lineNumber;
-		this.lineHeight = lineHeight;
-	}
-}
-
-/**
- * An event describing that a line height multiplier has changed in the model.
- * @internal
- */
-export class ModelLineHeightMultiplierChanged {
-	/**
-	 * Editor owner ID
-	 */
-	public readonly ownerId: number;
-	/**
-	 * The decoration ID that has changed.
-	 */
-	public readonly decorationId: string;
-	/**
-	 * The line that has changed.
-	 */
-	public readonly lineNumber: number;
-	/**
-	 * The line height multiplier on the line.
-	 */
 	public readonly lineHeightMultiplier: number | null;
 
 	constructor(ownerId: number, decorationId: string, lineNumber: number, lineHeightMultiplier: number | null) {
@@ -548,42 +518,21 @@ export class ModelLineHeightChangedEvent {
 	}
 
 	public affects(rangeOrPosition: IRange | IPosition) {
-		return affectsRangeOrPosition(rangeOrPosition, this.changes);
-	}
-}
-
-/**
- * An event describing a change of a line height multiplier.
- * @internal
- */
-export class ModelLineHeightMultiplierChangedEvent {
-
-	public readonly changes: ModelLineHeightMultiplierChanged[];
-
-	constructor(changes: ModelLineHeightMultiplierChanged[]) {
-		this.changes = changes;
-	}
-
-	public affects(rangeOrPosition: IRange | IPosition) {
-		return affectsRangeOrPosition(rangeOrPosition, this.changes);
-	}
-}
-
-function affectsRangeOrPosition(rangeOrPosition: IRange | IPosition, changes: ModelLineHeightChanged[] | ModelLineHeightMultiplierChanged[]): boolean {
-	if (Range.isIRange(rangeOrPosition)) {
-		for (const change of changes) {
-			if (change.lineNumber >= rangeOrPosition.startLineNumber && change.lineNumber <= rangeOrPosition.endLineNumber) {
-				return true;
+		if (Range.isIRange(rangeOrPosition)) {
+			for (const change of this.changes) {
+				if (change.lineNumber >= rangeOrPosition.startLineNumber && change.lineNumber <= rangeOrPosition.endLineNumber) {
+					return true;
+				}
 			}
-		}
-		return false;
-	} else {
-		for (const change of changes) {
-			if (change.lineNumber === rangeOrPosition.lineNumber) {
-				return true;
+			return false;
+		} else {
+			for (const change of this.changes) {
+				if (change.lineNumber === rangeOrPosition.lineNumber) {
+					return true;
+				}
 			}
+			return false;
 		}
-		return false;
 	}
 }
 

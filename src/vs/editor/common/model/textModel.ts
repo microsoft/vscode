@@ -37,7 +37,7 @@ import { ILanguageConfigurationService } from '../languages/languageConfiguratio
 import * as model from '../model.js';
 import { IBracketPairsTextModelPart } from '../textModelBracketPairs.js';
 import { EditSources, TextModelEditSource } from '../textModelEditSource.js';
-import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelOptionsChangedEvent, InternalModelContentChangeEvent, LineInjectedText, ModelFontChanged, ModelFontChangedEvent, ModelInjectedTextChangedEvent, ModelLineHeightChanged, ModelLineHeightChangedEvent, ModelLineHeightMultiplierChanged, ModelLineHeightMultiplierChangedEvent, ModelRawChange, ModelRawContentChangedEvent, ModelRawEOLChanged, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from '../textModelEvents.js';
+import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelOptionsChangedEvent, InternalModelContentChangeEvent, LineInjectedText, ModelFontChanged, ModelFontChangedEvent, ModelInjectedTextChangedEvent, ModelLineHeightChanged, ModelLineHeightChangedEvent, ModelRawChange, ModelRawContentChangedEvent, ModelRawEOLChanged, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from '../textModelEvents.js';
 import { IGuidesTextModelPart } from '../textModelGuides.js';
 import { ITokenizationTextModelPart } from '../tokenizationTextModelPart.js';
 import { TokenArray } from '../tokens/lineTokens.js';
@@ -52,9 +52,8 @@ import { PieceTreeTextBufferBuilder } from './pieceTreeTextBuffer/pieceTreeTextB
 import { SearchParams, TextModelSearch } from './textModelSearch.js';
 import { AttachedViews } from './tokens/abstractSyntaxTokenBackend.js';
 import { TokenizationFontDecorationProvider } from './tokens/tokenizationFontDecorationsProvider.js';
-import { LineFontChangingDecoration, LineHeightChangingDecoration, LineHeightMultiplierChangingDecoration } from './decorationProvider.js';
+import { LineFontChangingDecoration, LineHeightChangingDecoration } from './decorationProvider.js';
 import { TokenizationTextModelPart } from './tokens/tokenizationTextModelPart.js';
-import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 
 export function createTextBufferFactory(text: string): model.ITextBufferFactory {
 	const builder = new PieceTreeTextBufferBuilder();
@@ -240,9 +239,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	private readonly _onDidChangeLineHeight: Emitter<ModelLineHeightChangedEvent> = this._register(new Emitter<ModelLineHeightChangedEvent>());
 	public get onDidChangeLineHeight(): Event<ModelLineHeightChangedEvent> { return this._onDidChangeLineHeight.event; }
 
-	private readonly _onDidChangeLineHeightMultiplier: Emitter<ModelLineHeightMultiplierChangedEvent> = this._register(new Emitter<ModelLineHeightMultiplierChangedEvent>());
-	public get onDidChangeLineHeightMultiplier(): Event<ModelLineHeightMultiplierChangedEvent> { return this._onDidChangeLineHeightMultiplier.event; }
-
 	private readonly _onDidChangeFont: Emitter<ModelFontChangedEvent> = this._register(new Emitter<ModelFontChangedEvent>());
 	public get onDidChangeFont(): Event<ModelFontChangedEvent> { return this._onDidChangeFont.event; }
 
@@ -317,7 +313,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		languageIdOrSelection: string | ILanguageSelection,
 		creationOptions: model.ITextModelCreationOptions,
 		associatedResource: URI | null = null,
-		@IConfigurationService _configurationService: IConfigurationService,
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
@@ -401,10 +396,10 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			this._onDidChangeDecorations.fire();
 			this._onDidChangeDecorations.endDeferredEmit();
 		}));
-		this._register(this._fontTokenDecorationsProvider.onDidChangeLineHeightMultiplier((affectedLineHeights) => {
+		this._register(this._fontTokenDecorationsProvider.onDidChangeLineHeight((affectedLineHeights) => {
 			this._onDidChangeDecorations.beginDeferredEmit();
 			this._onDidChangeDecorations.fire();
-			this._fireOnDidChangeLineHeightMultiplier(affectedLineHeights);
+			this._fireOnDidChangeLineHeight(affectedLineHeights);
 			this._onDidChangeDecorations.endDeferredEmit();
 		}));
 		this._register(this._fontTokenDecorationsProvider.onDidChangeFont((affectedFontLines) => {
@@ -447,7 +442,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			|| this._onDidChangeAttached.hasListeners()
 			|| this._onDidChangeInjectedText.hasListeners()
 			|| this._onDidChangeLineHeight.hasListeners()
-			|| this._onDidChangeLineHeightMultiplier.hasListeners()
 			|| this._onDidChangeFont.hasListeners()
 			|| this._eventEmitter.hasListeners()
 		);
@@ -1662,14 +1656,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			const affectedLines = Array.from(affectedLineHeights);
 			const lineHeightChangeEvent = affectedLines.map(specialLineHeightChange => new ModelLineHeightChanged(specialLineHeightChange.ownerId, specialLineHeightChange.decorationId, specialLineHeightChange.lineNumber, specialLineHeightChange.lineHeight));
 			this._onDidChangeLineHeight.fire(new ModelLineHeightChangedEvent(lineHeightChangeEvent));
-		}
-	}
-
-	private _fireOnDidChangeLineHeightMultiplier(affectedLineHeightMultipliers: Set<LineHeightMultiplierChangingDecoration> | null): void {
-		if (affectedLineHeightMultipliers && affectedLineHeightMultipliers.size > 0) {
-			const affectedLines = Array.from(affectedLineHeightMultipliers);
-			const lineHeightChangeEvent = affectedLines.map(specialLineHeightChange => new ModelLineHeightMultiplierChanged(specialLineHeightChange.ownerId, specialLineHeightChange.decorationId, specialLineHeightChange.lineNumber, specialLineHeightChange.lineHeightMultiplier));
-			this._onDidChangeLineHeightMultiplier.fire(new ModelLineHeightMultiplierChangedEvent(lineHeightChangeEvent));
 		}
 	}
 
