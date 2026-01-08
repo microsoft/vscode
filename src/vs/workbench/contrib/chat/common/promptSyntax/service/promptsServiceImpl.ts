@@ -522,6 +522,13 @@ export class PromptsService extends Disposable implements IPromptsService {
 		if (model) {
 			return this.getParsedPromptFile(model);
 		}
+
+		// Handle virtual prompt URIs with embedded content in query string
+		if (uri.scheme === Schemas.vscodeChatPrompt) {
+			const content = decodeURIComponent(uri.query);
+			return new PromptFileParser().parse(uri, content);
+		}
+
 		const fileContent = await this.fileService.readFile(uri);
 		if (token.isCancellationRequested) {
 			throw new CancellationError();

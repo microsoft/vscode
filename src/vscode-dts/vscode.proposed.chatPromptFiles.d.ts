@@ -7,12 +7,98 @@
 
 declare module 'vscode' {
 
-	// #region CustomAgentProvider
+	// #region Resource Classes
 
 	/**
-	 * Represents a custom agent resource file (e.g., .agent.md) available for a repository.
+	 * Represents a hand-off action that allows an agent to delegate to another agent.
 	 */
-	export interface CustomAgentResource {
+	export interface CustomAgentHandoff {
+		/**
+		 * The display label for the hand-off action.
+		 */
+		label: string;
+
+		/**
+		 * The name of the agent to hand off to.
+		 */
+		agent: string;
+
+		/**
+		 * The prompt to send when handing off.
+		 */
+		prompt: string;
+
+		/**
+		 * Whether to automatically send the prompt. Defaults to false.
+		 */
+		send?: boolean;
+
+		/**
+		 * Whether to show the "Continue on" option. Defaults to undefined.
+		 */
+		showContinueOn?: boolean;
+	}
+
+	/**
+	 * Options for creating a custom agent without a URI.
+	 * The markdown content will be generated from these properties.
+	 */
+	export interface CustomAgentOptions {
+		/**
+		 * The unique identifier/name of the custom agent.
+		 */
+		name: string;
+
+		/**
+		 * A description of what the custom agent does.
+		 */
+		description: string;
+
+		/**
+		 * The body/instructions content of the custom agent.
+		 */
+		body: string;
+
+		/**
+		 * Optional model to use for the custom agent.
+		 */
+		model?: string;
+
+		/**
+		 * Optional list of tools available to the custom agent.
+		 */
+		tools?: string[];
+
+		/**
+		 * Optional argument hint that describes what inputs the agent expects or supports.
+		 */
+		argumentHint?: string;
+
+		/**
+		 * Optional target platform for the agent ('vscode' or 'github-copilot').
+		 */
+		target?: string;
+
+		/**
+		 * Whether the agent should be inferred/suggested automatically based on context.
+		 */
+		infer?: boolean;
+
+		/**
+		 * Optional hand-off actions that allow this agent to delegate to other agents.
+		 */
+		handoffs?: CustomAgentHandoff[];
+
+		/**
+		 * Indicates whether the custom agent is editable. Defaults to false.
+		 */
+		isEditable?: boolean;
+	}
+
+	/**
+	 * Represents a custom agent resource file (e.g., .agent.md).
+	 */
+	export class CustomAgentChatResource {
 		/**
 		 * The unique identifier/name of the custom agent.
 		 */
@@ -32,39 +118,59 @@ declare module 'vscode' {
 		 * Indicates whether the custom agent is editable. Defaults to false.
 		 */
 		readonly isEditable?: boolean;
+
+		/**
+		 * Creates a new custom agent resource from an existing file.
+		 * @param name The unique identifier/name of the custom agent.
+		 * @param description A description of what the custom agent does.
+		 * @param uri The URI to the custom agent resource file.
+		 * @param isEditable Whether the custom agent is editable. Defaults to false.
+		 */
+		constructor(name: string, description: string, uri: Uri, isEditable?: boolean);
+
+		/**
+		 * Creates a new custom agent resource from options. A virtual URI will be generated
+		 * and the markdown content will be constructed from the provided properties.
+		 * @param options The options for creating the custom agent.
+		 */
+		constructor(options: CustomAgentOptions);
 	}
 
 	/**
-	 * Options for querying custom agents.
+	 * Options for creating instructions without a URI.
+	 * The markdown content will be generated from these properties.
 	 */
-	export type CustomAgentQueryOptions = object;
-
-	/**
-	 * A provider that supplies custom agent resources (from .agent.md files) for repositories.
-	 */
-	export interface CustomAgentProvider {
+	export interface InstructionsOptions {
 		/**
-		 * An optional event to signal that custom agents have changed.
+		 * The unique identifier/name of the instructions.
 		 */
-		readonly onDidChangeCustomAgents?: Event<void>;
+		name: string;
 
 		/**
-		 * Provide the list of custom agents available.
-		 * @param options Optional query parameters.
-		 * @param token A cancellation token.
-		 * @returns An array of custom agent resources or a promise that resolves to such.
+		 * A description of what the instructions provide.
 		 */
-		provideCustomAgents(options: CustomAgentQueryOptions, token: CancellationToken): ProviderResult<CustomAgentResource[]>;
+		description: string;
+
+		/**
+		 * The body content of the instructions.
+		 */
+		body: string;
+
+		/**
+		 * Optional glob pattern specifying which files these instructions apply to.
+		 */
+		applyTo?: string;
+
+		/**
+		 * Indicates whether the instructions are editable. Defaults to false.
+		 */
+		isEditable?: boolean;
 	}
 
-	// #endregion
-
-	// #region InstructionsProvider
-
 	/**
-	 * Represents an instructions resource file available for a repository.
+	 * Represents an instructions resource file.
 	 */
-	export interface InstructionsResource {
+	export class InstructionsChatResource {
 		/**
 		 * The unique identifier/name of the instructions.
 		 */
@@ -84,6 +190,131 @@ declare module 'vscode' {
 		 * Indicates whether the instructions are editable. Defaults to false.
 		 */
 		readonly isEditable?: boolean;
+
+		/**
+		 * Creates a new instructions resource from an existing file.
+		 * @param name The unique identifier/name of the instructions.
+		 * @param description A description of what the instructions provide.
+		 * @param uri The URI to the instructions resource file.
+		 * @param isEditable Whether the instructions are editable. Defaults to false.
+		 */
+		constructor(name: string, description: string, uri: Uri, isEditable?: boolean);
+
+		/**
+		 * Creates a new instructions resource from options. A virtual URI will be generated
+		 * and the markdown content will be constructed from the provided properties.
+		 * @param options The options for creating the instructions.
+		 */
+		constructor(options: InstructionsOptions);
+	}
+
+	/**
+	 * Options for creating a prompt file without a URI.
+	 * The markdown content will be generated from these properties.
+	 */
+	export interface PromptFileOptions {
+		/**
+		 * The unique identifier/name of the prompt file.
+		 */
+		name: string;
+
+		/**
+		 * A description of what the prompt file does.
+		 */
+		description: string;
+
+		/**
+		 * The body content of the prompt file.
+		 */
+		body: string;
+
+		/**
+		 * Optional agent to use for the prompt file.
+		 */
+		agent?: string;
+
+		/**
+		 * Optional model to use for the prompt file.
+		 */
+		model?: string;
+
+		/**
+		 * Optional list of tools available to the prompt file.
+		 */
+		tools?: string[];
+
+		/**
+		 * Indicates whether the prompt file is editable. Defaults to false.
+		 */
+		isEditable?: boolean;
+	}
+
+	/**
+	 * Represents a prompt file resource (e.g., .prompt.md).
+	 */
+	export class PromptFileChatResource {
+		/**
+		 * The unique identifier/name of the prompt file.
+		 */
+		readonly name: string;
+
+		/**
+		 * A description of what the prompt file does.
+		 */
+		readonly description: string;
+
+		/**
+		 * The URI to the prompt file resource.
+		 */
+		readonly uri: Uri;
+
+		/**
+		 * Indicates whether the prompt file is editable. Defaults to false.
+		 */
+		readonly isEditable?: boolean;
+
+		/**
+		 * Creates a new prompt file resource from an existing file.
+		 * @param name The unique identifier/name of the prompt file.
+		 * @param description A description of what the prompt file does.
+		 * @param uri The URI to the prompt file resource file.
+		 * @param isEditable Whether the prompt file is editable. Defaults to false.
+		 */
+		constructor(name: string, description: string, uri: Uri, isEditable?: boolean);
+
+		/**
+		 * Creates a new prompt file resource from options. A virtual URI will be generated
+		 * and the markdown content will be constructed from the provided properties.
+		 * @param options The options for creating the prompt file.
+		 */
+		constructor(options: PromptFileOptions);
+	}
+
+	// #endregion
+
+	// #region Providers
+
+	/**
+	 * Options for querying custom agents.
+	 */
+	export type CustomAgentQueryOptions = object;
+
+	/**
+	 * A provider that supplies custom agent resources (from .agent.md files) for repositories.
+	 */
+	export interface CustomAgentProvider {
+		/**
+		 * An optional event to signal that custom agents have changed.
+		 */
+		readonly onDidChangeCustomAgents?: Event<void>;
+
+		/**
+		 * Provide the list of custom agents available.
+		 * @param options Optional query parameters.
+		 * @param token A cancellation token.
+		 * @returns An array of custom agents or a promise that resolves to such.
+		 */
+		provideCustomAgents(options: CustomAgentQueryOptions, token: CancellationToken): ProviderResult<CustomAgentChatResource[]>;
 	}
 
 	/**
@@ -104,38 +335,9 @@ declare module 'vscode' {
 		 * Provide the list of instructions available.
 		 * @param options Optional query parameters.
 		 * @param token A cancellation token.
-		 * @returns An array of instructions resources or a promise that resolves to such.
+		 * @returns An array of instructions or a promise that resolves to such.
 		 */
-		provideInstructions(options: InstructionsQueryOptions, token: CancellationToken): ProviderResult<InstructionsResource[]>;
-	}
-
-	// #endregion
-
-	// #region PromptFileProvider
-
-	/**
-	 * Represents a prompt file resource (e.g., .prompt.md) available for a repository.
-	 */
-	export interface PromptFileResource {
-		/**
-		 * The unique identifier/name of the prompt file.
-		 */
-		readonly name: string;
-
-		/**
-		 * A description of what the prompt file does.
-		 */
-		readonly description: string;
-
-		/**
-		 * The URI to the prompt file resource.
-		 */
-		readonly uri: Uri;
-
-		/**
-		 * Indicates whether the prompt file is editable. Defaults to false.
-		 */
-		readonly isEditable?: boolean;
+		provideInstructions(options: InstructionsQueryOptions, token: CancellationToken): ProviderResult<InstructionsChatResource[]>;
 	}
 
 	/**
@@ -156,9 +358,9 @@ declare module 'vscode' {
 		 * Provide the list of prompt files available.
 		 * @param options Optional query parameters.
 		 * @param token A cancellation token.
-		 * @returns An array of prompt file resources or a promise that resolves to such.
+		 * @returns An array of prompt files or a promise that resolves to such.
 		 */
-		providePromptFiles(options: PromptFileQueryOptions, token: CancellationToken): ProviderResult<PromptFileResource[]>;
+		providePromptFiles(options: PromptFileQueryOptions, token: CancellationToken): ProviderResult<PromptFileChatResource[]>;
 	}
 
 	// #endregion
