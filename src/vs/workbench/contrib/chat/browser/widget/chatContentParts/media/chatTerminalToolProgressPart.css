@@ -59,6 +59,11 @@
 
 .chat-terminal-content-part .chat-terminal-content-title .chat-terminal-command-block > .rendered-markdown .monaco-tokenized-source {
 	background: transparent !important;
+	border: none !important;
+}
+
+.chat-terminal-content-part .chat-terminal-content-title .rendered-markdown .monaco-tokenized-source {
+	padding: 1px 0px !important;
 }
 
 .chat-terminal-content-part .chat-terminal-content-title .chat-terminal-command-block > .rendered-markdown code {

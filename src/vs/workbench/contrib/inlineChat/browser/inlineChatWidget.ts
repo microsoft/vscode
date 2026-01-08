@@ -10,18 +10,12 @@ import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/icon
 import { IAction } from '../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
-import { AccessibleDiffViewer, IAccessibleDiffViewerModel } from '../../../../editor/browser/widget/diffEditor/components/accessibleDiffViewer.js';
-import { EditorOption, IComputedEditorOptions } from '../../../../editor/common/config/editorOptions.js';
-import { Position } from '../../../../editor/common/core/position.js';
-import { Range } from '../../../../editor/common/core/range.js';
-import { LineRange } from '../../../../editor/common/core/ranges/lineRange.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
-import { DetailedLineRangeMapping, RangeMapping } from '../../../../editor/common/diff/rangeMapping.js';
-import { ICodeEditorViewState, ScrollType } from '../../../../editor/common/editorCommon.js';
+import { ICodeEditorViewState } from '../../../../editor/common/editorCommon.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
@@ -56,7 +50,6 @@ import { ChatMode } from '../../chat/common/chatModes.js';
 import { ChatAgentVoteDirection, IChatService } from '../../chat/common/chatService/chatService.js';
 import { isResponseVM } from '../../chat/common/model/chatViewModel.js';
 import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED, inlineChatBackground, inlineChatForeground } from '../common/inlineChat.js';
-import { HunkInformation, Session } from './inlineChatSession.js';
 import './media/inlineChat.css';
 
 export interface InlineChatWidgetViewState {
@@ -532,12 +525,9 @@ const defaultAriaLabel = localize('aria-label', "Inline Chat Input");
 
 export class EditorBasedInlineChatWidget extends InlineChatWidget {
 
-	private readonly _accessibleViewer = this._store.add(new MutableDisposable<HunkAccessibleDiffViewer>());
-
-
 	constructor(
 		location: IChatWidgetLocationOptions,
-		private readonly _parentEditor: ICodeEditor,
+		parentEditor: ICodeEditor,
 		options: IInlineChatWidgetConstructionOptions,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -552,7 +542,7 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
 	) {
-		const overflowWidgetsNode = layoutService.getContainer(getWindow(_parentEditor.getContainerDomNode())).appendChild($('.inline-chat-overflow.monaco-editor'));
+		const overflowWidgetsNode = layoutService.getContainer(getWindow(parentEditor.getContainerDomNode())).appendChild($('.inline-chat-overflow.monaco-editor'));
 		super(location, {
 			...options,
 			chatWidgetViewOptions: {
@@ -568,24 +558,10 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 
 	// --- layout
 
-	override get contentHeight(): number {
-		let result = super.contentHeight;
-
-		if (this._accessibleViewer.value) {
-			result += this._accessibleViewer.value.height + 8 /* padding */;
-		}
-
-		return result;
-	}
 
 	protected override _doLayout(dimension: Dimension): void {
 
-		let newHeight = dimension.height;
-
-		if (this._accessibleViewer.value) {
-			this._accessibleViewer.value.width = dimension.width - 12;
-			newHeight -= this._accessibleViewer.value.height + 8;
-		}
+		const newHeight = dimension.height;
 
 		super._doLayout(dimension.with(undefined, newHeight));
 
@@ -594,110 +570,8 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 	}
 
 	override reset() {
-		this._accessibleViewer.clear();
 		this.chatWidget.setInput();
 		super.reset();
 	}
 
-	// --- accessible viewer
-
-	showAccessibleHunk(session: Session, hunkData: HunkInformation): void {
-
-		this._elements.accessibleViewer.classList.remove('hidden');
-		this._accessibleViewer.clear();
-
-		this._accessibleViewer.value = this._instantiationService.createInstance(HunkAccessibleDiffViewer,
-			this._elements.accessibleViewer,
-			session,
-			hunkData,
-			new AccessibleHunk(this._parentEditor, session, hunkData)
-		);
-
-		this._onDidChangeHeight.fire();
-	}
-}
-
-class HunkAccessibleDiffViewer extends AccessibleDiffViewer {
-
-	readonly height: number;
-
-	set width(value: number) {
-		this._width2.set(value, undefined);
-	}
-
-	private readonly _width2: ISettableObservable<number>;
-
-	constructor(
-		parentNode: HTMLElement,
-		session: Session,
-		hunk: HunkInformation,
-		models: IAccessibleDiffViewerModel,
-		@IInstantiationService instantiationService: IInstantiationService,
-	) {
-		const width = observableValue('width', 0);
-		const diff = observableValue('diff', HunkAccessibleDiffViewer._asMapping(hunk));
-		const diffs = derived(r => [diff.read(r)]);
-		const lines = Math.min(10, 8 + diff.get().changedLineCount);
-		const height = models.getModifiedOptions().get(EditorOption.lineHeight) * lines;
-
-		super(parentNode, constObservable(true), () => { }, constObservable(false), width, constObservable(height), diffs, models, instantiationService);
-
-		this.height = height;
-		this._width2 = width;
-
-		this._store.add(session.textModelN.onDidChangeContent(() => {
-			diff.set(HunkAccessibleDiffViewer._asMapping(hunk), undefined);
-		}));
-	}
-
-	private static _asMapping(hunk: HunkInformation): DetailedLineRangeMapping {
-		const ranges0 = hunk.getRanges0();
-		const rangesN = hunk.getRangesN();
-		const originalLineRange = LineRange.fromRangeInclusive(ranges0[0]);
-		const modifiedLineRange = LineRange.fromRangeInclusive(rangesN[0]);
-		const innerChanges: RangeMapping[] = [];
-		for (let i = 1; i < ranges0.length; i++) {
-			innerChanges.push(new RangeMapping(ranges0[i], rangesN[i]));
-		}
-		return new DetailedLineRangeMapping(originalLineRange, modifiedLineRange, innerChanges);
-	}
-
-}
-
-class AccessibleHunk implements IAccessibleDiffViewerModel {
-
-	constructor(
-		private readonly _editor: ICodeEditor,
-		private readonly _session: Session,
-		private readonly _hunk: HunkInformation
-	) { }
-
-	getOriginalModel(): ITextModel {
-		return this._session.textModel0;
-	}
-	getModifiedModel(): ITextModel {
-		return this._session.textModelN;
-	}
-	getOriginalOptions(): IComputedEditorOptions {
-		return this._editor.getOptions();
-	}
-	getModifiedOptions(): IComputedEditorOptions {
-		return this._editor.getOptions();
-	}
-	originalReveal(range: Range): void {
-		// throw new Error('Method not implemented.');
-	}
-	modifiedReveal(range?: Range | undefined): void {
-		this._editor.revealRangeInCenterIfOutsideViewport(range || this._hunk.getRangesN()[0], ScrollType.Smooth);
-	}
-	modifiedSetSelection(range: Range): void {
-		// this._editor.revealRangeInCenterIfOutsideViewport(range, ScrollType.Smooth);
-		// this._editor.setSelection(range);
-	}
-	modifiedFocus(): void {
-		this._editor.focus();
-	}
-	getModifiedPosition(): Position | undefined {
-		return this._hunk.getRangesN()[0].getStartPosition();
-	}
 }
