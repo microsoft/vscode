@@ -985,15 +985,19 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					store.add(this.capabilities.onDidAddCommandDetectionCapability(e => {
 						commandDetection = e;
 						if (commandDetection.promptInputModel.state === PromptInputState.Input) {
+							this._logService.trace('runCommand: Command detection became available with prompt input, proceeding to run command');
 							r();
 						} else {
 							store.add(commandDetection.promptInputModel.onDidStartInput(() => {
+								this._logService.trace('runCommand: Command detection prompt input started, proceeding to run command');
 								r();
 							}));
 						}
 					}));
 				}),
-				timeout(timeoutMs)
+				timeout(timeoutMs).then(() => {
+					this._logService.trace(`runCommand: Timed out waiting for command detection prompt input after ${timeoutMs}ms, proceeding to run command`);
+				})
 			]);
 			store.dispose();
 		}
@@ -1008,6 +1012,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Determine whether to send ETX (ctrl+c) before running the command. Only do this when the
 		// command will be executed immediately or when command detection shows the prompt contains text.
 		if (shouldExecute && (!commandDetection || commandDetection.promptInputModel.value.length > 0)) {
+			this._logService.trace(`runCommand: Sending ^C before running command: ${commandLine}`);
+			this._logService.trace(`runCommand: The value of shouldExecute is: ${shouldExecute}`);
+			this._logService.trace(`runCommand: The value of command detection and prompt input model value is: ${commandDetection ? commandDetection.promptInputModel.value : 'N/A'}`);
+
 			await this.sendText('\x03', false);
 			// Wait a little before running the command to avoid the sequences being echoed while the ^C
 			// is being evaluated
