@@ -12,6 +12,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { localize } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IChatWidget, IChatWidgetService } from '../../chat/browser/chat.js';
@@ -362,7 +363,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.DebugVariablesContext,
 				group: 'z_commands',
 				order: 110,
-				when: ChatContextKeys.enabled
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.Setup.hidden.negate())
 			}
 		});
 	}
@@ -398,7 +399,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.DebugWatchContext,
 				group: 'z_commands',
 				order: 110,
-				when: ChatContextKeys.enabled
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.Setup.hidden.negate())
 			}
 		});
 	}
@@ -431,7 +432,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.DebugScopesContext,
 				group: 'z_commands',
 				order: 1,
-				when: ChatContextKeys.enabled
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.Setup.hidden.negate())
 			}
 		});
 	}

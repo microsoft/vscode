@@ -17,6 +17,7 @@ import { IModelService } from '../../../../editor/common/services/model.js';
 import { ITextModelContentProvider, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { CodeDataTransfers } from '../../../../platform/dnd/browser/dnd.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
@@ -261,7 +262,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.SCMHistoryItemContext,
 				group: 'z_chat',
 				order: 1,
-				when: ChatContextKeys.enabled
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.Setup.hidden.negate())
 			}
 		});
 	}
@@ -287,7 +288,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.SCMHistoryItemContext,
 				group: 'z_chat',
 				order: 2,
-				when: ChatContextKeys.enabled
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.Setup.hidden.negate())
 			}
 		});
 	}
@@ -314,7 +315,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.SCMHistoryItemChangeContext,
 				group: 'z_chat',
 				order: 1,
-				when: ChatContextKeys.enabled
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.Setup.hidden.negate())
 			}
 		});
 	}

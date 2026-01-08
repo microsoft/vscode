@@ -317,13 +317,13 @@ registerAction2(class AddCellOutputToChatAction extends Action2 {
 			title: localize('notebookActions.addOutputToChat', "Add Cell Output to Chat"),
 			menu: {
 				id: MenuId.NotebookOutputToolbar,
-				when: ContextKeyExpr.and(NOTEBOOK_CELL_HAS_OUTPUTS, ContextKeyExpr.in(NOTEBOOK_CELL_OUTPUT_MIMETYPE.key, NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT.key)),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.Setup.hidden.negate(), NOTEBOOK_CELL_HAS_OUTPUTS, ContextKeyExpr.in(NOTEBOOK_CELL_OUTPUT_MIMETYPE.key, NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT.key)),
 				order: 10,
 				group: 'notebook_chat_actions'
 			},
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			icon: icons.copyIcon,
-			precondition: ChatContextKeys.enabled
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.Setup.hidden.negate())
 		});
 	}
 
