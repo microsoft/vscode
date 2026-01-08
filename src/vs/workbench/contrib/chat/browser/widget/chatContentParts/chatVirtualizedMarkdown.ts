@@ -213,18 +213,23 @@ export class VirtualizedMarkdownManager extends Disposable {
 		measureContainer.style.width = this.container.offsetWidth + 'px';
 		dom.getWindow(this.container).document.body.appendChild(measureContainer);
 
-		let currentTop = 0;
-		for (const block of this.blocks) {
-			measureContainer.appendChild(block.element);
-			block.height = block.element.offsetHeight || this.config.estimatedBlockHeight;
-			block.top = currentTop;
-			block.heightMeasured = true;
-			currentTop += block.height;
-			measureContainer.removeChild(block.element);
-		}
+		try {
+			let currentTop = 0;
+			for (const block of this.blocks) {
+				measureContainer.appendChild(block.element);
+				block.height = block.element.offsetHeight || this.config.estimatedBlockHeight;
+				block.top = currentTop;
+				block.heightMeasured = true;
+				currentTop += block.height;
+				measureContainer.removeChild(block.element);
+			}
 
-		this.totalHeight = currentTop;
-		measureContainer.remove();
+			this.totalHeight = currentTop;
+		} finally {
+			if (measureContainer.parentElement) {
+				measureContainer.remove();
+			}
+		}
 	}
 
 	/**
