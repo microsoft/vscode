@@ -15,6 +15,7 @@ export class DecorationCssRuleExtractor extends Disposable {
 	private _dummyElement: HTMLSpanElement;
 
 	private _ruleCache: Map</* className */string, CSSStyleRule[]> = new Map();
+	private _cssVariableCache: Map</* variableName */string, /* value */string> = new Map();
 
 	constructor() {
 		super();
@@ -86,9 +87,13 @@ export class DecorationCssRuleExtractor extends Disposable {
 	 * Resolves a CSS variable to its computed value using the container element.
 	 */
 	resolveCssVariable(canvas: HTMLCanvasElement, variableName: string): string {
-		canvas.appendChild(this._container);
-		const result = getActiveWindow().getComputedStyle(this._container).getPropertyValue(variableName).trim();
-		canvas.removeChild(this._container);
+		let result = this._cssVariableCache.get(variableName);
+		if (result === undefined) {
+			canvas.appendChild(this._container);
+			result = getActiveWindow().getComputedStyle(this._container).getPropertyValue(variableName).trim();
+			canvas.removeChild(this._container);
+			this._cssVariableCache.set(variableName, result);
+		}
 		return result;
 	}
 }
