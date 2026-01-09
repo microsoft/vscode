@@ -33,7 +33,7 @@ export type CollapseMemento = ILineMemento[];
 export class FoldingModel {
 	private readonly _textModel: ITextModel;
 	private readonly _decorationProvider: IDecorationProvider;
-	private readonly editor: ICodeEditor;
+	private readonly _editor: ICodeEditor;
 
 	private _regions: FoldingRegions;
 	private _editorDecorationIds: string[];
@@ -50,7 +50,13 @@ export class FoldingModel {
 		this._decorationProvider = decorationProvider;
 		this._regions = new FoldingRegions(new Uint32Array(0), new Uint32Array(0));
 		this._editorDecorationIds = [];
-		this.editor = editor;
+		this._editor = editor;
+	}
+
+	private shouldAddNewlineAtEnd(dirtyRegionEndLine: number, newCollapseState: boolean): boolean {
+		return this._editor.getOption(EditorOption.foldingAddNewlineAtEnd)
+			&& newCollapseState
+			&& dirtyRegionEndLine === this._textModel.getLineCount();
 	}
 
 	public toggleCollapseState(toggledRegions: FoldingRegion[]) {
@@ -93,7 +99,7 @@ export class FoldingModel {
 					dirtyRegionEndLine = Math.max(dirtyRegionEndLine, this._regions.getEndLineNumber(index));
 
 					// If isNewlineNeededAtEnd is already true, we can skip this check
-					if (!isNewlineNeededAtEnd && this.editor.getOption(EditorOption.foldingAddNewlineAtEnd) && newCollapseState && dirtyRegionEndLine === this._textModel.getLineCount()) {
+					if (!isNewlineNeededAtEnd && this.shouldAddNewlineAtEnd(dirtyRegionEndLine, newCollapseState)) {
 						const lastLineContent = this._textModel.getLineContent(dirtyRegionEndLine);
 						// Only insert a newline if the last line is not already empty
 						if (lastLineContent.trim().length > 0) {
@@ -111,9 +117,9 @@ export class FoldingModel {
 								}],
 								() => null
 							);
+							isNewlineNeededAtEnd = true;
 						}
 					}
-					isNewlineNeededAtEnd = true;
 				}
 			}
 
