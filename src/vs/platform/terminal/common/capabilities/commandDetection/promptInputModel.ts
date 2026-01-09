@@ -251,6 +251,12 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		}
 
 		const event = this._createStateObject();
+		this._logService.trace(`PromptInputModel#_handleCommandExecuted: the value is::: "${this._value}"`);
+		this._logService.trace(`PromptInputModel#_handleCommandExecuted: we going to clear after this`);
+		// Clear value after creating the state object, since the command has been
+		// executed and is no longer editable prompt input
+		this._value = '';
+
 		if (this._lastUserInput === '\u0003') {
 			this._lastUserInput = '';
 			this._onDidInterrupt.fire(event);

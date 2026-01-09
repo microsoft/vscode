@@ -1009,6 +1009,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			await this._processManager.setNextCommandId(commandLine, commandId);
 		}
 
+		// TODO: Friday)
+		// - Figure out which of the component is leading to \x03
+
 		// Determine whether to send ETX (ctrl+c) before running the command. Only do this when the
 		// command will be executed immediately or when command detection shows the prompt contains text.
 		if (shouldExecute && (!commandDetection || commandDetection.promptInputModel.value.length > 0)) {
