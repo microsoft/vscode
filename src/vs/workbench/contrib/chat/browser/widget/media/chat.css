@@ -1030,9 +1030,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button.secondary.monaco-text-button.codicon {
 	background-color: transparent;
 	border-color: transparent;
-	color: var(--vscode-foreground);
+	color: var(--vscode-icon-foreground);
 	cursor: pointer;
-	padding: 0px;
+	padding: 0 1px;
 	border-radius: 2px;
 	display: inline-flex;
 }
@@ -2113,7 +2113,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-list-divider {
 	display: flex;
 	align-items: center;
-	padding: 4px 3px 2px 3px;
+	padding: 2px 3px;
 	font-size: 11px;
 	color: var(--vscode-descriptionForeground);
 	gap: 8px;

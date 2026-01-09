@@ -65,7 +65,7 @@ export abstract class InlineChatRunOptions {
 	autoSend?: boolean;
 	position?: IPosition;
 	modelSelector?: ILanguageModelChatSelector;
-	blockOnResponse?: boolean;
+	resolveOnResponse?: boolean;
 
 	static isInlineChatRunOptions(options: unknown): options is InlineChatRunOptions {
 
@@ -73,7 +73,7 @@ export abstract class InlineChatRunOptions {
 			return false;
 		}
 
-		const { initialSelection, initialRange, message, autoSend, position, attachments, modelSelector, blockOnResponse } = <InlineChatRunOptions>options;
+		const { initialSelection, initialRange, message, autoSend, position, attachments, modelSelector, resolveOnResponse } = <InlineChatRunOptions>options;
 		if (
 			typeof message !== 'undefined' && typeof message !== 'string'
 			|| typeof autoSend !== 'undefined' && typeof autoSend !== 'boolean'
@@ -82,7 +82,7 @@ export abstract class InlineChatRunOptions {
 			|| typeof position !== 'undefined' && !Position.isIPosition(position)
 			|| typeof attachments !== 'undefined' && (!Array.isArray(attachments) || !attachments.every(item => item instanceof URI))
 			|| typeof modelSelector !== 'undefined' && !isILanguageModelChatSelector(modelSelector)
-			|| typeof blockOnResponse !== 'undefined' && typeof blockOnResponse !== 'boolean'
+			|| typeof resolveOnResponse !== 'undefined' && typeof resolveOnResponse !== 'boolean'
 		) {
 			return false;
 		}
@@ -415,7 +415,6 @@ export class InlineChatController implements IEditorContribution {
 	async run(arg?: InlineChatRunOptions): Promise<boolean> {
 		assertType(this._editor.hasModel());
 
-
 		const uri = this._editor.getModel().uri;
 
 		const existingSession = this._inlineChatSessionService.getSessionByTextModel(uri);
@@ -479,10 +478,21 @@ export class InlineChatController implements IEditorContribution {
 			}
 		}
 
-		await Event.toPromise(session.editingSession.onDidDispose);
+		if (!arg?.resolveOnResponse) {
+			// DEFAULT: wait for the session to be accepted or rejected
+			await Event.toPromise(session.editingSession.onDidDispose);
+			const rejected = session.editingSession.getEntry(uri)?.state.get() === ModifiedFileEntryState.Rejected;
+			return !rejected;
 
-		const rejected = session.editingSession.getEntry(uri)?.state.get() === ModifiedFileEntryState.Rejected;
-		return !rejected;
+		} else {
+			// resolveOnResponse: ONLY wait for the file to be modified
+			const modifiedObs = derived(r => {
+				const entry = session.editingSession.readEntry(uri, r);
+				return entry?.state.read(r) === ModifiedFileEntryState.Modified && !entry?.isCurrentlyBeingModifiedBy.read(r);
+			});
+			await waitForState(modifiedObs, state => state === true);
+			return true;
+		}
 	}
 
 	async acceptSession() {

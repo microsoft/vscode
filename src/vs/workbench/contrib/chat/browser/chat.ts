@@ -111,7 +111,7 @@ export interface IQuickChatOpenOptions {
 export const IChatAccessibilityService = createDecorator<IChatAccessibilityService>('chatAccessibilityService');
 export interface IChatAccessibilityService {
 	readonly _serviceBrand: undefined;
-	acceptRequest(uri: URI): void;
+	acceptRequest(uri: URI, skipRequestSignal?: boolean): void;
 	disposeRequest(requestId: URI): void;
 	acceptResponse(widget: ChatWidget, container: HTMLElement, response: IChatResponseViewModel | string | undefined, requestId: URI | undefined, isVoiceInput?: boolean): void;
 	acceptElicitation(message: IChatElicitationRequest): void;

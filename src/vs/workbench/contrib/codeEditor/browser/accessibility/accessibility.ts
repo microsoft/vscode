@@ -16,6 +16,7 @@ import { AccessibilityHelpNLS } from '../../../../../editor/common/standaloneStr
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { alert } from '../../../../../base/browser/ui/aria/aria.js';
 import { CursorColumns } from '../../../../../editor/common/core/cursorColumns.js';
+import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 
 class ToggleScreenReaderMode extends Action2 {
 
@@ -62,7 +63,9 @@ class AnnounceCursorPosition extends Action2 {
 			},
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyG,
-				weight: KeybindingWeight.WorkbenchContrib + 10
+				win: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyG },
+				weight: KeybindingWeight.WorkbenchContrib + 10,
+				when: EditorContextKeys.editorTextFocus
 			}
 		});
 	}
