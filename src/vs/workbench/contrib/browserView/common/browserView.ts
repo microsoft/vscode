@@ -109,6 +109,9 @@ export interface IBrowserViewModel extends IDisposable {
 	captureScreenshot(options?: IBrowserViewCaptureScreenshotOptions): Promise<VSBuffer>;
 	dispatchKeyEvent(keyEvent: IBrowserViewKeyDownEvent): Promise<void>;
 	focus(): Promise<void>;
+	copy(): Promise<void>;
+	paste(): Promise<void>;
+	cut(): Promise<void>;
 }
 
 export class BrowserViewModel extends Disposable implements IBrowserViewModel {
@@ -292,6 +295,18 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 	async focus(): Promise<void> {
 		return this.browserViewService.focus(this.id);
+	}
+
+	async copy(): Promise<void> {
+		return this.browserViewService.copy(this.id);
+	}
+
+	async paste(): Promise<void> {
+		return this.browserViewService.paste(this.id);
+	}
+
+	async cut(): Promise<void> {
+		return this.browserViewService.cut(this.id);
 	}
 
 	/**

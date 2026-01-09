@@ -204,6 +204,24 @@ export interface IBrowserViewService {
 	focus(id: string): Promise<void>;
 
 	/**
+	 * Copy selected content to clipboard
+	 * @param id The browser view identifier
+	 */
+	copy(id: string): Promise<void>;
+
+	/**
+	 * Paste content from clipboard
+	 * @param id The browser view identifier
+	 */
+	paste(id: string): Promise<void>;
+
+	/**
+	 * Cut selected content to clipboard
+	 * @param id The browser view identifier
+	 */
+	cut(id: string): Promise<void>;
+
+	/**
 	 * Clear all storage data for the global browser session
 	 */
 	clearGlobalStorage(): Promise<void>;

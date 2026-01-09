@@ -429,6 +429,27 @@ export class BrowserView extends Disposable {
 	}
 
 	/**
+	 * Copy selected content to clipboard
+	 */
+	async copy(): Promise<void> {
+		this._view.webContents.copy();
+	}
+
+	/**
+	 * Paste content from clipboard
+	 */
+	async paste(): Promise<void> {
+		this._view.webContents.paste();
+	}
+
+	/**
+	 * Cut selected content to clipboard
+	 */
+	async cut(): Promise<void> {
+		this._view.webContents.cut();
+	}
+
+	/**
 	 * Get the underlying WebContentsView
 	 */
 	getWebContentsView(): WebContentsView {

@@ -139,9 +139,23 @@ function redirectCommandToBrowser(command: MultiCommand | undefined) {
 	});
 }
 
+function overrideCommandForBrowser(command: MultiCommand | undefined, f: (browserEditor: BrowserEditor) => void) {
+	command?.addImplementation(PRIORITY, 'integratedBrowser', (accessor: ServicesAccessor) => {
+		const editorService = accessor.get(IEditorService);
+		const activeEditor = editorService.activeEditorPane;
+
+		if (activeEditor instanceof BrowserEditor) {
+			f(activeEditor);
+			return true;
+		}
+
+		return false;
+	});
+}
+
 redirectCommandToBrowser(UndoCommand);
 redirectCommandToBrowser(RedoCommand);
 redirectCommandToBrowser(SelectAllCommand);
-redirectCommandToBrowser(CopyAction);
-redirectCommandToBrowser(PasteAction);
-redirectCommandToBrowser(CutAction);
+overrideCommandForBrowser(CopyAction, browserEditor => void browserEditor.copy());
+overrideCommandForBrowser(PasteAction, browserEditor => void browserEditor.paste());
+overrideCommandForBrowser(CutAction, browserEditor => void browserEditor.cut());

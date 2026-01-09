@@ -447,6 +447,18 @@ export class BrowserEditor extends EditorPane {
 		return this._model?.toggleDevTools();
 	}
 
+	async copy(): Promise<void> {
+		return this._model?.copy();
+	}
+
+	async paste(): Promise<void> {
+		return this._model?.paste();
+	}
+
+	async cut(): Promise<void> {
+		return this._model?.cut();
+	}
+
 	/**
 	 * Update navigation state and context keys
 	 */
