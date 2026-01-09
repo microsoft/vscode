@@ -16,6 +16,16 @@ import { IChatModel, IExportableRepoData, IExportableRepoDiff } from '../common/
 import { getRemotes } from '../../../../platform/extensionManagement/common/configRemotes.js';
 
 /**
+ * Checks if a remote URL contains a host that matches the given domain.
+ * Matches 'domain.com' or '*.domain.com' but not 'fakedomain.com'.
+ */
+function matchesHost(remoteUrl: string, domain: string): boolean {
+	// Match patterns like: @domain.com, ://domain.com, .domain.com
+	const pattern = new RegExp(`(?:[@/.]|://)${domain.replace(/\./g, '\\.')}(?:[/:?#]|$)`, 'i');
+	return pattern.test(remoteUrl);
+}
+
+/**
  * Determines the change type based on SCM resource properties.
  */
 function determineChangeType(resource: ISCMResource, groupId: string): 'added' | 'modified' | 'deleted' | 'renamed' {
@@ -184,6 +194,7 @@ export async function captureRepoInfo(scmService: ISCMService, fileService: IFil
 
 	let remoteUrl: string | undefined;
 	try {
+		// TODO: Handle git worktrees where .git is a file pointing to the actual git directory
 		const gitConfigUri = rootUri.with({ path: `${rootUri.path}/.git/config` });
 		const exists = await fileService.exists(gitConfigUri);
 		if (exists) {
@@ -206,9 +217,9 @@ export async function captureRepoInfo(scmService: ISCMService, fileService: IFil
 
 	let repoType: 'github' | 'ado' | 'other' = 'other';
 	if (remoteUrl) {
-		if (remoteUrl.includes('github.com')) {
+		if (matchesHost(remoteUrl, 'github.com')) {
 			repoType = 'github';
-		} else if (remoteUrl.includes('dev.azure.com') || remoteUrl.includes('visualstudio.com')) {
+		} else if (matchesHost(remoteUrl, 'dev.azure.com') || matchesHost(remoteUrl, 'visualstudio.com')) {
 			repoType = 'ado';
 		}
 	}
