@@ -485,7 +485,7 @@ export class Git {
 
 	private async execScalar(args: string[], options: SpawnOptions = {}): Promise<IExecutionResult<string>> {
 		if (!this.scalarPath) {
-			throw new Error('Scalar executable not found');
+			throw new Error('Scalar executable not found. Scalar is an optional Git performance optimization tool. Install Scalar and ensure its executable is available on your PATH, or disable Scalar integration in the Git extension settings.');
 		}
 
 		options.env = assign({}, process.env, this.env, options.env || {});
