@@ -189,7 +189,7 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 					source: 'Git Bash',
 					icon: Codicon.terminalGitBash.id,
 				},
-                'Xonsh': {
+				'Xonsh': {
 					path: 'xonsh.exe'
 				}
 			},
