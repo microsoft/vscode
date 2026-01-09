@@ -1029,7 +1029,7 @@ export class McpTool implements IMcpTool {
 		this.referenceName = _definition.name.replaceAll('.', '_');
 		this.id = (idPrefix + _definition.name).replaceAll('.', '_').slice(0, McpToolName.MaxLength);
 		this.icons = McpIcons.fromStored(this._definition._icons);
-		this.visibility = _definition.visibility;
+		this.visibility = _definition.visibility ?? (McpToolVisibility.Model | McpToolVisibility.App);
 	}
 
 	async call(params: Record<string, unknown>, context?: IMcpToolCallContext, token?: CancellationToken): Promise<MCP.CallToolResult> {

@@ -26,7 +26,8 @@ import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIde
 import { IChatWidgetService } from '../../contrib/chat/browser/chat.js';
 import { AddDynamicVariableAction, IAddDynamicVariableContext } from '../../contrib/chat/browser/attachments/chatDynamicVariables.js';
 import { IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../contrib/chat/common/participants/chatAgents.js';
-import { ICustomAgentQueryOptions, IPromptsService } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
+import { IPromptFileContext, IPromptsService } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
+import { isValidPromptType } from '../../contrib/chat/common/promptSyntax/promptTypes.js';
 import { IChatEditingService, IChatRelatedFileProviderMetadata } from '../../contrib/chat/common/editing/chatEditingService.js';
 import { IChatModel } from '../../contrib/chat/common/model/chatModel.js';
 import { ChatRequestAgentPart } from '../../contrib/chat/common/requestParser/chatParserTypes.js';
@@ -96,8 +97,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 	private readonly _chatRelatedFilesProviders = this._register(new DisposableMap<number, IDisposable>());
 
-	private readonly _customAgentsProviders = this._register(new DisposableMap<number, IDisposable>());
-	private readonly _customAgentsProviderEmitters = this._register(new DisposableMap<number, Emitter<void>>());
+	private readonly _promptFileProviders = this._register(new DisposableMap<number, IDisposable>());
+	private readonly _promptFileProviderEmitters = this._register(new DisposableMap<number, Emitter<void>>());
 
 	private readonly _pendingProgress = new Map<string, { progress: (parts: IChatProgress[]) => void; chatSession: IChatModel | undefined }>();
 	private readonly _proxy: ExtHostChatAgentsShape2;
@@ -435,41 +436,46 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._chatRelatedFilesProviders.deleteAndDispose(handle);
 	}
 
-	async $registerCustomAgentsProvider(handle: number, extensionId: ExtensionIdentifier): Promise<void> {
+	async $registerPromptFileProvider(handle: number, type: string, extensionId: ExtensionIdentifier): Promise<void> {
 		const extension = await this._extensionService.getExtension(extensionId.value);
 		if (!extension) {
-			this._logService.error(`[MainThreadChatAgents2] Could not find extension for CustomAgentsProvider: ${extensionId.value}`);
+			this._logService.error(`[MainThreadChatAgents2] Could not find extension for prompt file provider: ${extensionId.value}`);
+			return;
+		}
+
+		if (!isValidPromptType(type)) {
+			this._logService.error(`[MainThreadChatAgents2] Invalid contribution type: ${type}`);
 			return;
 		}
 
 		const emitter = new Emitter<void>();
-		this._customAgentsProviderEmitters.set(handle, emitter);
+		this._promptFileProviderEmitters.set(handle, emitter);
 
-		const disposable = this._promptsService.registerCustomAgentsProvider(extension, {
-			onDidChangeCustomAgents: emitter.event,
-			provideCustomAgents: async (options: ICustomAgentQueryOptions, token: CancellationToken) => {
-				const agents = await this._proxy.$provideCustomAgents(handle, options, token);
-				if (!agents) {
+		const disposable = this._promptsService.registerPromptFileProvider(extension, type, {
+			onDidChangePromptFiles: emitter.event,
+			providePromptFiles: async (context: IPromptFileContext, token: CancellationToken) => {
+				const contributions = await this._proxy.$providePromptFiles(handle, type, context, token);
+				if (!contributions) {
 					return undefined;
 				}
 				// Convert UriComponents to URI
-				return agents.map(agent => ({
-					...agent,
-					uri: URI.revive(agent.uri)
+				return contributions.map(c => ({
+					...c,
+					uri: URI.revive(c.uri)
 				}));
 			}
 		});
 
-		this._customAgentsProviders.set(handle, disposable);
+		this._promptFileProviders.set(handle, disposable);
 	}
 
-	$unregisterCustomAgentsProvider(handle: number): void {
-		this._customAgentsProviders.deleteAndDispose(handle);
-		this._customAgentsProviderEmitters.deleteAndDispose(handle);
+	$unregisterPromptFileProvider(handle: number): void {
+		this._promptFileProviders.deleteAndDispose(handle);
+		this._promptFileProviderEmitters.deleteAndDispose(handle);
 	}
 
-	$onDidChangeCustomAgents(handle: number): void {
-		const emitter = this._customAgentsProviderEmitters.get(handle);
+	$onDidChangePromptFiles(handle: number): void {
+		const emitter = this._promptFileProviderEmitters.get(handle);
 		if (emitter) {
 			emitter.fire();
 		}
