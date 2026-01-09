@@ -1253,6 +1253,9 @@ export interface IChatModel extends IDisposable {
 	toExport(): IExportableChatData;
 	toJSON(): ISerializableChatData;
 	readonly contributedChatSession: IChatSessionContext | undefined;
+
+	readonly repoData: IExportableRepoData | undefined;
+	setRepoData(data: IExportableRepoData | undefined): void;
 }
 
 export interface ISerializableChatsData {
@@ -1304,6 +1307,23 @@ export interface ISerializableMarkdownInfo {
 	readonly suggestionId: EditSuggestionId;
 }
 
+export interface IExportableRepoData {
+	remoteUrl: string | undefined;
+	repoType: 'github' | 'ado' | 'other';
+	headCommitHash: string | undefined;
+	workspaceFileCount: number;
+	changedFileCount: number;
+	diffs: IExportableRepoDiff[] | undefined;
+}
+
+export interface IExportableRepoDiff {
+	uri: string;
+	originalUri: string;
+	renameUri?: string;
+	status: string;
+	diff?: string;
+}
+
 export interface IExportableChatData {
 	initialLocation: ChatAgentLocation | undefined;
 	requests: ISerializableChatRequestData[];
@@ -1327,8 +1347,14 @@ export interface ISerializableChatData2 extends ISerializableChatData1 {
 export interface ISerializableChatData3 extends Omit<ISerializableChatData2, 'version' | 'computedTitle'> {
 	version: 3;
 	customTitle: string | undefined;
+	/**
+	 * Whether the session had pending edits when it was stored.
+	 * todo@connor4312 This will be cleaned up with the globalization of edits.
+	 */
+	hasPendingEdits?: boolean;
 	/** Current draft input state (added later, fully backwards compatible) */
 	inputState?: ISerializableChatModelInputState;
+	repoData?: IExportableRepoData;
 }
 
 /**
@@ -1652,6 +1678,15 @@ export class ChatModel extends Disposable implements IChatModel {
 	public setContributedChatSession(session: IChatSessionContext | undefined) {
 		this._contributedChatSession = session;
 	}
+
+	private _repoData: IExportableRepoData | undefined;
+	public get repoData(): IExportableRepoData | undefined {
+		return this._repoData;
+	}
+	public setRepoData(data: IExportableRepoData | undefined): void {
+		this._repoData = data;
+	}
+
 	readonly lastRequestObs: IObservable<IChatRequestModel | undefined>;
 
 	// TODO to be clear, this is not the same as the id from the session object, which belongs to the provider.
@@ -1791,6 +1826,9 @@ export class ChatModel extends Disposable implements IChatModel {
 
 		this.dataSerializer = dataRef?.serializer;
 		this._initialResponderUsername = initialData?.responderUsername;
+
+		this._repoData = isValidFullData && initialData.repoData ? initialData.repoData : undefined;
+
 		this._initialLocation = initialData?.initialLocation ?? initialModelProps.initialLocation;
 
 		this._canUseTools = initialModelProps.canUseTools;
@@ -2237,6 +2275,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			creationDate: this._timestamp,
 			customTitle: this._customTitle,
 			inputState: this.inputModel.toJSON(),
+			repoData: this._repoData,
 		};
 	}
 

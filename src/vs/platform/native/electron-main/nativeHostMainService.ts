@@ -1168,6 +1168,15 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	//#endregion
 
+	//#region Zip
+
+	async createZipFile(windowId: number | undefined, zipPath: string, files: { path: string; contents: string }[]): Promise<void> {
+		const { zip } = await import('../../../base/node/zip.js');
+		await zip(zipPath, files);
+	}
+
+	//#endregion
+
 	private windowById(windowId: number | undefined, fallbackCodeWindowId?: number): ICodeWindow | IAuxiliaryWindow | undefined {
 		return this.codeWindowById(windowId) ?? this.auxiliaryWindowById(windowId) ?? this.codeWindowById(fallbackCodeWindowId);
 	}
