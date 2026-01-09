@@ -1134,4 +1134,34 @@ suite('SnippetsService', function () {
 		snippets = snippetService.getSnippetsSync('fooLang', URI.file('/project/src/foo.ts'));
 		assert.strictEqual(snippets.length, 0);
 	});
+
+	test('getSnippetsSync - filename-only patterns (no path separator)', function () {
+		// Patterns without '/' should match on filename only (like files.associations)
+		snippetService = new SimpleSnippetService([
+			new Snippet(false, ['fooLang'], 'TestSnippet', 'test', '', 'snippet', 'test', SnippetSource.User, generateUuid(), ['*.test.ts']),
+			new Snippet(false, ['fooLang'], 'ConfigSnippet', 'config', '', 'snippet', 'test', SnippetSource.User, generateUuid(), ['config.json']),
+		]);
+
+		// *.test.ts should match any file ending in .test.ts regardless of path
+		let snippets = snippetService.getSnippetsSync('fooLang', URI.file('/project/src/foo.test.ts'));
+		assert.strictEqual(snippets.length, 1);
+		assert.strictEqual(snippets[0].name, 'TestSnippet');
+
+		snippets = snippetService.getSnippetsSync('fooLang', URI.file('/other/deep/path/bar.test.ts'));
+		assert.strictEqual(snippets.length, 1);
+		assert.strictEqual(snippets[0].name, 'TestSnippet');
+
+		// config.json should match filename exactly
+		snippets = snippetService.getSnippetsSync('fooLang', URI.file('/project/config.json'));
+		assert.strictEqual(snippets.length, 1);
+		assert.strictEqual(snippets[0].name, 'ConfigSnippet');
+
+		snippets = snippetService.getSnippetsSync('fooLang', URI.file('/deep/nested/path/config.json'));
+		assert.strictEqual(snippets.length, 1);
+		assert.strictEqual(snippets[0].name, 'ConfigSnippet');
+
+		// myconfig.json should NOT match config.json pattern
+		snippets = snippetService.getSnippetsSync('fooLang', URI.file('/project/myconfig.json'));
+		assert.strictEqual(snippets.length, 0);
+	});
 });

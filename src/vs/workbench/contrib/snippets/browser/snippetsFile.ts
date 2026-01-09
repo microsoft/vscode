@@ -16,7 +16,7 @@ import { relativePath } from '../../../../base/common/resources.js';
 import { isObject } from '../../../../base/common/types.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { WindowIdleValue, getActiveWindow } from '../../../../base/browser/dom.js';
-import { parse as parseGlob, ParsedExpression, IExpression } from '../../../../base/common/glob.js';
+import { match as matchGlob } from '../../../../base/common/glob.js';
 
 class SnippetBodyInsights {
 
@@ -101,8 +101,6 @@ class SnippetBodyInsights {
 export class Snippet {
 
 	private readonly _bodyInsights: WindowIdleValue<SnippetBodyInsights>;
-	private _parsedInclude?: ParsedExpression;
-	private _parsedExclude?: ParsedExpression;
 
 	readonly prefixLow: string;
 
@@ -146,29 +144,27 @@ export class Snippet {
 
 	isFileIncluded(resourceUri: URI): boolean {
 		const filePath = resourceUri.fsPath;
+		const fileName = basename(filePath);
+
+		const getMatchTarget = (pattern: string): string => {
+			return pattern.includes('/') ? filePath : fileName;
+		};
 
 		if (this.exclude) {
-			if (!this._parsedExclude) {
-				const expression: IExpression = {};
-				for (const pattern of this.exclude.filter(Boolean)) {
-					expression[pattern] = true;
+			for (const pattern of this.exclude.filter(Boolean)) {
+				if (matchGlob(pattern, getMatchTarget(pattern), { ignoreCase: true })) {
+					return false;
 				}
-				this._parsedExclude = parseGlob(expression, { ignoreCase: true });
-			}
-			if (this._parsedExclude(filePath)) {
-				return false;
 			}
 		}
 
 		if (this.include) {
-			if (!this._parsedInclude) {
-				const expression: IExpression = {};
-				for (const pattern of this.include.filter(Boolean)) {
-					expression[pattern] = true;
+			for (const pattern of this.include.filter(Boolean)) {
+				if (matchGlob(pattern, getMatchTarget(pattern), { ignoreCase: true })) {
+					return true;
 				}
-				this._parsedInclude = parseGlob(expression, { ignoreCase: true });
 			}
-			return !!this._parsedInclude(filePath);
+			return false;
 		}
 
 		return true;
