@@ -99,6 +99,7 @@ import { registerChatEditorActions } from './chatEditing/chatEditingEditorAction
 import { ChatEditingEditorContextKeys } from './chatEditing/chatEditingEditorContextKeys.js';
 import { ChatEditingEditorOverlay } from './chatEditing/chatEditingEditorOverlay.js';
 import { ChatEditingService } from './chatEditing/chatEditingServiceImpl.js';
+import './selectionGutterIndicator/selectionGutterIndicator.js';
 import { ChatEditingNotebookFileSystemProviderContrib } from './chatEditing/notebook/chatEditingNotebookFileSystemProvider.js';
 import { SimpleBrowserOverlay } from './attachments/simpleBrowserEditorOverlay.js';
 import { ChatEditor, IChatEditorOptions } from './widgetHosts/editor/chatEditor.js';

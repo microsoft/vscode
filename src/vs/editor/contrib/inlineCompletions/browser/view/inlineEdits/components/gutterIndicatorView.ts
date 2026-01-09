@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ModifierKeyEmitter, n, trackFocus } from '../../../../../../../base/browser/dom.js';
+import { LiveElement, ModifierKeyEmitter, n, trackFocus } from '../../../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { BugIndicatingError } from '../../../../../../../base/common/errors.js';
@@ -34,6 +34,19 @@ import { localize } from '../../../../../../../nls.js';
 import { InlineCompletionsModel } from '../../../model/inlineCompletionsModel.js';
 import { InlineSuggestAlternativeAction } from '../../../model/InlineSuggestAlternativeAction.js';
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
+import { ThemeIcon } from '../../../../../../../base/common/themables.js';
+
+/**
+ * Customization options for the gutter indicator appearance and behavior.
+ */
+export interface GutterIndicatorCustomization {
+	/** Override the default styles (colors) */
+	readonly styles?: { background: string; foreground: string; border: string };
+	/** Override the default icon */
+	readonly icon?: ThemeIcon;
+	/** Factory to create custom menu content instead of the default */
+	readonly menuContentFactory?: (editorObs: ObservableCodeEditor, close: (focusEditor: boolean) => void) => LiveElement;
+}
 
 export class InlineEditsGutterIndicatorData {
 	constructor(
@@ -41,6 +54,7 @@ export class InlineEditsGutterIndicatorData {
 		readonly originalRange: LineRange,
 		readonly model: SimpleInlineSuggestModel,
 		readonly altAction: InlineSuggestAlternativeAction | undefined,
+		readonly customization?: GutterIndicatorCustomization,
 	) { }
 }
 
@@ -154,6 +168,12 @@ export class InlineEditsGutterIndicator extends Disposable {
 
 	private readonly _modifierPressed = observableFromEvent(this, ModifierKeyEmitter.getInstance().event, () => ModifierKeyEmitter.getInstance().keyStatus.shiftKey);
 	private readonly _gutterIndicatorStyles = derived(this, reader => {
+		// Check for custom styles first
+		const customStyles = this._data.read(reader)?.customization?.styles;
+		if (customStyles) {
+			return customStyles;
+		}
+
 		let v = this._tabAction.read(reader);
 
 		// TODO: add source of truth for alt action active and key pressed
@@ -341,18 +361,23 @@ export class InlineEditsGutterIndicator extends Disposable {
 		const pillIsFullyDocked = gutterViewPortWithoutStickyScrollWithoutPaddingTop.containsRect(pillFullyDockedRect);
 
 		// The icon which will be rendered in the pill
-		const iconNoneDocked = this._tabAction.map(action => action === InlineEditTabAction.Accept ? Codicon.keyboardTab : Codicon.arrowRight);
-		const iconDocked = derived(this, reader => {
-			if (this._isHoveredOverIconDebounced.read(reader) || this._isHoveredOverInlineEditDebounced.read(reader)) {
-				return Codicon.check;
-			}
-			if (this._tabAction.read(reader) === InlineEditTabAction.Accept) {
-				return Codicon.keyboardTab;
-			}
-			const cursorLineNumber = this._editorObs.cursorLineNumber.read(reader) ?? 0;
-			const editStartLineNumber = s.range.read(reader).startLineNumber;
-			return cursorLineNumber <= editStartLineNumber ? Codicon.keyboardTabAbove : Codicon.keyboardTabBelow;
-		});
+		const customIcon = this._data.read(reader)?.customization?.icon;
+		const iconNoneDocked = customIcon
+			? constObservable(customIcon)
+			: this._tabAction.map(action => action === InlineEditTabAction.Accept ? Codicon.keyboardTab : Codicon.arrowRight);
+		const iconDocked = customIcon
+			? constObservable(customIcon)
+			: derived(this, reader => {
+				if (this._isHoveredOverIconDebounced.read(reader) || this._isHoveredOverInlineEditDebounced.read(reader)) {
+					return Codicon.check;
+				}
+				if (this._tabAction.read(reader) === InlineEditTabAction.Accept) {
+					return Codicon.keyboardTab;
+				}
+				const cursorLineNumber = this._editorObs.cursorLineNumber.read(reader) ?? 0;
+				const editStartLineNumber = s.range.read(reader).startLineNumber;
+				return cursorLineNumber <= editStartLineNumber ? Codicon.keyboardTabAbove : Codicon.keyboardTabBelow;
+			});
 
 		const idealIconAreaWidth = 22;
 		const iconWidth = (pillRect: Rect) => {
@@ -449,17 +474,23 @@ export class InlineEditsGutterIndicator extends Disposable {
 			throw new BugIndicatingError('Gutter indicator data not available');
 		}
 		const disposableStore = new DisposableStore();
-		const content = disposableStore.add(this._instantiationService.createInstance(
-			GutterIndicatorMenuContent,
-			this._editorObs,
-			data.gutterMenuData,
-			(focusEditor) => {
-				if (focusEditor) {
-					this._editorObs.editor.focus();
-				}
-				h?.dispose();
-			},
-		).toDisposableLiveElement());
+
+		const closeCallback = (focusEditor: boolean) => {
+			if (focusEditor) {
+				this._editorObs.editor.focus();
+			}
+			h?.dispose();
+		};
+
+		// Use custom menu factory if provided, otherwise use default
+		const content = data.customization?.menuContentFactory
+			? disposableStore.add(data.customization.menuContentFactory(this._editorObs, closeCallback))
+			: disposableStore.add(this._instantiationService.createInstance(
+				GutterIndicatorMenuContent,
+				this._editorObs,
+				data.gutterMenuData,
+				closeCallback,
+			).toDisposableLiveElement());
 
 		const focusTracker = disposableStore.add(trackFocus(content.element)); // TODO@benibenj should this be removed?
 		disposableStore.add(focusTracker.onDidBlur(() => this._focusIsInMenu.set(false, undefined)));
