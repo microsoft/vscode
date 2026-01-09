@@ -232,13 +232,28 @@ jobs:
           if-no-files-found: ignore
 
       - name: Publish Playwright Traces
-        uses: actions/upload-artifact@v6
         if: failure()
         continue-on-error: true
+        uses: actions/github-script@v7
         with:
-          name: ${{ format('playwright-traces-macos-{0}-{1}-{2}', env.VSCODE_ARCH, env.ARTIFACT_NAME, github.run_attempt) }}
-          path: .build/logs/**/playwright-trace-*.zip
-          if-no-files-found: ignore
+          script: |
+            const artifact = require('@actions/artifact');
+            const { execSync } = require('child_process');
+            const path = require('path');
+
+            const traces = execSync('find .build/logs -name "playwright-trace-*.zip" 2>/dev/null || true').toString().trim().split('\n').filter(Boolean);
+
+            const client = artifact.default;
+            for (const trace of traces) {
+              const name = path.basename(trace, '.zip');
+              const artifactName = `${name}-macos-${{ env.VSCODE_ARCH }}-${{ env.ARTIFACT_NAME }}-${{ github.run_attempt }}`;
+              console.log(`Uploading ${trace} as ${artifactName}`);
+              try {
+                await client.uploadArtifact(artifactName, [trace], '.');
+              } catch (e) {
+                console.log(`Failed to upload ${trace}: ${e}`);
+              }
+            }
 
       - name: Publish Log Files
         uses: actions/upload-artifact@v6
