@@ -146,6 +146,18 @@ suite('ChatInlineAnchorWidget Metadata Validation', () => {
 		assert.ok(!widget, 'Widget should not be rendered for metadata with non-string fileName');
 	});
 
+	test('renders widget for metadata without fileName', () => {
+		const validMetadata = JSON.stringify({
+			vscodeLinkType: 'file'
+		});
+
+		const element = createTestElement(validMetadata);
+		renderFileWidgets(element, instantiationService, mockAnchorService, disposables);
+
+		const widget = element.querySelector('.chat-inline-anchor-widget');
+		assert.ok(widget, 'Widget should be rendered for metadata without fileName (fileName is optional)');
+	});
+
 	test('does not render widget for invalid JSON', () => {
 		const invalidJSON = '{ vscodeLinkType: "file", fileName: "test.txt" }'; // Missing quotes
 

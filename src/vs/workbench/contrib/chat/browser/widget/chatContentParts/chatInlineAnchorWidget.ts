@@ -79,7 +79,8 @@ export function renderFileWidgets(element: HTMLElement, instantiationService: II
 					if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
 						metadata = parsed as InlineAnchorWidgetMetadata;
 						if (metadata.vscodeLinkType === 'file') {
-							shouldRenderWidget = true;
+							// If fileName is present, it must be a string
+							shouldRenderWidget = metadata.fileName !== undefined && typeof metadata.fileName !== 'string';
 						}
 					}
 				} catch { }
