@@ -2321,29 +2321,49 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			};
 			this.telemetryService.publicLog2<ChatEditingWorkingSetEvent, ChatEditingWorkingSetClassification>('chatEditing/workingSetSize', { originalSize: uniqueWorkingSetEntries.size, actualSize: uniqueWorkingSetEntries.size });
 		}
-		this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionResource);
-		if (this.currentRequest) {
-			// We have to wait the current request to be properly cancelled so that it has a chance to update the model with its result metadata.
-			// This is awkward, it's basically a limitation of the chat provider-based agent.
-			await Promise.race([this.currentRequest, timeout(1000)]);
+		// Support submitting the input and returning to an empty chat view (sendToNewChat).
+		const sessionResource = this.viewModel?.sessionResource;
+
+		if (options?.sendToNewChat && sessionResource) {
+			// Cancel any in-progress request for that session before clearing
+			this.chatService.cancelCurrentRequestForSession(sessionResource);
+			if (this.currentRequest) {
+				// We have to wait a brief moment for the in-flight request to be settled so it can update model metadata.
+				await Promise.race([this.currentRequest, timeout(1000)]);
+			}
+			await this.clear();
+		} else {
+			// Cancel any existing in-flight request on the current session
+			if (this.viewModel) {
+				this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionResource);
+				if (this.currentRequest) {
+					// We have to wait the current request to be properly cancelled so that it has a chance to update the model with its result metadata.
+					await Promise.race([this.currentRequest, timeout(1000)]);
+				}
+			}
 		}
 
 		this.input.validateAgentMode();
 
-		if (this.viewModel.model.checkpoint) {
+		if (this.viewModel?.model?.checkpoint) {
 			const requests = this.viewModel.model.getRequests();
 			for (let i = requests.length - 1; i >= 0; i -= 1) {
 				const request = requests[i];
 				if (request.shouldBeBlocked) {
-					this.chatService.removeRequest(this.viewModel.sessionResource, request.id);
+					this.chatService.removeRequest(sessionResource ?? this.viewModel!.sessionResource, request.id);
 				}
 			}
 		}
-		if (this.viewModel.sessionResource) {
-			this.chatAccessibilityService.acceptRequest(this._viewModel!.sessionResource);
+
+		const targetSessionResource = sessionResource ?? this.viewModel?.sessionResource;
+		if (!targetSessionResource) {
+			this.chatAccessibilityService.disposeRequest(this.viewModel?.sessionResource);
+			return;
 		}
 
-		const result = await this.chatService.sendRequest(this.viewModel.sessionResource, requestInputs.input, {
+		this.chatAccessibilityService.acceptRequest(targetSessionResource);
+
+		const result = await this.chatService.sendRequest(targetSessionResource, requestInputs.input, {
 			userSelectedModelId: this.input.currentLanguageModel,
 			location: this.location,
 			locationData: this._location.resolveData?.(),

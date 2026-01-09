@@ -212,6 +212,11 @@ export interface IChatAcceptInputOptions {
 	// box's current content is being accepted, or 'false' if a specific input
 	// is being submitted to the widget.
 	storeToHistory?: boolean;
+	/**
+	 * If true, submit the input to the associated session and clear the widget (show empty/new chat) immediately.
+	 * This allows sending a request 'in the background' while returning the UI to an empty chat view.
+	 */
+	sendToNewChat?: boolean;
 }
 
 export interface IChatWidgetViewModelChangeEvent {

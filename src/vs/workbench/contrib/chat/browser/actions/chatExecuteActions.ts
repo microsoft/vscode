@@ -634,19 +634,14 @@ class SendToNewChatAction extends Action2 {
 
 		const inputBeforeClear = widget.getInput();
 
-		// Cancel any in-progress request before clearing
-		if (widget.viewModel) {
-			chatService.cancelCurrentRequestForSession(widget.viewModel.sessionResource);
-		}
-
 		if (widget.viewModel?.model) {
 			if (!(await handleCurrentEditingSession(widget.viewModel.model, undefined, dialogService))) {
 				return;
 			}
 		}
 
-		await widget.clear();
-		widget.acceptInput(inputBeforeClear, { storeToHistory: true });
+		// Delegate cancellation and clearing to the widget accept flow so callers can use a single API
+		widget.acceptInput(inputBeforeClear, { storeToHistory: true, sendToNewChat: true });
 	}
 }
 
