@@ -149,8 +149,9 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			}
 		};
 		const languageId = this.languageService.getLanguageIdByLanguageName(terminalData.language ?? 'sh') ?? 'shellscript';
+		const initialContent = (terminalData.commandLine.toolEdited ?? terminalData.commandLine.original).trimStart();
 		const model = this._register(this.modelService.createModel(
-			terminalData.commandLine.toolEdited ?? terminalData.commandLine.original,
+			initialContent,
 			this.languageService.createById(languageId),
 			this._getUniqueCodeBlockUri(),
 			true
@@ -182,7 +183,9 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			this._onDidChangeHeight.fire();
 		}));
 		this._register(model.onDidChangeContent(e => {
-			terminalData.commandLine.userEdited = model.getValue();
+			const currentValue = model.getValue();
+			// Only set userEdited if the content actually differs from the initial value
+			terminalData.commandLine.userEdited = currentValue !== initialContent ? currentValue : undefined;
 		}));
 		const elements = h('.chat-confirmation-message-terminal', [
 			h('.chat-confirmation-message-terminal-editor@editor'),
