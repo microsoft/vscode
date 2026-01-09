@@ -1310,8 +1310,8 @@ export interface ISerializableMarkdownInfo {
 export interface IExportableRepoData {
 	remoteUrl: string | undefined;
 	repoType: 'github' | 'ado' | 'other';
+	branchName: string | undefined;
 	headCommitHash: string | undefined;
-	workspaceFileCount: number;
 	changedFileCount: number;
 	diffs: IExportableRepoDiff[] | undefined;
 }

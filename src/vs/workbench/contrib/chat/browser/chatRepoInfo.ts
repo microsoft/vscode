@@ -6,7 +6,6 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ISCMService } from '../../scm/common/scm.js';
 import { IChatService } from '../common/chatService/chatService.js';
@@ -23,7 +22,6 @@ export class ChatRepoInfoContribution extends Disposable implements IWorkbenchCo
 	constructor(
 		@IChatService private readonly chatService: IChatService,
 		@ISCMService private readonly scmService: ISCMService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IFileService private readonly fileService: IFileService,
 		@ILogService private readonly logService: ILogService,
 	) {
@@ -80,10 +78,12 @@ export class ChatRepoInfoContribution extends Disposable implements IWorkbenchCo
 			this.logService.warn('[ChatRepoInfo] Failed to read git remote URL:', error);
 		}
 
+		let branchName: string | undefined;
 		let headCommitHash: string | undefined;
 		const historyProvider = repository.provider.historyProvider?.get();
 		if (historyProvider) {
 			const historyItemRef = historyProvider.historyItemRef.get();
+			branchName = historyItemRef?.name;
 			headCommitHash = historyItemRef?.revision;
 		}
 
@@ -91,9 +91,6 @@ export class ChatRepoInfoContribution extends Disposable implements IWorkbenchCo
 		if (remoteUrl?.includes('dev.azure.com') || remoteUrl?.includes('visualstudio.com')) {
 			repoType = 'ado';
 		}
-
-		const workspaceFolders = this.workspaceContextService.getWorkspace().folders;
-		const workspaceFileCount = workspaceFolders.length;
 
 		const diffs: IExportableRepoDiff[] = [];
 		let changedFileCount = 0;
@@ -114,8 +111,8 @@ export class ChatRepoInfoContribution extends Disposable implements IWorkbenchCo
 		return {
 			remoteUrl,
 			repoType,
+			branchName,
 			headCommitHash,
-			workspaceFileCount,
 			changedFileCount,
 			diffs
 		};
