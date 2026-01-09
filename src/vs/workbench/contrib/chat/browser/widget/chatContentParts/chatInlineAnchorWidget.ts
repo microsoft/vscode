@@ -55,7 +55,7 @@ type ContentRefData =
 
 type InlineAnchorWidgetMetadata = {
 	vscodeLinkType: 'file';
-	fileName?: string;
+	fileName: string;
 };
 
 export function renderFileWidgets(element: HTMLElement, instantiationService: IInstantiationService, chatMarkdownAnchorService: IChatMarkdownAnchorService, disposables: DisposableStore) {
@@ -72,13 +72,20 @@ export function renderFileWidgets(element: HTMLElement, instantiationService: II
 			shouldRenderWidget = true;
 		} else {
 			// Try to parse as metadata JSON
-			try {
-				metadata = JSON.parse(linkText);
-				if (metadata && metadata.vscodeLinkType === 'file' && typeof metadata.fileName === 'string') {
-					shouldRenderWidget = true;
+			// We can limit the length to avoid excessive parsing time.
+			if (linkText.length <= 1000) {
+				try {
+					const parsed = JSON.parse(linkText);
+					// Validate that the parsed result is a plain object and not an array or primitive
+					if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+						metadata = parsed as InlineAnchorWidgetMetadata;
+						if (metadata.vscodeLinkType === 'file' && typeof metadata.fileName === 'string') {
+							shouldRenderWidget = true;
+						}
+					}
+				} catch {
+					// Not JSON metadata, ignore
 				}
-			} catch {
-				// Not JSON metadata, ignore
 			}
 		}
 
