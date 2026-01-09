@@ -15,7 +15,7 @@ import { Branch, BranchQuery, Change, CommitOptions, DiffChange, FetchOptions, F
 import { AutoFetcher } from './autofetch';
 import { GitBranchProtectionProvider, IBranchProtectionProviderRegistry } from './branchProtection';
 import { debounce, memoize, sequentialize, throttle } from './decorators';
-import { Repository as BaseRepository, BlameInformation, Commit, CommitShortStat, GitError, LogFileOptions, LsTreeElement, MAX_CLI_LENGTH, PullOptions, RefQuery, Stash, Submodule, Worktree } from './git';
+import { Repository as BaseRepository, BlameInformation, Commit, CommitShortStat, GitError, LogFileOptions, LsTreeElement, PullOptions, RefQuery, Stash, Submodule, Worktree } from './git';
 import { GitHistoryProvider } from './historyProvider';
 import { Operation, OperationKind, OperationManager, OperationResult } from './operation';
 import { CommitCommandsCenter, IPostCommitCommandsProviderRegistry } from './postCommitCommands';
@@ -23,7 +23,7 @@ import { IPushErrorHandlerRegistry } from './pushError';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { StatusBarCommands } from './statusbar';
 import { toGitUri } from './uri';
-import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isCopilotWorktree, isDescendant, isLinuxSnap, isRemote, isWindows, Limiter, onceEvent, pathEquals, relativePath, splitInChunks } from './util';
+import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isCopilotWorktree, isDescendant, isLinuxSnap, isRemote, isWindows, Limiter, onceEvent, pathEquals, relativePath } from './util';
 import { IFileWatcher, watch } from './watch';
 import { ISourceControlHistoryItemDetailsProviderRegistry } from './historyItemDetailsProvider';
 import { GitArtifactProvider } from './artifactProvider';
@@ -1905,9 +1905,9 @@ export class Repository implements Disposable {
 				}
 			}
 
-			// Collect unique directories from all the matched files and sort them
-			// by depth. We will first check whether directories are ignore in order
-			// to limit the number of git check-ignore calls.
+			// Collect unique directories from all the matched files. Check
+			// first whether directories are ignored in order to limit the
+			// number of git check-ignore calls.
 			const directoriesToCheck = new Set<string>();
 			for (const file of matchedFiles) {
 				let parent = path.dirname(file);
@@ -2428,80 +2428,64 @@ export class Repository implements Disposable {
 		await this.run(Operation.RebaseAbort, async () => await this.repository.rebaseAbort());
 	}
 
-	async checkIgnore(filePaths: string[]): Promise<Set<string>> {
-		if (filePaths.length === 0) {
-			return new Set<string>();
-		}
+	checkIgnore(filePaths: string[]): Promise<Set<string>> {
+		return this.run(Operation.CheckIgnore, () => {
+			return new Promise<Set<string>>((resolve, reject) => {
 
-		return this.run(Operation.CheckIgnore, async () => {
-			const ignoredFilePaths = new Set<string>();
-			for (const chunk of splitInChunks(filePaths, MAX_CLI_LENGTH)) {
-				try {
-					const result = await this._checkIgnore(chunk);
-					result.forEach(filePath => ignoredFilePaths.add(filePath));
-				} catch { }
-			}
+				filePaths = filePaths
+					.filter(filePath => isDescendant(this.root, filePath));
 
-			return ignoredFilePaths;
-		});
-	}
-
-	private async _checkIgnore(filePaths: string[]): Promise<Set<string>> {
-		return new Promise<Set<string>>((resolve, reject) => {
-
-			filePaths = filePaths
-				.filter(filePath => isDescendant(this.root, filePath));
-
-			if (filePaths.length === 0) {
-				// nothing left
-				return resolve(new Set<string>());
-			}
-
-			// https://git-scm.com/docs/git-check-ignore#git-check-ignore--z
-			const child = this.repository.stream(['check-ignore', '-v', '-z', '--stdin'], { stdio: [null, null, null] });
-
-			if (!child.stdin) {
-				return reject(new GitError({
-					message: 'Failed to spawn git process',
-					exitCode: -1
-				}));
-			}
-
-			child.stdin.end(filePaths.join('\0'), 'utf8');
-
-			const onExit = (exitCode: number) => {
-				if (exitCode === 1) {
-					// nothing ignored
-					resolve(new Set<string>());
-				} else if (exitCode === 0) {
-					resolve(new Set<string>(this.parseIgnoreCheck(data)));
-				} else {
-					if (/ is in submodule /.test(stderr)) {
-						reject(new GitError({ stdout: data, stderr, exitCode, gitErrorCode: GitErrorCodes.IsInSubmodule }));
-					} else {
-						reject(new GitError({ stdout: data, stderr, exitCode }));
-					}
+				if (filePaths.length === 0) {
+					// nothing left
+					return resolve(new Set<string>());
 				}
-			};
 
-			let data = '';
-			const onStdoutData = (raw: string) => {
-				data += raw;
-			};
+				// https://git-scm.com/docs/git-check-ignore#git-check-ignore--z
+				const child = this.repository.stream(['check-ignore', '-v', '-z', '--stdin'], { stdio: [null, null, null] });
 
-			if (child.stdout) {
-				child.stdout.setEncoding('utf8');
-				child.stdout.on('data', onStdoutData);
-			}
+				if (!child.stdin) {
+					return reject(new GitError({
+						message: 'Failed to spawn git process',
+						exitCode: -1
+					}));
+				}
 
-			let stderr: string = '';
-			if (child.stderr) {
-				child.stderr.setEncoding('utf8');
-				child.stderr.on('data', raw => stderr += raw);
-			}
+				child.stdin.end(filePaths.join('\0'), 'utf8');
 
-			child.on('error', reject);
-			child.on('exit', onExit);
+				const onExit = (exitCode: number) => {
+					if (exitCode === 1) {
+						// nothing ignored
+						resolve(new Set<string>());
+					} else if (exitCode === 0) {
+						resolve(new Set<string>(this.parseIgnoreCheck(data)));
+					} else {
+						if (/ is in submodule /.test(stderr)) {
+							reject(new GitError({ stdout: data, stderr, exitCode, gitErrorCode: GitErrorCodes.IsInSubmodule }));
+						} else {
+							reject(new GitError({ stdout: data, stderr, exitCode }));
+						}
+					}
+				};
+
+				let data = '';
+				const onStdoutData = (raw: string) => {
+					data += raw;
+				};
+
+				if (child.stdout) {
+					child.stdout.setEncoding('utf8');
+					child.stdout.on('data', onStdoutData);
+				}
+
+				let stderr: string = '';
+				if (child.stderr) {
+					child.stderr.setEncoding('utf8');
+					child.stderr.on('data', raw => stderr += raw);
+				}
+
+				child.on('error', reject);
+				child.on('exit', onExit);
+			});
 		});
 	}
 

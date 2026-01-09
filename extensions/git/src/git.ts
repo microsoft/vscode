@@ -18,7 +18,7 @@ import * as byline from 'byline';
 import { StringDecoder } from 'string_decoder';
 
 // https://github.com/microsoft/vscode/issues/65693
-export const MAX_CLI_LENGTH = 30000;
+const MAX_CLI_LENGTH = 30000;
 
 export interface IGit {
 	path: string;
