@@ -1063,7 +1063,7 @@ export class CommandCenter {
 			{
 				label: l10n.t('$(file-code) No Source'),
 				description: l10n.t('--no-src'),
-				detail: l10n.t('Initialize without checking out source files'),
+				detail: l10n.t('Initialize without creating src folder'),
 				option: 'no-src'
 			}
 		];
