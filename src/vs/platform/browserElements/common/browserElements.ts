@@ -20,7 +20,19 @@ export interface IElementData {
  * Uses either the parent webview or browser view id to uniquely identify the target.
  */
 export interface IBrowserTargetLocator {
+	/**
+	 * Identifier of the parent webview hosting the target.
+	 *
+	 * Exactly one of {@link webviewId} or {@link browserViewId} should be provided.
+	 * Use this when the target is rendered inside a webview.
+	 */
 	readonly webviewId?: string;
+	/**
+	 * Identifier of the browser view hosting the target.
+	 *
+	 * Exactly one of {@link webviewId} or {@link browserViewId} should be provided.
+	 * Use this when the target is rendered inside a browser view rather than a webview.
+	 */
 	readonly browserViewId?: string;
 }
 

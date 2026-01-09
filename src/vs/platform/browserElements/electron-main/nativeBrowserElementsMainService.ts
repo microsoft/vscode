@@ -40,7 +40,7 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 
 	/**
 	 * Find the webview target that matches the given locator.
-	 * Checks either parentWebviewOrigin or webContentsId depending on what's provided.
+	 * Checks either webviewId or browserViewId depending on what's provided.
 	 */
 	async findWebviewTarget(debuggers: Electron.Debugger, locator: IBrowserTargetLocator): Promise<string | undefined> {
 		const { targetInfos } = await debuggers.sendCommand('Target.getTargets');

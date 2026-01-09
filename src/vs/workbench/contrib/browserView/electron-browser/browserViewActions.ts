@@ -15,6 +15,7 @@ import { BrowserEditor, CONTEXT_BROWSER_CAN_GO_BACK, CONTEXT_BROWSER_CAN_GO_FORW
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
 import { IBrowserViewWorkbenchService } from '../common/browserView.js';
 import { BrowserViewStorageScope } from '../../../../platform/browserView/common/browserView.js';
+import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 
 // Context key expression to check if browser editor is active
 const BROWSER_EDITOR_ACTIVE = ContextKeyExpr.equals('activeEditor', BrowserEditor.ID);
@@ -147,11 +148,13 @@ class SelectElementAction extends Action2 {
 			title: localize2('browser.selectElementAction', 'Add Element to Chat'),
 			icon: Codicon.inspect,
 			f1: true,
+			precondition: ChatContextKeys.enabled,
 			toggled: CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE,
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
 				group: 'actions',
 				order: 1,
+				when: ChatContextKeys.enabled
 			}
 		});
 	}

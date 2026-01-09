@@ -399,7 +399,6 @@ class SimpleBrowserOverlayController {
 		this._store.add(autorun(r => {
 
 			const webviewId = activeIdObs.read(r);
-			widget.setActiveLocator(webviewId ? { webviewId } : undefined);
 
 			if (!webviewId) {
 				hide();
