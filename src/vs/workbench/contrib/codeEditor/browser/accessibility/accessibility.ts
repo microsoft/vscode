@@ -62,8 +62,7 @@ class AnnounceCursorPosition extends Action2 {
 				description: nls.localize2('announceCursorPosition.description', "Announce the current cursor position (line and column) via screen reader.")
 			},
 			keybinding: {
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyG,
-				win: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyG },
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyG,
 				weight: KeybindingWeight.WorkbenchContrib + 10,
 				when: EditorContextKeys.editorTextFocus
 			}
