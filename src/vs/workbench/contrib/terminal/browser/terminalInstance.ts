@@ -1008,6 +1008,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Determine whether to send ETX (ctrl+c) before running the command. Only do this when the
 		// command will be executed immediately or when command detection shows the prompt contains text.
 		if (shouldExecute && (!commandDetection || commandDetection.promptInputModel.value.length > 0)) {
+			this._logService.trace(`PromptInputModel#runCommand: Sending ETX (ctrl+c) before running command`);
+			this._logService.trace(`PromptInputModel#runCommand: state of promptinputmodel before sending ETX: ${commandDetection ? commandDetection.promptInputModel.state : 'no command detection'}`);
+			this._logService.trace(`PromptInputModel#runCommand: value of promptinputmodel before sending ETX: ${commandDetection ? commandDetection.promptInputModel.value : 'no command detection'}`);
+
 			await this.sendText('\x03', false);
 			// Wait a little before running the command to avoid the sequences being echoed while the ^C
 			// is being evaluated
