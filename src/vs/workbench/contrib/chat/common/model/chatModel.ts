@@ -26,6 +26,7 @@ import { ISelection } from '../../../../../editor/common/core/selection.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { EditSuggestionId } from '../../../../../editor/common/textModelEditSource.js';
 import { localize } from '../../../../../nls.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js';
@@ -1746,6 +1747,7 @@ export class ChatModel extends Disposable implements IChatModel {
 	constructor(
 		initialData: ISerializableChatData | IExportableChatData | undefined,
 		initialModelProps: { initialLocation: ChatAgentLocation; canUseTools: boolean; inputState?: ISerializableChatModelInputState; resource?: URI; sessionId?: string; disableBackgroundKeepAlive?: boolean },
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
@@ -1798,16 +1800,21 @@ export class ChatModel extends Disposable implements IChatModel {
 			}
 
 			reader.store.add(request.response.onDidChange(async ev => {
-				if (ev.reason === 'completedRequest' && this._editingSession) {
-					if (request === this._requests.at(-1)
-						&& request.session.sessionResource.scheme !== Schemas.vscodeLocalChatSession
-						&& this._editingSession.hasEditsInRequest(request.id)
-					) {
-						const diffs = this._editingSession.getDiffsForFilesInRequest(request.id);
-						request.response?.updateContent(editEntriesToMultiDiffData(diffs), true);
-					}
-					this._onDidChange.fire({ kind: 'completedRequest', request });
+				if (!this._editingSession || ev.reason !== 'completedRequest') {
+					return;
 				}
+
+				if (
+					request === this._requests.at(-1) &&
+					request.session.sessionResource.scheme !== Schemas.vscodeLocalChatSession &&
+					this.configurationService.getValue<boolean>('chat.checkpoints.showFileChanges') === true &&
+					this._editingSession.hasEditsInRequest(request.id)
+				) {
+					const diffs = this._editingSession.getDiffsForFilesInRequest(request.id);
+					request.response?.updateContent(editEntriesToMultiDiffData(diffs), true);
+				}
+
+				this._onDidChange.fire({ kind: 'completedRequest', request });
 			}));
 		}));
 
