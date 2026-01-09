@@ -62,5 +62,6 @@ export class MockPromptsService implements IPromptsService {
 	setDisabledPromptFiles(type: PromptsType, uris: ResourceSet): void { throw new Error('Method not implemented.'); }
 	registerCustomAgentsProvider(extension: IExtensionDescription, provider: { provideCustomAgents: (options: ICustomAgentQueryOptions, token: CancellationToken) => Promise<IExternalCustomAgent[] | undefined> }): IDisposable { throw new Error('Method not implemented.'); }
 	findAgentSkills(token: CancellationToken): Promise<IAgentSkill[] | undefined> { throw new Error('Method not implemented.'); }
+	getSkillByUri(uri: URI): IAgentSkill | undefined { return undefined; }
 	dispose(): void { }
 }
