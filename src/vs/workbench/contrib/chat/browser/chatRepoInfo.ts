@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
@@ -13,11 +13,16 @@ import { IChatModel, IExportableRepoData, IExportableRepoDiff } from '../common/
 import { getRemotes } from '../../../../platform/extensionManagement/common/configRemotes.js';
 
 /**
- * Captures repository information when the first message is sent in a chat session.
+ * Captures repository information for chat sessions.
+ * - On session creation: captures initial repo state for fresh sessions
+ * - On first message: updates repo state to reflect any changes since session creation
+ * - On SCM repository added: captures repo state for sessions that were created before SCM was ready
  */
 export class ChatRepoInfoContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.chatRepoInfo';
+
+	private readonly _pendingSessions = new DisposableStore();
 
 	constructor(
 		@IChatService private readonly chatService: IChatService,
@@ -27,12 +32,55 @@ export class ChatRepoInfoContribution extends Disposable implements IWorkbenchCo
 	) {
 		super();
 
-		this._register(this.chatService.onDidSubmitRequest(async ({ chatSessionResource }) => {
-			const model = this.chatService.getSession(chatSessionResource);
-			if (!model || model.repoData) {
+		this._register(this._pendingSessions);
+
+		// Capture repo info when session is created (for export without sending messages)
+		this._register(this.chatService.onDidCreateModel(async (model) => {
+			if (model.repoData) {
 				return;
 			}
 			await this.captureAndSetRepoData(model);
+
+			// If SCM wasn't ready, wait for repositories to become available
+			const repositories = [...this.scmService.repositories];
+			if (!model.repoData && repositories.length === 0) {
+				this.waitForScmAndCapture(model);
+			}
+		}));
+
+		// Update repo info when first message is sent (to capture changes since session creation)
+		this._register(this.chatService.onDidSubmitRequest(async ({ chatSessionResource }) => {
+			const model = this.chatService.getSession(chatSessionResource);
+			if (!model) {
+				return;
+			}
+			await this.captureAndSetRepoData(model);
+		}));
+	}
+
+	/**
+	 * Wait for SCM repositories to become available and then capture repo data.
+	 * This handles the case where a chat session is restored before the git extension
+	 * has had a chance to register its repositories.
+	 */
+	private waitForScmAndCapture(model: IChatModel): void {
+		const disposables = new DisposableStore();
+		this._pendingSessions.add(disposables);
+
+		disposables.add(this.scmService.onDidAddRepository(async () => {
+			if (model.repoData) {
+				disposables.dispose();
+				return;
+			}
+			await this.captureAndSetRepoData(model);
+			if (model.repoData) {
+				disposables.dispose();
+			}
+		}));
+
+		// Clean up when the model is disposed
+		disposables.add(model.onDidDispose(() => {
+			disposables.dispose();
 		}));
 	}
 

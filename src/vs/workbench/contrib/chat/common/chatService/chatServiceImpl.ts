@@ -87,6 +87,9 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _onDidSubmitRequest = this._register(new Emitter<{ readonly chatSessionResource: URI }>());
 	public readonly onDidSubmitRequest = this._onDidSubmitRequest.event;
 
+	private readonly _onDidCreateModel = this._register(new Emitter<IChatModel>());
+	public readonly onDidCreateModel = this._onDidCreateModel.event;
+
 	private readonly _onDidPerformUserAction = this._register(new Emitter<IChatUserActionEvent>());
 	public readonly onDidPerformUserAction: Event<IChatUserActionEvent> = this._onDidPerformUserAction.event;
 
@@ -157,6 +160,9 @@ export class ChatService extends Disposable implements IChatService {
 		}));
 		this._register(this._sessionModels.onDidDisposeModel(model => {
 			this._onDidDisposeSession.fire({ sessionResource: [model.sessionResource], reason: 'cleared' });
+		}));
+		this._register(this._sessionModels.onDidCreateModel(model => {
+			this._onDidCreateModel.fire(model);
 		}));
 
 		this._chatServiceTelemetry = this.instantiationService.createInstance(ChatServiceTelemetry);
