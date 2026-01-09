@@ -21,6 +21,7 @@ export function setup(logger: Logger) {
 		it('verifies that application launches when user data directory has non-ascii characters', async function () {
 			const app = this.app as Application;
 			await app.workbench.explorer.openExplorerView();
+			throw new Error('Intentional test failure for testing Playwright traces');
 		});
 	});
 }
