@@ -50,7 +50,6 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 			if (!requestInProgress) {
 				return;
 			}
-			alert(localize('chat.backgroundRequest', "Chat session will continue in the background."));
 			this.disposeRequest(e);
 		}));
 	}
