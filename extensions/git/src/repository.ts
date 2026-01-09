@@ -1897,6 +1897,14 @@ export class Repository implements Disposable {
 		}
 
 		try {
+			// Expand the glob patterns
+			const files = new Set<string>();
+			for (const pattern of worktreeIncludeFiles) {
+				for await (const file of fsPromises.glob(pattern, { cwd: this.root })) {
+					files.add(file);
+				}
+			}
+
 			// Copy the files
 			await window.withProgress({
 				location: ProgressLocation.Notification,
@@ -1906,8 +1914,7 @@ export class Repository implements Disposable {
 				errorOnExist: false,
 				filter: (source) => {
 					const sourceRelativePath = relativePath(this.root, source);
-					return pathEquals(this.root, source) || worktreeIncludeFiles
-						.some(pattern => path.matchesGlob(sourceRelativePath, pattern));
+					return pathEquals(this.root, source) || files.has(sourceRelativePath);
 				},
 				recursive: true
 			}));
