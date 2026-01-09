@@ -249,7 +249,7 @@ jobs:
         continue-on-error: true
         uses: actions/upload-artifact@v6
         with:
-          name: ${{ steps.find-trace.outputs.trace }}
+          name: playwright-trace-1-verifies_that_application_launches_when_user_data_directory_has_non-ascii_characters.zip
           path: ${{ steps.find-trace.outputs.trace }}
           if-no-files-found: ignore
 
