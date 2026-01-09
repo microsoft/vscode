@@ -116,10 +116,7 @@ export class StartSessionAction extends Action2 {
 		if (arg && InlineChatRunOptions.isInlineChatRunOptions(arg)) {
 			options = arg;
 		}
-		const task = InlineChatController.get(editor)?.run({ ...options });
-		if (options?.blockOnResponse) {
-			await task;
-		}
+		await InlineChatController.get(editor)?.run({ ...options });
 	}
 }
 

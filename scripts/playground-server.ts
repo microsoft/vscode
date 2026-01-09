@@ -6,7 +6,7 @@
 import * as fsPromise from 'fs/promises';
 import path from 'path';
 import * as http from 'http';
-import * as parcelWatcher from '@vscode/watcher';
+import * as parcelWatcher from '@parcel/watcher';
 
 /**
  * Launches the server for the monaco editor playground
