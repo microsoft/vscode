@@ -63,6 +63,8 @@ fsevents/test/**
 !@vscode/tree-sitter-wasm/wasm/tree-sitter-powershell.wasm
 !@vscode/tree-sitter-wasm/wasm/tree-sitter-bash.wasm
 
+!@vscode/codicons/dist/codicon.ttf
+
 native-keymap/binding.gyp
 native-keymap/build/**
 native-keymap/src/**
@@ -188,5 +190,3 @@ zone.js/dist/**
 @xterm/xterm-addon-*/fixtures/**
 @xterm/xterm-addon-*/out/**
 @xterm/xterm-addon-*/out-test/**
-
-!@vscode/codicons/dist/codicon.ttf
