@@ -114,9 +114,9 @@ export function setup(logger: Logger, opts: { web?: boolean }, quality: Quality)
 							'link-in-text-block': ['command:workbench.action.chat.generateInstructions'],
 							// Monaco lists use aria-multiselectable on role="list" and aria-selected on role="listitem"
 							// These are used intentionally for selection semantics even though technically not spec-compliant
-							'aria-allowed-attr': ['.monaco-list', '.monaco-list-row'],
+							'aria-allowed-attr': ['monaco-list', 'monaco-list-row'],
 							// Some icon buttons have empty aria-label during rendering
-							'aria-command-name': ['.codicon-plus.monaco-button']
+							'aria-command-name': ['codicon-plus']
 						}
 					});
 				});
@@ -150,18 +150,11 @@ export function setup(logger: Logger, opts: { web?: boolean }, quality: Quality)
 							'link-in-text-block': ['command:workbench.action.chat.generateInstructions'],
 							// Monaco lists use aria-multiselectable on role="list" and aria-selected on role="listitem"
 							// These are used intentionally for selection semantics even though technically not spec-compliant
-							'aria-allowed-attr': ['.monaco-list', '.monaco-list-row'],
+							'aria-allowed-attr': ['monaco-list', 'monaco-list-row'],
 							// Some icon buttons have empty aria-label during rendering
-							'aria-command-name': ['.codicon-plus.monaco-button']
+							'aria-command-name': ['codicon-plus']
 						}
 					});
-				});
-
-				afterEach(async function () {
-					// Reset chat tools auto-approve setting after each test to avoid leaking state
-					if (app) {
-						await app.workbench.settingsEditor.addUserSetting('chat.tools.global.autoApprove', 'false');
-					}
 				});
 			});
 		}
