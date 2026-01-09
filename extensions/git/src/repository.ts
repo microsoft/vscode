@@ -5,6 +5,7 @@
 
 import TelemetryReporter from '@vscode/extension-telemetry';
 import * as fs from 'fs';
+import * as fsPromises from 'fs/promises';
 import * as path from 'path';
 import picomatch from 'picomatch';
 import { CancellationError, CancellationToken, CancellationTokenSource, Command, commands, Disposable, Event, EventEmitter, FileDecoration, FileType, l10n, LogLevel, LogOutputChannel, Memento, ProgressLocation, ProgressOptions, QuickDiffProvider, RelativePattern, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, TabInputNotebookDiff, TabInputTextDiff, TabInputTextMultiDiff, ThemeColor, ThemeIcon, Uri, window, workspace, WorkspaceEdit } from 'vscode';
@@ -1878,8 +1879,41 @@ export class Repository implements Disposable {
 				this.globalState.update(`${Repository.WORKTREE_ROOT_STORAGE_KEY}:${this.root}`, newWorktreeRoot);
 			}
 
+			// Copy worktree include files. We explicitly do not await this
+			// since we don't want to block the worktree creation on the
+			// copy operation.
+			this._copyWorktreeIncludeFiles(worktreePath!);
+
 			return worktreePath!;
 		});
+	}
+
+	private async _copyWorktreeIncludeFiles(worktreePath: string): Promise<void> {
+		const config = workspace.getConfiguration('git', Uri.file(this.root));
+		const worktreeIncludeFiles = config.get<string[]>('worktreeIncludeFiles', []);
+
+		if (worktreeIncludeFiles.length === 0) {
+			return;
+		}
+
+		try {
+			// Copy the files
+			await window.withProgress({
+				location: ProgressLocation.Notification,
+				title: l10n.t('Copying additional files to the worktree...'),
+				cancellable: false
+			}, () => fsPromises.cp(this.root, worktreePath, {
+				errorOnExist: false,
+				filter: (source) => {
+					const sourceRelativePath = relativePath(this.root, source);
+					return pathEquals(this.root, source) || worktreeIncludeFiles
+						.some(pattern => path.matchesGlob(sourceRelativePath, pattern));
+				},
+				recursive: true
+			}));
+		} catch (err) {
+			this.logger.warn(`[Repository][_copyWorktreeIncludeFiles] Failed to copy files to worktree: ${err}`);
+		}
 	}
 
 	async deleteWorktree(path: string, options?: { force?: boolean }): Promise<void> {
