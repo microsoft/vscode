@@ -1379,6 +1379,8 @@ class CollapseAllAction extends ViewAction<SCMViewPane> {
 			menu: {
 				id: MenuId.SCMResourceGroupContext,
 				group: 'inline',
+				when: ContextKeys.SCMViewMode.isEqualTo(ViewMode.Tree),
+				order: 10,
 			}
 		});
 	}
@@ -2885,18 +2887,13 @@ export class SCMViewPane extends ViewPane {
 	}
 
 	collapseAllResources(repository: ISCMRepository): void {
-		const groups = repository.provider.groups.filter(o => this.tree.hasNode(o));
-
-		let done = false;
-		for (const group of groups) {
-			for (const { element } of this.tree.getNode(group).children) {
-				done = (!isSCMViewService(element) && this.tree.collapse(element, true)) || done;
-			}
-		}
-
-		if (!done) {
-			for (const group of groups) {
-				this.tree.collapse(group, true);
+		for (const group of repository.provider.groups) {
+			if (this.tree.hasNode(group)) {
+				for (const { element } of this.tree.getNode(group).children) {
+					if (!isSCMViewService(element)) {
+						this.tree.collapse(element, true);
+					}
+				}
 			}
 		}
 	}
