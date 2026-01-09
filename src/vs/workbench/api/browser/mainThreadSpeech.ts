@@ -5,7 +5,7 @@
 
 import { raceCancellation } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { ExtHostContext, ExtHostSpeechShape, MainContext, MainThreadSpeechShape } from '../common/extHost.protocol.js';
@@ -26,7 +26,7 @@ type KeywordRecognitionSession = {
 };
 
 @extHostNamedCustomer(MainContext.MainThreadSpeech)
-export class MainThreadSpeech implements MainThreadSpeechShape {
+export class MainThreadSpeech extends Disposable implements MainThreadSpeechShape {
 
 	private readonly proxy: ExtHostSpeechShape;
 
@@ -42,11 +42,12 @@ export class MainThreadSpeech implements MainThreadSpeechShape {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ILogService private readonly logService: ILogService
 	) {
+		super();
 		this.proxy = extHostContext.getProxy(ExtHostContext.ExtHostSpeech);
 
 		// Listen to voice chat in progress context key changes and notify extensions
 		let previousValue = !!this.contextKeyService.getContextKeyValue<boolean>(VoiceChatInProgress.key);
-		this.contextKeyService.onDidChangeContext(e => {
+		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(new Set([VoiceChatInProgress.key]))) {
 				const currentValue = !!this.contextKeyService.getContextKeyValue<boolean>(VoiceChatInProgress.key);
 				if (currentValue !== previousValue) {
@@ -54,7 +55,7 @@ export class MainThreadSpeech implements MainThreadSpeechShape {
 					this.proxy.$onDidChangeVoiceChatInProgress(currentValue);
 				}
 			}
-		});
+		}));
 	}
 
 	$registerProvider(handle: number, identifier: string, metadata: ISpeechProviderMetadata): void {
@@ -178,7 +179,7 @@ export class MainThreadSpeech implements MainThreadSpeechShape {
 		providerSession?.onDidChange.fire(event);
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.providerRegistrations.forEach(disposable => disposable.dispose());
 		this.providerRegistrations.clear();
 
@@ -190,5 +191,7 @@ export class MainThreadSpeech implements MainThreadSpeechShape {
 
 		this.keywordRecognitionSessions.forEach(session => session.onDidChange.dispose());
 		this.keywordRecognitionSessions.clear();
+
+		super.dispose();
 	}
 }
