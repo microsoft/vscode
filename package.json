@@ -42,6 +42,7 @@
     "mixin-telemetry-docs": "node build/npm/mixin-telemetry-docs.ts",
     "smoketest": "node build/lib/preLaunch.ts && cd test/smoke && npm run compile && node test/index.js",
     "smoketest-no-compile": "cd test/smoke && node test/index.js",
+    "sanity-test": "cd test/sanity && npm run compile && node out/index.js",
     "download-builtin-extensions": "node build/lib/builtInExtensions.ts",
     "download-builtin-extensions-cg": "node build/lib/builtInExtensionsCG.ts",
     "monaco-compile-check": "tsgo --project src/tsconfig.monaco.json --noEmit",
