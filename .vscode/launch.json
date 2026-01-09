@@ -298,8 +298,10 @@
 				"VSCODE_EXTHOST_WILL_SEND_SOCKET": null,
 				"VSCODE_SKIP_PRELAUNCH": "1",
 				"VSCODE_DEV_DEBUG": "1",
+				"VSCODE_DEV_SERVER_URL": "http://localhost:5199/build/vite/workbench-vite-electron.html",
 				"DEV_WINDOW_SRC": "http://localhost:5199/build/vite/workbench-vite-electron.html",
 				"VSCODE_DEV_DEBUG_OBSERVABLES": "1",
+				"VSCODE_DEV": "1"
 			},
 			"cleanUp": "wholeBrowser",
 			"runtimeArgs": [

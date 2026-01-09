@@ -12,20 +12,22 @@ import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable }
 import { equals } from '../../../../base/common/objects.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { basename } from '../../../../base/common/resources.js';
-import { isDefined } from '../../../../base/common/types.js';
+import { isDefined, Mutable } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IImageResizeService } from '../../../../platform/imageResize/common/imageResizeService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { mcpAppsEnabledConfig } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { ChatResponseResource, getAttachableImageExtension } from '../../chat/common/chatModel.js';
+import { ChatResponseResource, getAttachableImageExtension } from '../../chat/common/model/chatModel.js';
 import { LanguageModelPartAudience } from '../../chat/common/languageModels.js';
-import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolConfirmationMessages, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultInputOutputDetails, ToolDataSource, ToolProgress, ToolSet } from '../../chat/common/languageModelToolsService.js';
+import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolConfirmationMessages, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultInputOutputDetails, ToolDataSource, ToolProgress, ToolSet } from '../../chat/common/tools/languageModelToolsService.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
-import { IMcpServer, IMcpService, IMcpTool, IMcpToolResourceLinkContents, McpResourceURI, McpToolResourceLinkMimeType } from './mcpTypes.js';
+import { IMcpServer, IMcpService, IMcpTool, IMcpToolResourceLinkContents, McpResourceURI, McpToolResourceLinkMimeType, McpToolVisibility } from './mcpTypes.js';
 import { mcpServerToSourceData } from './mcpTypesUtils.js';
 
 interface ISyncedToolData {
@@ -68,9 +70,11 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 				const rec: Rec = { dispose: () => store.dispose() };
 				const toolSet = new Lazy(() => {
 					const source = rec.source = mcpServerToSourceData(server);
+					const referenceName = server.definition.label.toLowerCase().replace(/\s+/g, '-'); // see issue https://github.com/microsoft/vscode/issues/278152
 					const toolSet = store.add(this._toolsService.createToolSet(
 						source,
-						server.definition.id, server.definition.label,
+						server.definition.id,
+						referenceName,
 						{
 							icon: Codicon.mcp,
 							description: localize('mcp.toolset', "{0}: All Tools", server.definition.label)
@@ -109,6 +113,11 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 
 			const collection = collectionObservable.read(reader);
 			for (const tool of server.tools.read(reader)) {
+				// Skip app-only tools - they should not be registered with the language model tools service
+				if (!(tool.visibility & McpToolVisibility.Model)) {
+					continue;
+				}
+
 				const existing = tools.get(tool.id);
 				const icons = tool.icons.getUrl(22);
 				const toolData: IToolData = {
@@ -174,6 +183,7 @@ class McpToolImplementation implements IToolImpl {
 	constructor(
 		private readonly _tool: IMcpTool,
 		private readonly _server: IMcpServer,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IProductService private readonly _productService: IProductService,
 		@IFileService private readonly _fileService: IFileService,
 		@IImageResizeService private readonly _imageResizeService: IImageResizeService,
@@ -203,6 +213,8 @@ class McpToolImplementation implements IToolImpl {
 			confirm.confirmResults = true;
 		}
 
+		const mcpUiEnabled = this._configurationService.getValue<boolean>(mcpAppsEnabledConfig);
+
 		return {
 			confirmationMessages: confirm,
 			invocationMessage: new MarkdownString(localize('msg.run', "Running {0}", title)),
@@ -210,7 +222,12 @@ class McpToolImplementation implements IToolImpl {
 			originMessage: localize('msg.subtitle', "{0} (MCP Server)", server.definition.label),
 			toolSpecificData: {
 				kind: 'input',
-				rawInput: context.parameters
+				rawInput: context.parameters,
+				mcpAppData: mcpUiEnabled && tool.uiResourceUri ? {
+					resourceUri: tool.uiResourceUri,
+					serverDefinitionId: server.definition.id,
+					collectionId: server.collection.id,
+				} : undefined,
 			}
 		};
 	}
@@ -222,7 +239,7 @@ class McpToolImplementation implements IToolImpl {
 		};
 
 		const callResult = await this._tool.callWithProgress(invocation.parameters as Record<string, unknown>, progress, { chatRequestId: invocation.chatRequestId, chatSessionId: invocation.context?.sessionId }, token);
-		const details: IToolResultInputOutputDetails = {
+		const details: Mutable<IToolResultInputOutputDetails> = {
 			input: JSON.stringify(invocation.parameters, undefined, 2),
 			output: [],
 			isError: callResult.isError === true,
@@ -327,7 +344,7 @@ class McpToolImplementation implements IToolImpl {
 					});
 
 					if (isForModel) {
-						const permalink = invocation.context && ChatResponseResource.createUri(invocation.context.sessionId, invocation.callId, result.content.length, basename(uri));
+						const permalink = invocation.context && ChatResponseResource.createUri(invocation.context.sessionResource, invocation.callId, result.content.length, basename(uri));
 						addAsLinkedResource(permalink || uri, item.resource.mimeType);
 					}
 				}
@@ -337,6 +354,11 @@ class McpToolImplementation implements IToolImpl {
 		if (callResult.structuredContent) {
 			details.output.push({ type: 'embed', isText: true, value: JSON.stringify(callResult.structuredContent, null, 2), audience: [LanguageModelPartAudience.Assistant] });
 			result.content.push({ kind: 'text', value: JSON.stringify(callResult.structuredContent), audience: [LanguageModelPartAudience.Assistant] });
+		}
+
+		// Add raw MCP output for MCP App UI rendering if this tool has UI
+		if (this._tool.uiResourceUri) {
+			details.mcpOutput = callResult;
 		}
 
 		result.toolResultDetails = details;

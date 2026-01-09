@@ -682,6 +682,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 					this.activeRequests.delete(emitter);
 					this.sendRequest({ id, type: RequestType.EventDispose });
 				}
+				this.handlers.delete(id);
 			}
 		});
 

@@ -257,7 +257,7 @@
 		},
 		{
 			"type": "shell",
-			"command": "node build/lib/preLaunch.js",
+			"command": "node build/lib/preLaunch.ts",
 			"label": "Ensure Prelaunch Dependencies",
 			"presentation": {
 				"reveal": "silent",
@@ -286,16 +286,6 @@
 				"cwd": "./build/vite/"
 			},
 			"isBackground": true,
-			"problemMatcher": {
-				"pattern": {
-					"regexp": ""
-				},
-				"background": {
-					"activeOnStart": true,
-					"beginsPattern": "never match",
-					"endsPattern": ".*"
-				}
-			}
 		},
 		{
 			"label": "Launch MCP Server",

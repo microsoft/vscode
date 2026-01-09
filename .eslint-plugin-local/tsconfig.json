@@ -8,13 +8,13 @@
 		"module": "esnext",
 		"allowImportingTsExtensions": true,
 		"erasableSyntaxOnly": true,
+		"verbatimModuleSyntax": true,
 		"noEmit": true,
 		"strict": true,
 		"exactOptionalPropertyTypes": false,
 		"useUnknownInCatchVariables": false,
 		"noUnusedLocals": true,
 		"noUnusedParameters": true,
-		"newLine": "lf",
 		"typeRoots": [
 			"."
 		]

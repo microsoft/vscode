@@ -9,7 +9,7 @@ import { ICodeEditorService } from '../../../../../editor/browser/services/codeE
 import { EditOperation } from '../../../../../editor/common/core/editOperation.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
-import { ILanguageModelToolsService, IToolAndToolSetEnablementMap } from '../../common/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolAndToolSetEnablementMap } from '../../common/tools/languageModelToolsService.js';
 import { PromptHeaderAttributes } from '../../common/promptSyntax/promptFileParser.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 
@@ -48,7 +48,7 @@ export class PromptFileRewriter {
 	}
 
 	public rewriteTools(model: ITextModel, newTools: IToolAndToolSetEnablementMap, range: Range): void {
-		const newToolNames = this._languageModelToolsService.toQualifiedToolNames(newTools);
+		const newToolNames = this._languageModelToolsService.toFullReferenceNames(newTools);
 		const newValue = `[${newToolNames.map(s => `'${s}'`).join(', ')}]`;
 		this.rewriteAttribute(model, newValue, range);
 	}
@@ -83,5 +83,3 @@ export class PromptFileRewriter {
 		this.rewriteAttribute(model, newName, nameAttr.value.range);
 	}
 }
-
-
