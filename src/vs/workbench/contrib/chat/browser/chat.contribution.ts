@@ -118,6 +118,8 @@ import { ChatVariablesService } from './attachments/chatVariables.js';
 import { ChatWidget } from './widget/chatWidget.js';
 import { ChatCodeBlockContextProviderService } from './codeBlockContextProviderService.js';
 import { ChatDynamicVariableModel } from './attachments/chatDynamicVariables.js';
+import { ChatInlineCompletionsService } from './chatInlineCompletionsService.js';
+import { IChatInlineCompletionsService } from '../common/chatInlineCompletionsService.js';
 import { ChatImplicitContextContribution } from './attachments/chatImplicitContext.js';
 import './widget/input/editor/chatInputCompletions.js';
 import './widget/input/editor/chatInputEditorContrib.js';
@@ -1250,5 +1252,6 @@ registerSingleton(IChatAttachmentResolveService, ChatAttachmentResolveService, I
 registerSingleton(IChatTodoListService, ChatTodoListService, InstantiationType.Delayed);
 registerSingleton(IChatOutputRendererService, ChatOutputRendererService, InstantiationType.Delayed);
 registerSingleton(IChatLayoutService, ChatLayoutService, InstantiationType.Delayed);
+registerSingleton(IChatInlineCompletionsService, ChatInlineCompletionsService, InstantiationType.Delayed);
 
 ChatWidget.CONTRIBS.push(ChatDynamicVariableModel);

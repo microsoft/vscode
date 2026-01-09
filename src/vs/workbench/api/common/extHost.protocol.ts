@@ -1546,6 +1546,15 @@ export interface ExtHostUriOpenersShape {
 	$openUri(id: string, context: { resolvedUri: UriComponents; sourceUri: UriComponents }, token: CancellationToken): Promise<void>;
 }
 
+export interface MainThreadChatInlineCompletionsShape extends IDisposable {
+	$registerChatInlineCompletionsProvider(handle: number): void;
+	$unregisterChatInlineCompletionsProvider(handle: number): void;
+}
+
+export interface ExtHostChatInlineCompletionsShape {
+	$provideChatInlineCompletions(handle: number, input: string, position: number, token: CancellationToken): Promise<languages.InlineCompletions | undefined>;
+}
+
 export interface MainThreadChatOutputRendererShape extends IDisposable {
 	$registerChatOutputRenderer(viewType: string, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): void;
 	$unregisterChatOutputRenderer(viewType: string): void;
@@ -3420,6 +3429,7 @@ export const MainContext = {
 	MainThreadDataChannels: createProxyIdentifier<MainThreadDataChannelsShape>('MainThreadDataChannels'),
 	MainThreadChatSessions: createProxyIdentifier<MainThreadChatSessionsShape>('MainThreadChatSessions'),
 	MainThreadChatOutputRenderer: createProxyIdentifier<MainThreadChatOutputRendererShape>('MainThreadChatOutputRenderer'),
+	MainThreadChatInlineCompletions: createProxyIdentifier<MainThreadChatInlineCompletionsShape>('MainThreadChatInlineCompletions'),
 	MainThreadChatContext: createProxyIdentifier<MainThreadChatContextShape>('MainThreadChatContext'),
 };
 
@@ -3467,6 +3477,7 @@ export const ExtHostContext = {
 	ExtHostUrls: createProxyIdentifier<ExtHostUrlsShape>('ExtHostUrls'),
 	ExtHostUriOpeners: createProxyIdentifier<ExtHostUriOpenersShape>('ExtHostUriOpeners'),
 	ExtHostChatOutputRenderer: createProxyIdentifier<ExtHostChatOutputRendererShape>('ExtHostChatOutputRenderer'),
+	ExtHostChatInlineCompletions: createProxyIdentifier<ExtHostChatInlineCompletionsShape>('ExtHostChatInlineCompletions'),
 	ExtHostProfileContentHandlers: createProxyIdentifier<ExtHostProfileContentHandlersShape>('ExtHostProfileContentHandlers'),
 	ExtHostOutputService: createProxyIdentifier<ExtHostOutputServiceShape>('ExtHostOutputService'),
 	ExtHostLabelService: createProxyIdentifier<ExtHostLabelServiceShape>('ExtHostLabelService'),
