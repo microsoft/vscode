@@ -321,10 +321,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		this._hasHiddenToolTerminalContext.set(hiddenTerminalCount > 0);
 	}
 
-	setChatSessionAutoApproval(chatSessionResourceOrId: URI | string, enabled: boolean): void {
-		const chatSessionResource = typeof chatSessionResourceOrId === 'string'
-			? LocalChatSessionUri.forSession(chatSessionResourceOrId)
-			: chatSessionResourceOrId;
+	setChatSessionAutoApproval(chatSessionResource: URI, enabled: boolean): void {
 		if (enabled) {
 			this._sessionAutoApprovalEnabled.set(chatSessionResource, true);
 		} else {
@@ -332,17 +329,11 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		}
 	}
 
-	hasChatSessionAutoApproval(chatSessionResourceOrId: URI | string): boolean {
-		const chatSessionResource = typeof chatSessionResourceOrId === 'string'
-			? LocalChatSessionUri.forSession(chatSessionResourceOrId)
-			: chatSessionResourceOrId;
+	hasChatSessionAutoApproval(chatSessionResource: URI): boolean {
 		return this._sessionAutoApprovalEnabled.has(chatSessionResource);
 	}
 
-	addSessionAutoApproveRule(chatSessionResourceOrId: URI | string, key: string, value: boolean | { approve: boolean; matchCommandLine?: boolean }): void {
-		const chatSessionResource = typeof chatSessionResourceOrId === 'string'
-			? LocalChatSessionUri.forSession(chatSessionResourceOrId)
-			: chatSessionResourceOrId;
+	addSessionAutoApproveRule(chatSessionResource: URI, key: string, value: boolean | { approve: boolean; matchCommandLine?: boolean }): void {
 		let sessionRules = this._sessionAutoApproveRules.get(chatSessionResource);
 		if (!sessionRules) {
 			sessionRules = {};
@@ -351,10 +342,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		sessionRules[key] = value;
 	}
 
-	getSessionAutoApproveRules(chatSessionResourceOrId: URI | string): Readonly<Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>> {
-		const chatSessionResource = typeof chatSessionResourceOrId === 'string'
-			? LocalChatSessionUri.forSession(chatSessionResourceOrId)
-			: chatSessionResourceOrId;
+	getSessionAutoApproveRules(chatSessionResource: URI): Readonly<Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>> {
 		return this._sessionAutoApproveRules.get(chatSessionResource) ?? {};
 	}
 }

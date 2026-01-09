@@ -1171,6 +1171,7 @@ suite('RunInTerminalTool', () => {
 	suite('session auto approval', () => {
 		test('should auto approve all commands when session has auto approval enabled', async () => {
 			const sessionId = 'test-session-123';
+			const sessionResource = LocalChatSessionUri.forSession(sessionId);
 			const terminalChatService = instantiationService.get(ITerminalChatService);
 
 			const context: IToolInvocationPreparationContext = {
@@ -1179,13 +1180,13 @@ suite('RunInTerminalTool', () => {
 					explanation: 'Remove a file',
 					isBackground: false
 				} as IRunInTerminalInputParams,
-				chatSessionId: sessionId
+				chatSessionResource: sessionResource
 			} as IToolInvocationPreparationContext;
 
 			let result = await runInTerminalTool.prepareToolInvocation(context, CancellationToken.None);
 			assertConfirmationRequired(result);
 
-			terminalChatService.setChatSessionAutoApproval(sessionId, true);
+			terminalChatService.setChatSessionAutoApproval(sessionResource, true);
 
 			result = await runInTerminalTool.prepareToolInvocation(context, CancellationToken.None);
 			assertAutoApproved(result);

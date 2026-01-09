@@ -442,7 +442,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			shell,
 			treeSitterLanguage: isPowerShell(shell, os) ? TreeSitterCommandParserLanguage.PowerShell : TreeSitterCommandParserLanguage.Bash,
 			terminalToolSessionId,
-			chatSessionId: context.chatSessionId,
+			chatSessionResource,
 		};
 		const commandLineAnalyzerResults = await Promise.all(this._commandLineAnalyzers.map(e => e.analyze(commandLineAnalyzerOptions)));
 
