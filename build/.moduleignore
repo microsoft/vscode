@@ -189,4 +189,4 @@ zone.js/dist/**
 @xterm/xterm-addon-*/out/**
 @xterm/xterm-addon-*/out-test/**
 
-@vscode/codicons/dist/codicon.ttf
+!@vscode/codicons/dist/codicon.ttf
