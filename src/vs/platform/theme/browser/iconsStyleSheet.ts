@@ -41,7 +41,11 @@ export function getIconsStyleSheet(themeService: IThemeService | undefined, envi
 
 			const rules = new css.Builder();
 			const rootAttribs = new css.Builder();
-			rules.push(css.inline`@font-face { font-family: "codicon"; font-display: block; src: ${css.asCSSUrl(FileAccess.asFileUri(getModuleLocation(environmentService)).with({ query: '5d4d76ab2ce5108968ad644d591a16a6' }))} format("truetype");}`);
+			const location = getModuleLocation(environmentService);
+			const asFileUri = FileAccess.asFileUri(location);
+			const withQuery = asFileUri.with({ query: '5d4d76ab2ce5108968ad644d591a16a6' });
+			const asCSSUrl = css.asCSSUrl(withQuery);
+			rules.push(css.inline`@font-face { font-family: "codicon"; font-display: block; src: ${asCSSUrl} format("truetype");}`);
 			for (const contribution of iconRegistry.getIcons()) {
 				const definition = productIconTheme.getIcon(contribution);
 				if (!definition) {
