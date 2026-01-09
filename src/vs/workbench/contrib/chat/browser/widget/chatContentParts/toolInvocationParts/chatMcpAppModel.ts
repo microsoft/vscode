@@ -251,8 +251,8 @@ export class ChatMcpAppModel extends Disposable {
 
 		const cspContent = `
 			default-src 'none';
-			script-src 'self' 'unsafe-inline';
-			style-src 'self' 'unsafe-inline';
+			script-src 'self' 'unsafe-inline' ${cleanDomains(csp?.resourceDomains)};
+			style-src 'self' 'unsafe-inline' ${cleanDomains(csp?.resourceDomains)};
 			connect-src 'self' ${cleanDomains(csp?.connectDomains)};
 			img-src 'self' data: ${cleanDomains(csp?.resourceDomains)};
 			font-src 'self' ${cleanDomains(csp?.resourceDomains)};
