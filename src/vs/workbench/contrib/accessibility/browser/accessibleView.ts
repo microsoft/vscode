@@ -581,6 +581,8 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 	}
 
 	private _render(provider: AccesibleViewContentProvider, container: HTMLElement, showAccessibleViewHelp?: boolean, updatedContent?: string): IDisposable {
+		const isSameProvider = this._currentProvider?.id === provider.id;
+		const previousPosition = isSameProvider ? this._editorWidget.getPosition() : undefined;
 		this._currentProvider = provider;
 		this._accessibleViewCurrentProviderId.set(provider.id);
 		const verbose = this._verbosityEnabled();
@@ -593,6 +595,9 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 				return;
 			}
 			this._editorWidget.setModel(model);
+			if (previousPosition) {
+				this._editorWidget.setPosition(previousPosition);
+			}
 			const domNode = this._editorWidget.getDomNode();
 			if (!domNode) {
 				return;
