@@ -109,6 +109,7 @@ export class Application {
 	private async startApplication(extraArgs: string[] = []): Promise<Code> {
 		const code = this._code = await launch({
 			...this.options,
+			workspacePath: this._workspacePathOrFolder,
 			extraArgs: [...(this.options.extraArgs || []), ...extraArgs],
 		});
 

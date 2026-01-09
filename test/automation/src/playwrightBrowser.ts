@@ -158,10 +158,12 @@ async function launchBrowser(options: LaunchOptions, endpoint: string) {
 	].join(',')}]`;
 
 	// Build URL with optional workspace path
-	let url = `${endpoint}&payload=${payloadParam}`;
+	let url = `${endpoint}&`;
 	if (workspacePath) {
-		url = `${endpoint}&${workspacePath.endsWith('.code-workspace') ? 'workspace' : 'folder'}=${URI.file(workspacePath).path}&payload=${payloadParam}`;
+		const workspaceParam = workspacePath.endsWith('.code-workspace') ? 'workspace' : 'folder';
+		url += `${workspaceParam}=${URI.file(workspacePath).path}&`;
 	}
+	url += `payload=${payloadParam}`;
 
 	const gotoPromise = measureAndLog(() => page.goto(url), 'page.goto()', logger);
 	const pageLoadedPromise = page.waitForLoadState('load');
