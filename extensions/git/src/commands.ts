@@ -1038,6 +1038,50 @@ export class CommandCenter {
 		await this.cloneManager.clone(url, { parentPath, recursive: true });
 	}
 
+	@command('git.cloneWithScalar')
+	async cloneWithScalar(url?: string, parentPath?: string, options?: { ref?: string }): Promise<void> {
+		// Check if scalar is available
+		const scalarAvailable = await this.git.isScalarAvailable();
+		if (!scalarAvailable) {
+			const message = l10n.t('Scalar is not available. Scalar is bundled with Git for Windows 2.38+ and can be installed separately for other systems.');
+			const learnMore = l10n.t('Learn More');
+			const result = await window.showWarningMessage(message, learnMore);
+			if (result === learnMore) {
+				await commands.executeCommand('vscode.open', Uri.parse('https://github.com/microsoft/scalar'));
+			}
+			return;
+		}
+
+		// Prompt user to choose scalar clone options (can select multiple)
+		const items: (QuickPickItem & { option?: 'full-clone' | 'no-src' })[] = [
+			{
+				label: l10n.t('$(file-binary) Full Clone'),
+				description: l10n.t('--full-clone'),
+				detail: l10n.t('Clone all objects (no partial clone)'),
+				option: 'full-clone'
+			},
+			{
+				label: l10n.t('$(file-code) No Source'),
+				description: l10n.t('--no-src'),
+				detail: l10n.t('Initialize without checking out source files'),
+				option: 'no-src'
+			}
+		];
+
+		const picks = await window.showQuickPick(items, {
+			placeHolder: l10n.t('Select Scalar clone options (leave empty for default partial clone)'),
+			canPickMany: true,
+			ignoreFocusOut: true
+		});
+
+		if (picks === undefined) {
+			return;
+		}
+
+		const scalarOptions = picks.map(p => p.option).filter((opt): opt is 'full-clone' | 'no-src' => !!opt);
+		await this.cloneManager.clone(url, { parentPath, useScalar: true, scalarOptions, ...options });
+	}
+
 	@command('git.init')
 	async init(skipFolderPrompt = false): Promise<void> {
 		let repositoryPath: string | undefined = undefined;

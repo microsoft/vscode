@@ -212,6 +212,20 @@ export interface CloneOptions {
 	ref?: string;
 	recursive?: boolean;
 	/**
+	 * Use Scalar for cloning. Scalar provides faster cloning for large repositories.
+	 * Requires Scalar to be available (bundled with Git for Windows 2.38+).
+	 */
+	useScalar?: boolean;
+	/**
+	 * Scalar clone options (can be combined):
+	 * - 'full-clone': Clone all objects (no partial clone)
+	 * - 'no-src': Initialize repo without checking out source files
+	 *
+	 * If empty or undefined, uses default partial clone with sparse-checkout.
+	 * Options can be combined, e.g., ['full-clone', 'no-src']
+	 */
+	scalarOptions?: ('full-clone' | 'no-src')[];
+	/**
 	 * If no postCloneAction is provided, then the users setting for git.openAfterClone is used.
 	 */
 	postCloneAction?: 'none';
