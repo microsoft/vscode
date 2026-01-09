@@ -151,12 +151,9 @@ export class InlineAnchorWidget extends Disposable {
 		} else {
 			location = this.data;
 
-			const filePathLabel = labelService.getUriBasenameLabel(location.uri);
+			const filePathLabel = this.metadata?.fileName ?? labelService.getUriBasenameLabel(location.uri);
 
-			// Check for custom file name from metadata (includes file range)
-			if (this.metadata?.fileName) {
-				iconText = [this.metadata.fileName];
-			} else if (location.range && this.data.kind !== 'symbol') {
+			if (location.range && this.data.kind !== 'symbol') {
 				const suffix = location.range.startLineNumber === location.range.endLineNumber
 					? `:${location.range.startLineNumber}`
 					: `:${location.range.startLineNumber}-${location.range.endLineNumber}`;
