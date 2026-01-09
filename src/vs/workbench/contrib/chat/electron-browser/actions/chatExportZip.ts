@@ -69,7 +69,12 @@ export function registerChatExportZipAction() {
 					contents: JSON.stringify(model.repoData, undefined, 2)
 				});
 
-				if (!model.repoData.headCommitHash) {
+				if (!model.repoData.remoteUrl) {
+					notificationService.notify({
+						severity: Severity.Warning,
+						message: localize('chatExportZip.noRemoteUrl', "Exported chat without remote URL. The repository may be local-only or not connected to a remote.")
+					});
+				} else if (!model.repoData.headCommitHash) {
 					notificationService.notify({
 						severity: Severity.Warning,
 						message: localize('chatExportZip.noCommitHash', "Exported chat without commit hash. Git history may not have been available when the session started.")

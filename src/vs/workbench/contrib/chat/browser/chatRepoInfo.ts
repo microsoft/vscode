@@ -87,9 +87,13 @@ export class ChatRepoInfoContribution extends Disposable implements IWorkbenchCo
 			headCommitHash = historyItemRef?.revision;
 		}
 
-		let repoType: 'github' | 'ado' = 'github';
-		if (remoteUrl?.includes('dev.azure.com') || remoteUrl?.includes('visualstudio.com')) {
-			repoType = 'ado';
+		let repoType: 'github' | 'ado' | 'other' = 'other';
+		if (remoteUrl) {
+			if (remoteUrl.includes('github.com')) {
+				repoType = 'github';
+			} else if (remoteUrl.includes('dev.azure.com') || remoteUrl.includes('visualstudio.com')) {
+				repoType = 'ado';
+			}
 		}
 
 		const diffs: IExportableRepoDiff[] = [];
