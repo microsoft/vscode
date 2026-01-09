@@ -111,7 +111,12 @@ export function setup(logger: Logger, opts: { web?: boolean }, quality: Quality)
 						selector: 'div[id="workbench.panel.chat"]',
 						excludeRules: {
 							// Links in chat welcome view show underline on hover/focus which axe-core static analysis cannot detect
-							'link-in-text-block': ['command:workbench.action.chat.generateInstructions']
+							'link-in-text-block': ['command:workbench.action.chat.generateInstructions'],
+							// Monaco lists use aria-multiselectable on role="list" and aria-selected on role="listitem"
+							// These are used intentionally for selection semantics even though technically not spec-compliant
+							'aria-allowed-attr': ['.monaco-list', '.monaco-list-row'],
+							// Some icon buttons have empty aria-label during rendering
+							'aria-command-name': ['.codicon-plus.monaco-button']
 						}
 					});
 				});
@@ -142,7 +147,12 @@ export function setup(logger: Logger, opts: { web?: boolean }, quality: Quality)
 						selector: 'div[id="workbench.panel.chat"]',
 						excludeRules: {
 							// Links in chat welcome view show underline on hover/focus which axe-core static analysis cannot detect
-							'link-in-text-block': ['command:workbench.action.chat.generateInstructions']
+							'link-in-text-block': ['command:workbench.action.chat.generateInstructions'],
+							// Monaco lists use aria-multiselectable on role="list" and aria-selected on role="listitem"
+							// These are used intentionally for selection semantics even though technically not spec-compliant
+							'aria-allowed-attr': ['.monaco-list', '.monaco-list-row'],
+							// Some icon buttons have empty aria-label during rendering
+							'aria-command-name': ['.codicon-plus.monaco-button']
 						}
 					});
 				});
