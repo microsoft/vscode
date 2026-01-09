@@ -6,14 +6,43 @@
 import * as playwright from '@playwright/test';
 import type { Protocol } from 'playwright-core/types/protocol';
 import { dirname, join } from 'path';
-import { promises } from 'fs';
+import { promises, readFileSync } from 'fs';
 import { IWindowDriver } from './driver';
 import { measureAndLog } from './logger';
 import { LaunchOptions } from './code';
 import { teardown } from './processes';
 import { ChildProcess } from 'child_process';
+import type { AxeResults, RunOptions } from 'axe-core';
+
+// Load axe-core source for injection into pages (works with Electron)
+let axeSource = '';
+try {
+	const axePath = require.resolve('axe-core/axe.min.js');
+	axeSource = readFileSync(axePath, 'utf-8');
+} catch {
+	// axe-core may not be installed; keep axeSource empty to avoid failing module initialization
+	axeSource = '';
+}
 
 type PageFunction<Arg, T> = (arg: Arg) => T | Promise<T>;
+
+export interface AccessibilityScanOptions {
+	/** Specific selector to scan. If not provided, scans the entire page. */
+	selector?: string;
+	/** WCAG tags to include (e.g., 'wcag2a', 'wcag2aa', 'wcag21aa'). Defaults to WCAG 2.1 AA. */
+	tags?: string[];
+	/** Rule IDs to disable for this scan. */
+	disableRules?: string[];
+	/**
+	 * Patterns to exclude from specific rules. Keys are rule IDs, values are strings to match against element target or HTML.
+	 *
+	 * **IMPORTANT**: Adding exclusions here bypasses accessibility checks. Before adding an exclusion:
+	 * 1. File an issue to track the accessibility problem
+	 * 2. Ensure there's a plan to fix the underlying issue (e.g., hover/focus states that axe can't detect)
+	 * 3. Get approval from @anthropics/accessibility team
+	 */
+	excludeRules?: { [ruleId: string]: string[] };
+}
 
 export class PlaywrightDriver {
 
@@ -336,8 +365,121 @@ export class PlaywrightDriver {
 			return false;
 		}
 	}
+
+	/**
+	 * Run an accessibility scan on the current page using axe-core.
+	 * Uses direct script injection to work with Electron.
+	 * @param options Configuration options for the accessibility scan.
+	 * @returns The axe-core scan results including any violations found.
+	 */
+	async runAccessibilityScan(options?: AccessibilityScanOptions): Promise<AxeResults> {
+		// Inject axe-core into the page if not already present
+		await this.page.evaluate(axeSource);
+
+		// Build axe-core run options
+		const runOptions: RunOptions = {
+			runOnly: {
+				type: 'tag',
+				values: options?.tags ?? ['wcag2a', 'wcag2aa', 'wcag21aa']
+			}
+		};
+
+		// Disable specific rules if requested
+		if (options?.disableRules && options.disableRules.length > 0) {
+			runOptions.rules = {};
+			for (const ruleId of options.disableRules) {
+				runOptions.rules[ruleId] = { enabled: false };
+			}
+		}
+
+		// Build context for axe.run
+		const context: { include?: string[]; exclude?: string[][] } = {};
+
+		if (options?.selector) {
+			context.include = [options.selector];
+		}
+
+		// Exclude known problematic areas
+		context.exclude = [
+			['.monaco-editor .view-lines'],
+			['.xterm-screen canvas']
+		];
+
+		// Run axe-core analysis
+		const results = await measureAndLog(
+			() => this.page.evaluate(
+				([ctx, opts]) => {
+					// @ts-expect-error axe is injected globally
+					return window.axe.run(ctx, opts);
+				},
+				[context, runOptions] as const
+			),
+			'runAccessibilityScan',
+			this.options.logger
+		);
+
+		return results as AxeResults;
+	}
+
+	/**
+	 * Run an accessibility scan and throw an error if any violations are found.
+	 * @param options Configuration options for the accessibility scan.
+	 * @throws Error if accessibility violations are detected.
+	 */
+	async assertNoAccessibilityViolations(options?: AccessibilityScanOptions): Promise<void> {
+		const results = await this.runAccessibilityScan(options);
+
+		// Filter out violations for specific elements based on excludeRules
+		let filteredViolations = results.violations;
+		if (options?.excludeRules) {
+			filteredViolations = results.violations.map((violation: AxeResults['violations'][number]) => {
+				const excludePatterns = options.excludeRules![violation.id];
+				if (!excludePatterns) {
+					return violation;
+				}
+				// Filter out nodes that match any of the exclude patterns
+				const filteredNodes = violation.nodes.filter((node: AxeResults['violations'][number]['nodes'][number]) => {
+					const target = node.target.join(' ');
+					const html = node.html || '';
+					// Check if any exclude pattern appears in target or HTML
+					return !excludePatterns.some(pattern => target.includes(pattern) || html.includes(pattern));
+				});
+				return { ...violation, nodes: filteredNodes };
+			}).filter((violation: AxeResults['violations'][number]) => violation.nodes.length > 0);
+		}
+
+		if (filteredViolations.length > 0) {
+			const violationMessages = filteredViolations.map((violation: AxeResults['violations'][number]) => {
+				const nodes = violation.nodes.map((node: AxeResults['violations'][number]['nodes'][number]) => {
+					const target = node.target.join(' > ');
+					const html = node.html || 'N/A';
+					// Extract class from HTML for easier identification
+					const classMatch = html.match(/class="([^"]+)"/);
+					const className = classMatch ? classMatch[1] : 'no class';
+					return [
+						`  Element: ${target}`,
+						`    Class: ${className}`,
+						`    HTML: ${html}`,
+						`    Issue: ${node.failureSummary}`
+					].join('\n');
+				}).join('\n\n');
+				return [
+					`[${violation.id}] ${violation.help} (${violation.impact})`,
+					`  Help URL: ${violation.helpUrl}`,
+					nodes
+				].join('\n');
+			}).join('\n\n---\n\n');
+
+			throw new Error(
+				`Accessibility violations found:\n\n${violationMessages}\n\n` +
+				`Total: ${filteredViolations.length} violation(s) affecting ${filteredViolations.reduce((sum: number, v: AxeResults['violations'][number]) => sum + v.nodes.length, 0)} element(s)`
+			);
+		}
+	}
 }
 
 export function wait(ms: number): Promise<void> {
 	return new Promise<void>(resolve => setTimeout(resolve, ms));
 }
+
+export type { AxeResults };
