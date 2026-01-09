@@ -16,7 +16,7 @@ import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, PreferredGroup, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { getPartByLocation } from '../../../../services/views/browser/viewsService.js';
-import { IWorkbenchLayoutService, Parts, Position } from '../../../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, Position } from '../../../../services/layout/browser/layoutService.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ChatEditorInput, showClearEditingSessionConfirmation } from '../widgetHosts/editor/chatEditorInput.js';
@@ -742,29 +742,34 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 			return;
 		}
 
+		// Leave maximized state if applicable
 		if (chatLocation === ViewContainerLocation.AuxiliaryBar) {
-			layoutService.setAuxiliaryBarMaximized(false); // Leave maximized state if applicable
+			layoutService.setAuxiliaryBarMaximized(false);
 			currentSize = layoutService.getSize(part);
 		}
 
+		// Figure out the right new width
 		let newWidth: number;
 		const mainContainerWidth = layoutService.mainContainerDimension.width;
 		if (newOrientation === AgentSessionsViewerOrientation.SideBySide) {
 			newWidth = Math.max(sideBySideMinWidth, lastWidthForOrientation || Math.round(mainContainerWidth / 2));
-
-			// If the main container width is not sufficient for side-by-side and
-			// the primary sidebar is visible, hide it to make more room (if that provides enough space)
-			if (mainContainerWidth < newWidth && layoutService.isVisible(Parts.SIDEBAR_PART)) {
-				const sidebarSize = layoutService.getSize(Parts.SIDEBAR_PART);
-				if (mainContainerWidth + sidebarSize.width >= newWidth) {
-					layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
-				}
-			}
 		} else {
 			newWidth = lastWidthForOrientation || Math.max(chatViewDefaultWidth, currentSize.width - sessionsViewDefaultWidth);
 		}
 
+		// Apply the new width
 		layoutService.setSize(part, { width: newWidth, height: currentSize.height });
+
+		// If we figure out that the width was not applied due to constraints (such as window dimensions),
+		// we maximize the auxiliary bar to ensure the side by side experience is optimal
+		const actualSize = layoutService.getSize(part);
+		if (
+			chatLocation === ViewContainerLocation.AuxiliaryBar &&						// only applicable for auxiliary bar
+			newOrientation === AgentSessionsViewerOrientation.SideBySide &&				// only applicable when going to side by side
+			actualSize.width !== newWidth && actualSize.width < sideBySideMinWidth		// width is still not enough for side by side
+		) {
+			layoutService.setAuxiliaryBarMaximized(true);
+		}
 	}
 
 	abstract getOrientation(): AgentSessionsViewerOrientation;
