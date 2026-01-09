@@ -26,17 +26,18 @@ import { ISelection } from '../../../../../editor/common/core/selection.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { EditSuggestionId } from '../../../../../editor/common/textModelEditSource.js';
 import { localize } from '../../../../../nls.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
-import { migrateLegacyTerminalToolSpecificData } from '../chat.js';
-import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, UserSelectedTools, reviveSerializedAgent } from '../participants/chatAgents.js';
-import { IChatEditingService, IChatEditingSession, ModifiedFileEntryState, editEntriesToMultiDiffData } from '../editing/chatEditingService.js';
-import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from '../requestParser/chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatMcpServersStarting, IChatModelReference, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatPrepareToolInvocationPart, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatService, IChatSessionContext, IChatSessionTiming, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, ResponseModelState, isIUsedContext } from '../chatService/chatService.js';
-import { LocalChatSessionUri } from './chatUri.js';
 import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js';
+import { migrateLegacyTerminalToolSpecificData } from '../chat.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatMcpServersStarting, IChatModelReference, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatPrepareToolInvocationPart, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatService, IChatSessionContext, IChatSessionTiming, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, ResponseModelState, isIUsedContext } from '../chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../constants.js';
+import { IChatEditingService, IChatEditingSession, ModifiedFileEntryState, editEntriesToMultiDiffData } from '../editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../languageModels.js';
+import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, UserSelectedTools, reviveSerializedAgent } from '../participants/chatAgents.js';
+import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from '../requestParser/chatParserTypes.js';
+import { LocalChatSessionUri } from './chatUri.js';
 
 
 export const CHAT_ATTACHABLE_IMAGE_MIME_TYPES: Record<string, string> = {
@@ -53,6 +54,12 @@ export function getAttachableImageExtension(mimeType: string): string | undefine
 
 export interface IChatRequestVariableData {
 	variables: IChatRequestVariableEntry[];
+}
+
+export namespace IChatRequestVariableData {
+	export function toExport(data: IChatRequestVariableData): IChatRequestVariableData {
+		return { variables: data.variables.map(IChatRequestVariableEntry.toExport) };
+	}
 }
 
 export interface IChatRequestModel {
@@ -666,16 +673,20 @@ export class Response extends AbstractResponse implements IDisposable {
 			}
 			this._updateRepr(quiet);
 		} else if (progress.kind === 'textEdit' || progress.kind === 'notebookEdit') {
-			// If the progress.uri is a cell Uri, its possible its part of the inline chat.
-			// Old approach of notebook inline chat would not start and end with notebook Uri, so we need to check for old approach.
-			const useOldApproachForInlineNotebook = progress.uri.scheme === Schemas.vscodeNotebookCell && !this._responseParts.find(part => part.kind === 'notebookEditGroup');
 			// merge edits for the same file no matter when they come in
-			const notebookUri = useOldApproachForInlineNotebook ? undefined : CellUri.parse(progress.uri)?.notebook;
+			const notebookUri = CellUri.parse(progress.uri)?.notebook;
 			const uri = notebookUri ?? progress.uri;
 			let found = false;
 			const groupKind = progress.kind === 'textEdit' && !notebookUri ? 'textEditGroup' : 'notebookEditGroup';
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			const edits: any = groupKind === 'textEditGroup' ? progress.edits : progress.edits.map(edit => TextEdit.isTextEdit(edit) ? { uri: progress.uri, edit } : edit);
+			const edits: any = // TextEdit[] | (ICellTextEditOperation | ICellEditOperation)[] =
+				groupKind === 'textEditGroup' ?
+					progress.edits as TextEdit[] :
+					progress.edits.map(
+						edit => TextEdit.isTextEdit(edit) ?
+							{ uri: progress.uri, edit } satisfies ICellTextEditOperation
+							: edit
+					);
 			const isExternalEdit = progress.isExternalEdit;
 			for (let i = 0; !found && i < this._responseParts.length; i++) {
 				const candidate = this._responseParts[i];
@@ -689,7 +700,7 @@ export class Response extends AbstractResponse implements IDisposable {
 				this._responseParts.push({
 					kind: groupKind,
 					uri,
-					edits: groupKind === 'textEditGroup' ? [edits] : edits,
+					edits: [edits],
 					done: progress.done,
 					isExternalEdit,
 				});
@@ -1736,6 +1747,7 @@ export class ChatModel extends Disposable implements IChatModel {
 	constructor(
 		initialData: ISerializableChatData | IExportableChatData | undefined,
 		initialModelProps: { initialLocation: ChatAgentLocation; canUseTools: boolean; inputState?: ISerializableChatModelInputState; resource?: URI; sessionId?: string; disableBackgroundKeepAlive?: boolean },
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
@@ -1788,16 +1800,21 @@ export class ChatModel extends Disposable implements IChatModel {
 			}
 
 			reader.store.add(request.response.onDidChange(async ev => {
-				if (ev.reason === 'completedRequest' && this._editingSession) {
-					if (request === this._requests.at(-1)
-						&& request.session.sessionResource.scheme !== Schemas.vscodeLocalChatSession
-						&& this._editingSession.hasEditsInRequest(request.id)
-					) {
-						const diffs = this._editingSession.getDiffsForFilesInRequest(request.id);
-						request.response?.updateContent(editEntriesToMultiDiffData(diffs), true);
-					}
-					this._onDidChange.fire({ kind: 'completedRequest', request });
+				if (!this._editingSession || ev.reason !== 'completedRequest') {
+					return;
 				}
+
+				if (
+					request === this._requests.at(-1) &&
+					request.session.sessionResource.scheme !== Schemas.vscodeLocalChatSession &&
+					this.configurationService.getValue<boolean>('chat.checkpoints.showFileChanges') === true &&
+					this._editingSession.hasEditsInRequest(request.id)
+				) {
+					const diffs = this._editingSession.getDiffsForFilesInRequest(request.id);
+					request.response?.updateContent(editEntriesToMultiDiffData(diffs), true);
+				}
+
+				this._onDidChange.fire({ kind: 'completedRequest', request });
 			}));
 		}));
 
@@ -1949,22 +1966,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			? raw :
 			{ variables: [] };
 
-		variableData.variables = variableData.variables.map<IChatRequestVariableEntry>((v): IChatRequestVariableEntry => {
-			// Old variables format
-			if (v && 'values' in v && Array.isArray(v.values)) {
-				return {
-					kind: 'generic',
-					id: v.id ?? '',
-					name: v.name,
-					value: v.values[0]?.value,
-					range: v.range,
-					modelDescription: v.modelDescription,
-					references: v.references
-				};
-			} else {
-				return v;
-			}
-		});
+		variableData.variables = variableData.variables.map<IChatRequestVariableEntry>(IChatRequestVariableEntry.fromExport);
 
 		return variableData;
 	}
@@ -2204,7 +2206,7 @@ export class ChatModel extends Disposable implements IChatModel {
 				return {
 					requestId: r.id,
 					message,
-					variableData: r.variableData,
+					variableData: IChatRequestVariableData.toExport(r.variableData),
 					response: r.response ?
 						r.response.entireResponse.value.map(item => {
 							// Keeping the shape of the persisted data the same for back compat

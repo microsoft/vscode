@@ -296,7 +296,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._requestedCompletionsIndex = this._currentPromptInputState.cursorIndex;
 
 		// Show loading indicator before making async completion request (only for explicit invocations)
-		if (explicitlyInvoked) {
+		if (explicitlyInvoked && this._container) {
 			const suggestWidget = this._ensureSuggestWidget(terminal);
 			const cursorPosition = this._getCursorPosition(terminal);
 			if (cursorPosition) {
@@ -532,8 +532,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				if (!this._terminalSuggestWidgetVisibleContextKey.get()) {
 					const commandLineHasSpace = promptInputState.prefix.trim().match(/\s/);
 					if (
-						(!commandLineHasSpace && quickSuggestions.commands !== 'off') ||
-						(commandLineHasSpace && quickSuggestions.arguments !== 'off')
+						(!commandLineHasSpace && quickSuggestions.commands === 'on') ||
+						(commandLineHasSpace && quickSuggestions.arguments === 'on')
 					) {
 						if (promptInputState.prefix.match(/[^\s]$/)) {
 							sent = this._requestTriggerCharQuickSuggestCompletions();
@@ -769,7 +769,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 	private _showCompletions(model: TerminalCompletionModel, explicitlyInvoked?: boolean): void {
 		this._logService.trace('SuggestAddon#_showCompletions');
-		if (!this._terminal?.element) {
+		if (!this._terminal?.element || !this._container) {
 			return;
 		}
 		const suggestWidget = this._ensureSuggestWidget(this._terminal);
