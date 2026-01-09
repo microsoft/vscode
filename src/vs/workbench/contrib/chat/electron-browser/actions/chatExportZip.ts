@@ -109,7 +109,14 @@ export function registerChatExportZipAction() {
 				}
 			}
 
-			await nativeHostService.createZipFile(result.fsPath, files);
+			try {
+				await nativeHostService.createZipFile(result.fsPath, files);
+			} catch (error) {
+				notificationService.notify({
+					severity: Severity.Error,
+					message: localize('chatExportZip.error', "Failed to export chat as zip: {0}", error instanceof Error ? error.message : String(error))
+				});
+			}
 		}
 	});
 }
