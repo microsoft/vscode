@@ -7,7 +7,7 @@ import { Application, Logger } from '../../../../automation';
 import { installAllHandlers } from '../../utils';
 
 export function setup(logger: Logger, opts: { web?: boolean }) {
-	describe.skip('Accessibility', function () {
+	describe('Accessibility', function () {
 
 		// Increase timeout for accessibility scans
 		this.timeout(30 * 1000);
@@ -34,7 +34,10 @@ export function setup(logger: Logger, opts: { web?: boolean }) {
 					selector: '.monaco-workbench',
 					excludeRules: {
 						// Links in chat welcome view show underline on hover/focus which axe-core static analysis cannot detect
-						'link-in-text-block': ['command:workbench.action.chat.generateInstructions']
+						'link-in-text-block': ['command:workbench.action.chat.generateInstructions'],
+						// Monaco lists use aria-multiselectable on role="list" and aria-setsize/aria-posinset/aria-selected on role="dialog" rows
+						// These violations appear intermittently when notification lists or other dynamic lists are visible
+						'aria-allowed-attr': ['.monaco-list', '.monaco-list-row']
 					}
 				});
 			});
