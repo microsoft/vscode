@@ -3575,7 +3575,9 @@
           "items": {
             "type": "string"
           },
-          "default": [],
+          "default": [
+            "**/node_modules{,/**}"
+          ],
           "scope": "resource",
           "markdownDescription": "%config.worktreeIncludeFiles%"
         },
