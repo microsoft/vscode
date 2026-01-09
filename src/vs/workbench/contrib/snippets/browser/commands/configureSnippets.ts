@@ -198,8 +198,8 @@ async function createSnippetFile(scope: string, defaultPath: URI, quickInputServ
 		'\t// \t"scope": "javascript,typescript",',
 		'\t// \t"prefix": "test",',
 		'\t// \t"body": "test(\'$1\', () => {\\n\\t$0\\n});",',
-		'\t// \t"include": ["**/*.test.ts", "**/*.spec.ts"],',
-		'\t// \t"exclude": ["**/*.min.js"],',
+		'\t// \t"include": ["**/*.test.ts", "*.spec.ts"],',
+		'\t// \t"exclude": ["**/temp/*.ts"],',
 		'\t// \t"description": "Insert test block"',
 		'\t// }',
 		'}'
@@ -233,8 +233,8 @@ async function createLanguageSnippetFile(pick: ISnippetPick, fileService: IFileS
 		'\t// "Test snippet": {',
 		'\t// \t"prefix": "test",',
 		'\t// \t"body": "test(\'$1\', () => {\\n\\t$0\\n});",',
-		'\t// \t"include": ["**/*.test.ts", "**/*.spec.ts"],',
-		'\t// \t"exclude": ["**/*.min.js"],',
+		'\t// \t"include": ["**/*.test.ts", "*.spec.ts"],',
+		'\t// \t"exclude": ["**/temp/*.ts"],',
 		'\t// \t"description": "Insert test block"',
 		'\t// }',
 		'}'

@@ -17,6 +17,7 @@ import { isObject } from '../../../../base/common/types.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { WindowIdleValue, getActiveWindow } from '../../../../base/browser/dom.js';
 import { match as matchGlob } from '../../../../base/common/glob.js';
+import { Schemas } from '../../../../base/common/network.js';
 
 class SnippetBodyInsights {
 
@@ -143,11 +144,11 @@ export class Snippet {
 	}
 
 	isFileIncluded(resourceUri: URI): boolean {
-		const filePath = resourceUri.fsPath;
-		const fileName = basename(filePath);
+		const uriPath = resourceUri.scheme === Schemas.file ? resourceUri.fsPath : resourceUri.path;
+		const fileName = basename(uriPath);
 
 		const getMatchTarget = (pattern: string): string => {
-			return pattern.includes('/') ? filePath : fileName;
+			return pattern.includes('/') ? uriPath : fileName;
 		};
 
 		if (this.exclude) {
