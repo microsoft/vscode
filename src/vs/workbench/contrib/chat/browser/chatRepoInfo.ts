@@ -13,6 +13,79 @@ import { IChatModel, IExportableRepoData, IExportableRepoDiff } from '../common/
 import { getRemotes } from '../../../../platform/extensionManagement/common/configRemotes.js';
 
 /**
+ * Captures the current repository state from the first available SCM repository.
+ * Returns undefined if no SCM repository is available.
+ */
+export async function captureRepoInfo(scmService: ISCMService, fileService: IFileService): Promise<IExportableRepoData | undefined> {
+	const repositories = [...scmService.repositories];
+	if (repositories.length === 0) {
+		return undefined;
+	}
+
+	const repository = repositories[0];
+	const rootUri = repository.provider.rootUri;
+	if (!rootUri) {
+		return undefined;
+	}
+
+	let remoteUrl: string | undefined;
+	try {
+		const gitConfigUri = rootUri.with({ path: `${rootUri.path}/.git/config` });
+		const exists = await fileService.exists(gitConfigUri);
+		if (exists) {
+			const content = await fileService.readFile(gitConfigUri);
+			const remotes = getRemotes(content.value.toString());
+			remoteUrl = remotes[0];
+		}
+	} catch {
+		// Ignore errors reading git config
+	}
+
+	let branchName: string | undefined;
+	let headCommitHash: string | undefined;
+	const historyProvider = repository.provider.historyProvider?.get();
+	if (historyProvider) {
+		const historyItemRef = historyProvider.historyItemRef.get();
+		branchName = historyItemRef?.name;
+		headCommitHash = historyItemRef?.revision;
+	}
+
+	let repoType: 'github' | 'ado' | 'other' = 'other';
+	if (remoteUrl) {
+		if (remoteUrl.includes('github.com')) {
+			repoType = 'github';
+		} else if (remoteUrl.includes('dev.azure.com') || remoteUrl.includes('visualstudio.com')) {
+			repoType = 'ado';
+		}
+	}
+
+	const diffs: IExportableRepoDiff[] = [];
+	let changedFileCount = 0;
+
+	for (const group of repository.provider.groups) {
+		for (const resource of group.resources) {
+			changedFileCount++;
+			diffs.push({
+				uri: resource.sourceUri.toString(),
+				originalUri: resource.multiDiffEditorOriginalUri?.toString() ?? resource.sourceUri.toString(),
+				renameUri: undefined,
+				status: group.label || group.id,
+				diff: undefined
+			});
+		}
+	}
+
+	return {
+		remoteUrl,
+		repoType,
+		branchName,
+		headCommitHash,
+		changedFileCount,
+		diffs
+	};
+}
+
+/**
  * Captures repository information for chat sessions.
  * - On session creation: captures initial repo state for fresh sessions
  * - On first message: updates repo state to reflect any changes since session creation
@@ -86,7 +159,7 @@ export class ChatRepoInfoContribution extends Disposable implements IWorkbenchCo
 
 	private async captureAndSetRepoData(model: IChatModel): Promise<void> {
 		try {
-			const repoData = await this.captureRepoInfo();
+			const repoData = await captureRepoInfo(this.scmService, this.fileService);
 			if (repoData) {
 				model.setRepoData(repoData);
 				if (!repoData.headCommitHash) {
@@ -98,75 +171,5 @@ export class ChatRepoInfoContribution extends Disposable implements IWorkbenchCo
 		} catch (error) {
 			this.logService.warn('[ChatRepoInfo] Failed to capture repo info:', error);
 		}
-	}
-
-	private async captureRepoInfo(): Promise<IExportableRepoData | undefined> {
-		// Get the first SCM repository
-		const repositories = [...this.scmService.repositories];
-		if (repositories.length === 0) {
-			return undefined;
-		}
-
-		const repository = repositories[0];
-		const rootUri = repository.provider.rootUri;
-		if (!rootUri) {
-			return undefined;
-		}
-
-		let remoteUrl: string | undefined;
-		try {
-			const gitConfigUri = rootUri.with({ path: `${rootUri.path}/.git/config` });
-			const exists = await this.fileService.exists(gitConfigUri);
-			if (exists) {
-				const content = await this.fileService.readFile(gitConfigUri);
-				const remotes = getRemotes(content.value.toString());
-				remoteUrl = remotes[0];
-			}
-		} catch (error) {
-			this.logService.warn('[ChatRepoInfo] Failed to read git remote URL:', error);
-		}
-
-		let branchName: string | undefined;
-		let headCommitHash: string | undefined;
-		const historyProvider = repository.provider.historyProvider?.get();
-		if (historyProvider) {
-			const historyItemRef = historyProvider.historyItemRef.get();
-			branchName = historyItemRef?.name;
-			headCommitHash = historyItemRef?.revision;
-		}
-
-		let repoType: 'github' | 'ado' | 'other' = 'other';
-		if (remoteUrl) {
-			if (remoteUrl.includes('github.com')) {
-				repoType = 'github';
-			} else if (remoteUrl.includes('dev.azure.com') || remoteUrl.includes('visualstudio.com')) {
-				repoType = 'ado';
-			}
-		}
-
-		const diffs: IExportableRepoDiff[] = [];
-		let changedFileCount = 0;
-
-		for (const group of repository.provider.groups) {
-			for (const resource of group.resources) {
-				changedFileCount++;
-				diffs.push({
-					uri: resource.sourceUri.toString(),
-					originalUri: resource.multiDiffEditorOriginalUri?.toString() ?? resource.sourceUri.toString(),
-					renameUri: undefined,
-					status: group.label || group.id,
-					diff: undefined
-				});
-			}
-		}
-
-		return {
-			remoteUrl,
-			repoType,
-			branchName,
-			headCommitHash,
-			changedFileCount,
-			diffs
-		};
 	}
 }
