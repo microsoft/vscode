@@ -37,7 +37,8 @@ export function setup(logger: Logger, opts: { web?: boolean }) {
 						'link-in-text-block': ['command:workbench.action.chat.generateInstructions'],
 						// Monaco lists use aria-multiselectable on role="list" and aria-setsize/aria-posinset/aria-selected on role="dialog" rows
 						// These violations appear intermittently when notification lists or other dynamic lists are visible
-						'aria-allowed-attr': ['.monaco-list', '.monaco-list-row']
+						// Note: patterns match against HTML string, not CSS selectors, so no leading dots
+						'aria-allowed-attr': ['monaco-list', 'monaco-list-row']
 					}
 				});
 			});
