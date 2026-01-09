@@ -142,7 +142,7 @@ export class ViewGpuContext extends Disposable {
 		}));
 		this.contentLeft = contentLeft;
 
-		this.rectangleRenderer = this._instantiationService.createInstance(RectangleRenderer, context, this.contentLeft, this.devicePixelRatio, this.canvas.domNode, this.ctx, ViewGpuContext.device);
+		this.rectangleRenderer = this._register(this._instantiationService.createInstance(RectangleRenderer, context, this.contentLeft, this.devicePixelRatio, this.canvas.domNode, this.ctx, ViewGpuContext.device));
 	}
 
 	/**
