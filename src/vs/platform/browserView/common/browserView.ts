@@ -204,6 +204,24 @@ export interface IBrowserViewService {
 	focus(id: string): Promise<void>;
 
 	/**
+	 * Undo the last editing action
+	 * @param id The browser view identifier
+	 */
+	undo(id: string): Promise<void>;
+
+	/**
+	 * Redo the last undone action
+	 * @param id The browser view identifier
+	 */
+	redo(id: string): Promise<void>;
+
+	/**
+	 * Select all content
+	 * @param id The browser view identifier
+	 */
+	selectAll(id: string): Promise<void>;
+
+	/**
 	 * Copy selected content to clipboard
 	 * @param id The browser view identifier
 	 */

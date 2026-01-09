@@ -447,6 +447,18 @@ export class BrowserEditor extends EditorPane {
 		return this._model?.toggleDevTools();
 	}
 
+	async undo(): Promise<void> {
+		return this._model?.undo();
+	}
+
+	async redo(): Promise<void> {
+		return this._model?.redo();
+	}
+
+	async selectAll(): Promise<void> {
+		return this._model?.selectAll();
+	}
+
 	async copy(): Promise<void> {
 		return this._model?.copy();
 	}

@@ -124,21 +124,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 
 const PRIORITY = 100;
 
-function redirectCommandToBrowser(command: MultiCommand | undefined) {
-	command?.addImplementation(PRIORITY, 'integratedBrowser', (accessor: ServicesAccessor) => {
-		const editorService = accessor.get(IEditorService);
-		const activeEditor = editorService.activeEditorPane;
-
-		if (activeEditor instanceof BrowserEditor) {
-			// This will return false if there is no event to forward
-			// (i.e., the command was not triggered from the browser view)
-			return activeEditor.forwardCurrentEvent();
-		}
-
-		return false;
-	});
-}
-
 function overrideCommandForBrowser(command: MultiCommand | undefined, f: (browserEditor: BrowserEditor) => void) {
 	command?.addImplementation(PRIORITY, 'integratedBrowser', (accessor: ServicesAccessor) => {
 		const editorService = accessor.get(IEditorService);
@@ -153,9 +138,9 @@ function overrideCommandForBrowser(command: MultiCommand | undefined, f: (browse
 	});
 }
 
-redirectCommandToBrowser(UndoCommand);
-redirectCommandToBrowser(RedoCommand);
-redirectCommandToBrowser(SelectAllCommand);
+overrideCommandForBrowser(UndoCommand, browserEditor => void browserEditor.undo());
+overrideCommandForBrowser(RedoCommand, browserEditor => void browserEditor.redo());
+overrideCommandForBrowser(SelectAllCommand, browserEditor => void browserEditor.selectAll());
 overrideCommandForBrowser(CopyAction, browserEditor => void browserEditor.copy());
 overrideCommandForBrowser(PasteAction, browserEditor => void browserEditor.paste());
 overrideCommandForBrowser(CutAction, browserEditor => void browserEditor.cut());

@@ -203,6 +203,18 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		return this._getBrowserView(id).focus();
 	}
 
+	async undo(id: string): Promise<void> {
+		return this._getBrowserView(id).undo();
+	}
+
+	async redo(id: string): Promise<void> {
+		return this._getBrowserView(id).redo();
+	}
+
+	async selectAll(id: string): Promise<void> {
+		return this._getBrowserView(id).selectAll();
+	}
+
 	async copy(id: string): Promise<void> {
 		return this._getBrowserView(id).copy();
 	}
