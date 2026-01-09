@@ -18,7 +18,7 @@ import { ILogService } from '../../log/common/log.js';
 import { isMacintosh } from '../../../base/common/platform.js';
 
 const nativeShortcutKeys = new Set(['KeyA', 'KeyC', 'KeyV', 'KeyX', 'KeyZ']);
-function ignoreNativeShortcut(input: Electron.Input): boolean {
+function shouldIgnoreNativeShortcut(input: Electron.Input): boolean {
 	const isControlInput = isMacintosh ? input.meta : input.control;
 	const isAltOnlyInput = input.alt && !input.control && !input.meta;
 
@@ -237,7 +237,7 @@ export class BrowserView extends Disposable {
 		// Key down events - listen for raw key input events
 		webContents.on('before-input-event', async (event, input) => {
 			if (input.type === 'keyDown' && !this._isSendingKeyEvent) {
-				if (ignoreNativeShortcut(input)) {
+				if (shouldIgnoreNativeShortcut(input)) {
 					return;
 				}
 				const eventKeyCode = SCAN_CODE_STR_TO_EVENT_KEY_CODE[input.code] || 0;
