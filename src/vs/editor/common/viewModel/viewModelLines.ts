@@ -726,27 +726,61 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 
 	public getViewLineContent(viewLineNumber: number): string {
 		const info = this.getViewLineInfo(viewLineNumber);
-		return this.modelLineProjections[info.modelLineNumber - 1].getViewLineContent(this.model, info.modelLineNumber, info.modelLineWrappedLineIdx);
+		const lineIndex = info.modelLineNumber - 1;
+		if (lineIndex < 0 || lineIndex >= this.modelLineProjections.length || !this.modelLineProjections[lineIndex]) {
+			// Return empty string if projection is not available
+			return '';
+		}
+		return this.modelLineProjections[lineIndex].getViewLineContent(this.model, info.modelLineNumber, info.modelLineWrappedLineIdx);
 	}
 
 	public getViewLineLength(viewLineNumber: number): number {
 		const info = this.getViewLineInfo(viewLineNumber);
-		return this.modelLineProjections[info.modelLineNumber - 1].getViewLineLength(this.model, info.modelLineNumber, info.modelLineWrappedLineIdx);
+		const lineIndex = info.modelLineNumber - 1;
+		if (lineIndex < 0 || lineIndex >= this.modelLineProjections.length || !this.modelLineProjections[lineIndex]) {
+			// Return 0 if projection is not available
+			return 0;
+		}
+		return this.modelLineProjections[lineIndex].getViewLineLength(this.model, info.modelLineNumber, info.modelLineWrappedLineIdx);
 	}
 
 	public getViewLineMinColumn(viewLineNumber: number): number {
 		const info = this.getViewLineInfo(viewLineNumber);
-		return this.modelLineProjections[info.modelLineNumber - 1].getViewLineMinColumn(this.model, info.modelLineNumber, info.modelLineWrappedLineIdx);
+		const lineIndex = info.modelLineNumber - 1;
+		if (lineIndex < 0 || lineIndex >= this.modelLineProjections.length || !this.modelLineProjections[lineIndex]) {
+			// Return default min column if projection is not available
+			return 1;
+		}
+		return this.modelLineProjections[lineIndex].getViewLineMinColumn(this.model, info.modelLineNumber, info.modelLineWrappedLineIdx);
 	}
 
 	public getViewLineMaxColumn(viewLineNumber: number): number {
 		const info = this.getViewLineInfo(viewLineNumber);
-		return this.modelLineProjections[info.modelLineNumber - 1].getViewLineMaxColumn(this.model, info.modelLineNumber, info.modelLineWrappedLineIdx);
+		const lineIndex = info.modelLineNumber - 1;
+		if (lineIndex < 0 || lineIndex >= this.modelLineProjections.length || !this.modelLineProjections[lineIndex]) {
+			// Return default max column if projection is not available
+			return 1;
+		}
+		return this.modelLineProjections[lineIndex].getViewLineMaxColumn(this.model, info.modelLineNumber, info.modelLineWrappedLineIdx);
 	}
 
 	public getViewLineData(viewLineNumber: number): ViewLineData {
 		const info = this.getViewLineInfo(viewLineNumber);
-		return this.modelLineProjections[info.modelLineNumber - 1].getViewLineData(this.model, info.modelLineNumber, info.modelLineWrappedLineIdx);
+		const lineIndex = info.modelLineNumber - 1;
+		if (lineIndex < 0 || lineIndex >= this.modelLineProjections.length || !this.modelLineProjections[lineIndex]) {
+			// Return empty ViewLineData if projection is not available
+			const lineContent = '';
+			return new ViewLineData(
+				lineContent,
+				false,
+				1,
+				1,
+				0,
+				null!,
+				null
+			);
+		}
+		return this.modelLineProjections[lineIndex].getViewLineData(this.model, info.modelLineNumber, info.modelLineWrappedLineIdx);
 	}
 
 	public getViewLinesData(viewStartLineNumber: number, viewEndLineNumber: number, needed: boolean[]): ViewLineData[] {
