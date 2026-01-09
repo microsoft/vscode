@@ -99,6 +99,7 @@ import { ISaveProfileResult } from '../../services/userDataProfile/common/userDa
 import { IExtHostDocumentSaveDelegate } from './extHostDocumentData.js';
 import { TerminalShellExecutionCommandLineConfidence } from './extHostTypes.js';
 import * as tasks from './shared/tasks.js';
+import { PromptsType } from '../../contrib/chat/common/promptSyntax/promptTypes.js';
 
 export type IconPathDto =
 	| UriComponents
@@ -1462,7 +1463,7 @@ export interface ExtHostChatAgentsShape2 {
 	$releaseSession(sessionResource: UriComponents): void;
 	$detectChatParticipant(handle: number, request: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, options: { participants: IChatParticipantMetadata[]; location: ChatAgentLocation }, token: CancellationToken): Promise<IChatParticipantDetectionResult | null | undefined>;
 	$provideRelatedFiles(handle: number, request: Dto<IChatRequestDraft>, token: CancellationToken): Promise<Dto<IChatRelatedFile>[] | undefined>;
-	$providePromptFiles(handle: number, context: IPromptFileContext, token: CancellationToken): Promise<Dto<IPromptFileResource>[] | undefined>;
+	$providePromptFiles(handle: number, type: PromptsType, context: IPromptFileContext, token: CancellationToken): Promise<Dto<IPromptFileResource>[] | undefined>;
 	$setRequestTools(requestId: string, tools: UserSelectedTools): void;
 }
 export interface IChatParticipantMetadata {

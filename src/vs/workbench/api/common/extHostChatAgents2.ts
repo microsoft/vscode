@@ -494,12 +494,16 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		// Listen to provider change events and notify main thread
 		// Check for the appropriate event based on the provider type
 		let changeEvent: vscode.Event<void> | undefined;
-		if ('onDidChangeCustomAgents' in provider) {
-			changeEvent = provider.onDidChangeCustomAgents;
-		} else if ('onDidChangeInstructions' in provider) {
-			changeEvent = provider.onDidChangeInstructions;
-		} else if ('onDidChangePromptFiles' in provider) {
-			changeEvent = provider.onDidChangePromptFiles;
+		switch (type) {
+			case PromptsType.agent:
+				changeEvent = (provider as vscode.CustomAgentProvider).onDidChangeCustomAgents;
+				break;
+			case PromptsType.instructions:
+				changeEvent = (provider as vscode.InstructionsProvider).onDidChangeInstructions;
+				break;
+			case PromptsType.prompt:
+				changeEvent = (provider as vscode.PromptFileProvider).onDidChangePromptFiles;
+				break;
 		}
 
 		if (changeEvent) {
@@ -526,22 +530,21 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return await provider.provider.provideRelatedFiles(extRequestDraft, token) ?? undefined;
 	}
 
-	async $providePromptFiles(handle: number, context: IPromptFileContext, token: CancellationToken): Promise<IPromptFileResource[] | undefined> {
+	async $providePromptFiles(handle: number, type: PromptsType, context: IPromptFileContext, token: CancellationToken): Promise<IPromptFileResource[] | undefined> {
 		const providerData = this._promptFileProviders.get(handle);
 		if (!providerData) {
 			return undefined;
 		}
 
 		const provider = providerData.provider;
-		// Call the appropriate method based on the provider type
-		if ('provideCustomAgents' in provider) {
-			return await provider.provideCustomAgents(context, token) ?? undefined;
-		} else if ('provideInstructions' in provider) {
-			return await provider.provideInstructions(context, token) ?? undefined;
-		} else if ('providePromptFiles' in provider) {
-			return await provider.providePromptFiles(context, token) ?? undefined;
+		switch (type) {
+			case PromptsType.agent:
+				return await (provider as vscode.CustomAgentProvider).provideCustomAgents(context, token) ?? undefined;
+			case PromptsType.instructions:
+				return await (provider as vscode.InstructionsProvider).provideInstructions(context, token) ?? undefined;
+			case PromptsType.prompt:
+				return await (provider as vscode.PromptFileProvider).providePromptFiles(context, token) ?? undefined;
 		}
-		return undefined;
 	}
 
 	async $detectChatParticipant(handle: number, requestDto: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, options: { location: ChatAgentLocation; participants?: vscode.ChatParticipantMetadata[] }, token: CancellationToken): Promise<vscode.ChatParticipantDetectionResult | null | undefined> {
