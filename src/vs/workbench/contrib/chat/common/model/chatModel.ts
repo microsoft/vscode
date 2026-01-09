@@ -1307,21 +1307,27 @@ export interface ISerializableMarkdownInfo {
 	readonly suggestionId: EditSuggestionId;
 }
 
+/**
+ * Repository state captured for chat session export.
+ * Enables reproducing the workspace state by cloning, checking out the commit, and applying diffs.
+ */
 export interface IExportableRepoData {
 	remoteUrl: string | undefined;
 	repoType: 'github' | 'ado' | 'other';
 	branchName: string | undefined;
 	headCommitHash: string | undefined;
-	changedFileCount: number;
 	diffs: IExportableRepoDiff[] | undefined;
 }
 
+/**
+ * A file change exported as a unified diff patch compatible with `git apply`.
+ */
 export interface IExportableRepoDiff {
-	uri: string;
-	originalUri: string;
-	renameUri?: string;
+	relativePath: string;
+	changeType: 'added' | 'modified' | 'deleted' | 'renamed';
+	oldRelativePath?: string;
+	unifiedDiff?: string;
 	status: string;
-	diff?: string;
 }
 
 export interface IExportableChatData {

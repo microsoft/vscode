@@ -4,17 +4,171 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { relativePath } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { linesDiffComputers } from '../../../../editor/common/diff/linesDiffComputers.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { ISCMService } from '../../scm/common/scm.js';
+import { ISCMService, ISCMResource } from '../../scm/common/scm.js';
 import { IChatService } from '../common/chatService/chatService.js';
 import { IChatModel, IExportableRepoData, IExportableRepoDiff } from '../common/model/chatModel.js';
 import { getRemotes } from '../../../../platform/extensionManagement/common/configRemotes.js';
 
 /**
- * Captures the current repository state from the first available SCM repository.
- * Returns undefined if no SCM repository is available.
+ * Determines the change type based on SCM resource properties.
+ */
+function determineChangeType(resource: ISCMResource, groupId: string): 'added' | 'modified' | 'deleted' | 'renamed' {
+	const contextValue = resource.contextValue?.toLowerCase() ?? '';
+	const groupIdLower = groupId.toLowerCase();
+
+	if (contextValue.includes('untracked') || contextValue.includes('add')) {
+		return 'added';
+	}
+	if (contextValue.includes('delete')) {
+		return 'deleted';
+	}
+	if (contextValue.includes('rename')) {
+		return 'renamed';
+	}
+	if (groupIdLower.includes('untracked')) {
+		return 'added';
+	}
+	if (resource.decorations.strikeThrough) {
+		return 'deleted';
+	}
+	if (!resource.multiDiffEditorOriginalUri) {
+		return 'added';
+	}
+	return 'modified';
+}
+
+/**
+ * Generates a unified diff string compatible with `git apply`.
+ */
+async function generateUnifiedDiff(
+	fileService: IFileService,
+	relPath: string,
+	originalUri: URI | undefined,
+	modifiedUri: URI,
+	changeType: 'added' | 'modified' | 'deleted' | 'renamed'
+): Promise<string | undefined> {
+	try {
+		let originalContent = '';
+		let modifiedContent = '';
+
+		if (originalUri && changeType !== 'added') {
+			try {
+				const originalFile = await fileService.readFile(originalUri);
+				originalContent = originalFile.value.toString();
+			} catch {
+				if (changeType === 'modified') {
+					return undefined;
+				}
+			}
+		}
+
+		if (changeType !== 'deleted') {
+			try {
+				const modifiedFile = await fileService.readFile(modifiedUri);
+				modifiedContent = modifiedFile.value.toString();
+			} catch {
+				return undefined;
+			}
+		}
+
+		const originalLines = originalContent.split('\n');
+		const modifiedLines = modifiedContent.split('\n');
+		const diffLines: string[] = [];
+		const aPath = changeType === 'added' ? '/dev/null' : `a/${relPath}`;
+		const bPath = changeType === 'deleted' ? '/dev/null' : `b/${relPath}`;
+
+		diffLines.push(`--- ${aPath}`);
+		diffLines.push(`+++ ${bPath}`);
+
+		if (changeType === 'added') {
+			if (modifiedLines.length > 0) {
+				diffLines.push(`@@ -0,0 +1,${modifiedLines.length} @@`);
+				for (const line of modifiedLines) {
+					diffLines.push(`+${line}`);
+				}
+			}
+		} else if (changeType === 'deleted') {
+			if (originalLines.length > 0) {
+				diffLines.push(`@@ -1,${originalLines.length} +0,0 @@`);
+				for (const line of originalLines) {
+					diffLines.push(`-${line}`);
+				}
+			}
+		} else {
+			const hunks = computeDiffHunks(originalLines, modifiedLines);
+			for (const hunk of hunks) {
+				diffLines.push(hunk);
+			}
+		}
+
+		return diffLines.join('\n');
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * Computes unified diff hunks using VS Code's diff algorithm.
+ */
+function computeDiffHunks(originalLines: string[], modifiedLines: string[]): string[] {
+	const contextSize = 3;
+	const result: string[] = [];
+
+	const diffComputer = linesDiffComputers.getDefault();
+	const diffResult = diffComputer.computeDiff(originalLines, modifiedLines, {
+		ignoreTrimWhitespace: false,
+		maxComputationTimeMs: 1000,
+		computeMoves: false
+	});
+
+	if (diffResult.changes.length === 0) {
+		return result;
+	}
+
+	for (const change of diffResult.changes) {
+		const origStart = change.original.startLineNumber;
+		const origEnd = change.original.endLineNumberExclusive;
+		const modStart = change.modified.startLineNumber;
+		const modEnd = change.modified.endLineNumberExclusive;
+
+		const contextOrigStart = Math.max(1, origStart - contextSize);
+		const contextOrigEnd = Math.min(originalLines.length, origEnd - 1 + contextSize);
+		const contextModStart = Math.max(1, modStart - contextSize);
+		const contextModEnd = Math.min(modifiedLines.length, modEnd - 1 + contextSize);
+
+		const hunkLines: string[] = [];
+
+		for (let i = contextOrigStart; i < origStart; i++) {
+			hunkLines.push(` ${originalLines[i - 1]}`);
+		}
+		for (let i = origStart; i < origEnd; i++) {
+			hunkLines.push(`-${originalLines[i - 1]}`);
+		}
+		for (let i = modStart; i < modEnd; i++) {
+			hunkLines.push(`+${modifiedLines[i - 1]}`);
+		}
+		for (let i = origEnd; i <= contextOrigEnd; i++) {
+			hunkLines.push(` ${originalLines[i - 1]}`);
+		}
+
+		const origCount = (origEnd - origStart) + (origStart - contextOrigStart) + (contextOrigEnd - origEnd + 1);
+		const modCount = (modEnd - modStart) + (modStart - contextModStart) + (contextModEnd - modEnd + 1);
+
+		result.push(`@@ -${contextOrigStart},${origCount} +${contextModStart},${modCount} @@`);
+		result.push(...hunkLines);
+	}
+
+	return result;
+}
+
+/**
+ * Captures repository state from the first available SCM repository.
  */
 export async function captureRepoInfo(scmService: ISCMService, fileService: IFileService): Promise<IExportableRepoData | undefined> {
 	const repositories = [...scmService.repositories];
@@ -60,18 +214,38 @@ export async function captureRepoInfo(scmService: ISCMService, fileService: IFil
 	}
 
 	const diffs: IExportableRepoDiff[] = [];
-	let changedFileCount = 0;
+	const diffPromises: Promise<IExportableRepoDiff | undefined>[] = [];
 
 	for (const group of repository.provider.groups) {
 		for (const resource of group.resources) {
-			changedFileCount++;
-			diffs.push({
-				uri: resource.sourceUri.toString(),
-				originalUri: resource.multiDiffEditorOriginalUri?.toString() ?? resource.sourceUri.toString(),
-				renameUri: undefined,
-				status: group.label || group.id,
-				diff: undefined
-			});
+			const relPath = relativePath(rootUri, resource.sourceUri) ?? resource.sourceUri.path;
+			const changeType = determineChangeType(resource, group.id);
+
+			const diffPromise = (async (): Promise<IExportableRepoDiff | undefined> => {
+				const unifiedDiff = await generateUnifiedDiff(
+					fileService,
+					relPath,
+					resource.multiDiffEditorOriginalUri,
+					resource.sourceUri,
+					changeType
+				);
+
+				return {
+					relativePath: relPath,
+					changeType,
+					status: group.label || group.id,
+					unifiedDiff
+				};
+			})();
+
+			diffPromises.push(diffPromise);
+		}
+	}
+
+	const generatedDiffs = await Promise.all(diffPromises);
+	for (const diff of generatedDiffs) {
+		if (diff) {
+			diffs.push(diff);
 		}
 	}
 
@@ -80,16 +254,12 @@ export async function captureRepoInfo(scmService: ISCMService, fileService: IFil
 		repoType,
 		branchName,
 		headCommitHash,
-		changedFileCount,
 		diffs
 	};
 }
 
 /**
- * Captures repository information for chat sessions.
- * - On session creation: captures initial repo state for fresh sessions
- * - On first message: updates repo state to reflect any changes since session creation
- * - On SCM repository added: captures repo state for sessions that were created before SCM was ready
+ * Captures repository information for chat sessions on creation and first message.
  */
 export class ChatRepoInfoContribution extends Disposable implements IWorkbenchContribution {
 
@@ -107,21 +277,18 @@ export class ChatRepoInfoContribution extends Disposable implements IWorkbenchCo
 
 		this._register(this._pendingSessions);
 
-		// Capture repo info when session is created (for export without sending messages)
 		this._register(this.chatService.onDidCreateModel(async (model) => {
 			if (model.repoData) {
 				return;
 			}
 			await this.captureAndSetRepoData(model);
 
-			// If SCM wasn't ready, wait for repositories to become available
 			const repositories = [...this.scmService.repositories];
 			if (!model.repoData && repositories.length === 0) {
 				this.waitForScmAndCapture(model);
 			}
 		}));
 
-		// Update repo info when first message is sent (to capture changes since session creation)
 		this._register(this.chatService.onDidSubmitRequest(async ({ chatSessionResource }) => {
 			const model = this.chatService.getSession(chatSessionResource);
 			if (!model) {
@@ -131,11 +298,6 @@ export class ChatRepoInfoContribution extends Disposable implements IWorkbenchCo
 		}));
 	}
 
-	/**
-	 * Wait for SCM repositories to become available and then capture repo data.
-	 * This handles the case where a chat session is restored before the git extension
-	 * has had a chance to register its repositories.
-	 */
 	private waitForScmAndCapture(model: IChatModel): void {
 		const disposables = new DisposableStore();
 		this._pendingSessions.add(disposables);
