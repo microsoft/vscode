@@ -493,7 +493,11 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	}
 
 	private getMinColumnOfViewLine(viewLineInfo: ViewLineInfo): number {
-		return this.modelLineProjections[viewLineInfo.modelLineNumber - 1].getViewLineMinColumn(
+		const lineIndex = viewLineInfo.modelLineNumber - 1;
+		if (!this.isValidLineIndex(lineIndex)) {
+			return 1;
+		}
+		return this.modelLineProjections[lineIndex].getViewLineMinColumn(
 			this.model,
 			viewLineInfo.modelLineNumber,
 			viewLineInfo.modelLineWrappedLineIdx
@@ -501,7 +505,11 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	}
 
 	private getMaxColumnOfViewLine(viewLineInfo: ViewLineInfo): number {
-		return this.modelLineProjections[viewLineInfo.modelLineNumber - 1].getViewLineMaxColumn(
+		const lineIndex = viewLineInfo.modelLineNumber - 1;
+		if (!this.isValidLineIndex(lineIndex)) {
+			return 1;
+		}
+		return this.modelLineProjections[lineIndex].getViewLineMaxColumn(
 			this.model,
 			viewLineInfo.modelLineNumber,
 			viewLineInfo.modelLineWrappedLineIdx
@@ -509,7 +517,11 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	}
 
 	private getModelStartPositionOfViewLine(viewLineInfo: ViewLineInfo): Position {
-		const line = this.modelLineProjections[viewLineInfo.modelLineNumber - 1];
+		const lineIndex = viewLineInfo.modelLineNumber - 1;
+		if (!this.isValidLineIndex(lineIndex)) {
+			return new Position(viewLineInfo.modelLineNumber, 1);
+		}
+		const line = this.modelLineProjections[lineIndex];
 		const minViewColumn = line.getViewLineMinColumn(
 			this.model,
 			viewLineInfo.modelLineNumber,
@@ -523,7 +535,11 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	}
 
 	private getModelEndPositionOfViewLine(viewLineInfo: ViewLineInfo): Position {
-		const line = this.modelLineProjections[viewLineInfo.modelLineNumber - 1];
+		const lineIndex = viewLineInfo.modelLineNumber - 1;
+		if (!this.isValidLineIndex(lineIndex)) {
+			return new Position(viewLineInfo.modelLineNumber, 1);
+		}
+		const line = this.modelLineProjections[lineIndex];
 		const maxViewColumn = line.getViewLineMaxColumn(
 			this.model,
 			viewLineInfo.modelLineNumber,
@@ -836,6 +852,10 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		const r = this.projectedModelLineLineCounts.getIndexOf(viewLineNumber - 1);
 		const lineIndex = r.index;
 		const remainder = r.remainder;
+
+		if (!this.isValidLineIndex(lineIndex)) {
+			return new Position(viewLineNumber, 1);
+		}
 
 		const line = this.modelLineProjections[lineIndex];
 
