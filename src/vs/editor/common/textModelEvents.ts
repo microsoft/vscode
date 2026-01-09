@@ -342,19 +342,24 @@ export class ModelLineHeightChanged {
 	 */
 	public readonly decorationId: string;
 	/**
-	 * The line that has changed.
+	 * The range that has changed.
 	 */
-	public readonly lineNumber: number;
+	public readonly range: Range;
 	/**
 	 * The line height on the line.
 	 */
 	public readonly lineHeight: number | null;
+	/**
+	 * The range that has changed.
+	 */
+	public readonly isWholeLine: boolean;
 
-	constructor(ownerId: number, decorationId: string, lineNumber: number, lineHeight: number | null) {
+	constructor(ownerId: number, decorationId: string, range: Range, lineHeight: number | null, isWholeLine: boolean) {
 		this.ownerId = ownerId;
 		this.decorationId = decorationId;
-		this.lineNumber = lineNumber;
+		this.range = range;
 		this.lineHeight = lineHeight;
+		this.isWholeLine = isWholeLine;
 	}
 }
 
@@ -520,14 +525,14 @@ export class ModelLineHeightChangedEvent {
 	public affects(rangeOrPosition: IRange | IPosition) {
 		if (Range.isIRange(rangeOrPosition)) {
 			for (const change of this.changes) {
-				if (change.lineNumber >= rangeOrPosition.startLineNumber && change.lineNumber <= rangeOrPosition.endLineNumber) {
+				if (change.range.intersectRanges(rangeOrPosition)) {
 					return true;
 				}
 			}
 			return false;
 		} else {
 			for (const change of this.changes) {
-				if (change.lineNumber === rangeOrPosition.lineNumber) {
+				if (change.range.containsPosition(rangeOrPosition)) {
 					return true;
 				}
 			}
