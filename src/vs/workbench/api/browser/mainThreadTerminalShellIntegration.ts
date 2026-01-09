@@ -98,6 +98,9 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 			currentCommand = undefined;
 			const instanceId = e.instance.instanceId;
 			instanceDataListeners.get(instanceId)?.dispose();
+			// Clear the prompt input value before sending the event to the extension host
+			// so that subsequent executeCommand calls don't see stale input
+			e.instance.capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel.clearValue();
 			// Shell integration C (executed) and D (command finished) sequences should always be in
 			// their own events, so send this immediately. This means that the D sequence will not
 			// be included as it's currently being parsed when the command finished event fires.
