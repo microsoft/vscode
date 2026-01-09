@@ -26,8 +26,7 @@ export function setup(logger: Logger, opts: { web?: boolean }) {
 
 		describe('Workbench', function () {
 
-			// Skip on Mac web due to intermittent aria-allowed-attr violations from dynamic notification lists
-			(opts.web && process.platform === 'darwin' ? it.skip : it)('workbench has no accessibility violations', async function () {
+			(opts.web ? it.skip : it)('workbench has no accessibility violations', async function () {
 				// Wait for workbench to be fully loaded
 				await app.code.waitForElement('.monaco-workbench');
 
