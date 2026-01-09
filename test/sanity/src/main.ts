@@ -12,9 +12,9 @@ import { setup as setupServerWebTests } from './serverWeb.test';
 
 const options = minimist(process.argv.slice(2), {
 	string: ['commit', 'quality'],
-	boolean: ['cleanup'],
-	alias: { commit: 'c', quality: 'q' },
-	default: { cleanup: true },
+	boolean: ['cleanup', 'verbose'],
+	alias: { commit: 'c', quality: 'q', verbose: 'v' },
+	default: { cleanup: true, verbose: false },
 });
 
 if (!options.commit) {
@@ -25,7 +25,7 @@ if (!options.quality) {
 	throw new Error('--quality is required');
 }
 
-const context = new TestContext(options.quality, options.commit);
+const context = new TestContext(options.quality, options.commit, options.verbose);
 
 describe('VS Code Sanity Tests', () => {
 	if (options.cleanup) {

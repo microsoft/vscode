@@ -20,6 +20,7 @@ if (options.help) {
 	console.info('  --no-cleanup                    Do not cleanup downloaded files after each test');
 	console.info('  --grep, -g <pattern>            Only run tests matching the given <pattern>');
 	console.info('  --fgrep, -f <string>            Only run tests containing the given <string>');
+	console.info('  --verbose, -v                   Enable verbose logging');
 	console.info('  --help, -h                      Show this help message');
 	process.exit(0);
 }

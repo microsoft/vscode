@@ -31,11 +31,18 @@ export class TestContext {
 	private static readonly authenticodeInclude = /^.+\.(exe|dll|sys|cab|cat|msi|jar|ocx|ps1|psm1|psd1|ps1xml|pssc1)$/i;
 
 	private readonly tempDirs = new Set<string>();
+	private readonly logFile: string;
 
 	public constructor(
 		public readonly quality: 'stable' | 'insider' | 'exploration',
 		public readonly commit: string,
-	) { }
+		public readonly verbose: boolean,
+	) {
+		const osTempDir = fs.realpathSync(os.tmpdir());
+		const logDir = fs.mkdtempSync(path.join(osTempDir, 'vscode-sanity-log'));
+		this.logFile = path.join(logDir, 'sanity.log');
+		console.log(`Log file: ${this.logFile}`);
+	}
 
 	/**
 	 * Returns the current platform in the format <platform>-<arch>.
@@ -48,14 +55,20 @@ export class TestContext {
 	 * Logs a message with a timestamp.
 	 */
 	public log(message: string) {
-		console.log(`[${new Date().toISOString()}] ${message}`);
+		const line = `[${new Date().toISOString()}] ${message}\n`;
+		fs.appendFileSync(this.logFile, line);
+		if (this.verbose) {
+			console.log(line.trimEnd());
+		}
 	}
 
 	/**
 	 * Logs an error message and throws an Error.
 	 */
 	public error(message: string): never {
-		console.error(`[${new Date().toISOString()}] ${message}`);
+		const line = `[${new Date().toISOString()}] ERROR: ${message}\n`;
+		fs.appendFileSync(this.logFile, line);
+		console.error(line.trimEnd());
 		throw new Error(message);
 	}
 
@@ -307,9 +320,9 @@ export class TestContext {
 	}
 
 	/**
-	 * Installs a macOS .app bundle to /Applications.
+	 * Prepares a macOS .app bundle for execution by removing the quarantine attribute.
 	 * @param bundleDir The directory containing the .app bundle.
-	 * @returns The path to the installed VS Code executable.
+	 * @returns The path to the VS Code executable.
 	 */
 	public installMacApp(bundleDir: string): string {
 		let appName: string;
@@ -327,16 +340,16 @@ export class TestContext {
 
 		const appPath = path.join(bundleDir, appName);
 
-		this.log(`Copying ${appPath} to /Applications`);
-		this.runNoErrors('sudo', 'cp', '-R', appPath, '/Applications/');
-		this.log(`Copied ${appPath} successfully`);
+		this.log(`Removing quarantine attribute from ${appPath}`);
+		this.runNoErrors('xattr', '-rd', 'com.apple.quarantine', appPath);
+		this.log(`Removed quarantine attribute successfully`);
 
-		const entryPoint = `/Applications/${appName}/Contents/Resources/app/bin/code`;
+		const entryPoint = path.join(appPath, 'Contents/Resources/app/bin/code');
 		if (!fs.existsSync(entryPoint)) {
 			this.error(`Desktop entry point does not exist: ${entryPoint}`);
 		}
 
-		this.log(`Installed VS Code executable at: ${entryPoint}`);
+		this.log(`VS Code executable at: ${entryPoint}`);
 		return entryPoint;
 	}
 
