@@ -188,9 +188,6 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 				'Git Bash': {
 					source: 'Git Bash',
 					icon: Codicon.terminalGitBash.id,
-				},
-				'Xonsh': {
-					path: 'xonsh.exe'
 				}
 			},
 			additionalProperties: {
@@ -255,11 +252,6 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 				'pwsh': {
 					path: 'pwsh',
 					icon: Codicon.terminalPowershell.id
-				},
-				'xonsh': {
-					path: 'xonsh',
-					args: ['-l'],
-					overrideName: true
 				}
 			},
 			additionalProperties: {
