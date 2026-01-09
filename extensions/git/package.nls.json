@@ -5,6 +5,7 @@
 	"command.continueInLocalClone.qualifiedName": "Continue Working in New Local Clone",
 	"command.clone": "Clone",
 	"command.cloneRecursive": "Clone (Recursive)",
+	"command.cloneWithScalar": "Clone with Scalar",
 	"command.init": "Initialize Repository",
 	"command.openRepository": "Open Repository",
 	"command.reopenClosedRepositories": "Reopen Closed Repositories...",

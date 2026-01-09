@@ -380,6 +380,8 @@ export interface ICloneOptions {
 	readonly progress: Progress<{ increment: number }>;
 	readonly recursive?: boolean;
 	readonly ref?: string;
+	readonly useScalar?: boolean;
+	readonly scalarOptions?: ('full-clone' | 'no-src')[];
 }
 
 export class Git {
@@ -415,6 +417,15 @@ export class Git {
 
 	compareGitVersionTo(version: string): -1 | 0 | 1 {
 		return Versions.compare(Versions.fromString(this.version), Versions.fromString(version));
+	}
+
+	async isScalarAvailable(): Promise<boolean> {
+		try {
+			const result = await this.exec('.', ['scalar', '--version']);
+			return !!result.stdout.trim();
+		} catch (err) {
+			return false;
+		}
 	}
 
 	open(repositoryRoot: string, repositoryRootRealPath: string | undefined, dotGit: IDotGit, logger: LogOutputChannel): Repository {
@@ -473,18 +484,42 @@ export class Git {
 		};
 
 		try {
-			const command = ['clone', url.includes(' ') ? encodeURI(url) : url, folderPath, '--progress'];
-			if (options.recursive) {
-				command.push('--recursive');
+			if (options.useScalar) {
+				// Use scalar clone for better performance on large repositories
+				const command = ['scalar', 'clone'];
+
+				// Add scalar options - can be combined
+				if (options.scalarOptions) {
+					for (const option of options.scalarOptions) {
+						command.push(`--${option}`);
+					}
+				}
+
+				if (options.ref) {
+					command.push('--branch', options.ref);
+				}
+				command.push(url.includes(' ') ? encodeURI(url) : url);
+				command.push(folderPath);
+				await this.exec(options.parentPath, command, {
+					cancellationToken,
+					env: { 'GIT_HTTP_USER_AGENT': this.userAgent },
+					onSpawn,
+				});
+			} else {
+				// Use standard git clone
+				const command = ['clone', url.includes(' ') ? encodeURI(url) : url, folderPath, '--progress'];
+				if (options.recursive) {
+					command.push('--recursive');
+				}
+				if (options.ref) {
+					command.push('--branch', options.ref);
+				}
+				await this.exec(options.parentPath, command, {
+					cancellationToken,
+					env: { 'GIT_HTTP_USER_AGENT': this.userAgent },
+					onSpawn,
+				});
 			}
-			if (options.ref) {
-				command.push('--branch', options.ref);
-			}
-			await this.exec(options.parentPath, command, {
-				cancellationToken,
-				env: { 'GIT_HTTP_USER_AGENT': this.userAgent },
-				onSpawn,
-			});
 		} catch (err) {
 			if (err.stderr) {
 				err.stderr = err.stderr.replace(/^Cloning.+$/m, '').trim();
