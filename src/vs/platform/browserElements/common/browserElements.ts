@@ -15,11 +15,14 @@ export interface IElementData {
 	readonly bounds: IRectangle;
 }
 
-export enum BrowserType {
-	SimpleBrowser = 'simpleBrowser',
-	LiveServer = 'liveServer',
+/**
+ * Locator for identifying a browser target/webview.
+ * Uses either the parent webview or browser view id to uniquely identify the target.
+ */
+export interface IBrowserTargetLocator {
+	readonly webviewId?: string;
+	readonly browserViewId?: string;
 }
-
 
 export interface INativeBrowserElementsService {
 
@@ -28,7 +31,24 @@ export interface INativeBrowserElementsService {
 	// Properties
 	readonly windowId: number;
 
-	getElementData(rect: IRectangle, token: CancellationToken, browserType: BrowserType, cancellationId?: number): Promise<IElementData | undefined>;
+	getElementData(rect: IRectangle, token: CancellationToken, locator: IBrowserTargetLocator, cancellationId?: number): Promise<IElementData | undefined>;
 
-	startDebugSession(token: CancellationToken, browserType: BrowserType, cancelAndDetachId?: number): Promise<void>;
+	startDebugSession(token: CancellationToken, locator: IBrowserTargetLocator, cancelAndDetachId?: number): Promise<void>;
+}
+
+/**
+ * Extract a display name from outer HTML (e.g., "div#myId.myClass")
+ */
+export function getDisplayNameFromOuterHTML(outerHTML: string): string {
+	const firstElementMatch = outerHTML.match(/^<(\w+)([^>]*?)>/);
+	if (!firstElementMatch) {
+		throw new Error('No outer element found');
+	}
+
+	const tagName = firstElementMatch[1];
+	const idMatch = firstElementMatch[2].match(/\s+id\s*=\s*["']([^"']+)["']/i);
+	const id = idMatch ? `#${idMatch[1]}` : '';
+	const classMatch = firstElementMatch[2].match(/\s+class\s*=\s*["']([^"']+)["']/i);
+	const className = classMatch ? `.${classMatch[1].replace(/\s+/g, '.')}` : '';
+	return `${tagName}${id}${className}`;
 }

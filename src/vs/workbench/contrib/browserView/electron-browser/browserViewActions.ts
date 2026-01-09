@@ -11,7 +11,7 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { BrowserEditor, CONTEXT_BROWSER_CAN_GO_BACK, CONTEXT_BROWSER_CAN_GO_FORWARD, CONTEXT_BROWSER_DEVTOOLS_OPEN, CONTEXT_BROWSER_FOCUSED, CONTEXT_BROWSER_STORAGE_SCOPE } from './browserEditor.js';
+import { BrowserEditor, CONTEXT_BROWSER_CAN_GO_BACK, CONTEXT_BROWSER_CAN_GO_FORWARD, CONTEXT_BROWSER_DEVTOOLS_OPEN, CONTEXT_BROWSER_FOCUSED, CONTEXT_BROWSER_STORAGE_SCOPE, CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE } from './browserEditor.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
 import { IBrowserViewWorkbenchService } from '../common/browserView.js';
 import { BrowserViewStorageScope } from '../../../../platform/browserView/common/browserView.js';
@@ -121,7 +121,6 @@ class ReloadAction extends Action2 {
 				group: 'navigation',
 				order: 3,
 			},
-			precondition: BROWSER_EDITOR_ACTIVE,
 			keybinding: {
 				when: CONTEXT_BROWSER_FOCUSED, // Keybinding is only active when focus is within the browser editor
 				weight: KeybindingWeight.WorkbenchContrib + 50, // Priority over debug
@@ -135,6 +134,31 @@ class ReloadAction extends Action2 {
 	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
 		if (browserEditor instanceof BrowserEditor) {
 			await browserEditor.reload();
+		}
+	}
+}
+
+class SelectElementAction extends Action2 {
+	static readonly ID = 'workbench.action.browser.selectElement';
+
+	constructor() {
+		super({
+			id: SelectElementAction.ID,
+			title: localize2('browser.selectElementAction', 'Add Element to Chat'),
+			icon: Codicon.inspect,
+			f1: true,
+			toggled: CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE,
+			menu: {
+				id: MenuId.BrowserActionsToolbar,
+				group: 'actions',
+				order: 1,
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+		if (browserEditor instanceof BrowserEditor) {
+			await browserEditor.selectElement();
 		}
 	}
 }
@@ -153,10 +177,9 @@ class ToggleDevToolsAction extends Action2 {
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
 				group: 'actions',
-				order: 1,
+				order: 2,
 				when: BROWSER_EDITOR_ACTIVE
-			},
-			precondition: BROWSER_EDITOR_ACTIVE
+			}
 		});
 	}
 
@@ -222,6 +245,7 @@ registerAction2(OpenIntegratedBrowserAction);
 registerAction2(GoBackAction);
 registerAction2(GoForwardAction);
 registerAction2(ReloadAction);
+registerAction2(SelectElementAction);
 registerAction2(ToggleDevToolsAction);
 registerAction2(ClearGlobalBrowserStorageAction);
 registerAction2(ClearWorkspaceBrowserStorageAction);
