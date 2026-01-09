@@ -232,6 +232,12 @@ export interface ICommonNativeHostService {
 	windowsGetStringRegKey(hive: 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG', path: string, name: string): Promise<string | undefined>;
 
 	// Zip
+	/**
+	 * Creates a zip file at the specified path containing the provided files.
+	 *
+	 * @param zipPath The absolute path where the zip file should be created.
+	 * @param files An array of file entries to include in the zip, each with a relative path and string contents.
+	 */
 	createZipFile(zipPath: string, files: { path: string; contents: string }[]): Promise<void>;
 }
 
