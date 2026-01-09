@@ -9,12 +9,11 @@ import { CancellationToken, CancellationTokenSource } from '../../../base/common
 import { CancellationError } from '../../../base/common/errors.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
-import { revive } from '../../../base/common/marshalling.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../platform/log/common/log.js';
-import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/chatAgents.js';
+import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/participants/chatAgents.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionProviderOptionItem } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
@@ -25,7 +24,7 @@ import { ExtHostLanguageModels } from './extHostLanguageModels.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
-import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData, IPromptFileVariableEntry, ISymbolVariableEntry, PromptFileVariableKind } from '../../contrib/chat/common/chatVariableEntries.js';
+import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData, IPromptFileVariableEntry, ISymbolVariableEntry, PromptFileVariableKind } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
 import { basename } from '../../../base/common/resources.js';
 import { Diagnostic } from './extHostTypeConverters.js';
 import { SymbolKind, SymbolKinds } from '../../../editor/common/languages.js';
@@ -96,7 +95,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 
 		commands.registerArgumentProcessor({
 			processArgument: (arg) => {
-				if (arg && arg.$mid === MarshalledId.ChatSessionContext) {
+				if (arg && arg.$mid === MarshalledId.AgentSessionContext) {
 					const id = arg.session.resource || arg.sessionId;
 					const sessionContent = this._sessionItems.get(id);
 					if (sessionContent) {
@@ -151,6 +150,12 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			}));
 		}
 
+		if (provider.onDidChangeChatSessionProviderOptions) {
+			disposables.add(provider.onDidChangeChatSessionProviderOptions(() => {
+				this._proxy.$onDidChangeChatSessionProviderOptions(handle);
+			}));
+		}
+
 		return new extHostTypes.Disposable(() => {
 			this._chatSessionContentProviders.delete(handle);
 			disposables.dispose();
@@ -170,6 +175,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 				return ChatSessionStatus.Completed;
 			case 2: // vscode.ChatSessionStatus.InProgress
 				return ChatSessionStatus.InProgress;
+			// Need to support NeedsInput status if we ever export it to the extension API
 			default:
 				return undefined;
 		}
@@ -180,6 +186,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			resource: sessionContent.resource,
 			label: sessionContent.label,
 			description: sessionContent.description ? typeConvert.MarkdownString.from(sessionContent.description) : undefined,
+			badge: sessionContent.badge ? typeConvert.MarkdownString.from(sessionContent.badge) : undefined,
 			status: this.convertChatSessionStatus(sessionContent.status),
 			tooltip: typeConvert.MarkdownString.fromStrict(sessionContent.tooltip),
 			timing: {
@@ -194,41 +201,6 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 					deletions: sessionContent.changes?.deletions ?? 0,
 				}),
 		};
-	}
-
-	async $provideNewChatSessionItem(handle: number, options: { request: IChatAgentRequest; metadata?: any }, token: CancellationToken): Promise<IChatSessionItem> {
-		const entry = this._chatSessionItemProviders.get(handle);
-		if (!entry || !entry.provider.provideNewChatSessionItem) {
-			throw new Error(`No provider registered for handle ${handle} or provider does not support creating sessions`);
-		}
-
-		try {
-			const model = await this.getModelForRequest(options.request, entry.extension);
-			const vscodeRequest = typeConvert.ChatAgentRequest.to(
-				revive(options.request),
-				undefined,
-				model,
-				[],
-				new Map(),
-				entry.extension,
-				this._logService);
-
-			const vscodeOptions = {
-				request: vscodeRequest,
-				metadata: options.metadata
-			};
-
-			const chatSessionItem = await entry.provider.provideNewChatSessionItem(vscodeOptions, token);
-			if (!chatSessionItem) {
-				throw new Error('Provider did not create session');
-			}
-
-			this._sessionItems.set(chatSessionItem.resource, chatSessionItem);
-			return this.convertChatSessionItem(entry.sessionType, chatSessionItem);
-		} catch (error) {
-			this._logService.error(`Error creating chat session: ${error}`);
-			throw error;
-		}
 	}
 
 	async $provideChatSessionItems(handle: number, token: vscode.CancellationToken): Promise<IChatSessionItem[]> {

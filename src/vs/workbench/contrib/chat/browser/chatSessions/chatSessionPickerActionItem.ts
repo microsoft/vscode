@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/chatSessionAction.css';
+import './media/chatSessionPickerActionItem.css';
 import { IAction } from '../../../../../base/common/actions.js';
 import { Event } from '../../../../../base/common/event.js';
 import * as dom from '../../../../../base/browser/dom.js';

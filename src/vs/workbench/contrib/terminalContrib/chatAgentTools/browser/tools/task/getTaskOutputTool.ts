@@ -10,7 +10,7 @@ import { localize } from '../../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
-import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../../../chat/common/languageModelToolsService.js';
+import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../../../chat/common/tools/languageModelToolsService.js';
 import { ITaskService, Task, TasksAvailableContext } from '../../../../../tasks/common/taskService.js';
 import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
 import { collectTerminalResults, getTaskDefinition, getTaskForTool, resolveDependencyTasks, tasksMatch } from '../../taskHelpers.js';
@@ -124,7 +124,7 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 		const details = terminalResults.map(r => `Terminal: ${r.name}\nOutput:\n${r.output}`);
 		const uniqueDetails = Array.from(new Set(details)).join('\n\n');
 		const toolResultDetails = toolResultDetailsFromResponse(terminalResults);
-		const toolResultMessage = toolResultMessageFromResponse(undefined, taskLabel, toolResultDetails, terminalResults, true);
+		const toolResultMessage = toolResultMessageFromResponse(undefined, taskLabel, toolResultDetails, terminalResults, true, task.configurationProperties.isBackground);
 
 		return {
 			content: [{ kind: 'text', value: uniqueDetails }],
