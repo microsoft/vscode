@@ -6,8 +6,10 @@
 import { raceCancellation } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { ExtHostContext, ExtHostSpeechShape, MainContext, MainThreadSpeechShape } from '../common/extHost.protocol.js';
+import { VoiceChatInProgress } from '../../contrib/chat/common/voiceChatService.js';
 import { IKeywordRecognitionEvent, ISpeechProviderMetadata, ISpeechService, ISpeechToTextEvent, ITextToSpeechEvent, TextToSpeechStatus } from '../../contrib/speech/common/speechService.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 
@@ -37,9 +39,22 @@ export class MainThreadSpeech implements MainThreadSpeechShape {
 	constructor(
 		extHostContext: IExtHostContext,
 		@ISpeechService private readonly speechService: ISpeechService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ILogService private readonly logService: ILogService
 	) {
 		this.proxy = extHostContext.getProxy(ExtHostContext.ExtHostSpeech);
+
+		// Listen to voice chat in progress context key changes and notify extensions
+		let previousValue = !!this.contextKeyService.getContextKeyValue<boolean>(VoiceChatInProgress.key);
+		this.contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(new Set([VoiceChatInProgress.key]))) {
+				const currentValue = !!this.contextKeyService.getContextKeyValue<boolean>(VoiceChatInProgress.key);
+				if (currentValue !== previousValue) {
+					previousValue = currentValue;
+					this.proxy.$onDidChangeVoiceChatInProgress(currentValue);
+				}
+			}
+		});
 	}
 
 	$registerProvider(handle: number, identifier: string, metadata: ISpeechProviderMetadata): void {
