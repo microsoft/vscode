@@ -466,6 +466,24 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 
 	// #region ViewLineInfo
 
+	private isValidLineIndex(lineIndex: number): boolean {
+		return lineIndex >= 0 && lineIndex < this.modelLineProjections.length && !!this.modelLineProjections[lineIndex];
+	}
+
+	private createEmptyViewLineData(): ViewLineData {
+		const lineContent = '';
+		const emptyTokens = LineTokens.createEmpty(lineContent, this.model.tokenization.getLanguageIdCodec());
+		return new ViewLineData(
+			lineContent,
+			false,
+			1,
+			1,
+			0,
+			emptyTokens.inflate(),
+			null
+		);
+	}
+
 	private getViewLineInfo(viewLineNumber: number): ViewLineInfo {
 		viewLineNumber = this._toValidViewLineNumber(viewLineNumber);
 		const r = this.projectedModelLineLineCounts.getIndexOf(viewLineNumber - 1);
@@ -728,7 +746,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	public getViewLineContent(viewLineNumber: number): string {
 		const info = this.getViewLineInfo(viewLineNumber);
 		const lineIndex = info.modelLineNumber - 1;
-		if (lineIndex < 0 || lineIndex >= this.modelLineProjections.length || !this.modelLineProjections[lineIndex]) {
+		if (!this.isValidLineIndex(lineIndex)) {
 			// Return empty string if projection is not available
 			return '';
 		}
@@ -738,7 +756,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	public getViewLineLength(viewLineNumber: number): number {
 		const info = this.getViewLineInfo(viewLineNumber);
 		const lineIndex = info.modelLineNumber - 1;
-		if (lineIndex < 0 || lineIndex >= this.modelLineProjections.length || !this.modelLineProjections[lineIndex]) {
+		if (!this.isValidLineIndex(lineIndex)) {
 			// Return 0 if projection is not available
 			return 0;
 		}
@@ -748,7 +766,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	public getViewLineMinColumn(viewLineNumber: number): number {
 		const info = this.getViewLineInfo(viewLineNumber);
 		const lineIndex = info.modelLineNumber - 1;
-		if (lineIndex < 0 || lineIndex >= this.modelLineProjections.length || !this.modelLineProjections[lineIndex]) {
+		if (!this.isValidLineIndex(lineIndex)) {
 			// Return default min column if projection is not available
 			return 1;
 		}
@@ -758,7 +776,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	public getViewLineMaxColumn(viewLineNumber: number): number {
 		const info = this.getViewLineInfo(viewLineNumber);
 		const lineIndex = info.modelLineNumber - 1;
-		if (lineIndex < 0 || lineIndex >= this.modelLineProjections.length || !this.modelLineProjections[lineIndex]) {
+		if (!this.isValidLineIndex(lineIndex)) {
 			// Return default max column if projection is not available
 			return 1;
 		}
@@ -768,19 +786,9 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	public getViewLineData(viewLineNumber: number): ViewLineData {
 		const info = this.getViewLineInfo(viewLineNumber);
 		const lineIndex = info.modelLineNumber - 1;
-		if (lineIndex < 0 || lineIndex >= this.modelLineProjections.length || !this.modelLineProjections[lineIndex]) {
+		if (!this.isValidLineIndex(lineIndex)) {
 			// Return empty ViewLineData if projection is not available
-			const lineContent = '';
-			const emptyTokens = LineTokens.createEmpty(lineContent, this.model.tokenization.getLanguageIdCodec());
-			return new ViewLineData(
-				lineContent,
-				false,
-				1,
-				1,
-				0,
-				emptyTokens.inflate(),
-				null
-			);
+			return this.createEmptyViewLineData();
 		}
 		return this.modelLineProjections[lineIndex].getViewLineData(this.model, info.modelLineNumber, info.modelLineWrappedLineIdx);
 	}
