@@ -748,14 +748,15 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 		}
 
 		let newWidth: number;
+		const mainContainerWidth = layoutService.mainContainerDimension.width;
 		if (newOrientation === AgentSessionsViewerOrientation.SideBySide) {
-			newWidth = Math.max(sideBySideMinWidth, lastWidthForOrientation || Math.round(layoutService.mainContainerDimension.width / 2));
+			newWidth = Math.max(sideBySideMinWidth, lastWidthForOrientation || Math.round(mainContainerWidth / 2));
 
 			// If the main container width is not sufficient for side-by-side and
 			// the primary sidebar is visible, hide it to make more room (if that provides enough space)
-			if (layoutService.mainContainerDimension.width < newWidth && layoutService.isVisible(Parts.SIDEBAR_PART)) {
+			if (mainContainerWidth < newWidth && layoutService.isVisible(Parts.SIDEBAR_PART)) {
 				const sidebarSize = layoutService.getSize(Parts.SIDEBAR_PART);
-				if (layoutService.mainContainerDimension.width + sidebarSize.width >= newWidth) {
+				if (mainContainerWidth + sidebarSize.width >= newWidth) {
 					layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
 				}
 			}
