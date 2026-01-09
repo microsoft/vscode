@@ -7,12 +7,12 @@ import { Event } from '../../../base/common/event.js';
 import { Disposable, toDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
 import { TerminalCapability, type ITerminalCommand } from '../../../platform/terminal/common/capabilities/capabilities.js';
 import { ExtHostContext, MainContext, type ExtHostTerminalShellIntegrationShape, type MainThreadTerminalShellIntegrationShape } from '../common/extHost.protocol.js';
-import { ILogService } from '../../../platform/log/common/log.js';
 import { ITerminalService, type ITerminalInstance } from '../../contrib/terminal/browser/terminal.js';
 import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
 import { extHostNamedCustomer, type IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { TerminalShellExecutionCommandLineConfidence } from '../common/extHostTypes.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
+import { ITerminalLogService } from '../../../platform/terminal/common/terminal.js';
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalShellIntegration)
 export class MainThreadTerminalShellIntegration extends Disposable implements MainThreadTerminalShellIntegrationShape {
@@ -23,7 +23,7 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
-		@ILogService private readonly _logService: ILogService
+		@ITerminalLogService private readonly _logService: ITerminalLogService
 	) {
 		super();
 
