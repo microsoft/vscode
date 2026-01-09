@@ -1965,7 +1965,7 @@ export class Repository implements Disposable {
 			let copiedFiles = 0;
 			const results = await window.withProgress({
 				location: ProgressLocation.Notification,
-				title: l10n.t('Copying additional files to the worktree '),
+				title: l10n.t('Copying additional files to the worktree'),
 				cancellable: false
 			}, async (progress) => {
 				const limiter = new Limiter<void>(10);
