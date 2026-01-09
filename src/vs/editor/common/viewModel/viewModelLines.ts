@@ -19,6 +19,7 @@ import { ILineBreaksComputer, ModelLineProjectionData, InjectedText, ILineBreaks
 import { ConstantTimePrefixSumComputer } from '../model/prefixSumComputer.js';
 import { ViewLineData } from '../viewModel.js';
 import { ICoordinatesConverter, IdentityCoordinatesConverter } from '../coordinatesConverter.js';
+import { LineTokens } from '../tokens/lineTokens.js';
 
 export interface IViewModelLines extends IDisposable {
 	createCoordinatesConverter(): ICoordinatesConverter;
@@ -770,13 +771,14 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		if (lineIndex < 0 || lineIndex >= this.modelLineProjections.length || !this.modelLineProjections[lineIndex]) {
 			// Return empty ViewLineData if projection is not available
 			const lineContent = '';
+			const emptyTokens = LineTokens.createEmpty(lineContent, this.model.tokenization.getLanguageIdCodec());
 			return new ViewLineData(
 				lineContent,
 				false,
 				1,
 				1,
 				0,
-				null!,
+				emptyTokens.inflate(),
 				null
 			);
 		}
