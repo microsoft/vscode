@@ -23,7 +23,7 @@ import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable, dispose, thenIfNotDisposed, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, dispose, thenIfNotDisposed, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { FileAccess, Schemas } from '../../../../../base/common/network.js';
 import { clamp } from '../../../../../base/common/numbers.js';
@@ -188,7 +188,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	protected readonly _onDidChangeItemHeight = this._register(new Emitter<IItemHeightChangeParams>());
 	readonly onDidChangeItemHeight: Event<IItemHeightChangeParams> = this._onDidChangeItemHeight.event;
 	private readonly pendingItemHeightChanges = new Map<ChatTreeItem, number>();
-	private itemHeightChangeFlushDisposable: IDisposable | undefined;
+	private readonly itemHeightChangeFlushDisposable = this._register(new MutableDisposable<IDisposable>());
 
 	private readonly _editorPool: EditorPool;
 	private readonly _toolEditorPool: EditorPool;
@@ -201,7 +201,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private _onDidChangeVisibility = this._register(new Emitter<boolean>());
 
 	private readonly pendingHeightUpdates = new Map<IChatListItemTemplate, ChatTreeItem>();
-	private heightMeasurementDisposable: IDisposable | undefined;
+	private readonly heightMeasurementDisposable = this._register(new MutableDisposable<IDisposable>());
 
 	/**
 	 * Tool invocations get their own so that the ChatViewModel doesn't overwrite it.
@@ -384,7 +384,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private _scheduleItemHeightChangeFlush(): void {
-		if (this.itemHeightChangeFlushDisposable) {
+		if (this.itemHeightChangeFlushDisposable.value) {
 			return;
 		}
 
@@ -393,8 +393,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return;
 		}
 
-		this.itemHeightChangeFlushDisposable = dom.scheduleAtNextAnimationFrame(targetWindow, () => {
-			this.itemHeightChangeFlushDisposable = undefined;
+		this.itemHeightChangeFlushDisposable.value = dom.scheduleAtNextAnimationFrame(targetWindow, () => {
+			this.itemHeightChangeFlushDisposable.clear();
 			this.flushItemHeightChanges();
 		});
 	}
@@ -976,15 +976,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private queueItemHeightMeasurement(element: ChatTreeItem, templateData: IChatListItemTemplate): void {
 		// Batch height checks so frequent renderElement calls share a single animation frame.
 		this.pendingHeightUpdates.set(templateData, element);
-		if (this.heightMeasurementDisposable) {
+		if (this.heightMeasurementDisposable.value) {
 			return;
 		}
 		const targetWindow = dom.getWindow(templateData.rowContainer);
 		if (!targetWindow) {
 			return;
 		}
-		this.heightMeasurementDisposable = dom.scheduleAtNextAnimationFrame(targetWindow, () => {
-			this.heightMeasurementDisposable = undefined;
+		this.heightMeasurementDisposable.value = dom.scheduleAtNextAnimationFrame(targetWindow, () => {
+			this.heightMeasurementDisposable.clear();
 			const queued = Array.from(this.pendingHeightUpdates.entries());
 			this.pendingHeightUpdates.clear();
 			for (const [template, queuedElement] of queued) {
@@ -1469,10 +1469,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	override dispose(): void {
-		this.heightMeasurementDisposable?.dispose();
-		this.heightMeasurementDisposable = undefined;
-		this.itemHeightChangeFlushDisposable?.dispose();
-		this.itemHeightChangeFlushDisposable = undefined;
 		this.pendingHeightUpdates.clear();
 		this.pendingItemHeightChanges.clear();
 		this._announcedToolProgressKeys.clear();
