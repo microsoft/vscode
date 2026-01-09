@@ -74,7 +74,7 @@ export function renderFileWidgets(element: HTMLElement, instantiationService: II
 			// Try to parse as metadata JSON
 			try {
 				metadata = JSON.parse(linkText);
-				if (metadata && metadata.vscodeLinkType === 'file' && typeof metadata.fileName === 'string') {
+				if (metadata && metadata.vscodeLinkType === 'file') {
 					shouldRenderWidget = true;
 				}
 			} catch {
