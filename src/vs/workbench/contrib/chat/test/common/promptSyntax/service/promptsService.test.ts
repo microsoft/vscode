@@ -36,7 +36,7 @@ import { ComputeAutomaticInstructions, newInstructionsCollectionEvent } from '..
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
 import { INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
-import { ExtensionAgentSourceType, ICustomAgent, ICustomAgentQueryOptions, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { ExtensionAgentSourceType, ICustomAgent, IPromptFileContext, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
 import { mockFiles } from '../testUtils/mockFilesystem.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../../platform/storage/common/storage.js';
@@ -1103,18 +1103,16 @@ suite('PromptsService', () => {
 			]);
 
 			const provider = {
-				provideCustomAgents: async (_options: ICustomAgentQueryOptions, _token: CancellationToken) => {
+				providePromptFiles: async (_context: IPromptFileContext, _token: CancellationToken) => {
 					return [
 						{
-							name: 'myAgent',
-							description: 'My custom agent from provider',
 							uri: agentUri
 						}
 					];
 				}
 			};
 
-			const registered = service.registerCustomAgentsProvider(extension, provider);
+			const registered = service.registerPromptFileProvider(extension, PromptsType.agent, provider);
 
 			const actual = await service.getCustomAgents(CancellationToken.None);
 			assert.strictEqual(actual.length, 1);
@@ -1122,9 +1120,6 @@ suite('PromptsService', () => {
 			assert.strictEqual(actual[0].description, 'My custom agent from provider');
 			assert.strictEqual(actual[0].uri.toString(), agentUri.toString());
 			assert.strictEqual(actual[0].source.storage, PromptsStorage.extension);
-			if (actual[0].source.storage === PromptsStorage.extension) {
-				assert.strictEqual(actual[0].source.type, ExtensionAgentSourceType.provider);
-			}
 
 			registered.dispose();
 
@@ -1164,17 +1159,13 @@ suite('PromptsService', () => {
 			]);
 
 			const provider = {
-				provideCustomAgents: async (_options: ICustomAgentQueryOptions, _token: CancellationToken) => {
+				providePromptFiles: async (_context: IPromptFileContext, _token: CancellationToken) => {
 					return [
 						{
-							name: 'readonlyAgent',
-							description: 'Readonly agent from provider',
 							uri: readonlyAgentUri,
 							isEditable: false
 						},
 						{
-							name: 'editableAgent',
-							description: 'Editable agent from provider',
 							uri: editableAgentUri,
 							isEditable: true
 						}
@@ -1182,7 +1173,7 @@ suite('PromptsService', () => {
 				}
 			};
 
-			const registered = service.registerCustomAgentsProvider(extension, provider);
+			const registered = service.registerPromptFileProvider(extension, PromptsType.agent, provider);
 
 			// Spy on updateReadonly to verify it's called correctly
 			const filesConfigService = instaService.get(IFilesConfigurationService);
@@ -1259,6 +1250,220 @@ suite('PromptsService', () => {
 			registered1.dispose();
 			registered2.dispose();
 		});
+	});
+
+	test('Instructions provider', async () => {
+		const instructionUri = URI.parse('file://extensions/my-extension/myInstruction.instructions.md');
+		const extension = {
+			identifier: { value: 'test.my-extension' },
+			enabledApiProposals: ['chatParticipantPrivate']
+		} as unknown as IExtensionDescription;
+
+		// Mock the instruction file content
+		await mockFiles(fileService, [
+			{
+				path: instructionUri.path,
+				contents: [
+					'# Test instruction content'
+				]
+			}
+		]);
+
+		const provider = {
+			providePromptFiles: async (_context: IPromptFileContext, _token: CancellationToken) => {
+				return [
+					{
+						uri: instructionUri
+					}
+				];
+			}
+		};
+
+		const registered = service.registerPromptFileProvider(extension, PromptsType.instructions, provider);
+
+		const actual = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+		const providerInstruction = actual.find(i => i.uri.toString() === instructionUri.toString());
+
+		assert.ok(providerInstruction, 'Provider instruction should be found');
+		assert.strictEqual(providerInstruction!.uri.toString(), instructionUri.toString());
+		assert.strictEqual(providerInstruction!.storage, PromptsStorage.extension);
+		assert.strictEqual(providerInstruction!.source, ExtensionAgentSourceType.provider);
+
+		registered.dispose();
+
+		// After disposal, the instruction should no longer be listed
+		const actualAfterDispose = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+		const foundAfterDispose = actualAfterDispose.find(i => i.uri.toString() === instructionUri.toString());
+		assert.strictEqual(foundAfterDispose, undefined);
+	});
+
+	test('Instructions provider with isEditable flag', async () => {
+		const readonlyInstructionUri = URI.parse('file://extensions/my-extension/readonly.instructions.md');
+		const editableInstructionUri = URI.parse('file://extensions/my-extension/editable.instructions.md');
+		const extension = {
+			identifier: { value: 'test.my-extension' },
+			enabledApiProposals: ['chatParticipantPrivate']
+		} as unknown as IExtensionDescription;
+
+		// Mock the instruction file content
+		await mockFiles(fileService, [
+			{
+				path: readonlyInstructionUri.path,
+				contents: [
+					'# Readonly instruction content'
+				]
+			},
+			{
+				path: editableInstructionUri.path,
+				contents: [
+					'# Editable instruction content'
+				]
+			}
+		]);
+
+		const provider = {
+			providePromptFiles: async (_context: IPromptFileContext, _token: CancellationToken) => {
+				return [
+					{
+						uri: readonlyInstructionUri,
+						isEditable: false
+					},
+					{
+						uri: editableInstructionUri,
+						isEditable: true
+					}
+				];
+			}
+		};
+
+		const registered = service.registerPromptFileProvider(extension, PromptsType.instructions, provider);
+
+		// Spy on updateReadonly to verify it's called correctly
+		const filesConfigService = instaService.get(IFilesConfigurationService);
+		const updateReadonlySpy = sinon.spy(filesConfigService, 'updateReadonly');
+
+		// List prompt files to trigger the readonly check
+		await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+
+		// Verify updateReadonly was called only for the non-editable instruction
+		assert.strictEqual(updateReadonlySpy.callCount, 1, 'updateReadonly should be called once');
+		assert.ok(updateReadonlySpy.calledWith(readonlyInstructionUri, true), 'updateReadonly should be called with readonly instruction URI and true');
+
+		const actual = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+		const readonlyInstruction = actual.find(i => i.uri.toString() === readonlyInstructionUri.toString());
+		const editableInstruction = actual.find(i => i.uri.toString() === editableInstructionUri.toString());
+
+		assert.ok(readonlyInstruction, 'Readonly instruction should be found');
+		assert.ok(editableInstruction, 'Editable instruction should be found');
+
+		registered.dispose();
+	});
+
+	test('Prompt file provider', async () => {
+		const promptUri = URI.parse('file://extensions/my-extension/myPrompt.prompt.md');
+		const extension = {
+			identifier: { value: 'test.my-extension' },
+			enabledApiProposals: ['chatParticipantPrivate']
+		} as unknown as IExtensionDescription;
+
+		// Mock the prompt file content
+		await mockFiles(fileService, [
+			{
+				path: promptUri.path,
+				contents: [
+					'# Test prompt content'
+				]
+			}
+		]);
+
+		const provider = {
+			providePromptFiles: async (_context: IPromptFileContext, _token: CancellationToken) => {
+				return [
+					{
+						uri: promptUri
+					}
+				];
+			}
+		};
+
+		const registered = service.registerPromptFileProvider(extension, PromptsType.prompt, provider);
+
+		const actual = await service.listPromptFiles(PromptsType.prompt, CancellationToken.None);
+		const providerPrompt = actual.find(i => i.uri.toString() === promptUri.toString());
+
+		assert.ok(providerPrompt, 'Provider prompt should be found');
+		assert.strictEqual(providerPrompt!.uri.toString(), promptUri.toString());
+		assert.strictEqual(providerPrompt!.storage, PromptsStorage.extension);
+		assert.strictEqual(providerPrompt!.source, ExtensionAgentSourceType.provider);
+
+		registered.dispose();
+
+		// After disposal, the prompt should no longer be listed
+		const actualAfterDispose = await service.listPromptFiles(PromptsType.prompt, CancellationToken.None);
+		const foundAfterDispose = actualAfterDispose.find(i => i.uri.toString() === promptUri.toString());
+		assert.strictEqual(foundAfterDispose, undefined);
+	});
+
+	test('Prompt file provider with isEditable flag', async () => {
+		const readonlyPromptUri = URI.parse('file://extensions/my-extension/readonly.prompt.md');
+		const editablePromptUri = URI.parse('file://extensions/my-extension/editable.prompt.md');
+		const extension = {
+			identifier: { value: 'test.my-extension' },
+			enabledApiProposals: ['chatParticipantPrivate']
+		} as unknown as IExtensionDescription;
+
+		// Mock the prompt file content
+		await mockFiles(fileService, [
+			{
+				path: readonlyPromptUri.path,
+				contents: [
+					'# Readonly prompt content'
+				]
+			},
+			{
+				path: editablePromptUri.path,
+				contents: [
+					'# Editable prompt content'
+				]
+			}
+		]);
+
+		const provider = {
+			providePromptFiles: async (_context: IPromptFileContext, _token: CancellationToken) => {
+				return [
+					{
+						uri: readonlyPromptUri,
+						isEditable: false
+					},
+					{
+						uri: editablePromptUri,
+						isEditable: true
+					}
+				];
+			}
+		};
+
+		const registered = service.registerPromptFileProvider(extension, PromptsType.prompt, provider);
+
+		// Spy on updateReadonly to verify it's called correctly
+		const filesConfigService = instaService.get(IFilesConfigurationService);
+		const updateReadonlySpy = sinon.spy(filesConfigService, 'updateReadonly');
+
+		// List prompt files to trigger the readonly check
+		await service.listPromptFiles(PromptsType.prompt, CancellationToken.None);
+
+		// Verify updateReadonly was called only for the non-editable prompt
+		assert.strictEqual(updateReadonlySpy.callCount, 1, 'updateReadonly should be called once');
+		assert.ok(updateReadonlySpy.calledWith(readonlyPromptUri, true), 'updateReadonly should be called with readonly prompt URI and true');
+
+		const actual = await service.listPromptFiles(PromptsType.prompt, CancellationToken.None);
+		const readonlyPrompt = actual.find(i => i.uri.toString() === readonlyPromptUri.toString());
+		const editablePrompt = actual.find(i => i.uri.toString() === editablePromptUri.toString());
+
+		assert.ok(readonlyPrompt, 'Readonly prompt should be found');
+		assert.ok(editablePrompt, 'Editable prompt should be found');
+
+		registered.dispose();
 	});
 
 	suite('findAgentSkills', () => {

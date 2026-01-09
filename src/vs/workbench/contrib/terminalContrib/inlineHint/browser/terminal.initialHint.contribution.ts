@@ -31,6 +31,7 @@ import { TerminalChatCommandId } from '../../chat/browser/terminalChat.js';
 import { TerminalInitialHintSettingId } from '../common/terminalInitialHintConfiguration.js';
 import './media/terminalInitialHint.css';
 import { TerminalSuggestCommandId } from '../../suggest/common/terminal.suggest.js';
+import { TerminalSuggestSettingId } from '../../suggest/common/terminalSuggestConfiguration.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 
 const $ = dom.$;
@@ -316,7 +317,8 @@ class TerminalInitialHintWidget extends Disposable {
 		}
 
 		// Suggest hint
-		const suggestKeybinding = this._keybindingService.lookupKeybinding(TerminalSuggestCommandId.TriggerSuggest);
+		const suggestEnabled = this._configurationService.getValue<boolean>(TerminalSuggestSettingId.Enabled);
+		const suggestKeybinding = suggestEnabled ? this._keybindingService.lookupKeybinding(TerminalSuggestCommandId.TriggerSuggest) : undefined;
 		const suggestKeybindingLabel = suggestKeybinding?.getLabel();
 		if (suggestKeybinding && suggestKeybindingLabel) {
 			const suggestActionPart = localize('showSuggestHint', 'Show suggestions {0}. ', suggestKeybindingLabel);
@@ -345,6 +347,11 @@ class TerminalInitialHintWidget extends Disposable {
 			ariaLabelParts.push(suggestActionPart);
 		}
 
+		// Don't show the hint if there's nothing to hint about
+		if (ariaLabelParts.length === 0) {
+			return undefined;
+		}
+
 		const typeToDismiss = localize({
 			key: 'hintTextDismiss',
 			comment: [
@@ -359,12 +366,17 @@ class TerminalInitialHintWidget extends Disposable {
 		return { ariaLabel: ariaLabelParts.join(' '), hintHandler, hintElement };
 	}
 
-	getDomNode(): HTMLElement {
+	getDomNode(): HTMLElement | undefined {
 		if (!this._domNode) {
+			const result = this._getHintInlineChat();
+			if (!result) {
+				return undefined;
+			}
+			const { hintElement, ariaLabel } = result;
+
 			this._domNode = $('.terminal-initial-hint');
 			this._domNode!.style.paddingLeft = '4px';
 
-			const { hintElement, ariaLabel } = this._getHintInlineChat();
 			this._domNode.append(hintElement);
 			this._ariaLabel = ariaLabel.concat(localize('disableHint', ' Toggle {0} in settings to disable this hint.', AccessibilityVerbositySettingId.TerminalInlineChat));
 
