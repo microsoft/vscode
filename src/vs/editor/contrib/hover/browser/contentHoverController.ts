@@ -209,9 +209,7 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 		};
 		const isFocused = contentWidget.isFocused;
 		const isResizing = contentWidget.isResizing;
-		// For keyboard-triggered hovers in onKeyboardModifier mode, only keep if modifier is still pressed
-		const isStickyAndVisibleFromKeyboard = this._hoverSettings.sticky && contentWidget.isVisibleFromKeyboard
-			&& this._hoverSettings.enabled !== 'onKeyboardModifier';
+		const isStickyAndVisibleFromKeyboard = this._hoverSettings.sticky && contentWidget.isVisibleFromKeyboard;
 
 		return this.shouldKeepOpenOnEditorMouseMoveOrLeave
 			|| isFocused
