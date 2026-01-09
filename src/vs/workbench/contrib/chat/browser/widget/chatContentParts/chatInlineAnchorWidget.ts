@@ -41,6 +41,7 @@ import { INotebookDocumentService } from '../../../../../services/notebook/commo
 import { ExplorerFolderContext } from '../../../../files/common/files.js';
 import { IWorkspaceSymbol } from '../../../../search/common/search.js';
 import { IChatContentInlineReference } from '../../../common/chatService/chatService.js';
+import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { IChatWidgetService } from '../../chat.js';
 import { chatAttachmentResourceContextKey, hookUpSymbolAttachmentDragAndContextMenu } from '../../attachments/chatAttachmentWidgets.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
@@ -90,6 +91,7 @@ export class InlineAnchorWidget extends Disposable {
 		@ILanguageService languageService: ILanguageService,
 		@IMenuService menuService: IMenuService,
 		@IModelService modelService: IModelService,
+		@IPromptsService promptsService: IPromptsService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@INotebookDocumentService private readonly notebookDocumentService: INotebookDocumentService,
@@ -126,7 +128,9 @@ export class InlineAnchorWidget extends Disposable {
 		} else {
 			location = this.data;
 
-			const filePathLabel = labelService.getUriBasenameLabel(location.uri);
+			// For skills, we should use the skill name as the label
+			const skillInfo = promptsService.getSkillByUri(location.uri);
+			const filePathLabel = skillInfo ? skillInfo.name : labelService.getUriBasenameLabel(location.uri);
 			if (location.range && this.data.kind !== 'symbol') {
 				const suffix = location.range.startLineNumber === location.range.endLineNumber
 					? `:${location.range.startLineNumber}`

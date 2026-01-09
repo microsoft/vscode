@@ -331,4 +331,11 @@ export interface IPromptsService extends IDisposable {
 	 * Gets list of agent skills files.
 	 */
 	findAgentSkills(token: CancellationToken): Promise<IAgentSkill[] | undefined>;
+
+	/**
+	 * Gets skill info by URI from the cached skills list.
+	 * Returns undefined if the URI is not a known skill or skills haven't been loaded yet.
+	 * This is a synchronous lookup against already-loaded skills.
+	 */
+	getSkillByUri(uri: URI): IAgentSkill | undefined;
 }

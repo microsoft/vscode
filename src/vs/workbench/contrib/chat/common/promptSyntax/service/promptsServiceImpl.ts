@@ -85,6 +85,12 @@ export class PromptsService extends Disposable implements IPromptsService {
 		[PromptsType.agent]: new ResourceMap<Promise<IExtensionPromptPath>>(),
 	};
 
+	/**
+	 * Cached skills keyed by URI for synchronous lookup.
+	 * Updated whenever findAgentSkills is called.
+	 */
+	private readonly cachedSkillsByUri = new ResourceMap<IAgentSkill>();
+
 	constructor(
 		@ILogService public readonly logger: ILogService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -705,9 +711,19 @@ export class PromptsService extends Disposable implements IPromptsService {
 				skippedParseFailed
 			});
 
+			// Update the cached skills map for synchronous lookup
+			this.cachedSkillsByUri.clear();
+			for (const skill of result) {
+				this.cachedSkillsByUri.set(skill.uri, skill);
+			}
+
 			return result;
 		}
 		return undefined;
+	}
+
+	public getSkillByUri(uri: URI): IAgentSkill | undefined {
+		return this.cachedSkillsByUri.get(uri);
 	}
 }
 
