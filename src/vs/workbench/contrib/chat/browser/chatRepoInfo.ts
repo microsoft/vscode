@@ -16,13 +16,28 @@ import { IChatModel, IExportableRepoData, IExportableRepoDiff } from '../common/
 import { getRemotes } from '../../../../platform/extensionManagement/common/configRemotes.js';
 
 /**
- * Checks if a remote URL contains a host that matches the given domain.
- * Matches 'domain.com' or '*.domain.com' but not 'fakedomain.com'.
+ * Extracts a hostname from a git remote URL.
+ *
+ * Supports:
+ * - URL-like remotes: https://github.com/..., ssh://git@github.com/..., git://github.com/...
+ * - SCP-like remotes: git@github.com:owner/repo.git
  */
-function matchesHost(remoteUrl: string, domain: string): boolean {
-	// Match patterns like: @domain.com, ://domain.com, .domain.com
-	const pattern = new RegExp(`(?:[@/.]|://)${domain.replace(/\./g, '\\.')}(?:[/:?#]|$)`, 'i');
-	return pattern.test(remoteUrl);
+function getRemoteHost(remoteUrl: string): string | undefined {
+	try {
+		// Try standard URL parsing first (works for https://, ssh://, git://)
+		const url = new URL(remoteUrl);
+		return url.hostname.toLowerCase();
+	} catch {
+		// Fallback for SCP-like syntax: [user@]host:path
+		const atIndex = remoteUrl.lastIndexOf('@');
+		const hostAndPath = atIndex !== -1 ? remoteUrl.slice(atIndex + 1) : remoteUrl;
+		const colonIndex = hostAndPath.indexOf(':');
+		if (colonIndex === -1) {
+			return undefined;
+		}
+		const host = hostAndPath.slice(0, colonIndex);
+		return host ? host.toLowerCase() : undefined;
+	}
 }
 
 /**
@@ -217,9 +232,10 @@ export async function captureRepoInfo(scmService: ISCMService, fileService: IFil
 
 	let repoType: 'github' | 'ado' | 'other' = 'other';
 	if (remoteUrl) {
-		if (matchesHost(remoteUrl, 'github.com')) {
+		const host = getRemoteHost(remoteUrl);
+		if (host === 'github.com') {
 			repoType = 'github';
-		} else if (matchesHost(remoteUrl, 'dev.azure.com') || matchesHost(remoteUrl, 'visualstudio.com')) {
+		} else if (host === 'dev.azure.com' || (host && host.endsWith('.visualstudio.com'))) {
 			repoType = 'ado';
 		}
 	}
