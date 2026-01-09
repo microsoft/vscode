@@ -750,9 +750,8 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 
 		// Figure out the right new width
 		let newWidth: number;
-		const mainContainerWidth = layoutService.mainContainerDimension.width;
 		if (newOrientation === AgentSessionsViewerOrientation.SideBySide) {
-			newWidth = Math.max(sideBySideMinWidth, lastWidthForOrientation || Math.round(mainContainerWidth / 2));
+			newWidth = Math.max(sideBySideMinWidth, lastWidthForOrientation || Math.round(layoutService.mainContainerDimension.width / 2));
 		} else {
 			newWidth = lastWidthForOrientation || Math.max(chatViewDefaultWidth, currentSize.width - sessionsViewDefaultWidth);
 		}
@@ -764,9 +763,9 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 		// we maximize the auxiliary bar to ensure the side by side experience is optimal
 		const actualSize = layoutService.getSize(part);
 		if (
-			chatLocation === ViewContainerLocation.AuxiliaryBar &&						// only applicable for auxiliary bar
-			newOrientation === AgentSessionsViewerOrientation.SideBySide &&				// only applicable when going to side by side
-			actualSize.width !== newWidth && actualSize.width < sideBySideMinWidth		// width is still not enough for side by side
+			chatLocation === ViewContainerLocation.AuxiliaryBar &&			// only applicable for auxiliary bar
+			newOrientation === AgentSessionsViewerOrientation.SideBySide &&	// only applicable when going to side by side
+			actualSize.width < sideBySideMinWidth							// width is still not enough for side by side
 		) {
 			layoutService.setAuxiliaryBarMaximized(true);
 		}
