@@ -493,13 +493,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this._editingSession.set(undefined, undefined);
 				this.renderChatEditingSessionState();
 			}));
-			r.store.add(this.onDidChangeParsedInput(() => {
-				this.renderChatEditingSessionState();
-			}));
 			r.store.add(this.inputEditor.onDidChangeModelContent(() => {
 				if (this.getInput() === '') {
 					this.refreshParsedInput();
-					this.renderChatEditingSessionState();
 				}
 			}));
 			this.renderChatEditingSessionState();
