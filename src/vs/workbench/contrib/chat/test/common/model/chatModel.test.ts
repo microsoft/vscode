@@ -202,7 +202,7 @@ suite('Response', () => {
 
 	});
 
-	test('consolidated edit summary', async () => {
+	test('consolidated edit summary', () => {
 		const response = store.add(new Response([]));
 		response.updateContent({ content: new MarkdownString('Some content before edits'), kind: 'markdownContent' });
 		response.updateContent({ kind: 'textEditGroup', uri: URI.parse('file:///file1.ts'), edits: [], state: undefined, done: true });
@@ -218,7 +218,7 @@ suite('Response', () => {
 		assert.ok(responseString.endsWith('Made changes.'), 'Should end with "Made changes."');
 	});
 
-	test('no edit summary when no edits', async () => {
+	test('no edit summary when no edits', () => {
 		const response = store.add(new Response([]));
 		response.updateContent({ content: new MarkdownString('Some content'), kind: 'markdownContent' });
 		response.updateContent({ content: new MarkdownString('More content'), kind: 'markdownContent' });
@@ -229,7 +229,7 @@ suite('Response', () => {
 		assert.strictEqual(responseString, 'Some contentMore content');
 	});
 
-	test('consolidated edit summary with clear operation', async () => {
+	test('consolidated edit summary with clear operation', () => {
 		const response = store.add(new Response([]));
 		response.updateContent({ content: new MarkdownString('Initial content'), kind: 'markdownContent' });
 		response.updateContent({ kind: 'textEditGroup', uri: URI.parse('file:///file1.ts'), edits: [], state: undefined, done: true });
@@ -246,7 +246,7 @@ suite('Response', () => {
 		assert.ok(responseString.endsWith('Made changes.'), 'Should end with "Made changes."');
 	});
 
-	test('textEdit merges edits for same URI when not done', async () => {
+	test('textEdit merges edits for same URI when not done', () => {
 		const response = store.add(new Response([]));
 		const uri = URI.parse('file:///file1.ts');
 
@@ -272,7 +272,7 @@ suite('Response', () => {
 		assert.strictEqual(textEditGroups[0].isExternalEdit, true, 'Should preserve isExternalEdit flag from first edit');
 	});
 
-	test('textEdit does not merge edits when previous is done', async () => {
+	test('textEdit does not merge edits when previous is done', () => {
 		const response = store.add(new Response([]));
 		const uri = URI.parse('file:///file1.ts');
 
@@ -294,7 +294,7 @@ suite('Response', () => {
 		assert.strictEqual(textEditGroups.length, 2, 'Should have two separate textEditGroups');
 	});
 
-	test('textEdit does not merge edits for different URIs', async () => {
+	test('textEdit does not merge edits for different URIs', () => {
 		const response = store.add(new Response([]));
 
 		response.updateContent({
@@ -315,8 +315,7 @@ suite('Response', () => {
 		assert.strictEqual(textEditGroups.length, 2, 'Should have two separate textEditGroups for different URIs');
 	});
 
-
-	test('notebookEdit merges edits for same notebook URI when not done', async () => {
+	test('notebookEdit merges edits for same notebook URI when not done', () => {
 		const response = store.add(new Response([]));
 		const notebookUri = URI.parse('file:///notebook.ipynb');
 
@@ -342,7 +341,7 @@ suite('Response', () => {
 		assert.strictEqual(notebookEditGroups[0].isExternalEdit, true, 'Should preserve isExternalEdit flag from first edit');
 	});
 
-	test('notebookEdit does not merge edits when previous is done', async () => {
+	test('notebookEdit does not merge edits when previous is done', () => {
 		const response = store.add(new Response([]));
 		const notebookUri = URI.parse('file:///notebook.ipynb');
 
@@ -364,7 +363,7 @@ suite('Response', () => {
 		assert.strictEqual(notebookEditGroups.length, 2, 'Should have two separate notebookEditGroups');
 	});
 
-	test('notebookEdit does not merge edits for different notebook URIs', async () => {
+	test('notebookEdit does not merge edits for different notebook URIs', () => {
 		const response = store.add(new Response([]));
 
 		response.updateContent({
@@ -385,8 +384,7 @@ suite('Response', () => {
 		assert.strictEqual(notebookEditGroups.length, 2, 'Should have two separate notebookEditGroups for different URIs');
 	});
 
-
-	test('textEdit to notebook cell creates notebookEditGroup', async () => {
+	test('textEdit to notebook cell creates notebookEditGroup', () => {
 		const response = store.add(new Response([]));
 		const notebookUri = URI.parse('file:///notebook.ipynb');
 		const cellUri = CellUri.generate(notebookUri, 1);
