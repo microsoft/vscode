@@ -347,6 +347,11 @@ class TerminalInitialHintWidget extends Disposable {
 			ariaLabelParts.push(suggestActionPart);
 		}
 
+		// Don't show the hint if there's nothing to hint about
+		if (ariaLabelParts.length === 0) {
+			return undefined;
+		}
+
 		const typeToDismiss = localize({
 			key: 'hintTextDismiss',
 			comment: [
@@ -361,12 +366,17 @@ class TerminalInitialHintWidget extends Disposable {
 		return { ariaLabel: ariaLabelParts.join(' '), hintHandler, hintElement };
 	}
 
-	getDomNode(): HTMLElement {
+	getDomNode(): HTMLElement | undefined {
 		if (!this._domNode) {
+			const result = this._getHintInlineChat();
+			if (!result) {
+				return undefined;
+			}
+			const { hintElement, ariaLabel } = result;
+
 			this._domNode = $('.terminal-initial-hint');
 			this._domNode!.style.paddingLeft = '4px';
 
-			const { hintElement, ariaLabel } = this._getHintInlineChat();
 			this._domNode.append(hintElement);
 			this._ariaLabel = ariaLabel.concat(localize('disableHint', ' Toggle {0} in settings to disable this hint.', AccessibilityVerbositySettingId.TerminalInlineChat));
 
