@@ -7,6 +7,7 @@ import { Event } from '../../../base/common/event.js';
 import { Disposable, toDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
 import { TerminalCapability, type ITerminalCommand } from '../../../platform/terminal/common/capabilities/capabilities.js';
 import { ExtHostContext, MainContext, type ExtHostTerminalShellIntegrationShape, type MainThreadTerminalShellIntegrationShape } from '../common/extHost.protocol.js';
+import { ILogService } from '../../../platform/log/common/log.js';
 import { ITerminalService, type ITerminalInstance } from '../../contrib/terminal/browser/terminal.js';
 import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
 import { extHostNamedCustomer, type IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
@@ -21,7 +22,8 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 		extHostContext: IExtHostContext,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
-		@IExtensionService private readonly _extensionService: IExtensionService
+		@IExtensionService private readonly _extensionService: IExtensionService,
+		@ILogService private readonly _logService: ILogService
 	) {
 		super();
 
@@ -100,11 +102,13 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 			instanceDataListeners.get(instanceId)?.dispose();
 			// Clear the prompt input value before sending the event to the extension host
 			// so that subsequent executeCommand calls don't see stale input
-			e.instance.capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel.clearValue();
+			// e.instance.capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel.clearValue();
+			this._logService.trace(`PromptInputModel#_onDidEndTerminalShellExecution# state of promptInputModel is	: ${e.instance.capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel.state}`);
 			// Shell integration C (executed) and D (command finished) sequences should always be in
 			// their own events, so send this immediately. This means that the D sequence will not
 			// be included as it's currently being parsed when the command finished event fires.
 			this._proxy.$shellExecutionEnd(instanceId, e.data.command, convertToExtHostCommandLineConfidence(e.data), e.data.isTrusted, e.data.exitCode);
+			this._logService.trace(`PromptInputModel#_onDidEndTerminalShellExecution# state of promptInputModel after shellExecutionEnd is	: ${e.instance.capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel.state}`);
 		}));
 
 		// Clean up after dispose

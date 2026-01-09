@@ -245,8 +245,10 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 
 	private _handleCommandExecuted() {
 		if (this._state === PromptInputState.Execute) {
+			this._logService.trace('PromptInputModel#_handleCommandExecuted: already in Execute state');
 			return;
 		}
+		this._logService.trace('PromptInputModel#_handleCommandExecuted: Inside _handleCommandExecuted but not PromptInputState.Execute yet');
 
 		this._cursorIndex = -1;
 
