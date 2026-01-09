@@ -108,7 +108,7 @@ import { observableConfigValue } from '../../../../platform/observable/common/pl
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
-import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
+import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import product from '../../../../platform/product/common/product.js';
 import { CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../../chat/browser/actions/chatActions.js';
 
@@ -1053,6 +1053,10 @@ class RepositoryVisibilityActionController {
 	}
 
 	private onDidAddRepository(repository: ISCMRepository): void {
+		if (repository.provider.isHidden) {
+			return;
+		}
+
 		const action = registerAction2(class extends RepositoryVisibilityAction {
 			constructor() {
 				super(repository);
@@ -3070,6 +3074,8 @@ class SCMTreeDataSource extends Disposable implements IAsyncDataSource<ISCMViewS
 			return result;
 		} else if (isSCMInput(element)) {
 			return element.repository;
+		} else if (isSCMActionButton(element)) {
+			return element.repository;
 		} else if (isSCMResourceGroup(element)) {
 			const repository = this.scmViewService.visibleRepositories.find(r => r.provider === element.provider);
 			if (!repository) {
@@ -3077,6 +3083,8 @@ class SCMTreeDataSource extends Disposable implements IAsyncDataSource<ISCMViewS
 			}
 
 			return repository;
+		} else if (isSCMRepository(element)) {
+			return this.scmViewService;
 		} else {
 			throw new Error('Unexpected call to getParent');
 		}

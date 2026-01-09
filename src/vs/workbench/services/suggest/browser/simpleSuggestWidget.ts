@@ -62,6 +62,7 @@ export const SimpleSuggestContext = {
 	HasFocusedSuggestion: new RawContextKey<boolean>('simpleSuggestWidgetHasFocusedSuggestion', false, localize('simpleSuggestWidgetHasFocusedSuggestion', "Whether any simple suggestion is focused")),
 	HasNavigated: new RawContextKey<boolean>('simpleSuggestWidgetHasNavigated', false, localize('simpleSuggestWidgetHasNavigated', "Whether the simple suggestion widget has been navigated downwards")),
 	FirstSuggestionFocused: new RawContextKey<boolean>('simpleSuggestWidgetFirstSuggestionFocused', false, localize('simpleSuggestWidgetFirstSuggestionFocused', "Whether the first simple suggestion is focused")),
+	ExplicitlyInvoked: new RawContextKey<boolean>('simpleSuggestWidgetExplicitlyInvoked', false, localize('simpleSuggestWidgetExplicitlyInvoked', "Whether the simple suggestion widget was explicitly invoked")),
 };
 
 export interface IWorkbenchSuggestWidgetOptions {
@@ -115,7 +116,6 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 	private static NO_SUGGESTIONS_MESSAGE: string = localize('suggestWidget.noSuggestions', "No suggestions.");
 
 	private _state: State = State.Hidden;
-	private _explicitlyInvoked: boolean = false;
 	private _loadingTimeout?: IDisposable;
 	private _completionModel?: TModel;
 	private _cappedHeight?: { wanted: number; capped: number };
@@ -153,6 +153,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 	private readonly _ctxSuggestWidgetHasFocusedSuggestion: IContextKey<boolean>;
 	private readonly _ctxSuggestWidgetHasBeenNavigated: IContextKey<boolean>;
 	private readonly _ctxFirstSuggestionFocused: IContextKey<boolean>;
+	private readonly _ctxSuggestWidgetExplicitlyInvoked: IContextKey<boolean>;
 
 	constructor(
 		private readonly _container: HTMLElement,
@@ -174,6 +175,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		this._ctxSuggestWidgetHasFocusedSuggestion = SimpleSuggestContext.HasFocusedSuggestion.bindTo(_contextKeyService);
 		this._ctxSuggestWidgetHasBeenNavigated = SimpleSuggestContext.HasNavigated.bindTo(_contextKeyService);
 		this._ctxFirstSuggestionFocused = SimpleSuggestContext.FirstSuggestionFocused.bindTo(_contextKeyService);
+		this._ctxSuggestWidgetExplicitlyInvoked = SimpleSuggestContext.ExplicitlyInvoked.bindTo(_contextKeyService);
 
 		class ResizeState {
 			constructor(
@@ -278,7 +280,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		this._register(dom.addDisposableListener(this._details.widget.domNode, 'blur', (e) => this._onDidBlurDetails.fire(e)));
 
 		if (_options.statusBarMenuId && _options.showStatusBarSettingId && _configurationService.getValue(_options.showStatusBarSettingId)) {
-			this._status = this._register(_instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, _options.statusBarMenuId));
+			this._status = this._register(_instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, _options.statusBarMenuId, { showIconsNoKeybindings: true }));
 			this.element.domNode.classList.toggle('with-status-bar', true);
 		}
 
@@ -298,7 +300,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 			if (_options.statusBarMenuId && _options.showStatusBarSettingId && e.affectsConfiguration(_options.showStatusBarSettingId)) {
 				const showStatusBar: boolean = _configurationService.getValue(_options.showStatusBarSettingId);
 				if (showStatusBar && !this._status) {
-					this._status = this._register(_instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, _options.statusBarMenuId));
+					this._status = this._register(_instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, _options.statusBarMenuId, { showIconsNoKeybindings: true }));
 					this._status.show();
 				} else if (showStatusBar && this._status) {
 					this._status.show();
@@ -426,14 +428,23 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		this._persistedSize.reset();
 	}
 
+	relayout(cursorPosition: { top: number; left: number; height: number }): void {
+		if (this._state === State.Hidden) {
+			return;
+		}
+		this._cursorPosition = cursorPosition;
+		this._layout(this.element.size);
+		this._afterRender();
+	}
+
 	showTriggered(explicitlyInvoked: boolean, cursorPosition: { top: number; left: number; height: number }) {
 		if (this._state !== State.Hidden) {
 			return;
 		}
 		this._cursorPosition = cursorPosition;
-		this._explicitlyInvoked = !!explicitlyInvoked;
+		this._ctxSuggestWidgetExplicitlyInvoked.set(!!explicitlyInvoked);
 
-		if (this._explicitlyInvoked) {
+		if (this._ctxSuggestWidgetExplicitlyInvoked.get()) {
 			this._loadingTimeout = disposableTimeout(() => this._setState(State.Loading), 250);
 		}
 	}
@@ -444,7 +455,8 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		this._loadingTimeout?.dispose();
 
 		const selectionMode = this._options?.selectionModeSettingId ? this._configurationService.getValue<SuggestSelectionMode>(this._options.selectionModeSettingId) : undefined;
-		const noFocus = selectionMode === SuggestSelectionMode.Never;
+		// When explicitly invoked (not auto), always select the first item regardless of selectionMode
+		const noFocus = !this._ctxSuggestWidgetExplicitlyInvoked.get() && selectionMode === SuggestSelectionMode.Never;
 
 		// this._currentSuggestionDetails?.cancel();
 		// this._currentSuggestionDetails = undefined;
@@ -495,8 +507,10 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 	private _updateListStyles(): void {
 		if (this._options.selectionModeSettingId) {
 			const selectionMode = this._configurationService.getValue<SuggestSelectionMode>(this._options.selectionModeSettingId);
-			this._list.style(getListStylesWithMode(selectionMode === SuggestSelectionMode.Partial));
-			this.element.domNode.classList.toggle(Classes.PartialSelection, selectionMode === SuggestSelectionMode.Partial);
+			// When explicitly invoked, always show full selection (background) instead of partial (border)
+			const usePartialStyle = !this._ctxSuggestWidgetExplicitlyInvoked.get() && selectionMode === SuggestSelectionMode.Partial;
+			this._list.style(getListStylesWithMode(usePartialStyle));
+			this.element.domNode.classList.toggle(Classes.PartialSelection, usePartialStyle);
 		}
 	}
 
@@ -685,6 +699,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		this._loadingTimeout?.dispose();
 		this._ctxSuggestWidgetHasBeenNavigated.reset();
 		this._ctxFirstSuggestionFocused.reset();
+		this._ctxSuggestWidgetExplicitlyInvoked.reset();
 		this._setState(State.Hidden);
 		this._onDidHide.fire(this);
 		dom.hide(this.element.domNode);

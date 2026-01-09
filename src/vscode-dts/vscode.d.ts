@@ -1939,6 +1939,17 @@ declare module 'vscode' {
 		detail?: string;
 
 		/**
+		 * A {@link Uri} representing the resource associated with this item.
+		 *
+		 * When set, this property is used to automatically derive several item properties if they are not explicitly provided:
+		 * - **Label**: Derived from the resource's file name when {@link QuickPickItem.label label} is not provided or is empty.
+		 * - **Description**: Derived from the resource's path when {@link QuickPickItem.description description} is not provided or is empty.
+		 * - **Icon**: Derived from the current file icon theme when {@link QuickPickItem.iconPath iconPath} is set to
+		 *   {@link ThemeIcon.File} or {@link ThemeIcon.Folder}.
+		 */
+		resourceUri?: Uri;
+
+		/**
 		 * Optional flag indicating if this item is initially selected.
 		 *
 		 * This is only honored when using the {@link window.showQuickPick showQuickPick} API. To do the same
@@ -1999,6 +2010,13 @@ declare module 'vscode' {
 		 * An optional string to show as placeholder in the input box to guide the user.
 		 */
 		placeHolder?: string;
+
+		/**
+		 * Optional text that provides instructions or context to the user.
+		 *
+		 * The prompt is displayed below the input box and above the list of items.
+		 */
+		prompt?: string;
 
 		/**
 		 * Set to `true` to keep the picker open when focus moves to another part of the editor or to another window.
@@ -7784,7 +7802,7 @@ declare module 'vscode' {
 		 *
 		 * Note that the possible values are currently defined as any of the following:
 		 * 'bash', 'cmd', 'csh', 'fish', 'gitbash', 'julia', 'ksh', 'node', 'nu', 'pwsh', 'python',
-		 * 'sh', 'wsl', 'zsh'.
+		 * 'sh', 'wsl', 'xonsh', 'zsh'.
 		 */
 		readonly shell: string | undefined;
 	}
@@ -10061,16 +10079,7 @@ declare module 'vscode' {
 		/**
 		 * Icon for the panel shown in UI.
 		 */
-		iconPath?: Uri | {
-			/**
-			 * The icon path for the light theme.
-			 */
-			readonly light: Uri;
-			/**
-			 * The icon path for the dark theme.
-			 */
-			readonly dark: Uri;
-		};
+		iconPath?: IconPath;
 
 		/**
 		 * {@linkcode Webview} belonging to the panel.
@@ -12284,10 +12293,13 @@ declare module 'vscode' {
 		description?: string | boolean;
 
 		/**
-		 * The {@link Uri} of the resource representing this item.
+		 * A {@link Uri} representing the resource associated with this item.
 		 *
-		 * Will be used to derive the {@link TreeItem.label label}, when it is not provided.
-		 * Will be used to derive the icon from current file icon theme, when {@link TreeItem.iconPath iconPath} has {@link ThemeIcon} value.
+		 * When set, this property is used to automatically derive several item properties if they are not explicitly provided:
+		 * - **Label**: Derived from the resource's file name when {@link TreeItem.label label} is not provided.
+		 * - **Description**: Derived from the resource's path when {@link TreeItem.description description} is set to `true`.
+		 * - **Icon**: Derived from the current file icon theme when {@link TreeItem.iconPath iconPath} is set to
+		 *   {@link ThemeIcon.File} or {@link ThemeIcon.Folder}.
 		 */
 		resourceUri?: Uri;
 
@@ -13134,6 +13146,13 @@ declare module 'vscode' {
 		placeholder: string | undefined;
 
 		/**
+		 * Optional text that provides instructions or context to the user.
+		 *
+		 * The prompt is displayed below the input box and above the list of items.
+		 */
+		prompt: string | undefined;
+
+		/**
 		 * An event signaling when the value of the filter text has changed.
 		 */
 		readonly onDidChangeValue: Event<string>;
@@ -13280,6 +13299,26 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Specifies the location where a {@link QuickInputButton} should be rendered.
+	 */
+	export enum QuickInputButtonLocation {
+		/**
+		 * The button is rendered in the title bar.
+		 */
+		Title = 1,
+
+		/**
+		 * The button is rendered inline to the right of the input box.
+		 */
+		Inline = 2,
+
+		/**
+		 * The button is rendered at the far end inside the input box.
+		 */
+		Input = 3
+	}
+
+	/**
 	 * A button for an action in a {@link QuickPick} or {@link InputBox}.
 	 */
 	export interface QuickInputButton {
@@ -13292,6 +13331,26 @@ declare module 'vscode' {
 		 * An optional tooltip displayed when hovering over the button.
 		 */
 		readonly tooltip?: string | undefined;
+
+		/**
+		 * The location where the button should be rendered.
+		 *
+		 * Defaults to {@link QuickInputButtonLocation.Title}.
+		 *
+		 * **Note:** This property is ignored if the button was added to a {@link QuickPickItem}.
+		 */
+		location?: QuickInputButtonLocation;
+
+		/**
+		 * When present, indicates that the button is a toggle button that can be checked or unchecked.
+		 */
+		readonly toggle?: {
+			/**
+			 * Indicates whether the toggle button is currently checked.
+			 * This property will be updated when the button is toggled.
+			 */
+			checked: boolean;
+		};
 	}
 
 	/**

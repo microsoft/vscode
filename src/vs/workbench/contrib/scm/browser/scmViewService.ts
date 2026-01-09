@@ -123,7 +123,9 @@ export class SCMViewService implements ISCMViewService {
 	private _repositories: ISCMRepositoryView[] = [];
 
 	get repositories(): ISCMRepository[] {
-		return this._repositories.map(r => r.repository);
+		return this._repositories
+			.filter(r => r.repository.provider.isHidden !== true)
+			.map(r => r.repository);
 	}
 
 	readonly didFinishLoadingRepositories = observableValue<boolean>(this, false);
@@ -132,13 +134,14 @@ export class SCMViewService implements ISCMViewService {
 		// In order to match the legacy behaviour, when the repositories are sorted by discovery time,
 		// the visible repositories are sorted by the selection index instead of the discovery time.
 		if (this._repositoriesSortKey === ISCMRepositorySortKey.DiscoveryTime) {
-			return this._repositories.filter(r => r.selectionIndex !== -1)
+			return this._repositories
+				.filter(r => r.repository.provider.isHidden !== true && r.selectionIndex !== -1)
 				.sort((r1, r2) => r1.selectionIndex - r2.selectionIndex)
 				.map(r => r.repository);
 		}
 
 		return this._repositories
-			.filter(r => r.selectionIndex !== -1)
+			.filter(r => r.repository.provider.isHidden !== true && r.selectionIndex !== -1)
 			.map(r => r.repository);
 	}
 

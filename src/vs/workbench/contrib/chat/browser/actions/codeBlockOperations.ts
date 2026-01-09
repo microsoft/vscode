@@ -34,10 +34,10 @@ import { insertCell } from '../../../notebook/browser/controller/cellOperations.
 import { IActiveNotebookEditor, INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
 import { CellKind, ICellEditOperation, NOTEBOOK_EDITOR_ID } from '../../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
-import { ICodeMapperCodeBlock, ICodeMapperRequest, ICodeMapperResponse, ICodeMapperService } from '../../common/chatCodeMapperService.js';
-import { ChatUserAction, IChatService } from '../../common/chatService.js';
-import { IChatRequestViewModel, isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
-import { ICodeBlockActionContext } from '../codeBlockPart.js';
+import { ICodeMapperCodeBlock, ICodeMapperRequest, ICodeMapperResponse, ICodeMapperService } from '../../common/editing/chatCodeMapperService.js';
+import { ChatUserAction, IChatService } from '../../common/chatService/chatService.js';
+import { IChatRequestViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
+import { ICodeBlockActionContext } from '../widget/chatContentParts/codeBlockPart.js';
 
 export class InsertCodeBlockOperation {
 	constructor(

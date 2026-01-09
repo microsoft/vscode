@@ -49,26 +49,6 @@ declare module 'vscode' {
 		 */
 		readonly onDidCommitChatSessionItem: Event<{ original: ChatSessionItem /** untitled */; modified: ChatSessionItem /** newly created */ }>;
 
-		/**
-		 * DEPRECATED: Will be removed!
-		 * Creates a new chat session.
-		 *
-		 * @param options Options for the new session including an optional initial prompt and history
-		 * @param token A cancellation token
-		 * @returns Metadata for the chat session
-		 */
-		provideNewChatSessionItem?(options: {
-			/**
-			 * The chat request that initiated the session creation
-			 */
-			readonly request: ChatRequest;
-
-			/**
-			 * Additional metadata to use for session creation
-			 */
-			metadata?: any;
-		}, token: CancellationToken): ProviderResult<ChatSessionItem>;
-
 		// #endregion
 	}
 
@@ -94,6 +74,11 @@ declare module 'vscode' {
 		 * An optional description that provides additional context about the chat session.
 		 */
 		description?: string | MarkdownString;
+
+		/**
+		 * An optional badge that provides additional context about the chat session.
+		 */
+		badge?: string | MarkdownString;
 
 		/**
 		 * An optional status indicating the current state of the session.
@@ -235,6 +220,14 @@ declare module 'vscode' {
 		 * Event that the provider can fire to signal that the options for a chat session have changed.
 		 */
 		readonly onDidChangeChatSessionOptions?: Event<ChatSessionOptionChangeEvent>;
+
+		/**
+		 * Event that the provider can fire to signal that the available provider options have changed.
+		 *
+		 * When fired, the editor will re-query {@link ChatSessionContentProvider.provideChatSessionProviderOptions}
+		 * and update the UI to reflect the new option groups.
+		 */
+		readonly onDidChangeChatSessionProviderOptions?: Event<void>;
 
 		/**
 		 * Provides the chat session content for a given uri.
