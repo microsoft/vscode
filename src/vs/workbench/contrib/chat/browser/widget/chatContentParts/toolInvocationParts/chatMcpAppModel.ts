@@ -283,10 +283,19 @@ export class ChatMcpAppModel extends Disposable {
 
 				const wrappedFns = new WeakMap();
 
+				let patchedPostMessage = (message, transfer) => api.postMessage(message, transfer);
 				const wrap = target => new Proxy(target, {
+					set: (obj, prop, value) => {
+						if (prop === 'postMessage') {
+							patchedPostMessage = (message, transfer) => value.call(target, message, transfer);
+						} else {
+							obj[prop] = value;
+						}
+						return true;
+					},
 					get: (obj, prop) => {
 						if (prop === 'postMessage') {
-							return (message, transfer) => api.postMessage(message, transfer);
+							return patchedPostMessage;
 						}
 						return obj[prop];
 					},
