@@ -1108,7 +1108,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget {
-	padding: 6px 3px 6px 3px;
+	padding: 4px 3px 4px 3px;
 	box-sizing: border-box;
 	border: 1px solid var(--vscode-input-border, transparent);
 	background-color: var(--vscode-editor-background);
@@ -1147,16 +1147,16 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: flex;
 	align-items: center;
 	flex: 1;
-	font-size: 11px;
+	font-size: 12px;
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
-	line-height: 16px;
+	line-height: 22px;
 }
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-list-expand .todo-list-title-section .codicon {
 	font-size: 16px;
-	line-height: 16px;
+	line-height: 22px;
 	flex-shrink: 0;
 }
 
@@ -1174,14 +1174,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-foreground);
 	cursor: pointer;
 	height: 16px;
-	padding: 2px;
+	padding: 3px;
 	border-radius: 2px;
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
 	min-width: unset;
-	width: 14px;
-	margin-right: 1px;
 }
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-clear-button-container .monaco-button:hover {
@@ -1206,7 +1204,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-list-title {
 	font-weight: normal;
-	font-size: 11px;
+	font-size: 12px;
 	display: flex;
 	align-items: center;
 	overflow: hidden;
