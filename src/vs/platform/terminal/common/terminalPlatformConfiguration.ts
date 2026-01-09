@@ -302,10 +302,6 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 				'pwsh': {
 					path: 'pwsh',
 					icon: Codicon.terminalPowershell.id
-				},
-				'xonsh': {
-					path: 'xonsh',
-					overrideName: true
 				}
 			},
 			additionalProperties: {
