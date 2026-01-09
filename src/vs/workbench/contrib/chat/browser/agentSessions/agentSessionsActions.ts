@@ -16,7 +16,7 @@ import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, PreferredGroup, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { getPartByLocation } from '../../../../services/views/browser/viewsService.js';
-import { IWorkbenchLayoutService, Position } from '../../../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, Parts, Position } from '../../../../services/layout/browser/layoutService.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ChatEditorInput, showClearEditingSessionConfirmation } from '../widgetHosts/editor/chatEditorInput.js';
@@ -750,6 +750,12 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 		let newWidth: number;
 		if (newOrientation === AgentSessionsViewerOrientation.SideBySide) {
 			newWidth = Math.max(sideBySideMinWidth, lastWidthForOrientation || Math.round(layoutService.mainContainerDimension.width / 2));
+
+			// If the main container width is not sufficient for side-by-side and
+			// the primary sidebar is visible, hide it to make more room
+			if (layoutService.mainContainerDimension.width < newWidth && layoutService.isVisible(Parts.SIDEBAR_PART)) {
+				layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
+			}
 		} else {
 			newWidth = lastWidthForOrientation || Math.max(chatViewDefaultWidth, currentSize.width - sessionsViewDefaultWidth);
 		}
