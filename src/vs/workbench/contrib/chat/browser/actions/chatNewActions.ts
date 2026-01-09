@@ -7,6 +7,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize2 } from '../../../../../nls.js';
+import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../../platform/accessibility/common/accessibility.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -98,16 +99,26 @@ export function registerNewChatActions() {
 						order: 1
 					}
 				],
-				keybinding: {
-					weight: KeybindingWeight.WorkbenchContrib + 1,
-					primary: KeyMod.CtrlCmd | KeyCode.KeyN,
-					secondary: [KeyMod.CtrlCmd | KeyCode.KeyL],
-					mac: {
+				keybinding: [
+					{
+						weight: KeybindingWeight.WorkbenchContrib + 1,
 						primary: KeyMod.CtrlCmd | KeyCode.KeyN,
-						secondary: [KeyMod.WinCtrl | KeyCode.KeyL]
+						secondary: [KeyMod.CtrlCmd | KeyCode.KeyL],
+						mac: {
+							primary: KeyMod.CtrlCmd | KeyCode.KeyN,
+							secondary: [KeyMod.WinCtrl | KeyCode.KeyL]
+						},
+						when: ContextKeyExpr.and(ChatContextKeys.inChatSession, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate())
 					},
-					when: ChatContextKeys.inChatSession
-				}
+					{
+						weight: KeybindingWeight.WorkbenchContrib + 1,
+						primary: KeyMod.CtrlCmd | KeyCode.KeyL,
+						mac: {
+							primary: KeyMod.WinCtrl | KeyCode.KeyL
+						},
+						when: ContextKeyExpr.and(ChatContextKeys.inChatSession, CONTEXT_ACCESSIBILITY_MODE_ENABLED)
+					}
+				]
 			});
 		}
 
