@@ -13,7 +13,22 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ISCMService, ISCMResource } from '../../scm/common/scm.js';
 import { IChatService } from '../common/chatService/chatService.js';
 import { IChatModel, IExportableRepoData, IExportableRepoDiff } from '../common/model/chatModel.js';
-import { getRemotes } from '../../../../platform/extensionManagement/common/configRemotes.js';
+/**
+ * Regex to match `url = <remote-url>` lines in git config.
+ */
+const RemoteMatcher = /^\s*url\s*=\s*(.+\S)\s*$/mg;
+
+/**
+ * Extracts raw remote URLs from git config content.
+ */
+function getRawRemotes(text: string): string[] {
+	const remotes: string[] = [];
+	let match: RegExpExecArray | null;
+	while (match = RemoteMatcher.exec(text)) {
+		remotes.push(match[1]);
+	}
+	return remotes;
+}
 
 /**
  * Extracts a hostname from a git remote URL.
@@ -32,11 +47,19 @@ function getRemoteHost(remoteUrl: string): string | undefined {
 		const atIndex = remoteUrl.lastIndexOf('@');
 		const hostAndPath = atIndex !== -1 ? remoteUrl.slice(atIndex + 1) : remoteUrl;
 		const colonIndex = hostAndPath.indexOf(':');
-		if (colonIndex === -1) {
-			return undefined;
+		if (colonIndex !== -1) {
+			const host = hostAndPath.slice(0, colonIndex);
+			return host ? host.toLowerCase() : undefined;
 		}
-		const host = hostAndPath.slice(0, colonIndex);
-		return host ? host.toLowerCase() : undefined;
+
+		// Fallback for hostname/path format without scheme (e.g., devdiv.visualstudio.com/...)
+		const slashIndex = hostAndPath.indexOf('/');
+		if (slashIndex !== -1) {
+			const host = hostAndPath.slice(0, slashIndex);
+			return host ? host.toLowerCase() : undefined;
+		}
+
+		return undefined;
 	}
 }
 
@@ -214,7 +237,7 @@ export async function captureRepoInfo(scmService: ISCMService, fileService: IFil
 		const exists = await fileService.exists(gitConfigUri);
 		if (exists) {
 			const content = await fileService.readFile(gitConfigUri);
-			const remotes = getRemotes(content.value.toString());
+			const remotes = getRawRemotes(content.value.toString());
 			remoteUrl = remotes[0];
 		}
 	} catch {
