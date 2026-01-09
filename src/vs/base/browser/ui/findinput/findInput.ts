@@ -43,7 +43,7 @@ export interface IFindInputOptions {
 	readonly inputBoxStyles: IInputBoxStyles;
 	readonly history?: IHistory<string>;
 	readonly hoverLifecycleOptions?: IHoverLifecycleOptions;
-	readonly hideHoverOnKeyDown?: boolean;
+	readonly hideHoverOnValueChange?: boolean;
 }
 
 const NLS_DEFAULT_LABEL = nls.localize('defaultLabel', "input");
@@ -120,7 +120,7 @@ export class FindInput extends Widget {
 			history: options.history,
 			actions: options.actions,
 			actionViewItemProvider: options.actionViewItemProvider,
-			hideHoverOnKeyDown: options.hideHoverOnKeyDown
+			hideHoverOnValueChange: options.hideHoverOnValueChange
 		}));
 
 		if (this.showCommonFindToggles) {

@@ -35,7 +35,7 @@ export class QuickInputBox extends Disposable {
 				inputBoxStyles,
 				toggleStyles,
 				actionViewItemProvider: createToggleActionViewItemProvider(toggleStyles),
-				hideHoverOnKeyDown: true
+				hideHoverOnValueChange: true
 			}));
 		const input = this.findInput.inputBox.inputElement;
 		input.role = 'textbox';
