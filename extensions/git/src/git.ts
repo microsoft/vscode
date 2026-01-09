@@ -390,6 +390,7 @@ export class Git {
 	readonly userAgent: string;
 	readonly version: string;
 	readonly env: { [key: string]: string };
+	private scalarPath: string | undefined;
 
 	private commandsToLog: string[] = [];
 
@@ -420,12 +421,115 @@ export class Git {
 	}
 
 	async isScalarAvailable(): Promise<boolean> {
+		if (!this.path) {
+			return false;
+		}
+
 		try {
-			const result = await this.exec('.', ['scalar', '--version']);
-			return !!result.stdout.trim();
+			// Scalar is a standalone executable, typically in the same directory as git
+			// For Git for Windows, it's in the same 'cmd' directory
+			const gitDir = path.dirname(this.path);
+			const scalarPath = path.join(gitDir, isWindows ? 'scalar.exe' : 'scalar');
+
+			// Check if scalar exists in git directory
+			const scalarExists = await new Promise<boolean>((resolve) => {
+				exists(scalarPath, resolve);
+			});
+
+			if (!scalarExists) {
+				// Try to find scalar in PATH as fallback
+				try {
+					const scalarInPath = await which(isWindows ? 'scalar.exe' : 'scalar');
+					const isValid = await this.verifyScalarExecutable(scalarInPath);
+					if (isValid) {
+						this.scalarPath = scalarInPath;
+					}
+					return isValid;
+				} catch {
+					return false;
+				}
+			}
+
+			const result = await this.verifyScalarExecutable(scalarPath);
+			if (result) {
+				this.scalarPath = scalarPath;
+			}
+			return result;
 		} catch (err) {
 			return false;
 		}
+	}
+
+	private async verifyScalarExecutable(scalarPath: string): Promise<boolean> {
+		return new Promise<boolean>((resolve) => {
+			const child = cp.spawn(scalarPath, ['version'], { timeout: 5000 });
+			let hasOutput = false;
+
+			child.stdout?.on('data', () => {
+				hasOutput = true;
+			});
+
+			child.stderr?.on('data', () => {
+				hasOutput = true;  // Scalar outputs to stderr
+			});
+
+			child.on('error', () => {
+				resolve(false);
+			});
+
+			child.on('close', (code) => {
+				resolve(code === 0 && hasOutput);
+			});
+		});
+	}
+
+	private async execScalar(args: string[], options: SpawnOptions = {}): Promise<IExecutionResult<string>> {
+		if (!this.scalarPath) {
+			throw new Error('Scalar executable not found');
+		}
+
+		options.env = assign({}, process.env, this.env, options.env || {});
+
+		const cwd = this.getCwd(options);
+		if (cwd) {
+			options.cwd = sanitizePath(cwd);
+		}
+
+		const child = cp.spawn(this.scalarPath, args, options);
+
+		if (options.onSpawn) {
+			options.onSpawn(child);
+		}
+
+		if (options.input) {
+			child.stdin!.end(options.input, 'utf8');
+		}
+
+		const bufferResult = await exec(child, options.cancellationToken);
+
+		const result: IExecutionResult<string> = {
+			exitCode: bufferResult.exitCode,
+			stdout: bufferResult.stdout.toString('utf8'),
+			stderr: bufferResult.stderr
+		};
+
+		if (options.log !== false) {
+			this.log(`> scalar ${args.join(' ')} (exit code: ${result.exitCode})\\n${result.stderr}${result.stdout}`);
+		}
+
+		if (bufferResult.exitCode) {
+			return Promise.reject<IExecutionResult<string>>(new GitError({
+				message: 'Failed to execute scalar',
+				stdout: result.stdout,
+				stderr: result.stderr,
+				exitCode: result.exitCode,
+				gitErrorCode: getGitErrorCode(result.stderr),
+				gitCommand: args[0],
+				gitArgs: args
+			}));
+		}
+
+		return result;
 	}
 
 	open(repositoryRoot: string, repositoryRootRealPath: string | undefined, dotGit: IDotGit, logger: LogOutputChannel): Repository {
@@ -486,7 +590,7 @@ export class Git {
 		try {
 			if (options.useScalar) {
 				// Use scalar clone for better performance on large repositories
-				const command = ['scalar', 'clone'];
+				const command = ['clone'];
 
 				// Add scalar options - can be combined
 				if (options.scalarOptions) {
@@ -500,7 +604,8 @@ export class Git {
 				}
 				command.push(url.includes(' ') ? encodeURI(url) : url);
 				command.push(folderPath);
-				await this.exec(options.parentPath, command, {
+				await this.execScalar(command, {
+					cwd: options.parentPath,
 					cancellationToken,
 					env: { 'GIT_HTTP_USER_AGENT': this.userAgent },
 					onSpawn,
