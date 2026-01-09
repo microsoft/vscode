@@ -752,9 +752,12 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 			newWidth = Math.max(sideBySideMinWidth, lastWidthForOrientation || Math.round(layoutService.mainContainerDimension.width / 2));
 
 			// If the main container width is not sufficient for side-by-side and
-			// the primary sidebar is visible, hide it to make more room
+			// the primary sidebar is visible, hide it to make more room (if that provides enough space)
 			if (layoutService.mainContainerDimension.width < newWidth && layoutService.isVisible(Parts.SIDEBAR_PART)) {
-				layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
+				const sidebarSize = layoutService.getSize(Parts.SIDEBAR_PART);
+				if (layoutService.mainContainerDimension.width + sidebarSize.width >= newWidth) {
+					layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
+				}
 			}
 		} else {
 			newWidth = lastWidthForOrientation || Math.max(chatViewDefaultWidth, currentSize.width - sessionsViewDefaultWidth);
