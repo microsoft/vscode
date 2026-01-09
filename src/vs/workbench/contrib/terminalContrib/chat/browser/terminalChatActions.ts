@@ -15,7 +15,7 @@ import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js
 import { IChatService } from '../../../chat/common/chatService/chatService.js';
 import { LocalChatSessionUri } from '../../../chat/common/model/chatUri.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../chat/common/constants.js';
-import { AbstractInline1ChatAction } from '../../../inlineChat/browser/inlineChatActions.js';
+
 import { isDetachedTerminalInstance, ITerminalChatService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../terminal/browser/terminal.js';
 import { registerActiveXtermAction } from '../../../terminal/browser/terminalActions.js';
 import { TerminalContextMenuGroup } from '../../../terminal/browser/terminalMenus.js';
@@ -32,6 +32,7 @@ import { IPreferencesService, IOpenSettingsOptions } from '../../../../services/
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { TerminalChatAgentToolsSettingId } from '../../chatAgentTools/common/terminalChatAgentToolsConfiguration.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
+import { AbstractInlineChatAction } from '../../../inlineChat/browser/inlineChatActions.js';
 
 registerActiveXtermAction({
 	id: TerminalChatCommandId.Start,
@@ -86,7 +87,7 @@ registerActiveXtermAction({
 registerActiveXtermAction({
 	id: TerminalChatCommandId.Close,
 	title: localize2('closeChat', 'Close'),
-	category: AbstractInline1ChatAction.category,
+	category: AbstractInlineChatAction.category,
 	keybinding: {
 		primary: KeyCode.Escape,
 		when: ContextKeyExpr.and(
@@ -119,7 +120,7 @@ registerActiveXtermAction({
 	id: TerminalChatCommandId.RunCommand,
 	title: localize2('runCommand', 'Run Chat Command'),
 	shortTitle: localize2('run', 'Run'),
-	category: AbstractInline1ChatAction.category,
+	category: AbstractInlineChatAction.category,
 	precondition: ContextKeyExpr.and(
 		ChatContextKeys.enabled,
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
@@ -152,7 +153,7 @@ registerActiveXtermAction({
 	id: TerminalChatCommandId.RunFirstCommand,
 	title: localize2('runFirstCommand', 'Run First Chat Command'),
 	shortTitle: localize2('runFirst', 'Run First'),
-	category: AbstractInline1ChatAction.category,
+	category: AbstractInlineChatAction.category,
 	precondition: ContextKeyExpr.and(
 		ChatContextKeys.enabled,
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
@@ -184,7 +185,7 @@ registerActiveXtermAction({
 	id: TerminalChatCommandId.InsertCommand,
 	title: localize2('insertCommand', 'Insert Chat Command'),
 	shortTitle: localize2('insert', 'Insert'),
-	category: AbstractInline1ChatAction.category,
+	category: AbstractInlineChatAction.category,
 	icon: Codicon.insert,
 	precondition: ContextKeyExpr.and(
 		ChatContextKeys.enabled,
@@ -218,7 +219,7 @@ registerActiveXtermAction({
 	id: TerminalChatCommandId.InsertFirstCommand,
 	title: localize2('insertFirstCommand', 'Insert First Chat Command'),
 	shortTitle: localize2('insertFirst', 'Insert First'),
-	category: AbstractInline1ChatAction.category,
+	category: AbstractInlineChatAction.category,
 	precondition: ContextKeyExpr.and(
 		ChatContextKeys.enabled,
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
@@ -251,7 +252,7 @@ registerActiveXtermAction({
 	title: localize2('chat.rerun.label', "Rerun Request"),
 	f1: false,
 	icon: Codicon.refresh,
-	category: AbstractInline1ChatAction.category,
+	category: AbstractInlineChatAction.category,
 	precondition: ContextKeyExpr.and(
 		ChatContextKeys.enabled,
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
@@ -293,7 +294,7 @@ registerActiveXtermAction({
 registerActiveXtermAction({
 	id: TerminalChatCommandId.ViewInChat,
 	title: localize2('viewInChat', 'View in Chat'),
-	category: AbstractInline1ChatAction.category,
+	category: AbstractInlineChatAction.category,
 	precondition: ContextKeyExpr.and(
 		ChatContextKeys.enabled,
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),

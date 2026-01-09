@@ -154,6 +154,7 @@ Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess).registerQui
 	ctor: AgentSessionsQuickAccessProvider,
 	prefix: AGENT_SESSIONS_QUICK_ACCESS_PREFIX,
 	contextKey: 'inAgentSessionsPicker',
+	when: ChatContextKeys.enabled,
 	placeholder: localize('agentSessionsQuickAccessPlaceholder', "Search agent sessions by name"),
 	helpEntries: [{
 		description: localize('agentSessionsQuickAccessHelp', "Show All Agent Sessions"),
