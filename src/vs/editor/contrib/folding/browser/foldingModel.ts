@@ -5,9 +5,11 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IModelDecorationOptions, IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel } from '../../../common/model.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { FoldingRegion, FoldingRegions, ILineRange, FoldRange, FoldSource } from './foldingRanges.js';
 import { hash } from '../../../../base/common/hash.js';
 import { SelectedLines } from './folding.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
 
 export interface IDecorationProvider {
 	getDecorationOption(isCollapsed: boolean, isHidden: boolean, isManual: boolean): IModelDecorationOptions;
@@ -31,6 +33,7 @@ export type CollapseMemento = ILineMemento[];
 export class FoldingModel {
 	private readonly _textModel: ITextModel;
 	private readonly _decorationProvider: IDecorationProvider;
+	private readonly editor: ICodeEditor;
 
 	private _regions: FoldingRegions;
 	private _editorDecorationIds: string[];
@@ -42,11 +45,12 @@ export class FoldingModel {
 	public get textModel() { return this._textModel; }
 	public get decorationProvider() { return this._decorationProvider; }
 
-	constructor(textModel: ITextModel, decorationProvider: IDecorationProvider) {
+	constructor(textModel: ITextModel, decorationProvider: IDecorationProvider, editor: ICodeEditor) {
 		this._textModel = textModel;
 		this._decorationProvider = decorationProvider;
 		this._regions = new FoldingRegions(new Uint32Array(0), new Uint32Array(0));
 		this._editorDecorationIds = [];
+		this.editor = editor;
 	}
 
 	public toggleCollapseState(toggledRegions: FoldingRegion[]) {
@@ -60,6 +64,7 @@ export class FoldingModel {
 			let k = 0; // index from [0 ... this.regions.length]
 			let dirtyRegionEndLine = -1; // end of the range where decorations need to be updated
 			let lastHiddenLine = -1; // the end of the last hidden lines
+			let isNewlineNeededAtEnd: boolean = false;
 			const updateDecorationsUntil = (index: number) => {
 				while (k < index) {
 					const endLineNumber = this._regions.getEndLineNumber(k);
@@ -86,8 +91,33 @@ export class FoldingModel {
 					this._regions.setCollapsed(index, newCollapseState);
 
 					dirtyRegionEndLine = Math.max(dirtyRegionEndLine, this._regions.getEndLineNumber(index));
+
+					// If isNewlineNeededAtEnd is already true, we can skip this check
+					if (!isNewlineNeededAtEnd && this.editor.getOption(EditorOption.foldingAddNewlineAtEnd) && newCollapseState && dirtyRegionEndLine === this._textModel.getLineCount()) {
+						const lastLineContent = this._textModel.getLineContent(dirtyRegionEndLine);
+						// Only insert a newline if the last line is not already empty
+						if (lastLineContent.trim().length > 0) {
+							this._textModel.pushEditOperations(
+								null,
+								[{
+									range: {
+										startLineNumber: dirtyRegionEndLine,
+										startColumn: lastLineContent.length + 1,
+										endLineNumber: dirtyRegionEndLine,
+										endColumn: lastLineContent.length + 1,
+									},
+									text: this._textModel.getEOL(),
+									forceMoveMarkers: true
+								}],
+								() => null
+							);
+						}
+					}
+					isNewlineNeededAtEnd = true;
 				}
 			}
+
+
 			updateDecorationsUntil(this._regions.length);
 		});
 		this._updateEventEmitter.fire({ model: this, collapseStateChanged: toggledRegions });

@@ -693,6 +693,11 @@ export interface IEditorOptions {
 	 */
 	foldingMaximumRegions?: number;
 	/**
+	 * Controls whether to add a new line character when folding the last line of a file.
+	 * Defaults to true.
+	 */
+	foldingAddNewlineAtEnd?: boolean;
+	/**
 	 * Controls whether the fold actions in the gutter stay always visible or hide unless the mouse is over the gutter.
 	 * Defaults to 'mouseover'.
 	 */
@@ -5780,6 +5785,7 @@ export const enum EditorOption {
 	foldingHighlight,
 	foldingImportsByDefault,
 	foldingMaximumRegions,
+	foldingAddNewlineAtEnd,
 	unfoldOnClickAfterEndOfLine,
 	fontFamily,
 	fontInfo,
@@ -6275,6 +6281,10 @@ export const EditorOptions = {
 		EditorOption.foldingMaximumRegions, 'foldingMaximumRegions',
 		5000, 10, 65000, // limit must be less than foldingRanges MAX_FOLDING_REGIONS
 		{ description: nls.localize('foldingMaximumRegions', "The maximum number of foldable regions. Increasing this value may result in the editor becoming less responsive when the current source has a large number of foldable regions.") }
+	)),
+	foldingAddNewlineAtEnd: register(new EditorBooleanOption(
+		EditorOption.foldingAddNewlineAtEnd, 'foldingAddNewlineAtEnd', true,
+		{ description: nls.localize('foldingAddNewlineAtEnd', "Controls whether a new line character is added when folding the last line of a file.") }
 	)),
 	unfoldOnClickAfterEndOfLine: register(new EditorBooleanOption(
 		EditorOption.unfoldOnClickAfterEndOfLine, 'unfoldOnClickAfterEndOfLine', false,
