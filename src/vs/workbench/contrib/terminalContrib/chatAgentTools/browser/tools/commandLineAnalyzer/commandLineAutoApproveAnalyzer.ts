@@ -211,12 +211,13 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 					isAutoApproveRule(e.rule))
 				.map(e => {
 					// Session rules cannot be actioned currently so no link
+					const escapedSourceText = e.rule.sourceText.replaceAll('$', '\\$');
 					if (e.rule.sourceTarget === 'session') {
-						return localize('autoApproveRule.sessionIndicator', '{0} (session)', `\`${e.rule.sourceText}\``);
+						return localize('autoApproveRule.sessionIndicator', '{0} (session)', `\`${escapedSourceText}\``);
 					}
 					const settingsUri = createCommandUri(TerminalChatCommandId.OpenTerminalSettingsLink, e.rule.sourceTarget);
 					const tooltip = localize('ruleTooltip', 'View rule in settings');
-					let label = e.rule.sourceText;
+					let label = escapedSourceText;
 					switch (e.rule?.sourceTarget) {
 						case ConfigurationTarget.DEFAULT:
 							label = `${label} (default)`;

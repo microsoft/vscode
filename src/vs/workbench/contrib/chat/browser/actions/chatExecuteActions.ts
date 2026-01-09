@@ -208,67 +208,6 @@ export class ChatSubmitAction extends SubmitAction {
 	}
 }
 
-export class ChatDelegateToEditSessionAction extends Action2 {
-	static readonly ID = 'workbench.action.chat.delegateToEditSession';
-
-	constructor() {
-		super({
-			id: ChatDelegateToEditSessionAction.ID,
-			title: localize2('interactive.submit.panel.label', "Send to Edit Session"),
-			f1: false,
-			category: CHAT_CATEGORY,
-			icon: Codicon.commentDiscussion,
-			keybinding: {
-				when: ContextKeyExpr.and(
-					ChatContextKeys.inChatInput,
-					ChatContextKeys.withinEditSessionDiff,
-				),
-				primary: KeyCode.Enter,
-				weight: KeybindingWeight.EditorContrib
-			},
-			menu: [
-				{
-					id: MenuId.ChatExecute,
-					order: 4,
-					when: ContextKeyExpr.and(
-						whenNotInProgress,
-						ChatContextKeys.withinEditSessionDiff,
-					),
-					group: 'navigation',
-				}
-			]
-		});
-	}
-
-	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
-		const context = args[0] as IChatExecuteActionContext | undefined;
-		const widgetService = accessor.get(IChatWidgetService);
-		const inlineWidget = context?.widget ?? widgetService.lastFocusedWidget;
-		const locationData = inlineWidget?.locationData;
-
-		if (inlineWidget && locationData?.type === ChatAgentLocation.EditorInline && locationData.delegateSessionResource) {
-			const sessionWidget = widgetService.getWidgetBySessionResource(locationData.delegateSessionResource);
-
-			if (sessionWidget) {
-				await widgetService.reveal(sessionWidget);
-				sessionWidget.attachmentModel.addContext({
-					id: 'vscode.delegate.inline',
-					kind: 'file',
-					modelDescription: `User's chat context`,
-					name: 'delegate-inline',
-					value: { range: locationData.wholeRange, uri: locationData.document },
-				});
-				sessionWidget.acceptInput(inlineWidget.getInput(), {
-					noCommandDetection: true,
-					enableImplicitContext: false,
-				});
-
-				inlineWidget.setInput('');
-				locationData.close();
-			}
-		}
-	}
-}
 
 export const ToggleAgentModeActionId = 'workbench.action.chat.toggleAgentMode';
 
@@ -807,7 +746,6 @@ export class CancelEdit extends Action2 {
 
 export function registerChatExecuteActions() {
 	registerAction2(ChatSubmitAction);
-	registerAction2(ChatDelegateToEditSessionAction);
 	registerAction2(ChatEditingSessionSubmitAction);
 	registerAction2(SubmitWithoutDispatchingAction);
 	registerAction2(CancelAction);

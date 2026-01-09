@@ -15,7 +15,7 @@
 	border-radius: 5px;
 	background-color: var(--vscode-menu-background);
 	color: var(--vscode-menu-foreground);
-	padding: 4px 0;
+	padding: 4px;
 	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
 }
 
@@ -57,11 +57,10 @@
 /** Styles for each row in the list element **/
 .action-widget .monaco-list .monaco-list-row {
 	padding: 0 4px 0 4px;
-	margin: 0 4px 0 4px;
 	white-space: nowrap;
 	cursor: pointer;
 	touch-action: none;
-	width: calc(100% - 8px);
+	width: 100%;
 	border-radius: 3px;
 }
 
@@ -168,7 +167,7 @@
 }
 
 .action-widget .action-widget-action-bar .actions-container {
-	padding: 4px 8px 2px 28px;
+	padding: 4px 8px 2px 24px;
 	width: auto;
 }
 

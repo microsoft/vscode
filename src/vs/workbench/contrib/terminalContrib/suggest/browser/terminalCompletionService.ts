@@ -339,6 +339,15 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 							return undefined;
 						}
 					}
+				} else {
+					// `./` by itself means the current directory, use cwd directly to avoid
+					// trailing slash issues with URI.joinPath on some remote file systems.
+					try {
+						await this._fileService.stat(cwd);
+						lastWordFolderResource = cwd;
+					} catch {
+						return undefined;
+					}
 				}
 			}
 
@@ -368,7 +377,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			case 'tilde': {
 				const home = this._getHomeDir(useWindowsStylePath, capabilities);
 				if (home) {
-					lastWordFolderResource = URI.joinPath(URI.file(home), lastWordFolder.slice(1).replaceAll('\\ ', ' '));
+					lastWordFolderResource = URI.joinPath(createUriFromLocalPath(cwd, home), lastWordFolder.slice(1).replaceAll('\\ ', ' '));
 				}
 				if (!lastWordFolderResource) {
 					// Use less strong wording here as it's not as strong of a concept on Windows
@@ -381,9 +390,9 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			}
 			case 'absolute': {
 				if (shellType === WindowsShellType.GitBash) {
-					lastWordFolderResource = URI.file(gitBashToWindowsPath(lastWordFolder, this._processEnv.SystemDrive));
+					lastWordFolderResource = createUriFromLocalPath(cwd, gitBashToWindowsPath(lastWordFolder, this._processEnv.SystemDrive));
 				} else {
-					lastWordFolderResource = URI.file(lastWordFolder.replaceAll('\\ ', ' '));
+					lastWordFolderResource = createUriFromLocalPath(cwd, lastWordFolder.replaceAll('\\ ', ' '));
 				}
 				break;
 			}
@@ -549,7 +558,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 						const cdPathEntries = cdPath.split(useWindowsStylePath ? ';' : ':');
 						for (const cdPathEntry of cdPathEntries) {
 							try {
-								const fileStat = await this._fileService.resolve(URI.file(cdPathEntry), { resolveSingleChildDescendants: true });
+								const fileStat = await this._fileService.resolve(createUriFromLocalPath(cwd, cdPathEntry), { resolveSingleChildDescendants: true });
 								if (fileStat?.children) {
 									for (const child of fileStat.children) {
 										if (!child.isDirectory) {
@@ -610,7 +619,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			let homeResource: URI | string | undefined;
 			const home = this._getHomeDir(useWindowsStylePath, capabilities);
 			if (home) {
-				homeResource = URI.joinPath(URI.file(home), lastWordFolder.slice(1).replaceAll('\\ ', ' '));
+				homeResource = createUriFromLocalPath(cwd, home);
 			}
 			if (!homeResource) {
 				// Use less strong wording here as it's not as strong of a concept on Windows
@@ -684,4 +693,16 @@ function getIsAbsolutePath(shellType: TerminalShellType | undefined, pathSeparat
 		return lastWord.startsWith(pathSeparator) || /^[a-zA-Z]:\//.test(lastWord);
 	}
 	return useWindowsStylePath ? /^[a-zA-Z]:[\\\/]/.test(lastWord) : lastWord.startsWith(pathSeparator);
+}
+
+/**
+ * Creates a URI from an absolute path, preserving the scheme and authority from the cwd.
+ * For local file:// URIs, uses URI.file() which handles Windows path normalization.
+ * For remote URIs (e.g., vscode-remote://wsl+Ubuntu), preserves the remote context.
+ */
+function createUriFromLocalPath(cwd: URI, absolutePath: string): URI {
+	if (cwd.scheme === 'file') {
+		return URI.file(absolutePath);
+	}
+	return cwd.with({ path: absolutePath });
 }
