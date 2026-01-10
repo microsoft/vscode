@@ -286,7 +286,13 @@ registerTerminalAction({
 		id: MenuId.MenubarTerminalSuggestStatusMenu,
 		group: 'left',
 		order: 1,
-		when: ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.SelectionMode}`, 'never')
+		when: ContextKeyExpr.and(
+			ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.SelectionMode}`, 'never'),
+			ContextKeyExpr.or(
+				ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.QuickSuggestions}`, true),
+				ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.SuggestOnTriggerCharacters}`, true),
+			)
+		)
 	},
 	run: (c, accessor) => {
 		accessor.get(IConfigurationService).updateValue(TerminalSuggestSettingId.SelectionMode, 'partial');
@@ -308,7 +314,13 @@ registerTerminalAction({
 		id: MenuId.MenubarTerminalSuggestStatusMenu,
 		group: 'left',
 		order: 1,
-		when: ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.SelectionMode}`, 'partial')
+		when: ContextKeyExpr.and(
+			ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.SelectionMode}`, 'partial'),
+			ContextKeyExpr.or(
+				ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.QuickSuggestions}`, true),
+				ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.SuggestOnTriggerCharacters}`, true),
+			)
+		)
 	},
 	run: (c, accessor) => {
 		accessor.get(IConfigurationService).updateValue(TerminalSuggestSettingId.SelectionMode, 'always');
@@ -324,7 +336,13 @@ registerTerminalAction({
 		id: MenuId.MenubarTerminalSuggestStatusMenu,
 		group: 'left',
 		order: 1,
-		when: ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.SelectionMode}`, 'always')
+		when: ContextKeyExpr.and(
+			ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.SelectionMode}`, 'always'),
+			ContextKeyExpr.or(
+				ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.QuickSuggestions}`, true),
+				ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.SuggestOnTriggerCharacters}`, true),
+			)
+		)
 	},
 	run: (c, accessor) => {
 		accessor.get(IConfigurationService).updateValue(TerminalSuggestSettingId.SelectionMode, 'never');
@@ -536,7 +554,8 @@ registerActiveInstanceAction({
 	},
 	{
 		primary: KeyCode.Enter,
-		when: ContextKeyExpr.and(SimpleSuggestContext.HasFocusedSuggestion, ContextKeyExpr.or(ContextKeyExpr.notEquals(`config.${TerminalSuggestSettingId.SelectionMode}`, 'partial'), ContextKeyExpr.or(SimpleSuggestContext.FirstSuggestionFocused.toNegated(), SimpleSuggestContext.HasNavigated))),
+		// Enter accepts when: explicitly invoked (ctrl+space), OR not in partial mode, OR not first suggestion, OR user has navigated
+		when: ContextKeyExpr.and(SimpleSuggestContext.HasFocusedSuggestion, ContextKeyExpr.or(SimpleSuggestContext.ExplicitlyInvoked, ContextKeyExpr.notEquals(`config.${TerminalSuggestSettingId.SelectionMode}`, 'partial'), SimpleSuggestContext.FirstSuggestionFocused.toNegated(), SimpleSuggestContext.HasNavigated)),
 		weight: KeybindingWeight.WorkbenchContrib + 1
 	}],
 	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.acceptSelectedSuggestion()

@@ -1178,6 +1178,8 @@ class AdditionalDetailsWidget extends Disposable {
 			);
 			if (isNative && extension.source === 'resource' && extension.location.scheme === Schemas.file) {
 				element.classList.add('link');
+				element.tabIndex = 0;
+				element.setAttribute('role', 'link');
 				element.title = extension.location.fsPath;
 				this.disposables.add(onClick(element, () => this.openerService.open(extension.location, { openExternal: true })));
 			}
@@ -1192,6 +1194,8 @@ class AdditionalDetailsWidget extends Disposable {
 			);
 			if (isNative && extension.location.scheme === Schemas.file) {
 				element.classList.add('link');
+				element.tabIndex = 0;
+				element.setAttribute('role', 'link');
 				element.title = extension.location.fsPath;
 				this.disposables.add(onClick(element, () => this.openerService.open(extension.location, { openExternal: true })));
 			}
@@ -1212,6 +1216,8 @@ class AdditionalDetailsWidget extends Disposable {
 				);
 				if (isNative && extension.location.scheme === Schemas.file) {
 					element.classList.add('link');
+					element.tabIndex = 0;
+					element.setAttribute('role', 'link');
 					element.title = cacheLocation.fsPath;
 					this.disposables.add(onClick(element, () => this.openerService.open(cacheLocation.with({ scheme: Schemas.file }), { openExternal: true })));
 				}

@@ -5,6 +5,7 @@
   "dependencies": {
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
+    "@parcel/watcher": "parcel-bundler/watcher#7a9a5d6af0ce2a4d9b892cab3abb3a464373b105",
     "@vscode/deviceid": "^0.1.1",
     "@vscode/iconv-lite-umd": "0.7.1",
     "@vscode/proxy-agent": "^0.36.0",
@@ -12,7 +13,6 @@
     "@vscode/spdlog": "^0.15.2",
     "@vscode/tree-sitter-wasm": "^0.3.0",
     "@vscode/vscode-languagedetection": "1.0.21",
-    "@vscode/watcher": "bpasero/watcher#8ecffb4a57df24ac3e6946aa095b9b1f14f8bba9",
     "@vscode/windows-process-tree": "^0.6.0",
     "@vscode/windows-registry": "^1.1.0",
     "@xterm/addon-clipboard": "^0.3.0-beta.91",

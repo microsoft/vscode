@@ -251,8 +251,8 @@ export class ChatMcpAppModel extends Disposable {
 
 		const cspContent = `
 			default-src 'none';
-			script-src 'self' 'unsafe-inline';
-			style-src 'self' 'unsafe-inline';
+			script-src 'self' 'unsafe-inline' ${cleanDomains(csp?.resourceDomains)};
+			style-src 'self' 'unsafe-inline' ${cleanDomains(csp?.resourceDomains)};
 			connect-src 'self' ${cleanDomains(csp?.connectDomains)};
 			img-src 'self' data: ${cleanDomains(csp?.resourceDomains)};
 			font-src 'self' ${cleanDomains(csp?.resourceDomains)};
@@ -283,10 +283,19 @@ export class ChatMcpAppModel extends Disposable {
 
 				const wrappedFns = new WeakMap();
 
+				let patchedPostMessage = (message, transfer) => api.postMessage(message, transfer);
 				const wrap = target => new Proxy(target, {
+					set: (obj, prop, value) => {
+						if (prop === 'postMessage') {
+							patchedPostMessage = (message, transfer) => value.call(target, message, transfer);
+						} else {
+							obj[prop] = value;
+						}
+						return true;
+					},
 					get: (obj, prop) => {
 						if (prop === 'postMessage') {
-							return (message, transfer) => api.postMessage(message, transfer);
+							return patchedPostMessage;
 						}
 						return obj[prop];
 					},
