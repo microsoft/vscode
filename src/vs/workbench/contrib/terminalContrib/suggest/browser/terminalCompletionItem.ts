@@ -5,7 +5,6 @@
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { basename } from '../../../../../base/common/path.js';
-import { isWindows } from '../../../../../base/common/platform.js';
 import { CompletionItem, CompletionItemKind, CompletionItemProvider } from '../../../../../editor/common/languages.js';
 import { ISimpleCompletion, SimpleCompletionItem } from '../../../../services/suggest/browser/simpleCompletionItem.js';
 
@@ -123,9 +122,21 @@ export class TerminalCompletionItem extends SimpleCompletionItem {
 	resolveCache?: Promise<void>;
 
 	constructor(
-		override readonly completion: ITerminalCompletion
+		override readonly completion: ITerminalCompletion,
+		/**
+		 * The path separator used by the terminal. When provided, this is used instead of the
+		 * local platform's path separator for path normalization. This is important for remote
+		 * scenarios (e.g., WSL) where the remote OS may use different path separators than the
+		 * local OS.
+		 */
+		pathSeparator?: string
 	) {
 		super(completion);
+
+		// Use provided pathSeparator to determine if we should use Windows-style paths.
+		// Default to Unix-style (/) since it works on all platforms and is safer for remote
+		// scenarios where we may not know the remote OS yet.
+		const useWindowsStylePath = pathSeparator === '\\';
 
 		// ensure lower-variants (perf)
 		this.labelLowExcludeFileExt = this.labelLow;
@@ -135,7 +146,7 @@ export class TerminalCompletionItem extends SimpleCompletionItem {
 		// documentation for now, but this would be better to come in through a `kind`
 		// See https://github.com/microsoft/vscode/issues/255864
 		if (isFile(completion) || completion.kind === TerminalCompletionItemKind.Branch) {
-			if (isWindows) {
+			if (useWindowsStylePath) {
 				this.labelLow = this.labelLow.replaceAll('/', '\\');
 			}
 		}
@@ -150,7 +161,7 @@ export class TerminalCompletionItem extends SimpleCompletionItem {
 		}
 
 		if (isFile(completion) || completion.kind === TerminalCompletionItemKind.Folder) {
-			if (isWindows) {
+			if (useWindowsStylePath) {
 				this.labelLowNormalizedPath = this.labelLow.replaceAll('\\', '/');
 			}
 			if (completion.kind === TerminalCompletionItemKind.Folder) {

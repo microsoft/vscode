@@ -7,7 +7,6 @@ import type { ITerminalAddon, Terminal } from '@xterm/xterm';
 import * as dom from '../../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { combinedDisposable, Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { sep } from '../../../../../base/common/path.js';
 import { commonPrefixLength } from '../../../../../base/common/strings.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -74,7 +73,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _suggestWidget?: SimpleSuggestWidget<TerminalCompletionModel, TerminalCompletionItem>;
 	private _cachedFontInfo: ISimpleSuggestWidgetFontInfo | undefined;
 	private _enableWidget: boolean = true;
-	private _pathSeparator: string = sep;
+	private _pathSeparator: string | undefined;
 	private _isFilteringDirectories: boolean = false;
 
 	// TODO: Remove these in favor of prompt input state
@@ -344,8 +343,15 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (this._isFilteringDirectories) {
 			const firstDir = completions.find(e => e.kind === TerminalCompletionItemKind.Folder);
 			const textLabel = isString(firstDir?.label) ? firstDir.label : firstDir?.label.label;
-			this._pathSeparator = textLabel?.match(/(?<sep>[\\\/])/)?.groups?.sep ?? sep;
-			normalizedLeadingLineContent = normalizePathSeparator(normalizedLeadingLineContent, this._pathSeparator);
+			// Get path separator from the completion label, which is coming from the extension host
+			// and falling back to the OS-based default
+			const labelSep = textLabel?.match(/(?<sep>[\\\/])/)?.groups?.sep;
+			if (labelSep) {
+				this._pathSeparator = labelSep;
+			}
+			if (this._pathSeparator) {
+				normalizedLeadingLineContent = normalizePathSeparator(normalizedLeadingLineContent, this._pathSeparator);
+			}
 		}
 
 		// Add any "ghost text" suggestion suggested by the shell. This aligns with behavior of the
@@ -366,7 +372,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 
 		const lineContext = new LineContext(normalizedLeadingLineContent, this._cursorIndexDelta);
-		const items = completions.filter(c => !!c.label).map(c => new TerminalCompletionItem(c));
+		const items = completions.filter(c => !!c.label).map(c => new TerminalCompletionItem(c, this._pathSeparator));
 		if (isInlineCompletionSupported(this.shellType)) {
 			items.push(this._inlineCompletionItem);
 		}
@@ -634,7 +640,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (this._terminalSuggestWidgetVisibleContextKey.get()) {
 			this._cursorIndexDelta = this._currentPromptInputState.cursorIndex - (this._requestedCompletionsIndex);
 			let normalizedLeadingLineContent = this._currentPromptInputState.value.substring(0, this._requestedCompletionsIndex + this._cursorIndexDelta);
-			if (this._isFilteringDirectories) {
+			if (this._isFilteringDirectories && this._pathSeparator) {
 				normalizedLeadingLineContent = normalizePathSeparator(normalizedLeadingLineContent, this._pathSeparator);
 			}
 			const lineContext = new LineContext(normalizedLeadingLineContent, this._cursorIndexDelta);
