@@ -838,8 +838,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 							(isResponseVM(element) ? `_${element.contentReferences.length}` : '') +
 							// Re-render if element becomes hidden due to undo/redo
 							`_${element.shouldBeRemovedOnSend ? `${element.shouldBeRemovedOnSend.afterUndoStop || '1'}` : '0'}` +
-							// Re-render if element becomes enabled/disabled due to checkpointing
-							`_${element.shouldBeBlocked ? '1' : '0'}` +
 							// Re-render if we have an element currently being edited
 							`_${this.viewModel?.editing ? '1' : '0'}` +
 							// Re-render if we have an element currently being checkpointed
@@ -1620,7 +1618,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			for (let i = requests.length - 1; i >= 0; i -= 1) {
 				const request = requests[i];
 				if (request.id === currentElement.id) {
-					request.shouldBeBlocked = false; // unblocking just this request.
+					request.setShouldBeBlocked(false); // unblocking just this request.
 					request.attachedContext?.forEach(addToContext);
 					currentElement.variables.forEach(addToContext);
 				}
