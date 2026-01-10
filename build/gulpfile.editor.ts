@@ -77,7 +77,7 @@ const compileEditorESMTask = task.define('compile-editor-esm', () => {
 				fileHeader: BUNDLED_FILE_HEADER,
 				languages: [...i18n.defaultLanguages, ...i18n.extraLanguages],
 			}))
-			.pipe(filter(['**', '!**/inlineEntryPoint*', '!**/tsconfig.json', '!**/loader.js']))
+			.pipe(filter(['**', '!**/inlineEntryPoint*', '!**/tsconfig.json']))
 			.pipe(gulp.dest(out))
 	);
 });
