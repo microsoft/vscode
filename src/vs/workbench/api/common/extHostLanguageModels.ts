@@ -176,7 +176,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		if (!data) {
 			return [];
 		}
-		const modelInformation: vscode.LanguageModelChatInformation[] = await data.provider.provideLanguageModelChatInformation(options, token) ?? [];
+		const modelInformation: vscode.LanguageModelChatInformation[] = await data.provider.provideLanguageModelChatInformation({ silent: options.silent, configuration: options.configuration }, token) ?? [];
 		const modelMetadataAndIdentifier: ILanguageModelChatMetadataAndIdentifier[] = modelInformation.map((m): ILanguageModelChatMetadataAndIdentifier => {
 			let auth;
 			if (m.requiresAuthorization && isProposedApiEnabled(data.extension, 'chatProvider')) {
@@ -213,7 +213,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 						agentMode: !!m.capabilities.toolCalling
 					} : undefined,
 				},
-				identifier: `${vendor}/${m.id}`,
+				identifier: options.group ? `${vendor}/${options.group}/${m.id}` : `${vendor}/${m.id}`,
 			};
 		});
 

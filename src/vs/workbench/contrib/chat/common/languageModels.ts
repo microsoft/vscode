@@ -269,6 +269,7 @@ export interface ILanguageModelChatMetadataAndIdentifier {
 }
 
 export interface ILanguageModelChatInfoOptions {
+	readonly group?: string;
 	readonly silent: boolean;
 	readonly configuration?: unknown;
 }
@@ -546,12 +547,14 @@ export class LanguageModelsService implements ILanguageModelsService {
 
 		return this._resolveLMSequencer.queue(vendorId, async () => {
 
+			const allModels: ILanguageModelChatMetadataAndIdentifier[] = [];
 			const languageModelsGroups: ILanguageModelsGroup[] = [];
 
 			try {
-				const modelsMetadata = await this._resolveLanguageModels(vendorId, provider, { silent });
-				if (modelsMetadata.length) {
-					languageModelsGroups.push({ models: modelsMetadata });
+				const models = await this._resolveLanguageModels(vendorId, provider, { silent });
+				if (models.length) {
+					allModels.push(...models);
+					languageModelsGroups.push({ models: models.map(m => m.metadata) });
 				}
 			} catch (error) {
 				languageModelsGroups.push({
@@ -572,9 +575,10 @@ export class LanguageModelsService implements ILanguageModelsService {
 				const configuration = await this._resolveConfiguration(group, vendor.configuration);
 
 				try {
-					const modelsMetadata = await this._resolveLanguageModels(vendorId, provider, { silent, configuration });
-					if (modelsMetadata.length) {
-						languageModelsGroups.push({ group, models: modelsMetadata });
+					const models = await this._resolveLanguageModels(vendorId, provider, { group: group.name, silent, configuration });
+					if (models.length) {
+						allModels.push(...models);
+						languageModelsGroups.push({ group, models: models.map(m => m.metadata) });
 					}
 				} catch (error) {
 					languageModelsGroups.push({
@@ -590,36 +594,30 @@ export class LanguageModelsService implements ILanguageModelsService {
 
 			this._modelsGroups.set(vendorId, languageModelsGroups);
 			this._clearModelCache(vendorId);
-			for (const group of languageModelsGroups) {
-				for (const model of group.models) {
-					this._modelCache.set(model.id, model);
-				}
+			for (const model of allModels) {
+				this._modelCache.set(model.identifier, model.metadata);
 			}
 			this._onLanguageModelChange.fire(vendorId);
 		});
 	}
 
-	private async _resolveLanguageModels(vendor: string, provider: ILanguageModelChatProvider, options: ILanguageModelChatInfoOptions): Promise<ILanguageModelChatMetadata[]> {
-		const modelsMetadata: ILanguageModelChatMetadata[] = [];
+	private async _resolveLanguageModels(vendor: string, provider: ILanguageModelChatProvider, options: ILanguageModelChatInfoOptions): Promise<ILanguageModelChatMetadataAndIdentifier[]> {
 		let models = await provider.provideLanguageModelChatInfo(options, CancellationToken.None);
 		if (models.length) {
-
 			// This is a bit of a hack, when prompting user if the provider returns any models that are user selectable then we only want to show those and not the entire model list
 			if (!options.silent && models.some(m => m.metadata.isUserSelectable)) {
 				models = models.filter(m => m.metadata.isUserSelectable || this._modelPickerUserPreferences[m.identifier] === true);
 			}
 
-			for (const { identifier, metadata } of models) {
+			for (const { identifier } of models) {
 				if (this._modelCache.has(identifier)) {
 					this._logService.warn(`[LM] Model ${identifier} is already registered. Skipping.`);
 					continue;
 				}
-				modelsMetadata.push(metadata);
 			}
 			this._logService.trace(`[LM] Resolved language models for vendor ${vendor}`, models);
 		}
-
-		return modelsMetadata;
+		return models;
 	}
 
 	async fetchLanguageModelGroups(vendor: string): Promise<ILanguageModelsGroup[]> {
