@@ -259,6 +259,7 @@ export class TextSearchResultsCollector {
 
 		if (!this._currentFileMatch) {
 			this._currentFolderIdx = folderIdx;
+			this._currentUri = data.uri;
 			this._currentFileMatch = {
 				resource: data.uri,
 				results: []
