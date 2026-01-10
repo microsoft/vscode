@@ -5,6 +5,13 @@
 
 .monaco-workbench .terminal-initial-hint {
 	color: var(--vscode-terminal-initialHintForeground);
+	container-type: inline-size;
+}
+
+@container (max-width: 300px) {
+	.monaco-workbench .terminal-initial-hint > * {
+		display: none !important;
+	}
 }
 
 .monaco-workbench .terminal-initial-hint a {

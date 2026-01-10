@@ -676,34 +676,18 @@ export class Response extends AbstractResponse implements IDisposable {
 			// merge edits for the same file no matter when they come in
 			const notebookUri = CellUri.parse(progress.uri)?.notebook;
 			const uri = notebookUri ?? progress.uri;
-			let found = false;
-			const groupKind = progress.kind === 'textEdit' && !notebookUri ? 'textEditGroup' : 'notebookEditGroup';
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			const edits: any = // TextEdit[] | (ICellTextEditOperation | ICellEditOperation)[] =
-				groupKind === 'textEditGroup' ?
-					progress.edits as TextEdit[] :
-					progress.edits.map(
-						edit => TextEdit.isTextEdit(edit) ?
-							{ uri: progress.uri, edit } satisfies ICellTextEditOperation
-							: edit
-					);
 			const isExternalEdit = progress.isExternalEdit;
-			for (let i = 0; !found && i < this._responseParts.length; i++) {
-				const candidate = this._responseParts[i];
-				if (candidate.kind === groupKind && !candidate.done && isEqual(candidate.uri, uri)) {
-					candidate.edits.push(edits);
-					candidate.done = progress.done;
-					found = true;
-				}
-			}
-			if (!found) {
-				this._responseParts.push({
-					kind: groupKind,
-					uri,
-					edits: [edits],
-					done: progress.done,
-					isExternalEdit,
-				});
+
+			if (progress.kind === 'textEdit' && !notebookUri) {
+				// Text edits to a regular (non-notebook) file
+				this._mergeOrPushTextEditGroup(uri, progress.edits, progress.done, isExternalEdit);
+			} else if (progress.kind === 'textEdit') {
+				// Text edits to a notebook cell - convert to ICellTextEditOperation
+				const cellEdits = progress.edits.map(edit => ({ uri: progress.uri, edit }));
+				this._mergeOrPushNotebookEditGroup(uri, cellEdits, progress.done, isExternalEdit);
+			} else {
+				// Notebook cell edits (ICellEditOperation)
+				this._mergeOrPushNotebookEditGroup(uri, progress.edits, progress.done, isExternalEdit);
 			}
 			this._updateRepr(quiet);
 		} else if (progress.kind === 'progressTask') {
@@ -746,6 +730,28 @@ export class Response extends AbstractResponse implements IDisposable {
 	public addCitation(citation: IChatCodeCitation) {
 		this._citations.push(citation);
 		this._updateRepr();
+	}
+
+	private _mergeOrPushTextEditGroup(uri: URI, edits: TextEdit[], done: boolean | undefined, isExternalEdit: boolean | undefined): void {
+		for (const candidate of this._responseParts) {
+			if (candidate.kind === 'textEditGroup' && !candidate.done && isEqual(candidate.uri, uri)) {
+				candidate.edits.push(edits);
+				candidate.done = done;
+				return;
+			}
+		}
+		this._responseParts.push({ kind: 'textEditGroup', uri, edits: [edits], done, isExternalEdit });
+	}
+
+	private _mergeOrPushNotebookEditGroup(uri: URI, edits: ICellTextEditOperation[] | ICellEditOperation[], done: boolean | undefined, isExternalEdit: boolean | undefined): void {
+		for (const candidate of this._responseParts) {
+			if (candidate.kind === 'notebookEditGroup' && !candidate.done && isEqual(candidate.uri, uri)) {
+				candidate.edits.push(edits);
+				candidate.done = done;
+				return;
+			}
+		}
+		this._responseParts.push({ kind: 'notebookEditGroup', uri, edits: [edits], done, isExternalEdit });
 	}
 
 	protected override _updateRepr(quiet?: boolean) {
