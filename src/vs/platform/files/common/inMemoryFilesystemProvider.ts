@@ -72,8 +72,7 @@ export class InMemoryFileSystemProvider extends Disposable implements
 	setReadOnly(readonly: boolean) {
 		const isReadonly = !!(this._capabilities & FileSystemProviderCapabilities.Readonly);
 		if (readonly !== isReadonly) {
-			this._capabilities = readonly ? FileSystemProviderCapabilities.Readonly | FileSystemProviderCapabilities.PathCaseSensitive | FileSystemProviderCapabilities.FileReadWrite | FileSystemProviderCapabilities.FileAppend
-				: FileSystemProviderCapabilities.FileReadWrite | FileSystemProviderCapabilities.FileAppend | FileSystemProviderCapabilities.PathCaseSensitive;
+			this._capabilities = FileSystemProviderCapabilities.FileReadWrite | FileSystemProviderCapabilities.FileAppend | FileSystemProviderCapabilities.PathCaseSensitive | (readonly ? FileSystemProviderCapabilities.Readonly : 0);
 			this._onDidChangeCapabilities.fire();
 		}
 	}

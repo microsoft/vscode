@@ -625,9 +625,7 @@ export class TestFileService implements IFileService {
 		return createFileStat(resource, this.readonly);
 	}
 
-	appendFile(resource: URI, bufferOrReadableOrStream: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: IWriteFileOptions): Promise<IFileStatWithMetadata> {
-		return Promise.resolve(null!);
-	}
+	appendFile(resource: URI, bufferOrReadableOrStream: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: IWriteFileOptions): Promise<IFileStatWithMetadata> { return Promise.resolve(null!); }
 	move(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStatWithMetadata> { return Promise.resolve(null!); }
 	copy(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStatWithMetadata> { return Promise.resolve(null!); }
 	async cloneFile(_source: URI, _target: URI): Promise<void> { }
