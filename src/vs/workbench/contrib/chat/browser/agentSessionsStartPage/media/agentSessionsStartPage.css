@@ -1,0 +1,396 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.agent-sessions-start-page {
+	width: 100%;
+	height: 100%;
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	background-color: var(--vscode-editor-background);
+	color: var(--vscode-foreground);
+}
+
+.agent-sessions-start-page .content {
+	width: 100%;
+	max-width: 900px;
+	padding: 40px 20px;
+	box-sizing: border-box;
+	overflow-y: auto;
+	flex: 1;
+}
+
+/* Header */
+.agent-sessions-start-page .header {
+	margin-bottom: 10px;
+}
+
+.agent-sessions-start-page .header h1 {
+	font-size: 28px;
+	font-weight: 400;
+	margin: 0 0 20px 0;
+	color: var(--vscode-foreground);
+}
+
+/* Tabs */
+.agent-sessions-start-page .tabs {
+	display: flex;
+	gap: 24px;
+	margin-bottom: 30px;
+	border-bottom: 1px solid var(--vscode-widget-border);
+	padding-bottom: 0;
+}
+
+.agent-sessions-start-page .tabs .tab {
+	padding: 8px 0;
+	font-size: 13px;
+	font-weight: 500;
+	color: var(--vscode-foreground);
+	opacity: 0.7;
+	cursor: pointer;
+	border-bottom: 2px solid transparent;
+	margin-bottom: -1px;
+	background: none;
+	border-top: none;
+	border-left: none;
+	border-right: none;
+}
+
+.agent-sessions-start-page .tabs .tab:hover {
+	opacity: 1;
+}
+
+.agent-sessions-start-page .tabs .tab.active {
+	opacity: 1;
+	border-bottom-color: var(--vscode-focusBorder);
+}
+
+/* Input box - using chat widget */
+.agent-sessions-start-page .chat-widget-container {
+	width: 100%;
+	margin-bottom: 30px;
+	overflow: hidden;
+}
+
+/* Hide the response list and welcome in the chat widget, we only want the input */
+.agent-sessions-start-page .chat-widget-container .interactive-list,
+.agent-sessions-start-page .chat-widget-container .chat-welcome-view-container {
+	display: none !important;
+}
+
+/* Ensure the input part is visible and properly styled */
+.agent-sessions-start-page .chat-widget-container .interactive-session {
+	background: transparent;
+	height: auto !important;
+	width: 100%;
+}
+
+/* Remove excessive margins from the embedded chat widget input */
+.agent-sessions-start-page .chat-widget-container .interactive-input-part {
+	margin: 0;
+	padding: 0;
+}
+
+/* Constrain the editor to not overflow */
+.agent-sessions-start-page .chat-widget-container .monaco-editor,
+.agent-sessions-start-page .chat-widget-container .monaco-scrollable-element,
+.agent-sessions-start-page .chat-widget-container .overflow-guard {
+	max-width: 100% !important;
+}
+
+.agent-sessions-start-page .chat-widget-container .chat-input-container {
+	max-width: 100%;
+}
+
+.agent-sessions-start-page .chat-widget-container .interactive-input-and-side-toolbar {
+	max-width: 100%;
+}
+
+/* Model selector row */
+.agent-sessions-start-page .model-selector-row {
+	display: flex;
+	gap: 12px;
+	align-items: center;
+	margin-top: 12px;
+}
+
+.agent-sessions-start-page .model-selector-row .selector {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 4px 8px;
+	border-radius: 4px;
+	background-color: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	font-size: 12px;
+	cursor: pointer;
+	border: none;
+}
+
+.agent-sessions-start-page .model-selector-row .selector:hover {
+	background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+/* Sessions grid - now uses collapsible sections */
+.agent-sessions-start-page .sessions-grid {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	margin-bottom: 30px;
+}
+
+/* Session section container */
+.agent-sessions-start-page .session-section {
+	display: flex;
+	flex-direction: column;
+}
+
+.agent-sessions-start-page .session-section.collapsed .section-grid,
+.agent-sessions-start-page .session-section.collapsed .section-actions {
+	display: none;
+}
+
+/* Section header - clickable */
+.agent-sessions-start-page .section-header {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 8px 4px;
+	cursor: pointer;
+	border-radius: 4px;
+	user-select: none;
+}
+
+.agent-sessions-start-page .section-header:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.agent-sessions-start-page .section-chevron {
+	display: flex;
+	align-items: center;
+	color: var(--vscode-foreground);
+	opacity: 0.7;
+}
+
+.agent-sessions-start-page .section-label {
+	font-size: 11px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+}
+
+.agent-sessions-start-page .section-count {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	background-color: var(--vscode-badge-background);
+	padding: 1px 6px;
+	border-radius: 10px;
+	min-width: 16px;
+	text-align: center;
+}
+
+/* Section grid for cards */
+.agent-sessions-start-page .section-grid {
+	display: grid;
+	grid-template-columns: repeat(2, 1fr);
+	gap: 8px;
+	padding: 4px 0;
+}
+
+/* Section actions (show more/less) */
+.agent-sessions-start-page .section-actions {
+	display: flex;
+	gap: 12px;
+	padding: 8px 4px;
+}
+
+.agent-sessions-start-page .show-more-btn,
+.agent-sessions-start-page .show-less-btn {
+	background: none;
+	border: none;
+	color: var(--vscode-textLink-foreground);
+	font-size: 12px;
+	cursor: pointer;
+	padding: 0;
+}
+
+.agent-sessions-start-page .show-more-btn:hover,
+.agent-sessions-start-page .show-less-btn:hover {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
+/* Archived section styling - slightly muted */
+.agent-sessions-start-page .session-section.archived-section .session-card {
+	opacity: 0.8;
+}
+
+.agent-sessions-start-page .session-section.archived-section .section-header {
+	border-top: 1px solid var(--vscode-widget-border);
+	margin-top: 8px;
+	padding-top: 12px;
+}
+
+/* Responsive: single column on narrow screens */
+@media (max-width: 600px) {
+	.agent-sessions-start-page .section-grid {
+		grid-template-columns: 1fr;
+	}
+}
+
+.agent-sessions-start-page .session-card {
+	display: flex;
+	flex-direction: row;
+	background-color: var(--vscode-editor-inactiveSelectionBackground);
+	border-radius: 6px;
+	padding: 10px 12px;
+	cursor: pointer;
+	transition: background-color 0.15s ease;
+}
+
+.agent-sessions-start-page .session-card:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+/* Icon column - matches Sessions panel */
+.agent-sessions-start-page .session-icon-col {
+	display: flex;
+	align-items: flex-start;
+	padding-right: 8px;
+}
+
+.agent-sessions-start-page .session-icon {
+	flex-shrink: 0;
+	font-size: 16px;
+}
+
+.agent-sessions-start-page .session-icon.codicon-session-in-progress {
+	color: var(--vscode-textLink-foreground);
+}
+
+.agent-sessions-start-page .session-icon.codicon-error {
+	color: var(--vscode-errorForeground);
+}
+
+.agent-sessions-start-page .session-icon.codicon-report {
+	color: var(--vscode-textLink-foreground);
+}
+
+.agent-sessions-start-page .session-icon.codicon-circle-filled {
+	color: var(--vscode-textLink-foreground);
+}
+
+.agent-sessions-start-page .session-icon.codicon-circle-small-filled {
+	color: var(--vscode-descriptionForeground);
+}
+
+/* Main content column */
+.agent-sessions-start-page .session-main-col {
+	flex: 1;
+	min-width: 0;
+}
+
+.agent-sessions-start-page .session-title-row {
+	display: flex;
+	align-items: center;
+	line-height: 16px;
+	padding-bottom: 4px;
+}
+
+.agent-sessions-start-page .session-title {
+	flex: 1;
+	font-size: 13px;
+	font-weight: 500;
+	color: var(--vscode-foreground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Details row - matches Sessions panel */
+.agent-sessions-start-page .session-details-row {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 12px;
+	line-height: 16px;
+	color: var(--vscode-descriptionForeground);
+}
+
+/* Diff container - matches Sessions panel exactly */
+.agent-sessions-start-page .session-diff-container {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	font-weight: 500;
+	display: flex;
+	gap: 4px;
+	padding: 0 4px;
+	font-variant-numeric: tabular-nums;
+	border-radius: 5px;
+}
+
+.agent-sessions-start-page .session-diff-container .diff-files {
+	color: var(--vscode-descriptionForeground);
+}
+
+.agent-sessions-start-page .session-diff-container .diff-added {
+	color: var(--vscode-chat-linesAddedForeground);
+}
+
+.agent-sessions-start-page .session-diff-container .diff-removed {
+	color: var(--vscode-chat-linesRemovedForeground);
+}
+
+/* Badge - matches Sessions panel */
+.agent-sessions-start-page .session-badge {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	font-weight: 500;
+	padding: 0 4px;
+	font-variant-numeric: tabular-nums;
+	border-radius: 5px;
+	overflow: hidden;
+}
+
+.agent-sessions-start-page .session-description {
+	flex: 1;
+	text-overflow: ellipsis;
+	overflow: hidden;
+	white-space: nowrap;
+}
+
+.agent-sessions-start-page .session-status {
+	padding-left: 8px;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+/* Footer link */
+.agent-sessions-start-page .footer-link {
+	color: var(--vscode-textLink-foreground);
+	font-size: 13px;
+	cursor: pointer;
+	background: none;
+	border: none;
+	padding: 0;
+}
+
+.agent-sessions-start-page .footer-link:hover {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
+/* Empty state */
+.agent-sessions-start-page .empty-state {
+	text-align: center;
+	padding: 40px 20px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.agent-sessions-start-page .empty-state .codicon {
+	font-size: 48px;
+	margin-bottom: 16px;
+	opacity: 0.5;
+}

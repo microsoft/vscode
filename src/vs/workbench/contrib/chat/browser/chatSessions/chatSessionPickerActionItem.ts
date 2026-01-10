@@ -108,8 +108,10 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 		element.classList.add('chat-session-option-picker');
 		if (this.currentOption?.icon) {
 			domChildren.push(renderIcon(this.currentOption.icon));
+		} else {
+			domChildren.push(...renderLabelWithIcons(`$(source-control)`));
 		}
-		domChildren.push(dom.$('span.chat-session-option-label', undefined, this.currentOption?.name ?? localize('chat.sessionPicker.label', "Pick Option")));
+		domChildren.push(dom.$('span.chat-session-option-label', undefined, this.currentOption?.name ?? localize('chat.sessionPicker.label', "Repository")));
 		domChildren.push(...renderLabelWithIcons(`$(chevron-down)`));
 		dom.reset(element, ...domChildren);
 		this.setAriaLabelAttributes(element);

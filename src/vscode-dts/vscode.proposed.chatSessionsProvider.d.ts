@@ -340,11 +340,11 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Represents a group of related provider options (e.g., models, sub-agents).
+	 * Represents a group of related provider options (e.g., models, sub-agents, repositories).
 	 */
 	export interface ChatSessionProviderOptionGroup {
 		/**
-		 * Unique identifier for the option group (e.g., "models", "subagents").
+		 * Unique identifier for the option group (e.g., "models", "subagents", "repository").
 		 */
 		readonly id: string;
 
@@ -362,6 +362,12 @@ declare module 'vscode' {
 		 * The selectable items within this option group.
 		 */
 		readonly items: ChatSessionProviderOptionItem[];
+
+		/**
+		 * When true, displays a searchable QuickPick instead of a dropdown.
+		 * Recommended for option groups with many items (e.g., repositories).
+		 */
+		readonly searchable?: boolean;
 	}
 
 	export interface ChatSessionProviderOptions {

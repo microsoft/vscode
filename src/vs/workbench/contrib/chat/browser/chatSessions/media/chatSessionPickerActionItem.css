@@ -37,3 +37,23 @@
 		margin-left: 2px;
 	}
 }
+
+/* Searchable Option Picker (used for repositories, etc.) */
+/* Uses same classes as ChatSessionPickerActionItem for consistent styling:
+   - .action-label.chat-session-option-picker
+   - .chat-session-option-label
+   Styles inherited from chat.css and the .chat-session-option-picker rules above */
+.monaco-action-bar .action-item.chat-searchable-option-picker-item {
+	overflow: hidden;
+}
+
+/* Leading icon styling for searchable pickers (e.g., repo icon) */
+/* .chat-searchable-option-picker-item .chat-session-option-picker > .codicon:first-child {
+	margin-right: 0px;
+} */
+
+/* Lock icon for locked options */
+.chat-searchable-option-picker-item .chat-session-option-picker .codicon.codicon-lock {
+	margin-left: 4px;
+	opacity: 0.7;
+}

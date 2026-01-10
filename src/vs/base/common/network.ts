@@ -90,6 +90,9 @@ export namespace Schemas {
 	/** Scheme used for local chat session content */
 	export const vscodeLocalChatSession = 'vscode-chat-session';
 
+	/** Scheme used for the agent sessions start page */
+	export const vscodeAgentSessionsStart = 'vscode-agent-sessions-start';
+
 	/**
 	 * Scheme used internally for webviews that aren't linked to a resource (i.e. not custom editors)
 	 */

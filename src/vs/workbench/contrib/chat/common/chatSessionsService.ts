@@ -43,6 +43,11 @@ export interface IChatSessionProviderOptionGroup {
 	name: string;
 	description?: string;
 	items: IChatSessionProviderOptionItem[];
+	/**
+	 * When true, displays a searchable QuickPick instead of a dropdown.
+	 * Recommended for large lists (e.g., repositories).
+	 */
+	searchable?: boolean;
 }
 
 export interface IChatSessionsExtensionPoint {
