@@ -3989,6 +3989,11 @@ declare namespace monaco.editor {
 		 * Controls whether the accessibility hint should be provided to screen reader users when an inline completion is shown.
 		 */
 		inlineCompletionsAccessibilityVerbose?: boolean;
+		/**
+		 * Configure the behaviour when copy-pasting empty selection.
+		 * Defaults to 'always'.
+		 */
+		pasteEmptySelectionIncludesNewline?: 'always' | 'never' | 'singleOnly' | 'multipleOnly';
 	}
 
 	export interface IDiffEditorBaseOptions {
@@ -5236,7 +5241,8 @@ declare namespace monaco.editor {
 		inlineCompletionsAccessibilityVerbose = 169,
 		effectiveEditContext = 170,
 		scrollOnMiddleClick = 171,
-		effectiveAllowVariableFonts = 172
+		effectiveAllowVariableFonts = 172,
+		pasteEmptySelectionIncludesNewline = 173
 	}
 
 	export const EditorOptions: {
@@ -5413,6 +5419,7 @@ declare namespace monaco.editor {
 		wrappingStrategy: IEditorOption<EditorOption.wrappingStrategy, 'simple' | 'advanced'>;
 		effectiveEditContextEnabled: IEditorOption<EditorOption.effectiveEditContext, boolean>;
 		effectiveAllowVariableFonts: IEditorOption<EditorOption.effectiveAllowVariableFonts, boolean>;
+		pasteEmptySelectionIncludesNewline: IEditorOption<EditorOption.pasteEmptySelectionIncludesNewline, 'always' | 'never' | 'singleOnly' | 'multipleOnly'>;
 	};
 
 	type EditorOptionsType = typeof EditorOptions;

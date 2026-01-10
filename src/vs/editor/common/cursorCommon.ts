@@ -80,6 +80,7 @@ export class CursorConfiguration {
 	public readonly shouldAutoCloseBefore: { quote: (ch: string) => boolean; bracket: (ch: string) => boolean; comment: (ch: string) => boolean };
 	public readonly wordSegmenterLocales: string[];
 	public readonly overtypeOnPaste: boolean;
+	public readonly pasteEmptySelectionIncludesNewline: 'always' | 'never' | 'singleOnly' | 'multipleOnly';
 
 	private readonly _languageId: string;
 	private _electricChars: { [key: string]: boolean } | null;
@@ -104,6 +105,7 @@ export class CursorConfiguration {
 			|| e.hasChanged(EditorOption.readOnly)
 			|| e.hasChanged(EditorOption.wordSegmenterLocales)
 			|| e.hasChanged(EditorOption.overtypeOnPaste)
+			|| e.hasChanged(EditorOption.pasteEmptySelectionIncludesNewline)
 		);
 	}
 
@@ -144,6 +146,7 @@ export class CursorConfiguration {
 		this.autoIndent = options.get(EditorOption.autoIndent);
 		this.wordSegmenterLocales = options.get(EditorOption.wordSegmenterLocales);
 		this.overtypeOnPaste = options.get(EditorOption.overtypeOnPaste);
+		this.pasteEmptySelectionIncludesNewline = options.get(EditorOption.pasteEmptySelectionIncludesNewline);
 
 		this.surroundingPairs = {};
 		this._electricChars = null;

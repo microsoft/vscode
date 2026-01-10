@@ -850,6 +850,11 @@ export interface IEditorOptions {
 	 * Controls whether the accessibility hint should be provided to screen reader users when an inline completion is shown.
 	 */
 	inlineCompletionsAccessibilityVerbose?: boolean;
+	/**
+	 * Configure the behaviour when copy-pasting empty selection.
+	 * Defaults to 'always'.
+	 */
+	pasteEmptySelectionIncludesNewline?: 'always' | 'never' | 'singleOnly' | 'multipleOnly';
 }
 
 /**
@@ -5896,7 +5901,8 @@ export const enum EditorOption {
 	inlineCompletionsAccessibilityVerbose,
 	effectiveEditContext,
 	scrollOnMiddleClick,
-	effectiveAllowVariableFonts
+	effectiveAllowVariableFonts,
+	pasteEmptySelectionIncludesNewline,
 }
 
 export const EditorOptions = {
@@ -6804,7 +6810,21 @@ export const EditorOptions = {
 	wrappingIndent: register(new WrappingIndentOption()),
 	wrappingStrategy: register(new WrappingStrategy()),
 	effectiveEditContextEnabled: register(new EffectiveEditContextEnabled()),
-	effectiveAllowVariableFonts: register(new EffectiveAllowVariableFonts())
+	effectiveAllowVariableFonts: register(new EffectiveAllowVariableFonts()),
+	pasteEmptySelectionIncludesNewline: register(new EditorStringEnumOption(
+		EditorOption.pasteEmptySelectionIncludesNewline, 'pasteEmptySelectionIncludesNewline',
+		'always' as 'always' | 'never' | 'singleOnly' | 'multipleOnly',
+		['always', 'never', 'singleOnly', 'multipleOnly'] as const,
+		{
+			markdownEnumDescriptions: [
+				nls.localize('pasteEmptySelectionIncludesNewline.always', "Both single & multiple cursors paste with '\n' when copying empty selection"),
+				nls.localize('pasteEmptySelectionIncludesNewline.never', "Both single & multiple cursors trim '\n' from the end when copying empty selection"),
+				nls.localize('pasteEmptySelectionIncludesNewline.singleOnly', "Multiple cursors trim '\n' from the end when copying empty selection"),
+				nls.localize('pasteEmptySelectionIncludesNewline.multipleOnly', "Single cursor trims '\n' from the end when copying empty selection"),
+			],
+			markdownDescription: nls.localize('pasteEmptySelectionIncludesNewline', "Include '\n' character when copying empty selection")
+		}
+	)),
 };
 
 type EditorOptionsType = typeof EditorOptions;
