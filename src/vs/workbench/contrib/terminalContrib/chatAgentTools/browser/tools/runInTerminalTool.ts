@@ -11,19 +11,16 @@ import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { basename, dirname, join } from '../../../../../../base/common/path.js';
-import { FileAccess } from '../../../../../../base/common/network.js';
-import { isWindows, OperatingSystem, OS } from '../../../../../../base/common/platform.js';
-import { joinPath } from '../../../../../../base/common/resources.js';
+import { basename } from '../../../../../../base/common/path.js';
+import { OperatingSystem, OS } from '../../../../../../base/common/platform.js';
 import { count } from '../../../../../../base/common/strings.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { IEnvironmentService, type INativeEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
 import { IInstantiationService, type ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { ISandboxTerminalSettings, ITerminalLogService, ITerminalProfile } from '../../../../../../platform/terminal/common/terminal.js';
+import { ITerminalLogService, ITerminalProfile } from '../../../../../../platform/terminal/common/terminal.js';
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import { ElicitationState, IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
@@ -47,6 +44,7 @@ import { CommandLineAutoApproveAnalyzer } from './commandLineAnalyzer/commandLin
 import { CommandLineFileWriteAnalyzer } from './commandLineAnalyzer/commandLineFileWriteAnalyzer.js';
 import { OutputMonitor } from './monitoring/outputMonitor.js';
 import { IPollingResult, OutputMonitorState } from './monitoring/types.js';
+import { ISandboxUtility } from '../../../../chat/common/sandboxUtility.js';
 import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
 import type { ICommandLineRewriter } from './commandLineRewriter/commandLineRewriter.js';
 import { CommandLineCdPrefixRewriter } from './commandLineRewriter/commandLineCdPrefixRewriter.js';
@@ -57,10 +55,7 @@ import { IHistoryService } from '../../../../../services/history/common/history.
 import { TerminalCommandArtifactCollector } from './terminalCommandArtifactCollector.js';
 import { isNumber, isString } from '../../../../../../base/common/types.js';
 import { ChatConfiguration } from '../../../../chat/common/constants.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { IChatWidgetService } from '../../../../chat/browser/chat.js';
-import { URI } from '../../../../../../base/common/uri.js';
 import { ChatElicitationRequestPart } from '../../../../chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { TerminalChatCommandId } from '../../../chat/browser/terminalChat.js';
 
@@ -276,13 +271,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	private readonly _telemetry: RunInTerminalToolTelemetry;
 	private readonly _commandArtifactCollector: TerminalCommandArtifactCollector;
 	protected readonly _profileFetcher: TerminalProfileFetcher;
-	private _sandboxConfigPath: string | undefined;
-	private _lastFailedCommandId: string | undefined;
-	private static _isSandboxedForCommandExecution: boolean | undefined;
-	private static _lastFailedCommandIdList: Set<string> = new Set();
-	private static _needsForceUpdateConfigFile = true;
-	private static _tempDir: URI | undefined;
-	private static _sandboxSettingsId: string | undefined;
 
 
 	private readonly _commandLineRewriters: ICommandLineRewriter[];
@@ -305,7 +293,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	constructor(
 		@IChatService protected readonly _chatService: IChatService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IHistoryService private readonly _historyService: IHistoryService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
@@ -316,7 +303,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
-		@IFileService private readonly _fileService: IFileService,
+		@ISandboxUtility private readonly _sandboxUtility: ISandboxUtility,
 	) {
 		super();
 
@@ -338,8 +325,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			this._register(this._instantiationService.createInstance(CommandLineAutoApproveAnalyzer, this._treeSitterCommandParser, this._telemetry, (message, args) => this._logService.info(`RunInTerminalTool#CommandLineAutoApproveAnalyzer: ${message}`, args))),
 		];
 
-		this._setTempDir();
-
 		// Clear out warning accepted state if the setting is disabled
 		this._register(Event.runAndSubscribe(this._configurationService.onDidChangeConfiguration, e => {
 			if (!e || e.affectsConfiguration(TerminalChatAgentToolsSettingId.EnableAutoApprove)) {
@@ -347,9 +332,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					this._storageService.remove(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION);
 				}
 			}
-			// if terminal sandbox setting changed, set tmp dir.
+			// if terminal sandbox setting changed, update sandbox config.
 			if (e?.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandbox)) {
-				this._setTempDir();
+				this._sandboxUtility.setNeedsForceUpdateConfigFile();
 			}
 		}));
 
@@ -434,7 +419,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			};
 		}
 
-		if (this._isSandboxedTerminal()) {
+		toolSpecificData.autoApproveInfo = new MarkdownString(localize('autoApprove.sandbox', 'In sandbox mode'));
+		if (this._sandboxUtility.isEnabled()) {
 			return {
 				toolSpecificData
 			};
@@ -566,14 +552,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			toolSpecificData.commandLine.toolEdited !== toolSpecificData.commandLine.original
 		);
 
-		if (this._isSandboxedTerminal()) {
-			this._getSandboxConfigPath();
+		if (this._sandboxUtility.isEnabled()) {
+			await this._sandboxUtility.getSandboxConfigPath();
 			this._logService.info(`RunInTerminalTool: Sandboxing is enabled, wrapping command with srt.`);
-			// Construct full path to srt binary in node_modules/.bin
-			const appRoot = dirname(FileAccess.asFileUri('').fsPath);
-			const srtPath = join(appRoot, 'node_modules', '.bin', 'srt');
-			command = `"${srtPath}" --debug --settings "${this._sandboxConfigPath}" "${command}"`; // sandboxing with debug
-			// command = `"${srtPath}" --settings "${this._sandboxConfigPath}" "${command}"`; // sandboxing
+			command = this._sandboxUtility.wrapCommand(command);
 		}
 
 		if (token.isCancellationRequested) {
@@ -780,7 +762,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 
 				//if sandboxed and there is error, retry without sandboxing.
-				if (exitCode !== 0 && this._isSandboxedTerminal()) {
+				if (exitCode !== 0 && this._sandboxUtility.isEnabled()) {
 					const sessionResource = invocation.context?.sessionResource;
 					const session = sessionResource ? this._chatService.getSession(sessionResource) : undefined;
 
@@ -794,11 +776,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						const decisionPromise = new Promise<boolean>(resolve => {
 							const toolElicitation = new ChatElicitationRequestPart(
 								localize('terminal.sandbox.retry.title', 'Retry Without Sandboxing?'),
-								new MarkdownString().appendText(localize(
-									'terminal.sandbox.retry.message',
-									'This command failed due to sandboxing restrictions. Retry without sandboxing?'
-								)),
-								localize('terminal.sandbox.retry.subtitle', 'Terminal'),
+								'',
+								'',
 								localize('terminal.sandbox.retry.yes', 'Yes'),
 								localize('terminal.sandbox.retry.no', 'No'),
 								async () => {
@@ -824,7 +803,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						shouldRetryWithoutSandboxing = await Promise.race([decisionPromise, cancellationPromise]);
 					}
 
-					this._lastFailedCommandId = commandId;
 					toolResultMessage = new MarkdownString(
 						`$(warning) ${localize('terminal.sandbox.failed', 'Command failed due to sandboxing restrictions.')}`,
 						{ supportThemeIcons: true }
@@ -875,115 +853,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						}
 						terminalResult = retryResultArr.join('\n\n');
 
-						// Retry path: clear failed state
-						this._lastFailedCommandId = undefined;
+
 					}
-				} else {
-					this._lastFailedCommandId = undefined;
 				}
 
-				//if sandboxed and there is error, retry without sandboxing.
-				if (exitCode !== 0 && this._isSandboxedTerminal()) {
-					const sessionResource = invocation.context?.sessionResource;
-					const session = sessionResource ? this._chatService.getSession(sessionResource) : undefined;
-
-					// Use the unsandboxed command line (no `srt` wrapper), preserving any user/tool edits.
-					const commandToRetryWithoutSandboxing = toolSpecificData.commandLine.userEdited ?? toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original;
-
-					let shouldRetryWithoutSandboxing = false;
-					if (session?.lastRequest) {
-						const lastRequest = session.lastRequest;
-						let didResolve = false;
-						const decisionPromise = new Promise<boolean>(resolve => {
-							const toolElicitation = new ChatElicitationRequestPart(
-								localize('terminal.sandbox.retry.title', 'Retry Without Sandboxing?'),
-								new MarkdownString().appendText(localize(
-									'terminal.sandbox.retry.message',
-									'This command failed due to sandboxing restrictions. Retry without sandboxing?'
-								)),
-								localize('terminal.sandbox.retry.subtitle', 'Terminal'),
-								localize('terminal.sandbox.retry.yes', 'Yes'),
-								localize('terminal.sandbox.retry.no', 'No'),
-								async () => {
-									if (!didResolve) {
-										didResolve = true;
-										resolve(true);
-									}
-									return ElicitationState.Accepted;
-								},
-								async () => {
-									if (!didResolve) {
-										didResolve = true;
-										resolve(false);
-									}
-									return ElicitationState.Rejected;
-								},
-							);
-
-							this._chatService.appendProgress(lastRequest, toolElicitation);
-						});
-
-						const cancellationPromise = new Promise<boolean>((_resolve, reject) => token.onCancellationRequested(() => reject(new CancellationError())));
-						shouldRetryWithoutSandboxing = await Promise.race([decisionPromise, cancellationPromise]);
-					}
-
-					this._lastFailedCommandId = commandId;
-					toolResultMessage = new MarkdownString(
-						`$(warning) ${localize('terminal.sandbox.failed', 'Command failed due to sandboxing restrictions.')}`,
-						{ supportThemeIcons: true }
-					);
-
-					if (shouldRetryWithoutSandboxing) {
-						const commandDetectionRetry = toolTerminal.instance.capabilities.get(TerminalCapability.CommandDetection);
-						let retryStrategy: ITerminalExecuteStrategy;
-						switch (toolTerminal.shellIntegrationQuality) {
-							case ShellIntegrationQuality.None:
-								retryStrategy = this._instantiationService.createInstance(NoneExecuteStrategy, toolTerminal.instance, () => toolTerminal.receivedUserInput ?? false);
-								break;
-							case ShellIntegrationQuality.Basic:
-								retryStrategy = this._instantiationService.createInstance(BasicExecuteStrategy, toolTerminal.instance, () => toolTerminal.receivedUserInput ?? false, commandDetectionRetry!);
-								break;
-							case ShellIntegrationQuality.Rich:
-								retryStrategy = this._instantiationService.createInstance(RichExecuteStrategy, toolTerminal.instance, commandDetectionRetry!);
-								break;
-						}
-
-						const retryCommandId = `tool-retry-${generateUuid()}`;
-						const retryResult = await retryStrategy.execute(commandToRetryWithoutSandboxing, token, retryCommandId);
-						toolTerminal.receivedUserInput = false;
-
-						await this._commandArtifactCollector.capture(toolSpecificData, toolTerminal.instance, retryCommandId);
-						{
-							const state = toolSpecificData.terminalCommandState ?? {};
-							state.timestamp = state.timestamp ?? timingStart;
-							if (retryResult.exitCode !== undefined) {
-								state.exitCode = retryResult.exitCode;
-								if (state.timestamp !== undefined) {
-									state.duration = state.duration ?? Math.max(0, Date.now() - state.timestamp);
-								}
-							}
-							toolSpecificData.terminalCommandState = state;
-						}
-
-						outputLineCount = retryResult.output === undefined ? 0 : count(retryResult.output.trim(), '\n') + 1;
-						exitCode = retryResult.exitCode;
-						error = retryResult.error;
-
-						const retryResultArr: string[] = [];
-						if (retryResult.output !== undefined) {
-							retryResultArr.push(retryResult.output);
-						}
-						if (retryResult.additionalInformation) {
-							retryResultArr.push(retryResult.additionalInformation);
-						}
-						terminalResult = retryResultArr.join('\n\n');
-
-						// Retry path: clear failed state
-						this._lastFailedCommandId = undefined;
-					}
-				} else {
-					this._lastFailedCommandId = undefined;
-				}
 
 			} catch (e) {
 				this._logService.debug(`RunInTerminalTool: Threw exception`);
@@ -1035,8 +908,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			return {
 				toolResultMessage,
 				toolMetadata: {
-					exitCode: exitCode,
-					sandboxingFailed: exitCode !== 0 && this._isSandboxedTerminal()
+					exitCode: exitCode
 				},
 				content: [{
 					kind: 'text',
@@ -1046,16 +918,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 	}
 
-	// This is called when the user clicks the "Retry without sandboxing" link.
-	public static updateSandboxingForCommandExecution(enabled: boolean | undefined, lastFailedCommandId: string): void {
-		RunInTerminalTool._isSandboxedForCommandExecution = enabled;
-		if (enabled === false && lastFailedCommandId) {
-			RunInTerminalTool._lastFailedCommandIdList.add(lastFailedCommandId);
-		} else {
-			RunInTerminalTool._lastFailedCommandIdList.delete(lastFailedCommandId);
-		}
-
-	}
 
 	private _handleTerminalVisibility(toolTerminal: IToolTerminal, chatSessionId: string) {
 		const chatSessionOpenInWidget = !!this._chatWidgetService.getWidgetBySessionResource(LocalChatSessionUri.forSession(chatSessionId));
@@ -1063,58 +925,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			this._terminalService.setActiveInstance(toolTerminal.instance);
 			this._terminalService.revealTerminal(toolTerminal.instance, true);
 		}
-	}
-
-	private _isSandboxedTerminal(): boolean {
-		if (isWindows) {
-			return false;
-		}
-		const settings = this._configurationService.getValue<ISandboxTerminalSettings>(TerminalChatAgentToolsSettingId.TerminalSandbox);
-		const isEnabled = settings?.enabled === true;
-		if (!isEnabled) {
-			this._sandboxConfigPath = undefined;
-			return false;
-		}
-		// if its disabled at command execution time, return false
-		if (RunInTerminalTool._isSandboxedForCommandExecution === false && this._lastFailedCommandId && RunInTerminalTool._lastFailedCommandIdList.has(this._lastFailedCommandId)) {
-			this._sandboxConfigPath = undefined;
-			return false;
-		}
-		return isEnabled;
-	}
-
-	private async _getSandboxConfigPath(forceRefresh: boolean = false): Promise<string | undefined> {
-
-		if (!this._sandboxConfigPath || forceRefresh || RunInTerminalTool._needsForceUpdateConfigFile) {
-			this._sandboxConfigPath = await this._createSandboxConfig();
-			RunInTerminalTool._needsForceUpdateConfigFile = false;
-		}
-		return this._sandboxConfigPath;
-	}
-
-	private async _createSandboxConfig(): Promise<string | undefined> {
-		const sandboxSetting = this._configurationService.getValue<ISandboxTerminalSettings>(TerminalChatAgentToolsSettingId.TerminalSandbox);
-		if (sandboxSetting.enabled) {
-			if (!RunInTerminalTool._sandboxSettingsId) {
-				RunInTerminalTool._sandboxSettingsId = generateUuid();
-			}
-			const configFileUri = joinPath(RunInTerminalTool._tempDir!, `vscode-sandbox-settings-${RunInTerminalTool._sandboxSettingsId}.json`);
-			const sandboxSettings = {
-				network: {
-					allowedDomains: sandboxSetting.network?.allowedDomains || [],
-					deniedDomains: sandboxSetting.network?.deniedDomains || []
-				},
-				filesystem: {
-					denyRead: sandboxSetting.filesystem?.denyRead || [],
-					allowWrite: sandboxSetting.filesystem?.allowWrite || ['.'],
-					denyWrite: sandboxSetting.filesystem?.denyWrite || []
-				}
-			};
-			this._sandboxConfigPath = configFileUri.fsPath;
-			await this._fileService.createFile(configFileUri, VSBuffer.fromString(JSON.stringify(sandboxSettings, null, '\t')), { overwrite: true });
-			return this._sandboxConfigPath;
-		}
-		return undefined;
 	}
 
 	// #region Terminal init
@@ -1256,24 +1066,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 		} catch (error) {
 			this._logService.debug(`RunInTerminalTool: Failed to remove terminal association: ${error}`);
-		}
-	}
-
-	private _setTempDir(): void {
-		if (this._isSandboxedTerminal()) {
-			RunInTerminalTool._needsForceUpdateConfigFile = true;
-			const nativeEnv = this._environmentService as Partial<INativeEnvironmentService>;
-			const tmpDir = nativeEnv.tmpDir;
-			if (!tmpDir) {
-				this._logService.warn('RunInTerminalTool: Cannot create sandbox settings file because no tmpDir is available in this environment');
-				return;
-			}
-			RunInTerminalTool._tempDir = tmpDir;
-			this._fileService.exists(RunInTerminalTool._tempDir).then(exists => {
-				if (!exists) {
-					this._logService.warn(`RunInTerminalTool: tmp directory is not present at ${RunInTerminalTool._tempDir}`);
-				}
-			});
 		}
 	}
 

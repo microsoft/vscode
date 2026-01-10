@@ -6,16 +6,15 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { isNumber } from '../../../../../base/common/types.js';
-import { localize, localize2 } from '../../../../../nls.js';
-import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { localize } from '../../../../../nls.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IChatWidgetService } from '../../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
-import { IChatService } from '../../../chat/common/chatService/chatService.js';
 import { ILanguageModelToolsService } from '../../../chat/common/tools/languageModelToolsService.js';
 import { registerActiveInstanceAction, sharedWhenClause } from '../../../terminal/browser/terminalActions.js';
 import { TerminalContextMenuGroup } from '../../../terminal/browser/terminalMenus.js';
@@ -30,6 +29,14 @@ import { RunInTerminalTool, createRunInTerminalToolData } from './tools/runInTer
 import { CreateAndRunTaskTool, CreateAndRunTaskToolData } from './tools/task/createAndRunTaskTool.js';
 import { GetTaskOutputTool, GetTaskOutputToolData } from './tools/task/getTaskOutputTool.js';
 import { RunTaskTool, RunTaskToolData } from './tools/task/runTaskTool.js';
+import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
+import { ISandboxUtility, SandboxUtility } from '../../../chat/common/sandboxUtility.js';
+
+// #region Services
+
+registerSingleton(ISandboxUtility, SandboxUtility, InstantiationType.Delayed);
+
+// #endregion Services
 
 class ShellIntegrationTimeoutMigrationContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'terminal.shellIntegrationTimeoutMigration';
@@ -110,51 +117,7 @@ registerWorkbenchContribution2(ChatAgentToolsContribution.ID, ChatAgentToolsCont
 
 // #region Actions
 
-// Retry action for sandboxed terminal commands (invoked via command link in toolResultMessage)
-registerAction2(class RetryWithoutSandboxingAction extends Action2 {
-	constructor() {
-		super({
-			id: TerminalChatAgentToolsCommandId.RetryWithoutSandboxing,
-			title: localize2('terminal.retryWithoutSandboxing', "Retry without Sandboxing"),
-			f1: false
-		});
-	}
 
-	async run(accessor: ServicesAccessor, failedCommandDetails: { lastFailedCommandId: string }): Promise<void> {
-		const chatService = accessor.get(IChatService);
-		const chatWidgetService = accessor.get(IChatWidgetService);
-
-		const widget = chatWidgetService.lastFocusedWidget;
-		if (!widget) {
-			return;
-		}
-		const model = widget.viewModel?.model;
-		if (!model) {
-			return;
-		}
-		const requests = model.getRequests();
-		const lastRequest = requests?.[requests.length - 1];
-		if (!lastRequest) {
-			return;
-		}
-
-		try {
-			// Disable sandboxing
-			RunInTerminalTool.updateSandboxingForCommandExecution(false, failedCommandDetails.lastFailedCommandId);
-			const languageModelId = widget?.input.currentLanguageModel;
-
-			// Retry the request
-			await chatService.resendRequest(lastRequest, {
-				userSelectedModelId: languageModelId,
-				attempt: (lastRequest?.attempt ?? -1) + 1,
-				...widget?.getModeRequestOptions(),
-			});
-		} finally {
-			// Re-enable sandboxing
-			RunInTerminalTool.updateSandboxingForCommandExecution(undefined, failedCommandDetails.lastFailedCommandId);
-		}
-	}
-});
 
 registerActiveInstanceAction({
 	id: TerminalChatAgentToolsCommandId.ChatAddTerminalSelection,
