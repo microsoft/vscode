@@ -45,7 +45,11 @@ suite('LanguageModels', function () {
 			new MockContextKeyService(),
 			new TestConfigurationService(),
 			new TestChatEntitlementService(),
-			new class extends mock<ILanguageModelsConfigurationService>() { },
+			new class extends mock<ILanguageModelsConfigurationService>() {
+				override getLanguageModelsProviderGroups() {
+					return [];
+				}
+			},
 			new class extends mock<IQuickInputService>() { },
 			new TestSecretStorageService(),
 		);

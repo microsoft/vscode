@@ -49,7 +49,8 @@ suite('LanguageModelsConfiguration', () => {
 		const model = testDisposables.add(createTextModel(content));
 		const result = parseLanguageModelsProviderGroups(model);
 
-		const config = result;
+		const configurations = result[0].configurations as { configuration: Record<string, unknown> }[];
+		const config = configurations[0].configuration;
 		assert.deepStrictEqual(config, { foo: 'bar' });
 	});
 
@@ -93,7 +94,8 @@ suite('LanguageModelsConfiguration', () => {
 		const model = testDisposables.add(createTextModel(content));
 		const result = parseLanguageModelsProviderGroups(model);
 
-		const config = result[0];
+		const configurations = result[0]?.configurations as { configuration: Record<string, unknown> }[];
+		const config = configurations[0].configuration;
 		assert.strictEqual(config.str, 'value');
 		assert.strictEqual(config.num, 123);
 		assert.strictEqual(config.bool, true);
