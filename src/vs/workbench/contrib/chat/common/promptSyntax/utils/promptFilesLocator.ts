@@ -445,7 +445,7 @@ export class PromptFilesLocator {
 				}
 
 				for (const uri of uris) {
-					const results = await this.findAgentSkillsInFolderDirect(uri, token);
+					const results = await this.findAgentSkillsInFolder(uri, '', token);
 					allResults.push(...results.map(skillUri => ({ uri: skillUri, type: skillType })));
 				}
 			} catch (error) {
@@ -454,34 +454,6 @@ export class PromptFilesLocator {
 		}
 
 		return allResults;
-	}
-
-	/**
-	 * Finds skills directly in a folder (the folder itself contains skill subdirectories).
-	 */
-	private async findAgentSkillsInFolderDirect(folderUri: URI, token: CancellationToken): Promise<URI[]> {
-		const result: URI[] = [];
-		try {
-			const stat = await this.fileService.resolve(folderUri);
-			if (token.isCancellationRequested) {
-				return [];
-			}
-			if (stat.isDirectory && stat.children) {
-				for (const skillDir of stat.children) {
-					if (skillDir.isDirectory) {
-						const skillFile = joinPath(skillDir.resource, 'SKILL.md');
-						if (await this.fileService.exists(skillFile)) {
-							result.push(skillFile);
-						}
-					}
-				}
-			}
-		} catch (error) {
-			// No such folder, return empty list
-			return [];
-		}
-
-		return result;
 	}
 
 	/**
