@@ -6,7 +6,8 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { LogLevel } from '../../../../platform/log/common/log.js';
-import { createAuthMetadata, CommonResponse, IAuthMetadata } from '../../common/extHostMcp.js';
+import { createAuthMetadata, IAuthMetadata } from '../../../../platform/oauth/common/oauthMetadata.js';
+import { CommonResponse } from '../../common/extHostMcp.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 // Test constants to avoid magic strings
