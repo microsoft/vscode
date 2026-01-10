@@ -344,7 +344,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			const firstDir = completions.find(e => e.kind === TerminalCompletionItemKind.Folder);
 			const textLabel = isString(firstDir?.label) ? firstDir.label : firstDir?.label.label;
 			// Get path separator from the completion label, which is coming from the extension host
-			// and falling back to the OS-based default
 			const labelSep = textLabel?.match(/(?<sep>[\\\/])/)?.groups?.sep;
 			if (labelSep) {
 				this._pathSeparator = labelSep;
