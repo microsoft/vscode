@@ -42,6 +42,7 @@
     "mixin-telemetry-docs": "node build/npm/mixin-telemetry-docs.ts",
     "smoketest": "node build/lib/preLaunch.ts && cd test/smoke && npm run compile && node test/index.js",
     "smoketest-no-compile": "cd test/smoke && node test/index.js",
+    "sanity-test": "cd test/sanity && npm run compile && node out/index.js",
     "download-builtin-extensions": "node build/lib/builtInExtensions.ts",
     "download-builtin-extensions-cg": "node build/lib/builtInExtensionsCG.ts",
     "monaco-compile-check": "tsgo --project src/tsconfig.monaco.json --noEmit",
@@ -74,7 +75,7 @@
   "dependencies": {
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
-    "@parcel/watcher": "parcel-bundler/watcher#f503c6eb8df1e883f6989f11743232e43ccb90f6",
+    "@parcel/watcher": "parcel-bundler/watcher#7a9a5d6af0ce2a4d9b892cab3abb3a464373b105",
     "@types/semver": "^7.5.8",
     "@vscode/deviceid": "^0.1.1",
     "@vscode/iconv-lite-umd": "0.7.1",
