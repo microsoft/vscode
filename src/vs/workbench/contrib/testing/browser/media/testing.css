@@ -198,6 +198,10 @@
 .codicon-testing-loading-icon::before {
 	/* Use steps to throttle FPS to reduce CPU usage */
 	animation: codicon-spin 1.25s steps(30) infinite;
+	/* GPU acceleration hints to reduce CPU load */
+	will-change: transform;
+	/* Isolate element to prevent layout recalculations */
+	contain: layout style paint;
 }
 
 .testing-no-test-placeholder {
