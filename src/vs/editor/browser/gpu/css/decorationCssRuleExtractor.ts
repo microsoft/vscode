@@ -96,4 +96,13 @@ export class DecorationCssRuleExtractor extends Disposable {
 		}
 		return result;
 	}
+
+	/**
+	 * Clears all cached CSS rules and CSS variable values. This should be called when the theme
+	 * changes to ensure fresh values are computed.
+	 */
+	clear(): void {
+		this._ruleCache.clear();
+		this._cssVariableCache.clear();
+	}
 }
