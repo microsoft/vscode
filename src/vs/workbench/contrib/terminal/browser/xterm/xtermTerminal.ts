@@ -925,9 +925,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		if (skipLastLine && hasValidEndMarker) {
 			end = end - 1;
 		}
-		if (end < start) {
-			end = start;
-		}
+		end = Math.max(end, start)
 		return this._serializeAddon.serialize({
 			range: {
 				start: startMarker?.line ?? 0,
