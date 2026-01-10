@@ -54,8 +54,10 @@ import { IHistoryService } from '../../../../../services/history/common/history.
 import { TerminalCommandArtifactCollector } from './terminalCommandArtifactCollector.js';
 import { isNumber, isString } from '../../../../../../base/common/types.js';
 import { ChatConfiguration } from '../../../../chat/common/constants.js';
-import { IChatWidgetService } from '../../../../chat/browser/chat.js';
+import { ChatViewId, IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { TerminalChatCommandId } from '../../../chat/browser/terminalChat.js';
+import { IViewDescriptorService } from '../../../../../common/views.js';
+import { TERMINAL_VIEW_ID } from '../../../../terminal/common/terminal.js';
 
 // #region Tool data
 
@@ -306,6 +308,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
 	) {
 		super();
 
@@ -835,6 +838,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	private _handleTerminalVisibility(toolTerminal: IToolTerminal, chatSessionId: string) {
 		const chatSessionOpenInWidget = !!this._chatWidgetService.getWidgetBySessionResource(LocalChatSessionUri.forSession(chatSessionId));
 		if (this._configurationService.getValue(TerminalChatAgentToolsSettingId.OutputLocation) === 'terminal' && chatSessionOpenInWidget) {
+			// Don't reveal the terminal if it's in the same view group as the chat view
+			const terminalLocation = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID);
+			const chatLocation = this._viewDescriptorService.getViewLocationById(ChatViewId);
+			if (terminalLocation && chatLocation && terminalLocation === chatLocation) {
+				this._logService.debug(`RunInTerminalTool: Skipping terminal reveal because terminal and chat are in the same view location (${terminalLocation})`);
+				return;
+			}
 			this._terminalService.setActiveInstance(toolTerminal.instance);
 			this._terminalService.revealTerminal(toolTerminal.instance, true);
 		}
