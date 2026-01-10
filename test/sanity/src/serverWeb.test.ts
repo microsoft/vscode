@@ -111,33 +111,10 @@ export function setup(context: TestContext) {
 
 				const port = /Extension host agent listening on (\d+)/.exec(text)?.[1];
 				if (port) {
-					(async function () {
-						try {
-							const browser = await context.launchBrowser();
-							const page = await browser.newPage();
-
-							const url = `http://localhost:${port}?tkn=${token}&folder=/${test.workspaceDir.replaceAll(path.sep, '/')}`;
-							context.log(`Navigating to ${url}`);
-							await page.goto(url, { waitUntil: 'networkidle' });
-
-							context.log('Waiting for the workbench to load');
-							await page.waitForSelector('.monaco-workbench');
-
-							context.log('Verifying page title contains "Visual Studio Code"');
-							assert.match(await page.title(), /Visual Studio Code/);
-
-							await test.run(page);
-
-							context.log('Closing browser');
-							await browser.close();
-
-							test.validate();
-						} catch (error) {
-							assert.fail(error instanceof Error ? error.message : String(error));
-						} finally {
-							context.killProcessTree(server.pid!);
-						}
-					})();
+					const url = `http://localhost:${port}?tkn=${token}&folder=/${test.workspaceDir.replaceAll(path.sep, '/')}`;
+					runUITest(url, test)
+						.catch(error => assert.fail(error instanceof Error ? error.message : String(error)))
+						.finally(() => context.killProcessTree(server.pid!));
 				}
 			});
 
@@ -145,6 +122,27 @@ export function setup(context: TestContext) {
 				server.on('error', reject);
 				server.on('exit', resolve);
 			});
+		}
+
+		async function runUITest(url: string, test: UITest) {
+			const browser = await context.launchBrowser();
+			const page = await browser.newPage();
+
+			context.log(`Navigating to ${url}`);
+			await page.goto(url, { waitUntil: 'networkidle' });
+
+			context.log('Waiting for the workbench to load');
+			await page.waitForSelector('.monaco-workbench');
+
+			context.log('Verifying page title contains "Visual Studio Code"');
+			assert.match(await page.title(), /Visual Studio Code/);
+
+			await test.run(page);
+
+			context.log('Closing browser');
+			await browser.close();
+
+			test.validate();
 		}
 	});
 }

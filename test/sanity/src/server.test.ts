@@ -101,19 +101,10 @@ export function setup(context: TestContext) {
 
 				const port = /Extension host agent listening on (\d+)/.exec(text)?.[1];
 				if (port) {
-					(async function () {
-						try {
-							const url = `http://localhost:${port}/version`;
-							context.log(`Fetching ${url}`);
-							const response = await fetch(url);
-							assert.equal(response.status, 200);
-							assert.equal(await response.text(), context.commit);
-						} catch (error) {
-							assert.fail(error instanceof Error ? error.message : String(error));
-						} finally {
-							context.killProcessTree(server.pid!);
-						}
-					})();
+					const url = `http://localhost:${port}/version`;
+					runWebTest(url)
+						.catch(error => assert.fail(error instanceof Error ? error.message : String(error)))
+						.finally(() => context.killProcessTree(server.pid!));
 				}
 			});
 
@@ -121,6 +112,13 @@ export function setup(context: TestContext) {
 				server.on('error', reject);
 				server.on('exit', resolve);
 			});
+		}
+
+		async function runWebTest(url: string) {
+			context.log(`Fetching ${url}`);
+			const response = await fetch(url);
+			assert.equal(response.status, 200);
+			assert.equal(await response.text(), context.commit);
 		}
 	});
 }
