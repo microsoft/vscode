@@ -362,6 +362,16 @@ declare module 'vscode' {
 		 * The selectable items within this option group.
 		 */
 		readonly items: ChatSessionProviderOptionItem[];
+
+		/**
+		 * A context key expression that controls when this option group picker is visible.
+		 * When specified, the picker is only shown when the expression evaluates to true.
+		 * The expression can reference other option group values via `chatSessionOption.<groupId>`.
+		 *
+		 * Example: `"chatSessionOption.models == 'gpt-4'"` - only show this picker when
+		 * the 'models' option group has 'gpt-4' selected.
+		 */
+		readonly when?: string;
 	}
 
 	export interface ChatSessionProviderOptions {

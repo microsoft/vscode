@@ -31,7 +31,7 @@ import { ExtensionsRegistry } from '../../../../services/extensions/common/exten
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentService } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { IChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsExtensionPoint, IChatSessionsService, isSessionInProgressStatus, localChatSessionType, SessionOptionsChangedCallback } from '../../common/chatSessionsService.js';
+import { IChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsExtensionPoint, IChatSessionsService, isSessionInProgressStatus, SessionOptionsChangedCallback } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
@@ -44,6 +44,7 @@ import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatViewId } from '../chat.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
+import { AgentSessionProviders } from '../agentSessions/agentSessions.js';
 
 const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsExtensionPoint[]>({
 	extensionPoint: 'chatSessions',
@@ -331,8 +332,12 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	public reportInProgress(chatSessionType: string, count: number): void {
 		let displayName: string | undefined;
 
-		if (chatSessionType === localChatSessionType) {
-			displayName = 'Local Chat Agent';
+		if (chatSessionType === AgentSessionProviders.Local) {
+			displayName = localize('chat.session.inProgress.local', "Local Agent");
+		} else if (chatSessionType === AgentSessionProviders.Background) {
+			displayName = localize('chat.session.inProgress.background', "Background Agent");
+		} else if (chatSessionType === AgentSessionProviders.Cloud) {
+			displayName = localize('chat.session.inProgress.cloud', "Cloud Agent");
 		} else {
 			displayName = this._contributions.get(chatSessionType)?.contribution.displayName;
 		}

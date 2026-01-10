@@ -581,6 +581,8 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 	}
 
 	private _render(provider: AccesibleViewContentProvider, container: HTMLElement, showAccessibleViewHelp?: boolean, updatedContent?: string): IDisposable {
+		const isSameProvider = this._currentProvider?.id === provider.id;
+		const previousPosition = isSameProvider ? this._editorWidget.getPosition() : undefined;
 		this._currentProvider = provider;
 		this._accessibleViewCurrentProviderId.set(provider.id);
 		const verbose = this._verbosityEnabled();
@@ -629,6 +631,8 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 						this._editorWidget.revealLine(position.lineNumber);
 					}
 				}
+			} else if (previousPosition) {
+				this._editorWidget.setPosition(previousPosition);
 			}
 		});
 		this._updateToolbar(this._currentProvider.actions, provider.options.type);

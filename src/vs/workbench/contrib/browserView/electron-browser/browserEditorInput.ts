@@ -27,6 +27,9 @@ const LOADING_SPINNER_SVG = (color: string | undefined) => `
 	</svg>
 `;
 
+/**
+ * JSON-serializable type used during browser state serialization/deserialization
+ */
 export interface IBrowserEditorInputData {
 	readonly id: string;
 	readonly url?: string;

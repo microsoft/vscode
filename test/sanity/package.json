@@ -1,0 +1,17 @@
+{
+  "name": "code-oss-dev-sanity-test",
+  "version": "0.1.0",
+  "license": "MIT",
+  "main": "./out/index.js",
+  "scripts": {
+    "compile": "node ../../node_modules/typescript/bin/tsc",
+    "start": "node ./out/index.js"
+  },
+  "dependencies": {
+    "node-fetch": "^3.3.2",
+    "playwright": "^1.57.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.x"
+  }
+}
