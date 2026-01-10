@@ -553,7 +553,7 @@ export interface IPasteEvent {
  */
 export interface PastePayload {
 	text: string;
-	pasteOnNewLine: boolean;
+	pasteOnNewLine: boolean[] | null;
 	multicursorText: string[] | null;
 	mode: string | null;
 	clipboardEvent?: ClipboardEvent;

@@ -653,25 +653,22 @@ export class EnterOperation {
 
 export class PasteOperation {
 
-	public static getEdits(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], text: string, pasteOnNewLine: boolean, multicursorText: string[]) {
+	public static getEdits(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], text: string, pasteOnNewLine: boolean[] | null, multicursorText: string[]) {
 		const distributedPaste = this._distributePasteToCursors(config, selections, text, pasteOnNewLine, multicursorText);
 		if (distributedPaste) {
-			selections = selections.sort(Range.compareRangesUsingStarts);
-			return this._distributedPaste(config, model, selections, distributedPaste);
+			selections.sort(Range.compareRangesUsingStarts);
+			return this._distributedPaste(config, model, selections, distributedPaste, pasteOnNewLine);
 		} else {
 			return this._simplePaste(config, model, selections, text, pasteOnNewLine);
 		}
 	}
 
-	private static _distributePasteToCursors(config: CursorConfiguration, selections: Selection[], text: string, pasteOnNewLine: boolean, multicursorText: string[]): string[] | null {
+	private static _distributePasteToCursors(config: CursorConfiguration, selections: Selection[], text: string, pasteOnNewLine: boolean[] | null, multicursorText: string[]): string[] | null {
 		if (selections.length === 1) {
 			return null;
 		}
 		if (multicursorText && multicursorText.length === selections.length) {
 			return multicursorText;
-		}
-		if (pasteOnNewLine) {
-			return null;
 		}
 		if (config.multiCursorPaste === 'spread') {
 			// Try to spread the pasted text in case the line count matches the cursor count
@@ -691,12 +688,24 @@ export class PasteOperation {
 		return null;
 	}
 
-	private static _distributedPaste(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], text: string[]): EditOperationResult {
+	private static _distributedPaste(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], texts: string[], pasteOnNewLine: boolean[] | null): EditOperationResult {
+		if (!pasteOnNewLine) {
+			pasteOnNewLine = [];
+		}
 		const commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
-			const shouldOvertypeOnPaste = config.overtypeOnPaste && config.inputMode === 'overtype';
-			const ChosenReplaceCommand = shouldOvertypeOnPaste ? ReplaceOvertypeCommand : ReplaceCommand;
-			commands[i] = new ChosenReplaceCommand(selections[i], text[i]);
+			const selection = selections[i];
+			const text = texts[i];
+			const position = selection.getPosition();
+			if (pasteOnNewLine[i] && selection.isEmpty() && text.indexOf('\n') === text.length - 1) {
+				// Paste entire line at the beginning of line
+				const typeSelection = new Range(position.lineNumber, 1, position.lineNumber, 1);
+				commands[i] = new ReplaceCommandThatPreservesSelection(typeSelection, text, selection, true);
+			} else {
+				const shouldOvertypeOnPaste = config.overtypeOnPaste && config.inputMode === 'overtype';
+				const ChosenReplaceCommand = shouldOvertypeOnPaste ? ReplaceOvertypeCommand : ReplaceCommand;
+				commands[i] = new ChosenReplaceCommand(selection, text);
+			}
 		}
 		return new EditOperationResult(EditOperationType.Other, commands, {
 			shouldPushStackElementBefore: true,
@@ -704,18 +713,14 @@ export class PasteOperation {
 		});
 	}
 
-	private static _simplePaste(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], text: string, pasteOnNewLine: boolean): EditOperationResult {
+	private static _simplePaste(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], text: string, pasteOnNewLine: boolean[] | null): EditOperationResult {
 		const commands: ICommand[] = [];
+		const singleCopyPasteOnNewLine = pasteOnNewLine?.length === 1 && pasteOnNewLine[0];
+		if (!pasteOnNewLine) { pasteOnNewLine = []; }
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
 			const position = selection.getPosition();
-			if (pasteOnNewLine && !selection.isEmpty()) {
-				pasteOnNewLine = false;
-			}
-			if (pasteOnNewLine && text.indexOf('\n') !== text.length - 1) {
-				pasteOnNewLine = false;
-			}
-			if (pasteOnNewLine) {
+			if (singleCopyPasteOnNewLine && selection.isEmpty() && text.indexOf('\n') === text.length - 1) {
 				// Paste entire line at the beginning of line
 				const typeSelection = new Range(position.lineNumber, 1, position.lineNumber, 1);
 				commands[i] = new ReplaceCommandThatPreservesSelection(typeSelection, text, selection, true);

@@ -387,7 +387,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 			}
 			case Handler.Paste: {
 				const args = <Partial<PastePayload>>e.payload;
-				controller.paste(eventsCollector, args.text || '', args.pasteOnNewLine || false, args.multicursorText || null, e.source);
+				controller.paste(eventsCollector, args.text || '', args.pasteOnNewLine ?? null, args.multicursorText || null, e.source);
 				break;
 			}
 			case Handler.Cut:

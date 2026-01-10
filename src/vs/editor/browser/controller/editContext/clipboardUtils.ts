@@ -60,7 +60,7 @@ function getDataToCopy(viewModel: IViewModel, modelSelections: Range[], emptySel
 	const rawTextToCopy = viewModel.getPlainTextToCopy(modelSelections, emptySelectionClipboard, isWindows);
 	const newLineCharacter = viewModel.model.getEOL();
 
-	const isFromEmptySelection = (emptySelectionClipboard && modelSelections.length === 1 && modelSelections[0].isEmpty());
+	const isFromEmptySelection = modelSelections.map(selection => selection.isEmpty()); // (emptySelectionClipboard && modelSelections.length === 1 && modelSelections[0].isEmpty());
 	const multicursorText = (Array.isArray(rawTextToCopy) ? rawTextToCopy : null);
 	const text = (Array.isArray(rawTextToCopy) ? rawTextToCopy.join(newLineCharacter) : rawTextToCopy);
 
@@ -112,7 +112,7 @@ export class InMemoryClipboardMetadataManager {
 }
 
 export interface ClipboardDataToCopy {
-	isFromEmptySelection: boolean;
+	isFromEmptySelection: boolean[];
 	multicursorText: string[] | null | undefined;
 	text: string;
 	html: string | null | undefined;
@@ -122,7 +122,7 @@ export interface ClipboardDataToCopy {
 export interface ClipboardStoredMetadata {
 	version: 1;
 	id: string | undefined;
-	isFromEmptySelection: boolean | undefined;
+	isFromEmptySelection: boolean[] | undefined;
 	multicursorText: string[] | null | undefined;
 	mode: string | null;
 }

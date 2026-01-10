@@ -151,13 +151,13 @@ export class NativeEditContext extends AbstractEditContext {
 				return;
 			}
 			metadata = metadata || InMemoryClipboardMetadataManager.INSTANCE.get(text);
-			let pasteOnNewLine = false;
+			let pasteOnNewLine: boolean[] | null = null;
 			let multicursorText: string[] | null = null;
 			let mode: string | null = null;
 			if (metadata) {
 				const options = this._context.configuration.options;
 				const emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
-				pasteOnNewLine = emptySelectionClipboard && !!metadata.isFromEmptySelection;
+				pasteOnNewLine = emptySelectionClipboard ? metadata.isFromEmptySelection ?? null : null;
 				multicursorText = typeof metadata.multicursorText !== 'undefined' ? metadata.multicursorText : null;
 				mode = metadata.mode;
 			}

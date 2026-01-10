@@ -1116,7 +1116,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				}
 				case editorCommon.Handler.Paste: {
 					const args = <Partial<editorBrowser.PastePayload>>payload;
-					this._paste(source, args.text || '', args.pasteOnNewLine || false, args.multicursorText || null, args.mode || null, args.clipboardEvent);
+					this._paste(source, args.text || '', args.pasteOnNewLine ?? null, args.multicursorText || null, args.mode || null, args.clipboardEvent);
 					return;
 				}
 				case editorCommon.Handler.Cut:
@@ -1186,7 +1186,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._modelData.viewModel.compositionType(text, replacePrevCharCnt, replaceNextCharCnt, positionDelta, source);
 	}
 
-	private _paste(source: string | null | undefined, text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null, clipboardEvent?: ClipboardEvent): void {
+	private _paste(source: string | null | undefined, text: string, pasteOnNewLine: boolean[] | null, multicursorText: string[] | null, mode: string | null, clipboardEvent?: ClipboardEvent): void {
 		if (!this._modelData) {
 			return;
 		}
@@ -1885,7 +1885,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		let commandDelegate: ICommandDelegate;
 		if (this.isSimpleWidget) {
 			commandDelegate = {
-				paste: (text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null) => {
+				paste: (text: string, pasteOnNewLine: boolean[] | null, multicursorText: string[] | null, mode: string | null) => {
 					this._paste('keyboard', text, pasteOnNewLine, multicursorText, mode);
 				},
 				type: (text: string) => {
@@ -1906,7 +1906,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			};
 		} else {
 			commandDelegate = {
-				paste: (text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null) => {
+				paste: (text: string, pasteOnNewLine: boolean[] | null, multicursorText: string[] | null, mode: string | null) => {
 					const payload: editorBrowser.PastePayload = { text, pasteOnNewLine, multicursorText, mode };
 					this._commandService.executeCommand(editorCommon.Handler.Paste, payload);
 				},

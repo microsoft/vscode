@@ -1184,7 +1184,7 @@ export class ViewModel extends Disposable implements IViewModel {
 	public compositionType(text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number, source?: string | null | undefined): void {
 		this._executeCursorEdit(eventsCollector => this._cursor.compositionType(eventsCollector, text, replacePrevCharCnt, replaceNextCharCnt, positionDelta, source));
 	}
-	public paste(text: string, pasteOnNewLine: boolean, multicursorText?: string[] | null | undefined, source?: string | null | undefined): void {
+	public paste(text: string, pasteOnNewLine: boolean[] | null, multicursorText?: string[] | null | undefined, source?: string | null | undefined): void {
 		this._executeCursorEdit(eventsCollector => this._cursor.paste(eventsCollector, text, pasteOnNewLine, multicursorText, source));
 	}
 	public cut(source?: string | null | undefined): void {

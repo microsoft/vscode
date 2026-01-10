@@ -2061,7 +2061,7 @@ suite('Editor Controller', () => {
 			moveTo(editor, viewModel, 2, 1, false);
 			moveTo(editor, viewModel, 2, 6, true);
 
-			viewModel.paste('line1\n', true);
+			viewModel.paste('line1\n', [true]);
 
 			assert.strictEqual(model.getLineContent(1), 'line1');
 			assert.strictEqual(model.getLineContent(2), 'line1');
@@ -2079,7 +2079,7 @@ suite('Editor Controller', () => {
 		}, (editor, model, viewModel) => {
 			viewModel.setSelections('test', [new Selection(2, 6, 2, 9)]);
 
-			viewModel.paste('line1\n', true);
+			viewModel.paste('line1\n', [true]);
 
 			assert.strictEqual(model.getLineContent(1), 'line1');
 			assert.strictEqual(model.getLineContent(2), 'line line1');
@@ -2100,7 +2100,7 @@ suite('Editor Controller', () => {
 
 			viewModel.paste(
 				'a\nb\nc\nd',
-				false,
+				[false, false],
 				[
 					'a\nb',
 					'c\nd'
@@ -2135,7 +2135,7 @@ suite('Editor Controller', () => {
 
 			viewModel.paste(
 				'aaa\nbbb\nccc\n',
-				false,
+				null,
 				null
 			);
 
@@ -2178,7 +2178,7 @@ suite('Editor Controller', () => {
 
 			viewModel.paste(
 				'aaa\r\nbbb\r\nccc\r\nddd\r\n',
-				false,
+				null,
 				null
 			);
 
@@ -2203,7 +2203,7 @@ suite('Editor Controller', () => {
 
 			viewModel.paste(
 				'a\nb\nc',
-				false,
+				null,
 				null
 			);
 
@@ -2227,7 +2227,7 @@ suite('Editor Controller', () => {
 
 			viewModel.paste(
 				'a\nb\nc\n',
-				false,
+				null,
 				null
 			);
 
@@ -2255,7 +2255,7 @@ suite('Editor Controller', () => {
 
 			viewModel.paste(
 				'line1\nline2\n',
-				true,
+				[true, true],
 				['line1\n', 'line2\n']
 			);
 
@@ -2264,6 +2264,37 @@ suite('Editor Controller', () => {
 				'line1',
 				'line1',
 				'line2',
+				'line2',
+				'line3'
+			].join('\n'));
+		});
+	});
+
+	test('issue #286892: paste from multiple cursors with empty selections and multiCursorPaste full in the middle of the line', () => {
+		usingCursor({
+			text: [
+				'line1',
+				'line2',
+				'line3'
+			],
+			editorOpts: {
+				multiCursorPaste: 'full'
+			}
+		}, (editor, model, viewModel) => {
+			// 2 cursors in the middle of lines 1 and 2
+			viewModel.setSelections('test', [new Selection(1, 3, 1, 3), new Selection(2, 3, 2, 3)]);
+
+			viewModel.paste(
+				'added1\nadded2\n',
+				[true, true],
+				['added1\n', 'added2\n']
+			);
+
+			// Each cursor gets its respective line
+			assert.strictEqual(model.getValue(), [
+				'added1',
+				'line1',
+				'added2',
 				'line2',
 				'line3'
 			].join('\n'));
@@ -2962,7 +2993,7 @@ suite('Editor Controller', () => {
 			editor.setSelections([
 				new Selection(2, 1, 2, 1)
 			]);
-			viewModel.paste('something\n', true);
+			viewModel.paste('something\n', [true]);
 			assert.strictEqual(model.getValue(), [
 				'abc123',
 				'something',
@@ -3570,7 +3601,7 @@ suite('Editor Controller', () => {
 			].join('\n'));
 			assertCursor(viewModel, new Position(4, model.getLineMaxColumn(4)));
 
-			viewModel.paste('        // I\'m gonna copy this line\n', true);
+			viewModel.paste('        // I\'m gonna copy this line\n', [true]);
 			assert.strictEqual(model.getValue(), [
 				'    function f() {',
 				'        // I\'m gonna copy this line',
@@ -3597,7 +3628,7 @@ suite('Editor Controller', () => {
 		withTestCodeEditor(model, {}, (editor, viewModel) => {
 
 			editor.setSelections([new Selection(4, 10, 4, 10)]);
-			viewModel.paste('        // I\'m gonna copy this line\n', true);
+			viewModel.paste('        // I\'m gonna copy this line\n', [true]);
 
 			assert.strictEqual(model.getValue(), [
 				'    function f() {',
@@ -6631,14 +6662,14 @@ suite('Overtype Mode', () => {
 
 		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			viewModel.setSelections('test', [new Selection(1, 5, 1, 5)]);
-			viewModel.paste('cc', false);
+			viewModel.paste('cc', [false]);
 			assert.strictEqual(model.getValue(EndOfLinePreference.LF), [
 				'1234cc789',
 				'123456789',
 			].join('\n'), 'assert1');
 
 			viewModel.setSelections('test', [new Selection(1, 5, 1, 5)]);
-			viewModel.paste('dddddddd', false);
+			viewModel.paste('dddddddd', [false]);
 			assert.strictEqual(model.getValue(EndOfLinePreference.LF), [
 				'1234dddddddd',
 				'123456789',
@@ -6662,7 +6693,7 @@ suite('Overtype Mode', () => {
 
 		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			viewModel.setSelections('test', [new Selection(1, 5, 2, 3)]);
-			viewModel.paste('cc', false);
+			viewModel.paste('cc', [false]);
 			assert.strictEqual(model.getValue(EndOfLinePreference.LF), [
 				'1234cc456789',
 			].join('\n'), 'assert1');
@@ -6688,7 +6719,7 @@ suite('Overtype Mode', () => {
 			viewModel.paste([
 				'aaaaaaa',
 				'bbbbbbb'
-			].join('\n'), false);
+			].join('\n'), [false]);
 			assert.strictEqual(model.getValue(EndOfLinePreference.LF), [
 				'1234aaaaaaa',
 				'bbbbbbb',

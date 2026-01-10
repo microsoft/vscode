@@ -286,11 +286,11 @@ export class TextAreaEditContext extends AbstractEditContext {
 		}));
 
 		this._register(this._textAreaInput.onPaste((e: IPasteData) => {
-			let pasteOnNewLine = false;
+			let pasteOnNewLine: boolean[] | null = null;
 			let multicursorText: string[] | null = null;
 			let mode: string | null = null;
 			if (e.metadata) {
-				pasteOnNewLine = (this._emptySelectionClipboard && !!e.metadata.isFromEmptySelection);
+				pasteOnNewLine = this._emptySelectionClipboard ? e.metadata.isFromEmptySelection ?? null : null;
 				multicursorText = (typeof e.metadata.multicursorText !== 'undefined' ? e.metadata.multicursorText : null);
 				mode = e.metadata.mode;
 			}
