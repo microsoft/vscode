@@ -5,12 +5,11 @@
 
 import { IAction } from '../../../../../../base/common/actions.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ElicitationState, IChatElicitationRequest, IChatElicitationRequestSerialized } from '../../chatService/chatService.js';
 import { ToolDataSource } from '../../tools/languageModelToolsService.js';
 
-export class ChatElicitationRequestPart extends Disposable implements IChatElicitationRequest {
+export class ChatElicitationRequestPart implements IChatElicitationRequest {
 	public readonly kind = 'elicitation2';
 	public state = observableValue('state', ElicitationState.Pending);
 	public acceptedResult?: Record<string, unknown>;
@@ -32,8 +31,6 @@ export class ChatElicitationRequestPart extends Disposable implements IChatElici
 		public readonly moreActions?: IAction[],
 		public readonly onHide?: () => void,
 	) {
-		super();
-
 		if (reject) {
 			this.reject = async () => {
 				const state = await reject!();
@@ -54,7 +51,7 @@ export class ChatElicitationRequestPart extends Disposable implements IChatElici
 		}
 		this._isHiddenValue.set(true, undefined, undefined);
 		this.onHide?.();
-		this.dispose();
+		this.state.set(ElicitationState.Rejected, undefined);
 	}
 
 	public toJSON() {
