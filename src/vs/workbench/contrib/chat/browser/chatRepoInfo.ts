@@ -230,6 +230,25 @@ export async function captureRepoInfo(scmService: ISCMService, fileService: IFil
 		return undefined;
 	}
 
+	// Check if .git exists to determine if this is a git workspace
+	let hasGit = false;
+	try {
+		const gitDirUri = rootUri.with({ path: `${rootUri.path}/.git` });
+		hasGit = await fileService.exists(gitDirUri);
+	} catch {
+		// Ignore errors
+	}
+
+	if (!hasGit) {
+		// Plain folder - no git
+		return {
+			workspaceType: 'plain-folder',
+			syncStatus: 'no-git',
+			diffs: undefined
+		};
+	}
+
+	// Read remote URL from git config
 	let remoteUrl: string | undefined;
 	try {
 		// TODO: Handle git worktrees where .git is a file pointing to the actual git directory
@@ -244,25 +263,71 @@ export async function captureRepoInfo(scmService: ISCMService, fileService: IFil
 		// Ignore errors reading git config
 	}
 
-	let branchName: string | undefined;
-	let headCommitHash: string | undefined;
+	// Get branch and commit info from history provider
+	let localBranch: string | undefined;
+	let localHeadCommit: string | undefined;
+	let remoteTrackingBranch: string | undefined;
+	let remoteHeadCommit: string | undefined;
+	let remoteBaseBranch: string | undefined;
+
 	const historyProvider = repository.provider.historyProvider?.get();
 	if (historyProvider) {
 		const historyItemRef = historyProvider.historyItemRef.get();
-		branchName = historyItemRef?.name;
-		headCommitHash = historyItemRef?.revision;
-	}
+		localBranch = historyItemRef?.name;
+		localHeadCommit = historyItemRef?.revision;
 
-	let repoType: 'github' | 'ado' | 'other' = 'other';
-	if (remoteUrl) {
-		const host = getRemoteHost(remoteUrl);
-		if (host === 'github.com') {
-			repoType = 'github';
-		} else if (host === 'dev.azure.com' || (host && host.endsWith('.visualstudio.com'))) {
-			repoType = 'ado';
+		// Get remote tracking branch info
+		const historyItemRemoteRef = historyProvider.historyItemRemoteRef.get();
+		if (historyItemRemoteRef) {
+			remoteTrackingBranch = historyItemRemoteRef.name;
+			remoteHeadCommit = historyItemRemoteRef.revision;
+		}
+
+		// Get base branch info (for unpublished branches)
+		const historyItemBaseRef = historyProvider.historyItemBaseRef.get();
+		if (historyItemBaseRef) {
+			remoteBaseBranch = historyItemBaseRef.name;
+			// Note: remoteHeadCommit stays undefined if no tracking branch
 		}
 	}
 
+	// Determine workspace type and sync status
+	let workspaceType: IExportableRepoData['workspaceType'];
+	let syncStatus: IExportableRepoData['syncStatus'];
+
+	if (!remoteUrl) {
+		// Local git only - no remote configured
+		workspaceType = 'local-git';
+		syncStatus = 'local-only';
+	} else {
+		workspaceType = 'remote-git';
+
+		if (!remoteTrackingBranch) {
+			// Branch has no remote tracking branch
+			syncStatus = 'unpublished';
+		} else if (localHeadCommit === remoteHeadCommit) {
+			// Local HEAD matches remote tracking branch
+			syncStatus = 'synced';
+		} else {
+			// Local has commits not pushed to remote
+			syncStatus = 'unpushed';
+		}
+	}
+
+	// Determine remote vendor from URL
+	let remoteVendor: IExportableRepoData['remoteVendor'];
+	if (remoteUrl) {
+		const host = getRemoteHost(remoteUrl);
+		if (host === 'github.com') {
+			remoteVendor = 'github';
+		} else if (host === 'dev.azure.com' || (host && host.endsWith('.visualstudio.com'))) {
+			remoteVendor = 'ado';
+		} else {
+			remoteVendor = 'other';
+		}
+	}
+
+	// Collect working tree diffs
 	const diffs: IExportableRepoDiff[] = [];
 	const diffPromises: Promise<IExportableRepoDiff | undefined>[] = [];
 
@@ -300,10 +365,15 @@ export async function captureRepoInfo(scmService: ISCMService, fileService: IFil
 	}
 
 	return {
+		workspaceType,
+		syncStatus,
 		remoteUrl,
-		repoType,
-		branchName,
-		headCommitHash,
+		remoteVendor,
+		localBranch,
+		remoteTrackingBranch,
+		remoteBaseBranch,
+		localHeadCommit,
+		remoteHeadCommit,
 		diffs
 	};
 }
@@ -374,7 +444,7 @@ export class ChatRepoInfoContribution extends Disposable implements IWorkbenchCo
 			const repoData = await captureRepoInfo(this.scmService, this.fileService);
 			if (repoData) {
 				model.setRepoData(repoData);
-				if (!repoData.headCommitHash) {
+				if (!repoData.localHeadCommit && repoData.workspaceType !== 'plain-folder') {
 					this.logService.warn('[ChatRepoInfo] Captured repo data without commit hash - git history may not be ready');
 				}
 			} else {

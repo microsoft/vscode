@@ -1312,11 +1312,68 @@ export interface ISerializableMarkdownInfo {
  * Enables reproducing the workspace state by cloning, checking out the commit, and applying diffs.
  */
 export interface IExportableRepoData {
-	remoteUrl: string | undefined;
-	repoType: 'github' | 'ado' | 'other';
-	branchName: string | undefined;
-	headCommitHash: string | undefined;
-	diffs: IExportableRepoDiff[] | undefined;
+	/**
+	 * Classification of the workspace's version control state.
+	 * - `remote-git`: Git repo with a configured remote URL
+	 * - `local-git`: Git repo without any remote (local only)
+	 * - `plain-folder`: Not a git repository
+	 */
+	workspaceType: 'remote-git' | 'local-git' | 'plain-folder';
+
+	/**
+	 * Sync status between local and remote.
+	 * - `synced`: Local HEAD matches remote tracking branch (fully pushed)
+	 * - `unpushed`: Local has commits not pushed to the remote tracking branch
+	 * - `unpublished`: Local branch has no remote tracking branch configured
+	 * - `local-only`: No remote configured (local git repo only)
+	 * - `no-git`: Not a git repository
+	 */
+	syncStatus: 'synced' | 'unpushed' | 'unpublished' | 'local-only' | 'no-git';
+
+	/**
+	 * Remote URL of the repository (e.g., https://github.com/org/repo.git).
+	 * Undefined if no remote is configured.
+	 */
+	remoteUrl?: string;
+
+	/**
+	 * Vendor/host of the remote repository.
+	 * Undefined if no remote is configured.
+	 */
+	remoteVendor?: 'github' | 'ado' | 'other';
+
+	/**
+	 * Remote tracking branch for the current branch (e.g., "origin/feature/my-work").
+	 * Undefined if branch is unpublished or no remote.
+	 */
+	remoteTrackingBranch?: string;
+
+	/**
+	 * Default remote branch used as base for unpublished branches (e.g., "origin/main").
+	 * Helpful for computing merge-base when branch has no tracking.
+	 */
+	remoteBaseBranch?: string;
+
+	/**
+	 * Commit hash of the remote tracking branch HEAD.
+	 * Undefined if branch has no remote tracking branch.
+	 */
+	remoteHeadCommit?: string;
+
+	/**
+	 * Name of the current local branch (e.g., "feature/my-work").
+	 */
+	localBranch?: string;
+
+	/**
+	 * Commit hash of the local HEAD when captured.
+	 */
+	localHeadCommit?: string;
+
+	/**
+	 * Working tree diffs (uncommitted changes).
+	 */
+	diffs?: IExportableRepoDiff[];
 }
 
 /**
