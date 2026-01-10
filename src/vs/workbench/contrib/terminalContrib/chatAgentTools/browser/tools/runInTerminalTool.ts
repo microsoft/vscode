@@ -174,7 +174,9 @@ function createFishModelDescription(): string {
 		'- Prefer command substitution with () syntax',
 		'- Variables are arrays by default, use $var[1] for first element',
 		'- Use set -e for strict error handling',
-		'- Take advantage of fish\'s autosuggestions and completions'
+		'- Take advantage of fish\'s autosuggestions and completions',
+		'- Execute commands on a single line; chain operations with && or ;',
+		'- For multiline text content, use repeated flags'
 	].join('\n');
 }
 
