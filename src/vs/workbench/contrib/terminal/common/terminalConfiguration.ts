@@ -562,7 +562,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 			localize('hideOnStartup.whenEmpty', "Only hide the terminal when there are no persistent sessions restored."),
 			localize('hideOnStartup.always', "Always hide the terminal, even when there are persistent sessions restored.")
 		],
-		default: 'never'
+		default: 'never',
 	},
 	[TerminalSettingId.HideOnLastClosed]: {
 		description: localize('terminal.integrated.hideOnLastClosed', "Whether to hide the terminal view when the last terminal is closed. This will only happen when the terminal is the only visible view in the view container."),
@@ -586,6 +586,16 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		markdownDescription: localize('terminal.integrated.rescaleOverlappingGlyphs', "Whether to rescale glyphs horizontally that are a single cell wide but have glyphs that would overlap following cell(s). This typically happens for ambiguous width characters (eg. the roman numeral characters U+2160+) which aren't featured in monospace fonts. Emoji glyphs are never rescaled."),
 		type: 'boolean',
 		default: true
+	},
+	[TerminalSettingId.EnableKittyKeyboardProtocol]: {
+		restricted: true,
+		markdownDescription: localize('terminal.integrated.enableKittyKeyboardProtocol', "Whether to enable the kitty keyboard protocol, which provides more detailed keyboard input reporting to the terminal."),
+		type: 'boolean',
+		default: false,
+		tags: ['experimental'],
+		experiment: {
+			mode: 'auto'
+		}
 	},
 	[TerminalSettingId.ShellIntegrationEnabled]: {
 		restricted: true,
