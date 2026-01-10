@@ -1572,5 +1572,87 @@ suite('PromptsService', () => {
 			assert.ok(!result[0].description?.includes('>'), 'Description should not contain XML tags');
 			assert.strictEqual(result[0].description?.length, 1024, 'Description should be truncated to 1024 characters');
 		});
+
+		test('should find skills in configured locations', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+
+			const rootFolderName = 'configured-skills-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			// Configure additional skills locations
+			testConfigService.setUserConfiguration(PromptsConfig.AGENT_SKILLS_LOCATIONS_KEY, [
+				'custom-skills', // relative path in workspace
+				'/absolute/skill-folder', // absolute path
+			]);
+
+			// Create mock filesystem with skills in configured locations
+			await mockFiles(fileService, [
+				// Skill in relative path (workspace folder)
+				{
+					path: `${rootFolder}/custom-skills/workspace-skill/SKILL.md`,
+					contents: [
+						'---',
+						'name: "Custom Workspace Skill"',
+						'description: "A skill from a custom workspace folder"',
+						'---',
+						'This is workspace skill content',
+					],
+				},
+				// Skill in absolute path
+				{
+					path: '/absolute/skill-folder/absolute-skill/SKILL.md',
+					contents: [
+						'---',
+						'name: "Absolute Path Skill"',
+						'description: "A skill from an absolute path"',
+						'---',
+						'This is absolute path skill content',
+					],
+				},
+				// Another skill in absolute path
+				{
+					path: '/absolute/skill-folder/another-skill/SKILL.md',
+					contents: [
+						'---',
+						'name: "Another Absolute Skill"',
+						'description: "Another skill from an absolute path"',
+						'---',
+						'This is another absolute skill content',
+					],
+				},
+				// A folder without SKILL.md (should be ignored)
+				{
+					path: '/absolute/skill-folder/not-a-skill/README.md',
+					contents: ['This is not a skill'],
+				},
+			]);
+
+			const result = await service.findAgentSkills(CancellationToken.None);
+
+			assert.ok(result, 'Should return results when agent skills are enabled');
+			assert.strictEqual(result.length, 3, 'Should find 3 skills from configured locations');
+
+			// Check config skills
+			const configSkills = result.filter(skill => skill.type === 'config');
+			assert.strictEqual(configSkills.length, 3, 'Should find 3 config skills');
+
+			const workspaceSkill = configSkills.find(skill => skill.name === 'Custom Workspace Skill');
+			assert.ok(workspaceSkill, 'Should find Custom Workspace Skill');
+			assert.strictEqual(workspaceSkill.description, 'A skill from a custom workspace folder');
+			assert.strictEqual(workspaceSkill.uri.path, `${rootFolder}/custom-skills/workspace-skill/SKILL.md`);
+
+			const absoluteSkill = configSkills.find(skill => skill.name === 'Absolute Path Skill');
+			assert.ok(absoluteSkill, 'Should find Absolute Path Skill');
+			assert.strictEqual(absoluteSkill.description, 'A skill from an absolute path');
+			assert.strictEqual(absoluteSkill.uri.path, '/absolute/skill-folder/absolute-skill/SKILL.md');
+
+			const anotherSkill = configSkills.find(skill => skill.name === 'Another Absolute Skill');
+			assert.ok(anotherSkill, 'Should find Another Absolute Skill');
+			assert.strictEqual(anotherSkill.description, 'Another skill from an absolute path');
+			assert.strictEqual(anotherSkill.uri.path, '/absolute/skill-folder/another-skill/SKILL.md');
+		});
 	});
 });

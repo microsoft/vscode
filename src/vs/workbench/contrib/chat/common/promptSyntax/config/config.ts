@@ -5,6 +5,7 @@
 
 import type { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { untildify } from '../../../../../../base/common/labels.js';
 import { PromptsType } from '../promptTypes.js';
 import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, getPromptFileDefaultLocation } from './promptFileLocations.js';
 
@@ -209,10 +210,12 @@ export namespace PromptsConfig {
 	/**
 	 * Get list of additional agent skills folder locations from configuration.
 	 * Returns an array of folder paths where skills should be loaded from.
+	 * Paths starting with `~/` are expanded using the provided user home path.
 	 * @param configService Configuration service instance
+	 * @param userHomePath The user's home directory path for expanding `~/` prefixes
 	 * @see {@link AGENT_SKILLS_LOCATIONS_KEY}.
 	 */
-	export function getAgentSkillsLocations(configService: IConfigurationService): string[] {
+	export function getAgentSkillsLocations(configService: IConfigurationService, userHomePath: string): string[] {
 		const configValue = configService.getValue<string[]>(AGENT_SKILLS_LOCATIONS_KEY);
 
 		if (!Array.isArray(configValue)) {
@@ -224,7 +227,8 @@ export namespace PromptsConfig {
 			if (typeof path === 'string') {
 				const cleanPath = path.trim();
 				if (cleanPath) {
-					result.push(cleanPath);
+					// Expand ~/... paths to use the user's home directory
+					result.push(untildify(cleanPath, userHomePath));
 				}
 			}
 		}

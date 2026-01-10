@@ -404,11 +404,6 @@ export class PromptFilesLocator {
 				allResults.push(...results.map(uri => ({ uri, type })));
 			}
 		}
-
-		// Also search in additional configured skill folders
-		const additionalFolders = await this.findAgentSkillsInConfiguredLocations(token);
-		allResults.push(...additionalFolders);
-
 		return allResults;
 	}
 
@@ -416,15 +411,15 @@ export class PromptFilesLocator {
 	 * Searches for skills in additional folders configured via the `chat.agentSkillsLocations` setting.
 	 * Each skill is stored in its own subdirectory with a SKILL.md file.
 	 */
-	private async findAgentSkillsInConfiguredLocations(token: CancellationToken): Promise<Array<{ uri: URI; type: string }>> {
-		const configuredLocations = PromptsConfig.getAgentSkillsLocations(this.configService);
+	public async findAgentSkillsInConfiguredLocations(token: CancellationToken): Promise<Array<{ uri: URI; type: string }>> {
+		const userHome = await this.pathService.userHome();
+		const configuredLocations = PromptsConfig.getAgentSkillsLocations(this.configService, userHome.fsPath);
 		if (configuredLocations.length === 0) {
 			return [];
 		}
 
 		const allResults: Array<{ uri: URI; type: string }> = [];
 		const { folders } = this.workspaceService.getWorkspace();
-		const userHome = await this.pathService.userHome();
 
 		for (const location of configuredLocations) {
 			try {

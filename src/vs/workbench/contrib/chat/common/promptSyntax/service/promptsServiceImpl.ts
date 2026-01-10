@@ -627,7 +627,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			let skippedDuplicateName = 0;
 			let skippedParseFailed = 0;
 
-			const process = async (uri: URI, skillType: string, scopeType: 'personal' | 'project'): Promise<void> => {
+			const process = async (uri: URI, skillType: string, scopeType: 'personal' | 'project' | 'config'): Promise<void> => {
 				try {
 					const parsedFile = await this.parseNew(uri, token);
 					const name = parsedFile.header?.name;
@@ -662,6 +662,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 			await Promise.all(workspaceSkills.map(({ uri, type }) => process(uri, type, 'project')));
 			const userSkills = await this.fileLocator.findAgentSkillsInUserHome(token);
 			await Promise.all(userSkills.map(({ uri, type }) => process(uri, type, 'personal')));
+			const configuredSkills = await this.fileLocator.findAgentSkillsInConfiguredLocations(token);
+			await Promise.all(configuredSkills.map(({ uri, type }) => process(uri, type, 'config')));
 
 			// Send telemetry about skill usage
 			type AgentSkillsFoundEvent = {

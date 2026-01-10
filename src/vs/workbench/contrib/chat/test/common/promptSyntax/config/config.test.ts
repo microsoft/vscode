@@ -334,11 +334,13 @@ suite('PromptsConfig', () => {
 	});
 
 	suite('getAgentSkillsLocations', () => {
+		const userHomePath = '/home/testuser';
+
 		test('undefined returns empty array', () => {
 			const configService = createMock(undefined);
 
 			assert.deepStrictEqual(
-				PromptsConfig.getAgentSkillsLocations(configService),
+				PromptsConfig.getAgentSkillsLocations(configService, userHomePath),
 				[],
 				'Must return empty array for undefined value.',
 			);
@@ -348,7 +350,7 @@ suite('PromptsConfig', () => {
 			const configService = createMock(null);
 
 			assert.deepStrictEqual(
-				PromptsConfig.getAgentSkillsLocations(configService),
+				PromptsConfig.getAgentSkillsLocations(configService, userHomePath),
 				[],
 				'Must return empty array for null value.',
 			);
@@ -358,7 +360,7 @@ suite('PromptsConfig', () => {
 			const configService = createMock({ path: '/some/path' });
 
 			assert.deepStrictEqual(
-				PromptsConfig.getAgentSkillsLocations(configService),
+				PromptsConfig.getAgentSkillsLocations(configService, userHomePath),
 				[],
 				'Must return empty array for non-array value.',
 			);
@@ -368,7 +370,7 @@ suite('PromptsConfig', () => {
 			const configService = createMock([]);
 
 			assert.deepStrictEqual(
-				PromptsConfig.getAgentSkillsLocations(configService),
+				PromptsConfig.getAgentSkillsLocations(configService, userHomePath),
 				[],
 				'Must return empty array for empty array value.',
 			);
@@ -382,7 +384,7 @@ suite('PromptsConfig', () => {
 			]);
 
 			assert.deepStrictEqual(
-				PromptsConfig.getAgentSkillsLocations(configService),
+				PromptsConfig.getAgentSkillsLocations(configService, userHomePath),
 				[
 					'/absolute/path/to/skills',
 					'relative/path/to/skills',
@@ -402,7 +404,7 @@ suite('PromptsConfig', () => {
 			]);
 
 			assert.deepStrictEqual(
-				PromptsConfig.getAgentSkillsLocations(configService),
+				PromptsConfig.getAgentSkillsLocations(configService, userHomePath),
 				[
 					'/valid/path',
 					'another/valid/path',
@@ -422,7 +424,7 @@ suite('PromptsConfig', () => {
 			]);
 
 			assert.deepStrictEqual(
-				PromptsConfig.getAgentSkillsLocations(configService),
+				PromptsConfig.getAgentSkillsLocations(configService, userHomePath),
 				[
 					'/valid/path',
 					'another/valid/path',
@@ -439,13 +441,49 @@ suite('PromptsConfig', () => {
 			]);
 
 			assert.deepStrictEqual(
-				PromptsConfig.getAgentSkillsLocations(configService),
+				PromptsConfig.getAgentSkillsLocations(configService, userHomePath),
 				[
 					'/path/with/leading/space',
 					'/path/with/trailing/space',
 					'/path/with/both',
 				],
 				'Must trim whitespace from paths.',
+			);
+		});
+
+		test('expands tilde paths to user home directory', () => {
+			const configService = createMock([
+				'~/my-skills',
+				'~/.claude/skills',
+				'~/nested/path/to/skills',
+			]);
+
+			assert.deepStrictEqual(
+				PromptsConfig.getAgentSkillsLocations(configService, userHomePath),
+				[
+					'/home/testuser/my-skills',
+					'/home/testuser/.claude/skills',
+					'/home/testuser/nested/path/to/skills',
+				],
+				'Must expand tilde paths to user home directory.',
+			);
+		});
+
+		test('handles mixed tilde and non-tilde paths', () => {
+			const configService = createMock([
+				'~/personal-skills',
+				'/absolute/path',
+				'relative/path',
+			]);
+
+			assert.deepStrictEqual(
+				PromptsConfig.getAgentSkillsLocations(configService, userHomePath),
+				[
+					'/home/testuser/personal-skills',
+					'/absolute/path',
+					'relative/path',
+				],
+				'Must handle mixed tilde and non-tilde paths.',
 			);
 		});
 	});
