@@ -833,7 +833,7 @@ class ProviderColumnRenderer extends ModelsTableColumnRenderer<IProviderColumnTe
 	}
 
 	override renderModelElement(entry: ILanguageModelEntry, index: number, templateData: IProviderColumnTemplateData): void {
-		templateData.providerElement.textContent = entry.model.provider.group.name;
+		templateData.providerElement.textContent = entry.model.provider.vendor.displayName;
 	}
 }
 

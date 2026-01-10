@@ -297,7 +297,7 @@ export interface ILanguageModelsService {
 
 	lookupLanguageModel(modelId: string): ILanguageModelChatMetadata | undefined;
 
-	fetchLanguageModelsGroups(vendor: string): Promise<ILanguageModelsGroup[]>;
+	fetchLanguageModelGroups(vendor: string): Promise<ILanguageModelsGroup[]>;
 
 	/**
 	 * Given a selector, returns a list of model identifiers
@@ -622,7 +622,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		return modelsMetadata;
 	}
 
-	async fetchLanguageModelsGroups(vendor: string): Promise<ILanguageModelsGroup[]> {
+	async fetchLanguageModelGroups(vendor: string): Promise<ILanguageModelsGroup[]> {
 		await this._resolveAllLanguageModels(vendor, true);
 		return this._modelsGroups.get(vendor) ?? [];
 	}

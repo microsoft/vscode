@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct, groupBy } from '../../../../../base/common/arrays.js';
+import { distinct } from '../../../../../base/common/arrays.js';
 import { IMatch, IFilter, or, matchesCamelCase, matchesWords, matchesBaseContiguousSubString } from '../../../../../base/common/filters.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { ILanguageModelsService, ILanguageModelChatMetadata, IUserFriendlyLanguageModel } from '../../../chat/common/languageModels.js';
@@ -177,22 +177,28 @@ export class ChatModelsViewModel extends Disposable {
 	}
 
 	filter(searchValue: string): readonly IViewModelEntry[] {
+		if (searchValue !== this.searchValue) {
+			this.collapsedGroups.clear();
+		}
 		this.searchValue = searchValue;
 		if (!this.modelsSorted) {
 			this.languageModelGroups = this.groupModels(this.languageModels);
 		}
 
-		this.collapsedGroups.clear();
 		this.doFilter();
 		return this.viewModelEntries;
 	}
 
 	private doFilter(): void {
 		const viewModelEntries: IViewModelEntry[] = [];
+		const shouldShowGroupHeaders = this.languageModelGroups.length > 1;
+
 		for (const group of this.languageModelGroups) {
 			if (this.collapsedGroups.has(group.group.id)) {
 				group.group.collapsed = true;
-				viewModelEntries.push(group.group);
+				if (shouldShowGroupHeaders) {
+					viewModelEntries.push(group.group);
+				}
 				continue;
 			}
 
@@ -205,7 +211,9 @@ export class ChatModelsViewModel extends Disposable {
 
 			if (groupEntries.length > 0) {
 				group.group.collapsed = false;
-				viewModelEntries.push(group.group);
+				if (shouldShowGroupHeaders) {
+					viewModelEntries.push(group.group);
+				}
 				viewModelEntries.push(...groupEntries);
 			}
 		}
@@ -265,7 +273,10 @@ export class ChatModelsViewModel extends Disposable {
 			}
 
 			if (lowerProviders.length > 0) {
-				const matchesProvider = lowerProviders.some(provider => modelEntry.provider.group.name.toLowerCase() === provider);
+				const matchesProvider = lowerProviders.some(provider =>
+					modelEntry.provider.vendor.vendor.toLowerCase() === provider ||
+					modelEntry.provider.vendor.displayName.toLowerCase() === provider
+				);
 				if (!matchesProvider) {
 					continue;
 				}
@@ -357,7 +368,14 @@ export class ChatModelsViewModel extends Disposable {
 	private groupModels(languageModels: ILanguageModel[]): ILanguageModelEntriesGroup[] {
 		const result: ILanguageModelEntriesGroup[] = [];
 		if (this.groupBy === ChatModelGroup.Visibility) {
-			const [visible, hidden] = groupBy(languageModels, model => model.metadata.isUserSelectable ? -1 : 1);
+			const visible = [], hidden = [];
+			for (const model of languageModels) {
+				if (model.metadata.isUserSelectable) {
+					visible.push(model);
+				} else {
+					hidden.push(model);
+				}
+			}
 			result.push({
 				group: {
 					type: 'group',
@@ -416,6 +434,9 @@ export class ChatModelsViewModel extends Disposable {
 		}
 		for (const group of result) {
 			group.models.sort((a, b) => {
+				if (a.provider.vendor.vendor === 'copilot' && b.provider.vendor.vendor === 'copilot') {
+					return a.metadata.name.localeCompare(b.metadata.name);
+				}
 				if (a.provider.vendor.vendor === 'copilot') { return -1; }
 				if (b.provider.vendor.vendor === 'copilot') { return 1; }
 				if (a.provider.group.name === b.provider.group.name) {
@@ -451,8 +472,8 @@ export class ChatModelsViewModel extends Disposable {
 		});
 	}
 
-	async refresh(): Promise<void> {
-		this.refreshThrottler.queue(() => this.doRefresh());
+	refresh(): Promise<void> {
+		return this.refreshThrottler.queue(() => this.doRefresh());
 	}
 
 	private async doRefresh(): Promise<void> {
@@ -460,7 +481,7 @@ export class ChatModelsViewModel extends Disposable {
 		this.languageModelGroupStatuses = [];
 		for (const vendor of this.getVendors()) {
 			const models: ILanguageModel[] = [];
-			const languageModelsGroups = await this.languageModelsService.fetchLanguageModelsGroups(vendor.vendor);
+			const languageModelsGroups = await this.languageModelsService.fetchLanguageModelGroups(vendor.vendor);
 			for (const group of languageModelsGroups) {
 				const provider: ILanguageModelProvider = {
 					group: group.group ?? {
