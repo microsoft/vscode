@@ -166,19 +166,8 @@ function getDefaultContentSnippet(promptType: PromptsType, chatModeService: ICha
 				`---`,
 				`\${2:Define what this custom agent accomplishes for the user, when to use it, and the edges it won't cross. Specify its ideal inputs/outputs, the tools it may call, and how it reports progress or asks for help.}`,
 			].join('\n');
-		case PromptsType.skill:
-			// Skills use a separate function that takes the folder name
-			// This case should not be reached - skills use getSkillContentSnippet
-			return [
-				`---`,
-				`name: '\${1:skill-name}'`,
-				`description: '\${2:Describe what this skill does and when to use it. Include keywords that help agents identify relevant tasks.}'`,
-				`---`,
-				``,
-				`\${3:Provide detailed instructions for the agent. Include step-by-step guidance, examples, and edge cases.}`,
-			].join('\n');
 		default:
-			throw new Error(`Unknown prompt type: ${promptType}`);
+			throw new Error(`Unsupported prompt type: ${promptType}`);
 	}
 }
 
@@ -186,7 +175,7 @@ function getDefaultContentSnippet(promptType: PromptsType, chatModeService: ICha
  * Generates the content snippet for a skill file with the name pre-populated.
  * Per agentskills.io/specification, the name field must match the parent directory name.
  */
-function getSkillContentSnippet(skillName: string, _chatModeService: IChatModeService): string {
+function getSkillContentSnippet(skillName: string): string {
 	return [
 		`---`,
 		`name: ${skillName}`,
@@ -244,7 +233,6 @@ class NewSkillFileAction extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		const fileService = accessor.get(IFileService);
 		const instaService = accessor.get(IInstantiationService);
-		const chatModeService = accessor.get(IChatModeService);
 		const quickInputService = accessor.get(IQuickInputService);
 
 		const selectedFolder = await instaService.invokeFunction(askForPromptSourceFolder, PromptsType.skill);
@@ -299,7 +287,7 @@ class NewSkillFileAction extends Action2 {
 		if (editor && editor.hasModel() && isEqual(editor.getModel().uri, skillFileUri)) {
 			SnippetController2.get(editor)?.apply([{
 				range: editor.getModel().getFullModelRange(),
-				template: getSkillContentSnippet(trimmedName, chatModeService),
+				template: getSkillContentSnippet(trimmedName),
 			}]);
 		}
 	}

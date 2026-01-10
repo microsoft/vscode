@@ -39,7 +39,7 @@ export const SKILL_LANGUAGE_ID = 'skill';
 export const ALL_PROMPTS_LANGUAGE_SELECTOR: LanguageSelector = [PROMPT_LANGUAGE_ID, INSTRUCTIONS_LANGUAGE_ID, AGENT_LANGUAGE_ID, SKILL_LANGUAGE_ID];
 
 /**
- * The language id for for a prompts type.
+ * The language id for a prompts type.
  */
 export function getLanguageIdForPromptsType(type: PromptsType): string {
 	switch (type) {

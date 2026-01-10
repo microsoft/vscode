@@ -62,6 +62,21 @@ suite('promptFileLocations', function () {
 			const uri = URI.file('/workspace/README.md');
 			assert.strictEqual(getPromptFileType(uri), undefined);
 		});
+
+		test('SKILL.md (uppercase) should be recognized as skill', () => {
+			const uri = URI.file('/workspace/.github/skills/test/SKILL.md');
+			assert.strictEqual(getPromptFileType(uri), PromptsType.skill);
+		});
+
+		test('skill.md (lowercase) should be recognized as skill', () => {
+			const uri = URI.file('/workspace/.github/skills/test/skill.md');
+			assert.strictEqual(getPromptFileType(uri), PromptsType.skill);
+		});
+
+		test('Skill.md (mixed case) should be recognized as skill', () => {
+			const uri = URI.file('/workspace/.github/skills/test/Skill.md');
+			assert.strictEqual(getPromptFileType(uri), PromptsType.skill);
+		});
 	});
 
 	suite('getCleanPromptName', () => {
@@ -103,6 +118,21 @@ suite('promptFileLocations', function () {
 		test('keeps full filename for files without known extensions', () => {
 			const uri = URI.file('/workspace/test.txt');
 			assert.strictEqual(getCleanPromptName(uri), 'test.txt');
+		});
+
+		test('removes .md extension for SKILL.md (uppercase)', () => {
+			const uri = URI.file('/workspace/.github/skills/test/SKILL.md');
+			assert.strictEqual(getCleanPromptName(uri), 'SKILL');
+		});
+
+		test('removes .md extension for skill.md (lowercase)', () => {
+			const uri = URI.file('/workspace/.github/skills/test/skill.md');
+			assert.strictEqual(getCleanPromptName(uri), 'skill');
+		});
+
+		test('removes .md extension for Skill.md (mixed case)', () => {
+			const uri = URI.file('/workspace/.github/skills/test/Skill.md');
+			assert.strictEqual(getCleanPromptName(uri), 'Skill');
 		});
 	});
 });
