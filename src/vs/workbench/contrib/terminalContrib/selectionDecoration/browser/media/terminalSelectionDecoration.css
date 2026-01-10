@@ -8,23 +8,20 @@
 	pointer-events: auto !important;
 }
 
-.terminal-selection-decoration .terminal-selection-action-button {
-	display: inline-block;
-	white-space: nowrap;
-	padding: 2px 8px;
-	border-radius: 4px;
-	cursor: pointer;
-	background-color: var(--vscode-button-background);
-	color: var(--vscode-button-foreground);
-	font-size: 12px;
-	transition: background-color 0.1s ease-in-out;
+.terminal-selection-decoration .terminal-selection-action-bar {
+	display: inline-flex;
 	transform: translateY(-100%);
+	background-color: var(--vscode-editorWidget-background);
+	border: 1px solid var(--vscode-editorWidget-border);
+	border-radius: 4px;
+	padding: 2px;
 }
 
-.terminal-selection-decoration .terminal-selection-action-button:hover {
-	background-color: var(--vscode-button-hoverBackground);
+.terminal-selection-decoration .terminal-selection-action-bar .monaco-action-bar {
+	background: transparent;
 }
 
-.terminal-selection-decoration .terminal-selection-action-button:active {
-	background-color: var(--vscode-button-hoverBackground);
+.terminal-selection-decoration .terminal-selection-action-bar .monaco-action-bar .action-item .action-label {
+	padding: 2px 4px;
+	border-radius: 2px;
 }
