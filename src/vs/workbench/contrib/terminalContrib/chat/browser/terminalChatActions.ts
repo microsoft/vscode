@@ -543,8 +543,7 @@ CommandsRegistry.registerCommand(TerminalChatCommandId.OpenTerminalSettingsLink,
 	}
 });
 
-CommandsRegistry.registerCommand(TerminalChatCommandId.DisableSessionAutoApproval, async (accessor, chatSessionResource: URI | string) => {
+CommandsRegistry.registerCommand(TerminalChatCommandId.DisableSessionAutoApproval, async (accessor, chatSessionResource: URI) => {
 	const terminalChatService = accessor.get(ITerminalChatService);
-	const resource = typeof chatSessionResource === 'string' ? URI.parse(chatSessionResource) : chatSessionResource;
-	terminalChatService.setChatSessionAutoApproval(resource, false);
+	terminalChatService.setChatSessionAutoApproval(chatSessionResource, false);
 });
