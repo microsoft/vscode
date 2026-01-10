@@ -124,19 +124,19 @@ export class TerminalCompletionItem extends SimpleCompletionItem {
 	constructor(
 		override readonly completion: ITerminalCompletion,
 		/**
-		 * The path separator used by the terminal. When provided, this is used instead of the
-		 * local platform's path separator for path normalization. This is important for remote
-		 * scenarios (e.g., WSL) where the remote OS may use different path separators than the
-		 * local OS.
+		 * The path separator used by the terminal. When provided, this is used instead of
+		 * detecting the separator from the label. This is important for remote scenarios
+		 * (e.g., WSL) where the remote OS may use different path separators than the local OS.
 		 */
 		pathSeparator?: string
 	) {
 		super(completion);
 
-		// Use provided pathSeparator to determine if we should use Windows-style paths.
-		// Default to Unix-style (/) since it works on all platforms and is safer for remote
-		// scenarios where we may not know the remote OS yet.
-		const useWindowsStylePath = pathSeparator === '\\';
+		// Detect path separator from the label if not provided. This ensures correct behavior
+		// for all scenarios (local Windows, local Unix, WSL, SSH remotes) by using the actual
+		// separator present in the completion rather than assuming based on the local OS.
+		const detectedSeparator = pathSeparator ?? (this.labelLow.includes('\\') ? '\\' : undefined);
+		const useWindowsStylePath = detectedSeparator === '\\';
 
 		// ensure lower-variants (perf)
 		this.labelLowExcludeFileExt = this.labelLow;

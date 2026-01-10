@@ -685,7 +685,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			// model and the slowdown/flickering that could potentially cause.
 			this._addPropertiesToInlineCompletionItem(completions);
 
-			const x = new TerminalCompletionItem(this._inlineCompletion);
+			const x = new TerminalCompletionItem(this._inlineCompletion, this._pathSeparator);
 			this._inlineCompletionItem.idx = x.idx;
 			this._inlineCompletionItem.score = x.score;
 			this._inlineCompletionItem.labelLow = x.labelLow;
