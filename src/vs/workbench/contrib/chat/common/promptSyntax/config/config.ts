@@ -59,6 +59,11 @@ export namespace PromptsConfig {
 	export const MODE_LOCATION_KEY = 'chat.modeFilesLocations';
 
 	/**
+	 * Configuration key for the locations of skill files.
+	 */
+	export const SKILLS_LOCATION_KEY = 'chat.skillFilesLocations';
+
+	/**
 	 * Configuration key for prompt file suggestions.
 	 */
 	export const PROMPT_FILES_SUGGEST_KEY = 'chat.promptFilesRecommendations';
@@ -211,6 +216,8 @@ export function getPromptFileLocationsConfigKey(type: PromptsType): string {
 			return PromptsConfig.PROMPT_LOCATIONS_KEY;
 		case PromptsType.agent:
 			return PromptsConfig.MODE_LOCATION_KEY;
+		case PromptsType.skill:
+			return PromptsConfig.SKILLS_LOCATION_KEY;
 		default:
 			throw new Error('Unknown prompt type');
 	}

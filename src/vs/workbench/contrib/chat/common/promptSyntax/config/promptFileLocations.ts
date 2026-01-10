@@ -28,6 +28,11 @@ export const LEGACY_MODE_FILE_EXTENSION = '.chatmode.md';
 export const AGENT_FILE_EXTENSION = '.agent.md';
 
 /**
+ * Skill file name (case insensitive).
+ */
+export const SKILL_FILENAME = 'SKILL.md';
+
+/**
  * Copilot custom instructions file name.
  */
 export const COPILOT_CUSTOM_INSTRUCTIONS_FILENAME = 'copilot-instructions.md';
@@ -52,6 +57,11 @@ export const LEGACY_MODE_DEFAULT_SOURCE_FOLDER = '.github/chatmodes';
  * Agents folder.
  */
 export const AGENTS_SOURCE_FOLDER = '.github/agents';
+
+/**
+ * Default skills source folder.
+ */
+export const SKILLS_DEFAULT_SOURCE_FOLDER = '.github/skills';
 
 /**
  * Default agent skills workspace source folders.
@@ -95,6 +105,10 @@ export function getPromptFileType(fileUri: URI): PromptsType | undefined {
 		return PromptsType.agent;
 	}
 
+	if (filename.toLowerCase() === SKILL_FILENAME.toLowerCase()) {
+		return PromptsType.skill;
+	}
+
 	// Check if it's a .md file in the .github/agents/ folder
 	if (filename.endsWith('.md') && isInAgentsFolder(fileUri)) {
 		return PromptsType.agent;
@@ -118,6 +132,8 @@ export function getPromptFileExtension(type: PromptsType): string {
 			return PROMPT_FILE_EXTENSION;
 		case PromptsType.agent:
 			return AGENT_FILE_EXTENSION;
+		case PromptsType.skill:
+			return SKILL_FILENAME;
 		default:
 			throw new Error('Unknown prompt type');
 	}
@@ -131,6 +147,8 @@ export function getPromptFileDefaultLocation(type: PromptsType): string {
 			return PROMPT_DEFAULT_SOURCE_FOLDER;
 		case PromptsType.agent:
 			return AGENTS_SOURCE_FOLDER;
+		case PromptsType.skill:
+			return SKILLS_DEFAULT_SOURCE_FOLDER;
 		default:
 			throw new Error('Unknown prompt type');
 	}
@@ -157,6 +175,11 @@ export function getCleanPromptName(fileUri: URI): string {
 	}
 
 	if (fileName === COPILOT_CUSTOM_INSTRUCTIONS_FILENAME) {
+		return basename(fileUri.path, '.md');
+	}
+
+	// For SKILL.md files (case insensitive), return 'SKILL'
+	if (fileName.toLowerCase() === SKILL_FILENAME.toLowerCase()) {
 		return basename(fileUri.path, '.md');
 	}
 
