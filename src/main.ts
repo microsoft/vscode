@@ -442,6 +442,15 @@ function getArgvConfigPath(): string {
 		dataFolderName = `${dataFolderName}-dev`;
 	}
 
+	// On Linux, respect XDG_CONFIG_HOME as per XDG Base Directory Specification
+	if (process.platform === 'linux') {
+		const xdgConfigHome = process.env['XDG_CONFIG_HOME'];
+		if (xdgConfigHome) {
+			return path.join(xdgConfigHome, dataFolderName!, 'argv.json');
+		}
+		return path.join(os.homedir(), '.config', dataFolderName!, 'argv.json');
+	}
+
 	return path.join(os.homedir(), dataFolderName!, 'argv.json');
 }
 
