@@ -493,13 +493,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this._editingSession.set(undefined, undefined);
 				this.renderChatEditingSessionState();
 			}));
-			r.store.add(this.onDidChangeParsedInput(() => {
-				this.renderChatEditingSessionState();
-			}));
 			r.store.add(this.inputEditor.onDidChangeModelContent(() => {
 				if (this.getInput() === '') {
 					this.refreshParsedInput();
-					this.renderChatEditingSessionState();
 				}
 			}));
 			this.renderChatEditingSessionState();
@@ -1211,10 +1207,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 		this.input.renderChatEditingSessionState(this._editingSession.get() ?? null);
-
-		if (this.bodyDimension) {
-			this.layout(this.bodyDimension.height, this.bodyDimension.width);
-		}
 	}
 
 	private async renderFollowups(): Promise<void> {
@@ -2045,10 +2037,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.scrollToEnd();
 			}
 		})));
-		this.viewModelDisposables.add(autorun(reader => {
-			this._editingSession.read(reader); // re-render when the session changes
-			this.renderChatEditingSessionState();
-		}));
 		this.viewModelDisposables.add(this.viewModel.onDidDisposeModel(() => {
 			// Ensure that view state is saved here, because we will load it again when a new model is assigned
 			if (this.viewModel?.editing) {
