@@ -11,13 +11,10 @@ import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor
 import { BrowserEditor } from './browserEditor.js';
 import { BrowserEditorInput, BrowserEditorSerializer } from './browserEditorInput.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
-import { MultiCommand, RedoCommand, SelectAllCommand, UndoCommand } from '../../../../editor/browser/editorExtensions.js';
-import { CopyAction, CutAction, PasteAction } from '../../../../editor/contrib/clipboard/browser/clipboard.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -121,27 +118,3 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		}
 	}
 });
-
-const PRIORITY = 100;
-
-function redirectCommandToBrowser(command: MultiCommand | undefined) {
-	command?.addImplementation(PRIORITY, 'integratedBrowser', (accessor: ServicesAccessor) => {
-		const editorService = accessor.get(IEditorService);
-		const activeEditor = editorService.activeEditorPane;
-
-		if (activeEditor instanceof BrowserEditor) {
-			// This will return false if there is no event to forward
-			// (i.e., the command was not triggered from the browser view)
-			return activeEditor.forwardCurrentEvent();
-		}
-
-		return false;
-	});
-}
-
-redirectCommandToBrowser(UndoCommand);
-redirectCommandToBrowser(RedoCommand);
-redirectCommandToBrowser(SelectAllCommand);
-redirectCommandToBrowser(CopyAction);
-redirectCommandToBrowser(PasteAction);
-redirectCommandToBrowser(CutAction);
