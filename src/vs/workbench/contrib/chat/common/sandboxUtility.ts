@@ -34,6 +34,7 @@ export class SandboxUtility implements ISandboxUtility {
 	private _needsForceUpdateConfigFile = true;
 	private static _tempDir: URI | undefined;
 	private static _sandboxSettingsId: string | undefined;
+	private static readonly TERMINAL_SANDBOX_SETTING_ID = 'chat.tools.terminal.sandbox';
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -51,7 +52,7 @@ export class SandboxUtility implements ISandboxUtility {
 		if (isWindows) {
 			return false;
 		}
-		const settings = this._configurationService.getValue<ISandboxTerminalSettings>('chat.tools.terminal.sandbox');
+		const settings = this._configurationService.getValue<ISandboxTerminalSettings>(SandboxUtility.TERMINAL_SANDBOX_SETTING_ID);
 		const isEnabled = settings?.enabled === true;
 		if (!isEnabled) {
 			return false;
@@ -83,7 +84,7 @@ export class SandboxUtility implements ISandboxUtility {
 	}
 
 	private async _createSandboxConfig(): Promise<string | undefined> {
-		const sandboxSetting = this._configurationService.getValue<ISandboxTerminalSettings>('chat.tools.terminal.sandbox');
+		const sandboxSetting = this._configurationService.getValue<ISandboxTerminalSettings>(SandboxUtility.TERMINAL_SANDBOX_SETTING_ID);
 		if (sandboxSetting.enabled) {
 			const configFileUri = joinPath(SandboxUtility._tempDir!, `vscode-sandbox-settings-${SandboxUtility._sandboxSettingsId}.json`);
 			const sandboxSettings = {
