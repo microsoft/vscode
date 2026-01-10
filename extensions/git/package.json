@@ -3586,6 +3586,17 @@
           "default": 50,
           "description": "%config.detectWorktreesLimit%"
         },
+        "git.worktreeIncludeFiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "**/node_modules{,/**}"
+          ],
+          "scope": "resource",
+          "markdownDescription": "%config.worktreeIncludeFiles%"
+        },
         "git.alwaysShowStagedChangesResourceGroup": {
           "type": "boolean",
           "scope": "resource",
