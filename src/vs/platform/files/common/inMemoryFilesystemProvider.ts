@@ -147,9 +147,6 @@ export class InMemoryFileSystemProvider extends Disposable implements
 		if (!entry && !opts.create) {
 			throw createFileSystemProviderError('file not found', FileSystemProviderErrorCode.FileNotFound);
 		}
-		if (entry && opts.create && !opts.overwrite) {
-			throw createFileSystemProviderError('file exists already', FileSystemProviderErrorCode.FileExists);
-		}
 		if (!entry) {
 			entry = new File(basename);
 			parent.entries.set(basename, entry);

@@ -6,7 +6,8 @@
 import assert from 'assert';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { Adapt } from '../../../common/model/chatSessionOperationLog.js';
+import * as Adapt from '../../../common/model/objectMutationLog.js';
+import { equals } from '../../../../../../base/common/objects.js';
 
 suite('ChatSessionOperationLog', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -28,19 +29,19 @@ suite('ChatSessionOperationLog', () => {
 	function createTestSchema() {
 		const itemSchema = Adapt.object<TestItem, TestItem>({
 			id: Adapt.t(i => i.id, Adapt.key()),
-			value: Adapt.t(i => i.value, Adapt.primitive()),
+			value: Adapt.t(i => i.value, Adapt.value()),
 		});
 
 		return Adapt.object<TestObject, TestObject>({
-			name: Adapt.t(o => o.name, Adapt.constant()),
-			count: Adapt.t(o => o.count, Adapt.primitive()),
+			name: Adapt.t(o => o.name, Adapt.value()),
+			count: Adapt.t(o => o.count, Adapt.value()),
 			items: Adapt.t(o => o.items, Adapt.array(itemSchema)),
-			metadata: Adapt.t(o => o.metadata, Adapt.deepCompare()),
+			metadata: Adapt.v(o => o.metadata, equals),
 		});
 	}
 
 	// Helper to simulate file operations
-	function simulateFileRoundtrip(adapter: Adapt.LogAdapter<TestObject, TestObject>, initial: TestObject, updates: TestObject[]): TestObject {
+	function simulateFileRoundtrip(adapter: Adapt.ObjectMutationLog<TestObject, TestObject>, initial: TestObject, updates: TestObject[]): TestObject {
 		let fileContent = adapter.createInitial(initial);
 
 		for (const update of updates) {
@@ -53,22 +54,15 @@ suite('ChatSessionOperationLog', () => {
 		}
 
 		// Create new adapter and read back
-		const reader = new Adapt.LogAdapter(createTestSchema());
+		const reader = new Adapt.ObjectMutationLog(createTestSchema());
 		return reader.read(fileContent);
 	}
 
 	suite('Transform factories', () => {
-		test('constant always returns equal', () => {
-			const transform = Adapt.constant<string, string>();
-			assert.strictEqual(transform.equals('a', 'b'), true);
-			assert.strictEqual(transform.equals('x', 'y'), true);
-		});
-
 		test('key uses strict equality by default', () => {
 			const transform = Adapt.key<string>();
 			assert.strictEqual(transform.equals('a', 'a'), true);
 			assert.strictEqual(transform.equals('a', 'b'), false);
-			assert.strictEqual(transform.isKey, true);
 		});
 
 		test('key uses custom comparator', () => {
@@ -78,58 +72,39 @@ suite('ChatSessionOperationLog', () => {
 		});
 
 		test('primitive uses strict equality', () => {
-			const transform = Adapt.primitive<number, number>();
+			const transform = Adapt.value<number, number>();
 			assert.strictEqual(transform.equals(1, 1), true);
 			assert.strictEqual(transform.equals(1, 2), false);
 		});
 
 		test('primitive with custom comparator', () => {
-			const transform = Adapt.primitive<string, string>((a, b) => a.toLowerCase() === b.toLowerCase());
+			const transform = Adapt.value<string, string>((a, b) => a.toLowerCase() === b.toLowerCase());
 			assert.strictEqual(transform.equals('ABC', 'abc'), true);
 			assert.strictEqual(transform.equals('ABC', 'def'), false);
 		});
 
-		test('deepCompare compares object contents', () => {
-			const transform = Adapt.deepCompare<object, object>();
-			assert.strictEqual(transform.equals({ a: 1 }, { a: 1 }), true);
-			assert.strictEqual(transform.equals({ a: 1 }, { a: 2 }), false);
-			assert.strictEqual(transform.equals({ a: 1, b: 2 }, { a: 1, b: 2 }), true);
-		});
-
-		test('array compares items positionally', () => {
-			const itemTransform = Adapt.primitive<number, number>();
-			const transform = Adapt.array(itemTransform);
-
-			assert.strictEqual(transform.equals([1, 2, 3], [1, 2, 3]), true);
-			assert.strictEqual(transform.equals([1, 2, 3], [1, 2, 4]), false);
-			assert.strictEqual(transform.equals([1, 2], [1, 2, 3]), false);
-		});
-
 		test('object extracts and compares properties', () => {
 			const schema = Adapt.object<{ x: number; y: string }, { x: number; y: string }>({
-				x: Adapt.t(o => o.x, Adapt.primitive()),
-				y: Adapt.t(o => o.y, Adapt.primitive()),
+				x: Adapt.t(o => o.x, Adapt.value()),
+				y: Adapt.t(o => o.y, Adapt.value()),
 			});
 
 			const extracted = schema.extract({ x: 1, y: 'test' });
 			assert.strictEqual(extracted.x, 1);
 			assert.strictEqual(extracted.y, 'test');
-
-			assert.strictEqual(schema.equals({ x: 1, y: 'a' }, { x: 1, y: 'a' }), true);
-			assert.strictEqual(schema.equals({ x: 1, y: 'a' }, { x: 1, y: 'b' }), false);
 		});
 
 		test('t composes getter with transform', () => {
 			const transform = Adapt.t(
 				(obj: { nested: { value: number } }) => obj.nested.value,
-				Adapt.primitive<number, number>()
+				Adapt.value<number, number>()
 			);
 
 			assert.strictEqual(transform.extract({ nested: { value: 42 } }), 42);
 		});
 
 		test('differentiated uses separate extract and equals functions', () => {
-			const transform = Adapt.differentiated<{ type: string; data: number }, string>(
+			const transform = Adapt.v<{ type: string; data: number }, string>(
 				obj => `${obj.type}:${obj.data}`,
 				(a, b) => a.split(':')[0] === b.split(':')[0], // compare only the type prefix
 			);
@@ -147,7 +122,7 @@ suite('ChatSessionOperationLog', () => {
 	suite('LogAdapter', () => {
 		test('createInitial creates valid log entry', () => {
 			const schema = createTestSchema();
-			const adapter = new Adapt.LogAdapter(schema);
+			const adapter = new Adapt.ObjectMutationLog(schema);
 
 			const initial: TestObject = { name: 'test', count: 0, items: [] };
 			const buffer = adapter.createInitial(initial);
@@ -160,12 +135,12 @@ suite('ChatSessionOperationLog', () => {
 
 		test('read reconstructs initial state', () => {
 			const schema = createTestSchema();
-			const adapter = new Adapt.LogAdapter(schema);
+			const adapter = new Adapt.ObjectMutationLog(schema);
 
 			const initial: TestObject = { name: 'test', count: 5, items: [{ id: 'a', value: 1 }] };
 			const buffer = adapter.createInitial(initial);
 
-			const reader = new Adapt.LogAdapter(schema);
+			const reader = new Adapt.ObjectMutationLog(schema);
 			const result = reader.read(buffer);
 
 			assert.deepStrictEqual(result, initial);
@@ -173,7 +148,7 @@ suite('ChatSessionOperationLog', () => {
 
 		test('write returns empty data when no changes', () => {
 			const schema = createTestSchema();
-			const adapter = new Adapt.LogAdapter(schema);
+			const adapter = new Adapt.ObjectMutationLog(schema);
 
 			const obj: TestObject = { name: 'test', count: 0, items: [] };
 			adapter.createInitial(obj);
@@ -185,7 +160,7 @@ suite('ChatSessionOperationLog', () => {
 
 		test('write detects primitive changes', () => {
 			const schema = createTestSchema();
-			const adapter = new Adapt.LogAdapter(schema);
+			const adapter = new Adapt.ObjectMutationLog(schema);
 
 			const obj: TestObject = { name: 'test', count: 0, items: [] };
 			adapter.createInitial(obj);
@@ -202,7 +177,7 @@ suite('ChatSessionOperationLog', () => {
 
 		test('write detects array append', () => {
 			const schema = createTestSchema();
-			const adapter = new Adapt.LogAdapter(schema);
+			const adapter = new Adapt.ObjectMutationLog(schema);
 
 			const obj: TestObject = { name: 'test', count: 0, items: [{ id: 'a', value: 1 }] };
 			adapter.createInitial(obj);
@@ -221,7 +196,7 @@ suite('ChatSessionOperationLog', () => {
 			type Item = { id: string; value: number[] };
 			const itemSchema = Adapt.object<Item, Item>({
 				id: Adapt.t(i => i.id, Adapt.key()),
-				value: Adapt.t(i => i.value, Adapt.array(Adapt.primitive())),
+				value: Adapt.t(i => i.value, Adapt.array(Adapt.value())),
 			});
 
 			type TestObject = { items: Item[] };
@@ -229,7 +204,7 @@ suite('ChatSessionOperationLog', () => {
 				items: Adapt.t(o => o.items, Adapt.array(itemSchema)),
 			});
 
-			const adapter = new Adapt.LogAdapter(schema);
+			const adapter = new Adapt.ObjectMutationLog(schema);
 
 			adapter.createInitial({ items: [{ id: 'a', value: [1, 2] }] });
 
@@ -249,7 +224,7 @@ suite('ChatSessionOperationLog', () => {
 
 		test('write detects array truncation', () => {
 			const schema = createTestSchema();
-			const adapter = new Adapt.LogAdapter(schema);
+			const adapter = new Adapt.ObjectMutationLog(schema);
 
 			const obj: TestObject = { name: 'test', count: 0, items: [{ id: 'a', value: 1 }, { id: 'b', value: 2 }] };
 			adapter.createInitial(obj);
@@ -266,7 +241,7 @@ suite('ChatSessionOperationLog', () => {
 
 		test('write detects array item modification and recurses into object', () => {
 			const schema = createTestSchema();
-			const adapter = new Adapt.LogAdapter(schema);
+			const adapter = new Adapt.ObjectMutationLog(schema);
 
 			const obj: TestObject = {
 				name: 'test',
@@ -288,21 +263,6 @@ suite('ChatSessionOperationLog', () => {
 			assert.strictEqual(entry.v, 999);
 		});
 
-		test('write ignores constant property changes', () => {
-			const schema = createTestSchema();
-			const adapter = new Adapt.LogAdapter(schema);
-
-			const obj: TestObject = { name: 'original', count: 0, items: [] };
-			adapter.createInitial(obj);
-
-			// Try to change the constant 'name' property
-			const updated: TestObject = { name: 'changed', count: 0, items: [] };
-			const result = adapter.write(updated);
-
-			// No changes should be detected since 'name' is constant
-			assert.strictEqual(result.data.toString(), '');
-		});
-
 		test('read applies multiple entries correctly', () => {
 			const schema = createTestSchema();
 			const initial: TestObject = { name: 'test', count: 0, items: [] };
@@ -316,7 +276,7 @@ suite('ChatSessionOperationLog', () => {
 			];
 			const logContent = entries.map(e => JSON.stringify(e)).join('\n') + '\n';
 
-			const adapter = new Adapt.LogAdapter(schema);
+			const adapter = new Adapt.ObjectMutationLog(schema);
 			const result = adapter.read(VSBuffer.fromString(logContent));
 
 			assert.strictEqual(result.count, 5);
@@ -327,7 +287,7 @@ suite('ChatSessionOperationLog', () => {
 
 		test('roundtrip preserves data through multiple updates', () => {
 			const schema = createTestSchema();
-			const adapter = new Adapt.LogAdapter(schema);
+			const adapter = new Adapt.ObjectMutationLog(schema);
 
 			const initial: TestObject = { name: 'test', count: 0, items: [] };
 			const updates: TestObject[] = [
@@ -343,7 +303,7 @@ suite('ChatSessionOperationLog', () => {
 
 		test('compacts log when entry count exceeds threshold', () => {
 			const schema = createTestSchema();
-			const adapter = new Adapt.LogAdapter(schema, 3); // Compact after 3 entries
+			const adapter = new Adapt.ObjectMutationLog(schema, 3); // Compact after 3 entries
 
 			const obj: TestObject = { name: 'test', count: 0, items: [] };
 			adapter.createInitial(obj); // Entry 1
@@ -367,7 +327,7 @@ suite('ChatSessionOperationLog', () => {
 
 		test('handles deepCompare property changes', () => {
 			const schema = createTestSchema();
-			const adapter = new Adapt.LogAdapter(schema);
+			const adapter = new Adapt.ObjectMutationLog(schema);
 
 			const obj: TestObject = { name: 'test', count: 0, items: [], metadata: { tags: ['a'] } };
 			adapter.createInitial(obj);
@@ -390,14 +350,14 @@ suite('ChatSessionOperationLog', () => {
 			const schema = Adapt.object<DiffObj, { data: string }>({
 				data: Adapt.t(
 					o => o.data,
-					Adapt.differentiated<{ type: string; version: number }, string>(
+					Adapt.v<{ type: string; version: number }, string>(
 						obj => `${obj.type}:${obj.version}`,
 						(a, b) => a.split(':')[0] === b.split(':')[0], // compare only the type prefix
 					)
 				),
 			});
 
-			const adapter = new Adapt.LogAdapter(schema);
+			const adapter = new Adapt.ObjectMutationLog(schema);
 
 			// Initial state: 'foo:1'
 			adapter.createInitial({ data: { type: 'foo', version: 1 } });
@@ -417,14 +377,14 @@ suite('ChatSessionOperationLog', () => {
 
 		test('read throws on empty log file', () => {
 			const schema = createTestSchema();
-			const adapter = new Adapt.LogAdapter(schema);
+			const adapter = new Adapt.ObjectMutationLog(schema);
 
 			assert.throws(() => adapter.read(VSBuffer.fromString('')), /Empty log file/);
 		});
 
 		test('write without prior read creates initial entry', () => {
 			const schema = createTestSchema();
-			const adapter = new Adapt.LogAdapter(schema);
+			const adapter = new Adapt.ObjectMutationLog(schema);
 
 			const obj: TestObject = { name: 'test', count: 5, items: [] };
 			const result = adapter.write(obj);
@@ -432,6 +392,150 @@ suite('ChatSessionOperationLog', () => {
 			assert.strictEqual(result.op, 'replace');
 			const entry = JSON.parse(result.data.toString().trim());
 			assert.strictEqual(entry.kind, 0); // EntryKind.Initial
+		});
+
+		test('sealed objects skip non-key field comparison when both are sealed', () => {
+			interface SealedItem {
+				id: string;
+				value: number;
+				isSealed: boolean;
+			}
+
+			interface SealedTestObject {
+				items: SealedItem[];
+			}
+
+			const itemSchema = Adapt.object<SealedItem, SealedItem>({
+				id: Adapt.t(i => i.id, Adapt.key()),
+				value: Adapt.t(i => i.value, Adapt.value()),
+				isSealed: Adapt.t(i => i.isSealed, Adapt.value()),
+			}, {
+				sealed: (obj) => obj.isSealed,
+			});
+
+			const schema = Adapt.object<SealedTestObject, SealedTestObject>({
+				items: Adapt.t(o => o.items, Adapt.array(itemSchema)),
+			});
+
+			const adapter = new Adapt.ObjectMutationLog(schema);
+
+			// Initial state with a sealed item
+			adapter.createInitial({ items: [{ id: 'a', value: 1, isSealed: true }] });
+
+			// Change value on sealed item - should NOT be detected because both are sealed
+			const result1 = adapter.write({ items: [{ id: 'a', value: 999, isSealed: true }] });
+			assert.strictEqual(result1.data.toString(), '', 'sealed item value change should be ignored');
+		});
+
+		test('sealed objects still detect key changes', () => {
+			interface SealedItem {
+				id: string;
+				value: number;
+				isSealed: boolean;
+			}
+
+			interface SealedTestObject {
+				items: SealedItem[];
+			}
+
+			const itemSchema = Adapt.object<SealedItem, SealedItem>({
+				id: Adapt.t(i => i.id, Adapt.key()),
+				value: Adapt.t(i => i.value, Adapt.value()),
+				isSealed: Adapt.t(i => i.isSealed, Adapt.value()),
+			}, {
+				sealed: (obj) => obj.isSealed,
+			});
+
+			const schema = Adapt.object<SealedTestObject, SealedTestObject>({
+				items: Adapt.t(o => o.items, Adapt.array(itemSchema)),
+			});
+
+			const adapter = new Adapt.ObjectMutationLog(schema);
+
+			// Initial state with a sealed item
+			adapter.createInitial({ items: [{ id: 'a', value: 1, isSealed: true }] });
+
+			// Change key on sealed item - SHOULD be detected (replacement)
+			const result = adapter.write({ items: [{ id: 'b', value: 1, isSealed: true }] });
+			assert.notStrictEqual(result.data.toString(), '', 'key change should be detected even when sealed');
+
+			const entry = JSON.parse(result.data.toString().trim());
+			assert.strictEqual(entry.kind, 2); // EntryKind.Push (array replacement)
+		});
+
+		test('sealed objects diff normally when one is not sealed', () => {
+			interface SealedItem {
+				id: string;
+				value: number;
+				isSealed: boolean;
+			}
+
+			interface SealedTestObject {
+				items: SealedItem[];
+			}
+
+			const itemSchema = Adapt.object<SealedItem, SealedItem>({
+				id: Adapt.t(i => i.id, Adapt.key()),
+				value: Adapt.t(i => i.value, Adapt.value()),
+				isSealed: Adapt.t(i => i.isSealed, Adapt.value()),
+			}, {
+				sealed: (obj) => obj.isSealed,
+			});
+
+			const schema = Adapt.object<SealedTestObject, SealedTestObject>({
+				items: Adapt.t(o => o.items, Adapt.array(itemSchema)),
+			});
+
+			const adapter = new Adapt.ObjectMutationLog(schema);
+
+			// Initial state with a non-sealed item
+			adapter.createInitial({ items: [{ id: 'a', value: 1, isSealed: false }] });
+
+			// Change value - should be detected since prev is not sealed
+			const result1 = adapter.write({ items: [{ id: 'a', value: 999, isSealed: false }] });
+			assert.notStrictEqual(result1.data.toString(), '', 'non-sealed item should detect value change');
+
+			const entry = JSON.parse(result1.data.toString().trim());
+			assert.strictEqual(entry.kind, 1); // EntryKind.Set
+			assert.deepStrictEqual(entry.k, ['items', 0, 'value']);
+			assert.strictEqual(entry.v, 999);
+		});
+
+		test('sealed transition from unsealed to sealed detects final changes', () => {
+			interface SealedItem {
+				id: string;
+				value: number;
+				isSealed: boolean;
+			}
+
+			interface SealedTestObject {
+				items: SealedItem[];
+			}
+
+			const itemSchema = Adapt.object<SealedItem, SealedItem>({
+				id: Adapt.t(i => i.id, Adapt.key()),
+				value: Adapt.t(i => i.value, Adapt.value()),
+				isSealed: Adapt.t(i => i.isSealed, Adapt.value()),
+			}, {
+				sealed: (obj) => obj.isSealed,
+			});
+
+			const schema = Adapt.object<SealedTestObject, SealedTestObject>({
+				items: Adapt.t(o => o.items, Adapt.array(itemSchema)),
+			});
+
+			const adapter = new Adapt.ObjectMutationLog(schema);
+
+			// Initial state with a non-sealed item
+			adapter.createInitial({ items: [{ id: 'a', value: 1, isSealed: false }] });
+
+			// Transition to sealed with value change - should detect changes since prev was not sealed
+			const result = adapter.write({ items: [{ id: 'a', value: 999, isSealed: true }] });
+			assert.notStrictEqual(result.data.toString(), '', 'transition to sealed should detect value change');
+
+			// Should have two entries - one for value, one for isSealed
+			const lines = result.data.toString().trim().split('\n');
+			assert.strictEqual(lines.length, 2, 'should have two change entries');
 		});
 	});
 });

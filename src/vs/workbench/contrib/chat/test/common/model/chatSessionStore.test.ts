@@ -23,6 +23,8 @@ import { ChatModel, ISerializableChatData3 } from '../../../common/model/chatMod
 import { ChatSessionStore, IChatTransfer } from '../../../common/model/chatSessionStore.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { MockChatModel } from './mockChatModel.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 
 function createMockChatModel(sessionResource: URI, options?: { customTitle?: string }): ChatModel {
 	const sessionId = LocalChatSessionUri.parseLocalSessionId(sessionResource);
@@ -58,6 +60,7 @@ suite('ChatSessionStore', () => {
 		instantiationService.stub(IEnvironmentService, { workspaceStorageHome: URI.file('/test/workspaceStorage') });
 		instantiationService.stub(ILifecycleService, testDisposables.add(new TestLifecycleService()));
 		instantiationService.stub(IUserDataProfilesService, { defaultProfile: toUserDataProfile('default', 'Default', URI.file('/test/userdata'), URI.file('/test/cache')) });
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	});
 
 	test('hasSessions returns false when no sessions exist', () => {

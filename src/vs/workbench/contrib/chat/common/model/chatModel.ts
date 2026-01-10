@@ -37,6 +37,7 @@ import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } f
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, UserSelectedTools, reviveSerializedAgent } from '../participants/chatAgents.js';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { LocalChatSessionUri } from './chatUri.js';
+import { ObjectMutationLog } from './objectMutationLog.js';
 
 
 export const CHAT_ATTACHABLE_IMAGE_MIME_TYPES: Record<string, string> = {
@@ -210,6 +211,8 @@ export interface IChatResponseModel {
 	readonly completedAt?: number;
 	/** The state of this response */
 	readonly state: ResponseModelState;
+	/** @internal */
+	readonly stateT: ResponseModelStateT;
 	/**
 	 * Adjusted millisecond timestamp that excludes the duration during which
 	 * the model was pending user confirmation. `Date.now() - confirmationAdjustedTimestamp`
@@ -792,7 +795,7 @@ export interface IChatResponseModelParameters {
 	codeBlockInfos: ICodeBlockInfo[] | undefined;
 }
 
-type ResponseModelStateT =
+export type ResponseModelStateT =
 	| { value: ResponseModelState.Pending }
 	| { value: ResponseModelState.NeedsInput }
 	| { value: ResponseModelState.Complete | ResponseModelState.Cancelled | ResponseModelState.Failed; completedAt: number };
@@ -867,6 +870,10 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		}
 
 		return state;
+	}
+
+	public get stateT(): ResponseModelStateT {
+		return this._modelState.get();
 	}
 
 	public get vote(): ChatAgentVoteDirection | undefined {
@@ -1398,9 +1405,7 @@ export interface ISerializableChatModelInputState {
 */
 export type ISerializableChatData = ISerializableChatData3;
 
-export interface IChatDataSerializerLog {
-	write(current: IChatModel): { op: 'append' | 'replace'; data: VSBuffer };
-}
+export type IChatDataSerializerLog = ObjectMutationLog<IChatModel, ISerializableChatData>;
 
 export interface ISerializedChatDataReference {
 	value: ISerializableChatData | IExportableChatData;
@@ -1736,7 +1741,7 @@ export class ChatModel extends Disposable implements IChatModel {
 	public dataSerializer?: IChatDataSerializerLog;
 
 	constructor(
-		initialData: ISerializedChatDataReference | undefined,
+		dataRef: ISerializedChatDataReference | undefined,
 		initialModelProps: { initialLocation: ChatAgentLocation; canUseTools: boolean; inputState?: ISerializableChatModelInputState; resource?: URI; sessionId?: string; disableBackgroundKeepAlive?: boolean },
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
@@ -1746,6 +1751,7 @@ export class ChatModel extends Disposable implements IChatModel {
 	) {
 		super();
 
+		const initialData = dataRef?.value;
 		const isValidExportedData = isExportableSessionData(initialData);
 		const isValidFullData = isValidExportedData && isSerializableSessionData(initialData);
 		if (initialData && !isValidExportedData) {
@@ -1775,9 +1781,9 @@ export class ChatModel extends Disposable implements IChatModel {
 			selections: serializedInputState.selections
 		});
 
-		this.dataSerializer = initialData?.serializer;
-		this._initialResponderUsername = initialData?.value.responderUsername;
-		this._initialLocation = initialData?.value.initialLocation ?? initialModelProps.initialLocation;
+		this.dataSerializer = dataRef?.serializer;
+		this._initialResponderUsername = initialData?.responderUsername;
+		this._initialLocation = initialData?.initialLocation ?? initialModelProps.initialLocation;
 
 		this._canUseTools = initialModelProps.canUseTools;
 
@@ -1918,6 +1924,11 @@ export class ChatModel extends Disposable implements IChatModel {
 					const result = 'responseErrorDetails' in raw ?
 						// eslint-disable-next-line local/code-no-dangerous-type-assertions
 						{ errorDetails: raw.responseErrorDetails } as IChatAgentResult : raw.result;
+					let modelState = raw.modelState || { value: raw.isCanceled ? ResponseModelState.Cancelled : ResponseModelState.Complete, completedAt: Date.now() };
+					if (modelState.value === ResponseModelState.Pending || modelState.value === ResponseModelState.NeedsInput) {
+						modelState = { value: ResponseModelState.Cancelled, completedAt: Date.now() };
+					}
+
 					request.response = new ChatResponseModel({
 						responseContent: raw.response ?? [new MarkdownString(raw.response)],
 						session: this,
