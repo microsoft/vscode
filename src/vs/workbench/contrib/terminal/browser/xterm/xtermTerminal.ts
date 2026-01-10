@@ -244,7 +244,8 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			ignoreBracketedPasteMode: config.ignoreBracketedPasteMode,
 			rescaleOverlappingGlyphs: config.rescaleOverlappingGlyphs,
 			vtExtensions: {
-				kittyKeyboard: config.enableKittyKeyboardProtocol
+				kittyKeyboard: config.enableKittyKeyboardProtocol,
+				win32InputMode: true,
 			},
 			windowOptions: {
 				getWinSizePixels: true,
@@ -540,7 +541,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this.raw.options.wordSeparator = config.wordSeparators;
 		this.raw.options.ignoreBracketedPasteMode = config.ignoreBracketedPasteMode;
 		this.raw.options.rescaleOverlappingGlyphs = config.rescaleOverlappingGlyphs;
-		this.raw.options.vtExtensions = { kittyKeyboard: config.enableKittyKeyboardProtocol };
+		this.raw.options.vtExtensions = {
+			kittyKeyboard: config.enableKittyKeyboardProtocol,
+			win32InputMode: true,
+		};
 
 		this._updateSmoothScrolling();
 		if (this._attached) {
