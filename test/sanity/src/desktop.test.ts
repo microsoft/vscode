@@ -12,9 +12,11 @@ import { UITest } from './uiTest';
 
 export function setup(context: TestContext) {
 	describe('Desktop', () => {
-		// On macOS, kill any existing Electron/VS Code processes before each test
-		// to avoid app activation issues where macOS redirects to an existing instance
+		// Reset working directory and clean up any existing Electron processes before each test
+		// This is needed because the CLI test changes the cwd to a temp directory
+		const originalCwd = process.cwd();
 		beforeEach(async function () {
+			process.chdir(originalCwd);
 			if (os.platform() === 'darwin') {
 				context.log('Killing existing Electron processes on macOS');
 				spawnSync('pkill', ['-9', 'Electron'], { stdio: 'ignore' });
@@ -22,7 +24,6 @@ export function setup(context: TestContext) {
 				await new Promise(resolve => setTimeout(resolve, 1000));
 			}
 		});
-
 		if (context.platform === 'darwin-x64') {
 			it('desktop-darwin-x64', async () => {
 				const dir = await context.downloadAndUnpack('darwin');
@@ -194,19 +195,24 @@ export function setup(context: TestContext) {
 			const args = [
 				'--wait',
 				'--new-window',
+				'--skip-release-notes',
+				'--skip-welcome',
+				'--disable-workspace-trust',
 				'--extensions-dir', test.extensionsDir,
 				'--user-data-dir', test.userDataDir,
 				test.workspaceDir
 			];
 
-			// Use a clean environment to avoid interference from previous tests
-			const env: Record<string, string> = {
-				PATH: process.env['PATH'] || '',
-				HOME: process.env['HOME'] || '',
-				TMPDIR: process.env['TMPDIR'] || '',
-				USER: process.env['USER'] || '',
-				LANG: process.env['LANG'] || '',
-			};
+			// Start with full environment but remove VS Code specific variables that might cause interference
+			const env: Record<string, string | undefined> = { ...process.env };
+			delete env['VSCODE_IPC_HOOK'];
+			delete env['VSCODE_IPC_HOOK_CLI'];
+			delete env['VSCODE_NLS_CONFIG'];
+			delete env['VSCODE_PORTABLE'];
+			delete env['VSCODE_PID'];
+			delete env['VSCODE_CWD'];
+			delete env['VSCODE_CLI_DATA_DIR'];
+			delete env['ELECTRON_RUN_AS_NODE'];
 
 			// For universal binary on x64 Mac, set ARCHPREFERENCE to ensure correct architecture
 			if (options?.universal && os.arch() === 'x64') {
@@ -214,7 +220,7 @@ export function setup(context: TestContext) {
 			}
 
 			context.log(`Starting VS Code ${entryPoint} with args ${args.join(' ')}`);
-			const app = await _electron.launch({ executablePath: entryPoint, args, env });
+			const app = await _electron.launch({ executablePath: entryPoint, args, env: env as Record<string, string> });
 			const window = await app.firstWindow();
 
 			await test.run(window);
