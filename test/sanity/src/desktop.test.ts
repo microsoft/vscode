@@ -179,13 +179,17 @@ export function setup(context: TestContext) {
 		async function testDesktopApp(entryPoint: string) {
 			const test = new UITest(context);
 			const args = [
+				'--remote-debugging-port=0',
 				'--extensions-dir', test.extensionsDir,
 				'--user-data-dir', test.userDataDir,
 				test.workspaceDir
 			];
 
 			context.log(`Starting VS Code ${entryPoint} with args ${args.join(' ')}`);
-			const app = await _electron.launch({ executablePath: entryPoint, args });
+			const app = await _electron.launch({
+				executablePath: entryPoint,
+				args,
+			});
 			const window = await app.firstWindow();
 
 			await test.run(window);
