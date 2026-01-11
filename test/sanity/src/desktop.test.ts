@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import os from 'os';
 import path from 'path';
 import { _electron } from 'playwright';
 import { TestContext } from './context';
@@ -26,11 +27,11 @@ export function setup(context: TestContext) {
 			});
 		}
 
-		if (context.platform.startsWith('darwin-')) {
+		if (context.platform === 'darwin-arm64' || context.platform === 'darwin-x64') {
 			it('desktop-darwin-universal', async () => {
 				const dir = await context.downloadAndUnpack('darwin-universal');
 				const entryPoint = context.installMacApp(dir);
-				await testDesktopApp(entryPoint);
+				await testDesktopApp(entryPoint, { universal: true });
 			});
 		}
 
@@ -176,7 +177,7 @@ export function setup(context: TestContext) {
 			});
 		}
 
-		async function testDesktopApp(entryPoint: string) {
+		async function testDesktopApp(entryPoint: string, options?: { universal?: boolean }) {
 			const test = new UITest(context);
 			const args = [
 				'--extensions-dir', test.extensionsDir,
@@ -184,8 +185,13 @@ export function setup(context: TestContext) {
 				test.workspaceDir
 			];
 
+			// For universal binary on x64 Mac, set ARCHPREFERENCE to ensure correct architecture
+			const env = options?.universal && os.arch() === 'x64'
+				? { ...process.env, ARCHPREFERENCE: 'x86_64' }
+				: undefined;
+
 			context.log(`Starting VS Code ${entryPoint} with args ${args.join(' ')}`);
-			const app = await _electron.launch({ executablePath: entryPoint, args });
+			const app = await _electron.launch({ executablePath: entryPoint, args, env });
 			const window = await app.firstWindow();
 
 			await test.run(window);
