@@ -211,17 +211,9 @@ export class MacExternalTerminalService extends ExternalTerminalService implemen
 		const terminalApp = configuration.osxExec || DEFAULT_TERMINAL_OSX;
 
 		return new Promise<void>((c, e) => {
-			let args: string[];
-			if (terminalApp === 'Ghostty.app') {
-				args = ['-na', terminalApp];
-				if (cwd) {
-					args.push('--args', '--working-directory=' + cwd);
-				}
-			} else {
-				args = ['-a', terminalApp];
-				if (cwd) {
-					args.push(cwd);
-				}
+			const args = ['-a', terminalApp];
+			if (cwd) {
+				args.push(cwd);
 			}
 			const env = getSanitizedEnvironment(process);
 			const child = spawner.spawn('/usr/bin/open', args, { cwd, env });
@@ -249,24 +241,16 @@ export class LinuxExternalTerminalService extends ExternalTerminalService implem
 			//termArgs.push('--title');
 			//termArgs.push(`"${TERMINAL_TITLE}"`);
 			execPromise.then(exec => {
-				const bashCommand = `${quote(args)}; echo; read -p "${LinuxExternalTerminalService.WAIT_MESSAGE}" -n1;`;
-
 				if (exec.indexOf('gnome-terminal') >= 0) {
 					termArgs.push('-x');
-					termArgs.push('bash');
-					termArgs.push('-c');
-					termArgs.push(`''${bashCommand}''`);	// wrapping argument in two sets of ' because node is so "friendly" that it removes one set...
-				} else if (exec.indexOf('ghostty') >= 0) {
-					termArgs.push('-e');
-					termArgs.push('bash');
-					termArgs.push('-c');
-					termArgs.push(bashCommand);
 				} else {
 					termArgs.push('-e');
-					termArgs.push('bash');
-					termArgs.push('-c');
-					termArgs.push(`''${bashCommand}''`);	// wrapping argument in two sets of ' because node is so "friendly" that it removes one set...
 				}
+				termArgs.push('bash');
+				termArgs.push('-c');
+
+				const bashCommand = `${quote(args)}; echo; read -p "${LinuxExternalTerminalService.WAIT_MESSAGE}" -n1;`;
+				termArgs.push(`''${bashCommand}''`);	// wrapping argument in two sets of ' because node is so "friendly" that it removes one set...
 
 
 				// merge environment variables into a copy of the process.env
