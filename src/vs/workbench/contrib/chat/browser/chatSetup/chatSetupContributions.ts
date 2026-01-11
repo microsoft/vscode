@@ -426,7 +426,10 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					title: localize2('reportChatIssueWithOutput', "Report GitHub Copilot Chat Issue"),
 					category: CHAT_CATEGORY,
 					f1: true,
-					precondition: ChatContextKeys.Setup.installed
+					precondition: ContextKeyExpr.and(
+						ChatContextKeys.enabled,
+						ChatContextKeys.Setup.installed
+					)
 				});
 			}
 
