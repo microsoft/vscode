@@ -436,23 +436,33 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				});
 			}
 
-			override async run(accessor: ServicesAccessor): Promise<void> {
+			override async run(accessor: ServicesAccessor, options?: { issueTitle?: string; issueBody?: string }): Promise<void> {
 				const outputService = accessor.get(IOutputService);
 				const textModelService = accessor.get(ITextModelService);
 				const issueService = accessor.get(IWorkbenchIssueService);
 				const logService = accessor.get(ILogService);
 
 				let outputData = '';
+				let channelName = '';
 				
-				// Try to get the GitHub Copilot Chat output channel
-				const channel = outputService.getChannel(defaultChat.outputChannelId);
+				// Try to get the GitHub Copilot Chat output channel first
+				let channel = outputService.getChannel(defaultChat.outputChannelId);
+				if (channel) {
+					channelName = defaultChat.outputChannelId;
+				} else {
+					// Fall back to Window output channel if Copilot Chat channel is not available
+					logService.warn(`[chat setup] Output channel '${defaultChat.outputChannelId}' not found, falling back to Window output channel`);
+					channel = outputService.getChannel('rendererLog');
+					channelName = 'Window';
+				}
+
 				if (channel) {
 					try {
 						// Use the text model service to get the channel content via its URI
 						const model = await textModelService.createModelReference(channel.uri);
 						try {
 							outputData = model.object.textEditorModel.getValue();
-							logService.info(`[chat setup] Retrieved ${outputData.length} characters from ${defaultChat.outputChannelId} output channel`);
+							logService.info(`[chat setup] Retrieved ${outputData.length} characters from ${channelName} output channel`);
 						} finally {
 							model.dispose();
 						}
@@ -460,12 +470,14 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						logService.error(`[chat setup] Failed to retrieve output channel content: ${error}`);
 					}
 				} else {
-					logService.warn(`[chat setup] Output channel '${defaultChat.outputChannelId}' not found`);
+					logService.warn(`[chat setup] No output channel available`);
 				}
 
 				// Open issue reporter with the output channel content as additional data
 				await issueService.openReporter({
 					extensionId: defaultChat.chatExtensionId,
+					issueTitle: options?.issueTitle,
+					issueBody: options?.issueBody,
 					data: outputData || defaultChat.outputChannelUnavailableMessage
 				});
 			}
