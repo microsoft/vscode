@@ -796,7 +796,7 @@ suite('Agent Sessions', () => {
 				{ filterMenuId: MenuId.ViewTitle }
 			));
 
-			// Default: archived sessions should be excluded
+			// Default: archived sessions should NOT be excluded (archived: false by default)
 			const archivedSession = createSession({
 				isArchived: () => true
 			});
@@ -804,7 +804,7 @@ suite('Agent Sessions', () => {
 				isArchived: () => false
 			});
 
-			assert.strictEqual(filter.exclude(archivedSession), true);
+			assert.strictEqual(filter.exclude(archivedSession), false);
 			assert.strictEqual(filter.exclude(activeSession), false);
 		});
 
@@ -883,20 +883,20 @@ suite('Agent Sessions', () => {
 				isArchived: () => false
 			});
 
-			// By default, archived sessions should be filtered (archived: true in default excludes)
-			assert.strictEqual(filter.exclude(archivedSession), true);
+			// By default, archived sessions should NOT be filtered (archived: false in default excludes)
+			assert.strictEqual(filter.exclude(archivedSession), false);
 			assert.strictEqual(filter.exclude(activeSession), false);
 
-			// Include archived by setting archived to false in storage
+			// Exclude archived by setting archived to true in storage
 			const excludes = {
 				providers: [],
 				states: [],
-				archived: false
+				archived: true
 			};
 			storageService.store(`agentSessions.filterExcludes.${MenuId.ViewTitle.id.toLowerCase()}`, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
 
-			// After including archived, both sessions should not be filtered
-			assert.strictEqual(filter.exclude(archivedSession), false);
+			// After excluding archived, only archived session should be filtered
+			assert.strictEqual(filter.exclude(archivedSession), true);
 			assert.strictEqual(filter.exclude(activeSession), false);
 		});
 
@@ -1173,8 +1173,8 @@ suite('Agent Sessions', () => {
 			));
 
 			const archivedSession = createSession({ isArchived: () => true });
-			// Default behavior: archived should be excluded
-			assert.strictEqual(filter.exclude(archivedSession), true);
+			// Default behavior: archived should NOT be excluded
+			assert.strictEqual(filter.exclude(archivedSession), false);
 		});
 
 		test('should prioritize archived check first', () => {
