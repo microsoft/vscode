@@ -396,7 +396,7 @@ export class TestContext {
 	/**
 	 * Prepares a macOS .app bundle for execution by removing the quarantine attribute.
 	 * @param bundleDir The directory containing the .app bundle.
-	 * @returns The path to the VS Code executable.
+	 * @returns The path to the VS Code Electron executable.
 	 */
 	public installMacApp(bundleDir: string): string {
 		let appName: string;
@@ -418,7 +418,8 @@ export class TestContext {
 		this.runNoErrors('xattr', '-rd', 'com.apple.quarantine', appPath);
 		this.log(`Removed quarantine attribute successfully`);
 
-		const entryPoint = path.join(appPath, 'Contents/Resources/app/bin/code');
+		// Return the Electron binary for Playwright compatibility
+		const entryPoint = path.join(appPath, 'Contents/MacOS/Electron');
 		if (!fs.existsSync(entryPoint)) {
 			this.error(`Desktop entry point does not exist: ${entryPoint}`);
 		}

@@ -179,7 +179,6 @@ export function setup(context: TestContext) {
 		async function testDesktopApp(entryPoint: string) {
 			const test = new UITest(context);
 			const args = [
-				'--remote-debugging-port=0',
 				'--extensions-dir', test.extensionsDir,
 				'--user-data-dir', test.userDataDir,
 				test.workspaceDir
