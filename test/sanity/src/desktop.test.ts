@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { spawnSync } from 'child_process';
+//import { spawnSync } from 'child_process';
 import os from 'os';
 import path from 'path';
 import { _electron } from 'playwright';
@@ -12,6 +12,7 @@ import { UITest } from './uiTest';
 
 export function setup(context: TestContext) {
 	describe('Desktop', () => {
+		/*
 		// Reset working directory and clean up any existing Electron processes before each test
 		// This is needed because the CLI test changes the cwd to a temp directory
 		const originalCwd = process.cwd();
@@ -24,6 +25,8 @@ export function setup(context: TestContext) {
 				await new Promise(resolve => setTimeout(resolve, 1000));
 			}
 		});
+		*/
+
 		if (context.platform === 'darwin-x64') {
 			it('desktop-darwin-x64', async () => {
 				const dir = await context.downloadAndUnpack('darwin');
@@ -193,18 +196,19 @@ export function setup(context: TestContext) {
 		async function testDesktopApp(entryPoint: string, options?: { universal?: boolean }) {
 			const test = new UITest(context);
 			const args = [
-				'--wait',
-				'--new-window',
-				'--skip-release-notes',
-				'--skip-welcome',
-				'--disable-workspace-trust',
+				//'--wait',
+				//'--new-window',
 				'--extensions-dir', test.extensionsDir,
 				'--user-data-dir', test.userDataDir,
 				test.workspaceDir
 			];
 
+			process.chdir(test.workspaceDir);
+			context.log(`Changed current directory to: ${test.workspaceDir}`);
+
 			// Start with full environment but remove VS Code specific variables that might cause interference
 			const env: Record<string, string | undefined> = { ...process.env };
+			/*
 			delete env['VSCODE_IPC_HOOK'];
 			delete env['VSCODE_IPC_HOOK_CLI'];
 			delete env['VSCODE_NLS_CONFIG'];
@@ -213,6 +217,7 @@ export function setup(context: TestContext) {
 			delete env['VSCODE_CWD'];
 			delete env['VSCODE_CLI_DATA_DIR'];
 			delete env['ELECTRON_RUN_AS_NODE'];
+			*/
 
 			// For universal binary on x64 Mac, set ARCHPREFERENCE to ensure correct architecture
 			if (options?.universal && os.arch() === 'x64') {
