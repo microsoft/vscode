@@ -269,9 +269,9 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 						const userRules = newRules.filter(r => r.scope === 'user');
 
 						// Handle session-scoped rules (temporary, in-memory only)
-						const chatSessionId = this.context.element.sessionId;
+						const chatSessionResource = this.context.element.sessionResource;
 						for (const rule of sessionRules) {
-							this.terminalChatService.addSessionAutoApproveRule(chatSessionId, rule.key, rule.value);
+							this.terminalChatService.addSessionAutoApproveRule(chatSessionResource, rule.key, rule.value);
 						}
 
 						// Handle workspace-scoped rules
@@ -360,9 +360,9 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 						break;
 					}
 					case 'sessionApproval': {
-						const sessionId = this.context.element.sessionId;
-						this.terminalChatService.setChatSessionAutoApproval(sessionId, true);
-						const disableUri = createCommandUri(TerminalContribCommandId.DisableSessionAutoApproval, sessionId);
+						const sessionResource = this.context.element.sessionResource;
+						this.terminalChatService.setChatSessionAutoApproval(sessionResource, true);
+						const disableUri = createCommandUri(TerminalContribCommandId.DisableSessionAutoApproval, sessionResource);
 						const mdTrustSettings = {
 							isTrusted: {
 								enabledCommands: [TerminalContribCommandId.DisableSessionAutoApproval]

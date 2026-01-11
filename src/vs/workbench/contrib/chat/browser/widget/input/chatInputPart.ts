@@ -2567,11 +2567,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// #                                                                         #
 		// ###########################################################################
 
-		const executeToolbarWidth = this.cachedExecuteToolbarWidth = this.executeToolbar.getItemsWidth();
-		const inputToolbarWidth = this.cachedInputToolbarWidth = this.inputActionsToolbar.getItemsWidth();
 		const inputSideToolbarWidth = this.inputSideToolbarContainer ? dom.getTotalWidth(this.inputSideToolbarContainer) : 0;
-		const executeToolbarPadding = (this.executeToolbar.getItemsLength() - 1) * 4;
-		const inputToolbarPadding = this.inputActionsToolbar.getItemsLength() ? (this.inputActionsToolbar.getItemsLength() - 1) * 4 : 0;
+
+		const getToolbarsWidthCompact = () => {
+			const executeToolbarWidth = this.cachedExecuteToolbarWidth = this.executeToolbar.getItemsWidth();
+			const inputToolbarWidth = this.cachedInputToolbarWidth = this.inputActionsToolbar.getItemsWidth();
+			const executeToolbarPadding = (this.executeToolbar.getItemsLength() - 1) * 4;
+			const inputToolbarPadding = this.inputActionsToolbar.getItemsLength() ? (this.inputActionsToolbar.getItemsLength() - 1) * 4 : 0;
+			return executeToolbarWidth + executeToolbarPadding + (this.options.renderInputToolbarBelowInput ? 0 : inputToolbarWidth + inputToolbarPadding);
+		};
+
 		return {
 			inputEditorBorder: 2,
 			followupsHeight: this.followupsContainer.offsetHeight,
@@ -2581,7 +2586,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			attachmentsHeight: this.attachmentsHeight,
 			editorBorder: 2,
 			inputPartHorizontalPaddingInside: 12,
-			toolbarsWidth: this.options.renderStyle === 'compact' ? executeToolbarWidth + executeToolbarPadding + (this.options.renderInputToolbarBelowInput ? 0 : inputToolbarWidth + inputToolbarPadding) : 0,
+			toolbarsWidth: this.options.renderStyle === 'compact' ? getToolbarsWidthCompact() : 0,
 			toolbarsHeight: this.options.renderStyle === 'compact' ? 0 : 22,
 			chatEditingStateHeight: this.chatEditingSessionWidgetContainer.offsetHeight,
 			sideToolbarWidth: inputSideToolbarWidth > 0 ? inputSideToolbarWidth + 4 /*gap*/ : 0,
