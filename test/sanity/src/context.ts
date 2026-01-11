@@ -192,7 +192,7 @@ export class TestContext {
 		this.validateSha256Hash(filePath, sha256hash);
 
 		if (TestContext.authenticodeInclude.test(filePath) && os.platform() === 'win32') {
-			this.validateSignature(filePath);
+			this.validateAuthenticodeSignature(filePath);
 		}
 
 		return filePath;
@@ -218,7 +218,7 @@ export class TestContext {
 	 * Validates the Authenticode signature of a Windows executable.
 	 * @param filePath The path to the file to validate.
 	 */
-	public validateSignature(filePath: string) {
+	public validateAuthenticodeSignature(filePath: string) {
 		this.log(`Validating Authenticode signature for ${filePath}`);
 
 		const result = this.run('powershell', '-Command', `Get-AuthenticodeSignature "${filePath}" | Select-Object -ExpandProperty Status`);
@@ -233,18 +233,84 @@ export class TestContext {
 	}
 
 	/**
-	 * Validates signatures for all executable files in the specified directory.
+	 * Validates Authenticode signatures for all executable files in the specified directory.
 	 * @param dir The directory to scan for executable files.
 	 */
-	public validateAllSignatures(dir: string) {
+	public validateAllAuthenticodeSignatures(dir: string) {
 		const files = fs.readdirSync(dir, { withFileTypes: true });
 		for (const file of files) {
 			const filePath = path.join(dir, file.name);
 			if (file.isDirectory()) {
-				this.validateAllSignatures(filePath);
+				this.validateAllAuthenticodeSignatures(filePath);
 			} else if (TestContext.authenticodeInclude.test(file.name)) {
-				this.validateSignature(filePath);
+				this.validateAuthenticodeSignature(filePath);
 			}
+		}
+	}
+
+	/**
+	 * Validates the codesign signature of a macOS binary or app bundle.
+	 * @param filePath The path to the file or app bundle to validate.
+	 */
+	public validateCodesignSignature(filePath: string) {
+		this.log(`Validating codesign signature for ${filePath}`);
+
+		const result = this.run('codesign', '--verify', '--deep', '--strict', filePath);
+		if (result.error !== undefined) {
+			this.error(`Failed to run codesign: ${result.error.message}`);
+		}
+
+		if (result.status !== 0) {
+			this.error(`Codesign signature is not valid for ${filePath}: ${result.stderr}`);
+		}
+	}
+
+	/**
+	 * Validates codesign signatures for all Mach-O binaries in the specified directory.
+	 * @param dir The directory to scan for Mach-O binaries.
+	 */
+	public validateAllCodesignSignatures(dir: string) {
+		const files = fs.readdirSync(dir, { withFileTypes: true });
+		for (const file of files) {
+			const filePath = path.join(dir, file.name);
+			if (file.isDirectory()) {
+				// For .app bundles, validate the bundle itself, not its contents
+				if (file.name.endsWith('.app') || file.name.endsWith('.framework')) {
+					this.validateCodesignSignature(filePath);
+				} else {
+					this.validateAllCodesignSignatures(filePath);
+				}
+			} else if (this.isMachOBinary(filePath)) {
+				this.validateCodesignSignature(filePath);
+			}
+		}
+	}
+
+	/**
+	 * Checks if a file is a Mach-O binary by examining its magic number.
+	 * @param filePath The path to the file to check.
+	 * @returns True if the file is a Mach-O binary.
+	 */
+	private isMachOBinary(filePath: string): boolean {
+		try {
+			const fd = fs.openSync(filePath, 'r');
+			const buffer = Buffer.alloc(4);
+			fs.readSync(fd, buffer, 0, 4, 0);
+			fs.closeSync(fd);
+
+			// Mach-O magic numbers:
+			// MH_MAGIC: 0xFEEDFACE (32-bit)
+			// MH_CIGAM: 0xCEFAEDFE (32-bit, byte-swapped)
+			// MH_MAGIC_64: 0xFEEDFACF (64-bit)
+			// MH_CIGAM_64: 0xCFFAEDFE (64-bit, byte-swapped)
+			// FAT_MAGIC: 0xCAFEBABE (universal binary)
+			// FAT_CIGAM: 0xBEBAFECA (universal binary, byte-swapped)
+			const magic = buffer.readUInt32BE(0);
+			return magic === 0xFEEDFACE || magic === 0xCEFAEDFE ||
+				magic === 0xFEEDFACF || magic === 0xCFFAEDFE ||
+				magic === 0xCAFEBABE || magic === 0xBEBAFECA;
+		} catch {
+			return false;
 		}
 	}
 

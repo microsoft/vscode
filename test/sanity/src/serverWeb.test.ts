@@ -29,6 +29,7 @@ export function setup(context: TestContext) {
 		if (context.platform === 'darwin-arm64') {
 			it('server-web-darwin-arm64', async () => {
 				const dir = await context.downloadAndUnpack('server-darwin-arm64-web');
+				context.validateAllCodesignSignatures(dir);
 				const entryPoint = context.getServerEntryPoint(dir);
 				await testServer(entryPoint);
 			});
@@ -37,6 +38,7 @@ export function setup(context: TestContext) {
 		if (context.platform === 'darwin-x64') {
 			it('server-web-darwin-x64', async () => {
 				const dir = await context.downloadAndUnpack('server-darwin-web');
+				context.validateAllCodesignSignatures(dir);
 				const entryPoint = context.getServerEntryPoint(dir);
 				await testServer(entryPoint);
 			});
@@ -69,7 +71,7 @@ export function setup(context: TestContext) {
 		if (context.platform === 'win32-arm64') {
 			it('server-web-win32-arm64', async () => {
 				const dir = await context.downloadAndUnpack('server-win32-arm64-web');
-				context.validateAllSignatures(dir);
+				context.validateAllAuthenticodeSignatures(dir);
 				const entryPoint = context.getServerEntryPoint(dir);
 				await testServer(entryPoint);
 			});
@@ -78,7 +80,7 @@ export function setup(context: TestContext) {
 		if (context.platform === 'win32-x64') {
 			it('server-web-win32-x64', async () => {
 				const dir = await context.downloadAndUnpack('server-win32-x64-web');
-				context.validateAllSignatures(dir);
+				context.validateAllAuthenticodeSignatures(dir);
 				const entryPoint = context.getServerEntryPoint(dir);
 				await testServer(entryPoint);
 			});
