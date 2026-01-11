@@ -60,7 +60,6 @@ const defaultChat = {
 	completionsRefreshTokenCommand: product.defaultChatAgent?.completionsRefreshTokenCommand ?? '',
 	chatRefreshTokenCommand: product.defaultChatAgent?.chatRefreshTokenCommand ?? '',
 	outputChannelId: 'GitHub Copilot Chat',
-	outputChannelUnavailableMessage: localize('chatOutputChannelUnavailable', "GitHub Copilot Chat output channel not available. Please ensure the GitHub Copilot Chat extension is active and try again. If the issue persists, you can manually include relevant information from the Output panel (View > Output > GitHub Copilot Chat)."),
 };
 
 export class ChatSetupContribution extends Disposable implements IWorkbenchContribution {
@@ -478,7 +477,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					extensionId: defaultChat.chatExtensionId,
 					issueTitle: options?.issueTitle,
 					issueBody: options?.issueBody,
-					data: outputData || defaultChat.outputChannelUnavailableMessage
+					data: outputData || localize('chatOutputChannelUnavailable', "GitHub Copilot Chat output channel not available. Please ensure the GitHub Copilot Chat extension is active and try again. If the issue persists, you can manually include relevant information from the Output panel (View > Output > GitHub Copilot Chat).")
 				});
 			}
 		}
