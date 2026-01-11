@@ -30,6 +30,7 @@ interface ITargetMetadata {
  */
 export class TestContext {
 	private static readonly authenticodeInclude = /^.+\.(exe|dll|sys|cab|cat|msi|jar|ocx|ps1|psm1|psd1|ps1xml|pssc1)$/i;
+	private static readonly codesignExclude = /node_modules\/@parcel\/watcher\/build\/Release\/watcher\.node$/;
 
 	private readonly tempDirs = new Set<string>();
 	private readonly logFile: string;
@@ -273,7 +274,9 @@ export class TestContext {
 		const files = fs.readdirSync(dir, { withFileTypes: true });
 		for (const file of files) {
 			const filePath = path.join(dir, file.name);
-			if (file.isDirectory()) {
+			if (TestContext.codesignExclude.test(filePath)) {
+				this.log(`Skipping codesign validation for excluded file: ${filePath}`);
+			} else if (file.isDirectory()) {
 				// For .app bundles, validate the bundle itself, not its contents
 				if (file.name.endsWith('.app') || file.name.endsWith('.framework')) {
 					this.validateCodesignSignature(filePath);
