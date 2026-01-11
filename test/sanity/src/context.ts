@@ -412,14 +412,7 @@ export class TestContext {
 				break;
 		}
 
-		const appPath = path.join(bundleDir, appName);
-
-		this.log(`Removing quarantine attribute from ${appPath}`);
-		this.runNoErrors('xattr', '-rd', 'com.apple.quarantine', appPath);
-		this.log(`Removed quarantine attribute successfully`);
-
-		// Return the Electron binary for Playwright compatibility
-		const entryPoint = path.join(appPath, 'Contents/MacOS/Electron');
+		const entryPoint = path.join(bundleDir, appName, 'Contents/MacOS/Electron');
 		if (!fs.existsSync(entryPoint)) {
 			this.error(`Desktop entry point does not exist: ${entryPoint}`);
 		}

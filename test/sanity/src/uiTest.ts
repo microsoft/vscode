@@ -74,6 +74,7 @@ export class UITest {
 		await page.keyboard.press('F1');
 		await page.getByPlaceholder(/^Type the name of a command/).fill(`>${command}`);
 		await page.locator('span.monaco-highlighted-label', { hasText: new RegExp(`^${command}$`) }).click();
+		await page.waitForTimeout(500);
 	}
 
 	/**
