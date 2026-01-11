@@ -555,6 +555,14 @@ export class AgentSessionsAccessibilityProvider implements IListAccessibilityPro
 	}
 }
 
+export interface IAgentSessionsFilterExcludes {
+	readonly providers: readonly string[];
+	readonly states: readonly AgentSessionStatus[];
+
+	readonly archived: boolean;
+	readonly read: boolean;
+}
+
 export interface IAgentSessionsFilter {
 
 	/**
@@ -584,6 +592,11 @@ export interface IAgentSessionsFilter {
 	 * The logic to exclude sessions from the view.
 	 */
 	exclude(session: IAgentSession): boolean;
+
+	/**
+	 * Get the current filter excludes for display in the UI.
+	 */
+	getExcludes(): IAgentSessionsFilterExcludes;
 }
 
 export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsModel, AgentSessionListItem> {
