@@ -9,6 +9,7 @@ import fs from 'fs';
 import fetch, { Response } from 'node-fetch';
 import os from 'os';
 import path from 'path';
+import { Browser, chromium } from 'playwright';
 
 /**
  * Response from https://update.code.visualstudio.com/api/versions/commit:<commit>/<target>/<quality>
@@ -283,6 +284,43 @@ export class TestContext {
 	}
 
 	/**
+	 * Kills a process and all its child processes.
+	 * @param pid The process ID to kill.
+	 */
+	public killProcessTree(pid: number): void {
+		this.log(`Killing process tree for PID: ${pid}`);
+		if (os.platform() === 'win32') {
+			spawnSync('taskkill', ['/T', '/F', '/PID', pid.toString()]);
+		} else {
+			process.kill(-pid, 'SIGKILL');
+		}
+		this.log(`Killed process tree for PID: ${pid}`);
+	}
+
+	/**
+	 * Returns the Windows installation directory for VS Code based on the installation type and quality.
+	 * @param type The type of installation ('user' or 'system').
+	 * @returns The path to the VS Code installation directory.
+	 */
+	private getWindowsInstallDir(type: 'user' | 'system'): string {
+		let parentDir: string;
+		if (type === 'system') {
+			parentDir = process.env['PROGRAMFILES'] || '';
+		} else {
+			parentDir = path.join(process.env['LOCALAPPDATA'] || '', 'Programs');
+		}
+
+		switch (this.quality) {
+			case 'stable':
+				return path.join(parentDir, 'Microsoft VS Code');
+			case 'insider':
+				return path.join(parentDir, 'Microsoft VS Code Insiders');
+			case 'exploration':
+				return path.join(parentDir, 'Microsoft VS Code Exploration');
+		}
+	}
+
+	/**
 	 * Installs a Microsoft Installer package silently.
 	 * @param installerPath The path to the installer executable.
 	 * @returns The path to the installed VS Code executable.
@@ -292,22 +330,17 @@ export class TestContext {
 		this.runNoErrors(installerPath, '/silent', '/mergetasks=!runcode');
 		this.log(`Installed ${installerPath} successfully`);
 
-		const varName = type === 'system' ? 'PROGRAMFILES' : 'LOCALAPPDATA';
-		const parentDir = process.env[varName];
-		if (parentDir === undefined) {
-			this.error(`Environment variable ${varName} is not defined`);
-		}
-
+		const appDir = this.getWindowsInstallDir(type);
 		let entryPoint: string;
 		switch (this.quality) {
 			case 'stable':
-				entryPoint = path.join(parentDir, 'Microsoft VS Code', 'Code.exe');
+				entryPoint = path.join(appDir, 'Code.exe');
 				break;
 			case 'insider':
-				entryPoint = path.join(parentDir, 'Microsoft VS Code Insiders', 'Code - Insiders.exe');
+				entryPoint = path.join(appDir, 'Code - Insiders.exe');
 				break;
 			case 'exploration':
-				entryPoint = path.join(parentDir, 'Microsoft VS Code Exploration', 'Code - Exploration.exe');
+				entryPoint = path.join(appDir, 'Code - Exploration.exe');
 				break;
 		}
 
@@ -317,6 +350,27 @@ export class TestContext {
 
 		this.log(`Installed VS Code executable at: ${entryPoint}`);
 		return entryPoint;
+	}
+
+	/**
+	 * Uninstalls a Windows application silently.
+	 * @param type The type of installation ('user' or 'system').
+	 */
+	public async uninstallWindowsApp(type: 'user' | 'system'): Promise<void> {
+		const appDir = this.getWindowsInstallDir(type);
+		const uninstallerPath = path.join(appDir, 'unins000.exe');
+		if (!fs.existsSync(uninstallerPath)) {
+			this.error(`Uninstaller does not exist: ${uninstallerPath}`);
+		}
+
+		this.log(`Uninstalling VS Code from ${appDir} in silent mode`);
+		this.runNoErrors(uninstallerPath, '/silent');
+		this.log(`Uninstalled VS Code from ${appDir} successfully`);
+
+		await new Promise(resolve => setTimeout(resolve, 2000));
+		if (fs.existsSync(appDir)) {
+			this.error(`Installation directory still exists after uninstall: ${appDir}`);
+		}
 	}
 
 	/**
@@ -427,6 +481,42 @@ export class TestContext {
 	}
 
 	/**
+	 * Returns the entry point executable for the VS Code server in the specified directory.
+	 * @param dir The directory containing unpacked server files.
+	 * @returns The path to the server entry point executable.
+	 */
+	public getServerEntryPoint(dir: string): string {
+		const serverDir = fs.readdirSync(dir, { withFileTypes: true }).filter(o => o.isDirectory()).at(0)?.name;
+		if (!serverDir) {
+			this.error(`No subdirectories found in server directory: ${dir}`);
+		}
+
+		let filename: string;
+		switch (this.quality) {
+			case 'stable':
+				filename = 'code-server';
+				break;
+			case 'insider':
+				filename = 'code-server-insiders';
+				break;
+			case 'exploration':
+				filename = 'code-server-exploration';
+				break;
+		}
+
+		if (os.platform() === 'win32') {
+			filename += '.cmd';
+		}
+
+		const entryPoint = path.join(dir, serverDir, 'bin', filename);
+		if (!fs.existsSync(entryPoint)) {
+			this.error(`Server entry point does not exist: ${entryPoint}`);
+		}
+
+		return entryPoint;
+	}
+
+	/**
 	 * Returns the tunnel URL for the VS Code server including vscode-version parameter.
 	 * @param baseUrl The base URL for the VS Code server.
 	 * @returns The tunnel URL with vscode-version parameter.
@@ -435,5 +525,15 @@ export class TestContext {
 		const url = new URL(baseUrl);
 		url.searchParams.set('vscode-version', this.commit);
 		return url.toString();
+	}
+
+	/**
+	 * Launches a web browser for UI testing.
+	 * @returns The launched Browser instance.
+	 */
+	public async launchBrowser(): Promise<Browser> {
+		this.log(`Launching web browser`);
+		const channel = os.platform() === 'win32' ? 'msedge' : 'chrome';
+		return await chromium.launch({ channel, headless: false });
 	}
 }
