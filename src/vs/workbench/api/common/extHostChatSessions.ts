@@ -9,7 +9,6 @@ import { CancellationToken, CancellationTokenSource } from '../../../base/common
 import { CancellationError } from '../../../base/common/errors.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
-import { revive } from '../../../base/common/marshalling.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
@@ -202,41 +201,6 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 					deletions: sessionContent.changes?.deletions ?? 0,
 				}),
 		};
-	}
-
-	async $provideNewChatSessionItem(handle: number, options: { request: IChatAgentRequest; metadata?: any }, token: CancellationToken): Promise<IChatSessionItem> {
-		const entry = this._chatSessionItemProviders.get(handle);
-		if (!entry || !entry.provider.provideNewChatSessionItem) {
-			throw new Error(`No provider registered for handle ${handle} or provider does not support creating sessions`);
-		}
-
-		try {
-			const model = await this.getModelForRequest(options.request, entry.extension);
-			const vscodeRequest = typeConvert.ChatAgentRequest.to(
-				revive(options.request),
-				undefined,
-				model,
-				[],
-				new Map(),
-				entry.extension,
-				this._logService);
-
-			const vscodeOptions = {
-				request: vscodeRequest,
-				metadata: options.metadata
-			};
-
-			const chatSessionItem = await entry.provider.provideNewChatSessionItem(vscodeOptions, token);
-			if (!chatSessionItem) {
-				throw new Error('Provider did not create session');
-			}
-
-			this._sessionItems.set(chatSessionItem.resource, chatSessionItem);
-			return this.convertChatSessionItem(entry.sessionType, chatSessionItem);
-		} catch (error) {
-			this._logService.error(`Error creating chat session: ${error}`);
-			throw error;
-		}
 	}
 
 	async $provideChatSessionItems(handle: number, token: vscode.CancellationToken): Promise<IChatSessionItem[]> {
