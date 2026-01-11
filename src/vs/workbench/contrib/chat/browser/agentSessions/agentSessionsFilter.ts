@@ -38,7 +38,7 @@ interface IAgentSessionsViewExcludes {
 const DEFAULT_EXCLUDES: IAgentSessionsViewExcludes = Object.freeze({
 	providers: [] as const,
 	states: [] as const,
-	archived: true as const,
+	archived: false as const,
 	read: false as const,
 });
 
