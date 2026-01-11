@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../base/common/uri.js';
-import { LogLevel } from '../../log/common/log.js';
+import { ILogger, log as logMessage } from '../../log/common/log.js';
 import { AUTH_SCOPE_SEPARATOR, fetchAuthorizationServerMetadata, fetchResourceMetadata, getDefaultMetadataForUrl, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, parseWWWAuthenticateHeader, scopesMatch } from '../../../base/common/oauth.js';
 
 //#region Enums
@@ -29,11 +29,6 @@ export interface IAuthMetadataSource {
 //#endregion
 
 //#region AuthMetadata
-
-/**
- * Logger callback type for AuthMetadata operations.
- */
-export type AuthMetadataLogger = (level: LogLevel, message: string) => void;
 
 /**
  * Interface for authentication metadata that can be updated when scopes change.
@@ -67,7 +62,7 @@ class AuthMetadata implements IAuthMetadata {
 		public readonly resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined,
 		scopes: string[] | undefined,
 		public readonly telemetry: IAuthMetadataSource,
-		private readonly _log: AuthMetadataLogger,
+		private readonly _logger: ILogger,
 	) {
 		this._scopes = scopes;
 	}
@@ -79,7 +74,7 @@ class AuthMetadata implements IAuthMetadata {
 	update(responseHeaders: Headers): boolean {
 		const scopesChallenge = this._parseScopesFromResponse(responseHeaders);
 		if (!scopesMatch(scopesChallenge, this._scopes)) {
-			this._log(LogLevel.Info, `Scopes changed from ${JSON.stringify(this._scopes)} to ${JSON.stringify(scopesChallenge)}, updating`);
+			this._logger.info(`Scopes changed from ${JSON.stringify(this._scopes)} to ${JSON.stringify(scopesChallenge)}, updating`);
 			this._scopes = scopesChallenge;
 			return true;
 		}
@@ -96,7 +91,7 @@ class AuthMetadata implements IAuthMetadata {
 			if (challenge.scheme === 'Bearer' && challenge.params['scope']) {
 				const scopes = challenge.params['scope'].split(AUTH_SCOPE_SEPARATOR).filter(s => s.trim().length);
 				if (scopes.length) {
-					this._log(LogLevel.Info, `Found scope challenge in WWW-Authenticate header: ${challenge.params['scope']}`);
+					this._logger.info(`Found scope challenge in WWW-Authenticate header: ${challenge.params['scope']}`);
 					return scopes;
 				}
 			}
@@ -113,8 +108,8 @@ export interface ICreateAuthMetadataOptions {
 	sameOriginHeaders?: Record<string, string>;
 	/** Fetch function to use for HTTP requests */
 	fetch: (url: string, init: MinimalRequestInit) => Promise<CommonResponse>;
-	/** Logger function for diagnostic output */
-	log: AuthMetadataLogger;
+	/** Logger for diagnostic output */
+	logger: ILogger;
 }
 
 interface MinimalRequestInit {
@@ -152,14 +147,14 @@ export async function createAuthMetadata(
 	initialResponseHeaders: Headers,
 	options: ICreateAuthMetadataOptions
 ): Promise<AuthMetadata> {
-	const { sameOriginHeaders, fetch, log } = options;
+	const { sameOriginHeaders, fetch, logger } = options;
 
 	// Track discovery sources for telemetry
 	let resourceMetadataSource = IAuthResourceMetadataSource.None;
 	let serverMetadataSource: IAuthServerMetadataSource | undefined;
 
 	// Parse the WWW-Authenticate header for resource_metadata and scope challenges
-	const { resourceMetadataChallenge, scopesChallenge: scopesChallengeFromHeader } = parseWWWAuthenticateHeaderForChallenges(initialResponseHeaders.get('WWW-Authenticate') ?? undefined, log);
+	const { resourceMetadataChallenge, scopesChallenge: scopesChallengeFromHeader } = parseWWWAuthenticateHeaderForChallenges(initialResponseHeaders.get('WWW-Authenticate') ?? undefined, logger);
 
 	// Fetch the resource metadata either from the challenge URL or from well-known URIs
 	let serverMetadataUrl: string | undefined;
@@ -172,9 +167,9 @@ export async function createAuthMetadata(
 			fetch: (url, init) => fetch(url, init as MinimalRequestInit)
 		});
 		for (const err of errors) {
-			log(LogLevel.Warning, `Error fetching resource metadata: ${err}`);
+			logger.warn(`Error fetching resource metadata: ${err}`);
 		}
-		log(LogLevel.Info, `Discovered resource metadata at ${discoveryUrl}`);
+		logger.info(`Discovered resource metadata at ${discoveryUrl}`);
 
 		// Determine if resource metadata came from header or well-known
 		resourceMetadataSource = resourceMetadataChallenge ? IAuthResourceMetadataSource.Header : IAuthResourceMetadataSource.WellKnown;
@@ -183,15 +178,15 @@ export async function createAuthMetadata(
 		// Consider using one that has an auth provider first, over the dynamic flow
 		serverMetadataUrl = metadata.authorization_servers?.[0];
 		if (!serverMetadataUrl) {
-			log(LogLevel.Warning, `No authorization_servers found in resource metadata ${discoveryUrl} - Is this resource metadata configured correctly?`);
+			logger.warn(`No authorization_servers found in resource metadata ${discoveryUrl} - Is this resource metadata configured correctly?`);
 		} else {
-			log(LogLevel.Info, `Using auth server metadata url: ${serverMetadataUrl}`);
+			logger.info(`Using auth server metadata url: ${serverMetadataUrl}`);
 			serverMetadataSource = IAuthServerMetadataSource.ResourceMetadata;
 		}
 		scopesChallenge ??= metadata.scopes_supported;
 		resource = metadata;
 	} catch (e) {
-		log(LogLevel.Warning, `Could not fetch resource metadata: ${String(e)}`);
+		logger.warn(`Could not fetch resource metadata: ${String(e)}`);
 	}
 
 	const baseUrl = new URL(resourceUrl).origin;
@@ -208,15 +203,15 @@ export async function createAuthMetadata(
 	}
 
 	try {
-		log(LogLevel.Debug, `Fetching auth server metadata for: ${serverMetadataUrl} ...`);
+		logger.debug(`Fetching auth server metadata for: ${serverMetadataUrl} ...`);
 		const { metadata, discoveryUrl, errors } = await fetchAuthorizationServerMetadata(serverMetadataUrl, {
 			additionalHeaders,
 			fetch: (url, init) => fetch(url, init as MinimalRequestInit)
 		});
 		for (const err of errors) {
-			log(LogLevel.Warning, `Error fetching authorization server metadata: ${err}`);
+			logger.warn(`Error fetching authorization server metadata: ${err}`);
 		}
-		log(LogLevel.Info, `Discovered authorization server metadata at ${discoveryUrl}`);
+		logger.info(`Discovered authorization server metadata at ${discoveryUrl}`);
 
 		// If serverMetadataSource is not yet defined, it means we fell back to baseUrl
 		// and successfully fetched from well-known
@@ -228,22 +223,22 @@ export async function createAuthMetadata(
 			resource,
 			scopesChallenge,
 			{ resourceMetadataSource, serverMetadataSource },
-			log
+			logger
 		);
 	} catch (e) {
-		log(LogLevel.Warning, `Error populating auth server metadata for ${serverMetadataUrl}: ${String(e)}`);
+		logger.warn(`Error populating auth server metadata for ${serverMetadataUrl}: ${String(e)}`);
 	}
 
 	// If there's no well-known server metadata, then use the default values based off of the url.
 	const defaultMetadata = getDefaultMetadataForUrl(new URL(baseUrl));
-	log(LogLevel.Info, 'Using default auth metadata');
+	logger.info('Using default auth metadata');
 	return new AuthMetadata(
 		URI.parse(baseUrl),
 		defaultMetadata,
 		resource,
 		scopesChallenge,
 		{ resourceMetadataSource, serverMetadataSource: IAuthServerMetadataSource.Default },
-		log
+		logger
 	);
 }
 
@@ -252,7 +247,7 @@ export async function createAuthMetadata(
  */
 function parseWWWAuthenticateHeaderForChallenges(
 	wwwAuthenticateValue: string | undefined,
-	log: AuthMetadataLogger
+	logger: ILogger
 ): { resourceMetadataChallenge?: string; scopesChallenge?: string[] } {
 	if (!wwwAuthenticateValue) {
 		return {};
@@ -265,12 +260,12 @@ function parseWWWAuthenticateHeaderForChallenges(
 		if (challenge.scheme === 'Bearer') {
 			if (!resourceMetadataChallenge && challenge.params['resource_metadata']) {
 				resourceMetadataChallenge = challenge.params['resource_metadata'];
-				log(LogLevel.Debug, `Found resource_metadata challenge in WWW-Authenticate header: ${resourceMetadataChallenge}`);
+				logger.debug(`Found resource_metadata challenge in WWW-Authenticate header: ${resourceMetadataChallenge}`);
 			}
 			if (!scopesChallenge && challenge.params['scope']) {
 				const scopes = challenge.params['scope'].split(AUTH_SCOPE_SEPARATOR).filter(s => s.trim().length);
 				if (scopes.length) {
-					log(LogLevel.Debug, `Found scope challenge in WWW-Authenticate header: ${challenge.params['scope']}`);
+					logger.debug(`Found scope challenge in WWW-Authenticate header: ${challenge.params['scope']}`);
 					scopesChallenge = scopes;
 				}
 			}

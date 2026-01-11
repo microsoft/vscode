@@ -709,7 +709,7 @@ export class McpHTTPHandle extends Disposable {
 						'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION
 					},
 					fetch: (url, init) => this._fetch(url, init as MinimalRequestInit),
-					log: (level, message) => this._log(level, message)
+					logger: this._logService
 				});
 				this._proxy.$logMcpAuthSetup(this._authMetadata.telemetry);
 				await this._addAuthHeader(headers);

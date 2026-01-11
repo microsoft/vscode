@@ -5,7 +5,8 @@
 
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { LogLevel } from '../../../../platform/log/common/log.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { ILogger, LogLevel } from '../../../../platform/log/common/log.js';
 import { createAuthMetadata, IAuthMetadata } from '../../../../platform/oauth/common/oauthMetadata.js';
 import { CommonResponse } from '../../common/extHostMcp.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -47,7 +48,20 @@ async function createTestAuthMetadata(options: {
 	resourceMetadata?: { resource: string; authorization_servers?: string[]; scopes_supported?: string[] };
 }): Promise<{ authMetadata: IAuthMetadata; logMessages: Array<{ level: LogLevel; message: string }> }> {
 	const logMessages: Array<{ level: LogLevel; message: string }> = [];
-	const mockLogger = (level: LogLevel, message: string) => logMessages.push({ level, message });
+	
+	// Create a mock ILogger
+	const mockLogger: ILogger = {
+		onDidChangeLogLevel: new Emitter<LogLevel>().event,
+		getLevel: () => LogLevel.Debug,
+		setLevel: () => { },
+		trace: (message: string) => logMessages.push({ level: LogLevel.Trace, message }),
+		debug: (message: string) => logMessages.push({ level: LogLevel.Debug, message }),
+		info: (message: string) => logMessages.push({ level: LogLevel.Info, message }),
+		warn: (message: string) => logMessages.push({ level: LogLevel.Warning, message }),
+		error: (message: string) => logMessages.push({ level: LogLevel.Error, message: String(message) }),
+		flush: () => { },
+		dispose: () => { }
+	};
 
 	const issuer = options.serverMetadataIssuer ?? TEST_AUTH_SERVER;
 
@@ -93,7 +107,7 @@ async function createTestAuthMetadata(options: {
 		{
 			sameOriginHeaders: {},
 			fetch: mockFetch,
-			log: mockLogger
+			logger: mockLogger
 		}
 	);
 
