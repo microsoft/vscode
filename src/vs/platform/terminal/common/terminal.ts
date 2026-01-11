@@ -121,6 +121,7 @@ export const enum TerminalSettingId {
 	FontLigaturesFeatureSettings = 'terminal.integrated.fontLigatures.featureSettings',
 	FontLigaturesFallbackLigatures = 'terminal.integrated.fontLigatures.fallbackLigatures',
 	EnableKittyKeyboardProtocol = 'terminal.integrated.enableKittyKeyboardProtocol',
+	EnableWin32InputMode = 'terminal.integrated.enableWin32InputMode',
 
 	// Developer/debug settings
 
