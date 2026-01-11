@@ -14,6 +14,7 @@ import * as errors from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { isLinux } from '../../../../base/common/platform.js';
 import * as strings from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as network from '../../../../base/common/network.js';
@@ -104,6 +105,7 @@ interface ISearchViewStateQuery {
 	onlyOpenEditors?: boolean;
 	queryDetailsExpanded?: string | boolean;
 	useExcludesAndIgnoreFiles?: boolean;
+	matchPathCase?: boolean;
 	preserveCase?: boolean;
 	searchHistory?: string[];
 	replaceHistory?: string[];
@@ -470,6 +472,8 @@ export class SearchView extends ViewPane {
 		const queryDetailsExpanded = this.viewletState.query?.queryDetailsExpanded || '';
 		const useExcludesAndIgnoreFiles = typeof this.viewletState.query?.useExcludesAndIgnoreFiles === 'boolean' ?
 			this.viewletState.query.useExcludesAndIgnoreFiles : true;
+		const matchPathCase = typeof this.viewletState.query?.matchPathCase === 'boolean' ?
+			this.viewletState.query.matchPathCase : isLinux;
 
 		this.queryDetails = dom.append(this.searchWidgetsContainerElement, $('.query-details'));
 
@@ -519,9 +523,11 @@ export class SearchView extends ViewPane {
 
 		this.inputPatternIncludes.setValue(patternIncludes);
 		this.inputPatternIncludes.setOnlySearchInOpenEditors(onlyOpenEditors);
+		this.inputPatternIncludes.setMatchPathCase(matchPathCase);
 
 		this._register(this.inputPatternIncludes.onCancel(() => this.cancelSearch(false)));
 		this._register(this.inputPatternIncludes.onChangeSearchInEditorsBox(() => this.triggerQueryChange()));
+		this._register(this.inputPatternIncludes.onChangePathCaseBox(() => this.triggerQueryChange()));
 
 		this.trackInputBox(this.inputPatternIncludes.inputFocusTracker, this.inputPatternIncludesFocused);
 
@@ -1591,6 +1597,7 @@ export class SearchView extends ViewPane {
 		const excludePatternText = this._getExcludePattern();
 		const includePatternText = this._getIncludePattern();
 		const useExcludesAndIgnoreFiles = this.inputPatternExcludes.useExcludesAndIgnoreFiles();
+		const matchPathCase = this.inputPatternIncludes.matchPathCase();
 		const onlySearchInOpenEditors = this.inputPatternIncludes.onlySearchInOpenEditors();
 
 		if (contentPattern.length === 0) {
@@ -1627,6 +1634,7 @@ export class SearchView extends ViewPane {
 			maxResults: this.searchConfig.maxResults ?? undefined,
 			disregardIgnoreFiles: !useExcludesAndIgnoreFiles || undefined,
 			disregardExcludeSettings: !useExcludesAndIgnoreFiles || undefined,
+			ignoreGlobCase: !matchPathCase || undefined,
 			onlyOpenEditors: onlySearchInOpenEditors,
 			excludePattern,
 			includePattern,
@@ -2346,6 +2354,7 @@ export class SearchView extends ViewPane {
 		const patternIncludes = this.inputPatternIncludes?.getValue().trim() ?? '';
 		const onlyOpenEditors = this.inputPatternIncludes?.onlySearchInOpenEditors() ?? false;
 		const useExcludesAndIgnoreFiles = this.inputPatternExcludes?.useExcludesAndIgnoreFiles() ?? true;
+		const matchPathCase = this.inputPatternIncludes?.matchPathCase() ?? isLinux;
 		const preserveCase = this.viewModel.preserveCase;
 
 		if (!this.viewletState.query) {
@@ -2377,6 +2386,7 @@ export class SearchView extends ViewPane {
 		this.viewletState.query.folderExclusions = patternExcludes;
 		this.viewletState.query.folderIncludes = patternIncludes;
 		this.viewletState.query.useExcludesAndIgnoreFiles = useExcludesAndIgnoreFiles;
+		this.viewletState.query.matchPathCase = matchPathCase;
 		this.viewletState.query.preserveCase = preserveCase;
 		this.viewletState.query.onlyOpenEditors = onlyOpenEditors;
 
