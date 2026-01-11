@@ -592,7 +592,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		markdownDescription: localize('terminal.integrated.enableKittyKeyboardProtocol', "Whether to enable the kitty keyboard protocol, which provides more detailed keyboard input reporting to the terminal."),
 		type: 'boolean',
 		default: false,
-		tags: ['experimental'],
+		tags: ['experimental', 'advanced'],
 		experiment: {
 			mode: 'auto'
 		}
@@ -602,7 +602,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		markdownDescription: localize('terminal.integrated.enableWin32InputMode', "Whether to enable the win32 input mode, which provides enhanced keyboard input support on Windows."),
 		type: 'boolean',
 		default: false,
-		tags: ['experimental'],
+		tags: ['experimental', 'advanced'],
 		experiment: {
 			mode: 'auto'
 		}
