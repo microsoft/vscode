@@ -24,7 +24,7 @@ abstract class ExternalTerminalService {
 		return {
 			windows: WindowsExternalTerminalService.getDefaultTerminalWindows(),
 			linux: await LinuxExternalTerminalService.getDefaultTerminalLinuxReady(),
-			osx: DEFAULT_TERMINAL_OSX
+			osx: DEFAULT_TERMINAL_OSX // TODO: We may need getDefaultTerminalOSXReady()
 		};
 	}
 }
