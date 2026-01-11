@@ -85,7 +85,11 @@ export function setup(context: TestContext) {
 		}
 
 		async function testServer(entryPoint: string) {
-			const args = ['--accept-server-license-terms', '--connection-token', '12345'];
+			const args = [
+				'--accept-server-license-terms',
+				'--connection-token', context.getRandomToken(),
+				'--port', context.getRandomPort()
+			];
 
 			context.log(`Starting server ${entryPoint} with args ${args.join(' ')}`);
 			const server = spawn(entryPoint, args, { shell: true, detached: os.platform() !== 'win32' });

@@ -584,4 +584,18 @@ export class TestContext {
 		}
 		return url.toString();
 	}
+
+	/**
+	 * Returns a random alphanumeric token of length 10.
+	 */
+	public getRandomToken(): string {
+		return Array.from({ length: 10 }, () => Math.floor(Math.random() * 36).toString(36)).join('');
+	}
+
+	/**
+	 * Returns a random port number between 3000 and 9999.
+	 */
+	public getRandomPort(): string {
+		return String(Math.floor(Math.random() * 7000) + 3000);
+	}
 }

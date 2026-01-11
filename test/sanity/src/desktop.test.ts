@@ -11,7 +11,7 @@ import { UITest } from './uiTest';
 export function setup(context: TestContext) {
 	describe('Desktop', () => {
 		if (context.platform === 'darwin-x64') {
-			it('desktop-darwin', async () => {
+			it('desktop-darwin-x64', async () => {
 				const dir = await context.downloadAndUnpack('darwin');
 				const entryPoint = context.installMacApp(dir);
 				await testDesktopApp(entryPoint);
