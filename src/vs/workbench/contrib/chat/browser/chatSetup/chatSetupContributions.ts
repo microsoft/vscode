@@ -38,7 +38,9 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
+import { IOutputService } from '../../../../services/output/common/output.js';
 import { IExtension, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
+import { IWorkbenchIssueService } from '../../../issue/common/issue.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatModeService } from '../../common/chatModes.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
@@ -417,6 +419,51 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			}
 		}
 
+		class ReportChatIssueWithOutputAction extends Action2 {
+			constructor() {
+				super({
+					id: 'workbench.action.chat.reportIssueWithOutput',
+					title: localize2('reportChatIssueWithOutput', "Report GitHub Copilot Chat Issue"),
+					category: CHAT_CATEGORY,
+					f1: true,
+					precondition: ChatContextKeys.Setup.installed
+				});
+			}
+
+			override async run(accessor: ServicesAccessor): Promise<void> {
+				const outputService = accessor.get(IOutputService);
+				const issueService = accessor.get(IWorkbenchIssueService);
+				const logService = accessor.get(ILogService);
+
+				// Try to get the GitHub Copilot Chat output channel
+				const channelId = 'GitHub Copilot Chat';
+				const channel = outputService.getChannel(channelId);
+
+				let outputData = '';
+				if (channel) {
+					try {
+						// Load the model and get its content
+						// Cast to access the model property which is not on the IOutputChannel interface
+						const model = await (channel as any).model?.loadModel();
+						if (model) {
+							outputData = model.getValue();
+							logService.info(`[chat setup] Retrieved ${outputData.length} characters from ${channelId} output channel`);
+						}
+					} catch (error) {
+						logService.error(`[chat setup] Failed to retrieve output channel content: ${error}`);
+					}
+				} else {
+					logService.warn(`[chat setup] Output channel '${channelId}' not found`);
+				}
+
+				// Open issue reporter with the output channel content as additional data
+				await issueService.openReporter({
+					extensionId: defaultChat.chatExtensionId,
+					data: outputData || 'GitHub Copilot Chat output channel not available'
+				});
+			}
+		}
+
 		registerAction2(ChatSetupTriggerAction);
 		registerAction2(ChatSetupTriggerForceSignInDialogAction);
 		registerAction2(ChatSetupFromAccountsAction);
@@ -424,6 +471,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		registerAction2(ChatSetupTriggerSupportAnonymousAction);
 		registerAction2(UpgradePlanAction);
 		registerAction2(EnableOveragesAction);
+		registerAction2(ReportChatIssueWithOutputAction);
 
 		//#endregion
 
