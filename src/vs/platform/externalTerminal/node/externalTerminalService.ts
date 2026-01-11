@@ -143,6 +143,7 @@ export class WindowsExternalTerminalService extends ExternalTerminalService impl
 
 export class MacExternalTerminalService extends ExternalTerminalService implements IExternalTerminalService {
 	private static readonly OSASCRIPT = '/usr/bin/osascript';	// osascript is the AppleScript interpreter on OS X
+	private static readonly WAIT_MESSAGE = nls.localize('press.any.key', "Press any key to continue...");
 
 	public openTerminal(configuration: IExternalTerminalSettings, cwd?: string): Promise<void> {
 		return this.spawnTerminal(cp, configuration, cwd);
@@ -210,23 +211,14 @@ export class MacExternalTerminalService extends ExternalTerminalService implemen
 					}
 				});
 			} else if (terminalApp === 'Ghostty.app') {
-
-				// Ghostty supports launching with: open -na Ghostty.app --args -e <command>
-				// We need to build the command string and pass it via -e flag
-
-				// merge environment variables into a copy of the process.env
 				const env = Object.assign({}, getSanitizedEnvironment(process), envVars);
-
-				// delete environment variables that have a null value
-				Object.keys(env).filter(v => env[v] === null).forEach(key => delete env[key]);
-
-				// Build the command to execute
-				const bashCommand = quote(args);
-
-				const openArgs = ['-na', 'Ghostty.app', '--args', '-e', bashCommand];
+				const bashCommand = `cd ${quote([dir])} && ${quote(args)}; echo; read -p "${MacExternalTerminalService.WAIT_MESSAGE}" -n1;`;
+				const openArgs = ['-na', 'Ghostty.app', '--args'];
+				openArgs.push('--working-directory=' + dir);
+				openArgs.push('-e', 'bash', '-c', bashCommand);
 
 				let stderr = '';
-				const cmd = cp.spawn('/usr/bin/open', openArgs, { cwd: dir, env });
+				const cmd = cp.spawn('/usr/bin/open', openArgs, { env });
 				cmd.on('error', err => {
 					reject(improveError(err));
 				});
@@ -257,13 +249,11 @@ export class MacExternalTerminalService extends ExternalTerminalService implemen
 		return new Promise<void>((c, e) => {
 			let args: string[];
 			if (terminalApp === 'Ghostty.app') {
-				// Ghostty requires --working-directory flag to open in a specific directory
 				args = ['-na', terminalApp];
 				if (cwd) {
 					args.push('--args', '--working-directory=' + cwd);
 				}
 			} else {
-				// Terminal.app and iTerm.app accept the directory as a direct argument
 				args = ['-a', terminalApp];
 				if (cwd) {
 					args.push(cwd);
@@ -303,8 +293,9 @@ export class LinuxExternalTerminalService extends ExternalTerminalService implem
 					termArgs.push('-c');
 					termArgs.push(`''${bashCommand}''`);	// wrapping argument in two sets of ' because node is so "friendly" that it removes one set...
 				} else if (exec.indexOf('ghostty') >= 0) {
-					// Ghostty expects the command directly with -e flag, without bash -c wrapper
 					termArgs.push('-e');
+					termArgs.push('bash');
+					termArgs.push('-c');
 					termArgs.push(bashCommand);
 				} else {
 					termArgs.push('-e');
