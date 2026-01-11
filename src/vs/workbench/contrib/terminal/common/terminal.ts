@@ -208,6 +208,7 @@ export interface ITerminalConfiguration {
 	smoothScrolling: boolean;
 	ignoreBracketedPasteMode: boolean;
 	rescaleOverlappingGlyphs: boolean;
+	enableKittyKeyboardProtocol: boolean;
 	fontLigatures?: {
 		enabled: boolean;
 		featureSettings: string;
