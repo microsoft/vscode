@@ -4,7 +4,7 @@
   "license": "MIT",
   "main": "./out/index.js",
   "scripts": {
-    "postinstall": "npx playwright install chromium webkit",
+    "postinstall": "playwright install --with-deps chromium webkit",
     "compile": "node ../../node_modules/typescript/bin/tsc",
     "start": "node ./out/index.js"
   },

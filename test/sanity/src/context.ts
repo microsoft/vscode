@@ -121,7 +121,7 @@ export class TestContext {
 
 		for (let attempt = 0; attempt < maxRetries; attempt++) {
 			if (attempt > 0) {
-				const delay = Math.pow(2, attempt) * 1000;
+				const delay = Math.pow(2, attempt - 1) * 1000;
 				this.log(`Retrying fetch (attempt ${attempt + 1}/${maxRetries}) after ${delay}ms`);
 				await new Promise(resolve => setTimeout(resolve, delay));
 			}
@@ -564,7 +564,7 @@ export class TestContext {
 	 * @param folder The optional workspace folder path to open.
 	 * @returns The constructed web server URL.
 	 */
-	public getWebServerUrl(port: string, token?: string, folder?: string): string {
+	public getWebServerUrl(port: string, token?: string, folder?: string): URL {
 		const url = new URL(`http://localhost:${port}`);
 		if (token) {
 			url.searchParams.set('tkn', token);
@@ -576,7 +576,7 @@ export class TestContext {
 			}
 			url.searchParams.set('folder', folder);
 		}
-		return url.toString();
+		return url;
 	}
 
 	/**
