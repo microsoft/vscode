@@ -322,6 +322,7 @@ export class ArchiveAgentSessionAction extends BaseAgentSessionAction {
 		super({
 			id: 'agentSession.archive',
 			title: localize2('archive', "Archive"),
+			tooltip: localize2('archiveTooltip', "Move to Archive"),
 			icon: Codicon.archive,
 			keybinding: {
 				primary: KeyCode.Delete,
