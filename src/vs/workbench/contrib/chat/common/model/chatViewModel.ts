@@ -9,6 +9,7 @@ import { hash } from '../../../../../base/common/hash.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, dispose } from '../../../../../base/common/lifecycle.js';
 import * as marked from '../../../../../base/common/marked/marked.js';
+import { IObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -96,7 +97,7 @@ export interface IChatRequestViewModel {
 	readonly isCompleteAddedRequest: boolean;
 	readonly slashCommand: IChatAgentCommand | undefined;
 	readonly agentOrSlashCommandDetected: boolean;
-	readonly shouldBeBlocked?: boolean;
+	readonly shouldBeBlocked: IObservable<boolean>;
 	readonly modelId?: string;
 }
 
@@ -224,7 +225,7 @@ export interface IChatResponseViewModel {
 	usedReferencesExpanded?: boolean;
 	vulnerabilitiesListExpanded: boolean;
 	setEditApplied(edit: IChatTextEditGroup, editCount: number): void;
-	readonly shouldBeBlocked: boolean;
+	readonly shouldBeBlocked: IObservable<boolean>;
 }
 
 export class ChatViewModel extends Disposable implements IChatViewModel {
