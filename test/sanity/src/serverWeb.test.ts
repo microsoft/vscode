@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { spawn } from 'child_process';
-import path from 'path';
+import os from 'os';
 import { TestContext } from './context';
 import { UITest } from './uiTest';
 
@@ -86,10 +86,11 @@ export function setup(context: TestContext) {
 		}
 
 		async function testServer(entryPoint: string) {
-			const token = '12345';
+			const token = context.getRandomToken();
 			const test = new UITest(context);
 			const args = [
 				'--accept-server-license-terms',
+				'--port', context.getRandomPort(),
 				'--connection-token', token,
 				'--server-data-dir', context.createTempDir(),
 				'--extensions-dir', test.extensionsDir,
@@ -97,7 +98,7 @@ export function setup(context: TestContext) {
 			];
 
 			context.log(`Starting server ${entryPoint} with args ${args.join(' ')}`);
-			const server = spawn(entryPoint, args, { shell: true });
+			const server = spawn(entryPoint, args, { shell: true, detached: os.platform() !== 'win32' });
 
 			server.stderr.on('data', (data) => {
 				context.error(`[Server Error] ${data.toString().trim()}`);
@@ -111,33 +112,8 @@ export function setup(context: TestContext) {
 
 				const port = /Extension host agent listening on (\d+)/.exec(text)?.[1];
 				if (port) {
-					(async function () {
-						try {
-							const browser = await context.launchBrowser();
-							const page = await browser.newPage();
-
-							const url = `http://localhost:${port}?tkn=${token}&folder=/${test.workspaceDir.replaceAll(path.sep, '/')}`;
-							context.log(`Navigating to ${url}`);
-							await page.goto(url, { waitUntil: 'networkidle' });
-
-							context.log('Waiting for the workbench to load');
-							await page.waitForSelector('.monaco-workbench');
-
-							context.log('Verifying page title contains "Visual Studio Code"');
-							assert.match(await page.title(), /Visual Studio Code/);
-
-							await test.run(page);
-
-							context.log('Closing browser');
-							await browser.close();
-
-							test.validate();
-						} catch (error) {
-							assert.fail(error instanceof Error ? error.message : String(error));
-						} finally {
-							context.killProcessTree(server.pid!);
-						}
-					})();
+					const url = context.getWebServerUrl(port, token, test.workspaceDir);
+					runUITest(url, test).finally(() => context.killProcessTree(server.pid!));
 				}
 			});
 
@@ -145,6 +121,28 @@ export function setup(context: TestContext) {
 				server.on('error', reject);
 				server.on('exit', resolve);
 			});
+		}
+
+		async function runUITest(url: string, test: UITest) {
+			try {
+				const browser = await context.launchBrowser();
+				const page = await browser.newPage();
+
+				context.log(`Navigating to ${url}`);
+				await page.goto(url, { waitUntil: 'networkidle' });
+
+				context.log('Waiting for the workbench to load');
+				await page.waitForSelector('.monaco-workbench');
+
+				await test.run(page);
+
+				context.log('Closing browser');
+				await browser.close();
+
+				test.validate();
+			} catch (error) {
+				assert.fail(error instanceof Error ? error.message : String(error));
+			}
 		}
 	});
 }

@@ -11,7 +11,7 @@ import { UITest } from './uiTest';
 export function setup(context: TestContext) {
 	describe('Desktop', () => {
 		if (context.platform === 'darwin-x64') {
-			it('desktop-darwin', async () => {
+			it('desktop-darwin-x64', async () => {
 				const dir = await context.downloadAndUnpack('darwin');
 				const entryPoint = context.installMacApp(dir);
 				await testDesktopApp(entryPoint);
@@ -26,11 +26,11 @@ export function setup(context: TestContext) {
 			});
 		}
 
-		if (context.platform.startsWith('darwin-')) {
+		if (context.platform === 'darwin-arm64' || context.platform === 'darwin-x64') {
 			it('desktop-darwin-universal', async () => {
 				const dir = await context.downloadAndUnpack('darwin-universal');
 				const entryPoint = context.installMacApp(dir);
-				await testDesktopApp(entryPoint);
+				await testDesktopApp(entryPoint, { universal: true });
 			});
 		}
 
@@ -176,7 +176,7 @@ export function setup(context: TestContext) {
 			});
 		}
 
-		async function testDesktopApp(entryPoint: string) {
+		async function testDesktopApp(entryPoint: string, options?: { universal?: boolean }) {
 			const test = new UITest(context);
 			const args = [
 				'--extensions-dir', test.extensionsDir,
@@ -184,8 +184,14 @@ export function setup(context: TestContext) {
 				test.workspaceDir
 			];
 
+			// Ensure correct architecture preference for universal binary on x64 Mac.
+			const env = {
+				...process.env,
+				ARCHPREFERENCE: options?.universal && context.platform === 'darwin-x64' ? 'x86_64' : undefined
+			};
+
 			context.log(`Starting VS Code ${entryPoint} with args ${args.join(' ')}`);
-			const app = await _electron.launch({ executablePath: entryPoint, args });
+			const app = await _electron.launch({ executablePath: entryPoint, args, env: env as Record<string, string> });
 			const window = await app.firstWindow();
 
 			await test.run(window);

@@ -28,6 +28,12 @@ if (!options.quality) {
 const context = new TestContext(options.quality, options.commit, options.verbose);
 
 describe('VS Code Sanity Tests', () => {
+	beforeEach(() => {
+		const cwd = context.createTempDir();
+		process.chdir(cwd);
+		context.log(`Changed working directory to: ${cwd}`);
+	});
+
 	if (options.cleanup) {
 		afterEach(() => {
 			context.cleanup();

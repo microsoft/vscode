@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { spawn } from 'child_process';
+import os from 'os';
 import { TestContext } from './context';
 
 export function setup(context: TestContext) {
@@ -84,10 +85,14 @@ export function setup(context: TestContext) {
 		}
 
 		async function testServer(entryPoint: string) {
-			const args = ['--accept-server-license-terms', '--connection-token', '12345'];
+			const args = [
+				'--accept-server-license-terms',
+				'--connection-token', context.getRandomToken(),
+				'--port', context.getRandomPort()
+			];
 
 			context.log(`Starting server ${entryPoint} with args ${args.join(' ')}`);
-			const server = spawn(entryPoint, args, { shell: true });
+			const server = spawn(entryPoint, args, { shell: true, detached: os.platform() !== 'win32' });
 
 			server.stderr.on('data', (data) => {
 				context.error(`[Server Error] ${data.toString().trim()}`);
@@ -101,19 +106,8 @@ export function setup(context: TestContext) {
 
 				const port = /Extension host agent listening on (\d+)/.exec(text)?.[1];
 				if (port) {
-					(async function () {
-						try {
-							const url = `http://localhost:${port}/version`;
-							context.log(`Fetching ${url}`);
-							const response = await fetch(url);
-							assert.equal(response.status, 200);
-							assert.equal(await response.text(), context.commit);
-						} catch (error) {
-							assert.fail(error instanceof Error ? error.message : String(error));
-						} finally {
-							context.killProcessTree(server.pid!);
-						}
-					})();
+					const url = context.getWebServerUrl(port);
+					runWebTest(url).finally(() => context.killProcessTree(server.pid!));
 				}
 			});
 
@@ -121,6 +115,17 @@ export function setup(context: TestContext) {
 				server.on('error', reject);
 				server.on('exit', resolve);
 			});
+		}
+
+		async function runWebTest(url: string) {
+			try {
+				context.log(`Fetching ${url}`);
+				const response = await fetch(url);
+				assert.equal(response.status, 200);
+				assert.equal(await response.text(), context.commit);
+			} catch (error) {
+				assert.fail(error instanceof Error ? error.message : String(error));
+			}
 		}
 	});
 }

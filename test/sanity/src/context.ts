@@ -9,7 +9,7 @@ import fs from 'fs';
 import fetch, { Response } from 'node-fetch';
 import os from 'os';
 import path from 'path';
-import { Browser, chromium } from 'playwright';
+import { Browser, chromium, webkit } from 'playwright';
 
 /**
  * Response from https://update.code.visualstudio.com/api/versions/commit:<commit>/<target>/<quality>
@@ -116,16 +116,36 @@ export class TestContext {
 	 * @returns The fetch Response object.
 	 */
 	public async fetchNoErrors(url: string): Promise<Response & { body: NodeJS.ReadableStream }> {
-		const response = await fetch(url);
-		if (!response.ok) {
-			this.error(`Failed to fetch ${url}: ${response.status} ${response.statusText}`);
+		const maxRetries = 5;
+		let lastError: Error | undefined;
+
+		for (let attempt = 0; attempt < maxRetries; attempt++) {
+			if (attempt > 0) {
+				const delay = Math.pow(2, attempt) * 1000;
+				this.log(`Retrying fetch (attempt ${attempt + 1}/${maxRetries}) after ${delay}ms`);
+				await new Promise(resolve => setTimeout(resolve, delay));
+			}
+
+			try {
+				const response = await fetch(url);
+				if (!response.ok) {
+					lastError = new Error(`Failed to fetch ${url}: ${response.status} ${response.statusText}`);
+					continue;
+				}
+
+				if (response.body === null) {
+					lastError = new Error(`Response body is null for ${url}`);
+					continue;
+				}
+
+				return response as Response & { body: NodeJS.ReadableStream };
+			} catch (error) {
+				lastError = error instanceof Error ? error : new Error(String(error));
+				this.log(`Fetch attempt ${attempt + 1} failed: ${lastError.message}`);
+			}
 		}
 
-		if (response.body === null) {
-			this.error(`Response body is null for ${url}`);
-		}
-
-		return response as Response & { body: NodeJS.ReadableStream };
+		this.error(`Failed to fetch ${url} after ${maxRetries} attempts: ${lastError?.message}`);
 	}
 
 	/**
@@ -376,7 +396,7 @@ export class TestContext {
 	/**
 	 * Prepares a macOS .app bundle for execution by removing the quarantine attribute.
 	 * @param bundleDir The directory containing the .app bundle.
-	 * @returns The path to the VS Code executable.
+	 * @returns The path to the VS Code Electron executable.
 	 */
 	public installMacApp(bundleDir: string): string {
 		let appName: string;
@@ -392,13 +412,7 @@ export class TestContext {
 				break;
 		}
 
-		const appPath = path.join(bundleDir, appName);
-
-		this.log(`Removing quarantine attribute from ${appPath}`);
-		this.runNoErrors('xattr', '-rd', 'com.apple.quarantine', appPath);
-		this.log(`Removed quarantine attribute successfully`);
-
-		const entryPoint = path.join(appPath, 'Contents/Resources/app/bin/code');
+		const entryPoint = path.join(bundleDir, appName, 'Contents/MacOS/Electron');
 		if (!fs.existsSync(entryPoint)) {
 			this.error(`Desktop entry point does not exist: ${entryPoint}`);
 		}
@@ -533,7 +547,49 @@ export class TestContext {
 	 */
 	public async launchBrowser(): Promise<Browser> {
 		this.log(`Launching web browser`);
-		const channel = os.platform() === 'win32' ? 'msedge' : 'chrome';
-		return await chromium.launch({ channel, headless: false });
+		switch (os.platform()) {
+			case 'darwin':
+				return await webkit.launch({ headless: false });
+			case 'win32':
+				return await chromium.launch({ channel: 'msedge', headless: false });
+			default:
+				return await chromium.launch({ channel: 'chrome', headless: false });
+		}
+	}
+
+	/**
+	 * Constructs a web server URL with optional token and folder parameters.
+	 * @param port The port number of the web server.
+	 * @param token The optional authentication token.
+	 * @param folder The optional workspace folder path to open.
+	 * @returns The constructed web server URL.
+	 */
+	public getWebServerUrl(port: string, token?: string, folder?: string): string {
+		const url = new URL(`http://localhost:${port}`);
+		if (token) {
+			url.searchParams.set('tkn', token);
+		}
+		if (folder) {
+			folder = folder.replaceAll('\\', '/');
+			if (!folder.startsWith('/')) {
+				folder = `/${folder}`;
+			}
+			url.searchParams.set('folder', folder);
+		}
+		return url.toString();
+	}
+
+	/**
+	 * Returns a random alphanumeric token of length 10.
+	 */
+	public getRandomToken(): string {
+		return Array.from({ length: 10 }, () => Math.floor(Math.random() * 36).toString(36)).join('');
+	}
+
+	/**
+	 * Returns a random port number between 3000 and 9999.
+	 */
+	public getRandomPort(): string {
+		return String(Math.floor(Math.random() * 7000) + 3000);
 	}
 }
