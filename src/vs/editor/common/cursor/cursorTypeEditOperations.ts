@@ -697,10 +697,10 @@ export class PasteOperation {
 			const selection = selections[i];
 			const text = texts[i];
 			const position = selection.getPosition();
-			if (pasteOnNewLine[i] && selection.isEmpty() && text.indexOf('\n') === text.length - 1) {
+			if (pasteOnNewLine[i] && selection.isEmpty()) {
 				// Paste entire line at the beginning of line
 				const typeSelection = new Range(position.lineNumber, 1, position.lineNumber, 1);
-				commands[i] = new ReplaceCommandThatPreservesSelection(typeSelection, text, selection, true);
+				commands[i] = new ReplaceCommandThatPreservesSelection(typeSelection, text + (text[text.length - 1] !== '\n' ? '\n' : ''), selection, true);
 			} else {
 				const shouldOvertypeOnPaste = config.overtypeOnPaste && config.inputMode === 'overtype';
 				const ChosenReplaceCommand = shouldOvertypeOnPaste ? ReplaceOvertypeCommand : ReplaceCommand;
@@ -716,14 +716,13 @@ export class PasteOperation {
 	private static _simplePaste(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], text: string, pasteOnNewLine: boolean[] | null): EditOperationResult {
 		const commands: ICommand[] = [];
 		const singleCopyPasteOnNewLine = pasteOnNewLine?.length === 1 && pasteOnNewLine[0];
-		if (!pasteOnNewLine) { pasteOnNewLine = []; }
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
 			const position = selection.getPosition();
-			if (singleCopyPasteOnNewLine && selection.isEmpty() && text.indexOf('\n') === text.length - 1) {
+			if (singleCopyPasteOnNewLine && selection.isEmpty()) {
 				// Paste entire line at the beginning of line
 				const typeSelection = new Range(position.lineNumber, 1, position.lineNumber, 1);
-				commands[i] = new ReplaceCommandThatPreservesSelection(typeSelection, text, selection, true);
+				commands[i] = new ReplaceCommandThatPreservesSelection(typeSelection, text + (text[text.length - 1] !== '\n' ? '\n' : ''), selection, true);
 			} else {
 				const shouldOvertypeOnPaste = config.overtypeOnPaste && config.inputMode === 'overtype';
 				const ChosenReplaceCommand = shouldOvertypeOnPaste ? ReplaceOvertypeCommand : ReplaceCommand;

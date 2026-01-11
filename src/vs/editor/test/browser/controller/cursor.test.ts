@@ -2254,16 +2254,16 @@ suite('Editor Controller', () => {
 			viewModel.setSelections('test', [new Selection(1, 1, 1, 1), new Selection(2, 1, 2, 1)]);
 
 			viewModel.paste(
-				'line1\nline2\n',
+				'added1\nadded2\n',
 				[true, true],
-				['line1\n', 'line2\n']
+				['added1', 'added2']
 			);
 
 			// Each cursor gets its respective line
 			assert.strictEqual(model.getValue(), [
+				'added1',
 				'line1',
-				'line1',
-				'line2',
+				'added2',
 				'line2',
 				'line3'
 			].join('\n'));
@@ -2287,7 +2287,7 @@ suite('Editor Controller', () => {
 			viewModel.paste(
 				'added1\nadded2\n',
 				[true, true],
-				['added1\n', 'added2\n']
+				['added1', 'added2']
 			);
 
 			// Each cursor gets its respective line
@@ -2297,6 +2297,30 @@ suite('Editor Controller', () => {
 				'added2',
 				'line2',
 				'line3'
+			].join('\n'));
+		});
+	});
+
+	test('issue #286892: paste from multiple cursors with empty selections into single selection', () => {
+		usingCursor({
+			text: [
+				''
+			]
+		}, (editor, model, viewModel) => {
+			// 1 cursor (destination)
+			viewModel.setSelections('test', [new Selection(1, 1, 1, 1)]);
+
+			// 2 cursors copied (source)
+			viewModel.paste(
+				'added1\nadded2',
+				[true, true],
+				['added1', 'added2']
+			);
+
+			// Each source cursor gets its respective line
+			assert.strictEqual(model.getValue(), [
+				'added1',
+				'added2',
 			].join('\n'));
 		});
 	});
