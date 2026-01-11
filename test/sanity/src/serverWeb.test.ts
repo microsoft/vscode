@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert from 'assert';
 import { spawn } from 'child_process';
 import os from 'os';
 import { TestContext } from './context';
@@ -30,6 +29,7 @@ export function setup(context: TestContext) {
 		if (context.platform === 'darwin-arm64') {
 			it('server-web-darwin-arm64', async () => {
 				const dir = await context.downloadAndUnpack('server-darwin-arm64-web');
+				context.validateAllCodesignSignatures(dir);
 				const entryPoint = context.getServerEntryPoint(dir);
 				await testServer(entryPoint);
 			});
@@ -38,6 +38,7 @@ export function setup(context: TestContext) {
 		if (context.platform === 'darwin-x64') {
 			it('server-web-darwin-x64', async () => {
 				const dir = await context.downloadAndUnpack('server-darwin-web');
+				context.validateAllCodesignSignatures(dir);
 				const entryPoint = context.getServerEntryPoint(dir);
 				await testServer(entryPoint);
 			});
@@ -70,7 +71,7 @@ export function setup(context: TestContext) {
 		if (context.platform === 'win32-arm64') {
 			it('server-web-win32-arm64', async () => {
 				const dir = await context.downloadAndUnpack('server-win32-arm64-web');
-				context.validateAllSignatures(dir);
+				context.validateAllAuthenticodeSignatures(dir);
 				const entryPoint = context.getServerEntryPoint(dir);
 				await testServer(entryPoint);
 			});
@@ -79,7 +80,7 @@ export function setup(context: TestContext) {
 		if (context.platform === 'win32-x64') {
 			it('server-web-win32-x64', async () => {
 				const dir = await context.downloadAndUnpack('server-win32-x64-web');
-				context.validateAllSignatures(dir);
+				context.validateAllAuthenticodeSignatures(dir);
 				const entryPoint = context.getServerEntryPoint(dir);
 				await testServer(entryPoint);
 			});
@@ -100,6 +101,8 @@ export function setup(context: TestContext) {
 			context.log(`Starting server ${entryPoint} with args ${args.join(' ')}`);
 			const server = spawn(entryPoint, args, { shell: true, detached: os.platform() !== 'win32' });
 
+			let testError: Error | undefined;
+
 			server.stderr.on('data', (data) => {
 				context.error(`[Server Error] ${data.toString().trim()}`);
 			});
@@ -112,8 +115,10 @@ export function setup(context: TestContext) {
 
 				const port = /Extension host agent listening on (\d+)/.exec(text)?.[1];
 				if (port) {
-					const url = context.getWebServerUrl(port, token, test.workspaceDir);
-					runUITest(url, test).finally(() => context.killProcessTree(server.pid!));
+					const url = context.getWebServerUrl(port, token, test.workspaceDir).toString();
+					runUITest(url, test)
+						.catch((error) => { testError = error; })
+						.finally(() => context.killProcessTree(server.pid!));
 				}
 			});
 
@@ -121,28 +126,28 @@ export function setup(context: TestContext) {
 				server.on('error', reject);
 				server.on('exit', resolve);
 			});
+
+			if (testError) {
+				throw testError;
+			}
 		}
 
 		async function runUITest(url: string, test: UITest) {
-			try {
-				const browser = await context.launchBrowser();
-				const page = await browser.newPage();
+			const browser = await context.launchBrowser();
+			const page = await browser.newPage();
 
-				context.log(`Navigating to ${url}`);
-				await page.goto(url, { waitUntil: 'networkidle' });
+			context.log(`Navigating to ${url}`);
+			await page.goto(url, { waitUntil: 'networkidle' });
 
-				context.log('Waiting for the workbench to load');
-				await page.waitForSelector('.monaco-workbench');
+			context.log('Waiting for the workbench to load');
+			await page.waitForSelector('.monaco-workbench');
 
-				await test.run(page);
+			await test.run(page);
 
-				context.log('Closing browser');
-				await browser.close();
+			context.log('Closing browser');
+			await browser.close();
 
-				test.validate();
-			} catch (error) {
-				assert.fail(error instanceof Error ? error.message : String(error));
-			}
+			test.validate();
 		}
 	});
 }

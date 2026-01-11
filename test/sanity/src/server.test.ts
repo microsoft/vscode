@@ -29,6 +29,7 @@ export function setup(context: TestContext) {
 		if (context.platform === 'darwin-arm64') {
 			it('server-darwin-arm64', async () => {
 				const dir = await context.downloadAndUnpack('server-darwin-arm64');
+				context.validateAllCodesignSignatures(dir);
 				const entryPoint = context.getServerEntryPoint(dir);
 				await testServer(entryPoint);
 			});
@@ -37,6 +38,7 @@ export function setup(context: TestContext) {
 		if (context.platform === 'darwin-x64') {
 			it('server-darwin-x64', async () => {
 				const dir = await context.downloadAndUnpack('server-darwin');
+				context.validateAllCodesignSignatures(dir);
 				const entryPoint = context.getServerEntryPoint(dir);
 				await testServer(entryPoint);
 			});
@@ -69,7 +71,7 @@ export function setup(context: TestContext) {
 		if (context.platform === 'win32-arm64') {
 			it('server-win32-arm64', async () => {
 				const dir = await context.downloadAndUnpack('server-win32-arm64');
-				context.validateAllSignatures(dir);
+				context.validateAllAuthenticodeSignatures(dir);
 				const entryPoint = context.getServerEntryPoint(dir);
 				await testServer(entryPoint);
 			});
@@ -78,7 +80,7 @@ export function setup(context: TestContext) {
 		if (context.platform === 'win32-x64') {
 			it('server-win32-x64', async () => {
 				const dir = await context.downloadAndUnpack('server-win32-x64');
-				context.validateAllSignatures(dir);
+				context.validateAllAuthenticodeSignatures(dir);
 				const entryPoint = context.getServerEntryPoint(dir);
 				await testServer(entryPoint);
 			});
@@ -94,6 +96,8 @@ export function setup(context: TestContext) {
 			context.log(`Starting server ${entryPoint} with args ${args.join(' ')}`);
 			const server = spawn(entryPoint, args, { shell: true, detached: os.platform() !== 'win32' });
 
+			let testError: Error | undefined;
+
 			server.stderr.on('data', (data) => {
 				context.error(`[Server Error] ${data.toString().trim()}`);
 			});
@@ -107,7 +111,10 @@ export function setup(context: TestContext) {
 				const port = /Extension host agent listening on (\d+)/.exec(text)?.[1];
 				if (port) {
 					const url = context.getWebServerUrl(port);
-					runWebTest(url).finally(() => context.killProcessTree(server.pid!));
+					url.pathname = '/version';
+					runWebTest(url.toString())
+						.catch((error) => { testError = error; })
+						.finally(() => context.killProcessTree(server.pid!));
 				}
 			});
 
@@ -115,17 +122,19 @@ export function setup(context: TestContext) {
 				server.on('error', reject);
 				server.on('exit', resolve);
 			});
+
+			if (testError) {
+				throw testError;
+			}
 		}
 
 		async function runWebTest(url: string) {
-			try {
-				context.log(`Fetching ${url}`);
-				const response = await fetch(url);
-				assert.equal(response.status, 200);
-				assert.equal(await response.text(), context.commit);
-			} catch (error) {
-				assert.fail(error instanceof Error ? error.message : String(error));
-			}
+			context.log(`Fetching ${url}`);
+			const response = await fetch(url);
+			assert.strictEqual(response.status, 200, `Expected status 200 but got ${response.status}`);
+
+			const text = await response.text();
+			assert.strictEqual(text, context.commit, `Expected commit ${context.commit} but got ${text}`);
 		}
 	});
 }
