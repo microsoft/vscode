@@ -211,6 +211,7 @@ export class MacExternalTerminalService extends ExternalTerminalService implemen
 					}
 				});
 			} else if (terminalApp === 'Ghostty.app') {
+				// TODO: Lot of code duplication when compared with above, should prob refactor.
 				const env = Object.assign({}, getSanitizedEnvironment(process), envVars);
 				const bashCommand = `cd ${quote([dir])} && ${quote(args)}; echo; read -p "${MacExternalTerminalService.WAIT_MESSAGE}" -n1;`;
 				const openArgs = ['-na', 'Ghostty.app', '--args'];
