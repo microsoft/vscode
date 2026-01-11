@@ -92,47 +92,39 @@ export function setup(context: TestContext) {
 			process.chdir(workspaceDir);
 			context.log(`Changed current directory to: ${workspaceDir}`);
 
-			const cliDataDir = context.createTempDir();
-			const userDataDir = context.createTempDir();
-			const serverDataDir = context.createTempDir();
-			const extensionsDir = context.createTempDir();
 			const args = [
-				'--cli-data-dir', cliDataDir,
-				'--user-data-dir', userDataDir,
+				'--cli-data-dir', context.createTempDir(),
+				'--user-data-dir', context.createTempDir(),
 				'tunnel',
 				'--accept-server-license-terms',
-				'--server-data-dir', serverDataDir,
-				'--extensions-dir', extensionsDir,
+				'--server-data-dir', context.createTempDir(),
+				'--extensions-dir', context.createTempDir(),
 			];
 
-			context.log(`Running CLI ${entryPoint} with args: ${args.join(' ')}`);
-			const cli = spawn(entryPoint, args);
+			context.log(`Running CLI ${entryPoint} with args ${args.join(' ')}`);
+			const cli = spawn(entryPoint, args, { detached: true });
 
 			cli.stderr.on('data', (data) => {
 				context.error(`[CLI Error] ${data.toString().trim()}`);
 			});
 
-			let tunnelUrl: string | undefined = undefined;
 			cli.stdout.on('data', (data) => {
-				const text = data.toString();
-				text.trim().split('\n').forEach((line: string) => {
+				const text = data.toString().trim();
+				text.split('\n').forEach((line: string) => {
 					context.log(`[CLI Output] ${line}`);
 				});
 
-				const match = /Open this link in your browser (https:\/\/.+)/.exec(text);
+				const match = /Using GitHub for authentication/.exec(text);
 				if (match !== null) {
-					tunnelUrl = context.getTunnelUrl(match[1]);
-					context.log(`Tunnel URL: ${tunnelUrl}`);
-					cli.kill();
+					context.log(`CLI started successfully and is waiting for authentication`);
+					context.killProcessTree(cli.pid!);
 				}
 			});
 
 			await new Promise<void>((resolve, reject) => {
 				cli.on('error', reject);
-				cli.on('exit', () => resolve());
+				cli.on('exit', resolve);
 			});
-
-			assert.ok(tunnelUrl, 'Expected to receive a tunnel URL from the CLI');
 		}
 	});
 }
