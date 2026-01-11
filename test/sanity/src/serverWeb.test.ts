@@ -85,10 +85,12 @@ export function setup(context: TestContext) {
 		}
 
 		async function testServer(entryPoint: string) {
-			const token = '12345';
+			const token = Array.from({ length: 10 }, () => Math.floor(Math.random() * 36).toString(36)).join('');
+			const port = String(Math.floor(Math.random() * 7000) + 3000);
 			const test = new UITest(context);
 			const args = [
 				'--accept-server-license-terms',
+				'--port', port,
 				'--connection-token', token,
 				'--server-data-dir', context.createTempDir(),
 				'--extensions-dir', test.extensionsDir,
