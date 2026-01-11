@@ -39,7 +39,6 @@ import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/brow
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
-import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { IExtension, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { IWorkbenchIssueService } from '../../../issue/common/issue.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
@@ -52,6 +51,7 @@ import { ChatSetupAnonymous } from './chatSetup.js';
 import { ChatSetupController } from './chatSetupController.js';
 import { AICodeActionsHelper, AINewSymbolNamesProvider, ChatCodeActionsProvider, SetupAgent } from './chatSetupProviders.js';
 import { ChatSetup } from './chatSetupRunner.js';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 
 const defaultChat = {
 	chatExtensionId: product.defaultChatAgent?.chatExtensionId ?? '',
@@ -59,7 +59,7 @@ const defaultChat = {
 	upgradePlanUrl: product.defaultChatAgent?.upgradePlanUrl ?? '',
 	completionsRefreshTokenCommand: product.defaultChatAgent?.completionsRefreshTokenCommand ?? '',
 	chatRefreshTokenCommand: product.defaultChatAgent?.chatRefreshTokenCommand ?? '',
-	outputChannelId: 'GitHub Copilot Chat',
+	outputChannelId: 'GitHub.copilot-chat.GitHub Copilot Chat.log',
 };
 
 export class ChatSetupContribution extends Disposable implements IWorkbenchContribution {
@@ -443,7 +443,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 				let outputData = '';
 				let channelName = '';
-				
+
 				// Try to get the GitHub Copilot Chat output channel first
 				let channel = outputService.getChannel(defaultChat.outputChannelId);
 				if (channel) {
@@ -460,8 +460,10 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						// Use the text model service to get the channel content via its URI
 						const model = await textModelService.createModelReference(channel.uri);
 						try {
-							outputData = model.object.textEditorModel.getValue();
-							logService.info(`[chat setup] Retrieved ${outputData.length} characters from ${channelName} output channel`);
+							const rawOutput = model.object.textEditorModel.getValue();
+							// Wrap in markdown details block to avoid blowing out the issue
+							outputData = `<details>\n<summary>GitHub Copilot Chat Output (${channelName})</summary>\n\n\`\`\`\n${rawOutput}\n\`\`\`\n</details>`;
+							logService.info(`[chat setup] Retrieved ${rawOutput.length} characters from ${channelName} output channel`);
 						} finally {
 							model.dispose();
 						}
