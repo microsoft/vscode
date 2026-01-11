@@ -216,6 +216,7 @@ export class MacExternalTerminalService extends ExternalTerminalService implemen
 				const bashCommand = `cd ${quote([dir])} && ${quote(args)}; echo; read -p "${MacExternalTerminalService.WAIT_MESSAGE}" -n1;`;
 				const openArgs = ['-na', 'Ghostty.app', '--args'];
 				openArgs.push('--working-directory=' + dir);
+				// TODO: see if we can do it without bashCommand
 				openArgs.push('-e', 'bash', '-c', bashCommand);
 
 				let stderr = '';
