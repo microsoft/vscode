@@ -58,6 +58,7 @@ const defaultChat = {
 	upgradePlanUrl: product.defaultChatAgent?.upgradePlanUrl ?? '',
 	completionsRefreshTokenCommand: product.defaultChatAgent?.completionsRefreshTokenCommand ?? '',
 	chatRefreshTokenCommand: product.defaultChatAgent?.chatRefreshTokenCommand ?? '',
+	outputChannelId: 'GitHub Copilot Chat',
 };
 
 export class ChatSetupContribution extends Disposable implements IWorkbenchContribution {
@@ -439,30 +440,33 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				const logService = accessor.get(ILogService);
 
 				// Try to get the GitHub Copilot Chat output channel
-				const channelId = 'GitHub Copilot Chat';
-				const channel = outputService.getChannel(channelId);
+				const channel = outputService.getChannel(defaultChat.outputChannelId);
 
 				let outputData = '';
 				if (channel) {
 					try {
 						// Load the model and get its content
-						// Cast to access the model property which is not on the IOutputChannel interface
-						const model = await (channel as any).model?.loadModel();
-						if (model) {
-							outputData = model.getValue();
-							logService.info(`[chat setup] Retrieved ${outputData.length} characters from ${channelId} output channel`);
+						// The OutputChannel class has a model property, but it's not exposed on IOutputChannel interface
+						// We need to check if the model exists and has the loadModel method
+						const channelWithModel = channel as any;
+						if (channelWithModel.model && typeof channelWithModel.model.loadModel === 'function') {
+							const model = await channelWithModel.model.loadModel();
+							if (model && typeof model.getValue === 'function') {
+								outputData = model.getValue();
+								logService.info(`[chat setup] Retrieved ${outputData.length} characters from ${defaultChat.outputChannelId} output channel`);
+							}
 						}
 					} catch (error) {
 						logService.error(`[chat setup] Failed to retrieve output channel content: ${error}`);
 					}
 				} else {
-					logService.warn(`[chat setup] Output channel '${channelId}' not found`);
+					logService.warn(`[chat setup] Output channel '${defaultChat.outputChannelId}' not found`);
 				}
 
 				// Open issue reporter with the output channel content as additional data
 				await issueService.openReporter({
 					extensionId: defaultChat.chatExtensionId,
-					data: outputData || 'GitHub Copilot Chat output channel not available'
+					data: outputData || 'GitHub Copilot Chat output channel not available. Please ensure the GitHub Copilot Chat extension is active and try again. If the issue persists, you can manually include relevant information from the Output panel (View > Output > GitHub Copilot Chat).'
 				});
 			}
 		}
