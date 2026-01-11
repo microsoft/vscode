@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { spawnSync } from 'child_process';
 import os from 'os';
 import path from 'path';
 import { _electron } from 'playwright';
@@ -11,6 +12,17 @@ import { UITest } from './uiTest';
 
 export function setup(context: TestContext) {
 	describe('Desktop', () => {
+		// On macOS, kill any existing Electron/VS Code processes before each test
+		// to avoid app activation issues where macOS redirects to an existing instance
+		beforeEach(async function () {
+			if (os.platform() === 'darwin') {
+				context.log('Killing existing Electron processes on macOS');
+				spawnSync('pkill', ['-9', 'Electron'], { stdio: 'ignore' });
+				// Wait for processes to fully terminate
+				await new Promise(resolve => setTimeout(resolve, 1000));
+			}
+		});
+
 		if (context.platform === 'darwin-x64') {
 			it('desktop-darwin-x64', async () => {
 				const dir = await context.downloadAndUnpack('darwin');
@@ -180,15 +192,26 @@ export function setup(context: TestContext) {
 		async function testDesktopApp(entryPoint: string, options?: { universal?: boolean }) {
 			const test = new UITest(context);
 			const args = [
+				'--wait',
+				'--new-window',
 				'--extensions-dir', test.extensionsDir,
 				'--user-data-dir', test.userDataDir,
 				test.workspaceDir
 			];
 
+			// Use a clean environment to avoid interference from previous tests
+			const env: Record<string, string> = {
+				PATH: process.env['PATH'] || '',
+				HOME: process.env['HOME'] || '',
+				TMPDIR: process.env['TMPDIR'] || '',
+				USER: process.env['USER'] || '',
+				LANG: process.env['LANG'] || '',
+			};
+
 			// For universal binary on x64 Mac, set ARCHPREFERENCE to ensure correct architecture
-			const env = options?.universal && os.arch() === 'x64'
-				? { ...process.env, ARCHPREFERENCE: 'x86_64' }
-				: undefined;
+			if (options?.universal && os.arch() === 'x64') {
+				env['ARCHPREFERENCE'] = 'x86_64';
+			}
 
 			context.log(`Starting VS Code ${entryPoint} with args ${args.join(' ')}`);
 			const app = await _electron.launch({ executablePath: entryPoint, args, env });
