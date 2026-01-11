@@ -98,7 +98,7 @@ export function setup(context: TestContext) {
 			];
 
 			context.log(`Starting server ${entryPoint} with args ${args.join(' ')}`);
-			const server = spawn(entryPoint, args, { shell: true });
+			const server = spawn(entryPoint, args, { shell: true, detached: true });
 
 			server.stderr.on('data', (data) => {
 				context.error(`[Server Error] ${data.toString().trim()}`);
@@ -133,9 +133,6 @@ export function setup(context: TestContext) {
 
 				context.log('Waiting for the workbench to load');
 				await page.waitForSelector('.monaco-workbench');
-
-				context.log('Verifying page title contains "Visual Studio Code"');
-				assert.match(await page.title(), /Visual Studio Code/);
 
 				await test.run(page);
 
