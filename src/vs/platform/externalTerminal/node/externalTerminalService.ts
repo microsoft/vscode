@@ -193,6 +193,9 @@ export class MacExternalTerminalService extends ExternalTerminalService implemen
 				setupSpawnErrorHandling(osa, resolve, reject, terminalApp);
 			} else if (terminalApp === 'Ghostty.app') {
 				// Ghostty uses CLI flags directly instead of AppleScript like Mac Terminal and iTerm
+				// Note: -na is required (not just -a) because we need to spawn a new instance that
+				// receives our --args. With just -a, if Ghostty is already running, open will
+				// activate the existing instance and ignore --args entirely.
 				const env = Object.assign({}, getSanitizedEnvironment(process), envVars);
 				const openArgs = ['-na', 'Ghostty.app', '--args'];
 				openArgs.push('--working-directory=' + dir);
