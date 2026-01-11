@@ -39,6 +39,7 @@ import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/brow
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
+import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { IExtension, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { IWorkbenchIssueService } from '../../../issue/common/issue.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
@@ -59,6 +60,7 @@ const defaultChat = {
 	completionsRefreshTokenCommand: product.defaultChatAgent?.completionsRefreshTokenCommand ?? '',
 	chatRefreshTokenCommand: product.defaultChatAgent?.chatRefreshTokenCommand ?? '',
 	outputChannelId: 'GitHub Copilot Chat',
+	outputChannelUnavailableMessage: localize('chatOutputChannelUnavailable', "GitHub Copilot Chat output channel not available. Please ensure the GitHub Copilot Chat extension is active and try again. If the issue persists, you can manually include relevant information from the Output panel (View > Output > GitHub Copilot Chat)."),
 };
 
 export class ChatSetupContribution extends Disposable implements IWorkbenchContribution {
@@ -436,25 +438,23 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 			override async run(accessor: ServicesAccessor): Promise<void> {
 				const outputService = accessor.get(IOutputService);
+				const textModelService = accessor.get(ITextModelService);
 				const issueService = accessor.get(IWorkbenchIssueService);
 				const logService = accessor.get(ILogService);
 
+				let outputData = '';
+				
 				// Try to get the GitHub Copilot Chat output channel
 				const channel = outputService.getChannel(defaultChat.outputChannelId);
-
-				let outputData = '';
 				if (channel) {
 					try {
-						// Load the model and get its content
-						// The OutputChannel class has a model property, but it's not exposed on IOutputChannel interface
-						// We need to check if the model exists and has the loadModel method
-						const channelWithModel = channel as any;
-						if (channelWithModel.model && typeof channelWithModel.model.loadModel === 'function') {
-							const model = await channelWithModel.model.loadModel();
-							if (model && typeof model.getValue === 'function') {
-								outputData = model.getValue();
-								logService.info(`[chat setup] Retrieved ${outputData.length} characters from ${defaultChat.outputChannelId} output channel`);
-							}
+						// Use the text model service to get the channel content via its URI
+						const model = await textModelService.createModelReference(channel.uri);
+						try {
+							outputData = model.object.textEditorModel.getValue();
+							logService.info(`[chat setup] Retrieved ${outputData.length} characters from ${defaultChat.outputChannelId} output channel`);
+						} finally {
+							model.dispose();
 						}
 					} catch (error) {
 						logService.error(`[chat setup] Failed to retrieve output channel content: ${error}`);
@@ -466,7 +466,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				// Open issue reporter with the output channel content as additional data
 				await issueService.openReporter({
 					extensionId: defaultChat.chatExtensionId,
-					data: outputData || 'GitHub Copilot Chat output channel not available. Please ensure the GitHub Copilot Chat extension is active and try again. If the issue persists, you can manually include relevant information from the Output panel (View > Output > GitHub Copilot Chat).'
+					data: outputData || defaultChat.outputChannelUnavailableMessage
 				});
 			}
 		}
