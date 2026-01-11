@@ -9,7 +9,7 @@ import fs from 'fs';
 import fetch, { Response } from 'node-fetch';
 import os from 'os';
 import path from 'path';
-import { Browser, chromium } from 'playwright';
+import { Browser, chromium, webkit } from 'playwright';
 
 /**
  * Response from https://update.code.visualstudio.com/api/versions/commit:<commit>/<target>/<quality>
@@ -533,7 +533,35 @@ export class TestContext {
 	 */
 	public async launchBrowser(): Promise<Browser> {
 		this.log(`Launching web browser`);
-		const channel = os.platform() === 'win32' ? 'msedge' : 'chrome';
-		return await chromium.launch({ channel, headless: false });
+		switch (os.platform()) {
+			case 'darwin':
+				return await webkit.launch({ headless: false });
+			case 'win32':
+				return await chromium.launch({ channel: 'msedge', headless: false });
+			default:
+				return await chromium.launch({ channel: 'chrome', headless: false });
+		}
+	}
+
+	/**
+	 * Constructs a web server URL with optional token and folder parameters.
+	 * @param port The port number of the web server.
+	 * @param token The optional authentication token.
+	 * @param folder The optional workspace folder path to open.
+	 * @returns The constructed web server URL.
+	 */
+	public getWebServerUrl(port: string, token?: string, folder?: string): string {
+		const url = new URL(`http://localhost:${port}`);
+		if (token) {
+			url.searchParams.set('tkn', token);
+		}
+		if (folder) {
+			folder = folder.replaceAll('\\', '/');
+			if (!folder.startsWith('/')) {
+				folder = `/${folder}`;
+			}
+			url.searchParams.set('folder', folder);
+		}
+		return url.toString();
 	}
 }
