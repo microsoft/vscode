@@ -50,7 +50,7 @@ class MockLanguageModelsService implements ILanguageModelsService {
 				models: []
 			});
 		}
-		groups[0].models.push(metadata);
+		groups[0].models.push({ identifier, metadata });
 		this.modelGroups.set(vendorId, groups);
 	}
 
@@ -300,18 +300,18 @@ suite('ChatModelsViewModel', () => {
 		assert.strictEqual(resultsByCopilotId[0].type, 'vendor');
 		assert.strictEqual(resultsByCopilotId[0].vendorEntry.vendor.vendor, 'copilot');
 		assert.strictEqual(resultsByCopilotId[1].type, 'model');
-		assert.strictEqual(resultsByCopilotId[1].model.identifier, 'gpt-4');
+		assert.strictEqual(resultsByCopilotId[1].model.identifier, 'copilot-gpt-4');
 		assert.strictEqual(resultsByCopilotId[2].type, 'model');
-		assert.strictEqual(resultsByCopilotId[2].model.identifier, 'gpt-4o');
+		assert.strictEqual(resultsByCopilotId[2].model.identifier, 'copilot-gpt-4o');
 
 		const resultsByOpenAIName = viewModel.filter('@provider:OpenAI');
 		assert.strictEqual(resultsByOpenAIName.length, 3);
 		assert.strictEqual(resultsByOpenAIName[0].type, 'vendor');
 		assert.strictEqual(resultsByOpenAIName[0].vendorEntry.vendor.vendor, 'openai');
 		assert.strictEqual(resultsByOpenAIName[1].type, 'model');
-		assert.strictEqual(resultsByOpenAIName[1].model.identifier, 'gpt-3.5-turbo');
+		assert.strictEqual(resultsByOpenAIName[1].model.identifier, 'openai-gpt-3.5');
 		assert.strictEqual(resultsByOpenAIName[2].type, 'model');
-		assert.strictEqual(resultsByOpenAIName[2].model.identifier, 'gpt-4-vision');
+		assert.strictEqual(resultsByOpenAIName[2].model.identifier, 'openai-gpt-4-vision');
 	});
 
 	test('should filter by multiple providers with OR logic', () => {
@@ -424,7 +424,7 @@ suite('ChatModelsViewModel', () => {
 
 		const models = results.filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r)) as ILanguageModelEntry[];
 		assert.strictEqual(models.length, 1);
-		assert.strictEqual(models[0].model.identifier, 'gpt-4o');
+		assert.strictEqual(models[0].model.identifier, 'copilot-gpt-4o');
 		assert.ok(models[0].modelIdMatches);
 	});
 
@@ -784,15 +784,15 @@ suite('ChatModelsViewModel', () => {
 		assert.strictEqual(actuals[0].type, 'group');
 		assert.strictEqual(actuals[0].id, 'visible');
 		assert.strictEqual(actuals[1].type, 'model');
-		assert.strictEqual(actuals[1].model.identifier, 'gpt-4');
+		assert.strictEqual(actuals[1].model.identifier, 'copilot-gpt-4');
 		assert.strictEqual(actuals[2].type, 'model');
-		assert.strictEqual(actuals[2].model.identifier, 'gpt-4o');
+		assert.strictEqual(actuals[2].model.identifier, 'copilot-gpt-4o');
 		assert.strictEqual(actuals[3].type, 'model');
-		assert.strictEqual(actuals[3].model.identifier, 'gpt-3.5-turbo');
+		assert.strictEqual(actuals[3].model.identifier, 'openai-gpt-3.5');
 		assert.strictEqual(actuals[4].type, 'group');
 		assert.strictEqual(actuals[4].id, 'hidden');
 		assert.strictEqual(actuals[5].type, 'model');
-		assert.strictEqual(actuals[5].model.identifier, 'gpt-4-vision');
+		assert.strictEqual(actuals[5].model.identifier, 'openai-gpt-4-vision');
 	});
 
 	test('should fire onDidChangeGrouping when grouping changes', () => {

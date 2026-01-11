@@ -6,7 +6,7 @@
 import { distinct } from '../../../../../base/common/arrays.js';
 import { IMatch, IFilter, or, matchesCamelCase, matchesWords, matchesBaseContiguousSubString } from '../../../../../base/common/filters.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { ILanguageModelsService, ILanguageModelChatMetadata, IUserFriendlyLanguageModel } from '../../../chat/common/languageModels.js';
+import { ILanguageModelsService, IUserFriendlyLanguageModel, ILanguageModelChatMetadataAndIdentifier } from '../../../chat/common/languageModels.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { localize } from '../../../../../nls.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
@@ -45,9 +45,7 @@ export interface ILanguageModelProvider {
 	group: ILanguageModelsProviderGroup;
 }
 
-export interface ILanguageModel {
-	identifier: string;
-	metadata: ILanguageModelChatMetadata;
+export interface ILanguageModel extends ILanguageModelChatMetadataAndIdentifier {
 	provider: ILanguageModelProvider;
 }
 
@@ -500,12 +498,12 @@ export class ChatModelsViewModel extends Disposable {
 					});
 				}
 				for (const model of group.models) {
-					if (vendor.vendor === 'copilot' && model.id === 'auto') {
+					if (vendor.vendor === 'copilot' && model.metadata.id === 'auto') {
 						continue;
 					}
 					models.push({
-						identifier: model.id,
-						metadata: model,
+						identifier: model.identifier,
+						metadata: model.metadata,
 						provider,
 					});
 				}
@@ -589,7 +587,7 @@ class ModelItemMatches {
 				this.matches(searchValue, modelEntry.metadata.name, (word, wordToMatchAgainst) => matchesWords(word, wordToMatchAgainst, true), words) :
 				null;
 
-			this.modelIdMatches = this.matches(searchValue, modelEntry.identifier, or(matchesWords, matchesCamelCase), words);
+			this.modelIdMatches = this.matches(searchValue, modelEntry.metadata.id, or(matchesWords, matchesCamelCase), words);
 
 			// Match against vendor display name
 			this.providerMatches = this.matches(searchValue, modelEntry.provider.group.name, (word, wordToMatchAgainst) => matchesWords(word, wordToMatchAgainst, true), words);
