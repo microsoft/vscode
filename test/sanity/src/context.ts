@@ -116,16 +116,36 @@ export class TestContext {
 	 * @returns The fetch Response object.
 	 */
 	public async fetchNoErrors(url: string): Promise<Response & { body: NodeJS.ReadableStream }> {
-		const response = await fetch(url);
-		if (!response.ok) {
-			this.error(`Failed to fetch ${url}: ${response.status} ${response.statusText}`);
+		const maxRetries = 5;
+		let lastError: Error | undefined;
+
+		for (let attempt = 0; attempt < maxRetries; attempt++) {
+			if (attempt > 0) {
+				const delay = Math.pow(2, attempt) * 1000;
+				this.log(`Retrying fetch (attempt ${attempt + 1}/${maxRetries}) after ${delay}ms`);
+				await new Promise(resolve => setTimeout(resolve, delay));
+			}
+
+			try {
+				const response = await fetch(url);
+				if (!response.ok) {
+					lastError = new Error(`Failed to fetch ${url}: ${response.status} ${response.statusText}`);
+					continue;
+				}
+
+				if (response.body === null) {
+					lastError = new Error(`Response body is null for ${url}`);
+					continue;
+				}
+
+				return response as Response & { body: NodeJS.ReadableStream };
+			} catch (error) {
+				lastError = error instanceof Error ? error : new Error(String(error));
+				this.log(`Fetch attempt ${attempt + 1} failed: ${lastError.message}`);
+			}
 		}
 
-		if (response.body === null) {
-			this.error(`Response body is null for ${url}`);
-		}
-
-		return response as Response & { body: NodeJS.ReadableStream };
+		this.error(`Failed to fetch ${url} after ${maxRetries} attempts: ${lastError?.message}`);
 	}
 
 	/**

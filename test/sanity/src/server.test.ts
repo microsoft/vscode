@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { spawn } from 'child_process';
+import os from 'os';
 import { TestContext } from './context';
 
 export function setup(context: TestContext) {
@@ -87,7 +88,7 @@ export function setup(context: TestContext) {
 			const args = ['--accept-server-license-terms', '--connection-token', '12345'];
 
 			context.log(`Starting server ${entryPoint} with args ${args.join(' ')}`);
-			const server = spawn(entryPoint, args, { shell: true });
+			const server = spawn(entryPoint, args, { shell: true, detached: os.platform() !== 'win32' });
 
 			server.stderr.on('data', (data) => {
 				context.error(`[Server Error] ${data.toString().trim()}`);

@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { spawn } from 'child_process';
+import os from 'os';
 import { TestContext } from './context';
 import { UITest } from './uiTest';
 
@@ -98,7 +99,7 @@ export function setup(context: TestContext) {
 			];
 
 			context.log(`Starting server ${entryPoint} with args ${args.join(' ')}`);
-			const server = spawn(entryPoint, args, { shell: true, detached: true });
+			const server = spawn(entryPoint, args, { shell: true, detached: os.platform() !== 'win32' });
 
 			server.stderr.on('data', (data) => {
 				context.error(`[Server Error] ${data.toString().trim()}`);
