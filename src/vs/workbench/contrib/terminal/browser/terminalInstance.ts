@@ -2674,10 +2674,6 @@ export class TerminalLabelComputer extends Disposable {
 
 		// Only set cwdFolder if detection is on
 		if (templateProperties.cwd && detection && (!instance.shellLaunchConfig.isFeatureTerminal || labelType === TerminalLabelType.Title)) {
-			const cwdUri = URI.from({
-				scheme: instance.workspaceFolder?.uri.scheme || Schemas.file,
-				path: instance.cwd ? path.resolve(instance.cwd) : undefined
-			});
 			// Multi-root workspaces always show cwdFolder to disambiguate them, otherwise only show
 			// when it differs from the workspace folder in which it was launched from
 			let showCwd = false;
@@ -2685,7 +2681,11 @@ export class TerminalLabelComputer extends Disposable {
 				showCwd = true;
 			} else if (instance.workspaceFolder?.uri) {
 				const caseSensitive = this._fileService.hasCapability(instance.workspaceFolder.uri, FileSystemProviderCapabilities.PathCaseSensitive);
-				showCwd = cwdUri.fsPath.localeCompare(instance.workspaceFolder.uri.fsPath, undefined, { sensitivity: caseSensitive ? 'case' : 'base' }) !== 0;
+				// Compare the cwd directly with the workspace folder's URI path since both are in
+				// the backend's native format. Avoid using path.resolve() as it uses the frontend's
+				// path module which may differ from the backend (e.g., Windows frontend + WSL
+				// backend).
+				showCwd = templateProperties.cwd.localeCompare(instance.workspaceFolder.uri.path, undefined, { sensitivity: caseSensitive ? 'case' : 'base' }) !== 0;
 			}
 			if (showCwd) {
 				templateProperties.cwdFolder = path.basename(templateProperties.cwd);
