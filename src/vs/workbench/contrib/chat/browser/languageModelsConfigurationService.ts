@@ -182,30 +182,13 @@ export function parseLanguageModelsProviderGroups(model: ITextModel): LanguageMo
 			(currentParent as unknown[]).push(value);
 		} else if (currentProperty !== null) {
 			(currentParent as Record<string, unknown>)[currentProperty] = value;
-			if (currentProperty === 'configuration') {
-				const start = model.getPositionAt(offset);
-				const range: Mutable<IRange> = {
-					startLineNumber: start.lineNumber,
-					startColumn: start.column,
-					endLineNumber: start.lineNumber,
-					endColumn: start.column
-				};
-				if (value && typeof value === 'object') {
-					(value as { _parentConfigurationRange?: Mutable<IRange> })._parentConfigurationRange = range;
-				} else {
-					const end = model.getPositionAt(offset + length);
-					range.endLineNumber = end.lineNumber;
-					range.endColumn = end.column;
-				}
-				(currentParent as { configurationRange?: IRange }).configurationRange = range;
-			}
 		}
 	}
 
 	const visitor: JSONVisitor = {
 		onObjectBegin: (offset: number, length: number) => {
 			const object: Record<string, unknown> & { range?: IRange } = {};
-			if (Array.isArray(currentParent)) {
+			if (previousParents.length === 1 && Array.isArray(currentParent)) {
 				const start = model.getPositionAt(offset);
 				const end = model.getPositionAt(offset + length);
 				object.range = {
