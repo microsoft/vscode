@@ -276,6 +276,7 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 			if (!this._contentWidget.isVisible) {
 				this._contentWidget.showsOrWillShow(this._mouseMoveEvent);
 			}
+			return;
 		}
 
 		const isPotentialKeyboardShortcut = this._isPotentialKeyboardShortcut(e);
