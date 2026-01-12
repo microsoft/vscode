@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isWindows } from '../../../../base/common/platform.js';
+import { isNative, isWindows } from '../../../../base/common/platform.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ISandboxTerminalSettings, ITerminalLogService } from '../../../../platform/terminal/common/terminal.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -14,7 +14,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { IEnvironmentService, type INativeEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 
 export const ISandboxUtility = createDecorator<ISandboxUtility>('sandboxUtility');
 
@@ -85,7 +85,7 @@ export class SandboxUtility implements ISandboxUtility {
 
 	private async _createSandboxConfig(): Promise<string | undefined> {
 		const sandboxSetting = this._configurationService.getValue<ISandboxTerminalSettings>(SandboxUtility.TERMINAL_SANDBOX_SETTING_ID);
-		if (sandboxSetting.enabled) {
+		if (sandboxSetting.enabled && SandboxUtility._tempDir) {
 			const configFileUri = joinPath(SandboxUtility._tempDir!, `vscode-sandbox-settings-${SandboxUtility._sandboxSettingsId}.json`);
 			const sandboxSettings = {
 				network: {
@@ -106,10 +106,9 @@ export class SandboxUtility implements ISandboxUtility {
 	}
 
 	private _initTempDir(): void {
-		if (this.isEnabled()) {
+		if (this.isEnabled() && isNative) {
 			this._needsForceUpdateConfigFile = true;
-			const nativeEnv = this._environmentService as Partial<INativeEnvironmentService>;
-			const tmpDir = nativeEnv.tmpDir;
+			const tmpDir = (this._environmentService as IEnvironmentService & { tmpDir: URI }).tmpDir;
 			if (!tmpDir) {
 				this._logService.warn('SandboxUtility: Cannot create sandbox settings file because no tmpDir is available in this environment');
 				return;
