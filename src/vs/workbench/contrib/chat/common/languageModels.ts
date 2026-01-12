@@ -271,7 +271,7 @@ export interface ILanguageModelChatMetadataAndIdentifier {
 export interface ILanguageModelChatInfoOptions {
 	readonly group?: string;
 	readonly silent: boolean;
-	readonly configuration?: unknown;
+	readonly configuration?: IStringDictionary<unknown>;
 }
 
 export interface ILanguageModelsGroup {
@@ -816,7 +816,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		return result;
 	}
 
-	private async promptForConfiguration(groupName: string, configuration: IJSONSchema, existing: IStringDictionary<unknown> = {}): Promise<IStringDictionary<unknown> | undefined> {
+	private async promptForConfiguration(groupName: string, configuration: IJSONSchema, existing: IStringDictionary<unknown> | undefined): Promise<IStringDictionary<unknown> | undefined> {
 		if (!configuration.properties) {
 			return;
 		}
@@ -891,7 +891,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 	private async promptForInput(groupName: string, property: string, propertySchema: IJSONSchema, required: boolean, existing: IStringDictionary<unknown> | undefined): Promise<string | number | boolean | undefined> {
 		const disposables = new DisposableStore();
 		try {
-			const value = await new Promise<string | undefined>((resolve, error) => {
+			const value = await new Promise<string | undefined>((resolve, reject) => {
 				const inputBox = disposables.add(this._quickInputService.createInputBox());
 				inputBox.title = `${groupName}: ${propertySchema.title ?? property}`;
 				inputBox.placeholder = localize('enterValue', "Enter value for {0}", property);
@@ -942,7 +942,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 
 				disposables.add(inputBox.onDidHide((e) => {
 					if (e.reason === QuickInputHideReason.Gesture) {
-						error(new CancellationError());
+						reject(new CancellationError());
 					} else {
 						resolve(undefined);
 					}
