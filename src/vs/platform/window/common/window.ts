@@ -208,6 +208,7 @@ export interface IWindowSettings {
 	readonly enableMenuBarMnemonics: boolean;
 	readonly closeWhenEmpty: boolean;
 	readonly clickThroughInactive: boolean;
+	readonly experimentalTransparency: boolean;
 	readonly newWindowProfile: string;
 	readonly density: IDensitySettings;
 	readonly border: 'off' | 'default' | 'system' | string /* color in RGB or other formats */;

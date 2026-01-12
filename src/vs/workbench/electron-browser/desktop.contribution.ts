@@ -310,6 +310,13 @@ import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL } from '../../platform/window/electron-b
 				'description': localize('window.clickThroughInactive', "If enabled, clicking on an inactive window will both activate the window and trigger the element under the mouse if it is clickable. If disabled, clicking anywhere on an inactive window will activate it only and a second click is required on the element."),
 				'included': isMacintosh
 			},
+			'window.experimentalTransparency': {
+				'type': 'boolean',
+				'default': false,
+				'scope': ConfigurationScope.APPLICATION,
+				'markdownDescription': localize('window.experimentalTransparency', "Enables experimental window transparency with vibrancy effect. Requires a restart to take effect. Works best with transparent themes like 'Stealth Light Transparent'."),
+				'included': isMacintosh
+			},
 			'window.border': {
 				'type': 'string',
 				'default': 'default',
