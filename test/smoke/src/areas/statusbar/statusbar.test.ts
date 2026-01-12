@@ -15,8 +15,8 @@ export function setup(logger: Logger) {
 
 		it('verifies presence of all default status bar elements', async function () {
 			const app = this.app as Application;
-			const workspacePath = app.workspacePathOrFolder;
-			if (!workspacePath) {
+			const workspacePathOrFolder = app.workspacePathOrFolder;
+			if (!workspacePathOrFolder) {
 				throw new Error('This test requires a workspace to be open');
 			}
 
@@ -24,7 +24,7 @@ export function setup(logger: Logger) {
 			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.SYNC_STATUS);
 			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.PROBLEMS_STATUS);
 
-			await app.workbench.quickaccess.openFile(join(workspacePath, 'readme.md'));
+			await app.workbench.quickaccess.openFile(join(workspacePathOrFolder, 'readme.md'));
 			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.ENCODING_STATUS);
 			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.EOL_STATUS);
 			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.INDENTATION_STATUS);
@@ -34,8 +34,8 @@ export function setup(logger: Logger) {
 
 		it(`verifies that 'quick input' opens when clicking on status bar elements`, async function () {
 			const app = this.app as Application;
-			const workspacePath = app.workspacePathOrFolder;
-			if (!workspacePath) {
+			const workspacePathOrFolder = app.workspacePathOrFolder;
+			if (!workspacePathOrFolder) {
 				throw new Error('This test requires a workspace to be open');
 			}
 
@@ -43,7 +43,7 @@ export function setup(logger: Logger) {
 			await app.workbench.quickinput.waitForQuickInputOpened();
 			await app.workbench.quickinput.closeQuickInput();
 
-			await app.workbench.quickaccess.openFile(join(workspacePath, 'readme.md'));
+			await app.workbench.quickaccess.openFile(join(workspacePathOrFolder, 'readme.md'));
 			await app.workbench.statusbar.clickOn(StatusBarElement.INDENTATION_STATUS);
 			await app.workbench.quickinput.waitForQuickInputOpened();
 			await app.workbench.quickinput.closeQuickInput();
@@ -66,12 +66,12 @@ export function setup(logger: Logger) {
 
 		it(`verifies if changing EOL is reflected in the status bar`, async function () {
 			const app = this.app as Application;
-			const workspacePath = app.workspacePathOrFolder;
-			if (!workspacePath) {
+			const workspacePathOrFolder = app.workspacePathOrFolder;
+			if (!workspacePathOrFolder) {
 				throw new Error('This test requires a workspace to be open');
 			}
 
-			await app.workbench.quickaccess.openFile(join(workspacePath, 'readme.md'));
+			await app.workbench.quickaccess.openFile(join(workspacePathOrFolder, 'readme.md'));
 			await app.workbench.statusbar.clickOn(StatusBarElement.EOL_STATUS);
 
 			await app.workbench.quickinput.selectQuickInputElement(1);

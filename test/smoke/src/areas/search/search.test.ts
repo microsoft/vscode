@@ -15,13 +15,13 @@ export function setup(logger: Logger) {
 
 		after(function () {
 			const app = this.app as Application;
-			const workspacePath = app.workspacePathOrFolder;
-			if (!workspacePath) {
+			const workspacePathOrFolder = app.workspacePathOrFolder;
+			if (!workspacePathOrFolder) {
 				throw new Error('This test requires a workspace to be open');
 			}
 
-			retry(async () => cp.execSync('git checkout . --quiet', { cwd: workspacePath }), 0, 5);
-			retry(async () => cp.execSync('git reset --hard HEAD --quiet', { cwd: workspacePath }), 0, 5);
+			retry(async () => cp.execSync('git checkout . --quiet', { cwd: workspacePathOrFolder }), 0, 5);
+			retry(async () => cp.execSync('git reset --hard HEAD --quiet', { cwd: workspacePathOrFolder }), 0, 5);
 		});
 
 		it('verifies the sidebar moves to the right', async function () {
