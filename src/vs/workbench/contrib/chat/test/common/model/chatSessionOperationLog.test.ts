@@ -20,7 +20,7 @@ suite('ChatSessionOperationLog', () => {
 
 	interface TestObject {
 		name: string;
-		count: number;
+		count?: number;
 		items: TestItem[];
 		metadata?: { tags: string[] };
 	}
@@ -536,6 +536,44 @@ suite('ChatSessionOperationLog', () => {
 			// Should have two entries - one for value, one for isSealed
 			const lines = result.data.toString().trim().split('\n');
 			assert.strictEqual(lines.length, 2, 'should have two change entries');
+		});
+
+		test('write detects property set to undefined', () => {
+			const schema = createTestSchema();
+			const adapter = new Adapt.ObjectMutationLog(schema);
+
+			const initial: TestObject = { name: 'test', count: 5, items: [], metadata: { tags: ['foo'] } };
+
+			const result = simulateFileRoundtrip(adapter, initial, [
+				{ name: 'test', count: 10, items: [], metadata: { tags: ['foo'] } },
+				{ name: 'test', count: undefined, items: [], metadata: undefined },
+			]);
+			assert.deepStrictEqual(result, { name: 'test', count: undefined, items: [], metadata: undefined });
+
+			const result2 = simulateFileRoundtrip(adapter, initial, [
+				{ name: 'test', count: 10, items: [], metadata: { tags: ['foo'] } },
+				{ name: 'test', count: undefined, items: [], metadata: undefined },
+				{ name: 'test', count: 12, items: [], metadata: { tags: ['bar'] } },
+			]);
+			assert.deepStrictEqual(result2, { name: 'test', count: 12, items: [], metadata: { tags: ['bar'] } });
+		});
+
+		test('delete followed by set restores property', () => {
+			const schema = createTestSchema();
+			const initial: TestObject = { name: 'test', count: 0, items: [], metadata: { tags: ['a'] } };
+
+			// Build log with delete then set
+			const entries = [
+				{ kind: 0, v: initial },
+				{ kind: 3, k: ['metadata'] }, // Delete
+				{ kind: 1, k: ['metadata'], v: { tags: ['b', 'c'] } }, // Set to new value
+			];
+			const logContent = entries.map(e => JSON.stringify(e)).join('\n') + '\n';
+
+			const adapter = new Adapt.ObjectMutationLog(schema);
+			const result = adapter.read(VSBuffer.fromString(logContent));
+
+			assert.deepStrictEqual(result.metadata, { tags: ['b', 'c'] });
 		});
 	});
 });

@@ -5,6 +5,7 @@
 
 import { assertNever } from '../../../../../base/common/assert.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { isUndefinedOrNull } from '../../../../../base/common/types.js';
 
 
 /** IMPORTANT: `Key` comes first. Then we should sort in order of least->most expensive to diff */
@@ -117,6 +118,10 @@ export function object<T, R extends object>(schema: Schema<T, R>, options?: Obje
 		children: entries as SchemaEntries,
 		sealed: options?.sealed,
 		extract: (from: T) => {
+			if (isUndefinedOrNull(from)) {
+				return from as unknown as R;
+			}
+
 			const result: Record<string, unknown> = Object.create(null);
 			for (const [key, transform] of entries) {
 				result[key] = transform.extract(from);
@@ -156,6 +161,8 @@ const enum EntryKind {
 	Set = 1,
 	/** Array push/splice. */
 	Push = 2,
+	/** Delete a property */
+	Delete = 3,
 }
 
 type ObjectPath = (string | number)[];
@@ -164,6 +171,8 @@ type Entry =
 	| { kind: EntryKind.Initial; v: unknown }
 	/** Update a property of an object, replacing it entirely */
 	| { kind: EntryKind.Set; k: ObjectPath; v: unknown }
+	/** Delete a property of an object */
+	| { kind: EntryKind.Delete; k: ObjectPath }
 	/** Pushes 0 or more new entries to an array. If `i` is set, everything after that index is removed */
 	| { kind: EntryKind.Push; k: ObjectPath; v?: unknown[]; i?: number };
 
@@ -232,6 +241,11 @@ export class ObjectMutationLog<TFrom, TTo> {
 						case EntryKind.Push:
 							this._applyPush(state, entry.k, entry.v, entry.i);
 							break;
+						case EntryKind.Delete:
+							this._applySet(state, entry.k, undefined);
+							break;
+						default:
+							assertNever(entry);
 					}
 				}
 			}
@@ -322,25 +336,27 @@ export class ObjectMutationLog<TFrom, TTo> {
 		curr: R,
 		entries: Entry[]
 	): void {
-		switch (transform.kind) {
-			case TransformKind.Key:
-			case TransformKind.Primitive:
-				// Simple value change - copy path since we're storing it
-				if (!transform.equals(prev, curr)) {
+		if (transform.kind === TransformKind.Key || transform.kind === TransformKind.Primitive) {
+			// Simple value change - copy path since we're storing it
+			if (!transform.equals(prev, curr)) {
+				entries.push({ kind: EntryKind.Set, k: path.slice(), v: curr });
+			}
+		} else if (isUndefinedOrNull(prev) || isUndefinedOrNull(curr)) {
+			if (prev !== curr) {
+				if (curr === undefined) {
+					entries.push({ kind: EntryKind.Delete, k: path.slice() });
+				} else if (curr === null) {
+					entries.push({ kind: EntryKind.Set, k: path.slice(), v: null });
+				} else {
 					entries.push({ kind: EntryKind.Set, k: path.slice(), v: curr });
 				}
-				break;
-
-			case TransformKind.Array:
-				this._diffArray(transform, path, prev as unknown[], curr as unknown[], entries);
-				break;
-
-			case TransformKind.Object:
-				this._diffObject(transform.children, path, prev, curr, entries, transform.sealed as ((obj: unknown) => boolean) | undefined);
-				break;
-
-			default:
-				assertNever(transform);
+			}
+		} else if (transform.kind === TransformKind.Array) {
+			this._diffArray(transform, path, prev as unknown[], curr as unknown[], entries);
+		} else if (transform.kind === TransformKind.Object) {
+			this._diffObject(transform.children, path, prev, curr, entries, transform.sealed as ((obj: unknown, wasSerialized: boolean) => boolean) | undefined);
+		} else {
+			throw new Error(`Unknown transform kind ${JSON.stringify(transform)}`);
 		}
 	}
 

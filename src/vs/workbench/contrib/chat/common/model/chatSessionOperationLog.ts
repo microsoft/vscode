@@ -144,7 +144,7 @@ const requestSchema = Adapt.object<IChatRequestModel, ISerializableChatRequestDa
 });
 
 const inputStateSchema = Adapt.object<ISerializableChatModelInputState, ISerializableChatModelInputState>({
-	attachments: Adapt.v(i => i.attachments, objectsEqual), // attachments have complex nested data
+	attachments: Adapt.v(i => i.attachments, objectsEqual),
 	mode: Adapt.v(i => i.mode, (a, b) => a.id === b.id),
 	selectedModel: Adapt.v(i => i.selectedModel, (a, b) => a?.identifier === b?.identifier),
 	inputText: Adapt.v(i => i.inputText),
