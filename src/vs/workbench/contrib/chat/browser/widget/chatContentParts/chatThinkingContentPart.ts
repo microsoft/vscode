@@ -146,7 +146,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		if (this.fixedScrollingMode) {
 			node.classList.add('chat-thinking-fixed-mode');
 			this.currentTitle = this.defaultTitle;
-			if (this._collapseButton && !this.context.element.isComplete) {
+			if (this._collapseButton && !this.element.isComplete) {
 				this._collapseButton.icon = ThemeIcon.modify(Codicon.loading, 'spin');
 			}
 		}
@@ -155,7 +155,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this._register(autorun(r => {
 			this.expanded.read(r);
 			if (this._collapseButton && this.wrapper) {
-				if (this.wrapper.classList.contains('chat-thinking-streaming') && !this.context.element.isComplete) {
+				if (this.wrapper.classList.contains('chat-thinking-streaming') && !this.element.isComplete) {
 					this._collapseButton.icon = ThemeIcon.modify(Codicon.loading, 'spin');
 				} else {
 					this._collapseButton.icon = Codicon.check;
@@ -163,7 +163,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			}
 		}));
 
-		if (this._collapseButton && !this.streamingCompleted && !this.context.element.isComplete) {
+		if (this._collapseButton && !this.streamingCompleted && !this.element.isComplete) {
 			this._collapseButton.icon = ThemeIcon.modify(Codicon.loading, 'spin');
 		}
 
@@ -577,7 +577,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	protected override setTitle(title: string, omitPrefix?: boolean): void {
-		if (!title || this.context.element.isComplete) {
+		if (!title || this.element.isComplete) {
 			return;
 		}
 

@@ -12,9 +12,9 @@ import { setup as setupServerWebTests } from './serverWeb.test';
 
 const options = minimist(process.argv.slice(2), {
 	string: ['commit', 'quality'],
-	boolean: ['cleanup', 'verbose'],
+	boolean: ['cleanup', 'verbose', 'signing-check'],
 	alias: { commit: 'c', quality: 'q', verbose: 'v' },
-	default: { cleanup: true, verbose: false },
+	default: { cleanup: true, verbose: false, 'signing-check': true },
 });
 
 if (!options.commit) {
@@ -25,9 +25,16 @@ if (!options.quality) {
 	throw new Error('--quality is required');
 }
 
-const context = new TestContext(options.quality, options.commit, options.verbose);
+const context = new TestContext(options.quality, options.commit, options.verbose, !options['signing-check']);
 
 describe('VS Code Sanity Tests', () => {
+	beforeEach(function () {
+		context.currentTest = this.currentTest!;
+		const cwd = context.createTempDir();
+		process.chdir(cwd);
+		context.log(`Changed working directory to: ${cwd}`);
+	});
+
 	if (options.cleanup) {
 		afterEach(() => {
 			context.cleanup();

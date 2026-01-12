@@ -157,7 +157,7 @@ export interface IAgentSessionSection {
 	readonly sessions: IAgentSession[];
 }
 
-export function isAgentSessionSection(obj: IAgentSessionsModel | IAgentSession | IAgentSessionSection): obj is IAgentSessionSection {
+export function isAgentSessionSection(obj: unknown): obj is IAgentSessionSection {
 	const candidate = obj as IAgentSessionSection;
 
 	return typeof candidate.section === 'string' && Array.isArray(candidate.sessions);
