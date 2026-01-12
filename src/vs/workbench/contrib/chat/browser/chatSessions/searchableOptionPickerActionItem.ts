@@ -5,17 +5,21 @@
 
 import './media/chatSessionPickerActionItem.css';
 import { IAction } from '../../../../../base/common/actions.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import * as dom from '../../../../../base/browser/dom.js';
-import { ActionViewItem, IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
+import { IActionWidgetDropdownAction, IActionWidgetDropdownOptions } from '../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { ActionWidgetDropdownActionViewItem } from '../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
 import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem } from '../../common/chatSessionsService.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { renderLabelWithIcons, renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { localize } from '../../../../../nls.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 
 export interface ISearchableOptionPickerDelegate {
 	readonly onDidChangeOption: Event<IChatSessionProviderOptionItem>;
@@ -35,107 +39,145 @@ function isSearchableOptionQuickPickItem(item: IQuickPickItem | undefined): item
 /**
  * Action view item for searchable option groups with QuickPick.
  * Used when an option group has `searchable: true` (e.g., repository selection).
- * Provides a search box for filtering large lists of options.
+ * Shows an inline dropdown with items + "See more..." option that opens a searchable QuickPick.
  */
-export class SearchableOptionPickerActionItem extends ActionViewItem {
+export class SearchableOptionPickerActionItem extends ActionWidgetDropdownActionViewItem {
 	private currentOption: IChatSessionProviderOptionItem | undefined;
-	private labelElement: HTMLElement | undefined;
+	private static readonly SEE_MORE_ID = '__see_more__';
 
 	constructor(
 		action: IAction,
 		initialState: { group: IChatSessionProviderOptionGroup; item: IChatSessionProviderOptionItem | undefined },
 		private readonly delegate: ISearchableOptionPickerDelegate,
-		options: IActionViewItemOptions,
+		@IActionWidgetService actionWidgetService: IActionWidgetService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IKeybindingService keybindingService: IKeybindingService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IHoverService private readonly hoverService: IHoverService,
 	) {
-		// Pass icon: false, label: false to prevent default action label rendering
-		super(null, action, { ...options, icon: false, label: false });
-		const { item } = initialState;
+		const { group, item } = initialState;
+		const actionWithLabel: IAction = {
+			...action,
+			label: item?.name || group.name,
+			tooltip: item?.description ?? group.description ?? group.name,
+			run: () => { }
+		};
+
+		const searchablePickerOptions: Omit<IActionWidgetDropdownOptions, 'label' | 'labelRenderer'> = {
+			actionProvider: {
+				getActions: () => {
+					const optionGroup = this.delegate.getOptionGroup();
+					if (!optionGroup) {
+						return [];
+					}
+
+					// If locked, show the current option only
+					const currentOption = this.delegate.getCurrentOption();
+					if (currentOption?.locked) {
+						return [{
+							id: currentOption.id,
+							enabled: false,
+							icon: currentOption.icon,
+							checked: true,
+							class: undefined,
+							description: undefined,
+							tooltip: currentOption.description ?? currentOption.name,
+							label: currentOption.name,
+							run: () => { }
+						} satisfies IActionWidgetDropdownAction];
+					}
+
+					// Build actions from items
+					const actions: IActionWidgetDropdownAction[] = optionGroup.items.map(optionItem => {
+						const isCurrent = optionItem.id === currentOption?.id;
+						return {
+							id: optionItem.id,
+							enabled: !optionItem.locked,
+							icon: optionItem.icon,
+							checked: isCurrent,
+							class: undefined,
+							description: undefined,
+							tooltip: optionItem.description ?? optionItem.name,
+							label: optionItem.name,
+							run: () => {
+								this.delegate.setOption(optionItem);
+							}
+						} satisfies IActionWidgetDropdownAction;
+					});
+
+					// Add "See more..." action if onSearch is available
+					if (optionGroup.onSearch) {
+						actions.push({
+							id: SearchableOptionPickerActionItem.SEE_MORE_ID,
+							enabled: true,
+							icon: Codicon.search,
+							checked: false,
+							class: 'searchable-picker-see-more',
+							description: undefined,
+							tooltip: localize('seeMore.tooltip', "Search for more options"),
+							label: localize('seeMore', "See more..."),
+							run: () => {
+								this.showSearchableQuickPick(optionGroup);
+							}
+						} satisfies IActionWidgetDropdownAction);
+					}
+
+					return actions;
+				}
+			},
+			actionBarActionProvider: undefined,
+		};
+
+		super(actionWithLabel, searchablePickerOptions, actionWidgetService, keybindingService, contextKeyService);
 		this.currentOption = item;
 
 		this._register(this.delegate.onDidChangeOption(newOption => {
 			this.currentOption = newOption;
-			this.renderLabel();
-		}));
-	}
-
-	override render(container: HTMLElement): void {
-		// Don't call super.render() - we handle all rendering ourselves
-		// to avoid the default icon/label elements from ActionViewItem
-		this.element = container;
-		container.classList.add('chat-searchable-option-picker-item');
-
-		// Use <a> with action-label class to match the styling of other pickers
-		this.labelElement = dom.append(container, dom.$('a.action-label.chat-session-option-picker'));
-		this.labelElement.tabIndex = 0;
-		this.labelElement.role = 'button';
-		this.labelElement.setAttribute('aria-haspopup', 'true');
-		this.labelElement.setAttribute('aria-expanded', 'false');
-
-		this._register(dom.addDisposableListener(this.labelElement, dom.EventType.CLICK, (e) => {
-			e.preventDefault();
-			e.stopPropagation();
-			this.showQuickPick();
-		}));
-
-		this._register(dom.addDisposableListener(this.labelElement, dom.EventType.KEY_DOWN, (e) => {
-			if (e.key === 'Enter' || e.key === ' ') {
-				e.preventDefault();
-				e.stopPropagation();
-				this.showQuickPick();
+			if (this.element) {
+				this.renderLabel(this.element);
 			}
 		}));
-
-		// Hover tooltip
-		const hoverDelegate = getDefaultHoverDelegate('element');
-		this._register(this.hoverService.setupManagedHover(hoverDelegate, this.labelElement, () => {
-			const group = this.delegate.getOptionGroup();
-			return group?.description ?? group?.name ?? '';
-		}));
-
-		this.renderLabel();
 	}
 
-	private renderLabel(): void {
-		if (!this.labelElement) {
-			return;
-		}
-
-		const domChildren: (Node | string)[] = [];
-		const option = this.currentOption;
+	protected override renderLabel(element: HTMLElement): IDisposable | null {
+		const domChildren = [];
 		const optionGroup = this.delegate.getOptionGroup();
 
+		element.classList.add('chat-session-option-picker');
+
 		// Icon
-		if (option?.icon) {
-			domChildren.push(renderIcon(option.icon));
+		if (this.currentOption?.icon) {
+			domChildren.push(renderIcon(this.currentOption.icon));
 		} else {
-			// Default icon based on option group id (e.g., 'repository' -> repo icon)
+			// Default icon based on option group id
 			const defaultIcon = this.getDefaultIconForGroup(optionGroup?.id);
-			if (defaultIcon) {
-				domChildren.push(renderIcon(defaultIcon));
-			}
+			domChildren.push(renderIcon(defaultIcon));
 		}
 
-		// Label - use same class as ChatSessionPickerActionItem for consistent styling
-		const label = option?.name ?? optionGroup?.name ?? localize('selectOption', "Select...");
+		// Label
+		const label = this.currentOption?.name ?? optionGroup?.name ?? localize('selectOption', "Select...");
 		domChildren.push(dom.$('span.chat-session-option-label', undefined, label));
 
 		// Chevron
-		domChildren.push(...renderLabelWithIcons('$(chevron-down)'));
+		domChildren.push(...renderLabelWithIcons(`$(chevron-down)`));
 
 		// Locked indicator
-		if (option?.locked) {
+		if (this.currentOption?.locked) {
 			domChildren.push(renderIcon(Codicon.lock));
 		}
 
-		dom.reset(this.labelElement, ...domChildren);
-		this.setAriaLabelAttributes();
+		dom.reset(element, ...domChildren);
+		this.setAriaLabelAttributes(element);
+		return null;
 	}
 
-	private getDefaultIconForGroup(groupId: string | undefined): ThemeIcon | undefined {
+	override render(container: HTMLElement): void {
+		super.render(container);
+		container.classList.add('chat-searchable-option-picker-item');
+	}
+
+	private getDefaultIconForGroup(groupId: string | undefined): ThemeIcon {
 		if (!groupId) {
-			return undefined;
+			return Codicon.gear;
 		}
 		// Provide sensible defaults based on common option group IDs
 		switch (groupId.toLowerCase()) {
@@ -156,35 +198,43 @@ export class SearchableOptionPickerActionItem extends ActionViewItem {
 		}
 	}
 
-	private setAriaLabelAttributes(): void {
-		if (!this.labelElement) {
-			return;
-		}
+	/**
+	 * Shows the full searchable QuickPick with all items (initial + search results)
+	 * Called when user clicks "See more..." from the dropdown
+	 */
+	private async showSearchableQuickPick(optionGroup: IChatSessionProviderOptionGroup): Promise<void> {
+		const currentOption = this.delegate.getCurrentOption();
 
-		const option = this.currentOption;
-		const optionGroup = this.delegate.getOptionGroup();
-		const groupName = optionGroup?.name ?? '';
-		const optionName = option?.name ?? localize('notSelected', "not selected");
+		// Start with initial items
+		let allItems = [...optionGroup.items];
 
-		this.labelElement.ariaLabel = localize('searchableOptionPicker.ariaLabel', "{0}: {1}. Press Enter to change.", groupName, optionName);
-	}
-
-	private async showQuickPick(): Promise<void> {
-		const optionGroup = this.delegate.getOptionGroup();
-		if (!optionGroup) {
-			return;
-		}
-
-		// Check if current option is locked
-		const currentOption = this.currentOption;
-		if (currentOption?.locked) {
-			return;
+		// Fetch additional items via onSearch if available
+		if (optionGroup.onSearch) {
+			try {
+				const additionalItems = await optionGroup.onSearch(CancellationToken.None);
+				if (additionalItems && additionalItems.length > 0) {
+					// Merge and deduplicate items by id
+					const itemMap = new Map<string, IChatSessionProviderOptionItem>();
+					for (const item of allItems) {
+						itemMap.set(item.id, item);
+					}
+					for (const item of additionalItems) {
+						if (!itemMap.has(item.id)) {
+							itemMap.set(item.id, item);
+						}
+					}
+					allItems = Array.from(itemMap.values());
+				}
+			} catch (error) {
+				// Log error but continue with initial items
+				console.error('Error calling onSearch:', error);
+			}
 		}
 
 		// Build QuickPick items
-		const quickPickItems = this.buildQuickPickItems(optionGroup.items, currentOption);
+		const quickPickItems = this.buildQuickPickItems(allItems, currentOption);
 
-		// Show QuickPick
+		// Show searchable QuickPick with all items
 		const pick = await this.quickInputService.pick(quickPickItems, {
 			placeHolder: optionGroup.description ?? localize('selectOption.placeholder', "Select {0}", optionGroup.name),
 			matchOnDescription: true,
@@ -226,7 +276,10 @@ export class SearchableOptionPickerActionItem extends ActionViewItem {
 	/**
 	 * Opens the picker programmatically.
 	 */
-	show(): void {
-		this.showQuickPick();
+	override show(): void {
+		const optionGroup = this.delegate.getOptionGroup();
+		if (optionGroup) {
+			this.showSearchableQuickPick(optionGroup);
+		}
 	}
 }

@@ -14,7 +14,7 @@ import { URI, UriComponents } from '../../../base/common/uri.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/participants/chatAgents.js';
-import { ChatSessionStatus, IChatSessionItem, IChatSessionProviderOptionItem } from '../../contrib/chat/common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSessionItem, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
 import { ChatSessionDto, ExtHostChatSessionsShape, IChatAgentProgressShape, IChatSessionProviderOptions, MainContext, MainThreadChatSessionsShape } from './extHost.protocol.js';
@@ -82,6 +82,11 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 	 * Map of uri -> chat sessions infos
 	 */
 	private readonly _extHostChatSessions = new ResourceMap<{ readonly sessionObj: ExtHostChatSession; readonly disposeCts: CancellationTokenSource }>();
+
+	/**
+	 * Store option groups with onSearch callbacks per provider handle
+	 */
+	private readonly _providerOptionGroups = new Map<number, vscode.ChatSessionProviderOptionGroup[]>();
 
 
 	constructor(
@@ -324,12 +329,68 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			if (!optionGroups) {
 				return;
 			}
+
+			// Store the option groups with their callbacks for later use
+			this._providerOptionGroups.set(handle, optionGroups);
+
+			// Convert option groups from extension API types to internal types
+			// Note: onSearch callbacks cannot be serialized, so we don't include them here
+			// The main thread will inject onSearch callbacks that call back to this extension host
+			const convertedGroups: IChatSessionProviderOptionGroup[] = optionGroups.map(group => ({
+				id: group.id,
+				name: group.name,
+				description: group.description,
+				searchable: group.searchable,
+				items: group.items.map(item => ({
+					id: item.id,
+					name: item.name,
+					description: item.description,
+					locked: item.locked,
+					icon: item.icon,
+					default: item.default,
+				})),
+				// onSearch will be injected by main thread to call back via $invokeOptionGroupSearch
+			}));
+
 			return {
-				optionGroups,
+				optionGroups: convertedGroups,
 			};
 		} catch (error) {
 			this._logService.error(`Error calling provideChatSessionProviderOptions for handle ${handle}:`, error);
 			return;
+		}
+	}
+
+	async $invokeOptionGroupSearch(providerHandle: number, optionGroupId: string, token: CancellationToken): Promise<IChatSessionProviderOptionItem[]> {
+		const optionGroups = this._providerOptionGroups.get(providerHandle);
+		if (!optionGroups) {
+			this._logService.warn(`No option groups found for provider handle ${providerHandle}`);
+			return [];
+		}
+
+		const group = optionGroups.find((g: vscode.ChatSessionProviderOptionGroup) => g.id === optionGroupId);
+		if (!group || !group.onSearch) {
+			this._logService.warn(`No onSearch callback found for option group ${optionGroupId}`);
+			return [];
+		}
+
+		try {
+			const results = await group.onSearch(token);
+			if (!results) {
+				return [];
+			}
+			// Convert to internal types
+			return results.map((item: vscode.ChatSessionProviderOptionItem) => ({
+				id: item.id,
+				name: item.name,
+				description: item.description,
+				locked: item.locked,
+				icon: item.icon,
+				default: item.default,
+			}));
+		} catch (error) {
+			this._logService.error(`Error calling onSearch for option group ${optionGroupId}:`, error);
+			return [];
 		}
 	}
 

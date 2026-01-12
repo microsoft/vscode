@@ -35,6 +35,11 @@ export interface IChatSessionProviderOptionItem {
 	description?: string;
 	locked?: boolean;
 	icon?: ThemeIcon;
+	/**
+	 * Indicates if this option should be selected by default.
+	 * Only one item per option group should be marked as default.
+	 */
+	default?: boolean;
 	// [key: string]: any;
 }
 
@@ -44,10 +49,18 @@ export interface IChatSessionProviderOptionGroup {
 	description?: string;
 	items: IChatSessionProviderOptionItem[];
 	/**
-	 * When true, displays a searchable QuickPick instead of a dropdown.
-	 * Recommended for large lists (e.g., repositories).
+	 * When true, displays a searchable QuickPick with a "See more..." option.
+	 * Recommended for option groups with additional async items (e.g., repositories).
 	 */
 	searchable?: boolean;
+	/**
+	 * Handler for dynamic search when `searchable` is true.
+	 * Called when the user clicks "See more..." to load additional items.
+	 *
+	 * @param token A cancellation token.
+	 * @returns Additional items to display in the searchable QuickPick.
+	 */
+	onSearch?: (token: CancellationToken) => Promise<IChatSessionProviderOptionItem[]>;
 }
 
 export interface IChatSessionsExtensionPoint {

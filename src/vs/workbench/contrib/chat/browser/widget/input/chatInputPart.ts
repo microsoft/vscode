@@ -758,7 +758,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					}
 				};
 
-				const widget = this.instantiationService.createInstance(SearchableOptionPickerActionItem, action, initialState, searchableDelegate, {});
+				const widget = this.instantiationService.createInstance(SearchableOptionPickerActionItem, action, initialState, searchableDelegate);
 				this.chatSessionPickerWidgets.set(optionGroup.id, widget);
 				widgets.push(widget);
 			} else {
@@ -1397,7 +1397,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		const currentOptionValue = this.chatSessionsService.getSessionOption(ctx.chatSessionResource, optionGroupId);
 		if (!currentOptionValue) {
-			return;
+			// If no session value is set, check for a default item
+			const defaultItem = optionGroup.items.find(item => item.default);
+			return defaultItem;
 		}
 
 		if (typeof currentOptionValue === 'string') {
