@@ -3431,17 +3431,6 @@ export class ChatSessionChangedFile {
 	constructor(public readonly modifiedUri: vscode.Uri, public readonly insertions: number, public readonly deletions: number, public readonly originalUri?: vscode.Uri) { }
 }
 
-// Stub class - actual implementation is in extHostChatSessions.ts
-export class ChatSessionItemController {
-	readonly id!: string;
-	readonly items!: vscode.ChatSessionItemCollection;
-	refreshHandler!: () => Thenable<void>;
-	readonly onDidArchiveChatSessionItem!: vscode.Event<vscode.ChatSessionItem>;
-	readonly onDidDisposeChatSessionItem!: vscode.Event<vscode.ChatSessionItem>;
-	createChatSessionItem(_resource: vscode.Uri, _label: string): vscode.ChatSessionItem { throw new Error('Stub'); }
-	dispose(): void { throw new Error('Stub'); }
-}
-
 export enum ChatResponseReferencePartStatusKind {
 	Complete = 1,
 	Partial = 2,

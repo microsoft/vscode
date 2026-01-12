@@ -28,6 +28,18 @@ declare module 'vscode' {
 
 	export namespace chat {
 		/**
+		 * Registers a new {@link ChatSessionItemProvider chat session item provider}.
+		 *
+		 * To use this, also make sure to also add `chatSessions` contribution in the `package.json`.
+		 *
+		 * @param chatSessionType The type of chat session the provider is for.
+		 * @param provider The provider to register.
+		 *
+		 * @returns A disposable that unregisters the provider when disposed.
+		 */
+		export function registerChatSessionItemProvider(chatSessionType: string, provider: ChatSessionItemProvider): Disposable;
+
+		/**
 		 * Creates a new {@link ChatSessionItemController chat session item controller} with the given unique identifier.
 		 */
 		export function createChatSessionItemController(id: string, refreshHandler: () => Thenable<void>): ChatSessionItemController;
@@ -36,7 +48,33 @@ declare module 'vscode' {
 	/**
 	 * Provides a list of information about chat sessions.
 	 */
-	export class ChatSessionItemController {
+	export interface ChatSessionItemProvider {
+		/**
+		 * Event that the provider can fire to signal that chat sessions have changed.
+		 */
+		readonly onDidChangeChatSessionItems: Event<void>;
+
+		/**
+		 * Provides a list of chat sessions.
+		 */
+		// TODO: Do we need a flag to try auth if needed?
+		provideChatSessionItems(token: CancellationToken): ProviderResult<ChatSessionItem[]>;
+
+		// #region Unstable parts of API
+
+		/**
+		 * Event that the provider can fire to signal that the current (original) chat session should be replaced with a new (modified) chat session.
+		 * The UI can use this information to gracefully migrate the user to the new session.
+		 */
+		readonly onDidCommitChatSessionItem: Event<{ original: ChatSessionItem /** untitled */; modified: ChatSessionItem /** newly created */ }>;
+
+		// #endregion
+	}
+
+	/**
+	 * Provides a list of information about chat sessions.
+	 */
+	export interface ChatSessionItemController {
 		readonly id: string;
 
 		/**
@@ -67,11 +105,6 @@ declare module 'vscode' {
 		 * TODO: expose archive state on the item too?
 		 */
 		readonly onDidArchiveChatSessionItem: Event<ChatSessionItem>;
-
-		/**
-		 * Fired when an item is disposed by the editor
-		 */
-		readonly onDidDisposeChatSessionItem: Event<ChatSessionItem>;
 	}
 
 	/**
