@@ -245,7 +245,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			rescaleOverlappingGlyphs: config.rescaleOverlappingGlyphs,
 			vtExtensions: {
 				kittyKeyboard: config.enableKittyKeyboardProtocol,
-				win32InputMode: true,
+				win32InputMode: config.enableWin32InputMode,
 			},
 			windowOptions: {
 				getWinSizePixels: true,
@@ -543,7 +543,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this.raw.options.rescaleOverlappingGlyphs = config.rescaleOverlappingGlyphs;
 		this.raw.options.vtExtensions = {
 			kittyKeyboard: config.enableKittyKeyboardProtocol,
-			win32InputMode: true,
+			win32InputMode: config.enableWin32InputMode,
 		};
 
 		this._updateSmoothScrolling();
