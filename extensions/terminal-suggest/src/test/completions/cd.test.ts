@@ -37,8 +37,8 @@ export const cdTestSuiteSpec: ISuiteSpec = {
 
 		// Relative directories (changes cwd due to /)
 		{ input: 'cd child/|', expectedCompletions, expectedResourceRequests: { type: 'folders', cwd: testPaths.cwdChild } },
-		// Paths with .. are handled by the completion service to avoid double-navigation
-		{ input: 'cd ../|', expectedCompletions, expectedResourceRequests: { type: 'folders', cwd: testPaths.cwd } },
-		{ input: 'cd ../sibling|', expectedCompletions, expectedResourceRequests: { type: 'folders', cwd: testPaths.cwd } },
+		// Paths with .. are handled by the completion service to avoid double-navigation (no cwd resolution)
+		{ input: 'cd ../|', expectedCompletions, expectedResourceRequests: { type: 'folders' } },
+		{ input: 'cd ../sibling|', expectedCompletions, expectedResourceRequests: { type: 'folders' } },
 	]
 };
