@@ -384,6 +384,29 @@
 	display: none;
 }
 
+.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry .terminal-tabs-chat-entry-delete {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	height: 16px;
+	padding: 2px;
+	margin-left: 4px;
+	cursor: pointer;
+	opacity: 0.8;
+	flex-shrink: 0;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry .terminal-tabs-chat-entry-delete:hover {
+	opacity: 1;
+	background-color: var(--vscode-toolbar-hoverBackground);
+	border-radius: 3px;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .tabs-container:not(.has-text) .terminal-tabs-chat-entry .terminal-tabs-chat-entry-delete {
+	display: none;
+}
+
 .monaco-workbench .pane-body.integrated-terminal .tabs-list .terminal-tabs-entry {
 	text-align: center;
 }
