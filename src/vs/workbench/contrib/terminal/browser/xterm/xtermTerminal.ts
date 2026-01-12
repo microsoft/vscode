@@ -929,7 +929,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		}
 
 		const hasValidEndMarker = isNumber(endMarker?.line);
-		const start = startMarker?.line ?? 0;
+		const start = isNumber(startMarker?.line) && startMarker?.line > -1 ? startMarker.line : 0;
 		let end = hasValidEndMarker ? endMarker.line : this.raw.buffer.active.length - 1;
 		if (skipLastLine && hasValidEndMarker) {
 			end = end - 1;
