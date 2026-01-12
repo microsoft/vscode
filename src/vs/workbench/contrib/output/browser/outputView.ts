@@ -387,13 +387,10 @@ export class FilterController extends Disposable implements IEditorContribution 
 		// Wrap the model's findMatches method to filter out matches in hidden areas
 		const originalFindMatches = model.findMatches.bind(model);
 		model.findMatches = ((searchString: string, rawSearchScope: boolean | IRange | IRange[], isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean, limitResultCount?: number) => {
-			// Call the original findMatches method with proper type handling
-			let allMatches;
-			if (typeof rawSearchScope === 'boolean') {
-				allMatches = originalFindMatches(searchString, rawSearchScope, isRegex, matchCase, wordSeparators, captureMatches, limitResultCount);
-			} else {
-				allMatches = originalFindMatches(searchString, rawSearchScope, isRegex, matchCase, wordSeparators, captureMatches, limitResultCount);
-			}
+			// Call the original findMatches method - need explicit overload handling for TypeScript
+			const allMatches = typeof rawSearchScope === 'boolean'
+				? originalFindMatches(searchString, rawSearchScope, isRegex, matchCase, wordSeparators, captureMatches, limitResultCount)
+				: originalFindMatches(searchString, rawSearchScope, isRegex, matchCase, wordSeparators, captureMatches, limitResultCount);
 			
 			// Filter out matches that fall within hidden areas
 			if (this.hiddenAreas.length === 0) {
