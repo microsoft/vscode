@@ -76,7 +76,7 @@ export class FileWalker {
 		this.errors = [];
 
 		if (this.filePattern) {
-			this.normalizedFilePatternLowercase = config.shouldGlobMatchFilePattern ? null : prepareQuery(this.filePattern).normalizedLowercase;
+			this.normalizedFilePatternLowercase = (config.filePatternType ?? 'fuzzy') === 'fuzzy' ? prepareQuery(this.filePattern).normalizedLowercase : null;
 		}
 
 		this.globalExcludePattern = config.excludePattern && glob.parse(config.excludePattern, globOptions);
@@ -591,7 +591,7 @@ export class FileWalker {
 			if (this.normalizedFilePatternLowercase) {
 				return isFilePatternMatch(candidate, this.normalizedFilePatternLowercase);
 			} else if (this.filePattern) {
-				return isFilePatternMatch(candidate, this.filePattern, false);
+				return isFilePatternMatch(candidate, this.filePattern, this.config.filePatternType);
 			}
 		}
 

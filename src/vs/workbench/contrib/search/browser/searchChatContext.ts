@@ -245,7 +245,7 @@ export async function searchFilesAndFolders(
 			disregardIgnoreFiles: configurationService.getValue<boolean>('explorer.excludeGitIgnore'),
 		}],
 		type: QueryType.File,
-		shouldGlobMatchFilePattern: true,
+		filePatternType: 'glob',
 		cacheKey,
 		excludePattern: searchExcludePattern,
 		sortByScore: true,
