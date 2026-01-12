@@ -99,6 +99,21 @@ suite('ViewModel', () => {
 		});
 	});
 
+	test('setViewport with invalid line numbers should not throw', () => {
+		const text = ['line1', 'line2', 'line3'];
+		testViewModel(text, {}, (viewModel, model) => {
+			assert.strictEqual(viewModel.getLineCount(), 3);
+
+			// These should not throw - invalid line numbers should be handled gracefully
+			viewModel.setViewport(0, 1, 1); // startLineNumber < 1
+			viewModel.setViewport(-1, 1, 1); // negative startLineNumber
+			viewModel.setViewport(100, 100, 100); // startLineNumber > lineCount
+
+			// Valid call should still work
+			viewModel.setViewport(1, 3, 2);
+		});
+	});
+
 	test('issue #44805: No visible lines via undoing', () => {
 		const text = [
 			''

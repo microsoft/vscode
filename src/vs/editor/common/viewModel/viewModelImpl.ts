@@ -1299,6 +1299,10 @@ class ViewportStart implements IDisposable {
 	}
 
 	public update(viewModel: IViewModel, startLineNumber: number): void {
+		if (startLineNumber < 1 || startLineNumber > viewModel.getLineCount()) {
+			// Invalid line number, nothing to update
+			return;
+		}
 		const position = viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(startLineNumber, viewModel.getLineMinColumn(startLineNumber)));
 		const viewportStartLineTrackedRange = viewModel.model._setTrackedRange(this._modelTrackedRange, new Range(position.lineNumber, position.column, position.lineNumber, position.column), TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges);
 		const viewportStartLineTop = viewModel.viewLayout.getVerticalOffsetForLineNumber(startLineNumber);
