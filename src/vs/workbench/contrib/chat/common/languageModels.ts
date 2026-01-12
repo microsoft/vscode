@@ -714,7 +714,8 @@ export class LanguageModelsService implements ILanguageModelsService {
 		const languageModelProviderGroups = this._languageModelsConfigurationService.getLanguageModelsProviderGroups();
 		const existing = languageModelProviderGroups.find(g => g.vendor === vendorId && g.name === providerGroupName);
 
-		const configuration = vendor.configuration ? await this.promptForConfiguration(vendor.configuration, existing) : undefined;
+		const existingConfiguration = existing ? await this._resolveConfiguration(existing, vendor.configuration) : undefined;
+		const configuration = vendor.configuration ? await this.promptForConfiguration(vendor.configuration, existingConfiguration) : undefined;
 		if (vendor.configuration && !configuration) {
 			return;
 		}
@@ -723,7 +724,6 @@ export class LanguageModelsService implements ILanguageModelsService {
 		if (!name) {
 			return;
 		}
-
 
 		const languageModelProviderGroup = await this._resolveLanguageModelProviderGroup(name, vendorId, configuration, vendor.configuration);
 		const saved = existing
@@ -776,7 +776,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		try {
 			await new Promise<void>(resolve => {
 				const inputBox = disposables.add(this._quickInputService.createInputBox());
-				inputBox.title = localize('configureLanguageModelGroup', "{0}: Group Name", providerGroupName);
+				inputBox.title = localize('configureLanguageModelGroup', "Group Name");
 				inputBox.placeholder = localize('languageModelGroupName', "Enter a name for the group");
 				inputBox.value = providerGroupName;
 				inputBox.ignoreFocusOut = true;
@@ -808,7 +808,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		return result;
 	}
 
-	private async promptForConfiguration(configuration: IJSONSchema, existing: ILanguageModelsProviderGroup | undefined): Promise<IStringDictionary<unknown> | undefined> {
+	private async promptForConfiguration(configuration: IJSONSchema, existing: IStringDictionary<unknown> | undefined): Promise<IStringDictionary<unknown> | undefined> {
 		if (!configuration.properties) {
 			return;
 		}
@@ -828,7 +828,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		return result;
 	}
 
-	private async promptForValue(property: string, propertySchema: IJSONSchema | undefined, existing: ILanguageModelsProviderGroup | undefined): Promise<unknown | undefined> {
+	private async promptForValue(property: string, propertySchema: IJSONSchema | undefined, existing: IStringDictionary<unknown> | undefined): Promise<unknown | undefined> {
 		if (!propertySchema || typeof propertySchema === 'boolean') {
 			return undefined;
 		}
@@ -882,7 +882,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		}
 	}
 
-	private async promptForInput(property: string, propertySchema: IJSONSchema, existing: ILanguageModelsProviderGroup | undefined): Promise<string | number | boolean | undefined> {
+	private async promptForInput(property: string, propertySchema: IJSONSchema, existing: IStringDictionary<unknown> | undefined): Promise<string | number | boolean | undefined> {
 		const disposables = new DisposableStore();
 		try {
 			const value = await new Promise<string | undefined>(resolve => {
