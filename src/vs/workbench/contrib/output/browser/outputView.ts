@@ -588,7 +588,7 @@ export class FilteredCopyHandler extends Disposable implements IEditorContributi
 	}
 
 	private attachCopyListener(): void {
-		// Clean up previous listener
+		// Clean up previous listener if it exists
 		if (this.copyListener) {
 			this.copyListener.dispose();
 			this.copyListener = null;
@@ -600,6 +600,8 @@ export class FilteredCopyHandler extends Disposable implements IEditorContributi
 		}
 
 		// Listen for copy events on the editor
+		// Note: We don't use this._register() here because we manually manage
+		// this listener's lifecycle in dispose() and when re-attaching
 		this.copyListener = dom.addDisposableListener(domNode, 'copy', (e: ClipboardEvent) => {
 			this.handleCopy(e);
 		});
@@ -637,7 +639,7 @@ export class FilteredCopyHandler extends Disposable implements IEditorContributi
 		}
 
 		// Filter the selections to exclude hidden areas
-		const visibleText = this.getVisibleTextToCopy(selections);
+		const visibleText = this.getVisibleTextToCopy(selections, hiddenAreas);
 		if (visibleText === null) {
 			// Use default behavior
 			return;
@@ -727,20 +729,9 @@ export class FilteredCopyHandler extends Disposable implements IEditorContributi
 	/**
 	 * Gets the text content from the visible (non-hidden) ranges.
 	 */
-	private getVisibleTextToCopy(ranges: Range[]): string | null {
+	private getVisibleTextToCopy(ranges: Range[], hiddenAreas: Range[]): string | null {
 		const model = this.editor.getModel();
 		if (!model) {
-			return null;
-		}
-
-		const filterController = this.getFilterController();
-		if (!filterController) {
-			return null;
-		}
-
-		const hiddenAreas = filterController.getHiddenAreas();
-		if (hiddenAreas.length === 0) {
-			// No filtering, return null to use default behavior
 			return null;
 		}
 

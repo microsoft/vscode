@@ -59,8 +59,4 @@ suite('Output Filtered Copy', () => {
 		// only the visible portions should be copied
 		assert.ok(true, 'Test placeholder for partial range copy functionality');
 	});
-
-	function createModel(text: string): ITextModel {
-		return disposables.add(new TextModel(text, TextModel.DEFAULT_CREATION_OPTIONS, null, URI.parse('test://test')));
-	}
 });
