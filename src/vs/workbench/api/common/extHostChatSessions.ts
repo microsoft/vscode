@@ -40,6 +40,7 @@ class ChatSessionItemImpl implements vscode.ChatSessionItem {
 	#description?: string | vscode.MarkdownString;
 	#badge?: string | vscode.MarkdownString;
 	#status?: vscode.ChatSessionStatus;
+	#archived?: boolean;
 	#tooltip?: string | vscode.MarkdownString;
 	#timing?: { startTime: number; endTime?: number };
 	#changes?: readonly vscode.ChatSessionChangedFile[] | { files: number; insertions: number; deletions: number };
@@ -102,6 +103,17 @@ class ChatSessionItemImpl implements vscode.ChatSessionItem {
 	set status(value: vscode.ChatSessionStatus | undefined) {
 		if (this.#status !== value) {
 			this.#status = value;
+			this.#onChanged();
+		}
+	}
+
+	get archived(): boolean | undefined {
+		return this.#archived;
+	}
+
+	set archived(value: boolean | undefined) {
+		if (this.#archived !== value) {
+			this.#archived = value;
 			this.#onChanged();
 		}
 	}
@@ -306,14 +318,14 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 
 
 	createChatSessionItemController(extension: IExtensionDescription, id: string, refreshHandler: () => Thenable<void>): vscode.ChatSessionItemController {
-		const handle = this._nextChatSessionItemControllerHandle++;
+		const controllerHandle = this._nextChatSessionItemControllerHandle++;
 		const disposables = new DisposableStore();
 
 		// TODO: Currently not hooked up
 		const onDidArchiveChatSessionItem = disposables.add(new Emitter<vscode.ChatSessionItem>());
 
 		const collection = new ChatSessionItemCollectionImpl(() => {
-			this._proxy.$onDidChangeChatSessionItems(handle);
+			this._proxy.$onDidChangeChatSessionItems(controllerHandle);
 		});
 
 		let isDisposed = false;
@@ -329,7 +341,8 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 				}
 
 				return new ChatSessionItemImpl(resource, label, () => {
-					this._proxy.$onDidChangeChatSessionItems(handle);
+					// TODO: Optimize to only update the specific item
+					this._proxy.$onDidChangeChatSessionItems(controllerHandle);
 				});
 			},
 			dispose: () => {
@@ -338,12 +351,12 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			},
 		};
 
-		this._chatSessionItemControllers.set(handle, { controller, extension, disposable: disposables, sessionType: id });
-		this._proxy.$registerChatSessionItemProvider(handle, id);
+		this._chatSessionItemControllers.set(controllerHandle, { controller, extension, disposable: disposables, sessionType: id });
+		this._proxy.$registerChatSessionItemProvider(controllerHandle, id);
 
 		disposables.add(toDisposable(() => {
-			this._chatSessionItemControllers.delete(handle);
-			this._proxy.$unregisterChatSessionItemProvider(handle);
+			this._chatSessionItemControllers.delete(controllerHandle);
+			this._proxy.$unregisterChatSessionItemProvider(controllerHandle);
 		}));
 
 		return controller;
@@ -400,6 +413,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			description: sessionContent.description ? typeConvert.MarkdownString.from(sessionContent.description) : undefined,
 			badge: sessionContent.badge ? typeConvert.MarkdownString.from(sessionContent.badge) : undefined,
 			status: this.convertChatSessionStatus(sessionContent.status),
+			archived: sessionContent.archived,
 			tooltip: typeConvert.MarkdownString.fromStrict(sessionContent.tooltip),
 			timing: {
 				startTime: sessionContent.timing?.startTime ?? 0,

@@ -190,6 +190,11 @@ declare module 'vscode' {
 		tooltip?: string | MarkdownString;
 
 		/**
+		 * Whether the chat session has been archived.
+		 */
+		archived?: boolean;
+
+		/**
 		 * The times at which session started and ended
 		 */
 		timing?: {
