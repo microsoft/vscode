@@ -157,7 +157,7 @@ export interface IAgentSessionSection {
 	readonly sessions: IAgentSession[];
 }
 
-export function isAgentSessionSection(obj: IAgentSessionsModel | IAgentSession | IAgentSessionSection): obj is IAgentSessionSection {
+export function isAgentSessionSection(obj: unknown): obj is IAgentSessionSection {
 	const candidate = obj as IAgentSessionSection;
 
 	return typeof candidate.section === 'string' && Array.isArray(candidate.sessions);
@@ -193,7 +193,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	private _sessions: ResourceMap<IInternalAgentSession>;
 	get sessions(): IAgentSession[] { return Array.from(this._sessions.values()); }
 
-	private readonly resolver = this._register(new ThrottledDelayer<void>(100));
+	private readonly resolver = this._register(new ThrottledDelayer<void>(300));
 	private readonly providersToResolve = new Set<string | undefined>();
 
 	private readonly mapSessionToState = new ResourceMap<{

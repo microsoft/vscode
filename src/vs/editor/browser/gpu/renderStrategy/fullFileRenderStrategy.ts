@@ -346,7 +346,7 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 
 			contentSegmenter = createContentSegmenter(lineData, viewLineOptions);
 			charWidth = viewLineOptions.spaceWidth * dpr;
-			absoluteOffsetX = 0;
+			absoluteOffsetX = (lineData.minColumn - 1) * charWidth;
 
 			tokens = lineData.tokens;
 			tokenStartIndex = lineData.minColumn - 1;

@@ -24,13 +24,14 @@ import { ITerminalCapabilityStore, TerminalCapability } from '../../../../../pla
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { IChatAgent, IChatAgentService } from '../../../chat/common/participants/chatAgents.js';
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
-import { IDetachedTerminalInstance, ITerminalContribution, ITerminalInstance, IXtermTerminal } from '../../../terminal/browser/terminal.js';
+import { IDetachedTerminalInstance, ITerminalConfigurationService, ITerminalContribution, ITerminalInstance, IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { registerTerminalContribution, type IDetachedCompatibleTerminalContributionContext, type ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
 import { TerminalInstance } from '../../../terminal/browser/terminalInstance.js';
 import { TerminalChatCommandId } from '../../chat/browser/terminalChat.js';
 import { TerminalInitialHintSettingId } from '../common/terminalInitialHintConfiguration.js';
 import './media/terminalInitialHint.css';
 import { TerminalSuggestCommandId } from '../../suggest/common/terminal.suggest.js';
+import { TerminalSuggestSettingId } from '../../suggest/common/terminalSuggestConfiguration.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 
 const $ = dom.$;
@@ -90,6 +91,7 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 	) {
 		super();
 	}
@@ -101,6 +103,10 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 		}
 		// Don't show if disabled
 		if (!this._configurationService.getValue(TerminalInitialHintSettingId.Enabled)) {
+			return;
+		}
+		// Don't show if keybindings are sent to shell, the hint's keybindings won't work
+		if (this._terminalConfigurationService.config.sendKeybindingsToShell) {
 			return;
 		}
 		this._xterm = xterm;
@@ -311,7 +317,8 @@ class TerminalInitialHintWidget extends Disposable {
 		}
 
 		// Suggest hint
-		const suggestKeybinding = this._keybindingService.lookupKeybinding(TerminalSuggestCommandId.TriggerSuggest);
+		const suggestEnabled = this._configurationService.getValue<boolean>(TerminalSuggestSettingId.Enabled);
+		const suggestKeybinding = suggestEnabled ? this._keybindingService.lookupKeybinding(TerminalSuggestCommandId.TriggerSuggest) : undefined;
 		const suggestKeybindingLabel = suggestKeybinding?.getLabel();
 		if (suggestKeybinding && suggestKeybindingLabel) {
 			const suggestActionPart = localize('showSuggestHint', 'Show suggestions {0}. ', suggestKeybindingLabel);
@@ -340,6 +347,11 @@ class TerminalInitialHintWidget extends Disposable {
 			ariaLabelParts.push(suggestActionPart);
 		}
 
+		// Don't show the hint if there's nothing to hint about
+		if (ariaLabelParts.length === 0) {
+			return undefined;
+		}
+
 		const typeToDismiss = localize({
 			key: 'hintTextDismiss',
 			comment: [
@@ -354,12 +366,17 @@ class TerminalInitialHintWidget extends Disposable {
 		return { ariaLabel: ariaLabelParts.join(' '), hintHandler, hintElement };
 	}
 
-	getDomNode(): HTMLElement {
+	getDomNode(): HTMLElement | undefined {
 		if (!this._domNode) {
+			const result = this._getHintInlineChat();
+			if (!result) {
+				return undefined;
+			}
+			const { hintElement, ariaLabel } = result;
+
 			this._domNode = $('.terminal-initial-hint');
 			this._domNode!.style.paddingLeft = '4px';
 
-			const { hintElement, ariaLabel } = this._getHintInlineChat();
 			this._domNode.append(hintElement);
 			this._ariaLabel = ariaLabel.concat(localize('disableHint', ' Toggle {0} in settings to disable this hint.', AccessibilityVerbositySettingId.TerminalInlineChat));
 
