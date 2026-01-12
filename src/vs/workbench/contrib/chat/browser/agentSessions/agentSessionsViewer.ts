@@ -13,7 +13,7 @@ import { ICompressedTreeNode } from '../../../../../base/browser/ui/tree/compres
 import { ICompressibleKeyboardNavigationLabelProvider, ICompressibleTreeRenderer } from '../../../../../base/browser/ui/tree/objectTree.js';
 import { ITreeNode, ITreeElementRenderDetails, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction } from '../../../../../base/browser/ui/tree/tree.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { AgentSessionSection, AgentSessionStatus, getAgentChangesSummary, hasValidDiff, IAgentSession, IAgentSessionSection, IAgentSessionsModel, isAgentSession, isAgentSessionSection, isAgentSessionsModel, isSessionInProgressStatus } from './agentSessionsModel.js';
+import { AgentSessionSection, AgentSessionStatus, getAgentChangesSummary, hasValidDiff, IAgentSession, IAgentSessionSection, IAgentSessionsModel, isAgentSession, isAgentSessionSection, isAgentSessionsModel, isLocalAgentSessionItem, isSessionInProgressStatus } from './agentSessionsModel.js';
 import { IconLabel } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -62,7 +62,10 @@ interface IAgentSessionItemTemplate {
 
 	readonly badge: HTMLElement;
 	readonly description: HTMLElement;
-	readonly status: HTMLElement;
+
+	readonly statusContainer: HTMLElement;
+	readonly statusProviderIcon: HTMLElement;
+	readonly statusTime: HTMLElement;
 
 	readonly contextKeyService: IContextKeyService;
 	readonly elementDisposable: DisposableStore;
@@ -112,7 +115,10 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 							]),
 						h('div.agent-session-badge@badge'),
 						h('div.agent-session-description@description'),
-						h('div.agent-session-status@status')
+						h('div.agent-session-status@statusContainer', [
+							h('span.agent-session-status-provider-icon@statusProviderIcon'),
+							h('span.agent-session-status-time@statusTime')
+						])
 					])
 				])
 			]
@@ -137,7 +143,9 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 			diffRemovedSpan: elements.removedSpan,
 			badge: elements.badge,
 			description: elements.description,
-			status: elements.status,
+			statusContainer: elements.statusContainer,
+			statusProviderIcon: elements.statusProviderIcon,
+			statusTime: elements.statusTime,
 			contextKeyService,
 			elementDisposable,
 			disposables
@@ -308,7 +316,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 	private renderStatus(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
 
-		const getStatus = (session: IAgentSession) => {
+		const getTimeLabel = (session: IAgentSession) => {
 			let timeLabel: string | undefined;
 			if (session.status === AgentSessionStatus.InProgress && session.timing.inProgressTime) {
 				timeLabel = this.toDuration(session.timing.inProgressTime, Date.now(), false);
@@ -318,12 +326,20 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 				timeLabel = fromNow(session.timing.endTime || session.timing.startTime);
 			}
 
-			return `${session.providerLabel} • ${timeLabel}`;
+			return timeLabel;
 		};
 
-		template.status.textContent = getStatus(session.element);
+		// Provider icon (hide for local sessions)
+		if (!isLocalAgentSessionItem(session.element)) {
+			template.statusProviderIcon.className = `agent-session-status-provider-icon ${ThemeIcon.asClassName(session.element.icon)}`;
+		} else {
+			template.statusProviderIcon.className = 'agent-session-status-provider-icon hidden';
+		}
+
+		// Time label
+		template.statusTime.textContent = getTimeLabel(session.element);
 		const timer = template.elementDisposable.add(new IntervalTimer());
-		timer.cancelAndSet(() => template.status.textContent = getStatus(session.element), session.element.status === AgentSessionStatus.InProgress ? 1000 /* every second */ : 60 * 1000 /* every minute */);
+		timer.cancelAndSet(() => template.statusTime.textContent = getTimeLabel(session.element), session.element.status === AgentSessionStatus.InProgress ? 1000 /* every second */ : 60 * 1000 /* every minute */);
 	}
 
 	private renderHover(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
@@ -555,6 +571,14 @@ export class AgentSessionsAccessibilityProvider implements IListAccessibilityPro
 	}
 }
 
+export interface IAgentSessionsFilterExcludes {
+	readonly providers: readonly string[];
+	readonly states: readonly AgentSessionStatus[];
+
+	readonly archived: boolean;
+	readonly read: boolean;
+}
+
 export interface IAgentSessionsFilter {
 
 	/**
@@ -584,6 +608,11 @@ export interface IAgentSessionsFilter {
 	 * The logic to exclude sessions from the view.
 	 */
 	exclude(session: IAgentSession): boolean;
+
+	/**
+	 * Get the current filter excludes for display in the UI.
+	 */
+	getExcludes(): IAgentSessionsFilterExcludes;
 }
 
 export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsModel, AgentSessionListItem> {

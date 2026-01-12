@@ -28,6 +28,7 @@ export function setup(context: TestContext) {
 		if (context.platform === 'darwin-arm64') {
 			it('cli-darwin-arm64', async () => {
 				const dir = await context.downloadAndUnpack('cli-darwin-arm64');
+				context.validateAllCodesignSignatures(dir);
 				const entryPoint = context.getEntryPoint('cli', dir);
 				await testCliApp(entryPoint);
 			});
@@ -36,6 +37,7 @@ export function setup(context: TestContext) {
 		if (context.platform === 'darwin-x64') {
 			it('cli-darwin-x64', async () => {
 				const dir = await context.downloadAndUnpack('cli-darwin-x64');
+				context.validateAllCodesignSignatures(dir);
 				const entryPoint = context.getEntryPoint('cli', dir);
 				await testCliApp(entryPoint);
 			});
@@ -68,7 +70,7 @@ export function setup(context: TestContext) {
 		if (context.platform === 'win32-arm64') {
 			it('cli-win32-arm64', async () => {
 				const dir = await context.downloadAndUnpack('cli-win32-arm64');
-				context.validateAllSignatures(dir);
+				context.validateAllAuthenticodeSignatures(dir);
 				const entryPoint = context.getEntryPoint('cli', dir);
 				await testCliApp(entryPoint);
 			});
@@ -77,7 +79,7 @@ export function setup(context: TestContext) {
 		if (context.platform === 'win32-x64') {
 			it('cli-win32-x64', async () => {
 				const dir = await context.downloadAndUnpack('cli-win32-x64');
-				context.validateAllSignatures(dir);
+				context.validateAllAuthenticodeSignatures(dir);
 				const entryPoint = context.getEntryPoint('cli', dir);
 				await testCliApp(entryPoint);
 			});
