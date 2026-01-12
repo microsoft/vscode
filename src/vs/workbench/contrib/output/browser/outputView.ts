@@ -383,6 +383,36 @@ export class FilterController extends Disposable implements IEditorContribution 
 		}
 
 		const model = this.editor.getModel();
+		
+		// Wrap the model's findMatches method to filter out matches in hidden areas
+		const originalFindMatches = model.findMatches.bind(model);
+		model.findMatches = (searchString: string, rawSearchScope: any, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean, limitResultCount?: number) => {
+			// Call the original findMatches method
+			const allMatches = originalFindMatches(searchString, rawSearchScope, isRegex, matchCase, wordSeparators, captureMatches, limitResultCount);
+			
+			// Filter out matches that fall within hidden areas
+			if (this.hiddenAreas.length === 0) {
+				return allMatches;
+			}
+			
+			return allMatches.filter(match => {
+				// Check if the match intersects with any hidden area
+				for (const hiddenArea of this.hiddenAreas) {
+					if (Range.areIntersecting(match.range, hiddenArea)) {
+						return false;
+					}
+				}
+				return true;
+			});
+		};
+		
+		this.modelDisposables.add({
+			dispose: () => {
+				// Restore the original findMatches method when the model is disposed
+				model.findMatches = originalFindMatches;
+			}
+		});
+		
 		this.filter(model);
 
 		const computeEndLineNumber = () => {
