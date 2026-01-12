@@ -672,71 +672,58 @@ export class FilteredCopyHandler extends Disposable implements IEditorContributi
 		const visibleRanges: Range[] = [];
 
 		for (const range of ranges) {
-			let currentRange: Range | null = new Range(
-				range.startLineNumber,
-				range.startColumn,
-				range.endLineNumber,
-				range.endColumn
-			);
-
-			// Process each hidden area and split the range if necessary
-			for (const hidden of hiddenAreas) {
-				if (!currentRange) {
-					break;
-				}
-
-				// Check if the current range intersects with the hidden area
-				if (currentRange.endLineNumber < hidden.startLineNumber || currentRange.startLineNumber > hidden.endLineNumber) {
-					// No intersection, continue
-					continue;
-				}
-
-				// There's an intersection, we need to split the range
-				// Add the part before the hidden area
-				if (currentRange.startLineNumber < hidden.startLineNumber) {
-					visibleRanges.push(new Range(
-						currentRange.startLineNumber,
-						currentRange.startColumn,
-						hidden.startLineNumber - 1,
-						this.editor.getModel()?.getLineMaxColumn(hidden.startLineNumber - 1) || 1
-					));
-				} else if (currentRange.startLineNumber === hidden.startLineNumber && currentRange.startColumn < hidden.startColumn) {
-					visibleRanges.push(new Range(
-						currentRange.startLineNumber,
-						currentRange.startColumn,
-						hidden.startLineNumber,
-						hidden.startColumn
-					));
-				}
-
-				// Update currentRange to the part after the hidden area
-				if (currentRange.endLineNumber > hidden.endLineNumber) {
-					currentRange = new Range(
-						hidden.endLineNumber + 1,
-						1,
-						currentRange.endLineNumber,
-						currentRange.endColumn
-					);
-				} else if (currentRange.endLineNumber === hidden.endLineNumber && currentRange.endColumn > hidden.endColumn) {
-					currentRange = new Range(
-						hidden.endLineNumber,
-						hidden.endColumn,
-						currentRange.endLineNumber,
-						currentRange.endColumn
-					);
-				} else {
-					// The rest of the range is hidden
-					currentRange = null;
-				}
-			}
-
-			// Add any remaining visible range
-			if (currentRange && !currentRange.isEmpty()) {
-				visibleRanges.push(currentRange);
-			}
+			const result = this.splitRangeByHiddenAreas(range, hiddenAreas);
+			visibleRanges.push(...result);
 		}
 
 		return visibleRanges;
+	}
+
+	/**
+	 * Checks if a line is hidden by any hidden area.
+	 */
+	private isLineHidden(lineNumber: number, hiddenAreas: Range[]): boolean {
+		return hiddenAreas.some(h =>
+			lineNumber >= h.startLineNumber && lineNumber <= h.endLineNumber
+		);
+	}
+
+	/**
+	 * Splits a range into visible sub-ranges by excluding hidden areas.
+	 */
+	private splitRangeByHiddenAreas(range: Range, hiddenAreas: Range[]): Range[] {
+		const result: Range[] = [];
+		let visibleStart: number | null = null;
+
+		for (let line = range.startLineNumber; line <= range.endLineNumber; line++) {
+			const isHidden = this.isLineHidden(line, hiddenAreas);
+
+			if (isHidden) {
+				// If we were building a visible range, save it
+				if (visibleStart !== null) {
+					const startCol = visibleStart === range.startLineNumber ? range.startColumn : 1;
+					const endLine = line - 1;
+					const endCol = endLine === range.endLineNumber
+						? range.endColumn
+						: (this.editor.getModel()?.getLineMaxColumn(endLine) || 1);
+					result.push(new Range(visibleStart, startCol, endLine, endCol));
+					visibleStart = null;
+				}
+			} else {
+				// Start or continue a visible range
+				if (visibleStart === null) {
+					visibleStart = line;
+				}
+			}
+		}
+
+		// Save any remaining visible range
+		if (visibleStart !== null) {
+			const startCol = visibleStart === range.startLineNumber ? range.startColumn : 1;
+			result.push(new Range(visibleStart, startCol, range.endLineNumber, range.endColumn));
+		}
+
+		return result;
 	}
 
 	/**
