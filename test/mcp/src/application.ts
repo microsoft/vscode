@@ -252,7 +252,8 @@ export async function getApplication({ recordVideo, workspacePath }: { recordVid
 		quality,
 		version: parseVersion(version ?? '0.0.0'),
 		codePath: opts.build,
-		workspacePath, // Use the provided workspace path or undefined to use last opened
+		// Use provided workspace path, or fall back to rootPath on CI (GitHub Actions)
+		workspacePath: workspacePath ?? (process.env.GITHUB_ACTIONS ? rootPath : undefined),
 		logger,
 		logsPath: logsRootPath,
 		crashesPath: crashesRootPath,
