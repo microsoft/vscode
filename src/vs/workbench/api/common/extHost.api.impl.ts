@@ -1525,9 +1525,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatParticipantPrivate');
 				return _asExtensionEvent(extHostChatAgents2.onDidDisposeChatSession)(listeners, thisArgs, disposables);
 			},
-			registerChatSessionItemProvider: (chatSessionType: string, provider: vscode.ChatSessionItemProvider) => {
+			createChatSessionItemController: (id: string, refreshHandler: () => Thenable<void>) => {
 				checkProposedApiEnabled(extension, 'chatSessionsProvider');
-				return extHostChatSessions.registerChatSessionItemProvider(extension, chatSessionType, provider);
+				return extHostChatSessions.createChatSessionItemController(extension, id, refreshHandler);
 			},
 			registerChatSessionContentProvider(scheme: string, provider: vscode.ChatSessionContentProvider, chatParticipant: vscode.ChatParticipant, capabilities?: vscode.ChatSessionCapabilities) {
 				checkProposedApiEnabled(extension, 'chatSessionsProvider');
@@ -1865,6 +1865,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			InteractiveSessionVoteDirection: extHostTypes.InteractiveSessionVoteDirection,
 			ChatCopyKind: extHostTypes.ChatCopyKind,
 			ChatSessionChangedFile: extHostTypes.ChatSessionChangedFile,
+			ChatSessionItemController: extHostTypes.ChatSessionItemController,
 			ChatEditingSessionActionOutcome: extHostTypes.ChatEditingSessionActionOutcome,
 			InteractiveEditorResponseFeedbackKind: extHostTypes.InteractiveEditorResponseFeedbackKind,
 			DebugStackFrame: extHostTypes.DebugStackFrame,

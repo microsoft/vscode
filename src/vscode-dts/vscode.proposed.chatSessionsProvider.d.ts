@@ -30,7 +30,7 @@ declare module 'vscode' {
 		/**
 		 * Creates a new {@link ChatSessionItemController chat session item controller} with the given unique identifier.
 		 */
-		export function createChatSessionItemController(id: string): ChatSessionItemController;
+		export function createChatSessionItemController(id: string, refreshHandler: () => Thenable<void>): ChatSessionItemController;
 	}
 
 	/**
@@ -64,7 +64,7 @@ declare module 'vscode' {
 		/**
 		 * Fired when an item is archived by the editor
 		 *
-		 * TODO: expose archive state on the item too? Or should this
+		 * TODO: expose archive state on the item too?
 		 */
 		readonly onDidArchiveChatSessionItem: Event<ChatSessionItem>;
 
@@ -77,7 +77,7 @@ declare module 'vscode' {
 	/**
 	 * A collection of chat session items. It provides operations for managing and iterating over the items.
 	 */
-	export interface ChatSessionItemCollection extends Iterable<readonly [id: string, chatSessionItem: ChatSessionItem]> {
+	export interface ChatSessionItemCollection extends Iterable<readonly [id: Uri, chatSessionItem: ChatSessionItem]> {
 		/**
 		 * Gets the number of items in the collection.
 		 */
