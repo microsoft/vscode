@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize, localize2 } from '../../../../../nls.js';
-import { AgentSessionSection, IAgentSession, IAgentSessionSection, IMarshalledAgentSessionContext, isAgentSessionSection, isMarshalledAgentSessionContext } from './agentSessionsModel.js';
+import { AgentSessionSection, IAgentSession, IAgentSessionSection, IMarshalledAgentSessionContext, isAgentSessionSection, isLocalAgentSessionItem, isMarshalledAgentSessionContext } from './agentSessionsModel.js';
 import { Action2, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID, AgentSessionProviders, AgentSessionsViewerOrientation, IAgentSessionsControl } from './agentSessions.js';
-import { IChatService } from '../../common/chatService.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IChatEditorOptions } from '../chatEditor.js';
+import { IChatService } from '../../common/chatService/chatService.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, PreferredGroup, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
@@ -19,13 +19,13 @@ import { getPartByLocation } from '../../../../services/views/browser/viewsServi
 import { IWorkbenchLayoutService, Position } from '../../../../services/layout/browser/layoutService.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ChatEditorInput, showClearEditingSessionConfirmation } from '../chatEditorInput.js';
+import { ChatEditorInput, showClearEditingSessionConfirmation } from '../widgetHosts/editor/chatEditorInput.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY } from '../actions/chatActions.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { ChatViewPane } from '../chatViewPane.js';
+import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { AgentSessionsPicker } from './agentSessionsPicker.js';
@@ -69,27 +69,6 @@ MenuRegistry.appendMenuItem(MenuId.ChatWelcomeContext, {
 	when: ChatContextKeys.inChatEditor.negate()
 });
 
-export class SetAgentSessionsOrientationAutoAction extends Action2 {
-
-	constructor() {
-		super({
-			id: 'workbench.action.chat.setAgentSessionsOrientationAuto',
-			title: localize2('chat.sessionsOrientation.auto', "Auto"),
-			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsOrientation}`, 'auto'),
-			precondition: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
-			menu: {
-				id: agentSessionsOrientationSubmenu,
-				group: 'navigation',
-				order: 1
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
-		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsOrientation, 'auto');
-	}
-}
 
 export class SetAgentSessionsOrientationStackedAction extends Action2 {
 
@@ -108,8 +87,9 @@ export class SetAgentSessionsOrientationStackedAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
-		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsOrientation, 'stacked');
+		const commandService = accessor.get(ICommandService);
+
+		await commandService.executeCommand(HideAgentSessionsSidebar.ID);
 	}
 }
 
@@ -119,19 +99,20 @@ export class SetAgentSessionsOrientationSideBySideAction extends Action2 {
 		super({
 			id: 'workbench.action.chat.setAgentSessionsOrientationSideBySide',
 			title: localize2('chat.sessionsOrientation.sideBySide', "Side by Side"),
-			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsOrientation}`, 'sideBySide'),
+			toggled: ContextKeyExpr.notEquals(`config.${ChatConfiguration.ChatViewSessionsOrientation}`, 'stacked'),
 			precondition: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
 			menu: {
 				id: agentSessionsOrientationSubmenu,
 				group: 'navigation',
-				order: 3
+				order: 1
 			}
 		});
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
-		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsOrientation, 'sideBySide');
+		const commandService = accessor.get(ICommandService);
+
+		await commandService.executeCommand(ShowAgentSessionsSidebar.ID);
 	}
 }
 
@@ -259,6 +240,46 @@ export class ArchiveAgentSessionSectionAction extends Action2 {
 	}
 }
 
+export class UnarchiveAgentSessionSectionAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'agentSessionSection.unarchive',
+			title: localize2('unarchiveSection', "Unarchive All"),
+			icon: Codicon.unarchive,
+			menu: {
+				id: MenuId.AgentSessionSectionToolbar,
+				group: 'navigation',
+				order: 1,
+				when: ChatContextKeys.agentSessionSection.isEqualTo(AgentSessionSection.Archived),
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, context?: IAgentSessionSection): Promise<void> {
+		if (!context || !isAgentSessionSection(context)) {
+			return;
+		}
+
+		const dialogService = accessor.get(IDialogService);
+
+		const confirmed = await dialogService.confirm({
+			message: context.sessions.length === 1
+				? localize('unarchiveSectionSessions.confirmSingle', "Are you sure you want to unarchive 1 agent session?")
+				: localize('unarchiveSectionSessions.confirm', "Are you sure you want to unarchive {0} agent sessions?", context.sessions.length),
+			primaryButton: localize('unarchiveSectionSessions.unarchive', "Unarchive All")
+		});
+
+		if (!confirmed.confirmed) {
+			return;
+		}
+
+		for (const session of context.sessions) {
+			session.setArchived(false);
+		}
+	}
+}
+
 //#endregion
 
 //#region Session Actions
@@ -297,7 +318,7 @@ export class MarkAgentSessionUnreadAction extends BaseAgentSessionAction {
 			title: localize2('markUnread', "Mark as Unread"),
 			menu: {
 				id: MenuId.AgentSessionsContext,
-				group: 'edit',
+				group: '1_edit',
 				order: 1,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.isReadAgentSession,
@@ -320,7 +341,7 @@ export class MarkAgentSessionReadAction extends BaseAgentSessionAction {
 			title: localize2('markRead', "Mark as Read"),
 			menu: {
 				id: MenuId.AgentSessionsContext,
-				group: 'edit',
+				group: '1_edit',
 				order: 1,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.isReadAgentSession.negate(),
@@ -358,7 +379,7 @@ export class ArchiveAgentSessionAction extends BaseAgentSessionAction {
 				when: ChatContextKeys.isArchivedAgentSession.negate(),
 			}, {
 				id: MenuId.AgentSessionsContext,
-				group: 'edit',
+				group: '1_edit',
 				order: 2,
 				when: ChatContextKeys.isArchivedAgentSession.negate()
 			}]
@@ -407,7 +428,7 @@ export class UnarchiveAgentSessionAction extends BaseAgentSessionAction {
 				when: ChatContextKeys.isArchivedAgentSession,
 			}, {
 				id: MenuId.AgentSessionsContext,
-				group: 'edit',
+				group: '1_edit',
 				order: 2,
 				when: ChatContextKeys.isArchivedAgentSession,
 			}]
@@ -438,7 +459,7 @@ export class RenameAgentSessionAction extends BaseAgentSessionAction {
 			},
 			menu: {
 				id: MenuId.AgentSessionsContext,
-				group: 'edit',
+				group: '1_edit',
 				order: 3,
 				when: ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local)
 			}
@@ -464,7 +485,7 @@ export class DeleteAgentSessionAction extends BaseAgentSessionAction {
 			title: localize2('delete', "Delete..."),
 			menu: {
 				id: MenuId.AgentSessionsContext,
-				group: 'edit',
+				group: '1_edit',
 				order: 4,
 				when: ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local)
 			}
@@ -510,9 +531,17 @@ export class DeleteAllLocalSessionsAction extends Action2 {
 		const chatService = accessor.get(IChatService);
 		const widgetService = accessor.get(IChatWidgetService);
 		const dialogService = accessor.get(IDialogService);
+		const agentSessionsService = accessor.get(IAgentSessionsService);
+
+		const localSessionsCount = agentSessionsService.model.sessions.filter(session => isLocalAgentSessionItem(session)).length;
+		if (localSessionsCount === 0) {
+			return;
+		}
 
 		const confirmed = await dialogService.confirm({
-			message: localize('deleteAllChats.confirm', "Are you sure you want to delete all local workspace chat sessions?"),
+			message: localSessionsCount === 1
+				? localize('deleteAllChats.confirmSingle', "Are you sure you want to delete 1 local workspace chat session?")
+				: localize('deleteAllChats.confirm', "Are you sure you want to delete {0} local workspace chat sessions?", localSessionsCount),
 			detail: localize('deleteAllChats.detail', "This action cannot be undone."),
 			primaryButton: localize('deleteAllChats.button', "Delete All")
 		});
@@ -705,6 +734,11 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 		const canResizeView = chatLocation !== ViewContainerLocation.Panel || (panelPosition === Position.LEFT || panelPosition === Position.RIGHT);
 
 		// Update configuration if needed
+		const chatViewSessionsEnabled = configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsEnabled);
+		if (!chatViewSessionsEnabled) {
+			await configurationService.updateValue(ChatConfiguration.ChatViewSessionsEnabled, true);
+		}
+
 		let chatView = viewsService.getActiveViewWithId<ChatViewPane>(ChatViewId);
 		if (!chatView) {
 			chatView = await viewsService.openView<ChatViewPane>(ChatViewId, false);
@@ -713,52 +747,68 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 			return; // we need the chat view
 		}
 
-		const configuredOrientation = configurationService.getValue<'auto' | 'stacked' | 'sideBySide' | unknown>(ChatConfiguration.ChatViewSessionsOrientation);
-		const newOrientation = this.getOrientation();
-
-		if ((!canResizeView || configuredOrientation === 'sideBySide') && newOrientation === AgentSessionsViewerOrientation.Stacked) {
-			chatView.updateConfiguredSessionsViewerOrientation('stacked');
-		} else if ((!canResizeView || configuredOrientation === 'stacked') && newOrientation === AgentSessionsViewerOrientation.SideBySide) {
-			chatView.updateConfiguredSessionsViewerOrientation('sideBySide');
+		const configuredOrientation = configurationService.getValue<'stacked' | 'sideBySide' | unknown>(ChatConfiguration.ChatViewSessionsOrientation);
+		let validatedConfiguredOrientation: 'stacked' | 'sideBySide';
+		if (configuredOrientation === 'stacked' || configuredOrientation === 'sideBySide') {
+			validatedConfiguredOrientation = configuredOrientation;
+		} else {
+			validatedConfiguredOrientation = 'sideBySide'; // default
 		}
 
-		const part = getPartByLocation(chatLocation);
-		let currentSize = layoutService.getSize(part);
+		const newOrientation = this.getOrientation();
+		const lastWidthForOrientation = chatView?.getLastDimensions(newOrientation)?.width;
 
-		const sideBySideMinWidth = 600 + 1;	// account for possible theme border
-		const stackedMaxWidth = sideBySideMinWidth - 1;
-
-		if (configuredOrientation !== 'auto') {
-			if (
-				(newOrientation === AgentSessionsViewerOrientation.SideBySide && currentSize.width >= sideBySideMinWidth) ||	// already wide enough to show side by side
-				newOrientation === AgentSessionsViewerOrientation.Stacked														// always wide enough to show stacked
-			) {
-				return; // if the orientation is not set to `auto`, we try to avoid resizing if not needed
-			}
+		if ((!canResizeView || validatedConfiguredOrientation === 'sideBySide') && newOrientation === AgentSessionsViewerOrientation.Stacked) {
+			chatView.updateConfiguredSessionsViewerOrientation('stacked');
+		} else if ((!canResizeView || validatedConfiguredOrientation === 'stacked') && newOrientation === AgentSessionsViewerOrientation.SideBySide) {
+			chatView.updateConfiguredSessionsViewerOrientation('sideBySide');
 		}
 
 		if (!canResizeView) {
 			return; // location does not allow for resize (panel top or bottom)
 		}
 
+		const part = getPartByLocation(chatLocation);
+		let currentSize = layoutService.getSize(part);
+
+		const chatViewDefaultWidth = 300;
+		const sessionsViewDefaultWidth = chatViewDefaultWidth;
+		const sideBySideMinWidth = chatViewDefaultWidth + sessionsViewDefaultWidth + 1;	// account for possible theme border
+
+		if (
+			(newOrientation === AgentSessionsViewerOrientation.SideBySide && currentSize.width >= sideBySideMinWidth) ||													// already wide enough to show side by side
+			(newOrientation === AgentSessionsViewerOrientation.Stacked && chatLocation === ViewContainerLocation.AuxiliaryBar && layoutService.isAuxiliaryBarMaximized()) 	// try to not leave maximized state if maximized
+		) {
+			return;
+		}
+
+		// Leave maximized state if applicable
 		if (chatLocation === ViewContainerLocation.AuxiliaryBar) {
-			layoutService.setAuxiliaryBarMaximized(false); // Leave maximized state if applicable
+			layoutService.setAuxiliaryBarMaximized(false);
 			currentSize = layoutService.getSize(part);
 		}
 
-		const lastWidthForOrientation = chatView?.getLastDimensions(newOrientation)?.width;
-
+		// Figure out the right new width
 		let newWidth: number;
 		if (newOrientation === AgentSessionsViewerOrientation.SideBySide) {
 			newWidth = Math.max(sideBySideMinWidth, lastWidthForOrientation || Math.round(layoutService.mainContainerDimension.width / 2));
 		} else {
-			newWidth = Math.min(stackedMaxWidth, lastWidthForOrientation || stackedMaxWidth);
+			newWidth = lastWidthForOrientation || Math.max(chatViewDefaultWidth, currentSize.width - sessionsViewDefaultWidth);
 		}
 
-		layoutService.setSize(part, {
-			width: newWidth,
-			height: currentSize.height
-		});
+		// Apply the new width
+		layoutService.setSize(part, { width: newWidth, height: currentSize.height });
+
+		// If we figure out that the width was not applied due to constraints (such as window dimensions),
+		// we maximize the auxiliary bar to ensure the side by side experience is optimal
+		const actualSize = layoutService.getSize(part);
+		if (
+			chatLocation === ViewContainerLocation.AuxiliaryBar &&			// only applicable for auxiliary bar
+			newOrientation === AgentSessionsViewerOrientation.SideBySide &&	// only applicable when going to side by side
+			actualSize.width < sideBySideMinWidth							// width is still not enough for side by side
+		) {
+			layoutService.setAuxiliaryBarMaximized(true);
+		}
 	}
 
 	abstract getOrientation(): AgentSessionsViewerOrientation;
@@ -776,7 +826,6 @@ export class ShowAgentSessionsSidebar extends UpdateChatViewWidthAction {
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.enabled,
 				ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
-				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true)
 			),
 			f1: true,
 			category: CHAT_CATEGORY,
@@ -800,7 +849,6 @@ export class HideAgentSessionsSidebar extends UpdateChatViewWidthAction {
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.enabled,
 				ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.SideBySide),
-				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true)
 			),
 			f1: true,
 			category: CHAT_CATEGORY,
@@ -821,10 +869,7 @@ export class ToggleAgentSessionsSidebar extends Action2 {
 		super({
 			id: ToggleAgentSessionsSidebar.ID,
 			title: ToggleAgentSessionsSidebar.TITLE,
-			precondition: ContextKeyExpr.and(
-				ChatContextKeys.enabled,
-				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true)
-			),
+			precondition: ChatContextKeys.enabled,
 			f1: true,
 			category: CHAT_CATEGORY,
 		});
@@ -873,8 +918,8 @@ export class FocusAgentSessionsAction extends Action2 {
 			return;
 		}
 
-		const configuredSessionsViewerOrientation = configurationService.getValue<'auto' | 'stacked' | 'sideBySide' | unknown>(ChatConfiguration.ChatViewSessionsOrientation);
-		if (configuredSessionsViewerOrientation === 'auto' || configuredSessionsViewerOrientation === 'stacked') {
+		const configuredSessionsViewerOrientation = configurationService.getValue<'stacked' | 'sideBySide' | unknown>(ChatConfiguration.ChatViewSessionsOrientation);
+		if (configuredSessionsViewerOrientation === 'stacked') {
 			await commandService.executeCommand(ACTION_ID_NEW_CHAT);
 		} else {
 			await commandService.executeCommand(ShowAgentSessionsSidebar.ID);

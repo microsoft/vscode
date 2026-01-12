@@ -16,29 +16,21 @@ import { IHandOff, ParsedPromptFile } from '../promptFileParser.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 
 /**
- * Activation event for custom agent providers.
+ * Activation events for prompt file providers.
  */
-export const CUSTOM_AGENTS_PROVIDER_ACTIVATION_EVENT = 'onCustomAgentsProvider';
+export const CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT = 'onCustomAgentProvider';
+export const INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT = 'onInstructionsProvider';
+export const PROMPT_FILE_PROVIDER_ACTIVATION_EVENT = 'onPromptFileProvider';
 
 /**
- * Options for querying custom agents.
+ * Context for querying prompt files.
  */
-export interface ICustomAgentQueryOptions { }
+export interface IPromptFileContext { }
 
 /**
- * Represents a custom agent resource from an external provider.
+ * Represents a prompt file resource from an external provider.
  */
-export interface IExternalCustomAgent {
-	/**
-	 * The unique identifier/name of the custom agent resource.
-	 */
-	readonly name: string;
-
-	/**
-	 * A description of what the custom agent resource does.
-	 */
-	readonly description: string;
-
+export interface IPromptFileResource {
 	/**
 	 * The URI to the agent or prompt resource file.
 	 */
@@ -198,7 +190,7 @@ export interface IChatPromptSlashCommand {
 	readonly parsedPromptFile: ParsedPromptFile;
 }
 
-export interface IClaudeSkill {
+export interface IAgentSkill {
 	readonly uri: URI;
 	readonly type: 'personal' | 'project';
 	readonly name: string;
@@ -316,19 +308,19 @@ export interface IPromptsService extends IDisposable {
 	setDisabledPromptFiles(type: PromptsType, uris: ResourceSet): void;
 
 	/**
-	 * Registers a CustomAgentsProvider that can provide custom agents for repositories.
-	 * This is part of the proposed API and requires the chatParticipantPrivate proposal.
+	 * Registers a prompt file provider that can provide prompt files for repositories.
 	 * @param extension The extension registering the provider.
+	 * @param type The type of contribution.
 	 * @param provider The provider implementation with optional change event.
 	 * @returns A disposable that unregisters the provider when disposed.
 	 */
-	registerCustomAgentsProvider(extension: IExtensionDescription, provider: {
-		onDidChangeCustomAgents?: Event<void>;
-		provideCustomAgents: (options: ICustomAgentQueryOptions, token: CancellationToken) => Promise<IExternalCustomAgent[] | undefined>;
+	registerPromptFileProvider(extension: IExtensionDescription, type: PromptsType, provider: {
+		onDidChangePromptFiles?: Event<void>;
+		providePromptFiles: (context: IPromptFileContext, token: CancellationToken) => Promise<IPromptFileResource[] | undefined>;
 	}): IDisposable;
 
 	/**
-	 * Gets list of claude skills files.
+	 * Gets list of agent skills files.
 	 */
-	findClaudeSkills(token: CancellationToken): Promise<IClaudeSkill[] | undefined>;
+	findAgentSkills(token: CancellationToken): Promise<IAgentSkill[] | undefined>;
 }

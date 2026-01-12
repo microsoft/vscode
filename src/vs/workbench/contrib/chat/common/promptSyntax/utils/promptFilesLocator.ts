@@ -11,7 +11,7 @@ import { getPromptFileLocationsConfigKey, PromptsConfig } from '../config/config
 import { basename, dirname, isEqualOrParent, joinPath } from '../../../../../../base/common/resources.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, AGENTS_SOURCE_FOLDER, getPromptFileExtension, getPromptFileType, LEGACY_MODE_FILE_EXTENSION, getCleanPromptName, AGENT_FILE_EXTENSION } from '../config/promptFileLocations.js';
+import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, AGENTS_SOURCE_FOLDER, getPromptFileExtension, getPromptFileType, LEGACY_MODE_FILE_EXTENSION, getCleanPromptName, AGENT_FILE_EXTENSION, DEFAULT_AGENT_SKILLS_WORKSPACE_FOLDERS, DEFAULT_AGENT_SKILLS_USER_HOME_FOLDERS } from '../config/promptFileLocations.js';
 import { PromptsType } from '../promptTypes.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -366,10 +366,10 @@ export class PromptFilesLocator {
 		return undefined;
 	}
 
-	private async findClaudeSkillsInFolder(uri: URI, token: CancellationToken): Promise<URI[]> {
+	private async findAgentSkillsInFolder(uri: URI, relativePath: string, token: CancellationToken): Promise<URI[]> {
 		const result = [];
 		try {
-			const stat = await this.fileService.resolve(joinPath(uri, '.claude/skills'));
+			const stat = await this.fileService.resolve(joinPath(uri, relativePath));
 			if (token.isCancellationRequested) {
 				return [];
 			}
@@ -392,22 +392,33 @@ export class PromptFilesLocator {
 	}
 
 	/**
-	 * Searches for skills in `.claude/skills/` directories in the workspace.
+	 * Searches for skills in all default directories in the workspace.
 	 * Each skill is stored in its own subdirectory with a SKILL.md file.
 	 */
-	public async findClaudeSkillsInWorkspace(token: CancellationToken): Promise<URI[]> {
+	public async findAgentSkillsInWorkspace(token: CancellationToken): Promise<Array<{ uri: URI; type: string }>> {
 		const workspace = this.workspaceService.getWorkspace();
-		const results = await Promise.all(workspace.folders.map(f => this.findClaudeSkillsInFolder(f.uri, token)));
-		return results.flat();
+		const allResults: Array<{ uri: URI; type: string }> = [];
+		for (const folder of workspace.folders) {
+			for (const { path, type } of DEFAULT_AGENT_SKILLS_WORKSPACE_FOLDERS) {
+				const results = await this.findAgentSkillsInFolder(folder.uri, path, token);
+				allResults.push(...results.map(uri => ({ uri, type })));
+			}
+		}
+		return allResults;
 	}
 
 	/**
-	 * Searches for skills in `.claude/skills/` directories  in the home folder.
+	 * Searches for skills in all default directories in the home folder.
 	 * Each skill is stored in its own subdirectory with a SKILL.md file.
 	 */
-	public async findClaudeSkillsInUserHome(token: CancellationToken): Promise<URI[]> {
+	public async findAgentSkillsInUserHome(token: CancellationToken): Promise<Array<{ uri: URI; type: string }>> {
 		const userHome = await this.pathService.userHome();
-		return this.findClaudeSkillsInFolder(userHome, token);
+		const allResults: Array<{ uri: URI; type: string }> = [];
+		for (const { path, type } of DEFAULT_AGENT_SKILLS_USER_HOME_FOLDERS) {
+			const results = await this.findAgentSkillsInFolder(userHome, path, token);
+			allResults.push(...results.map(uri => ({ uri, type })));
+		}
+		return allResults;
 	}
 }
 

@@ -157,7 +157,7 @@ export interface IAgentSessionSection {
 	readonly sessions: IAgentSession[];
 }
 
-export function isAgentSessionSection(obj: IAgentSessionsModel | IAgentSession | IAgentSessionSection): obj is IAgentSessionSection {
+export function isAgentSessionSection(obj: unknown): obj is IAgentSessionSection {
 	const candidate = obj as IAgentSessionSection;
 
 	return typeof candidate.section === 'string' && Array.isArray(candidate.sessions);
@@ -193,7 +193,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	private _sessions: ResourceMap<IInternalAgentSession>;
 	get sessions(): IAgentSession[] { return Array.from(this._sessions.values()); }
 
-	private readonly resolver = this._register(new ThrottledDelayer<void>(100));
+	private readonly resolver = this._register(new ThrottledDelayer<void>(300));
 	private readonly providersToResolve = new Set<string | undefined>();
 
 	private readonly mapSessionToState = new ResourceMap<{
@@ -271,6 +271,8 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		const providersToResolve = Array.from(this.providersToResolve);
 		this.providersToResolve.clear();
 
+		this.logService.trace(`[agent sessions] Resolving agent sessions for providers: ${providersToResolve.map(p => p ?? 'all').join(', ')}`);
+
 		const mapSessionContributionToType = new Map<string, IChatSessionsExtensionPoint>();
 		for (const contribution of this.chatSessionsService.getAllChatSessionContributions()) {
 			mapSessionContributionToType.set(contribution.type, contribution);
@@ -286,6 +288,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			let providerSessions: IChatSessionItem[];
 			try {
 				providerSessions = await provider.provideChatSessionItems(token);
+				this.logService.trace(`[agent sessions] Resolved ${providerSessions.length} agent sessions for provider ${provider.chatSessionType}`);
 			} catch (error) {
 				this.logService.error(`Failed to resolve sessions for provider ${provider.chatSessionType}`, error);
 				continue; // skip: failed to resolve sessions for provider
@@ -396,6 +399,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		}
 
 		this._sessions = sessions;
+		this.logService.trace(`[agent sessions] Total resolved agent sessions:`, Array.from(this._sessions.values()));
 
 		for (const [resource] of this.mapSessionToState) {
 			if (!sessions.has(resource)) {
@@ -474,7 +478,7 @@ interface ISerializedAgentSession extends Omit<IAgentSessionData, 'iconPath' | '
 	readonly providerType: string;
 	readonly providerLabel: string;
 
-	readonly resource: UriComponents;
+	readonly resource: UriComponents /* old shape */ | string /* new shape that is more compact */;
 
 	readonly status: AgentSessionStatus;
 
@@ -500,7 +504,7 @@ interface ISerializedAgentSession extends Omit<IAgentSessionData, 'iconPath' | '
 }
 
 interface ISerializedAgentSessionState extends IAgentSessionState {
-	readonly resource: UriComponents;
+	readonly resource: UriComponents /* old shape */ | string /* new shape that is more compact */;
 }
 
 class AgentSessionsCache {
@@ -519,7 +523,7 @@ class AgentSessionsCache {
 			providerType: session.providerType,
 			providerLabel: session.providerLabel,
 
-			resource: session.resource.toJSON(),
+			resource: session.resource.toString(),
 
 			icon: session.icon.id,
 			label: session.label,
@@ -553,7 +557,7 @@ class AgentSessionsCache {
 				providerType: session.providerType,
 				providerLabel: session.providerLabel,
 
-				resource: URI.revive(session.resource),
+				resource: typeof session.resource === 'string' ? URI.parse(session.resource) : URI.revive(session.resource),
 
 				icon: ThemeIcon.fromId(session.icon),
 				label: session.label,
@@ -587,7 +591,7 @@ class AgentSessionsCache {
 
 	saveSessionStates(states: ResourceMap<IAgentSessionState>): void {
 		const serialized: ISerializedAgentSessionState[] = Array.from(states.entries()).map(([resource, state]) => ({
-			resource: resource.toJSON(),
+			resource: resource.toString(),
 			archived: state.archived,
 			read: state.read
 		}));
@@ -607,7 +611,7 @@ class AgentSessionsCache {
 			const cached = JSON.parse(statesCache) as ISerializedAgentSessionState[];
 
 			for (const entry of cached) {
-				states.set(URI.revive(entry.resource), {
+				states.set(typeof entry.resource === 'string' ? URI.parse(entry.resource) : URI.revive(entry.resource), {
 					archived: entry.archived,
 					read: entry.read
 				});

@@ -17,7 +17,8 @@ import { IExtensionsWorkbenchService } from '../../../extensions/common/extensio
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { ILanguageModelsProviderGroup } from '../../common/languageModelsConfiguration.js';
 
 class ManageLanguageModelAuthenticationAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.manageLanguageModelAuthentication';
@@ -227,6 +228,27 @@ class ManageLanguageModelAuthenticationAction extends Action2 {
 	}
 }
 
+class ConfigureLanguageModelsGroupAction extends Action2 {
+	constructor() {
+		super({
+			id: 'lm.addLanguageModelsProviderGroup',
+			title: localize('lm.configureGroup', 'Add Language Models Group'),
+		});
+	}
+
+	async run(accessor: ServicesAccessor, languageModelsProviderGroup: ILanguageModelsProviderGroup): Promise<void> {
+		const languageModelsService = accessor.get(ILanguageModelsService);
+
+		if (!languageModelsProviderGroup) {
+			throw new Error('Language model group is required');
+		}
+
+		const { name, vendor, ...configuration } = languageModelsProviderGroup;
+		await languageModelsService.addLanguageModelsProviderGroup(name, vendor, configuration);
+	}
+}
+
 export function registerLanguageModelActions() {
 	registerAction2(ManageLanguageModelAuthenticationAction);
+	registerAction2(ConfigureLanguageModelsGroupAction);
 }

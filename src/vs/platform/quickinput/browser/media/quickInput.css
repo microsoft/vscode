@@ -20,18 +20,28 @@
 	border-top-left-radius: 5px;
 }
 
+.quick-input-widget .monaco-inputbox .monaco-action-bar {
+	top: 0;
+}
+
+.quick-input-widget .monaco-action-bar .monaco-custom-toggle {
+	margin-left: 0;
+	border-radius: 5px;
+	box-sizing: content-box;
+}
+
 .quick-input-left-action-bar {
 	display: flex;
 	margin-left: 4px;
 }
 
 /* give some space between input and action bar */
-.quick-input-inline-action-bar > .actions-container > .action-item:first-child {
+.quick-input-inline-action-bar .actions-container > .action-item:first-child {
 	margin-left: 5px;
 }
 
 /* center horizontally */
-.quick-input-inline-action-bar > .actions-container > .action-item {
+.quick-input-inline-action-bar .actions-container > .action-item {
 	margin-top: 2px;
 }
 
@@ -49,11 +59,15 @@
 	margin-right: 4px;
 }
 
-.quick-input-right-action-bar > .actions-container {
+.quick-input-right-action-bar .actions-container {
 	justify-content: flex-end;
 }
 
-.quick-input-right-action-bar > .actions-container > .action-item {
+.quick-input-right-action-bar .actions-container > .action-item {
+	margin-left: 4px;
+}
+
+.quick-input-inline-action-bar .actions-container > .action-item {
 	margin-left: 4px;
 }
 
@@ -293,7 +307,8 @@
 	overflow: visible;
 }
 
-.quick-input-list .quick-input-list-entry-action-bar .action-label {
+.quick-input-list .quick-input-list-entry-action-bar .action-label,
+.quick-input-list .quick-input-list-entry-action-bar .monaco-custom-toggle {
 	/*
 	 * By default, actions in the quick input action bar are hidden
 	 * until hovered over them or selected.
@@ -304,6 +319,10 @@
 .quick-input-list .quick-input-list-entry-action-bar .action-label.codicon {
 	margin-right: 4px;
 	padding: 2px;
+}
+
+.quick-input-list .quick-input-list-entry-action-bar .monaco-custom-toggle.codicon {
+	margin-right: 4px;
 }
 
 .quick-input-list .quick-input-list-entry-action-bar {
@@ -319,7 +338,12 @@
 .quick-input-list .quick-input-list-entry:hover .quick-input-list-entry-action-bar .action-label,
 .quick-input-list .quick-input-list-entry.focus-inside .quick-input-list-entry-action-bar .action-label,
 .quick-input-list .monaco-list-row.focused .quick-input-list-entry-action-bar .action-label,
-.quick-input-list .monaco-list-row.passive-focused .quick-input-list-entry-action-bar .action-label {
+.quick-input-list .monaco-list-row.passive-focused .quick-input-list-entry-action-bar .action-label,
+.quick-input-list .quick-input-list-entry .quick-input-list-entry-action-bar .monaco-custom-toggle.always-visible,
+.quick-input-list .quick-input-list-entry:hover .quick-input-list-entry-action-bar .monaco-custom-toggle,
+.quick-input-list .quick-input-list-entry.focus-inside .quick-input-list-entry-action-bar .monaco-custom-toggle,
+.quick-input-list .monaco-list-row.focused .quick-input-list-entry-action-bar .monaco-custom-toggle,
+.quick-input-list .monaco-list-row.passive-focused .quick-input-list-entry-action-bar .monaco-custom-toggle {
 	display: flex;
 }
 
@@ -452,7 +476,8 @@
 	overflow: visible;
 }
 
-.quick-input-tree .quick-input-tree-entry-action-bar .action-label {
+.quick-input-tree .quick-input-tree-entry-action-bar .action-label,
+.quick-input-tree .quick-input-tree-entry-action-bar .monaco-custom-toggle {
 	/*
 	 * By default, actions in the quick input action bar are hidden
 	 * until hovered over them or selected.
@@ -463,6 +488,10 @@
 .quick-input-tree .quick-input-tree-entry-action-bar .action-label.codicon {
 	margin-right: 4px;
 	padding: 2px;
+}
+
+.quick-input-tree .quick-input-tree-entry-action-bar .monaco-custom-toggle.codicon {
+	margin-right: 4px;
 }
 
 .quick-input-tree .quick-input-tree-entry-action-bar {
@@ -478,7 +507,12 @@
 .quick-input-tree .quick-input-tree-entry:hover .quick-input-tree-entry-action-bar .action-label,
 .quick-input-tree .quick-input-tree-entry.focus-inside .quick-input-tree-entry-action-bar .action-label,
 .quick-input-tree .monaco-list-row.focused .quick-input-tree-entry-action-bar .action-label,
-.quick-input-tree .monaco-list-row.passive-focused .quick-input-tree-entry-action-bar .action-label {
+.quick-input-tree .monaco-list-row.passive-focused .quick-input-tree-entry-action-bar .action-label,
+.quick-input-tree .quick-input-tree-entry .quick-input-tree-entry-action-bar .monaco-custom-toggle.always-visible,
+.quick-input-tree .quick-input-tree-entry:hover .quick-input-tree-entry-action-bar .monaco-custom-toggle,
+.quick-input-tree .quick-input-tree-entry.focus-inside .quick-input-tree-entry-action-bar .monaco-custom-toggle,
+.quick-input-tree .monaco-list-row.focused .quick-input-tree-entry-action-bar .monaco-custom-toggle,
+.quick-input-tree .monaco-list-row.passive-focused .quick-input-tree-entry-action-bar .monaco-custom-toggle {
 	display: flex;
 }
 

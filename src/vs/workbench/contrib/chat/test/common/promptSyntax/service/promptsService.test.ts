@@ -31,18 +31,20 @@ import { IWorkbenchEnvironmentService } from '../../../../../../services/environ
 import { IFilesConfigurationService } from '../../../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { IUserDataProfileService } from '../../../../../../services/userDataProfile/common/userDataProfile.js';
 import { TestContextService, TestUserDataProfileService } from '../../../../../../test/common/workbenchTestServices.js';
-import { ChatRequestVariableSet, isPromptFileVariableEntry, toFileVariableEntry } from '../../../../common/chatVariableEntries.js';
+import { ChatRequestVariableSet, isPromptFileVariableEntry, toFileVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { ComputeAutomaticInstructions, newInstructionsCollectionEvent } from '../../../../common/promptSyntax/computeAutomaticInstructions.js';
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
 import { INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
-import { ExtensionAgentSourceType, ICustomAgent, ICustomAgentQueryOptions, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { ExtensionAgentSourceType, ICustomAgent, IPromptFileContext, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
 import { mockFiles } from '../testUtils/mockFilesystem.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../../platform/storage/common/storage.js';
 import { IPathService } from '../../../../../../services/path/common/pathService.js';
 import { ISearchService } from '../../../../../../services/search/common/search.js';
 import { IExtensionService } from '../../../../../../services/extensions/common/extensions.js';
+import { IDefaultAccountService } from '../../../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IDefaultAccount } from '../../../../../../../base/common/defaultAccount.js';
 
 suite('PromptsService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -76,6 +78,10 @@ suite('PromptsService', () => {
 		instaService.stub(IExtensionService, {
 			whenInstalledExtensionsRegistered: () => Promise.resolve(true),
 			activateByEvent: () => Promise.resolve()
+		});
+
+		instaService.stub(IDefaultAccountService, {
+			getDefaultAccount: () => Promise.resolve({ chat_preview_features_enabled: true } as IDefaultAccount)
 		});
 
 		fileService = disposables.add(instaService.createInstance(FileService));
@@ -1097,18 +1103,16 @@ suite('PromptsService', () => {
 			]);
 
 			const provider = {
-				provideCustomAgents: async (_options: ICustomAgentQueryOptions, _token: CancellationToken) => {
+				providePromptFiles: async (_context: IPromptFileContext, _token: CancellationToken) => {
 					return [
 						{
-							name: 'myAgent',
-							description: 'My custom agent from provider',
 							uri: agentUri
 						}
 					];
 				}
 			};
 
-			const registered = service.registerCustomAgentsProvider(extension, provider);
+			const registered = service.registerPromptFileProvider(extension, PromptsType.agent, provider);
 
 			const actual = await service.getCustomAgents(CancellationToken.None);
 			assert.strictEqual(actual.length, 1);
@@ -1116,9 +1120,6 @@ suite('PromptsService', () => {
 			assert.strictEqual(actual[0].description, 'My custom agent from provider');
 			assert.strictEqual(actual[0].uri.toString(), agentUri.toString());
 			assert.strictEqual(actual[0].source.storage, PromptsStorage.extension);
-			if (actual[0].source.storage === PromptsStorage.extension) {
-				assert.strictEqual(actual[0].source.type, ExtensionAgentSourceType.provider);
-			}
 
 			registered.dispose();
 
@@ -1158,17 +1159,13 @@ suite('PromptsService', () => {
 			]);
 
 			const provider = {
-				provideCustomAgents: async (_options: ICustomAgentQueryOptions, _token: CancellationToken) => {
+				providePromptFiles: async (_context: IPromptFileContext, _token: CancellationToken) => {
 					return [
 						{
-							name: 'readonlyAgent',
-							description: 'Readonly agent from provider',
 							uri: readonlyAgentUri,
 							isEditable: false
 						},
 						{
-							name: 'editableAgent',
-							description: 'Editable agent from provider',
 							uri: editableAgentUri,
 							isEditable: true
 						}
@@ -1176,7 +1173,7 @@ suite('PromptsService', () => {
 				}
 			};
 
-			const registered = service.registerCustomAgentsProvider(extension, provider);
+			const registered = service.registerPromptFileProvider(extension, PromptsType.agent, provider);
 
 			// Spy on updateReadonly to verify it's called correctly
 			const filesConfigService = instaService.get(IFilesConfigurationService);
@@ -1255,50 +1252,310 @@ suite('PromptsService', () => {
 		});
 	});
 
-	suite('findClaudeSkills', () => {
+	test('Instructions provider', async () => {
+		const instructionUri = URI.parse('file://extensions/my-extension/myInstruction.instructions.md');
+		const extension = {
+			identifier: { value: 'test.my-extension' },
+			enabledApiProposals: ['chatParticipantPrivate']
+		} as unknown as IExtensionDescription;
+
+		// Mock the instruction file content
+		await mockFiles(fileService, [
+			{
+				path: instructionUri.path,
+				contents: [
+					'# Test instruction content'
+				]
+			}
+		]);
+
+		const provider = {
+			providePromptFiles: async (_context: IPromptFileContext, _token: CancellationToken) => {
+				return [
+					{
+						uri: instructionUri
+					}
+				];
+			}
+		};
+
+		const registered = service.registerPromptFileProvider(extension, PromptsType.instructions, provider);
+
+		const actual = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+		const providerInstruction = actual.find(i => i.uri.toString() === instructionUri.toString());
+
+		assert.ok(providerInstruction, 'Provider instruction should be found');
+		assert.strictEqual(providerInstruction!.uri.toString(), instructionUri.toString());
+		assert.strictEqual(providerInstruction!.storage, PromptsStorage.extension);
+		assert.strictEqual(providerInstruction!.source, ExtensionAgentSourceType.provider);
+
+		registered.dispose();
+
+		// After disposal, the instruction should no longer be listed
+		const actualAfterDispose = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+		const foundAfterDispose = actualAfterDispose.find(i => i.uri.toString() === instructionUri.toString());
+		assert.strictEqual(foundAfterDispose, undefined);
+	});
+
+	test('Instructions provider with isEditable flag', async () => {
+		const readonlyInstructionUri = URI.parse('file://extensions/my-extension/readonly.instructions.md');
+		const editableInstructionUri = URI.parse('file://extensions/my-extension/editable.instructions.md');
+		const extension = {
+			identifier: { value: 'test.my-extension' },
+			enabledApiProposals: ['chatParticipantPrivate']
+		} as unknown as IExtensionDescription;
+
+		// Mock the instruction file content
+		await mockFiles(fileService, [
+			{
+				path: readonlyInstructionUri.path,
+				contents: [
+					'# Readonly instruction content'
+				]
+			},
+			{
+				path: editableInstructionUri.path,
+				contents: [
+					'# Editable instruction content'
+				]
+			}
+		]);
+
+		const provider = {
+			providePromptFiles: async (_context: IPromptFileContext, _token: CancellationToken) => {
+				return [
+					{
+						uri: readonlyInstructionUri,
+						isEditable: false
+					},
+					{
+						uri: editableInstructionUri,
+						isEditable: true
+					}
+				];
+			}
+		};
+
+		const registered = service.registerPromptFileProvider(extension, PromptsType.instructions, provider);
+
+		// Spy on updateReadonly to verify it's called correctly
+		const filesConfigService = instaService.get(IFilesConfigurationService);
+		const updateReadonlySpy = sinon.spy(filesConfigService, 'updateReadonly');
+
+		// List prompt files to trigger the readonly check
+		await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+
+		// Verify updateReadonly was called only for the non-editable instruction
+		assert.strictEqual(updateReadonlySpy.callCount, 1, 'updateReadonly should be called once');
+		assert.ok(updateReadonlySpy.calledWith(readonlyInstructionUri, true), 'updateReadonly should be called with readonly instruction URI and true');
+
+		const actual = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+		const readonlyInstruction = actual.find(i => i.uri.toString() === readonlyInstructionUri.toString());
+		const editableInstruction = actual.find(i => i.uri.toString() === editableInstructionUri.toString());
+
+		assert.ok(readonlyInstruction, 'Readonly instruction should be found');
+		assert.ok(editableInstruction, 'Editable instruction should be found');
+
+		registered.dispose();
+	});
+
+	test('Prompt file provider', async () => {
+		const promptUri = URI.parse('file://extensions/my-extension/myPrompt.prompt.md');
+		const extension = {
+			identifier: { value: 'test.my-extension' },
+			enabledApiProposals: ['chatParticipantPrivate']
+		} as unknown as IExtensionDescription;
+
+		// Mock the prompt file content
+		await mockFiles(fileService, [
+			{
+				path: promptUri.path,
+				contents: [
+					'# Test prompt content'
+				]
+			}
+		]);
+
+		const provider = {
+			providePromptFiles: async (_context: IPromptFileContext, _token: CancellationToken) => {
+				return [
+					{
+						uri: promptUri
+					}
+				];
+			}
+		};
+
+		const registered = service.registerPromptFileProvider(extension, PromptsType.prompt, provider);
+
+		const actual = await service.listPromptFiles(PromptsType.prompt, CancellationToken.None);
+		const providerPrompt = actual.find(i => i.uri.toString() === promptUri.toString());
+
+		assert.ok(providerPrompt, 'Provider prompt should be found');
+		assert.strictEqual(providerPrompt!.uri.toString(), promptUri.toString());
+		assert.strictEqual(providerPrompt!.storage, PromptsStorage.extension);
+		assert.strictEqual(providerPrompt!.source, ExtensionAgentSourceType.provider);
+
+		registered.dispose();
+
+		// After disposal, the prompt should no longer be listed
+		const actualAfterDispose = await service.listPromptFiles(PromptsType.prompt, CancellationToken.None);
+		const foundAfterDispose = actualAfterDispose.find(i => i.uri.toString() === promptUri.toString());
+		assert.strictEqual(foundAfterDispose, undefined);
+	});
+
+	test('Prompt file provider with isEditable flag', async () => {
+		const readonlyPromptUri = URI.parse('file://extensions/my-extension/readonly.prompt.md');
+		const editablePromptUri = URI.parse('file://extensions/my-extension/editable.prompt.md');
+		const extension = {
+			identifier: { value: 'test.my-extension' },
+			enabledApiProposals: ['chatParticipantPrivate']
+		} as unknown as IExtensionDescription;
+
+		// Mock the prompt file content
+		await mockFiles(fileService, [
+			{
+				path: readonlyPromptUri.path,
+				contents: [
+					'# Readonly prompt content'
+				]
+			},
+			{
+				path: editablePromptUri.path,
+				contents: [
+					'# Editable prompt content'
+				]
+			}
+		]);
+
+		const provider = {
+			providePromptFiles: async (_context: IPromptFileContext, _token: CancellationToken) => {
+				return [
+					{
+						uri: readonlyPromptUri,
+						isEditable: false
+					},
+					{
+						uri: editablePromptUri,
+						isEditable: true
+					}
+				];
+			}
+		};
+
+		const registered = service.registerPromptFileProvider(extension, PromptsType.prompt, provider);
+
+		// Spy on updateReadonly to verify it's called correctly
+		const filesConfigService = instaService.get(IFilesConfigurationService);
+		const updateReadonlySpy = sinon.spy(filesConfigService, 'updateReadonly');
+
+		// List prompt files to trigger the readonly check
+		await service.listPromptFiles(PromptsType.prompt, CancellationToken.None);
+
+		// Verify updateReadonly was called only for the non-editable prompt
+		assert.strictEqual(updateReadonlySpy.callCount, 1, 'updateReadonly should be called once');
+		assert.ok(updateReadonlySpy.calledWith(readonlyPromptUri, true), 'updateReadonly should be called with readonly prompt URI and true');
+
+		const actual = await service.listPromptFiles(PromptsType.prompt, CancellationToken.None);
+		const readonlyPrompt = actual.find(i => i.uri.toString() === readonlyPromptUri.toString());
+		const editablePrompt = actual.find(i => i.uri.toString() === editablePromptUri.toString());
+
+		assert.ok(readonlyPrompt, 'Readonly prompt should be found');
+		assert.ok(editablePrompt, 'Editable prompt should be found');
+
+		registered.dispose();
+	});
+
+	suite('findAgentSkills', () => {
 		teardown(() => {
 			sinon.restore();
 		});
 
-		test('should return undefined when USE_CLAUDE_SKILLS is disabled', async () => {
-			testConfigService.setUserConfiguration(PromptsConfig.USE_CLAUDE_SKILLS, false);
+		test('should return undefined when USE_AGENT_SKILLS is disabled', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, false);
 
-			const result = await service.findClaudeSkills(CancellationToken.None);
+			const result = await service.findAgentSkills(CancellationToken.None);
 			assert.strictEqual(result, undefined);
 		});
 
-		test('should find Claude skills in workspace and user home', async () => {
-			testConfigService.setUserConfiguration(PromptsConfig.USE_CLAUDE_SKILLS, true);
+		test('should return undefined when chat_preview_features_enabled is false', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			instaService.stub(IDefaultAccountService, {
+				getDefaultAccount: () => Promise.resolve({ chat_preview_features_enabled: false } as IDefaultAccount)
+			});
 
-			const rootFolderName = 'claude-skills-test';
+			// Recreate service with new stub
+			service = disposables.add(instaService.createInstance(PromptsService));
+
+			const result = await service.findAgentSkills(CancellationToken.None);
+			assert.strictEqual(result, undefined);
+
+			// Restore default stub for other tests
+			instaService.stub(IDefaultAccountService, {
+				getDefaultAccount: () => Promise.resolve({ chat_preview_features_enabled: true } as IDefaultAccount)
+			});
+		});
+
+		test('should return undefined when USE_AGENT_SKILLS is enabled but chat_preview_features_enabled is false', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			instaService.stub(IDefaultAccountService, {
+				getDefaultAccount: () => Promise.resolve({ chat_preview_features_enabled: false } as IDefaultAccount)
+			});
+
+			// Recreate service with new stub
+			service = disposables.add(instaService.createInstance(PromptsService));
+
+			const result = await service.findAgentSkills(CancellationToken.None);
+			assert.strictEqual(result, undefined);
+
+			// Restore default stub for other tests
+			instaService.stub(IDefaultAccountService, {
+				getDefaultAccount: () => Promise.resolve({ chat_preview_features_enabled: true } as IDefaultAccount)
+			});
+		});
+
+		test('should find skills in workspace and user home', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+
+			const rootFolderName = 'agent-skills-test';
 			const rootFolder = `/${rootFolderName}`;
 			const rootFolderUri = URI.file(rootFolder);
 
 			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
 
-			// Create mock filesystem with skills
+			// Create mock filesystem with skills in both .github/skills and .claude/skills
 			await mockFiles(fileService, [
 				{
-					path: `${rootFolder}/.claude/skills/project-skill-1/SKILL.md`,
+					path: `${rootFolder}/.github/skills/github-skill-1/SKILL.md`,
 					contents: [
 						'---',
-						'name: "Project Skill 1"',
-						'description: "A project skill for testing"',
+						'name: "GitHub Skill 1"',
+						'description: "A GitHub skill for testing"',
 						'---',
-						'This is project skill 1 content',
+						'This is GitHub skill 1 content',
 					],
 				},
 				{
-					path: `${rootFolder}/.claude/skills/project-skill-2/SKILL.md`,
+					path: `${rootFolder}/.claude/skills/claude-skill-1/SKILL.md`,
+					contents: [
+						'---',
+						'name: "Claude Skill 1"',
+						'description: "A Claude skill for testing"',
+						'---',
+						'This is Claude skill 1 content',
+					],
+				},
+				{
+					path: `${rootFolder}/.claude/skills/invalid-skill/SKILL.md`,
 					contents: [
 						'---',
 						'description: "Invalid skill, no name"',
 						'---',
-						'This is project skill 2 content',
+						'This is invalid skill content',
 					],
 				},
 				{
-					path: `${rootFolder}/.claude/skills/not-a-skill-dir/README.md`,
+					path: `${rootFolder}/.github/skills/not-a-skill-dir/README.md`,
 					contents: ['This is not a skill'],
 				},
 				{
@@ -1315,45 +1572,65 @@ suite('PromptsService', () => {
 					path: '/home/user/.claude/skills/not-a-skill/other-file.md',
 					contents: ['Not a skill file'],
 				},
+				{
+					path: '/home/user/.copilot/skills/copilot-skill-1/SKILL.md',
+					contents: [
+						'---',
+						'name: "Copilot Skill 1"',
+						'description: "A Copilot skill for testing"',
+						'---',
+						'This is Copilot skill 1 content',
+					],
+				},
 			]);
 
-			const result = await service.findClaudeSkills(CancellationToken.None);
+			const result = await service.findAgentSkills(CancellationToken.None);
 
-			assert.ok(result, 'Should return results when Claude skills are enabled');
-			assert.strictEqual(result.length, 2, 'Should find 2 skills total');
+			assert.ok(result, 'Should return results when agent skills are enabled');
+			assert.strictEqual(result.length, 4, 'Should find 4 skills total');
 
-			// Check project skills
+			// Check project skills (both from .github/skills and .claude/skills)
 			const projectSkills = result.filter(skill => skill.type === 'project');
-			assert.strictEqual(projectSkills.length, 1, 'Should find 1 project skill');
+			assert.strictEqual(projectSkills.length, 2, 'Should find 2 project skills');
 
-			const projectSkill1 = projectSkills.find(skill => skill.name === 'Project Skill 1');
-			assert.ok(projectSkill1, 'Should find project skill 1');
-			assert.strictEqual(projectSkill1.description, 'A project skill for testing');
-			assert.strictEqual(projectSkill1.uri.path, `${rootFolder}/.claude/skills/project-skill-1/SKILL.md`);
+			const githubSkill1 = projectSkills.find(skill => skill.name === 'GitHub Skill 1');
+			assert.ok(githubSkill1, 'Should find GitHub skill 1');
+			assert.strictEqual(githubSkill1.description, 'A GitHub skill for testing');
+			assert.strictEqual(githubSkill1.uri.path, `${rootFolder}/.github/skills/github-skill-1/SKILL.md`);
+
+			const claudeSkill1 = projectSkills.find(skill => skill.name === 'Claude Skill 1');
+			assert.ok(claudeSkill1, 'Should find Claude skill 1');
+			assert.strictEqual(claudeSkill1.description, 'A Claude skill for testing');
+			assert.strictEqual(claudeSkill1.uri.path, `${rootFolder}/.claude/skills/claude-skill-1/SKILL.md`);
 
 			// Check personal skills
 			const personalSkills = result.filter(skill => skill.type === 'personal');
-			assert.strictEqual(personalSkills.length, 1, 'Should find 1 personal skill');
+			assert.strictEqual(personalSkills.length, 2, 'Should find 2 personal skills');
 
-			const personalSkill1 = personalSkills[0];
-			assert.strictEqual(personalSkill1.name, 'Personal Skill 1');
+			const personalSkill1 = personalSkills.find(skill => skill.name === 'Personal Skill 1');
+			assert.ok(personalSkill1, 'Should find Personal Skill 1');
 			assert.strictEqual(personalSkill1.description, 'A personal skill for testing');
 			assert.strictEqual(personalSkill1.uri.path, '/home/user/.claude/skills/personal-skill-1/SKILL.md');
+
+			const copilotSkill1 = personalSkills.find(skill => skill.name === 'Copilot Skill 1');
+			assert.ok(copilotSkill1, 'Should find Copilot Skill 1');
+			assert.strictEqual(copilotSkill1.description, 'A Copilot skill for testing');
+			assert.strictEqual(copilotSkill1.uri.path, '/home/user/.copilot/skills/copilot-skill-1/SKILL.md');
 		});
 
 		test('should handle parsing errors gracefully', async () => {
-			testConfigService.setUserConfiguration(PromptsConfig.USE_CLAUDE_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
 
-			const rootFolderName = 'claude-skills-error-test';
+			const rootFolderName = 'skills-error-test';
 			const rootFolder = `/${rootFolderName}`;
 			const rootFolderUri = URI.file(rootFolder);
 
 			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
 
-			// Create mock filesystem with malformed skill file
+			// Create mock filesystem with malformed skill file in .github/skills
 			await mockFiles(fileService, [
 				{
-					path: `${rootFolder}/.claude/skills/valid-skill/SKILL.md`,
+					path: `${rootFolder}/.github/skills/valid-skill/SKILL.md`,
 					contents: [
 						'---',
 						'name: "Valid Skill"',
@@ -1373,7 +1650,7 @@ suite('PromptsService', () => {
 				},
 			]);
 
-			const result = await service.findClaudeSkills(CancellationToken.None);
+			const result = await service.findAgentSkills(CancellationToken.None);
 
 			// Should still return the valid skill, even if one has parsing errors
 			assert.ok(result, 'Should return results even with parsing errors');
@@ -1383,7 +1660,7 @@ suite('PromptsService', () => {
 		});
 
 		test('should return empty array when no skills found', async () => {
-			testConfigService.setUserConfiguration(PromptsConfig.USE_CLAUDE_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
 
 			const rootFolderName = 'empty-workspace';
 			const rootFolder = `/${rootFolderName}`;
@@ -1394,10 +1671,111 @@ suite('PromptsService', () => {
 			// Create empty mock filesystem
 			await mockFiles(fileService, []);
 
-			const result = await service.findClaudeSkills(CancellationToken.None);
+			const result = await service.findAgentSkills(CancellationToken.None);
 
 			assert.ok(result, 'Should return results array');
 			assert.strictEqual(result.length, 0, 'Should find no skills');
+		});
+
+		test('should truncate long names and descriptions', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+
+			const rootFolderName = 'truncation-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			const longName = 'A'.repeat(100); // Exceeds 64 characters
+			const longDescription = 'B'.repeat(1500); // Exceeds 1024 characters
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/skills/long-skill/SKILL.md`,
+					contents: [
+						'---',
+						`name: "${longName}"`,
+						`description: "${longDescription}"`,
+						'---',
+						'Skill content',
+					],
+				},
+			]);
+
+			const result = await service.findAgentSkills(CancellationToken.None);
+
+			assert.ok(result, 'Should return results');
+			assert.strictEqual(result.length, 1, 'Should find 1 skill');
+			assert.strictEqual(result[0].name.length, 64, 'Name should be truncated to 64 characters');
+			assert.strictEqual(result[0].description?.length, 1024, 'Description should be truncated to 1024 characters');
+		});
+
+		test('should remove XML tags from name and description', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+
+			const rootFolderName = 'xml-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/skills/xml-skill/SKILL.md`,
+					contents: [
+						'---',
+						'name: "Skill <b>with</b> <em>XML</em> tags"',
+						'description: "Description with <strong>HTML</strong> and <span>other</span> tags"',
+						'---',
+						'Skill content',
+					],
+				},
+			]);
+
+			const result = await service.findAgentSkills(CancellationToken.None);
+
+			assert.ok(result, 'Should return results');
+			assert.strictEqual(result.length, 1, 'Should find 1 skill');
+			assert.strictEqual(result[0].name, 'Skill with XML tags', 'XML tags should be removed from name');
+			assert.strictEqual(result[0].description, 'Description with HTML and other tags', 'XML tags should be removed from description');
+		});
+
+		test('should handle both truncation and XML removal', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+
+			const rootFolderName = 'combined-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			const longNameWithXml = '<p>' + 'A'.repeat(100) + '</p>'; // Exceeds 64 chars and has XML
+			const longDescWithXml = '<div>' + 'B'.repeat(1500) + '</div>'; // Exceeds 1024 chars and has XML
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/skills/combined-skill/SKILL.md`,
+					contents: [
+						'---',
+						`name: "${longNameWithXml}"`,
+						`description: "${longDescWithXml}"`,
+						'---',
+						'Skill content',
+					],
+				},
+			]);
+
+			const result = await service.findAgentSkills(CancellationToken.None);
+
+			assert.ok(result, 'Should return results');
+			assert.strictEqual(result.length, 1, 'Should find 1 skill');
+			// XML tags are removed first, then truncation happens
+			assert.ok(!result[0].name.includes('<'), 'Name should not contain XML tags');
+			assert.ok(!result[0].name.includes('>'), 'Name should not contain XML tags');
+			assert.strictEqual(result[0].name.length, 64, 'Name should be truncated to 64 characters');
+			assert.ok(!result[0].description?.includes('<'), 'Description should not contain XML tags');
+			assert.ok(!result[0].description?.includes('>'), 'Description should not contain XML tags');
+			assert.strictEqual(result[0].description?.length, 1024, 'Description should be truncated to 1024 characters');
 		});
 	});
 });

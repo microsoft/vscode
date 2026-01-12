@@ -13,13 +13,16 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { ChatMessageRole, languageModelChatProviderExtensionPoint, LanguageModelsService, IChatMessage, IChatResponsePart } from '../../common/languageModels.js';
 import { IExtensionService, nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry } from '../../../../services/extensions/common/extensionsRegistry.js';
-import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../common/modelPicker/modelPickerWidget.js';
+import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../common/widget/input/modelPickerWidget.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { TestChatEntitlementService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ILanguageModelsConfigurationService } from '../../common/languageModelsConfiguration.js';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
+import { TestSecretStorageService } from '../../../../../platform/secrets/test/common/testSecretStorageService.js';
 
 suite('LanguageModels', function () {
 
@@ -41,7 +44,14 @@ suite('LanguageModels', function () {
 			new TestStorageService(),
 			new MockContextKeyService(),
 			new TestConfigurationService(),
-			new TestChatEntitlementService()
+			new TestChatEntitlementService(),
+			new class extends mock<ILanguageModelsConfigurationService>() {
+				override getLanguageModelsProviderGroups() {
+					return [];
+				}
+			},
+			new class extends mock<IQuickInputService>() { },
+			new TestSecretStorageService(),
 		);
 
 		const ext = ExtensionsRegistry.getExtensionPoints().find(e => e.name === languageModelChatProviderExtensionPoint.name)!;
@@ -246,7 +256,10 @@ suite('LanguageModels - When Clause', function () {
 			new TestStorageService(),
 			contextKeyService,
 			new TestConfigurationService(),
-			new TestChatEntitlementService()
+			new TestChatEntitlementService(),
+			new class extends mock<ILanguageModelsConfigurationService>() { },
+			new class extends mock<IQuickInputService>() { },
+			new TestSecretStorageService(),
 		);
 
 		const ext = ExtensionsRegistry.getExtensionPoints().find(e => e.name === languageModelChatProviderExtensionPoint.name)!;
