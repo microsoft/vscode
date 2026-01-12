@@ -182,6 +182,10 @@
 
 			.agent-session-badge {
 
+				p {
+					overflow: hidden;
+				}
+
 				&:not(.has-badge) {
 					display: none;
 				}
