@@ -12,55 +12,26 @@ import { ipcRenderer } from '../../../../base/parts/sandbox/electron-browser/glo
 import { localize } from '../../../../nls.js';
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
-import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
+import { WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { ViewContainerLocation } from '../../../common/views.js';
 import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
-import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ACTION_ID_NEW_CHAT, CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../browser/actions/chatActions.js';
-import { showChatView } from '../browser/chat.js';
-import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { IChatService } from '../common/chatService.js';
-import { ChatUrlFetchingConfirmationContribution } from '../common/chatUrlFetchingConfirmation.js';
-import { ChatModeKind } from '../common/constants.js';
-import { ILanguageModelToolsConfirmationService } from '../common/languageModelToolsConfirmationService.js';
-import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
-import { InternalFetchWebPageToolId } from '../common/tools/tools.js';
+import { IChatWidgetService } from '../browser/chat.js';
+import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
+import { ChatConfiguration, ChatModeKind } from '../common/constants.js';
+import { IChatService } from '../common/chatService/chatService.js';
 import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js';
 import { HoldToVoiceChatInChatViewAction, InlineVoiceChatAction, KeywordActivationContribution, QuickVoiceChatAction, ReadChatResponseAloud, StartVoiceChatAction, StopListeningAction, StopListeningAndSubmitAction, StopReadAloud, StopReadChatItemAloud, VoiceChatInChatViewAction } from './actions/voiceChatActions.js';
-import { FetchWebPageTool, FetchWebPageToolData, IFetchWebPageToolParams } from './tools/fetchPageTool.js';
-
-class NativeBuiltinToolsContribution extends Disposable implements IWorkbenchContribution {
-
-	static readonly ID = 'chat.nativeBuiltinTools';
-
-	constructor(
-		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ILanguageModelToolsConfirmationService confirmationService: ILanguageModelToolsConfirmationService,
-	) {
-		super();
-
-		const editTool = instantiationService.createInstance(FetchWebPageTool);
-		this._register(toolsService.registerTool(FetchWebPageToolData, editTool));
-
-		this._register(confirmationService.registerConfirmationContribution(
-			InternalFetchWebPageToolId,
-			instantiationService.createInstance(
-				ChatUrlFetchingConfirmationContribution,
-				params => (params as IFetchWebPageToolParams).urls
-			)
-		));
-	}
-}
+import { NativeBuiltinToolsContribution } from './builtInTools/tools.js';
 
 class ChatCommandLineHandler extends Disposable {
 
@@ -70,7 +41,6 @@ class ChatCommandLineHandler extends Disposable {
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
-		@IViewsService private readonly viewsService: IViewsService,
 		@ILogService private readonly logService: ILogService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
@@ -108,8 +78,6 @@ class ChatCommandLineHandler extends Disposable {
 			attachFiles: args['add-file']?.map(file => URI.file(resolve(file))), // use `resolve` to deal with relative paths properly
 		};
 
-		const chatWidget = await showChatView(this.viewsService, this.layoutService);
-
 		if (args.maximize) {
 			const location = this.contextKeyService.getContextKeyValue<ViewContainerLocation>(ChatContextKeys.panelLocation.key);
 			if (location === ViewContainerLocation.AuxiliaryBar) {
@@ -119,7 +87,6 @@ class ChatCommandLineHandler extends Disposable {
 			}
 		}
 
-		await chatWidget?.waitForReady();
 		await this.commandService.executeCommand(ACTION_ID_NEW_CHAT);
 		await this.commandService.executeCommand(CHAT_OPEN_ACTION_ID, opts);
 	}
@@ -131,9 +98,14 @@ class ChatSuspendThrottlingHandler extends Disposable {
 
 	constructor(
 		@INativeHostService nativeHostService: INativeHostService,
-		@IChatService chatService: IChatService
+		@IChatService chatService: IChatService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super();
+
+		if (!configurationService.getValue<boolean>(ChatConfiguration.SuspendThrottling)) {
+			return;
+		}
 
 		this._register(autorun(reader => {
 			const running = chatService.requestInProgressObs.read(reader);
@@ -154,10 +126,9 @@ class ChatLifecycleHandler extends Disposable {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IChatService private readonly chatService: IChatService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@IViewsService private readonly viewsService: IViewsService,
+		@IChatWidgetService private readonly widgetService: IChatWidgetService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IExtensionService extensionService: IExtensionService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super();
 
@@ -185,7 +156,7 @@ class ChatLifecycleHandler extends Disposable {
 
 	private async doShouldVetoShutdown(reason: ShutdownReason): Promise<boolean> {
 
-		showChatView(this.viewsService, this.layoutService);
+		this.widgetService.revealWidget();
 
 		let message: string;
 		let detail: string;

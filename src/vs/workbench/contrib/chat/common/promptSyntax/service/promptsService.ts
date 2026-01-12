@@ -16,6 +16,33 @@ import { IHandOff, ParsedPromptFile } from '../promptFileParser.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 
 /**
+ * Activation events for prompt file providers.
+ */
+export const CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT = 'onCustomAgentProvider';
+export const INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT = 'onInstructionsProvider';
+export const PROMPT_FILE_PROVIDER_ACTIVATION_EVENT = 'onPromptFileProvider';
+
+/**
+ * Context for querying prompt files.
+ */
+export interface IPromptFileContext { }
+
+/**
+ * Represents a prompt file resource from an external provider.
+ */
+export interface IPromptFileResource {
+	/**
+	 * The URI to the agent or prompt resource file.
+	 */
+	readonly uri: URI;
+
+	/**
+	 * Indicates whether the custom agent resource is editable. Defaults to false.
+	 */
+	readonly isEditable?: boolean;
+}
+
+/**
  * Provides prompt services.
  */
 export const IPromptsService = createDecorator<IPromptsService>('IPromptsService');
@@ -27,6 +54,14 @@ export enum PromptsStorage {
 	local = 'local',
 	user = 'user',
 	extension = 'extension'
+}
+
+/**
+ * The type of source for extension agents.
+ */
+export enum ExtensionAgentSourceType {
+	contribution = 'contribution',
+	provider = 'provider',
 }
 
 /**
@@ -65,8 +100,9 @@ export interface IPromptPathBase {
 export interface IExtensionPromptPath extends IPromptPathBase {
 	readonly storage: PromptsStorage.extension;
 	readonly extension: IExtensionDescription;
-	readonly name: string;
-	readonly description: string;
+	readonly source: ExtensionAgentSourceType;
+	readonly name?: string;
+	readonly description?: string;
 }
 export interface ILocalPromptPath extends IPromptPathBase {
 	readonly storage: PromptsStorage.local;
@@ -78,6 +114,7 @@ export interface IUserPromptPath extends IPromptPathBase {
 export type IAgentSource = {
 	readonly storage: PromptsStorage.extension;
 	readonly extensionId: ExtensionIdentifier;
+	readonly type: ExtensionAgentSourceType;
 } | {
 	readonly storage: PromptsStorage.local | PromptsStorage.user;
 };
@@ -119,6 +156,11 @@ export interface ICustomAgent {
 	readonly target?: string;
 
 	/**
+	 * Infer metadata in the prompt header.
+	 */
+	readonly infer?: boolean;
+
+	/**
 	 * Contents of the custom agent file body and other agent instructions.
 	 */
 	readonly agentInstructions: IChatModeInstructions;
@@ -146,6 +188,13 @@ export interface IChatPromptSlashCommand {
 	readonly argumentHint: string | undefined;
 	readonly promptPath: IPromptPath;
 	readonly parsedPromptFile: ParsedPromptFile;
+}
+
+export interface IAgentSkill {
+	readonly uri: URI;
+	readonly type: 'personal' | 'project';
+	readonly name: string;
+	readonly description: string | undefined;
 }
 
 /**
@@ -221,7 +270,7 @@ export interface IPromptsService extends IDisposable {
 	 * Internal: register a contributed file. Returns a disposable that removes the contribution.
 	 * Not intended for extension authors; used by contribution point handler.
 	 */
-	registerContributedFile(type: PromptsType, name: string, description: string, uri: URI, extension: IExtensionDescription): IDisposable;
+	registerContributedFile(type: PromptsType, uri: URI, extension: IExtensionDescription, name: string | undefined, description: string | undefined): IDisposable;
 
 
 	getPromptLocationLabel(promptPath: IPromptPath): string;
@@ -257,4 +306,21 @@ export interface IPromptsService extends IDisposable {
 	 * Persists the set of disabled prompt file URIs for the given type.
 	 */
 	setDisabledPromptFiles(type: PromptsType, uris: ResourceSet): void;
+
+	/**
+	 * Registers a prompt file provider that can provide prompt files for repositories.
+	 * @param extension The extension registering the provider.
+	 * @param type The type of contribution.
+	 * @param provider The provider implementation with optional change event.
+	 * @returns A disposable that unregisters the provider when disposed.
+	 */
+	registerPromptFileProvider(extension: IExtensionDescription, type: PromptsType, provider: {
+		onDidChangePromptFiles?: Event<void>;
+		providePromptFiles: (context: IPromptFileContext, token: CancellationToken) => Promise<IPromptFileResource[] | undefined>;
+	}): IDisposable;
+
+	/**
+	 * Gets list of agent skills files.
+	 */
+	findAgentSkills(token: CancellationToken): Promise<IAgentSkill[] | undefined>;
 }

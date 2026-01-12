@@ -11,7 +11,7 @@ import { getPromptFileLocationsConfigKey, PromptsConfig } from '../config/config
 import { basename, dirname, isEqualOrParent, joinPath } from '../../../../../../base/common/resources.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, AGENTS_SOURCE_FOLDER, getPromptFileExtension, getPromptFileType, LEGACY_MODE_FILE_EXTENSION, getCleanPromptName, AGENT_FILE_EXTENSION } from '../config/promptFileLocations.js';
+import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, AGENTS_SOURCE_FOLDER, getPromptFileExtension, getPromptFileType, LEGACY_MODE_FILE_EXTENSION, getCleanPromptName, AGENT_FILE_EXTENSION, DEFAULT_AGENT_SKILLS_WORKSPACE_FOLDERS, DEFAULT_AGENT_SKILLS_USER_HOME_FOLDERS } from '../config/promptFileLocations.js';
 import { PromptsType } from '../promptTypes.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -23,6 +23,7 @@ import { IUserDataProfileService } from '../../../../../services/userDataProfile
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { IPathService } from '../../../../../services/path/common/pathService.js';
 
 /**
  * Utility class to locate prompt files.
@@ -36,7 +37,8 @@ export class PromptFilesLocator {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ISearchService private readonly searchService: ISearchService,
 		@IUserDataProfileService private readonly userDataService: IUserDataProfileService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IPathService private readonly pathService: IPathService,
 	) {
 	}
 
@@ -286,8 +288,13 @@ export class PromptFilesLocator {
 		const { folders } = this.workspaceService.getWorkspace();
 		for (const folder of folders) {
 			const file = joinPath(folder.uri, `.github/` + COPILOT_CUSTOM_INSTRUCTIONS_FILENAME);
-			if (await this.fileService.exists(file)) {
-				result.push(file);
+			try {
+				const stat = await this.fileService.stat(file);
+				if (stat.isFile) {
+					result.push(file);
+				}
+			} catch (error) {
+				this.logService.trace(`[PromptFilesLocator] Skipping copilot-instructions.md at ${file.toString()}: ${error}`);
 			}
 		}
 		return result;
@@ -358,7 +365,63 @@ export class PromptFilesLocator {
 		}
 		return undefined;
 	}
+
+	private async findAgentSkillsInFolder(uri: URI, relativePath: string, token: CancellationToken): Promise<URI[]> {
+		const result = [];
+		try {
+			const stat = await this.fileService.resolve(joinPath(uri, relativePath));
+			if (token.isCancellationRequested) {
+				return [];
+			}
+			if (stat.isDirectory && stat.children) {
+				for (const skillDir of stat.children) {
+					if (skillDir.isDirectory) {
+						const skillFile = joinPath(skillDir.resource, 'SKILL.md');
+						if (await this.fileService.exists(skillFile)) {
+							result.push(skillFile);
+						}
+					}
+				}
+			}
+		} catch (error) {
+			// no such folder, return empty list
+			return [];
+		}
+
+		return result;
+	}
+
+	/**
+	 * Searches for skills in all default directories in the workspace.
+	 * Each skill is stored in its own subdirectory with a SKILL.md file.
+	 */
+	public async findAgentSkillsInWorkspace(token: CancellationToken): Promise<Array<{ uri: URI; type: string }>> {
+		const workspace = this.workspaceService.getWorkspace();
+		const allResults: Array<{ uri: URI; type: string }> = [];
+		for (const folder of workspace.folders) {
+			for (const { path, type } of DEFAULT_AGENT_SKILLS_WORKSPACE_FOLDERS) {
+				const results = await this.findAgentSkillsInFolder(folder.uri, path, token);
+				allResults.push(...results.map(uri => ({ uri, type })));
+			}
+		}
+		return allResults;
+	}
+
+	/**
+	 * Searches for skills in all default directories in the home folder.
+	 * Each skill is stored in its own subdirectory with a SKILL.md file.
+	 */
+	public async findAgentSkillsInUserHome(token: CancellationToken): Promise<Array<{ uri: URI; type: string }>> {
+		const userHome = await this.pathService.userHome();
+		const allResults: Array<{ uri: URI; type: string }> = [];
+		for (const { path, type } of DEFAULT_AGENT_SKILLS_USER_HOME_FOLDERS) {
+			const results = await this.findAgentSkillsInFolder(userHome, path, token);
+			allResults.push(...results.map(uri => ({ uri, type })));
+		}
+		return allResults;
+	}
 }
+
 
 /**
  * Checks if the provided `pattern` could be a valid glob pattern.

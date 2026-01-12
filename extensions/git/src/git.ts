@@ -13,7 +13,7 @@ import { EventEmitter } from 'events';
 import * as filetype from 'file-type';
 import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows, pathEquals, isMacintosh, isDescendant, relativePathWithNoFallback, Mutable } from './util';
 import { CancellationError, CancellationToken, ConfigurationChangeEvent, LogOutputChannel, Progress, Uri, workspace } from 'vscode';
-import { Commit as ApiCommit, Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, RefQuery as ApiRefQuery, InitOptions } from './api/git';
+import { Commit as ApiCommit, Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, RefQuery as ApiRefQuery, InitOptions, DiffChange, Worktree as ApiWorktree } from './api/git';
 import * as byline from 'byline';
 import { StringDecoder } from 'string_decoder';
 
@@ -44,6 +44,8 @@ export interface Stash {
 	readonly index: number;
 	readonly description: string;
 	readonly branchName?: string;
+	readonly authorDate?: Date;
+	readonly commitDate?: Date;
 }
 
 interface MutableRemote extends Remote {
@@ -372,7 +374,7 @@ function sanitizeRelativePath(path: string): string {
 }
 
 const COMMIT_FORMAT = '%H%n%aN%n%aE%n%at%n%ct%n%P%n%D%n%B';
-const STASH_FORMAT = '%H%n%P%n%gd%n%gs';
+const STASH_FORMAT = '%H%n%P%n%gd%n%gs%n%at%n%ct';
 
 export interface ICloneOptions {
 	readonly parentPath: string;
@@ -678,6 +680,7 @@ export class Git {
 
 		options.env = assign({}, process.env, this.env, options.env || {}, {
 			VSCODE_GIT_COMMAND: args[0],
+			LANGUAGE: 'en',
 			LC_ALL: 'en_US.UTF-8',
 			LANG: 'en_US.UTF-8',
 			GIT_PAGER: 'cat'
@@ -867,12 +870,6 @@ export class GitStatusParser {
 	}
 }
 
-export interface Worktree {
-	readonly name: string;
-	readonly path: string;
-	readonly ref: string;
-}
-
 export interface Submodule {
 	name: string;
 	path: string;
@@ -1001,12 +998,12 @@ export function parseLsFiles(raw: string): LsFilesElement[] {
 		.map(([, mode, object, stage, file]) => ({ mode, object, stage, file }));
 }
 
-const stashRegex = /([0-9a-f]{40})\n(.*)\nstash@{(\d+)}\n(WIP\s)*on([^:]+):(.*)(?:\x00)/gmi;
+const stashRegex = /([0-9a-f]{40})\n(.*)\nstash@{(\d+)}\n(WIP\s)?on\s([^:]+):\s(.*)\n(\d+)\n(\d+)(?:\x00)/gmi;
 
 function parseGitStashes(raw: string): Stash[] {
 	const result: Stash[] = [];
 
-	let match, hash, parents, index, wip, branchName, description;
+	let match, hash, parents, index, wip, branchName, description, authorDate, commitDate;
 
 	do {
 		match = stashRegex.exec(raw);
@@ -1014,13 +1011,15 @@ function parseGitStashes(raw: string): Stash[] {
 			break;
 		}
 
-		[, hash, parents, index, wip, branchName, description] = match;
+		[, hash, parents, index, wip, branchName, description, authorDate, commitDate] = match;
 		result.push({
 			hash,
 			parents: parents.split(' '),
 			index: parseInt(index),
 			branchName: branchName.trim(),
-			description: wip ? `WIP (${description.trim()})` : description.trim()
+			description: wip ? `WIP (${description.trim()})` : description.trim(),
+			authorDate: authorDate ? new Date(Number(authorDate) * 1000) : undefined,
+			commitDate: commitDate ? new Date(Number(commitDate) * 1000) : undefined,
 		});
 	} while (true);
 
@@ -1086,6 +1085,90 @@ function parseGitChanges(repositoryRoot: string, raw: string): Change[] {
 	}
 
 	return result;
+}
+
+function parseGitChangesRaw(repositoryRoot: string, raw: string): DiffChange[] {
+	const changes: Change[] = [];
+	const numStats = new Map<string, { insertions: number; deletions: number }>();
+
+	let index = 0;
+	const segments = raw.trim().split('\x00').filter(s => s);
+
+	segmentsLoop:
+	while (index < segments.length) {
+		const segment = segments[index++];
+		if (!segment) {
+			break;
+		}
+
+		if (segment.startsWith(':')) {
+			// Parse --raw output
+			const [, , , , change] = segment.split(' ');
+			const filePath = segments[index++];
+			const originalUri = Uri.file(path.isAbsolute(filePath) ? filePath : path.join(repositoryRoot, filePath));
+
+			let uri = originalUri;
+			let renameUri = originalUri;
+			let status = Status.UNTRACKED;
+
+			switch (change[0]) {
+				case 'A':
+					status = Status.INDEX_ADDED;
+					break;
+				case 'M':
+					status = Status.MODIFIED;
+					break;
+				case 'D':
+					status = Status.DELETED;
+					break;
+				case 'R': {
+					if (index >= segments.length) {
+						break;
+					}
+					const newPath = segments[index++];
+					if (!newPath) {
+						break;
+					}
+
+					status = Status.INDEX_RENAMED;
+					uri = renameUri = Uri.file(path.isAbsolute(newPath) ? newPath : path.join(repositoryRoot, newPath));
+					break;
+				}
+				default:
+					// Unknown status
+					break segmentsLoop;
+			}
+
+			changes.push({ status, uri, originalUri, renameUri });
+		} else {
+			// Parse --numstat output
+			const [insertions, deletions, filePath] = segment.split('\t');
+
+			let numstatPath: string;
+			if (filePath === '') {
+				// For renamed files, filePath is empty and the old/new paths
+				// are in the next two null-terminated segments. We skip the
+				// old path and use the new path for the stats key.
+				index++;
+
+				const renamePath = segments[index++];
+				numstatPath = path.isAbsolute(renamePath) ? renamePath : path.join(repositoryRoot, renamePath);
+			} else {
+				numstatPath = path.isAbsolute(filePath) ? filePath : path.join(repositoryRoot, filePath);
+			}
+
+			numStats.set(numstatPath, {
+				insertions: insertions === '-' ? 0 : parseInt(insertions),
+				deletions: deletions === '-' ? 0 : parseInt(deletions),
+			});
+		}
+	}
+
+	return changes.map(change => ({
+		...change,
+		insertions: numStats.get(change.uri.fsPath)?.insertions ?? 0,
+		deletions: numStats.get(change.uri.fsPath)?.deletions ?? 0,
+	}));
 }
 
 export interface BlameInformation {
@@ -1232,6 +1315,10 @@ export interface PullOptions {
 	readonly tags?: boolean;
 	readonly autoStash?: boolean;
 	readonly cancellationToken?: CancellationToken;
+}
+
+export interface Worktree extends ApiWorktree {
+	readonly commitDetails?: ApiCommit;
 }
 
 export class Repository {
@@ -1698,8 +1785,35 @@ export class Repository {
 		return result.stdout.trim();
 	}
 
-	async diffBetween2(ref1: string, ref2: string, options: { similarityThreshold?: number }): Promise<Change[]> {
-		return await this.diffFiles(`${ref1}...${ref2}`, { cached: false, similarityThreshold: options.similarityThreshold });
+	async diffBetweenPatch(ref: string, options: { path?: string }): Promise<string> {
+		const args = ['diff', ref, '--'];
+
+		if (options.path) {
+			args.push(this.sanitizeRelativePath(options.path));
+		}
+
+		const result = await this.exec(args);
+		return result.stdout;
+	}
+
+	async diffBetweenWithStats(ref: string, options: { path?: string; similarityThreshold?: number }): Promise<DiffChange[]> {
+		const args = ['diff', '--raw', '--numstat', '--diff-filter=ADMR', '-z',];
+
+		if (options.similarityThreshold) {
+			args.push(`--find-renames=${options.similarityThreshold}%`);
+		}
+
+		args.push(...[ref, '--']);
+		if (options.path) {
+			args.push(this.sanitizeRelativePath(options.path));
+		}
+
+		const gitResult = await this.exec(args);
+		if (gitResult.exitCode) {
+			return [];
+		}
+
+		return parseGitChangesRaw(this.repositoryRoot, gitResult.stdout);
 	}
 
 	private async diffFiles(ref: string | undefined, options: { cached: boolean; similarityThreshold?: number }): Promise<Change[]> {
@@ -1753,8 +1867,8 @@ export class Repository {
 	}
 
 
-	async diffTrees(treeish1: string, treeish2?: string, options?: { similarityThreshold?: number }): Promise<Change[]> {
-		const args = ['diff-tree', '-r', '--name-status', '-z', '--diff-filter=ADMR'];
+	async diffTrees(treeish1: string, treeish2?: string, options?: { similarityThreshold?: number }): Promise<DiffChange[]> {
+		const args = ['diff-tree', '-r', '--raw', '--numstat', '--diff-filter=ADMR', '-z'];
 
 		if (options?.similarityThreshold) {
 			args.push(`--find-renames=${options.similarityThreshold}%`);
@@ -1773,7 +1887,7 @@ export class Repository {
 			return [];
 		}
 
-		return parseGitChanges(this.repositoryRoot, gitResult.stdout);
+		return parseGitChangesRaw(this.repositoryRoot, gitResult.stdout);
 	}
 
 	async getMergeBase(ref1: string, ref2: string, ...refs: string[]): Promise<string | undefined> {
@@ -1835,7 +1949,15 @@ export class Repository {
 	async stage(path: string, data: Uint8Array): Promise<void> {
 		const relativePath = this.sanitizeRelativePath(path);
 		const child = this.stream(['hash-object', '--stdin', '-w', '--path', relativePath], { stdio: [null, null, null] });
-		child.stdin!.end(data);
+
+		if (!child.stdin) {
+			throw new GitError({
+				message: 'Failed to spawn git process',
+				exitCode: -1
+			});
+		}
+
+		child.stdin.end(data);
 
 		const { exitCode, stdout } = await exec(child);
 		const hash = stdout.toString('utf8');
@@ -2418,9 +2540,13 @@ export class Repository {
 		}
 	}
 
-	async blame2(path: string, ref?: string): Promise<BlameInformation[] | undefined> {
+	async blame2(path: string, ref?: string, ignoreWhitespace?: boolean): Promise<BlameInformation[] | undefined> {
 		try {
 			const args = ['blame', '--root', '--incremental'];
+
+			if (ignoreWhitespace) {
+				args.push('-w');
+			}
 
 			if (ref) {
 				args.push(ref);
@@ -2463,13 +2589,19 @@ export class Repository {
 		}
 	}
 
-	async popStash(index?: number): Promise<void> {
+	async popStash(index?: number, options?: { reinstateStagedChanges?: boolean }): Promise<void> {
 		const args = ['stash', 'pop'];
+		if (options?.reinstateStagedChanges) {
+			args.push('--index');
+		}
 		await this.popOrApplyStash(args, index);
 	}
 
-	async applyStash(index?: number): Promise<void> {
+	async applyStash(index?: number, options?: { reinstateStagedChanges?: boolean }): Promise<void> {
 		const args = ['stash', 'apply'];
+		if (options?.reinstateStagedChanges) {
+			args.push('--index');
+		}
 		await this.popOrApplyStash(args, index);
 	}
 
@@ -2585,19 +2717,23 @@ export class Repository {
 
 				if (limit !== 0 && parser.status.length > limit) {
 					child.removeListener('close', onClose);
-					child.stdout!.removeListener('data', onStdoutData);
+					child.stdout?.removeListener('data', onStdoutData);
 					child.kill();
 
 					c({ status: parser.status.slice(0, limit), statusLength: parser.status.length, didHitLimit: true });
 				}
 			};
 
-			child.stdout!.setEncoding('utf8');
-			child.stdout!.on('data', onStdoutData);
+			if (child.stdout) {
+				child.stdout.setEncoding('utf8');
+				child.stdout.on('data', onStdoutData);
+			}
 
 			const stderrData: string[] = [];
-			child.stderr!.setEncoding('utf8');
-			child.stderr!.on('data', raw => stderrData.push(raw as string));
+			if (child.stderr) {
+				child.stderr.setEncoding('utf8');
+				child.stderr.on('data', raw => stderrData.push(raw as string));
+			}
 
 			child.on('error', cpErrorHandler(e));
 			child.on('close', onClose);
@@ -2818,14 +2954,6 @@ export class Repository {
 	}
 
 	private async getWorktreesFS(): Promise<Worktree[]> {
-		const config = workspace.getConfiguration('git', Uri.file(this.repositoryRoot));
-		const shouldDetectWorktrees = config.get<boolean>('detectWorktrees') === true;
-
-		if (!shouldDetectWorktrees) {
-			this.logger.info('[Git][getWorktreesFS] Worktree detection is disabled, skipping worktree detection');
-			return [];
-		}
-
 		try {
 			// List all worktree folder names
 			const worktreesPath = path.join(this.dotGit.commonPath ?? this.dotGit.path, 'worktrees');
@@ -2850,6 +2978,8 @@ export class Repository {
 						path: gitdirContent.replace(/\/.git.*$/, ''),
 						// Remove 'ref: ' prefix
 						ref: headContent.replace(/^ref: /, ''),
+						// Detached if HEAD does not start with 'ref: '
+						detached: !headContent.startsWith('ref: ')
 					});
 				} catch (err) {
 					if (/ENOENT/.test(err.message)) {

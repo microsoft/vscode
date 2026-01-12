@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BasePolicy } from './basePolicy';
-import { CategoryDto, PolicyDto } from './policyDto';
-import { renderProfileString } from './render';
-import { Category, NlsString, PolicyType, LanguageTranslations } from './types';
+import { BasePolicy } from './basePolicy.ts';
+import type { CategoryDto, PolicyDto } from './policyDto.ts';
+import { renderProfileString } from './render.ts';
+import { type Category, type NlsString, PolicyType, type LanguageTranslations } from './types.ts';
 
 export class NumberPolicy extends BasePolicy {
 
@@ -24,15 +24,18 @@ export class NumberPolicy extends BasePolicy {
 		return new NumberPolicy(name, { moduleName: '', name: { nlsKey: category.name.key, value: category.name.value } }, minimumVersion, { nlsKey: localization.description.key, value: localization.description.value }, '', defaultValue);
 	}
 
+	protected readonly defaultValue: number;
+
 	private constructor(
 		name: string,
 		category: Category,
 		minimumVersion: string,
 		description: NlsString,
 		moduleName: string,
-		protected readonly defaultValue: number,
+		defaultValue: number,
 	) {
 		super(PolicyType.Number, name, category, minimumVersion, description, moduleName);
+		this.defaultValue = defaultValue;
 	}
 
 	protected renderADMXElements(): string[] {

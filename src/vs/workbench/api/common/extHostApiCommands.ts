@@ -550,6 +550,7 @@ const newCommands: ApiCommand[] = [
 				attachments: v.attachments,
 				autoSend: v.autoSend,
 				position: v.position ? typeConverters.Position.from(v.position) : undefined,
+				resolveOnResponse: v.resolveOnResponse
 			};
 		})],
 		ApiCommandResult.Void
@@ -563,6 +564,7 @@ type InlineChatEditorApiArg = {
 	attachments?: vscode.Uri[];
 	autoSend?: boolean;
 	position?: vscode.Position;
+	resolveOnResponse?: boolean;
 };
 
 type InlineChatRunOptions = {
@@ -572,6 +574,7 @@ type InlineChatRunOptions = {
 	attachments?: URI[];
 	autoSend?: boolean;
 	position?: IPosition;
+	resolveOnResponse?: boolean;
 };
 
 //#endregion

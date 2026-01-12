@@ -30,6 +30,7 @@ import { WebWorkerDescriptor } from '../../../../platform/webWorker/browser/webW
 import { IWebWorkerService } from '../../../../platform/webWorker/browser/webWorkerService.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
+import { IDefaultLogLevelsService } from '../../log/common/defaultLogLevels.js';
 import { ExtensionHostExitCode, IExtensionHostInitData, MessageType, UIKind, createMessageOfType, isMessageOfType } from '../common/extensionHostProtocol.js';
 import { LocalWebWorkerRunningLocation } from '../common/extensionRunningLocation.js';
 import { ExtensionHostExtensions, ExtensionHostStartup, IExtensionHost } from '../common/extensions.js';
@@ -72,6 +73,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		@ILayoutService private readonly _layoutService: ILayoutService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IWebWorkerService private readonly _webWorkerService: IWebWorkerService,
+		@IDefaultLogLevelsService private readonly _defaultLogLevelsService: IDefaultLogLevelsService,
 	) {
 		super();
 		this._isTerminating = false;
@@ -119,8 +121,13 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			console.warn(`The web worker extension host is started in a same-origin iframe!`);
 		}
 
-		const relativeExtensionHostIframeSrc = FileAccess.asBrowserUri(iframeModulePath);
-		return `${relativeExtensionHostIframeSrc.toString(true)}${suffix}`;
+		const relativeExtensionHostIframeSrc = this._webWorkerService.getWorkerUrl(new WebWorkerDescriptor({
+			esmModuleLocation: FileAccess.asBrowserUri(iframeModulePath),
+			esmModuleLocationBundler: new URL(`../worker/webWorkerExtensionHostIframe.html`, import.meta.url),
+			label: 'webWorkerExtensionHostIframe'
+		}));
+
+		return `${relativeExtensionHostIframeSrc}${suffix}`;
 	}
 
 	public async start(): Promise<IMessagePassingProtocol> {
@@ -138,7 +145,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		const iframe = document.createElement('iframe');
 		iframe.setAttribute('class', 'web-worker-ext-host-iframe');
 		iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
-		iframe.setAttribute('allow', 'usb; serial; hid; cross-origin-isolated;');
+		iframe.setAttribute('allow', 'usb; serial; hid; cross-origin-isolated; local-network-access;');
 		iframe.setAttribute('aria-hidden', 'true');
 		iframe.style.display = 'none';
 
@@ -310,7 +317,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
 				globalStorageHome: this._userDataProfilesService.defaultProfile.globalStorageHome,
 				workspaceStorageHome: this._environmentService.workspaceStorageHome,
-				extensionLogLevel: this._environmentService.extensionLogLevel
+				extensionLogLevel: this._defaultLogLevelsService.defaultLogLevels.extensions
 			},
 			workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {
 				configuration: workspace.configuration || undefined,
@@ -332,6 +339,8 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				firstSessionDate: this._telemetryService.firstSessionDate,
 				msftInternal: this._telemetryService.msftInternal
 			},
+			remoteExtensionTips: this._productService.remoteExtensionTips,
+			virtualWorkspaceExtensionTips: this._productService.virtualWorkspaceExtensionTips,
 			logLevel: this._logService.getLevel(),
 			loggers: [...this._loggerService.getRegisteredLoggers()],
 			logsLocation: this._extensionHostLogsLocation,
@@ -349,5 +358,5 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 const extensionHostWorkerMainDescriptor = new WebWorkerDescriptor({
 	label: 'extensionHostWorkerMain',
 	esmModuleLocation: () => FileAccess.asBrowserUri('vs/workbench/api/worker/extensionHostWorkerMain.js'),
-	esmModuleLocationBundler: () => new URL('../../../api/worker/extensionHostWorkerMain.ts?worker', import.meta.url),
+	esmModuleLocationBundler: () => new URL('../../../api/worker/extensionHostWorkerMain.ts?esm', import.meta.url),
 });

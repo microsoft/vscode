@@ -31,12 +31,11 @@ import { isHighContrast } from '../../../../../platform/theme/common/theme.js';
 import { registerThemingParticipant } from '../../../../../platform/theme/common/themeService.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
-import { ACTIVITY_BAR_BADGE_BACKGROUND } from '../../../../common/theme.js';
+import { ACTIVITY_BAR_FOREGROUND } from '../../../../common/theme.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../../services/statusbar/browser/statusbar.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { AccessibilityVoiceSettingId, SpeechTimeoutDefault, accessibilityConfigurationNodeBase } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { InlineChatController } from '../../../inlineChat/browser/inlineChatController.js';
 import { CTX_INLINE_CHAT_FOCUSED, MENU_INLINE_CHAT_WIDGET_SECONDARY } from '../../../inlineChat/common/inlineChat.js';
@@ -46,12 +45,12 @@ import { SearchContext } from '../../../search/common/constants.js';
 import { TextToSpeechInProgress as GlobalTextToSpeechInProgress, HasSpeechProvider, ISpeechService, KeywordRecognitionStatus, SpeechToTextInProgress, SpeechToTextStatus, TextToSpeechStatus } from '../../../speech/common/speechService.js';
 import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
 import { IChatExecuteActionContext } from '../../browser/actions/chatExecuteActions.js';
-import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from '../../browser/chat.js';
-import { IChatAgentService } from '../../common/chatAgents.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IChatResponseModel } from '../../common/chatModel.js';
-import { KEYWORD_ACTIVIATION_SETTING_ID } from '../../common/chatService.js';
-import { ChatResponseViewModel, IChatResponseViewModel, isResponseVM } from '../../common/chatViewModel.js';
+import { IChatWidget, IChatWidgetService, IQuickChatService } from '../../browser/chat.js';
+import { IChatAgentService } from '../../common/participants/chatAgents.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { IChatResponseModel } from '../../common/model/chatModel.js';
+import { KEYWORD_ACTIVIATION_SETTING_ID } from '../../common/chatService/chatService.js';
+import { ChatResponseViewModel, IChatResponseViewModel, isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { VoiceChatInProgress as GlobalVoiceChatInProgress, IVoiceChatService } from '../../common/voiceChatService.js';
 import './media/voiceChatActions.css';
@@ -64,7 +63,6 @@ const VoiceChatSessionContexts: VoiceChatSessionContext[] = ['view', 'inline', '
 // Global Context Keys (set on global context key service)
 const CanVoiceChat = ContextKeyExpr.and(ChatContextKeys.enabled, HasSpeechProvider);
 const FocusInChatInput = ContextKeyExpr.or(CTX_INLINE_CHAT_FOCUSED, ChatContextKeys.inChatInput);
-const AnyChatRequestInProgress = ChatContextKeys.requestInProgress;
 
 // Scoped Context Keys (set on per-chat-context scoped context key service)
 const ScopedVoiceChatGettingReady = new RawContextKey<boolean>('scopedVoiceChatGettingReady', false, { type: 'boolean', description: localize('scopedVoiceChatGettingReady', "True when getting ready for receiving voice input from the microphone for voice chat. This key is only defined scoped, per chat context.") });
@@ -103,7 +101,6 @@ class VoiceChatSessionControllerFactory {
 		const quickChatService = accessor.get(IQuickChatService);
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 		const editorService = accessor.get(IEditorService);
-		const viewsService = accessor.get(IViewsService);
 
 		switch (context) {
 			case 'focused': {
@@ -111,7 +108,7 @@ class VoiceChatSessionControllerFactory {
 				return controller ?? VoiceChatSessionControllerFactory.create(accessor, 'view'); // fallback to 'view'
 			}
 			case 'view': {
-				const chatWidget = await showChatView(viewsService, layoutService);
+				const chatWidget = await chatWidgetService.revealWidget();
 				if (chatWidget) {
 					return VoiceChatSessionControllerFactory.doCreateForChatWidget('view', chatWidget);
 				}
@@ -434,10 +431,7 @@ export class VoiceChatInChatViewAction extends VoiceChatWithHoldModeAction {
 			id: VoiceChatInChatViewAction.ID,
 			title: localize2('workbench.action.chat.voiceChatInView.label', "Voice Chat in Chat View"),
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(
-				CanVoiceChat,
-				ChatContextKeys.requestInProgress.negate() // disable when a chat request is in progress
-			),
+			precondition: CanVoiceChat,
 			f1: true
 		}, 'view');
 	}
@@ -475,8 +469,7 @@ export class HoldToVoiceChatInChatViewAction extends Action2 {
 
 		const instantiationService = accessor.get(IInstantiationService);
 		const keybindingService = accessor.get(IKeybindingService);
-		const viewsService = accessor.get(IViewsService);
-		const layoutService = accessor.get(IWorkbenchLayoutService);
+		const widgetService = accessor.get(IChatWidgetService);
 
 		const holdMode = keybindingService.enableKeybindingHoldMode(HoldToVoiceChatInChatViewAction.ID);
 
@@ -489,7 +482,7 @@ export class HoldToVoiceChatInChatViewAction extends Action2 {
 			}
 		}, VOICE_KEY_HOLD_THRESHOLD);
 
-		(await showChatView(viewsService, layoutService))?.focusInput();
+		(await widgetService.revealWidget())?.focusInput();
 
 		await holdMode;
 		handle.dispose();
@@ -512,7 +505,6 @@ export class InlineVoiceChatAction extends VoiceChatWithHoldModeAction {
 			precondition: ContextKeyExpr.and(
 				CanVoiceChat,
 				ActiveEditorContext,
-				ChatContextKeys.requestInProgress.negate() // disable when a chat request is in progress
 			),
 			f1: true
 		}, 'inline');
@@ -528,10 +520,7 @@ export class QuickVoiceChatAction extends VoiceChatWithHoldModeAction {
 			id: QuickVoiceChatAction.ID,
 			title: localize2('workbench.action.chat.quickVoiceChat.label', "Quick Voice Chat"),
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(
-				CanVoiceChat,
-				ChatContextKeys.requestInProgress.negate() // disable when a chat request is in progress
-			),
+			precondition: CanVoiceChat,
 			f1: true
 		}, 'quick');
 	}
@@ -577,7 +566,6 @@ export class StartVoiceChatAction extends Action2 {
 			precondition: ContextKeyExpr.and(
 				CanVoiceChat,
 				ScopedVoiceChatGettingReady.negate(),	// disable when voice chat is getting ready
-				AnyChatRequestInProgress?.negate(),		// disable when any chat request is in progress
 				SpeechToTextInProgress.negate()			// disable when speech to text is in progress
 			),
 			menu: primaryVoiceActionMenu(ContextKeyExpr.and(
@@ -688,8 +676,7 @@ class ChatSynthesizerSessionController {
 		const contextKeyService = accessor.get(IContextKeyService);
 		let chatWidget = chatWidgetService.getWidgetBySessionResource(response.session.sessionResource);
 		if (chatWidget?.location === ChatAgentLocation.EditorInline) {
-			// workaround for https://github.com/microsoft/vscode/issues/212785
-			chatWidget = chatWidgetService.lastFocusedWidget;
+			chatWidget = chatWidgetService.lastFocusedWidget; // workaround for https://github.com/microsoft/vscode/issues/212785
 		}
 
 		return {
@@ -871,8 +858,8 @@ export class ReadChatResponseAloud extends Action2 {
 				when: ContextKeyExpr.and(
 					CanVoiceChat,
 					ChatContextKeys.isResponse,						// only for responses
-					ScopedChatSynthesisInProgress.negate(),	// but not when already in progress
-					ChatContextKeys.responseIsFiltered.negate(),		// and not when response is filtered
+					ScopedChatSynthesisInProgress.negate(),			// but not when already in progress
+					ChatContextKeys.responseIsFiltered.negate(),	// and not when response is filtered
 				),
 				group: 'navigation',
 				order: -10 // first
@@ -881,7 +868,7 @@ export class ReadChatResponseAloud extends Action2 {
 				when: ContextKeyExpr.and(
 					CanVoiceChat,
 					ChatContextKeys.isResponse,						// only for responses
-					ScopedChatSynthesisInProgress.negate(),	// but not when already in progress
+					ScopedChatSynthesisInProgress.negate(),			// but not when already in progress
 					ChatContextKeys.responseIsFiltered.negate()		// and not when response is filtered
 				),
 				group: 'navigation',
@@ -980,7 +967,7 @@ export class StopReadChatItemAloud extends Action2 {
 				{
 					id: MenuId.ChatMessageFooter,
 					when: ContextKeyExpr.and(
-						ScopedChatSynthesisInProgress,		// only when in progress
+						ScopedChatSynthesisInProgress,				// only when in progress
 						ChatContextKeys.isResponse,					// only for responses
 						ChatContextKeys.responseIsFiltered.negate()	// but not when response is filtered
 					),
@@ -990,7 +977,7 @@ export class StopReadChatItemAloud extends Action2 {
 				{
 					id: MENU_INLINE_CHAT_WIDGET_SECONDARY,
 					when: ContextKeyExpr.and(
-						ScopedChatSynthesisInProgress,		// only when in progress
+						ScopedChatSynthesisInProgress,				// only when in progress
 						ChatContextKeys.isResponse,					// only for responses
 						ChatContextKeys.responseIsFiltered.negate()	// but not when response is filtered
 					),
@@ -1256,7 +1243,7 @@ registerThemingParticipant((theme, collector) => {
 	let activeRecordingColor: Color | undefined;
 	let activeRecordingDimmedColor: Color | undefined;
 	if (!isHighContrast(theme.type)) {
-		activeRecordingColor = theme.getColor(ACTIVITY_BAR_BADGE_BACKGROUND) ?? theme.getColor(focusBorder);
+		activeRecordingColor = theme.getColor(ACTIVITY_BAR_FOREGROUND) ?? theme.getColor(focusBorder);
 		activeRecordingDimmedColor = activeRecordingColor?.transparent(0.38);
 	} else {
 		activeRecordingColor = theme.getColor(contrastBorder);

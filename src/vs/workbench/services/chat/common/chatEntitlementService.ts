@@ -26,7 +26,7 @@ import { URI } from '../../../../base/common/uri.js';
 import Severity from '../../../../base/common/severity.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { isWeb } from '../../../../base/common/platform.js';
-import { ILifecycleService, LifecyclePhase } from '../../lifecycle/common/lifecycle.js';
+import { ILifecycleService } from '../../lifecycle/common/lifecycle.js';
 import { Mutable } from '../../../../base/common/types.js';
 import { distinct } from '../../../../base/common/arrays.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -216,6 +216,23 @@ function isAnonymous(configurationService: IConfigurationService, entitlement: C
 	return true;
 }
 
+type ChatEntitlementClassification = {
+	owner: 'bpasero';
+	comment: 'Provides insight into chat entitlements.';
+	chatHidden: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether chat is hidden or not.' };
+	chatEntitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The current chat entitlement of the user.' };
+	chatAnonymous: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user is anonymously using chat.' };
+	chatRegistered: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user is registered for chat.' };
+	chatDisabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether chat is disabled or not.' };
+};
+type ChatEntitlementEvent = {
+	chatHidden: boolean;
+	chatEntitlement: ChatEntitlement;
+	chatAnonymous: boolean;
+	chatRegistered: boolean;
+	chatDisabled: boolean;
+};
+
 function logChatEntitlements(state: IChatEntitlementContextState, configurationService: IConfigurationService, telemetryService: ITelemetryService): void {
 	telemetryService.publicLog2<ChatEntitlementEvent, ChatEntitlementClassification>('chatEntitlements', {
 		chatHidden: Boolean(state.hidden),
@@ -240,7 +257,6 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 	) {
 		super();
 
@@ -282,13 +298,8 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		);
 		this.sentimentObs = observableFromEvent(this.onDidChangeSentiment, () => this.sentiment);
 
-		if ((
-			// TODO@bpasero remove this condition and 'serverlessWebEnabled' once Chat web support lands
-			isWeb &&
-			!environmentService.remoteAuthority &&
-			!configurationService.getValue('chat.experimental.serverlessWebEnabled')
-		)) {
-			ChatEntitlementContextKeys.Setup.hidden.bindTo(this.contextKeyService).set(true); // hide copilot UI
+		if ((isWeb && !environmentService.remoteAuthority)) {
+			ChatEntitlementContextKeys.Setup.hidden.bindTo(this.contextKeyService).set(true); // hide copilot UI on web if unsupported
 			return;
 		}
 
@@ -401,13 +412,6 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 
 		this._register(this.onDidChangeEntitlement(() => updateAnonymousUsage()));
 		this._register(this.onDidChangeSentiment(() => updateAnonymousUsage()));
-
-		// TODO@bpasero workaround for https://github.com/microsoft/vscode-internalbacklog/issues/6275
-		this.lifecycleService.when(LifecyclePhase.Eventually).then(() => {
-			if (this.context?.hasValue) {
-				logChatEntitlements(this.context.value.state, this.configurationService, this.telemetryService);
-			}
-		});
 	}
 
 	acceptQuotas(quotas: IQuotas): void {
@@ -1056,14 +1060,7 @@ export class ChatEntitlementRequests extends Disposable {
 	async signIn(options?: { useSocialProvider?: string; additionalScopes?: readonly string[] }) {
 		const providerId = ChatEntitlementRequests.providerId(this.configurationService);
 
-		let defaultProviderScopes: string[];
-		if (this.configurationService.getValue<unknown>('chat.signInWithAlternateScopes') === true) {
-			defaultProviderScopes = defaultChat.providerScopes.at(-1) ?? [];
-		} else {
-			defaultProviderScopes = defaultChat.providerScopes.at(0) ?? [];
-		}
-
-		const scopes = options?.additionalScopes ? distinct([...defaultProviderScopes, ...options.additionalScopes]) : defaultProviderScopes;
+		const scopes = options?.additionalScopes ? distinct([...defaultChat.providerScopes[0], ...options.additionalScopes]) : defaultChat.providerScopes[0];
 		const session = await this.authenticationService.createSession(
 			providerId,
 			scopes,
@@ -1113,23 +1110,6 @@ export interface IChatEntitlementContextState extends IChatSentiment {
 	 */
 	registered?: boolean;
 }
-
-type ChatEntitlementClassification = {
-	owner: 'bpasero';
-	comment: 'Provides insight into chat entitlements.';
-	chatHidden: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether chat is hidden or not.' };
-	chatEntitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The current chat entitlement of the user.' };
-	chatAnonymous: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user is anonymously using chat.' };
-	chatRegistered: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user is registered for chat.' };
-	chatDisabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether chat is disabled or not.' };
-};
-type ChatEntitlementEvent = {
-	chatHidden: boolean;
-	chatEntitlement: ChatEntitlement;
-	chatAnonymous: boolean;
-	chatRegistered: boolean;
-	chatDisabled: boolean;
-};
 
 export class ChatEntitlementContext extends Disposable {
 
@@ -1258,6 +1238,10 @@ export class ChatEntitlementContext extends Disposable {
 			} else if (this._state.entitlement === ChatEntitlement.Available) {
 				this._state.registered = false; // only reset when signed-in user can sign-up for free
 			}
+		}
+
+		if (isAnonymous(this.configurationService, this._state.entitlement, this._state)) {
+			this._state.sku = 'no_auth_limited_copilot'; // no-auth users have a fixed SKU
 		}
 
 		if (oldState === JSON.stringify(this._state)) {

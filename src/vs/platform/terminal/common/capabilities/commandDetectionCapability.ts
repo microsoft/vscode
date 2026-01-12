@@ -373,9 +373,9 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	}
 
 	handleCommandExecuted(options?: IHandleCommandOptions): void {
+		this._ensureCurrentCommandId(this._currentCommand.command ?? this._currentCommand.extractCommandLine());
 		this._ptyHeuristics.value.handleCommandExecuted(options);
 		this._currentCommand.markExecutedTime();
-		this._ensureCurrentCommandId(this._currentCommand.command ?? this._currentCommand.extractCommandLine());
 	}
 
 	handleCommandFinished(exitCode: number | undefined, options?: IHandleCommandOptions): void {
@@ -427,13 +427,15 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		this._handleCommandStartOptions = undefined;
 	}
 
-	private _ensureCurrentCommandId(commandLine: string | undefined): void {
-		if (this._nextCommandId?.commandId && isString(commandLine) && commandLine.trim() === this._nextCommandId.command.trim()) {
+	private _ensureCurrentCommandId(_commandLine: string | undefined): void {
+		if (this._nextCommandId?.commandId) {
+			// Assign the pre-set command ID to the current command. The timing of setNextCommandId
+			// (called right before runCommand) and _ensureCurrentCommandId (called on command
+			// executed) ensures we're matching the right command without needing string comparison.
 			if (this._currentCommand.id !== this._nextCommandId.commandId) {
 				this._currentCommand.id = this._nextCommandId.commandId;
 			}
 			this._nextCommandId = undefined;
-			return;
 		}
 	}
 

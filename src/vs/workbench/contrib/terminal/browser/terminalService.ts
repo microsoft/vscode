@@ -396,10 +396,14 @@ export class TerminalService extends Disposable implements ITerminalService {
 	}
 
 	async focusInstance(instance: ITerminalInstance): Promise<void> {
-		if (instance.target === TerminalLocation.Editor) {
-			return this._terminalEditorService.focusInstance(instance);
+		if (this._activeInstance !== instance) {
+			this.setActiveInstance(instance);
 		}
-		return this._terminalGroupService.focusInstance(instance);
+		if (instance.target === TerminalLocation.Editor) {
+			await this._terminalEditorService.focusInstance(instance);
+			return;
+		}
+		await this._terminalGroupService.focusInstance(instance);
 	}
 
 	async focusActiveInstance(): Promise<void> {
@@ -975,9 +979,9 @@ export class TerminalService extends Disposable implements ITerminalService {
 		// Await the initialization of available profiles as long as this is not a pty terminal or a
 		// local terminal in a remote workspace as profile won't be used in those cases and these
 		// terminals need to be launched before remote connections are established.
+		const isLocalInRemoteTerminal = this._remoteAgentService.getConnection() && URI.isUri(options?.cwd) && options?.cwd.scheme === Schemas.file;
 		if (this._terminalProfileService.availableProfiles.length === 0) {
 			const isPtyTerminal = options?.config && hasKey(options.config, { customPtyImplementation: true });
-			const isLocalInRemoteTerminal = this._remoteAgentService.getConnection() && URI.isUri(options?.cwd) && options?.cwd.scheme === Schemas.vscodeFileResource;
 			if (!isPtyTerminal && !isLocalInRemoteTerminal) {
 				if (this._connectionState === TerminalConnectionState.Connecting) {
 					mark(`code/terminal/willGetProfiles`);
@@ -989,7 +993,18 @@ export class TerminalService extends Disposable implements ITerminalService {
 			}
 		}
 
-		const config = options?.config || this._terminalProfileService.getDefaultProfile();
+		let config = options?.config;
+		if (!config && isLocalInRemoteTerminal) {
+			const backend = await this._terminalInstanceService.getBackend(undefined);
+			const executable = await backend?.getDefaultSystemShell();
+			if (executable) {
+				config = { executable };
+			}
+		}
+
+		if (!config) {
+			config = this._terminalProfileService.getDefaultProfile();
+		}
 		const shellLaunchConfig = config && hasKey(config, { extensionIdentifier: true }) ? {} : this._terminalInstanceService.convertProfileToShellLaunchConfig(config || {});
 
 		// Get the contributed profile if it was provided
@@ -1083,18 +1098,20 @@ export class TerminalService extends Disposable implements ITerminalService {
 
 	async createDetachedTerminal(options: IDetachedXTermOptions): Promise<IDetachedTerminalInstance> {
 		const ctor = await TerminalInstance.getXtermConstructor(this._keybindingService, this._contextKeyService);
+		const capabilities = options.capabilities ?? new TerminalCapabilityStore();
 		const xterm = this._instantiationService.createInstance(XtermTerminal, undefined, ctor, {
 			cols: options.cols,
 			rows: options.rows,
 			xtermColorProvider: options.colorProvider,
-			capabilities: options.capabilities || new TerminalCapabilityStore(),
+			capabilities,
+			disableOverviewRuler: options.disableOverviewRuler,
 		}, undefined);
 
 		if (options.readonly) {
 			xterm.raw.attachCustomKeyEventHandler(() => false);
 		}
 
-		const instance = new DetachedTerminal(xterm, options, this._instantiationService);
+		const instance = new DetachedTerminal(xterm, { ...options, capabilities }, this._instantiationService);
 		this._detachedXterms.add(instance);
 		const l = xterm.onDidDispose(() => {
 			this._detachedXterms.delete(instance);

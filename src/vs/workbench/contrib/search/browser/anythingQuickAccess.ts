@@ -52,6 +52,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ASK_QUICK_QUESTION_ACTION_ID } from '../../chat/browser/actions/chatQuickInputActions.js';
 import { IQuickChatService } from '../../chat/browser/chat.js';
@@ -136,6 +137,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IQuickChatService private readonly quickChatService: IQuickChatService,
 		@ILogService private readonly logService: ILogService,
 		@ICustomEditorLabelService private readonly customEditorLabelService: ICustomEditorLabelService
@@ -827,7 +829,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		}
 
 		type IHelpAnythingQuickPickItem = IAnythingQuickPickItem & { commandCenterOrder: number };
-		const providers: IHelpAnythingQuickPickItem[] = this.lazyRegistry.value.getQuickAccessProviders()
+		const providers: IHelpAnythingQuickPickItem[] = this.lazyRegistry.value.getQuickAccessProviders(this.contextKeyService)
 			.filter(p => p.helpEntries.some(h => h.commandCenterOrder !== undefined))
 			.flatMap(provider => provider.helpEntries
 				.filter(h => h.commandCenterOrder !== undefined)

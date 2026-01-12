@@ -8,7 +8,7 @@ import fs from 'fs';
 import minimatch from 'minimatch';
 import { makeUniversalApp } from 'vscode-universal-bundler';
 
-const root = path.dirname(path.dirname(__dirname));
+const root = path.dirname(path.dirname(import.meta.dirname));
 
 async function main(buildDir?: string) {
 	const arch = process.env['VSCODE_ARCH'];
@@ -29,8 +29,6 @@ async function main(buildDir?: string) {
 		'**/CodeResources',
 		'**/Credits.rtf',
 		'**/policies/{*.mobileconfig,**/*.plist}',
-		// TODO: Should we consider expanding this to other files in this area?
-		'**/node_modules/@parcel/node-addon-api/nothing.target.mk',
 	];
 
 	await makeUniversalApp({
@@ -58,7 +56,7 @@ async function main(buildDir?: string) {
 	fs.writeFileSync(productJsonPath, JSON.stringify(productJson, null, '\t'));
 }
 
-if (require.main === module) {
+if (import.meta.main) {
 	main(process.argv[2]).catch(err => {
 		console.error(err);
 		process.exit(1);
