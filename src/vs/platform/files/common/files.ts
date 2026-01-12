@@ -410,6 +410,12 @@ export interface IFileOpenForWriteOptions extends IFileUnlockOptions {
 	 * A hint that the file should be opened for reading and writing.
 	 */
 	readonly create: true;
+
+	/**
+	 * Open the file in append mode. This will write data to the
+	 * end of the file.
+	 */
+	readonly append?: boolean;
 }
 
 export interface IFileDeleteOptions {
@@ -688,7 +694,6 @@ export interface IFileSystemProvider {
 
 	readFile?(resource: URI): Promise<Uint8Array>;
 	writeFile?(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void>;
-	appendFile?(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void>;
 
 	readFileStream?(resource: URI, opts: IFileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array>;
 
@@ -709,11 +714,7 @@ export function hasReadWriteCapability(provider: IFileSystemProvider): provider 
 	return !!(provider.capabilities & FileSystemProviderCapabilities.FileReadWrite);
 }
 
-export interface IFileSystemProviderWithFileAppendCapability extends IFileSystemProvider {
-	appendFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void>;
-}
-
-export function hasFileAppendCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileAppendCapability {
+export function hasFileAppendCapability(provider: IFileSystemProvider): boolean {
 	return !!(provider.capabilities & FileSystemProviderCapabilities.FileAppend);
 }
 

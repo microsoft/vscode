@@ -11,7 +11,7 @@ import { ExtUri } from '../../../base/common/resources.js';
 import { isString } from '../../../base/common/types.js';
 import { URI, UriDto } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
-import { createFileSystemProviderError, FileChangeType, IFileDeleteOptions, IFileOverwriteOptions, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileChange, IFileSystemProviderWithFileAppendCapability, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from '../common/files.js';
+import { createFileSystemProviderError, FileChangeType, IFileDeleteOptions, IFileOverwriteOptions, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileChange, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from '../common/files.js';
 import { IndexedDB } from '../../../base/browser/indexedDB.js';
 import { BroadcastDataChannel } from '../../../base/browser/broadcast.js';
 
@@ -152,7 +152,7 @@ class IndexedDBFileSystemNode {
 	}
 }
 
-export class IndexedDBFileSystemProvider extends Disposable implements IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithFileAppendCapability {
+export class IndexedDBFileSystemProvider extends Disposable implements IFileSystemProviderWithFileReadWriteCapability {
 
 	readonly capabilities: FileSystemProviderCapabilities =
 		FileSystemProviderCapabilities.FileReadWrite
@@ -262,30 +262,6 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 			throw ERR_FILE_IS_DIR;
 		}
 		await this.bulkWrite([[resource, content]]);
-	}
-
-	async appendFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
-		const existing = await this.stat(resource).catch(() => undefined);
-		if (existing?.type === FileType.Directory) {
-			throw ERR_FILE_IS_DIR;
-		}
-
-		// Read existing content and append
-		let existingContent: Uint8Array;
-		try {
-			existingContent = await this.readFile(resource);
-		} catch (error) {
-			if (!opts.create) {
-				throw error;
-			}
-			existingContent = new Uint8Array(0);
-		}
-
-		const newContent = new Uint8Array(existingContent.byteLength + content.byteLength);
-		newContent.set(existingContent, 0);
-		newContent.set(content, existingContent.byteLength);
-
-		await this.bulkWrite([[resource, newContent]]);
 	}
 
 	async rename(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void> {

@@ -73,6 +73,7 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 				FileSystemProviderCapabilities.FileAtomicWrite |
 				FileSystemProviderCapabilities.FileAtomicDelete |
 				FileSystemProviderCapabilities.FileClone |
+				FileSystemProviderCapabilities.FileAppend |
 				FileSystemProviderCapabilities.FileRealpath;
 
 			if (isLinux) {
@@ -2514,12 +2515,6 @@ flakySuite('Disk File Service', function () {
 		return testAppendFile();
 	});
 
-	test('appendFile - unbuffered', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite | FileSystemProviderCapabilities.FileAppend);
-
-		return testAppendFile();
-	});
-
 	test('appendFile - buffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose | FileSystemProviderCapabilities.FileAppend);
 
@@ -2549,12 +2544,6 @@ flakySuite('Disk File Service', function () {
 		return testAppendFileReadable();
 	});
 
-	test('appendFile (readable) - unbuffered', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite | FileSystemProviderCapabilities.FileAppend);
-
-		return testAppendFileReadable();
-	});
-
 	test('appendFile (readable) - buffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose | FileSystemProviderCapabilities.FileAppend);
 
@@ -2574,12 +2563,6 @@ flakySuite('Disk File Service', function () {
 	}
 
 	test('appendFile (stream)', async () => {
-		return testAppendFileStream();
-	});
-
-	test('appendFile (stream) - unbuffered', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite | FileSystemProviderCapabilities.FileAppend);
-
 		return testAppendFileStream();
 	});
 
@@ -2605,12 +2588,6 @@ flakySuite('Disk File Service', function () {
 		return testAppendFileCreatesFile();
 	});
 
-	test('appendFile - creates file if not exists (unbuffered)', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite | FileSystemProviderCapabilities.FileAppend);
-
-		return testAppendFileCreatesFile();
-	});
-
 	test('appendFile - creates file if not exists (buffered)', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose | FileSystemProviderCapabilities.FileAppend);
 
@@ -2633,12 +2610,6 @@ flakySuite('Disk File Service', function () {
 		return testAppendFileMultiple();
 	});
 
-	test('appendFile - multiple appends (unbuffered)', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite | FileSystemProviderCapabilities.FileAppend);
-
-		return testAppendFileMultiple();
-	});
-
 	test('appendFile - multiple appends (buffered)', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose | FileSystemProviderCapabilities.FileAppend);
 
@@ -2655,34 +2626,40 @@ flakySuite('Disk File Service', function () {
 		assert.strictEqual(readFileSync(resource.fsPath).toString(), 'Line 1\nLine 2\nLine 3\n');
 	}
 
-	test('appendFile - fallback when provider does not support append', async () => {
-		// Remove FileAppend capability to force fallback path
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
+	test('appendFile - throws when provider does not support append', async () => {
+		// Remove FileAppend capability - should throw error
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 
 		const resource = URI.file(join(testDir, 'small.txt'));
-
-		const content = readFileSync(resource.fsPath).toString();
-		assert.strictEqual(content, 'Small File');
-
 		const appendContent = ' - Appended via fallback!';
-		await service.appendFile(resource, VSBuffer.fromString(appendContent));
 
-		assert.strictEqual(readFileSync(resource.fsPath).toString(), 'Small File - Appended via fallback!');
+		let error: Error | undefined;
+		try {
+			await service.appendFile(resource, VSBuffer.fromString(appendContent));
+		} catch (e) {
+			error = e as Error;
+		}
+
+		assert.ok(error);
+		assert.ok(error.message.includes('FileAppend'));
 	});
 
-	test('appendFile - fallback creates file if not exists', async () => {
-		// Remove FileAppend capability to force fallback path
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
+	test('appendFile - throws when provider does not support buffered writes', async () => {
+		// Remove FileOpenReadWriteClose capability - should throw error
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite | FileSystemProviderCapabilities.FileAppend);
 
-		const resource = URI.file(join(testDir, 'appendfile-fallback-new.txt'));
+		const resource = URI.file(join(testDir, 'small.txt'));
+		const appendContent = ' - Appended!';
 
-		assert.strictEqual(existsSync(resource.fsPath), false);
+		let error: Error | undefined;
+		try {
+			await service.appendFile(resource, VSBuffer.fromString(appendContent));
+		} catch (e) {
+			error = e as Error;
+		}
 
-		const content = 'Initial content via fallback append';
-		await service.appendFile(resource, VSBuffer.fromString(content));
-
-		assert.strictEqual(existsSync(resource.fsPath), true);
-		assert.strictEqual(readFileSync(resource.fsPath).toString(), content);
+		assert.ok(error);
+		assert.ok(error.message.includes('FileOpenReadWriteClose'));
 	});
 
 	test('read - mixed positions', async () => {

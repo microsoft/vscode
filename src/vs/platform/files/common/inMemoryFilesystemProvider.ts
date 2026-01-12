@@ -9,7 +9,7 @@ import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 import * as resources from '../../../base/common/resources.js';
 import { ReadableStreamEvents, newWriteableStream } from '../../../base/common/stream.js';
 import { URI } from '../../../base/common/uri.js';
-import { FileChangeType, IFileDeleteOptions, IFileOverwriteOptions, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileChange, IFileSystemProviderWithFileAppendCapability, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions, createFileSystemProviderError, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileOpenOptions, IFileSystemProviderWithFileAtomicDeleteCapability, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileAtomicWriteCapability, IFileSystemProviderWithFileReadStreamCapability } from './files.js';
+import { FileChangeType, IFileDeleteOptions, IFileOverwriteOptions, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileChange, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions, createFileSystemProviderError, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileOpenOptions, IFileSystemProviderWithFileAtomicDeleteCapability, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileAtomicWriteCapability, IFileSystemProviderWithFileReadStreamCapability, isFileOpenForWriteOptions } from './files.js';
 
 class File implements IStat {
 
@@ -56,17 +56,16 @@ export class InMemoryFileSystemProvider extends Disposable implements
 	IFileSystemProviderWithFileReadWriteCapability,
 	IFileSystemProviderWithOpenReadWriteCloseCapability,
 	IFileSystemProviderWithFileReadStreamCapability,
-	IFileSystemProviderWithFileAppendCapability,
 	IFileSystemProviderWithFileAtomicReadCapability,
 	IFileSystemProviderWithFileAtomicWriteCapability,
 	IFileSystemProviderWithFileAtomicDeleteCapability {
 
 	private memoryFdCounter = 0;
-	private readonly fdMemory = new Map<number, Uint8Array>();
+	private readonly fdMemory = new Map<number, { data: Uint8Array; append: boolean }>();
 	private _onDidChangeCapabilities = this._register(new Emitter<void>());
 	readonly onDidChangeCapabilities = this._onDidChangeCapabilities.event;
 
-	private _capabilities = FileSystemProviderCapabilities.FileReadWrite | FileSystemProviderCapabilities.FileAppend | FileSystemProviderCapabilities.PathCaseSensitive;
+	private _capabilities = FileSystemProviderCapabilities.FileReadWrite | FileSystemProviderCapabilities.FileOpenReadWriteClose | FileSystemProviderCapabilities.FileAppend | FileSystemProviderCapabilities.PathCaseSensitive;
 	get capabilities(): FileSystemProviderCapabilities { return this._capabilities; }
 
 	setReadOnly(readonly: boolean) {
@@ -136,41 +135,12 @@ export class InMemoryFileSystemProvider extends Disposable implements
 		this._fireSoon({ type: FileChangeType.UPDATED, resource });
 	}
 
-	async appendFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
-		const basename = resources.basename(resource);
-		const parent = this._lookupParentDirectory(resource);
-		let entry = parent.entries.get(basename);
-		if (entry instanceof Directory) {
-			throw createFileSystemProviderError('file is directory', FileSystemProviderErrorCode.FileIsADirectory);
-		}
-		if (!entry && !opts.create) {
-			throw createFileSystemProviderError('file not found', FileSystemProviderErrorCode.FileNotFound);
-		}
-		if (!entry) {
-			entry = new File(basename);
-			parent.entries.set(basename, entry);
-			this._fireSoon({ type: FileChangeType.ADDED, resource });
-		}
-
-		// Append to existing data
-		const existingData = entry.data || new Uint8Array(0);
-		const newData = new Uint8Array(existingData.byteLength + content.byteLength);
-		newData.set(existingData, 0);
-		newData.set(content, existingData.byteLength);
-
-		entry.mtime = Date.now();
-		entry.size = newData.byteLength;
-		entry.data = newData;
-
-		this._fireSoon({ type: FileChangeType.UPDATED, resource });
-	}
-
 	// file open/read/write/close
 	open(resource: URI, opts: IFileOpenOptions): Promise<number> {
 		const data = this._lookupAsFile(resource, false).data;
 		if (data) {
 			const fd = this.memoryFdCounter++;
-			this.fdMemory.set(fd, data);
+			this.fdMemory.set(fd, { data, append: isFileOpenForWriteOptions(opts) && !!opts.append });
 			return Promise.resolve(fd);
 		}
 		throw createFileSystemProviderError('file not found', FileSystemProviderErrorCode.FileNotFound);
@@ -182,24 +152,36 @@ export class InMemoryFileSystemProvider extends Disposable implements
 	}
 
 	read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
-		const memory = this.fdMemory.get(fd);
-		if (!memory) {
+		const fdData = this.fdMemory.get(fd);
+		if (!fdData) {
 			throw createFileSystemProviderError(`No file with that descriptor open`, FileSystemProviderErrorCode.Unavailable);
 		}
 
-		const toWrite = VSBuffer.wrap(memory).slice(pos, pos + length);
+		const toWrite = VSBuffer.wrap(fdData.data).slice(pos, pos + length);
 		data.set(toWrite.buffer, offset);
 		return Promise.resolve(toWrite.byteLength);
 	}
 
 	write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
-		const memory = this.fdMemory.get(fd);
-		if (!memory) {
+		const fdData = this.fdMemory.get(fd);
+		if (!fdData) {
 			throw createFileSystemProviderError(`No file with that descriptor open`, FileSystemProviderErrorCode.Unavailable);
 		}
 
 		const toWrite = VSBuffer.wrap(data).slice(offset, offset + length);
-		memory.set(toWrite.buffer, pos);
+
+		// In append mode, always write at the end
+		const writePos = fdData.append ? fdData.data.byteLength : pos;
+
+		// Grow the buffer if needed
+		const endPos = writePos + toWrite.byteLength;
+		if (endPos > fdData.data.byteLength) {
+			const newData = new Uint8Array(endPos);
+			newData.set(fdData.data, 0);
+			fdData.data = newData;
+		}
+
+		fdData.data.set(toWrite.buffer, writePos);
 		return Promise.resolve(toWrite.byteLength);
 	}
 

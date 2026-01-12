@@ -18,7 +18,7 @@ import { newWriteableStream, ReadableStreamEvents } from '../../../base/common/s
 import { URI } from '../../../base/common/uri.js';
 import { IDirent, Promises, RimRafMode, SymlinkSupport } from '../../../base/node/pfs.js';
 import { localize } from '../../../nls.js';
-import { createFileSystemProviderError, IFileAtomicReadOptions, IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileSystemProviderWithFileAppendCapability, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileCloneCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, isFileOpenForWriteOptions, IStat, FilePermission, IFileSystemProviderWithFileAtomicWriteCapability, IFileSystemProviderWithFileAtomicDeleteCapability, IFileChange, IFileSystemProviderWithFileRealpathCapability } from '../common/files.js';
+import { createFileSystemProviderError, IFileAtomicReadOptions, IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileCloneCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, isFileOpenForWriteOptions, IStat, FilePermission, IFileSystemProviderWithFileAtomicWriteCapability, IFileSystemProviderWithFileAtomicDeleteCapability, IFileChange, IFileSystemProviderWithFileRealpathCapability } from '../common/files.js';
 import { readFileIntoStream } from '../common/io.js';
 import { AbstractNonRecursiveWatcherClient, AbstractUniversalWatcherClient, ILogMessage } from '../common/watcher.js';
 import { AbstractDiskFileSystemProvider } from '../common/diskFileSystemProvider.js';
@@ -30,7 +30,6 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	IFileSystemProviderWithOpenReadWriteCloseCapability,
 	IFileSystemProviderWithFileReadStreamCapability,
 	IFileSystemProviderWithFileFolderCopyCapability,
-	IFileSystemProviderWithFileAppendCapability,
 	IFileSystemProviderWithFileAtomicReadCapability,
 	IFileSystemProviderWithFileAtomicWriteCapability,
 	IFileSystemProviderWithFileAtomicDeleteCapability,
@@ -338,40 +337,6 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		}
 	}
 
-	async appendFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
-		// Use fs.appendFile for efficient native append
-		try {
-			const filePath = this.toFilePath(resource);
-
-			// Validate file exists unless { create: true }
-			if (!opts.create) {
-				const fileExists = await Promises.exists(filePath);
-				if (!fileExists) {
-					throw createFileSystemProviderError(localize('fileNotExists', "File does not exist"), FileSystemProviderErrorCode.FileNotFound);
-				}
-			}
-
-			// Unlock if needed
-			if (opts.unlock) {
-				try {
-					const { stat } = await SymlinkSupport.stat(filePath);
-					if (!(stat.mode & 0o200 /* File mode indicating writable by owner */)) {
-						await promises.chmod(filePath, stat.mode | 0o200);
-					}
-				} catch (error) {
-					if (error.code !== 'ENOENT') {
-						this.logService.trace(error);
-					}
-				}
-			}
-
-			// Append using native fs.appendFile
-			await promises.appendFile(filePath, content);
-		} catch (error) {
-			throw await this.toFileSystemProviderWriteError(resource, error);
-		}
-	}
-
 	private readonly mapHandleToPos = new Map<number, number>();
 	private readonly mapHandleToLock = new Map<number, IDisposable>();
 
@@ -411,8 +376,8 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 				}
 			}
 
-			// Windows gets special treatment (write only)
-			if (isWindows && isFileOpenForWriteOptions(opts)) {
+			// Windows gets special treatment (write only, but not for append)
+			if (isWindows && isFileOpenForWriteOptions(opts) && !opts.append) {
 				try {
 
 					// We try to use 'r+' for opening (which will fail if the file does not exist)
@@ -449,7 +414,8 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 					// We take `opts.create` as a hint that the file is opened for writing
 					// as such we use 'w' to truncate an existing or create the
 					// file otherwise. we do not allow reading.
-					'w' :
+					// If `opts.append` is true, use 'a' to append to the file.
+					(opts.append ? 'a' : 'w') :
 					// Otherwise we assume the file is opened for reading
 					// as such we use 'r' to neither truncate, nor create
 					// the file.
