@@ -5,6 +5,7 @@
 
 import TelemetryReporter from '@vscode/extension-telemetry';
 import * as fs from 'fs';
+import * as fsPromises from 'fs/promises';
 import * as path from 'path';
 import picomatch from 'picomatch';
 import { CancellationError, CancellationToken, CancellationTokenSource, Command, commands, Disposable, Event, EventEmitter, FileDecoration, FileType, l10n, LogLevel, LogOutputChannel, Memento, ProgressLocation, ProgressOptions, QuickDiffProvider, RelativePattern, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, TabInputNotebookDiff, TabInputTextDiff, TabInputTextMultiDiff, ThemeColor, ThemeIcon, Uri, window, workspace, WorkspaceEdit } from 'vscode';
@@ -1878,8 +1879,130 @@ export class Repository implements Disposable {
 				this.globalState.update(`${Repository.WORKTREE_ROOT_STORAGE_KEY}:${this.root}`, newWorktreeRoot);
 			}
 
+			// Copy worktree include files. We explicitly do not await this
+			// since we don't want to block the worktree creation on the
+			// copy operation.
+			this._copyWorktreeIncludeFiles(worktreePath!);
+
 			return worktreePath!;
 		});
+	}
+
+	private async _getWorktreeIncludeFiles(): Promise<Set<string>> {
+		const config = workspace.getConfiguration('git', Uri.file(this.root));
+		const worktreeIncludeFiles = config.get<string[]>('worktreeIncludeFiles', ['**/node_modules/**']);
+
+		if (worktreeIncludeFiles.length === 0) {
+			return new Set<string>();
+		}
+
+		try {
+			// Expand the glob patterns
+			const matchedFiles = new Set<string>();
+			for (const pattern of worktreeIncludeFiles) {
+				for await (const file of fsPromises.glob(pattern, { cwd: this.root })) {
+					matchedFiles.add(file);
+				}
+			}
+
+			// Collect unique directories from all the matched files. Check
+			// first whether directories are ignored in order to limit the
+			// number of git check-ignore calls.
+			const directoriesToCheck = new Set<string>();
+			for (const file of matchedFiles) {
+				let parent = path.dirname(file);
+				while (parent && parent !== '.') {
+					directoriesToCheck.add(path.join(this.root, parent));
+					parent = path.dirname(parent);
+				}
+			}
+
+			const gitIgnoredDirectories = await this.checkIgnore(Array.from(directoriesToCheck));
+
+			// Files under a git ignored directory are ignored
+			const gitIgnoredFiles = new Set<string>();
+			const filesToCheck: string[] = [];
+
+			for (const file of matchedFiles) {
+				const fullPath = path.join(this.root, file);
+				let parent = path.dirname(fullPath);
+				let isUnderIgnoredDir = false;
+
+				while (parent !== this.root && parent.length > this.root.length) {
+					if (gitIgnoredDirectories.has(parent)) {
+						isUnderIgnoredDir = true;
+						break;
+					}
+					parent = path.dirname(parent);
+				}
+
+				if (isUnderIgnoredDir) {
+					gitIgnoredFiles.add(fullPath);
+				} else {
+					filesToCheck.push(fullPath);
+				}
+			}
+
+			// Check the files that are not under a git ignored directories
+			const filesToCheckResults = await this.checkIgnore(Array.from(filesToCheck));
+			filesToCheckResults.forEach(ignoredFile => gitIgnoredFiles.add(ignoredFile));
+
+			return gitIgnoredFiles;
+		} catch (err) {
+			this.logger.warn(`[Repository][_getWorktreeIncludeFiles] Failed to get worktree include files: ${err}`);
+			return new Set<string>();
+		}
+	}
+
+	private async _copyWorktreeIncludeFiles(worktreePath: string): Promise<void> {
+		const ignoredFiles = await this._getWorktreeIncludeFiles();
+		if (ignoredFiles.size === 0) {
+			return;
+		}
+
+		try {
+			// Copy files
+			let copiedFiles = 0;
+			const results = await window.withProgress({
+				location: ProgressLocation.Notification,
+				title: l10n.t('Copying additional files to the worktree'),
+				cancellable: false
+			}, async (progress) => {
+				const limiter = new Limiter<void>(10);
+				const files = Array.from(ignoredFiles);
+
+				return Promise.allSettled(files.map(sourceFile =>
+					limiter.queue(async () => {
+						const targetFile = path.join(worktreePath, relativePath(this.root, sourceFile));
+						await fsPromises.mkdir(path.dirname(targetFile), { recursive: true });
+						await fsPromises.cp(sourceFile, targetFile, {
+							force: true,
+							recursive: false,
+							verbatimSymlinks: true
+						});
+
+						copiedFiles++;
+						progress.report({
+							increment: 100 / ignoredFiles.size,
+							message: l10n.t('({0}/{1})', copiedFiles, ignoredFiles.size)
+						});
+					})
+				));
+			});
+
+			// When expanding the glob patterns, both directories and files are matched however
+			// directories cannot be copied so we filter out `ERR_FS_EISDIR` errors as those are
+			// expected.
+			const errors = results.filter(r => r.status === 'rejected' &&
+				(r.reason as NodeJS.ErrnoException).code !== 'ERR_FS_EISDIR');
+
+			if (errors.length > 0) {
+				this.logger.warn(`[Repository][_copyWorktreeIncludeFiles] Failed to copy ${errors.length} files to worktree.`);
+				window.showWarningMessage(l10n.t('Failed to copy {0} files to the worktree.', errors.length));
+			}
+		} catch (err) {
+			this.logger.warn(`[Repository][_copyWorktreeIncludeFiles] Failed to copy files to worktree: ${err}`);
+		}
 	}
 
 	async deleteWorktree(path: string, options?: { force?: boolean }): Promise<void> {
