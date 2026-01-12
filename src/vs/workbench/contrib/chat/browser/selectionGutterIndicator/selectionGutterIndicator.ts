@@ -51,7 +51,7 @@ export class SelectionGutterIndicatorContribution extends Disposable implements 
 			const selection = debouncedSelection.read(reader);
 
 			// Always show when we have a selection (even if empty)
-			if (!selection) {
+			if (!selection || selection.isEmpty()) {
 				return undefined;
 			}
 
