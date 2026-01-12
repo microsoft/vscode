@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as path from 'path';
 import { osIsWindows } from '../../helpers/os.js';
 import { createErrorInstance } from './errors.js';
 
@@ -216,9 +217,12 @@ export const getCWDForFilesAndFolders = (
 		return ensureTrailingSlash(cwd);
 	}
 
-	return dirname.startsWith('~/') || dirname.startsWith('/')
+	const result = dirname.startsWith('~/') || dirname.startsWith('/')
 		? dirname
 		: `${cwd}/${dirname}`;
+	
+	// Normalize the path to resolve '..' and '.' components
+	return ensureTrailingSlash(path.normalize(result));
 };
 
 export function localProtocol(domain: string, path: string) {

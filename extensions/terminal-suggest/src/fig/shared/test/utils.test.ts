@@ -10,6 +10,7 @@ import {
 	longestCommonPrefix,
 	compareNamedObjectsAlphabetically,
 	fieldsAreEqual,
+	getCWDForFilesAndFolders,
 } from '../utils';
 
 function expect<T>(a: T): { toEqual: (b: T) => void } {
@@ -139,5 +140,44 @@ suite('fig/shared/ compareNamedObjectsAlphabetically', () => {
 
 	test('should return 1 to sort alphabetically c against x for object with name array', () => {
 		ok(compareNamedObjectsAlphabetically({ name: ['c'] }, { name: ['x'] }) < 0);
+	});
+});
+
+suite('fig/shared/ getCWDForFilesAndFolders', () => {
+	test('should return / when cwd is null', () => {
+		expect(getCWDForFilesAndFolders(null, 'foo')).toEqual('/');
+	});
+
+	test('should return cwd with trailing slash when dirname is empty', () => {
+		expect(getCWDForFilesAndFolders('/home/user', 'foo')).toEqual('/home/user/');
+		expect(getCWDForFilesAndFolders('/home/user/', 'bar')).toEqual('/home/user/');
+	});
+
+	test('should normalize relative parent directory paths', () => {
+		expect(getCWDForFilesAndFolders('/home/user/project', '../')).toEqual('/home/user/');
+		expect(getCWDForFilesAndFolders('/home/user/project', '../sibling')).toEqual('/home/user/');
+	});
+
+	test('should normalize relative current directory paths', () => {
+		expect(getCWDForFilesAndFolders('/home/user/project', './')).toEqual('/home/user/project/');
+		expect(getCWDForFilesAndFolders('/home/user/project', './child')).toEqual('/home/user/project/');
+	});
+
+	test('should handle child directories', () => {
+		expect(getCWDForFilesAndFolders('/home/user/project', 'child/')).toEqual('/home/user/project/child/');
+		expect(getCWDForFilesAndFolders('/home/user/project', 'child/subdir/')).toEqual('/home/user/project/child/subdir/');
+	});
+
+	test('should handle absolute paths', () => {
+		expect(getCWDForFilesAndFolders('/home/user/project', '/absolute/path/')).toEqual('/absolute/path/');
+	});
+
+	test('should handle home directory paths', () => {
+		expect(getCWDForFilesAndFolders('/home/user/project', '~/documents/')).toEqual('~/documents/');
+	});
+
+	test('should normalize complex relative paths', () => {
+		expect(getCWDForFilesAndFolders('/home/user/project', '../other/../final/')).toEqual('/home/final/');
+		expect(getCWDForFilesAndFolders('/home/user/project', './child/../sibling/')).toEqual('/home/user/project/sibling/');
 	});
 });
