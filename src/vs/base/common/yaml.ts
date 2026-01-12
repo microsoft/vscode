@@ -33,11 +33,6 @@ export function parse(input: string, errors: YamlParseError[] = [], options: Par
 
 export interface StringifyOptions {
 	/**
-	 * Line width for wrapping. Set to 0 to disable wrapping and keep all values on a single line.
-	 * Default is 0 (no wrapping).
-	 */
-	readonly lineWidth?: number;
-	/**
 	 * Number of spaces to use for indentation. Default is 2.
 	 */
 	readonly indent?: number;
