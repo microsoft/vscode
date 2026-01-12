@@ -1867,6 +1867,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private async _trust(): Promise<boolean> {
+		if (this._configurationService.getValue(TerminalSettingId.AllowInUntrustedWorkspace)) {
+			return true;
+		}
 		return (await this._workspaceTrustRequestService.requestWorkspaceTrust(
 			{
 				message: nls.localize('terminal.requestTrust', "Creating a terminal process requires executing code")
