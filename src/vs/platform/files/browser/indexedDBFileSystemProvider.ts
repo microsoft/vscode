@@ -261,7 +261,18 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 		if (existing?.type === FileType.Directory) {
 			throw ERR_FILE_IS_DIR;
 		}
-		await this.bulkWrite([[resource, content]]);
+
+		let finalContent = content;
+		if (opts.append && existing) {
+			// Read existing content and append new content to it
+			const existingContent = await this.readFile(resource);
+			const combined = new Uint8Array(existingContent.byteLength + content.byteLength);
+			combined.set(existingContent, 0);
+			combined.set(content, existingContent.byteLength);
+			finalContent = combined;
+		}
+
+		await this.bulkWrite([[resource, finalContent]]);
 	}
 
 	async rename(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void> {

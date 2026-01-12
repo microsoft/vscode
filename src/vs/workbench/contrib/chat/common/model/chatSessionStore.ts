@@ -258,11 +258,7 @@ export class ChatSessionStore extends Disposable {
 
 					const { op, data } = session.dataSerializer.write(session);
 					if (data.byteLength > 0) {
-						if (op === 'append') {
-							await this.fileService.appendFile(storageLocation.log, data);
-						} else {
-							await this.fileService.writeFile(storageLocation.log, data);
-						}
+						await this.fileService.writeFile(storageLocation.log, data, { append: op === 'append' });
 					}
 				} else {
 					const content = new ChatSessionOperationLog().createInitialFromSerialized(session);

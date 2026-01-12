@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DeferredPromise, timeout } from '../../../base/common/async.js';
-import { bufferToStream, readableToBuffer, VSBuffer, VSBufferReadable, VSBufferReadableStream } from '../../../base/common/buffer.js';
+import { bufferToStream, readableToBuffer, VSBuffer, VSBufferReadable } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Iterable } from '../../../base/common/iterator.js';
@@ -625,7 +625,6 @@ export class TestFileService implements IFileService {
 		return createFileStat(resource, this.readonly);
 	}
 
-	appendFile(resource: URI, bufferOrReadableOrStream: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: IWriteFileOptions): Promise<IFileStatWithMetadata> { return Promise.resolve(null!); }
 	move(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStatWithMetadata> { return Promise.resolve(null!); }
 	copy(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStatWithMetadata> { return Promise.resolve(null!); }
 	async cloneFile(_source: URI, _target: URI): Promise<void> { }

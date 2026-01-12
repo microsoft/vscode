@@ -61,7 +61,7 @@ export class InMemoryFileSystemProvider extends Disposable implements
 	IFileSystemProviderWithFileAtomicDeleteCapability {
 
 	private memoryFdCounter = 0;
-	private readonly fdMemory = new Map<number, { data: Uint8Array; append: boolean }>();
+	private readonly fdMemory = new Map<number, { file: File; resource: URI; append: boolean; write: boolean }>();
 	private _onDidChangeCapabilities = this._register(new Emitter<void>());
 	readonly onDidChangeCapabilities = this._onDidChangeCapabilities.event;
 
@@ -129,24 +129,60 @@ export class InMemoryFileSystemProvider extends Disposable implements
 			this._fireSoon({ type: FileChangeType.ADDED, resource });
 		}
 		entry.mtime = Date.now();
-		entry.size = content.byteLength;
-		entry.data = content;
+
+		if (opts.append) {
+			entry.size += content.byteLength;
+			const oldData = entry.data ?? new Uint8Array(0);
+			const newData = new Uint8Array(oldData.byteLength + content.byteLength);
+			newData.set(oldData, 0);
+			newData.set(content, oldData.byteLength);
+			entry.data = newData;
+		} else {
+			entry.size = content.byteLength;
+			entry.data = content;
+		}
 
 		this._fireSoon({ type: FileChangeType.UPDATED, resource });
 	}
 
 	// file open/read/write/close
 	open(resource: URI, opts: IFileOpenOptions): Promise<number> {
-		const data = this._lookupAsFile(resource, false).data;
-		if (data) {
-			const fd = this.memoryFdCounter++;
-			this.fdMemory.set(fd, { data, append: isFileOpenForWriteOptions(opts) && !!opts.append });
-			return Promise.resolve(fd);
+		let file = this._lookup(resource, true);
+		const write = isFileOpenForWriteOptions(opts);
+		const append = write && !!opts.append;
+
+		if (!file) {
+			if (!write) {
+				throw createFileSystemProviderError('file not found', FileSystemProviderErrorCode.FileNotFound);
+			}
+			// Create the file if opening for write
+			const basename = resources.basename(resource);
+			const parent = this._lookupParentDirectory(resource);
+			file = new File(basename);
+			file.data = new Uint8Array(0);
+			parent.entries.set(basename, file);
+			this._fireSoon({ type: FileChangeType.ADDED, resource });
+		} else if (file instanceof Directory) {
+			throw createFileSystemProviderError('file is directory', FileSystemProviderErrorCode.FileIsADirectory);
 		}
-		throw createFileSystemProviderError('file not found', FileSystemProviderErrorCode.FileNotFound);
+
+		if (!file.data) {
+			file.data = new Uint8Array(0);
+		}
+
+		const fd = this.memoryFdCounter++;
+		this.fdMemory.set(fd, { file, resource, write, append });
+		return Promise.resolve(fd);
 	}
 
 	close(fd: number): Promise<void> {
+		const fdData = this.fdMemory.get(fd);
+		if (fdData?.write) {
+			// Update file metadata on close
+			fdData.file.mtime = Date.now();
+			fdData.file.size = fdData.file.data?.byteLength ?? 0;
+			this._fireSoon({ type: FileChangeType.UPDATED, resource: fdData.resource });
+		}
 		this.fdMemory.delete(fd);
 		return Promise.resolve();
 	}
@@ -157,7 +193,11 @@ export class InMemoryFileSystemProvider extends Disposable implements
 			throw createFileSystemProviderError(`No file with that descriptor open`, FileSystemProviderErrorCode.Unavailable);
 		}
 
-		const toWrite = VSBuffer.wrap(fdData.data).slice(pos, pos + length);
+		if (!fdData.file.data) {
+			return Promise.resolve(0);
+		}
+
+		const toWrite = VSBuffer.wrap(fdData.file.data).slice(pos, pos + length);
 		data.set(toWrite.buffer, offset);
 		return Promise.resolve(toWrite.byteLength);
 	}
@@ -169,19 +209,20 @@ export class InMemoryFileSystemProvider extends Disposable implements
 		}
 
 		const toWrite = VSBuffer.wrap(data).slice(offset, offset + length);
+		fdData.file.data ??= new Uint8Array(0);
 
 		// In append mode, always write at the end
-		const writePos = fdData.append ? fdData.data.byteLength : pos;
+		const writePos = fdData.append ? fdData.file.data.byteLength : pos;
 
 		// Grow the buffer if needed
 		const endPos = writePos + toWrite.byteLength;
-		if (endPos > fdData.data.byteLength) {
+		if (endPos > fdData.file.data.byteLength) {
 			const newData = new Uint8Array(endPos);
-			newData.set(fdData.data, 0);
-			fdData.data = newData;
+			newData.set(fdData.file.data, 0);
+			fdData.file.data = newData;
 		}
 
-		fdData.data.set(toWrite.buffer, writePos);
+		fdData.file.data.set(toWrite.buffer, writePos);
 		return Promise.resolve(toWrite.byteLength);
 	}
 
