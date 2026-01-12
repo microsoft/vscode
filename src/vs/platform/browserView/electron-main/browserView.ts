@@ -15,7 +15,21 @@ import { IBaseWindow, ICodeWindow } from '../../window/electron-main/window.js';
 import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-main/auxiliaryWindows.js';
 import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
 import { ILogService } from '../../log/common/log.js';
+import { isMacintosh } from '../../../base/common/platform.js';
 
+const nativeShortcutKeys = new Set(['KeyA', 'KeyC', 'KeyV', 'KeyX', 'KeyZ']);
+function shouldIgnoreNativeShortcut(input: Electron.Input): boolean {
+	const isControlInput = isMacintosh ? input.meta : input.control;
+	const isAltOnlyInput = input.alt && !input.control && !input.meta;
+
+	// Ignore Alt-only inputs (often used for accented characters or menu accelerators)
+	if (isAltOnlyInput) {
+		return true;
+	}
+
+	// Ignore Ctrl/Cmd + [A,C,V,X,Z] shortcuts to allow native handling (e.g. copy/paste)
+	return isControlInput && nativeShortcutKeys.has(input.code);
+}
 
 /**
  * Represents a single browser view instance with its WebContentsView and all associated logic.
@@ -223,6 +237,9 @@ export class BrowserView extends Disposable {
 		// Key down events - listen for raw key input events
 		webContents.on('before-input-event', async (event, input) => {
 			if (input.type === 'keyDown' && !this._isSendingKeyEvent) {
+				if (shouldIgnoreNativeShortcut(input)) {
+					return;
+				}
 				const eventKeyCode = SCAN_CODE_STR_TO_EVENT_KEY_CODE[input.code] || 0;
 				const keyCode = EVENT_KEY_CODE_MAP[eventKeyCode] || KeyCode.Unknown;
 				const hasCommandModifier = input.control || input.alt || input.meta;
