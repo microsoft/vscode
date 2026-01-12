@@ -51,6 +51,7 @@ import { Action2, registerAction2 } from '../../../../platform/actions/common/ac
 import { viewFilterSubmenu } from '../../../browser/parts/views/viewFilter.js';
 import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
 import { EndOfLinePreference } from '../../../../editor/common/model.js';
+import { ClipboardEventUtils, ClipboardStoredMetadata } from '../../../../editor/browser/controller/editContext/clipboardUtils.js';
 
 interface IOutputViewState {
 	filter?: string;
@@ -571,7 +572,7 @@ export class FilterController extends Disposable implements IEditorContribution 
 export class FilteredCopyHandler extends Disposable implements IEditorContribution {
 
 	public static readonly ID = 'output.editor.contrib.filteredCopyHandler';
-	private copyListener: IDisposable | null = null;
+	private readonly modelDisposables: DisposableStore = this._register(new DisposableStore());
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -588,11 +589,8 @@ export class FilteredCopyHandler extends Disposable implements IEditorContributi
 	}
 
 	private attachCopyListener(): void {
-		// Clean up previous listener if it exists
-		if (this.copyListener) {
-			this.copyListener.dispose();
-			this.copyListener = null;
-		}
+		// Clean up previous listeners
+		this.modelDisposables.clear();
 
 		const domNode = this.editor.getDomNode();
 		if (!domNode) {
@@ -600,19 +598,9 @@ export class FilteredCopyHandler extends Disposable implements IEditorContributi
 		}
 
 		// Listen for copy events on the editor
-		// Note: We don't use this._register() here because we manually manage
-		// this listener's lifecycle in dispose() and when re-attaching
-		this.copyListener = dom.addDisposableListener(domNode, 'copy', (e: ClipboardEvent) => {
+		this.modelDisposables.add(dom.addDisposableListener(domNode, 'copy', (e: ClipboardEvent) => {
 			this.handleCopy(e);
-		});
-	}
-
-	override dispose(): void {
-		if (this.copyListener) {
-			this.copyListener.dispose();
-			this.copyListener = null;
-		}
-		super.dispose();
+		}));
 	}
 
 	private handleCopy(e: ClipboardEvent): void {
@@ -648,9 +636,16 @@ export class FilteredCopyHandler extends Disposable implements IEditorContributi
 		// Prevent the default copy behavior
 		e.preventDefault();
 
-		// Set our filtered text to the clipboard
+		// Set our filtered text to the clipboard using VS Code's clipboard utilities
 		if (e.clipboardData) {
-			e.clipboardData.setData('text/plain', visibleText);
+			const metadata: ClipboardStoredMetadata = {
+				version: 1,
+				id: undefined,
+				isFromEmptySelection: false,
+				multicursorText: null,
+				mode: null
+			};
+			ClipboardEventUtils.setTextData(e.clipboardData, visibleText, undefined, metadata);
 		}
 	}
 
@@ -692,6 +687,11 @@ export class FilteredCopyHandler extends Disposable implements IEditorContributi
 	 * Splits a range into visible sub-ranges by excluding hidden areas.
 	 */
 	private splitRangeByHiddenAreas(range: Range, hiddenAreas: Range[]): Range[] {
+		const model = this.editor.getModel();
+		if (!model) {
+			return [];
+		}
+
 		const result: Range[] = [];
 		let visibleStart: number | null = null;
 
@@ -705,7 +705,7 @@ export class FilteredCopyHandler extends Disposable implements IEditorContributi
 					const endLine = line - 1;
 					const endCol = endLine === range.endLineNumber
 						? range.endColumn
-						: (this.editor.getModel()?.getLineMaxColumn(endLine) || 1);
+						: model.getLineMaxColumn(endLine);
 					result.push(new Range(visibleStart, startCol, endLine, endCol));
 					visibleStart = null;
 				}
