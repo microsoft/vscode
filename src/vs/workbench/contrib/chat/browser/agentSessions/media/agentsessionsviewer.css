@@ -149,14 +149,19 @@
 				}
 			}
 
-			.agent-session-diff-container {
+			.agent-session-diff-container,
+			.agent-session-badge {
 				background-color: var(--vscode-toolbar-hoverBackground);
 				font-weight: 500;
-				display: flex;
-				gap: 4px;
 				padding: 0 4px;
 				font-variant-numeric: tabular-nums;
 				border-radius: 5px;
+				overflow: hidden;
+			}
+
+			.agent-session-diff-container {
+				display: flex;
+				gap: 4px;
 
 				&:not(.has-diff) {
 					display: none;
@@ -176,12 +181,6 @@
 			}
 
 			.agent-session-badge {
-				background-color: var(--vscode-toolbar-hoverBackground);
-				font-weight: 500;
-				padding: 0 4px;
-				font-variant-numeric: tabular-nums;
-				border-radius: 5px;
-				overflow: hidden;
 
 				&:not(.has-badge) {
 					display: none;
