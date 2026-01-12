@@ -10,7 +10,6 @@
   },
   "dependencies": {
     "mocha-junit-reporter": "^2.2.1",
-    "mocha-trx-reporter": "^3.3.1",
     "node-fetch": "^3.3.2",
     "playwright": "^1.57.0"
   },
