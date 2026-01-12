@@ -54,17 +54,6 @@ export class Application {
 		return this._workspacePathOrFolder;
 	}
 
-	/**
-	 * Returns the workspace path, throwing if not set.
-	 * Use this in tests that require a workspace to be open.
-	 */
-	get workspacePath(): string {
-		if (!this._workspacePathOrFolder) {
-			throw new Error('No workspace path is set. This test requires a workspace to be open.');
-		}
-		return this._workspacePathOrFolder;
-	}
-
 	get extensionsPath(): string | undefined {
 		return this.options.extensionsPath;
 	}
