@@ -215,7 +215,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private readonly _decoration: TerminalCommandDecoration;
 	private _autoExpandTimeout: ReturnType<typeof setTimeout> | undefined;
 	private _userToggledOutput: boolean = false;
-	private _outputExpandedAt: number | undefined;
 
 	private markdownPart: ChatMarkdownContentPart | undefined;
 	public get codeblocks(): IChatCodeBlockInfo[] {
@@ -537,22 +536,9 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				this._addActions(terminalInstance, this._terminalData.terminalToolSessionId);
 				const resolvedCommand = this._getResolvedCommand(terminalInstance);
 
-				// Expand if there's output we haven't shown yet
-				if (!this._outputView.isExpanded && !this._userToggledOutput && this._hasOutput(terminalInstance)) {
-					this._toggleOutput(true);
-				}
-
-				// Auto-collapse on success with minimum display time to prevent flicker
+				// Auto-collapse on success
 				if (resolvedCommand?.exitCode === 0 && this._outputView.isExpanded && !this._userToggledOutput) {
-					const minDisplayTime = 2000;
-					const timeExpanded = this._outputExpandedAt ? Date.now() - this._outputExpandedAt : 0;
-					const remainingTime = Math.max(0, minDisplayTime - timeExpanded);
-
-					setTimeout(() => {
-						if (!this._store.isDisposed && this._outputView.isExpanded && !this._userToggledOutput) {
-							this._toggleOutput(false);
-						}
-					}, remainingTime);
+					this._toggleOutput(false);
 				}
 				if (resolvedCommand?.endMarker) {
 					commandDetectionListener.clear();
@@ -563,6 +549,10 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			const resolvedImmediately = await tryResolveCommand();
 			if (resolvedImmediately?.endMarker) {
 				commandDetectionListener.clear();
+				// Auto-collapse on success
+				if (resolvedImmediately.exitCode === 0 && this._outputView.isExpanded && !this._userToggledOutput) {
+					this._toggleOutput(false);
+				}
 				return;
 			}
 		};
@@ -609,7 +599,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		this._showOutputAction.value?.syncPresentation(isExpanded);
 		if (didChange) {
 			expandedStateByInvocation.set(this.toolInvocation, isExpanded);
-			this._outputExpandedAt = isExpanded ? Date.now() : undefined;
 		}
 		return didChange;
 	}
