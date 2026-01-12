@@ -10,6 +10,7 @@ import { linesDiffComputers } from '../../../../editor/common/diff/linesDiffComp
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { ISCMService, ISCMResource } from '../../scm/common/scm.js';
 import { IChatService } from '../common/chatService/chatService.js';
 import { IChatModel, IExportableRepoData, IExportableRepoDiff } from '../common/model/chatModel.js';
@@ -389,6 +390,7 @@ export class ChatRepoInfoContribution extends Disposable implements IWorkbenchCo
 
 	constructor(
 		@IChatService private readonly chatService: IChatService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@ISCMService private readonly scmService: ISCMService,
 		@IFileService private readonly fileService: IFileService,
 		@ILogService private readonly logService: ILogService,
@@ -407,6 +409,10 @@ export class ChatRepoInfoContribution extends Disposable implements IWorkbenchCo
 	}
 
 	private async captureAndSetRepoData(model: IChatModel): Promise<void> {
+		if (!this.chatEntitlementService.isInternal) {
+			return;
+		}
+
 		if (model.repoData) {
 			return;
 		}
