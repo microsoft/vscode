@@ -1435,7 +1435,7 @@ export class CommandCenter {
 		await repository.rm([uri]);
 
 		// Close the active editor if it's not dirty
-		if (pathEquals(activeDocument?.uri.toString(), uriString) && !activeDocument.isDirty) {
+		if (activeDocument && !activeDocument.isDirty && pathEquals(activeDocument.uri.toString(), uriString)) {
 			await commands.executeCommand('workbench.action.closeActiveEditor');
 		}
 	}
