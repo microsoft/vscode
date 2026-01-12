@@ -289,7 +289,7 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 		if (this._command.executedMarker && endMarker && !endMarker.isDisposed) {
 			const startLine = this._command.executedMarker.line;
 			const endLine = endMarker.line;
-			return Math.max(endLine - startLine + 1, 0);
+			return Math.max(endLine - startLine, 0);
 		}
 
 		// During streaming (no end marker), calculate from the source terminal buffer
@@ -297,7 +297,7 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 		if (executedMarker && this._sourceRaw) {
 			const buffer = this._sourceRaw.buffer.active;
 			const currentLine = buffer.baseY + buffer.cursorY;
-			return Math.max(currentLine - executedMarker.line + 1, 0);
+			return Math.max(currentLine - executedMarker.line, 0);
 		}
 
 		return this._lineCount;
