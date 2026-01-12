@@ -3,14 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { DisposableMap } from '../../../../../base/common/lifecycle.js';
+import { joinPath, isEqualOrParent } from '../../../../../base/common/resources.js';
+import { UriComponents } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import * as extensionsRegistry from '../../../../services/extensions/common/extensionsRegistry.js';
-import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
-import { joinPath, isEqualOrParent } from '../../../../../base/common/resources.js';
-import { IPromptsService } from './service/promptsService.js';
+import { IPromptsService, PromptsStorage } from './service/promptsService.js';
 import { PromptsType } from './promptTypes.js';
-import { DisposableMap } from '../../../../../base/common/lifecycle.js';
 
 interface IRawChatFileContribution {
 	readonly path: string;
@@ -117,3 +120,38 @@ export class ChatPromptFilesExtensionPointHandler implements IWorkbenchContribut
 		});
 	}
 }
+
+/**
+ * Result type for the extension prompt file provider command.
+ */
+export interface IExtensionPromptFileResult {
+	readonly uri: UriComponents;
+	readonly type: 'agent' | 'instructions' | 'promptFile';
+}
+
+/**
+ * Register the command to list all extension-contributed prompt files.
+ */
+CommandsRegistry.registerCommand('_listExtensionPromptFiles', async (accessor): Promise<IExtensionPromptFileResult[]> => {
+	const promptsService = accessor.get(IPromptsService);
+	const result: IExtensionPromptFileResult[] = [];
+
+	// Get extension prompt files for all prompt types
+	const types: { promptType: PromptsType; resultType: 'agent' | 'instructions' | 'promptFile' }[] = [
+		{ promptType: PromptsType.agent, resultType: 'agent' },
+		{ promptType: PromptsType.instructions, resultType: 'instructions' },
+		{ promptType: PromptsType.prompt, resultType: 'promptFile' },
+	];
+
+	for (const { promptType, resultType } of types) {
+		const files = await promptsService.listPromptFilesForStorage(promptType, PromptsStorage.extension, CancellationToken.None);
+		for (const file of files) {
+			result.push({
+				uri: file.uri.toJSON(),
+				type: resultType,
+			});
+		}
+	}
+
+	return result;
+});
