@@ -693,6 +693,8 @@ class ChatTerminalToolOutputSection extends Disposable {
 	private readonly _outputBody: HTMLElement;
 	private _scrollableContainer: DomScrollableElement | undefined;
 	private _renderedOutputHeight: number | undefined;
+	private _isAtBottom: boolean = true;
+	private _isProgrammaticScroll: boolean = false;
 	private _mirror: DetachedTerminalCommandMirror | undefined;
 	private _snapshotMirror: DetachedTerminalSnapshotMirror | undefined;
 	private readonly _contentContainer: HTMLElement;
@@ -761,6 +763,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 
 		if (!expanded) {
 			this._renderedOutputHeight = undefined;
+			this._isAtBottom = true;
 			this._onDidChangeHeight();
 			return true;
 		}
@@ -848,6 +851,14 @@ class ChatTerminalToolOutputSection extends Disposable {
 		scrollableDomNode.tabIndex = 0;
 		this.domNode.appendChild(scrollableDomNode);
 		this.updateAriaLabel();
+
+		// Track scroll state to enable scroll lock behavior (only for user scrolls)
+		this._register(this._scrollableContainer.onScroll(() => {
+			if (this._isProgrammaticScroll) {
+				return;
+			}
+			this._isAtBottom = this._computeIsAtBottom();
+		}));
 	}
 
 	private async _updateTerminalContent(): Promise<void> {
@@ -885,7 +896,9 @@ class ChatTerminalToolOutputSection extends Disposable {
 		this._mirror = mirror;
 		this._register(mirror.onDidUpdate(lineCount => {
 			this._layoutOutput(lineCount);
-			this._scrollOutputToBottom();
+			if (this._isAtBottom) {
+				this._scrollOutputToBottom();
+			}
 		}));
 		await mirror.attach(this._terminalContainer);
 		const result = await mirror.renderCommand();
@@ -1003,12 +1016,25 @@ class ChatTerminalToolOutputSection extends Disposable {
 		}
 	}
 
+	private _computeIsAtBottom(): boolean {
+		if (!this._scrollableContainer) {
+			return true;
+		}
+		const dimensions = this._scrollableContainer.getScrollDimensions();
+		const scrollPosition = this._scrollableContainer.getScrollPosition();
+		// Consider "at bottom" if within a small threshold to account for rounding
+		const threshold = 5;
+		return scrollPosition.scrollTop >= dimensions.scrollHeight - dimensions.height - threshold;
+	}
+
 	private _scrollOutputToBottom(): void {
 		if (!this._scrollableContainer) {
 			return;
 		}
+		this._isProgrammaticScroll = true;
 		const dimensions = this._scrollableContainer.getScrollDimensions();
 		this._scrollableContainer.setScrollPosition({ scrollTop: dimensions.scrollHeight });
+		this._isProgrammaticScroll = false;
 	}
 
 	private _getOutputContentHeight(lineCount: number, rowHeight: number, padding: number): number {
