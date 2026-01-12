@@ -49,10 +49,10 @@ export interface INativeBrowserElementsService {
 }
 
 /**
- * Extract a display name from outer HTML (e.g., "div#myId.myClass")
+ * Extract a display name from outer HTML (e.g., "div#myId.myClass1.myClass2")
  */
 export function getDisplayNameFromOuterHTML(outerHTML: string): string {
-	const firstElementMatch = outerHTML.match(/^<(\w+)([^>]*?)>/);
+	const firstElementMatch = outerHTML.match(/^<([^ >]+)([^>]*?)>/);
 	if (!firstElementMatch) {
 		throw new Error('No outer element found');
 	}

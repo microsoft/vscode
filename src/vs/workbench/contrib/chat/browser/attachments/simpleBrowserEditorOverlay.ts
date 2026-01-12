@@ -262,8 +262,9 @@ class SimpleBrowserOverlayWidget {
 		const toAttach: IChatRequestVariableEntry[] = [];
 
 		const widget = await this._chatWidgetService.revealWidget() ?? this._chatWidgetService.lastFocusedWidget;
-		let value = 'Attached HTML and CSS Context\n\n' + elementData.outerHTML;
-		if (this.configurationService.getValue('chat.sendElementsToChat.attachCSS')) {
+		const attachCss = this.configurationService.getValue<boolean>('chat.sendElementsToChat.attachCSS');
+		let value = (attachCss ? 'Attached HTML and CSS Context' : 'Attached HTML Context') + '\n\n' + elementData.outerHTML;
+		if (attachCss) {
 			value += '\n\n' + elementData.computedStyle;
 		}
 		const displayName = getDisplayNameFromOuterHTML(elementData.outerHTML);

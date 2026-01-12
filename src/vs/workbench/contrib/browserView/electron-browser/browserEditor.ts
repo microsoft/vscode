@@ -462,9 +462,9 @@ export class BrowserEditor extends EditorPane {
 	}
 
 	/**
-	 * Select an element and add it to chat
+	 * Start element selection in the browser view, wait for a user selection, and add it to chat.
 	 */
-	public async selectElement(): Promise<void> {
+	async addElementToChat(): Promise<void> {
 		// If selection is already active, cancel it
 		if (this._elementSelectionCts) {
 			this._elementSelectionCts.dispose(true);
@@ -495,7 +495,7 @@ export class BrowserEditor extends EditorPane {
 			// Get the browser container bounds
 			const { width, height } = this._browserContainer.getBoundingClientRect();
 
-			// Get element data from browser
+			// Get element data from user selection
 			const elementData = await this.browserElementsService.getElementData({ x: 0, y: 0, width, height }, cts.token, locator);
 			if (!elementData) {
 				throw new Error('Element data not found');
@@ -506,8 +506,9 @@ export class BrowserEditor extends EditorPane {
 
 			// Prepare HTML/CSS context
 			const displayName = getDisplayNameFromOuterHTML(elementData.outerHTML);
-			let value = 'Attached HTML and CSS Context\n\n' + elementData.outerHTML;
-			if (this.configurationService.getValue('chat.sendElementsToChat.attachCSS')) {
+			const attachCss = this.configurationService.getValue<boolean>('chat.sendElementsToChat.attachCSS');
+			let value = (attachCss ? 'Attached HTML and CSS Context' : 'Attached HTML Context') + '\n\n' + elementData.outerHTML;
+			if (attachCss) {
 				value += '\n\n' + elementData.computedStyle;
 			}
 
@@ -542,7 +543,7 @@ export class BrowserEditor extends EditorPane {
 
 		} catch (error) {
 			if (!cts.token.isCancellationRequested) {
-				this.logService.error('BrowserEditor.selectElement: Failed to select element', error);
+				this.logService.error('BrowserEditor.addElementToChat: Failed to select element', error);
 			}
 		} finally {
 			cts.dispose();

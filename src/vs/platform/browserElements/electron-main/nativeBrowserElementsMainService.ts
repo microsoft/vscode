@@ -406,7 +406,7 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 		});
 	}
 
-	formatMatchedStyles(matched: { inlineStyle?: { cssProperties?: Array<{ name: string; value: string }> }; matchedCSSRules?: Array<{ rule: { selectorList: { selectors: Array<{ text: string }> }; origin: string; style: { cssProperties: Array<{ name: string; value: string }> } } }>; inherited?: Array<{ matchedCSSRules?: Array<{ rule: { selectorList: { selectors: Array<{ text: string }> }; origin: string; style: { cssProperties: Array<{ name: string; value: string }> } } }> }> }): string {
+	formatMatchedStyles(matched: { inlineStyle?: { cssProperties?: Array<{ name: string; value: string }> }; matchedCSSRules?: Array<{ rule: { selectorList: { selectors: Array<{ text: string }> }; origin: string; style: { cssProperties: Array<{ name: string; value: string }> } } }>; inherited?: Array<{ inlineStyle?: { cssText: string }; matchedCSSRules?: Array<{ rule: { selectorList: { selectors: Array<{ text: string }> }; origin: string; style: { cssProperties: Array<{ name: string; value: string }> } } }> }> }): string {
 		const lines: string[] = [];
 
 		// inline
@@ -441,6 +441,14 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 		if (matched.inherited?.length) {
 			let level = 1;
 			for (const inherited of matched.inherited) {
+				const inline = inherited.inlineStyle;
+				if (inline) {
+					lines.push(`/* Inherited from ancestor level ${level} (inline) */`);
+					lines.push('element {');
+					lines.push(inline.cssText);
+					lines.push('}\n');
+				}
+
 				const rules = inherited.matchedCSSRules || [];
 				for (const ruleEntry of rules) {
 					const rule = ruleEntry.rule;

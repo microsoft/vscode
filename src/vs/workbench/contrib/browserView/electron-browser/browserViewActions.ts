@@ -139,13 +139,13 @@ class ReloadAction extends Action2 {
 	}
 }
 
-class SelectElementAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.selectElement';
+class AddElementToChatAction extends Action2 {
+	static readonly ID = 'workbench.action.browser.addElementToChat';
 
 	constructor() {
 		super({
-			id: SelectElementAction.ID,
-			title: localize2('browser.selectElementAction', 'Add Element to Chat'),
+			id: AddElementToChatAction.ID,
+			title: localize2('browser.addElementToChatAction', 'Add Element to Chat'),
 			icon: Codicon.inspect,
 			f1: true,
 			precondition: ChatContextKeys.enabled,
@@ -161,7 +161,7 @@ class SelectElementAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
 		if (browserEditor instanceof BrowserEditor) {
-			await browserEditor.selectElement();
+			await browserEditor.addElementToChat();
 		}
 	}
 }
@@ -248,7 +248,7 @@ registerAction2(OpenIntegratedBrowserAction);
 registerAction2(GoBackAction);
 registerAction2(GoForwardAction);
 registerAction2(ReloadAction);
-registerAction2(SelectElementAction);
+registerAction2(AddElementToChatAction);
 registerAction2(ToggleDevToolsAction);
 registerAction2(ClearGlobalBrowserStorageAction);
 registerAction2(ClearWorkspaceBrowserStorageAction);
