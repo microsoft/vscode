@@ -489,7 +489,8 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 					changes: revive(session.changes),
 					resource: uri,
 					iconPath: session.iconPath,
-					tooltip: session.tooltip ? this._reviveTooltip(session.tooltip) : undefined, archived: session.archived,
+					tooltip: session.tooltip ? this._reviveTooltip(session.tooltip) : undefined,
+					archived: session.archived,
 				} satisfies IChatSessionItem;
 			}));
 		} catch (error) {

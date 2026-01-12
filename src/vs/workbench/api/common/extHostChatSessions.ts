@@ -34,7 +34,6 @@ import { SymbolKind, SymbolKinds } from '../../../editor/common/languages.js';
 // #region Chat Session Item Controller
 
 class ChatSessionItemImpl implements vscode.ChatSessionItem {
-	readonly resource: vscode.Uri;
 	#label: string;
 	#iconPath?: vscode.IconPath;
 	#description?: string | vscode.MarkdownString;
@@ -45,6 +44,8 @@ class ChatSessionItemImpl implements vscode.ChatSessionItem {
 	#timing?: { startTime: number; endTime?: number };
 	#changes?: readonly vscode.ChatSessionChangedFile[] | { files: number; insertions: number; deletions: number };
 	#onChanged: () => void;
+
+	readonly resource: vscode.Uri;
 
 	constructor(resource: vscode.Uri, label: string, onChanged: () => void) {
 		this.resource = resource;
@@ -192,10 +193,8 @@ class ChatSessionItemCollectionImpl implements vscode.ChatSessionItemCollection 
 		return this.#items.get(resource);
 	}
 
-	*[Symbol.iterator](): Generator<readonly [id: URI, chatSessionItem: vscode.ChatSessionItem]> {
-		for (const [uri, item] of this.#items) {
-			yield [uri, item] as const;
-		}
+	[Symbol.iterator](): Iterator<readonly [id: URI, chatSessionItem: vscode.ChatSessionItem]> {
+		return this.#items.entries();
 	}
 }
 
