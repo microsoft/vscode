@@ -215,6 +215,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private readonly _decoration: TerminalCommandDecoration;
 	private _autoExpandTimeout: ReturnType<typeof setTimeout> | undefined;
 	private _userToggledOutput: boolean = false;
+	private _outputExpandedAt: number | undefined;
 
 	private markdownPart: ChatMarkdownContentPart | undefined;
 	public get codeblocks(): IChatCodeBlockInfo[] {
@@ -511,22 +512,47 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			const store = new DisposableStore();
 			store.add(commandDetection.onCommandExecuted(() => {
 				this._addActions(terminalInstance, this._terminalData.terminalToolSessionId);
-				// Auto-expand after a short delay to show streaming output
+				// Auto-expand if there's output, checking periodically for up to 1 second
 				if (!this._outputView.isExpanded && !this._userToggledOutput && !this._autoExpandTimeout) {
-					this._autoExpandTimeout = setTimeout(() => {
+					let attempts = 0;
+					const maxAttempts = 5;
+					const checkForOutput = () => {
 						this._autoExpandTimeout = undefined;
-						if (!this._store.isDisposed && !this._outputView.isExpanded && !this._userToggledOutput) {
-							this._toggleOutput(true);
+						if (this._store.isDisposed || this._outputView.isExpanded || this._userToggledOutput) {
+							return;
 						}
-					}, 30);
+						if (this._hasOutput(terminalInstance)) {
+							this._toggleOutput(true);
+							return;
+						}
+						attempts++;
+						if (attempts < maxAttempts) {
+							this._autoExpandTimeout = setTimeout(checkForOutput, 200);
+						}
+					};
+					this._autoExpandTimeout = setTimeout(checkForOutput, 200);
 				}
 			}));
 			store.add(commandDetection.onCommandFinished(() => {
 				this._addActions(terminalInstance, this._terminalData.terminalToolSessionId);
 				const resolvedCommand = this._getResolvedCommand(terminalInstance);
-				// Auto-collapse on success if user hasn't manually toggled
+
+				// Expand if there's output we haven't shown yet
+				if (!this._outputView.isExpanded && !this._userToggledOutput && this._hasOutput(terminalInstance)) {
+					this._toggleOutput(true);
+				}
+
+				// Auto-collapse on success with minimum display time to prevent flicker
 				if (resolvedCommand?.exitCode === 0 && this._outputView.isExpanded && !this._userToggledOutput) {
-					this._toggleOutput(false);
+					const minDisplayTime = 2000;
+					const timeExpanded = this._outputExpandedAt ? Date.now() - this._outputExpandedAt : 0;
+					const remainingTime = Math.max(0, minDisplayTime - timeExpanded);
+
+					setTimeout(() => {
+						if (!this._store.isDisposed && this._outputView.isExpanded && !this._userToggledOutput) {
+							this._toggleOutput(false);
+						}
+					}, remainingTime);
 				}
 				if (resolvedCommand?.endMarker) {
 					commandDetectionListener.clear();
@@ -583,6 +609,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		this._showOutputAction.value?.syncPresentation(isExpanded);
 		if (didChange) {
 			expandedStateByInvocation.set(this.toolInvocation, isExpanded);
+			this._outputExpandedAt = isExpanded ? Date.now() : undefined;
 		}
 		return didChange;
 	}
@@ -671,6 +698,24 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			await this._toggleOutput(false);
 		}
 		this._focusChatInput();
+	}
+
+	private _hasOutput(terminalInstance: ITerminalInstance): boolean {
+		// Check for snapshot
+		if (this._terminalData.terminalCommandOutput?.text?.trim()) {
+			return true;
+		}
+		// Check for live output (cursor moved past executed marker)
+		const command = this._getResolvedCommand(terminalInstance);
+		if (!command?.executedMarker || terminalInstance.isDisposed) {
+			return false;
+		}
+		const buffer = terminalInstance.xterm?.raw.buffer.active;
+		if (!buffer) {
+			return false;
+		}
+		const cursorLine = buffer.baseY + buffer.cursorY;
+		return cursorLine > command.executedMarker.line;
 	}
 
 	private _resolveCommand(instance: ITerminalInstance): ITerminalCommand | undefined {
