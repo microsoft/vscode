@@ -424,18 +424,18 @@ export class ChatRepoInfoContribution extends Disposable implements IWorkbenchCo
 
 		disposables.add(this.scmService.onDidAddRepository(async () => {
 			if (model.repoData) {
-				disposables.dispose();
+				this._pendingSessions.delete(disposables);
 				return;
 			}
 			await this.captureAndSetRepoData(model);
 			if (model.repoData) {
-				disposables.dispose();
+				this._pendingSessions.delete(disposables);
 			}
 		}));
 
 		// Clean up when the model is disposed
 		disposables.add(model.onDidDispose(() => {
-			disposables.dispose();
+			this._pendingSessions.delete(disposables);
 		}));
 	}
 
