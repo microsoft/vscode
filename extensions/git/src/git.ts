@@ -1141,10 +1141,21 @@ function parseGitChangesRaw(repositoryRoot: string, raw: string): DiffChange[] {
 		} else {
 			// Parse --numstat output
 			const [insertions, deletions, filePath] = segment.split('\t');
-			numStats.set(
-				path.isAbsolute(filePath)
-					? filePath
-					: path.join(repositoryRoot, filePath), {
+
+			let numstatPath: string;
+			if (filePath === '') {
+				// For renamed files, filePath is empty and the old/new paths
+				// are in the next two null-terminated segments. We skip the
+				// old path and use the new path for the stats key.
+				index++;
+
+				const renamePath = segments[index++];
+				numstatPath = path.isAbsolute(renamePath) ? renamePath : path.join(repositoryRoot, renamePath);
+			} else {
+				numstatPath = path.isAbsolute(filePath) ? filePath : path.join(repositoryRoot, filePath);
+			}
+
+			numStats.set(numstatPath, {
 				insertions: insertions === '-' ? 0 : parseInt(insertions),
 				deletions: deletions === '-' ? 0 : parseInt(deletions),
 			});

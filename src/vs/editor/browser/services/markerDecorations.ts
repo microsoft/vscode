@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMarkerDecorationsService } from '../../common/services/markerDecorations.js';
-import { EditorContributionInstantiation, registerEditorContribution } from '../editorExtensions.js';
 import { ICodeEditor } from '../editorBrowser.js';
 import { IEditorContribution } from '../../common/editorCommon.js';
 
@@ -22,5 +21,3 @@ export class MarkerDecorationsContribution implements IEditorContribution {
 	dispose(): void {
 	}
 }
-
-registerEditorContribution(MarkerDecorationsContribution.ID, MarkerDecorationsContribution, EditorContributionInstantiation.Eager); // eager because it instantiates IMarkerDecorationsService which is responsible for rendering squiggles
