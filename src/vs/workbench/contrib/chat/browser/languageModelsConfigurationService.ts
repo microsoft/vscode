@@ -94,12 +94,12 @@ export class LanguageModelsConfigurationService extends Disposable implements IL
 		return result;
 	}
 
-	async updateLanguageModelsProviderGroup(toUpdate: ILanguageModelsProviderGroup): Promise<ILanguageModelsProviderGroup> {
+	async updateLanguageModelsProviderGroup(from: ILanguageModelsProviderGroup, to: ILanguageModelsProviderGroup): Promise<ILanguageModelsProviderGroup> {
 		await this.withLanguageModelsProviderGroups(async languageModelsProviderGroups => {
 			const result: LanguageModelsProviderGroups = [];
 			for (const group of languageModelsProviderGroups) {
-				if (group.name === toUpdate.name && group.vendor === toUpdate.vendor) {
-					result.push(toUpdate);
+				if (group.name === from.name && group.vendor === from.vendor) {
+					result.push(to);
 				} else {
 					result.push(group);
 				}
@@ -108,9 +108,9 @@ export class LanguageModelsConfigurationService extends Disposable implements IL
 		});
 
 		await this.updateLanguageModelsConfiguration();
-		const result = this.getLanguageModelsProviderGroups().find(group => group.name === toUpdate.name && group.vendor === toUpdate.vendor);
+		const result = this.getLanguageModelsProviderGroups().find(group => group.name === to.name && group.vendor === to.vendor);
 		if (!result) {
-			throw new Error(`Language model group with name ${toUpdate.name} not found for vendor ${toUpdate.vendor}`);
+			throw new Error(`Language model group with name ${to.name} not found for vendor ${to.vendor}`);
 		}
 		return result;
 	}
