@@ -33,7 +33,7 @@ export class DetachedTerminal extends Disposable implements IDetachedTerminalIns
 	public get xterm(): IDetachedXtermTerminal {
 		return this._xterm;
 	}
-	onData: Event<string> = this._xterm.raw.onData;
+	public readonly onData: Event<string>;
 
 	constructor(
 		private readonly _xterm: XtermTerminal,
@@ -41,6 +41,7 @@ export class DetachedTerminal extends Disposable implements IDetachedTerminalIns
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
+		this.onData = this._xterm.raw.onData;
 		const capabilities = options.capabilities ?? new TerminalCapabilityStore();
 		this._register(capabilities);
 		this.capabilities = capabilities;
