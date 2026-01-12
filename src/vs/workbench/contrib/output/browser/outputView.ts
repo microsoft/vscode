@@ -50,7 +50,6 @@ import { Markers } from '../../markers/common/markers.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { viewFilterSubmenu } from '../../../browser/parts/views/viewFilter.js';
 import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
-import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { EndOfLinePreference } from '../../../../editor/common/model.js';
 
 interface IOutputViewState {
@@ -576,7 +575,6 @@ export class FilteredCopyHandler extends Disposable implements IEditorContributi
 
 	constructor(
 		private readonly editor: ICodeEditor,
-		@IClipboardService private readonly clipboardService: IClipboardService,
 	) {
 		super();
 
