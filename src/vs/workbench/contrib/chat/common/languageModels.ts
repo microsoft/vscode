@@ -714,14 +714,14 @@ export class LanguageModelsService implements ILanguageModelsService {
 		const languageModelProviderGroups = this._languageModelsConfigurationService.getLanguageModelsProviderGroups();
 		const existing = languageModelProviderGroups.find(g => g.vendor === vendorId && g.name === providerGroupName);
 
-		const existingConfiguration = existing ? await this._resolveConfiguration(existing, vendor.configuration) : undefined;
-		const configuration = vendor.configuration ? await this.promptForConfiguration(vendor.configuration, existingConfiguration) : undefined;
-		if (vendor.configuration && !configuration) {
+		const name = await this.promptForName(languageModelProviderGroups, vendor, existing);
+		if (!name) {
 			return;
 		}
 
-		const name = await this.promptForName(languageModelProviderGroups, vendor, existing);
-		if (!name) {
+		const existingConfiguration = existing ? await this._resolveConfiguration(existing, vendor.configuration) : undefined;
+		const configuration = vendor.configuration ? await this.promptForConfiguration(vendor.configuration, existingConfiguration) : undefined;
+		if (vendor.configuration && !configuration) {
 			return;
 		}
 
