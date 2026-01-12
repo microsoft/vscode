@@ -27,6 +27,7 @@ import { IViewDescriptorService } from '../../../common/views.js';
 import { TextResourceEditorInput } from '../../../common/editor/textResourceEditorInput.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { Dimension } from '../../../../base/browser/dom.js';
+import * as dom from '../../../../base/browser/dom.js';
 import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { CancelablePromise, createCancelablePromise } from '../../../../base/common/async.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -36,7 +37,7 @@ import { IEditorConfiguration } from '../../../browser/parts/editor/textEditor.j
 import { computeEditorAriaLabel } from '../../../browser/editor.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { localize } from '../../../../nls.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { LogLevel } from '../../../../platform/log/common/log.js';
 import { IEditorContributionDescription, EditorExtensionsRegistry, EditorContributionInstantiation, EditorContributionCtor } from '../../../../editor/browser/editorExtensions.js';
 import { ICodeEditorWidgetOptions } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
@@ -49,6 +50,8 @@ import { Markers } from '../../markers/common/markers.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { viewFilterSubmenu } from '../../../browser/parts/views/viewFilter.js';
 import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { EndOfLinePreference } from '../../../../editor/common/model.js';
 
 interface IOutputViewState {
 	filter?: string;
@@ -344,6 +347,11 @@ export class OutputEditor extends AbstractTextResourceEditor {
 				id: FilterController.ID,
 				ctor: FilterController as EditorContributionCtor,
 				instantiation: EditorContributionInstantiation.Eager
+			},
+			{
+				id: FilteredCopyHandler.ID,
+				ctor: FilteredCopyHandler as EditorContributionCtor,
+				instantiation: EditorContributionInstantiation.Eager
 			}
 		];
 	}
@@ -371,6 +379,10 @@ export class FilterController extends Disposable implements IEditorContribution 
 		this.decorationsCollection = editor.createDecorationsCollection();
 		this._register(editor.onDidChangeModel(() => this.onDidChangeModel()));
 		this._register(this.outputService.filters.onDidChange(() => editor.hasModel() && this.filter(editor.getModel())));
+	}
+
+	public getHiddenAreas(): Range[] {
+		return this.hiddenAreas;
 	}
 
 	private onDidChangeModel(): void {
@@ -554,5 +566,213 @@ export class FilterController extends Disposable implements IEditorContribution 
 			return true;
 		}
 		return !filters.hasCategory(`${activeChannelId}:${entry.category}`);
+	}
+}
+
+export class FilteredCopyHandler extends Disposable implements IEditorContribution {
+
+	public static readonly ID = 'output.editor.contrib.filteredCopyHandler';
+	private copyListener: IDisposable | null = null;
+
+	constructor(
+		private readonly editor: ICodeEditor,
+		@IClipboardService private readonly clipboardService: IClipboardService,
+	) {
+		super();
+
+		// Attach copy listener when DOM node is ready
+		this.attachCopyListener();
+
+		// Re-attach listener when model changes
+		this._register(this.editor.onDidChangeModel(() => {
+			this.attachCopyListener();
+		}));
+	}
+
+	private attachCopyListener(): void {
+		// Clean up previous listener
+		if (this.copyListener) {
+			this.copyListener.dispose();
+			this.copyListener = null;
+		}
+
+		const domNode = this.editor.getDomNode();
+		if (!domNode) {
+			return;
+		}
+
+		// Listen for copy events on the editor
+		this.copyListener = dom.addDisposableListener(domNode, 'copy', (e: ClipboardEvent) => {
+			this.handleCopy(e);
+		});
+	}
+
+	override dispose(): void {
+		if (this.copyListener) {
+			this.copyListener.dispose();
+			this.copyListener = null;
+		}
+		super.dispose();
+	}
+
+	private handleCopy(e: ClipboardEvent): void {
+		const model = this.editor.getModel();
+		if (!model) {
+			return;
+		}
+
+		const filterController = this.getFilterController();
+		if (!filterController) {
+			return;
+		}
+
+		const hiddenAreas = filterController.getHiddenAreas();
+		if (hiddenAreas.length === 0) {
+			// No filtering active, use default behavior
+			return;
+		}
+
+		// Get the current selections
+		const selections = this.editor.getSelections();
+		if (!selections || selections.length === 0) {
+			return;
+		}
+
+		// Filter the selections to exclude hidden areas
+		const visibleText = this.getVisibleTextToCopy(selections);
+		if (visibleText === null) {
+			// Use default behavior
+			return;
+		}
+
+		// Prevent the default copy behavior
+		e.preventDefault();
+
+		// Set our filtered text to the clipboard
+		if (e.clipboardData) {
+			e.clipboardData.setData('text/plain', visibleText);
+		}
+	}
+
+	private getFilterController(): FilterController | null {
+		return this.editor.getContribution<FilterController>(FilterController.ID);
+	}
+
+	/**
+	 * Filters the given ranges to exclude hidden areas.
+	 * @param ranges The ranges to filter
+	 * @param hiddenAreas The hidden areas to exclude
+	 * @returns An array of visible ranges
+	 */
+	private getVisibleRanges(ranges: Range[], hiddenAreas: Range[]): Range[] {
+		if (hiddenAreas.length === 0) {
+			return ranges;
+		}
+
+		const visibleRanges: Range[] = [];
+
+		for (const range of ranges) {
+			let currentRange: Range | null = new Range(
+				range.startLineNumber,
+				range.startColumn,
+				range.endLineNumber,
+				range.endColumn
+			);
+
+			// Process each hidden area and split the range if necessary
+			for (const hidden of hiddenAreas) {
+				if (!currentRange) {
+					break;
+				}
+
+				// Check if the current range intersects with the hidden area
+				if (currentRange.endLineNumber < hidden.startLineNumber || currentRange.startLineNumber > hidden.endLineNumber) {
+					// No intersection, continue
+					continue;
+				}
+
+				// There's an intersection, we need to split the range
+				// Add the part before the hidden area
+				if (currentRange.startLineNumber < hidden.startLineNumber) {
+					visibleRanges.push(new Range(
+						currentRange.startLineNumber,
+						currentRange.startColumn,
+						hidden.startLineNumber - 1,
+						this.editor.getModel()?.getLineMaxColumn(hidden.startLineNumber - 1) || 1
+					));
+				} else if (currentRange.startLineNumber === hidden.startLineNumber && currentRange.startColumn < hidden.startColumn) {
+					visibleRanges.push(new Range(
+						currentRange.startLineNumber,
+						currentRange.startColumn,
+						hidden.startLineNumber,
+						hidden.startColumn
+					));
+				}
+
+				// Update currentRange to the part after the hidden area
+				if (currentRange.endLineNumber > hidden.endLineNumber) {
+					currentRange = new Range(
+						hidden.endLineNumber + 1,
+						1,
+						currentRange.endLineNumber,
+						currentRange.endColumn
+					);
+				} else if (currentRange.endLineNumber === hidden.endLineNumber && currentRange.endColumn > hidden.endColumn) {
+					currentRange = new Range(
+						hidden.endLineNumber,
+						hidden.endColumn,
+						currentRange.endLineNumber,
+						currentRange.endColumn
+					);
+				} else {
+					// The rest of the range is hidden
+					currentRange = null;
+				}
+			}
+
+			// Add any remaining visible range
+			if (currentRange && !currentRange.isEmpty()) {
+				visibleRanges.push(currentRange);
+			}
+		}
+
+		return visibleRanges;
+	}
+
+	/**
+	 * Gets the text content from the visible (non-hidden) ranges.
+	 */
+	private getVisibleTextToCopy(ranges: Range[]): string | null {
+		const model = this.editor.getModel();
+		if (!model) {
+			return null;
+		}
+
+		const filterController = this.getFilterController();
+		if (!filterController) {
+			return null;
+		}
+
+		const hiddenAreas = filterController.getHiddenAreas();
+		if (hiddenAreas.length === 0) {
+			// No filtering, return null to use default behavior
+			return null;
+		}
+
+		const visibleRanges = this.getVisibleRanges(ranges, hiddenAreas);
+		if (visibleRanges.length === 0) {
+			return '';
+		}
+
+		const newLineCharacter = model.getEOL();
+		const textParts: string[] = [];
+
+		for (const range of visibleRanges) {
+			if (!range.isEmpty()) {
+				textParts.push(model.getValueInRange(range, EndOfLinePreference.TextDefined));
+			}
+		}
+
+		return textParts.join(newLineCharacter);
 	}
 }
