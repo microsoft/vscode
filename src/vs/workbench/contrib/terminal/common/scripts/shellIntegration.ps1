@@ -250,7 +250,16 @@ function Set-MappedKeyHandler {
 	}
 }
 
+function Set-MappedKeyHandlers {
+	Set-MappedKeyHandler -Chord Ctrl+Spacebar -Sequence 'F12,a'
+	Set-MappedKeyHandler -Chord Alt+Spacebar -Sequence 'F12,b'
+	Set-MappedKeyHandler -Chord Shift+Enter -Sequence 'F12,c'
+	Set-MappedKeyHandler -Chord Shift+End -Sequence 'F12,d'
+}
+
 if ($Global:__VSCodeState.HasPSReadLine) {
+	Set-MappedKeyHandlers
+
 	# Prevent AI-executed commands from polluting shell history
 	if ($env:VSCODE_PREVENT_SHELL_HISTORY -eq "1") {
 		Set-PSReadLineOption -AddToHistoryHandler {
