@@ -1427,27 +1427,15 @@ export class CommandCenter {
 
 		// Check if file has uncommitted changes
 		const uriString = uri.toString();
-		if (allChangedResources.some(o => o.resourceUri.toString() === uriString)) {
+		if (allChangedResources.some(o => pathEquals(o.resourceUri.toString(), uriString))) {
 			window.showInformationMessage(l10n.t('Git: Delete can only be performed on committed files without uncommitted changes.'));
 			return;
-		}
-
-		// Show confirmation dialog if setting is enabled
-		const config = workspace.getConfiguration('git', Uri.file(repository.root));
-		if (config.get<boolean>('confirmCommittedDelete', true)) {
-			const message = l10n.t('Are you sure you want to delete \'{0}\' by running \'git rm\' command?', path.basename(uri.fsPath));
-			const detail = l10n.t('You can restore this file by discarding the staged deletion change.');
-			const deleteButton = l10n.t('Delete File');
-			const choice = await window.showInformationMessage(message, { modal: true, detail }, deleteButton);
-			if (choice !== deleteButton) {
-				return;
-			}
 		}
 
 		await repository.rm([uri]);
 
 		// Close the active editor if it's not dirty
-		if (activeDocument?.uri.toString() === uriString && !activeDocument.isDirty) {
+		if (pathEquals(activeDocument?.uri.toString(), uriString) && !activeDocument.isDirty) {
 			await commands.executeCommand('workbench.action.closeActiveEditor');
 		}
 	}
