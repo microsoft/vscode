@@ -28,7 +28,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { GroupIdentifier } from '../../../common/editor.js';
 import { ACTIVE_GROUP_TYPE, AUX_WINDOW_GROUP_TYPE, SIDE_GROUP_TYPE } from '../../../services/editor/common/editorService.js';
 import type { ICurrentPartialCommand } from '../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand.js';
-import type { IXtermCore } from './xterm-private.js';
+import type { IXtermCore, IBufferSet } from './xterm-private.js';
 import type { IMenu } from '../../../../platform/actions/common/actions.js';
 import type { IProgressState } from '@xterm/addon-progress';
 import type { IEditorOptions } from '../../../../platform/editor/common/editor.js';
@@ -1487,15 +1487,7 @@ export interface IDetachedXtermTerminal extends IXtermTerminal {
 	/**
 	 * Access to the terminal buffer for reading cursor position and content.
 	 */
-	readonly buffer: {
-		readonly active: {
-			readonly baseY: number;
-			readonly cursorY: number;
-			readonly cursorX: number;
-			readonly length: number;
-			getLine(y: number): { translateToString(trimRight?: boolean): string } | undefined;
-		};
-	};
+	readonly buffer: IBufferSet;
 }
 
 export interface IInternalXtermTerminal {
