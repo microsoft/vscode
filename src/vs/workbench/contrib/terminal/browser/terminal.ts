@@ -418,6 +418,9 @@ export interface IBaseTerminalInstance {
 export interface IDetachedTerminalInstance extends IDisposable, IBaseTerminalInstance {
 	readonly xterm: IDetachedXtermTerminal;
 
+	/**
+	 * Event fired when data is received from the terminal.
+	 */
 	onData: Event<string>;
 
 	/**
