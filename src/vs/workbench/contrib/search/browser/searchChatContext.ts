@@ -11,14 +11,14 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { getExcludes, IFileQuery, ISearchComplete, ISearchConfiguration, ISearchService, QueryType, VIEW_ID } from '../../../services/search/common/search.js';
+import { getExcludes, IFileQuery, IFolderQuery2, ISearchComplete, ISearchConfiguration, ISearchService, QueryType, VIEW_ID } from '../../../services/search/common/search.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPickService, IChatContextValueItem, picksWithPromiseFn } from '../../chat/browser/attachments/chatContextPickService.js';
 import { IChatRequestVariableEntry, ISymbolVariableEntry } from '../../chat/common/attachments/chatVariableEntries.js';
 import { SearchContext } from '../common/constants.js';
 import { SearchView } from './searchView.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { basename, dirname, joinPath, relativePath } from '../../../../base/common/resources.js';
+import { basename, dirname, joinPath } from '../../../../base/common/resources.js';
 import { compare } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
@@ -29,8 +29,6 @@ import { FileKind, FileType, IFileService } from '../../../../platform/files/com
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IHistoryService } from '../../../services/history/common/history.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
-import * as glob from '../../../../base/common/glob.js';
-import { ResourceSet } from '../../../../base/common/map.js';
 import { SymbolsQuickAccessProvider } from './symbolsQuickAccess.js';
 import { SymbolKinds } from '../../../../editor/common/languages.js';
 import { isSupportedChatFileScheme } from '../../chat/common/constants.js';
@@ -236,97 +234,57 @@ export async function searchFilesAndFolders(
 	configurationService: IConfigurationService,
 	searchService: ISearchService
 ): Promise<{ folders: URI[]; files: URI[] }> {
-	const segmentMatchPattern = caseInsensitiveGlobPattern(fuzzyMatch ? fuzzyMatchingGlobPattern(pattern) : continousMatchingGlobPattern(pattern));
-
 	const searchExcludePattern = getExcludes(configurationService.getValue<ISearchConfiguration>({ resource: workspace })) || {};
-	const searchOptions: IFileQuery = {
+	const commonOptions = {
 		folderQueries: [{
 			folder: workspace,
 			disregardIgnoreFiles: configurationService.getValue<boolean>('explorer.excludeGitIgnore'),
 		}],
-		type: QueryType.File,
-		shouldGlobMatchFilePattern: true,
 		cacheKey,
 		excludePattern: searchExcludePattern,
 		sortByScore: true,
 	};
 
-	let searchResult: ISearchComplete | undefined;
+	const fileOptions: IFileQuery = {
+		...commonOptions,
+		type: QueryType.File,
+		shouldGlobMatchFilePattern: true,
+		filePattern: pattern,
+	};
+
+	const folderOptions: IFolderQuery2 = {
+		...commonOptions,
+		type: QueryType.Folder,
+		shouldGlobMatchFolderPattern: !fuzzyMatch,
+		folderPattern: pattern,
+	};
+
+	let fileResult: ISearchComplete | undefined;
+	let folderResult: ISearchComplete | undefined;
+
 	try {
-		searchResult = await searchService.fileSearch({ ...searchOptions, filePattern: `{**/${segmentMatchPattern}/**,${pattern}}` }, token);
+		// Search for both files and folders in parallel using the native search service
+		[fileResult, folderResult] = await Promise.all([
+			searchService.fileSearch(fileOptions, token),
+			searchService.folderSearch(folderOptions, token)
+		]);
 	} catch (e) {
 		if (!isCancellationError(e)) {
 			throw e;
 		}
 	}
 
-	if (!searchResult || token?.isCancellationRequested) {
+	if (token?.isCancellationRequested) {
 		return { files: [], folders: [] };
 	}
 
-	const fileResources = searchResult.results.map(result => result.resource);
-	const folderResources = getMatchingFoldersFromFiles(fileResources, workspace, segmentMatchPattern);
+	const fileResources = fileResult?.results.map(result => result.resource) || [];
+	const folderResources = folderResult?.results.map(result => result.resource) || [];
 
 	return { folders: folderResources, files: fileResources };
 }
 
-function fuzzyMatchingGlobPattern(pattern: string): string {
-	if (!pattern) {
-		return '*';
-	}
-	return '*' + pattern.split('').join('*') + '*';
-}
 
-function continousMatchingGlobPattern(pattern: string): string {
-	if (!pattern) {
-		return '*';
-	}
-	return '*' + pattern + '*';
-}
-
-function caseInsensitiveGlobPattern(pattern: string): string {
-	let caseInsensitiveFilePattern = '';
-	for (let i = 0; i < pattern.length; i++) {
-		const char = pattern[i];
-		if (/[a-zA-Z]/.test(char)) {
-			caseInsensitiveFilePattern += `[${char.toLowerCase()}${char.toUpperCase()}]`;
-		} else {
-			caseInsensitiveFilePattern += char;
-		}
-	}
-	return caseInsensitiveFilePattern;
-}
-
-// TODO: remove this and have support from the search service
-function getMatchingFoldersFromFiles(resources: URI[], workspace: URI, segmentMatchPattern: string): URI[] {
-	const uniqueFolders = new ResourceSet();
-	for (const resource of resources) {
-		const relativePathToRoot = relativePath(workspace, resource);
-		if (!relativePathToRoot) {
-			throw new Error('Resource is not a child of the workspace');
-		}
-
-		let dirResource = workspace;
-		const stats = relativePathToRoot.split('/').slice(0, -1);
-		for (const stat of stats) {
-			dirResource = dirResource.with({ path: `${dirResource.path}/${stat}` });
-			uniqueFolders.add(dirResource);
-		}
-	}
-
-	const matchingFolders: URI[] = [];
-	for (const folderResource of uniqueFolders) {
-		const stats = folderResource.path.split('/');
-		const dirStat = stats[stats.length - 1];
-		if (!dirStat || !glob.match(segmentMatchPattern, dirStat)) {
-			continue;
-		}
-
-		matchingFolders.push(folderResource);
-	}
-
-	return matchingFolders;
-}
 
 export async function getTopLevelFolders(workspaces: URI[], fileService: IFileService): Promise<URI[]> {
 	const folders: URI[] = [];

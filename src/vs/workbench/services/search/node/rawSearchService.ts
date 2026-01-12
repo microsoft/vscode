@@ -14,7 +14,7 @@ import { basename, dirname, join, sep } from '../../../../base/common/path.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { ByteSize } from '../../../../platform/files/common/files.js';
-import { DEFAULT_MAX_SEARCH_RESULTS, ICachedSearchStats, IFileQuery, IFileSearchProgressItem, IFileSearchStats, IFolderQuery, IProgressMessage, IRawFileMatch, IRawFileQuery, IRawQuery, IRawSearchService, IRawTextQuery, ISearchEngine, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess, isFilePatternMatch, ITextQuery } from '../common/search.js';
+import { DEFAULT_MAX_SEARCH_RESULTS, ICachedSearchStats, IFileQuery, IFileSearchProgressItem, IFileSearchStats, IFolderQuery, IFolderQuery2, IProgressMessage, IRawFileMatch, IRawFileQuery, IRawFolderQuery, IRawQuery, IRawSearchService, IRawTextQuery, ISearchEngine, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess, isFilePatternMatch, ITextQuery } from '../common/search.js';
 import { Engine as FileSearchEngine } from './fileSearch.js';
 import { TextSearchEngineAdapter } from './textSearchAdapter.js';
 
@@ -60,6 +60,29 @@ export class SearchService implements IRawSearchService {
 			onDidAddFirstListener: () => {
 				promise = createCancelablePromise(token => {
 					return this.ripgrepTextSearch(query, p => emitter.fire(p), token);
+				});
+
+				promise.then(
+					c => emitter.fire(c),
+					err => emitter.fire({ type: 'error', error: { message: err.message, stack: err.stack } }));
+			},
+			onDidRemoveLastListener: () => {
+				promise.cancel();
+			}
+		});
+
+		return emitter.event;
+	}
+
+	folderSearch(config: IRawFolderQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
+		let promise: CancelablePromise<ISerializedSearchSuccess>;
+
+		const query = reviveQuery(config as any) as unknown as IFolderQuery2;
+		const emitter = new Emitter<ISerializedSearchProgressItem | ISerializedSearchComplete>({
+			onDidAddFirstListener: () => {
+				promise = createCancelablePromise(async token => {
+					const numThreads = await this.getNumThreads?.();
+					return this.doFolderSearch(query, numThreads, p => emitter.fire(p), token);
 				});
 
 				promise.then(
@@ -139,6 +162,50 @@ export class SearchService implements IRawSearchService {
 				messages: []
 			};
 		});
+	}
+
+	async doFolderSearch(config: IFolderQuery2, numThreads: number | undefined, progressCallback: IProgressCallback, token?: CancellationToken): Promise<ISerializedSearchSuccess> {
+		// Implement folder search by using file search and extracting unique folder paths
+		// Convert folder query to file query
+		const fileQuery: IFileQuery = {
+			...config,
+			type: 1, // QueryType.File
+			filePattern: config.folderPattern ? `**/${config.folderPattern}/**` : undefined,
+		};
+
+		const folderSet = new Set<string>();
+		const folderMatches: ISerializedFileMatch[] = [];
+		
+		const fileProgressCallback: IProgressCallback = (progress: ISerializedSearchProgressItem) => {
+			if (Array.isArray(progress)) {
+				// Extract unique folder paths from file matches
+				for (const match of progress) {
+					const filePath = (match as ISerializedFileMatch).path;
+					const pathParts = filePath.split(sep);
+					
+					// Extract all parent folders
+					for (let i = 1; i < pathParts.length; i++) {
+						const folderPath = pathParts.slice(0, i).join(sep);
+						if (folderPath && !folderSet.has(folderPath)) {
+							const folderName = pathParts[i - 1];
+							// Check if folder name matches the pattern
+							if (!config.folderPattern || folderName.toLowerCase().includes(config.folderPattern.toLowerCase())) {
+								folderSet.add(folderPath);
+								folderMatches.push({ path: folderPath });
+							}
+						}
+					}
+				}
+				// Report folder matches
+				if (folderMatches.length > 0) {
+					progressCallback(folderMatches.splice(0));
+				}
+			} else {
+				progressCallback(progress);
+			}
+		};
+
+		return this.doFileSearch(fileQuery, numThreads, fileProgressCallback, token);
 	}
 
 	private rawMatchToSearchItem(match: IRawFileMatch): ISerializedFileMatch {

@@ -11,7 +11,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IEditorService } from '../../editor/common/editorService.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
-import { IFileMatch, IFileQuery, ISearchComplete, ISearchProgressItem, ISearchResultProvider, ISearchService, ITextQuery, SearchProviderType, TextSearchCompleteMessageType } from '../common/search.js';
+import { IFileMatch, IFileQuery, IFolderQuery2, ISearchComplete, ISearchProgressItem, ISearchResultProvider, ISearchService, ITextQuery, SearchProviderType, TextSearchCompleteMessageType } from '../common/search.js';
 import { SearchService } from '../common/searchService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWebWorkerClient, logOnceWebWorkerWarning } from '../../../../base/common/worker/webWorker.js';
@@ -44,6 +44,7 @@ export class RemoteSearchService extends SearchService {
 		const searchProvider = this.instantiationService.createInstance(LocalFileSearchWorkerClient);
 		this.registerSearchResultProvider(Schemas.file, SearchProviderType.file, searchProvider);
 		this.registerSearchResultProvider(Schemas.file, SearchProviderType.text, searchProvider);
+		this.registerSearchResultProvider(Schemas.file, SearchProviderType.folder, searchProvider);
 	}
 }
 
@@ -177,6 +178,64 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 				results: [],
 				messages: [{
 					text: localize('errorSearchFile', "Unable to search with Web Worker file searcher"), type: TextSearchCompleteMessageType.Warning
+				}],
+			};
+		}
+	}
+
+	async folderSearch(query: IFolderQuery2, token?: CancellationToken): Promise<ISearchComplete> {
+		// For now, implement folder search by doing a file search and extracting unique folder paths
+		// This is similar to the approach in searchChatContext.ts but integrated into the search service
+		const fileQuery: IFileQuery = {
+			...query,
+			type: query.type as any, // Convert folder type to file type for the underlying search
+			filePattern: query.folderPattern ? `**/${query.folderPattern}/**` : undefined,
+		};
+
+		try {
+			const fileResults = await this.fileSearch(fileQuery, token);
+			
+			// Extract unique folder paths from file results
+			const folderSet = new Set<string>();
+			const folderMatches: IFileMatch[] = [];
+			
+			for (const fileMatch of fileResults.results) {
+				// Get all parent folders of this file
+				let currentUri = fileMatch.resource;
+				const workspaceFolder = query.folderQueries[0]?.folder;
+				
+				if (workspaceFolder) {
+					while (currentUri.path !== workspaceFolder.path && currentUri.path.startsWith(workspaceFolder.path)) {
+						const parentUri = URI.from({ ...currentUri, path: currentUri.path.substring(0, currentUri.path.lastIndexOf('/')) });
+						if (parentUri.path === workspaceFolder.path || parentUri.path.length < workspaceFolder.path.length) {
+							break;
+						}
+						
+						const folderKey = parentUri.toString();
+						if (!folderSet.has(folderKey)) {
+							const folderName = parentUri.path.substring(parentUri.path.lastIndexOf('/') + 1);
+							// Check if folder name matches the pattern
+							if (!query.folderPattern || folderName.toLowerCase().includes(query.folderPattern.toLowerCase())) {
+								folderSet.add(folderKey);
+								folderMatches.push({ resource: parentUri });
+							}
+						}
+						currentUri = parentUri;
+					}
+				}
+			}
+			
+			return {
+				results: folderMatches,
+				messages: fileResults.messages,
+				limitHit: fileResults.limitHit
+			};
+		} catch (e) {
+			console.error('Error performing folder search', e);
+			return {
+				results: [],
+				messages: [{
+					text: localize('errorSearchFolder', "Unable to search for folders"), type: TextSearchCompleteMessageType.Warning
 				}],
 			};
 		}
