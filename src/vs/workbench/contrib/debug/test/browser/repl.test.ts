@@ -366,8 +366,8 @@ suite('Debug - REPL', () => {
 		// Verify that the error result is still added to REPL elements
 		const elements = session.getReplElements();
 		// Should have input and result (error)
-		assert.strictEqual(elements.length >= 2, true);
+		assert.ok(elements.length >= 2, 'Should have at least input and error result elements');
 		const result = elements[elements.length - 1] as ReplEvaluationResult;
-		assert.strictEqual(result.value.includes('error'), true);
+		assert.ok(result.value.includes('error'), 'Result should contain error message');
 	});
 });
