@@ -921,6 +921,12 @@ class ChatTerminalToolOutputSection extends Disposable {
 				this._scrollOutputToBottom();
 			}
 		}));
+		// Forward input from the mirror terminal to the live terminal instance
+		this._register(mirror.onDidInput(data => {
+			if (!liveTerminalInstance.isDisposed) {
+				liveTerminalInstance.sendText(data, false);
+			}
+		}));
 		await mirror.attach(this._terminalContainer);
 		const result = await mirror.renderCommand();
 		if (!result || result.lineCount === 0) {

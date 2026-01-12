@@ -418,6 +418,8 @@ export interface IBaseTerminalInstance {
 export interface IDetachedTerminalInstance extends IDisposable, IBaseTerminalInstance {
 	readonly xterm: IDetachedXtermTerminal;
 
+	onData: Event<string>;
+
 	/**
 	 * Attached the terminal to the given element. This should be preferred over
 	 * calling {@link IXtermTerminal.attachToElement} so that extra DOM elements

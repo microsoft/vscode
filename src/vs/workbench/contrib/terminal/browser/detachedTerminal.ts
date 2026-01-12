@@ -20,6 +20,7 @@ import { TerminalWidgetManager } from './widgets/widgetManager.js';
 import { XtermTerminal } from './xterm/xtermTerminal.js';
 import { IEnvironmentVariableInfo } from '../common/environmentVariable.js';
 import { ITerminalProcessInfo, ProcessState } from '../common/terminal.js';
+import { Event } from '../../../../base/common/event.js';
 
 export class DetachedTerminal extends Disposable implements IDetachedTerminalInstance {
 	private readonly _widgets = this._register(new TerminalWidgetManager());
@@ -32,6 +33,7 @@ export class DetachedTerminal extends Disposable implements IDetachedTerminalIns
 	public get xterm(): IDetachedXtermTerminal {
 		return this._xterm;
 	}
+	onData: Event<string> = this._xterm.raw.onData;
 
 	constructor(
 		private readonly _xterm: XtermTerminal,

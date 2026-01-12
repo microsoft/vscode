@@ -42,6 +42,7 @@ interface IDetachedTerminalCommandMirror {
 	attach(container: HTMLElement): Promise<void>;
 	renderCommand(): Promise<{ lineCount?: number } | undefined>;
 	onDidUpdate: Event<number>;
+	onDidInput: Event<string>;
 }
 
 const enum ChatTerminalMirrorMetrics {
@@ -152,6 +153,8 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 	private readonly _streamingDisposables = this._register(new DisposableStore());
 	private readonly _onDidUpdateEmitter = this._register(new Emitter<number>());
 	public readonly onDidUpdate: Event<number> = this._onDidUpdateEmitter.event;
+	private readonly _onDidInputEmitter = this._register(new Emitter<string>());
+	public readonly onDidInput: Event<string> = this._onDidInputEmitter.event;
 
 	private _lastVT = '';
 	private _lineCount = 0;
@@ -317,7 +320,7 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 			const detached = await this._terminalService.createDetachedTerminal({
 				cols: this._xtermTerminal.raw.cols ?? ChatTerminalMirrorMetrics.MirrorColCountFallback,
 				rows: ChatTerminalMirrorMetrics.MirrorRowCount,
-				readonly: true,
+				readonly: false,
 				processInfo: new DetachedProcessInfo({ initialCwd: '' }),
 				disableOverviewRuler: true,
 				colorProvider
@@ -328,6 +331,9 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 			}
 			this._detachedTerminal = detached;
 			this._register(detached);
+
+			// Forward input from the mirror terminal to the source terminal
+			this._register(detached.onData(data => this._onDidInputEmitter.fire(data)));
 			return detached;
 		})();
 		this._detachedTerminalPromise = createPromise;
