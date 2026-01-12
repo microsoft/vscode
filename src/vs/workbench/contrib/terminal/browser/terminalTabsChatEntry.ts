@@ -90,11 +90,7 @@ export class TerminalTabsChatEntry extends Disposable {
 
 	private async _deleteAllHiddenTerminals(): Promise<void> {
 		const hiddenTerminals = this._terminalChatService.getToolSessionTerminalInstances(true);
-		const disposePromises: Promise<void>[] = [];
-		for (const terminal of hiddenTerminals) {
-			disposePromises.push(this._terminalService.safeDisposeTerminal(terminal));
-		}
-		await Promise.all(disposePromises);
+		await Promise.all(hiddenTerminals.map(terminal => this._terminalService.safeDisposeTerminal(terminal)));
 	}
 
 	get element(): HTMLElement {
