@@ -37,7 +37,7 @@ import { IEditorConfiguration } from '../../../browser/parts/editor/textEditor.j
 import { computeEditorAriaLabel } from '../../../browser/editor.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { localize } from '../../../../nls.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { LogLevel } from '../../../../platform/log/common/log.js';
 import { IEditorContributionDescription, EditorExtensionsRegistry, EditorContributionInstantiation, EditorContributionCtor } from '../../../../editor/browser/editorExtensions.js';
 import { ICodeEditorWidgetOptions } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
@@ -639,7 +639,7 @@ export class FilteredCopyHandler extends Disposable implements IEditorContributi
 		// Set our filtered text to the clipboard using VS Code's clipboard utilities
 		if (e.clipboardData) {
 			const metadata: ClipboardStoredMetadata = {
-				version: 1,
+				version: 1, // ClipboardStoredMetadata version format
 				id: undefined,
 				isFromEmptySelection: false,
 				multicursorText: null,
@@ -684,6 +684,20 @@ export class FilteredCopyHandler extends Disposable implements IEditorContributi
 	}
 
 	/**
+	 * Gets the start column for a visible range based on whether it's the original start line.
+	 */
+	private getStartColumn(currentLine: number, originalStartLine: number, originalStartColumn: number): number {
+		return currentLine === originalStartLine ? originalStartColumn : 1;
+	}
+
+	/**
+	 * Gets the end column for a visible range based on whether it's the original end line.
+	 */
+	private getEndColumn(model: ITextModel, currentLine: number, originalEndLine: number, originalEndColumn: number): number {
+		return currentLine === originalEndLine ? originalEndColumn : model.getLineMaxColumn(currentLine);
+	}
+
+	/**
 	 * Splits a range into visible sub-ranges by excluding hidden areas.
 	 */
 	private splitRangeByHiddenAreas(range: Range, hiddenAreas: Range[]): Range[] {
@@ -701,11 +715,9 @@ export class FilteredCopyHandler extends Disposable implements IEditorContributi
 			if (isHidden) {
 				// If we were building a visible range, save it
 				if (visibleStart !== null) {
-					const startCol = visibleStart === range.startLineNumber ? range.startColumn : 1;
+					const startCol = this.getStartColumn(visibleStart, range.startLineNumber, range.startColumn);
 					const endLine = line - 1;
-					const endCol = endLine === range.endLineNumber
-						? range.endColumn
-						: model.getLineMaxColumn(endLine);
+					const endCol = this.getEndColumn(model, endLine, range.endLineNumber, range.endColumn);
 					result.push(new Range(visibleStart, startCol, endLine, endCol));
 					visibleStart = null;
 				}
@@ -719,7 +731,7 @@ export class FilteredCopyHandler extends Disposable implements IEditorContributi
 
 		// Save any remaining visible range
 		if (visibleStart !== null) {
-			const startCol = visibleStart === range.startLineNumber ? range.startColumn : 1;
+			const startCol = this.getStartColumn(visibleStart, range.startLineNumber, range.startColumn);
 			result.push(new Range(visibleStart, startCol, range.endLineNumber, range.endColumn));
 		}
 
