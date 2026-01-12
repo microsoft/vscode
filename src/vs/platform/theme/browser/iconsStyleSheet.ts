@@ -3,12 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { canASAR } from '../../../amdX.js';
+import { canASAR, resolveAmdNodeModulePath } from '../../../amdX.js';
 import * as css from '../../../base/browser/cssValue.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { AppResourcePath, FileAccess, nodeModulesAsarUnpackedPath, nodeModulesPath } from '../../../base/common/network.js';
+import { isWeb } from '../../../base/common/platform.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
+import { URI } from '../../../base/common/uri.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { getIconRegistry, IconContribution, IconFontDefinition } from '../common/iconRegistry.js';
 import { IProductIconTheme, IThemeService } from '../common/themeService.js';
@@ -41,9 +43,14 @@ export function getIconsStyleSheet(themeService: IThemeService | undefined, envi
 
 			const rules = new css.Builder();
 			const rootAttribs = new css.Builder();
-			const location = getModuleLocation(environmentService);
-			const asFileUri = FileAccess.asFileUri(location);
-			const withQuery = asFileUri.with({ query: '5d4d76ab2ce5108968ad644d591a16a6' });
+			let fileUri: URI;
+			if (isWeb) {
+				fileUri = URI.parse(resolveAmdNodeModulePath('@vscode/codicons', 'dist/codicon.ttf'));
+			} else {
+				const location = getModuleLocation(environmentService);
+				fileUri = FileAccess.asBrowserUri(location);
+			}
+			const withQuery = fileUri.with({ query: '5d4d76ab2ce5108968ad644d591a16a6' });
 			const asCSSUrl = css.asCSSUrl(withQuery);
 			rules.push(css.inline`@font-face { font-family: "codicon"; font-display: block; src: ${asCSSUrl} format("truetype");}`);
 			for (const contribution of iconRegistry.getIcons()) {
