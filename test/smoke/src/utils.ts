@@ -89,6 +89,11 @@ function installAppBeforeHandler(optionsTransform?: (opts: ApplicationOptions) =
 			crashesPath: suiteCrashPath(this.defaultOptions, suiteName)
 		}, optionsTransform);
 		await this.app.start();
+
+		// Smoke tests require a workspace to be open
+		if (!this.app.workspacePathOrFolder) {
+			throw new Error('Smoke tests require a workspace to be open');
+		}
 	});
 }
 

@@ -28,9 +28,9 @@ export function setup(ensureStableCode: () => { stableCodePath: string | undefin
 			await app.start();
 
 			// Open 3 editors
-			await app.workbench.quickaccess.openFile(join(app.workspacePathOrFolder, 'bin', 'www'));
+			await app.workbench.quickaccess.openFile(join(app.workspacePath, 'bin', 'www'));
 			await app.workbench.quickaccess.runCommand('View: Keep Editor');
-			await app.workbench.quickaccess.openFile(join(app.workspacePathOrFolder, 'app.js'));
+			await app.workbench.quickaccess.openFile(join(app.workspacePath, 'app.js'));
 			await app.workbench.quickaccess.runCommand('View: Keep Editor');
 			await app.workbench.editors.newUntitledFile();
 
@@ -56,7 +56,7 @@ export function setup(ensureStableCode: () => { stableCodePath: string | undefin
 			const textToType = 'Hello, Code';
 
 			// open editor and type
-			await app.workbench.quickaccess.openFile(join(app.workspacePathOrFolder, 'app.js'));
+			await app.workbench.quickaccess.openFile(join(app.workspacePath, 'app.js'));
 			await app.workbench.editor.waitForTypeInEditor('app.js', textToType);
 			await app.workbench.editors.waitForTab('app.js', true);
 
@@ -105,7 +105,7 @@ export function setup(ensureStableCode: () => { stableCodePath: string | undefin
 			await app.workbench.editors.waitForTab('Untitled-1', true);
 
 			const textToType = 'Hello, Code';
-			await app.workbench.quickaccess.openFile(join(app.workspacePathOrFolder, 'readme.md'));
+			await app.workbench.quickaccess.openFile(join(app.workspacePath, 'readme.md'));
 			await app.workbench.editor.waitForTypeInEditor('readme.md', textToType);
 			await app.workbench.editors.waitForTab('readme.md', !autoSave);
 
@@ -176,9 +176,9 @@ export function setup(ensureStableCode: () => { stableCodePath: string | undefin
 			await stableApp.start();
 
 			// Open 3 editors
-			await stableApp.workbench.quickaccess.openFile(join(stableApp.workspacePathOrFolder, 'bin', 'www'));
+			await stableApp.workbench.quickaccess.openFile(join(stableApp.workspacePath, 'bin', 'www'));
 			await stableApp.workbench.quickaccess.runCommand('View: Keep Editor');
-			await stableApp.workbench.quickaccess.openFile(join(stableApp.workspacePathOrFolder, 'app.js'));
+			await stableApp.workbench.quickaccess.openFile(join(stableApp.workspacePath, 'app.js'));
 			await stableApp.workbench.quickaccess.runCommand('View: Keep Editor');
 			await stableApp.workbench.editors.newUntitledFile();
 
@@ -238,7 +238,7 @@ export function setup(ensureStableCode: () => { stableCodePath: string | undefin
 			await stableApp.workbench.editors.waitForTab('Untitled-1', true);
 
 			const textToType = 'Hello, Code';
-			await stableApp.workbench.quickaccess.openFile(join(stableApp.workspacePathOrFolder, 'readme.md'));
+			await stableApp.workbench.quickaccess.openFile(join(stableApp.workspacePath, 'readme.md'));
 			await stableApp.workbench.editor.waitForTypeInEditor('readme.md', textToType);
 			await stableApp.workbench.editors.waitForTab('readme.md', true);
 

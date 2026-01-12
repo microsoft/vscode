@@ -19,7 +19,7 @@ export function setup(logger: Logger) {
 			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.SYNC_STATUS);
 			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.PROBLEMS_STATUS);
 
-			await app.workbench.quickaccess.openFile(join(app.workspacePathOrFolder, 'readme.md'));
+			await app.workbench.quickaccess.openFile(join(app.workspacePath, 'readme.md'));
 			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.ENCODING_STATUS);
 			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.EOL_STATUS);
 			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.INDENTATION_STATUS);
@@ -33,7 +33,7 @@ export function setup(logger: Logger) {
 			await app.workbench.quickinput.waitForQuickInputOpened();
 			await app.workbench.quickinput.closeQuickInput();
 
-			await app.workbench.quickaccess.openFile(join(app.workspacePathOrFolder, 'readme.md'));
+			await app.workbench.quickaccess.openFile(join(app.workspacePath, 'readme.md'));
 			await app.workbench.statusbar.clickOn(StatusBarElement.INDENTATION_STATUS);
 			await app.workbench.quickinput.waitForQuickInputOpened();
 			await app.workbench.quickinput.closeQuickInput();
@@ -56,7 +56,7 @@ export function setup(logger: Logger) {
 
 		it(`verifies if changing EOL is reflected in the status bar`, async function () {
 			const app = this.app as Application;
-			await app.workbench.quickaccess.openFile(join(app.workspacePathOrFolder, 'readme.md'));
+			await app.workbench.quickaccess.openFile(join(app.workspacePath, 'readme.md'));
 			await app.workbench.statusbar.clickOn(StatusBarElement.EOL_STATUS);
 
 			await app.workbench.quickinput.selectQuickInputElement(1);

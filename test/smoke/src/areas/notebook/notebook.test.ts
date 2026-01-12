@@ -21,8 +21,8 @@ export function setup(logger: Logger) {
 
 		after(async function () {
 			const app = this.app as Application;
-			cp.execSync('git checkout . --quiet', { cwd: app.workspacePathOrFolder });
-			cp.execSync('git reset --hard HEAD --quiet', { cwd: app.workspacePathOrFolder });
+			cp.execSync('git checkout . --quiet', { cwd: app.workspacePath });
+			cp.execSync('git reset --hard HEAD --quiet', { cwd: app.workspacePath });
 		});
 
 		// the heap snapshot fails to parse

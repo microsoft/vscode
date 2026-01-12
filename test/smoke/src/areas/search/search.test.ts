@@ -15,8 +15,8 @@ export function setup(logger: Logger) {
 
 		after(function () {
 			const app = this.app as Application;
-			retry(async () => cp.execSync('git checkout . --quiet', { cwd: app.workspacePathOrFolder }), 0, 5);
-			retry(async () => cp.execSync('git reset --hard HEAD --quiet', { cwd: app.workspacePathOrFolder }), 0, 5);
+			retry(async () => cp.execSync('git checkout . --quiet', { cwd: app.workspacePath }), 0, 5);
+			retry(async () => cp.execSync('git reset --hard HEAD --quiet', { cwd: app.workspacePath }), 0, 5);
 		});
 
 		it('verifies the sidebar moves to the right', async function () {
