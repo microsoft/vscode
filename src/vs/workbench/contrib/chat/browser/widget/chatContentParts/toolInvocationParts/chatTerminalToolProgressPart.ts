@@ -213,6 +213,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private readonly _isSerializedInvocation: boolean;
 	private _terminalInstance: ITerminalInstance | undefined;
 	private readonly _decoration: TerminalCommandDecoration;
+	private _autoExpandTimeout: ReturnType<typeof setTimeout> | undefined;
+	private _userToggledOutput: boolean = false;
 
 	private markdownPart: ChatMarkdownContentPart | undefined;
 	public get codeblocks(): IChatCodeBlockInfo[] {
@@ -509,10 +511,23 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			const store = new DisposableStore();
 			store.add(commandDetection.onCommandExecuted(() => {
 				this._addActions(terminalInstance, this._terminalData.terminalToolSessionId);
+				// Auto-expand after a short delay to show streaming output
+				if (!this._outputView.isExpanded && !this._userToggledOutput && !this._autoExpandTimeout) {
+					this._autoExpandTimeout = setTimeout(() => {
+						this._autoExpandTimeout = undefined;
+						if (!this._store.isDisposed && !this._outputView.isExpanded && !this._userToggledOutput) {
+							this._toggleOutput(true);
+						}
+					}, 30);
+				}
 			}));
 			store.add(commandDetection.onCommandFinished(() => {
 				this._addActions(terminalInstance, this._terminalData.terminalToolSessionId);
 				const resolvedCommand = this._getResolvedCommand(terminalInstance);
+				// Auto-collapse on success if user hasn't manually toggled
+				if (resolvedCommand?.exitCode === 0 && this._outputView.isExpanded && !this._userToggledOutput) {
+					this._toggleOutput(false);
+				}
 				if (resolvedCommand?.endMarker) {
 					commandDetectionListener.clear();
 				}
@@ -601,6 +616,10 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	}
 
 	private _handleDispose(): void {
+		if (this._autoExpandTimeout) {
+			clearTimeout(this._autoExpandTimeout);
+			this._autoExpandTimeout = undefined;
+		}
 		this._terminalOutputContextKey.reset();
 		this._terminalChatService.clearFocusedProgressPart(this);
 	}
@@ -629,6 +648,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	}
 
 	public async toggleOutputFromKeyboard(): Promise<void> {
+		this._userToggledOutput = true;
 		if (!this._outputView.isExpanded) {
 			await this._toggleOutput(true);
 			this.focusOutput();
@@ -638,6 +658,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	}
 
 	private async _toggleOutputFromAction(): Promise<void> {
+		this._userToggledOutput = true;
 		if (!this._outputView.isExpanded) {
 			await this._toggleOutput(true);
 			return;
