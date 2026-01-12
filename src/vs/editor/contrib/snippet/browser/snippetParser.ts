@@ -400,62 +400,64 @@ export class FormatString extends Marker {
 		}
 	}
 
+	// Note: word-based case transforms rely on uppercase/lowercase distinctions.
+	// For scripts without case, transforms are effectively no-ops.
 	private _toKebabCase(value: string): string {
-		const match = value.match(/[a-z0-9]+/gi);
+		const match = value.match(/[\p{L}0-9]+/gu);
 		if (!match) {
 			return value;
 		}
 
-		if (!value.match(/[a-z0-9]/)) {
+		if (!value.match(/[\p{L}0-9]/u)) {
 			return value
 				.trim()
-				.toLowerCase()
+				.toLocaleLowerCase()
 				.replace(/^_+|_+$/g, '')
 				.replace(/[\s_]+/g, '-');
 		}
 
 		const match2 = value
 			.trim()
-			.match(/[A-Z]{2,}(?=[A-Z][a-z]+[0-9]*|\b)|[A-Z]?[a-z]+[0-9]*|[A-Z]|[0-9]+/g);
+			.match(/\p{Lu}{2,}(?=\p{Lu}\p{Ll}+[0-9]*|\b)|\p{Lu}?\p{Ll}+[0-9]*|\p{Lu}|[0-9]+/gu);
 
 		if (!match2) {
 			return value;
 		}
 
 		return match2
-			.map(x => x.toLowerCase())
+			.map(x => x.toLocaleLowerCase())
 			.join('-');
 	}
 
 	private _toPascalCase(value: string): string {
-		const match = value.match(/[a-z0-9]+/gi);
+		const match = value.match(/[\p{L}0-9]+/gu);
 		if (!match) {
 			return value;
 		}
 		return match.map(word => {
-			return word.charAt(0).toUpperCase() + word.substr(1);
+			return word.charAt(0).toLocaleUpperCase() + word.substr(1);
 		})
 			.join('');
 	}
 
 	private _toCamelCase(value: string): string {
-		const match = value.match(/[a-z0-9]+/gi);
+		const match = value.match(/[\p{L}0-9]+/gu);
 		if (!match) {
 			return value;
 		}
 		return match.map((word, index) => {
 			if (index === 0) {
-				return word.charAt(0).toLowerCase() + word.substr(1);
+				return word.charAt(0).toLocaleLowerCase() + word.substr(1);
 			}
-			return word.charAt(0).toUpperCase() + word.substr(1);
+			return word.charAt(0).toLocaleUpperCase() + word.substr(1);
 		})
 			.join('');
 	}
 
 	private _toSnakeCase(value: string): string {
-		return value.replace(/([a-z])([A-Z])/g, '$1_$2')
+		return value.replace(/(\p{Ll})(\p{Lu})/gu, '$1_$2')
 			.replace(/[\s\-]+/g, '_')
-			.toLowerCase();
+			.toLocaleLowerCase();
 	}
 
 	toTextmateString(): string {
