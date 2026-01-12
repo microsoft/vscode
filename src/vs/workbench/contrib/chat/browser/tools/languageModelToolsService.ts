@@ -491,6 +491,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				parameters: dto.parameters,
 				chatRequestId: dto.chatRequestId,
 				chatSessionId: dto.context?.sessionId,
+				chatSessionResource: dto.context?.sessionResource,
 				chatInteractionId: dto.chatInteractionId
 			}, token);
 

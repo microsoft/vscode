@@ -416,6 +416,15 @@ export interface IChatToolInputInvocationData {
 	kind: 'input';
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	rawInput: any;
+	/** Optional MCP App UI metadata for rendering during and after tool execution */
+	mcpAppData?: {
+		/** URI of the UI resource for rendering (e.g., "ui://weather-server/dashboard") */
+		resourceUri: string;
+		/** Reference to the server definition for reconnection */
+		serverDefinitionId: string;
+		/** Reference to the collection containing the server */
+		collectionId: string;
+	};
 }
 
 export const enum ToolConfirmKind {
@@ -429,7 +438,7 @@ export const enum ToolConfirmKind {
 
 export type ConfirmedReason =
 	| { type: ToolConfirmKind.Denied }
-	| { type: ToolConfirmKind.ConfirmationNotNeeded }
+	| { type: ToolConfirmKind.ConfirmationNotNeeded; reason?: string | IMarkdownString }
 	| { type: ToolConfirmKind.Setting; id: string }
 	| { type: ToolConfirmKind.LmServicePerTool; scope: 'session' | 'workspace' | 'profile' }
 	| { type: ToolConfirmKind.UserAction }
@@ -960,8 +969,6 @@ export interface IChatEditorLocationData {
 	document: URI;
 	selection: ISelection;
 	wholeRange: IRange;
-	close: () => void;
-	delegateSessionResource: URI | undefined;
 }
 
 export interface IChatNotebookLocationData {

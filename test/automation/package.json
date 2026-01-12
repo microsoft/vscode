@@ -18,6 +18,7 @@
     "prepublishOnly": "npm run copy-package-version"
   },
   "dependencies": {
+    "axe-core": "^4.10.2",
     "ncp": "^2.0.0",
     "tmp": "0.2.4",
     "tree-kill": "1.2.2",

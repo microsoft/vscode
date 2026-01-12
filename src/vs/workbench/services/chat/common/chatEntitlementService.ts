@@ -26,7 +26,7 @@ import { URI } from '../../../../base/common/uri.js';
 import Severity from '../../../../base/common/severity.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { isWeb } from '../../../../base/common/platform.js';
-import { ILifecycleService, LifecyclePhase } from '../../lifecycle/common/lifecycle.js';
+import { ILifecycleService } from '../../lifecycle/common/lifecycle.js';
 import { Mutable } from '../../../../base/common/types.js';
 import { distinct } from '../../../../base/common/arrays.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -257,7 +257,6 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 	) {
 		super();
 
@@ -413,13 +412,6 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 
 		this._register(this.onDidChangeEntitlement(() => updateAnonymousUsage()));
 		this._register(this.onDidChangeSentiment(() => updateAnonymousUsage()));
-
-		// TODO@bpasero workaround for https://github.com/microsoft/vscode-internalbacklog/issues/6275
-		this.lifecycleService.when(LifecyclePhase.Eventually).then(() => {
-			if (this.context?.hasValue) {
-				logChatEntitlements(this.context.value.state, this.configurationService, this.telemetryService);
-			}
-		});
 	}
 
 	acceptQuotas(quotas: IQuotas): void {

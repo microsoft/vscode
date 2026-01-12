@@ -263,20 +263,11 @@ export class MenuEntryActionViewItem<T extends IMenuEntryActionViewItemOptions =
 	}
 
 	protected override getTooltip() {
-		const keybinding = this._keybindingService.lookupKeybinding(this._commandAction.id, this._contextKeyService);
-		const keybindingLabel = keybinding && keybinding.getLabel();
-
 		const tooltip = this._commandAction.tooltip || this._commandAction.label;
-		let title = keybindingLabel
-			? localize('titleAndKb', "{0} ({1})", tooltip, keybindingLabel)
-			: tooltip;
+		let title = this._keybindingService.appendKeybinding(tooltip, this._commandAction.id, this._contextKeyService);
 		if (!this._wantsAltCommand && this._menuItemAction.alt?.enabled) {
 			const altTooltip = this._menuItemAction.alt.tooltip || this._menuItemAction.alt.label;
-			const altKeybinding = this._keybindingService.lookupKeybinding(this._menuItemAction.alt.id, this._contextKeyService);
-			const altKeybindingLabel = altKeybinding && altKeybinding.getLabel();
-			const altTitleSection = altKeybindingLabel
-				? localize('titleAndKb', "{0} ({1})", altTooltip, altKeybindingLabel)
-				: altTooltip;
+			const altTitleSection = this._keybindingService.appendKeybinding(altTooltip, this._menuItemAction.alt.id, this._contextKeyService);
 
 			title = localize('titleAndKbAndAlt', "{0}\n[{1}] {2}", title, UILabelProvider.modifierLabels[OS].altKey, altTitleSection);
 		}
@@ -593,7 +584,7 @@ class SubmenuEntrySelectActionViewItem extends SelectActionViewItem {
 		@IContextViewService contextViewService: IContextViewService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(null, action, action.actions.map(a => (a.id === Separator.ID ? SeparatorSelectOption : { text: a.label, isDisabled: !a.enabled, })), 0, contextViewService, defaultSelectBoxStyles, { ariaLabel: action.tooltip, optionsAsChildren: true, useCustomDrawn: !hasNativeContextMenu(configurationService) });
+		super(null, action, action.actions.map(a => (a.id === Separator.ID ? SeparatorSelectOption : { text: a.label, isDisabled: !a.enabled, })), 0, contextViewService, defaultSelectBoxStyles, { ariaLabel: action.tooltip || action.label, optionsAsChildren: true, useCustomDrawn: !hasNativeContextMenu(configurationService) });
 		this.select(Math.max(0, action.actions.findIndex(a => a.checked)));
 	}
 

@@ -149,8 +149,9 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			}
 		};
 		const languageId = this.languageService.getLanguageIdByLanguageName(terminalData.language ?? 'sh') ?? 'shellscript';
+		const initialContent = (terminalData.commandLine.toolEdited ?? terminalData.commandLine.original).trimStart();
 		const model = this._register(this.modelService.createModel(
-			terminalData.commandLine.toolEdited ?? terminalData.commandLine.original,
+			initialContent,
 			this.languageService.createById(languageId),
 			this._getUniqueCodeBlockUri(),
 			true
@@ -182,7 +183,9 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			this._onDidChangeHeight.fire();
 		}));
 		this._register(model.onDidChangeContent(e => {
-			terminalData.commandLine.userEdited = model.getValue();
+			const currentValue = model.getValue();
+			// Only set userEdited if the content actually differs from the initial value
+			terminalData.commandLine.userEdited = currentValue !== initialContent ? currentValue : undefined;
 		}));
 		const elements = h('.chat-confirmation-message-terminal', [
 			h('.chat-confirmation-message-terminal-editor@editor'),
@@ -266,9 +269,9 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 						const userRules = newRules.filter(r => r.scope === 'user');
 
 						// Handle session-scoped rules (temporary, in-memory only)
-						const chatSessionId = this.context.element.sessionId;
+						const chatSessionResource = this.context.element.sessionResource;
 						for (const rule of sessionRules) {
-							this.terminalChatService.addSessionAutoApproveRule(chatSessionId, rule.key, rule.value);
+							this.terminalChatService.addSessionAutoApproveRule(chatSessionResource, rule.key, rule.value);
 						}
 
 						// Handle workspace-scoped rules
@@ -329,18 +332,18 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 						const parts: string[] = [];
 						if (sessionRules.length > 0) {
 							parts.push(sessionRules.length === 1
-								? localize('newRule.session', 'Session rule {0} added', formatRuleLinks(sessionRules, 'session'))
-								: localize('newRule.session.plural', 'Session rules {0} added', formatRuleLinks(sessionRules, 'session')));
+								? localize('newRule.session', 'Session auto approve rule {0} added', formatRuleLinks(sessionRules, 'session'))
+								: localize('newRule.session.plural', 'Session auto approve rules {0} added', formatRuleLinks(sessionRules, 'session')));
 						}
 						if (workspaceRules.length > 0) {
 							parts.push(workspaceRules.length === 1
-								? localize('newRule.workspace', 'Workspace rule {0} added', formatRuleLinks(workspaceRules, 'workspace'))
-								: localize('newRule.workspace.plural', 'Workspace rules {0} added', formatRuleLinks(workspaceRules, 'workspace')));
+								? localize('newRule.workspace', 'Workspace auto approve rule {0} added', formatRuleLinks(workspaceRules, 'workspace'))
+								: localize('newRule.workspace.plural', 'Workspace auto approve rules {0} added', formatRuleLinks(workspaceRules, 'workspace')));
 						}
 						if (userRules.length > 0) {
 							parts.push(userRules.length === 1
-								? localize('newRule.user', 'User rule {0} added', formatRuleLinks(userRules, 'user'))
-								: localize('newRule.user.plural', 'User rules {0} added', formatRuleLinks(userRules, 'user')));
+								? localize('newRule.user', 'User auto approve rule {0} added', formatRuleLinks(userRules, 'user'))
+								: localize('newRule.user.plural', 'User auto approve rules {0} added', formatRuleLinks(userRules, 'user')));
 						}
 						if (parts.length > 0) {
 							terminalData.autoApproveInfo = new MarkdownString(parts.join(', '), mdTrustSettings);
@@ -357,9 +360,9 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 						break;
 					}
 					case 'sessionApproval': {
-						const sessionId = this.context.element.sessionId;
-						this.terminalChatService.setChatSessionAutoApproval(sessionId, true);
-						const disableUri = createCommandUri(TerminalContribCommandId.DisableSessionAutoApproval, sessionId);
+						const sessionResource = this.context.element.sessionResource;
+						this.terminalChatService.setChatSessionAutoApproval(sessionResource, true);
+						const disableUri = createCommandUri(TerminalContribCommandId.DisableSessionAutoApproval, sessionResource);
 						const mdTrustSettings = {
 							isTrusted: {
 								enabledCommands: [TerminalContribCommandId.DisableSessionAutoApproval]
@@ -384,8 +387,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 
 	private _createButtons(moreActions: (IChatConfirmationButton<TerminalNewAutoApproveButtonData> | Separator)[] | undefined): IChatConfirmationButton<boolean | TerminalNewAutoApproveButtonData>[] {
 		const getLabelAndTooltip = (label: string, actionId: string, tooltipDetail: string = label): { label: string; tooltip: string } => {
-			const keybinding = this.keybindingService.lookupKeybinding(actionId)?.getLabel();
-			const tooltip = keybinding ? `${tooltipDetail} (${keybinding})` : (tooltipDetail);
+			const tooltip = this.keybindingService.appendKeybinding(tooltipDetail, actionId);
 			return { label, tooltip };
 		};
 		return [

@@ -46,6 +46,7 @@ import { ChatTreeItem, IChatWidgetService } from '../../chat.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { IDisposableReference, ResourcePool } from './chatCollections.js';
 import { IChatContentPartRenderContext } from './chatContentParts.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 
 const $ = dom.$;
 
@@ -73,14 +74,17 @@ export class ChatCollapsibleListContentPart extends ChatCollapsibleContentPart {
 		labelOverride: IMarkdownString | string | undefined,
 		context: IChatContentPartRenderContext,
 		private readonly contentReferencesListPool: CollapsibleListPool,
+		hoverMessage: IMarkdownString | undefined,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IHoverService hoverService: IHoverService,
 	) {
 		super(labelOverride ?? (data.length > 1 ?
 			localize('usedReferencesPlural', "Used {0} references", data.length) :
-			localize('usedReferencesSingular', "Used {0} reference", 1)), context);
+			localize('usedReferencesSingular', "Used {0} reference", 1)), context, hoverMessage,
+			hoverService);
 	}
 
 	protected override initContent(): HTMLElement {
@@ -163,22 +167,23 @@ export class ChatUsedReferencesListContentPart extends ChatCollapsibleListConten
 		@IMenuService menuService: IMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
+		@IHoverService hoverService: IHoverService,
 	) {
-		super(data, labelOverride, context, contentReferencesListPool, openerService, menuService, instantiationService, contextMenuService);
+		super(data, labelOverride, context, contentReferencesListPool, undefined, openerService, menuService, instantiationService, contextMenuService, hoverService);
 		if (data.length === 0) {
 			dom.hide(this.domNode);
 		}
 	}
 
 	protected override isExpanded(): boolean {
-		const element = this.context.element as IChatResponseViewModel;
+		const element = this.element as IChatResponseViewModel;
 		return element.usedReferencesExpanded ?? !!(
 			this.options.expandedWhenEmptyResponse && element.response.value.length === 0
 		);
 	}
 
 	protected override setExpanded(value: boolean): void {
-		const element = this.context.element as IChatResponseViewModel;
+		const element = this.element as IChatResponseViewModel;
 		element.usedReferencesExpanded = !this.isExpanded();
 	}
 }
