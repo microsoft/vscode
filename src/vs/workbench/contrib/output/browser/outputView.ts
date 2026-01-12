@@ -42,7 +42,7 @@ import { IEditorContributionDescription, EditorExtensionsRegistry, EditorContrib
 import { ICodeEditorWidgetOptions } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { IEditorContribution, IEditorDecorationsCollection } from '../../../../editor/common/editorCommon.js';
 import { IModelDeltaDecoration, ITextModel } from '../../../../editor/common/model.js';
-import { Range } from '../../../../editor/common/core/range.js';
+import { Range, IRange } from '../../../../editor/common/core/range.js';
 import { FindDecorations } from '../../../../editor/contrib/find/browser/findDecorations.js';
 import { Memento } from '../../../common/memento.js';
 import { Markers } from '../../markers/common/markers.js';
@@ -386,9 +386,14 @@ export class FilterController extends Disposable implements IEditorContribution 
 		
 		// Wrap the model's findMatches method to filter out matches in hidden areas
 		const originalFindMatches = model.findMatches.bind(model);
-		model.findMatches = (searchString: string, rawSearchScope: any, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean, limitResultCount?: number) => {
-			// Call the original findMatches method
-			const allMatches = originalFindMatches(searchString, rawSearchScope, isRegex, matchCase, wordSeparators, captureMatches, limitResultCount);
+		model.findMatches = ((searchString: string, rawSearchScope: boolean | IRange | IRange[], isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean, limitResultCount?: number) => {
+			// Call the original findMatches method with proper type handling
+			let allMatches;
+			if (typeof rawSearchScope === 'boolean') {
+				allMatches = originalFindMatches(searchString, rawSearchScope, isRegex, matchCase, wordSeparators, captureMatches, limitResultCount);
+			} else {
+				allMatches = originalFindMatches(searchString, rawSearchScope, isRegex, matchCase, wordSeparators, captureMatches, limitResultCount);
+			}
 			
 			// Filter out matches that fall within hidden areas
 			if (this.hiddenAreas.length === 0) {
@@ -404,7 +409,7 @@ export class FilterController extends Disposable implements IEditorContribution 
 				}
 				return true;
 			});
-		};
+		}) as typeof model.findMatches;
 		
 		this.modelDisposables.add({
 			dispose: () => {
