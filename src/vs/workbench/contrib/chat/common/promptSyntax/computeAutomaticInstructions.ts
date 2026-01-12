@@ -258,11 +258,11 @@ export class ComputeAutomaticInstructions {
 			const agentsMdPromise = searchNestedAgentMd ? this._promptsService.findAgentMDsInWorkspace(token) : Promise.resolve([]);
 
 			entries.push('<instructions>');
-			entries.push('Here is a list of instruction files that contain rules for modifying or creating new code.');
-			entries.push('These files are important for ensuring that the code is modified or created correctly.');
+			entries.push('Here is a list of instruction files that contain rules for working with this codebase.');
+			entries.push('These files are important for understanding the codebase structure, conventions, and best practices.');
 			entries.push('Please make sure to follow the rules specified in these files when working with the codebase.');
 			entries.push(`If the file is not already available as attachment, use the ${readTool.variable} tool to acquire it.`);
-			entries.push('Make sure to acquire the instructions before making any changes to the code.');
+			entries.push('Make sure to acquire the instructions before working with the codebase.');
 			let hasContent = false;
 			for (const { uri } of instructionFiles) {
 				const parsedFile = await this._parseInstructionsFile(uri, token);
