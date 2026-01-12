@@ -210,9 +210,8 @@ export class GlyphHoverController extends Disposable implements IEditorContribut
 		if (this._hoverSettings.enabled === 'onKeyboardModifier'
 			&& isTriggerModifierPressed(this._editor.getOption(EditorOption.multiCursorModifier), e)
 			&& this._mouseMoveEvent) {
-			if (this._tryShowHoverWidget(this._mouseMoveEvent)) {
-				return;
-			}
+			this._tryShowHoverWidget(this._mouseMoveEvent);
+			return;
 		}
 
 		if (isModifierKey(e.keyCode)) {
