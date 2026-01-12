@@ -60,6 +60,12 @@
         "label": "%lightHcColorThemeLabel%",
         "uiTheme": "hc-light",
         "path": "./themes/hc_light.json"
+      },
+      {
+        "id": "Stealth White",
+        "label": "Stealth White",
+        "uiTheme": "vs",
+        "path": "./themes/stealth_white.json"
       }
     ],
     "iconThemes": [

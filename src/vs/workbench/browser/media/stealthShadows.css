@@ -1,0 +1,597 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * Stealth Shadows CSS
+ * This file implements shadow-based depth for the VS Code workbench UI.
+ * Elements rely on box-shadow instead of borders to create visual hierarchy.
+ *
+ * Design Philosophy:
+ * - Use soft, diffuse shadows for depth perception
+ * - Remove harsh borders in favor of subtle shadow boundaries
+ * - Create clear visual hierarchy through shadow intensity
+ * - Maintain usability in both light and dark themes
+ */
+
+/* ============================================
+   CSS Custom Properties for Shadow Depths
+   ============================================ */
+
+:root {
+	/* Light theme shadow depths - very subtle for white themes */
+	/* Ambient shadows - no specific direction (uniform spread) */
+	--vscode-stealth-shadow-xs: 0 0 3px rgba(0, 0, 0, 0.04);
+	--vscode-stealth-shadow-sm: 0 0 6px rgba(0, 0, 0, 0.05);
+	--vscode-stealth-shadow-md: 0 0 10px rgba(0, 0, 0, 0.07);
+	--vscode-stealth-shadow-lg: 0 0 16px rgba(0, 0, 0, 0.09);
+	--vscode-stealth-shadow-xl: 0 0 24px rgba(0, 0, 0, 0.11);
+	--vscode-stealth-shadow-2xl: 0 0 40px rgba(0, 0, 0, 0.16);
+
+	/* Ambient panel shadow */
+	--vscode-stealth-shadow-panel: 0 0 10px rgba(0, 0, 0, 0.06);
+
+	/* Inner glow for depth */
+	--vscode-stealth-inner-glow: inset 0 0 4px rgba(255, 255, 255, 0.1);
+}
+
+/* Dark theme shadows - more pronounced for visibility */
+/* Ambient shadows - no specific direction (uniform spread) */
+.monaco-workbench.vs-dark,
+.monaco-workbench.hc-black {
+	--vscode-stealth-shadow-xs: 0 0 3px rgba(0, 0, 0, 0.18);
+	--vscode-stealth-shadow-sm: 0 0 6px rgba(0, 0, 0, 0.22);
+	--vscode-stealth-shadow-md: 0 0 10px rgba(0, 0, 0, 0.32);
+	--vscode-stealth-shadow-lg: 0 0 16px rgba(0, 0, 0, 0.38);
+	--vscode-stealth-shadow-xl: 0 0 24px rgba(0, 0, 0, 0.42);
+	--vscode-stealth-shadow-2xl: 0 0 40px rgba(0, 0, 0, 0.52);
+
+	--vscode-stealth-shadow-panel: 0 0 10px rgba(0, 0, 0, 0.28);
+
+	--vscode-stealth-inner-glow: inset 0 0 4px rgba(255, 255, 255, 0.03);
+}
+
+/* ============================================
+   Activity Bar - Unified downward shadow
+   ============================================ */
+
+.monaco-workbench .part.activitybar {
+	box-shadow: var(--vscode-stealth-shadow-panel);
+	z-index: 50;
+	position: relative;
+}
+
+/* Activity bar on the right side - same shadow */
+.monaco-workbench.activitybar-right .part.activitybar {
+	box-shadow: var(--vscode-stealth-shadow-panel);
+}
+
+/* ============================================
+   Sidebar - Unified downward shadow
+   ============================================ */
+
+.monaco-workbench .part.sidebar {
+	box-shadow: var(--vscode-stealth-shadow-panel);
+	z-index: 40;
+	position: relative;
+}
+
+/* Sidebar on the right side - same shadow */
+.monaco-workbench.sidebar-right .part.sidebar {
+	box-shadow: var(--vscode-stealth-shadow-panel);
+}
+
+/* Auxiliary sidebar (secondary sidebar) */
+.monaco-workbench .part.auxiliarybar {
+	box-shadow: var(--vscode-stealth-shadow-panel);
+	z-index: 40;
+	position: relative;
+}
+
+/* ============================================
+   Panel (Bottom Panel) - Unified downward shadow
+   ============================================ */
+
+.monaco-workbench .part.panel {
+	box-shadow: var(--vscode-stealth-shadow-panel);
+	z-index: 35;
+	position: relative;
+}
+
+/* Panel on the side - same shadow */
+.monaco-workbench.panel-position-left .part.panel {
+	box-shadow: var(--vscode-stealth-shadow-panel);
+}
+
+.monaco-workbench.panel-position-right .part.panel {
+	box-shadow: var(--vscode-stealth-shadow-panel);
+}
+
+/* ============================================
+   Editor Area - Base Level
+   ============================================ */
+
+.monaco-workbench .part.editor {
+	position: relative;
+}
+
+/* ============================================
+   Editor Tabs - No shadow for seamless blend with editor
+   ============================================ */
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title {
+	box-shadow: none;
+	position: relative;
+	z-index: 10;
+}
+
+/* Active tab - stronger ambient shadow */
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active {
+	box-shadow: 0 0 12px rgba(0, 0, 0, 0.10);
+	position: relative;
+	z-index: 5;
+	border-radius: 4px 4px 0 0;
+}
+
+/* Tab hover effect */
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:hover:not(.active) {
+	box-shadow: var(--vscode-stealth-shadow-sm);
+}
+
+/* ============================================
+   Title Bar - Unified downward shadow
+   ============================================ */
+
+.monaco-workbench .part.titlebar {
+	box-shadow: var(--vscode-stealth-shadow-panel);
+	z-index: 60;
+	position: relative;
+}
+
+/* ============================================
+   Status Bar - Unified downward shadow
+   ============================================ */
+
+.monaco-workbench .part.statusbar {
+	box-shadow: var(--vscode-stealth-shadow-panel);
+	z-index: 55;
+	position: relative;
+}
+
+/* ============================================
+   Quick Input (Command Palette) - Elevated white card above toolbar
+   NO BORDER - Just shadow
+   ============================================ */
+
+.quick-input-widget {
+	box-shadow: 0 8px 32px -4px rgba(0, 0, 0, 0.12), 0 4px 16px -2px rgba(0, 0, 0, 0.08) !important;
+	border: none !important;
+	border-radius: 12px;
+	overflow: hidden;
+	background: #FFFFFF !important;
+}
+
+/* Remove ALL borders from quick input */
+.quick-input-widget,
+.quick-input-widget *,
+.quick-input-widget .quick-input-header,
+.quick-input-widget .quick-input-list,
+.quick-input-widget .quick-input-titlebar,
+.quick-input-widget .quick-input-title,
+.quick-input-widget .quick-input-description,
+.quick-input-widget .quick-input-filter,
+.quick-input-widget .quick-input-action,
+.quick-input-widget .quick-input-message,
+.quick-input-widget .monaco-inputbox,
+.quick-input-widget .monaco-list,
+.quick-input-widget .monaco-list-row {
+	border: none !important;
+	border-color: transparent !important;
+	outline: none !important;
+}
+
+/* Ensure input box inside command palette has no border */
+.quick-input-widget .monaco-inputbox {
+	box-shadow: none !important;
+	background: transparent !important;
+}
+
+.quick-input-widget .quick-input-filter .monaco-inputbox {
+	background: var(--vscode-input-background, #FFFFFF) !important;
+	border-radius: 6px;
+}
+
+/* ============================================
+   Chat Widget Input - Shadow Instead of Border
+   NO BORDER - Just shadow
+   ============================================ */
+
+.interactive-session .chat-input-container {
+	box-shadow: var(--vscode-stealth-shadow-lg);
+	border: none !important;
+	border-radius: 12px;
+	background-color: var(--vscode-panel-background, var(--vscode-sideBar-background)) !important;
+}
+
+/* Chat input editor background to match container */
+.interactive-session .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor,
+.interactive-session .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor .monaco-editor-background {
+	background-color: var(--vscode-panel-background, var(--vscode-sideBar-background)) !important;
+}
+
+/* Chat editing session container */
+.interactive-session .chat-editing-session .chat-editing-session-container {
+	box-shadow: var(--vscode-stealth-shadow-md);
+	border: none !important;
+	border-radius: 8px 8px 0 0;
+}
+
+/* When editing session is present, adjust input container */
+.interactive-input-part:has(.chat-editing-session > .chat-editing-session-container) .chat-input-container {
+	border-radius: 0 0 12px 12px;
+}
+
+/* Chat panel overall */
+.monaco-workbench .part.panel .interactive-session,
+.monaco-workbench .part.auxiliarybar .interactive-session {
+	position: relative;
+}
+
+/* ============================================
+   Notifications - Floating Elements
+   ============================================ */
+
+.monaco-workbench .notifications-toasts {
+	box-shadow: var(--vscode-stealth-shadow-xl);
+}
+
+.monaco-workbench .notification-toast {
+	box-shadow: var(--vscode-stealth-shadow-lg);
+	border: none;
+	border-radius: 8px;
+	overflow: hidden;
+}
+
+/* ============================================
+   Context Menus - High Elevation
+   ============================================ */
+
+.monaco-menu .monaco-action-bar.vertical {
+	box-shadow: var(--vscode-stealth-shadow-xl);
+	border: none;
+	border-radius: 8px;
+	overflow: hidden;
+}
+
+.context-view .monaco-menu {
+	box-shadow: var(--vscode-stealth-shadow-xl);
+	border: none;
+	border-radius: 8px;
+}
+
+/* ============================================
+   Hover Widgets - Elevated
+   ============================================ */
+
+.monaco-hover {
+	box-shadow: var(--vscode-stealth-shadow-lg) !important;
+	border: none !important;
+	border-radius: 8px;
+}
+
+.monaco-hover.workbench-hover {
+	box-shadow: var(--vscode-stealth-shadow-lg) !important;
+	border: none !important;
+}
+
+/* ============================================
+   Suggest Widget (Autocomplete) - Elevated
+   ============================================ */
+
+.monaco-editor .suggest-widget {
+	box-shadow: var(--vscode-stealth-shadow-xl);
+	border: none;
+	border-radius: 8px;
+	overflow: hidden;
+}
+
+/* ============================================
+   Find Widget - Elevated
+   ============================================ */
+
+.monaco-editor .find-widget {
+	box-shadow: var(--vscode-stealth-shadow-lg);
+	border: none;
+	border-radius: 8px;
+}
+
+/* ============================================
+   Dialog Windows - Highest Elevation
+   ============================================ */
+
+.monaco-dialog-box {
+	box-shadow: var(--vscode-stealth-shadow-2xl);
+	border: none;
+	border-radius: 12px;
+	overflow: hidden;
+}
+
+/* ============================================
+   Peek View - Elevated with Blur Background
+   ============================================ */
+
+.monaco-editor .peekview-widget {
+	box-shadow: var(--vscode-stealth-shadow-lg);
+	border: none;
+	background: var(--vscode-editor-background, #EDEDED) !important;
+	backdrop-filter: blur(12px);
+	-webkit-backdrop-filter: blur(12px);
+	border-radius: 8px;
+	overflow: hidden;
+}
+
+/* Peek view header and content areas */
+.monaco-editor .peekview-widget .head,
+.monaco-editor .peekview-widget .body {
+	background: transparent !important;
+}
+
+/* Peek view tree (references list) */
+.monaco-editor .peekview-widget .ref-tree {
+	background: var(--vscode-editor-background, #EDEDED) !important;
+}
+
+/* ============================================
+   Settings Editor - Sections
+   ============================================ */
+
+.settings-editor .settings-toc-container {
+	box-shadow: var(--vscode-stealth-shadow-sm);
+}
+
+/* ============================================
+   Welcome Page Tiles - Cards with Shadow
+   ============================================ */
+
+.monaco-workbench .part.editor .welcomePageContainer .tile {
+	box-shadow: var(--vscode-stealth-shadow-md);
+	border: none;
+	border-radius: 8px;
+}
+
+.monaco-workbench .part.editor .welcomePageContainer .tile:hover {
+	box-shadow: var(--vscode-stealth-shadow-lg);
+}
+
+/* ============================================
+   Extension Cards - Elevated
+   ============================================ */
+
+.extensions-list .extension-list-item {
+	box-shadow: var(--vscode-stealth-shadow-sm);
+	border: none;
+	border-radius: 6px;
+	margin: 4px 0;
+}
+
+.extensions-list .extension-list-item:hover {
+	box-shadow: var(--vscode-stealth-shadow-md);
+}
+
+/* ============================================
+   Breadcrumbs - Subtle Shadow
+   ============================================ */
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .breadcrumbs-control {
+	box-shadow: var(--vscode-stealth-shadow-xs);
+}
+
+/* ============================================
+   Input Boxes - Focus State Shadow
+   ============================================ */
+
+.monaco-inputbox {
+	box-shadow: var(--vscode-stealth-shadow-sm);
+	border: none;
+	border-radius: 6px;
+}
+
+.monaco-inputbox.synthetic-focus,
+.monaco-inputbox:focus-within {
+	box-shadow: var(--vscode-stealth-shadow-md), 0 0 0 2px var(--vscode-focusBorder);
+}
+
+/* ============================================
+   Buttons - Subtle Depth
+   ============================================ */
+
+.monaco-button {
+	box-shadow: var(--vscode-stealth-shadow-xs);
+}
+
+.monaco-button:hover {
+	box-shadow: var(--vscode-stealth-shadow-sm);
+}
+
+.monaco-button:active {
+	box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+/* ============================================
+   Dropdowns - Elevated Menu
+   ============================================ */
+
+.monaco-dropdown .dropdown-menu {
+	box-shadow: var(--vscode-stealth-shadow-xl);
+	border: none;
+	border-radius: 8px;
+}
+
+/* ============================================
+   Terminal - Subtle Container
+   ============================================ */
+
+.monaco-workbench .pane-body.integrated-terminal {
+	box-shadow: var(--vscode-stealth-inner-glow);
+}
+
+/* ============================================
+   SCM (Source Control) View
+   ============================================ */
+
+.scm-view .scm-provider {
+	box-shadow: var(--vscode-stealth-shadow-sm);
+	border-radius: 6px;
+	margin: 4px;
+}
+
+/* ============================================
+   Debug Toolbar - Floating
+   ============================================ */
+
+.monaco-workbench .debug-toolbar {
+	box-shadow: var(--vscode-stealth-shadow-xl);
+	border: none;
+	border-radius: 8px;
+}
+
+/* ============================================
+   Action Widget (Lightbulb Menu)
+   ============================================ */
+
+.action-widget {
+	box-shadow: var(--vscode-stealth-shadow-xl) !important;
+	border: none !important;
+	border-radius: 8px;
+}
+
+/* ============================================
+   Parameter Hints Widget
+   ============================================ */
+
+.monaco-editor .parameter-hints-widget {
+	box-shadow: var(--vscode-stealth-shadow-lg);
+	border: none;
+	border-radius: 8px;
+}
+
+/* ============================================
+   Minimap Shadow (scrolling indicator)
+   ============================================ */
+
+.monaco-editor .minimap-shadow-visible {
+	box-shadow: var(--vscode-stealth-shadow-md);
+}
+
+/* ============================================
+   Editor Sticky Scroll
+   ============================================ */
+
+.monaco-editor .sticky-widget {
+	box-shadow: var(--vscode-stealth-shadow-sm);
+}
+
+/* Sticky Scroll Focus Preview (floating document preview) */
+.monaco-editor .sticky-widget-focus-preview,
+.monaco-editor .sticky-scroll-focus-line,
+.monaco-editor .focused .sticky-widget,
+.monaco-editor:has(.sticky-widget:focus-within) .sticky-widget {
+	background: var(--vscode-editor-background, #EDEDED) !important;
+	backdrop-filter: blur(12px);
+	-webkit-backdrop-filter: blur(12px);
+	box-shadow: var(--vscode-stealth-shadow-lg);
+	border-radius: 8px;
+}
+
+/* ============================================
+   Notebook Cells - Card Style
+   ============================================ */
+
+.monaco-workbench .notebookOverlay .monaco-list .cell-focus-indicator {
+	box-shadow: var(--vscode-stealth-shadow-sm);
+	border-radius: 6px;
+}
+
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator {
+	box-shadow: var(--vscode-stealth-shadow-md);
+}
+
+/* ============================================
+   Inline Chat - Elevated Dialog
+   ============================================ */
+
+.monaco-editor .inline-chat {
+	box-shadow: var(--vscode-stealth-shadow-xl);
+	border: none;
+	border-radius: 12px;
+}
+
+/* ============================================
+   Command Center (in title bar)
+   ============================================ */
+
+/* Only the center input area gets the shadow, not the whole bar */
+.monaco-workbench .part.titlebar .command-center .command-center-center {
+	box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.06), var(--vscode-stealth-shadow-sm);
+	border-radius: 8px;
+	background: var(--vscode-commandCenter-background, #EDEDED);
+}
+
+.monaco-workbench .part.titlebar .command-center .command-center-center:hover {
+	box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.08), var(--vscode-stealth-shadow-md);
+}
+
+/* Remove ALL borders from command center */
+.monaco-workbench .part.titlebar .command-center,
+.monaco-workbench .part.titlebar .command-center *,
+.monaco-workbench .part.titlebar .command-center-center,
+.monaco-workbench .part.titlebar .command-center .action-item,
+.monaco-workbench .part.titlebar .command-center .search-icon,
+.monaco-workbench .part.titlebar .command-center .search-label {
+	border: none !important;
+	border-color: transparent !important;
+	outline: none !important;
+}
+
+/* ============================================
+   Remove Explicit Borders in Favor of Shadows
+   ============================================ */
+
+/* Remove sidebar border */
+.monaco-workbench .part.sidebar {
+	border-right: none !important;
+	border-left: none !important;
+}
+
+/* Remove auxiliary sidebar border */
+.monaco-workbench .part.auxiliarybar {
+	border-right: none !important;
+	border-left: none !important;
+}
+
+/* Remove panel border */
+.monaco-workbench .part.panel {
+	border-top: none !important;
+}
+
+/* Remove activity bar border */
+.monaco-workbench .part.activitybar {
+	border-right: none !important;
+	border-left: none !important;
+}
+
+/* Remove title bar border */
+.monaco-workbench .part.titlebar {
+	border-bottom: none !important;
+}
+
+/* Remove status bar border */
+.monaco-workbench .part.statusbar {
+	border-top: none !important;
+}
+
+/* Remove editor group borders in favor of shadows */
+.monaco-workbench .part.editor > .content .editor-group-container {
+	border: none !important;
+}

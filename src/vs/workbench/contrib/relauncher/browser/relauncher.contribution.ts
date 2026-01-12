@@ -45,6 +45,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		'window.nativeFullScreen',
 		'window.clickThroughInactive',
 		'window.controlsStyle',
+		'window.experimentalTransparency',
 		'update.mode',
 		'editor.accessibilitySupport',
 		'security.workspace.trust.enabled',
@@ -62,6 +63,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private readonly nativeFullScreen = new ChangeObserver('boolean');
 	private readonly clickThroughInactive = new ChangeObserver('boolean');
 	private readonly controlsStyle = new ChangeObserver('string');
+	private readonly experimentalTransparency = new ChangeObserver('boolean');
 	private readonly updateMode = new ChangeObserver('string');
 	private accessibilitySupport: 'on' | 'off' | 'auto' | undefined;
 	private readonly workspaceTrustEnabled = new ChangeObserver('boolean');
@@ -129,6 +131,9 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 			// macOS: Click through (accept first mouse)
 			processChanged(isMacintosh && this.clickThroughInactive.handleChange(config.window?.clickThroughInactive));
+
+			// macOS: Experimental transparency
+			processChanged(isMacintosh && this.experimentalTransparency.handleChange(config.window?.experimentalTransparency));
 
 			// Windows/Linux: Window controls style
 			processChanged(!isMacintosh && this.controlsStyle.handleChange(config.window?.controlsStyle));
