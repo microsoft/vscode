@@ -44,7 +44,13 @@ abstract class DetachedTerminalMirror extends Disposable {
 	private _attachedContainer: HTMLElement | undefined;
 
 	protected _setDetachedTerminal(detachedTerminal: Promise<IDetachedTerminalInstance>): void {
-		this._detachedTerminal = detachedTerminal.then(terminal => this._register(terminal));
+		this._detachedTerminal = detachedTerminal.then(terminal => {
+			if (this._store.isDisposed) {
+				terminal.dispose();
+				return terminal;
+			}
+			return this._register(terminal);
+		});
 	}
 
 	protected async _getTerminal(): Promise<IDetachedTerminalInstance> {
