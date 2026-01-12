@@ -147,6 +147,17 @@
 	box-shadow: var(--vscode-stealth-shadow-panel);
 	z-index: 60;
 	position: relative;
+	overflow: visible !important;
+}
+
+/* Allow command center shadow to render outside titlebar */
+.monaco-workbench .part.titlebar .titlebar-container,
+.monaco-workbench .part.titlebar .titlebar-center,
+.monaco-workbench .part.titlebar .titlebar-center .window-title,
+.monaco-workbench .part.titlebar .command-center,
+.monaco-workbench .part.titlebar .command-center .monaco-action-bar,
+.monaco-workbench .part.titlebar .command-center .actions-container {
+	overflow: visible !important;
 }
 
 /* ============================================
@@ -165,11 +176,11 @@
    ============================================ */
 
 .quick-input-widget {
-	box-shadow: 0 8px 32px -4px rgba(0, 0, 0, 0.12), 0 4px 16px -2px rgba(0, 0, 0, 0.08) !important;
+	box-shadow: 0 0 40px rgba(0, 0, 0, 0.15) !important;
 	border: none !important;
 	border-radius: 12px;
 	overflow: hidden;
-	background: #FFFFFF !important;
+	background: var(--vscode-sideBar-background, #FAFAFA) !important;
 }
 
 /* Remove ALL borders from quick input */
@@ -531,15 +542,16 @@
    Command Center (in title bar)
    ============================================ */
 
-/* Only the center input area gets the shadow, not the whole bar */
-.monaco-workbench .part.titlebar .command-center .command-center-center {
-	box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.06), var(--vscode-stealth-shadow-sm);
-	border-radius: 8px;
-	background: var(--vscode-commandCenter-background, #EDEDED);
+/* Command center pops out with ambient shadow like chat input */
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center {
+	box-shadow: 0 0 16px rgba(0, 0, 0, 0.09) !important;
+	border-radius: 8px !important;
+	background: var(--vscode-titleBar-activeBackground, #F5F5F5) !important;
+	overflow: visible !important;
 }
 
-.monaco-workbench .part.titlebar .command-center .command-center-center:hover {
-	box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.08), var(--vscode-stealth-shadow-md);
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center:hover {
+	box-shadow: 0 0 20px rgba(0, 0, 0, 0.11) !important;
 }
 
 /* Remove ALL borders from command center */
