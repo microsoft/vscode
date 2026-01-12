@@ -693,6 +693,32 @@ export class ViewModel extends Disposable implements IViewModel {
 		);
 	}
 
+	/**
+	 * Applies `cursorSurroundingLines` and `stickyScroll` padding to the given view range.
+	 */
+	public getViewRangeWithCursorPadding(viewRange: Range): Range {
+		const options = this._configuration.options;
+		const cursorSurroundingLines = options.get(EditorOption.cursorSurroundingLines);
+		const stickyScroll = options.get(EditorOption.stickyScroll);
+
+		let { startLineNumber, endLineNumber } = viewRange;
+		const padding = Math.min(
+			Math.max(cursorSurroundingLines, stickyScroll.enabled ? stickyScroll.maxLineCount : 0),
+			Math.floor((endLineNumber - startLineNumber + 1) / 2));
+
+		startLineNumber += padding;
+		endLineNumber -= Math.max(0, padding - 1);
+
+		if (padding === 0 || startLineNumber > endLineNumber) {
+			return viewRange;
+		}
+
+		return new Range(
+			startLineNumber, this.getLineMinColumn(startLineNumber),
+			endLineNumber, this.getLineMaxColumn(endLineNumber)
+		);
+	}
+
 	public saveState(): IViewState {
 		const compatViewState = this.viewLayout.saveState();
 
@@ -959,33 +985,20 @@ export class ViewModel extends Disposable implements IViewModel {
 			}
 		}
 
-		if (!hasNonEmptyRange) {
+		if (!hasNonEmptyRange && !emptySelectionClipboard) {
 			// all ranges are empty
-			if (!emptySelectionClipboard) {
-				return '';
-			}
-
-			const modelLineNumbers = modelRanges.map((r) => r.startLineNumber);
-
-			let result = '';
-			for (let i = 0; i < modelLineNumbers.length; i++) {
-				if (i > 0 && modelLineNumbers[i - 1] === modelLineNumbers[i]) {
-					continue;
-				}
-				result += this.model.getLineContent(modelLineNumbers[i]) + newLineCharacter;
-			}
-			return result;
+			return '';
 		}
 
 		if (hasEmptyRange && emptySelectionClipboard) {
-			// mixed empty selections and non-empty selections
+			// some (maybe all) empty selections
 			const result: string[] = [];
 			let prevModelLineNumber = 0;
 			for (const modelRange of modelRanges) {
 				const modelLineNumber = modelRange.startLineNumber;
 				if (modelRange.isEmpty()) {
 					if (modelLineNumber !== prevModelLineNumber) {
-						result.push(this.model.getLineContent(modelLineNumber));
+						result.push(this.model.getLineContent(modelLineNumber) + newLineCharacter);
 					}
 				} else {
 					result.push(this.model.getValueInRange(modelRange, forceCRLF ? EndOfLinePreference.CRLF : EndOfLinePreference.TextDefined));

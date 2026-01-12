@@ -473,7 +473,13 @@ export enum FilePermission {
 	 * to edit the contents and ask the user upon saving to
 	 * remove the lock.
 	 */
-	Locked = 2
+	Locked = 2,
+
+	/**
+	 * File is executable. Relevant for Unix-like systems where
+	 * the executable bit determines if a file can be run.
+	 */
+	Executable = 4
 }
 
 export interface IStat {
@@ -1247,6 +1253,12 @@ export interface IBaseFileStat {
 	 * remove the lock.
 	 */
 	readonly locked?: boolean;
+
+	/**
+	 * File is executable. Relevant for Unix-like systems where
+	 * the executable bit determines if a file can be run.
+	 */
+	readonly executable?: boolean;
 }
 
 export interface IBaseFileStatWithMetadata extends Required<IBaseFileStat> { }
@@ -1287,6 +1299,7 @@ export interface IFileStatWithMetadata extends IFileStat, IBaseFileStatWithMetad
 	readonly size: number;
 	readonly readonly: boolean;
 	readonly locked: boolean;
+	readonly executable: boolean;
 	readonly children: IFileStatWithMetadata[] | undefined;
 }
 

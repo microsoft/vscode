@@ -67,6 +67,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	private readonly indicatorsContainerElement: HTMLElement;
 
 	private readonly previewIndicator: SettingIndicator;
+	private readonly advancedIndicator: SettingIndicator;
 	private readonly workspaceTrustIndicator: SettingIndicator;
 	private readonly scopeOverridesIndicator: SettingIndicator;
 	private readonly syncIgnoredIndicator: SettingIndicator;
@@ -91,7 +92,8 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 		this.indicatorsContainerElement.style.display = 'inline';
 
 		this.previewIndicator = this.createPreviewIndicator();
-		this.isolatedIndicators = [this.previewIndicator];
+		this.advancedIndicator = this.createAdvancedIndicator();
+		this.isolatedIndicators = [this.previewIndicator, this.advancedIndicator];
 
 		this.workspaceTrustIndicator = this.createWorkspaceTrustIndicator();
 		this.scopeOverridesIndicator = this.createScopeOverridesIndicator();
@@ -225,6 +227,28 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 		};
 	}
 
+	private createAdvancedIndicator(): SettingIndicator {
+		const disposables = new DisposableStore();
+		const advancedIndicator = $('span.setting-indicator.setting-item-preview');
+		const advancedLabel = disposables.add(new SimpleIconLabel(advancedIndicator));
+		advancedLabel.text = localize('advancedLabel', "Advanced");
+
+		const showHover = (focus: boolean) => {
+			return this.hoverService.showInstantHover({
+				...this.defaultHoverOptions,
+				content: ADVANCED_INDICATOR_DESCRIPTION,
+				target: advancedIndicator
+			}, focus);
+		};
+		this.addHoverDisposables(disposables, advancedIndicator, showHover);
+
+		return {
+			element: advancedIndicator,
+			label: advancedLabel,
+			disposables
+		};
+	}
+
 	private render() {
 		this.indicatorsContainerElement.innerText = '';
 		this.indicatorsContainerElement.style.display = 'none';
@@ -321,15 +345,12 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	updatePreviewIndicator(element: SettingsTreeSettingElement) {
 		const isPreviewSetting = element.tags?.has('preview');
 		const isExperimentalSetting = element.tags?.has('experimental');
-		const isAdvancedSetting = element.tags?.has('advanced');
-		this.previewIndicator.element.style.display = (isPreviewSetting || isExperimentalSetting || isAdvancedSetting) ? 'inline' : 'none';
+		this.previewIndicator.element.style.display = (isPreviewSetting || isExperimentalSetting) ? 'inline' : 'none';
 		this.previewIndicator.label.text = isPreviewSetting ?
 			localize('previewLabel', "Preview") :
-			isExperimentalSetting ?
-				localize('experimentalLabel', "Experimental") :
-				localize('advancedLabel', "Advanced");
+			localize('experimentalLabel', "Experimental");
 
-		const content = isPreviewSetting ? PREVIEW_INDICATOR_DESCRIPTION : isExperimentalSetting ? EXPERIMENTAL_INDICATOR_DESCRIPTION : ADVANCED_INDICATOR_DESCRIPTION;
+		const content = isPreviewSetting ? PREVIEW_INDICATOR_DESCRIPTION : EXPERIMENTAL_INDICATOR_DESCRIPTION;
 		const showHover = (focus: boolean) => {
 			return this.hoverService.showInstantHover({
 				...this.defaultHoverOptions,
@@ -339,6 +360,12 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 		};
 		this.addHoverDisposables(this.previewIndicator.disposables, this.previewIndicator.element, showHover);
 
+		this.render();
+	}
+
+	updateAdvancedIndicator(element: SettingsTreeSettingElement) {
+		const isAdvancedSetting = element.tags?.has('advanced');
+		this.advancedIndicator.element.style.display = isAdvancedSetting ? 'inline' : 'none';
 		this.render();
 	}
 
@@ -575,12 +602,14 @@ function getAccessibleScopeDisplayMidSentenceText(completeScope: string, languag
 export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement, configurationService: IWorkbenchConfigurationService, userDataProfilesService: IUserDataProfilesService, languageService: ILanguageService): string {
 	const ariaLabelSections: string[] = [];
 
-	// Add preview or experimental or advanced indicator text
+	// Add preview or experimental indicator text
 	if (element.tags?.has('preview')) {
 		ariaLabelSections.push(localize('previewLabel', "Preview"));
 	} else if (element.tags?.has('experimental')) {
 		ariaLabelSections.push(localize('experimentalLabel', "Experimental"));
-	} else if (element.tags?.has('advanced')) {
+	}
+
+	if (element.tags?.has('advanced')) {
 		ariaLabelSections.push(localize('advancedLabel', "Advanced"));
 	}
 

@@ -15,7 +15,7 @@ import { Action, IAction, Separator } from '../../../../base/common/actions.js';
 import { IMenu, IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
-import { TerminalLocation, TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
+import { TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { localize } from '../../../../nls.js';
 import { openContextMenu } from './terminalContextMenu.js';
@@ -27,6 +27,7 @@ import { TerminalTabsChatEntry } from './terminalTabsChatEntry.js';
 import { containsDragType } from '../../../../platform/dnd/browser/dnd.js';
 import { getTerminalResourcesFromDragEvent, parseTerminalUri } from './terminalUri.js';
 import type { IProcessDetails } from '../../../../platform/terminal/common/terminalProcess.js';
+import { TerminalContribContextKeyStrings } from '../terminalContribExports.js';
 
 const $ = dom.$;
 
@@ -96,12 +97,6 @@ export class TerminalTabbedView extends Disposable {
 		tabListContainer.appendChild(this._tabListElement);
 		this._tabContainer.appendChild(tabListContainer);
 
-		this._register(dom.addDisposableListener(this._tabContainer, dom.EventType.DBLCLICK, async () => {
-			const instance = await this._terminalService.createTerminal({ location: TerminalLocation.Panel });
-			this._terminalGroupService.setActiveInstance(instance);
-			await instance.focusWhenReady();
-		}));
-
 		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalInstanceContext, contextKeyService));
 		this._tabsListMenu = this._register(menuService.createMenu(MenuId.TerminalTabContext, contextKeyService));
 		this._tabsListEmptyMenu = this._register(menuService.createMenu(MenuId.TerminalTabEmptyAreaContext, contextKeyService));
@@ -149,7 +144,7 @@ export class TerminalTabbedView extends Disposable {
 		}));
 
 		this._register(contextKeyService.onDidChangeContext(e => {
-			if (e.affectsSome(new Set(['hasHiddenChatTerminals']))) {
+			if (e.affectsSome(new Set([TerminalContribContextKeyStrings.ChatHasHiddenTerminals]))) {
 				this._refreshShowTabs();
 				this._updateChatTerminalsEntry();
 			}
@@ -597,13 +592,12 @@ export class TerminalTabbedView extends Disposable {
 		// be focused. So wait for connection to finish, then focus.
 		const previousActiveElement = this._tabListElement.ownerDocument.activeElement;
 		if (previousActiveElement) {
-			// TODO: Improve lifecycle management this event should be disposed after first fire
-			this._register(this._terminalService.onDidChangeConnectionState(() => {
+			const listener = this._register(Event.once(this._terminalService.onDidChangeConnectionState)(() => {
 				// Only focus the terminal if the activeElement has not changed since focus() was called
-				// TODO: Hack
 				if (dom.isActiveElement(previousActiveElement)) {
 					this._focus();
 				}
+				this._store.delete(listener);
 			}));
 		}
 	}

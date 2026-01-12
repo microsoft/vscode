@@ -11,7 +11,7 @@
 	z-index: 40;
 	display: block;
 	width: 100%;
-	border: 1px solid var(--vscode-menu-border) !important;
+	border: 1px solid var(--vscode-editorHoverWidget-border) !important;
 	border-radius: 5px;
 	background-color: var(--vscode-menu-background);
 	color: var(--vscode-menu-foreground);
@@ -85,9 +85,10 @@
 	border-top: 1px solid var(--vscode-editorHoverWidget-border);
 	color: var(--vscode-descriptionForeground);
 	font-size: 12px;
-	padding: 0;
-	margin: 4px 0 0 0;
+	margin: 4px 0px;
+	width: 100%;
 	cursor: default;
+	-webkit-user-select: none;
 	user-select: none;
 	border-radius: 0;
 }
@@ -156,8 +157,8 @@
 
 .action-widget .action-widget-action-bar {
 	background-color: var(--vscode-menu-background);
-	border-top: 1px solid var(--vscode-menu-border);
-	margin-top: 2px;
+	border-top: 1px solid var(--vscode-editorHoverWidget-border);
+	margin-top: 4px;
 }
 
 .action-widget .action-widget-action-bar::before {
@@ -168,6 +169,7 @@
 
 .action-widget .action-widget-action-bar .actions-container {
 	padding: 4px 8px 2px 24px;
+	width: auto;
 }
 
 .action-widget-action-bar .action-label {

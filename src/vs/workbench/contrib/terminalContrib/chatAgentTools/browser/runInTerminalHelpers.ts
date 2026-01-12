@@ -9,9 +9,10 @@ import { posix as pathPosix, win32 as pathWin32 } from '../../../../../base/comm
 import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { escapeRegExpCharacters, removeAnsiEscapeCodes } from '../../../../../base/common/strings.js';
 import { localize } from '../../../../../nls.js';
-import type { TerminalNewAutoApproveButtonData } from '../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
-import type { ToolConfirmationAction } from '../../../chat/common/languageModelToolsService.js';
-import type { ICommandApprovalResultWithReason } from './commandLineAutoApprover.js';
+import type { TerminalNewAutoApproveButtonData } from '../../../chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
+import type { ToolConfirmationAction } from '../../../chat/common/tools/languageModelToolsService.js';
+import type { ICommandApprovalResultWithReason } from './tools/commandLineAnalyzer/autoApprove/commandLineAutoApprover.js';
+import { isAutoApproveRule } from './tools/commandLineAnalyzer/commandLineAnalyzer.js';
 
 export function isPowerShell(envShell: string, os: OperatingSystem): boolean {
 	if (os === OperatingSystem.Windows) {
@@ -30,6 +31,13 @@ export function isZsh(envShell: string, os: OperatingSystem): boolean {
 		return /^zsh(?:\.exe)?$/i.test(pathWin32.basename(envShell));
 	}
 	return /^zsh$/.test(pathPosix.basename(envShell));
+}
+
+export function isBash(envShell: string, os: OperatingSystem): boolean {
+	if (os === OperatingSystem.Windows) {
+		return /^bash(?:\.exe)?$/i.test(pathWin32.basename(envShell));
+	}
+	return /^bash$/.test(pathPosix.basename(envShell));
 }
 
 export function isFish(envShell: string, os: OperatingSystem): boolean {
@@ -99,33 +107,56 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 		]);
 
 		// Commands where we want to suggest the sub-command (eg. `foo bar` instead of `foo`)
-		const commandsWithSubcommands = new Set(['git', 'npm', 'yarn', 'docker', 'kubectl', 'cargo', 'dotnet', 'mvn', 'gradle']);
+		const commandsWithSubcommands = new Set(['git', 'npm', 'npx', 'yarn', 'docker', 'kubectl', 'cargo', 'dotnet', 'mvn', 'gradle']);
 
 		// Commands where we want to suggest the sub-command of a sub-command (eg. `foo bar baz`
 		// instead of `foo`)
 		const commandsWithSubSubCommands = new Set(['npm run', 'yarn run']);
 
+		// Helper function to find the first non-flag argument after a given index
+		const findNextNonFlagArg = (parts: string[], startIndex: number): number | undefined => {
+			for (let i = startIndex; i < parts.length; i++) {
+				if (!parts[i].startsWith('-')) {
+					return i;
+				}
+			}
+			return undefined;
+		};
+
 		// For each unapproved sub-command (within the overall command line), decide whether to
 		// suggest new rules for the command, a sub-command, a sub-command of a sub-command or to
 		// not suggest at all.
+		//
+		// This includes support for detecting flags between the commands, so `mvn -DskipIT test a`
+		// would suggest `mvn -DskipIT test` as that's more useful than only suggesting the exact
+		// command line.
 		const subCommandsToSuggest = Array.from(new Set(coalesce(unapprovedSubCommands.map(command => {
 			const parts = command.trim().split(/\s+/);
 			const baseCommand = parts[0].toLowerCase();
-			const baseSubCommand = parts.length > 1 ? `${parts[0]} ${parts[1]}`.toLowerCase() : '';
 
 			// Security check: Never suggest auto-approval for dangerous interpreter commands
 			if (neverAutoApproveCommands.has(baseCommand)) {
 				return undefined;
 			}
 
-			if (commandsWithSubSubCommands.has(baseSubCommand)) {
-				if (parts.length >= 3 && !parts[2].startsWith('-')) {
-					return `${parts[0]} ${parts[1]} ${parts[2]}`;
-				}
-				return undefined;
-			} else if (commandsWithSubcommands.has(baseCommand)) {
-				if (parts.length >= 2 && !parts[1].startsWith('-')) {
-					return `${parts[0]} ${parts[1]}`;
+			if (commandsWithSubcommands.has(baseCommand)) {
+				// Find the first non-flag argument after the command
+				const subCommandIndex = findNextNonFlagArg(parts, 1);
+				if (subCommandIndex !== undefined) {
+					// Check if this is a sub-sub-command case
+					const baseSubCommand = `${parts[0]} ${parts[subCommandIndex]}`.toLowerCase();
+					if (commandsWithSubSubCommands.has(baseSubCommand)) {
+						// Look for the second non-flag argument after the first subcommand
+						const subSubCommandIndex = findNextNonFlagArg(parts, subCommandIndex + 1);
+						if (subSubCommandIndex !== undefined) {
+							// Include everything from command to sub-sub-command (including flags)
+							return parts.slice(0, subSubCommandIndex + 1).join(' ');
+						}
+						return undefined;
+					} else {
+						// Include everything from command to subcommand (including flags)
+						return parts.slice(0, subCommandIndex + 1).join(' ');
+					}
 				}
 				return undefined;
 			} else {
@@ -136,22 +167,48 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 		if (subCommandsToSuggest.length > 0) {
 			let subCommandLabel: string;
 			if (subCommandsToSuggest.length === 1) {
-				subCommandLabel = localize('autoApprove.baseCommandSingle', 'Always Allow Command: {0}', subCommandsToSuggest[0]);
+				subCommandLabel = `\`${subCommandsToSuggest[0]} \u2026\``;
 			} else {
-				const commandSeparated = subCommandsToSuggest.join(', ');
-				subCommandLabel = localize('autoApprove.baseCommand', 'Always Allow Commands: {0}', commandSeparated);
+				subCommandLabel = `Commands ${subCommandsToSuggest.map(e => `\`${e} \u2026\``).join(', ')}`;
 			}
 
 			actions.push({
-				label: subCommandLabel,
+				label: `Allow ${subCommandLabel} in this Session`,
 				data: {
 					type: 'newRule',
 					rule: subCommandsToSuggest.map(key => ({
 						key,
-						value: true
+						value: true,
+						scope: 'session'
 					}))
 				} satisfies TerminalNewAutoApproveButtonData
 			});
+			actions.push({
+				label: `Allow ${subCommandLabel} in this Workspace`,
+				data: {
+					type: 'newRule',
+					rule: subCommandsToSuggest.map(key => ({
+						key,
+						value: true,
+						scope: 'workspace'
+					}))
+				} satisfies TerminalNewAutoApproveButtonData
+			});
+			actions.push({
+				label: `Always Allow ${subCommandLabel}`,
+				data: {
+					type: 'newRule',
+					rule: subCommandsToSuggest.map(key => ({
+						key,
+						value: true,
+						scope: 'user'
+					}))
+				} satisfies TerminalNewAutoApproveButtonData
+			});
+		}
+
+		if (actions.length > 0) {
+			actions.push(new Separator());
 		}
 
 		// Allow exact command line, don't do this if it's just the first sub-command's first
@@ -163,6 +220,34 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 			!commandsWithSubSubCommands.has(commandLine)
 		) {
 			actions.push({
+				label: localize('autoApprove.exactCommand1', 'Allow Exact Command Line in this Session'),
+				data: {
+					type: 'newRule',
+					rule: {
+						key: `/^${escapeRegExpCharacters(commandLine)}$/`,
+						value: {
+							approve: true,
+							matchCommandLine: true
+						},
+						scope: 'session'
+					}
+				} satisfies TerminalNewAutoApproveButtonData
+			});
+			actions.push({
+				label: localize('autoApprove.exactCommand2', 'Allow Exact Command Line in this Workspace'),
+				data: {
+					type: 'newRule',
+					rule: {
+						key: `/^${escapeRegExpCharacters(commandLine)}$/`,
+						value: {
+							approve: true,
+							matchCommandLine: true
+						},
+						scope: 'workspace'
+					}
+				} satisfies TerminalNewAutoApproveButtonData
+			});
+			actions.push({
 				label: localize('autoApprove.exactCommand', 'Always Allow Exact Command Line'),
 				data: {
 					type: 'newRule',
@@ -171,7 +256,8 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 						value: {
 							approve: true,
 							matchCommandLine: true
-						}
+						},
+						scope: 'user'
 					}
 				} satisfies TerminalNewAutoApproveButtonData
 			});
@@ -207,6 +293,10 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 
 export function dedupeRules(rules: ICommandApprovalResultWithReason[]): ICommandApprovalResultWithReason[] {
 	return rules.filter((result, index, array) => {
-		return result.rule && array.findIndex(r => r.rule && r.rule.sourceText === result.rule!.sourceText) === index;
+		if (!isAutoApproveRule(result.rule)) {
+			return false;
+		}
+		const sourceText = result.rule.sourceText;
+		return array.findIndex(r => isAutoApproveRule(r.rule) && r.rule.sourceText === sourceText) === index;
 	});
 }
