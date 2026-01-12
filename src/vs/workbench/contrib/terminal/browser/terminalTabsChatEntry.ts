@@ -43,7 +43,7 @@ export class TerminalTabsChatEntry extends Disposable {
 		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.commentDiscussionSparkle));
 		this._label = dom.append(entry, $('.terminal-tabs-chat-entry-label'));
 
-		// Add delete button
+		// Add delete button (right-aligned via CSS margin-left: auto)
 		this._deleteButton = dom.append(entry, $('.terminal-tabs-chat-entry-delete'));
 		this._deleteButton.classList.add(...ThemeIcon.asClassNameArray(Codicon.trashcan));
 		this._deleteButton.tabIndex = 0;

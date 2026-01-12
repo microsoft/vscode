@@ -351,8 +351,8 @@
 .monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry .terminal-tabs-entry {
 	display: flex;
 	align-items: center;
-	justify-content: center;
-	gap: 4px;
+	justify-content: flex-start;
+	gap: 6px;
 	width: 100%;
 	height: 100%;
 	padding: 0;
@@ -376,7 +376,7 @@
 }
 
 .monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text .terminal-tabs-chat-entry .terminal-tabs-entry {
-	justify-content: center;
+	justify-content: flex-start;
 	padding: 0 10px;
 }
 
@@ -391,7 +391,7 @@
 	width: 16px;
 	height: 16px;
 	padding: 2px;
-	margin-left: 4px;
+	margin-left: auto;
 	cursor: pointer;
 	opacity: 0.8;
 	flex-shrink: 0;
