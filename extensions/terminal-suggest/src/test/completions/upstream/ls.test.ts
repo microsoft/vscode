@@ -84,8 +84,9 @@ export const lsTestSuiteSpec: ISuiteSpec = {
 
 		// Relative directories (changes cwd due to /)
 		{ input: 'ls child/|', expectedCompletions: allOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwdChild } },
-		{ input: 'ls ../|', expectedCompletions: allOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwdParent } },
-		{ input: 'ls ../sibling|', expectedCompletions: allOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwdParent } },
+		// Paths with .. are handled by the completion service to avoid double-navigation
+		{ input: 'ls ../|', expectedCompletions: allOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		{ input: 'ls ../sibling|', expectedCompletions: allOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 	]
 };
 
