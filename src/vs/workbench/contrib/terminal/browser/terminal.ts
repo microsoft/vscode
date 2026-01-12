@@ -151,14 +151,21 @@ export interface ITerminalChatService {
 	getToolSessionIdForInstance(instance: ITerminalInstance): string | undefined;
 
 	/**
-	 * Associate a chat session ID with a terminal instance. This is used to retrieve the chat
+	 * Associate a chat session with a terminal instance. This is used to retrieve the chat
 	 * session title for display purposes.
-	 * @param chatSessionId The chat session ID
+	 * @param chatSessionResource The chat session resource URI
 	 * @param instance The terminal instance
 	 */
-	registerTerminalInstanceWithChatSession(chatSessionId: string, instance: ITerminalInstance): void;
+	registerTerminalInstanceWithChatSession(chatSessionResource: URI, instance: ITerminalInstance): void;
 
 	/**
+	 * Returns the chat session resource for a given terminal instance, if it has been registered.
+	 * @param instance The terminal instance to look up
+	 * @returns The chat session resource if found, undefined otherwise
+	 */
+	getChatSessionResourceForInstance(instance: ITerminalInstance): URI | undefined;
+	/**
+	 * @deprecated Use getChatSessionResourceForInstance instead
 	 * Returns the chat session ID for a given terminal instance, if it has been registered.
 	 * @param instance The terminal instance to look up
 	 * @returns The chat session ID if found, undefined otherwise
@@ -206,32 +213,32 @@ export interface ITerminalChatService {
 
 	/**
 	 * Enable or disable auto approval for all commands in a specific session.
-	 * @param chatSessionId The chat session ID
+	 * @param chatSessionResource The chat session resource URI
 	 * @param enabled Whether to enable or disable session auto approval
 	 */
-	setChatSessionAutoApproval(chatSessionId: string, enabled: boolean): void;
+	setChatSessionAutoApproval(chatSessionResource: URI, enabled: boolean): void;
 
 	/**
 	 * Check if a session has auto approval enabled for all commands.
-	 * @param chatSessionId The chat session ID
+	 * @param chatSessionResource The chat session resource URI
 	 * @returns True if the session has auto approval enabled
 	 */
-	hasChatSessionAutoApproval(chatSessionId: string): boolean;
+	hasChatSessionAutoApproval(chatSessionResource: URI): boolean;
 
 	/**
 	 * Add a session-scoped auto-approve rule.
-	 * @param chatSessionId The chat session ID to associate the rule with
+	 * @param chatSessionResource The chat session resource URI
 	 * @param key The rule key (command or regex pattern)
 	 * @param value The rule value (approval boolean or object with approve and matchCommandLine)
 	 */
-	addSessionAutoApproveRule(chatSessionId: string, key: string, value: boolean | { approve: boolean; matchCommandLine?: boolean }): void;
+	addSessionAutoApproveRule(chatSessionResource: URI, key: string, value: boolean | { approve: boolean; matchCommandLine?: boolean }): void;
 
 	/**
 	 * Get all session-scoped auto-approve rules for a specific chat session.
-	 * @param chatSessionId The chat session ID to get rules for
+	 * @param chatSessionResource The chat session resource URI
 	 * @returns A record of all session-scoped auto-approve rules for the session
 	 */
-	getSessionAutoApproveRules(chatSessionId: string): Readonly<Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>>;
+	getSessionAutoApproveRules(chatSessionResource: URI): Readonly<Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>>;
 }
 
 /**

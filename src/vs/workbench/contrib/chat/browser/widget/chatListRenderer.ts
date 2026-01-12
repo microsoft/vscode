@@ -93,7 +93,7 @@ import { ChatToolInvocationPart } from './chatContentParts/toolInvocationParts/c
 import { ChatMarkdownDecorationsRenderer } from './chatContentParts/chatMarkdownDecorationsRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatCodeBlockContentProvider, CodeBlockPart } from './chatContentParts/codeBlockPart.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { autorun, observableValue } from '../../../../../base/common/observable.js';
 
 const $ = dom.$;
 
@@ -296,7 +296,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	updateViewModel(viewModel: IChatViewModel | undefined): void {
 		this.viewModel = viewModel;
 		this._announcedToolProgressKeys.clear();
-
+		this.codeBlocksByEditorUri.clear();
+		this.codeBlocksByResponseId.clear();
+		this.fileTreesByResponseId.clear();
+		this.focusedFileTreesByResponseId.clear();
 	}
 
 	getCodeBlockInfoForEditor(uri: URI): IChatCodeBlockInfo | undefined {
@@ -610,7 +613,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const editing = element.id === this.viewModel?.editing?.id;
 		const isInput = this.configService.getValue<string>('chat.editRequests') === 'input';
 
-		templateData.disabledOverlay.classList.toggle('disabled', element.shouldBeBlocked && !editing && this.viewModel?.editing !== undefined);
+		templateData.elementDisposables.add(autorun(r => {
+			const shouldBeBlocked = element.shouldBeBlocked.read(r);
+			templateData.disabledOverlay.classList.toggle('disabled', shouldBeBlocked && !editing && this.viewModel?.editing !== undefined);
+		}));
 		templateData.rowContainer.classList.toggle('editing', editing && !isInput);
 		templateData.rowContainer.classList.toggle('editing-input', editing && isInput);
 		templateData.requestHover.classList.toggle('editing', editing && isInput);
@@ -857,7 +863,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				elementIndex: index,
 				contentIndex: contentIndex,
 				content: content,
-				preceedingContentParts: parts,
 				container: templateData.rowContainer,
 				editorPool: this._editorPool,
 				diffEditorPool: this._diffEditorPool,
@@ -865,8 +870,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				currentWidth: this._currentLayoutWidth,
 				onDidChangeVisibility: this._onDidChangeVisibility.event,
 				get codeBlockStartIndex() {
-					return context.preceedingContentParts.reduce((acc, part) => acc + (part.codeblocks?.length ?? 0), 0);
+					return parts.reduce((acc, part) => acc + (part.codeblocks?.length ?? 0), 0);
 				},
+				get treeStartIndex() {
+					return parts.filter(part => part instanceof ChatTreeContentPart).length;
+				}
 			};
 			const newPart = this.renderChatContentPart(data, templateData, context);
 			if (newPart) {
@@ -1033,7 +1041,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				element,
 				elementIndex: elementIndex,
 				content: contentForThisTurn,
-				preceedingContentParts,
 				contentIndex: contentIndex,
 				container: templateData.rowContainer,
 				editorPool: this._editorPool,
@@ -1042,8 +1049,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				currentWidth: this._currentLayoutWidth,
 				onDidChangeVisibility: this._onDidChangeVisibility.event,
 				get codeBlockStartIndex() {
-					return context.preceedingContentParts.reduce((acc, part) => acc + (part.codeblocks?.length ?? 0), 0);
+					return preceedingContentParts.reduce((acc, part) => acc + (part.codeblocks?.length ?? 0), 0);
 				},
+				get treeStartIndex() {
+					return preceedingContentParts.filter(part => part instanceof ChatTreeContentPart).length;
+				}
 			};
 
 			// combine tool invocations into thinking part if needed. render the tool, but do not replace the working spinner with the new part's dom node since it is already inside the thinking part.
@@ -1447,8 +1457,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private renderTreeData(content: IChatTreeData, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext): IChatContentPart {
 		const data = content.treeData;
-		const treeDataIndex = context.preceedingContentParts.filter(part => part instanceof ChatTreeContentPart).length;
-		const treePart = this.instantiationService.createInstance(ChatTreeContentPart, data, context.element, this._treePool, treeDataIndex);
+		const treePart = this.instantiationService.createInstance(ChatTreeContentPart, data, this._treePool);
 
 		treePart.addDisposable(treePart.onDidChangeHeight(() => {
 			this.updateItemHeight(templateData);
@@ -1457,7 +1466,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (isResponseVM(context.element)) {
 			const fileTreeFocusInfo = {
 				treeDataId: data.uri.toString(),
-				treeIndex: treeDataIndex,
+				treeIndex: context.treeStartIndex,
 				focus() {
 					treePart.domFocus();
 				}
@@ -1810,6 +1819,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	disposeTemplate(templateData: IChatListItemTemplate): void {
+		this.clearRenderedParts(templateData);
 		templateData.templateDisposables.dispose();
 	}
 

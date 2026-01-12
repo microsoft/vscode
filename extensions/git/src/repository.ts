@@ -1890,7 +1890,7 @@ export class Repository implements Disposable {
 
 	private async _getWorktreeIncludeFiles(): Promise<Set<string>> {
 		const config = workspace.getConfiguration('git', Uri.file(this.root));
-		const worktreeIncludeFiles = config.get<string[]>('worktreeIncludeFiles', ['**/node_modules{,/**}']);
+		const worktreeIncludeFiles = config.get<string[]>('worktreeIncludeFiles', ['**/node_modules/**']);
 
 		if (worktreeIncludeFiles.length === 0) {
 			return new Set<string>();
