@@ -334,6 +334,8 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		template.statusProviderIcon.classList.toggle('hidden', isLocal);
 		if (!isLocal) {
 			template.statusProviderIcon.className = `agent-session-status-provider-icon ${ThemeIcon.asClassName(session.element.icon)}`;
+		} else {
+			template.statusProviderIcon.className = 'agent-session-status-provider-icon hidden';
 		}
 
 		// Time label
