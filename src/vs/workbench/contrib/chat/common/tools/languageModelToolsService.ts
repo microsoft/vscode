@@ -156,7 +156,9 @@ export interface IToolInvocationPreparationContext {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	parameters: any;
 	chatRequestId?: string;
+	/** @deprecated Use {@link chatSessionResource} instead */
 	chatSessionId?: string;
+	chatSessionResource?: URI;
 	chatInteractionId?: string;
 }
 
@@ -184,6 +186,8 @@ export interface IToolResultInputOutputDetails {
 	readonly input: string;
 	readonly output: (ToolInputOutputEmbedded | ToolInputOutputReference)[];
 	readonly isError?: boolean;
+	/** Raw MCP tool result for MCP App UI rendering */
+	readonly mcpOutput?: unknown;
 }
 
 export interface IToolResultOutputDetails {

@@ -55,7 +55,7 @@ import { MenuWorkbenchButtonBar } from '../../../../../../platform/actions/brows
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
 import { MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { registerAndCreateHistoryNavigationContext } from '../../../../../../platform/history/browser/contextScopedHistoryWidget.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -322,8 +322,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatSessionPickerContainer: HTMLElement | undefined;
 	private _lastSessionPickerAction: MenuItemAction | undefined;
 	private readonly _waitForPersistedLanguageModel: MutableDisposable<IDisposable> = this._register(new MutableDisposable<IDisposable>());
-	private _onDidChangeCurrentLanguageModel: Emitter<ILanguageModelChatMetadataAndIdentifier> = this._register(new Emitter<ILanguageModelChatMetadataAndIdentifier>());
 	private readonly _chatSessionOptionEmitters: Map<string, Emitter<IChatSessionProviderOptionItem>> = new Map();
+
+	/**
+	 * Scoped context key service for this chat input part.
+	 * Used to isolate option group context keys to this specific chat input instance.
+	 */
+	private _scopedContextKeyService: IContextKeyService | undefined;
+
+	/**
+	 * Map of option group ID to its context key.
+	 * Keys follow the pattern `chatSessionOption.<groupId>` and hold the currently selected option item ID.
+	 */
+	private readonly _optionContextKeys: Map<string, IContextKey<string>> = new Map();
 
 	private _currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined;
 
@@ -337,6 +348,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private _onDidChangeCurrentChatMode: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeCurrentChatMode: Event<void> = this._onDidChangeCurrentChatMode.event;
+	private _onDidChangeCurrentLanguageModel: Emitter<ILanguageModelChatMetadataAndIdentifier> = this._register(new Emitter<ILanguageModelChatMetadataAndIdentifier>());
+	readonly onDidChangeCurrentLanguageModel: Event<ILanguageModelChatMetadataAndIdentifier> = this._onDidChangeCurrentLanguageModel.event;
 
 	private readonly _currentModeObservable: ISettableObservable<IChatMode>;
 
@@ -711,7 +724,18 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// Clear existing widgets
 		this.disposeSessionPickerWidgets();
 
-		// Create a widget for each option group in effect for this specific session
+		// Init option group context keys
+		for (const optionGroup of optionGroups) {
+			if (!ctx) {
+				continue;
+			}
+			const currentOption = this.chatSessionsService.getSessionOption(ctx.chatSessionResource, optionGroup.id);
+			if (currentOption) {
+				const optionId = typeof currentOption === 'string' ? currentOption : currentOption.id;
+				this.updateOptionContextKey(optionGroup.id, optionId);
+			}
+		}
+
 		const widgets: ChatSessionPickerActionItem[] = [];
 		for (const optionGroup of optionGroups) {
 			if (!ctx) {
@@ -719,6 +743,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 			if (!this.chatSessionsService.getSessionOption(ctx.chatSessionResource, optionGroup.id)) {
 				// This session does not have a value to contribute for this option group
+				continue;
+			}
+
+			if (!this.evaluateOptionGroupVisibility(optionGroup)) {
 				continue;
 			}
 
@@ -734,11 +762,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					if (!ctx) {
 						return;
 					}
+					// Update context key for this option group
+					this.updateOptionContextKey(optionGroup.id, option.id);
+
 					this.getOrCreateOptionEmitter(optionGroup.id).fire(option);
 					this.chatSessionsService.notifySessionOptionsChange(
 						ctx.chatSessionResource,
 						[{ optionId: optionGroup.id, value: option }]
 					).catch(err => this.logService.error(`Failed to notify extension of ${optionGroup.id} change:`, err));
+
+					// Refresh pickers to re-evaluate visibility of other option groups
+					this.refreshChatSessionPickers();
 				},
 				getAllOptions: () => {
 					const ctx = resolveChatSessionContext();
@@ -1255,6 +1289,56 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	/**
+	 * Get or create a context key for an option group.
+	 * Context keys follow the pattern `chatSessionOption.<groupId>`.
+	 */
+	private getOrCreateOptionContextKey(optionGroupId: string): IContextKey<string> | undefined {
+		if (!this._scopedContextKeyService) {
+			return undefined;
+		}
+		let contextKey = this._optionContextKeys.get(optionGroupId);
+		if (!contextKey) {
+			const rawKey = new RawContextKey<string>(`chatSessionOption.${optionGroupId}`, '');
+			contextKey = rawKey.bindTo(this._scopedContextKeyService);
+			this._optionContextKeys.set(optionGroupId, contextKey);
+		}
+		return contextKey;
+	}
+
+	/**
+	 * Update the context key for an option group with the current selection.
+	 * This enables `when` expressions on other option groups to react to changes.
+	 */
+	private updateOptionContextKey(optionGroupId: string, optionItemId: string): void {
+		const normalizedOptionId = optionItemId.trim();
+		const contextKey = this.getOrCreateOptionContextKey(optionGroupId);
+		if (contextKey) {
+			contextKey.set(normalizedOptionId);
+		}
+	}
+
+	/**
+	 * Evaluate whether an option group should be visible based on its `when` expression.
+	 * Returns true if the option group should be visible, false otherwise.
+	 */
+	private evaluateOptionGroupVisibility(optionGroup: { id: string; when?: string }): boolean {
+		if (!optionGroup.when) {
+			return true; // No condition means always visible
+		}
+
+		if (!this._scopedContextKeyService) {
+			return true; // No context key service yet, default to visible
+		}
+
+		const expr = ContextKeyExpr.deserialize(optionGroup.when);
+		if (!expr) {
+			return true; // Invalid expression defaults to visible
+		}
+
+		return this._scopedContextKeyService.contextMatchesRules(expr);
+	}
+
+	/**
 	 * Refresh all registered option groups for the current chat session.
 	 * Fires events for each option group with their current selection.
 	 */
@@ -1283,12 +1367,33 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this.chatSessionHasOptions.set(true);
 
+		// First update all context keys with current values (before evaluating visibility)
+		for (const optionGroup of optionGroups) {
+			const currentOption = this.chatSessionsService.getSessionOption(ctx.chatSessionResource, optionGroup.id);
+			if (currentOption) {
+				const optionId = typeof currentOption === 'string' ? currentOption : currentOption.id;
+				this.updateOptionContextKey(optionGroup.id, optionId);
+			} else {
+				this.logService.trace(`[ChatInputPart] No session option set for group '${optionGroup.id}'`);
+			}
+		}
+
+		// Compute which option groups should be visible based on when expressions
+		const visibleGroupIds = new Set<string>();
+		for (const optionGroup of optionGroups) {
+			if (!this.chatSessionsService.getSessionOption(ctx.chatSessionResource, optionGroup.id)) {
+				continue;
+			}
+			if (this.evaluateOptionGroupVisibility(optionGroup)) {
+				visibleGroupIds.add(optionGroup.id);
+			}
+		}
+
 		const currentWidgetGroupIds = new Set(this.chatSessionPickerWidgets.keys());
-		const requiredGroupIds = new Set(optionGroups.map(g => g.id));
 
 		const needsRecreation =
-			currentWidgetGroupIds.size !== requiredGroupIds.size ||
-			!Array.from(requiredGroupIds).every(id => currentWidgetGroupIds.has(id));
+			currentWidgetGroupIds.size !== visibleGroupIds.size ||
+			!Array.from(visibleGroupIds).every(id => currentWidgetGroupIds.has(id));
 
 		if (needsRecreation && this._lastSessionPickerAction && this.chatSessionPickerContainer) {
 			const widgets = this.createChatSessionPickerWidgets(this._lastSessionPickerAction);
@@ -1363,7 +1468,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		if (typeof currentOptionValue === 'string') {
-			return optionGroup.items.find(m => m.id === currentOptionValue);
+			const normalizedOptionId = currentOptionValue.trim();
+			return optionGroup.items.find(m => m.id === normalizedOptionId);
 		} else {
 			return currentOptionValue as IChatSessionProviderOptionItem;
 		}
@@ -1446,6 +1552,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		container.append(this.container);
 		this.container.append(this.chatInputOverlay);
 		this.container.classList.toggle('compact', this.options.renderStyle === 'compact');
+
+		// Create a scoped context key service for option group visibility expressions
+		// This isolates chatSessionOption.* context keys to this specific chat input instance
+		this._scopedContextKeyService = this._register(this.contextKeyService.createScoped(this.container));
+
 		this.followupsContainer = elements.followupsContainer;
 		const inputAndSideToolbar = elements.inputAndSideToolbar; // The chat input and toolbar to the right
 		const inputContainer = elements.inputContainer; // The chat editor, attachments, and toolbars
@@ -2456,11 +2567,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// #                                                                         #
 		// ###########################################################################
 
-		const executeToolbarWidth = this.cachedExecuteToolbarWidth = this.executeToolbar.getItemsWidth();
-		const inputToolbarWidth = this.cachedInputToolbarWidth = this.inputActionsToolbar.getItemsWidth();
 		const inputSideToolbarWidth = this.inputSideToolbarContainer ? dom.getTotalWidth(this.inputSideToolbarContainer) : 0;
-		const executeToolbarPadding = (this.executeToolbar.getItemsLength() - 1) * 4;
-		const inputToolbarPadding = this.inputActionsToolbar.getItemsLength() ? (this.inputActionsToolbar.getItemsLength() - 1) * 4 : 0;
+
+		const getToolbarsWidthCompact = () => {
+			const executeToolbarWidth = this.cachedExecuteToolbarWidth = this.executeToolbar.getItemsWidth();
+			const inputToolbarWidth = this.cachedInputToolbarWidth = this.inputActionsToolbar.getItemsWidth();
+			const executeToolbarPadding = (this.executeToolbar.getItemsLength() - 1) * 4;
+			const inputToolbarPadding = this.inputActionsToolbar.getItemsLength() ? (this.inputActionsToolbar.getItemsLength() - 1) * 4 : 0;
+			return executeToolbarWidth + executeToolbarPadding + (this.options.renderInputToolbarBelowInput ? 0 : inputToolbarWidth + inputToolbarPadding);
+		};
+
 		return {
 			inputEditorBorder: 2,
 			followupsHeight: this.followupsContainer.offsetHeight,
@@ -2470,7 +2586,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			attachmentsHeight: this.attachmentsHeight,
 			editorBorder: 2,
 			inputPartHorizontalPaddingInside: 12,
-			toolbarsWidth: this.options.renderStyle === 'compact' ? executeToolbarWidth + executeToolbarPadding + (this.options.renderInputToolbarBelowInput ? 0 : inputToolbarWidth + inputToolbarPadding) : 0,
+			toolbarsWidth: this.options.renderStyle === 'compact' ? getToolbarsWidthCompact() : 0,
 			toolbarsHeight: this.options.renderStyle === 'compact' ? 0 : 22,
 			chatEditingStateHeight: this.chatEditingSessionWidgetContainer.offsetHeight,
 			sideToolbarWidth: inputSideToolbarWidth > 0 ? inputSideToolbarWidth + 4 /*gap*/ : 0,

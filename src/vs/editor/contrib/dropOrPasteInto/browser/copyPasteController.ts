@@ -25,7 +25,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
-import { ClipboardEventUtils, CopyOptions, InMemoryClipboardMetadataManager, PasteOptions } from '../../../browser/controller/editContext/clipboardUtils.js';
+import { ClipboardEventUtils, InMemoryClipboardMetadataManager } from '../../../browser/controller/editContext/clipboardUtils.js';
 import { toExternalVSDataTransfer, toVSDataTransfer } from '../../../browser/dataTransfer.js';
 import { ICodeEditor, PastePayload } from '../../../browser/editorBrowser.js';
 import { IBulkEditService } from '../../../browser/services/bulkEditService.js';
@@ -172,7 +172,6 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 	}
 
 	private handleCopy(e: ClipboardEvent) {
-		CopyOptions.electronBugWorkaroundCopyEventHasFired = true;
 		let id: string | null = null;
 		if (e.clipboardData) {
 			const [text, metadata] = ClipboardEventUtils.getTextData(e.clipboardData);
@@ -183,7 +182,6 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			this._logService.trace('CopyPasteController#handleCopy');
 		}
 		if (!this._editor.hasTextFocus()) {
-			this._logService.trace('CopyPasteController#handleCopy/earlyReturn1');
 			return;
 		}
 
@@ -193,14 +191,12 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		this._clipboardService.clearInternalState?.();
 
 		if (!e.clipboardData || !this.isPasteAsEnabled()) {
-			this._logService.trace('CopyPasteController#handleCopy/earlyReturn2');
 			return;
 		}
 
 		const model = this._editor.getModel();
 		const selections = this._editor.getSelections();
 		if (!model || !selections?.length) {
-			this._logService.trace('CopyPasteController#handleCopy/earlyReturn3');
 			return;
 		}
 
@@ -210,7 +206,6 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		const wasFromEmptySelection = selections.length === 1 && selections[0].isEmpty();
 		if (wasFromEmptySelection) {
 			if (!enableEmptySelectionClipboard) {
-				this._logService.trace('CopyPasteController#handleCopy/earlyReturn4');
 				return;
 			}
 
@@ -231,7 +226,6 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			.filter(x => !!x.prepareDocumentPaste);
 		if (!providers.length) {
 			this.setCopyMetadata(e.clipboardData, { defaultPastePayload });
-			this._logService.trace('CopyPasteController#handleCopy/earlyReturn5');
 			return;
 		}
 
@@ -260,12 +254,9 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 		CopyPasteController._currentCopyOperation?.operations.forEach(entry => entry.operation.cancel());
 		CopyPasteController._currentCopyOperation = { handle, operations };
-		this._logService.trace('CopyPasteController#handleCopy/end');
 	}
 
 	private async handlePaste(e: ClipboardEvent) {
-		PasteOptions.electronBugWorkaroundPasteEventHasFired = true;
-		this._logService.trace('(handlePaste) PasteOptions.electronBugWorkaroundPasteEventHasFired : ', PasteOptions.electronBugWorkaroundPasteEventHasFired);
 		if (e.clipboardData) {
 			const [text, metadata] = ClipboardEventUtils.getTextData(e.clipboardData);
 			const metadataComputed = metadata || InMemoryClipboardMetadataManager.INSTANCE.get(text);
@@ -274,7 +265,6 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			this._logService.trace('CopyPasteController#handlePaste');
 		}
 		if (!e.clipboardData || !this._editor.hasTextFocus()) {
-			this._logService.trace('CopyPasteController#handlePaste/earlyReturn1');
 			return;
 		}
 
@@ -285,7 +275,6 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		const model = this._editor.getModel();
 		const selections = this._editor.getSelections();
 		if (!selections?.length || !model) {
-			this._logService.trace('CopyPasteController#handlePaste/earlyReturn2');
 			return;
 		}
 
@@ -293,7 +282,6 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			this._editor.getOption(EditorOption.readOnly) // Never enabled if editor is readonly.
 			|| (!this.isPasteAsEnabled() && !this._pasteAsActionContext) // Or feature disabled (but still enable if paste was explicitly requested)
 		) {
-			this._logService.trace('CopyPasteController#handlePaste/earlyReturn3');
 			return;
 		}
 
@@ -336,7 +324,6 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 				e.preventDefault();
 				e.stopImmediatePropagation();
 			}
-			this._logService.trace('CopyPasteController#handlePaste/earlyReturn4');
 			return;
 		}
 
@@ -351,7 +338,6 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		} else {
 			this.doPasteInline(allProviders, selections, dataTransfer, metadata, e);
 		}
-		this._logService.trace('CopyPasteController#handlePaste/end');
 	}
 
 	private showPasteAsNoEditMessage(selections: readonly Selection[], preference: PastePreference) {

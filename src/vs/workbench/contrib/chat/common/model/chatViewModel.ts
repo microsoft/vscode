@@ -9,18 +9,19 @@ import { hash } from '../../../../../base/common/hash.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, dispose } from '../../../../../base/common/lifecycle.js';
 import * as marked from '../../../../../base/common/marked/marked.js';
+import { IObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { annotateVulnerabilitiesInText } from '../widget/annotations.js';
-import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameService, IChatAgentResult } from '../participants/chatAgents.js';
-import { IChatModel, IChatProgressRenderableResponseContent, IChatRequestDisablement, IChatRequestModel, IChatResponseModel, IChatTextEditGroup, IResponse } from './chatModel.js';
-import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatCodeCitation, IChatContentReference, IChatFollowup, IChatMcpServersStarting, IChatProgressMessage, IChatResponseErrorDetails, IChatTask, IChatUsedContext } from '../chatService/chatService.js';
 import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js';
-import { countWords } from './chatWordCounter.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatCodeCitation, IChatContentReference, IChatFollowup, IChatMcpServersStarting, IChatProgressMessage, IChatResponseErrorDetails, IChatTask, IChatUsedContext } from '../chatService/chatService.js';
+import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameService, IChatAgentResult } from '../participants/chatAgents.js';
+import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
+import { annotateVulnerabilitiesInText } from '../widget/annotations.js';
 import { CodeBlockModelCollection } from '../widget/codeBlockModelCollection.js';
+import { IChatModel, IChatProgressRenderableResponseContent, IChatRequestDisablement, IChatRequestModel, IChatResponseModel, IChatTextEditGroup, IResponse } from './chatModel.js';
 import { ChatStreamStatsTracker, IChatStreamStats } from './chatStreamStats.js';
+import { countWords } from './chatWordCounter.js';
 
 export function isRequestVM(item: unknown): item is IChatRequestViewModel {
 	return !!item && typeof item === 'object' && 'message' in item;
@@ -87,7 +88,7 @@ export interface IChatRequestViewModel {
 	readonly message: IParsedChatRequest | IChatFollowup;
 	readonly messageText: string;
 	readonly attempt: number;
-	readonly variables: IChatRequestVariableEntry[];
+	readonly variables: readonly IChatRequestVariableEntry[];
 	currentRenderedHeight: number | undefined;
 	readonly contentReferences?: ReadonlyArray<IChatContentReference>;
 	readonly confirmation?: string;
@@ -96,7 +97,7 @@ export interface IChatRequestViewModel {
 	readonly isCompleteAddedRequest: boolean;
 	readonly slashCommand: IChatAgentCommand | undefined;
 	readonly agentOrSlashCommandDetected: boolean;
-	readonly shouldBeBlocked?: boolean;
+	readonly shouldBeBlocked: IObservable<boolean>;
 	readonly modelId?: string;
 }
 
@@ -224,7 +225,7 @@ export interface IChatResponseViewModel {
 	usedReferencesExpanded?: boolean;
 	vulnerabilitiesListExpanded: boolean;
 	setEditApplied(edit: IChatTextEditGroup, editCount: number): void;
-	readonly shouldBeBlocked: boolean;
+	readonly shouldBeBlocked: IObservable<boolean>;
 }
 
 export class ChatViewModel extends Disposable implements IChatViewModel {
@@ -368,13 +369,21 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	}
 }
 
+const variablesHash = new WeakMap<readonly IChatRequestVariableEntry[], number>();
+
 export class ChatRequestViewModel implements IChatRequestViewModel {
 	get id() {
 		return this._model.id;
 	}
 
 	get dataId() {
-		return this.id + `_${hash(this.variables)}_${hash(this.isComplete)}`;
+		let varsHash = variablesHash.get(this.variables);
+		if (typeof varsHash !== 'number') {
+			varsHash = hash(this.variables);
+			variablesHash.set(this.variables, varsHash);
+		}
+
+		return `${this.id}_${this.isComplete ? '1' : '0'}_${varsHash}`;
 	}
 
 	/** @deprecated */

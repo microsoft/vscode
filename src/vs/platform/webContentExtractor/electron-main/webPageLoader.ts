@@ -5,7 +5,7 @@
 
 import type { BeforeSendResponse, BrowserWindow, BrowserWindowConstructorOptions, Event, OnBeforeSendHeadersListenerDetails } from 'electron';
 import { Queue, raceTimeout, TimeoutTimer } from '../../../base/common/async.js';
-import { CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { createSingleCallFunction } from '../../../base/common/functional.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
@@ -19,6 +19,17 @@ type NetworkRequestEventParams = Readonly<{
 	request?: { url?: string };
 	response?: { status?: number; statusText?: string };
 	type?: string;
+}>;
+
+type FrameInfo = Readonly<{
+	id: string;
+	url?: string;
+	name?: string;
+}>;
+
+type FrameTreeNode = Readonly<{
+	frame: FrameInfo;
+	childFrames?: FrameTreeNode[];
 }>;
 
 /**
@@ -336,7 +347,7 @@ export class WebPageLoader extends Disposable {
 			try {
 				await raceTimeout((async () => {
 					if (!cts.token.isCancellationRequested) {
-						result = await this.extractAccessibilityTreeContent() ?? '';
+						result = await this.extractAccessibilityTreeContent(cts.token) ?? '';
 					}
 
 					if (!cts.token.isCancellationRequested && result.length < WebPageLoader.MIN_CONTENT_LENGTH) {
@@ -371,13 +382,44 @@ export class WebPageLoader extends Disposable {
 
 	/**
 	 * Extracts content from the Accessibility tree of the loaded web page.
-	 * @return The extracted content, or undefined if extraction fails.
+	 * @param token Cancellation token to abort the operation.
+	 * @return The extracted content, or undefined if extraction fails or is cancelled.
 	 */
-	private async extractAccessibilityTreeContent(): Promise<string | undefined> {
+	private async extractAccessibilityTreeContent(token: CancellationToken): Promise<string | undefined> {
 		this.trace(`Extracting content using Accessibility domain`);
 		try {
-			const { nodes } = await this._debugger.sendCommand('Accessibility.getFullAXTree') as { nodes: AXNode[] };
-			return convertAXTreeToMarkdown(this._uri, nodes);
+			// Enable the Page domain to get frame information
+			await this._debugger.sendCommand('Page.enable');
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
+
+			// Get all frames including iframes
+			const { frameTree } = await this._debugger.sendCommand('Page.getFrameTree') as { frameTree: FrameTreeNode };
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
+
+			const frameNodes = [frameTree];
+			for (let i = 0; i < frameNodes.length; i++) {
+				frameNodes.push(...frameNodes[i].childFrames ?? []);
+			}
+
+			// Collect accessibility nodes from all frames
+			const allNodes: AXNode[] = [];
+			for (const { frame } of frameNodes) {
+				try {
+					const { nodes } = await this._debugger.sendCommand('Accessibility.getFullAXTree', { frameId: frame.id }) as { nodes: AXNode[] };
+					allNodes.push(...nodes);
+					if (token.isCancellationRequested) {
+						return undefined;
+					}
+				} catch {
+					// ignore
+				}
+			}
+
+			return convertAXTreeToMarkdown(this._uri, allNodes);
 		} catch (error) {
 			this.trace(`Accessibility tree extraction failed: ${error instanceof Error ? error.message : String(error)}`);
 			return undefined;
