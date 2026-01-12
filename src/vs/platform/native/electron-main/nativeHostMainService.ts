@@ -43,6 +43,7 @@ import { IV8Profile } from '../../profiling/common/profiling.js';
 import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-main/auxiliaryWindows.js';
 import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
 import { CancellationError } from '../../../base/common/errors.js';
+import { zip } from '../../../base/node/zip.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IProxyAuthService } from './auth.js';
 import { AuthInfo, Credentials, IRequestService } from '../../request/common/request.js';
@@ -1171,7 +1172,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#region Zip
 
 	async createZipFile(windowId: number | undefined, zipPath: string, files: { path: string; contents: string }[]): Promise<void> {
-		const { zip } = await import('../../../base/node/zip.js');
 		await zip(zipPath, files);
 	}
 
