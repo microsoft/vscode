@@ -52,7 +52,7 @@ export class UITest {
 	/**
 	 * Validate the results of the UI test actions.
 	 */
-	public async validate() {
+	public validate() {
 		this.verifyTextFileCreated();
 		this.verifyExtensionInstalled();
 	}
@@ -67,17 +67,27 @@ export class UITest {
 	}
 
 	/**
+	 * Run a command from the command palette.
+	 */
+	private async runCommand(page: Page, command: string) {
+		this.context.log(`Running command: ${command}`);
+		await page.keyboard.press('F1');
+		await page.getByPlaceholder(/^Type the name of a command/).fill(`>${command}`);
+		await page.locator('span.monaco-highlighted-label', { hasText: new RegExp(`^${command}$`) }).click();
+		await page.waitForTimeout(500);
+	}
+
+	/**
 	 * Create a new text file in the editor with some content and save it.
 	 */
 	private async createTextFile(page: Page) {
-		this.context.log('Focusing Explorer view');
-		await page.keyboard.press('Control+Shift+E');
+		await this.runCommand(page, 'View: Show Explorer');
 
 		this.context.log('Clicking New File button');
 		await page.getByLabel('New File...').click();
 
 		this.context.log('Typing file name');
-		await page.locator('input').fill('helloWorld.txt');
+		await page.getByRole('textbox', { name: /^Type file name/ }).fill('helloWorld.txt');
 		await page.keyboard.press('Enter');
 
 		this.context.log('Focusing the code editor');
@@ -86,8 +96,7 @@ export class UITest {
 		this.context.log('Typing some content into the file');
 		await page.keyboard.type('Hello, World!');
 
-		this.context.log('Saving the file');
-		await page.keyboard.press('Control+S');
+		await this.runCommand(page, 'File: Save');
 		await page.waitForTimeout(1000);
 	}
 
@@ -105,15 +114,14 @@ export class UITest {
 	 * Install GitHub Pull Requests extension from the Extensions view.
 	 */
 	private async installExtension(page: Page) {
-		this.context.log('Opening Extensions view');
-		await page.keyboard.press('Control+Shift+X');
-		await page.waitForSelector('.extension-list-item');
+		await this.runCommand(page, 'View: Show Extensions');
 
 		this.context.log('Typing extension name to search for');
+		await page.getByText('Search Extensions in Marketplace').focus();
 		await page.keyboard.type('GitHub Pull Requests');
-		await page.waitForTimeout(2000);
 
 		this.context.log('Clicking Install on the first extension in the list');
+		await page.locator('.extension-list-item').getByText(/^GitHub Pull Requests$/).waitFor();
 		await page.locator('.extension-action:not(.disabled)', { hasText: /Install/ }).first().click();
 
 		this.context.log('Waiting for extension to be installed');

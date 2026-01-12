@@ -209,6 +209,7 @@ export interface ITerminalConfiguration {
 	ignoreBracketedPasteMode: boolean;
 	rescaleOverlappingGlyphs: boolean;
 	enableKittyKeyboardProtocol: boolean;
+	enableWin32InputMode: boolean;
 	fontLigatures?: {
 		enabled: boolean;
 		featureSettings: string;
