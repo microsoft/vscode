@@ -235,10 +235,10 @@ export interface ICommonNativeHostService {
 	/**
 	 * Creates a zip file at the specified path containing the provided files.
 	 *
-	 * @param zipPath The absolute path where the zip file should be created.
+	 * @param zipPath The URI where the zip file should be created.
 	 * @param files An array of file entries to include in the zip, each with a relative path and string contents.
 	 */
-	createZipFile(zipPath: string, files: { path: string; contents: string }[]): Promise<void>;
+	createZipFile(zipPath: URI, files: { path: string; contents: string }[]): Promise<void>;
 }
 
 export const INativeHostService = createDecorator<INativeHostService>('nativeHostService');

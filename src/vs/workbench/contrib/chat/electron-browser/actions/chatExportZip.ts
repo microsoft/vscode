@@ -110,7 +110,7 @@ export function registerChatExportZipAction() {
 			}
 
 			try {
-				await nativeHostService.createZipFile(result.fsPath, files);
+				await nativeHostService.createZipFile(result, files);
 			} catch (error) {
 				notificationService.notify({
 					severity: Severity.Error,
