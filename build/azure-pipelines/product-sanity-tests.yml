@@ -1,0 +1,161 @@
+pr: none
+
+trigger: none
+
+parameters:
+  - name: commit
+    displayName: Commit
+    type: string
+  - name: quality
+    displayName: Quality
+    type: string
+    default: insider
+    values:
+      - exploration
+      - insider
+      - stable
+
+variables:
+  - name: skipComponentGovernanceDetection
+    value: true
+  - name: Codeql.SkipTaskAutoInjection
+    value: true
+
+name: "$(Date:yyyyMMdd).$(Rev:r) (${{ parameters.quality }})"
+
+resources:
+  repositories:
+    - repository: 1ESPipelines
+      type: git
+      name: 1ESPipelineTemplates/1ESPipelineTemplates
+      ref: refs/tags/release
+
+extends:
+  template: v1/1ES.Official.PipelineTemplate.yml@1esPipelines
+  parameters:
+    sdl:
+      tsa:
+        enabled: false
+      codeql:
+        compiled:
+          enabled: false
+          justificationForDisabling: "Sanity tests only, no code compilation"
+      credscan:
+        suppressionsFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/CredScanSuppressions.json
+      eslint:
+        enabled: false
+      sourceAnalysisPool: 1es-windows-2022-x64
+      createAdoIssuesForJustificationsForDisablement: false
+    stages:
+      - stage: SanityTests
+        jobs:
+          - job: Windows
+            displayName: Windows Sanity Tests
+            pool:
+              name: 1es-windows-2022-x64
+              os: windows
+            timeoutInMinutes: 30
+            variables:
+              SANITY_TEST_LOGS: $(Build.SourcesDirectory)/.build/sanity-test-logs
+            templateContext:
+              outputs:
+                - output: pipelineArtifact
+                  targetPath: $(SANITY_TEST_LOGS)
+                  artifactName: sanity-test-logs-windows-$(System.JobAttempt)
+                  displayName: Publish Sanity Test Logs
+                  sbomEnabled: false
+                  isProduction: false
+                  condition: succeededOrFailed()
+            steps:
+              - checkout: self
+
+              - task: NodeTool@0
+                inputs:
+                  versionSource: fromFile
+                  versionFilePath: .nvmrc
+                displayName: Install Node.js
+
+              - script: |
+                  mkdir "$(SANITY_TEST_LOGS)"
+                displayName: Create Logs Directory
+
+              - script: npm install
+                displayName: Install Dependencies
+                workingDirectory: $(Build.SourcesDirectory)/test/sanity
+
+              - script: npm run sanity-test -- --commit ${{ parameters.commit }} --quality ${{ parameters.quality }} --verbose 2>&1 | tee $(SANITY_TEST_LOGS)/sanity-test.log
+                displayName: Run Sanity Tests
+
+          - job: Linux
+            displayName: Linux Sanity Tests
+            pool:
+              name: 1es-ubuntu-22.04-x64
+              os: linux
+            timeoutInMinutes: 30
+            variables:
+              SANITY_TEST_LOGS: $(Build.SourcesDirectory)/.build/sanity-test-logs
+            templateContext:
+              outputs:
+                - output: pipelineArtifact
+                  targetPath: $(SANITY_TEST_LOGS)
+                  artifactName: sanity-test-logs-linux-$(System.JobAttempt)
+                  displayName: Publish Sanity Test Logs
+                  sbomEnabled: false
+                  isProduction: false
+                  condition: succeededOrFailed()
+            steps:
+              - checkout: self
+
+              - task: NodeTool@0
+                inputs:
+                  versionSource: fromFile
+                  versionFilePath: .nvmrc
+                displayName: Install Node.js
+
+              - script: |
+                  mkdir -p "$(SANITY_TEST_LOGS)"
+                displayName: Create Logs Directory
+
+              - script: npm install
+                displayName: Install Dependencies
+                workingDirectory: $(Build.SourcesDirectory)/test/sanity
+
+              - script: npm run sanity-test -- --commit ${{ parameters.commit }} --quality ${{ parameters.quality }} --verbose 2>&1 | tee $(SANITY_TEST_LOGS)/sanity-test.log
+                displayName: Run Sanity Tests
+
+          - job: macOS
+            displayName: macOS Sanity Tests
+            pool:
+              name: AcesShared
+              os: macOS
+            timeoutInMinutes: 30
+            variables:
+              SANITY_TEST_LOGS: $(Build.SourcesDirectory)/.build/sanity-test-logs
+            templateContext:
+              outputs:
+                - output: pipelineArtifact
+                  targetPath: $(SANITY_TEST_LOGS)
+                  artifactName: sanity-test-logs-macos-$(System.JobAttempt)
+                  displayName: Publish Sanity Test Logs
+                  sbomEnabled: false
+                  isProduction: false
+                  condition: succeededOrFailed()
+            steps:
+              - checkout: self
+
+              - task: NodeTool@0
+                inputs:
+                  versionSource: fromFile
+                  versionFilePath: .nvmrc
+                displayName: Install Node.js
+
+              - script: |
+                  mkdir -p "$(SANITY_TEST_LOGS)"
+                displayName: Create Logs Directory
+
+              - script: npm install
+                displayName: Install Dependencies
+                workingDirectory: $(Build.SourcesDirectory)/test/sanity
+
+              - script: npm run sanity-test -- --commit ${{ parameters.commit }} --quality ${{ parameters.quality }} --verbose 2>&1 | tee $(SANITY_TEST_LOGS)/sanity-test.log
+                displayName: Run Sanity Tests
