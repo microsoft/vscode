@@ -161,6 +161,7 @@
 
 			.agent-session-diff-container {
 				display: flex;
+				flex-shrink: 0;
 				gap: 4px;
 
 				&:not(.has-diff) {
