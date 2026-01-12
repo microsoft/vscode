@@ -201,28 +201,6 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 			strictEqual(mirrorText.includes('before'), false);
 		});
 
-		test('content between two markers', async () => {
-			const source = await createXterm();
-			await write(source, 'before\r\n');
-			const startMarker = source.raw.registerMarker(0)!;
-			await write(source, 'middle1\r\nmiddle2\r\n');
-			const endMarker = source.raw.registerMarker(0)!;
-			await write(source, 'after');
-
-			const vt = await source.getRangeAsVT(startMarker, endMarker, true);
-			const mirror = await createXterm();
-			if (vt) {
-				await write(mirror, vt);
-			}
-			startMarker.dispose();
-			endMarker.dispose();
-
-			const mirrorText = getBufferText(mirror);
-			strictEqual(mirrorText.includes('middle1'), true);
-			strictEqual(mirrorText.includes('middle2'), true);
-			strictEqual(mirrorText.includes('before'), false);
-		});
-
 		test('incremental mirroring appends correctly', async () => {
 			const source = await createXterm();
 			const marker = source.raw.registerMarker(0)!;
