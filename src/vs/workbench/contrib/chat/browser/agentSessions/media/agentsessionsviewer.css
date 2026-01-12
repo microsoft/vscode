@@ -202,8 +202,18 @@
 		}
 
 		.agent-session-status {
-			padding-left: 8px;
+			display: flex;
+			align-items: center;
 			font-variant-numeric: tabular-nums;
+
+			.agent-session-status-provider-icon {
+				font-size: 12px;
+				margin-right: 4px;
+
+				&.hidden {
+					display: none;
+				}
+			}
 		}
 	}
 
