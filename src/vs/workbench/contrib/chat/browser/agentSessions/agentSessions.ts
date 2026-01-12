@@ -9,11 +9,24 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localChatSessionType } from '../../common/chatSessionsService.js';
 import { foreground, listActiveSelectionForeground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
 
 export enum AgentSessionProviders {
 	Local = localChatSessionType,
 	Background = 'copilotcli',
 	Cloud = 'copilot-cloud-agent',
+}
+
+export function getAgentSessionProvider(sessionResource: URI | string): AgentSessionProviders | undefined {
+	const type = URI.isUri(sessionResource) ? getChatSessionType(sessionResource) : sessionResource;
+	switch (type) {
+		case AgentSessionProviders.Local:
+		case AgentSessionProviders.Background:
+		case AgentSessionProviders.Cloud:
+			return type;
+		default:
+			return undefined;
+	}
 }
 
 export function getAgentSessionProviderName(provider: AgentSessionProviders): string {

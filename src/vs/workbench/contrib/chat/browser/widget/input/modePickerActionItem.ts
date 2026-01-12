@@ -154,12 +154,12 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
 		this.setAriaLabelAttributes(element);
 		const state = this.delegate.currentMode.get().label.get();
-		dom.reset(element, dom.$('span.chat-model-label', undefined, state), ...renderLabelWithIcons(`$(chevron-down)`));
+		dom.reset(element, dom.$('span.chat-input-picker-label', undefined, state), ...renderLabelWithIcons(`$(chevron-down)`));
 		return null;
 	}
 
 	override render(container: HTMLElement): void {
 		super.render(container);
-		container.classList.add('chat-modelPicker-item');
+		container.classList.add('chat-input-picker-item');
 	}
 }

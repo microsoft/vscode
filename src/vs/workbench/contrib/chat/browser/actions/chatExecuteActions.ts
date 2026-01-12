@@ -346,9 +346,8 @@ class SwitchToNextModelAction extends Action2 {
 	}
 }
 
-export const ChatOpenModelPickerActionId = 'workbench.action.chat.openModelPicker';
-class OpenModelPickerAction extends Action2 {
-	static readonly ID = ChatOpenModelPickerActionId;
+export class OpenModelPickerAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.openModelPicker';
 
 	constructor() {
 		super({
@@ -426,6 +425,41 @@ export class OpenModePickerAction extends Action2 {
 		const widget = widgetService.lastFocusedWidget;
 		if (widget) {
 			widget.input.openModePicker();
+		}
+	}
+}
+
+export class OpenSessionTargetPickerAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.openSessionTargetPicker';
+
+	constructor() {
+		super({
+			id: OpenSessionTargetPickerAction.ID,
+			title: localize2('interactive.openSessionTargetPicker.label', "Open Session Target Picker"),
+			tooltip: localize('setSessionTarget', "Set Session Target"),
+			category: CHAT_CATEGORY,
+			f1: false,
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.hasCanDelegateProviders, ChatContextKeys.chatSessionIsEmpty),
+			menu: [
+				{
+					id: MenuId.ChatInput,
+					order: 0,
+					when: ContextKeyExpr.and(
+						ChatContextKeys.enabled,
+						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
+						ChatContextKeys.inQuickChat.negate(),
+						ChatContextKeys.hasCanDelegateProviders),
+					group: 'navigation',
+				},
+			]
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const widgetService = accessor.get(IChatWidgetService);
+		const widget = widgetService.lastFocusedWidget;
+		if (widget) {
+			widget.input.openSessionTargetPicker();
 		}
 	}
 }
@@ -756,6 +790,7 @@ export function registerChatExecuteActions() {
 	registerAction2(SwitchToNextModelAction);
 	registerAction2(OpenModelPickerAction);
 	registerAction2(OpenModePickerAction);
+	registerAction2(OpenSessionTargetPickerAction);
 	registerAction2(ChatSessionPrimaryPickerAction);
 	registerAction2(ChangeChatModelAction);
 	registerAction2(CancelEdit);

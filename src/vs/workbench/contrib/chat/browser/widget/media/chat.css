@@ -1344,13 +1344,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	overflow: hidden;
 	min-width: 0px;
 
-	.chat-modelPicker-item {
+	.chat-input-picker-item {
 		min-width: 0px;
 
 		.action-label {
 			min-width: 0px;
 
-			.chat-model-label {
+			.chat-input-picker-label {
 				overflow: hidden;
 				text-overflow: ellipsis;
 			}
@@ -1359,8 +1359,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 				color: var(--vscode-problemsWarningIcon-foreground);
 			}
 
-			span + .chat-model-label {
+			span + .chat-input-picker-label {
 				margin-left: 2px;
+			}
+		}
+
+		.action-label.disabled {
+			.codicon {
+				color: var(--vscode-disabledForeground);
 			}
 		}
 
@@ -1374,7 +1380,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	box-shadow: var(--vscode-scrollbar-shadow) 0 6px 6px -6px inset
 }
 
-.interactive-session .chat-input-toolbar .chat-modelPicker-item .action-label,
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label,
 .interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label {
 	height: 16px;
 	padding: 3px 0px 3px 6px;
@@ -1383,7 +1389,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 
-.interactive-session .chat-input-toolbar .chat-modelPicker-item .action-label .codicon-chevron-down,
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label .codicon-chevron-down,
 .interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label .codicon-chevron-down {
 	font-size: 12px;
 	margin-left: 2px;

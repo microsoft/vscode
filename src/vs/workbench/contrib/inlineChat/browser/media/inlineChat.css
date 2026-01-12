@@ -172,7 +172,7 @@
 	max-width: 66%;
 }
 
-.monaco-workbench .inline-chat .chat-widget .interactive-session .chat-input-toolbars > .chat-execute-toolbar .chat-modelPicker-item {
+.monaco-workbench .inline-chat .chat-widget .interactive-session .chat-input-toolbars > .chat-execute-toolbar .chat-input-picker-item {
 	min-width: 40px;
 	max-width: 132px;
 }
