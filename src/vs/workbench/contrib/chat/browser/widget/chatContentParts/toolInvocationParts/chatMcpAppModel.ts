@@ -263,7 +263,7 @@ export class ChatMcpAppModel extends Disposable {
 			media-src 'self' data: ${cleanDomains(csp?.resourceDomains)};
 			frame-src ${cleanDomains(csp?.frameDomains) || `'none'`};
 			object-src 'none';
-			base-uri ${cleanDomains(csp?.baseUriDomains) || `'none'`};
+			base-uri ${cleanDomains(csp?.baseUriDomains) || `'self'`};
 		`;
 
 		const cspTag = `<meta http-equiv="Content-Security-Policy" content="${cspContent}">`;
