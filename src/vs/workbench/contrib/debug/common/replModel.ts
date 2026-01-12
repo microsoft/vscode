@@ -278,11 +278,12 @@ export class ReplModel {
 		return this.replElements;
 	}
 
-	async addReplExpression(session: IDebugSession, stackFrame: IStackFrame | undefined, expression: string): Promise<void> {
+	async addReplExpression(session: IDebugSession, stackFrame: IStackFrame | undefined, expression: string): Promise<boolean> {
 		this.addReplElement(new ReplEvaluationInput(expression));
 		const result = new ReplEvaluationResult(expression);
-		await result.evaluateExpression(expression, session, stackFrame, 'repl');
+		const success = await result.evaluateExpression(expression, session, stackFrame, 'repl');
 		this.addReplElement(result);
+		return success;
 	}
 
 	appendToRepl(session: IDebugSession, { output, expression, sev, source }: INewReplElementData): void {

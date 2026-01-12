@@ -411,7 +411,7 @@ export interface IDebugSession extends ITreeElement, IDisposable {
 	getReplElements(): IReplElement[];
 	hasSeparateRepl(): boolean;
 	removeReplExpressions(): void;
-	addReplExpression(stackFrame: IStackFrame | undefined, name: string): Promise<void>;
+	addReplExpression(stackFrame: IStackFrame | undefined, name: string): Promise<boolean>;
 	appendToRepl(data: INewReplElementData): void;
 	/** Cancel any associated test run set through the DebugSessionOptions */
 	cancelCorrelatedTestRun(): void;

@@ -1575,10 +1575,11 @@ export class DebugSession implements IDebugSession {
 		this.repl.removeReplExpressions();
 	}
 
-	async addReplExpression(stackFrame: IStackFrame | undefined, expression: string): Promise<void> {
-		await this.repl.addReplExpression(this, stackFrame, expression);
+	async addReplExpression(stackFrame: IStackFrame | undefined, expression: string): Promise<boolean> {
+		const success = await this.repl.addReplExpression(this, stackFrame, expression);
 		// Evaluate all watch expressions and fetch variables again since repl evaluation might have changed some.
 		this.debugService.getViewModel().updateViews();
+		return success;
 	}
 
 	appendToRepl(data: INewReplElementData, isImportant?: boolean): void {

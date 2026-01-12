@@ -475,12 +475,15 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		this.replInput.focus();
 	}
 
-	acceptReplInput(): void {
+	async acceptReplInput(): Promise<void> {
 		const session = this.tree?.getInput();
 		if (session && !this.isReadonly) {
-			session.addReplExpression(this.debugService.getViewModel().focusedStackFrame, this.replInput.getValue());
+			const input = this.replInput.getValue();
+			const success = await session.addReplExpression(this.debugService.getViewModel().focusedStackFrame, input);
 			revealLastElement(this.tree!);
-			this.history.add(this.replInput.getValue());
+			if (success) {
+				this.history.add(input);
+			}
 			this.replInput.setValue('');
 			if (this.bodyContentDimension) {
 				// Trigger a layout to shrink a potential multi line input
@@ -489,12 +492,14 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		}
 	}
 
-	sendReplInput(input: string): void {
+	async sendReplInput(input: string): Promise<void> {
 		const session = this.tree?.getInput();
 		if (session && !this.isReadonly) {
-			session.addReplExpression(this.debugService.getViewModel().focusedStackFrame, input);
+			const success = await session.addReplExpression(this.debugService.getViewModel().focusedStackFrame, input);
 			revealLastElement(this.tree!);
-			this.history.add(input);
+			if (success) {
+				this.history.add(input);
+			}
 		}
 	}
 

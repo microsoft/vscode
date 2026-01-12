@@ -270,8 +270,8 @@ export class MockSession implements IDebugSession {
 		throw new Error('not implemented');
 	}
 
-	addReplExpression(stackFrame: IStackFrame, name: string): Promise<void> {
-		return Promise.resolve(undefined);
+	addReplExpression(stackFrame: IStackFrame, name: string): Promise<boolean> {
+		return Promise.resolve(true);
 	}
 
 	appendToRepl(data: INewReplElementData): void { }
