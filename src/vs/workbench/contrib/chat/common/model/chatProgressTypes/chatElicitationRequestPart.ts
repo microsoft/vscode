@@ -51,7 +51,9 @@ export class ChatElicitationRequestPart implements IChatElicitationRequest {
 		}
 		this._isHiddenValue.set(true, undefined, undefined);
 		this.onHide?.();
-		this.state.set(ElicitationState.Rejected, undefined);
+		if (this.state.get() === ElicitationState.Pending) {
+			this.state.set(ElicitationState.Rejected, undefined);
+		}
 	}
 
 	public toJSON() {
