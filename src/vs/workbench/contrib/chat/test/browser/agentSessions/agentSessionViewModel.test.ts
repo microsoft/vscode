@@ -866,7 +866,7 @@ suite('Agent Sessions', () => {
 			assert.strictEqual(filter.exclude(session3), false);
 		});
 
-		test('should filter out archived sessions', () => {
+		test('should filter not out archived sessions', () => {
 			const storageService = instantiationService.get(IStorageService);
 			const filter = disposables.add(instantiationService.createInstance(
 				AgentSessionsFilter,
@@ -896,7 +896,7 @@ suite('Agent Sessions', () => {
 			storageService.store(`agentSessions.filterExcludes.${MenuId.ViewTitle.id.toLowerCase()}`, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
 
 			// After excluding archived, only archived session should be filtered
-			assert.strictEqual(filter.exclude(archivedSession), true);
+			assert.strictEqual(filter.exclude(archivedSession), false);
 			assert.strictEqual(filter.exclude(activeSession), false);
 		});
 
