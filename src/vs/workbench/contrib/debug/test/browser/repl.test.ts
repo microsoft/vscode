@@ -350,4 +350,24 @@ suite('Debug - REPL', () => {
 		const success = await replModel.addReplExpression(session, stackFrame, 'myVariable');
 		assert.strictEqual(success, true);
 	});
+
+	test('repl expressions should return false for errors', async () => {
+		const session = disposables.add(createTestSession(model));
+		model.addSession(session);
+
+		const adapter = new MockDebugAdapter();
+		const raw = disposables.add(new RawDebugSession(adapter, undefined!, '', '', undefined!, undefined!, undefined!, undefined!,));
+		session.initializeForTest(raw);
+
+		// Error evaluation (starting with 'error.') should return false
+		const success = await session.addReplExpression(undefined, 'error.test');
+		assert.strictEqual(success, false);
+
+		// Verify that the error result is still added to REPL elements
+		const elements = session.getReplElements();
+		// Should have input and result (error)
+		assert.strictEqual(elements.length >= 2, true);
+		const result = elements[elements.length - 1] as ReplEvaluationResult;
+		assert.strictEqual(result.value.includes('error'), true);
+	});
 });
