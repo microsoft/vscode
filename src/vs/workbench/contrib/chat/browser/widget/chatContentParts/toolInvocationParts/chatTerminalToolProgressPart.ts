@@ -854,12 +854,18 @@ class ChatTerminalToolOutputSection extends Disposable {
 			return true;
 		}
 		await liveTerminalInstance.xtermReadyPromise;
+		if (this._store.isDisposed) {
+			return false;
+		}
 		if (liveTerminalInstance.isDisposed || !liveTerminalInstance.xterm) {
 			this._disposeLiveMirror();
 			return false;
 		}
 		this._mirror = this._register(this._instantiationService.createInstance(DetachedTerminalCommandMirror, liveTerminalInstance.xterm!, command));
 		await this._mirror.attach(this._terminalContainer);
+		if (this._store.isDisposed) {
+			return false;
+		}
 		const result = await this._mirror.renderCommand();
 		if (!result || result.lineCount === 0) {
 			this._showEmptyMessage(localize('chat.terminalOutputEmpty', 'No output was produced by the command.'));
@@ -875,9 +881,15 @@ class ChatTerminalToolOutputSection extends Disposable {
 			this._layoutOutput(snapshot.lineCount ?? 0);
 			return;
 		}
+		if (this._store.isDisposed) {
+			return;
+		}
 		dom.clearNode(this._terminalContainer);
 		this._snapshotMirror = this._register(this._instantiationService.createInstance(DetachedTerminalSnapshotMirror, snapshot, this._getStoredTheme));
 		await this._snapshotMirror.attach(this._terminalContainer);
+		if (this._store.isDisposed) {
+			return;
+		}
 		this._snapshotMirror.setOutput(snapshot);
 		const result = await this._snapshotMirror.render();
 		const hasText = !!snapshot.text && snapshot.text.length > 0;

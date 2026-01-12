@@ -44,7 +44,13 @@ abstract class DetachedTerminalMirror extends Disposable {
 	private _attachedContainer: HTMLElement | undefined;
 
 	protected _setDetachedTerminal(detachedTerminal: Promise<IDetachedTerminalInstance>): void {
-		this._detachedTerminal = detachedTerminal.then(terminal => this._register(terminal));
+		this._detachedTerminal = detachedTerminal.then(terminal => {
+			if (this._store.isDisposed) {
+				terminal.dispose();
+				throw new Error('Cannot register terminal on disposed mirror');
+			}
+			return this._register(terminal);
+		});
 	}
 
 	protected async _getTerminal(): Promise<IDetachedTerminalInstance> {
@@ -54,15 +60,20 @@ abstract class DetachedTerminalMirror extends Disposable {
 		return this._detachedTerminal;
 	}
 
-	protected async _attachToContainer(container: HTMLElement): Promise<IDetachedTerminalInstance> {
-		const terminal = await this._getTerminal();
-		container.classList.add('chat-terminal-output-terminal');
-		const needsAttach = this._attachedContainer !== container || container.firstChild === null;
-		if (needsAttach) {
-			terminal.attachToElement(container, { enableGpu: false });
-			this._attachedContainer = container;
+	protected async _attachToContainer(container: HTMLElement): Promise<IDetachedTerminalInstance | undefined> {
+		try {
+			const terminal = await this._getTerminal();
+			container.classList.add('chat-terminal-output-terminal');
+			const needsAttach = this._attachedContainer !== container || container.firstChild === null;
+			if (needsAttach) {
+				terminal.attachToElement(container, { enableGpu: false });
+				this._attachedContainer = container;
+			}
+			return terminal;
+		} catch {
+			// Mirror was disposed before terminal could be attached
+			return undefined;
 		}
-		return terminal;
 	}
 }
 
@@ -174,11 +185,16 @@ export class DetachedTerminalCommandMirror extends DetachedTerminalMirror implem
 		if (!vt.text) {
 			return { lineCount: 0 };
 		}
-		const detached = await this._getTerminal();
-		await new Promise<void>(resolve => {
-			detached.xterm.write(vt.text, () => resolve());
-		});
-		return { lineCount: vt.lineCount };
+		try {
+			const detached = await this._getTerminal();
+			await new Promise<void>(resolve => {
+				detached.xterm.write(vt.text, () => resolve());
+			});
+			return { lineCount: vt.lineCount };
+		} catch {
+			// Mirror was disposed before render could complete
+			return undefined;
+		}
 	}
 }
 
@@ -235,21 +251,26 @@ export class DetachedTerminalSnapshotMirror extends DetachedTerminalMirror {
 		if (!this._dirty) {
 			return { lineCount: this._lastRenderedLineCount ?? output.lineCount };
 		}
-		const terminal = await this._getTerminal();
-		if (this._container) {
-			this._applyTheme(this._container);
-		}
-		const text = output.text ?? '';
-		const lineCount = output.lineCount ?? this._estimateLineCount(text);
-		if (!text) {
+		try {
+			const terminal = await this._getTerminal();
+			if (this._container) {
+				this._applyTheme(this._container);
+			}
+			const text = output.text ?? '';
+			const lineCount = output.lineCount ?? this._estimateLineCount(text);
+			if (!text) {
+				this._dirty = false;
+				this._lastRenderedLineCount = lineCount;
+				return { lineCount: 0 };
+			}
+			await new Promise<void>(resolve => terminal.xterm.write(text, resolve));
 			this._dirty = false;
 			this._lastRenderedLineCount = lineCount;
-			return { lineCount: 0 };
+			return { lineCount };
+		} catch {
+			// Mirror was disposed before render could complete
+			return undefined;
 		}
-		await new Promise<void>(resolve => terminal.xterm.write(text, resolve));
-		this._dirty = false;
-		this._lastRenderedLineCount = lineCount;
-		return { lineCount };
 	}
 
 	private _estimateLineCount(text: string): number {
