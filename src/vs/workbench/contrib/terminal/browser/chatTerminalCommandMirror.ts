@@ -161,7 +161,6 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 	private _dirtyScheduled = false;
 	private _isStreaming = false;
 	private _sourceRaw: RawXtermTerminal | undefined;
-	private _isDisposed = false;
 
 	constructor(
 		private readonly _xtermTerminal: XtermTerminal,
@@ -171,13 +170,12 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 	) {
 		super();
 		this._register(toDisposable(() => {
-			this._isDisposed = true;
 			this._stopStreaming();
 		}));
 	}
 
 	async attach(container: HTMLElement): Promise<void> {
-		if (this._isDisposed) {
+		if (this._store.isDisposed) {
 			return;
 		}
 		let terminal: IDetachedTerminalInstance;
@@ -189,7 +187,7 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 			}
 			throw error;
 		}
-		if (this._isDisposed) {
+		if (this._store.isDisposed) {
 			return;
 		}
 		if (this._attachedContainer !== container) {
@@ -200,7 +198,7 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 	}
 
 	async renderCommand(): Promise<{ lineCount?: number } | undefined> {
-		if (this._isDisposed) {
+		if (this._store.isDisposed) {
 			return undefined;
 		}
 		let detached: IDetachedTerminalInstance;
@@ -212,7 +210,7 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 			}
 			throw error;
 		}
-		if (this._isDisposed) {
+		if (this._store.isDisposed) {
 			return undefined;
 		}
 		let vt;
@@ -224,7 +222,7 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 		if (!vt) {
 			return undefined;
 		}
-		if (this._isDisposed) {
+		if (this._store.isDisposed) {
 			return undefined;
 		}
 
@@ -262,7 +260,7 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 	}
 
 	private async _getCommandOutputAsVT(source: XtermTerminal): Promise<{ text: string } | undefined> {
-		if (this._isDisposed) {
+		if (this._store.isDisposed) {
 			return undefined;
 		}
 		const executedMarker = this._command.executedMarker ?? (this._command as unknown as ICurrentPartialCommand).commandExecutedMarker;
@@ -272,7 +270,7 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 
 		const endMarker = this._command.endMarker;
 		const text = await source.getRangeAsVT(executedMarker, endMarker, endMarker?.line !== executedMarker.line);
-		if (this._isDisposed) {
+		if (this._store.isDisposed) {
 			return undefined;
 		}
 		if (!text) {
@@ -309,7 +307,7 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 		if (this._detachedTerminalPromise) {
 			return this._detachedTerminalPromise;
 		}
-		if (this._isDisposed) {
+		if (this._store.isDisposed) {
 			throw new CancellationError();
 		}
 		const createPromise = (async () => {
@@ -324,7 +322,7 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 				disableOverviewRuler: true,
 				colorProvider
 			});
-			if (this._isDisposed) {
+			if (this._store.isDisposed) {
 				detached.dispose();
 				throw new CancellationError();
 			}
@@ -337,7 +335,7 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 	}
 
 	private _startStreaming(raw: RawXtermTerminal): void {
-		if (this._isDisposed || this._isStreaming) {
+		if (this._store.isDisposed || this._isStreaming) {
 			return;
 		}
 		this._isStreaming = true;
@@ -356,7 +354,7 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 	}
 
 	private _handleCursorEvent(): void {
-		if (this._isDisposed || !this._sourceRaw) {
+		if (this._store.isDisposed || !this._sourceRaw) {
 			return;
 		}
 		const cursorY = this._getAbsoluteCursorY(this._sourceRaw);
@@ -365,13 +363,13 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 	}
 
 	private _scheduleFlush(): void {
-		if (this._dirtyScheduled || this._isDisposed) {
+		if (this._dirtyScheduled || this._store.isDisposed) {
 			return;
 		}
 		this._dirtyScheduled = true;
 		queueMicrotask(() => {
 			this._dirtyScheduled = false;
-			if (this._isDisposed) {
+			if (this._store.isDisposed) {
 				return;
 			}
 			this._flushDirtyRange();
@@ -379,7 +377,7 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 	}
 
 	private _flushDirtyRange(): void {
-		if (this._isDisposed || this._flushPromise) {
+		if (this._store.isDisposed || this._flushPromise) {
 			return;
 		}
 		this._flushPromise = this._doFlushDirtyRange().finally(() => {
@@ -388,7 +386,7 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 	}
 
 	private async _doFlushDirtyRange(): Promise<void> {
-		if (this._isDisposed) {
+		if (this._store.isDisposed) {
 			return;
 		}
 		const sourceRaw = this._xtermTerminal.raw;
@@ -403,7 +401,7 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 				throw error;
 			}
 		}
-		if (this._isDisposed) {
+		if (this._store.isDisposed) {
 			return;
 		}
 		const detachedRaw = detached?.xterm;
@@ -423,7 +421,7 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 		if (!vt) {
 			return;
 		}
-		if (this._isDisposed) {
+		if (this._store.isDisposed) {
 			return;
 		}
 
