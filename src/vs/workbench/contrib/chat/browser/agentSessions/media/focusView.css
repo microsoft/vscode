@@ -1,0 +1,114 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* ========================================
+Focus View Mode - Blue glow border around entire workbench
+======================================== */
+
+.monaco-workbench.focus-view-active::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+	z-index: 10000;
+	box-shadow: inset 0 0 0 3px rgba(0, 120, 212, 0.8), inset 0 0 30px rgba(0, 120, 212, 0.4);
+	transition: box-shadow 0.2s ease-in-out;
+}
+
+/* High contrast mode adjustments */
+.hc-black .monaco-workbench.focus-view-active::after,
+.hc-light .monaco-workbench.focus-view-active::after {
+	box-shadow: inset 0 0 0 2px var(--vscode-contrastBorder);
+}
+
+/* ========================================
+Focus View Command Center Control
+======================================== */
+
+.focus-view-command-center {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	height: 100%;
+	-webkit-app-region: no-drag;
+	pointer-events: auto;
+	z-index: 1000;
+}
+
+.focus-view-pill {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin: 0 6px;
+	padding: 0 12px;
+	height: 22px;
+	background-color: rgba(0, 120, 212, 0.15);
+	border: 1px solid rgba(0, 120, 212, 0.5);
+	border-radius: 6px;
+	cursor: default;
+	transition: background-color 0.1s ease-in-out;
+	-webkit-app-region: no-drag;
+	pointer-events: auto;
+}
+
+.focus-view-pill:hover {
+	background-color: rgba(0, 120, 212, 0.25);
+	border-color: rgba(0, 120, 212, 0.7);
+}
+
+.focus-view-icon {
+	display: flex;
+	align-items: center;
+	color: #0078d4;
+}
+
+.focus-view-icon .codicon {
+	font-size: 14px;
+}
+
+.focus-view-title {
+	font-weight: 500;
+	color: var(--vscode-foreground);
+	max-width: 300px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.focus-view-separator {
+	color: var(--vscode-foreground);
+	opacity: 0.4;
+}
+
+.focus-view-artifacts {
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
+}
+
+.focus-view-close {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 20px;
+	height: 20px;
+	border-radius: 4px;
+	cursor: pointer;
+	color: var(--vscode-foreground);
+	opacity: 0.8;
+	transition: opacity 0.1s ease-in-out, background-color 0.1s ease-in-out;
+	-webkit-app-region: no-drag;
+	pointer-events: auto;
+	z-index: 1001;
+}
+
+.focus-view-close:hover {
+	opacity: 1;
+	background-color: rgba(0, 0, 0, 0.1);
+}
+
+.focus-view-close:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}

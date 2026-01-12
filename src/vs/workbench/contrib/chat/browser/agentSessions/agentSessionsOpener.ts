@@ -11,8 +11,23 @@ import { ACTIVE_GROUP, SIDE_GROUP } from '../../../../services/editor/common/edi
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { IFocusViewService } from './focusViewService.js';
 
 export async function openSession(accessor: ServicesAccessor, session: IAgentSession, openOptions?: { sideBySide?: boolean; editorOptions?: IEditorOptions }): Promise<void> {
+	const focusViewService = accessor.get(IFocusViewService);
+
+	session.setRead(true); // mark as read when opened
+
+	// Default action: Enter Astral Projection mode for the session
+	// This replaces the previous behavior of opening in chat widget
+	await focusViewService.enterFocusView(session);
+}
+
+/**
+ * Opens a session in the traditional chat widget (side panel or editor).
+ * Use this when you explicitly want to open in the chat widget rather than astral projection mode.
+ */
+export async function openSessionInChatWidget(accessor: ServicesAccessor, session: IAgentSession, openOptions?: { sideBySide?: boolean; editorOptions?: IEditorOptions }): Promise<void> {
 	const chatSessionsService = accessor.get(IChatSessionsService);
 	const chatWidgetService = accessor.get(IChatWidgetService);
 

@@ -17,6 +17,10 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../comm
 import { ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ArchiveAgentSessionAction, ArchiveAgentSessionSectionAction, UnarchiveAgentSessionSectionAction, UnarchiveAgentSessionAction, OpenAgentSessionInEditorGroupAction, OpenAgentSessionInNewEditorGroupAction, OpenAgentSessionInNewWindowAction, ShowAgentSessionsSidebar, HideAgentSessionsSidebar, ToggleAgentSessionsSidebar, RefreshAgentSessionsViewerAction, FindAgentSessionInViewerAction, MarkAgentSessionUnreadAction, MarkAgentSessionReadAction, FocusAgentSessionsAction, SetAgentSessionsOrientationStackedAction, SetAgentSessionsOrientationSideBySideAction, ToggleChatViewSessionsAction, PickAgentSessionAction, ArchiveAllAgentSessionsAction, RenameAgentSessionAction, DeleteAgentSessionAction, DeleteAllLocalSessionsAction } from './agentSessionsActions.js';
 import { AgentSessionsQuickAccessProvider, AGENT_SESSIONS_QUICK_ACCESS_PREFIX } from './agentSessionsQuickAccess.js';
+import { IFocusViewService, FocusViewService } from './focusViewService.js';
+import { EnterFocusViewAction, ExitFocusViewAction, OpenInChatPanelAction } from './focusViewActions.js';
+import { CommandCenterControlRegistry } from '../../../../browser/parts/titlebar/commandCenterControlRegistry.js';
+import { FocusViewCommandCenterControl } from './focusViewCommandCenterControl.js';
 
 //#region Actions and Menus
 
@@ -43,6 +47,11 @@ registerAction2(ToggleAgentSessionsSidebar);
 registerAction2(ToggleChatViewSessionsAction);
 registerAction2(SetAgentSessionsOrientationStackedAction);
 registerAction2(SetAgentSessionsOrientationSideBySideAction);
+
+// Focus View
+registerAction2(EnterFocusViewAction);
+registerAction2(ExitFocusViewAction);
+registerAction2(OpenInChatPanelAction);
 
 // --- Agent Sessions Toolbar
 
@@ -169,5 +178,13 @@ Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess).registerQui
 
 registerWorkbenchContribution2(LocalAgentsSessionsProvider.ID, LocalAgentsSessionsProvider, WorkbenchPhase.AfterRestored);
 registerSingleton(IAgentSessionsService, AgentSessionsService, InstantiationType.Delayed);
+registerSingleton(IFocusViewService, FocusViewService, InstantiationType.Delayed);
+
+// Register Focus View command center control
+CommandCenterControlRegistry.register({
+	contextKey: ChatContextKeys.inFocusViewMode.key,
+	priority: 100,
+	create: (instantiationService) => instantiationService.createInstance(FocusViewCommandCenterControl)
+});
 
 //#endregion

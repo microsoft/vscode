@@ -104,6 +104,9 @@ export namespace ChatContextKeys {
 	export const hasAgentSessionChanges = new RawContextKey<boolean>('agentSessionHasChanges', false, { type: 'boolean', description: localize('agentSessionHasChanges', "True when the current agent session item has changes.") });
 
 	export const isKatexMathElement = new RawContextKey<boolean>('chatIsKatexMathElement', false, { type: 'boolean', description: localize('chatIsKatexMathElement', "True when focusing a KaTeX math element.") });
+
+	// Focus View mode
+	export const inFocusViewMode = new RawContextKey<boolean>('chatInFocusViewMode', false, { type: 'boolean', description: localize('chatInFocusViewMode', "True when the workbench is in focus view mode for an agent session.") });
 }
 
 export namespace ChatContextKeyExprs {
