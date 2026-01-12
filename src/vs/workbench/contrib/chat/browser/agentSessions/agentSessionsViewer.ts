@@ -330,9 +330,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		};
 
 		// Provider icon (hide for local sessions)
-		const isLocal = isLocalAgentSessionItem(session.element);
-		template.statusProviderIcon.classList.toggle('hidden', isLocal);
-		if (!isLocal) {
+		if (!isLocalAgentSessionItem(session.element)) {
 			template.statusProviderIcon.className = `agent-session-status-provider-icon ${ThemeIcon.asClassName(session.element.icon)}`;
 		} else {
 			template.statusProviderIcon.className = 'agent-session-status-provider-icon hidden';
