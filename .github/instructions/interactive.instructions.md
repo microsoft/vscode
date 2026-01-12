@@ -18,8 +18,8 @@ Users can type in code in the text editor and after users pressing `Shift+Enter`
 
 Registering a new editor type in the workbench consists of two steps:
 
-* Register an editor input factory which is responsible for resolving resources with given `glob` patterns. Here we register an `InteractiveWindowInput` for all resources with `vscode-interactive-input` scheme: `vscode-interactive-input:/**`.
-* Register an editor pane factory for the given editor input type. Here we register `InteractiveEditor` for our own editor input `InteractiveWindowInput`.
+* Register an editor input factory which is responsible for resolving resources with given `glob` patterns. Here we register an `InteractiveEditorInput` for all resources with `vscode-interactive` scheme.
+* Register an editor pane factory for the given editor input type. Here we register `InteractiveEditor` for our own editor input `InteractiveEditorInput`.
 
 The workbench editor service is not aware of how models are resolved in `EditorInput`, neither how `EditorPane`s are rendered. It only cares about the common states and events on `EditorInput` or `EditorPane`, i.e., display name, capabilities (editable), content change, dirty state change. It's `EditorInput`/`EditorPane`'s responsibility to provide the right info and updates to the editor service. One major difference between Interactive Editor and other editor panes is Interactive Window is never dirty so users never see a dot on the editor title bar.
 
@@ -27,20 +27,25 @@ The workbench editor service is not aware of how models are resolved in `EditorI
 
 ## Interactive Window Editor Model Resolution
 
-The `Interactive.open` command will manually create an EditorInput specific for the Interactive Window and resolving that Input will go through the following workflow:
+The `Interactive.open` command will manually create an `InteractiveEditorInput` specific for the Interactive Window and resolving that Input will go through the following workflow:
 
-The `NotebookEditorModelResolverService` will create a `NotebookFileWorkingCopyModelFactory` and use that to create a `WorkingCopyManager` which is then used to create a `SimpleNotebookEditorModel`.
+The `INotebookEditorModelResolverService` is used to resolve the notebook model. The `InteractiveEditorInput` wraps a `NotebookEditorInput` for the notebook document and manages a separate text model for the input editor.
 
-When the `SimpleNotebookEditorModel` is requested to `load`, it will ask the `WorkingCopyManager` to create a new `StoredWorkingCopy` which reads content from a resource URI with the `fileService`. That content is passed to the `ModelFactory` which retrieves a `NotebookSerializer` from the `notebookService` and constructs a `NotebookTextModel`.
+When the notebook model is resolved, the `INotebookEditorModelResolverService` uses the working copy infrastructure to create a `IResolvedNotebookEditorModel`. The content is passed through a `NotebookSerializer` from the `INotebookService` to construct a `NotebookTextModel`.
 
 ![Model Resolution](./resources/interactive/interactive.model.resolution.drawio.svg)
 
-The `FileSystem` provider that is registered for `vscode-interactive` schema will always return an empty buffer for any read, and will drop all write requests as nothing is stored on disk for Interactive Window resources. The `notebookSerializer` that is registered for the `interactive` viewtype knows to return an empty notebook data model when it deserializes an empty buffer when the model is being resolved.
+The `FileSystem` provider that is registered for `vscode-interactive` schema will always return an empty buffer for any read, and will drop all write requests as nothing is stored on disk for Interactive Window resources. The `NotebookSerializer` that is registered for the `interactive` viewtype knows to return an empty notebook data model when it deserializes an empty buffer when the model is being resolved.
 
-Restoring the interactive window happens through the `EditorModelCache`, where the full notebook data is stored, and can be used to repopulate the `EditorInput` without needing to go through the editor model resolution flow, effectively skipping any filesystem reads.
+Restoring the interactive window happens through the editor serializer (`InteractiveEditorSerializer`), where the notebook data is stored, and can be used to repopulate the `InteractiveEditorInput` without needing to go through the full editor model resolution flow.
 
 ## UI/EH Editor/Document Syncing
 
-`EditorInput` is responsible for resolving models for the given resources but in Interactive Window it's much simpler as we are not resolving models ourselves but delegating to Notebook and TextEditor. `InteractiveEditorInput` does the coordination job.
+`EditorInput` is responsible for resolving models for the given resources but in Interactive Window it's much simpler as we are not resolving models ourselves but delegating to Notebook and TextEditor. `InteractiveEditorInput` does the coordination job:
+
+- It wraps a `NotebookEditorInput` via `_notebookEditorInput` for the notebook document (history cells)
+- It manages a separate text model via `ITextModelService` for the input editor at the bottom
+- The `IInteractiveDocumentService` coordinates between these two parts
+- The `IInteractiveHistoryService` manages command history for the input editor
 
 ![Architecture](./resources/interactive/interactive.eh.drawio.svg)

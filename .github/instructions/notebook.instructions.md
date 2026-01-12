@@ -58,12 +58,12 @@ Cell parts are located in `view/cellParts/` and contribute to different aspects:
 
 Focus in the notebook editor is complex because there are multiple focusable elements:
 
-1. The notebook list itself
+1. The notebook list itself (`NotebookCellList`)
 2. Individual cell containers
 3. Monaco editors within cells
-4. Output elements (webviews)
+4. Output elements (webviews via `BackLayerWebView`)
 
-The `NotebookEditorWidget` tracks focus state and provides APIs to manage focus across these components.
+The `NotebookEditorWidget` tracks focus state and provides APIs to manage focus across these components. Context keys like `NOTEBOOK_EDITOR_FOCUSED`, `NOTEBOOK_OUTPUT_FOCUSED`, and `NOTEBOOK_OUTPUT_INPUT_FOCUSED` are used to track focus state.
 
 ## Optimizations
 
@@ -73,32 +73,32 @@ Large outputs are virtualized similar to cells. Only visible portions of outputs
 
 ### Cell DOM recycling
 
-Cell DOM elements are pooled and recycled to reduce DOM operations. When scrolling, cells that move out of the viewport have their templates returned to the pool.
+Cell DOM elements are pooled and recycled to reduce DOM operations. When scrolling, cells that move out of the viewport have their templates returned to the pool. Editor instances are managed via `NotebookCellEditorPool`.
 
 ### Webview reuse
 
-Output webviews are reused across cells when possible to reduce the overhead of creating new webview contexts.
+Output webviews are reused across cells when possible to reduce the overhead of creating new webview contexts. The `BackLayerWebView` manages the webview lifecycle.
 
 ---
 
 # Find in Notebook Outputs
 
-The notebook find feature supports searching in both text models and rendered outputs.
+The notebook find feature supports searching in both text models and rendered outputs. The find functionality is implemented via `FindModel` and `CellFindMatchModel` classes.
 
 ## Hybrid Find
 
 For rendered outputs (HTML, images with alt text, etc.), the find uses a hybrid approach:
 
-1. **Text model search** - Searches cell source code using standard text search
-2. **DOM search in webview** - Uses `window.find()` to search rendered output content
+1. **Text model search** - Searches cell source code using standard text search via `FindMatch`
+2. **DOM search in webview** - Uses `window.find()` to search rendered output content via `CellWebviewFindMatch`
 
 ![Hybrid Find](./resources/notebook/hybrid-find.drawio.svg)
 
 The hybrid find works by:
 
-1. First finding matches in text models (cell inputs)
-2. Then finding matches in rendered outputs via webview
-3. Mixing both match types into a unified result set
+1. First finding matches in text models (cell inputs) - stored in `contentMatches`
+2. Then finding matches in rendered outputs via webview - stored in `webviewMatches`
+3. Mixing both match types into a unified result set via `CellFindMatchModel`
 4. Navigating between matches reveals the appropriate editor or output
 
 ### Implementation details
