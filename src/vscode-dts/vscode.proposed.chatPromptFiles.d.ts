@@ -10,27 +10,6 @@ declare module 'vscode' {
 	// #region Resource Classes
 
 	/**
-	 * Represents the content of a prompt file resource.
-	 */
-	export interface PromptFileContent {
-		/**
-		 * The header/frontmatter of the prompt file containing metadata.
-		 * Properties vary by resource type. See the documentation links for supported options.
-		 * - Custom instructions: https://code.visualstudio.com/docs/copilot/customization/custom-instructions#_header-optional
-		 * - Prompt files: https://code.visualstudio.com/docs/copilot/customization/prompt-files#_header-optional
-		 * - Custom agents: https://code.visualstudio.com/docs/copilot/customization/custom-agents#_header-optional
-		 */
-		header?: {
-			[key: string]: unknown;
-		};
-
-		/**
-		 * The body content of the prompt file.
-		 */
-		body: string;
-	}
-
-	/**
 	 * Options for creating a custom agent resource.
 	 */
 	export interface CustomAgentOptions {
@@ -69,7 +48,7 @@ declare module 'vscode' {
 		 *                or a structured PromptFileContent object with header and body.
 		 * @param options Optional settings for the custom agent.
 		 */
-		constructor(id: string, content: string | PromptFileContent, options?: CustomAgentOptions);
+		constructor(id: string, content: string, options?: CustomAgentOptions);
 	}
 
 	/**
@@ -111,7 +90,7 @@ declare module 'vscode' {
 		 *                or a structured PromptFileContent object with header and body.
 		 * @param options Optional settings for the instructions.
 		 */
-		constructor(id: string, content: string | PromptFileContent, options?: InstructionsOptions);
+		constructor(id: string, content: string, options?: InstructionsOptions);
 	}
 
 	/**
@@ -153,7 +132,7 @@ declare module 'vscode' {
 		 *                or a structured PromptFileContent object with header and body.
 		 * @param options Optional settings for the prompt file.
 		 */
-		constructor(id: string, content: string | PromptFileContent, options?: PromptFileOptions);
+		constructor(id: string, content: string, options?: PromptFileOptions);
 	}
 
 	// #endregion

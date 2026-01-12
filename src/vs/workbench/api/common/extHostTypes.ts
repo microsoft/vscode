@@ -17,7 +17,6 @@ import { nextCharLength } from '../../../base/common/strings.js';
 import { isNumber, isObject, isString, isStringArray } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
-import { stringify as yamlStringify } from '../../../base/common/yaml.js';
 import { TextEditorSelectionSource } from '../../../platform/editor/common/editor.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from '../../../platform/files/common/files.js';
@@ -3902,44 +3901,6 @@ export class McpHttpServerDefinition implements vscode.McpHttpServerDefinition {
 //#region Chat Prompt Files
 
 /**
- * Generates markdown content for a prompt file with YAML frontmatter.
- */
-function generatePromptMarkdown(header: Record<string, unknown> | undefined, body: string): string {
-	if (!header || Object.keys(header).length === 0) {
-		return body;
-	}
-
-	const frontmatterObj: Record<string, unknown> = {};
-
-	for (const [key, value] of Object.entries(header)) {
-		if (value === undefined) {
-			continue;
-		}
-		if (Array.isArray(value) && value.length === 0) {
-			continue;
-		}
-		frontmatterObj[key] = value;
-	}
-
-	if (Object.keys(frontmatterObj).length === 0) {
-		return body;
-	}
-
-	const frontmatter = yamlStringify(frontmatterObj).trim();
-	return `---\n${frontmatter}\n---\n${body}`;
-}
-
-/**
- * Normalizes content input to header and body.
- */
-function normalizePromptContent(content: string | vscode.PromptFileContent): { header: Record<string, unknown> | undefined; body: string } {
-	if (typeof content === 'string') {
-		return { header: undefined, body: content };
-	}
-	return { header: content.header, body: content.body };
-}
-
-/**
  * Creates a virtual URI for a prompt file.
  * The content is NOT embedded in the URI - it will be registered separately
  * with the ChatPromptContentStore on the main thread.
@@ -3947,7 +3908,7 @@ function normalizePromptContent(content: string | vscode.PromptFileContent): { h
 function createVirtualPromptUri(id: string, extension: string): URI {
 	return URI.from({
 		scheme: Schemas.vscodeChatPrompt,
-		path: `/${id}${extension}`
+		path: `/${extension}/${id}`
 	});
 }
 
@@ -3958,14 +3919,13 @@ export class CustomAgentChatResource implements vscode.CustomAgentChatResource {
 	readonly content?: string;
 
 	constructor(uri: URI, options?: vscode.CustomAgentOptions);
-	constructor(id: string, content: string | vscode.PromptFileContent, options?: vscode.CustomAgentOptions);
-	constructor(uriOrId: URI | string, contentOrOptions?: string | vscode.PromptFileContent | vscode.CustomAgentOptions, options?: vscode.CustomAgentOptions) {
+	constructor(id: string, content: string, options?: vscode.CustomAgentOptions);
+	constructor(uriOrId: URI | string, contentOrOptions?: string | vscode.CustomAgentOptions, options?: vscode.CustomAgentOptions) {
 		if (URI.isUri(uriOrId)) {
 			this.uri = uriOrId;
 			this.isEditable = (contentOrOptions as vscode.CustomAgentOptions)?.isEditable;
 		} else {
-			const { header, body } = normalizePromptContent(contentOrOptions as string | vscode.PromptFileContent);
-			this.content = generatePromptMarkdown(header, body);
+			this.content = contentOrOptions as string;
 			this.uri = createVirtualPromptUri(uriOrId, '.agent.md');
 			this.isEditable = options?.isEditable;
 		}
@@ -3979,14 +3939,13 @@ export class InstructionsChatResource implements vscode.InstructionsChatResource
 	readonly content?: string;
 
 	constructor(uri: URI, options?: vscode.InstructionsOptions);
-	constructor(id: string, content: string | vscode.PromptFileContent, options?: vscode.InstructionsOptions);
-	constructor(uriOrId: URI | string, contentOrOptions?: string | vscode.PromptFileContent | vscode.InstructionsOptions, options?: vscode.InstructionsOptions) {
+	constructor(id: string, content: string, options?: vscode.InstructionsOptions);
+	constructor(uriOrId: URI | string, contentOrOptions?: string | vscode.InstructionsOptions, options?: vscode.InstructionsOptions) {
 		if (URI.isUri(uriOrId)) {
 			this.uri = uriOrId;
 			this.isEditable = (contentOrOptions as vscode.InstructionsOptions)?.isEditable;
 		} else {
-			const { header, body } = normalizePromptContent(contentOrOptions as string | vscode.PromptFileContent);
-			this.content = generatePromptMarkdown(header, body);
+			this.content = contentOrOptions as string;
 			this.uri = createVirtualPromptUri(uriOrId, '.instructions.md');
 			this.isEditable = options?.isEditable;
 		}
@@ -4000,14 +3959,13 @@ export class PromptFileChatResource implements vscode.PromptFileChatResource {
 	readonly content?: string;
 
 	constructor(uri: URI, options?: vscode.PromptFileOptions);
-	constructor(id: string, content: string | vscode.PromptFileContent, options?: vscode.PromptFileOptions);
-	constructor(uriOrId: URI | string, contentOrOptions?: string | vscode.PromptFileContent | vscode.PromptFileOptions, options?: vscode.PromptFileOptions) {
+	constructor(id: string, content: string, options?: vscode.PromptFileOptions);
+	constructor(uriOrId: URI | string, contentOrOptions?: string | vscode.PromptFileOptions, options?: vscode.PromptFileOptions) {
 		if (URI.isUri(uriOrId)) {
 			this.uri = uriOrId;
 			this.isEditable = (contentOrOptions as vscode.PromptFileOptions)?.isEditable;
 		} else {
-			const { header, body } = normalizePromptContent(contentOrOptions as string | vscode.PromptFileContent);
-			this.content = generatePromptMarkdown(header, body);
+			this.content = contentOrOptions as string;
 			this.uri = createVirtualPromptUri(uriOrId, '.prompt.md');
 			this.isEditable = options?.isEditable;
 		}
