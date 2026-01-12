@@ -7,7 +7,7 @@ import { SequencerByKey } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
-import { getErrorMessage } from '../../../../base/common/errors.js';
+import { CancellationError, getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { hash } from '../../../../base/common/hash.js';
 import { Iterable } from '../../../../base/common/iterator.js';
@@ -25,7 +25,7 @@ import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../pla
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, QuickInputHideReason } from '../../../../platform/quickinput/common/quickInput.js';
 import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
@@ -271,7 +271,7 @@ export interface ILanguageModelChatMetadataAndIdentifier {
 export interface ILanguageModelChatInfoOptions {
 	readonly group?: string;
 	readonly silent: boolean;
-	readonly configuration?: unknown;
+	readonly configuration?: IStringDictionary<unknown>;
 }
 
 export interface ILanguageModelsGroup {
@@ -714,24 +714,32 @@ export class LanguageModelsService implements ILanguageModelsService {
 		const languageModelProviderGroups = this._languageModelsConfigurationService.getLanguageModelsProviderGroups();
 		const existing = languageModelProviderGroups.find(g => g.vendor === vendorId && g.name === providerGroupName);
 
-		const configuration = vendor.configuration ? await this.promptForConfiguration(vendor.configuration, existing) : undefined;
-		if (vendor.configuration && !configuration) {
-			return;
-		}
-
 		const name = await this.promptForName(languageModelProviderGroups, vendor, existing);
 		if (!name) {
 			return;
 		}
 
+		const existingConfiguration = existing ? await this._resolveConfiguration(existing, vendor.configuration) : undefined;
 
-		const languageModelProviderGroup = await this._resolveLanguageModelProviderGroup(name, vendorId, configuration, vendor.configuration);
-		const saved = existing
-			? await this._languageModelsConfigurationService.updateLanguageModelsProviderGroup(existing, languageModelProviderGroup)
-			: await this._languageModelsConfigurationService.addLanguageModelsProviderGroup(languageModelProviderGroup);
+		try {
+			const configuration = vendor.configuration ? await this.promptForConfiguration(name, vendor.configuration, existingConfiguration) : undefined;
+			if (vendor.configuration && !configuration) {
+				return;
+			}
 
-		if (vendor.configuration && this.canConfigure(configuration ?? {}, vendor.configuration)) {
-			await this._languageModelsConfigurationService.configureLanguageModels(saved.range);
+			const languageModelProviderGroup = await this._resolveLanguageModelProviderGroup(name, vendorId, configuration, vendor.configuration);
+			const saved = existing
+				? await this._languageModelsConfigurationService.updateLanguageModelsProviderGroup(existing, languageModelProviderGroup)
+				: await this._languageModelsConfigurationService.addLanguageModelsProviderGroup(languageModelProviderGroup);
+
+			if (vendor.configuration && this.canConfigure(configuration ?? {}, vendor.configuration)) {
+				await this._languageModelsConfigurationService.configureLanguageModels(saved.range);
+			}
+		} catch (error) {
+			if (isCancellationError(error)) {
+				return;
+			}
+			throw error;
 		}
 	}
 
@@ -776,7 +784,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		try {
 			await new Promise<void>(resolve => {
 				const inputBox = disposables.add(this._quickInputService.createInputBox());
-				inputBox.title = localize('configureLanguageModelGroup', "{0}: Group Name", providerGroupName);
+				inputBox.title = localize('configureLanguageModelGroup', "Group Name");
 				inputBox.placeholder = localize('languageModelGroupName', "Enter a name for the group");
 				inputBox.value = providerGroupName;
 				inputBox.ignoreFocusOut = true;
@@ -808,33 +816,32 @@ export class LanguageModelsService implements ILanguageModelsService {
 		return result;
 	}
 
-	private async promptForConfiguration(configuration: IJSONSchema, existing: ILanguageModelsProviderGroup | undefined): Promise<IStringDictionary<unknown> | undefined> {
+	private async promptForConfiguration(groupName: string, configuration: IJSONSchema, existing: IStringDictionary<unknown> | undefined): Promise<IStringDictionary<unknown> | undefined> {
 		if (!configuration.properties) {
 			return;
 		}
 
-		const result: IStringDictionary<unknown> = {};
+		const result: IStringDictionary<unknown> = existing ? { ...existing } : {};
 
 		for (const property of Object.keys(configuration.properties)) {
 			const propertySchema = configuration.properties[property];
-			const value = await this.promptForValue(property, propertySchema, existing);
+			const required = !!configuration.required?.includes(property);
+			const value = await this.promptForValue(groupName, property, propertySchema, required, existing);
 			if (value !== undefined) {
 				result[property] = value;
-			} else if (configuration.required?.includes(property)) {
-				return undefined;
 			}
 		}
 
 		return result;
 	}
 
-	private async promptForValue(property: string, propertySchema: IJSONSchema | undefined, existing: ILanguageModelsProviderGroup | undefined): Promise<unknown | undefined> {
+	private async promptForValue(groupName: string, property: string, propertySchema: IJSONSchema | undefined, required: boolean, existing: IStringDictionary<unknown> | undefined): Promise<unknown | undefined> {
 		if (!propertySchema || typeof propertySchema === 'boolean') {
 			return undefined;
 		}
 
 		if (propertySchema.type === 'array' && propertySchema.items && !Array.isArray(propertySchema.items) && propertySchema.items.enum) {
-			const selectedItems = await this.promptForArray(property, propertySchema);
+			const selectedItems = await this.promptForArray(groupName, property, propertySchema);
 			if (selectedItems === undefined) {
 				return undefined;
 			}
@@ -845,15 +852,14 @@ export class LanguageModelsService implements ILanguageModelsService {
 			return undefined;
 		}
 
-
-		const value = await this.promptForInput(property, propertySchema, existing);
+		const value = await this.promptForInput(groupName, property, propertySchema, required, existing);
 		if (value === undefined) {
 			return undefined;
 		}
 		return value;
 	}
 
-	private async promptForArray(property: string, propertySchema: IJSONSchema): Promise<string[] | undefined> {
+	private async promptForArray(groupName: string, property: string, propertySchema: IJSONSchema): Promise<string[] | undefined> {
 		if (!propertySchema.items || Array.isArray(propertySchema.items) || !propertySchema.items.enum) {
 			return undefined;
 		}
@@ -862,7 +868,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		try {
 			return await new Promise<string[] | undefined>(resolve => {
 				const quickPick = disposables.add(this._quickInputService.createQuickPick());
-				quickPick.title = propertySchema.description ?? localize('selectProperty', "Select {0}", property);
+				quickPick.title = `${groupName}: ${propertySchema.title ?? property}`;
 				quickPick.items = items.map(item => ({ label: item }));
 				quickPick.placeholder = propertySchema.description ?? localize('selectValue', "Select value for {0}", property);
 				quickPick.canSelectMany = true;
@@ -882,12 +888,12 @@ export class LanguageModelsService implements ILanguageModelsService {
 		}
 	}
 
-	private async promptForInput(property: string, propertySchema: IJSONSchema, existing: ILanguageModelsProviderGroup | undefined): Promise<string | number | boolean | undefined> {
+	private async promptForInput(groupName: string, property: string, propertySchema: IJSONSchema, required: boolean, existing: IStringDictionary<unknown> | undefined): Promise<string | number | boolean | undefined> {
 		const disposables = new DisposableStore();
 		try {
-			const value = await new Promise<string | undefined>(resolve => {
+			const value = await new Promise<string | undefined>((resolve, reject) => {
 				const inputBox = disposables.add(this._quickInputService.createInputBox());
-				inputBox.title = propertySchema.description ?? localize('enterProperty', "Enter {0}", property);
+				inputBox.title = `${groupName}: ${propertySchema.title ?? property}`;
 				inputBox.placeholder = localize('enterValue', "Enter value for {0}", property);
 				inputBox.password = !!propertySchema.secret;
 				inputBox.ignoreFocusOut = true;
@@ -896,9 +902,12 @@ export class LanguageModelsService implements ILanguageModelsService {
 				} else if (propertySchema.default) {
 					inputBox.value = String(propertySchema.default);
 				}
+				if (propertySchema.description) {
+					inputBox.prompt = propertySchema.description;
+				}
 
 				disposables.add(inputBox.onDidChangeValue(value => {
-					if (!value && !propertySchema.default) {
+					if (!value && required) {
 						inputBox.validationMessage = localize('valueRequired', "Value is required");
 						inputBox.severity = Severity.Error;
 						return;
@@ -922,11 +931,22 @@ export class LanguageModelsService implements ILanguageModelsService {
 				}));
 
 				disposables.add(inputBox.onDidAccept(() => {
+					if (!inputBox.value && required) {
+						inputBox.validationMessage = localize('valueRequired', "Value is required");
+						inputBox.severity = Severity.Error;
+						return;
+					}
 					resolve(inputBox.value);
 					inputBox.hide();
 				}));
 
-				disposables.add(inputBox.onDidHide(() => resolve(undefined)));
+				disposables.add(inputBox.onDidHide((e) => {
+					if (e.reason === QuickInputHideReason.Gesture) {
+						reject(new CancellationError());
+					} else {
+						resolve(undefined);
+					}
+				}));
 
 				inputBox.show();
 			});

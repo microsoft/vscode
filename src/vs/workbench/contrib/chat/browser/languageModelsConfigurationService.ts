@@ -94,12 +94,12 @@ export class LanguageModelsConfigurationService extends Disposable implements IL
 		return result;
 	}
 
-	async updateLanguageModelsProviderGroup(toUpdate: ILanguageModelsProviderGroup): Promise<ILanguageModelsProviderGroup> {
+	async updateLanguageModelsProviderGroup(from: ILanguageModelsProviderGroup, to: ILanguageModelsProviderGroup): Promise<ILanguageModelsProviderGroup> {
 		await this.withLanguageModelsProviderGroups(async languageModelsProviderGroups => {
 			const result: LanguageModelsProviderGroups = [];
 			for (const group of languageModelsProviderGroups) {
-				if (group.name === toUpdate.name && group.vendor === toUpdate.vendor) {
-					result.push(toUpdate);
+				if (group.name === from.name && group.vendor === from.vendor) {
+					result.push(to);
 				} else {
 					result.push(group);
 				}
@@ -108,9 +108,9 @@ export class LanguageModelsConfigurationService extends Disposable implements IL
 		});
 
 		await this.updateLanguageModelsConfiguration();
-		const result = this.getLanguageModelsProviderGroups().find(group => group.name === toUpdate.name && group.vendor === toUpdate.vendor);
+		const result = this.getLanguageModelsProviderGroups().find(group => group.name === to.name && group.vendor === to.vendor);
 		if (!result) {
-			throw new Error(`Language model group with name ${toUpdate.name} not found for vendor ${toUpdate.vendor}`);
+			throw new Error(`Language model group with name ${to.name} not found for vendor ${to.vendor}`);
 		}
 		return result;
 	}
@@ -182,30 +182,13 @@ export function parseLanguageModelsProviderGroups(model: ITextModel): LanguageMo
 			(currentParent as unknown[]).push(value);
 		} else if (currentProperty !== null) {
 			(currentParent as Record<string, unknown>)[currentProperty] = value;
-			if (currentProperty === 'configuration') {
-				const start = model.getPositionAt(offset);
-				const range: Mutable<IRange> = {
-					startLineNumber: start.lineNumber,
-					startColumn: start.column,
-					endLineNumber: start.lineNumber,
-					endColumn: start.column
-				};
-				if (value && typeof value === 'object') {
-					(value as { _parentConfigurationRange?: Mutable<IRange> })._parentConfigurationRange = range;
-				} else {
-					const end = model.getPositionAt(offset + length);
-					range.endLineNumber = end.lineNumber;
-					range.endColumn = end.column;
-				}
-				(currentParent as { configurationRange?: IRange }).configurationRange = range;
-			}
 		}
 	}
 
 	const visitor: JSONVisitor = {
 		onObjectBegin: (offset: number, length: number) => {
 			const object: Record<string, unknown> & { range?: IRange } = {};
-			if (Array.isArray(currentParent)) {
+			if (previousParents.length === 1 && Array.isArray(currentParent)) {
 				const start = model.getPositionAt(offset);
 				const end = model.getPositionAt(offset + length);
 				object.range = {

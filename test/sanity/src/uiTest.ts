@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import fs from 'fs';
+import path from 'path';
 import { Page } from 'playwright';
 import { TestContext } from './context';
 
@@ -16,7 +17,14 @@ export class UITest {
 	private _workspaceDir: string | undefined;
 	private _userDataDir: string | undefined;
 
-	constructor(private readonly context: TestContext) {
+	constructor(
+		private readonly context: TestContext,
+		dataDir?: string
+	) {
+		if (dataDir) {
+			this._extensionsDir = path.join(dataDir, 'extensions');
+			this._userDataDir = path.join(dataDir, 'user-data');
+		}
 	}
 
 	/**
@@ -107,7 +115,7 @@ export class UITest {
 		this.context.log('Verifying file contents');
 		const filePath = `${this.workspaceDir}/helloWorld.txt`;
 		const fileContents = fs.readFileSync(filePath, 'utf-8');
-		assert.strictEqual(fileContents, 'Hello, World!');
+		assert.strictEqual(fileContents, 'Hello, World!', 'File contents do not match expected value');
 	}
 
 	/**
@@ -135,6 +143,6 @@ export class UITest {
 		this.context.log('Verifying extension is installed');
 		const extensions = fs.readdirSync(this.extensionsDir);
 		const hasExtension = extensions.some(ext => ext.startsWith('github.vscode-pull-request-github'));
-		assert.strictEqual(hasExtension, true);
+		assert.strictEqual(hasExtension, true, 'GitHub Pull Requests extension is not installed');
 	}
 }
