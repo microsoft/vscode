@@ -279,7 +279,12 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 		} else {
 			const cliCwd = dirname(cliCommand);
 			const env = { ...process.env, ELECTRON_RUN_AS_NODE: '1' };
-			newCommandline.unshift('resources/app/out/cli.js');
+			const versionFolder = desc.commit.substring(0, 10);
+			if (fs.existsSync(join(cliCwd, versionFolder))) {
+				newCommandline.unshift(`${versionFolder}/resources/app/out/cli.js`);
+			} else {
+				newCommandline.unshift('resources/app/out/cli.js');
+			}
 			if (verbose) {
 				console.log(`Invoking: cd "${cliCwd}" && ELECTRON_RUN_AS_NODE=1 "${cliCommand}" "${newCommandline.join('" "')}"`);
 			}

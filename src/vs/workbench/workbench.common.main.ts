@@ -126,11 +126,13 @@ import './services/textMate/browser/textMateTokenizationFeature.contribution.js'
 import './services/treeSitter/browser/treeSitter.contribution.js';
 import './services/userActivity/common/userActivityService.js';
 import './services/userActivity/browser/userActivityBrowser.js';
+import './services/userAttention/browser/userAttentionBrowser.js';
 import './services/editor/browser/editorPaneService.js';
 import './services/editor/common/customEditorLabelService.js';
 import './services/dataChannel/browser/dataChannelService.js';
 import './services/inlineCompletions/common/inlineCompletionsUnification.js';
 import './services/chat/common/chatEntitlementService.js';
+import './services/log/common/defaultLogLevels.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
 import { GlobalExtensionEnablementService } from '../platform/extensionManagement/common/extensionEnablementService.js';
@@ -207,8 +209,8 @@ import './contrib/speech/browser/speech.contribution.js';
 import './contrib/chat/browser/chat.contribution.js';
 import './contrib/inlineChat/browser/inlineChat.contribution.js';
 import './contrib/mcp/browser/mcp.contribution.js';
-import './contrib/chat/browser/chatSessions.contribution.js';
-import './contrib/chat/browser/chatContext.contribution.js';
+import './contrib/chat/browser/chatSessions/chatSessions.contribution.js';
+import './contrib/chat/browser/contextContrib/chatContext.contribution.js';
 
 // Interactive
 import './contrib/interactive/browser/interactive.contribution.js';

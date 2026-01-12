@@ -62,7 +62,7 @@ async function main(force: boolean): Promise<void> {
 	let rolloutDurationMs = undefined;
 
 	// If the build is insiders or exploration, start a rollout of 4 hours
-	if (quality === 'insiders') {
+	if (quality === 'insider') {
 		rolloutDurationMs = 4 * 60 * 60 * 1000; // 4 hours
 	}
 

@@ -43,6 +43,7 @@ export interface IChatSessionRecommendation {
 	readonly displayName: string;
 	readonly name: string;
 	readonly description: string;
+	readonly postInstallCommand?: string;
 }
 
 export type ConfigurationSyncStore = {
@@ -347,6 +348,8 @@ export interface IAiGeneratedWorkspaceTrust {
 export interface IDefaultChatAgent {
 	readonly extensionId: string;
 	readonly chatExtensionId: string;
+
+	readonly chatExtensionOutputId: string;
 
 	readonly documentationUrl: string;
 	readonly skusDocumentationUrl: string;

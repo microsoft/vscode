@@ -32,7 +32,8 @@ declare module 'vscode' {
 	export class ChatResponseCodeblockUriPart {
 		isEdit?: boolean;
 		value: Uri;
-		constructor(value: Uri, isEdit?: boolean);
+		undoStopId?: string;
+		constructor(value: Uri, isEdit?: boolean, undoStopId?: string);
 	}
 
 	/**
@@ -120,6 +121,7 @@ declare module 'vscode' {
 		isComplete?: boolean;
 		toolSpecificData?: ChatTerminalToolInvocationData;
 		fromSubAgent?: boolean;
+		presentation?: 'hidden' | 'hiddenAfterComplete' | undefined;
 
 		constructor(toolName: string, toolCallId: string, isError?: boolean);
 	}
@@ -186,7 +188,7 @@ declare module 'vscode' {
 	export class ChatResponseExternalEditPart {
 		uris: Uri[];
 		callback: () => Thenable<unknown>;
-		applied: Thenable<void>;
+		applied: Thenable<string>;
 		constructor(uris: Uri[], callback: () => Thenable<unknown>);
 	}
 
@@ -330,7 +332,7 @@ declare module 'vscode' {
 		 * tracked as agent edits. This can be used to track edits made from
 		 * external tools that don't generate simple {@link textEdit textEdits}.
 		 */
-		externalEdit<T>(target: Uri | Uri[], callback: () => Thenable<T>): Thenable<T>;
+		externalEdit(target: Uri | Uri[], callback: () => Thenable<unknown>): Thenable<string>;
 
 		markdownWithVulnerabilities(value: string | MarkdownString, vulnerabilities: ChatVulnerability[]): void;
 		codeblockUri(uri: Uri, isEdit?: boolean): void;

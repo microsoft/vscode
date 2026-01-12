@@ -771,6 +771,9 @@ declare namespace monaco {
 		 * Moves the range by the given amount of lines.
 		 */
 		delta(lineCount: number): Range;
+		/**
+		 * Test if this range starts and ends on the same line.
+		 */
 		isSingleLine(): boolean;
 		static fromPositions(start: IPosition, end?: IPosition): Range;
 		/**
@@ -5589,6 +5592,11 @@ declare namespace monaco.editor {
 		 */
 		allowEditorOverflow?: boolean;
 		/**
+		 * If true, this widget doesn't have a visual representation.
+		 * The element will have display set to 'none'.
+		*/
+		useDisplayNone?: boolean;
+		/**
 		 * Call preventDefault() on mousedown events that target the content widget.
 		 */
 		suppressMouseDown?: boolean;
@@ -6376,6 +6384,7 @@ declare namespace monaco.editor {
 		 * Use this method with caution.
 		 */
 		getOffsetForColumn(lineNumber: number, column: number): number;
+		getWidthOfLine(lineNumber: number): number;
 		/**
 		 * Force an editor render now.
 		 */
@@ -7571,6 +7580,8 @@ declare namespace monaco.languages {
 		 * Used for telemetry.
 		 */
 		readonly correlationId?: string | undefined;
+		readonly jumpToPosition?: IPosition;
+		readonly doNotLog?: boolean;
 	}
 
 	export interface InlineCompletionWarning {
@@ -7669,6 +7680,7 @@ declare namespace monaco.languages {
 
 	export type InlineCompletionEndOfLifeReason<TInlineCompletion = InlineCompletion> = {
 		kind: InlineCompletionEndOfLifeReasonKind.Accepted;
+		alternativeAction: boolean;
 	} | {
 		kind: InlineCompletionEndOfLifeReasonKind.Rejected;
 	} | {
@@ -7688,6 +7700,7 @@ declare namespace monaco.languages {
 		shownDuration: number;
 		shownDurationUncollapsed: number;
 		timeUntilShown: number | undefined;
+		timeUntilActuallyShown: number | undefined;
 		timeUntilProviderRequest: number;
 		timeUntilProviderResponse: number;
 		notShownReason: string | undefined;
@@ -7696,6 +7709,7 @@ declare namespace monaco.languages {
 		preceeded: boolean;
 		languageId: string;
 		requestReason: string;
+		performanceMarkers?: string;
 		cursorColumnDistance?: number;
 		cursorLineDistance?: number;
 		lineCountOriginal?: number;
@@ -7708,9 +7722,16 @@ declare namespace monaco.languages {
 		typingIntervalCharacterCount: number;
 		selectedSuggestionInfo: boolean;
 		availableProviders: string;
-		renameCreated: boolean;
-		renameDuration?: number;
-		renameTimedOut: boolean;
+		skuPlan: string | undefined;
+		skuType: string | undefined;
+		renameCreated: boolean | undefined;
+		renameDuration: number | undefined;
+		renameTimedOut: boolean | undefined;
+		renameDroppedOtherEdits: number | undefined;
+		renameDroppedRenameEdits: number | undefined;
+		editKind: string | undefined;
+		longDistanceHintVisible?: boolean;
+		longDistanceHintDistance?: number;
 	};
 
 	export interface CodeAction {

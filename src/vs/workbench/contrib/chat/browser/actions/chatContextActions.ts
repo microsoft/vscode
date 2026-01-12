@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { asArray } from '../../../../../base/common/arrays.js';
 import { DeferredPromise, isThenable } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -41,13 +42,13 @@ import { AnythingQuickAccessProvider } from '../../../search/browser/anythingQui
 import { isSearchTreeFileMatch, isSearchTreeMatch } from '../../../search/browser/searchTreeModel/searchTreeCommon.js';
 import { ISymbolQuickPickItem, SymbolsQuickAccessProvider } from '../../../search/browser/symbolsQuickAccess.js';
 import { SearchContext } from '../../../search/common/constants.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IChatRequestVariableEntry, OmittedState } from '../../common/chatVariableEntries.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { IChatRequestVariableEntry, OmittedState } from '../../common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation, isSupportedChatFileScheme } from '../../common/constants.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService } from '../chat.js';
-import { IChatContextPickerItem, IChatContextPickService, IChatContextValueItem, isChatContextPickerPickItem } from '../chatContextPickService.js';
-import { isQuickChat } from '../chatWidget.js';
-import { resizeImage } from '../imageUtils.js';
+import { IChatContextPickerItem, IChatContextPickService, IChatContextValueItem, isChatContextPickerPickItem } from '../attachments/chatContextPickService.js';
+import { isQuickChat } from '../widget/chatWidget.js';
+import { resizeImage } from '../chatImageUtils.js';
 import { registerPromptActions } from '../promptSyntax/promptFileActions.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
@@ -257,6 +258,7 @@ class AttachSelectionToChatAction extends Action2 {
 		});
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 
@@ -648,11 +650,11 @@ export class AttachContextAction extends Action2 {
 				if (isThenable(attachment)) {
 					addPromises.push(attachment.then(v => {
 						if (v !== noop) {
-							widget.attachmentModel.addContext(v);
+							widget.attachmentModel.addContext(...asArray(v));
 						}
 					}));
 				} else {
-					widget.attachmentModel.addContext(attachment);
+					widget.attachmentModel.addContext(...asArray(attachment));
 				}
 			}
 			if (selected === goBackItem) {

@@ -47,7 +47,7 @@ declare module 'vscode' {
 		showInlineEditMenu?: boolean;
 
 		/**
-		 * If set, specifies where insertText, filterText and range apply to.
+		 * If set, specifies where insertText, filterText, range, jumpToPosition apply to.
 		*/
 		uri?: Uri;
 
@@ -68,6 +68,8 @@ declare module 'vscode' {
 		warning?: InlineCompletionWarning;
 
 		supportsRename?: boolean;
+
+		jumpToPosition?: Position;
 	}
 
 
