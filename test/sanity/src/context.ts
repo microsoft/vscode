@@ -39,6 +39,7 @@ export class TestContext {
 		public readonly quality: 'stable' | 'insider' | 'exploration',
 		public readonly commit: string,
 		public readonly verbose: boolean,
+		public readonly skipSigningCheck: boolean,
 	) {
 		const osTempDir = fs.realpathSync(os.tmpdir());
 		const logDir = fs.mkdtempSync(path.join(osTempDir, 'vscode-sanity-log'));
@@ -99,6 +100,7 @@ export class TestContext {
 	 * Cleans up all temporary directories created during the test run.
 	 */
 	public cleanup() {
+		process.chdir(os.homedir());
 		for (const dir of this.tempDirs) {
 			this.log(`Deleting temp directory: ${dir}`);
 			try {
@@ -220,6 +222,11 @@ export class TestContext {
 	 * @param filePath The path to the file to validate.
 	 */
 	public validateAuthenticodeSignature(filePath: string) {
+		if (this.skipSigningCheck) {
+			this.log(`Skipping Authenticode signature validation for ${filePath} (signing checks disabled)`);
+			return;
+		}
+
 		this.log(`Validating Authenticode signature for ${filePath}`);
 
 		const result = this.run('powershell', '-Command', `Get-AuthenticodeSignature "${filePath}" | Select-Object -ExpandProperty Status`);
@@ -238,6 +245,11 @@ export class TestContext {
 	 * @param dir The directory to scan for executable files.
 	 */
 	public validateAllAuthenticodeSignatures(dir: string) {
+		if (this.skipSigningCheck) {
+			this.log(`Skipping Authenticode signature validation for ${dir} (signing checks disabled)`);
+			return;
+		}
+
 		const files = fs.readdirSync(dir, { withFileTypes: true });
 		for (const file of files) {
 			const filePath = path.join(dir, file.name);
@@ -254,6 +266,11 @@ export class TestContext {
 	 * @param filePath The path to the file or app bundle to validate.
 	 */
 	public validateCodesignSignature(filePath: string) {
+		if (this.skipSigningCheck) {
+			this.log(`Skipping codesign signature validation for ${filePath} (signing checks disabled)`);
+			return;
+		}
+
 		this.log(`Validating codesign signature for ${filePath}`);
 
 		const result = this.run('codesign', '--verify', '--deep', '--strict', filePath);
@@ -271,6 +288,11 @@ export class TestContext {
 	 * @param dir The directory to scan for Mach-O binaries.
 	 */
 	public validateAllCodesignSignatures(dir: string) {
+		if (this.skipSigningCheck) {
+			this.log(`Skipping codesign signature validation for ${dir} (signing checks disabled)`);
+			return;
+		}
+
 		const files = fs.readdirSync(dir, { withFileTypes: true });
 		for (const file of files) {
 			const filePath = path.join(dir, file.name);
@@ -561,6 +583,21 @@ export class TestContext {
 		}
 
 		return filePath;
+	}
+
+	/**
+	 * Creates a portable data directory in the specified unpacked VS Code directory.
+	 * @param dir The directory where VS Code was unpacked.
+	 * @returns The path to the created portable data directory.
+	 */
+	public createPortableDataDir(dir: string): string {
+		const dataDir = path.join(dir, os.platform() === 'darwin' ? 'code-portable-data' : 'data');
+
+		this.log(`Creating portable data directory: ${dataDir}`);
+		fs.mkdirSync(dataDir, { recursive: true });
+		this.log(`Created portable data directory: ${dataDir}`);
+
+		return dataDir;
 	}
 
 	/**
