@@ -45,32 +45,6 @@ interface IDetachedTerminalCommandMirror {
 	onDidInput: Event<string>;
 }
 
-/**
- * Base class for detached terminal mirrors.
- * Handles attaching to containers and managing the detached terminal instance.
- */
-abstract class DetachedTerminalMirror extends Disposable {
-	private _detachedTerminal: Promise<IDetachedTerminalInstance> | undefined;
-	private _attachedContainer: HTMLElement | undefined;
-
-	protected _setDetachedTerminal(detachedTerminal: Promise<IDetachedTerminalInstance>): void {
-		this._detachedTerminal = detachedTerminal.then(terminal => {
-			if (this._store.isDisposed) {
-				terminal.dispose();
-				return terminal;
-			}
-			return this._register(terminal);
-		});
-	}
-
-	protected async _getTerminal(): Promise<IDetachedTerminalInstance> {
-		if (!this._detachedTerminal) {
-			throw new Error('Detached terminal not initialized');
-		}
-		return this._detachedTerminal;
-	}
-}
-
 const enum ChatTerminalMirrorMetrics {
 	MirrorRowCount = 10,
 	MirrorColCountFallback = 80
