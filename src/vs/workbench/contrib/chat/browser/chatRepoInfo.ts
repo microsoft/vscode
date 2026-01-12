@@ -397,18 +397,6 @@ export class ChatRepoInfoContribution extends Disposable implements IWorkbenchCo
 
 		this._register(this._pendingSessions);
 
-		this._register(this.chatService.onDidCreateModel(async (model) => {
-			if (model.repoData) {
-				return;
-			}
-			await this.captureAndSetRepoData(model);
-
-			const repositories = [...this.scmService.repositories];
-			if (!model.repoData && repositories.length === 0) {
-				this.waitForScmAndCapture(model);
-			}
-		}));
-
 		this._register(this.chatService.onDidSubmitRequest(async ({ chatSessionResource }) => {
 			const model = this.chatService.getSession(chatSessionResource);
 			if (!model) {
@@ -418,28 +406,11 @@ export class ChatRepoInfoContribution extends Disposable implements IWorkbenchCo
 		}));
 	}
 
-	private waitForScmAndCapture(model: IChatModel): void {
-		const disposables = new DisposableStore();
-		this._pendingSessions.add(disposables);
-
-		disposables.add(this.scmService.onDidAddRepository(async () => {
-			if (model.repoData) {
-				this._pendingSessions.delete(disposables);
-				return;
-			}
-			await this.captureAndSetRepoData(model);
-			if (model.repoData) {
-				this._pendingSessions.delete(disposables);
-			}
-		}));
-
-		// Clean up when the model is disposed
-		disposables.add(model.onDidDispose(() => {
-			this._pendingSessions.delete(disposables);
-		}));
-	}
-
 	private async captureAndSetRepoData(model: IChatModel): Promise<void> {
+		if (model.repoData) {
+			return;
+		}
+
 		try {
 			const repoData = await captureRepoInfo(this.scmService, this.fileService);
 			if (repoData) {
