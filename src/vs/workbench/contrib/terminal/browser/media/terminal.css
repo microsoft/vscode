@@ -385,7 +385,7 @@
 }
 
 .monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry .terminal-tabs-chat-entry-delete {
-	display: flex;
+	display: none;
 	align-items: center;
 	justify-content: center;
 	width: 16px;
@@ -397,13 +397,20 @@
 	flex-shrink: 0;
 }
 
+.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry:hover .terminal-tabs-chat-entry-delete,
+.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry:focus-within .terminal-tabs-chat-entry-delete {
+	display: flex;
+}
+
 .monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry .terminal-tabs-chat-entry-delete:hover {
 	opacity: 1;
 	background-color: var(--vscode-toolbar-hoverBackground);
 	border-radius: 3px;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .tabs-container:not(.has-text) .terminal-tabs-chat-entry .terminal-tabs-chat-entry-delete {
+.monaco-workbench .pane-body.integrated-terminal .tabs-container:not(.has-text) .terminal-tabs-chat-entry .terminal-tabs-chat-entry-delete,
+.monaco-workbench .pane-body.integrated-terminal .tabs-container:not(.has-text) .terminal-tabs-chat-entry:hover .terminal-tabs-chat-entry-delete,
+.monaco-workbench .pane-body.integrated-terminal .tabs-container:not(.has-text) .terminal-tabs-chat-entry:focus-within .terminal-tabs-chat-entry-delete {
 	display: none;
 }
 
