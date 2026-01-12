@@ -34,6 +34,7 @@ export class TestContext {
 
 	private readonly tempDirs = new Set<string>();
 	private readonly logFile: string;
+	private _currentTest?: Mocha.Test & { consoleOutputs?: string[] };
 
 	public constructor(
 		public readonly quality: 'stable' | 'insider' | 'exploration',
@@ -48,6 +49,14 @@ export class TestContext {
 	}
 
 	/**
+	 * Sets the current test for log capturing.
+	 */
+	public set currentTest(test: Mocha.Test) {
+		this._currentTest = test;
+		this._currentTest.consoleOutputs ||= [];
+	}
+
+	/**
 	 * Returns the current platform in the format <platform>-<arch>.
 	 */
 	public get platform(): string {
@@ -58,10 +67,11 @@ export class TestContext {
 	 * Logs a message with a timestamp.
 	 */
 	public log(message: string) {
-		const line = `[${new Date().toISOString()}] ${message}\n`;
-		fs.appendFileSync(this.logFile, line);
+		const line = `[${new Date().toISOString()}] ${message}`;
+		fs.appendFileSync(this.logFile, line + '\n');
+		this._currentTest?.consoleOutputs?.push(line);
 		if (this.verbose) {
-			console.log(line.trimEnd());
+			console.log(line);
 		}
 	}
 
@@ -69,9 +79,10 @@ export class TestContext {
 	 * Logs an error message and throws an Error.
 	 */
 	public error(message: string): never {
-		const line = `[${new Date().toISOString()}] ERROR: ${message}\n`;
-		fs.appendFileSync(this.logFile, line);
-		console.error(line.trimEnd());
+		const line = `[${new Date().toISOString()}] ERROR: ${message}`;
+		fs.appendFileSync(this.logFile, line + '\n');
+		this._currentTest?.consoleOutputs?.push(line);
+		console.error(line);
 		throw new Error(message);
 	}
 

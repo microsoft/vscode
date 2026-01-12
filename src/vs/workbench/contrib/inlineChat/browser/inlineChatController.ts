@@ -104,9 +104,6 @@ export class InlineChatController implements IEditorContribution {
 		return editor.getContribution<InlineChatController>(InlineChatController.ID) ?? undefined;
 	}
 
-	private static readonly _autoModel = 'copilot/auto';
-	private static _lastSelectedModel: string | undefined;
-
 	private readonly _store = new DisposableStore();
 	private readonly _isActiveController = observableValue(this, false);
 	private readonly _zone: Lazy<InlineChatZoneWidget>;
@@ -128,7 +125,7 @@ export class InlineChatController implements IEditorContribution {
 		@IInlineChatSessionService private readonly _inlineChatSessionService: IInlineChatSessionService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@ISharedWebContentExtractorService private readonly _webContentExtractorService: ISharedWebContentExtractorService,
 		@IFileService private readonly _fileService: IFileService,
 		@IChatAttachmentResolveService private readonly _chatAttachmentResolveService: IChatAttachmentResolveService,
@@ -138,7 +135,7 @@ export class InlineChatController implements IEditorContribution {
 	) {
 
 		const ctxInlineChatVisible = CTX_INLINE_CHAT_VISIBLE.bindTo(contextKeyService);
-		const notebookAgentConfig = observableConfigValue(InlineChatConfigKeys.notebookAgent, false, this._configurationService);
+		const notebookAgentConfig = observableConfigValue(InlineChatConfigKeys.notebookAgent, false, configurationService);
 
 		this._zone = new Lazy<InlineChatZoneWidget>(() => {
 
@@ -202,15 +199,8 @@ export class InlineChatController implements IEditorContribution {
 				{ editor: this._editor, notebookEditor },
 				() => Promise.resolve(),
 			);
+
 			result.domNode.classList.add('inline-chat-2');
-
-			this._store.add(result);
-			this._store.add(result.widget.chatWidget.input.onDidChangeCurrentLanguageModel(model => {
-				InlineChatController._lastSelectedModel = model.identifier !== InlineChatController._autoModel
-					? model.identifier
-					: undefined;
-			}));
-
 
 			return result;
 		});
@@ -436,14 +426,6 @@ export class InlineChatController implements IEditorContribution {
 		this._isActiveController.set(true, undefined);
 
 		const session = this._inlineChatSessionService.createSession(this._editor);
-
-		// Reset model to default if persistence is disabled
-		if (!this._configurationService.getValue<boolean>(InlineChatConfigKeys.PersistModelChoice) && !InlineChatController._lastSelectedModel) {
-			const defaultModel = this._languageModelService.lookupLanguageModel(InlineChatController._autoModel);
-			if (defaultModel) {
-				this._zone.value.widget.chatWidget.input.setCurrentLanguageModel({ metadata: defaultModel, identifier: InlineChatController._autoModel });
-			}
-		}
 
 		// ADD diagnostics
 		const entries: IChatRequestVariableEntry[] = [];
