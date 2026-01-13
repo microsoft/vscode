@@ -114,7 +114,7 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 			};
 
 			// Don't bother cleaning up tools internally during shutdown. This just costs time for no benefit.
-			if (!this.lifecycleService.willShutdown) {
+			if (this.lifecycleService.willShutdown) {
 				return;
 			}
 
