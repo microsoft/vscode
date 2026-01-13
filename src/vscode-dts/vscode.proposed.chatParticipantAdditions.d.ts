@@ -80,19 +80,6 @@ declare module 'vscode' {
 		constructor(value: Uri, license: string, snippet: string);
 	}
 
-	export class ChatPrepareToolInvocationPart {
-		/**
-		 * Unique identifier for this tool call, used to correlate streaming updates.
-		 */
-		toolCallId: string;
-		toolName: string;
-		/**
-		 * Partial arguments that have streamed in for the tool invocation.
-		 */
-		streamData?: ChatToolInvocationStreamData;
-		constructor(toolCallId: string, toolName: string, streamData?: ChatToolInvocationStreamData);
-	}
-
 	export interface ChatToolInvocationStreamData {
 		/**
 		 * Partial or not-yet-validated arguments that have streamed from the language model.
@@ -192,7 +179,7 @@ declare module 'vscode' {
 		constructor(uris: Uri[], callback: () => Thenable<unknown>);
 	}
 
-	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart | ChatResponsePullRequestPart | ChatPrepareToolInvocationPart | ChatToolInvocationPart | ChatResponseMultiDiffPart | ChatResponseThinkingProgressPart | ChatResponseExternalEditPart;
+	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart | ChatResponsePullRequestPart | ChatToolInvocationPart | ChatResponseMultiDiffPart | ChatResponseThinkingProgressPart | ChatResponseExternalEditPart;
 	export class ChatResponseWarningPart {
 		value: MarkdownString;
 		constructor(value: string | MarkdownString);
@@ -366,13 +353,20 @@ declare module 'vscode' {
 		codeCitation(value: Uri, license: string, snippet: string): void;
 
 		/**
-		 * Notifies the UI that a tool invocation is being prepared. Optional streaming data can be
-		 * provided to render partial arguments while the invocation input is still being generated.
-		 * @param toolCallId Unique identifier for this tool call, used to correlate streaming updates.
+		 * Begin a tool invocation in streaming mode. This creates a tool invocation that will
+		 * display streaming progress UI until the tool is actually invoked.
+		 * @param toolCallId Unique identifier for this tool call, used to correlate streaming updates and final invocation.
 		 * @param toolName The name of the tool being invoked.
-		 * @param streamData Optional streaming data with partial arguments.
+		 * @param streamData Optional initial streaming data with partial arguments.
 		 */
-		prepareToolInvocation(toolCallId: string, toolName: string, streamData?: ChatToolInvocationStreamData): void;
+		beginToolInvocation(toolCallId: string, toolName: string, streamData?: ChatToolInvocationStreamData): void;
+
+		/**
+		 * Update the streaming data for a tool invocation that was started with `beginToolInvocation`.
+		 * @param toolCallId The tool call ID that was passed to `beginToolInvocation`.
+		 * @param streamData New streaming data with updated partial arguments.
+		 */
+		updateToolInvocation(toolCallId: string, streamData: ChatToolInvocationStreamData): void;
 
 		push(part: ExtendedChatResponsePart): void;
 

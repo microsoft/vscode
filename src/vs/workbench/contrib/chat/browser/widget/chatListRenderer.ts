@@ -81,7 +81,6 @@ import { ChatExtensionsContentPart } from './chatContentParts/chatExtensionsCont
 import { ChatMarkdownContentPart, codeblockHasClosingBackticks } from './chatContentParts/chatMarkdownContentPart.js';
 import { ChatMcpServersInteractionContentPart } from './chatContentParts/chatMcpServersInteractionContentPart.js';
 import { ChatMultiDiffContentPart } from './chatContentParts/chatMultiDiffContentPart.js';
-import { ChatPrepareToolInvocationPart } from './chatContentParts/chatPrepareToolInvocationPart.js';
 import { ChatProgressContentPart, ChatWorkingProgressContentPart } from './chatContentParts/chatProgressContentPart.js';
 import { ChatPullRequestContentPart } from './chatContentParts/chatPullRequestContentPart.js';
 import { ChatQuotaExceededPart } from './chatContentParts/chatQuotaExceededPart.js';
@@ -778,8 +777,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return false;
 		}
 
-		// Don't show working if prepareToolInvocation is already present
-		if (partsToRender.some(part => part.kind === 'prepareToolInvocation')) {
+		// Don't show working if a streaming tool invocation is already present
+		if (partsToRender.some(part => part.kind === 'toolInvocation' && IChatToolInvocation.isStreaming(part))) {
 			return false;
 		}
 
@@ -793,7 +792,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (lastThinking &&
 			(collapsedToolsMode === CollapsedToolsDisplayMode.Always ||
 				collapsedToolsMode === CollapsedToolsDisplayMode.WithThinking)) {
-			if (!lastPart || lastPart.kind === 'thinking' || lastPart.kind === 'toolInvocation' || lastPart.kind === 'prepareToolInvocation' || lastPart.kind === 'textEditGroup' || lastPart.kind === 'notebookEditGroup') {
+			if (!lastPart || lastPart.kind === 'thinking' || lastPart.kind === 'toolInvocation' || lastPart.kind === 'textEditGroup' || lastPart.kind === 'notebookEditGroup') {
 				return false;
 			}
 		}
@@ -1304,7 +1303,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return true;
 		}
 
-		return part.kind === 'prepareToolInvocation';
+		return false;
 	}
 
 	private getLastThinkingPart(renderedParts: ReadonlyArray<IChatContentPart> | undefined): ChatThinkingContentPart | undefined {
@@ -1404,8 +1403,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return this.renderMcpServersInteractionRequired(content, context, templateData);
 			} else if (content.kind === 'thinking') {
 				return this.renderThinkingPart(content, context, templateData);
-			} else if (content.kind === 'prepareToolInvocation') {
-				return this.instantiationService.createInstance(ChatPrepareToolInvocationPart, content, this.chatContentMarkdownRenderer, context);
 			}
 
 			return this.renderNoContent(other => content.kind === other.kind);

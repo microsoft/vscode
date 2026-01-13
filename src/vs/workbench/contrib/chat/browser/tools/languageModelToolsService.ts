@@ -41,7 +41,7 @@ import { ConfirmedReason, IChatService, IChatToolInvocation, ToolConfirmKind } f
 import { ChatRequestToolReferenceEntry, toToolSetVariableEntry, toToolVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { ILanguageModelToolsConfirmationService } from '../../common/tools/languageModelToolsConfirmationService.js';
-import { CountTokensCallback, createToolSchemaUri, ILanguageModelToolsService, IPreparedToolInvocation, IStreamedToolInvocation, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolInvocationStreamContext, IToolResult, IToolResultInputOutputDetails, SpecedToolAliases, stringifyPromptTsxPart, ToolDataSource, ToolSet, VSCodeToolReference } from '../../common/tools/languageModelToolsService.js';
+import { CountTokensCallback, createToolSchemaUri, IBeginToolCallOptions, ILanguageModelToolsService, IPreparedToolInvocation, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, SpecedToolAliases, stringifyPromptTsxPart, ToolDataSource, ToolSet, VSCodeToolReference } from '../../common/tools/languageModelToolsService.js';
 import { getToolConfirmationAlert } from '../accessibility/chatAccessibilityProvider.js';
 
 const jsonSchemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
@@ -93,6 +93,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	private readonly _ctxToolsCount: IContextKey<number>;
 
 	private readonly _callsByRequestId = new Map<string, ITrackedCall[]>();
+
+	/** Pending tool calls in the streaming phase, keyed by toolCallId */
+	private readonly _pendingToolCalls = new Map<string, ChatToolInvocation>();
 
 	private readonly _isAgentModeEnabled: IObservable<boolean>;
 
@@ -317,8 +320,13 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			}
 		}
 
-		// Shortcut to write to the model directly here, but could call all the way back to use the real stream.
-		let toolInvocation: ChatToolInvocation | undefined;
+		// Check if there's an existing pending tool call from streaming phase
+		let toolInvocation: ChatToolInvocation | undefined = this._pendingToolCalls.get(dto.callId);
+		const hadPendingInvocation = !!toolInvocation;
+		if (hadPendingInvocation) {
+			// Remove from pending since we're now invoking it
+			this._pendingToolCalls.delete(dto.callId);
+		}
 
 		let requestId: string | undefined;
 		let store: DisposableStore | undefined;
@@ -363,14 +371,20 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				preparedInvocation = await this.prepareToolInvocation(tool, dto, token);
 				prepareTimeWatch.stop();
 
-				toolInvocation = new ChatToolInvocation(preparedInvocation, tool.data, dto.callId, dto.fromSubAgent, dto.parameters);
+				if (hadPendingInvocation && toolInvocation) {
+					// Transition from streaming to executing/waiting state
+					toolInvocation.transitionFromStreaming(preparedInvocation, dto.parameters);
+				} else {
+					// Create a new tool invocation (no streaming phase)
+					toolInvocation = new ChatToolInvocation(preparedInvocation, tool.data, dto.callId, dto.fromSubAgent, dto.parameters);
+					this._chatService.appendProgress(request, toolInvocation);
+				}
+
 				trackedCall.invocation = toolInvocation;
 				const autoConfirmed = await this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace, tool.data.source, dto.parameters);
 				if (autoConfirmed) {
 					IChatToolInvocation.confirmWith(toolInvocation, autoConfirmed);
 				}
-
-				this._chatService.appendProgress(request, toolInvocation);
 
 				dto.toolSpecificData = toolInvocation?.toolSpecificData;
 				if (preparedInvocation?.confirmationMessages?.title) {
@@ -549,32 +563,101 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return prepared;
 	}
 
-	async handleToolStream(toolId: string, context: IToolInvocationStreamContext, token: CancellationToken): Promise<IStreamedToolInvocation | undefined> {
-		const tool = this._tools.get(toolId);
-		if (!tool) {
-			this._logService.warn(`[LanguageModelToolsService#handleToolStream] Tool ${toolId} not found`);
+	beginToolCall(options: IBeginToolCallOptions): IChatToolInvocation | undefined {
+		// First try to look up by tool ID (the package.json "name" field),
+		// then fall back to looking up by toolReferenceName
+		const toolData = this.getTool(options.toolId) ?? this.getToolByName(options.toolId);
+		if (!toolData) {
+			this._logService.warn(`[LanguageModelToolsService#beginToolCall] Tool ${options.toolId} not found`);
 			return undefined;
 		}
 
-		if (!tool.impl) {
-			await this._extensionService.activateByEvent(`onLanguageModelTool:${toolId}`);
-			const activatedTool = this._tools.get(toolId);
-			if (!activatedTool?.impl) {
-				this._logService.warn(`[LanguageModelToolsService#handleToolStream] Tool ${toolId} has no implementation after activation`);
-				return undefined;
+		this._logService.info(`[LanguageModelToolsService#beginToolCall] Found tool ${toolData.id} for ${options.toolId}`);
+
+		// Create the invocation in streaming state
+		const invocation = ChatToolInvocation.createStreaming({
+			toolCallId: options.toolCallId,
+			toolId: toolData.id,
+			toolData,
+			fromSubAgent: options.fromSubAgent,
+			chatRequestId: options.chatRequestId,
+		});
+
+		// Track the pending tool call
+		this._pendingToolCalls.set(options.toolCallId, invocation);
+
+		// If we have a session, append the invocation to the chat as progress
+		if (options.sessionResource) {
+			const model = this._chatService.getSession(options.sessionResource);
+			if (model) {
+				// Find the request by chatRequestId if available, otherwise use the last request
+				const request = options.chatRequestId
+					? model.getRequests().find(r => r.id === options.chatRequestId)
+					: model.getRequests().at(-1);
+				if (request) {
+					this._chatService.appendProgress(request, invocation);
+					this._logService.info(`[LanguageModelToolsService#beginToolCall] Appended progress for tool ${toolData.id} to request ${request.id}`);
+				} else {
+					this._logService.warn(`[LanguageModelToolsService#beginToolCall] No request found in session for chatRequestId=${options.chatRequestId}`);
+				}
+			} else {
+				this._logService.warn(`[LanguageModelToolsService#beginToolCall] Session not found for ${options.sessionResource}`);
 			}
+		} else {
+			this._logService.warn(`[LanguageModelToolsService#beginToolCall] No sessionResource provided`);
 		}
 
-		if (!tool.impl?.handleToolStream) {
-			// Tool doesn't implement handleToolStream, that's fine
-			return undefined;
+		// Call handleToolStream to get initial streaming message
+		const toolEntry = this._tools.get(toolData.id);
+		this._logService.info(`[LanguageModelToolsService#beginToolCall] Tool entry for ${toolData.id}: hasImpl=${!!toolEntry?.impl}, hasHandleToolStream=${!!toolEntry?.impl?.handleToolStream}`);
+		if (toolEntry?.impl?.handleToolStream) {
+			toolEntry.impl.handleToolStream({
+				toolCallId: options.toolCallId,
+				rawInput: undefined,
+				chatRequestId: options.chatRequestId,
+			}, CancellationToken.None).then(result => {
+				this._logService.info(`[LanguageModelToolsService#beginToolCall] handleToolStream result: ${JSON.stringify(result)}`);
+				if (result?.invocationMessage) {
+					invocation.updateStreamingMessage(result.invocationMessage);
+				}
+			}).catch(error => {
+				this._logService.error(`[LanguageModelToolsService#beginToolCall] Error calling handleToolStream for tool ${toolData.id}:`, error);
+			});
 		}
 
-		try {
-			return await tool.impl.handleToolStream(context, token);
-		} catch (error) {
-			this._logService.error(`[LanguageModelToolsService#handleToolStream] Error calling handleToolStream for tool ${toolId}:`, error);
-			return undefined;
+		return invocation;
+	}
+
+	async updateToolStream(toolCallId: string, partialInput: unknown, token: CancellationToken): Promise<void> {
+		const invocation = this._pendingToolCalls.get(toolCallId);
+		if (!invocation) {
+			this._logService.warn(`[LanguageModelToolsService#updateToolStream] No pending tool call for ${toolCallId}`);
+			return;
+		}
+
+		this._logService.info(`[LanguageModelToolsService#updateToolStream] Updating tool stream for ${toolCallId}, toolId=${invocation.toolId}`);
+
+		// Update the partial input on the invocation
+		invocation.updatePartialInput(partialInput);
+
+		// Call handleToolStream if the tool implements it
+		const toolEntry = this._tools.get(invocation.toolId);
+		this._logService.info(`[LanguageModelToolsService#updateToolStream] Tool entry: hasImpl=${!!toolEntry?.impl}, hasHandleToolStream=${!!toolEntry?.impl?.handleToolStream}`);
+		if (toolEntry?.impl?.handleToolStream) {
+			try {
+				const result = await toolEntry.impl.handleToolStream({
+					toolCallId,
+					rawInput: partialInput,
+					chatRequestId: invocation.chatRequestId,
+				}, token);
+
+				this._logService.info(`[LanguageModelToolsService#updateToolStream] handleToolStream result: ${JSON.stringify(result)}`);
+				if (result?.invocationMessage) {
+					invocation.updateStreamingMessage(result.invocationMessage);
+				}
+			} catch (error) {
+				this._logService.error(`[LanguageModelToolsService#updateToolStream] Error calling handleToolStream for tool ${invocation.toolId}:`, error);
+			}
 		}
 	}
 
