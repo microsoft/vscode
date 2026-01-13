@@ -115,6 +115,9 @@ class MockLanguageModelsService implements ILanguageModelsService {
 	async fetchLanguageModelGroups(vendor: string): Promise<ILanguageModelsGroup[]> {
 		return this.modelGroups.get(vendor) || [];
 	}
+
+	async removeLanguageModelsProviderGroup(vendorId: string, providerGroupName: string): Promise<void> {
+	}
 }
 
 class MockChatEntitlementService implements IChatEntitlementService {

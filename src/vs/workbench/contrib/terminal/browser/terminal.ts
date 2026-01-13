@@ -28,7 +28,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { GroupIdentifier } from '../../../common/editor.js';
 import { ACTIVE_GROUP_TYPE, AUX_WINDOW_GROUP_TYPE, SIDE_GROUP_TYPE } from '../../../services/editor/common/editorService.js';
 import type { ICurrentPartialCommand } from '../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand.js';
-import type { IXtermCore } from './xterm-private.js';
+import type { IXtermCore, IBufferSet } from './xterm-private.js';
 import type { IMenu } from '../../../../platform/actions/common/actions.js';
 import type { IProgressState } from '@xterm/addon-progress';
 import type { IEditorOptions } from '../../../../platform/editor/common/editor.js';
@@ -417,6 +417,11 @@ export interface IBaseTerminalInstance {
  */
 export interface IDetachedTerminalInstance extends IDisposable, IBaseTerminalInstance {
 	readonly xterm: IDetachedXtermTerminal;
+
+	/**
+	 * Event fired when data is received from the terminal.
+	 */
+	onData: Event<string>;
 
 	/**
 	 * Attached the terminal to the given element. This should be preferred over
@@ -1378,11 +1383,11 @@ export interface IXtermTerminal extends IDisposable {
 
 	/**
 	 * Gets the content between two markers as VT sequences.
-	 * @param startMarker The marker to start from.
-	 * @param endMarker The marker to end at.
+	 * @param startMarker The marker to start from. When not provided, will start from 0.
+	 * @param endMarker The marker to end at. When not provided, will end at the last line.
 	 * @param skipLastLine Whether the last line should be skipped (e.g. when it's the prompt line)
 	 */
-	getRangeAsVT(startMarker: IXtermMarker, endMarker?: IXtermMarker, skipLastLine?: boolean): Promise<string>;
+	getRangeAsVT(startMarker?: IXtermMarker, endMarker?: IXtermMarker, skipLastLine?: boolean): Promise<string>;
 
 	/**
 	 * Gets whether there's any terminal selection.
@@ -1483,6 +1488,11 @@ export interface IDetachedXtermTerminal extends IXtermTerminal {
 	 * Resizes the terminal.
 	 */
 	resize(columns: number, rows: number): void;
+
+	/**
+	 * Access to the terminal buffer for reading cursor position and content.
+	 */
+	readonly buffer: IBufferSet;
 }
 
 export interface IInternalXtermTerminal {

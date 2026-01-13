@@ -15,7 +15,7 @@ import { IExtensionService, nullExtensionDescription } from '../../../../service
 import { ExtensionsRegistry } from '../../../../services/extensions/common/extensionsRegistry.js';
 import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../common/widget/input/modelPickerWidget.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
-import { TestChatEntitlementService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
+import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -44,7 +44,6 @@ suite('LanguageModels', function () {
 			new TestStorageService(),
 			new MockContextKeyService(),
 			new TestConfigurationService(),
-			new TestChatEntitlementService(),
 			new class extends mock<ILanguageModelsConfigurationService>() {
 				override getLanguageModelsProviderGroups() {
 					return [];
@@ -256,7 +255,6 @@ suite('LanguageModels - When Clause', function () {
 			new TestStorageService(),
 			contextKeyService,
 			new TestConfigurationService(),
-			new TestChatEntitlementService(),
 			new class extends mock<ILanguageModelsConfigurationService>() { },
 			new class extends mock<IQuickInputService>() { },
 			new TestSecretStorageService(),
