@@ -58,7 +58,7 @@ class GoBackAction extends Action2 {
 				group: 'navigation',
 				order: 1,
 			},
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_CAN_GO_BACK),
+			precondition: CONTEXT_BROWSER_CAN_GO_BACK,
 			keybinding: {
 				when: BROWSER_EDITOR_ACTIVE,
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -90,9 +90,9 @@ class GoForwardAction extends Action2 {
 				id: MenuId.BrowserNavigationToolbar,
 				group: 'navigation',
 				order: 2,
-				when: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_CAN_GO_FORWARD)
+				when: CONTEXT_BROWSER_CAN_GO_FORWARD
 			},
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_CAN_GO_FORWARD),
+			precondition: CONTEXT_BROWSER_CAN_GO_FORWARD,
 			keybinding: {
 				when: BROWSER_EDITOR_ACTIVE,
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -177,14 +177,13 @@ class ToggleDevToolsAction extends Action2 {
 			id: ToggleDevToolsAction.ID,
 			title: localize2('browser.toggleDevToolsAction', 'Toggle Developer Tools'),
 			category: BrowserCategory,
-			icon: Codicon.tools,
+			icon: Codicon.console,
 			f1: false,
 			toggled: ContextKeyExpr.equals(CONTEXT_BROWSER_DEVTOOLS_OPEN.key, true),
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
 				group: 'actions',
-				order: 2,
-				when: BROWSER_EDITOR_ACTIVE
+				order: 2
 			}
 		});
 	}
