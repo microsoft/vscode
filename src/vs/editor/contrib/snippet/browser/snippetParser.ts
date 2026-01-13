@@ -411,7 +411,7 @@ export class FormatString extends Marker {
 		if (!value.match(/[\p{L}0-9]/u)) {
 			return value
 				.trim()
-				.toLocaleLowerCase()
+				.toLowerCase()
 				.replace(/^_+|_+$/g, '')
 				.replace(/[\s_]+/g, '-');
 		}
@@ -425,7 +425,7 @@ export class FormatString extends Marker {
 		}
 
 		return match2
-			.map(x => x.toLocaleLowerCase())
+			.map(x => x.toLowerCase())
 			.join('-');
 	}
 
@@ -435,7 +435,7 @@ export class FormatString extends Marker {
 			return value;
 		}
 		return match.map(word => {
-			return word.charAt(0).toLocaleUpperCase() + word.substr(1);
+			return word.charAt(0).toUpperCase() + word.substr(1);
 		})
 			.join('');
 	}
@@ -447,9 +447,9 @@ export class FormatString extends Marker {
 		}
 		return match.map((word, index) => {
 			if (index === 0) {
-				return word.charAt(0).toLocaleLowerCase() + word.substr(1);
+				return word.charAt(0).toLowerCase() + word.substr(1);
 			}
-			return word.charAt(0).toLocaleUpperCase() + word.substr(1);
+			return word.charAt(0).toUpperCase() + word.substr(1);
 		})
 			.join('');
 	}
@@ -457,7 +457,7 @@ export class FormatString extends Marker {
 	private _toSnakeCase(value: string): string {
 		return value.replace(/(\p{Ll})(\p{Lu})/gu, '$1_$2')
 			.replace(/[\s\-]+/g, '_')
-			.toLocaleLowerCase();
+			.toLowerCase();
 	}
 
 	toTextmateString(): string {
