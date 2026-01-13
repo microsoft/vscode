@@ -35,7 +35,7 @@ jobs:
         displayName: Install Node.js
 
       - bash: |
-          npm config set registry "$NPM_REGISTRY"
+          npm config set registry "$(NPM_REGISTRY)"
           echo "##vso[task.setvariable variable=NPMRC_PATH]$(npm config get userconfig)"
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Configure NPM Registry
@@ -46,7 +46,9 @@ jobs:
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Authenticate with NPM Registry
 
-      - script: npm ci; npm run compile
+      - script: |
+          npm ci
+          npm run compile
         workingDirectory: ./test/sanity
         displayName: Compile Sanity Tests
 
