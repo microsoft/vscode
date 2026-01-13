@@ -28,9 +28,9 @@ declare module 'vscode' {
 	 */
 	export class CustomAgentChatResource {
 		/**
-		 * The URI to the custom agent resource file.
+		 * The custom agent resource descriptor.
 		 */
-		readonly uri: Uri;
+		readonly resource: ChatResourceDescriptor;
 
 		/**
 		 * Creates a new custom agent resource from the specified resource.
@@ -44,9 +44,9 @@ declare module 'vscode' {
 	 */
 	export class InstructionsChatResource {
 		/**
-		 * The URI to the instructions resource file.
+		 * The instructions resource descriptor.
 		 */
-		readonly uri: Uri;
+		readonly resource: ChatResourceDescriptor;
 
 		/**
 		 * Creates a new instructions resource from the specified resource.
@@ -60,9 +60,9 @@ declare module 'vscode' {
 	 */
 	export class PromptFileChatResource {
 		/**
-		 * The URI to the prompt file resource.
+		 * The prompt file resource descriptor.
 		 */
-		readonly uri: Uri;
+		readonly resource: ChatResourceDescriptor;
 
 		/**
 		 * Creates a new prompt file resource from the specified resource.

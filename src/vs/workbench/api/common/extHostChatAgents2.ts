@@ -38,6 +38,7 @@ import * as extHostTypes from './extHostTypes.js';
 import { IPromptFileContext, IPromptFileResource } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../contrib/chat/common/promptSyntax/promptTypes.js';
 import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors.js';
+import { Schemas } from '../../../base/common/network.js';
 
 export class ChatAgentResponseStream {
 
@@ -537,14 +538,56 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		}
 
 		const provider = providerData.provider;
+		let resources: vscode.CustomAgentChatResource[] | vscode.InstructionsChatResource[] | vscode.PromptFileChatResource[] | undefined;
+		let fileExtension: string;
 		switch (type) {
 			case PromptsType.agent:
-				return await (provider as vscode.CustomAgentProvider).provideCustomAgents(context, token) ?? undefined;
+				resources = await (provider as vscode.CustomAgentProvider).provideCustomAgents(context, token) ?? undefined;
+				fileExtension = '.agent.md';
+				break;
 			case PromptsType.instructions:
-				return await (provider as vscode.InstructionsProvider).provideInstructions(context, token) ?? undefined;
+				resources = await (provider as vscode.InstructionsProvider).provideInstructions(context, token) ?? undefined;
+				fileExtension = '.instructions.md';
+				break;
 			case PromptsType.prompt:
-				return await (provider as vscode.PromptFileProvider).providePromptFiles(context, token) ?? undefined;
+				resources = await (provider as vscode.PromptFileProvider).providePromptFiles(context, token) ?? undefined;
+				fileExtension = '.prompt.md';
+				break;
 		}
+
+		// Convert ChatResourceDescriptor to IPromptFileResource format
+		return resources?.map(r => this.convertChatResourceDescriptorToPromptFileResource(r.resource, fileExtension));
+	}
+
+	/**
+	 * Creates a virtual URI for a prompt file.
+	 */
+	createVirtualPromptUri(id: string, extension: string): URI {
+		return URI.from({
+			scheme: Schemas.vscodeChatPrompt,
+			path: `/${extension}/${id}`
+		});
+	}
+
+	convertChatResourceDescriptorToPromptFileResource(resource: vscode.ChatResourceDescriptor, extension: string): IPromptFileResource {
+		if (URI.isUri(resource)) {
+			// Plain URI
+			return { uri: resource };
+		} else if ('id' in resource && 'content' in resource) {
+			// { id, content }
+			return {
+				content: resource.content,
+				uri: this.createVirtualPromptUri(resource.id, extension),
+				isEditable: undefined
+			};
+		} else if ('uri' in resource && URI.isUri(resource.uri)) {
+			// { uri, isEditable? }
+			return {
+				uri: URI.revive(resource.uri),
+				isEditable: resource.isEditable
+			};
+		}
+		throw new Error(`Invalid ChatResourceDescriptor: ${JSON.stringify(resource)}`);
 	}
 
 	async $detectChatParticipant(handle: number, requestDto: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, options: { location: ChatAgentLocation; participants?: vscode.ChatParticipantMetadata[] }, token: CancellationToken): Promise<vscode.ChatParticipantDetectionResult | null | undefined> {

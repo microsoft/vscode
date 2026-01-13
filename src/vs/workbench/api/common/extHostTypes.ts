@@ -3900,90 +3900,30 @@ export class McpHttpServerDefinition implements vscode.McpHttpServerDefinition {
 
 //#region Chat Prompt Files
 
-/**
- * Creates a virtual URI for a prompt file.
- * The content is NOT embedded in the URI - it will be registered separately
- * with the ChatPromptContentStore on the main thread.
- */
-function createVirtualPromptUri(id: string, extension: string): URI {
-	return URI.from({
-		scheme: Schemas.vscodeChatPrompt,
-		path: `/${extension}/${id}`
-	});
-}
-
 @es5ClassCompat
 export class CustomAgentChatResource implements vscode.CustomAgentChatResource {
-	readonly uri: URI;
-	readonly isEditable?: boolean;
-	readonly content?: string;
+	readonly resource: vscode.ChatResourceDescriptor;
 
 	constructor(resource: vscode.ChatResourceDescriptor) {
-		if (URI.isUri(resource)) {
-			// Plain URI
-			this.uri = resource;
-			this.isEditable = undefined;
-		} else if ('id' in resource) {
-			// { id, content } - create virtual URI
-			this.content = resource.content;
-			this.uri = createVirtualPromptUri(resource.id, '.agent.md');
-			this.isEditable = undefined;
-		} else {
-			// { uri, isEditable? }
-			const descriptor = resource as { uri: vscode.Uri; isEditable?: boolean };
-			this.uri = URI.revive(descriptor.uri);
-			this.isEditable = descriptor.isEditable;
-		}
+		this.resource = resource;
 	}
 }
 
 @es5ClassCompat
 export class InstructionsChatResource implements vscode.InstructionsChatResource {
-	readonly uri: URI;
-	readonly isEditable?: boolean;
-	readonly content?: string;
+	readonly resource: vscode.ChatResourceDescriptor;
 
 	constructor(resource: vscode.ChatResourceDescriptor) {
-		if (URI.isUri(resource)) {
-			// Plain URI
-			this.uri = resource;
-			this.isEditable = undefined;
-		} else if ('id' in resource) {
-			// { id, content } - create virtual URI
-			this.content = resource.content;
-			this.uri = createVirtualPromptUri(resource.id, '.instructions.md');
-			this.isEditable = undefined;
-		} else {
-			// { uri, isEditable? }
-			const descriptor = resource as { uri: vscode.Uri; isEditable?: boolean };
-			this.uri = URI.revive(descriptor.uri);
-			this.isEditable = descriptor.isEditable;
-		}
+		this.resource = resource;
 	}
 }
 
 @es5ClassCompat
 export class PromptFileChatResource implements vscode.PromptFileChatResource {
-	readonly uri: URI;
-	readonly isEditable?: boolean;
-	readonly content?: string;
+	readonly resource: vscode.ChatResourceDescriptor;
 
 	constructor(resource: vscode.ChatResourceDescriptor) {
-		if (URI.isUri(resource)) {
-			// Plain URI
-			this.uri = resource;
-			this.isEditable = undefined;
-		} else if ('id' in resource) {
-			// { id, content } - create virtual URI
-			this.content = resource.content;
-			this.uri = createVirtualPromptUri(resource.id, '.prompt.md');
-			this.isEditable = undefined;
-		} else {
-			// { uri, isEditable? }
-			const descriptor = resource as { uri: vscode.Uri; isEditable?: boolean };
-			this.uri = URI.revive(descriptor.uri);
-			this.isEditable = descriptor.isEditable;
-		}
+		this.resource = resource;
 	}
 }
 //#endregion
