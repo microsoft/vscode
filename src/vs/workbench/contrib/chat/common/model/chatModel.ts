@@ -1374,6 +1374,22 @@ export interface IExportableRepoData {
 	 * Working tree diffs (uncommitted changes).
 	 */
 	diffs?: IExportableRepoDiff[];
+
+	/**
+	 * Status of the diffs collection.
+	 * - `included`: Diffs were successfully captured and included
+	 * - `tooManyChanges`: Diffs skipped because >100 files changed (degenerate case like mass renames)
+	 * - `tooLarge`: Diffs skipped because total size exceeded 900KB
+	 * - `trimmedForStorage`: Diffs were trimmed to save storage (older session)
+	 * - `noChanges`: No working tree changes detected
+	 * - `notCaptured`: Diffs not captured (default/undefined case)
+	 */
+	diffsStatus?: 'included' | 'tooManyChanges' | 'tooLarge' | 'trimmedForStorage' | 'noChanges' | 'notCaptured';
+
+	/**
+	 * Number of changed files detected, even if diffs were not included.
+	 */
+	changedFileCount?: number;
 }
 
 /**

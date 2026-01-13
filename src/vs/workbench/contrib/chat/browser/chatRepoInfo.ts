@@ -14,6 +14,15 @@ import { IChatEntitlementService } from '../../../services/chat/common/chatEntit
 import { ISCMService, ISCMResource } from '../../scm/common/scm.js';
 import { IChatService } from '../common/chatService/chatService.js';
 import { IChatModel, IExportableRepoData, IExportableRepoDiff } from '../common/model/chatModel.js';
+
+// Max changes to avoid degenerate cases like mass renames
+const MAX_CHANGES = 100;
+
+// Max diff size to avoid excessive storage usage (aligned with telemetry limit)
+const MAX_DIFFS_SIZE_BYTES = 900 * 1024;
+
+// Number of recent sessions to keep full diffs for
+const MAX_SESSIONS_WITH_FULL_DIFFS = 5;
 /**
  * Regex to match `url = <remote-url>` lines in git config.
  */
@@ -328,6 +337,44 @@ export async function captureRepoInfo(scmService: ISCMService, fileService: IFil
 		}
 	}
 
+	// Count total changes across all groups
+	let totalChangeCount = 0;
+	for (const group of repository.provider.groups) {
+		totalChangeCount += group.resources.length;
+	}
+
+	const baseRepoData: Omit<IExportableRepoData, 'diffs' | 'diffsStatus' | 'changedFileCount'> = {
+		workspaceType,
+		syncStatus,
+		remoteUrl,
+		remoteVendor,
+		localBranch,
+		remoteTrackingBranch,
+		remoteBaseBranch,
+		localHeadCommit,
+		remoteHeadCommit,
+	};
+
+	// Check for no changes
+	if (totalChangeCount === 0) {
+		return {
+			...baseRepoData,
+			diffs: undefined,
+			diffsStatus: 'noChanges',
+			changedFileCount: 0
+		};
+	}
+
+	// Check for too many changes (degenerate cases like mass renames)
+	if (totalChangeCount > MAX_CHANGES) {
+		return {
+			...baseRepoData,
+			diffs: undefined,
+			diffsStatus: 'tooManyChanges',
+			changedFileCount: totalChangeCount
+		};
+	}
+
 	// Collect working tree diffs
 	const diffs: IExportableRepoDiff[] = [];
 	const diffPromises: Promise<IExportableRepoDiff | undefined>[] = [];
@@ -365,17 +412,24 @@ export async function captureRepoInfo(scmService: ISCMService, fileService: IFil
 		}
 	}
 
+	// Check total size of diffs
+	const diffsJson = JSON.stringify(diffs);
+	const diffsSizeBytes = new TextEncoder().encode(diffsJson).length;
+
+	if (diffsSizeBytes > MAX_DIFFS_SIZE_BYTES) {
+		return {
+			...baseRepoData,
+			diffs: undefined,
+			diffsStatus: 'tooLarge',
+			changedFileCount: totalChangeCount
+		};
+	}
+
 	return {
-		workspaceType,
-		syncStatus,
-		remoteUrl,
-		remoteVendor,
-		localBranch,
-		remoteTrackingBranch,
-		remoteBaseBranch,
-		localHeadCommit,
-		remoteHeadCommit,
-		diffs
+		...baseRepoData,
+		diffs,
+		diffsStatus: 'included',
+		changedFileCount: totalChangeCount
 	};
 }
 
@@ -424,11 +478,49 @@ export class ChatRepoInfoContribution extends Disposable implements IWorkbenchCo
 				if (!repoData.localHeadCommit && repoData.workspaceType !== 'plain-folder') {
 					this.logService.warn('[ChatRepoInfo] Captured repo data without commit hash - git history may not be ready');
 				}
+
+				// Trim diffs from older sessions to manage storage
+				this.trimOldSessionDiffs();
 			} else {
 				this.logService.debug('[ChatRepoInfo] No SCM repository available for chat session');
 			}
 		} catch (error) {
 			this.logService.warn('[ChatRepoInfo] Failed to capture repo info:', error);
+		}
+	}
+
+	/**
+	 * Trims diffs from older sessions, keeping full diffs only for the most recent sessions.
+	 */
+	private trimOldSessionDiffs(): void {
+		try {
+			// Get all sessions with repoData that has diffs
+			const sessionsWithDiffs: { model: IChatModel; timestamp: number }[] = [];
+
+			for (const model of this.chatService.chatModels.get()) {
+				if (model.repoData?.diffs && model.repoData.diffs.length > 0 && model.repoData.diffsStatus === 'included') {
+					sessionsWithDiffs.push({ model, timestamp: model.timestamp });
+				}
+			}
+
+			// Sort by timestamp descending (most recent first)
+			sessionsWithDiffs.sort((a, b) => b.timestamp - a.timestamp);
+
+			// Trim diffs from sessions beyond the limit
+			for (let i = MAX_SESSIONS_WITH_FULL_DIFFS; i < sessionsWithDiffs.length; i++) {
+				const { model } = sessionsWithDiffs[i];
+				if (model.repoData) {
+					const trimmedRepoData: IExportableRepoData = {
+						...model.repoData,
+						diffs: undefined,
+						diffsStatus: 'trimmedForStorage'
+					};
+					model.setRepoData(trimmedRepoData);
+					this.logService.trace(`[ChatRepoInfo] Trimmed diffs from older session: ${model.sessionResource.toString()}`);
+				}
+			}
+		} catch (error) {
+			this.logService.warn('[ChatRepoInfo] Failed to trim old session diffs:', error);
 		}
 	}
 }
