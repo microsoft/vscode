@@ -1362,6 +1362,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			span + .chat-input-picker-label {
 				margin-left: 2px;
 			}
+
+			.codicon {
+				font-size: 12px;
+			}
 		}
 
 		.action-label.disabled {

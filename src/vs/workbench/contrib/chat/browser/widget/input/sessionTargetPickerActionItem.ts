@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { IAction } from '../../../../../../base/common/actions.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
 import { ActionWidgetDropdownActionViewItem } from '../../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
@@ -14,8 +15,9 @@ import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider, IActi
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
+import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
-import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderName } from '../../agentSessions/agentSessions.js';
+import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../agentSessions/agentSessions.js';
 
 export interface IAgentSessionPickerDelegate {
 	getActiveSessionProvider(): AgentSessionProviders | undefined;
@@ -44,6 +46,7 @@ export class SessionTargetPickerActionItem extends ActionWidgetDropdownActionVie
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IOpenerService openerService: IOpenerService,
 	) {
 		const actionProvider: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
@@ -57,6 +60,7 @@ export class SessionTargetPickerActionItem extends ActionWidgetDropdownActionVie
 						label: agentSessionItem.label,
 						tooltip: agentSessionItem.description,
 						checked: currentType === agentSessionItem.type,
+						icon: getAgentSessionProviderIcon(agentSessionItem.type),
 						enabled: true,
 						run: async () => {
 							this.commandService.executeCommand(agentSessionItem.commandId, this.chatSessionPosition);
@@ -71,8 +75,22 @@ export class SessionTargetPickerActionItem extends ActionWidgetDropdownActionVie
 			}
 		};
 
+		const actionBarActions: IAction[] = [];
+		/* const learnMoreUrl = '';
+		actionBarActions.push({
+			id: 'workbench.action.chat.continueChatInSession.learnMore',
+			label: localize('chat.learnMore', "Learn more"),
+			tooltip: learnMoreUrl,
+			class: undefined,
+			enabled: true,
+			run: async () => {
+				await openerService.open(URI.parse(learnMoreUrl));
+			}
+		}); */
+
 		const sessionTargetPickerOptions: Omit<IActionWidgetDropdownOptions, 'label' | 'labelRenderer'> = {
 			actionProvider,
+			actionBarActions,
 			actionBarActionProvider: undefined,
 			showItemKeybindings: true,
 		};
@@ -117,8 +135,9 @@ export class SessionTargetPickerActionItem extends ActionWidgetDropdownActionVie
 		const currentType = this.delegate.getActiveSessionProvider();
 
 		const label = getAgentSessionProviderName(currentType ?? AgentSessionProviders.Local);
+		const icon = getAgentSessionProviderIcon(currentType ?? AgentSessionProviders.Local);
 
-		dom.reset(element, dom.$('span.chat-input-picker-label', undefined, label), ...renderLabelWithIcons(`$(chevron-down)`));
+		dom.reset(element, ...renderLabelWithIcons(`$(${icon.id})`), dom.$('span.chat-input-picker-label', undefined, label), ...renderLabelWithIcons(`$(chevron-down)`));
 		return null;
 	}
 
