@@ -20,17 +20,17 @@
    ============================================ */
 
 :root {
-	/* Light theme shadow depths - very subtle for white themes */
+	/* Light theme shadow depths - subtle but visible for white themes */
 	/* Ambient shadows - no specific direction (uniform spread) */
-	--vscode-stealth-shadow-xs: 0 0 3px rgba(0, 0, 0, 0.04);
-	--vscode-stealth-shadow-sm: 0 0 6px rgba(0, 0, 0, 0.05);
-	--vscode-stealth-shadow-md: 0 0 10px rgba(0, 0, 0, 0.07);
-	--vscode-stealth-shadow-lg: 0 0 16px rgba(0, 0, 0, 0.09);
-	--vscode-stealth-shadow-xl: 0 0 24px rgba(0, 0, 0, 0.11);
-	--vscode-stealth-shadow-2xl: 0 0 40px rgba(0, 0, 0, 0.16);
+	--vscode-stealth-shadow-xs: 0 0 4px rgba(0, 0, 0, 0.06);
+	--vscode-stealth-shadow-sm: 0 0 8px rgba(0, 0, 0, 0.08);
+	--vscode-stealth-shadow-md: 0 0 12px rgba(0, 0, 0, 0.10);
+	--vscode-stealth-shadow-lg: 0 0 18px rgba(0, 0, 0, 0.12);
+	--vscode-stealth-shadow-xl: 0 0 28px rgba(0, 0, 0, 0.14);
+	--vscode-stealth-shadow-2xl: 0 0 44px rgba(0, 0, 0, 0.18);
 
 	/* Ambient panel shadow */
-	--vscode-stealth-shadow-panel: 0 0 10px rgba(0, 0, 0, 0.06);
+	--vscode-stealth-shadow-panel: 0 0 12px rgba(0, 0, 0, 0.08);
 
 	/* Inner glow for depth */
 	--vscode-stealth-inner-glow: inset 0 0 4px rgba(255, 255, 255, 0.1);
@@ -180,7 +180,7 @@
 	border: none !important;
 	border-radius: 12px;
 	overflow: hidden;
-	background: var(--vscode-sideBar-background, #FAFAFA) !important;
+	background: var(--vscode-sideBar-background, #FCFCFC) !important;
 }
 
 /* Remove ALL borders from quick input */
@@ -546,7 +546,7 @@
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center {
 	box-shadow: 0 0 16px rgba(0, 0, 0, 0.09) !important;
 	border-radius: 8px !important;
-	background: var(--vscode-titleBar-activeBackground, #F5F5F5) !important;
+	background: var(--vscode-titleBar-activeBackground, #F9F9F9) !important;
 	overflow: visible !important;
 }
 
