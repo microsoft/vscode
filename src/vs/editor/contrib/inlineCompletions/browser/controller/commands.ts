@@ -21,7 +21,7 @@ import { EditorContextKeys } from '../../../../common/editorContextKeys.js';
 import { InlineCompletionsProvider } from '../../../../common/languages.js';
 import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
 import { Context as SuggestContext } from '../../../suggest/browser/suggest.js';
-import { hideInlineCompletionId, inlineSuggestCommitId, jumpToNextInlineEditId, showNextInlineSuggestionActionId, showPreviousInlineSuggestionActionId, toggleShowCollapsedId } from './commandIds.js';
+import { hideInlineCompletionId, inlineSuggestCommitAlternativeActionId, inlineSuggestCommitId, jumpToNextInlineEditId, showNextInlineSuggestionActionId, showPreviousInlineSuggestionActionId, toggleShowCollapsedId } from './commandIds.js';
 import { InlineCompletionContextKeys } from './inlineCompletionContextKeys.js';
 import { InlineCompletionsController } from './inlineCompletionsController.js';
 
@@ -240,6 +240,37 @@ KeybindingsRegistry.registerKeybindingRule({
 	id: inlineSuggestCommitId,
 	weight: 202, // greater than jump
 	primary: KeyCode.Tab,
+	when: ContextKeyExpr.and(InlineCompletionContextKeys.inInlineEditsPreviewEditor)
+});
+
+export class AcceptInlineCompletionAlternativeAction extends EditorAction {
+	constructor() {
+		super({
+			id: inlineSuggestCommitAlternativeActionId,
+			label: nls.localize2('action.inlineSuggest.acceptAlternativeAction', "Accept Inline Suggestion Alternative Action"),
+			precondition: ContextKeyExpr.and(InlineCompletionContextKeys.inlineSuggestionAlternativeActionVisible, InlineCompletionContextKeys.inlineEditVisible),
+			menuOpts: [],
+			kbOpts: [
+				{
+					primary: KeyMod.Shift | KeyCode.Tab,
+					weight: 203,
+				}
+			],
+		});
+	}
+
+	public async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+		const controller = InlineCompletionsController.getInFocusedEditorOrParent(accessor);
+		if (controller) {
+			controller.model.get()?.accept(controller.editor, true);
+			controller.editor.focus();
+		}
+	}
+}
+KeybindingsRegistry.registerKeybindingRule({
+	id: inlineSuggestCommitAlternativeActionId,
+	weight: 203,
+	primary: KeyMod.Shift | KeyCode.Tab,
 	when: ContextKeyExpr.and(InlineCompletionContextKeys.inInlineEditsPreviewEditor)
 });
 

@@ -24,7 +24,7 @@ jobs:
       VSCODE_ARCH: x64
     steps:
       - name: Checkout microsoft/vscode
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -53,7 +53,7 @@ jobs:
 
       - name: Restore node_modules cache
         id: cache-node-modules
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: .build/node_modules_cache
           key: "node_modules-linux-${{ hashFiles('.build/packagelockhash') }}"
@@ -117,7 +117,7 @@ jobs:
 
       - name: Restore built-in extensions cache
         id: cache-builtin-extensions
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           enableCrossOsArchive: true
           path: .build/builtInExtensions
@@ -137,7 +137,7 @@ jobs:
           set -e
 
           for i in {1..3}; do # try 3 times (matching retryCountOnTaskFailure: 3)
-            if npm exec -- npm-run-all -lp "electron ${{ env.VSCODE_ARCH }}" "playwright-install"; then
+            if npm exec -- npm-run-all2 -lp "electron ${{ env.VSCODE_ARCH }}" "playwright-install"; then
               echo "Download successful on attempt $i"
               break
             fi
@@ -258,7 +258,7 @@ jobs:
         if: always()
 
       - name: Publish Crash Reports
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         if: failure()
         continue-on-error: true
         with:
@@ -269,7 +269,7 @@ jobs:
       # In order to properly symbolify above crash reports
       # (if any), we need the compiled native modules too
       - name: Publish Node Modules
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         if: failure()
         continue-on-error: true
         with:
@@ -278,7 +278,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Publish Log Files
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         if: always()
         continue-on-error: true
         with:

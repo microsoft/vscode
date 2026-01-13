@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { asArray } from '../../../../base/common/arrays.js';
 import { mapFindFirst } from '../../../../base/common/arraysFind.js';
 import { Sequencer } from '../../../../base/common/async.js';
 import { decodeBase64 } from '../../../../base/common/buffer.js';
@@ -17,6 +18,7 @@ import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { ChatImageMimeType, ChatMessageRole, IChatMessage, IChatMessagePart, ILanguageModelsService } from '../../chat/common/languageModels.js';
 import { McpCommandIds } from './mcpCommandIds.js';
 import { IMcpServerSamplingConfiguration, mcpServerSamplingSection } from './mcpConfiguration.js';
@@ -57,17 +59,19 @@ export class McpSamplingService extends Disposable implements IMcpSamplingServic
 
 	async sample(opts: ISamplingOptions, token = CancellationToken.None): Promise<ISamplingResult> {
 		const messages = opts.params.messages.map((message): IChatMessage | undefined => {
-			const content: IChatMessagePart | undefined = message.content.type === 'text'
-				? { type: 'text', value: message.content.text }
-				: message.content.type === 'image' || message.content.type === 'audio'
-					? { type: 'image_url', value: { mimeType: message.content.mimeType as ChatImageMimeType, data: decodeBase64(message.content.data) } }
-					: undefined;
-			if (!content) {
+			const content: IChatMessagePart[] = asArray(message.content).map((part): IChatMessagePart | undefined => part.type === 'text'
+				? { type: 'text', value: part.text }
+				: part.type === 'image' || part.type === 'audio'
+					? { type: 'image_url', value: { mimeType: part.mimeType as ChatImageMimeType, data: decodeBase64(part.data) } }
+					: undefined
+			).filter(isDefined);
+
+			if (!content.length) {
 				return undefined;
 			}
 			return {
 				role: message.role === 'assistant' ? ChatMessageRole.Assistant : ChatMessageRole.User,
-				content: [content]
+				content,
 			};
 		}).filter(isDefined);
 
@@ -229,7 +233,7 @@ export class McpSamplingService extends Disposable implements IMcpSamplingServic
 		}
 
 		// 2. Get the configured models, or the default model(s)
-		const foundModelIdsDeep = config.allowedModels?.filter(m => !!this._languageModelsService.lookupLanguageModel(m)) || this._languageModelsService.getLanguageModelIds().filter(m => this._languageModelsService.lookupLanguageModel(m)?.isDefault);
+		const foundModelIdsDeep = config.allowedModels?.filter(m => !!this._languageModelsService.lookupLanguageModel(m)) || this._languageModelsService.getLanguageModelIds().filter(m => this._languageModelsService.lookupLanguageModel(m)?.isDefaultForLocation[ChatAgentLocation.Chat]);
 
 		const foundModelIds = foundModelIdsDeep.flat().sort((a, b) => b.length - a.length); // Sort by length to prefer most specific
 

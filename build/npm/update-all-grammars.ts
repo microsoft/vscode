@@ -6,7 +6,6 @@
 import { spawn as _spawn } from 'child_process';
 import { readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
-import url from 'url';
 
 async function spawn(cmd: string, args: string[], opts?: Parameters<typeof _spawn>[2]) {
 	return new Promise<void>((c, e) => {
@@ -34,15 +33,17 @@ async function main() {
 	// run integration tests
 
 	if (process.platform === 'win32') {
-		_spawn('.\\scripts\\test-integration.bat', [], { env: process.env, stdio: 'inherit' });
+		_spawn('.\\scripts\\test-integration.bat', [], { shell: true, env: process.env, stdio: 'inherit' });
 	} else {
 		_spawn('/bin/bash', ['./scripts/test-integration.sh'], { env: process.env, stdio: 'inherit' });
 	}
 }
 
-if (import.meta.url === url.pathToFileURL(process.argv[1]).href) {
-	main().catch(err => {
+if (import.meta.main) {
+	try {
+		await main();
+	} catch (err) {
 		console.error(err);
 		process.exit(1);
-	});
+	}
 }

@@ -14,7 +14,7 @@ import { IKeybindingService } from '../../keybinding/common/keybinding.js';
 import { IListAccessibilityProvider } from '../../../base/browser/ui/list/listWidget.js';
 
 export interface IActionWidgetDropdownAction extends IAction {
-	category?: { label: string; order: number };
+	category?: { label: string; order: number; showHeader?: boolean };
 	icon?: ThemeIcon;
 	description?: string;
 }
@@ -83,9 +83,8 @@ export class ActionWidgetDropdown extends BaseDropdown {
 
 		for (let i = 0; i < sortedCategories.length; i++) {
 			const [categoryLabel, categoryActions] = sortedCategories[i];
-
-			// Add category header if label is not empty
-			if (categoryLabel) {
+			const showHeader = categoryActions[0]?.category?.showHeader ?? false;
+			if (showHeader && categoryLabel) {
 				actionWidgetItems.push({
 					kind: ActionListItemKind.Header,
 					label: categoryLabel,

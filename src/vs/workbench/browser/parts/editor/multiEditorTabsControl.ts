@@ -827,7 +827,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		});
 
 		// Gesture Support
-		this._register(Gesture.addTarget(tabContainer));
+		const gestureDisposable = Gesture.addTarget(tabContainer);
 
 		// Tab Border Top
 		const tabBorderTopContainer = $('.tab-border-top-container');
@@ -867,7 +867,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Eventing
 		const eventsDisposable = this.registerTabListeners(tabContainer, tabIndex, tabsContainer, tabsScrollbar);
 
-		this.tabDisposables.push(combinedDisposable(eventsDisposable, tabActionBarDisposable, tabActionRunner, editorLabel));
+		this.tabDisposables.push(combinedDisposable(gestureDisposable, eventsDisposable, tabActionBarDisposable, editorLabel));
 
 		return tabContainer;
 	}

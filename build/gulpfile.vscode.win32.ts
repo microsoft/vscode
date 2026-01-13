@@ -2,22 +2,22 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import gulp from 'gulp';
-import * as path from 'path';
-import * as fs from 'fs';
 import assert from 'assert';
 import * as cp from 'child_process';
-import * as util from './lib/util.ts';
-import * as getVersionModule from './lib/getVersion.ts';
-import * as task from './lib/task.ts';
+import * as fs from 'fs';
+import gulp from 'gulp';
+import * as path from 'path';
+import rcedit from 'rcedit';
+import vfs from 'vinyl-fs';
 import pkg from '../package.json' with { type: 'json' };
 import product from '../product.json' with { type: 'json' };
-import vfs from 'vinyl-fs';
-import rcedit from 'rcedit';
-import { createRequire } from 'module';
+import { getVersion } from './lib/getVersion.ts';
+import * as task from './lib/task.ts';
+import * as util from './lib/util.ts';
 
-const { getVersion } = getVersionModule;
+import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
+
 const repoPath = path.dirname(import.meta.dirname);
 const commit = getVersion(repoPath);
 const buildPath = (arch: string) => path.join(path.dirname(repoPath), `VSCode-win32-${arch}`);
@@ -58,12 +58,12 @@ function packageInnoSetup(iss: string, options: { definitions?: Record<string, u
 		});
 }
 
-function buildWin32Setup(arch: string, target: string) {
+function buildWin32Setup(arch: string, target: string): task.CallbackTask {
 	if (target !== 'system' && target !== 'user') {
 		throw new Error('Invalid setup target');
 	}
 
-	return (cb?: (err?: any) => void) => {
+	return (cb) => {
 		const x64AppId = target === 'system' ? product.win32x64AppId : product.win32x64UserAppId;
 		const arm64AppId = target === 'system' ? product.win32arm64AppId : product.win32arm64UserAppId;
 

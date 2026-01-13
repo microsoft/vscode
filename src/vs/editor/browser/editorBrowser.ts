@@ -178,6 +178,13 @@ export interface IContentWidget {
 	 * Render this content widget in a location where it could overflow the editor's view dom node.
 	 */
 	allowEditorOverflow?: boolean;
+
+	/**
+	 * If true, this widget doesn't have a visual representation.
+	 * The element will have display set to 'none'.
+	*/
+	useDisplayNone?: boolean;
+
 	/**
 	 * Call preventDefault() on mousedown events that target the content widget.
 	 */
@@ -1195,6 +1202,8 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * Use this method with caution.
 	 */
 	getOffsetForColumn(lineNumber: number, column: number): number;
+
+	getWidthOfLine(lineNumber: number): number;
 
 	/**
 	 * Force an editor render now.

@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ok, strictEqual } from 'assert';
-import { dedupeRules, isPowerShell } from '../../browser/runInTerminalHelpers.js';
+import { generateAutoApproveActions, TRUNCATION_MESSAGE, dedupeRules, isPowerShell, sanitizeTerminalOutput, truncateOutputKeepingTail } from '../../browser/runInTerminalHelpers.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
-import type { IAutoApproveRule, ICommandApprovalResultWithReason } from '../../browser/commandLineAutoApprover.js';
+import type { ICommandApprovalResultWithReason } from '../../browser/tools/commandLineAnalyzer/autoApprove/commandLineAutoApprover.js';
+import { isAutoApproveRule, type IAutoApproveRule } from '../../browser/tools/commandLineAnalyzer/commandLineAnalyzer.js';
 
 suite('isPowerShell', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -186,6 +187,10 @@ suite('dedupeRules', () => {
 		};
 	}
 
+	function getSourceText(result: ICommandApprovalResultWithReason): string | undefined {
+		return isAutoApproveRule(result.rule) ? result.rule.sourceText : undefined;
+	}
+
 	test('should return empty array for empty input', () => {
 		const result = dedupeRules([]);
 		strictEqual(result.length, 0);
@@ -197,8 +202,8 @@ suite('dedupeRules', () => {
 			createMockResult('approved', 'approved by ls rule', createMockRule('ls'))
 		]);
 		strictEqual(result.length, 2);
-		strictEqual(result[0].rule?.sourceText, 'echo');
-		strictEqual(result[1].rule?.sourceText, 'ls');
+		strictEqual(getSourceText(result[0]), 'echo');
+		strictEqual(getSourceText(result[1]), 'ls');
 	});
 
 	test('should deduplicate rules with same sourceText', () => {
@@ -208,8 +213,8 @@ suite('dedupeRules', () => {
 			createMockResult('approved', 'approved by ls rule', createMockRule('ls'))
 		]);
 		strictEqual(result.length, 2);
-		strictEqual(result[0].rule?.sourceText, 'echo');
-		strictEqual(result[1].rule?.sourceText, 'ls');
+		strictEqual(getSourceText(result[0]), 'echo');
+		strictEqual(getSourceText(result[1]), 'ls');
 	});
 
 	test('should preserve first occurrence when deduplicating', () => {
@@ -228,7 +233,7 @@ suite('dedupeRules', () => {
 			createMockResult('denied', 'denied without rule')
 		]);
 		strictEqual(result.length, 1);
-		strictEqual(result[0].rule?.sourceText, 'echo');
+		strictEqual(getSourceText(result[0]), 'echo');
 	});
 
 	test('should handle mix of rules and no-rule results with duplicates', () => {
@@ -240,8 +245,8 @@ suite('dedupeRules', () => {
 			createMockResult('denied', 'denied without rule')
 		]);
 		strictEqual(result.length, 2);
-		strictEqual(result[0].rule?.sourceText, 'echo');
-		strictEqual(result[1].rule?.sourceText, 'ls');
+		strictEqual(getSourceText(result[0]), 'echo');
+		strictEqual(getSourceText(result[1]), 'ls');
 	});
 
 	test('should handle multiple duplicates of same rule', () => {
@@ -252,8 +257,210 @@ suite('dedupeRules', () => {
 			createMockResult('approved', 'git rule', createMockRule('git'))
 		]);
 		strictEqual(result.length, 2);
-		strictEqual(result[0].rule?.sourceText, 'npm');
+		strictEqual(getSourceText(result[0]), 'npm');
 		strictEqual(result[0].reason, 'npm rule 1');
-		strictEqual(result[1].rule?.sourceText, 'git');
+		strictEqual(getSourceText(result[1]), 'git');
+	});
+});
+
+suite('truncateOutputKeepingTail', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+	test('returns original when below limit', () => {
+		const output = 'short output';
+		strictEqual(truncateOutputKeepingTail(output, 100), output);
+	});
+
+	test('keeps tail and adds message when above limit', () => {
+		const output = 'a'.repeat(200);
+		const result = truncateOutputKeepingTail(output, 120);
+		ok(result.startsWith(TRUNCATION_MESSAGE));
+		strictEqual(result.length, 120);
+	});
+
+	test('gracefully handles tiny limits', () => {
+		const result = truncateOutputKeepingTail('example', 5);
+		strictEqual(result.length, 5);
+	});
+});
+
+suite('sanitizeTerminalOutput', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+	test('adds truncation notice when exceeding max length', () => {
+		const longOutput = 'line\n'.repeat(20000);
+		const result = sanitizeTerminalOutput(longOutput);
+		ok(result.startsWith(TRUNCATION_MESSAGE));
+		ok(result.endsWith('line'));
+	});
+});
+
+suite('generateAutoApproveActions', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createMockRule(sourceText: string): IAutoApproveRule {
+		// Escape special regex characters for test purposes to prevent regex errors
+		const escapedText = sourceText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+		return {
+			regex: new RegExp(escapedText),
+			regexCaseInsensitive: new RegExp(escapedText, 'i'),
+			sourceText,
+			sourceTarget: ConfigurationTarget.USER,
+			isDefaultRule: false
+		};
+	}
+
+	function createMockResult(result: 'approved' | 'denied' | 'noMatch', reason: string, rule?: IAutoApproveRule): ICommandApprovalResultWithReason {
+		return {
+			result,
+			reason,
+			rule
+		};
+	}
+
+	test('should suggest mvn test when command is mvn test', () => {
+		const commandLine = 'mvn test';
+		const subCommands = ['mvn test'];
+		const autoApproveResult = {
+			subCommandResults: [createMockResult('noMatch', 'not approved')],
+			commandLineResult: createMockResult('noMatch', 'not approved')
+		};
+
+		const actions = generateAutoApproveActions(commandLine, subCommands, autoApproveResult);
+		const subCommandAction = actions.find(action => action.label.includes('mvn test'));
+		ok(subCommandAction, 'Should suggest mvn test approval');
+	});
+
+	test('should suggest mvn -DskipIT test when flags appear before subcommand', () => {
+		const commandLine = 'mvn -DskipIT test';
+		const subCommands = ['mvn -DskipIT test'];
+		const autoApproveResult = {
+			subCommandResults: [createMockResult('noMatch', 'not approved')],
+			commandLineResult: createMockResult('noMatch', 'not approved')
+		};
+
+		const actions = generateAutoApproveActions(commandLine, subCommands, autoApproveResult);
+		const subCommandAction = actions.find(action => action.label.includes('mvn -DskipIT test'));
+		ok(subCommandAction, 'Should suggest mvn -DskipIT test approval (including flags)');
+	});
+
+	test('should suggest mvn -X -DskipIT test when multiple flags appear before subcommand', () => {
+		const commandLine = 'mvn -X -DskipIT test';
+		const subCommands = ['mvn -X -DskipIT test'];
+		const autoApproveResult = {
+			subCommandResults: [createMockResult('noMatch', 'not approved')],
+			commandLineResult: createMockResult('noMatch', 'not approved')
+		};
+
+		const actions = generateAutoApproveActions(commandLine, subCommands, autoApproveResult);
+		const subCommandAction = actions.find(action => action.label.includes('mvn -X -DskipIT test'));
+		ok(subCommandAction, 'Should suggest mvn -X -DskipIT test approval with multiple flags');
+	});
+
+	test('should suggest gradle --info build when flags appear before subcommand', () => {
+		const commandLine = 'gradle --info build';
+		const subCommands = ['gradle --info build'];
+		const autoApproveResult = {
+			subCommandResults: [createMockResult('noMatch', 'not approved')],
+			commandLineResult: createMockResult('noMatch', 'not approved')
+		};
+
+		const actions = generateAutoApproveActions(commandLine, subCommands, autoApproveResult);
+		const subCommandAction = actions.find(action => action.label.includes('gradle --info build'));
+		ok(subCommandAction, 'Should suggest gradle --info build approval');
+	});
+
+	test('should suggest npm --silent run test when flags appear before subcommand', () => {
+		const commandLine = 'npm --silent run test';
+		const subCommands = ['npm --silent run test'];
+		const autoApproveResult = {
+			subCommandResults: [createMockResult('noMatch', 'not approved')],
+			commandLineResult: createMockResult('noMatch', 'not approved')
+		};
+
+		const actions = generateAutoApproveActions(commandLine, subCommands, autoApproveResult);
+		const subCommandAction = actions.find(action => action.label.includes('npm --silent run test'));
+		ok(subCommandAction, 'Should suggest npm --silent run test approval (sub-sub-command with flags)');
+	});
+
+	test('should suggest npm --silent run --verbose test when flags appear between subcommands', () => {
+		const commandLine = 'npm --silent run --verbose test';
+		const subCommands = ['npm --silent run --verbose test'];
+		const autoApproveResult = {
+			subCommandResults: [createMockResult('noMatch', 'not approved')],
+			commandLineResult: createMockResult('noMatch', 'not approved')
+		};
+
+		const actions = generateAutoApproveActions(commandLine, subCommands, autoApproveResult);
+		const subCommandAction = actions.find(action => action.label.includes('npm --silent run --verbose test'));
+		ok(subCommandAction, 'Should suggest npm --silent run --verbose test with flags between subcommands');
+	});
+
+	test('should not suggest approval when only flags and no subcommand', () => {
+		const commandLine = 'mvn -X -DskipIT';
+		const subCommands = ['mvn -X -DskipIT'];
+		const autoApproveResult = {
+			subCommandResults: [createMockResult('noMatch', 'not approved')],
+			commandLineResult: createMockResult('noMatch', 'not approved')
+		};
+
+		const actions = generateAutoApproveActions(commandLine, subCommands, autoApproveResult);
+		const subCommandAction = actions.find(action => action.label.includes('Always Allow Command:') && action.label.includes('mvn'));
+		strictEqual(subCommandAction, undefined, 'Should not suggest mvn approval when no subcommand found');
+	});
+
+	test('should suggest exact command line when subcommand cannot be extracted', () => {
+		const commandLine = 'mvn -X -DskipIT';
+		const subCommands = ['mvn -X -DskipIT'];
+		const autoApproveResult = {
+			subCommandResults: [createMockResult('noMatch', 'not approved')],
+			commandLineResult: createMockResult('noMatch', 'not approved')
+		};
+
+		const actions = generateAutoApproveActions(commandLine, subCommands, autoApproveResult);
+		const exactCommandAction = actions.find(action => action.label.includes('Always Allow Exact Command Line'));
+		ok(exactCommandAction, 'Should suggest exact command line approval');
+	});
+
+	test('should handle multiple subcommands with flags', () => {
+		const commandLine = 'mvn -DskipIT test && gradle --info build';
+		const subCommands = ['mvn -DskipIT test', 'gradle --info build'];
+		const autoApproveResult = {
+			subCommandResults: [
+				createMockResult('noMatch', 'not approved'),
+				createMockResult('noMatch', 'not approved')
+			],
+			commandLineResult: createMockResult('noMatch', 'not approved')
+		};
+
+		const actions = generateAutoApproveActions(commandLine, subCommands, autoApproveResult);
+		const subCommandAction = actions.find(action =>
+			action.label.includes('mvn -DskipIT test') && action.label.includes('gradle --info build')
+		);
+		ok(subCommandAction, 'Should suggest both mvn -DskipIT test and gradle --info build');
+	});
+
+	test('should not suggest when commands are denied', () => {
+		const commandLine = 'mvn -DskipIT test';
+		const subCommands = ['mvn -DskipIT test'];
+		const autoApproveResult = {
+			subCommandResults: [createMockResult('denied', 'denied by rule', createMockRule('mvn test'))],
+			commandLineResult: createMockResult('noMatch', 'not approved')
+		};
+
+		const actions = generateAutoApproveActions(commandLine, subCommands, autoApproveResult);
+		const subCommandAction = actions.find(action => action.label.includes('Always Allow Command:'));
+		strictEqual(subCommandAction, undefined, 'Should not suggest approval for denied commands');
+	});
+
+	test('should not suggest when commands are already approved', () => {
+		const commandLine = 'mvn -DskipIT test';
+		const subCommands = ['mvn -DskipIT test'];
+		const autoApproveResult = {
+			subCommandResults: [createMockResult('approved', 'approved by rule', createMockRule('mvn test'))],
+			commandLineResult: createMockResult('noMatch', 'not approved')
+		};
+
+		const actions = generateAutoApproveActions(commandLine, subCommands, autoApproveResult);
+		const subCommandAction = actions.find(action => action.label.includes('mvn -DskipIT test') && action.label.includes('Always Allow Command:'));
+		strictEqual(subCommandAction, undefined, 'Should not suggest approval for already approved commands');
 	});
 });

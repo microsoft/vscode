@@ -251,7 +251,7 @@ export abstract class AbstractSortLinesAction extends EditorAction {
 
 		const model = editor.getModel();
 		let selections = editor.getSelections();
-		if (selections.length === 1 && selections[0].isEmpty()) {
+		if (selections.length === 1 && selections[0].isSingleLine()) {
 			// Apply to whole document.
 			selections = [new Selection(1, 1, model.getLineCount(), model.getLineMaxColumn(model.getLineCount()))];
 		}
@@ -322,7 +322,7 @@ export class DeleteDuplicateLinesAction extends EditorAction {
 		let updateSelection = true;
 
 		let selections = editor.getSelections();
-		if (selections.length === 1 && selections[0].isEmpty()) {
+		if (selections.length === 1 && selections[0].isSingleLine()) {
 			// Apply to whole document.
 			selections = [new Selection(1, 1, model.getLineCount(), model.getLineMaxColumn(model.getLineCount()))];
 			updateSelection = false;
@@ -356,7 +356,7 @@ export class DeleteDuplicateLinesAction extends EditorAction {
 				adjustedSelectionStart,
 				1,
 				adjustedSelectionStart + lines.length - 1,
-				lines[lines.length - 1].length
+				lines[lines.length - 1].length + 1
 			);
 
 			edits.push(EditOperation.replace(selectionToReplace, lines.join('\n')));
@@ -389,7 +389,7 @@ export class ReverseLinesAction extends EditorAction {
 		const model: ITextModel = editor.getModel();
 		const originalSelections = editor.getSelections();
 		let selections = originalSelections;
-		if (selections.length === 1 && selections[0].isEmpty()) {
+		if (selections.length === 1 && selections[0].isSingleLine()) {
 			// Apply to whole document.
 			selections = [new Selection(1, 1, model.getLineCount(), model.getLineMaxColumn(model.getLineCount()))];
 		}

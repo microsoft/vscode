@@ -30,12 +30,17 @@ declare module 'vscode' {
 	}
 
 	export class ChatRequestEditorData {
+
+		readonly editor: TextEditor;
+
 		//TODO@API should be the editor
 		document: TextDocument;
 		selection: Selection;
+
+		/** @deprecated */
 		wholeRange: Range;
 
-		constructor(document: TextDocument, selection: Selection, wholeRange: Range);
+		constructor(editor: TextEditor, document: TextDocument, selection: Selection, wholeRange: Range);
 	}
 
 	export class ChatRequestNotebookData {
@@ -148,6 +153,11 @@ declare module 'vscode' {
 	}
 
 	export class ChatResponseTurn2 {
+		/**
+		 * The id of the chat response. Used to identity an interaction with any of the chat surfaces.
+		 */
+		readonly id?: string;
+
 		/**
 		 * The content that was received from the chat participant. Only the stream parts that represent actual content (not metadata) are represented.
 		 */

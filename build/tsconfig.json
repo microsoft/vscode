@@ -9,14 +9,7 @@
 		"erasableSyntaxOnly": true,
 		"verbatimModuleSyntax": true,
 		"allowImportingTsExtensions": true,
-		"preserveConstEnums": true,
-		"sourceMap": true,
 		"resolveJsonModule": true,
-		// enable JavaScript type checking for the language service
-		// use the tsconfig.build.json for compiling which disable JavaScript
-		// type checking so that JavaScript file are not transpiled
-		"allowJs": true,
-		"checkJs": false,
 		"skipLibCheck": true,
 		"strict": true,
 		"exactOptionalPropertyTypes": false,

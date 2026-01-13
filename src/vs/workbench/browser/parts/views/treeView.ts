@@ -693,7 +693,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		const treeMenus = this.treeDisposables.add(this.instantiationService.createInstance(TreeMenus, this.id));
 		this.treeLabels = this.treeDisposables.add(this.instantiationService.createInstance(ResourceLabels, this));
 		const dataSource = this.instantiationService.createInstance(TreeDataSource, this, <T>(task: Promise<T>) => this.progressService.withProgress({ location: this.id }, () => task));
-		const aligner = this.treeDisposables.add(new Aligner(this.themeService));
+		const aligner = this.treeDisposables.add(new Aligner(this.themeService, this.logService));
 		const checkboxStateHandler = this.treeDisposables.add(new CheckboxStateHandler());
 		const renderer = this.treeDisposables.add(this.instantiationService.createInstance(TreeRenderer, this.id, treeMenus, this.treeLabels, actionViewItemProvider, aligner, checkboxStateHandler, () => this.manuallyManageCheckboxes));
 		this.treeDisposables.add(renderer.onDidChangeCheckboxState(e => this._onDidChangeCheckboxState.fire(e)));
@@ -1494,11 +1494,6 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			templateData.actionBar.actionRunner = this._actionRunner;
 		}
 		this.setAlignment(templateData.container, node);
-		if (node.collapsibleState === TreeItemCollapsibleState.None) {
-			templateData.container.classList.add('no-twisty');
-		} else {
-			templateData.container.classList.remove('no-twisty');
-		}
 
 		// remember rendered element, an element can be rendered multiple times
 		const renderedItems = this._renderedElements.get(element.element.handle) ?? [];
@@ -1629,7 +1624,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 class Aligner extends Disposable {
 	private _tree: WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore> | undefined;
 
-	constructor(private themeService: IThemeService) {
+	constructor(private themeService: IThemeService, private logService: ILogService) {
 		super();
 	}
 
@@ -1647,7 +1642,13 @@ class Aligner extends Disposable {
 
 		if (this._tree) {
 			const root = this._tree.getInput();
-			const parent: ITreeItem = this._tree.getParentElement(treeItem) || root;
+			let parent: ITreeItem;
+			try {
+				parent = this._tree.getParentElement(treeItem) || root;
+			} catch (error) {
+				this.logService.error(`[TreeView] Failed to resolve parent for ${treeItem.handle}`, error);
+				return false;
+			}
 			if (this.hasIconOrCheckbox(parent)) {
 				return !!parent.children && parent.children.some(c => c.collapsibleState !== TreeItemCollapsibleState.None && !this.hasIconOrCheckbox(c));
 			}

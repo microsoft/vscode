@@ -131,7 +131,7 @@ function fromLocalWebpack(extensionPath: string, webpackConfigFileName: string, 
 		) as string[]);
 		const webpackStreams = webpackConfigLocations.flatMap(webpackConfigPath => {
 
-			const webpackDone = (err: any, stats: any) => {
+			const webpackDone = (err: Error | undefined, stats: any) => {
 				fancyLog(`Bundled extension: ${ansiColors.yellow(path.join(path.basename(extensionPath), path.relative(extensionPath, webpackConfigPath)))}...`);
 				if (err) {
 					result.emit('error', err);

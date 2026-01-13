@@ -7,8 +7,10 @@ import { AsyncIterableProducer, raceCancellationError, Sequencer } from '../../.
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import * as json from '../../../../base/common/json.js';
+import { normalizeDriveLetter } from '../../../../base/common/labels.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../base/common/map.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { mapValues } from '../../../../base/common/objects.js';
 import { autorun, autorunSelfDisposable, derived, disposableObservableValue, IDerivedReader, IObservable, IReader, ITransaction, observableFromEvent, ObservablePromise, observableValue, transaction } from '../../../../base/common/observable.js';
 import { basename } from '../../../../base/common/resources.js';
@@ -28,14 +30,16 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IOutputService } from '../../../services/output/common/output.js';
-import { ToolProgress } from '../../chat/common/languageModelToolsService.js';
+import { ToolProgress } from '../../chat/common/tools/languageModelToolsService.js';
 import { mcpActivationEvent } from './mcpConfiguration.js';
 import { McpDevModeServerAttache } from './mcpDevMode.js';
 import { McpIcons, parseAndValidateMcpIcon, StoredMcpIcons } from './mcpIcons.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
-import { ElicitationKind, extensionMcpCollectionPrefix, IMcpElicitationService, IMcpIcons, IMcpPrompt, IMcpPromptMessage, IMcpResource, IMcpResourceTemplate, IMcpSamplingService, IMcpServer, IMcpServerConnection, IMcpServerStartOpts, IMcpTool, IMcpToolCallContext, McpCapability, McpCollectionDefinition, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, mcpPromptReplaceSpecialChars, McpResourceURI, McpServerCacheState, McpServerDefinition, McpServerStaticToolAvailability, McpServerTransportType, McpToolName, MpcResponseError, UserInteractionRequiredError } from './mcpTypes.js';
+import { McpTaskManager } from './mcpTaskManager.js';
+import { ElicitationKind, extensionMcpCollectionPrefix, IMcpElicitationService, IMcpIcons, IMcpPrompt, IMcpPromptMessage, IMcpResource, IMcpResourceTemplate, IMcpSamplingService, IMcpServer, IMcpServerConnection, IMcpServerStartOpts, IMcpTool, IMcpToolCallContext, McpCapability, McpCollectionDefinition, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, mcpPromptReplaceSpecialChars, McpResourceURI, McpServerCacheState, McpServerDefinition, McpServerStaticToolAvailability, McpServerTransportType, McpToolName, McpToolVisibility, MpcResponseError, UserInteractionRequiredError } from './mcpTypes.js';
 import { MCP } from './modelContextProtocol.js';
+import { McpApps } from './modelContextProtocolApps.js';
 import { UriTemplate } from './uriTemplate.js';
 
 type ServerBootData = {
@@ -215,6 +219,18 @@ type ValidatedMcpTool = MCP.Tool & {
 	 * in {@link McpServer._getValidatedTools}.
 	 */
 	serverToolName: string;
+
+	/**
+	 * Visibility of the tool, parsed from `_meta.ui.visibility`.
+	 * Defaults to Model | App if not specified.
+	 */
+	visibility: McpToolVisibility;
+
+	/**
+	 * UI resource URI if this tool has an associated MCP App UI.
+	 * Parsed from `_meta.ui.resourceUri`.
+	 */
+	uiResourceUri?: string;
 };
 
 interface StoredServerMetadata {
@@ -273,6 +289,9 @@ class CachedPrimitive<T, C> {
 }
 
 export class McpServer extends Disposable implements IMcpServer {
+	/** Shared task manager that survives reconnections */
+	private readonly _taskManager = this._register(new McpTaskManager());
+
 	/**
 	 * Helper function to call the function on the handler once it's online. The
 	 * connection started if it is not already.
@@ -388,6 +407,10 @@ export class McpServer extends Disposable implements IMcpServer {
 		return fromServerResult.data?.nonce === currentNonce() ? McpServerCacheState.Live : McpServerCacheState.Outdated;
 	});
 
+	public get logger(): ILogger {
+		return this._logger;
+	}
+
 	private readonly _loggerId: string;
 	private readonly _logger: ILogger;
 	private _lastModeDebugged = false;
@@ -448,10 +471,14 @@ export class McpServer extends Disposable implements IMcpServer {
 
 			cnx.roots = workspaces.read(reader)
 				.filter(w => w.uri.authority === (initialCollection.remoteAuthority || ''))
-				.map(w => ({
-					name: w.name,
-					uri: URI.from(uriTransformer?.transformIncoming(w.uri) ?? w.uri).toString()
-				}));
+				.map(w => {
+					let uri = URI.from(uriTransformer?.transformIncoming(w.uri) ?? w.uri);
+					if (uri.scheme === Schemas.file) { // #271812
+						uri = URI.file(normalizeDriveLetter(uri.fsPath, true));
+					}
+
+					return { name: w.name, uri: uri.toString() };
+				});
 		}));
 
 		// 2. Populate this.tools when we connect to a server.
@@ -583,6 +610,7 @@ export class McpServer extends Disposable implements IMcpServer {
 					definitionRef: this.definition,
 					debug,
 					errorOnUserInteraction,
+					taskManager: this._taskManager,
 				});
 				if (!connection) {
 					return { state: McpConnectionState.Kind.Stopped };
@@ -602,12 +630,12 @@ export class McpServer extends Disposable implements IMcpServer {
 
 			const start = Date.now();
 			let state = await connection.start({
-				createMessageRequestHandler: params => this._samplingService.sample({
+				createMessageRequestHandler: (params, token) => this._samplingService.sample({
 					isDuringToolCall: this.runningToolCalls.size > 0,
 					server: this,
 					params,
-				}).then(r => r.sample),
-				elicitationRequestHandler: async req => {
+				}, token).then(r => r.sample),
+				elicitationRequestHandler: async (req, token) => {
 					const serverInfo = connection.handler.get()?.serverInfo;
 					if (serverInfo) {
 						this._telemetryService.publicLog2<ElicitationTelemetryData, ElicitationTelemetryClassification>('mcp.elicitationRequested', {
@@ -616,7 +644,7 @@ export class McpServer extends Disposable implements IMcpServer {
 						});
 					}
 
-					const r = await this._elicitationService.elicit(this, Iterable.first(this.runningToolCalls), req, CancellationToken.None);
+					const r = await this._elicitationService.elicit(this, Iterable.first(this.runningToolCalls), req, token || CancellationToken.None);
 					r.dispose();
 					return r.value;
 				}
@@ -730,10 +758,28 @@ export class McpServer extends Disposable implements IMcpServer {
 	}
 
 	private async _normalizeTool(originalTool: MCP.Tool): Promise<ValidatedMcpTool | { error: string[] }> {
+		// Parse MCP Apps UI metadata from _meta.ui
+		const uiMeta = originalTool._meta?.ui as McpApps.McpUiToolMeta | undefined;
+
+		// Compute visibility from _meta.ui.visibility, defaulting to Model | App
+		let visibility: McpToolVisibility = McpToolVisibility.Model | McpToolVisibility.App;
+		if (uiMeta?.visibility && Array.isArray(uiMeta.visibility)) {
+			visibility &= 0;
+
+			if (uiMeta.visibility.includes('model')) {
+				visibility |= McpToolVisibility.Model;
+			}
+			if (uiMeta.visibility.includes('app')) {
+				visibility |= McpToolVisibility.App;
+			}
+		}
+
 		const tool: ValidatedMcpTool = {
 			...originalTool,
 			serverToolName: originalTool.name,
 			_icons: this._parseIcons(originalTool),
+			visibility,
+			uiResourceUri: uiMeta?.resourceUri,
 		};
 		if (!tool.description) {
 			// Ensure a description is provided for each tool, #243919
@@ -969,8 +1015,10 @@ export class McpTool implements IMcpTool {
 	readonly id: string;
 	readonly referenceName: string;
 	readonly icons: IMcpIcons;
+	readonly visibility: McpToolVisibility;
 
 	public get definition(): MCP.Tool { return this._definition; }
+	public get uiResourceUri(): string | undefined { return this._definition.uiResourceUri; }
 
 	constructor(
 		private readonly _server: McpServer,
@@ -981,6 +1029,7 @@ export class McpTool implements IMcpTool {
 		this.referenceName = _definition.name.replaceAll('.', '_');
 		this.id = (idPrefix + _definition.name).replaceAll('.', '_').slice(0, McpToolName.MaxLength);
 		this.icons = McpIcons.fromStored(this._definition._icons);
+		this.visibility = _definition.visibility ?? (McpToolVisibility.Model | McpToolVisibility.App);
 	}
 
 	async call(params: Record<string, unknown>, context?: IMcpToolCallContext, token?: CancellationToken): Promise<MCP.CallToolResult> {
@@ -1027,8 +1076,18 @@ export class McpTool implements IMcpTool {
 				meta['vscode.requestId'] = context.chatRequestId;
 			}
 
+			const taskHint = this._definition.execution?.taskSupport;
+			const serverSupportsTasksForTools = h.capabilities.tasks?.requests?.tools?.call !== undefined;
+			const shouldUseTask = serverSupportsTasksForTools && (taskHint === 'required' || taskHint === 'optional');
+
 			try {
-				const result = await h.callTool({ name, arguments: params, _meta: meta }, token);
+				const result = await h.callTool({
+					name,
+					arguments: params,
+					task: shouldUseTask ? {} : undefined,
+					_meta: meta,
+				}, token);
+
 				// Wait for tools to refresh for dynamic servers (#261611)
 				await this._server.awaitToolRefresh();
 

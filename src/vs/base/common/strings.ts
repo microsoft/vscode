@@ -730,12 +730,14 @@ export function isFullWidthCharacter(charCode: number): boolean {
 	//          FF00 - FFEF   Halfwidth and Fullwidth Forms
 	//               [https://en.wikipedia.org/wiki/Halfwidth_and_fullwidth_forms]
 	//               of which FF01 - FF5E fullwidth ASCII of 21 to 7E
+	//               and FFE0 - FFE6 fullwidth symbol variants
 	// [IGNORE]    and FF65 - FFDC halfwidth of Katakana and Hangul
 	// [IGNORE] FFF0 - FFFF   Specials
 	return (
 		(charCode >= 0x2E80 && charCode <= 0xD7AF)
 		|| (charCode >= 0xF900 && charCode <= 0xFAFF)
 		|| (charCode >= 0xFF01 && charCode <= 0xFF5E)
+		|| (charCode >= 0xFFE0 && charCode <= 0xFFE6)
 	);
 }
 

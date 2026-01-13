@@ -314,6 +314,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 	get label(): string { return this._label; }
 	get rootUri(): URI | undefined { return this._rootUri; }
 	get iconPath(): URI | { light: URI; dark: URI } | ThemeIcon | undefined { return this._iconPath; }
+	get isHidden(): boolean | undefined { return this._isHidden; }
 	get inputBoxTextModel(): ITextModel { return this._inputBoxTextModel; }
 
 	private readonly _contextValue = observableValue<string | undefined>(this, undefined);
@@ -353,6 +354,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 		private readonly _label: string,
 		private readonly _rootUri: URI | undefined,
 		private readonly _iconPath: URI | { light: URI; dark: URI } | ThemeIcon | undefined,
+		private readonly _isHidden: boolean | undefined,
 		private readonly _inputBoxTextModel: ITextModel,
 		private readonly _quickDiffService: IQuickDiffService,
 		private readonly _uriIdentService: IUriIdentityService,
@@ -633,11 +635,11 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		this._disposables.dispose();
 	}
 
-	async $registerSourceControl(handle: number, parentHandle: number | undefined, id: string, label: string, rootUri: UriComponents | undefined, iconPath: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon | undefined, inputBoxDocumentUri: UriComponents): Promise<void> {
+	async $registerSourceControl(handle: number, parentHandle: number | undefined, id: string, label: string, rootUri: UriComponents | undefined, iconPath: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon | undefined, isHidden: boolean | undefined, inputBoxDocumentUri: UriComponents): Promise<void> {
 		this._repositoryBarriers.set(handle, new Barrier());
 
 		const inputBoxTextModelRef = await this.textModelService.createModelReference(URI.revive(inputBoxDocumentUri));
-		const provider = new MainThreadSCMProvider(this._proxy, handle, parentHandle, id, label, rootUri ? URI.revive(rootUri) : undefined, getIconFromIconDto(iconPath), inputBoxTextModelRef.object.textEditorModel, this.quickDiffService, this._uriIdentService, this.workspaceContextService);
+		const provider = new MainThreadSCMProvider(this._proxy, handle, parentHandle, id, label, rootUri ? URI.revive(rootUri) : undefined, getIconFromIconDto(iconPath), isHidden, inputBoxTextModelRef.object.textEditorModel, this.quickDiffService, this._uriIdentService, this.workspaceContextService);
 		const repository = this.scmService.registerSCMProvider(provider);
 		this._repositories.set(handle, repository);
 

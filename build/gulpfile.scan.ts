@@ -8,12 +8,10 @@ import * as path from 'path';
 import * as task from './lib/task.ts';
 import * as util from './lib/util.ts';
 import electron from '@vscode/gulp-electron';
-import * as electronConfigModule from './lib/electron.ts';
+import { config } from './lib/electron.ts';
 import filter from 'gulp-filter';
 import * as deps from './lib/dependencies.ts';
 import { existsSync, readdirSync } from 'fs';
-
-const { config } = electronConfigModule;
 
 const root = path.dirname(import.meta.dirname);
 

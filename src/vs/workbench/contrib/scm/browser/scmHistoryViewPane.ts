@@ -295,13 +295,11 @@ registerAction2(class extends Action2 {
 			menu: [
 				{
 					id: MenuId.SCMHistoryItemContext,
-					when: ContextKeyExpr.equals('config.multiDiffEditor.experimental.enabled', true),
 					group: 'inline',
 					order: 1
 				},
 				{
 					id: MenuId.SCMHistoryItemContext,
-					when: ContextKeyExpr.equals('config.multiDiffEditor.experimental.enabled', true),
 					group: '0_view',
 					order: 1
 				}
