@@ -126,7 +126,7 @@ export class ChatPromptFilesExtensionPointHandler implements IWorkbenchContribut
  */
 export interface IExtensionPromptFileResult {
 	readonly uri: UriComponents;
-	readonly type: 'agent' | 'instructions' | 'promptFile';
+	readonly type: PromptsType;
 }
 
 /**
@@ -134,22 +134,19 @@ export interface IExtensionPromptFileResult {
  */
 CommandsRegistry.registerCommand('_listExtensionPromptFiles', async (accessor): Promise<IExtensionPromptFileResult[]> => {
 	const promptsService = accessor.get(IPromptsService);
+
+	// Get extension prompt files for all prompt types in parallel
+	const [agents, instructions, prompts] = await Promise.all([
+		promptsService.listPromptFiles(PromptsType.agent, CancellationToken.None),
+		promptsService.listPromptFiles(PromptsType.instructions, CancellationToken.None),
+		promptsService.listPromptFiles(PromptsType.prompt, CancellationToken.None),
+	]);
+
+	// Combine all files and collect extension-contributed ones
 	const result: IExtensionPromptFileResult[] = [];
-
-	// Get extension prompt files for all prompt types
-	const types: { promptType: PromptsType; resultType: 'agent' | 'instructions' | 'promptFile' }[] = [
-		{ promptType: PromptsType.agent, resultType: 'agent' },
-		{ promptType: PromptsType.instructions, resultType: 'instructions' },
-		{ promptType: PromptsType.prompt, resultType: 'promptFile' },
-	];
-
-	for (const { promptType, resultType } of types) {
-		const files = await promptsService.listPromptFilesForStorage(promptType, PromptsStorage.extension, CancellationToken.None);
-		for (const file of files) {
-			result.push({
-				uri: file.uri.toJSON(),
-				type: resultType,
-			});
+	for (const file of [...agents, ...instructions, ...prompts]) {
+		if (file.storage === PromptsStorage.extension) {
+			result.push({ uri: file.uri.toJSON(), type: file.type });
 		}
 	}
 
