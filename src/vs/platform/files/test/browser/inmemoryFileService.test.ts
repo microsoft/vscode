@@ -23,6 +23,15 @@ function getByName(root: IFileStat, name: string): IFileStat | undefined {
 	return root.children.find(child => child.name === name);
 }
 
+function createLargeBuffer(size: number, seed: number): VSBuffer {
+	const data = new Uint8Array(size);
+	for (let i = 0; i < data.length; i++) {
+		data[i] = (seed + i) % 256;
+	}
+
+	return VSBuffer.wrap(data);
+}
+
 type Fixture = {
 	root: URI;
 	indexHtml: URI;
@@ -162,6 +171,28 @@ suite('InMemory File Service', () => {
 		assert.strictEqual(content.value.toString(), 'Hello World');
 	});
 
+	test('provider open/write - append (large)', async () => {
+		const resource = joinPath(fixture.root, 'append-large-open.txt');
+		const prefix = createLargeBuffer(256 * 1024, 1);
+		const suffix = createLargeBuffer(256 * 1024, 2);
+
+		await service.writeFile(resource, prefix);
+
+		const fd = await provider.open(resource, { create: true, unlock: false, append: true });
+		try {
+			await provider.write(fd, 123 /* ignored in append mode */, suffix.buffer, 0, suffix.byteLength);
+		} finally {
+			await provider.close(fd);
+		}
+
+		const content = await service.readFile(resource);
+		assert.strictEqual(content.value.byteLength, prefix.byteLength + suffix.byteLength);
+
+		assert.deepStrictEqual(content.value.slice(0, 64).buffer, prefix.slice(0, 64).buffer);
+		assert.deepStrictEqual(content.value.slice(prefix.byteLength, prefix.byteLength + 64).buffer, suffix.slice(0, 64).buffer);
+		assert.deepStrictEqual(content.value.slice(content.value.byteLength - 64, content.value.byteLength).buffer, suffix.slice(suffix.byteLength - 64, suffix.byteLength).buffer);
+	});
+
 	test('writeFile - append', async () => {
 		const resource = joinPath(fixture.root, 'append-via-writeFile.txt');
 		await service.writeFile(resource, VSBuffer.fromString('Hello'));
@@ -170,6 +201,22 @@ suite('InMemory File Service', () => {
 
 		const content = await service.readFile(resource);
 		assert.strictEqual(content.value.toString(), 'Hello World');
+	});
+
+	test('writeFile - append (large)', async () => {
+		const resource = joinPath(fixture.root, 'append-large-writeFile.txt');
+		const prefix = createLargeBuffer(256 * 1024, 3);
+		const suffix = createLargeBuffer(256 * 1024, 4);
+
+		await service.writeFile(resource, prefix);
+		await service.writeFile(resource, suffix, { append: true });
+
+		const content = await service.readFile(resource);
+		assert.strictEqual(content.value.byteLength, prefix.byteLength + suffix.byteLength);
+
+		assert.deepStrictEqual(content.value.slice(0, 64).buffer, prefix.slice(0, 64).buffer);
+		assert.deepStrictEqual(content.value.slice(prefix.byteLength, prefix.byteLength + 64).buffer, suffix.slice(0, 64).buffer);
+		assert.deepStrictEqual(content.value.slice(content.value.byteLength - 64, content.value.byteLength).buffer, suffix.slice(suffix.byteLength - 64, suffix.byteLength).buffer);
 	});
 
 	test('rename', async () => {
