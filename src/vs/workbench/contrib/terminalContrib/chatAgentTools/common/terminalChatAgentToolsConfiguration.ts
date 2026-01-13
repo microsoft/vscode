@@ -6,7 +6,7 @@
 import type { IStringDictionary } from '../../../../../base/common/collections.js';
 import type { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
 import { localize } from '../../../../../nls.js';
-import { type IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { ConfigurationScope, type IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 import product from '../../../../../platform/product/common/product.js';
 import { terminalProfileBaseProperties } from '../../../../../platform/terminal/common/terminalPlatformConfiguration.js';
@@ -386,11 +386,13 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 
 			// #endregion
 		} satisfies Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>,
+		scope: ConfigurationScope.RESOURCE,
 	},
 	[TerminalChatAgentToolsSettingId.IgnoreDefaultAutoApproveRules]: {
 		type: 'boolean',
 		default: false,
 		tags: ['experimental'],
+		scope: ConfigurationScope.RESOURCE,
 		markdownDescription: localize('ignoreDefaultAutoApproveRules.description', "Whether to ignore the built-in default auto-approve rules used by the run in terminal tool as defined in {0}. When this setting is enabled, the run in terminal tool will ignore any rule that comes from the default set but still follow rules defined in the user, remote and workspace settings. Use this setting at your own risk; the default auto-approve rules are designed to protect you against running dangerous commands.", `\`#${TerminalChatAgentToolsSettingId.AutoApprove}#\``),
 	},
 	[TerminalChatAgentToolsSettingId.AutoApproveWorkspaceNpmScripts]: {
