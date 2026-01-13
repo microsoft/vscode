@@ -723,7 +723,7 @@ configurationRegistry.registerConfiguration({
 			title: nls.localize('chat.agentSkillsLocations.title', "Agent Skills Locations",),
 			markdownDescription: nls.localize('chat.agentSkillsLocations.description', "Specify location(s) of agent skills. Each folder should have skill subdirectories with `SKILL.md` files (e.g., for `my-skills/skillA/SKILL.md`, add `my-skills`).\n\nRelative paths are resolved from the root folder(s) of your workspace.",),
 			default: {
-				...DEFAULT_SKILL_SOURCE_FOLDERS.map((folder) => ({ [folder.location === 'userHome' ? `~/${folder.path}` : folder.path]: true })).reduce((acc, curr) => ({ ...acc, ...curr }), {}),
+				...DEFAULT_SKILL_SOURCE_FOLDERS.map((folder) => ({ [folder.path]: true })).reduce((acc, curr) => ({ ...acc, ...curr }), {}),
 			},
 			additionalProperties: { type: 'boolean' },
 			restricted: true,

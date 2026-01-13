@@ -428,7 +428,7 @@ suite('PromptsConfig', () => {
 			test('empty object returns default skill folders', () => {
 				assert.deepStrictEqual(
 					getPaths(PromptsConfig.promptSourceFolders(createMock({}), PromptsType.skill)),
-					['.github/skills', '.claude/skills', '.copilot/skills', '.claude/skills'],
+					['.github/skills', '.claude/skills', '~/.copilot/skills', '~/.claude/skills'],
 					'Must return default skill folders.',
 				);
 			});
@@ -442,8 +442,8 @@ suite('PromptsConfig', () => {
 					[
 						'.github/skills',
 						'.claude/skills',
-						'.copilot/skills',
-						'.claude/skills',
+						'~/.copilot/skills',
+						'~/.claude/skills',
 						'/custom/skills',
 						'./local/skills',
 					],
@@ -459,8 +459,8 @@ suite('PromptsConfig', () => {
 					}), PromptsType.skill)),
 					[
 						'.claude/skills',
-						'.copilot/skills',
-						'.claude/skills',
+						'~/.copilot/skills',
+						'~/.claude/skills',
 						'/custom/skills',
 					],
 					'Must filter out disabled .github/skills folder.',
@@ -472,7 +472,8 @@ suite('PromptsConfig', () => {
 					getPaths(PromptsConfig.promptSourceFolders(createMock({
 						'.github/skills': false,
 						'.claude/skills': false,
-						'.copilot/skills': false,
+						'~/.copilot/skills': false,
+						'~/.claude/skills': false,
 						'/only/custom/skills': true,
 					}), PromptsType.skill)),
 					[
@@ -494,8 +495,8 @@ suite('PromptsConfig', () => {
 					[
 						'.github/skills',
 						'.claude/skills',
-						'.copilot/skills',
-						'.claude/skills',
+						'~/.copilot/skills',
+						'~/.claude/skills',
 						'/valid/skills',
 						'./another/valid',
 					],
@@ -508,14 +509,15 @@ suite('PromptsConfig', () => {
 					getPaths(PromptsConfig.promptSourceFolders(createMock({
 						'.github/skills': true,
 						'.claude/skills': true,
-						'.copilot/skills': true,
+						'~/.copilot/skills': true,
+						'~/.claude/skills': true,
 						'/extra/skills': true,
 					}), PromptsType.skill)),
 					[
 						'.github/skills',
 						'.claude/skills',
-						'.copilot/skills',
-						'.claude/skills',
+						'~/.copilot/skills',
+						'~/.claude/skills',
 						'/extra/skills',
 					],
 					'Must include all default folders.',
