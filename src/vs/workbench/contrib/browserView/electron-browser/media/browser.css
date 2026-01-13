@@ -82,35 +82,35 @@
 		padding: 80px 40px;
 		margin: 0 2px 2px;
 		background-color: var(--vscode-editor-background);
+	}
 
-		.browser-error-content {
-			max-width: 600px;
-			width: 100%;
-		}
+	.browser-error-content {
+		max-width: 600px;
+		width: 100%;
+	}
 
-		.browser-error-title {
-			font-size: 18px;
+	.browser-error-title {
+		font-size: 18px;
+		font-weight: 600;
+		color: var(--vscode-errorForeground);
+		margin-bottom: 20px;
+	}
+
+	.browser-error-detail {
+		margin-bottom: 12px;
+		line-height: 1.6;
+		color: var(--vscode-foreground);
+
+		strong {
 			font-weight: 600;
-			color: var(--vscode-errorForeground);
-			margin-bottom: 20px;
 		}
 
-		.browser-error-detail {
-			margin-bottom: 12px;
-			line-height: 1.6;
-			color: var(--vscode-foreground);
-
-			strong {
-				font-weight: 600;
-			}
-
-			code {
-				background-color: var(--vscode-textCodeBlock-background);
-				padding: 2px 6px;
-				border-radius: 3px;
-				font-family: var(--monaco-monospace-font);
-				font-size: 12px;
-			}
+		code {
+			background-color: var(--vscode-textCodeBlock-background);
+			padding: 2px 6px;
+			border-radius: 3px;
+			font-family: var(--monaco-monospace-font);
+			font-size: 12px;
 		}
 	}
 
