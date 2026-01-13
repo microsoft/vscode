@@ -678,16 +678,17 @@ export class PromptsService extends Disposable implements IPromptsService {
 						return;
 					}
 
-					// Validate that the name matches the parent folder name (per agentskills.io specification)
+					// Sanitize the name first (remove XML tags and truncate)
+					const sanitizedName = this.truncateAgentSkillName(name, uri);
+
+					// Validate that the sanitized name matches the parent folder name (per agentskills.io specification)
 					const skillFolderUri = dirname(uri);
 					const folderName = basename(skillFolderUri);
-					if (name !== folderName) {
+					if (sanitizedName !== folderName) {
 						skippedNameMismatch++;
-						this.logger.error(`[findAgentSkills] Agent skill name "${name}" does not match folder name "${folderName}": ${uri}`);
+						this.logger.error(`[findAgentSkills] Agent skill name "${sanitizedName}" does not match folder name "${folderName}": ${uri}`);
 						return;
 					}
-
-					const sanitizedName = this.truncateAgentSkillName(name, uri);
 
 					// Check for duplicate names
 					if (seenNames.has(sanitizedName)) {

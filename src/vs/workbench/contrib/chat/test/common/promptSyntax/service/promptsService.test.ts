@@ -1115,6 +1115,7 @@ suite('PromptsService', () => {
 
 		test('should list skill files from user home', async () => {
 			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
 
 			const rootFolderName = 'list-skills-user-home';
 			const rootFolder = `/${rootFolderName}`;
@@ -1901,9 +1902,10 @@ suite('PromptsService', () => {
 			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
 
 			// Create mock filesystem with skills in both .github/skills and .claude/skills
+			// Folder names must match the skill names exactly (per agentskills.io specification)
 			await mockFiles(fileService, [
 				{
-					path: `${rootFolder}/.github/skills/github-skill-1/SKILL.md`,
+					path: `${rootFolder}/.github/skills/GitHub Skill 1/SKILL.md`,
 					contents: [
 						'---',
 						'name: "GitHub Skill 1"',
@@ -1913,7 +1915,7 @@ suite('PromptsService', () => {
 					],
 				},
 				{
-					path: `${rootFolder}/.claude/skills/claude-skill-1/SKILL.md`,
+					path: `${rootFolder}/.claude/skills/Claude Skill 1/SKILL.md`,
 					contents: [
 						'---',
 						'name: "Claude Skill 1"',
@@ -1936,7 +1938,7 @@ suite('PromptsService', () => {
 					contents: ['This is not a skill'],
 				},
 				{
-					path: '/home/user/.claude/skills/personal-skill-1/SKILL.md',
+					path: '/home/user/.claude/skills/Personal Skill 1/SKILL.md',
 					contents: [
 						'---',
 						'name: "Personal Skill 1"',
@@ -1950,7 +1952,7 @@ suite('PromptsService', () => {
 					contents: ['Not a skill file'],
 				},
 				{
-					path: '/home/user/.copilot/skills/copilot-skill-1/SKILL.md',
+					path: '/home/user/.copilot/skills/Copilot Skill 1/SKILL.md',
 					contents: [
 						'---',
 						'name: "Copilot Skill 1"',
@@ -1973,12 +1975,12 @@ suite('PromptsService', () => {
 			const githubSkill1 = projectSkills.find(skill => skill.name === 'GitHub Skill 1');
 			assert.ok(githubSkill1, 'Should find GitHub skill 1');
 			assert.strictEqual(githubSkill1.description, 'A GitHub skill for testing');
-			assert.strictEqual(githubSkill1.uri.path, `${rootFolder}/.github/skills/github-skill-1/SKILL.md`);
+			assert.strictEqual(githubSkill1.uri.path, `${rootFolder}/.github/skills/GitHub Skill 1/SKILL.md`);
 
 			const claudeSkill1 = projectSkills.find(skill => skill.name === 'Claude Skill 1');
 			assert.ok(claudeSkill1, 'Should find Claude skill 1');
 			assert.strictEqual(claudeSkill1.description, 'A Claude skill for testing');
-			assert.strictEqual(claudeSkill1.uri.path, `${rootFolder}/.claude/skills/claude-skill-1/SKILL.md`);
+			assert.strictEqual(claudeSkill1.uri.path, `${rootFolder}/.claude/skills/Claude Skill 1/SKILL.md`);
 
 			// Check personal skills
 			const personalSkills = result.filter(skill => skill.type === 'personal');
@@ -1987,12 +1989,12 @@ suite('PromptsService', () => {
 			const personalSkill1 = personalSkills.find(skill => skill.name === 'Personal Skill 1');
 			assert.ok(personalSkill1, 'Should find Personal Skill 1');
 			assert.strictEqual(personalSkill1.description, 'A personal skill for testing');
-			assert.strictEqual(personalSkill1.uri.path, '/home/user/.claude/skills/personal-skill-1/SKILL.md');
+			assert.strictEqual(personalSkill1.uri.path, '/home/user/.claude/skills/Personal Skill 1/SKILL.md');
 
 			const copilotSkill1 = personalSkills.find(skill => skill.name === 'Copilot Skill 1');
 			assert.ok(copilotSkill1, 'Should find Copilot Skill 1');
 			assert.strictEqual(copilotSkill1.description, 'A Copilot skill for testing');
-			assert.strictEqual(copilotSkill1.uri.path, '/home/user/.copilot/skills/copilot-skill-1/SKILL.md');
+			assert.strictEqual(copilotSkill1.uri.path, '/home/user/.copilot/skills/Copilot Skill 1/SKILL.md');
 		});
 
 		test('should handle parsing errors gracefully', async () => {
@@ -2006,9 +2008,10 @@ suite('PromptsService', () => {
 			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
 
 			// Create mock filesystem with malformed skill file in .github/skills
+			// Folder names must match the skill names exactly
 			await mockFiles(fileService, [
 				{
-					path: `${rootFolder}/.github/skills/valid-skill/SKILL.md`,
+					path: `${rootFolder}/.github/skills/Valid Skill/SKILL.md`,
 					contents: [
 						'---',
 						'name: "Valid Skill"',
@@ -2066,11 +2069,13 @@ suite('PromptsService', () => {
 			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
 
 			const longName = 'A'.repeat(100); // Exceeds 64 characters
+			const truncatedName = 'A'.repeat(64); // Expected after truncation
 			const longDescription = 'B'.repeat(1500); // Exceeds 1024 characters
 
 			await mockFiles(fileService, [
 				{
-					path: `${rootFolder}/.github/skills/long-skill/SKILL.md`,
+					// Folder name must match the truncated skill name
+					path: `${rootFolder}/.github/skills/${truncatedName}/SKILL.md`,
 					contents: [
 						'---',
 						`name: "${longName}"`,
@@ -2099,9 +2104,10 @@ suite('PromptsService', () => {
 
 			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
 
+			// Folder name must match the sanitized skill name (with XML tags removed)
 			await mockFiles(fileService, [
 				{
-					path: `${rootFolder}/.github/skills/xml-skill/SKILL.md`,
+					path: `${rootFolder}/.github/skills/Skill with XML tags/SKILL.md`,
 					contents: [
 						'---',
 						'name: "Skill <b>with</b> <em>XML</em> tags"',
@@ -2131,11 +2137,13 @@ suite('PromptsService', () => {
 			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
 
 			const longNameWithXml = '<p>' + 'A'.repeat(100) + '</p>'; // Exceeds 64 chars and has XML
+			const truncatedName = 'A'.repeat(64); // Expected after XML removal and truncation
 			const longDescWithXml = '<div>' + 'B'.repeat(1500) + '</div>'; // Exceeds 1024 chars and has XML
 
+			// Folder name must match the fully sanitized skill name
 			await mockFiles(fileService, [
 				{
-					path: `${rootFolder}/.github/skills/combined-skill/SKILL.md`,
+					path: `${rootFolder}/.github/skills/${truncatedName}/SKILL.md`,
 					contents: [
 						'---',
 						`name: "${longNameWithXml}"`,
