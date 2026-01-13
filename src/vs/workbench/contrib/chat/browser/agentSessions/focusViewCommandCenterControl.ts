@@ -45,6 +45,11 @@ export class FocusViewCommandCenterControl {
 		titleLabel.textContent = session?.label ?? localize('astralProjection', "Astral Projection");
 		pill.appendChild(titleLabel);
 
+		// Listen for session changes to update the title
+		this._disposables.add(this.focusViewService.onDidChangeActiveSession((newSession) => {
+			titleLabel.textContent = newSession?.label ?? localize('astralProjection', "Astral Projection");
+		}));
+
 		// Close button
 		const closeButton = $('span.focus-view-close');
 		closeButton.classList.add('codicon', 'codicon-close');
