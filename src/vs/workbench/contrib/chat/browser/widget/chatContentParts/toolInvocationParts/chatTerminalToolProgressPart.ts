@@ -1071,7 +1071,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 		const scrollableDomNode = this._scrollableContainer.getDomNode();
 
 		// Calculate and apply width based on content
-		this._applyContentWidth(scrollableDomNode, maxColumnWidth);
+		this._applyContentWidth(maxColumnWidth);
 
 		const rowHeight = this._computeRowHeightPx();
 		const padding = this._getOutputPadding();
@@ -1123,7 +1123,11 @@ class ChatTerminalToolOutputSection extends Disposable {
 		return paddingTop + paddingBottom;
 	}
 
-	private _applyContentWidth(scrollableDomNode: HTMLElement, maxColumnWidth?: number): void {
+	private _applyContentWidth(maxColumnWidth?: number): void {
+		if (!this._scrollableContainer) {
+			return;
+		}
+
 		const window = dom.getActiveWindow();
 		const font = this._terminalConfigurationService.getFont(window);
 		const charWidth = font.charWidth;
@@ -1142,15 +1146,25 @@ class ChatTerminalToolOutputSection extends Disposable {
 		// Get the max available width (container's parent width)
 		const parentWidth = this.domNode.parentElement?.clientWidth ?? 0;
 
+		const scrollableDomNode = this._scrollableContainer.getDomNode();
+
 		if (parentWidth > 0 && contentWidth < parentWidth) {
 			// Content is smaller than available space - shrink to fit
+			// Apply width to both the scrollable container and the content body
+			// The xterm element renders at full column width, so we need to clip it
 			scrollableDomNode.style.width = `${contentWidth}px`;
+			this._outputBody.style.width = `${contentWidth}px`;
+			this._terminalContainer.style.width = `${contentWidth}px`;
+			this._terminalContainer.classList.add('chat-terminal-output-terminal-clipped');
 		} else {
 			// Content needs full width or more (scrollbar will show)
 			scrollableDomNode.style.width = '';
+			this._outputBody.style.width = '';
+			this._terminalContainer.style.width = '';
+			this._terminalContainer.classList.remove('chat-terminal-output-terminal-clipped');
 		}
 
-		this._scrollableContainer?.scanDomNode();
+		this._scrollableContainer.scanDomNode();
 	}
 
 	private _computeRowHeightPx(): number {
