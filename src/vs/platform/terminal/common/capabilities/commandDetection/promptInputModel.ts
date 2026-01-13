@@ -267,6 +267,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		// Clear the prompt input value when command finishes to prepare for the next command
 		// This prevents runCommand from detecting leftover text and sending ^C unnecessarily
 		this._value = '';
+		this._onDidChangeInput.fire(this._createStateObject());
 	}
 
 	@throttle(0)
