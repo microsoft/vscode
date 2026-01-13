@@ -6,6 +6,7 @@
 import './media/chatSessionPickerActionItem.css';
 import { IAction } from '../../../../../base/common/actions.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { Delayer } from '../../../../../base/common/async.js';
 import * as dom from '../../../../../base/browser/dom.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction, IActionWidgetDropdownOptions } from '../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
@@ -181,9 +182,8 @@ export class SearchableOptionPickerActionItem extends ActionWidgetDropdownAction
 			quickPick.show();
 
 			// Debounced search state
-			let searchTimeout: ReturnType<typeof setTimeout> | undefined;
 			let currentSearchCts: CancellationTokenSource | undefined;
-			const SEARCH_DEBOUNCE_MS = 300;
+			const searchDelayer = disposables.add(new Delayer<void>(300));
 
 			const performSearch = async (query: string) => {
 				// Cancel previous search
@@ -214,12 +214,7 @@ export class SearchableOptionPickerActionItem extends ActionWidgetDropdownAction
 
 			// Listen for value changes and perform debounced search
 			disposables.add(quickPick.onDidChangeValue(value => {
-				if (searchTimeout) {
-					clearTimeout(searchTimeout);
-				}
-				searchTimeout = setTimeout(() => {
-					performSearch(value);
-				}, SEARCH_DEBOUNCE_MS);
+				searchDelayer.trigger(() => performSearch(value));
 			}));
 
 
@@ -237,9 +232,6 @@ export class SearchableOptionPickerActionItem extends ActionWidgetDropdownAction
 				}));
 
 				disposables.add(quickPick.onDidHide(() => {
-					if (searchTimeout) {
-						clearTimeout(searchTimeout);
-					}
 					currentSearchCts?.cancel();
 					currentSearchCts?.dispose();
 					disposables.dispose();
