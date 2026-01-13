@@ -33,7 +33,6 @@ export class TestContext {
 	private static readonly codesignExclude = /node_modules\/(@parcel\/watcher\/build\/Release\/watcher\.node|@vscode\/deviceid\/build\/Release\/windows\.node|@vscode\/ripgrep\/bin\/rg|@vscode\/spdlog\/build\/Release\/spdlog.node|kerberos\/build\/Release\/kerberos.node|native-watchdog\/build\/Release\/watchdog\.node|node-pty\/build\/Release\/(pty\.node|spawn-helper)|vsda\/build\/Release\/vsda\.node)$/;
 
 	private readonly tempDirs = new Set<string>();
-	private readonly logFile: string;
 	private _currentTest?: Mocha.Test & { consoleOutputs?: string[] };
 
 	public constructor(
@@ -42,10 +41,6 @@ export class TestContext {
 		public readonly verbose: boolean,
 		public readonly skipSigningCheck: boolean,
 	) {
-		const osTempDir = fs.realpathSync(os.tmpdir());
-		const logDir = fs.mkdtempSync(path.join(osTempDir, 'vscode-sanity-log'));
-		this.logFile = path.join(logDir, 'sanity.log');
-		console.log(`Log file: ${this.logFile}`);
 	}
 
 	/**
@@ -68,7 +63,6 @@ export class TestContext {
 	 */
 	public log(message: string) {
 		const line = `[${new Date().toISOString()}] ${message}`;
-		fs.appendFileSync(this.logFile, line + '\n');
 		this._currentTest?.consoleOutputs?.push(line);
 		if (this.verbose) {
 			console.log(line);
@@ -80,7 +74,6 @@ export class TestContext {
 	 */
 	public error(message: string): never {
 		const line = `[${new Date().toISOString()}] ERROR: ${message}`;
-		fs.appendFileSync(this.logFile, line + '\n');
 		this._currentTest?.consoleOutputs?.push(line);
 		console.error(line);
 		throw new Error(message);

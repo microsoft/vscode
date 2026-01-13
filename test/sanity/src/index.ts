@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import fs from 'fs';
 import minimist from 'minimist';
 import Mocha, { MochaOptions } from 'mocha';
+import path from 'path';
 
 const options = minimist(process.argv.slice(2), {
 	string: ['fgrep', 'grep', 'test-results'],
@@ -37,6 +39,10 @@ const mochaOptions: MochaOptions = {
 	reporter: testResults ? 'mocha-junit-reporter' : undefined,
 	reporterOptions: testResults ? { mochaFile: testResults, outputs: true } : undefined,
 };
+
+if (testResults) {
+	fs.mkdirSync(path.dirname(testResults), { recursive: true });
+}
 
 const mocha = new Mocha(mochaOptions);
 mocha.addFile(require.resolve('./main.js'));
