@@ -674,7 +674,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	},
 	[TerminalSettingId.AllowInUntrustedWorkspace]: {
 		restricted: true,
-		markdownDescription: localize('terminal.integrated.allowInUntrustedWorkspace', "Controls whether terminals can be created in an untrusted workspace. Note that this is a security risk as shells may execute code in the workspace, for example via shell initialization scripts."),
+		markdownDescription: localize('terminal.integrated.allowInUntrustedWorkspace', "Controls whether terminals can be created in an untrusted workspace.\n\n**This feature bypasses a security protection that prevents terminals from launching in untrusted workspaces. The reason this is a security risk is because shells are often set up to potentially execute code automatically based on the contents of the current working directory. This should be safe to use provided your shell is set up in such a way that code execution in the folder never happens.**"),
 		type: 'boolean',
 		default: false
 	},
