@@ -601,7 +601,7 @@ export class BrowserEditor extends EditorPane {
 		content.appendChild(iconContainer);
 
 		const title = $('.browser-welcome-title');
-		title.textContent = localize('browser.welcomeTitle', "Integrated Browser");
+		title.textContent = localize('browser.welcomeTitle', "Browser");
 		content.appendChild(title);
 
 		const subtitle = $('.browser-welcome-subtitle');
