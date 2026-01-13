@@ -1495,7 +1495,7 @@ export interface IDetachedXtermTerminal extends IXtermTerminal {
 	readonly buffer: IBufferSet;
 
 	/**
-	 * The number of rows in the terminal.
+	 * The number of columns in the terminal.
 	 */
 	readonly cols: number;
 }
