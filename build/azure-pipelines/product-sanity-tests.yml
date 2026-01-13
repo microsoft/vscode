@@ -14,12 +14,18 @@ parameters:
       - exploration
       - insider
       - stable
+  - name: NPM_REGISTRY
+    displayName: "Custom NPM Registry"
+    type: string
+    default: 'https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/'
 
 variables:
   - name: skipComponentGovernanceDetection
     value: true
   - name: Codeql.SkipTaskAutoInjection
     value: true
+  - name: NPM_REGISTRY
+    value: ${{ parameters.NPM_REGISTRY }}
 
 name: "$(Date:yyyyMMdd).$(Rev:r) (${{ parameters.quality }})"
 
