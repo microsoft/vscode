@@ -117,27 +117,27 @@ export class RunTaskTool implements IToolImpl {
 
 		const task = await getTaskForTool(args.id, taskDefinition, args.workspaceFolder, this._configurationService, this._tasksService, true);
 		if (!task) {
-			return { invocationMessage: new MarkdownString(localize('chat.taskNotFound', 'Task not found: `{0}`', args.id)) };
+			return { invocationMessage: new MarkdownString(localize('chat.taskNotFound', 'Task not found: `{0}`', args.id), { supportHtml: true }) };
 		}
 		const taskLabel = task._label;
 		const activeTasks = await this._tasksService.getActiveTasks();
 		if (task && activeTasks.includes(task)) {
-			return { invocationMessage: new MarkdownString(localize('chat.taskAlreadyActive', 'The task is already running.')) };
+			return { invocationMessage: new MarkdownString(localize('chat.taskAlreadyActive', 'The task is already running.'), { supportHtml: true }) };
 		}
 
 		if (await this._isTaskActive(task)) {
 			return {
-				invocationMessage: new MarkdownString(localize('chat.taskIsAlreadyRunning', '`{0}` is already running.', taskLabel)),
-				pastTenseMessage: new MarkdownString(localize('chat.taskWasAlreadyRunning', '`{0}` was already running.', taskLabel)),
+				invocationMessage: new MarkdownString(localize('chat.taskIsAlreadyRunning', '`{0}` is already running.', taskLabel), { supportHtml: true }),
+				pastTenseMessage: new MarkdownString(localize('chat.taskWasAlreadyRunning', '`{0}` was already running.', taskLabel), { supportHtml: true }),
 				confirmationMessages: undefined
 			};
 		}
 
 		return {
-			invocationMessage: new MarkdownString(localize('chat.runningTask', 'Running `{0}`', taskLabel)),
+			invocationMessage: new MarkdownString(localize('chat.runningTask', 'Running `{0}`', taskLabel), { supportHtml: true }),
 			pastTenseMessage: new MarkdownString(task?.configurationProperties.isBackground
 				? localize('chat.startedTask', 'Started `{0}`', taskLabel)
-				: localize('chat.ranTask', 'Ran `{0}`', taskLabel)),
+				: localize('chat.ranTask', 'Ran `{0}`', taskLabel), { supportHtml: true }),
 			confirmationMessages: task
 				? { title: localize('chat.allowTaskRunTitle', 'Allow task run?'), message: localize('chat.allowTaskRunMsg', 'Allow to run the task `{0}`?', taskLabel) }
 				: undefined

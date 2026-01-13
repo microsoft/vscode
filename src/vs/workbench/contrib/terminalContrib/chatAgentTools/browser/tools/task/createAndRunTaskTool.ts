@@ -157,8 +157,8 @@ export class CreateAndRunTaskTool implements IToolImpl {
 		const allTasks = await this._tasksService.tasks();
 		if (allTasks?.find(t => t._label === task.label)) {
 			return {
-				invocationMessage: new MarkdownString(localize('taskExists', 'Task `{0}` already exists.', task.label)),
-				pastTenseMessage: new MarkdownString(localize('taskExistsPast', 'Task `{0}` already exists.', task.label)),
+				invocationMessage: new MarkdownString(localize('taskExists', 'Task `{0}` already exists.', task.label), { supportHtml: true }),
+				pastTenseMessage: new MarkdownString(localize('taskExistsPast', 'Task `{0}` already exists.', task.label), { supportHtml: true }),
 				confirmationMessages: undefined
 			};
 		}
@@ -166,15 +166,15 @@ export class CreateAndRunTaskTool implements IToolImpl {
 		const activeTasks = await this._tasksService.getActiveTasks();
 		if (activeTasks.find(t => t._label === task.label)) {
 			return {
-				invocationMessage: new MarkdownString(localize('alreadyRunning', 'Task \`{0}\` is already running.', task.label)),
-				pastTenseMessage: new MarkdownString(localize('alreadyRunning', 'Task \`{0}\` is already running.', task.label)),
+				invocationMessage: new MarkdownString(localize('alreadyRunning', 'Task \`{0}\` is already running.', task.label), { supportHtml: true }),
+				pastTenseMessage: new MarkdownString(localize('alreadyRunning', 'Task \`{0}\` is already running.', task.label), { supportHtml: true }),
 				confirmationMessages: undefined
 			};
 		}
 
 		return {
-			invocationMessage: new MarkdownString(localize('createdTask', 'Created task \`{0}\`', task.label)),
-			pastTenseMessage: new MarkdownString(localize('createdTaskPast', 'Created task \`{0}\`', task.label)),
+			invocationMessage: new MarkdownString(localize('createdTask', 'Created task \`{0}\`', task.label), { supportHtml: true }),
+			pastTenseMessage: new MarkdownString(localize('createdTaskPast', 'Created task \`{0}\`', task.label), { supportHtml: true }),
 			confirmationMessages: {
 				title: localize('allowTaskCreationExecution', 'Allow task creation and execution?'),
 				message: new MarkdownString(
