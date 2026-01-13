@@ -33,7 +33,7 @@ export function setup(context: TestContext) {
 				const dir = await context.downloadAndUnpack('darwin-universal');
 				context.validateAllCodesignSignatures(dir);
 				const entryPoint = context.installMacApp(dir);
-				await testDesktopApp(entryPoint, { universal: true });
+				await testDesktopApp(entryPoint);
 			});
 		}
 
@@ -41,7 +41,8 @@ export function setup(context: TestContext) {
 			it('desktop-linux-arm64', async () => {
 				const dir = await context.downloadAndUnpack('linux-arm64');
 				const entryPoint = context.getEntryPoint('desktop', dir);
-				await testDesktopApp(entryPoint);
+				const dataDir = context.createPortableDataDir(dir);
+				await testDesktopApp(entryPoint, dataDir);
 			});
 		}
 
@@ -49,7 +50,8 @@ export function setup(context: TestContext) {
 			it('desktop-linux-armhf', async () => {
 				const dir = await context.downloadAndUnpack('linux-armhf');
 				const entryPoint = context.getEntryPoint('desktop', dir);
-				await testDesktopApp(entryPoint);
+				const dataDir = context.createPortableDataDir(dir);
+				await testDesktopApp(entryPoint, dataDir);
 			});
 		}
 
@@ -113,14 +115,14 @@ export function setup(context: TestContext) {
 			it('desktop-linux-x64', async () => {
 				const dir = await context.downloadAndUnpack('linux-x64');
 				const entryPoint = context.getEntryPoint('desktop', dir);
-				await testDesktopApp(entryPoint);
+				const dataDir = context.createPortableDataDir(dir);
+				await testDesktopApp(entryPoint, dataDir);
 			});
 		}
 
 		if (context.platform === 'win32-arm64') {
 			it('desktop-win32-arm64', async () => {
 				const packagePath = await context.downloadTarget('win32-arm64');
-				context.validateAuthenticodeSignature(packagePath);
 				const entryPoint = context.installWindowsApp('system', packagePath);
 				context.validateAllAuthenticodeSignatures(path.dirname(entryPoint));
 				await testDesktopApp(entryPoint);
@@ -133,14 +135,14 @@ export function setup(context: TestContext) {
 				const dir = await context.downloadAndUnpack('win32-arm64-archive');
 				context.validateAllAuthenticodeSignatures(dir);
 				const entryPoint = context.getEntryPoint('desktop', dir);
-				await testDesktopApp(entryPoint);
+				const dataDir = context.createPortableDataDir(dir);
+				await testDesktopApp(entryPoint, dataDir);
 			});
 		}
 
 		if (context.platform === 'win32-arm64') {
 			it('desktop-win32-arm64-user', async () => {
 				const packagePath = await context.downloadTarget('win32-arm64-user');
-				context.validateAuthenticodeSignature(packagePath);
 				const entryPoint = context.installWindowsApp('user', packagePath);
 				context.validateAllAuthenticodeSignatures(path.dirname(entryPoint));
 				await testDesktopApp(entryPoint);
@@ -151,7 +153,6 @@ export function setup(context: TestContext) {
 		if (context.platform === 'win32-x64') {
 			it('desktop-win32-x64', async () => {
 				const packagePath = await context.downloadTarget('win32-x64');
-				context.validateAuthenticodeSignature(packagePath);
 				const entryPoint = context.installWindowsApp('system', packagePath);
 				context.validateAllAuthenticodeSignatures(path.dirname(entryPoint));
 				await testDesktopApp(entryPoint);
@@ -164,14 +165,14 @@ export function setup(context: TestContext) {
 				const dir = await context.downloadAndUnpack('win32-x64-archive');
 				context.validateAllAuthenticodeSignatures(dir);
 				const entryPoint = context.getEntryPoint('desktop', dir);
-				await testDesktopApp(entryPoint);
+				const dataDir = context.createPortableDataDir(dir);
+				await testDesktopApp(entryPoint, dataDir);
 			});
 		}
 
 		if (context.platform === 'win32-x64') {
 			it('desktop-win32-x64-user', async () => {
 				const packagePath = await context.downloadTarget('win32-x64-user');
-				context.validateAuthenticodeSignature(packagePath);
 				const entryPoint = context.installWindowsApp('user', packagePath);
 				context.validateAllAuthenticodeSignatures(path.dirname(entryPoint));
 				await testDesktopApp(entryPoint);
@@ -179,22 +180,16 @@ export function setup(context: TestContext) {
 			});
 		}
 
-		async function testDesktopApp(entryPoint: string, options?: { universal?: boolean }) {
-			const test = new UITest(context);
-			const args = [
+		async function testDesktopApp(entryPoint: string, dataDir?: string) {
+			const test = new UITest(context, dataDir);
+			const args = dataDir ? [] : [
 				'--extensions-dir', test.extensionsDir,
 				'--user-data-dir', test.userDataDir,
-				test.workspaceDir
 			];
-
-			// Ensure correct architecture preference for universal binary on x64 Mac.
-			const env = {
-				...process.env,
-				ARCHPREFERENCE: options?.universal && context.platform === 'darwin-x64' ? 'x86_64' : undefined
-			};
+			args.push(test.workspaceDir);
 
 			context.log(`Starting VS Code ${entryPoint} with args ${args.join(' ')}`);
-			const app = await _electron.launch({ executablePath: entryPoint, args, env: env as Record<string, string> });
+			const app = await _electron.launch({ executablePath: entryPoint, args });
 			const window = await app.firstWindow();
 
 			await test.run(window);
