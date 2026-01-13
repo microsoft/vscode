@@ -143,9 +143,9 @@ class ChatPromptFilesDataRenderer extends Disposable implements IExtensionFeatur
 		}
 
 		const headers = [
-			localize('chatPromptFilesName', "Name"),
-			localize('chatPromptFilesDescription', "Description"),
-			localize('chatPromptFilesPath', "Path"),
+			localize('chatFilesName', "Name"),
+			localize('chatFilesDescription', "Description"),
+			localize('chatFilesPath', "Path"),
 		];
 
 		const rows: IRowData[][] = contributions.map(d => {
