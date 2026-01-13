@@ -317,11 +317,10 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			this._evaluateAvailability();
 		}));
 
-		const supportedSessionProviders = new Set(Object.values(AgentSessionProviders));
 		const builtinSessionProviders = [AgentSessionProviders.Local];
 		const contributedSessionProviders = observableFromEvent(
 			this.onDidChangeAvailability,
-			() => Array.from(this._contributions.keys()).filter(v => supportedSessionProviders.has(v as AgentSessionProviders)) as AgentSessionProviders[],
+			() => Array.from(this._contributions.keys()).filter(isAgentSessionProviderType) as AgentSessionProviders[],
 		).recomputeInitiallyAndOnChange(this._store);
 
 		this._register(autorun(reader => {
@@ -530,6 +529,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	private _registerCommands(contribution: IChatSessionsExtensionPoint): IDisposable {
+		const isAvailableInSessionTypePicker = isAgentSessionProviderType(contribution.type);
+
 		return combinedDisposable(
 			registerAction2(class OpenChatSessionAction extends Action2 {
 				constructor() {
@@ -583,10 +584,10 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 						icon: Codicon.plus,
 						f1: false, // Hide from Command Palette
 						precondition: ChatContextKeys.enabled,
-						menu: {
+						menu: !isAvailableInSessionTypePicker ? {
 							id: MenuId.ChatNewMenu,
 							group: '3_new_special',
-						}
+						} : undefined,
 					});
 				}
 
@@ -1100,7 +1101,7 @@ function registerNewSessionInPlaceAction(type: string, displayName: string): IDi
 				throw new BugIndicatingError(`Invalid chat session position argument: ${chatSessionPosition}`);
 			}
 
-			await openChatSession(accessor, { type: type, displayName: displayName, position: chatSessionPosition, replaceEditor: true });
+			await openChatSession(accessor, { type: type, displayName: localize('chat', "Chat"), position: chatSessionPosition, replaceEditor: true });
 		}
 	});
 }
@@ -1198,4 +1199,8 @@ function getResourceForNewChatSession(options: NewChatSessionOpenOptions): URI {
 	}
 
 	return LocalChatSessionUri.forSession(generateUuid());
+}
+
+function isAgentSessionProviderType(type: string): boolean {
+	return Object.values(AgentSessionProviders).includes(type as AgentSessionProviders);
 }

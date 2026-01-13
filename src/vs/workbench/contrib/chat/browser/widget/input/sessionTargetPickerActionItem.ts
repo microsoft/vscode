@@ -81,7 +81,7 @@ export class SessionTypePickerActionItem extends ActionWidgetDropdownActionViewI
 		const learnMoreUrl = 'https://code.visualstudio.com/docs/copilot/agents/overview';
 		actionBarActions.push({
 			id: 'workbench.action.chat.agentOverview.learnMore',
-			label: localize('chat.learnMore', "Learn more"),
+			label: localize('chat.learnMore', "Learn about agent types..."),
 			tooltip: learnMoreUrl,
 			class: undefined,
 			enabled: true,
