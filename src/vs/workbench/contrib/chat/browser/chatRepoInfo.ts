@@ -173,6 +173,7 @@ async function generateUnifiedDiff(
 
 /**
  * Computes unified diff hunks using VS Code's diff algorithm.
+ * Merges adjacent/overlapping hunks to produce a valid patch.
  */
 function computeDiffHunks(originalLines: string[], modifiedLines: string[]): string[] {
 	const contextSize = 3;
@@ -189,36 +190,85 @@ function computeDiffHunks(originalLines: string[], modifiedLines: string[]): str
 		return result;
 	}
 
-	for (const change of diffResult.changes) {
-		const origStart = change.original.startLineNumber;
-		const origEnd = change.original.endLineNumberExclusive;
-		const modStart = change.modified.startLineNumber;
-		const modEnd = change.modified.endLineNumberExclusive;
+	// Group changes that should be merged into the same hunk
+	// Changes are merged if their context regions would overlap
+	type Change = typeof diffResult.changes[number];
+	const hunkGroups: Change[][] = [];
+	let currentGroup: Change[] = [];
 
-		const contextOrigStart = Math.max(1, origStart - contextSize);
-		const contextOrigEnd = Math.min(originalLines.length, origEnd - 1 + contextSize);
-		const contextModStart = Math.max(1, modStart - contextSize);
-		const contextModEnd = Math.min(modifiedLines.length, modEnd - 1 + contextSize);
+	for (const change of diffResult.changes) {
+		if (currentGroup.length === 0) {
+			currentGroup.push(change);
+		} else {
+			const lastChange = currentGroup[currentGroup.length - 1];
+			const lastContextEnd = lastChange.original.endLineNumberExclusive - 1 + contextSize;
+			const currentContextStart = change.original.startLineNumber - contextSize;
+
+			// Merge if context regions overlap or are adjacent
+			if (currentContextStart <= lastContextEnd + 1) {
+				currentGroup.push(change);
+			} else {
+				hunkGroups.push(currentGroup);
+				currentGroup = [change];
+			}
+		}
+	}
+	if (currentGroup.length > 0) {
+		hunkGroups.push(currentGroup);
+	}
+
+	// Generate a single hunk for each group
+	for (const group of hunkGroups) {
+		const firstChange = group[0];
+		const lastChange = group[group.length - 1];
+
+		const hunkOrigStart = Math.max(1, firstChange.original.startLineNumber - contextSize);
+		const hunkOrigEnd = Math.min(originalLines.length, lastChange.original.endLineNumberExclusive - 1 + contextSize);
+		const hunkModStart = Math.max(1, firstChange.modified.startLineNumber - contextSize);
 
 		const hunkLines: string[] = [];
+		let origLineNum = hunkOrigStart;
+		let origCount = 0;
+		let modCount = 0;
 
-		for (let i = contextOrigStart; i < origStart; i++) {
-			hunkLines.push(` ${originalLines[i - 1]}`);
-		}
-		for (let i = origStart; i < origEnd; i++) {
-			hunkLines.push(`-${originalLines[i - 1]}`);
-		}
-		for (let i = modStart; i < modEnd; i++) {
-			hunkLines.push(`+${modifiedLines[i - 1]}`);
-		}
-		for (let i = origEnd; i <= contextOrigEnd; i++) {
-			hunkLines.push(` ${originalLines[i - 1]}`);
+		// Process each change in the group, emitting context lines between them
+		for (const change of group) {
+			const origStart = change.original.startLineNumber;
+			const origEnd = change.original.endLineNumberExclusive;
+			const modStart = change.modified.startLineNumber;
+			const modEnd = change.modified.endLineNumberExclusive;
+
+			// Emit context lines before this change
+			while (origLineNum < origStart) {
+				hunkLines.push(` ${originalLines[origLineNum - 1]}`);
+				origLineNum++;
+				origCount++;
+				modCount++;
+			}
+
+			// Emit deleted lines
+			for (let i = origStart; i < origEnd; i++) {
+				hunkLines.push(`-${originalLines[i - 1]}`);
+				origLineNum++;
+				origCount++;
+			}
+
+			// Emit added lines
+			for (let i = modStart; i < modEnd; i++) {
+				hunkLines.push(`+${modifiedLines[i - 1]}`);
+				modCount++;
+			}
 		}
 
-		const origCount = (origEnd - origStart) + (origStart - contextOrigStart) + (contextOrigEnd - origEnd + 1);
-		const modCount = (modEnd - modStart) + (modStart - contextModStart) + (contextModEnd - modEnd + 1);
+		// Emit trailing context lines
+		while (origLineNum <= hunkOrigEnd) {
+			hunkLines.push(` ${originalLines[origLineNum - 1]}`);
+			origLineNum++;
+			origCount++;
+			modCount++;
+		}
 
-		result.push(`@@ -${contextOrigStart},${origCount} +${contextModStart},${modCount} @@`);
+		result.push(`@@ -${hunkOrigStart},${origCount} +${hunkModStart},${modCount} @@`);
 		result.push(...hunkLines);
 	}
 
