@@ -1364,8 +1364,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return hideAll();
 		}
 
-		this.chatSessionHasOptions.set(true);
-
 		// First update all context keys with current values (before evaluating visibility)
 		for (const optionGroup of optionGroups) {
 			const currentOption = this.chatSessionsService.getSessionOption(ctx.chatSessionResource, optionGroup.id);
@@ -1387,6 +1385,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				visibleGroupIds.add(optionGroup.id);
 			}
 		}
+
+		// Only show the picker if there are visible option groups
+		if (visibleGroupIds.size === 0) {
+			return hideAll();
+		}
+
+		this.chatSessionHasOptions.set(true);
 
 		const currentWidgetGroupIds = new Set(this.chatSessionPickerWidgets.keys());
 
