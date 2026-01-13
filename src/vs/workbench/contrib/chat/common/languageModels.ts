@@ -554,7 +554,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 			const languageModelsGroups: ILanguageModelsGroup[] = [];
 
 			try {
-				const models = await this._resolveLanguageModels(vendorId, provider, { silent });
+				const models = await this._resolveLanguageModels(provider, { silent });
 				if (models.length) {
 					allModels.push(...models);
 					languageModelsGroups.push({ models });
@@ -578,7 +578,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 				const configuration = await this._resolveConfiguration(group, vendor.configuration);
 
 				try {
-					const models = await this._resolveLanguageModels(vendorId, provider, { group: group.name, silent, configuration });
+					const models = await this._resolveLanguageModels(provider, { group: group.name, silent, configuration });
 					if (models.length) {
 						allModels.push(...models);
 						languageModelsGroups.push({ group, models });
@@ -598,27 +598,24 @@ export class LanguageModelsService implements ILanguageModelsService {
 			this._modelsGroups.set(vendorId, languageModelsGroups);
 			this._clearModelCache(vendorId);
 			for (const model of allModels) {
+				if (this._modelCache.has(model.identifier)) {
+					this._logService.warn(`[LM] Model ${model.identifier} is already registered. Skipping.`);
+					continue;
+				}
 				this._modelCache.set(model.identifier, model.metadata);
 			}
+			this._logService.trace(`[LM] Resolved language models for vendor ${vendor}`, allModels);
 			this._onLanguageModelChange.fire(vendorId);
 		});
 	}
 
-	private async _resolveLanguageModels(vendor: string, provider: ILanguageModelChatProvider, options: ILanguageModelChatInfoOptions): Promise<ILanguageModelChatMetadataAndIdentifier[]> {
+	private async _resolveLanguageModels(provider: ILanguageModelChatProvider, options: ILanguageModelChatInfoOptions): Promise<ILanguageModelChatMetadataAndIdentifier[]> {
 		let models = await provider.provideLanguageModelChatInfo(options, CancellationToken.None);
 		if (models.length) {
 			// This is a bit of a hack, when prompting user if the provider returns any models that are user selectable then we only want to show those and not the entire model list
 			if (!options.silent && models.some(m => m.metadata.isUserSelectable)) {
 				models = models.filter(m => m.metadata.isUserSelectable || this._modelPickerUserPreferences[m.identifier] === true);
 			}
-
-			for (const { identifier } of models) {
-				if (this._modelCache.has(identifier)) {
-					this._logService.warn(`[LM] Model ${identifier} is already registered. Skipping.`);
-					continue;
-				}
-			}
-			this._logService.trace(`[LM] Resolved language models for vendor ${vendor}`, models);
 		}
 		return models;
 	}
