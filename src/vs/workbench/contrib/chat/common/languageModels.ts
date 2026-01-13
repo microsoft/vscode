@@ -604,7 +604,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 				}
 				this._modelCache.set(model.identifier, model.metadata);
 			}
-			this._logService.trace(`[LM] Resolved language models for vendor ${vendor}`, allModels);
+			this._logService.trace(`[LM] Resolved language models for vendor ${vendorId}`, allModels);
 			this._onLanguageModelChange.fire(vendorId);
 		});
 	}
