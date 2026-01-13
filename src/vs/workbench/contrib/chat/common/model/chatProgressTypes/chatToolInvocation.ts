@@ -114,7 +114,10 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	 * Update the streaming message (from handleToolStream).
 	 */
 	public updateStreamingMessage(message: string | IMarkdownString): void {
-		if (this._state.get().type !== IChatToolInvocation.StateKind.Streaming) {
+		const state = this._state.get();
+		console.log(`[ChatToolInvocation#updateStreamingMessage] toolCallId=${this.toolCallId}, state=${state.type}, message=${typeof message === 'string' ? message : message.value}`);
+		if (state.type !== IChatToolInvocation.StateKind.Streaming) {
+			console.log(`[ChatToolInvocation#updateStreamingMessage] Skipping - not in streaming state`);
 			return; // Only update in streaming state
 		}
 		this._streamingMessage.set(message, undefined);
@@ -125,12 +128,18 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	 * Called when the full tool call is ready.
 	 */
 	public transitionFromStreaming(preparedInvocation: IPreparedToolInvocation | undefined, parameters: unknown): void {
-		if (this._state.get().type !== IChatToolInvocation.StateKind.Streaming) {
+		const currentState = this._state.get();
+		console.log(`[ChatToolInvocation#transitionFromStreaming] toolCallId=${this.toolCallId}, currentState=${currentState.type}`);
+		if (currentState.type !== IChatToolInvocation.StateKind.Streaming) {
+			console.log(`[ChatToolInvocation#transitionFromStreaming] Skipping - not in streaming state`);
 			return; // Only transition from streaming state
 		}
 
 		// Preserve the last streaming message if no new invocation message is provided
 		const lastStreamingMessage = this._streamingMessage.get();
+		console.log(`[ChatToolInvocation#transitionFromStreaming] lastStreamingMessage=${typeof lastStreamingMessage === 'string' ? lastStreamingMessage : lastStreamingMessage?.value}`);
+		console.log(`[ChatToolInvocation#transitionFromStreaming] preparedInvocation.invocationMessage=${typeof preparedInvocation?.invocationMessage === 'string' ? preparedInvocation?.invocationMessage : preparedInvocation?.invocationMessage?.value}`);
+		console.log(`[ChatToolInvocation#transitionFromStreaming] preparedInvocation.pastTenseMessage=${typeof preparedInvocation?.pastTenseMessage === 'string' ? preparedInvocation?.pastTenseMessage : preparedInvocation?.pastTenseMessage?.value}`);
 		if (lastStreamingMessage && !preparedInvocation?.invocationMessage) {
 			this.invocationMessage = lastStreamingMessage;
 		}
@@ -184,11 +193,15 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	}
 
 	public didExecuteTool(result: IToolResult | undefined, final?: boolean): IChatToolInvocation.State {
+		console.log(`[ChatToolInvocation#didExecuteTool] toolCallId=${this.toolCallId}, hasResult=${!!result}, final=${final}`);
+		console.log(`[ChatToolInvocation#didExecuteTool] result.toolResultMessage=${typeof result?.toolResultMessage === 'string' ? result?.toolResultMessage : result?.toolResultMessage?.value}`);
+		console.log(`[ChatToolInvocation#didExecuteTool] current pastTenseMessage=${typeof this.pastTenseMessage === 'string' ? this.pastTenseMessage : this.pastTenseMessage?.value}`);
 		if (result?.toolResultMessage) {
 			this.pastTenseMessage = result.toolResultMessage;
 		} else if (this._progress.get().message) {
 			this.pastTenseMessage = this._progress.get().message;
 		}
+		console.log(`[ChatToolInvocation#didExecuteTool] final pastTenseMessage=${typeof this.pastTenseMessage === 'string' ? this.pastTenseMessage : this.pastTenseMessage?.value}`);
 
 		if (this.confirmationMessages?.confirmResults && !result?.toolResultError && result?.confirmResults !== false && !final) {
 			this._state.set({

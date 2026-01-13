@@ -50,9 +50,11 @@ export class ChatToolStreamingSubPart extends BaseChatToolInvocationSubPart {
 		// Observe streaming message changes
 		this._register(autorun(reader => {
 			const currentState = toolInvocation.state.read(reader);
+			console.log(`[ChatToolStreamingSubPart] autorun: currentState=${currentState.type}, toolCallId=${toolInvocation.toolCallId}`);
 			if (currentState.type !== IChatToolInvocation.StateKind.Streaming) {
 				// State changed - clear the container DOM before triggering re-render
 				// This prevents the old streaming message from lingering
+				console.log(`[ChatToolStreamingSubPart] State changed from Streaming - clearing DOM and re-rendering`);
 				dom.clearNode(container);
 				this._onNeedsRerender.fire();
 				return;
@@ -61,6 +63,7 @@ export class ChatToolStreamingSubPart extends BaseChatToolInvocationSubPart {
 			// Read the streaming message
 			const streamingMessage = currentState.streamingMessage.read(reader);
 			const displayMessage = streamingMessage ?? toolInvocation.invocationMessage;
+			console.log(`[ChatToolStreamingSubPart] Rendering: streamingMessage=${typeof streamingMessage === 'string' ? streamingMessage : streamingMessage?.value}, displayMessage=${typeof displayMessage === 'string' ? displayMessage : displayMessage?.value}`);
 
 			const content: IMarkdownString = typeof displayMessage === 'string'
 				? new MarkdownString().appendText(displayMessage)

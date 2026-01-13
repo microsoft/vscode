@@ -303,6 +303,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	async invokeTool(dto: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult> {
 		this._logService.trace(`[LanguageModelToolsService#invokeTool] Invoking tool ${dto.toolId} with parameters ${JSON.stringify(dto.parameters)}`);
+		this._logService.info(`[LanguageModelToolsService#invokeTool] callId=${dto.callId}, toolId=${dto.toolId}`);
+		this._logService.info(`[LanguageModelToolsService#invokeTool] Pending tool calls: ${[...this._pendingToolCalls.keys()].join(', ')}`);
 
 		// When invoking a tool, don't validate the "when" clause. An extension may have invoked a tool just as it was becoming disabled, and just let it go through rather than throw and break the chat.
 		let tool = this._tools.get(dto.toolId);
@@ -323,6 +325,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		// Check if there's an existing pending tool call from streaming phase
 		let toolInvocation: ChatToolInvocation | undefined = this._pendingToolCalls.get(dto.callId);
 		const hadPendingInvocation = !!toolInvocation;
+		this._logService.info(`[LanguageModelToolsService#invokeTool] hadPendingInvocation=${hadPendingInvocation}, toolInvocation.toolCallId=${toolInvocation?.toolCallId}`);
 		if (hadPendingInvocation) {
 			// Remove from pending since we're now invoking it
 			this._pendingToolCalls.delete(dto.callId);
@@ -373,9 +376,11 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 				if (hadPendingInvocation && toolInvocation) {
 					// Transition from streaming to executing/waiting state
+					this._logService.info(`[LanguageModelToolsService#invokeTool] Transitioning from streaming to executing for toolCallId=${dto.callId}`);
 					toolInvocation.transitionFromStreaming(preparedInvocation, dto.parameters);
 				} else {
 					// Create a new tool invocation (no streaming phase)
+					this._logService.info(`[LanguageModelToolsService#invokeTool] Creating NEW tool invocation (no streaming match) for callId=${dto.callId}`);
 					toolInvocation = new ChatToolInvocation(preparedInvocation, tool.data, dto.callId, dto.fromSubAgent, dto.parameters);
 					this._chatService.appendProgress(request, toolInvocation);
 				}
@@ -584,6 +589,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		});
 
 		// Track the pending tool call
+		this._logService.info(`[LanguageModelToolsService#beginToolCall] Storing pending tool call with key=${options.toolCallId}`);
 		this._pendingToolCalls.set(options.toolCallId, invocation);
 
 		// If we have a session, append the invocation to the chat as progress
