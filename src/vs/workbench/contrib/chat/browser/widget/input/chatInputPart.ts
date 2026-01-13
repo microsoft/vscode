@@ -114,7 +114,7 @@ import { ChatRelatedFiles } from '../../attachments/chatInputRelatedFilesContrib
 import { resizeImage } from '../../chatImageUtils.js';
 import { IModelPickerDelegate, ModelPickerActionItem } from './modelPickerActionItem.js';
 import { IModePickerDelegate, ModePickerActionItem } from './modePickerActionItem.js';
-import { IAgentSessionPickerDelegate, SessionTargetPickerActionItem } from './sessionTargetPickerActionItem.js';
+import { ISessionTypePickerDelegate, SessionTypePickerActionItem } from './sessionTargetPickerActionItem.js';
 import { getAgentSessionProvider } from '../../agentSessions/agentSessions.js';
 import { SearchableOptionPickerActionItem } from '../../chatSessions/searchableOptionPickerActionItemtest.js';
 
@@ -321,7 +321,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatSessionHasOptions: IContextKey<boolean>;
 	private modelWidget: ModelPickerActionItem | undefined;
 	private modeWidget: ModePickerActionItem | undefined;
-	private sessionTargetWidget: SessionTargetPickerActionItem | undefined;
+	private sessionTargetWidget: SessionTypePickerActionItem | undefined;
 	private chatSessionPickerWidgets: Map<string, ChatSessionPickerActionItem | SearchableOptionPickerActionItem> = new Map();
 	private chatSessionPickerContainer: HTMLElement | undefined;
 	private _lastSessionPickerAction: MenuItemAction | undefined;
@@ -1750,14 +1750,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					};
 					return this.modeWidget = this.instantiationService.createInstance(ModePickerActionItem, action, delegate);
 				} else if (action.id === OpenSessionTargetPickerAction.ID && action instanceof MenuItemAction) {
-					const delegate: IAgentSessionPickerDelegate = {
+					const delegate: ISessionTypePickerDelegate = {
 						getActiveSessionProvider: () => {
 							const sessionResource = this._widget?.viewModel?.sessionResource;
 							return sessionResource ? getAgentSessionProvider(sessionResource) : undefined;
 						},
 					};
 					const chatSessionPosition = isIChatResourceViewContext(widget.viewContext) ? 'editor' : 'sidebar';
-					return this.sessionTargetWidget = this.instantiationService.createInstance(SessionTargetPickerActionItem, action, chatSessionPosition, delegate);
+					return this.sessionTargetWidget = this.instantiationService.createInstance(SessionTypePickerActionItem, action, chatSessionPosition, delegate);
 				} else if (action.id === ChatSessionPrimaryPickerAction.ID && action instanceof MenuItemAction) {
 					// Create all pickers and return a container action view item
 					const widgets = this.createChatSessionPickerWidgets(action);

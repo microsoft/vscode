@@ -7,6 +7,7 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { ActionWidgetDropdownActionViewItem } from '../../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
 import { MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
@@ -19,11 +20,11 @@ import { IOpenerService } from '../../../../../../platform/opener/common/opener.
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../agentSessions/agentSessions.js';
 
-export interface IAgentSessionPickerDelegate {
+export interface ISessionTypePickerDelegate {
 	getActiveSessionProvider(): AgentSessionProviders | undefined;
 }
 
-interface IAgentSessionItem {
+interface ISessionTypeItem {
 	type: AgentSessionProviders;
 	label: string;
 	description: string;
@@ -34,13 +35,13 @@ interface IAgentSessionItem {
  * Action view item for selecting a session target in the chat interface.
  * This picker allows switching between different chat session types contributed via extensions.
  */
-export class SessionTargetPickerActionItem extends ActionWidgetDropdownActionViewItem {
-	private _agentSessionItems: IAgentSessionItem[] = [];
+export class SessionTypePickerActionItem extends ActionWidgetDropdownActionViewItem {
+	private _sessionTypeItems: ISessionTypeItem[] = [];
 
 	constructor(
 		action: MenuItemAction,
 		private readonly chatSessionPosition: 'sidebar' | 'editor',
-		private readonly delegate: IAgentSessionPickerDelegate,
+		private readonly delegate: ISessionTypePickerDelegate,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -53,17 +54,17 @@ export class SessionTargetPickerActionItem extends ActionWidgetDropdownActionVie
 				const currentType = this.delegate.getActiveSessionProvider();
 
 				const actions: IActionWidgetDropdownAction[] = [];
-				for (const agentSessionItem of this._agentSessionItems) {
+				for (const sessionTypeItem of this._sessionTypeItems) {
 					actions.push({
 						...action,
-						id: agentSessionItem.commandId,
-						label: agentSessionItem.label,
-						tooltip: agentSessionItem.description,
-						checked: currentType === agentSessionItem.type,
-						icon: getAgentSessionProviderIcon(agentSessionItem.type),
+						id: sessionTypeItem.commandId,
+						label: sessionTypeItem.label,
+						tooltip: sessionTypeItem.description,
+						checked: currentType === sessionTypeItem.type,
+						icon: getAgentSessionProviderIcon(sessionTypeItem.type),
 						enabled: true,
 						run: async () => {
-							this.commandService.executeCommand(agentSessionItem.commandId, this.chatSessionPosition);
+							this.commandService.executeCommand(sessionTypeItem.commandId, this.chatSessionPosition);
 							if (this.element) {
 								this.renderLabel(this.element);
 							}
@@ -76,9 +77,10 @@ export class SessionTargetPickerActionItem extends ActionWidgetDropdownActionVie
 		};
 
 		const actionBarActions: IAction[] = [];
-		/* const learnMoreUrl = '';
+
+		const learnMoreUrl = 'https://code.visualstudio.com/docs/copilot/agents/overview';
 		actionBarActions.push({
-			id: 'workbench.action.chat.continueChatInSession.learnMore',
+			id: 'workbench.action.chat.agentOverview.learnMore',
 			label: localize('chat.learnMore', "Learn more"),
 			tooltip: learnMoreUrl,
 			class: undefined,
@@ -86,7 +88,7 @@ export class SessionTargetPickerActionItem extends ActionWidgetDropdownActionVie
 			run: async () => {
 				await openerService.open(URI.parse(learnMoreUrl));
 			}
-		}); */
+		});
 
 		const sessionTargetPickerOptions: Omit<IActionWidgetDropdownOptions, 'label' | 'labelRenderer'> = {
 			actionProvider,
@@ -127,7 +129,7 @@ export class SessionTargetPickerActionItem extends ActionWidgetDropdownActionVie
 				commandId: `workbench.action.chat.openNewChatSessionInPlace.${contribution.type}`,
 			});
 		}
-		this._agentSessionItems = agentSessionItems;
+		this._sessionTypeItems = agentSessionItems;
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
