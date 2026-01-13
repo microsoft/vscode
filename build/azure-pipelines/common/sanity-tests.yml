@@ -94,10 +94,10 @@ jobs:
         displayName: Install Playwright dependencies
         workingDirectory: ./test/sanity
 
-      - script: |
-          npm run sanity-test -- \
-            --commit $BUILD_COMMIT \
-            --quality $BUILD_QUALITY \
+      - script: >
+          npm run sanity-test --
+            --commit $BUILD_COMMIT
+            --quality $BUILD_QUALITY
             --verbose --test-results $LOG_FILE
         displayName: Run Sanity Tests
 
