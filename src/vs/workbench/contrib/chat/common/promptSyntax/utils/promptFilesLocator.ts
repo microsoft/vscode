@@ -165,10 +165,21 @@ export class PromptFilesLocator {
 	 * paths that include `glob pattern` in them, we need to process config
 	 * values and try to create a list of clear and unambiguous locations.
 	 *
+	 * For skills, this method uses stricter validation that disallows glob patterns
+	 * and absolute paths.
+	 *
 	 * @returns List of possible unambiguous prompt file folders.
 	 */
 	public getConfigBasedSourceFolders(type: PromptsType): readonly URI[] {
 		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, type);
+
+		// For skills, use the restricted path resolution
+		if (type === PromptsType.skill) {
+			// Skills don't need glob pattern filtering since they're already validated
+			return this.toAbsoluteLocationsForSkills(configuredLocations).map(l => l.uri);
+		}
+
+		// For other types, use the existing logic with glob pattern filtering
 		const absoluteLocations = this.toAbsoluteLocations(configuredLocations).map(l => l.uri);
 
 		// locations in the settings can contain glob patterns so we need
@@ -298,6 +309,32 @@ export class PromptFilesLocator {
 		}
 
 		return result;
+	}
+
+	/**
+	 * Converts skill locations to absolute filesystem path URIs with restricted validation.
+	 * Unlike toAbsoluteLocations(), this method enforces stricter rules for skills:
+	 * - No glob patterns (performance concerns)
+	 * - No absolute paths (portability concerns)
+	 * - Only relative paths, tilde paths, and parent relative paths
+	 *
+	 * @param configuredLocations - Source folder definitions from configuration
+	 * @param userHome - User home URI for tilde expansion (optional)
+	 * @returns List of resolved absolute URIs with metadata
+	 */
+	private toAbsoluteLocationsForSkills(configuredLocations: readonly IPromptSourceFolder[], userHome?: URI): readonly { uri: URI; type: string; location: string }[] {
+		// Filter and validate skill paths before resolving
+		const validLocations = configuredLocations.filter(sourceFolder => {
+			const configuredLocation = sourceFolder.path;
+			if (!isValidSkillPath(configuredLocation)) {
+				this.logService.warn(`Skipping invalid skill path (glob patterns and absolute paths not supported): ${configuredLocation}`);
+				return false;
+			}
+			return true;
+		});
+
+		// Use the standard resolution logic for valid paths
+		return this.toAbsoluteLocations(validLocations, userHome);
 	}
 
 	/**
@@ -504,7 +541,7 @@ export class PromptFilesLocator {
 	public async findAgentSkillsInWorkspace(token: CancellationToken): Promise<Array<{ uri: URI; type: string }>> {
 		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, PromptsType.skill)
 			.filter(loc => loc.location === 'workspace');
-		const absoluteLocations = this.toAbsoluteLocations(configuredLocations);
+		const absoluteLocations = this.toAbsoluteLocationsForSkills(configuredLocations);
 		return this.findAgentSkillsInLocations(absoluteLocations, token);
 	}
 
@@ -516,7 +553,7 @@ export class PromptFilesLocator {
 		const userHome = await this.pathService.userHome();
 		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, PromptsType.skill)
 			.filter(loc => loc.location === 'userHome');
-		const absoluteLocations = this.toAbsoluteLocations(configuredLocations, userHome);
+		const absoluteLocations = this.toAbsoluteLocationsForSkills(configuredLocations, userHome);
 		return this.findAgentSkillsInLocations(absoluteLocations, token);
 	}
 
@@ -528,7 +565,7 @@ export class PromptFilesLocator {
 		const userHome = await this.pathService.userHome();
 		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, PromptsType.skill)
 			.filter(loc => loc.location === 'config');
-		const absoluteLocations = this.toAbsoluteLocations(configuredLocations, userHome);
+		const absoluteLocations = this.toAbsoluteLocationsForSkills(configuredLocations, userHome);
 		return this.findAgentSkillsInLocations(absoluteLocations, token);
 	}
 }
@@ -640,4 +677,47 @@ function firstNonGlobParentAndPattern(location: URI): { parent: URI; filePattern
 		parent,
 		filePattern: segments.slice(i).join('/')
 	};
+}
+
+
+/**
+ * Validates if a path is allowed for skills configuration.
+ * Skills only support:
+ * - Relative paths: someFolder, ./someFolder
+ * - User home paths: ~/folder
+ * - Parent relative paths for monorepos: ../folder
+ *
+ * NOT supported:
+ * - Absolute paths (portability issue)
+ * - Glob patterns with * or ** (performance issue)
+ */
+export function isValidSkillPath(path: string): boolean {
+	// Reject empty paths
+	if (!path || path.trim() === '') {
+		return false;
+	}
+
+	const trimmedPath = path.trim();
+
+	// Reject glob patterns - they pose performance issues
+	if (isValidGlob(trimmedPath)) {
+		return false;
+	}
+
+	// Reject absolute paths (not portable/sharable)
+	if (isAbsolute(trimmedPath) && !trimmedPath.startsWith('~')) {
+		return false;
+	}
+
+	// Accept tilde paths (user home)
+	if (trimmedPath.startsWith('~')) {
+		return true;
+	}
+
+	// Accept relative paths (including parent paths like ../folder)
+	if (!isAbsolute(trimmedPath)) {
+		return true;
+	}
+
+	return false;
 }

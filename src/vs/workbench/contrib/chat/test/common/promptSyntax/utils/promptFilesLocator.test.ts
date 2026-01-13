@@ -23,7 +23,7 @@ import { IFileMatch, IFileQuery, ISearchService } from '../../../../../../servic
 import { IUserDataProfileService } from '../../../../../../services/userDataProfile/common/userDataProfile.js';
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
 import { PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
-import { isValidGlob, PromptFilesLocator } from '../../../../common/promptSyntax/utils/promptFilesLocator.js';
+import { isValidGlob, isValidSkillPath, PromptFilesLocator } from '../../../../common/promptSyntax/utils/promptFilesLocator.js';
 import { IMockFolder, MockFilesystem } from '../testUtils/mockFilesystem.js';
 import { mockService } from './mock.js';
 import { TestUserDataProfileService } from '../../../../../../test/common/workbenchTestServices.js';
@@ -2419,6 +2419,151 @@ suite('PromptFilesLocator', () => {
 				assert(
 					(isValidGlob(glob) === false),
 					`'${glob}' must be an 'invalid' glob pattern.`,
+				);
+			}
+		});
+	});
+
+	suite('isValidSkillPath', () => {
+		testT('accepts relative paths', async () => {
+			const validPaths = [
+				'someFolder',
+				'./someFolder',
+				'my-skills',
+				'./my-skills',
+				'folder/subfolder',
+				'./folder/subfolder',
+			];
+
+			for (const path of validPaths) {
+				assert.strictEqual(
+					isValidSkillPath(path),
+					true,
+					`'${path}' must be accepted as a valid skill path (relative path).`,
+				);
+			}
+		});
+
+		testT('accepts user home paths', async () => {
+			const validPaths = [
+				'~/folder',
+				'~/.copilot/skills',
+				'~/.claude/skills',
+				'~/my-skills',
+			];
+
+			for (const path of validPaths) {
+				assert.strictEqual(
+					isValidSkillPath(path),
+					true,
+					`'${path}' must be accepted as a valid skill path (user home path).`,
+				);
+			}
+		});
+
+		testT('accepts parent relative paths for monorepos', async () => {
+			const validPaths = [
+				'../folder',
+				'../shared-skills',
+				'../../common/skills',
+				'../parent/folder',
+			];
+
+			for (const path of validPaths) {
+				assert.strictEqual(
+					isValidSkillPath(path),
+					true,
+					`'${path}' must be accepted as a valid skill path (parent relative path).`,
+				);
+			}
+		});
+
+		testT('rejects absolute paths', async () => {
+			const invalidPaths = [
+				'/Users/username/skills',
+				'/absolute/path',
+				'/usr/local/skills',
+				'C:\\Users\\username\\skills',
+			];
+
+			for (const path of invalidPaths) {
+				assert.strictEqual(
+					isValidSkillPath(path),
+					false,
+					`'${path}' must be rejected (absolute paths not supported for portability).`,
+				);
+			}
+		});
+
+		testT('rejects glob patterns', async () => {
+			const invalidPaths = [
+				'skills/*',
+				'skills/**',
+				'**/skills',
+				'skills/*.md',
+				'skills/**/*.md',
+				'{skill1,skill2}',
+				'skill[1,2,3]',
+				'skills?',
+				'./skills/*',
+				'~/skills/**',
+			];
+
+			for (const path of invalidPaths) {
+				assert.strictEqual(
+					isValidSkillPath(path),
+					false,
+					`'${path}' must be rejected (glob patterns not supported for performance).`,
+				);
+			}
+		});
+
+		testT('rejects empty or whitespace paths', async () => {
+			const invalidPaths = [
+				'',
+				'   ',
+				'\t',
+				'\n',
+			];
+
+			for (const path of invalidPaths) {
+				assert.strictEqual(
+					isValidSkillPath(path),
+					false,
+					`'${path}' must be rejected (empty or whitespace only).`,
+				);
+			}
+		});
+
+		testT('handles paths with spaces', async () => {
+			const validPaths = [
+				'my skills',
+				'./my skills/folder',
+				'~/my skills',
+				'../shared skills',
+			];
+
+			for (const path of validPaths) {
+				assert.strictEqual(
+					isValidSkillPath(path),
+					true,
+					`'${path}' must be accepted (paths with spaces are valid).`,
+				);
+			}
+		});
+
+		testT('trims whitespace from paths', async () => {
+			const validPaths = [
+				'  someFolder  ',
+				'  ~/skills  ',
+				'  ../folder  ',
+			];
+
+			for (const path of validPaths) {
+				assert.strictEqual(
+					isValidSkillPath(path),
+					true,
+					`'${path}' must be accepted after trimming.`,
 				);
 			}
 		});
