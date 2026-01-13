@@ -55,7 +55,8 @@ extends:
       sourceAnalysisPool: 1es-windows-2022-x64
       createAdoIssuesForJustificationsForDisablement: false
     stages:
-      - stage: Run Sanity Tests
+      - stage: sanity-tests
+        displayName: Run Sanity Tests
         jobs:
           - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
