@@ -7,9 +7,9 @@
 		 * STEALTH WHITE THEME
 		 * 
 		 * 3 Shades Philosophy:
-		 * - Shade 1 (Lightest): #FAFAFA - Sidebars, Auxiliary panels
-		 * - Shade 2 (Medium):   #F5F5F5 - Activity bar, Title bar, Status bar, Tabs background
-		 * - Shade 3 (Darkest):  #F3F3F3 - Editor background (provides subtle contrast)
+		 * - Shade 1 (Lightest): #FCFCFC - Sidebars, Auxiliary panels
+		 * - Shade 2 (Medium):   #F9F9F9 - Activity bar, Title bar, Status bar, Tabs background
+		 * - Shade 3 (Darkest):  #F7F7F7 - Editor background (provides subtle contrast)
 		 * 
 		 * Accent: Vibrant Blue #2563EB
 		 * 
@@ -24,25 +24,25 @@
 		"icon.foreground": "#374151",
 
 		/* ========== ACTIVITY BAR - Medium shade ========== */
-		"activityBar.background": "#F5F5F5",
+		"activityBar.background": "#F9F9F9",
 		"activityBar.foreground": "#1F2937",
 		"activityBar.inactiveForeground": "#6B7280",
-		"activityBar.border": "#F5F5F500",
+		"activityBar.border": "#F9F9F900",
 		"activityBar.activeBorder": "#2563EB",
 		"activityBarBadge.background": "#2563EB",
 		"activityBarBadge.foreground": "#FFFFFF",
 
 		/* ========== SIDEBAR - Lightest shade ========== */
-		"sideBar.background": "#FAFAFA",
+		"sideBar.background": "#FCFCFC",
 		"sideBar.foreground": "#374151",
-		"sideBar.border": "#FAFAFA00",
+		"sideBar.border": "#FCFCFC00",
 		"sideBarTitle.foreground": "#1F2937",
-		"sideBarSectionHeader.background": "#FAFAFA",
+		"sideBarSectionHeader.background": "#FCFCFC",
 		"sideBarSectionHeader.foreground": "#1F2937",
-		"sideBarSectionHeader.border": "#FAFAFA00",
+		"sideBarSectionHeader.border": "#FCFCFC00",
 
 		/* ========== EDITOR - Darkest shade ========== */
-		"editor.background": "#F3F3F3",
+		"editor.background": "#F7F7F7",
 		"editor.foreground": "#1F2937",
 		"editor.lineHighlightBackground": "#E5E5E5",
 		"editor.selectionBackground": "#BFDBFE",
@@ -57,40 +57,40 @@
 
 		/* ========== EDITOR GROUPS & TABS ========== */
 		"editorGroup.border": "#00000000",
-		"editorGroupHeader.tabsBackground": "#F3F3F3",
+		"editorGroupHeader.tabsBackground": "#F7F7F7",
 		"editorGroupHeader.tabsBorder": "#00000000",
-		"editorGroupHeader.noTabsBackground": "#F3F3F3",
-		"tab.activeBackground": "#F3F3F3",
+		"editorGroupHeader.noTabsBackground": "#F7F7F7",
+		"tab.activeBackground": "#F7F7F7",
 		"tab.activeForeground": "#1F2937",
 		"tab.activeBorder": "#00000000",
 		"tab.activeBorderTop": "#1F2937",
-		"tab.inactiveBackground": "#F5F5F5",
+		"tab.inactiveBackground": "#F9F9F9",
 		"tab.inactiveForeground": "#6B7280",
 		"tab.border": "#00000000",
-		"tab.hoverBackground": "#F3F3F3",
+		"tab.hoverBackground": "#F7F7F7",
 		"tab.hoverBorder": "#00000000",
-		"tab.unfocusedActiveBackground": "#F3F3F3",
+		"tab.unfocusedActiveBackground": "#F7F7F7",
 		"tab.unfocusedActiveBorder": "#00000000",
 		"tab.unfocusedActiveBorderTop": "#6B7280",
-		"tab.unfocusedInactiveBackground": "#F5F5F5",
-		"tab.unfocusedHoverBackground": "#F3F3F3",
+		"tab.unfocusedInactiveBackground": "#F9F9F9",
+		"tab.unfocusedHoverBackground": "#F7F7F7",
 		"tab.lastPinnedBorder": "#00000000",
 		"tab.selectedForeground": "#1F2937",
-		"tab.selectedBackground": "#F3F3F3",
+		"tab.selectedBackground": "#F7F7F7",
 		"tab.selectedBorderTop": "#1F2937",
 
 		/* ========== TITLE BAR - Medium shade ========== */
-		"titleBar.activeBackground": "#F5F5F5",
+		"titleBar.activeBackground": "#F9F9F9",
 		"titleBar.activeForeground": "#1F2937",
-		"titleBar.inactiveBackground": "#F5F5F5",
+		"titleBar.inactiveBackground": "#F9F9F9",
 		"titleBar.inactiveForeground": "#9CA3AF",
 		"titleBar.border": "#00000000",
 
 		/* ========== STATUS BAR - Medium shade ========== */
-		"statusBar.background": "#F5F5F5",
+		"statusBar.background": "#F9F9F9",
 		"statusBar.foreground": "#374151",
 		"statusBar.border": "#00000000",
-		"statusBar.noFolderBackground": "#F5F5F5",
+		"statusBar.noFolderBackground": "#F9F9F9",
 		"statusBar.debuggingBackground": "#2563EB",
 		"statusBar.debuggingForeground": "#FFFFFF",
 		"statusBarItem.remoteBackground": "#2563EB",
@@ -105,14 +105,14 @@
 		"statusBar.focusBorder": "#2563EB",
 
 		/* ========== PANEL (Bottom) - Same as sidebar ========== */
-		"panel.background": "#FAFAFA",
+		"panel.background": "#FCFCFC",
 		"panel.border": "#00000000",
 		"panelTitle.activeBorder": "#2563EB",
 		"panelTitle.activeForeground": "#1F2937",
 		"panelTitle.inactiveForeground": "#6B7280",
 		"panelInput.border": "#00000000",
 		"panelSection.border": "#00000000",
-		"panelSectionHeader.background": "#FAFAFA",
+		"panelSectionHeader.background": "#FCFCFC",
 		"panelSectionHeader.border": "#00000000",
 
 		/* ========== INPUT CONTROLS ========== */
@@ -183,7 +183,7 @@
 		"notifications.background": "#FFFFFF",
 		"notifications.foreground": "#1F2937",
 		"notifications.border": "#00000000",
-		"notificationCenterHeader.background": "#FAFAFA",
+		"notificationCenterHeader.background": "#FCFCFC",
 		"notificationCenterHeader.foreground": "#1F2937",
 		"notificationCenter.border": "#00000000",
 		"notificationToast.border": "#00000000",
@@ -203,11 +203,11 @@
 		"progressBar.background": "#2563EB",
 
 		/* ========== EDITOR WIDGETS ========== */
-		"editorWidget.background": "#FAFAFA",
+		"editorWidget.background": "#FCFCFC",
 		"editorWidget.foreground": "#1F2937",
 		"editorWidget.border": "#00000000",
 		"editorWidget.resizeBorder": "#2563EB",
-		"editorSuggestWidget.background": "#FAFAFA",
+		"editorSuggestWidget.background": "#FCFCFC",
 		"editorSuggestWidget.border": "#00000000",
 		"editorSuggestWidget.foreground": "#1F2937",
 		"editorSuggestWidget.highlightForeground": "#2563EB",
@@ -215,14 +215,14 @@
 		"editorSuggestWidget.selectedForeground": "#1E40AF",
 		"editorSuggestWidget.focusHighlightForeground": "#1E40AF",
 		"editorSuggestWidget.selectedIconForeground": "#1E40AF",
-		"editorHoverWidget.background": "#FAFAFA",
+		"editorHoverWidget.background": "#FCFCFC",
 		"editorHoverWidget.border": "#00000000",
 		"editorHoverWidget.foreground": "#1F2937",
 		"editorHoverWidget.highlightForeground": "#2563EB",
-		"editorHoverWidget.statusBarBackground": "#F5F5F5",
+		"editorHoverWidget.statusBarBackground": "#F9F9F9",
 
 		/* ========== DEBUG TOOLBAR ========== */
-		"debugToolBar.background": "#FAFAFA",
+		"debugToolBar.background": "#FCFCFC",
 		"debugToolBar.border": "#00000000",
 
 		/* ========== MENU ========== */
@@ -238,15 +238,15 @@
 
 		/* ========== PEEK VIEW ========== */
 		"peekView.border": "#00000000",
-		"peekViewEditor.background": "#FAFAFA",
+		"peekViewEditor.background": "#FCFCFC",
 		"peekViewEditor.matchHighlightBackground": "#FEF08A",
-		"peekViewResult.background": "#F5F5F5",
+		"peekViewResult.background": "#F9F9F9",
 		"peekViewResult.fileForeground": "#1F2937",
 		"peekViewResult.lineForeground": "#6B7280",
 		"peekViewResult.matchHighlightBackground": "#FEF08A",
 		"peekViewResult.selectionBackground": "#DBEAFE",
 		"peekViewResult.selectionForeground": "#1E40AF",
-		"peekViewTitle.background": "#F5F5F5",
+		"peekViewTitle.background": "#F9F9F9",
 		"peekViewTitleDescription.foreground": "#6B7280",
 		"peekViewTitleLabel.foreground": "#1F2937",
 
@@ -260,14 +260,14 @@
 		"diffEditor.insertedTextBackground": "#BBF7D020",
 		"diffEditor.removedTextBackground": "#FECACA20",
 		"diffEditor.border": "#00000000",
-		"diffEditor.unchangedRegionBackground": "#F5F5F5",
+		"diffEditor.unchangedRegionBackground": "#F9F9F9",
 
 		/* ========== BREADCRUMBS ========== */
-		"breadcrumb.background": "#F3F3F3",
+		"breadcrumb.background": "#F7F7F7",
 		"breadcrumb.foreground": "#6B7280",
 		"breadcrumb.focusForeground": "#1F2937",
 		"breadcrumb.activeSelectionForeground": "#1F2937",
-		"breadcrumbPicker.background": "#FAFAFA",
+		"breadcrumbPicker.background": "#FCFCFC",
 
 		/* ========== SETTINGS ========== */
 		"settings.headerForeground": "#1F2937",
@@ -289,7 +289,7 @@
 		"settings.focusedRowBorder": "#00000000",
 
 		/* ========== TERMINAL ========== */
-		"terminal.background": "#FAFAFA",
+		"terminal.background": "#FCFCFC",
 		"terminal.foreground": "#1F2937",
 		"terminal.border": "#00000000",
 		"terminal.selectionBackground": "#DBEAFE",
@@ -310,13 +310,13 @@
 		"editorGutter.addedBackground": "#16A34A",
 		"editorGutter.modifiedBackground": "#2563EB",
 		"editorGutter.deletedBackground": "#DC2626",
-		"editorGutter.background": "#F3F3F3",
+		"editorGutter.background": "#F7F7F7",
 		"editorGutter.commentRangeForeground": "#9CA3AF",
 		"editorGutter.foldingControlForeground": "#6B7280",
-		"editorStickyScrollGutter.background": "#F3F3F3",
+		"editorStickyScrollGutter.background": "#F7F7F7",
 
 		/* ========== MINIMAP ========== */
-		"minimap.background": "#F5F5F5",
+		"minimap.background": "#F9F9F9",
 		"minimap.findMatchHighlight": "#FEF08A80",
 		"minimap.selectionHighlight": "#BFDBFE80",
 		"minimapSlider.background": "#D1D5DB40",
@@ -346,22 +346,22 @@
 		"contrastActiveBorder": "#00000000",
 
 		/* ========== WELCOME PAGE ========== */
-		"welcomePage.background": "#F3F3F3",
-		"welcomePage.tileBackground": "#FAFAFA",
+		"welcomePage.background": "#F7F7F7",
+		"welcomePage.tileBackground": "#FCFCFC",
 		"welcomePage.tileBorder": "#00000000",
-		"welcomePage.tileHoverBackground": "#F5F5F5",
-		"walkThrough.embeddedEditorBackground": "#F5F5F5",
+		"welcomePage.tileHoverBackground": "#F9F9F9",
+		"walkThrough.embeddedEditorBackground": "#F9F9F9",
 
 		/* ========== NOTEBOOK ========== */
 		"notebook.cellBorderColor": "#00000000",
-		"notebook.cellEditorBackground": "#FAFAFA",
-		"notebook.cellHoverBackground": "#F5F5F5",
+		"notebook.cellEditorBackground": "#FCFCFC",
+		"notebook.cellHoverBackground": "#F9F9F9",
 		"notebook.cellInsertionIndicator": "#2563EB",
 		"notebook.cellStatusBarItemHoverBackground": "#E5E5E5",
 		"notebook.cellToolbarSeparator": "#00000000",
 		"notebook.focusedCellBorder": "#2563EB",
 		"notebook.focusedEditorBorder": "#00000000",
-		"notebook.outputContainerBackgroundColor": "#F5F5F5",
+		"notebook.outputContainerBackgroundColor": "#F9F9F9",
 		"notebook.selectedCellBackground": "#DBEAFE30",
 		"notebook.selectedCellBorder": "#00000000",
 		"notebookScrollbarSlider.activeBackground": "#9CA3AF80",
@@ -377,7 +377,7 @@
 		"chat.editedFileForeground": "#D97706",
 
 		/* Chat panel and input - matching backgrounds */
-		"chat.requestBackground": "#F5F5F5",
+		"chat.requestBackground": "#F9F9F9",
 		"chat.requestBorder": "#00000000",
 		"interactive.activeCodeBorder": "#2563EB",
 		"interactive.inactiveCodeBorder": "#00000000",
@@ -385,7 +385,7 @@
 		/* ========== COMMAND CENTER (Title Bar Search) ========== */
 		"commandCenter.foreground": "#374151",
 		"commandCenter.activeForeground": "#1F2937",
-		"commandCenter.background": "#F3F3F3",
+		"commandCenter.background": "#F7F7F7",
 		"commandCenter.activeBackground": "#E5E5E5",
 		"commandCenter.border": "#00000000",
 		"commandCenter.inactiveBorder": "#00000000",
@@ -393,19 +393,19 @@
 		"commandCenter.debuggingBackground": "#DBEAFE",
 
 		/* ========== KEYBINDING LABEL ========== */
-		"keybindingLabel.background": "#F5F5F5",
+		"keybindingLabel.background": "#F9F9F9",
 		"keybindingLabel.foreground": "#374151",
 		"keybindingLabel.border": "#00000000",
 		"keybindingLabel.bottomBorder": "#00000000",
 
 		/* ========== TEXT ELEMENTS ========== */
-		"textBlockQuote.background": "#F5F5F5",
+		"textBlockQuote.background": "#F9F9F9",
 		"textBlockQuote.border": "#00000000",
-		"textCodeBlock.background": "#F5F5F5",
+		"textCodeBlock.background": "#F9F9F9",
 		"textLink.activeForeground": "#1D4ED8",
 		"textLink.foreground": "#2563EB",
 		"textPreformat.foreground": "#374151",
-		"textPreformat.background": "#F5F5F5",
+		"textPreformat.background": "#F9F9F9",
 		"textSeparator.foreground": "#E5E7EB",
 
 		/* ========== ACTION BAR ========== */
