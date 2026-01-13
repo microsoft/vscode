@@ -102,7 +102,7 @@ jobs:
       - task: PublishTestResults@2
         inputs:
           testResultsFormat: JUnit
-          testResultsFiles: $LOG_FILE
+          testResultsFiles: $(LOG_FILE)
           testRunTitle: ${{ parameters.displayName }}
         condition: succeededOrFailed()
         displayName: Publish Test Results
