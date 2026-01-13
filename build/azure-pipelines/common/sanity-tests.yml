@@ -46,10 +46,7 @@ jobs:
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Authenticate with NPM Registry
 
-      - script: |
-          npm ci
-          npm run compile
-          npm run postinstall
+      - script: npm ci; npm run compile
         workingDirectory: ./test/sanity
         displayName: Compile Sanity Tests
 
