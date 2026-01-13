@@ -199,6 +199,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		super.dispose();
 
 		this._callsByRequestId.forEach(calls => calls.forEach(call => call.store.dispose()));
+		this._pendingToolCalls.clear();
 		this._ctxToolsCount.reset();
 	}
 
@@ -571,19 +572,17 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	beginToolCall(options: IBeginToolCallOptions): IChatToolInvocation | undefined {
 		// First try to look up by tool ID (the package.json "name" field),
 		// then fall back to looking up by toolReferenceName
-		const toolData = this.getTool(options.toolId) ?? this.getToolByName(options.toolId);
-		if (!toolData) {
+		const toolEntry = this._tools.get(options.toolId);
+		if (!toolEntry) {
 			this._logService.warn(`[LanguageModelToolsService#beginToolCall] Tool ${options.toolId} not found`);
 			return undefined;
 		}
 
-		this._logService.info(`[LanguageModelToolsService#beginToolCall] Found tool ${toolData.id} for ${options.toolId}`);
-
 		// Create the invocation in streaming state
 		const invocation = ChatToolInvocation.createStreaming({
 			toolCallId: options.toolCallId,
-			toolId: toolData.id,
-			toolData,
+			toolId: options.toolId,
+			toolData: toolEntry.data,
 			fromSubAgent: options.fromSubAgent,
 			chatRequestId: options.chatRequestId,
 		});
@@ -602,7 +601,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					: model.getRequests().at(-1);
 				if (request) {
 					this._chatService.appendProgress(request, invocation);
-					this._logService.info(`[LanguageModelToolsService#beginToolCall] Appended progress for tool ${toolData.id} to request ${request.id}`);
+					this._logService.info(`[LanguageModelToolsService#beginToolCall] Appended progress for tool ${toolEntry.data.id} to request ${request.id}`);
 				} else {
 					this._logService.warn(`[LanguageModelToolsService#beginToolCall] No request found in session for chatRequestId=${options.chatRequestId}`);
 				}
@@ -614,24 +613,30 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 
 		// Call handleToolStream to get initial streaming message
-		const toolEntry = this._tools.get(toolData.id);
-		this._logService.info(`[LanguageModelToolsService#beginToolCall] Tool entry for ${toolData.id}: hasImpl=${!!toolEntry?.impl}, hasHandleToolStream=${!!toolEntry?.impl?.handleToolStream}`);
-		if (toolEntry?.impl?.handleToolStream) {
-			toolEntry.impl.handleToolStream({
-				toolCallId: options.toolCallId,
-				rawInput: undefined,
-				chatRequestId: options.chatRequestId,
-			}, CancellationToken.None).then(result => {
-				this._logService.info(`[LanguageModelToolsService#beginToolCall] handleToolStream result: ${JSON.stringify(result)}`);
-				if (result?.invocationMessage) {
-					invocation.updateStreamingMessage(result.invocationMessage);
-				}
-			}).catch(error => {
-				this._logService.error(`[LanguageModelToolsService#beginToolCall] Error calling handleToolStream for tool ${toolData.id}:`, error);
-			});
-		}
+		this._logService.info(`[LanguageModelToolsService#beginToolCall] Tool entry for ${options.toolId}: hasImpl=${!!toolEntry?.impl}, hasHandleToolStream=${!!toolEntry?.impl?.handleToolStream}`);
+		this._callHandleToolStream(toolEntry, invocation, options.toolCallId, undefined, CancellationToken.None);
 
 		return invocation;
+	}
+
+	private async _callHandleToolStream(toolEntry: IToolEntry, invocation: ChatToolInvocation, toolCallId: string, rawInput: unknown, token: CancellationToken): Promise<void> {
+		if (!toolEntry.impl?.handleToolStream) {
+			return;
+		}
+		try {
+			const result = await toolEntry.impl.handleToolStream({
+				toolCallId,
+				rawInput,
+				chatRequestId: invocation.chatRequestId,
+			}, token);
+
+			this._logService.info(`[LanguageModelToolsService#_callHandleToolStream] handleToolStream result: ${JSON.stringify(result)}`);
+			if (result?.invocationMessage) {
+				invocation.updateStreamingMessage(result.invocationMessage);
+			}
+		} catch (error) {
+			this._logService.error(`[LanguageModelToolsService#_callHandleToolStream] Error calling handleToolStream for tool ${toolEntry.data.id}:`, error);
+		}
 	}
 
 	async updateToolStream(toolCallId: string, partialInput: unknown, token: CancellationToken): Promise<void> {
@@ -649,21 +654,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		// Call handleToolStream if the tool implements it
 		const toolEntry = this._tools.get(invocation.toolId);
 		this._logService.info(`[LanguageModelToolsService#updateToolStream] Tool entry: hasImpl=${!!toolEntry?.impl}, hasHandleToolStream=${!!toolEntry?.impl?.handleToolStream}`);
-		if (toolEntry?.impl?.handleToolStream) {
-			try {
-				const result = await toolEntry.impl.handleToolStream({
-					toolCallId,
-					rawInput: partialInput,
-					chatRequestId: invocation.chatRequestId,
-				}, token);
-
-				this._logService.info(`[LanguageModelToolsService#updateToolStream] handleToolStream result: ${JSON.stringify(result)}`);
-				if (result?.invocationMessage) {
-					invocation.updateStreamingMessage(result.invocationMessage);
-				}
-			} catch (error) {
-				this._logService.error(`[LanguageModelToolsService#updateToolStream] Error calling handleToolStream for tool ${invocation.toolId}:`, error);
-			}
+		if (toolEntry) {
+			await this._callHandleToolStream(toolEntry, invocation, toolCallId, partialInput, token);
 		}
 	}
 
@@ -857,6 +849,13 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		if (calls) {
 			calls.forEach(call => call.store.dispose());
 			this._callsByRequestId.delete(requestId);
+		}
+
+		// Clean up any pending tool calls that belong to this request
+		for (const [toolCallId, invocation] of this._pendingToolCalls) {
+			if (invocation.chatRequestId === requestId) {
+				this._pendingToolCalls.delete(toolCallId);
+			}
 		}
 	}
 
