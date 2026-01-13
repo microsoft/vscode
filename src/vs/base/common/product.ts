@@ -208,18 +208,7 @@ export interface IProductConfiguration {
 	readonly msftInternalDomains?: string[];
 	readonly linkProtectionTrustedDomains?: readonly string[];
 
-	readonly defaultAccount?: {
-		readonly authenticationProvider: {
-			readonly id: string;
-			readonly enterpriseProviderId: string;
-			readonly enterpriseProviderConfig: string;
-			readonly enterpriseProviderUriSetting: string;
-			readonly scopes: string[][];
-		};
-		readonly tokenEntitlementUrl: string;
-		readonly chatEntitlementUrl: string;
-		readonly mcpRegistryDataUrl: string;
-	};
+	readonly defaultAccount?: IDefaultAccountConfig;
 	readonly authClientIdMetadataUrl?: string;
 
 	readonly 'configurationSync.store'?: ConfigurationSyncStore;
@@ -240,6 +229,20 @@ export interface IProductConfiguration {
 	readonly remoteDefaultExtensionsIfInstalledLocally?: string[];
 
 	readonly extensionConfigurationPolicy?: IStringDictionary<IPolicy>;
+}
+
+export interface IDefaultAccountConfig {
+	readonly preferredExtensions: string[];
+	readonly authenticationProvider: {
+		readonly id: string;
+		readonly enterpriseProviderId: string;
+		readonly enterpriseProviderConfig: string;
+		readonly enterpriseProviderUriSetting: string;
+		readonly scopes: string[][];
+	};
+	readonly tokenEntitlementUrl: string;
+	readonly chatEntitlementUrl: string;
+	readonly mcpRegistryDataUrl: string;
 }
 
 export interface ITunnelApplicationConfig {

@@ -6,7 +6,7 @@
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { AuthenticationSession, IAuthenticationService } from '../../authentication/common/authentication.js';
+import { AuthenticationSession, AuthenticationSessionAccount, IAuthenticationExtensionsService, IAuthenticationService } from '../../authentication/common/authentication.js';
 import { asJson, IRequestService } from '../../../../platform/request/common/request.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
@@ -24,6 +24,9 @@ import { IWorkbenchEnvironmentService } from '../../environment/common/environme
 import { isWeb } from '../../../../base/common/platform.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { distinct } from '../../../../base/common/arrays.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IDefaultAccountConfig } from '../../../../base/common/product.js';
 
 export const DEFAULT_ACCOUNT_SIGN_IN_COMMAND = 'workbench.actions.accounts.signIn';
 
@@ -102,20 +105,19 @@ export class DefaultAccountService extends Disposable implements IDefaultAccount
 
 }
 
-export class DefaultAccountManagementContribution extends Disposable implements IWorkbenchContribution {
-
-	static ID = 'workbench.contributions.defaultAccountManagement';
+class DefaultAccountSetup extends Disposable {
 
 	private defaultAccount: IDefaultAccount | null = null;
 	private readonly accountStatusContext: IContextKey<string>;
 
 	constructor(
+		private readonly defaultAccountConfig: IDefaultAccountConfig,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
+		@IAuthenticationExtensionsService private readonly authenticationExtensionsService: IAuthenticationExtensionsService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IProductService private readonly productService: IProductService,
 		@IRequestService private readonly requestService: IRequestService,
 		@ILogService private readonly logService: ILogService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
@@ -123,35 +125,9 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 	) {
 		super();
 		this.accountStatusContext = CONTEXT_DEFAULT_ACCOUNT_STATE.bindTo(contextKeyService);
-		this.initialize().then(() => {
-			type DefaultAccountStatusTelemetry = {
-				status: string;
-				initial: boolean;
-			};
-			type DefaultAccountStatusTelemetryClassification = {
-				owner: 'sandy081';
-				comment: 'Log default account availability status';
-				status: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Indicates whether default account is available or not.' };
-				initial: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Indicates whether this is the initial status report.' };
-			};
-			this.telemetryService.publicLog2<DefaultAccountStatusTelemetry, DefaultAccountStatusTelemetryClassification>('defaultaccount:status', { status: this.defaultAccount ? 'available' : 'unavailable', initial: true });
-
-			this._register(this.authenticationService.onDidChangeSessions(async e => {
-				if (e.providerId !== this.getDefaultAccountProviderId()) {
-					return;
-				}
-				if (this.defaultAccount && e.event.removed?.some(session => session.id === this.defaultAccount?.sessionId)) {
-					this.setDefaultAccount(null);
-				} else {
-					this.setDefaultAccount(await this.getDefaultAccountFromAuthenticatedSessions(e.providerId, this.productService.defaultAccount!.authenticationProvider.scopes));
-				}
-
-				this.telemetryService.publicLog2<DefaultAccountStatusTelemetry, DefaultAccountStatusTelemetryClassification>('defaultaccount:status', { status: this.defaultAccount ? 'available' : 'unavailable', initial: false });
-			}));
-		});
 	}
 
-	private async initialize(): Promise<void> {
+	async setup(): Promise<void> {
 		this.logService.debug('[DefaultAccount] Starting initialization');
 		let defaultAccount: IDefaultAccount | null = null;
 		try {
@@ -159,16 +135,46 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 		} catch (error) {
 			this.logService.error('[DefaultAccount] Error during initialization', getErrorMessage(error));
 		}
+
 		this.setDefaultAccount(defaultAccount);
 		this.logService.debug('[DefaultAccount] Initialization complete');
+
+		type DefaultAccountStatusTelemetry = {
+			status: string;
+			initial: boolean;
+		};
+		type DefaultAccountStatusTelemetryClassification = {
+			owner: 'sandy081';
+			comment: 'Log default account availability status';
+			status: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Indicates whether default account is available or not.' };
+			initial: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Indicates whether this is the initial status report.' };
+		};
+		this.telemetryService.publicLog2<DefaultAccountStatusTelemetry, DefaultAccountStatusTelemetryClassification>('defaultaccount:status', { status: this.defaultAccount ? 'available' : 'unavailable', initial: true });
+
+		this._register(this.defaultAccountService.onDidChangeDefaultAccount(account => {
+			this.telemetryService.publicLog2<DefaultAccountStatusTelemetry, DefaultAccountStatusTelemetryClassification>('defaultaccount:status', { status: account ? 'available' : 'unavailable', initial: false });
+		}));
+
+		this._register(this.authenticationService.onDidChangeSessions(async e => {
+			if (e.providerId !== this.getDefaultAccountProviderId()) {
+				return;
+			}
+			if (this.defaultAccount && e.event.removed?.some(session => session.id === this.defaultAccount?.sessionId)) {
+				this.setDefaultAccount(null);
+			} else {
+				this.setDefaultAccount(await this.getDefaultAccountFromAuthenticatedSessions(e.providerId, this.defaultAccountConfig.authenticationProvider.scopes));
+			}
+		}));
+
+		this._register(this.authenticationExtensionsService.onDidChangeAccountPreference(async e => {
+			if (e.providerId !== this.getDefaultAccountProviderId()) {
+				return;
+			}
+			this.setDefaultAccount(await this.getDefaultAccountFromAuthenticatedSessions(e.providerId, this.defaultAccountConfig.authenticationProvider.scopes));
+		}));
 	}
 
 	private async fetchDefaultAccount(): Promise<IDefaultAccount | null> {
-		if (!this.productService.defaultAccount) {
-			this.logService.debug('[DefaultAccount] No default account configuration in product service, skipping initialization');
-			return null;
-		}
-
 		if (isWeb && !this.environmentService.remoteAuthority) {
 			this.logService.debug('[DefaultAccount] Running in web without remote, skipping initialization');
 			return null;
@@ -189,8 +195,8 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 			return null;
 		}
 
-		this.registerSignInAction(defaultAccountProviderId, this.productService.defaultAccount.authenticationProvider.scopes[0]);
-		return await this.getDefaultAccountFromAuthenticatedSessions(defaultAccountProviderId, this.productService.defaultAccount.authenticationProvider.scopes);
+		this.registerSignInAction(this.defaultAccountConfig.authenticationProvider.scopes[0]);
+		return await this.getDefaultAccountFromAuthenticatedSessions(defaultAccountProviderId, this.defaultAccountConfig.authenticationProvider.scopes);
 	}
 
 	private setDefaultAccount(account: IDefaultAccount | null): void {
@@ -266,7 +272,22 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 	private async getSessions(authProviderId: string): Promise<readonly AuthenticationSession[]> {
 		for (let attempt = 1; attempt <= 3; attempt++) {
 			try {
-				return await this.authenticationService.getSessions(authProviderId, undefined, undefined, true);
+				let preferredAccount: AuthenticationSessionAccount | undefined;
+				let preferredAccountName: string | undefined;
+				for (const preferredExtension of this.defaultAccountConfig.preferredExtensions) {
+					preferredAccountName = this.authenticationExtensionsService.getAccountPreference(preferredExtension, authProviderId);
+					if (preferredAccountName) {
+						break;
+					}
+				}
+				for (const account of await this.authenticationService.getAccounts(authProviderId)) {
+					if (account.label === preferredAccountName) {
+						preferredAccount = account;
+						break;
+					}
+				}
+
+				return await this.authenticationService.getSessions(authProviderId, undefined, { account: preferredAccount }, true);
 			} catch (error) {
 				this.logService.warn(`[DefaultAccount] Attempt ${attempt} to get sessions failed:`, getErrorMessage(error));
 				if (attempt === 3) {
@@ -378,10 +399,6 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 	}
 
 	private getChatEntitlementUrl(): string | undefined {
-		if (!this.productService.defaultAccount) {
-			return undefined;
-		}
-
 		if (this.isEnterpriseAuthenticationProvider(this.getDefaultAccountProviderId())) {
 			try {
 				const enterpriseUrl = this.getEnterpriseUrl();
@@ -394,14 +411,10 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 			}
 		}
 
-		return this.productService.defaultAccount?.chatEntitlementUrl;
+		return this.defaultAccountConfig.chatEntitlementUrl;
 	}
 
 	private getTokenEntitlementUrl(): string | undefined {
-		if (!this.productService.defaultAccount) {
-			return undefined;
-		}
-
 		if (this.isEnterpriseAuthenticationProvider(this.getDefaultAccountProviderId())) {
 			try {
 				const enterpriseUrl = this.getEnterpriseUrl();
@@ -414,14 +427,10 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 			}
 		}
 
-		return this.productService.defaultAccount?.tokenEntitlementUrl;
+		return this.defaultAccountConfig.tokenEntitlementUrl;
 	}
 
 	private getMcpRegistryDataUrl(): string | undefined {
-		if (!this.productService.defaultAccount) {
-			return undefined;
-		}
-
 		if (this.isEnterpriseAuthenticationProvider(this.getDefaultAccountProviderId())) {
 			try {
 				const enterpriseUrl = this.getEnterpriseUrl();
@@ -434,36 +443,29 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 			}
 		}
 
-		return this.productService.defaultAccount?.mcpRegistryDataUrl;
+		return this.defaultAccountConfig.mcpRegistryDataUrl;
 	}
 
-	private getDefaultAccountProviderId(): string | undefined {
-		if (this.productService.defaultAccount && this.configurationService.getValue<string | undefined>(this.productService.defaultAccount.authenticationProvider.enterpriseProviderConfig) === this.productService.defaultAccount?.authenticationProvider.enterpriseProviderId) {
-			return this.productService.defaultAccount?.authenticationProvider.enterpriseProviderId;
+	private getDefaultAccountProviderId(): string {
+		if (this.configurationService.getValue<string | undefined>(this.defaultAccountConfig.authenticationProvider.enterpriseProviderConfig) === this.defaultAccountConfig?.authenticationProvider.enterpriseProviderId) {
+			return this.defaultAccountConfig.authenticationProvider.enterpriseProviderId;
 		}
-		return this.productService.defaultAccount?.authenticationProvider.id;
+		return this.defaultAccountConfig.authenticationProvider.id;
 	}
 
-	private isEnterpriseAuthenticationProvider(providerId: string | undefined): boolean {
-		if (!providerId) {
-			return false;
-		}
-
-		return providerId === this.productService.defaultAccount?.authenticationProvider.enterpriseProviderId;
+	private isEnterpriseAuthenticationProvider(providerId: string): boolean {
+		return providerId === this.defaultAccountConfig.authenticationProvider.enterpriseProviderId;
 	}
 
 	private getEnterpriseUrl(): URL | undefined {
-		if (!this.productService.defaultAccount) {
-			return undefined;
-		}
-		const value = this.configurationService.getValue(this.productService.defaultAccount.authenticationProvider.enterpriseProviderUriSetting);
+		const value = this.configurationService.getValue(this.defaultAccountConfig.authenticationProvider.enterpriseProviderUriSetting);
 		if (!isString(value)) {
 			return undefined;
 		}
 		return new URL(value);
 	}
 
-	private registerSignInAction(authProviderId: string, scopes: string[]): void {
+	private registerSignInAction(defaultAccountScopes: string[]): void {
 		const that = this;
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
@@ -472,12 +474,39 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 					title: localize('sign in', "Sign in"),
 				});
 			}
-			run(): Promise<AuthenticationSession> {
-				return that.authenticationService.createSession(authProviderId, scopes);
+			async run(accessor: ServicesAccessor, options?: { additionalScopes?: readonly string[];[key: string]: unknown }): Promise<void> {
+				const authProviderId = that.getDefaultAccountProviderId();
+				if (!authProviderId) {
+					throw new Error('No default account provider configured');
+				}
+				const { additionalScopes, ...sessionOptions } = options ?? {};
+				const scopes = additionalScopes ? distinct([...defaultAccountScopes, ...additionalScopes]) : defaultAccountScopes;
+				const session = await that.authenticationService.createSession(authProviderId, scopes, sessionOptions);
+				for (const preferredExtension of that.defaultAccountConfig.preferredExtensions) {
+					that.authenticationExtensionsService.updateAccountPreference(preferredExtension, authProviderId, session.account);
+				}
 			}
 		}));
 	}
 
 }
 
-registerWorkbenchContribution2('workbench.contributions.defaultAccountManagement', DefaultAccountManagementContribution, WorkbenchPhase.AfterRestored);
+class DefaultAccountSetupContribution extends Disposable implements IWorkbenchContribution {
+
+	static ID = 'workbench.contributions.defaultAccountSetup';
+
+	constructor(
+		@IProductService productService: IProductService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ILogService logService: ILogService,
+	) {
+		super();
+		if (productService.defaultAccount) {
+			this._register(instantiationService.createInstance(DefaultAccountSetup, productService.defaultAccount)).setup();
+		} else {
+			logService.debug('[DefaultAccount] No default account configuration in product service, skipping initialization');
+		}
+	}
+}
+
+registerWorkbenchContribution2('workbench.contributions.defaultAccountManagement', DefaultAccountSetupContribution, WorkbenchPhase.AfterRestored);
