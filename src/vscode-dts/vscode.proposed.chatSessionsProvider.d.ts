@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 3
+// version: 4
 
 declare module 'vscode' {
 	/**
@@ -24,6 +24,25 @@ declare module 'vscode' {
 		 * The chat session is currently in progress.
 		 */
 		InProgress = 2
+	}
+
+	export namespace chat {
+		/**
+		 * Registers a new {@link ChatSessionItemProvider chat session item provider}.
+		 *
+		 * To use this, also make sure to also add `chatSessions` contribution in the `package.json`.
+		 *
+		 * @param chatSessionType The type of chat session the provider is for.
+		 * @param provider The provider to register.
+		 *
+		 * @returns A disposable that unregisters the provider when disposed.
+		 */
+		export function registerChatSessionItemProvider(chatSessionType: string, provider: ChatSessionItemProvider): Disposable;
+
+		/**
+		 * Creates a new {@link ChatSessionItemController chat session item controller} with the given unique identifier.
+		 */
+		export function createChatSessionItemController(id: string, refreshHandler: () => Thenable<void>): ChatSessionItemController;
 	}
 
 	/**
@@ -50,6 +69,86 @@ declare module 'vscode' {
 		readonly onDidCommitChatSessionItem: Event<{ original: ChatSessionItem /** untitled */; modified: ChatSessionItem /** newly created */ }>;
 
 		// #endregion
+	}
+
+	/**
+	 * Provides a list of information about chat sessions.
+	 */
+	export interface ChatSessionItemController {
+		readonly id: string;
+
+		/**
+		 * Unregisters the controller, disposing of its associated chat session items.
+		 */
+		dispose(): void;
+
+		/**
+		 * Managed collection of chat session items
+		 */
+		readonly items: ChatSessionItemCollection;
+
+		/**
+		 * Creates a new managed chat session item that be added to the collection.
+		 */
+		createChatSessionItem(resource: Uri, label: string): ChatSessionItem;
+
+		/**
+		 * Handler called to refresh the collection of chat session items.
+		 *
+		 * This is also called on first load to get the initial set of items.
+		 */
+		refreshHandler: () => Thenable<void>;
+
+		/**
+		 * Fired when an item is archived by the editor
+		 *
+		 * TODO: expose archive state on the item too?
+		 */
+		readonly onDidArchiveChatSessionItem: Event<ChatSessionItem>;
+	}
+
+	/**
+	 * A collection of chat session items. It provides operations for managing and iterating over the items.
+	 */
+	export interface ChatSessionItemCollection extends Iterable<readonly [id: Uri, chatSessionItem: ChatSessionItem]> {
+		/**
+		 * Gets the number of items in the collection.
+		 */
+		readonly size: number;
+
+		/**
+		 * Replaces the items stored by the collection.
+		 * @param items Items to store.
+		 */
+		replace(items: readonly ChatSessionItem[]): void;
+
+		/**
+		 * Iterate over each entry in this collection.
+		 *
+		 * @param callback Function to execute for each entry.
+		 * @param thisArg The `this` context used when invoking the handler function.
+		 */
+		forEach(callback: (item: ChatSessionItem, collection: ChatSessionItemCollection) => unknown, thisArg?: any): void;
+
+		/**
+		 * Adds the chat session item to the collection. If an item with the same resource URI already
+		 * exists, it'll be replaced.
+		 * @param item Item to add.
+		 */
+		add(item: ChatSessionItem): void;
+
+		/**
+		 * Removes a single chat session item from the collection.
+		 * @param resource Item resource to delete.
+		 */
+		delete(resource: Uri): void;
+
+		/**
+		 * Efficiently gets a chat session item by resource, if it exists, in the collection.
+		 * @param resource Item resource to get.
+		 * @returns The found item or undefined if it does not exist.
+		 */
+		get(resource: Uri): ChatSessionItem | undefined;
 	}
 
 	export interface ChatSessionItem {
@@ -89,6 +188,11 @@ declare module 'vscode' {
 		 * The tooltip text when you hover over this item.
 		 */
 		tooltip?: string | MarkdownString;
+
+		/**
+		 * Whether the chat session has been archived.
+		 */
+		archived?: boolean;
 
 		/**
 		 * The times at which session started and ended
@@ -268,18 +372,6 @@ declare module 'vscode' {
 	}
 
 	export namespace chat {
-		/**
-		 * Registers a new {@link ChatSessionItemProvider chat session item provider}.
-		 *
-		 * To use this, also make sure to also add `chatSessions` contribution in the `package.json`.
-		 *
-		 * @param chatSessionType The type of chat session the provider is for.
-		 * @param provider The provider to register.
-		 *
-		 * @returns A disposable that unregisters the provider when disposed.
-		 */
-		export function registerChatSessionItemProvider(chatSessionType: string, provider: ChatSessionItemProvider): Disposable;
-
 		/**
 		 * Registers a new {@link ChatSessionContentProvider chat session content provider}.
 		 *

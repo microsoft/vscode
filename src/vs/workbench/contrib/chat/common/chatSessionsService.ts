@@ -73,6 +73,7 @@ export interface IChatSessionsExtensionPoint {
 	readonly commands?: IChatSessionCommandContribution[];
 	readonly canDelegate?: boolean;
 }
+
 export interface IChatSessionItem {
 	resource: URI;
 	label: string;
