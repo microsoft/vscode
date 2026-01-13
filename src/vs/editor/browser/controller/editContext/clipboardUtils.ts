@@ -57,7 +57,10 @@ export function generateDataToCopyAndStoreInMemory(viewModel: IViewModel, option
 }
 
 function getDataToCopy(viewModel: IViewModel, modelSelections: Range[], emptySelectionClipboard: boolean, copyWithSyntaxHighlighting: boolean): ClipboardDataToCopy {
-	const rawTextToCopy = viewModel.getPlainTextToCopy(modelSelections, emptySelectionClipboard, isWindows);
+	// Filter selections to exclude hidden areas
+	const filteredSelections = filterSelectionsExcludingHiddenAreas(viewModel, modelSelections);
+	
+	const rawTextToCopy = viewModel.getPlainTextToCopy(filteredSelections, emptySelectionClipboard, isWindows);
 	const newLineCharacter = viewModel.model.getEOL();
 
 	const isFromEmptySelection = (emptySelectionClipboard && modelSelections.length === 1 && modelSelections[0].isEmpty());
@@ -67,7 +70,7 @@ function getDataToCopy(viewModel: IViewModel, modelSelections: Range[], emptySel
 	let html: string | null | undefined = undefined;
 	let mode: string | null = null;
 	if (CopyOptions.forceCopyWithSyntaxHighlighting || (copyWithSyntaxHighlighting && text.length < 65536)) {
-		const richText = viewModel.getRichTextToCopy(modelSelections, emptySelectionClipboard);
+		const richText = viewModel.getRichTextToCopy(filteredSelections, emptySelectionClipboard);
 		if (richText) {
 			html = richText.html;
 			mode = richText.mode;
@@ -81,6 +84,76 @@ function getDataToCopy(viewModel: IViewModel, modelSelections: Range[], emptySel
 		mode
 	};
 	return dataToCopy;
+}
+
+/**
+ * Filters the given selection ranges to exclude any hidden areas.
+ * If there are no hidden areas, returns the original selections.
+ * @param viewModel The view model containing hidden areas information
+ * @param selections The original selection ranges
+ * @returns Filtered selection ranges with hidden areas excluded
+ */
+function filterSelectionsExcludingHiddenAreas(viewModel: IViewModel, selections: Range[]): Range[] {
+	const hiddenAreas = viewModel.getHiddenAreas();
+	
+	if (hiddenAreas.length === 0) {
+		return selections;
+	}
+
+	const result: Range[] = [];
+
+	for (const selection of selections) {
+		const visibleRanges = splitRangeByHiddenAreas(selection, hiddenAreas);
+		result.push(...visibleRanges);
+	}
+
+	return result;
+}
+
+/**
+ * Checks if a line is hidden by any hidden area.
+ */
+function isLineHidden(lineNumber: number, hiddenAreas: Range[]): boolean {
+	return hiddenAreas.some(h =>
+		lineNumber >= h.startLineNumber && lineNumber <= h.endLineNumber
+	);
+}
+
+/**
+ * Splits a range into visible sub-ranges by excluding hidden areas.
+ * Uses a line-by-line approach to identify continuous visible ranges.
+ */
+function splitRangeByHiddenAreas(range: Range, hiddenAreas: Range[]): Range[] {
+	const result: Range[] = [];
+	let visibleStart: number | null = null;
+
+	for (let line = range.startLineNumber; line <= range.endLineNumber; line++) {
+		const hidden = isLineHidden(line, hiddenAreas);
+
+		if (hidden) {
+			// End current visible range if any
+			if (visibleStart !== null) {
+				const startCol = visibleStart === range.startLineNumber ? range.startColumn : 1;
+				const endLine = line - 1;
+				const endCol = endLine === range.endLineNumber ? range.endColumn : Number.MAX_SAFE_INTEGER;
+				result.push(new Range(visibleStart, startCol, endLine, endCol));
+				visibleStart = null;
+			}
+		} else {
+			// Start or continue visible range
+			if (visibleStart === null) {
+				visibleStart = line;
+			}
+		}
+	}
+
+	// Add any remaining visible range
+	if (visibleStart !== null) {
+		const startCol = visibleStart === range.startLineNumber ? range.startColumn : 1;
+		result.push(new Range(visibleStart, startCol, range.endLineNumber, range.endColumn));
+	}
+
+	return result;
 }
 
 /**

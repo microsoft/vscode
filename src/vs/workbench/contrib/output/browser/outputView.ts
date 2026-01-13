@@ -27,7 +27,6 @@ import { IViewDescriptorService } from '../../../common/views.js';
 import { TextResourceEditorInput } from '../../../common/editor/textResourceEditorInput.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { Dimension } from '../../../../base/browser/dom.js';
-import * as dom from '../../../../base/browser/dom.js';
 import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { CancelablePromise, createCancelablePromise } from '../../../../base/common/async.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -50,8 +49,6 @@ import { Markers } from '../../markers/common/markers.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { viewFilterSubmenu } from '../../../browser/parts/views/viewFilter.js';
 import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
-import { EndOfLinePreference } from '../../../../editor/common/model.js';
-import { ClipboardEventUtils, ClipboardStoredMetadata } from '../../../../editor/browser/controller/editContext/clipboardUtils.js';
 
 interface IOutputViewState {
 	filter?: string;
@@ -347,11 +344,6 @@ export class OutputEditor extends AbstractTextResourceEditor {
 				id: FilterController.ID,
 				ctor: FilterController as EditorContributionCtor,
 				instantiation: EditorContributionInstantiation.Eager
-			},
-			{
-				id: FilteredCopyHandler.ID,
-				ctor: FilteredCopyHandler as EditorContributionCtor,
-				instantiation: EditorContributionInstantiation.Eager
 			}
 		];
 	}
@@ -379,10 +371,6 @@ export class FilterController extends Disposable implements IEditorContribution 
 		this.decorationsCollection = editor.createDecorationsCollection();
 		this._register(editor.onDidChangeModel(() => this.onDidChangeModel()));
 		this._register(this.outputService.filters.onDidChange(() => editor.hasModel() && this.filter(editor.getModel())));
-	}
-
-	public getHiddenAreas(): Range[] {
-		return this.hiddenAreas;
 	}
 
 	private onDidChangeModel(): void {
@@ -566,201 +554,5 @@ export class FilterController extends Disposable implements IEditorContribution 
 			return true;
 		}
 		return !filters.hasCategory(`${activeChannelId}:${entry.category}`);
-	}
-}
-
-export class FilteredCopyHandler extends Disposable implements IEditorContribution {
-
-	public static readonly ID = 'output.editor.contrib.filteredCopyHandler';
-	private readonly modelDisposables: DisposableStore = this._register(new DisposableStore());
-
-	constructor(
-		private readonly editor: ICodeEditor,
-	) {
-		super();
-
-		// Attach copy listener when DOM node is ready
-		this.attachCopyListener();
-
-		// Re-attach listener when model changes
-		this._register(this.editor.onDidChangeModel(() => {
-			this.attachCopyListener();
-		}));
-	}
-
-	private attachCopyListener(): void {
-		// Clean up previous listeners
-		this.modelDisposables.clear();
-
-		const domNode = this.editor.getDomNode();
-		if (!domNode) {
-			return;
-		}
-
-		// Listen for copy events on the editor
-		this.modelDisposables.add(dom.addDisposableListener(domNode, 'copy', (e: ClipboardEvent) => {
-			this.handleCopy(e);
-		}));
-	}
-
-	private handleCopy(e: ClipboardEvent): void {
-		const model = this.editor.getModel();
-		if (!model) {
-			return;
-		}
-
-		const filterController = this.getFilterController();
-		if (!filterController) {
-			return;
-		}
-
-		const hiddenAreas = filterController.getHiddenAreas();
-		if (hiddenAreas.length === 0) {
-			// No filtering active, use default behavior
-			return;
-		}
-
-		// Get the current selections
-		const selections = this.editor.getSelections();
-		if (!selections || selections.length === 0) {
-			return;
-		}
-
-		// Filter the selections to exclude hidden areas
-		const visibleText = this.getVisibleTextToCopy(selections, hiddenAreas);
-		if (visibleText === null) {
-			// Use default behavior
-			return;
-		}
-
-		// Prevent the default copy behavior
-		e.preventDefault();
-
-		// Set our filtered text to the clipboard using VS Code's clipboard utilities
-		if (e.clipboardData) {
-			const metadata: ClipboardStoredMetadata = {
-				version: 1, // ClipboardStoredMetadata version format
-				id: undefined,
-				isFromEmptySelection: false,
-				multicursorText: null,
-				mode: null
-			};
-			ClipboardEventUtils.setTextData(e.clipboardData, visibleText, undefined, metadata);
-		}
-	}
-
-	private getFilterController(): FilterController | null {
-		return this.editor.getContribution<FilterController>(FilterController.ID);
-	}
-
-	/**
-	 * Filters the given ranges to exclude hidden areas.
-	 * @param ranges The ranges to filter
-	 * @param hiddenAreas The hidden areas to exclude
-	 * @returns An array of visible ranges
-	 */
-	private getVisibleRanges(ranges: Range[], hiddenAreas: Range[]): Range[] {
-		if (hiddenAreas.length === 0) {
-			return ranges;
-		}
-
-		const visibleRanges: Range[] = [];
-
-		for (const range of ranges) {
-			const result = this.splitRangeByHiddenAreas(range, hiddenAreas);
-			visibleRanges.push(...result);
-		}
-
-		return visibleRanges;
-	}
-
-	/**
-	 * Checks if a line is hidden by any hidden area.
-	 */
-	private isLineHidden(lineNumber: number, hiddenAreas: Range[]): boolean {
-		return hiddenAreas.some(h =>
-			lineNumber >= h.startLineNumber && lineNumber <= h.endLineNumber
-		);
-	}
-
-	/**
-	 * Gets the start column for a visible range based on whether it's the original start line.
-	 */
-	private getStartColumn(currentLine: number, originalStartLine: number, originalStartColumn: number): number {
-		return currentLine === originalStartLine ? originalStartColumn : 1;
-	}
-
-	/**
-	 * Gets the end column for a visible range based on whether it's the original end line.
-	 */
-	private getEndColumn(model: ITextModel, currentLine: number, originalEndLine: number, originalEndColumn: number): number {
-		return currentLine === originalEndLine ? originalEndColumn : model.getLineMaxColumn(currentLine);
-	}
-
-	/**
-	 * Splits a range into visible sub-ranges by excluding hidden areas.
-	 */
-	private splitRangeByHiddenAreas(range: Range, hiddenAreas: Range[]): Range[] {
-		const model = this.editor.getModel();
-		if (!model) {
-			return [];
-		}
-
-		const result: Range[] = [];
-		let visibleStart: number | null = null;
-
-		for (let line = range.startLineNumber; line <= range.endLineNumber; line++) {
-			const isHidden = this.isLineHidden(line, hiddenAreas);
-
-			if (isHidden) {
-				// If we were building a visible range, save it
-				if (visibleStart !== null) {
-					const startCol = this.getStartColumn(visibleStart, range.startLineNumber, range.startColumn);
-					const endLine = line - 1;
-					const endCol = this.getEndColumn(model, endLine, range.endLineNumber, range.endColumn);
-					result.push(new Range(visibleStart, startCol, endLine, endCol));
-					visibleStart = null;
-				}
-			} else {
-				// Start or continue a visible range
-				if (visibleStart === null) {
-					visibleStart = line;
-				}
-			}
-		}
-
-		// Save any remaining visible range
-		if (visibleStart !== null) {
-			const startCol = this.getStartColumn(visibleStart, range.startLineNumber, range.startColumn);
-			result.push(new Range(visibleStart, startCol, range.endLineNumber, range.endColumn));
-		}
-
-		return result;
-	}
-
-	/**
-	 * Gets the text content from the visible (non-hidden) ranges.
-	 */
-	private getVisibleTextToCopy(ranges: Range[], hiddenAreas: Range[]): string | null {
-		const model = this.editor.getModel();
-		if (!model) {
-			return null;
-		}
-
-		const visibleRanges = this.getVisibleRanges(ranges, hiddenAreas);
-		if (visibleRanges.length === 0) {
-			return '';
-		}
-
-		const newLineCharacter = model.getEOL();
-		const textParts: string[] = [];
-
-		for (const range of visibleRanges) {
-			if (!range.isEmpty()) {
-				textParts.push(model.getValueInRange(range, EndOfLinePreference.TextDefined));
-			}
-		}
-
-		return textParts.join(newLineCharacter);
 	}
 }
