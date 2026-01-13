@@ -390,10 +390,6 @@ export class FileService extends Disposable implements IFileService {
 			}
 		}
 
-		if (options?.append && !hasFileAppendCapability(provider)) {
-			throw new FileOperationError(localize('err.noAppend', "Filesystem provider for scheme '{0}' does not does not support append", this.resourceForError(resource)), FileOperationResult.FILE_PERMISSION_DENIED);
-		}
-
 		try {
 
 			// validate write (this may already return a peeked-at buffer)
@@ -462,6 +458,11 @@ export class FileService extends Disposable implements IFileService {
 		const unlock = !!options?.unlock;
 		if (unlock && !(provider.capabilities & FileSystemProviderCapabilities.FileWriteUnlock)) {
 			throw new Error(localize('writeFailedUnlockUnsupported', "Unable to unlock file '{0}' because provider does not support it.", this.resourceForError(resource)));
+		}
+
+		// Validate append support
+		if (options?.append && !hasFileAppendCapability(provider)) {
+			throw new FileOperationError(localize('err.noAppend', "Filesystem provider for scheme '{0}' does not does not support append", this.resourceForError(resource)), FileOperationResult.FILE_PERMISSION_DENIED);
 		}
 
 		// Validate atomic support
