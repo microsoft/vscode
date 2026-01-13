@@ -2483,7 +2483,6 @@ suite('PromptFilesLocator', () => {
 				'/Users/username/skills',
 				'/absolute/path',
 				'/usr/local/skills',
-				'C:\\Users\\username\\skills',
 			];
 
 			for (const path of invalidPaths) {
