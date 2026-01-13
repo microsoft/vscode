@@ -9,6 +9,7 @@
     "start": "node ./out/index.js"
   },
   "dependencies": {
+    "mocha-junit-reporter": "^2.2.1",
     "node-fetch": "^3.3.2",
     "playwright": "^1.57.0"
   },

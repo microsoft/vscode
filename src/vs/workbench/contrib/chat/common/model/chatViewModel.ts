@@ -198,7 +198,6 @@ export interface IChatResponseViewModel {
 	/** The ID of the associated IChatRequestViewModel */
 	readonly requestId: string;
 	readonly username: string;
-	readonly avatarIcon?: URI | ThemeIcon;
 	readonly agent?: IChatAgentData;
 	readonly slashCommand?: IChatAgentCommand;
 	readonly agentOrSlashCommandDetected: boolean;
@@ -502,10 +501,6 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 		}
 
 		return this._model.username;
-	}
-
-	get avatarIcon() {
-		return this._model.avatarIcon;
 	}
 
 	get agent() {

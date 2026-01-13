@@ -90,7 +90,9 @@ export function setup(context: TestContext) {
 			const args = [
 				'--accept-server-license-terms',
 				'--connection-token', context.getRandomToken(),
-				'--port', context.getRandomPort()
+				'--port', context.getRandomPort(),
+				'--server-data-dir', context.createTempDir(),
+				'--extensions-dir', context.createTempDir(),
 			];
 
 			context.log(`Starting server ${entryPoint} with args ${args.join(' ')}`);

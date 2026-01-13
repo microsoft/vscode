@@ -135,7 +135,7 @@
 	opacity: 1;
 }
 
-.models-widget .models-table-container .monaco-list-row .monaco-table-tr .models-table-column.models-actions-column .actions-container {
+.models-widget .models-table-container .monaco-list-row .monaco-table-tr.models-model-row .models-table-column.models-actions-column .actions-container {
 	display: none;
 	align-items: center;
 	justify-content: center;

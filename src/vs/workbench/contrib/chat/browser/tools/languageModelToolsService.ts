@@ -206,7 +206,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 		this._tools.set(toolData.id, { data: toolData });
 		this._ctxToolsCount.set(this._tools.size);
-		this._onDidChangeToolsScheduler.schedule();
+		if (!this._onDidChangeToolsScheduler.isScheduled()) {
+			this._onDidChangeToolsScheduler.schedule();
+		}
 
 		toolData.when?.keys().forEach(key => this._toolContextKeys.add(key));
 
@@ -223,7 +225,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			this._tools.delete(toolData.id);
 			this._ctxToolsCount.set(this._tools.size);
 			this._refreshAllToolContextKeys();
-			this._onDidChangeToolsScheduler.schedule();
+			if (!this._onDidChangeToolsScheduler.isScheduled()) {
+				this._onDidChangeToolsScheduler.schedule();
+			}
 		});
 	}
 

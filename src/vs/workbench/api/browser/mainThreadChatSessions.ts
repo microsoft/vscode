@@ -650,7 +650,13 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 	private _refreshProviderOptions(handle: number, chatSessionScheme: string): void {
 		this._proxy.$provideChatSessionProviderOptions(handle, CancellationToken.None).then(options => {
 			if (options?.optionGroups && options.optionGroups.length) {
-				this._chatSessionsService.setOptionGroupsForSessionType(chatSessionScheme, handle, options.optionGroups);
+				const groupsWithCallbacks = options.optionGroups.map(group => ({
+					...group,
+					onSearch: group.searchable ? async (token: CancellationToken) => {
+						return await this._proxy.$invokeOptionGroupSearch(handle, group.id, token);
+					} : undefined,
+				}));
+				this._chatSessionsService.setOptionGroupsForSessionType(chatSessionScheme, handle, groupsWithCallbacks);
 			}
 		}).catch(err => this._logService.error('Error fetching chat session options', err));
 	}

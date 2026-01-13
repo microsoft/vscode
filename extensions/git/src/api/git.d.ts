@@ -80,6 +80,7 @@ export interface Worktree {
 	readonly name: string;
 	readonly path: string;
 	readonly ref: string;
+	readonly main: boolean;
 	readonly detached: boolean;
 }
 
