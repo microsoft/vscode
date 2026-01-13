@@ -1,0 +1,61 @@
+parameters:
+  - name: commit
+    type: string
+  - name: quality
+    type: string
+  - name: poolName
+    type: string
+  - name: os
+    type: string
+
+jobs:
+  - job: ${{ parameters.os }}
+    displayName: ${{ parameters.os }} Sanity Tests
+    pool:
+      name: ${{ parameters.poolName }}
+      os: ${{ parameters.os }}
+    timeoutInMinutes: 30
+    variables:
+      SANITY_TEST_LOGS: $(Build.SourcesDirectory)/.build/sanity-test-logs
+    templateContext:
+      outputs:
+        - output: pipelineArtifact
+          targetPath: $(SANITY_TEST_LOGS)
+          artifactName: sanity-test-logs-${{ lower(parameters.os) }}-$(System.JobAttempt)
+          displayName: Publish Sanity Test Logs
+          sbomEnabled: false
+          isProduction: false
+          condition: succeededOrFailed()
+    steps:
+      - checkout: self
+
+      - task: NodeTool@0
+        inputs:
+          versionSource: fromFile
+          versionFilePath: .nvmrc
+        displayName: Install Node.js
+
+      - ${{ if eq(parameters.os, 'windows') }}:
+        - script: |
+            mkdir "$(SANITY_TEST_LOGS)"
+          displayName: Create Logs Directory
+
+      - ${{ else }}:
+        - script: |
+            mkdir -p "$(SANITY_TEST_LOGS)"
+          displayName: Create Logs Directory
+
+      - script: npm install
+        displayName: Install Dependencies
+        workingDirectory: $(Build.SourcesDirectory)/test/sanity
+
+      - script: npm run sanity-test -- --commit ${{ parameters.commit }} --quality ${{ parameters.quality }} --verbose --test-results $(SANITY_TEST_LOGS)/sanity-test.xml
+        displayName: Run Sanity Tests
+
+      - task: PublishTestResults@2
+        inputs:
+          testResultsFormat: JUnit
+          testResultsFiles: $(SANITY_TEST_LOGS)/sanity-test.xml
+          testRunTitle: ${{ parameters.os }} Sanity Tests
+        condition: succeededOrFailed()
+        displayName: Publish Test Results

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AsyncIterableObject } from '../../../../../base/common/async.js';
+import { AsyncIterableProducer } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
@@ -667,7 +667,7 @@ export function registerChatCodeCompareBlockActions() {
 			if (!firstEdit) {
 				return false;
 			}
-			const textEdits = AsyncIterableObject.fromArray(item.edits);
+			const textEdits = AsyncIterableProducer.fromArray(item.edits);
 
 			const editorToApply = await editorService.openCodeEditor({ resource: item.uri }, null);
 			if (editorToApply) {
