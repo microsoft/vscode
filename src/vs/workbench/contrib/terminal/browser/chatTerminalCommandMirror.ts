@@ -44,7 +44,7 @@ function getChatTerminalBackgroundColor(theme: IColorTheme, contextKeyService: I
  *
  * @param buffer The buffer to measure
  * @param cols The terminal column count (used to clamp line length)
- * @returns The maximum column width (1-indexed), or 0 if all lines are empty
+ * @returns The maximum column width (number of columns used), or 0 if all lines are empty
  */
 export function computeMaxBufferColumnWidth(buffer: { readonly length: number; getLine(y: number): { readonly length: number; getCell(x: number): { getChars(): string } | undefined } | undefined }, cols: number): number {
 	let maxWidth = 0;
