@@ -50,6 +50,14 @@ const enum ChatTerminalMirrorMetrics {
 	MirrorColCountFallback = 80
 }
 
+/**
+ * Computes the line count for terminal output between start and end lines.
+ * The end line is exclusive (points to the line after output ends).
+ */
+function computeOutputLineCount(startLine: number, endLine: number): number {
+	return Math.max(endLine - startLine, 0);
+}
+
 export async function getCommandOutputSnapshot(
 	xtermTerminal: XtermTerminal,
 	command: ITerminalCommand,
@@ -94,13 +102,13 @@ export async function getCommandOutputSnapshot(
 			return { text: '', lineCount: 0 };
 		}
 		const endLine = endMarker.line;
-		const lineCount = Math.max(endLine - startLine + 1, 0);
+		const lineCount = computeOutputLineCount(startLine, endLine);
 		return { text, lineCount };
 	}
 
 	const startLine = executedMarker.line;
 	const endLine = endMarker.line;
-	const lineCount = Math.max(endLine - startLine + 1, 0);
+	const lineCount = computeOutputLineCount(startLine, endLine);
 
 	let text: string | undefined;
 	try {
@@ -289,7 +297,7 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 		if (this._command.executedMarker && endMarker && !endMarker.isDisposed) {
 			const startLine = this._command.executedMarker.line;
 			const endLine = endMarker.line;
-			return Math.max(endLine - startLine, 0);
+			return computeOutputLineCount(startLine, endLine);
 		}
 
 		// During streaming (no end marker), calculate from the source terminal buffer
@@ -297,7 +305,7 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 		if (executedMarker && this._sourceRaw) {
 			const buffer = this._sourceRaw.buffer.active;
 			const currentLine = buffer.baseY + buffer.cursorY;
-			return Math.max(currentLine - executedMarker.line, 0);
+			return computeOutputLineCount(executedMarker.line, currentLine);
 		}
 
 		return this._lineCount;
