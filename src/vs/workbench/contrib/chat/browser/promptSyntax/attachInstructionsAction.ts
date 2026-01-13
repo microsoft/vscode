@@ -33,50 +33,6 @@ const ATTACH_INSTRUCTIONS_ACTION_ID = 'workbench.action.chat.attach.instructions
  */
 const CONFIGURE_INSTRUCTIONS_ACTION_ID = 'workbench.action.chat.configure.instructions';
 
-/**
- * Action ID for the `Configure Skills` action.
- */
-const CONFIGURE_SKILLS_ACTION_ID = 'workbench.action.chat.configure.skills';
-
-
-class ManageSkillsFilesAction extends Action2 {
-	constructor() {
-		super({
-			id: CONFIGURE_SKILLS_ACTION_ID,
-			title: localize2('configure-skills', "Configure Skills..."),
-			shortTitle: localize2('configure-skills.short', "Chat Skills"),
-			icon: Codicon.lightbulb,
-			f1: true,
-			precondition: ChatContextKeys.enabled,
-			category: CHAT_CATEGORY,
-			menu: {
-				id: CHAT_CONFIG_MENU_ID,
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
-				order: 9,
-				group: '1_level'
-			}
-		});
-	}
-
-	public override async run(
-		accessor: ServicesAccessor,
-	): Promise<void> {
-		const openerService = accessor.get(IOpenerService);
-		const instaService = accessor.get(IInstantiationService);
-
-		const pickers = instaService.createInstance(PromptFilePickers);
-
-		const placeholder = localize(
-			'commands.prompt.manage-skills-dialog.placeholder',
-			'Select the skill file to open'
-		);
-
-		const result = await pickers.selectPromptFile({ placeholder, type: PromptsType.skill, optionEdit: false });
-		if (result !== undefined) {
-			await openerService.open(result.promptFile);
-		}
-	}
-}
 
 class ManageInstructionsFilesAction extends Action2 {
 	constructor() {
@@ -122,7 +78,6 @@ class ManageInstructionsFilesAction extends Action2 {
  * Helper to register the `Attach Prompt` action.
  */
 export function registerAttachPromptActions(): void {
-	registerAction2(ManageSkillsFilesAction);
 	registerAction2(ManageInstructionsFilesAction);
 }
 
