@@ -1067,6 +1067,7 @@ suite('PromptsService', () => {
 
 		test('should list skill files from workspace', async () => {
 			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
 
 			const rootFolderName = 'list-skills-workspace';
 			const rootFolder = `/${rootFolderName}`;
@@ -1194,6 +1195,7 @@ suite('PromptsService', () => {
 
 		test('should handle mixed workspace and user home skills', async () => {
 			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
 
 			const rootFolderName = 'mixed-skills';
 			const rootFolder = `/${rootFolderName}`;
@@ -1233,6 +1235,85 @@ suite('PromptsService', () => {
 
 			assert.strictEqual(workspaceSkills.length, 1, 'Should find 1 workspace skill');
 			assert.strictEqual(userSkills.length, 1, 'Should find 1 user skill');
+		});
+
+		test('should respect disabled default paths via config', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			// Disable .github/skills, only .claude/skills should be searched
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {
+				'.github/skills': false,
+				'.claude/skills': true,
+			});
+
+			const rootFolderName = 'disabled-default-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/skills/github-skill/SKILL.md`,
+					contents: [
+						'---',
+						'name: "GitHub Skill"',
+						'description: "Should NOT be found"',
+						'---',
+						'This skill is in a disabled folder',
+					],
+				},
+				{
+					path: `${rootFolder}/.claude/skills/claude-skill/SKILL.md`,
+					contents: [
+						'---',
+						'name: "Claude Skill"',
+						'description: "Should be found"',
+						'---',
+						'This skill is in an enabled folder',
+					],
+				},
+			]);
+
+			const result = await service.listPromptFiles(PromptsType.skill, CancellationToken.None);
+
+			assert.strictEqual(result.length, 1, 'Should find only 1 skill (from enabled folder)');
+			assert.ok(result[0].uri.path.includes('.claude/skills'), 'Should only find skill from .claude/skills');
+			assert.ok(!result[0].uri.path.includes('.github/skills'), 'Should not find skill from disabled .github/skills');
+		});
+
+		test('should expand tilde paths in custom locations', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			// Add a tilde path as custom location
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {
+				'.github/skills': false,
+				'.claude/skills': false,
+				'~/my-custom-skills': true,
+			});
+
+			const rootFolderName = 'tilde-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			// The mock user home is /home/user, so ~/my-custom-skills should resolve to /home/user/my-custom-skills
+			await mockFiles(fileService, [
+				{
+					path: '/home/user/my-custom-skills/custom-skill/SKILL.md',
+					contents: [
+						'---',
+						'name: "Custom Skill"',
+						'description: "A skill from tilde path"',
+						'---',
+						'Skill content from ~/my-custom-skills',
+					],
+				},
+			]);
+
+			const result = await service.listPromptFiles(PromptsType.skill, CancellationToken.None);
+
+			assert.strictEqual(result.length, 1, 'Should find 1 skill from tilde-expanded path');
+			assert.ok(result[0].uri.path.includes('/home/user/my-custom-skills'), 'Path should be expanded from tilde');
 		});
 	});
 
@@ -1811,6 +1892,7 @@ suite('PromptsService', () => {
 
 		test('should find skills in workspace and user home', async () => {
 			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
 
 			const rootFolderName = 'agent-skills-test';
 			const rootFolder = `/${rootFolderName}`;
@@ -1915,6 +1997,7 @@ suite('PromptsService', () => {
 
 		test('should handle parsing errors gracefully', async () => {
 			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
 
 			const rootFolderName = 'skills-error-test';
 			const rootFolder = `/${rootFolderName}`;
@@ -1974,6 +2057,7 @@ suite('PromptsService', () => {
 
 		test('should truncate long names and descriptions', async () => {
 			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
 
 			const rootFolderName = 'truncation-test';
 			const rootFolder = `/${rootFolderName}`;
@@ -2007,6 +2091,7 @@ suite('PromptsService', () => {
 
 		test('should remove XML tags from name and description', async () => {
 			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
 
 			const rootFolderName = 'xml-test';
 			const rootFolder = `/${rootFolderName}`;
@@ -2037,6 +2122,7 @@ suite('PromptsService', () => {
 
 		test('should handle both truncation and XML removal', async () => {
 			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
 
 			const rootFolderName = 'combined-test';
 			const rootFolder = `/${rootFolderName}`;

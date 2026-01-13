@@ -6,7 +6,7 @@
 import type { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { PromptsType } from '../promptTypes.js';
-import { getPromptFileDefaultLocations } from './promptFileLocations.js';
+import { getPromptFileDefaultLocations, IPromptSourceFolder } from './promptFileLocations.js';
 
 /**
  * Configuration helper for the `reusable prompts` feature.
@@ -124,17 +124,18 @@ export namespace PromptsConfig {
 	/**
 	 * Gets list of source folders for prompt files.
 	 */
-	export function promptSourceFolders(configService: IConfigurationService, type: PromptsType): string[] {
+	export function promptSourceFolders(configService: IConfigurationService, type: PromptsType): IPromptSourceFolder[] {
 		const value = getLocationsValue(configService, type);
-		const defaultSourceFolders = getPromptFileDefaultLocations(type, 'workspace').map(f => f.path);
+		const defaultSourceFolders = getPromptFileDefaultLocations(type, 'workspace');
 
 		// note! the `value &&` part handles the `undefined`, `null`, and `false` cases
 		if (value && (typeof value === 'object')) {
-			const paths: string[] = [];
+			const paths: IPromptSourceFolder[] = [];
+			const defaultFolderPaths = defaultSourceFolders.map(f => f.path);
 
 			// add default source folders that are not explicitly disabled
 			for (const defaultFolder of defaultSourceFolders) {
-				if (value[defaultFolder] !== false) {
+				if (value[defaultFolder.path] !== false) {
 					paths.push(defaultFolder);
 				}
 			}
@@ -142,11 +143,12 @@ export namespace PromptsConfig {
 			// copy all the enabled paths to the result list
 			for (const [path, enabledValue] of Object.entries(value)) {
 				// we already added the default source folders, so skip them
-				if ((enabledValue === false) || defaultSourceFolders.includes(path)) {
+				if ((enabledValue === false) || defaultFolderPaths.includes(path)) {
 					continue;
 				}
 
-				paths.push(path);
+				// user-configured paths are treated as workspace locations with custom type
+				paths.push({ path, type: 'custom', location: 'workspace' });
 			}
 
 			return paths;
