@@ -16,6 +16,7 @@ import { BrowserViewUri } from '../../../../platform/browserView/common/browserV
 import { IBrowserViewWorkbenchService } from '../common/browserView.js';
 import { BrowserViewStorageScope } from '../../../../platform/browserView/common/browserView.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 
 // Context key expression to check if browser editor is active
 const BROWSER_EDITOR_ACTIVE = ContextKeyExpr.equals('activeEditor', BrowserEditor.ID);
@@ -193,6 +194,35 @@ class ToggleDevToolsAction extends Action2 {
 	}
 }
 
+class OpenInExternalBrowserAction extends Action2 {
+	static readonly ID = 'workbench.action.browser.openExternal';
+
+	constructor() {
+		super({
+			id: OpenInExternalBrowserAction.ID,
+			title: localize2('browser.openExternalAction', 'Open in External Browser'),
+			category: BrowserCategory,
+			icon: Codicon.linkExternal,
+			f1: false,
+			menu: {
+				id: MenuId.BrowserActionsToolbar,
+				group: 'actions_1',
+				order: 0
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+		if (browserEditor instanceof BrowserEditor) {
+			const url = browserEditor.getUrl();
+			if (url) {
+				const openerService = accessor.get(IOpenerService);
+				await openerService.open(url, { openExternal: true });
+			}
+		}
+	}
+}
+
 class ClearGlobalBrowserStorageAction extends Action2 {
 	static readonly ID = 'workbench.action.browser.clearGlobalStorage';
 
@@ -250,5 +280,6 @@ registerAction2(GoForwardAction);
 registerAction2(ReloadAction);
 registerAction2(AddElementToChatAction);
 registerAction2(ToggleDevToolsAction);
+registerAction2(OpenInExternalBrowserAction);
 registerAction2(ClearGlobalBrowserStorageAction);
 registerAction2(ClearWorkspaceBrowserStorageAction);
