@@ -15,6 +15,7 @@ import { IMouseWheelEvent } from '../../../base/browser/mouseEvent.js';
 import { EditorOption } from '../../common/config/editorOptions.js';
 import * as platform from '../../../base/common/platform.js';
 import { StandardTokenType } from '../../common/encodedTokenAttributes.js';
+import { ITextModel } from '../../common/model.js';
 
 export interface IMouseDispatchData {
 	position: Position;
@@ -132,11 +133,20 @@ export class ViewController {
 
 	/**
 	 * Selects content inside brackets if the position is right after an opening bracket or right before a closing bracket.
+	 * @param viewPosition The position in the view.
 	 */
-	private _trySelectBracketContent(viewPosition: Position): Selection | undefined {
+	private _trySelectBracketContentInViewModel(viewPosition: Position): Selection | undefined {
 		const pos = this._convertViewToModelPosition(viewPosition);
 		const model = this.viewModel.model;
+		return ViewController._trySelectBracketContent(pos, model);
+	}
 
+	/**
+	 * Selects content inside brackets if the position is right after an opening bracket or right before a closing bracket.
+	 * @param pos The position in the model.
+	 * @param model The text model.
+	 */
+	private static _trySelectBracketContent(pos: Position, model: ITextModel): Selection | undefined {
 		// Try to find bracket match if we're right after an opening bracket.
 		if (pos.column > 1) {
 			const pair = model.bracketPairs.matchBracket(pos.with(undefined, pos.column - 1));
@@ -240,7 +250,7 @@ export class ViewController {
 					if (data.inSelectionMode) {
 						this._wordSelectDrag(data.position, data.revealType);
 					} else {
-						const selection = this._trySelectBracketContent(data.position) || this._trySelectStringContent(data.position);
+						const selection = this._trySelectBracketContentInViewModel(data.position) || this._trySelectStringContent(data.position);
 						if (selection) {
 							this._select(selection);
 						} else {
