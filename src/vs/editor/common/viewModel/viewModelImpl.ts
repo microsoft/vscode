@@ -198,7 +198,11 @@ export class ViewModel extends Disposable implements IViewModel {
 		const decorations = this.model.getCustomLineHeightsDecorations(this._editorId);
 		return decorations.map((d) => {
 			const lineNumber = d.range.startLineNumber;
-			const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber)));
+			const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(
+				d.options.isWholeLine
+					? new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber))
+					: d.range
+			);
 			return {
 				decorationId: d.id,
 				startLineNumber: viewRange.startLineNumber,
@@ -391,6 +395,7 @@ export class ViewModel extends Disposable implements IViewModel {
 								eventsCollector.emitViewEvent(linesDeletedEvent);
 								this.viewLayout.onLinesDeleted(linesDeletedEvent.fromLineNumber, linesDeletedEvent.toLineNumber);
 							}
+							this.viewLayout.onFlushed(this.getLineCount(), this._getCustomLineHeights());
 							break;
 						}
 						case textModelEvents.RawContentChangedType.EOLChanged: {
@@ -451,9 +456,13 @@ export class ViewModel extends Disposable implements IViewModel {
 
 				this.viewLayout.changeSpecialLineHeights((accessor: ILineHeightChangeAccessor) => {
 					for (const change of filteredChanges) {
-						const { decorationId, lineNumber, lineHeight } = change;
-						const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber)));
+						const { decorationId, isWholeLine, lineHeight, range } = change;
 						if (lineHeight !== null) {
+							const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(
+								isWholeLine
+									? new Range(range.startLineNumber, 1, range.endLineNumber, this.model.getLineMaxColumn(range.endLineNumber))
+									: range
+							);
 							accessor.insertOrChangeCustomLineHeight(decorationId, viewRange.startLineNumber, viewRange.endLineNumber, lineHeight);
 						} else {
 							accessor.removeCustomLineHeight(decorationId);

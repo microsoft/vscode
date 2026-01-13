@@ -29,14 +29,15 @@ export interface DecorationProvider {
 export class LineHeightChangingDecoration {
 
 	public static toKey(obj: LineHeightChangingDecoration): string {
-		return `${obj.ownerId};${obj.decorationId};${obj.lineNumber}`;
+		return `${obj.ownerId};${obj.decorationId}`;
 	}
 
 	constructor(
 		public readonly ownerId: number,
 		public readonly decorationId: string,
-		public readonly lineNumber: number,
-		public readonly lineHeight: number | null
+		public readonly range: Range,
+		public readonly lineHeight: number | null,
+		public readonly isWholeLine: boolean
 	) { }
 }
 
