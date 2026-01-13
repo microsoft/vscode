@@ -103,7 +103,7 @@ function filterSelectionsExcludingHiddenAreas(viewModel: IViewModel, selections:
 	const result: Range[] = [];
 
 	for (const selection of selections) {
-		const visibleRanges = splitRangeByHiddenAreas(selection, hiddenAreas);
+		const visibleRanges = splitRangeByHiddenAreas(viewModel, selection, hiddenAreas);
 		result.push(...visibleRanges);
 	}
 
@@ -123,7 +123,7 @@ function isLineHidden(lineNumber: number, hiddenAreas: Range[]): boolean {
  * Splits a range into visible sub-ranges by excluding hidden areas.
  * Uses a line-by-line approach to identify continuous visible ranges.
  */
-function splitRangeByHiddenAreas(range: Range, hiddenAreas: Range[]): Range[] {
+function splitRangeByHiddenAreas(viewModel: IViewModel, range: Range, hiddenAreas: Range[]): Range[] {
 	const result: Range[] = [];
 	let visibleStart: number | null = null;
 
@@ -135,7 +135,7 @@ function splitRangeByHiddenAreas(range: Range, hiddenAreas: Range[]): Range[] {
 			if (visibleStart !== null) {
 				const startCol = visibleStart === range.startLineNumber ? range.startColumn : 1;
 				const endLine = line - 1;
-				const endCol = endLine === range.endLineNumber ? range.endColumn : Number.MAX_SAFE_INTEGER;
+				const endCol = endLine === range.endLineNumber ? range.endColumn : viewModel.getLineMaxColumn(endLine);
 				result.push(new Range(visibleStart, startCol, endLine, endCol));
 				visibleStart = null;
 			}
