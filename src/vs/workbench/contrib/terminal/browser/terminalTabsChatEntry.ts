@@ -48,8 +48,8 @@ export class TerminalTabsChatEntry extends Disposable {
 		this._deleteButton.classList.add(...ThemeIcon.asClassNameArray(Codicon.trashcan));
 		this._deleteButton.tabIndex = 0;
 		this._deleteButton.setAttribute('role', 'button');
-		this._deleteButton.setAttribute('aria-label', localize('terminal.tabs.chatEntryDeleteAriaLabel', "Delete all hidden chat terminals"));
-		this._deleteButton.setAttribute('title', localize('terminal.tabs.chatEntryDeleteTooltip', "Delete all hidden chat terminals"));
+		this._deleteButton.setAttribute('aria-label', localize('terminal.tabs.chatEntryDeleteAriaLabel', "Kill all hidden chat terminals"));
+		this._deleteButton.setAttribute('title', localize('terminal.tabs.chatEntryDeleteTooltip', "Kill all hidden chat terminals"));
 
 		const runChatTerminalsCommand = () => {
 			void this._commandService.executeCommand('workbench.action.terminal.chat.viewHiddenChatTerminals');

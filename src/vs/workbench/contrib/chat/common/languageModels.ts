@@ -31,6 +31,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
 import { ChatContextKeys } from './actions/chatContextKeys.js';
+import { ChatAgentLocation } from './constants.js';
 import { ILanguageModelsProviderGroup, ILanguageModelsConfigurationService } from './languageModelsConfiguration.js';
 
 export const enum ChatMessageRole {
@@ -178,7 +179,7 @@ export interface ILanguageModelChatMetadata {
 	readonly maxInputTokens: number;
 	readonly maxOutputTokens: number;
 
-	readonly isDefault?: boolean;
+	readonly isDefaultForLocation: { [K in ChatAgentLocation]?: boolean };
 	readonly isUserSelectable?: boolean;
 	readonly statusIcon?: ThemeIcon;
 	readonly modelPickerCategory: { label: string; order: number } | undefined;

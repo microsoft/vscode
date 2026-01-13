@@ -157,8 +157,8 @@ export class CreateAndRunTaskTool implements IToolImpl {
 		const allTasks = await this._tasksService.tasks();
 		if (allTasks?.find(t => t._label === task.label)) {
 			return {
-				invocationMessage: new MarkdownString(localize('taskExists', 'Task `{0}` already exists.', task.label)),
-				pastTenseMessage: new MarkdownString(localize('taskExistsPast', 'Task `{0}` already exists.', task.label)),
+				invocationMessage: new MarkdownString(localize('taskExists', 'Task \`{0}\` already exists.', task.label)),
+				pastTenseMessage: new MarkdownString(localize('taskExistsPast', 'Task \`{0}\` already exists.', task.label)),
 				confirmationMessages: undefined
 			};
 		}

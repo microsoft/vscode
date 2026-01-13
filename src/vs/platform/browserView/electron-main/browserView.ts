@@ -271,6 +271,10 @@ export class BrowserView extends Disposable {
 		});
 	}
 
+	get webContents(): Electron.WebContents {
+		return this._view.webContents;
+	}
+
 	/**
 	 * Get the current state of this browser view
 	 */

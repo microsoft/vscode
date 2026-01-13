@@ -176,6 +176,7 @@ export interface IChatMultiDiffData {
 	kind: 'multiDiffData';
 	collapsed?: boolean;
 	readOnly?: boolean;
+	toJSON(): IChatMultiDiffDataSerialized;
 }
 
 export interface IChatMultiDiffDataSerialized {
@@ -225,6 +226,7 @@ export interface IChatTask extends IChatTaskDto {
 	complete: (result: string | void) => void;
 	task: () => Promise<string | void>;
 	isSettled: () => boolean;
+	toJSON(): IChatTaskSerialized;
 }
 
 export interface IChatUndoStop {
@@ -341,6 +343,7 @@ export interface IChatElicitationRequest {
 	reject?: () => Promise<void>;
 	isHidden?: IObservable<boolean>;
 	hide?(): void;
+	toJSON(): IChatElicitationRequestSerialized;
 }
 
 export interface IChatElicitationRequestSerialized {
@@ -460,6 +463,8 @@ export interface IChatToolInvocation {
 	generatedTitle?: string;
 
 	kind: 'toolInvocation';
+
+	toJSON(): IChatToolInvocationSerialized;
 }
 
 export namespace IChatToolInvocation {
@@ -691,6 +696,13 @@ export interface IChatMcpServersStarting {
 	readonly kind: 'mcpServersStarting';
 	readonly state?: IObservable<IAutostartResult>; // not hydrated when serialized
 	didStartServerIds?: string[];
+	toJSON(): IChatMcpServersStartingSerialized;
+}
+
+export interface IChatMcpServersStartingSerialized {
+	readonly kind: 'mcpServersStarting';
+	readonly state?: undefined;
+	didStartServerIds?: string[];
 }
 
 export class ChatMcpServersStarting implements IChatMcpServersStarting {
@@ -717,7 +729,7 @@ export class ChatMcpServersStarting implements IChatMcpServersStarting {
 		});
 	}
 
-	toJSON(): IChatMcpServersStarting {
+	toJSON(): IChatMcpServersStartingSerialized {
 		return { kind: 'mcpServersStarting', didStartServerIds: this.didStartServerIds };
 	}
 }
@@ -732,6 +744,7 @@ export type IChatProgress =
 	| IChatAgentMarkdownContentWithVulnerability
 	| IChatTreeData
 	| IChatMultiDiffData
+	| IChatMultiDiffDataSerialized
 	| IChatUsedContext
 	| IChatContentReference
 	| IChatContentInlineReference
@@ -757,7 +770,8 @@ export type IChatProgress =
 	| IChatTaskSerialized
 	| IChatElicitationRequest
 	| IChatElicitationRequestSerialized
-	| IChatMcpServersStarting;
+	| IChatMcpServersStarting
+	| IChatMcpServersStartingSerialized;
 
 export interface IChatFollowup {
 	kind: 'reply';
