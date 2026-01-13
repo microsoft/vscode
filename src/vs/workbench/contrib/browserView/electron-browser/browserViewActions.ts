@@ -17,6 +17,7 @@ import { IBrowserViewWorkbenchService } from '../common/browserView.js';
 import { BrowserViewStorageScope } from '../../../../platform/browserView/common/browserView.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 
 // Context key expression to check if browser editor is active
 const BROWSER_EDITOR_ACTIVE = ContextKeyExpr.equals('activeEditor', BrowserEditor.ID);
@@ -273,6 +274,30 @@ class ClearWorkspaceBrowserStorageAction extends Action2 {
 	}
 }
 
+class OpenBrowserSettingsAction extends Action2 {
+	static readonly ID = 'workbench.action.browser.openSettings';
+
+	constructor() {
+		super({
+			id: OpenBrowserSettingsAction.ID,
+			title: localize2('browser.openSettingsAction', 'Browser Settings'),
+			category: BrowserCategory,
+			icon: Codicon.settingsGear,
+			f1: false,
+			menu: {
+				id: MenuId.BrowserActionsToolbar,
+				group: 'settings',
+				order: 1
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const preferencesService = accessor.get(IPreferencesService);
+		await preferencesService.openSettings({ query: '@id:workbench.browser.*,chat.sendElementsToChat.*' });
+	}
+}
+
 // Register actions
 registerAction2(OpenIntegratedBrowserAction);
 registerAction2(GoBackAction);
@@ -283,3 +308,4 @@ registerAction2(ToggleDevToolsAction);
 registerAction2(OpenInExternalBrowserAction);
 registerAction2(ClearGlobalBrowserStorageAction);
 registerAction2(ClearWorkspaceBrowserStorageAction);
+registerAction2(OpenBrowserSettingsAction);
