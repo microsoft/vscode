@@ -90,6 +90,8 @@ declare module 'vscode' {
 		 * Configuration for the model. This is only present if the provider has declared that it requires configuration via the `configuration` property.
 		 * The object adheres to the schema that the extension provided during declaration.
 		 */
-		readonly configuration?: any;
+		readonly configuration?: {
+			readonly [key: string]: any;
+		};
 	}
 }
