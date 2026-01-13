@@ -42,28 +42,28 @@ export class FocusViewCommandCenterControl {
 		// Session title
 		const titleLabel = $('span.focus-view-title');
 		const session = this.focusViewService.activeSession;
-		titleLabel.textContent = session?.label ?? localize('astralProjection', "Astral Projection");
+		titleLabel.textContent = session?.label ?? localize('agentSessionProjection', "Agent Session Projection");
 		pill.appendChild(titleLabel);
 
 		// Listen for session changes to update the title
 		this._disposables.add(this.focusViewService.onDidChangeActiveSession((newSession) => {
-			titleLabel.textContent = newSession?.label ?? localize('astralProjection', "Astral Projection");
+			titleLabel.textContent = newSession?.label ?? localize('agentSessionProjection', "Agent Session Projection");
 		}));
 
 		// Close button
 		const closeButton = $('span.focus-view-close');
 		closeButton.classList.add('codicon', 'codicon-close');
 		closeButton.setAttribute('role', 'button');
-		closeButton.setAttribute('aria-label', localize('exitAstralProjection', "Exit Astral Projection"));
+		closeButton.setAttribute('aria-label', localize('exitAgentSessionProjection', "Exit Agent Session Projection"));
 		closeButton.tabIndex = 0;
 		pill.appendChild(closeButton);
 
 		// Setup hover
 		const hoverDelegate = getDefaultHoverDelegate('mouse');
-		this._disposables.add(this.hoverService.setupManagedHover(hoverDelegate, closeButton, localize('exitAstralProjectionTooltip', "Exit Astral Projection (Escape)")));
+		this._disposables.add(this.hoverService.setupManagedHover(hoverDelegate, closeButton, localize('exitAgentSessionProjectionTooltip', "Exit Agent Session Projection (Escape)")));
 		this._disposables.add(this.hoverService.setupManagedHover(hoverDelegate, pill, () => {
 			const activeSession = this.focusViewService.activeSession;
-			return activeSession ? localize('astralProjectionTooltip', "Astral Projection: {0}", activeSession.label) : localize('astralProjection', "Astral Projection");
+			return activeSession ? localize('agentSessionProjectionTooltip', "Agent Session Projection: {0}", activeSession.label) : localize('agentSessionProjection', "Agent Session Projection");
 		}));
 
 		// Close button click handler - use command service to ensure proper execution

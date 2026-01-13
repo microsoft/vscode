@@ -1,25 +1,80 @@
-# Agent Session Focus View Mode
+# Agent Session Projection (Agent Session Focus View Mode)
 
-A new window mode that immerses the user in a specific agent session by filtering tabs to session-relevant files, replacing the command center with session context, and adding a subtle blue glow border.
+A new window mode that immerses the user in a specific agent session by showing a multi-diff view of all session changes (like edit session), replacing the command center with session context, and adding a subtle blue glow border.
+
+## Current Implementation Status
+
+### ✅ Completed
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| `FocusViewService` | ✅ Done | Core service with enter/exit logic |
+| `FocusViewCommandCenterControl` | ✅ Done | Titlebar pill UI with session title + close button |
+| `ChatInputCommandCenterControl` | ✅ Done | Chat input box when no session is active |
+| Working Sets per Session | ✅ Done | SCM-style working sets, persisted to storage |
+| Modified Files Open on Entry | ✅ Done | Opens multi-diff editor showing all session changes |
+| Title Updates on Session Switch | ✅ Done | `onDidChangeActiveSession` event |
+| New Chat on Exit | ✅ Done | Clears sidebar when leaving |
+| Blue Glow Border | ✅ Done | CSS `.focus-view-active` class |
+| Context Key `inFocusViewMode` | ✅ Done | For conditional UI |
+| Feature Flag Setting | ✅ Done | `chat.agentSessionProjection.enabled` (default: false, experimental) |
+| Actions Gated by Setting | ✅ Done | Uses `config.chat.agentSessionProjection.enabled` context key |
+
+### 🔲 TODO
+
+| Feature | Priority | Notes |
+|---------|----------|-------|
+| Session Picker (no context) | Medium | Show picker when entering without a session selected |
+| Artifacts Count Badge | Low | Show count in command center control |
+| Live Updates | Low | Auto-refresh if session changes while viewing |
+| Tests | Medium | Unit and integration tests |
+
+---
 
 ## Overview
 
-When a user selects an agent session from the Agents view, VS Code enters "focus view mode":
+When `chat.agentSessionProjection.enabled` is set to `true`, the command center behavior changes:
 
-- **Command center** is replaced with session title + artifacts count + exit button
-- **Tabs** are filtered to show only session-relevant resources
+1. **Default (no session active):** Command center shows a chat input box ("Ask me anything...")
+2. **Session active (Agent Session Projection mode):** Command center shows glowing session title + close button
+
+When a user enters Agent Session Projection mode:
+
+- **Command center** shows the session title with a close button (glowing blue)
+- **Editor** shows multi-diff view of all session changes (like edit session)
 - **Blue glow border** provides subtle visual distinction that you're "inside" a session
-- **Agents panel** drills into the selected session's conversation
+- **Chat panel** shows the selected session's conversation
 
 ### Before/After
 
-**Before:** Normal VS Code with Agents panel showing list of sessions. Command center shows "Ask for anything..."
+**Setting OFF:** Normal VS Code command center (workspace name).
 
-**After:** User clicks a session → Focus view activates:
-- Command center: `[copilot-icon] Refining preview layout and icons | 4 artifacts | X`
-- Tabs filtered to session files (e.g., Preview, preview-panel.tsx, icon-grid.tsx, style.css)
-- Agents panel shows session's chat history
+**Setting ON, no session:** Chat input box ("Ask me anything...") replaces command center.
+
+**Setting ON, session active:** Glowing session title + close button:
+- `[copilot-icon] Session Title | X`
+- Multi-diff editor shows all session changes (original vs modified)
+- Chat panel shows session's conversation
 - Subtle blue glow around editor area
+
+---
+
+## Feature Flag
+
+The entire feature is gated behind a setting:
+
+```json
+"chat.agentSessionProjection.enabled": {
+    "type": "boolean",
+    "default": false,
+    "tags": ["experimental"],
+    "markdownDescription": "Controls whether Agent Session Projection mode is enabled for reviewing agent sessions in a focused workspace."
+}
+```
+
+- **Service check:** `FocusViewService._isEnabled()` returns early if disabled
+- **Actions:** `EnterFocusViewAction` uses `ContextKeyExpr.has('config.chat.agentSessionProjection.enabled')` in precondition
+- **Menus:** Context menu items also gated by the config context key
 
 ---
 
@@ -27,12 +82,14 @@ When a user selects an agent session from the Agents view, VS Code enters "focus
 
 ### Key Services & Infrastructure
 
-| Component | Location | Purpose |
-|-----------|----------|---------|
-| `FocusViewService` | `agentSessions/focusViewService.ts` | State management, enter/exit logic |
-| `FocusViewCommandCenterControl` | `agentSessions/focusViewCommandCenterControl.ts` | Titlebar UI when in focus view |
-| Working Sets API | `editorGroupsService` | Save/restore tab state (like SCM working sets) |
-| `InFocusViewModeContext` | Context key | Conditional UI rendering |
+| Component | Location | Purpose | Status |
+|-----------|----------|---------|--------|
+| `FocusViewService` | `focusViewService.ts` | State management, enter/exit logic | ✅ |
+| `FocusViewCommandCenterControl` | `focusViewCommandCenterControl.ts` | Titlebar UI when in focus view | ✅ |
+| `CommandCenterControlRegistry` | `titlebar/commandCenterControlRegistry.ts` | Registry for alternative command center controls | ✅ |
+| Working Sets API | `editorGroupsService` | Save/restore tab state (like SCM working sets) | ✅ |
+| `ChatContextKeys.inFocusViewMode` | `chatContextKeys.ts` | Conditional UI rendering | ✅ |
+| Setting `chat.agentSessionProjection.enabled` | `chat.contribution.ts` | Feature flag | ✅ |
 
 ### Session Resource Types
 
@@ -47,200 +104,101 @@ When a user selects an agent session from the Agents view, VS Code enters "focus
 
 ---
 
-## Implementation Steps
+## Implementation Details
 
-### Step 1: Create `FocusViewService`
+### Step 1: `FocusViewService` ✅
 
 Location: `src/vs/workbench/contrib/chat/browser/agentSessions/focusViewService.ts`
 
 ```typescript
 interface IFocusViewService {
-    // State
-    readonly isFocusViewActive: IObservable<boolean>;
-    readonly activeSession: IObservable<IAgentSession | undefined>;
-
-    // Actions
+    readonly isActive: boolean;
+    readonly activeSession: IAgentSession | undefined;
+    readonly onDidChangeFocusViewMode: Event<boolean>;
+    readonly onDidChangeActiveSession: Event<IAgentSession | undefined>;
     enterFocusView(session: IAgentSession): Promise<void>;
     exitFocusView(): Promise<void>;
 }
 ```
 
-Responsibilities:
-- Track active focus view state
-- Store backup working set ID for restoration
-- Coordinate with `IEditorGroupsService` for tab management
-- Fire `onDidChangeFocusViewMode` event
+Key implementation details:
+- Injects `IConfigurationService` and checks `chat.agentSessionProjection.enabled` at start of `enterFocusView()`
+- Uses `IEditorGroupsService` working sets API for tab state
+- Persists per-session working sets to `StorageScope.WORKSPACE`
+- Opens session's changes in **multi-diff editor** (like edit session view) using `_workbench.openMultiDiffEditor`
+- Fires `onDidChangeActiveSession` when switching between sessions
 
-### Step 2: Add Layout State Keys
+### Step 2: Context Key ✅
 
-Location: `src/vs/workbench/browser/layout.ts`
-
-Following the Zen Mode pattern:
-
-```typescript
-const LayoutStateKeys = {
-    // ... existing keys
-    FOCUS_VIEW_ACTIVE: new RuntimeStateKey<boolean>('focusView.active', StorageScope.WORKSPACE, StorageTarget.MACHINE, false),
-    FOCUS_VIEW_SESSION_URI: new RuntimeStateKey<string | undefined>('focusView.sessionUri', StorageScope.WORKSPACE, StorageTarget.MACHINE, undefined),
-    FOCUS_VIEW_EXIT_INFO: new RuntimeStateKey('focusView.exitInfo', StorageScope.WORKSPACE, StorageTarget.MACHINE, {
-        backupWorkingSetId: undefined as string | undefined,
-    }),
-};
-```
-
-### Step 3: Add Context Key
-
-Location: `src/vs/workbench/contrib/chat/common/chatContextKeys.ts`
+Location: `src/vs/workbench/contrib/chat/common/actions/chatContextKeys.ts`
 
 ```typescript
-export const InFocusViewModeContext = new RawContextKey<boolean>('inFocusViewMode', false);
+export const inFocusViewMode = new RawContextKey<boolean>('chatInFocusViewMode', false, ...);
 ```
 
-### Step 4: Implement Tab Save/Restore
+### Step 3: Working Sets ✅
 
 Using `IEditorGroupsService` working sets API (same pattern as SCM working sets):
 
 ```typescript
-// On enter focus view
-const backupId = this.editorGroupsService.saveWorkingSet('focus-view-backup');
-this.storeBackupId(backupId);
-await this.editorGroupsService.applyWorkingSet('empty', { preserveFocus: true });
-await this.openSessionResources(session);
+// On enter (first time)
+this._nonFocusViewWorkingSet = this.editorGroupsService.saveWorkingSet('focus-view-backup');
 
-// On exit focus view
-const backupId = this.getBackupId();
-const backup = this.editorGroupsService.getWorkingSets().find(ws => ws.id === backupId);
-if (backup) {
-    await this.editorGroupsService.applyWorkingSet(backup);
-    this.editorGroupsService.deleteWorkingSet(backup);
-}
+// On session switch
+const previousWorkingSet = this.editorGroupsService.saveWorkingSet(`focus-view-session-${sessionKey}`);
+this._sessionWorkingSets.set(previousSessionKey, previousWorkingSet);
+
+// Restore session's working set
+await this.editorGroupsService.applyWorkingSet(savedWorkingSet, { preserveFocus: true });
+
+// On exit
+await this.editorGroupsService.applyWorkingSet(this._nonFocusViewWorkingSet);
 ```
 
-### Step 5: Implement `getSessionResources()`
-
-```typescript
-async getSessionResources(session: IAgentSession): Promise<ISessionResource[]> {
-    const resources: ISessionResource[] = [];
-
-    if (session.providerType === AgentSessionProviders.Cloud) {
-        // 1. PR Webview (first artifact for cloud sessions)
-        const prUri = await this.getPullRequestWebviewUri(session);
-        if (prUri) {
-            resources.push({ type: 'pr-webview', uri: prUri });
-        }
-
-        // 2. All Changes Multi-Diff
-        resources.push({ type: 'changes-diff', sessionResource: session.resource });
-
-    } else {
-        // Local session: use editing session entries
-        const editingSession = session.editingSession;
-        if (editingSession) {
-            for (const entry of editingSession.entries.get()) {
-                resources.push({
-                    type: 'file',
-                    uri: entry.modifiedURI,
-                    originalUri: entry.originalURI
-                });
-            }
-        }
-    }
-
-    return resources;
-}
-```
-
-### Step 6: Create `FocusViewCommandCenterControl`
+### Step 4: `FocusViewCommandCenterControl` ✅
 
 Location: `src/vs/workbench/contrib/chat/browser/agentSessions/focusViewCommandCenterControl.ts`
 
-Renders the mockup design:
-- Copilot icon (left)
-- Session title (center)
-- Artifacts count badge (e.g., "4 artifacts")
-- X close button (right)
+- Registered via `CommandCenterControlRegistry` with `contextKey: ChatContextKeys.inFocusViewMode.key`
+- Shows copilot icon + session title + close button
+- Listens to `onDidChangeActiveSession` to update title when switching sessions
 
-Style: Pill/capsule appearance matching the mockup.
+### Step 5: Blue Glow Border ✅
 
-```typescript
-class FocusViewCommandCenterControl extends Disposable {
-    constructor(
-        private readonly focusViewService: IFocusViewService,
-        private readonly agentSessionsService: IAgentSessionsService,
-        // ... other dependencies
-    ) {
-        // Build UI elements
-        // - Icon container with copilot icon
-        // - Title label bound to activeSession.title
-        // - Badge showing artifacts count
-        // - Close button calling exitFocusView()
-    }
-}
-```
-
-### Step 7: Modify Titlebar
-
-Location: `src/vs/workbench/browser/parts/titlebar/titlebarPart.ts`
-
-In `createTitle()` method, add conditional rendering:
-
-```typescript
-private createTitle(): void {
-    if (this.contextKeyService.getContextKeyValue('inFocusViewMode')) {
-        // Focus View mode - show session title control
-        const focusViewControl = this.instantiationService.createInstance(
-            FocusViewCommandCenterControl
-        );
-        reset(this.title, focusViewControl.element);
-    } else if (!this.isCommandCenterVisible) {
-        // Text Title mode
-        this.title.textContent = this.windowTitle.value;
-    } else {
-        // Command Center mode
-        const commandCenter = this.instantiationService.createInstance(
-            CommandCenterControl, this.windowTitle, this.hoverDelegate
-        );
-        reset(this.title, commandCenter.element);
-    }
-}
-```
-
-Listen for context key changes to re-render.
-
-### Step 8: Add Blue Glow Border
-
-Location: `src/vs/workbench/contrib/chat/common/chatColors.ts`
-
-```typescript
-export const focusViewBorder = registerColor('focusView.border', {
-    dark: '#007ACC',
-    light: '#007ACC',
-    hcDark: contrastBorder,
-    hcLight: contrastBorder
-}, localize('focusViewBorder', "Border color when focus view mode is active."));
-```
-
-CSS (in workbench styles):
+Location: `src/vs/workbench/contrib/chat/browser/agentSessions/media/focusView.css`
 
 ```css
-.monaco-workbench.focus-view-active .editor-part {
-    box-shadow: inset 0 0 0 2px var(--vscode-focusView-border),
-                0 0 20px var(--vscode-focusView-border);
+.monaco-workbench.focus-view-active {
+    /* Blue glow effect */
 }
 ```
 
-Toggle class on workbench container when entering/exiting focus view.
+Class toggled via `this.layoutService.mainContainer.classList.add('focus-view-active')`
 
-### Step 9: Wire Entry/Exit Actions
+### Step 6: Actions ✅
 
-**Entry:**
-- Click handler on agent session items in Agents view
-- Command: `agentSessions.enterFocusView`
+Location: `src/vs/workbench/contrib/chat/browser/agentSessions/focusViewActions.ts`
 
-**Exit:**
-- X button in focus view command center
-- Keybinding: `Escape` (when `inFocusViewMode` is true)
-- Command: `agentSessions.exitFocusView`
+- `EnterFocusViewAction` - precondition includes `config.chat.agentSessionProjection.enabled`
+- `ExitFocusViewAction` - keybinding: Escape when in focus view mode
+- `OpenInChatPanelAction` - opens session in chat panel without entering focus view
+
+### Step 7: Setting ✅
+
+Location: `src/vs/workbench/contrib/chat/browser/chat.contribution.ts`
+
+```typescript
+'chat.agentSessionProjection.enabled': {
+    type: 'boolean',
+    default: false,
+    tags: ['experimental'],
+    markdownDescription: "Controls whether Agent Session Projection mode is enabled..."
+}
+```
+
+---
+
+## Implementation Steps (Original - for reference)
 
 ---
 
@@ -275,37 +233,38 @@ interface IChatSessionItemProvider {
 ### 1. PR Content Discovery
 Where exactly is the PR URI stored for cloud sessions? Need to expose `toOpenPullRequestWebviewUri()` or equivalent from the extension.
 
+**Status:** 🔲 Not yet implemented for cloud sessions
+
 ### 2. Editor Layout
 Should PR webview and changes diff open side-by-side (split), or as sequential tabs with PR first?
 
-**Recommendation:** Sequential tabs, PR first, changes diff second.
+**Decision:** Sequential tabs via `openEditors()`. Currently opens all modified files.
 
-### 3. Live Updates
+### 3. Live Updates ✅
 If a cloud session adds more file changes while in focus view, should we auto-update the diff view?
 
-**Recommendation:** Yes, listen to `onDidChangeChatSessionItems` and refresh if active session changes.
+**Status:** Not yet implemented. Could listen to `onDidChangeChatSessionItems`.
 
-### 4. Dirty Editors on Exit
+### 4. Dirty Editors on Exit ✅
 If user has unsaved changes in focus view tabs, the working set restore will prompt for save.
 
-**Recommendation:** This is acceptable UX — matches SCM working sets behavior.
+**Decision:** Acceptable UX — matches SCM working sets behavior.
 
-### 5. Persistence Across Reload
+### 5. Persistence Across Reload ✅
 Should focus view state persist across VS Code restarts?
 
-**Recommendation:** Yes, use `StorageScope.WORKSPACE` to restore into focus view for same session.
+**Implemented:** Per-session working sets are persisted to `StorageScope.WORKSPACE` storage.
+Focus view mode itself does NOT persist across reload (user must re-enter).
 
 ### 6. Multi-Window Support
 Should focus view apply per-window?
 
-**Recommendation:** Yes, each window can independently be in focus view mode.
+**Status:** 🔲 Not tested. Current implementation uses singleton service.
 
 ### 7. Artifacts Count Semantics
 What does "4 artifacts" count?
-- Cloud: PR (1) + file changes count?
-- Local: Just file changes count?
 
-**Recommendation:** Count all resources (PR counts as 1, each file counts as 1).
+**Status:** 🔲 Not yet implemented. Badge not shown in command center control.
 
 ---
 
@@ -313,36 +272,58 @@ What does "4 artifacts" count?
 
 ```
 src/vs/workbench/contrib/chat/browser/agentSessions/
-├── agentSessions.contribution.ts    # Register focus view service
+├── agentSessions.contribution.ts    # Registers focus view service + command center controls ✅
 ├── agentSessions.ts                 # Existing constants
 ├── agentSessionsService.ts          # Existing service
-├── focusViewService.ts              # NEW: Focus view state management
-├── focusViewCommandCenterControl.ts # NEW: Command center UI
-├── focusViewActions.ts              # NEW: Enter/exit actions
+├── focusViewService.ts              # Focus view state management ✅
+├── focusViewCommandCenterControl.ts # Command center UI (glowing session title) ✅
+├── chatInputCommandCenterControl.ts # Command center UI (chat input box) ✅
+├── focusViewActions.ts              # Enter/exit actions ✅
+├── FOCUS_VIEW_PLAN.md               # This planning document
 └── media/
-    └── focusView.css                # NEW: Focus view styles (glow border)
+    └── focusView.css                # Focus view styles (glow border + controls) ✅
+
+src/vs/workbench/contrib/chat/browser/
+├── chat.contribution.ts             # chat.agentSessionProjection.enabled setting ✅
+
+src/vs/workbench/contrib/chat/common/actions/
+├── chatContextKeys.ts               # inFocusViewMode context key ✅
+
+src/vs/workbench/browser/parts/titlebar/
+├── commandCenterControlRegistry.ts  # Registry for command center controls ✅
+├── commandCenterControl.ts          # Default command center (unchanged)
 ```
 
 ---
 
 ## Testing Plan
 
-1. **Unit tests** for `FocusViewService`:
+### Manual Testing Checklist
+
+- [ ] Enable `chat.agentSessionProjection.enabled` setting
+- [ ] "Enter Agent Session Projection" command appears in Command Palette
+- [ ] Right-click session in Agents view shows "Enter Agent Session Projection" menu item
+- [ ] Entering focus view replaces command center with session title
+- [ ] Session's modified files open as tabs
+- [ ] Blue glow border appears
+- [ ] Switching sessions preserves each session's tab state
+- [ ] Exiting via X button restores original tabs
+- [ ] Exiting via Escape key works
+- [ ] "New Chat" is executed on exit (sidebar cleared)
+- [ ] With setting disabled, commands don't appear and service returns early
+
+### Unit Tests (TODO)
+
+1. **`FocusViewService` tests:**
+   - `enterFocusView` returns early when setting disabled
    - `enterFocusView` saves working set and opens resources
    - `exitFocusView` restores working set
-   - State observables update correctly
+   - Session switching saves/restores correct working sets
+   - Events fire correctly
 
-2. **Integration tests**:
+2. **Integration tests (TODO):**
    - Entering focus view from Agents panel
    - Command center swaps correctly
    - Tabs filter to session files
-   - Blue glow border appears
    - Exit via X button restores previous state
    - Exit via Escape keybinding works
-
-3. **Cloud session tests** (requires copilot-chat extension):
-   - PR webview opens first
-   - Changes diff opens second
-
-4. **Local session tests**:
-   - Editing session files open correctly

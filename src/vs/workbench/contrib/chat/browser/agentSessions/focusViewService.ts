@@ -7,19 +7,39 @@ import './media/focusView.css';
 
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { localize } from '../../../../../nls.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IEditorGroupsService, IEditorWorkingSet } from '../../../../services/editor/common/editorGroupsService.js';
-import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IAgentSession } from './agentSessionsModel.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../chat.js';
+import { AgentSessionProviders } from './agentSessions.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { ACTION_ID_NEW_CHAT } from '../actions/chatActions.js';
+
+//#region Configuration
+
+/**
+ * Provider types that support agent session projection mode.
+ * Only sessions from these providers will trigger focus view.
+ * 
+ * Configuration:
+ * - AgentSessionProviders.Local: Local chat sessions (disabled)
+ * - AgentSessionProviders.Background: Background CLI agents (enabled)
+ * - AgentSessionProviders.Cloud: Cloud agents (enabled)
+ */
+const AGENT_SESSION_PROJECTION_ENABLED_PROVIDERS: Set<string> = new Set([
+	AgentSessionProviders.Background,
+	AgentSessionProviders.Cloud,
+]);
+
+//#endregion
 
 //#region Focus View Service Interface
 
@@ -95,8 +115,8 @@ export class FocusViewService extends Disposable implements IFocusViewService {
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
-		@IEditorService private readonly editorService: IEditorService,
 		@ILogService private readonly logService: ILogService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
@@ -136,99 +156,99 @@ export class FocusViewService extends Disposable implements IFocusViewService {
 		this.storageService.store(STORAGE_KEY, JSON.stringify(serialized), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
+	private _isEnabled(): boolean {
+		return this.configurationService.getValue<boolean>('chat.agentSessionProjection.enabled') === true;
+	}
+
 	private async _openSessionFiles(session: IAgentSession): Promise<void> {
-		this.logService.trace('[FocusView] _openSessionFiles called');
 		// Clear editors first
 		await this.editorGroupsService.applyWorkingSet('empty', { preserveFocus: true });
-		this.logService.trace('[FocusView] Applied empty working set');
 
-		// Open modified files from the session if available
+		// Open changes from the session as a multi-diff editor (like edit session view)
 		if (session.changes && Array.isArray(session.changes) && session.changes.length > 0) {
-			const editorsToOpen = session.changes.map(change => ({
-				resource: change.modifiedUri
-			}));
-			this.logService.trace('[FocusView] Opening editors:', editorsToOpen.map(e => e.resource.toString()).slice(0, 5).join(', '), editorsToOpen.length > 5 ? `... and ${editorsToOpen.length - 5} more` : '');
-			await this.editorService.openEditors(editorsToOpen);
-			const editorCountsAfter = this.editorGroupsService.groups.map(g => g.count);
-			this.logService.trace('[FocusView] Opened', session.changes.length, 'modified files from session. Editor counts now:', editorCountsAfter.join(', '));
+			// Filter to changes that have both original and modified URIs for diff view
+			const diffResources = session.changes
+				.filter(change => change.originalUri)
+				.map(change => ({
+					originalUri: change.originalUri!,
+					modifiedUri: change.modifiedUri
+				}));
 
-			// Immediately save this as the session's working set so it persists
-			const sessionKey = session.resource.toString();
-			const newWorkingSet = this.editorGroupsService.saveWorkingSet(`focus-view-session-${sessionKey}`);
-			this._sessionWorkingSets.set(sessionKey, newWorkingSet);
-			this._saveWorkingSets();
-			this.logService.trace('[FocusView] Saved new working set for session after opening files:', sessionKey, 'id:', newWorkingSet.id);
-		} else {
-			this.logService.trace('[FocusView] No modified files to open for session. changes:', session.changes);
+			if (diffResources.length > 0) {
+				// Open multi-diff editor showing all changes
+				await this.commandService.executeCommand('_workbench.openMultiDiffEditor', {
+					multiDiffSourceUri: session.resource.with({ scheme: session.resource.scheme + '-agent-session-projection' }),
+					title: localize('agentSessionProjection.changes.title', '{0} - All Changes', session.label),
+					resources: diffResources,
+				});
+
+				// Save this as the session's working set so it persists
+				const sessionKey = session.resource.toString();
+				const newWorkingSet = this.editorGroupsService.saveWorkingSet(`focus-view-session-${sessionKey}`);
+				this._sessionWorkingSets.set(sessionKey, newWorkingSet);
+				this._saveWorkingSets();
+			}
 		}
 	}
 
 	async enterFocusView(session: IAgentSession): Promise<void> {
+		// Check if the feature is enabled
+		if (!this._isEnabled()) {
+			this.logService.trace('[FocusView] Agent Session Projection is disabled');
+			return;
+		}
+
+		// Check if this session's provider type supports agent session projection
+		if (!AGENT_SESSION_PROJECTION_ENABLED_PROVIDERS.has(session.providerType)) {
+			this.logService.trace(`[FocusView] Provider type '${session.providerType}' does not support agent session projection`);
+			return;
+		}
+
 		const sessionKey = session.resource.toString();
-		this.logService.trace('[FocusView] === ENTER FOCUS VIEW ===');
-		this.logService.trace('[FocusView] Session:', sessionKey);
-		this.logService.trace('[FocusView] Currently active?', this._isActive);
-		this.logService.trace('[FocusView] Current active session:', this._activeSession?.resource.toString() ?? 'none');
-		this.logService.trace('[FocusView] Session changes:', session.changes ? (Array.isArray(session.changes) ? `${session.changes.length} files` : 'summary only') : 'none');
-		this.logService.trace('[FocusView] Stored session working sets:', [...this._sessionWorkingSets.keys()].join(', ') || 'none');
 
 		if (!this._isActive) {
 			// First time entering focus view - save the current working set as our "non-focus-view" backup
 			this._nonFocusViewWorkingSet = this.editorGroupsService.saveWorkingSet('focus-view-backup');
-			this.logService.trace('[FocusView] Saved non-focus-view working set, id:', this._nonFocusViewWorkingSet.id);
 		} else if (this._activeSession) {
 			// Already in focus view, switching sessions - save the current session's working set
 			const previousSessionKey = this._activeSession.resource.toString();
 			const previousWorkingSet = this.editorGroupsService.saveWorkingSet(`focus-view-session-${previousSessionKey}`);
 			this._sessionWorkingSets.set(previousSessionKey, previousWorkingSet);
 			this._saveWorkingSets();
-			this.logService.trace('[FocusView] Saved working set for previous session:', previousSessionKey, 'id:', previousWorkingSet.id);
 		}
 
 		// Check if we have a saved working set for this session
 		const savedWorkingSet = this._sessionWorkingSets.get(sessionKey);
-		this.logService.trace('[FocusView] Saved working set for this session:', savedWorkingSet?.id ?? 'none');
 
 		if (savedWorkingSet) {
 			// Check if the working set still exists (might have been deleted or VS Code restarted)
 			const existingWorkingSets = this.editorGroupsService.getWorkingSets();
-			this.logService.trace('[FocusView] Existing working sets:', existingWorkingSets.map(ws => ws.id).join(', ') || 'none');
 			const workingSetExists = existingWorkingSets.some(ws => ws.id === savedWorkingSet.id);
-			this.logService.trace('[FocusView] Working set exists?', workingSetExists);
 
 			if (workingSetExists) {
 				// Restore the session's saved working set
 				const applied = await this.editorGroupsService.applyWorkingSet(savedWorkingSet, { preserveFocus: true });
-				this.logService.trace('[FocusView] Applied working set result:', applied);
 				if (applied) {
 					// Check if the restored working set actually has any editors
-					const editorCounts = this.editorGroupsService.groups.map(g => g.count);
-					const hasEditors = editorCounts.some(c => c > 0);
-					this.logService.trace('[FocusView] Editor counts per group:', editorCounts.join(', '));
-					this.logService.trace('[FocusView] Has editors?', hasEditors);
-					if (hasEditors) {
-						this.logService.trace('[FocusView] Restored saved working set for session:', sessionKey);
-					} else {
+					const hasEditors = this.editorGroupsService.groups.some(g => g.count > 0);
+					if (!hasEditors) {
 						// Working set was empty, open the session's files instead
-						this.logService.trace('[FocusView] Restored working set was empty, opening session files:', sessionKey);
 						this._sessionWorkingSets.delete(sessionKey);
 						this._saveWorkingSets();
 						await this._openSessionFiles(session);
 					}
 				} else {
-					this.logService.warn('[FocusView] Failed to apply saved working set for session:', sessionKey);
-					// Fall through to open modified files
+					// Failed to apply working set, fall through to open modified files
 					await this._openSessionFiles(session);
 				}
 			} else {
-				this.logService.trace('[FocusView] Saved working set no longer exists, removing and opening files:', sessionKey);
+				// Saved working set no longer exists
 				this._sessionWorkingSets.delete(sessionKey);
 				this._saveWorkingSets();
 				await this._openSessionFiles(session);
 			}
 		} else {
 			// No saved working set - open modified files from session
-			this.logService.trace('[FocusView] No saved working set, opening session files');
 			await this._openSessionFiles(session);
 		}
 
@@ -254,38 +274,26 @@ export class FocusViewService extends Disposable implements IFocusViewService {
 	}
 
 	async exitFocusView(): Promise<void> {
-		this.logService.trace('[FocusView] === EXIT FOCUS VIEW ===');
-		this.logService.trace('[FocusView] Currently active?', this._isActive);
 		if (!this._isActive) {
-			this.logService.trace('[FocusView] Not active, returning early');
 			return;
 		}
-
-		this.logService.trace('[FocusView] Active session:', this._activeSession?.resource.toString() ?? 'none');
-		this.logService.trace('[FocusView] Non-focus-view working set:', this._nonFocusViewWorkingSet?.id ?? 'none');
 
 		// Save the current session's working set before exiting
 		if (this._activeSession) {
 			const sessionKey = this._activeSession.resource.toString();
-			const editorCountsBefore = this.editorGroupsService.groups.map(g => g.count);
-			this.logService.trace('[FocusView] Editor counts before saving:', editorCountsBefore.join(', '));
 			const workingSet = this.editorGroupsService.saveWorkingSet(`focus-view-session-${sessionKey}`);
 			this._sessionWorkingSets.set(sessionKey, workingSet);
 			this._saveWorkingSets();
-			this.logService.trace('[FocusView] Saved working set for session:', sessionKey, 'id:', workingSet.id);
 		}
 
 		// Restore the non-focus-view working set
 		if (this._nonFocusViewWorkingSet) {
 			const existingWorkingSets = this.editorGroupsService.getWorkingSets();
 			const exists = existingWorkingSets.some(ws => ws.id === this._nonFocusViewWorkingSet!.id);
-			this.logService.trace('[FocusView] Non-focus-view working set exists?', exists);
 			if (exists) {
 				await this.editorGroupsService.applyWorkingSet(this._nonFocusViewWorkingSet);
 				this.editorGroupsService.deleteWorkingSet(this._nonFocusViewWorkingSet);
-				this.logService.trace('[FocusView] Restored and deleted non-focus-view working set');
 			} else {
-				this.logService.trace('[FocusView] Non-focus-view working set no longer exists, clearing editors');
 				await this.editorGroupsService.applyWorkingSet('empty', { preserveFocus: true });
 			}
 			this._nonFocusViewWorkingSet = undefined;
@@ -300,8 +308,6 @@ export class FocusViewService extends Disposable implements IFocusViewService {
 
 		// Start a new chat to clear the sidebar
 		await this.commandService.executeCommand(ACTION_ID_NEW_CHAT);
-
-		this.logService.trace('[FocusView] === EXIT COMPLETE ===');
 	}
 }
 

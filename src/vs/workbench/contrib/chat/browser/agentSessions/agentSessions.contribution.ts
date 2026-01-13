@@ -18,9 +18,9 @@ import { ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../..
 import { ArchiveAgentSessionAction, ArchiveAgentSessionSectionAction, UnarchiveAgentSessionSectionAction, UnarchiveAgentSessionAction, OpenAgentSessionInEditorGroupAction, OpenAgentSessionInNewEditorGroupAction, OpenAgentSessionInNewWindowAction, ShowAgentSessionsSidebar, HideAgentSessionsSidebar, ToggleAgentSessionsSidebar, RefreshAgentSessionsViewerAction, FindAgentSessionInViewerAction, MarkAgentSessionUnreadAction, MarkAgentSessionReadAction, FocusAgentSessionsAction, SetAgentSessionsOrientationStackedAction, SetAgentSessionsOrientationSideBySideAction, ToggleChatViewSessionsAction, PickAgentSessionAction, ArchiveAllAgentSessionsAction, RenameAgentSessionAction, DeleteAgentSessionAction, DeleteAllLocalSessionsAction } from './agentSessionsActions.js';
 import { AgentSessionsQuickAccessProvider, AGENT_SESSIONS_QUICK_ACCESS_PREFIX } from './agentSessionsQuickAccess.js';
 import { IFocusViewService, FocusViewService } from './focusViewService.js';
-import { EnterFocusViewAction, ExitFocusViewAction, OpenInChatPanelAction } from './focusViewActions.js';
+import { EnterFocusViewAction, ExitFocusViewAction, OpenInChatPanelAction, ToggleAgentsControl } from './focusViewActions.js';
 import { CommandCenterControlRegistry } from '../../../../browser/parts/titlebar/commandCenterControlRegistry.js';
-import { FocusViewCommandCenterControl } from './focusViewCommandCenterControl.js';
+import { AgentsControl } from './agentsControl.js';
 
 //#region Actions and Menus
 
@@ -52,6 +52,7 @@ registerAction2(SetAgentSessionsOrientationSideBySideAction);
 registerAction2(EnterFocusViewAction);
 registerAction2(ExitFocusViewAction);
 registerAction2(OpenInChatPanelAction);
+registerAction2(ToggleAgentsControl);
 
 // --- Agent Sessions Toolbar
 
@@ -180,11 +181,12 @@ registerWorkbenchContribution2(LocalAgentsSessionsProvider.ID, LocalAgentsSessio
 registerSingleton(IAgentSessionsService, AgentSessionsService, InstantiationType.Delayed);
 registerSingleton(IFocusViewService, FocusViewService, InstantiationType.Delayed);
 
-// Register Focus View command center control
+// Register Agents Control - replaces command center search button when agent session projection is enabled
+// Shows "Ask me anything" when no session is active, or session title when in agent session projection mode
 CommandCenterControlRegistry.register({
-	contextKey: ChatContextKeys.inFocusViewMode.key,
+	contextKey: 'config.chat.agentSessionProjection.enabled',
 	priority: 100,
-	create: (instantiationService) => instantiationService.createInstance(FocusViewCommandCenterControl)
+	create: (instantiationService) => instantiationService.createInstance(AgentsControl)
 });
 
 //#endregion

@@ -3,35 +3,44 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize2 } from '../../../../../nls.js';
+import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IFocusViewService } from './focusViewService.js';
 import { IAgentSession, isMarshalledAgentSessionContext, IMarshalledAgentSessionContext } from './agentSessionsModel.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { openSessionInChatWidget } from './agentSessionsOpener.js';
+import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js';
+import { IsCompactTitleBarContext } from '../../../../common/contextkeys.js';
 
-//#region Enter Astral Projection
+//#region Enter Agent Session Projection
 
 export class EnterFocusViewAction extends Action2 {
-	static readonly ID = 'agentSession.enterAstralProjection';
+	static readonly ID = 'agentSession.enterAgentSessionProjection';
 
 	constructor() {
 		super({
 			id: EnterFocusViewAction.ID,
-			title: localize2('enterAstralProjection', "Enter Astral Projection"),
+			title: localize2('enterAgentSessionProjection', "Enter Agent Session Projection"),
 			category: CHAT_CATEGORY,
 			f1: true,
-			precondition: ChatContextKeys.inFocusViewMode.negate(),
+			precondition: ContextKeyExpr.and(
+				ContextKeyExpr.has('config.chat.agentSessionProjection.enabled'),
+				ChatContextKeys.inFocusViewMode.negate()
+			),
 			menu: [{
 				id: MenuId.AgentSessionsContext,
 				group: '0_focus',
 				order: 1,
-				when: ChatContextKeys.inFocusViewMode.negate()
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.has('config.chat.agentSessionProjection.enabled'),
+					ChatContextKeys.inFocusViewMode.negate()
+				)
 			}]
 		});
 	}
@@ -66,15 +75,15 @@ export class EnterFocusViewAction extends Action2 {
 
 //#endregion
 
-//#region Exit Astral Projection
+//#region Exit Agent Session Projection
 
 export class ExitFocusViewAction extends Action2 {
-	static readonly ID = 'agentSession.exitAstralProjection';
+	static readonly ID = 'agentSession.exitAgentSessionProjection';
 
 	constructor() {
 		super({
 			id: ExitFocusViewAction.ID,
-			title: localize2('exitAstralProjection', "Exit Astral Projection"),
+			title: localize2('exitAgentSessionProjection', "Exit Agent Session Projection"),
 			category: CHAT_CATEGORY,
 			f1: true,
 			precondition: ChatContextKeys.inFocusViewMode,
@@ -127,6 +136,24 @@ export class OpenInChatPanelAction extends Action2 {
 		if (session) {
 			await openSessionInChatWidget(accessor, session);
 		}
+	}
+}
+
+//#endregion
+
+//#region Toggle Agents Control
+
+export class ToggleAgentsControl extends ToggleTitleBarConfigAction {
+	constructor() {
+		super(
+			'chat.agentSessionProjection.enabled',
+			localize('toggle.agentsControl', 'Agents Controls'),
+			localize('toggle.agentsControlDescription', "Toggle visibility of the Agents Controls in title bar"), 6,
+			ContextKeyExpr.and(
+				IsCompactTitleBarContext.negate(),
+				ChatContextKeys.supported
+			)
+		);
 	}
 }
 
