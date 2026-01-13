@@ -167,9 +167,10 @@ export class PromptFilesLocator {
 	 *
 	 * @returns List of possible unambiguous prompt file folders.
 	 */
-	public getConfigBasedSourceFolders(type: PromptsType): readonly URI[] {
+	public async getConfigBasedSourceFolders(type: PromptsType): Promise<readonly URI[]> {
+		const userHome = await this.pathService.userHome();
 		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, type);
-		const absoluteLocations = this.toAbsoluteLocations(configuredLocations).map(l => l.uri);
+		const absoluteLocations = this.toAbsoluteLocations(configuredLocations, userHome).map(l => l.uri);
 
 		// locations in the settings can contain glob patterns so we need
 		// to process them to get "clean" paths; the goal here is to have

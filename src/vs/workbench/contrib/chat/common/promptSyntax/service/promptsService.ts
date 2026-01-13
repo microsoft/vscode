@@ -223,7 +223,7 @@ export interface IPromptsService extends IDisposable {
 	/**
 	 * Get a list of prompt source folders based on the provided prompt type.
 	 */
-	getSourceFolders(type: PromptsType): readonly IPromptPath[];
+	getSourceFolders(type: PromptsType): Promise<readonly IPromptPath[]>;
 
 	/**
 	 * Validates if the provided command name is a valid prompt slash command.

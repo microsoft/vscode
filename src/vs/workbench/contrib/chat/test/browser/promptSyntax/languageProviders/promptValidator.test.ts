@@ -141,8 +141,10 @@ suite('PromptValidator', () => {
 		});
 	});
 
-	async function validate(code: string, promptType: PromptsType): Promise<IMarkerData[]> {
-		const uri = URI.parse('myFs://test/testFile' + getPromptFileExtension(promptType));
+	async function validate(code: string, promptType: PromptsType, uri?: URI): Promise<IMarkerData[]> {
+		if (!uri) {
+			uri = URI.parse('myFs://test/testFile' + getPromptFileExtension(promptType));
+		}
 		const result = new PromptFileParser().parse(uri, code);
 		const validator = instaService.createInstance(PromptValidator);
 		const markers: IMarkerData[] = [];

@@ -329,7 +329,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		}
 	}
 
-	public getSourceFolders(type: PromptsType): readonly IPromptPath[] {
+	public async getSourceFolders(type: PromptsType): Promise<readonly IPromptPath[]> {
 		const result: IPromptPath[] = [];
 
 		if (type === PromptsType.agent) {
@@ -338,7 +338,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				result.push({ uri, storage: PromptsStorage.local, type });
 			}
 		} else {
-			for (const uri of this.fileLocator.getConfigBasedSourceFolders(type)) {
+			for (const uri of await this.fileLocator.getConfigBasedSourceFolders(type)) {
 				result.push({ uri, storage: PromptsStorage.local, type });
 			}
 		}
