@@ -85,6 +85,9 @@ jobs:
         displayName: Install dependencies
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
+      - script: npm run postinstall
+        displayName: Install Playwright dependencies
+
       - script: npm run sanity-test -- --commit ${{ parameters.commit }} --quality ${{ parameters.quality }} --verbose --test-results $(SANITY_TEST_LOGS)/sanity-test.xml
         displayName: Run Sanity Tests
 
