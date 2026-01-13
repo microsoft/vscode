@@ -1,0 +1,30 @@
+{
+	"name": "theme-2026",
+	"displayName": "2026 Themes",
+	"description": "Modern, minimal light and dark themes for 2026 with consistent neutral palette and accessible color contrast",
+	"version": "0.1.0",
+	"publisher": "vscode",
+	"license": "MIT",
+	"engines": {
+		"vscode": "^1.85.0"
+	},
+	"categories": [
+		"Themes"
+	],
+	"contributes": {
+		"themes": [
+			{
+				"id": "2026-light",
+				"label": "2026 Light",
+				"uiTheme": "vs",
+				"path": "./themes/2026-light.json"
+			},
+			{
+				"id": "2026-dark",
+				"label": "2026 Dark",
+				"uiTheme": "vs-dark",
+				"path": "./themes/2026-dark.json"
+			}
+		]
+	}
+}
