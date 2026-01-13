@@ -94,13 +94,13 @@ export async function getCommandOutputSnapshot(
 			return { text: '', lineCount: 0 };
 		}
 		const endLine = endMarker.line;
-		const lineCount = Math.max(endLine - startLine + 1, 0);
+		const lineCount = Math.max(endLine - startLine, 0);
 		return { text, lineCount };
 	}
 
 	const startLine = executedMarker.line;
 	const endLine = endMarker.line;
-	const lineCount = Math.max(endLine - startLine + 1, 0);
+	const lineCount = Math.max(endLine - startLine, 0);
 
 	let text: string | undefined;
 	try {
