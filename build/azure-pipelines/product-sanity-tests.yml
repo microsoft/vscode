@@ -57,17 +57,17 @@ extends:
     stages:
       - stage: Run Sanity Tests
         jobs:
-          - template: ./common/sanity-tests.yml@self
+          - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
               poolName: 1es-windows-2022-x64
               os: windows
 
-          - template: ./common/sanity-tests.yml@self
+          - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
               poolName: 1es-ubuntu-22.04-x64
               os: linux
 
-          - template: ./common/sanity-tests.yml@self
+          - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
               poolName: AcesShared
               os: macOS
