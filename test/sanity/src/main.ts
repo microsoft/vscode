@@ -27,22 +27,20 @@ if (!options.quality) {
 
 const context = new TestContext(options.quality, options.commit, options.verbose, !options['signing-check']);
 
-describe('VS Code Sanity Tests', () => {
-	beforeEach(function () {
-		context.currentTest = this.currentTest!;
-		const cwd = context.createTempDir();
-		process.chdir(cwd);
-		context.log(`Changed working directory to: ${cwd}`);
-	});
-
-	if (options.cleanup) {
-		afterEach(() => {
-			context.cleanup();
-		});
-	}
-
-	setupCliTests(context);
-	setupDesktopTests(context);
-	setupServerTests(context);
-	setupServerWebTests(context);
+beforeEach(function () {
+	context.currentTest = this.currentTest!;
+	const cwd = context.createTempDir();
+	process.chdir(cwd);
+	context.log(`Changed working directory to: ${cwd}`);
 });
+
+if (options.cleanup) {
+	afterEach(() => {
+		context.cleanup();
+	});
+}
+
+setupCliTests(context);
+setupDesktopTests(context);
+setupServerTests(context);
+setupServerWebTests(context);
