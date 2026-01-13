@@ -78,8 +78,8 @@ export interface IPromptSourceFolder {
 export const DEFAULT_SKILL_SOURCE_FOLDERS: readonly IPromptSourceFolder[] = [
 	{ path: '.github/skills', type: 'github-workspace', location: 'workspace' },
 	{ path: '.claude/skills', type: 'claude-workspace', location: 'workspace' },
-	{ path: '.copilot/skills', type: 'copilot-personal', location: 'userHome' },
-	{ path: '.claude/skills', type: 'claude-personal', location: 'userHome' },
+	{ path: '~/.copilot/skills', type: 'copilot-personal', location: 'userHome' },
+	{ path: '~/.claude/skills', type: 'claude-personal', location: 'userHome' },
 ];
 
 /**
