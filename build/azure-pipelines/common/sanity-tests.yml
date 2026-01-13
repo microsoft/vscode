@@ -87,6 +87,7 @@ jobs:
 
       - script: npm run postinstall
         displayName: Install Playwright dependencies
+        workingDirectory: ./test/sanity
 
       - script: npm run sanity-test -- --commit ${{ parameters.commit }} --quality ${{ parameters.quality }} --verbose --test-results $(SANITY_TEST_LOGS)/sanity-test.xml
         displayName: Run Sanity Tests
