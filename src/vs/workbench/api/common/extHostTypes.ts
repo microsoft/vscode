@@ -12,7 +12,6 @@ import { illegalArgument, SerializedError } from '../../../base/common/errors.js
 import { IRelativePattern } from '../../../base/common/glob.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { Mimes } from '../../../base/common/mime.js';
-import { Schemas } from '../../../base/common/network.js';
 import { nextCharLength } from '../../../base/common/strings.js';
 import { isNumber, isObject, isString, isStringArray } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';

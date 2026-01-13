@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { URI } from '../../../../base/common/uri.js';
-import * as types from '../../common/extHostTypes.js';
+import { CancellationError } from '../../../../base/common/errors.js';
+import { MarshalledId } from '../../../../base/common/marshallingIds.js';
+import { Mimes } from '../../../../base/common/mime.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { assertType } from '../../../../base/common/types.js';
-import { Mimes } from '../../../../base/common/mime.js';
-import { MarshalledId } from '../../../../base/common/marshallingIds.js';
-import { CancellationError } from '../../../../base/common/errors.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import * as types from '../../common/extHostTypes.js';
 
 function assertToJSON(a: any, expected: any) {
 	const raw = JSON.stringify(a);
@@ -793,29 +793,28 @@ suite('ExtHostTypes', function () {
 		const uri = URI.file('/path/to/agent.md');
 		const resource = new types.CustomAgentChatResource(uri);
 
-		assert.strictEqual(resource.uri.toString(), uri.toString());
-		assert.strictEqual(resource.content, undefined);
-		assert.strictEqual(resource.isEditable, undefined);
+		assert.ok(URI.isUri(resource.resource));
+		assert.strictEqual(resource.resource.toString(), uri.toString());
 	});
 
 	test('CustomAgentChatResource - URI constructor with options', function () {
 		const uri = URI.file('/path/to/agent.md');
 		const resource = new types.CustomAgentChatResource({ uri, isEditable: true });
 
-		assert.strictEqual(resource.uri.toString(), uri.toString());
-		assert.strictEqual(resource.content, undefined);
-		assert.strictEqual(resource.isEditable, true);
+		assert.ok(!URI.isUri(resource.resource));
+		const descriptor = resource.resource as { uri: URI; isEditable?: boolean };
+		assert.strictEqual(descriptor.uri.toString(), uri.toString());
+		assert.strictEqual(descriptor.isEditable, true);
 	});
 
 	test('CustomAgentChatResource - content constructor', function () {
 		const content = '# My Agent\nThis is agent content';
 		const resource = new types.CustomAgentChatResource({ id: 'my-agent-id', content });
 
-		assert.strictEqual(resource.uri.scheme, 'vscode-chat-prompt');
-		assert.ok(resource.uri.path.includes('.agent.md'));
-		assert.ok(resource.uri.path.includes('my-agent-id'));
-		assert.strictEqual(resource.content, content);
-		assert.strictEqual(resource.isEditable, undefined);
+		assert.ok(!URI.isUri(resource.resource));
+		const descriptor = resource.resource as { id: string; content: string };
+		assert.strictEqual(descriptor.id, 'my-agent-id');
+		assert.strictEqual(descriptor.content, content);
 	});
 
 
@@ -824,29 +823,28 @@ suite('ExtHostTypes', function () {
 		const uri = URI.file('/path/to/instructions.md');
 		const resource = new types.InstructionsChatResource(uri);
 
-		assert.strictEqual(resource.uri.toString(), uri.toString());
-		assert.strictEqual(resource.content, undefined);
-		assert.strictEqual(resource.isEditable, undefined);
+		assert.ok(URI.isUri(resource.resource));
+		assert.strictEqual(resource.resource.toString(), uri.toString());
 	});
 
 	test('InstructionsChatResource - URI constructor with options', function () {
 		const uri = URI.file('/path/to/instructions.md');
 		const resource = new types.InstructionsChatResource({ uri, isEditable: true });
 
-		assert.strictEqual(resource.uri.toString(), uri.toString());
-		assert.strictEqual(resource.content, undefined);
-		assert.strictEqual(resource.isEditable, true);
+		assert.ok(!URI.isUri(resource.resource));
+		const descriptor = resource.resource as { uri: URI; isEditable?: boolean };
+		assert.strictEqual(descriptor.uri.toString(), uri.toString());
+		assert.strictEqual(descriptor.isEditable, true);
 	});
 
 	test('InstructionsChatResource - content constructor', function () {
 		const content = '# Instructions\nFollow these steps';
 		const resource = new types.InstructionsChatResource({ id: 'my-instructions-id', content });
 
-		assert.strictEqual(resource.uri.scheme, 'vscode-chat-prompt');
-		assert.ok(resource.uri.path.includes('.instructions.md'));
-		assert.ok(resource.uri.path.includes('my-instructions-id'));
-		assert.strictEqual(resource.content, content);
-		assert.strictEqual(resource.isEditable, undefined);
+		assert.ok(!URI.isUri(resource.resource));
+		const descriptor = resource.resource as { id: string; content: string };
+		assert.strictEqual(descriptor.id, 'my-instructions-id');
+		assert.strictEqual(descriptor.content, content);
 	});
 
 
@@ -855,47 +853,53 @@ suite('ExtHostTypes', function () {
 		const uri = URI.file('/path/to/prompt.md');
 		const resource = new types.PromptFileChatResource(uri);
 
-		assert.strictEqual(resource.uri.toString(), uri.toString());
-		assert.strictEqual(resource.content, undefined);
-		assert.strictEqual(resource.isEditable, undefined);
+		assert.ok(URI.isUri(resource.resource));
+		assert.strictEqual(resource.resource.toString(), uri.toString());
 	});
 
 	test('PromptFileChatResource - URI constructor with options', function () {
 		const uri = URI.file('/path/to/prompt.md');
 		const resource = new types.PromptFileChatResource({ uri, isEditable: true });
 
-		assert.strictEqual(resource.uri.toString(), uri.toString());
-		assert.strictEqual(resource.content, undefined);
-		assert.strictEqual(resource.isEditable, true);
+		assert.ok(!URI.isUri(resource.resource));
+		const descriptor = resource.resource as { uri: URI; isEditable?: boolean };
+		assert.strictEqual(descriptor.uri.toString(), uri.toString());
+		assert.strictEqual(descriptor.isEditable, true);
 	});
 
 	test('PromptFileChatResource - content constructor', function () {
 		const content = '# Prompt\nThis is my prompt content';
 		const resource = new types.PromptFileChatResource({ id: 'my-prompt-id', content });
 
-		assert.strictEqual(resource.uri.scheme, 'vscode-chat-prompt');
-		assert.ok(resource.uri.path.includes('.prompt.md'));
-		assert.ok(resource.uri.path.includes('my-prompt-id'));
-		assert.strictEqual(resource.content, content);
-		assert.strictEqual(resource.isEditable, undefined);
+		assert.ok(!URI.isUri(resource.resource));
+		const descriptor = resource.resource as { id: string; content: string };
+		assert.strictEqual(descriptor.id, 'my-prompt-id');
+		assert.strictEqual(descriptor.content, content);
 	});
 
 
 
-	test('Chat prompt resources generate unique URIs for different IDs', function () {
+	test('Chat prompt resources store different descriptors for different IDs', function () {
 		const resource1 = new types.CustomAgentChatResource({ id: 'id-one', content: 'content1' });
 		const resource2 = new types.CustomAgentChatResource({ id: 'id-two', content: 'content2' });
 
-		assert.notStrictEqual(resource1.uri.toString(), resource2.uri.toString());
+		const desc1 = resource1.resource as { id: string; content: string };
+		const desc2 = resource2.resource as { id: string; content: string };
+		assert.strictEqual(desc1.id, 'id-one');
+		assert.strictEqual(desc2.id, 'id-two');
+		assert.notStrictEqual(desc1.id, desc2.id);
 	});
 
-	test('Chat prompt resources use correct file extensions', function () {
+	test('Chat prompt resources store resource descriptors correctly', function () {
 		const agent = new types.CustomAgentChatResource({ id: 'test', content: 'content' });
 		const instructions = new types.InstructionsChatResource({ id: 'test', content: 'content' });
 		const prompt = new types.PromptFileChatResource({ id: 'test', content: 'content' });
 
-		assert.ok(agent.uri.path.includes('.agent.md'), `Expected .agent.md in path, got ${agent.uri.path}`);
-		assert.ok(instructions.uri.path.includes('.instructions.md'), `Expected .instructions.md in path, got ${instructions.uri.path}`);
-		assert.ok(prompt.uri.path.includes('.prompt.md'), `Expected .prompt.md in path, got ${prompt.uri.path}`);
+		assert.ok(!URI.isUri(agent.resource));
+		assert.ok(!URI.isUri(instructions.resource));
+		assert.ok(!URI.isUri(prompt.resource));
+		assert.strictEqual((agent.resource as { id: string; content: string }).id, 'test');
+		assert.strictEqual((instructions.resource as { id: string; content: string }).id, 'test');
+		assert.strictEqual((prompt.resource as { id: string; content: string }).id, 'test');
 	});
 });
