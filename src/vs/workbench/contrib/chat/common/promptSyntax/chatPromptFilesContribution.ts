@@ -6,11 +6,14 @@
 import { localize } from '../../../../../nls.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import * as extensionsRegistry from '../../../../services/extensions/common/extensionsRegistry.js';
-import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { ExtensionIdentifier, IExtensionManifest } from '../../../../../platform/extensions/common/extensions.js';
 import { joinPath, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { IPromptsService } from './service/promptsService.js';
 import { PromptsType } from './promptTypes.js';
-import { DisposableMap } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { Extensions, IExtensionFeaturesRegistry, IExtensionFeatureTableRenderer, IRenderedData, IRowData, ITableData } from '../../../../services/extensionManagement/common/extensionFeatures.js';
 
 interface IRawChatFileContribution {
 	readonly path: string;
@@ -117,3 +120,141 @@ export class ChatPromptFilesExtensionPointHandler implements IWorkbenchContribut
 		});
 	}
 }
+
+class ChatPromptFilesDataRenderer extends Disposable implements IExtensionFeatureTableRenderer {
+	readonly type = 'table';
+
+	shouldRender(manifest: IExtensionManifest): boolean {
+		return !!manifest.contributes?.chatPromptFiles;
+	}
+
+	render(manifest: IExtensionManifest): IRenderedData<ITableData> {
+		const contributions = manifest.contributes?.chatPromptFiles ?? [];
+		if (!contributions.length) {
+			return { data: { headers: [], rows: [] }, dispose: () => { } };
+		}
+
+		const headers = [
+			localize('chatPromptFilesPath', "Path"),
+			localize('chatPromptFilesName', "Name"),
+			localize('chatPromptFilesDescription', "Description"),
+		];
+
+		const rows: IRowData[][] = contributions.map(d => {
+			return [
+				d.path,
+				d.name ?? '-',
+				d.description ?? '-'
+			];
+		});
+
+		return {
+			data: {
+				headers,
+				rows
+			},
+			dispose: () => { }
+		};
+	}
+}
+
+class ChatInstructionsDataRenderer extends Disposable implements IExtensionFeatureTableRenderer {
+	readonly type = 'table';
+
+	shouldRender(manifest: IExtensionManifest): boolean {
+		return !!manifest.contributes?.chatInstructions;
+	}
+
+	render(manifest: IExtensionManifest): IRenderedData<ITableData> {
+		const contributions = manifest.contributes?.chatInstructions ?? [];
+		if (!contributions.length) {
+			return { data: { headers: [], rows: [] }, dispose: () => { } };
+		}
+
+		const headers = [
+			localize('chatInstructionsPath', "Path"),
+			localize('chatInstructionsName', "Name"),
+			localize('chatInstructionsDescription', "Description"),
+		];
+
+		const rows: IRowData[][] = contributions.map(d => {
+			return [
+				d.path,
+				d.name ?? '-',
+				d.description ?? '-'
+			];
+		});
+
+		return {
+			data: {
+				headers,
+				rows
+			},
+			dispose: () => { }
+		};
+	}
+}
+
+class ChatAgentsDataRenderer extends Disposable implements IExtensionFeatureTableRenderer {
+	readonly type = 'table';
+
+	shouldRender(manifest: IExtensionManifest): boolean {
+		return !!manifest.contributes?.chatAgents;
+	}
+
+	render(manifest: IExtensionManifest): IRenderedData<ITableData> {
+		const contributions = manifest.contributes?.chatAgents ?? [];
+		if (!contributions.length) {
+			return { data: { headers: [], rows: [] }, dispose: () => { } };
+		}
+
+		const headers = [
+			localize('chatAgentsPath', "Path"),
+			localize('chatAgentsName', "Name"),
+			localize('chatAgentsDescription', "Description"),
+		];
+
+		const rows: IRowData[][] = contributions.map(d => {
+			return [
+				d.path,
+				d.name ?? '-',
+				d.description ?? '-'
+			];
+		});
+
+		return {
+			data: {
+				headers,
+				rows
+			},
+			dispose: () => { }
+		};
+	}
+}
+
+Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
+	id: 'chatPromptFiles',
+	label: localize('chatPromptFiles', "Chat Prompt Files"),
+	access: {
+		canToggle: false
+	},
+	renderer: new SyncDescriptor(ChatPromptFilesDataRenderer),
+});
+
+Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
+	id: 'chatInstructions',
+	label: localize('chatInstructions', "Chat Instructions"),
+	access: {
+		canToggle: false
+	},
+	renderer: new SyncDescriptor(ChatInstructionsDataRenderer),
+});
+
+Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
+	id: 'chatAgents',
+	label: localize('chatAgents', "Chat Agents"),
+	access: {
+		canToggle: false
+	},
+	renderer: new SyncDescriptor(ChatAgentsDataRenderer),
+});
