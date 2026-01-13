@@ -108,7 +108,7 @@ import { observableConfigValue } from '../../../../platform/observable/common/pl
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
-import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
+import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import product from '../../../../platform/product/common/product.js';
 import { CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../../chat/browser/actions/chatActions.js';
 
@@ -981,6 +981,7 @@ export const ContextKeys = {
 	SCMCurrentHistoryItemRefInFilter: new RawContextKey<boolean>('scmCurrentHistoryItemRefInFilter', false),
 	RepositoryCount: new RawContextKey<number>('scmRepositoryCount', 0),
 	RepositoryVisibilityCount: new RawContextKey<number>('scmRepositoryVisibleCount', 0),
+	SCMInputHasValidationMessage: new RawContextKey<boolean>('scmInputHasValidationMessage', false),
 	RepositoryVisibility(repository: ISCMRepository) {
 		return new RawContextKey<boolean>(`scmRepositoryVisible:${repository.provider.id}`, false);
 	}
@@ -1053,6 +1054,10 @@ class RepositoryVisibilityActionController {
 	}
 
 	private onDidAddRepository(repository: ISCMRepository): void {
+		if (repository.provider.isHidden) {
+			return;
+		}
+
 		const action = registerAction2(class extends RepositoryVisibilityAction {
 			constructor() {
 				super(repository);
@@ -1692,6 +1697,7 @@ class SCMInputWidget {
 
 	private model: { readonly input: ISCMInput; readonly textModel: ITextModel } | undefined;
 	private repositoryIdContextKey: IContextKey<string | undefined>;
+	private validationMessageContextKey: IContextKey<boolean>;
 	private readonly repositoryDisposables = new DisposableStore();
 
 	private validation: IInputValidation | undefined;
@@ -1773,6 +1779,7 @@ class SCMInputWidget {
 		this.repositoryDisposables.add(input.onDidChangeFocus(() => this.focus()));
 		this.repositoryDisposables.add(input.onDidChangeValidationMessage((e) => this.setValidation(e, { focus: true, timeout: true })));
 		this.repositoryDisposables.add(input.onDidChangeValidateInput((e) => triggerValidation()));
+		this.repositoryDisposables.add(input.onDidClearValidation(() => this.clearValidation()));
 
 		// Keep API in sync with model and validate
 		this.repositoryDisposables.add(textModel.onDidChangeContent(() => {
@@ -1902,6 +1909,7 @@ class SCMInputWidget {
 
 		this.contextKeyService = contextKeyService.createScoped(this.element);
 		this.repositoryIdContextKey = this.contextKeyService.createKey('scmRepository', undefined);
+		this.validationMessageContextKey = ContextKeys.SCMInputHasValidationMessage.bindTo(this.contextKeyService);
 
 		this.inputEditorOptions = new SCMInputWidgetEditorOptions(overflowWidgetsDomNode, this.configurationService);
 		this.disposables.add(this.inputEditorOptions.onDidChange(this.onDidChangeEditorOptions, this));
@@ -2065,6 +2073,7 @@ class SCMInputWidget {
 			return;
 		}
 
+		this.validationMessageContextKey.set(true);
 		const disposables = new DisposableStore();
 
 		this.validationContextView = this.contextViewService.showContextView({
@@ -2142,6 +2151,7 @@ class SCMInputWidget {
 		this.validationContextView?.close();
 		this.validationContextView = undefined;
 		this.validationHasFocus = false;
+		this.validationMessageContextKey.set(false);
 	}
 
 	dispose(): void {
@@ -3070,6 +3080,8 @@ class SCMTreeDataSource extends Disposable implements IAsyncDataSource<ISCMViewS
 			return result;
 		} else if (isSCMInput(element)) {
 			return element.repository;
+		} else if (isSCMActionButton(element)) {
+			return element.repository;
 		} else if (isSCMResourceGroup(element)) {
 			const repository = this.scmViewService.visibleRepositories.find(r => r.provider === element.provider);
 			if (!repository) {
@@ -3077,6 +3089,8 @@ class SCMTreeDataSource extends Disposable implements IAsyncDataSource<ISCMViewS
 			}
 
 			return repository;
+		} else if (isSCMRepository(element)) {
+			return this.scmViewService;
 		} else {
 			throw new Error('Unexpected call to getParent');
 		}

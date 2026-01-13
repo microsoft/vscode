@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ILanguageModelToolsService } from '../../../chat/common/languageModelToolsService.js';
+import type { ILanguageModelToolsService } from '../../../chat/common/tools/languageModelToolsService.js';
 
 let previouslyRecommededInSession = false;
 

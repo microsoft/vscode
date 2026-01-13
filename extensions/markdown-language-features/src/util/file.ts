@@ -19,7 +19,7 @@ export const markdownFileExtensions = Object.freeze<string[]>([
 	'workbook',
 ]);
 
-export const markdownLanguageIds = ['markdown', 'prompt', 'instructions', 'chatmode'];
+export const markdownLanguageIds = ['markdown', 'prompt', 'instructions', 'chatagent'];
 
 export function isMarkdownFile(document: vscode.TextDocument) {
 	return markdownLanguageIds.indexOf(document.languageId) !== -1;

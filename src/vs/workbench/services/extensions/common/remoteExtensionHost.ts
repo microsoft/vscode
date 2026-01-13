@@ -251,6 +251,8 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 				firstSessionDate: this._telemetryService.firstSessionDate,
 				msftInternal: this._telemetryService.msftInternal
 			},
+			remoteExtensionTips: this._productService.remoteExtensionTips,
+			virtualWorkspaceExtensionTips: this._productService.virtualWorkspaceExtensionTips,
 			logLevel: this._logService.getLevel(),
 			loggers: [...this._loggerService.getRegisteredLoggers()],
 			logsLocation: remoteInitData.extensionHostLogsPath,

@@ -36,12 +36,12 @@
 }
 
 /* give some space between input and action bar */
-.quick-input-inline-action-bar > .actions-container > .action-item:first-child {
+.quick-input-inline-action-bar .actions-container > .action-item:first-child {
 	margin-left: 5px;
 }
 
 /* center horizontally */
-.quick-input-inline-action-bar > .actions-container > .action-item {
+.quick-input-inline-action-bar .actions-container > .action-item {
 	margin-top: 2px;
 }
 
@@ -59,15 +59,15 @@
 	margin-right: 4px;
 }
 
-.quick-input-right-action-bar > .actions-container {
+.quick-input-right-action-bar .actions-container {
 	justify-content: flex-end;
 }
 
-.quick-input-right-action-bar > .actions-container > .action-item {
+.quick-input-right-action-bar .actions-container > .action-item {
 	margin-left: 4px;
 }
 
-.quick-input-inline-action-bar > .actions-container > .action-item {
+.quick-input-inline-action-bar .actions-container > .action-item {
 	margin-left: 4px;
 }
 

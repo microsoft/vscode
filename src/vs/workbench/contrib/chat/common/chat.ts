@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ResourceSet } from '../../../../base/common/map.js';
-import { chatEditingSessionIsReady } from './chatEditingService.js';
-import { IChatModel } from './chatModel.js';
-import type { IChatSessionStats, IChatTerminalToolInvocationData, ILegacyChatTerminalToolInvocationData } from './chatService.js';
+import { chatEditingSessionIsReady } from './editing/chatEditingService.js';
+import { IChatModel } from './model/chatModel.js';
+import { isLegacyChatTerminalToolInvocationData, type IChatSessionStats, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from './chatService/chatService.js';
 import { ChatModeKind } from './constants.js';
 
 export function checkModeOption(mode: ChatModeKind, option: boolean | ((mode: ChatModeKind) => boolean) | undefined): boolean | undefined {
@@ -24,7 +24,7 @@ export function checkModeOption(mode: ChatModeKind, option: boolean | ((mode: Ch
  * we don't break existing chats
  */
 export function migrateLegacyTerminalToolSpecificData(data: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData): IChatTerminalToolInvocationData {
-	if ('command' in data) {
+	if (isLegacyChatTerminalToolInvocationData(data)) {
 		data = {
 			kind: 'terminal',
 			commandLine: {

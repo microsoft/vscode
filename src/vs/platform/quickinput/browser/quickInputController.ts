@@ -5,8 +5,7 @@
 
 import * as dom from '../../../base/browser/dom.js';
 import * as domStylesheetsJs from '../../../base/browser/domStylesheets.js';
-import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
-import { ActionViewItem } from '../../../base/browser/ui/actionbar/actionViewItems.js';
+import { ToolBar } from '../../../base/browser/ui/toolbar/toolbar.js';
 import { Button } from '../../../base/browser/ui/button/button.js';
 import { CountBadge } from '../../../base/browser/ui/countBadge/countBadge.js';
 import { ProgressBar } from '../../../base/browser/ui/progressbar/progressbar.js';
@@ -23,6 +22,7 @@ import { QuickInputUI, Writeable, IQuickInputStyles, IQuickInputOptions, QuickPi
 import { ILayoutService } from '../../layout/browser/layoutService.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
+import { IContextMenuService } from '../../contextview/browser/contextView.js';
 import { QuickInputList } from './quickInputList.js';
 import { IContextKey, IContextKeyService } from '../../contextkey/common/contextkey.js';
 import './quickInputActions.js';
@@ -88,7 +88,8 @@ export class QuickInputController extends Disposable {
 		@ILayoutService private readonly layoutService: ILayoutService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
 		super();
 
@@ -146,19 +147,23 @@ export class QuickInputController extends Disposable {
 
 		const titleBar = dom.append(container, $('.quick-input-titlebar'));
 
-		const leftActionBar = this._register(new ActionBar(titleBar, {
+		const leftActionBar = this._register(new ToolBar(titleBar, this.contextMenuService, {
 			hoverDelegate: this.options.hoverDelegate,
-			actionViewItemProvider: createToggleActionViewItemProvider(this.styles.toggle)
+			actionViewItemProvider: createToggleActionViewItemProvider(this.styles.toggle),
+			icon: true,
+			label: false
 		}));
-		leftActionBar.domNode.classList.add('quick-input-left-action-bar');
+		leftActionBar.getElement().classList.add('quick-input-left-action-bar');
 
 		const title = dom.append(titleBar, $('.quick-input-title'));
 
-		const rightActionBar = this._register(new ActionBar(titleBar, {
+		const rightActionBar = this._register(new ToolBar(titleBar, this.contextMenuService, {
 			hoverDelegate: this.options.hoverDelegate,
-			actionViewItemProvider: createToggleActionViewItemProvider(this.styles.toggle)
+			actionViewItemProvider: createToggleActionViewItemProvider(this.styles.toggle),
+			icon: true,
+			label: false
 		}));
-		rightActionBar.domNode.classList.add('quick-input-right-action-bar');
+		rightActionBar.getElement().classList.add('quick-input-right-action-bar');
 
 		const headerContainer = dom.append(container, $('.quick-input-header'));
 
@@ -190,11 +195,13 @@ export class QuickInputController extends Disposable {
 		countContainer.setAttribute('aria-live', 'polite');
 		const count = this._register(new CountBadge(countContainer, { countFormat: localize({ key: 'quickInput.countSelected', comment: ['This tells the user how many items are selected in a list of items to select from. The items can be anything.'] }, "{0} Selected") }, this.styles.countBadge));
 
-		const inlineActionBar = this._register(new ActionBar(headerContainer, {
+		const inlineActionBar = this._register(new ToolBar(headerContainer, this.contextMenuService, {
 			hoverDelegate: this.options.hoverDelegate,
-			actionViewItemProvider: createToggleActionViewItemProvider(this.styles.toggle)
+			actionViewItemProvider: createToggleActionViewItemProvider(this.styles.toggle),
+			icon: true,
+			label: false
 		}));
-		inlineActionBar.domNode.classList.add('quick-input-inline-action-bar');
+		inlineActionBar.getElement().classList.add('quick-input-inline-action-bar');
 
 		const okContainer = dom.append(headerContainer, $('.quick-input-action'));
 		const ok = this._register(new Button(okContainer, this.styles.button));
@@ -349,7 +356,7 @@ export class QuickInputController extends Disposable {
 				{
 					node: titleBar,
 					includeChildren: true,
-					excludeNodes: [leftActionBar.domNode, rightActionBar.domNode]
+					excludeNodes: [leftActionBar.getElement(), rightActionBar.getElement()]
 				},
 				{
 					node: headerContainer,
@@ -660,13 +667,13 @@ export class QuickInputController extends Disposable {
 		oldController?.didHide();
 
 		this.setEnabled(true);
-		ui.leftActionBar.clear();
+		ui.leftActionBar.setActions([]);
 		ui.title.textContent = '';
 		ui.description1.textContent = '';
 		ui.description2.textContent = '';
 		dom.reset(ui.widget);
-		ui.rightActionBar.clear();
-		ui.inlineActionBar.clear();
+		ui.rightActionBar.setActions([]);
+		ui.inlineActionBar.setActions([]);
 		ui.checkAll.checked = false;
 		// ui.inputBox.value = ''; Avoid triggering an event.
 		ui.inputBox.placeholder = '';
@@ -731,11 +738,17 @@ export class QuickInputController extends Disposable {
 		if (enabled !== this.enabled) {
 			this.enabled = enabled;
 			const ui = this.getUI();
-			for (const item of ui.leftActionBar.viewItems) {
-				(item as ActionViewItem).action.enabled = enabled;
+			for (let i = 0; i < ui.leftActionBar.getItemsLength(); i++) {
+				const action = ui.leftActionBar.getItemAction(i);
+				if (action) {
+					action.enabled = enabled;
+				}
 			}
-			for (const item of ui.rightActionBar.viewItems) {
-				(item as ActionViewItem).action.enabled = enabled;
+			for (let i = 0; i < ui.rightActionBar.getItemsLength(); i++) {
+				const action = ui.rightActionBar.getItemAction(i);
+				if (action) {
+					action.enabled = enabled;
+				}
 			}
 			if (enabled) {
 				ui.checkAll.enable();
@@ -789,8 +802,13 @@ export class QuickInputController extends Disposable {
 	}
 
 	toggle() {
-		if (this.isVisible() && this.controller instanceof QuickPick && this.controller.canSelectMany) {
+		if (!this.isVisible()) {
+			return;
+		}
+		if (this.controller instanceof QuickPick && this.controller.canSelectMany) {
 			this.getUI().list.toggleCheckbox();
+		} else if (this.controller instanceof QuickTree) {
+			this.getUI().tree.toggleCheckbox();
 		}
 	}
 

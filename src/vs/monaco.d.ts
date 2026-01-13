@@ -771,6 +771,9 @@ declare namespace monaco {
 		 * Moves the range by the given amount of lines.
 		 */
 		delta(lineCount: number): Range;
+		/**
+		 * Test if this range starts and ends on the same line.
+		 */
 		isSingleLine(): boolean;
 		static fromPositions(start: IPosition, end?: IPosition): Range;
 		/**

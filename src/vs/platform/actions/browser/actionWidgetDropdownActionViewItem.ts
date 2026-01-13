@@ -74,13 +74,8 @@ export class ActionWidgetDropdownActionViewItem extends BaseActionViewItem {
 	}
 
 	protected override getTooltip() {
-		const keybinding = this._keybindingService.lookupKeybinding(this.action.id, this._contextKeyService);
-		const keybindingLabel = keybinding && keybinding.getLabel();
-
 		const tooltip = this.action.tooltip ?? this.action.label;
-		return keybindingLabel
-			? `${tooltip} (${keybindingLabel})`
-			: tooltip;
+		return this._keybindingService.appendKeybinding(tooltip, this.action.id, this._contextKeyService);
 	}
 
 	show(): void {

@@ -1,0 +1,108 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.browser-root {
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+	height: 100%;
+
+	.browser-toolbar {
+		display: flex;
+		align-items: center;
+		padding: 8px;
+		border-bottom: 1px solid var(--vscode-editorWidget-border);
+		background-color: var(--vscode-editor-background);
+		flex-shrink: 0;
+		gap: 8px;
+	}
+
+	.browser-nav-toolbar,
+	.browser-actions-toolbar {
+		display: flex;
+		align-items: center;
+		flex-shrink: 0;
+	}
+
+	.browser-url-input {
+		flex: 1;
+		padding: 4px 8px;
+		background-color: var(--vscode-input-background);
+		color: var(--vscode-input-foreground);
+		border: 1px solid var(--vscode-input-border);
+		border-radius: 2px;
+		outline: none;
+		font-size: 13px;
+
+		&:focus {
+			border-color: var(--vscode-focusBorder);
+		}
+	}
+
+	.browser-container {
+		flex: 1;
+		min-height: 0;
+		margin: 0 2px 2px;
+		overflow: hidden;
+		position: relative;
+		background-image: none;
+		background-size: contain;
+		background-repeat: no-repeat;
+		filter: blur(0px);
+		transition: opacity 300ms ease-out, filter 300ms ease-out;
+		outline: none !important;
+		opacity: 1.0;
+
+		&.blur {
+			opacity: 0.8;
+			filter: blur(2px);
+		}
+	}
+
+	.browser-error-container {
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		flex: 1;
+		display: flex;
+		align-items: flex-start;
+		justify-content: flex-start;
+		padding: 80px 40px;
+		margin: 0 2px 2px;
+		background-color: var(--vscode-editor-background);
+	}
+
+	.browser-error-content {
+		max-width: 600px;
+		width: 100%;
+	}
+
+	.browser-error-title {
+		font-size: 18px;
+		font-weight: 600;
+		color: var(--vscode-errorForeground);
+		margin-bottom: 20px;
+	}
+
+	.browser-error-detail {
+		margin-bottom: 12px;
+		line-height: 1.6;
+		color: var(--vscode-foreground);
+
+		strong {
+			font-weight: 600;
+		}
+
+		code {
+			background-color: var(--vscode-textCodeBlock-background);
+			padding: 2px 6px;
+			border-radius: 3px;
+			font-family: var(--monaco-monospace-font);
+			font-size: 12px;
+		}
+	}
+}

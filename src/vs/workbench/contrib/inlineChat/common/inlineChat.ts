@@ -20,6 +20,7 @@ export const enum InlineChatConfigKeys {
 	/** @deprecated do not read on client */
 	EnableV2 = 'inlineChat.enableV2',
 	notebookAgent = 'inlineChat.notebookAgent',
+	PersistModelChoice = 'inlineChat.persistModelChoice',
 }
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
@@ -52,6 +53,14 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			experiment: {
 				mode: 'startup'
 			}
+		},
+		[InlineChatConfigKeys.PersistModelChoice]: {
+			description: localize('persistModelChoice', "Whether to persist the selected language model choice across inline chat sessions. The default is not to persist and to use the vendor's default model for inline chat because that yields the best experience."),
+			default: false,
+			type: 'boolean',
+			experiment: {
+				mode: 'auto'
+			}
 		}
 	}
 });
@@ -69,8 +78,6 @@ export const enum InlineChatResponseType {
 }
 
 export const CTX_INLINE_CHAT_POSSIBLE = new RawContextKey<boolean>('inlineChatPossible', false, localize('inlineChatHasPossible', "Whether a provider for inline chat exists and whether an editor for inline chat is open"));
-/** @deprecated */
-const CTX_INLINE_CHAT_HAS_AGENT = new RawContextKey<boolean>('inlineChatHasProvider', false, localize('inlineChatHasProvider', "Whether a provider for interactive editors exists"));
 export const CTX_INLINE_CHAT_HAS_AGENT2 = new RawContextKey<boolean>('inlineChatHasEditsAgent', false, localize('inlineChatHasEditsAgent', "Whether an agent for inline for interactive editors exists"));
 export const CTX_INLINE_CHAT_HAS_NOTEBOOK_INLINE = new RawContextKey<boolean>('inlineChatHasNotebookInline', false, localize('inlineChatHasNotebookInline', "Whether an agent for notebook cells exists"));
 export const CTX_INLINE_CHAT_HAS_NOTEBOOK_AGENT = new RawContextKey<boolean>('inlineChatHasNotebookAgent', false, localize('inlineChatHasNotebookAgent', "Whether an agent for notebook cells exists"));
@@ -89,12 +96,11 @@ export const CTX_INLINE_CHAT_REQUEST_IN_PROGRESS = new RawContextKey<boolean>('i
 export const CTX_INLINE_CHAT_RESPONSE_TYPE = new RawContextKey<InlineChatResponseType>('inlineChatResponseType', InlineChatResponseType.None, localize('inlineChatResponseTypes', "What type was the responses have been receieved, nothing yet, just messages, or messaged and local edits"));
 
 export const CTX_INLINE_CHAT_V1_ENABLED = ContextKeyExpr.or(
-	ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR.negate(), CTX_INLINE_CHAT_HAS_AGENT),
 	ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, CTX_INLINE_CHAT_HAS_NOTEBOOK_INLINE)
 );
 
 export const CTX_INLINE_CHAT_V2_ENABLED = ContextKeyExpr.or(
-	ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR.negate(), CTX_INLINE_CHAT_HAS_AGENT2),
+	CTX_INLINE_CHAT_HAS_AGENT2,
 	ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, CTX_INLINE_CHAT_HAS_NOTEBOOK_AGENT)
 );
 

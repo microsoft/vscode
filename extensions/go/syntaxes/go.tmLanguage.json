@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/worlpaker/go-syntax/commit/8c70c078f56d237f72574ce49cc95839c4f8a741",
+	"version": "https://github.com/worlpaker/go-syntax/commit/6e8421faf8f1445512825f63925e54a62106bcf1",
 	"name": "Go",
 	"scopeName": "source.go",
 	"patterns": [
@@ -2486,6 +2486,9 @@
 						},
 						{
 							"include": "#struct_variables_types"
+						},
+						{
+							"include": "#support_functions"
 						},
 						{
 							"include": "#type-declarations"

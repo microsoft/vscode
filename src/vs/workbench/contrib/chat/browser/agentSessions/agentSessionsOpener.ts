@@ -5,7 +5,7 @@
 
 import { IAgentSession, isLocalAgentSessionItem } from './agentSessionsModel.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
-import { IChatEditorOptions } from '../chatEditor.js';
+import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../chat.js';
 import { ACTIVE_GROUP, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';

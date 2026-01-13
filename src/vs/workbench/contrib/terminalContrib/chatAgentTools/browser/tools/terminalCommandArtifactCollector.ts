@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../../base/common/uri.js';
-import { IChatTerminalToolInvocationData } from '../../../../chat/common/chatService.js';
+import { IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
 import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { getCommandOutputSnapshot } from '../../../../terminal/browser/chatTerminalCommandMirror.js';
 import { TerminalCapability, type ITerminalCommand } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';

@@ -14,7 +14,7 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { INLINE_CHAT_ID } from '../../../inlineChat/common/inlineChat.js';
 import { TerminalContribCommandId } from '../../../terminal/terminalContribExports.js';
-import { ChatContextKeyExprs, ChatContextKeys } from '../../common/chatContextKeys.js';
+import { ChatContextKeyExprs, ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { FocusAgentSessionsAction } from '../agentSessions/agentSessionsActions.js';
 import { IChatWidgetService } from '../chat.js';

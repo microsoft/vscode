@@ -819,6 +819,16 @@ export interface IQuickInputButton {
 	 * when the button is clicked.
 	 */
 	readonly toggle?: { checked: boolean };
+	/**
+	 * Optional label for the button. When used with secondary actions, this label appears in the overflow menu.
+	 */
+	label?: string;
+	/**
+	 * When true, the button will be rendered as a secondary action in the toolbar overflow menu.
+	 * By default, buttons are rendered as primary actions.
+	 * @note This does not currently apply to buttons in the Input location
+	 */
+	secondary?: boolean;
 }
 
 export interface IQuickInputButtonWithToggle extends IQuickInputButton {
@@ -1127,13 +1137,6 @@ export interface IQuickTree<T extends IQuickTreeItem> extends IQuickInput {
 	 * @param itemTree The items to display.
 	 */
 	setItemTree(itemTree: T[]): void;
-
-	/**
-	 * Sets the checkbox state of an item.
-	 * @param element The item to update.
-	 * @param checked The new checkbox state.
-	 */
-	setCheckboxState(element: T, checked: boolean | 'mixed'): void;
 
 	/**
 	 * Expands an item.

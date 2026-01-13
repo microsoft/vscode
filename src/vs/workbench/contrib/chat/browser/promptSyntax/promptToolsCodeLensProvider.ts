@@ -13,7 +13,7 @@ import { localize } from '../../../../../nls.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { showToolsPicker } from '../actions/chatToolPicker.js';
-import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
+import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
 import { ALL_PROMPTS_LANGUAGE_SELECTOR, getPromptsTypeForLanguageId, PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { registerEditorFeature } from '../../../../../editor/common/editorFeatures.js';

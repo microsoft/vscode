@@ -5,7 +5,7 @@
 
 import * as dom from '../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
-import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
+import { ToolBar } from '../../../base/browser/ui/toolbar/toolbar.js';
 import { Button, IButtonStyles } from '../../../base/browser/ui/button/button.js';
 import { CountBadge, ICountBadgeStyles } from '../../../base/browser/ui/countBadge/countBadge.js';
 import { IHoverDelegate, IHoverDelegateOptions } from '../../../base/browser/ui/hover/hoverDelegate.js';
@@ -27,7 +27,7 @@ import './media/quickInput.css';
 import { localize } from '../../../nls.js';
 import { IInputBox, IKeyMods, IQuickInput, IQuickInputButton, IQuickInputHideEvent, IQuickNavigateConfiguration, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, IQuickPickWillAcceptEvent, IQuickWidget, ItemActivation, NO_KEY_MODS, QuickInputButtonLocation, QuickInputHideReason, QuickInputType, QuickPickFocus } from '../common/quickInput.js';
 import { QuickInputBox } from './quickInputBox.js';
-import { quickInputButtonToAction, renderQuickInputDescription } from './quickInputUtils.js';
+import { quickInputButtonToAction, quickInputButtonsToActionArrays, renderQuickInputDescription } from './quickInputUtils.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IHoverService, WorkbenchHoverDelegate } from '../../hover/browser/hover.js';
 import { QuickInputList } from './quickInputList.js';
@@ -97,14 +97,14 @@ export const backButton = {
 export interface QuickInputUI {
 	container: HTMLElement;
 	styleSheet: HTMLStyleElement;
-	leftActionBar: ActionBar;
+	leftActionBar: ToolBar;
 	titleBar: HTMLElement;
 	title: HTMLElement;
 	description1: HTMLElement;
 	description2: HTMLElement;
 	widget: HTMLElement;
-	rightActionBar: ActionBar;
-	inlineActionBar: ActionBar;
+	rightActionBar: ToolBar;
+	inlineActionBar: ToolBar;
 	checkAll: TriStateCheckbox;
 	inputContainer: HTMLElement;
 	filterContainer: HTMLElement;
@@ -417,30 +417,24 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 		}
 		if (this.buttonsUpdated) {
 			this.buttonsUpdated = false;
-			this.ui.leftActionBar.clear();
-			const leftButtons = this._leftButtons
-				.map((button, index) => quickInputButtonToAction(
-					button,
-					`id-${index}`,
-					async () => this.onDidTriggerButtonEmitter.fire(button)
-				));
-			this.ui.leftActionBar.push(leftButtons, { icon: true, label: false });
-			this.ui.rightActionBar.clear();
-			const rightButtons = this._rightButtons
-				.map((button, index) => quickInputButtonToAction(
-					button,
-					`id-${index}`,
-					async () => this.onDidTriggerButtonEmitter.fire(button)
-				));
-			this.ui.rightActionBar.push(rightButtons, { icon: true, label: false });
-			this.ui.inlineActionBar.clear();
-			const inlineButtons = this._inlineButtons
-				.map((button, index) => quickInputButtonToAction(
-					button,
-					`id-${index}`,
-					async () => this.onDidTriggerButtonEmitter.fire(button)
-				));
-			this.ui.inlineActionBar.push(inlineButtons, { icon: true, label: false });
+			const leftActions = quickInputButtonsToActionArrays(
+				this._leftButtons,
+				'left-button',
+				(button) => this.onDidTriggerButtonEmitter.fire(button)
+			);
+			this.ui.leftActionBar.setActions(leftActions.primary, leftActions.secondary);
+			const rightActions = quickInputButtonsToActionArrays(
+				this._rightButtons,
+				'right-button',
+				(button) => this.onDidTriggerButtonEmitter.fire(button)
+			);
+			this.ui.rightActionBar.setActions(rightActions.primary, rightActions.secondary);
+			const inlineActions = quickInputButtonsToActionArrays(
+				this._inlineButtons,
+				'inline-button',
+				(button) => this.onDidTriggerButtonEmitter.fire(button)
+			);
+			this.ui.inlineActionBar.setActions(inlineActions.primary, inlineActions.secondary);
 			// Adjust count badge position based on input buttons (each button/toggle is ~22px wide)
 			const inputButtonOffset = this._inputButtons.length * 22;
 			this.ui.countContainer.style.right = inputButtonOffset > 0 ? `${4 + inputButtonOffset}px` : '4px';
