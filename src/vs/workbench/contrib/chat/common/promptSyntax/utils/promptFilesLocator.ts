@@ -213,10 +213,11 @@ export class PromptFilesLocator {
 	 */
 	private async listFilesInLocal(type: PromptsType, token: CancellationToken): Promise<readonly URI[]> {
 		// Skills have a special folder structure where each skill is in its own subdirectory
-		// with a SKILL.md file, so we use the specialized findAgentSkillsInWorkspace method
+		// with a SKILL.md file, so we use the specialized skill finding methods
 		if (type === PromptsType.skill) {
-			const skills = await this.findAgentSkillsInWorkspace(token);
-			return skills.map(s => s.uri);
+			const workspaceSkills = await this.findAgentSkillsInWorkspace(token);
+			const configSkills = await this.findAgentSkillsInConfiguredPaths(token);
+			return [...workspaceSkills, ...configSkills].map(s => s.uri);
 		}
 
 		// find all prompt files in the provided locations, then match
@@ -462,19 +463,18 @@ export class PromptFilesLocator {
 	}
 
 	/**
-	 * Searches for skills in user-configured skill locations via the `chat.agentSkillsLocations` setting.
-	 * Each skill is stored in its own subdirectory with a SKILL.md file.
+	 * Helper to search for skills in the given locations.
+	 * Handles workspace-relative path extraction when needed.
 	 */
-	public async findAgentSkillsInWorkspace(token: CancellationToken): Promise<Array<{ uri: URI; type: string }>> {
+	private async findAgentSkillsInLocations(
+		locations: readonly { uri: URI; type: string }[],
+		token: CancellationToken
+	): Promise<Array<{ uri: URI; type: string }>> {
 		const workspace = this.workspaceService.getWorkspace();
 		const allResults: Array<{ uri: URI; type: string }> = [];
 		const searchedPaths = new ResourceSet();
-		const userHome = await this.pathService.userHome();
 
-		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, PromptsType.skill);
-		const absoluteLocations = this.toAbsoluteLocations(configuredLocations, userHome);
-
-		for (const { uri: location, type } of absoluteLocations) {
+		for (const { uri: location, type } of locations) {
 			if (searchedPaths.has(location)) {
 				continue;
 			}
@@ -498,17 +498,38 @@ export class PromptFilesLocator {
 	}
 
 	/**
-	 * Searches for skills in all default directories in the home folder.
+	 * Searches for skills in workspace skill locations (e.g., .github/skills, .claude/skills).
+	 * Each skill is stored in its own subdirectory with a SKILL.md file.
+	 */
+	public async findAgentSkillsInWorkspace(token: CancellationToken): Promise<Array<{ uri: URI; type: string }>> {
+		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, PromptsType.skill)
+			.filter(loc => loc.location === 'workspace');
+		const absoluteLocations = this.toAbsoluteLocations(configuredLocations);
+		return this.findAgentSkillsInLocations(absoluteLocations, token);
+	}
+
+	/**
+	 * Searches for skills in user home directories (e.g., ~/.copilot/skills, ~/.claude/skills).
 	 * Each skill is stored in its own subdirectory with a SKILL.md file.
 	 */
 	public async findAgentSkillsInUserHome(token: CancellationToken): Promise<Array<{ uri: URI; type: string }>> {
 		const userHome = await this.pathService.userHome();
-		const allResults: Array<{ uri: URI; type: string }> = [];
-		for (const { path, type } of getPromptFileDefaultLocations(PromptsType.skill).filter((folder) => folder.location === 'userHome')) {
-			const results = await this.findAgentSkillsInFolder(userHome, path, token);
-			allResults.push(...results.map(uri => ({ uri, type })));
-		}
-		return allResults;
+		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, PromptsType.skill)
+			.filter(loc => loc.location === 'userHome');
+		const absoluteLocations = this.toAbsoluteLocations(configuredLocations, userHome);
+		return this.findAgentSkillsInLocations(absoluteLocations, token);
+	}
+
+	/**
+	 * Searches for skills in user-configured custom paths via the `chat.agentSkillsLocations` setting.
+	 * Each skill is stored in its own subdirectory with a SKILL.md file.
+	 */
+	public async findAgentSkillsInConfiguredPaths(token: CancellationToken): Promise<Array<{ uri: URI; type: string }>> {
+		const userHome = await this.pathService.userHome();
+		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, PromptsType.skill)
+			.filter(loc => loc.location === 'config');
+		const absoluteLocations = this.toAbsoluteLocations(configuredLocations, userHome);
+		return this.findAgentSkillsInLocations(absoluteLocations, token);
 	}
 }
 

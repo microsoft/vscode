@@ -193,7 +193,7 @@ export interface IChatPromptSlashCommand {
 
 export interface IAgentSkill {
 	readonly uri: URI;
-	readonly type: 'personal' | 'project';
+	readonly type: 'personal' | 'project' | 'config' | 'extension';
 	readonly name: string;
 	readonly description: string | undefined;
 }

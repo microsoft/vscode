@@ -8,7 +8,7 @@ import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
-import { dirname, isEqual } from '../../../../../../base/common/resources.js';
+import { basename, dirname, isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { type ITextModel } from '../../../../../../editor/common/model.js';
@@ -666,14 +666,24 @@ export class PromptsService extends Disposable implements IPromptsService {
 			let skippedMissingName = 0;
 			let skippedDuplicateName = 0;
 			let skippedParseFailed = 0;
+			let skippedNameMismatch = 0;
 
-			const process = async (uri: URI, skillType: string, scopeType: 'personal' | 'project'): Promise<void> => {
+			const process = async (uri: URI, skillType: string, scopeType: 'personal' | 'project' | 'config' | 'extension'): Promise<void> => {
 				try {
 					const parsedFile = await this.parseNew(uri, token);
 					const name = parsedFile.header?.name;
 					if (!name) {
 						skippedMissingName++;
 						this.logger.error(`[findAgentSkills] Agent skill file missing name attribute: ${uri}`);
+						return;
+					}
+
+					// Validate that the name matches the parent folder name (per agentskills.io specification)
+					const skillFolderUri = dirname(uri);
+					const folderName = basename(skillFolderUri);
+					if (name !== folderName) {
+						skippedNameMismatch++;
+						this.logger.error(`[findAgentSkills] Agent skill name "${name}" does not match folder name "${folderName}": ${uri}`);
 						return;
 					}
 
@@ -702,6 +712,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 			await Promise.all(workspaceSkills.map(({ uri, type }) => process(uri, type, 'project')));
 			const userSkills = await this.fileLocator.findAgentSkillsInUserHome(token);
 			await Promise.all(userSkills.map(({ uri, type }) => process(uri, type, 'personal')));
+			const configSkills = await this.fileLocator.findAgentSkillsInConfiguredPaths(token);
+			await Promise.all(configSkills.map(({ uri, type }) => process(uri, type, 'config')));
+			const extensionSkills = await this.getExtensionPromptFiles(PromptsType.skill, token);
+			await Promise.all(extensionSkills.map(promptPath => process(promptPath.uri, 'extension', 'extension')));
 
 			// Send telemetry about skill usage
 			type AgentSkillsFoundEvent = {
@@ -713,6 +727,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				custom: number;
 				skippedDuplicateName: number;
 				skippedMissingName: number;
+				skippedNameMismatch: number;
 				skippedParseFailed: number;
 			};
 
@@ -725,6 +740,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				custom: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of custom personal skills.' };
 				skippedDuplicateName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of skills skipped due to duplicate names.' };
 				skippedMissingName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of skills skipped due to missing name attribute.' };
+				skippedNameMismatch: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of skills skipped due to name not matching folder name.' };
 				skippedParseFailed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of skills skipped due to parse failures.' };
 				owner: 'pwang347';
 				comment: 'Tracks agent skill usage, discovery, and skipped files.';
@@ -739,6 +755,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				custom: skillTypes.get('custom') ?? 0,
 				skippedDuplicateName,
 				skippedMissingName,
+				skippedNameMismatch,
 				skippedParseFailed
 			});
 
