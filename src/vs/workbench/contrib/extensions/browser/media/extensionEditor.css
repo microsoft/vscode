@@ -66,8 +66,7 @@
 
 .extension-editor > .header > .details > .title {
 	display: flex;
-	align-items: baseline;
-	flex-wrap: wrap;
+	align-items: center;
 }
 
 .extension-editor > .header > .details > .title > .name {
@@ -75,6 +74,7 @@
 	font-size: 26px;
 	line-height: 30px;
 	font-weight: 600;
+	white-space: nowrap;
 }
 
 .extension-editor > .header > .details > .title > .name.deprecated {
