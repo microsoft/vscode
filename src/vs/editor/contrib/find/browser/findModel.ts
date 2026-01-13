@@ -504,7 +504,26 @@ export class FindModelBoundToEditorModel {
 			FindModelBoundToEditorModel._getSearchRange(this._editor.getModel(), scope)
 		);
 
-		return this._editor.getModel().findMatches(this._state.searchString, searchRanges, this._state.isRegex, this._state.matchCase, this._state.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, captureMatches, limitResultCount);
+		const allMatches = this._editor.getModel().findMatches(this._state.searchString, searchRanges, this._state.isRegex, this._state.matchCase, this._state.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, captureMatches, limitResultCount);
+
+		// Filter out matches that are in hidden areas
+		const viewModel = this._editor._getViewModel();
+		if (viewModel) {
+			const hiddenAreas = viewModel.getHiddenAreas();
+			if (hiddenAreas.length > 0) {
+				return allMatches.filter(match => {
+					// Check if the match intersects with any hidden area
+					for (const hiddenArea of hiddenAreas) {
+						if (Range.areIntersecting(match.range, hiddenArea)) {
+							return false;
+						}
+					}
+					return true;
+				});
+			}
+		}
+
+		return allMatches;
 	}
 
 	public replaceAll(): void {
