@@ -1868,12 +1868,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private async _trust(): Promise<boolean> {
 		if (this._configurationService.getValue(TerminalSettingId.AllowInUntrustedWorkspace)) {
+			this._logService.info(`Workspace trust check bypassed due to ${TerminalSettingId.AllowInUntrustedWorkspace}`);
 			return true;
 		}
-		return (await this._workspaceTrustRequestService.requestWorkspaceTrust(
-			{
-				message: nls.localize('terminal.requestTrust', "Creating a terminal process requires executing code")
-			})) === true;
+		const trustRequest = await this._workspaceTrustRequestService.requestWorkspaceTrust({
+			message: nls.localize('terminal.requestTrust', "Creating a terminal process requires executing code")
+		});
+		return trustRequest === true;
 	}
 
 	@debounce(2000)
