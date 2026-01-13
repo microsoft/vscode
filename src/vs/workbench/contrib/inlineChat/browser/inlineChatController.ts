@@ -205,7 +205,7 @@ export class InlineChatController implements IEditorContribution {
 			this._store.add(result);
 
 			this._store.add(result.widget.chatWidget.input.onDidChangeCurrentLanguageModel(newModel => {
-				InlineChatController._selectVendorDefaultLanguageModel = Boolean(newModel.metadata.isDefault);
+				InlineChatController._selectVendorDefaultLanguageModel = Boolean(newModel.metadata.isDefaultForLocation[location.location]);
 			}));
 
 			result.domNode.classList.add('inline-chat-2');
@@ -440,11 +440,11 @@ export class InlineChatController implements IEditorContribution {
 		// or unless the user has chosen to persist their model choice
 		const persistModelChoice = this._configurationService.getValue<boolean>(InlineChatConfigKeys.PersistModelChoice);
 		const model = this._zone.value.widget.chatWidget.input.selectedLanguageModel;
-		if (!persistModelChoice && InlineChatController._selectVendorDefaultLanguageModel && model && !model.metadata.isDefault) {
+		if (!persistModelChoice && InlineChatController._selectVendorDefaultLanguageModel && model && !model.metadata.isDefaultForLocation[session.chatModel.initialLocation]) {
 			const ids = await this._languageModelService.selectLanguageModels({ vendor: model.metadata.vendor }, false);
 			for (const identifier of ids) {
 				const candidate = this._languageModelService.lookupLanguageModel(identifier);
-				if (candidate?.isDefault) {
+				if (candidate?.isDefaultForLocation[session.chatModel.initialLocation]) {
 					this._zone.value.widget.chatWidget.input.setCurrentLanguageModel({ metadata: candidate, identifier });
 					break;
 				}
