@@ -16,6 +16,7 @@ import { IChatAgent } from '../../../../chat/common/participants/chatAgents.js';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../chat/common/constants.js';
 import { InitialHintAddon } from '../../browser/terminal.initialHint.contribution.js';
+import { TestXtermLogger } from '../../../../../../platform/terminal/test/common/terminalTestHelpers.js';
 
 suite('Terminal Initial Hint Addon', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -55,7 +56,7 @@ suite('Terminal Initial Hint Addon', () => {
 	setup(async () => {
 		const instantiationService = workbenchInstantiationService({}, store);
 		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
-		xterm = store.add(new TerminalCtor());
+		xterm = store.add(new TerminalCtor({ logger: TestXtermLogger }));
 		const shellIntegrationAddon = store.add(new ShellIntegrationAddon('', true, undefined, undefined, new NullLogService));
 		initialHintAddon = store.add(instantiationService.createInstance(InitialHintAddon, shellIntegrationAddon.capabilities, onDidChangeAgents));
 		store.add(initialHintAddon.onDidRequestCreateHint(() => eventCount++));

@@ -411,6 +411,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._contextMenuService.showContextMenu({
 			menuId: MenuId.StickyScrollContext,
 			getAnchor: () => event,
+			menuActionOptions: { renderShortTitle: true },
 		});
 	}
 

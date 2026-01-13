@@ -379,6 +379,7 @@ export class ToolBar extends Disposable {
 	override dispose(): void {
 		this.clear();
 		this.disposables.dispose();
+		this.element.remove();
 		super.dispose();
 	}
 }

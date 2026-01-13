@@ -9,7 +9,7 @@ import { IContextMenuService } from '../../../../../platform/contextview/browser
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IOpenEvent, WorkbenchCompressibleAsyncDataTree } from '../../../../../platform/list/browser/listService.js';
 import { $, append, EventHelper } from '../../../../../base/browser/dom.js';
-import { IAgentSession, IAgentSessionsModel, IMarshalledAgentSessionContext, isAgentSession, isAgentSessionSection } from './agentSessionsModel.js';
+import { AgentSessionSection, IAgentSession, IAgentSessionsModel, IMarshalledAgentSessionContext, isAgentSession, isAgentSessionSection } from './agentSessionsModel.js';
 import { AgentSessionListItem, AgentSessionRenderer, AgentSessionsAccessibilityProvider, AgentSessionsCompressionDelegate, AgentSessionsDataSource, AgentSessionsDragAndDrop, AgentSessionsIdentityProvider, AgentSessionsKeyboardNavigationLabelProvider, AgentSessionsListDelegate, AgentSessionSectionRenderer, AgentSessionsSorter, IAgentSessionsFilter, IAgentSessionsSorterOptions } from './agentSessionsViewer.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
@@ -34,8 +34,8 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 
 export interface IAgentSessionsControlOptions extends IAgentSessionsSorterOptions {
-	readonly overrideStyles?: IStyleOverride<IListStyles>;
-	readonly filter?: IAgentSessionsFilter;
+	readonly overrideStyles: IStyleOverride<IListStyles>;
+	readonly filter: IAgentSessionsFilter;
 
 	getHoverPosition(): HoverPosition;
 	trackActiveEditorSession(): boolean;
@@ -139,9 +139,9 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				defaultFindMode: TreeFindMode.Filter,
 				keyboardNavigationLabelProvider: new AgentSessionsKeyboardNavigationLabelProvider(),
 				overrideStyles: this.options.overrideStyles,
-				expandOnlyOnTwistieClick: true,
+				expandOnlyOnTwistieClick: (element: unknown) => !(isAgentSessionSection(element) && element.section === AgentSessionSection.Archived && this.options.filter.getExcludes().archived),
 				twistieAdditionalCssClass: () => 'force-no-twistie',
-				collapseByDefault: () => false,
+				collapseByDefault: (element: unknown) => isAgentSessionSection(element) && element.section === AgentSessionSection.Archived && this.options.filter.getExcludes().archived,
 				renderIndentGuides: RenderIndentGuides.None,
 			}
 		)) as WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, AgentSessionListItem, FuzzyScore>;
@@ -150,10 +150,14 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 		const model = this.agentSessionsService.model;
 
-		this._register(Event.any(
-			this.options.filter?.onDidChange ?? Event.None,
-			model.onDidChangeSessions
-		)(() => {
+		this._register(this.options.filter.onDidChange(async () => {
+			if (this.visible) {
+				this.updateArchivedSectionCollapseState();
+				list.updateChildren();
+			}
+		}));
+
+		this._register(model.onDidChangeSessions(() => {
 			if (this.visible) {
 				list.updateChildren();
 			}
@@ -224,6 +228,27 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 	openFind(): void {
 		this.sessionsList?.openFind();
+	}
+
+	private updateArchivedSectionCollapseState(): void {
+		if (!this.sessionsList) {
+			return;
+		}
+
+		const model = this.agentSessionsService.model;
+		for (const child of this.sessionsList.getNode(model).children) {
+			if (!isAgentSessionSection(child.element) || child.element.section !== AgentSessionSection.Archived) {
+				continue;
+			}
+
+			const shouldCollapseArchived = this.options.filter.getExcludes().archived;
+			if (shouldCollapseArchived && !child.collapsed) {
+				this.sessionsList.collapse(child.element);
+			} else if (!shouldCollapseArchived && child.collapsed) {
+				this.sessionsList.expand(child.element);
+			}
+			break;
+		}
 	}
 
 	refresh(): Promise<void> {
