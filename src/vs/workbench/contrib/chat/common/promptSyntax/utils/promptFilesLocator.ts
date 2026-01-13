@@ -57,6 +57,13 @@ export class PromptFilesLocator {
 	}
 
 	private async listFilesInUserData(type: PromptsType, token: CancellationToken): Promise<readonly URI[]> {
+		// Skills have a special folder structure where each skill is in its own subdirectory
+		// with a SKILL.md file, so we use the specialized findAgentSkillsInUserHome method
+		if (type === PromptsType.skill) {
+			const skills = await this.findAgentSkillsInUserHome(token);
+			return skills.map(s => s.uri);
+		}
+
 		const files = await this.resolveFilesAtLocation(this.userDataService.currentProfile.promptsHome, token);
 		return files.filter(file => getPromptFileType(file) === type);
 	}
@@ -205,6 +212,13 @@ export class PromptFilesLocator {
 	 * @returns List of prompt files found in the local source folders.
 	 */
 	private async listFilesInLocal(type: PromptsType, token: CancellationToken): Promise<readonly URI[]> {
+		// Skills have a special folder structure where each skill is in its own subdirectory
+		// with a SKILL.md file, so we use the specialized findAgentSkillsInWorkspace method
+		if (type === PromptsType.skill) {
+			const skills = await this.findAgentSkillsInWorkspace(token);
+			return skills.map(s => s.uri);
+		}
+
 		// find all prompt files in the provided locations, then match
 		// the found file paths against (possible) glob patterns
 		const paths = new ResourceSet();
