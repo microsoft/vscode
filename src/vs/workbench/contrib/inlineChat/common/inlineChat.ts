@@ -20,7 +20,6 @@ export const enum InlineChatConfigKeys {
 	/** @deprecated do not read on client */
 	EnableV2 = 'inlineChat.enableV2',
 	notebookAgent = 'inlineChat.notebookAgent',
-	PersistModelChoice = 'inlineChat.persistModelChoice',
 }
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
@@ -52,14 +51,6 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			tags: ['experimental'],
 			experiment: {
 				mode: 'startup'
-			}
-		},
-		[InlineChatConfigKeys.PersistModelChoice]: {
-			description: localize('persistModelChoice', "Whether inline chat remembers the last selected model."),
-			default: false,
-			type: 'boolean',
-			experiment: {
-				mode: 'auto'
 			}
 		}
 	}

@@ -29,6 +29,7 @@ import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocatio
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { IMcpServer, IMcpService, IMcpTool, IMcpToolResourceLinkContents, McpResourceURI, McpToolResourceLinkMimeType, McpToolVisibility } from './mcpTypes.js';
 import { mcpServerToSourceData } from './mcpTypesUtils.js';
+import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 
 interface ISyncedToolData {
 	toolData: IToolData;
@@ -44,6 +45,7 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 		@IMcpService mcpService: IMcpService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IMcpRegistry private readonly _mcpRegistry: IMcpRegistry,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 	) {
 		super();
 
@@ -111,7 +113,18 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 				store.add(collectionData.value.toolSet.addTool(toolData));
 			};
 
+			// Don't bother cleaning up tools internally during shutdown. This just costs time for no benefit.
+			if (this.lifecycleService.willShutdown) {
+				return;
+			}
+
 			const collection = collectionObservable.read(reader);
+			if (!collection) {
+				tools.forEach(t => t.store.dispose());
+				tools.clear();
+				return;
+			}
+
 			for (const tool of server.tools.read(reader)) {
 				// Skip app-only tools - they should not be registered with the language model tools service
 				if (!(tool.visibility & McpToolVisibility.Model)) {

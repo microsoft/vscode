@@ -385,6 +385,7 @@ class GutterColumnRenderer extends ModelsTableColumnRenderer<IToggleCollapseColu
 interface IModelNameColumnTemplateData extends IModelTableColumnTemplateData {
 	readonly statusIcon: HTMLElement;
 	readonly nameLabel: HighlightedLabel;
+	readonly modelStatusIcon: HTMLElement;
 	readonly actionBar: ActionBar;
 }
 
@@ -403,13 +404,15 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 		const disposables = new DisposableStore();
 		const elementDisposables = new DisposableStore();
 		const nameContainer = DOM.append(container, $('.model-name-container'));
+		const statusIcon = DOM.append(nameContainer, $('.status-icon'));
 		const nameLabel = disposables.add(new HighlightedLabel(DOM.append(nameContainer, $('.model-name'))));
-		const statusIcon = DOM.append(nameContainer, $('.model-status-icon'));
+		const modelStatusIcon = DOM.append(nameContainer, $('.model-status-icon'));
 		const actionBar = disposables.add(new ActionBar(DOM.append(nameContainer, $('.model-name-actions'))));
 		return {
 			container,
 			statusIcon,
 			nameLabel,
+			modelStatusIcon,
 			actionBar,
 			disposables,
 			elementDisposables
@@ -417,7 +420,7 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 	}
 
 	override renderElement(entry: IViewModelEntry, index: number, templateData: IModelNameColumnTemplateData): void {
-		DOM.clearNode(templateData.statusIcon);
+		DOM.clearNode(templateData.modelStatusIcon);
 		templateData.actionBar.clear();
 		templateData.nameLabel.element.classList.remove('error-status', 'warning-status', 'info-status');
 		super.renderElement(entry, index, templateData);
@@ -434,12 +437,13 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 	override renderModelElement(entry: ILanguageModelEntry, index: number, templateData: IModelNameColumnTemplateData): void {
 		const { model: modelEntry, modelNameMatches } = entry;
 
-		templateData.statusIcon.className = 'model-status-icon';
+		templateData.statusIcon.style.display = 'none';
+		templateData.modelStatusIcon.className = 'model-status-icon';
 		if (modelEntry.metadata.statusIcon) {
-			templateData.statusIcon.classList.add(...ThemeIcon.asClassNameArray(modelEntry.metadata.statusIcon));
-			templateData.statusIcon.style.display = '';
+			templateData.modelStatusIcon.classList.add(...ThemeIcon.asClassNameArray(modelEntry.metadata.statusIcon));
+			templateData.modelStatusIcon.style.display = '';
 		} else {
-			templateData.statusIcon.style.display = 'none';
+			templateData.modelStatusIcon.style.display = 'none';
 		}
 
 		templateData.nameLabel.set(modelEntry.metadata.name, modelNameMatches);
@@ -475,8 +479,8 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 	}
 
 	protected override renderStatusElement(entry: IStatusEntry, index: number, templateData: IModelNameColumnTemplateData): void {
-		templateData.statusIcon.className = 'model-status-icon';
 		templateData.statusIcon.style.display = '';
+		templateData.statusIcon.className = 'status-icon';
 		switch (entry.severity) {
 			case Severity.Error:
 				templateData.nameLabel.element.classList.add('error-status');
@@ -491,7 +495,7 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 				templateData.statusIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.info));
 				break;
 		}
-		templateData.nameLabel.set(entry.message, undefined);
+		templateData.nameLabel.set(entry.message, undefined, entry.message);
 	}
 }
 
@@ -522,12 +526,16 @@ class MultiplierColumnRenderer extends ModelsTableColumnRenderer<IMultiplierColu
 		};
 	}
 
-	override renderVendorElement(entry: ILanguageModelProviderEntry, index: number, templateData: IMultiplierColumnTemplateData): void {
+	override renderElement(entry: IViewModelEntry, index: number, templateData: IMultiplierColumnTemplateData): void {
 		templateData.multiplierElement.textContent = '';
+		super.renderElement(entry, index, templateData);
 	}
 
-	override renderGroupElement(entry: ILanguageModelGroupEntry, index: number, templateData: IMultiplierColumnTemplateData): void {
-		templateData.multiplierElement.textContent = '';
+	override renderGroupElement(element: ILanguageModelGroupEntry, index: number, templateData: IMultiplierColumnTemplateData): void {
+	}
+
+	override renderVendorElement(element: ILanguageModelProviderEntry, index: number, templateData: IMultiplierColumnTemplateData): void {
+
 	}
 
 	override renderModelElement(entry: ILanguageModelEntry, index: number, templateData: IMultiplierColumnTemplateData): void {
@@ -783,23 +791,6 @@ class ActionsColumnRenderer extends ModelsTableColumnRenderer<IActionsColumnTemp
 	}
 
 	override renderModelElement(entry: ILanguageModelEntry, index: number, templateData: IActionsColumnTemplateData): void {
-		const { model } = entry;
-
-		if (!model.provider.vendor.configuration) {
-			return;
-		}
-
-		const primaryActions: IAction[] = [];
-		const secondaryActions: IAction[] = [];
-
-		secondaryActions.push(toAction({
-			id: 'configureConfiguration',
-			class: ThemeIcon.asClassName(Codicon.edit),
-			label: localize('models.configure', 'Configure...'),
-			run: () => this.languageModelsService.configureLanguageModelsProviderGroup(model.provider.vendor.vendor, model.provider.group.name)
-		}));
-
-		templateData.actionBar.setActions(primaryActions, secondaryActions);
 	}
 }
 
