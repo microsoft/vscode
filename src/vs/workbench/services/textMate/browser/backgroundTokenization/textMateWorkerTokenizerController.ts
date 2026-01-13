@@ -79,6 +79,11 @@ export class TextMateWorkerTokenizerController extends Disposable {
 				encodedLanguageId
 			);
 		}));
+		this._register(this._configurationService.onDidChangeConfiguration((e) => {
+			if (e.affectsConfiguration('editor.tokenColorCustomizations')) {
+				this._worker.$acceptTextmateCustomRulesChanged(this.controllerId);
+			}
+		}));
 
 		const languageId = this._model.getLanguageId();
 		const encodedLanguageId = this._languageIdCodec.encodeLanguageId(languageId);

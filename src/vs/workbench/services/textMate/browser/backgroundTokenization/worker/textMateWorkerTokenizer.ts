@@ -64,6 +64,10 @@ export class TextMateWorkerTokenizer extends MirrorTextModel {
 		this._resetTokenization();
 	}
 
+	public onTextmateCustomRulesChanged(): void {
+		this._resetTokenization();
+	}
+
 	override onEvents(e: IModelChangedEvent): void {
 		super.onEvents(e);
 
