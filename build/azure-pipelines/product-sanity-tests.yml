@@ -3,21 +3,23 @@ pr: none
 trigger: none
 
 parameters:
-  - name: commit
-    displayName: Commit
+  - name: BUILD_COMMIT
+    displayName: Published Build Commit
     type: string
-  - name: quality
-    displayName: Quality
+
+  - name: BUILD_QUALITY
+    displayName: Published Build Quality
     type: string
     default: insider
     values:
       - exploration
       - insider
       - stable
+
   - name: NPM_REGISTRY
-    displayName: "Custom NPM Registry"
+    displayName: Custom NPM Registry URL
     type: string
-    default: 'https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/'
+    default: "https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/"
 
 variables:
   - name: skipComponentGovernanceDetection
@@ -27,7 +29,7 @@ variables:
   - name: NPM_REGISTRY
     value: ${{ parameters.NPM_REGISTRY }}
 
-name: "$(Date:yyyyMMdd).$(Rev:r) (${{ parameters.quality }})"
+name: "$(Date:yyyyMMdd).$(Rev:r) (${{ parameters.BUILD_QUALITY }} ${{ parameters.BUILD_COMMIT }})"
 
 resources:
   repositories:
@@ -53,25 +55,19 @@ extends:
       sourceAnalysisPool: 1es-windows-2022-x64
       createAdoIssuesForJustificationsForDisablement: false
     stages:
-      - stage: SanityTests
+      - stage: Run Sanity Tests
         jobs:
-          - template: build/azure-pipelines/common/sanity-tests.yml@self
+          - template: ./common/sanity-tests.yml@self
             parameters:
-              commit: ${{ parameters.commit }}
-              quality: ${{ parameters.quality }}
               poolName: 1es-windows-2022-x64
               os: windows
 
-          - template: build/azure-pipelines/common/sanity-tests.yml@self
+          - template: ./common/sanity-tests.yml@self
             parameters:
-              commit: ${{ parameters.commit }}
-              quality: ${{ parameters.quality }}
               poolName: 1es-ubuntu-22.04-x64
               os: linux
 
-          - template: build/azure-pipelines/common/sanity-tests.yml@self
+          - template: ./common/sanity-tests.yml@self
             parameters:
-              commit: ${{ parameters.commit }}
-              quality: ${{ parameters.quality }}
               poolName: AcesShared
               os: macOS

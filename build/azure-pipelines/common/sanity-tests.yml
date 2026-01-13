@@ -1,8 +1,4 @@
 parameters:
-  - name: commit
-    type: string
-  - name: quality
-    type: string
   - name: poolName
     type: string
   - name: os
@@ -17,12 +13,13 @@ jobs:
     timeoutInMinutes: 30
     variables:
       SANITY_TEST_LOGS: $(Build.SourcesDirectory)/.build/sanity-test-logs
+      LOG_FILE: $(SANITY_TEST_LOGS)/results.xml
     templateContext:
       outputs:
         - output: pipelineArtifact
-          targetPath: $(SANITY_TEST_LOGS)
+          targetPath: $SANITY_TEST_LOGS
           artifactName: sanity-test-logs-${{ lower(parameters.os) }}-$(System.JobAttempt)
-          displayName: Publish Sanity Test Logs
+          displayName: Sanity Tests Logs
           sbomEnabled: false
           isProduction: false
           condition: succeededOrFailed()
@@ -85,17 +82,29 @@ jobs:
         displayName: Install dependencies
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
+      - script: |
+          set -e
+          node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
+          mkdir -p .build/node_modules_cache
+          tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
+        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+        displayName: Create node_modules archive
+
       - script: npm run postinstall
         displayName: Install Playwright dependencies
         workingDirectory: ./test/sanity
 
-      - script: npm run sanity-test -- --commit ${{ parameters.commit }} --quality ${{ parameters.quality }} --verbose --test-results $(SANITY_TEST_LOGS)/sanity-test.xml
+      - script: |
+          npm run sanity-test -- \
+            --commit $BUILD_COMMIT \
+            --quality $BUILD_QUALITY \
+            --verbose --test-results $LOG_FILE
         displayName: Run Sanity Tests
 
       - task: PublishTestResults@2
         inputs:
           testResultsFormat: JUnit
-          testResultsFiles: $(SANITY_TEST_LOGS)/sanity-test.xml
+          testResultsFiles: $LOG_FILE
           testRunTitle: ${{ parameters.os }} Sanity Tests
         condition: succeededOrFailed()
         displayName: Publish Test Results
