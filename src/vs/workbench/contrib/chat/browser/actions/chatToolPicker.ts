@@ -54,7 +54,7 @@ type McpServerToggleData = {
 type McpServerToggleClassification = {
 	owner: 'digitarald';
 	comment: 'Tracks when MCP servers are enabled/disabled in tool picker';
-	serverId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Hashed MCP server ID' };
+	serverId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'MCP server ID' };
 	serverLabel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'MCP server display label' };
 	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the server was enabled or disabled' };
 	virtualMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether virtual mode was active during toggling' };
@@ -70,7 +70,7 @@ type ToolToggleData = {
 type ToolToggleClassification = {
 	owner: 'digitarald';
 	comment: 'Tracks when individual tools are enabled/disabled in tool picker';
-	toolId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Hashed tool ID' };
+	toolId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Tool ID' };
 	toolName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Tool display name' };
 	toolSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Source type of the tool (mcp, extension, internal, user)' };
 	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the tool was enabled or disabled' };
