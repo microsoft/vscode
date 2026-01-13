@@ -39,7 +39,7 @@ type ActionableButton = IQuickInputButton & { action: () => void };
 /**
  * Telemetry events for tool picker interactions:
  * - chat.toolPicker.mcpServerToggle: When MCP servers are enabled/disabled
- * - chat.toolPicker.toolToggle: When individual tools are enabled/disabled  
+ * - chat.toolPicker.toolToggle: When individual tools are enabled/disabled
  * - chat.toolPicker.action: When action buttons are clicked (add server, configure, etc.)
  * All events include virtualMode flag to indicate if tool count exceeded threshold
  */
@@ -83,7 +83,7 @@ type ToolPickerActionData = {
 type ToolPickerActionClassification = {
 	owner: 'digitarald';
 	comment: 'Tracks when tool picker action buttons are used';
-	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The action that was triggered (addMcpServer, installExtension, configureToolSets)' };
+	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The action that was triggered such as addMcpServer, installExtension, configureToolSets, etc.' };
 };
 
 // New QuickTree types for tree-based implementation
