@@ -148,6 +148,55 @@ declare module 'vscode' {
 
 	// #endregion
 
+	// #region SkillProvider
+
+	/**
+	 * Represents a skill resource (a folder containing SKILL.md) available for agents.
+	 * Skills follow the agentskills.io specification.
+	 */
+	export interface SkillResource {
+		/**
+		 * The URI to the SKILL.md file within the skill folder.
+		 */
+		readonly uri: Uri;
+
+		/**
+		 * Indicates whether the skill is editable. Defaults to false.
+		 */
+		readonly isEditable?: boolean;
+	}
+
+	/**
+	 * Context for querying skills.
+	 */
+	export type SkillContext = object;
+
+	/**
+	 * A provider that supplies skill resources for agents.
+	 * Skills are folders containing a SKILL.md file following the agentskills.io specification.
+	 */
+	export interface SkillProvider {
+		/**
+		 * A human-readable label for this provider.
+		 */
+		readonly label: string;
+
+		/**
+		 * An optional event to signal that skills have changed.
+		 */
+		readonly onDidChangeSkills?: Event<void>;
+
+		/**
+		 * Provide the list of skills available.
+		 * @param context Context for the query.
+		 * @param token A cancellation token.
+		 * @returns An array of skill resources or a promise that resolves to such.
+		 */
+		provideSkills(context: SkillContext, token: CancellationToken): ProviderResult<SkillResource[]>;
+	}
+
+	// #endregion
+
 	// #region Chat Provider Registration
 
 	export namespace chat {
@@ -171,6 +220,14 @@ declare module 'vscode' {
 		 * @returns A disposable that unregisters the provider when disposed.
 		 */
 		export function registerPromptFileProvider(provider: PromptFileProvider): Disposable;
+
+		/**
+		 * Register a provider for skills.
+		 * Skills are folders containing a SKILL.md file following the agentskills.io specification.
+		 * @param provider The skill provider.
+		 * @returns A disposable that unregisters the provider when disposed.
+		 */
+		export function registerSkillProvider(provider: SkillProvider): Disposable;
 	}
 
 	// #endregion

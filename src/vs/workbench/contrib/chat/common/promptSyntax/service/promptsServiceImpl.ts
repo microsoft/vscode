@@ -32,7 +32,7 @@ import { getCleanPromptName } from '../config/promptFileLocations.js';
 import { PROMPT_LANGUAGE_ID, PromptsType, getPromptsTypeForLanguageId } from '../promptTypes.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
-import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IAgentSkill, IUserPromptPath, PromptsStorage, ExtensionAgentSourceType, CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT, IPromptFileContext, IPromptFileResource, PROMPT_FILE_PROVIDER_ACTIVATION_EVENT } from './promptsService.js';
+import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IAgentSkill, IUserPromptPath, PromptsStorage, ExtensionAgentSourceType, CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT, IPromptFileContext, IPromptFileResource, PROMPT_FILE_PROVIDER_ACTIVATION_EVENT, SKILL_PROVIDER_ACTIVATION_EVENT } from './promptsService.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 
@@ -202,6 +202,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 				} else if (type === PromptsType.prompt) {
 					this.cachedFileLocations[PromptsType.prompt] = undefined;
 					this.cachedSlashCommands.refresh();
+				} else if (type === PromptsType.skill) {
+					this.cachedFileLocations[PromptsType.skill] = undefined;
 				}
 			}));
 		}
@@ -215,6 +217,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 		} else if (type === PromptsType.prompt) {
 			this.cachedFileLocations[PromptsType.prompt] = undefined;
 			this.cachedSlashCommands.refresh();
+		} else if (type === PromptsType.skill) {
+			this.cachedFileLocations[PromptsType.skill] = undefined;
 		}
 
 		disposables.add({
@@ -230,6 +234,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 					} else if (type === PromptsType.prompt) {
 						this.cachedFileLocations[PromptsType.prompt] = undefined;
 						this.cachedSlashCommands.refresh();
+					} else if (type === PromptsType.skill) {
+						this.cachedFileLocations[PromptsType.skill] = undefined;
 					}
 				}
 			}
@@ -319,7 +325,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			case PromptsType.prompt:
 				return PROMPT_FILE_PROVIDER_ACTIVATION_EVENT;
 			case PromptsType.skill:
-				throw new Error('Skill prompt files are not yet supported by providers');
+				return SKILL_PROVIDER_ACTIVATION_EVENT;
 		}
 	}
 
@@ -702,6 +708,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 			await Promise.all(workspaceSkills.map(({ uri, type }) => process(uri, type, 'project')));
 			const userSkills = await this.fileLocator.findAgentSkillsInUserHome(token);
 			await Promise.all(userSkills.map(({ uri, type }) => process(uri, type, 'personal')));
+			const extensionSkills = await this.getExtensionPromptFiles(PromptsType.skill, token);
+			await Promise.all(extensionSkills.map(promptPath => process(promptPath.uri, 'extension', 'project')));
 
 			// Send telemetry about skill usage
 			type AgentSkillsFoundEvent = {
@@ -711,6 +719,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				copilotPersonal: number;
 				githubWorkspace: number;
 				custom: number;
+				extension: number;
 				skippedDuplicateName: number;
 				skippedMissingName: number;
 				skippedParseFailed: number;
@@ -723,6 +732,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				copilotPersonal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of Copilot personal skills.' };
 				githubWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of GitHub workspace skills.' };
 				custom: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of custom personal skills.' };
+				extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of extension-provided skills.' };
 				skippedDuplicateName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of skills skipped due to duplicate names.' };
 				skippedMissingName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of skills skipped due to missing name attribute.' };
 				skippedParseFailed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of skills skipped due to parse failures.' };
@@ -737,6 +747,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				copilotPersonal: skillTypes.get('copilot-personal') ?? 0,
 				githubWorkspace: skillTypes.get('github-workspace') ?? 0,
 				custom: skillTypes.get('custom') ?? 0,
+				extension: skillTypes.get('extension') ?? 0,
 				skippedDuplicateName,
 				skippedMissingName,
 				skippedParseFailed

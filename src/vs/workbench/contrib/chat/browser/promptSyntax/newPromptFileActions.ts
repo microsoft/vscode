@@ -214,7 +214,7 @@ class NewSkillFileAction extends Action2 {
 	constructor() {
 		super({
 			id: NEW_SKILL_COMMAND_ID,
-			title: localize('commands.new.skill.local.title', "New Skill File..."),
+			title: localize('commands.new.skill.local.title', "New Skill..."),
 			f1: false,
 			precondition: ChatContextKeys.enabled,
 			category: CHAT_CATEGORY,

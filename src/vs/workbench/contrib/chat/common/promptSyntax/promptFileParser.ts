@@ -75,6 +75,9 @@ export namespace PromptHeaderAttributes {
 	export const excludeAgent = 'excludeAgent';
 	export const target = 'target';
 	export const infer = 'infer';
+	export const license = 'license';
+	export const compatibility = 'compatibility';
+	export const metadata = 'metadata';
 }
 
 export namespace GithubPromptHeaderAttributes {
