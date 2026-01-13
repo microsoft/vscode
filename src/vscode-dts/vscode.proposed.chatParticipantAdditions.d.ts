@@ -685,6 +685,7 @@ declare module 'vscode' {
 
 	export interface LanguageModelToolInvocationOptions<T> {
 		model?: LanguageModelChat;
+		chatStreamToolCallId?: string;
 	}
 
 	export interface LanguageModelToolInvocationStreamOptions<T> {

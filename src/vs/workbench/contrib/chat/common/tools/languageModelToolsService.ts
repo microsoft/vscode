@@ -133,6 +133,10 @@ export interface IToolInvocation {
 	chatRequestId?: string;
 	chatInteractionId?: string;
 	/**
+	 * Optional tool call ID from the chat stream, used to correlate with pending streaming tool calls.
+	 */
+	chatStreamToolCallId?: string;
+	/**
 	 * Lets us add some nicer UI to toolcalls that came from a sub-agent, but in the long run, this should probably just be rendered in a similar way to thinking text + tool call groups
 	 */
 	fromSubAgent?: boolean;

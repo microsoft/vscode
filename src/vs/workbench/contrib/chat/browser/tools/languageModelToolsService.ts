@@ -304,7 +304,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	async invokeTool(dto: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult> {
 		this._logService.trace(`[LanguageModelToolsService#invokeTool] Invoking tool ${dto.toolId} with parameters ${JSON.stringify(dto.parameters)}`);
-		this._logService.info(`[LanguageModelToolsService#invokeTool] callId=${dto.callId}, toolId=${dto.toolId}`);
+		this._logService.info(`[LanguageModelToolsService#invokeTool] callId=${dto.callId}, toolId=${dto.toolId}, chatStreamToolCallId=${dto.chatStreamToolCallId}`);
 		this._logService.info(`[LanguageModelToolsService#invokeTool] Pending tool calls: ${[...this._pendingToolCalls.keys()].join(', ')}`);
 
 		// When invoking a tool, don't validate the "when" clause. An extension may have invoked a tool just as it was becoming disabled, and just let it go through rather than throw and break the chat.
@@ -324,12 +324,21 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 
 		// Check if there's an existing pending tool call from streaming phase
-		let toolInvocation: ChatToolInvocation | undefined = this._pendingToolCalls.get(dto.callId);
+		// Try both the callId and the chatStreamToolCallId (if provided) as lookup keys
+		let pendingToolCallKey: string | undefined;
+		let toolInvocation: ChatToolInvocation | undefined;
+		if (this._pendingToolCalls.has(dto.callId)) {
+			pendingToolCallKey = dto.callId;
+			toolInvocation = this._pendingToolCalls.get(dto.callId);
+		} else if (dto.chatStreamToolCallId && this._pendingToolCalls.has(dto.chatStreamToolCallId)) {
+			pendingToolCallKey = dto.chatStreamToolCallId;
+			toolInvocation = this._pendingToolCalls.get(dto.chatStreamToolCallId);
+		}
 		const hadPendingInvocation = !!toolInvocation;
-		this._logService.info(`[LanguageModelToolsService#invokeTool] hadPendingInvocation=${hadPendingInvocation}, toolInvocation.toolCallId=${toolInvocation?.toolCallId}`);
-		if (hadPendingInvocation) {
+		this._logService.info(`[LanguageModelToolsService#invokeTool] hadPendingInvocation=${hadPendingInvocation}, pendingToolCallKey=${pendingToolCallKey}, toolInvocation.toolCallId=${toolInvocation?.toolCallId}`);
+		if (hadPendingInvocation && pendingToolCallKey) {
 			// Remove from pending since we're now invoking it
-			this._pendingToolCalls.delete(dto.callId);
+			this._pendingToolCalls.delete(pendingToolCallKey);
 		}
 
 		let requestId: string | undefined;
