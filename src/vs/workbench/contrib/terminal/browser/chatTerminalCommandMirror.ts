@@ -38,10 +38,45 @@ function getChatTerminalBackgroundColor(theme: IColorTheme, contextKeyService: I
 	return theme.getColor(isInEditor ? editorBackground : PANEL_BACKGROUND);
 }
 
+/**
+ * Computes the maximum column width of content in a terminal buffer.
+ * Iterates through each line and finds the rightmost non-empty cell.
+ *
+ * @param buffer The buffer to measure
+ * @param cols The terminal column count (used to clamp line length)
+ * @returns The maximum column width (1-indexed), or 0 if all lines are empty
+ */
+export function computeMaxBufferColumnWidth(buffer: { readonly length: number; getLine(y: number): { readonly length: number; getCell(x: number): { getChars(): string } | undefined } | undefined }, cols: number): number {
+	let maxWidth = 0;
+
+	for (let y = 0; y < buffer.length; y++) {
+		const line = buffer.getLine(y);
+		if (!line) {
+			continue;
+		}
+
+		// Find the last non-empty cell by iterating backwards
+		const lineLength = Math.min(line.length, cols);
+		for (let x = lineLength - 1; x >= 0; x--) {
+			if (line.getCell(x)?.getChars()) {
+				maxWidth = Math.max(maxWidth, x + 1);
+				break;
+			}
+		}
+	}
+
+	return maxWidth;
+}
+
+export interface IDetachedTerminalCommandMirrorRenderResult {
+	lineCount?: number;
+	maxColumnWidth?: number;
+}
+
 interface IDetachedTerminalCommandMirror {
 	attach(container: HTMLElement): Promise<void>;
-	renderCommand(): Promise<{ lineCount?: number } | undefined>;
-	onDidUpdate: Event<number>;
+	renderCommand(): Promise<IDetachedTerminalCommandMirrorRenderResult | undefined>;
+	onDidUpdate: Event<IDetachedTerminalCommandMirrorRenderResult>;
 	onDidInput: Event<string>;
 }
 
@@ -151,13 +186,14 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 	private _detachedTerminalPromise: Promise<IDetachedTerminalInstance> | undefined;
 	private _attachedContainer: HTMLElement | undefined;
 	private readonly _streamingDisposables = this._register(new DisposableStore());
-	private readonly _onDidUpdateEmitter = this._register(new Emitter<number>());
-	public readonly onDidUpdate: Event<number> = this._onDidUpdateEmitter.event;
+	private readonly _onDidUpdateEmitter = this._register(new Emitter<IDetachedTerminalCommandMirrorRenderResult>());
+	public readonly onDidUpdate: Event<IDetachedTerminalCommandMirrorRenderResult> = this._onDidUpdateEmitter.event;
 	private readonly _onDidInputEmitter = this._register(new Emitter<string>());
 	public readonly onDidInput: Event<string> = this._onDidInputEmitter.event;
 
 	private _lastVT = '';
 	private _lineCount = 0;
+	private _maxColumnWidth = 0;
 	private _lastUpToDateCursorY: number | undefined;
 	private _lowestDirtyCursorY: number | undefined;
 	private _flushPromise: Promise<void> | undefined;
@@ -200,7 +236,7 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 		}
 	}
 
-	async renderCommand(): Promise<{ lineCount?: number } | undefined> {
+	async renderCommand(): Promise<IDetachedTerminalCommandMirrorRenderResult | undefined> {
 		if (this._store.isDisposed) {
 			return undefined;
 		}
@@ -258,8 +294,9 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 		}
 
 		this._lineCount = this._getRenderedLineCount();
+		this._maxColumnWidth = this._computeMaxColumnWidth();
 
-		return { lineCount: this._lineCount };
+		return { lineCount: this._lineCount, maxColumnWidth: this._maxColumnWidth };
 	}
 
 	private async _getCommandOutputAsVT(source: XtermTerminal): Promise<{ text: string } | undefined> {
@@ -301,6 +338,14 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 		}
 
 		return this._lineCount;
+	}
+
+	private _computeMaxColumnWidth(): number {
+		const detached = this._detachedTerminal;
+		if (!detached) {
+			return 0;
+		}
+		return computeMaxBufferColumnWidth(detached.xterm.buffer.active, detached.xterm.cols);
 	}
 
 	private async _getOrCreateTerminal(): Promise<IDetachedTerminalInstance> {
@@ -459,8 +504,9 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 
 		this._lastVT = vt.text;
 		this._lineCount = this._getRenderedLineCount();
+		this._maxColumnWidth = this._computeMaxColumnWidth();
 		this._lastUpToDateCursorY = currentCursor;
-		this._onDidUpdateEmitter.fire(this._lineCount);
+		this._onDidUpdateEmitter.fire({ lineCount: this._lineCount, maxColumnWidth: this._maxColumnWidth });
 
 		if (this._command.endMarker && !this._command.endMarker.isDisposed) {
 			this._stopStreaming();
@@ -484,6 +530,7 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 	private _container: HTMLElement | undefined;
 	private _dirty = true;
 	private _lastRenderedLineCount: number | undefined;
+	private _lastRenderedMaxColumnWidth: number | undefined;
 
 	constructor(
 		output: IChatTerminalToolInvocationData['terminalCommandOutput'] | undefined,
@@ -534,13 +581,13 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 		this._applyTheme(container);
 	}
 
-	public async render(): Promise<{ lineCount?: number } | undefined> {
+	public async render(): Promise<{ lineCount?: number; maxColumnWidth?: number } | undefined> {
 		const output = this._output;
 		if (!output) {
 			return undefined;
 		}
 		if (!this._dirty) {
-			return { lineCount: this._lastRenderedLineCount ?? output.lineCount };
+			return { lineCount: this._lastRenderedLineCount ?? output.lineCount, maxColumnWidth: this._lastRenderedMaxColumnWidth };
 		}
 		const terminal = await this._getTerminal();
 		if (this._container) {
@@ -551,12 +598,18 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 		if (!text) {
 			this._dirty = false;
 			this._lastRenderedLineCount = lineCount;
-			return { lineCount: 0 };
+			this._lastRenderedMaxColumnWidth = 0;
+			return { lineCount: 0, maxColumnWidth: 0 };
 		}
 		await new Promise<void>(resolve => terminal.xterm.write(text, resolve));
 		this._dirty = false;
 		this._lastRenderedLineCount = lineCount;
-		return { lineCount };
+		this._lastRenderedMaxColumnWidth = this._computeMaxColumnWidth(terminal);
+		return { lineCount, maxColumnWidth: this._lastRenderedMaxColumnWidth };
+	}
+
+	private _computeMaxColumnWidth(terminal: IDetachedTerminalInstance): number {
+		return computeMaxBufferColumnWidth(terminal.xterm.buffer.active, terminal.xterm.cols);
 	}
 
 	private _estimateLineCount(text: string): number {
