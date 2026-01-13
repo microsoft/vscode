@@ -16,7 +16,7 @@ import { ILifecycleService, LifecyclePhase, StartupKind } from '../../../service
 import { Disposable, } from '../../../../base/common/lifecycle.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { joinPath } from '../../../../base/common/resources.js';
-import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { GettingStartedEditorOptions, GettingStartedInput, gettingStartedInputTypeId } from './gettingStartedInput.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -27,9 +27,10 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { localize } from '../../../../nls.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { TerminalCommandId } from '../../terminal/common/terminal.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { AuxiliaryBarMaximizedContext } from '../../../common/contextkeys.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { getActiveElement } from '../../../../base/browser/dom.js';
 
 export const restoreWalkthroughsConfigurationKey = 'workbench.welcomePage.restorableWalkthroughs';
 export type RestoreWalkthroughsConfigurationValue = { folder: string; category?: string; step?: string };
@@ -89,7 +90,6 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IStorageService private readonly storageService: IStorageService,
-		@ILogService private readonly logService: ILogService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
@@ -128,7 +128,7 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 			return;
 		}
 
-		const enabled = isStartupPageEnabled(this.configurationService, this.contextService, this.environmentService, this.logService);
+		const enabled = isStartupPageEnabled(this.configurationService, this.contextService, this.environmentService);
 		if (enabled && this.lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
 
 			// Open the welcome even if we opened a set of default editors
@@ -155,7 +155,7 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 			const restoreData: RestoreWalkthroughsConfigurationValue = JSON.parse(toRestore);
 			const currentWorkspace = this.contextService.getWorkspace();
 			if (restoreData.folder === UNKNOWN_EMPTY_WINDOW_WORKSPACE.id || restoreData.folder === currentWorkspace.folders[0].uri.toString()) {
-				const options: GettingStartedEditorOptions = { selectedCategory: restoreData.category, selectedStep: restoreData.step, pinned: false };
+				const options: GettingStartedEditorOptions = { selectedCategory: restoreData.category, selectedStep: restoreData.step, pinned: false, preserveFocus: this.shouldPreserveFocus() };
 				this.editorService.openEditor({
 					resource: GettingStartedInput.RESOURCE,
 					options
@@ -186,7 +186,7 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 					this.commandService.executeCommand('markdown.showPreview', null, readmes.filter(isMarkDown), { locked: true }).catch(error => {
 						this.notificationService.error(localize('startupPage.markdownPreviewError', 'Could not open markdown preview: {0}.\n\nPlease make sure the markdown extension is enabled.', error.message));
 					}),
-					this.editorService.openEditors(readmes.filter(readme => !isMarkDown(readme)).map(readme => ({ resource: readme }))),
+					this.editorService.openEditors(readmes.filter(readme => !isMarkDown(readme)).map(readme => ({ resource: readme, options: { preserveFocus: this.shouldPreserveFocus() } }))),
 				]);
 			} else {
 				// If no readme is found, default to showing the welcome page.
@@ -204,17 +204,30 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 			return;
 		}
 
-		const options: GettingStartedEditorOptions = editor ? { pinned: false, index: 0, showTelemetryNotice } : { pinned: false, showTelemetryNotice };
 		if (startupEditorTypeID === gettingStartedInputTypeId) {
 			this.editorService.openEditor({
 				resource: GettingStartedInput.RESOURCE,
-				options,
+				options: {
+					index: editor ? 0 : undefined,
+					pinned: false,
+					preserveFocus: this.shouldPreserveFocus(),
+					...{ showTelemetryNotice }
+				},
 			});
 		}
 	}
+
+	private shouldPreserveFocus(): boolean {
+		const activeElement = getActiveElement();
+		if (!activeElement || activeElement === mainWindow.document.body || this.layoutService.hasFocus(Parts.EDITOR_PART)) {
+			return false; // steal focus if nothing meaningful is focused or editor area has focus
+		}
+
+		return true; // do not steal focus
+	}
 }
 
-function isStartupPageEnabled(configurationService: IConfigurationService, contextService: IWorkspaceContextService, environmentService: IWorkbenchEnvironmentService, logService: ILogService) {
+function isStartupPageEnabled(configurationService: IConfigurationService, contextService: IWorkspaceContextService, environmentService: IWorkbenchEnvironmentService) {
 	if (environmentService.skipWelcome) {
 		return false;
 	}
