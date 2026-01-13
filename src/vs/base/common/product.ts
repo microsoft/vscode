@@ -232,7 +232,7 @@ export interface IProductConfiguration {
 }
 
 export interface IDefaultAccountConfig {
-	readonly preferredExtension: string;
+	readonly preferredExtensions: string[];
 	readonly authenticationProvider: {
 		readonly id: string;
 		readonly enterpriseProviderId: string;

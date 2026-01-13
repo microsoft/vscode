@@ -273,7 +273,13 @@ class DefaultAccountSetup extends Disposable {
 		for (let attempt = 1; attempt <= 3; attempt++) {
 			try {
 				let preferredAccount: AuthenticationSessionAccount | undefined;
-				const preferredAccountName = this.authenticationExtensionsService.getAccountPreference(this.defaultAccountConfig.preferredExtension, authProviderId);
+				let preferredAccountName: string | undefined;
+				for (const preferredExtension of this.defaultAccountConfig.preferredExtensions) {
+					preferredAccountName = this.authenticationExtensionsService.getAccountPreference(preferredExtension, authProviderId);
+					if (preferredAccountName) {
+						break;
+					}
+				}
 				for (const account of await this.authenticationService.getAccounts(authProviderId)) {
 					if (account.label === preferredAccountName) {
 						preferredAccount = account;
@@ -476,7 +482,9 @@ class DefaultAccountSetup extends Disposable {
 				const { additionalScopes, ...sessionOptions } = options ?? {};
 				const scopes = additionalScopes ? distinct([...defaultAccountScopes, ...additionalScopes]) : defaultAccountScopes;
 				const session = await that.authenticationService.createSession(authProviderId, scopes, sessionOptions);
-				that.authenticationExtensionsService.updateAccountPreference(that.defaultAccountConfig.preferredExtension, authProviderId, session.account);
+				for (const preferredExtension of that.defaultAccountConfig.preferredExtensions) {
+					that.authenticationExtensionsService.updateAccountPreference(preferredExtension, authProviderId, session.account);
+				}
 			}
 		}));
 	}
