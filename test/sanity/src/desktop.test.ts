@@ -11,8 +11,9 @@ import { UITest } from './uiTest';
 export function setup(context: TestContext) {
 	describe('Desktop', () => {
 		if (context.platform === 'darwin-x64') {
-			it('desktop-darwin', async () => {
+			it('desktop-darwin-x64', async () => {
 				const dir = await context.downloadAndUnpack('darwin');
+				context.validateAllCodesignSignatures(dir);
 				const entryPoint = context.installMacApp(dir);
 				await testDesktopApp(entryPoint);
 			});
@@ -21,14 +22,16 @@ export function setup(context: TestContext) {
 		if (context.platform === 'darwin-arm64') {
 			it('desktop-darwin-arm64', async () => {
 				const dir = await context.downloadAndUnpack('darwin-arm64');
+				context.validateAllCodesignSignatures(dir);
 				const entryPoint = context.installMacApp(dir);
 				await testDesktopApp(entryPoint);
 			});
 		}
 
-		if (context.platform.startsWith('darwin-')) {
+		if (context.platform === 'darwin-arm64' || context.platform === 'darwin-x64') {
 			it('desktop-darwin-universal', async () => {
 				const dir = await context.downloadAndUnpack('darwin-universal');
+				context.validateAllCodesignSignatures(dir);
 				const entryPoint = context.installMacApp(dir);
 				await testDesktopApp(entryPoint);
 			});
@@ -38,7 +41,8 @@ export function setup(context: TestContext) {
 			it('desktop-linux-arm64', async () => {
 				const dir = await context.downloadAndUnpack('linux-arm64');
 				const entryPoint = context.getEntryPoint('desktop', dir);
-				await testDesktopApp(entryPoint);
+				const dataDir = context.createPortableDataDir(dir);
+				await testDesktopApp(entryPoint, dataDir);
 			});
 		}
 
@@ -46,7 +50,8 @@ export function setup(context: TestContext) {
 			it('desktop-linux-armhf', async () => {
 				const dir = await context.downloadAndUnpack('linux-armhf');
 				const entryPoint = context.getEntryPoint('desktop', dir);
-				await testDesktopApp(entryPoint);
+				const dataDir = context.createPortableDataDir(dir);
+				await testDesktopApp(entryPoint, dataDir);
 			});
 		}
 
@@ -110,16 +115,16 @@ export function setup(context: TestContext) {
 			it('desktop-linux-x64', async () => {
 				const dir = await context.downloadAndUnpack('linux-x64');
 				const entryPoint = context.getEntryPoint('desktop', dir);
-				await testDesktopApp(entryPoint);
+				const dataDir = context.createPortableDataDir(dir);
+				await testDesktopApp(entryPoint, dataDir);
 			});
 		}
 
 		if (context.platform === 'win32-arm64') {
 			it('desktop-win32-arm64', async () => {
 				const packagePath = await context.downloadTarget('win32-arm64');
-				context.validateSignature(packagePath);
 				const entryPoint = context.installWindowsApp('system', packagePath);
-				context.validateAllSignatures(path.dirname(entryPoint));
+				context.validateAllAuthenticodeSignatures(path.dirname(entryPoint));
 				await testDesktopApp(entryPoint);
 				await context.uninstallWindowsApp('system');
 			});
@@ -128,18 +133,18 @@ export function setup(context: TestContext) {
 		if (context.platform === 'win32-arm64') {
 			it('desktop-win32-arm64-archive', async () => {
 				const dir = await context.downloadAndUnpack('win32-arm64-archive');
-				context.validateAllSignatures(dir);
+				context.validateAllAuthenticodeSignatures(dir);
 				const entryPoint = context.getEntryPoint('desktop', dir);
-				await testDesktopApp(entryPoint);
+				const dataDir = context.createPortableDataDir(dir);
+				await testDesktopApp(entryPoint, dataDir);
 			});
 		}
 
 		if (context.platform === 'win32-arm64') {
 			it('desktop-win32-arm64-user', async () => {
 				const packagePath = await context.downloadTarget('win32-arm64-user');
-				context.validateSignature(packagePath);
 				const entryPoint = context.installWindowsApp('user', packagePath);
-				context.validateAllSignatures(path.dirname(entryPoint));
+				context.validateAllAuthenticodeSignatures(path.dirname(entryPoint));
 				await testDesktopApp(entryPoint);
 				await context.uninstallWindowsApp('user');
 			});
@@ -148,9 +153,8 @@ export function setup(context: TestContext) {
 		if (context.platform === 'win32-x64') {
 			it('desktop-win32-x64', async () => {
 				const packagePath = await context.downloadTarget('win32-x64');
-				context.validateSignature(packagePath);
 				const entryPoint = context.installWindowsApp('system', packagePath);
-				context.validateAllSignatures(path.dirname(entryPoint));
+				context.validateAllAuthenticodeSignatures(path.dirname(entryPoint));
 				await testDesktopApp(entryPoint);
 				await context.uninstallWindowsApp('system');
 			});
@@ -159,30 +163,30 @@ export function setup(context: TestContext) {
 		if (context.platform === 'win32-x64') {
 			it('desktop-win32-x64-archive', async () => {
 				const dir = await context.downloadAndUnpack('win32-x64-archive');
-				context.validateAllSignatures(dir);
+				context.validateAllAuthenticodeSignatures(dir);
 				const entryPoint = context.getEntryPoint('desktop', dir);
-				await testDesktopApp(entryPoint);
+				const dataDir = context.createPortableDataDir(dir);
+				await testDesktopApp(entryPoint, dataDir);
 			});
 		}
 
 		if (context.platform === 'win32-x64') {
 			it('desktop-win32-x64-user', async () => {
 				const packagePath = await context.downloadTarget('win32-x64-user');
-				context.validateSignature(packagePath);
 				const entryPoint = context.installWindowsApp('user', packagePath);
-				context.validateAllSignatures(path.dirname(entryPoint));
+				context.validateAllAuthenticodeSignatures(path.dirname(entryPoint));
 				await testDesktopApp(entryPoint);
 				await context.uninstallWindowsApp('user');
 			});
 		}
 
-		async function testDesktopApp(entryPoint: string) {
-			const test = new UITest(context);
-			const args = [
+		async function testDesktopApp(entryPoint: string, dataDir?: string) {
+			const test = new UITest(context, dataDir);
+			const args = dataDir ? [] : [
 				'--extensions-dir', test.extensionsDir,
 				'--user-data-dir', test.userDataDir,
-				test.workspaceDir
 			];
+			args.push(test.workspaceDir);
 
 			context.log(`Starting VS Code ${entryPoint} with args ${args.join(' ')}`);
 			const app = await _electron.launch({ executablePath: entryPoint, args });

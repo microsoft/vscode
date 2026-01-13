@@ -65,6 +65,7 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 	private _activeDoubleBufferIndex: 0 | 1 = 0;
 
 	private _visibleObjectCount: number = 0;
+	private _lastViewportLineCount: number = 0;
 
 	private _scrollOffsetBindBuffer: GPUBuffer;
 	private _scrollOffsetValueBuffer: Float32Array;
@@ -116,6 +117,7 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 			new ArrayBuffer(bufferSize),
 		];
 		this._cellBindBufferLineCapacity = lineCountWithIncrement;
+		this._lastViewportLineCount = 0;
 
 		this._onDidChangeBindGroupEntries.fire();
 	}
@@ -183,6 +185,7 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 			buffer.fill(0, 0, buffer.length);
 			this._device.queue.writeBuffer(this._cellBindBuffer, 0, buffer.buffer, 0, buffer.byteLength);
 		}
+		this._lastViewportLineCount = 0;
 	}
 
 	update(viewportData: ViewportData, viewLineOptions: ViewLineOptions): number {
@@ -418,6 +421,7 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 		}
 
 		const visibleObjectCount = (viewportData.endLineNumber - viewportData.startLineNumber + 1) * lineIndexCount;
+		const viewportLineCount = viewportData.endLineNumber - viewportData.startLineNumber + 1;
 
 		// This render strategy always uploads the whole viewport
 		this._device.queue.writeBuffer(
@@ -425,8 +429,24 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 			0,
 			cellBuffer.buffer,
 			0,
-			(viewportData.endLineNumber - viewportData.startLineNumber) * lineIndexCount * Float32Array.BYTES_PER_ELEMENT
+			visibleObjectCount * Float32Array.BYTES_PER_ELEMENT
 		);
+
+		// Clear stale lines in GPU buffer if viewport shrunk
+		if (viewportLineCount < this._lastViewportLineCount) {
+			const staleLineCount = this._lastViewportLineCount - viewportLineCount;
+			const staleStartOffset = visibleObjectCount * Float32Array.BYTES_PER_ELEMENT;
+			const staleByteCount = staleLineCount * lineIndexCount * Float32Array.BYTES_PER_ELEMENT;
+			// Write zeros from the zeroed cellBuffer for the stale region
+			this._device.queue.writeBuffer(
+				this._cellBindBuffer,
+				staleStartOffset,
+				cellBuffer.buffer,
+				visibleObjectCount * Float32Array.BYTES_PER_ELEMENT,
+				staleByteCount
+			);
+		}
+		this._lastViewportLineCount = viewportLineCount;
 
 		this._activeDoubleBufferIndex = this._activeDoubleBufferIndex ? 0 : 1;
 

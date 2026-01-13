@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import fs from 'fs';
+import path from 'path';
 import { Page } from 'playwright';
 import { TestContext } from './context';
 
@@ -16,7 +17,14 @@ export class UITest {
 	private _workspaceDir: string | undefined;
 	private _userDataDir: string | undefined;
 
-	constructor(private readonly context: TestContext) {
+	constructor(
+		private readonly context: TestContext,
+		dataDir?: string
+	) {
+		if (dataDir) {
+			this._extensionsDir = path.join(dataDir, 'extensions');
+			this._userDataDir = path.join(dataDir, 'user-data');
+		}
 	}
 
 	/**
@@ -52,7 +60,7 @@ export class UITest {
 	/**
 	 * Validate the results of the UI test actions.
 	 */
-	public async validate() {
+	public validate() {
 		this.verifyTextFileCreated();
 		this.verifyExtensionInstalled();
 	}
@@ -67,17 +75,27 @@ export class UITest {
 	}
 
 	/**
+	 * Run a command from the command palette.
+	 */
+	private async runCommand(page: Page, command: string) {
+		this.context.log(`Running command: ${command}`);
+		await page.keyboard.press('F1');
+		await page.getByPlaceholder(/^Type the name of a command/).fill(`>${command}`);
+		await page.locator('span.monaco-highlighted-label', { hasText: new RegExp(`^${command}$`) }).click();
+		await page.waitForTimeout(500);
+	}
+
+	/**
 	 * Create a new text file in the editor with some content and save it.
 	 */
 	private async createTextFile(page: Page) {
-		this.context.log('Focusing Explorer view');
-		await page.keyboard.press('Control+Shift+E');
+		await this.runCommand(page, 'View: Show Explorer');
 
 		this.context.log('Clicking New File button');
 		await page.getByLabel('New File...').click();
 
 		this.context.log('Typing file name');
-		await page.locator('input').fill('helloWorld.txt');
+		await page.getByRole('textbox', { name: /^Type file name/ }).fill('helloWorld.txt');
 		await page.keyboard.press('Enter');
 
 		this.context.log('Focusing the code editor');
@@ -86,8 +104,7 @@ export class UITest {
 		this.context.log('Typing some content into the file');
 		await page.keyboard.type('Hello, World!');
 
-		this.context.log('Saving the file');
-		await page.keyboard.press('Control+S');
+		await this.runCommand(page, 'File: Save');
 		await page.waitForTimeout(1000);
 	}
 
@@ -98,22 +115,21 @@ export class UITest {
 		this.context.log('Verifying file contents');
 		const filePath = `${this.workspaceDir}/helloWorld.txt`;
 		const fileContents = fs.readFileSync(filePath, 'utf-8');
-		assert.strictEqual(fileContents, 'Hello, World!');
+		assert.strictEqual(fileContents, 'Hello, World!', 'File contents do not match expected value');
 	}
 
 	/**
 	 * Install GitHub Pull Requests extension from the Extensions view.
 	 */
 	private async installExtension(page: Page) {
-		this.context.log('Opening Extensions view');
-		await page.keyboard.press('Control+Shift+X');
-		await page.waitForSelector('.extension-list-item');
+		await this.runCommand(page, 'View: Show Extensions');
 
 		this.context.log('Typing extension name to search for');
+		await page.getByText('Search Extensions in Marketplace').focus();
 		await page.keyboard.type('GitHub Pull Requests');
-		await page.waitForTimeout(2000);
 
 		this.context.log('Clicking Install on the first extension in the list');
+		await page.locator('.extension-list-item').getByText(/^GitHub Pull Requests$/).waitFor();
 		await page.locator('.extension-action:not(.disabled)', { hasText: /Install/ }).first().click();
 
 		this.context.log('Waiting for extension to be installed');
@@ -127,6 +143,6 @@ export class UITest {
 		this.context.log('Verifying extension is installed');
 		const extensions = fs.readdirSync(this.extensionsDir);
 		const hasExtension = extensions.some(ext => ext.startsWith('github.vscode-pull-request-github'));
-		assert.strictEqual(hasExtension, true);
+		assert.strictEqual(hasExtension, true, 'GitHub Pull Requests extension is not installed');
 	}
 }
