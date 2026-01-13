@@ -85,15 +85,34 @@ export class ChatToolInvocation implements IChatToolInvocation {
 				streamingMessage: this._streamingMessage,
 			});
 		} else if (!this.confirmationMessages?.title) {
-			this._state = observableValue(this, { type: IChatToolInvocation.StateKind.Executing, confirmed: { type: ToolConfirmKind.ConfirmationNotNeeded, reason: this.confirmationMessages?.confirmationNotNeededReason }, progress: this._progress });
+			this._state = observableValue(this, {
+				type: IChatToolInvocation.StateKind.Executing,
+				confirmed: { type: ToolConfirmKind.ConfirmationNotNeeded, reason: this.confirmationMessages?.confirmationNotNeededReason },
+				progress: this._progress,
+				parameters: this.parameters,
+				confirmationMessages: this.confirmationMessages,
+			});
 		} else {
 			this._state = observableValue(this, {
 				type: IChatToolInvocation.StateKind.WaitingForConfirmation,
+				parameters: this.parameters,
+				confirmationMessages: this.confirmationMessages,
 				confirm: reason => {
 					if (reason.type === ToolConfirmKind.Denied || reason.type === ToolConfirmKind.Skipped) {
-						this._state.set({ type: IChatToolInvocation.StateKind.Cancelled, reason: reason.type }, undefined);
+						this._state.set({
+							type: IChatToolInvocation.StateKind.Cancelled,
+							reason: reason.type,
+							parameters: this.parameters,
+							confirmationMessages: this.confirmationMessages,
+						}, undefined);
 					} else {
-						this._state.set({ type: IChatToolInvocation.StateKind.Executing, confirmed: reason, progress: this._progress }, undefined);
+						this._state.set({
+							type: IChatToolInvocation.StateKind.Executing,
+							confirmed: reason,
+							progress: this._progress,
+							parameters: this.parameters,
+							confirmationMessages: this.confirmationMessages,
+						}, undefined);
 					}
 				}
 			});
@@ -161,16 +180,31 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			this._state.set({
 				type: IChatToolInvocation.StateKind.Executing,
 				confirmed: { type: ToolConfirmKind.ConfirmationNotNeeded, reason: this.confirmationMessages?.confirmationNotNeededReason },
-				progress: this._progress
+				progress: this._progress,
+				parameters: this.parameters,
+				confirmationMessages: this.confirmationMessages,
 			}, undefined);
 		} else {
 			this._state.set({
 				type: IChatToolInvocation.StateKind.WaitingForConfirmation,
+				parameters: this.parameters,
+				confirmationMessages: this.confirmationMessages,
 				confirm: reason => {
 					if (reason.type === ToolConfirmKind.Denied || reason.type === ToolConfirmKind.Skipped) {
-						this._state.set({ type: IChatToolInvocation.StateKind.Cancelled, reason: reason.type }, undefined);
+						this._state.set({
+							type: IChatToolInvocation.StateKind.Cancelled,
+							reason: reason.type,
+							parameters: this.parameters,
+							confirmationMessages: this.confirmationMessages,
+						}, undefined);
 					} else {
-						this._state.set({ type: IChatToolInvocation.StateKind.Executing, confirmed: reason, progress: this._progress }, undefined);
+						this._state.set({
+							type: IChatToolInvocation.StateKind.Executing,
+							confirmed: reason,
+							progress: this._progress,
+							parameters: this.parameters,
+							confirmationMessages: this.confirmationMessages,
+						}, undefined);
 					}
 				}
 			}, undefined);
@@ -179,7 +213,12 @@ export class ChatToolInvocation implements IChatToolInvocation {
 
 	private _setCompleted(result: IToolResult | undefined, postConfirmed?: ConfirmedReason | undefined) {
 		if (postConfirmed && (postConfirmed.type === ToolConfirmKind.Denied || postConfirmed.type === ToolConfirmKind.Skipped)) {
-			this._state.set({ type: IChatToolInvocation.StateKind.Cancelled, reason: postConfirmed.type }, undefined);
+			this._state.set({
+				type: IChatToolInvocation.StateKind.Cancelled,
+				reason: postConfirmed.type,
+				parameters: this.parameters,
+				confirmationMessages: this.confirmationMessages,
+			}, undefined);
 			return;
 		}
 
@@ -189,6 +228,8 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			resultDetails: result?.toolResultDetails,
 			postConfirmed,
 			contentForModel: result?.content || [],
+			parameters: this.parameters,
+			confirmationMessages: this.confirmationMessages,
 		}, undefined);
 	}
 
@@ -210,6 +251,8 @@ export class ChatToolInvocation implements IChatToolInvocation {
 				resultDetails: result?.toolResultDetails,
 				contentForModel: result?.content || [],
 				confirm: reason => this._setCompleted(result, reason),
+				parameters: this.parameters,
+				confirmationMessages: this.confirmationMessages,
 			}, undefined);
 		} else {
 			this._setCompleted(result);

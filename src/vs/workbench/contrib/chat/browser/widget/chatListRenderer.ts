@@ -1296,7 +1296,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		if (part.kind === 'toolInvocation') {
-			return !part.confirmationMessages;
+			return !IChatToolInvocation.getConfirmationMessages(part);
 		}
 
 		if (part.kind === 'toolInvocationSerialized') {

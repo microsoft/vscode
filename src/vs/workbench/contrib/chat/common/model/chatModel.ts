@@ -1000,9 +1000,12 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			signal.read(r);
 
 			for (const part of this._response.value) {
-				if (part.kind === 'toolInvocation' && part.state.read(r).type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
-					const title = part.confirmationMessages?.title;
-					return title ? (isMarkdownString(title) ? title.value : title) : undefined;
+				if (part.kind === 'toolInvocation') {
+					const state = part.state.read(r);
+					if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+						const title = state.confirmationMessages?.title;
+						return title ? (isMarkdownString(title) ? title.value : title) : undefined;
+					}
 				}
 				if (part.kind === 'confirmation' && !part.isUsed) {
 					return part.title;

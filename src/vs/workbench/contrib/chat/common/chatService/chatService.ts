@@ -447,14 +447,12 @@ export type ConfirmedReason =
 export interface IChatToolInvocation {
 	readonly presentation: IPreparedToolInvocation['presentation'];
 	readonly toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent;
-	readonly confirmationMessages?: IToolConfirmationMessages;
 	readonly originMessage: string | IMarkdownString | undefined;
 	readonly invocationMessage: string | IMarkdownString;
 	readonly pastTenseMessage: string | IMarkdownString | undefined;
 	readonly source: ToolDataSource;
 	readonly toolId: string;
 	readonly toolCallId: string;
-	readonly parameters: unknown;
 	readonly fromSubAgent?: boolean;
 	readonly state: IObservable<IChatToolInvocation.State>;
 	generatedTitle?: string;
@@ -485,12 +483,18 @@ export namespace IChatToolInvocation {
 		readonly streamingMessage: IObservable<string | IMarkdownString | undefined>;
 	}
 
-	interface IChatToolInvocationWaitingForConfirmationState extends IChatToolInvocationStateBase {
+	/** Properties available after streaming is complete */
+	interface IChatToolInvocationPostStreamState {
+		readonly parameters: unknown;
+		readonly confirmationMessages?: IToolConfirmationMessages;
+	}
+
+	interface IChatToolInvocationWaitingForConfirmationState extends IChatToolInvocationStateBase, IChatToolInvocationPostStreamState {
 		type: StateKind.WaitingForConfirmation;
 		confirm(reason: ConfirmedReason): void;
 	}
 
-	interface IChatToolInvocationPostConfirmState {
+	interface IChatToolInvocationPostConfirmState extends IChatToolInvocationPostStreamState {
 		confirmed: ConfirmedReason;
 	}
 
@@ -515,7 +519,7 @@ export namespace IChatToolInvocation {
 		contentForModel: IToolResult['content'];
 	}
 
-	interface IChatToolInvocationCancelledState extends IChatToolInvocationStateBase {
+	interface IChatToolInvocationCancelledState extends IChatToolInvocationStateBase, IChatToolInvocationPostStreamState {
 		type: StateKind.Cancelled;
 		reason: ToolConfirmKind.Denied | ToolConfirmKind.Skipped;
 	}
@@ -649,6 +653,38 @@ export namespace IChatToolInvocation {
 
 		const state = invocation.state.read(reader);
 		return state.type === StateKind.Streaming;
+	}
+
+	/**
+	 * Get parameters from invocation. Returns undefined during streaming state.
+	 */
+	export function getParameters(invocation: IChatToolInvocation | IChatToolInvocationSerialized, reader?: IReader): unknown | undefined {
+		if (invocation.kind === 'toolInvocationSerialized') {
+			return undefined; // serialized invocations don't store parameters
+		}
+
+		const state = invocation.state.read(reader);
+		if (state.type === StateKind.Streaming) {
+			return undefined;
+		}
+
+		return state.parameters;
+	}
+
+	/**
+	 * Get confirmation messages from invocation. Returns undefined during streaming state.
+	 */
+	export function getConfirmationMessages(invocation: IChatToolInvocation | IChatToolInvocationSerialized, reader?: IReader): IToolConfirmationMessages | undefined {
+		if (invocation.kind === 'toolInvocationSerialized') {
+			return undefined; // serialized invocations don't store confirmation messages
+		}
+
+		const state = invocation.state.read(reader);
+		if (state.type === StateKind.Streaming) {
+			return undefined;
+		}
+
+		return state.confirmationMessages;
 	}
 }
 
