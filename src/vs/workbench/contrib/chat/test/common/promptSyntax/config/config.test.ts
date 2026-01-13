@@ -9,6 +9,14 @@ import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js'
 import { PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IConfigurationOverrides, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { IPromptSourceFolder } from '../../../../common/promptSyntax/config/promptFileLocations.js';
+
+/**
+ * Helper to extract just the paths from IPromptSourceFolder array for testing.
+ */
+function getPaths(folders: IPromptSourceFolder[]): string[] {
+	return folders.map(f => f.path);
+}
 
 /**
  * Mocked instance of {@link IConfigurationService}.
@@ -229,7 +237,7 @@ suite('PromptsConfig', () => {
 			const configService = createMock(undefined);
 
 			assert.deepStrictEqual(
-				PromptsConfig.promptSourceFolders(configService, PromptsType.prompt),
+				getPaths(PromptsConfig.promptSourceFolders(configService, PromptsType.prompt)),
 				[],
 				'Must read correct value.',
 			);
@@ -239,7 +247,7 @@ suite('PromptsConfig', () => {
 			const configService = createMock(null);
 
 			assert.deepStrictEqual(
-				PromptsConfig.promptSourceFolders(configService, PromptsType.prompt),
+				getPaths(PromptsConfig.promptSourceFolders(configService, PromptsType.prompt)),
 				[],
 				'Must read correct value.',
 			);
@@ -248,7 +256,7 @@ suite('PromptsConfig', () => {
 		suite('object', () => {
 			test('empty', () => {
 				assert.deepStrictEqual(
-					PromptsConfig.promptSourceFolders(createMock({}), PromptsType.prompt),
+					getPaths(PromptsConfig.promptSourceFolders(createMock({}), PromptsType.prompt)),
 					['.github/prompts'],
 					'Must read correct value.',
 				);
@@ -256,7 +264,7 @@ suite('PromptsConfig', () => {
 
 			test('only valid strings', () => {
 				assert.deepStrictEqual(
-					PromptsConfig.promptSourceFolders(createMock({
+					getPaths(PromptsConfig.promptSourceFolders(createMock({
 						'/root/.bashrc': true,
 						'../../folder/.hidden-folder/config.xml': true,
 						'/srv/www/Public_html/.htaccess': true,
@@ -270,7 +278,7 @@ suite('PromptsConfig', () => {
 						'/var/logs/app.01.05.error': true,
 						'.GitHub/prompts': true,
 						'./.tempfile': true,
-					}), PromptsType.prompt),
+					}), PromptsType.prompt)),
 					[
 						'.github/prompts',
 						'/root/.bashrc',
@@ -293,7 +301,7 @@ suite('PromptsConfig', () => {
 
 			test('filters out non valid entries', () => {
 				assert.deepStrictEqual(
-					PromptsConfig.promptSourceFolders(createMock({
+					getPaths(PromptsConfig.promptSourceFolders(createMock({
 						'/etc/hosts.backup': '\t\n\t',
 						'./run.tests.sh': '\v',
 						'../assets/img/logo.v2.png': true,
@@ -318,7 +326,7 @@ suite('PromptsConfig', () => {
 						'\f\f': true,
 						'../lib/some_library.v1.0.1.so': '\r\n',
 						'/dev/shm/.shared_resource': 2345,
-					}), PromptsType.prompt),
+					}), PromptsType.prompt)),
 					[
 						'.github/prompts',
 						'../assets/img/logo.v2.png',
@@ -335,7 +343,7 @@ suite('PromptsConfig', () => {
 
 			test('only invalid or false values', () => {
 				assert.deepStrictEqual(
-					PromptsConfig.promptSourceFolders(createMock({
+					getPaths(PromptsConfig.promptSourceFolders(createMock({
 						'/etc/hosts.backup': '\t\n\t',
 						'./run.tests.sh': '\v',
 						'../assets/IMG/logo.v2.png': '',
@@ -346,7 +354,7 @@ suite('PromptsConfig', () => {
 						'/var/data/datafile.2025-02-05.json': '\n',
 						'../lib/some_library.v1.0.1.so': '\r\n',
 						'/dev/shm/.shared_resource': 7654,
-					}), PromptsType.prompt),
+					}), PromptsType.prompt)),
 					[
 						'.github/prompts',
 					],
@@ -356,7 +364,7 @@ suite('PromptsConfig', () => {
 
 			test('filters out disabled default location', () => {
 				assert.deepStrictEqual(
-					PromptsConfig.promptSourceFolders(createMock({
+					getPaths(PromptsConfig.promptSourceFolders(createMock({
 						'/etc/hosts.backup': '\t\n\t',
 						'./run.tests.sh': '\v',
 						'.github/prompts': false,
@@ -381,7 +389,7 @@ suite('PromptsConfig', () => {
 						'\f\f': true,
 						'../lib/some_library.v1.0.1.so': '\r\n',
 						'/dev/shm/.shared_resource': 853,
-					}), PromptsType.prompt),
+					}), PromptsType.prompt)),
 					[
 						'../assets/img/logo.v2.png',
 						'../.local/bin/script.sh',
@@ -401,7 +409,7 @@ suite('PromptsConfig', () => {
 				const configService = createMock(undefined);
 
 				assert.deepStrictEqual(
-					PromptsConfig.promptSourceFolders(configService, PromptsType.skill),
+					getPaths(PromptsConfig.promptSourceFolders(configService, PromptsType.skill)),
 					[],
 					'Must return empty array for undefined config.',
 				);
@@ -411,7 +419,7 @@ suite('PromptsConfig', () => {
 				const configService = createMock(null);
 
 				assert.deepStrictEqual(
-					PromptsConfig.promptSourceFolders(configService, PromptsType.skill),
+					getPaths(PromptsConfig.promptSourceFolders(configService, PromptsType.skill)),
 					[],
 					'Must return empty array for null config.',
 				);
@@ -419,20 +427,22 @@ suite('PromptsConfig', () => {
 
 			test('empty object returns default skill folders', () => {
 				assert.deepStrictEqual(
-					PromptsConfig.promptSourceFolders(createMock({}), PromptsType.skill),
-					['.github/skills', '.claude/skills'],
+					getPaths(PromptsConfig.promptSourceFolders(createMock({}), PromptsType.skill)),
+					['.github/skills', '.claude/skills', '.copilot/skills', '.claude/skills'],
 					'Must return default skill folders.',
 				);
 			});
 
 			test('includes custom skill folders', () => {
 				assert.deepStrictEqual(
-					PromptsConfig.promptSourceFolders(createMock({
+					getPaths(PromptsConfig.promptSourceFolders(createMock({
 						'/custom/skills': true,
 						'./local/skills': true,
-					}), PromptsType.skill),
+					}), PromptsType.skill)),
 					[
 						'.github/skills',
+						'.claude/skills',
+						'.copilot/skills',
 						'.claude/skills',
 						'/custom/skills',
 						'./local/skills',
@@ -443,11 +453,13 @@ suite('PromptsConfig', () => {
 
 			test('filters out disabled default skill folders', () => {
 				assert.deepStrictEqual(
-					PromptsConfig.promptSourceFolders(createMock({
+					getPaths(PromptsConfig.promptSourceFolders(createMock({
 						'.github/skills': false,
 						'/custom/skills': true,
-					}), PromptsType.skill),
+					}), PromptsType.skill)),
 					[
+						'.claude/skills',
+						'.copilot/skills',
 						'.claude/skills',
 						'/custom/skills',
 					],
@@ -455,31 +467,34 @@ suite('PromptsConfig', () => {
 				);
 			});
 
-			test('filters out both disabled default skill folders', () => {
+			test('filters out all disabled default skill folders', () => {
 				assert.deepStrictEqual(
-					PromptsConfig.promptSourceFolders(createMock({
+					getPaths(PromptsConfig.promptSourceFolders(createMock({
 						'.github/skills': false,
 						'.claude/skills': false,
+						'.copilot/skills': false,
 						'/only/custom/skills': true,
-					}), PromptsType.skill),
+					}), PromptsType.skill)),
 					[
 						'/only/custom/skills',
 					],
-					'Must filter out both disabled default folders.',
+					'Must filter out all disabled default folders.',
 				);
 			});
 
 			test('filters out invalid entries', () => {
 				assert.deepStrictEqual(
-					PromptsConfig.promptSourceFolders(createMock({
+					getPaths(PromptsConfig.promptSourceFolders(createMock({
 						'/valid/skills': true,
 						'/invalid/path': '\t\n',
 						'': true,
 						'./another/valid': true,
 						'\n': true,
-					}), PromptsType.skill),
+					}), PromptsType.skill)),
 					[
 						'.github/skills',
+						'.claude/skills',
+						'.copilot/skills',
 						'.claude/skills',
 						'/valid/skills',
 						'./another/valid',
@@ -488,19 +503,22 @@ suite('PromptsConfig', () => {
 				);
 			});
 
-			test('does not duplicate default folders if explicitly enabled', () => {
+			test('includes all default folders when explicitly enabled', () => {
 				assert.deepStrictEqual(
-					PromptsConfig.promptSourceFolders(createMock({
+					getPaths(PromptsConfig.promptSourceFolders(createMock({
 						'.github/skills': true,
 						'.claude/skills': true,
+						'.copilot/skills': true,
 						'/extra/skills': true,
-					}), PromptsType.skill),
+					}), PromptsType.skill)),
 					[
 						'.github/skills',
 						'.claude/skills',
+						'.copilot/skills',
+						'.claude/skills',
 						'/extra/skills',
 					],
-					'Must not duplicate default folders.',
+					'Must include all default folders.',
 				);
 			});
 		});
