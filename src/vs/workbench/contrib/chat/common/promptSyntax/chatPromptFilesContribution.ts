@@ -21,7 +21,11 @@ interface IRawChatFileContribution {
 	readonly description?: string;
 }
 
-type ChatContributionPoint = 'chatPromptFiles' | 'chatInstructions' | 'chatAgents';
+enum ChatContributionPoint {
+	chatInstructions = 'chatInstructions',
+	chatAgents = 'chatAgents',
+	chatPromptFiles = 'chatPromptFiles',
+}
 
 function registerChatFilesExtensionPoint(point: ChatContributionPoint) {
 	return extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawChatFileContribution[]>({
@@ -59,15 +63,15 @@ function registerChatFilesExtensionPoint(point: ChatContributionPoint) {
 	});
 }
 
-const epPrompt = registerChatFilesExtensionPoint('chatPromptFiles');
-const epInstructions = registerChatFilesExtensionPoint('chatInstructions');
-const epAgents = registerChatFilesExtensionPoint('chatAgents');
+const epPrompt = registerChatFilesExtensionPoint(ChatContributionPoint.chatPromptFiles);
+const epInstructions = registerChatFilesExtensionPoint(ChatContributionPoint.chatInstructions);
+const epAgents = registerChatFilesExtensionPoint(ChatContributionPoint.chatAgents);
 
 function pointToType(contributionPoint: ChatContributionPoint): PromptsType {
 	switch (contributionPoint) {
-		case 'chatPromptFiles': return PromptsType.prompt;
-		case 'chatInstructions': return PromptsType.instructions;
-		case 'chatAgents': return PromptsType.agent;
+		case ChatContributionPoint.chatPromptFiles: return PromptsType.prompt;
+		case ChatContributionPoint.chatInstructions: return PromptsType.instructions;
+		case ChatContributionPoint.chatAgents: return PromptsType.agent;
 	}
 }
 
@@ -83,9 +87,9 @@ export class ChatPromptFilesExtensionPointHandler implements IWorkbenchContribut
 	constructor(
 		@IPromptsService private readonly promptsService: IPromptsService,
 	) {
-		this.handle(epPrompt, 'chatPromptFiles');
-		this.handle(epInstructions, 'chatInstructions');
-		this.handle(epAgents, 'chatAgents');
+		this.handle(epPrompt, ChatContributionPoint.chatPromptFiles);
+		this.handle(epInstructions, ChatContributionPoint.chatInstructions);
+		this.handle(epAgents, ChatContributionPoint.chatAgents);
 	}
 
 	private handle(extensionPoint: extensionsRegistry.IExtensionPoint<IRawChatFileContribution[]>, contributionPoint: ChatContributionPoint) {
@@ -124,101 +128,31 @@ export class ChatPromptFilesExtensionPointHandler implements IWorkbenchContribut
 class ChatPromptFilesDataRenderer extends Disposable implements IExtensionFeatureTableRenderer {
 	readonly type = 'table';
 
+	constructor(private readonly contributionPoint: ChatContributionPoint) {
+		super();
+	}
+
 	shouldRender(manifest: IExtensionManifest): boolean {
-		return !!manifest.contributes?.chatPromptFiles;
+		return !!manifest.contributes?.[this.contributionPoint];
 	}
 
 	render(manifest: IExtensionManifest): IRenderedData<ITableData> {
-		const contributions = manifest.contributes?.chatPromptFiles ?? [];
+		const contributions = manifest.contributes?.[this.contributionPoint] ?? [];
 		if (!contributions.length) {
 			return { data: { headers: [], rows: [] }, dispose: () => { } };
 		}
 
 		const headers = [
-			localize('chatPromptFilesPath', "Path"),
 			localize('chatPromptFilesName', "Name"),
 			localize('chatPromptFilesDescription', "Description"),
+			localize('chatPromptFilesPath', "Path"),
 		];
 
 		const rows: IRowData[][] = contributions.map(d => {
 			return [
-				d.path,
 				d.name ?? '-',
-				d.description ?? '-'
-			];
-		});
-
-		return {
-			data: {
-				headers,
-				rows
-			},
-			dispose: () => { }
-		};
-	}
-}
-
-class ChatInstructionsDataRenderer extends Disposable implements IExtensionFeatureTableRenderer {
-	readonly type = 'table';
-
-	shouldRender(manifest: IExtensionManifest): boolean {
-		return !!manifest.contributes?.chatInstructions;
-	}
-
-	render(manifest: IExtensionManifest): IRenderedData<ITableData> {
-		const contributions = manifest.contributes?.chatInstructions ?? [];
-		if (!contributions.length) {
-			return { data: { headers: [], rows: [] }, dispose: () => { } };
-		}
-
-		const headers = [
-			localize('chatInstructionsPath', "Path"),
-			localize('chatInstructionsName', "Name"),
-			localize('chatInstructionsDescription', "Description"),
-		];
-
-		const rows: IRowData[][] = contributions.map(d => {
-			return [
+				d.description ?? '-',
 				d.path,
-				d.name ?? '-',
-				d.description ?? '-'
-			];
-		});
-
-		return {
-			data: {
-				headers,
-				rows
-			},
-			dispose: () => { }
-		};
-	}
-}
-
-class ChatAgentsDataRenderer extends Disposable implements IExtensionFeatureTableRenderer {
-	readonly type = 'table';
-
-	shouldRender(manifest: IExtensionManifest): boolean {
-		return !!manifest.contributes?.chatAgents;
-	}
-
-	render(manifest: IExtensionManifest): IRenderedData<ITableData> {
-		const contributions = manifest.contributes?.chatAgents ?? [];
-		if (!contributions.length) {
-			return { data: { headers: [], rows: [] }, dispose: () => { } };
-		}
-
-		const headers = [
-			localize('chatAgentsPath', "Path"),
-			localize('chatAgentsName', "Name"),
-			localize('chatAgentsDescription', "Description"),
-		];
-
-		const rows: IRowData[][] = contributions.map(d => {
-			return [
-				d.path,
-				d.name ?? '-',
-				d.description ?? '-'
 			];
 		});
 
@@ -233,28 +167,28 @@ class ChatAgentsDataRenderer extends Disposable implements IExtensionFeatureTabl
 }
 
 Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
-	id: 'chatPromptFiles',
+	id: ChatContributionPoint.chatPromptFiles,
 	label: localize('chatPromptFiles', "Chat Prompt Files"),
 	access: {
 		canToggle: false
 	},
-	renderer: new SyncDescriptor(ChatPromptFilesDataRenderer),
+	renderer: new SyncDescriptor(ChatPromptFilesDataRenderer, [ChatContributionPoint.chatPromptFiles]),
 });
 
 Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
-	id: 'chatInstructions',
+	id: ChatContributionPoint.chatInstructions,
 	label: localize('chatInstructions', "Chat Instructions"),
 	access: {
 		canToggle: false
 	},
-	renderer: new SyncDescriptor(ChatInstructionsDataRenderer),
+	renderer: new SyncDescriptor(ChatPromptFilesDataRenderer, [ChatContributionPoint.chatInstructions]),
 });
 
 Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
-	id: 'chatAgents',
+	id: ChatContributionPoint.chatAgents,
 	label: localize('chatAgents', "Chat Agents"),
 	access: {
 		canToggle: false
 	},
-	renderer: new SyncDescriptor(ChatAgentsDataRenderer),
+	renderer: new SyncDescriptor(ChatPromptFilesDataRenderer, [ChatContributionPoint.chatAgents]),
 });
