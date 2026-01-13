@@ -5,7 +5,7 @@
 
 import { localize2 } from '../../../../nls.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { Action2, registerAction2, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { Action2, registerAction2, MenuId } from '../../../../platform/actions/common/actions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
@@ -18,7 +18,6 @@ import { BrowserViewStorageScope } from '../../../../platform/browserView/common
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
-import { MOVE_EDITOR_INTO_NEW_WINDOW_COMMAND_ID } from '../../../browser/parts/editor/editorCommands.js';
 
 // Context key expression to check if browser editor is active
 const BROWSER_EDITOR_ACTIVE = ContextKeyExpr.equals('activeEditor', BrowserEditor.ID);
@@ -126,7 +125,7 @@ class ReloadAction extends Action2 {
 				order: 3,
 			},
 			keybinding: {
-				when: CONTEXT_BROWSER_FOCUSED, // Keybinding is only active when focus is within the browser editor
+				when: CONTEXT_BROWSER_FOCUSED,
 				weight: KeybindingWeight.WorkbenchContrib + 50, // Priority over debug
 				primary: KeyCode.F5,
 				secondary: [KeyMod.CtrlCmd | KeyCode.KeyR],
@@ -187,8 +186,13 @@ class ToggleDevToolsAction extends Action2 {
 			toggled: ContextKeyExpr.equals(CONTEXT_BROWSER_DEVTOOLS_OPEN.key, true),
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: 'actions',
-				order: 2
+				group: '1_developer',
+				order: 1,
+			},
+			keybinding: {
+				when: BROWSER_EDITOR_ACTIVE,
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyCode.F12
 			}
 		});
 	}
@@ -212,8 +216,8 @@ class OpenInExternalBrowserAction extends Action2 {
 			f1: false,
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: 'actions_1',
-				order: 0
+				group: '2_export',
+				order: 1
 			}
 		});
 	}
@@ -241,7 +245,7 @@ class ClearGlobalBrowserStorageAction extends Action2 {
 			f1: true,
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: 'storage',
+				group: '3_settings',
 				order: 1,
 				when: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Global)
 			}
@@ -266,7 +270,7 @@ class ClearWorkspaceBrowserStorageAction extends Action2 {
 			f1: true,
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: 'storage',
+				group: '3_settings',
 				order: 2,
 				when: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Workspace)
 			}
@@ -285,14 +289,14 @@ class OpenBrowserSettingsAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenBrowserSettingsAction.ID,
-			title: localize2('browser.openSettingsAction', 'Browser Settings'),
+			title: localize2('browser.openSettingsAction', 'Configure Browser...'),
 			category: BrowserCategory,
 			icon: Codicon.settingsGear,
 			f1: false,
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: 'settings',
-				order: 1
+				group: '3_settings',
+				order: 3
 			}
 		});
 	}
@@ -314,13 +318,3 @@ registerAction2(OpenInExternalBrowserAction);
 registerAction2(ClearGlobalBrowserStorageAction);
 registerAction2(ClearWorkspaceBrowserStorageAction);
 registerAction2(OpenBrowserSettingsAction);
-
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
-	command: {
-		id: MOVE_EDITOR_INTO_NEW_WINDOW_COMMAND_ID,
-		title: localize2('moveBrowserIntoNewWindow', "Move Browser into New Window"),
-		icon: Codicon.emptyWindow,
-	},
-	group: 'navigation',
-	when: BROWSER_EDITOR_ACTIVE
-});
