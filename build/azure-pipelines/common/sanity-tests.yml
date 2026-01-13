@@ -68,7 +68,7 @@ jobs:
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Authentication
 
-      - script: |
+      - bash: |
           set -e
           for i in {1..5}; do # try 5 times
             npm ci && break
@@ -83,7 +83,7 @@ jobs:
         displayName: Install dependencies
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
-      - script: |
+      - bash: |
           set -e
           node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
           mkdir -p .build/node_modules_cache
