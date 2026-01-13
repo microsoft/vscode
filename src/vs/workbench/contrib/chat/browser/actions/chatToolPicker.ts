@@ -83,7 +83,7 @@ type ToolPickerActionData = {
 type ToolPickerActionClassification = {
 	owner: 'digitarald';
 	comment: 'Tracks when tool picker action buttons are used';
-	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The action that was triggered such as addMcpServer, installExtension, configureToolSets, etc.' };
+	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The action that was triggered (addMcpServer, installExtension, configureToolSets, editUserToolSet, showMcpOutput, updateMcpTools, configureMcpServer)' };
 };
 
 // New QuickTree types for tree-based implementation
