@@ -15,7 +15,7 @@
     "@xterm/addon-search": "^0.17.0-beta.91",
     "@xterm/addon-serialize": "^0.15.0-beta.91",
     "@xterm/addon-unicode11": "^0.10.0-beta.91",
-    "@xterm/addon-webgl": "^0.20.0-beta.90",
+    "@xterm/addon-webgl": "^0.20.0-beta.101",
     "@xterm/xterm": "^6.1.0-beta.91",
     "jschardet": "3.1.4",
     "katex": "^0.16.22",
