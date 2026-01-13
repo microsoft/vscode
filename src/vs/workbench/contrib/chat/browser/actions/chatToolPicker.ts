@@ -273,7 +273,7 @@ export async function showToolsPicker(
 	// Helper function to check if virtual mode is active based on tool count
 	const isVirtualModeActive = (currentResults: ReadonlyMap<ToolSet | IToolData, boolean>): boolean => {
 		if (!toolLimit) return false;
-		
+
 		let enabledToolCount = 0;
 		for (const [item, enabled] of currentResults.entries()) {
 			if (enabled) {
@@ -661,15 +661,15 @@ export async function showToolsPicker(
 	// Handle checkbox state changes
 	store.add(treePicker.onDidChangeCheckedLeafItems(() => {
 		updateToolLimitMessage();
-		
+
 		// Track changes for telemetry
 		const currentResults = collectResults();
 		const virtualMode = isVirtualModeActive(currentResults);
-		
+
 		// Track changes by comparing current state with previous state
 		for (const [item, currentEnabled] of currentResults.entries()) {
 			const previousEnabled = previousResults.get(item) ?? false;
-			
+
 			if (currentEnabled !== previousEnabled) {
 				if (item instanceof ToolSet) {
 					// This is an MCP server toggle (ToolSet represents MCP server)
@@ -694,7 +694,7 @@ export async function showToolsPicker(
 				}
 			}
 		}
-		
+
 		// Update previous results for next comparison
 		previousResults = new Map(currentResults);
 	}));
@@ -744,13 +744,13 @@ export async function showToolsPicker(
 			actionName = 'configureToolSets';
 			commandService.executeCommand(ConfigureToolSets.ID);
 		}
-		
+
 		if (actionName) {
 			telemetryService.publicLog2<ToolPickerActionData, ToolPickerActionClassification>('chat.toolPicker.action', {
 				action: actionName
 			});
 		}
-		
+
 		treePicker.hide();
 	}));
 
