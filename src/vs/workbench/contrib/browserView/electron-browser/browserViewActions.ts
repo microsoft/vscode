@@ -158,6 +158,11 @@ class AddElementToChatAction extends Action2 {
 				group: 'actions',
 				order: 1,
 				when: ChatContextKeys.enabled
+			},
+			keybinding: {
+				when: BROWSER_EDITOR_ACTIVE,
+				weight: KeybindingWeight.WorkbenchContrib + 50, // Priority over terminal
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyC,
 			}
 		});
 	}
