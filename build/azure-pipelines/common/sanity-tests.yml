@@ -52,7 +52,7 @@ jobs:
         condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
         displayName: Extract node_modules cache
 
-      - script: |
+      - bash: |
           set -e
           # Set the private NPM registry to the global npmrc file
           # so that authentication works for subfolders like build/, remote/, extensions/ etc
@@ -70,7 +70,6 @@ jobs:
 
       - script: |
           set -e
-
           for i in {1..5}; do # try 5 times
             npm ci && break
             if [ $i -eq 5 ]; then
