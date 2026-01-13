@@ -186,6 +186,13 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 		if (windowSettings?.clickThroughInactive === false) {
 			options.acceptFirstMouse = false;
 		}
+
+		// Experimental window transparency with vibrancy effect (macOS only)
+		if (windowSettings?.experimentalTransparency) {
+			options.transparent = true;
+			options.vibrancy = 'under-window';
+			options.backgroundColor = '#00000000'; // Fully transparent background
+		}
 	}
 
 	if (overrides?.disableFullscreen) {

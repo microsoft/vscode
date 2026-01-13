@@ -131,10 +131,10 @@
 		"inputValidation.warningBorder": "#00000000",
 
 		/* ========== DROPDOWN ========== */
-		"dropdown.background": "#FFFFFF",
+		"dropdown.background": "#FFFFFFE0",
 		"dropdown.border": "#00000000",
 		"dropdown.foreground": "#1F2937",
-		"dropdown.listBackground": "#FFFFFF",
+		"dropdown.listBackground": "#FFFFFFE0",
 
 		/* ========== BUTTON ========== */
 		"button.background": "#2563EB",
@@ -170,20 +170,20 @@
 		"tree.indentGuidesStroke": "#E5E7EB",
 
 		/* ========== QUICK INPUT (Command Palette) ========== */
-		"quickInput.background": "#FFFFFF",
+		"quickInput.background": "#FFFFFFD9",
 		"quickInput.foreground": "#1F2937",
 		"quickInputList.focusBackground": "#DBEAFE",
 		"quickInputList.focusForeground": "#1E40AF",
 		"quickInputList.focusIconForeground": "#1E40AF",
-		"quickInputTitle.background": "#FFFFFF",
+		"quickInputTitle.background": "#FFFFFFD9",
 		"pickerGroup.border": "#00000000",
 		"pickerGroup.foreground": "#6B7280",
 
 		/* ========== NOTIFICATIONS ========== */
-		"notifications.background": "#FFFFFF",
+		"notifications.background": "#FFFFFFE6",
 		"notifications.foreground": "#1F2937",
 		"notifications.border": "#00000000",
-		"notificationCenterHeader.background": "#FCFCFC",
+		"notificationCenterHeader.background": "#FCFCFCE6",
 		"notificationCenterHeader.foreground": "#1F2937",
 		"notificationCenter.border": "#00000000",
 		"notificationToast.border": "#00000000",
@@ -203,11 +203,11 @@
 		"progressBar.background": "#2563EB",
 
 		/* ========== EDITOR WIDGETS ========== */
-		"editorWidget.background": "#FCFCFC",
+		"editorWidget.background": "#FCFCFCE0",
 		"editorWidget.foreground": "#1F2937",
 		"editorWidget.border": "#00000000",
 		"editorWidget.resizeBorder": "#2563EB",
-		"editorSuggestWidget.background": "#FCFCFC",
+		"editorSuggestWidget.background": "#FCFCFCE0",
 		"editorSuggestWidget.border": "#00000000",
 		"editorSuggestWidget.foreground": "#1F2937",
 		"editorSuggestWidget.highlightForeground": "#2563EB",
@@ -215,18 +215,18 @@
 		"editorSuggestWidget.selectedForeground": "#1E40AF",
 		"editorSuggestWidget.focusHighlightForeground": "#1E40AF",
 		"editorSuggestWidget.selectedIconForeground": "#1E40AF",
-		"editorHoverWidget.background": "#FCFCFC",
+		"editorHoverWidget.background": "#FCFCFCE6",
 		"editorHoverWidget.border": "#00000000",
 		"editorHoverWidget.foreground": "#1F2937",
 		"editorHoverWidget.highlightForeground": "#2563EB",
-		"editorHoverWidget.statusBarBackground": "#F9F9F9",
+		"editorHoverWidget.statusBarBackground": "#F9F9F9E6",
 
 		/* ========== DEBUG TOOLBAR ========== */
-		"debugToolBar.background": "#FCFCFC",
+		"debugToolBar.background": "#FCFCFCE0",
 		"debugToolBar.border": "#00000000",
 
 		/* ========== MENU ========== */
-		"menu.background": "#FFFFFF",
+		"menu.background": "#FFFFFFE0",
 		"menu.foreground": "#1F2937",
 		"menu.selectionBackground": "#2563EB",
 		"menu.selectionForeground": "#FFFFFF",
@@ -267,7 +267,7 @@
 		"breadcrumb.foreground": "#6B7280",
 		"breadcrumb.focusForeground": "#1F2937",
 		"breadcrumb.activeSelectionForeground": "#1F2937",
-		"breadcrumbPicker.background": "#FCFCFC",
+		"breadcrumbPicker.background": "#FCFCFCE0",
 
 		/* ========== SETTINGS ========== */
 		"settings.headerForeground": "#1F2937",
@@ -385,12 +385,12 @@
 		/* ========== COMMAND CENTER (Title Bar Search) ========== */
 		"commandCenter.foreground": "#374151",
 		"commandCenter.activeForeground": "#1F2937",
-		"commandCenter.background": "#F7F7F7",
-		"commandCenter.activeBackground": "#E5E5E5",
+		"commandCenter.background": "#F7F7F7B3",
+		"commandCenter.activeBackground": "#E5E5E5D9",
 		"commandCenter.border": "#00000000",
 		"commandCenter.inactiveBorder": "#00000000",
 		"commandCenter.activeBorder": "#00000000",
-		"commandCenter.debuggingBackground": "#DBEAFE",
+		"commandCenter.debuggingBackground": "#DBEAFED9",
 
 		/* ========== KEYBINDING LABEL ========== */
 		"keybindingLabel.background": "#F9F9F9",

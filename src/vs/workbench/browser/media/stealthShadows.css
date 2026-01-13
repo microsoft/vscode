@@ -132,6 +132,7 @@
 	position: relative;
 	z-index: 5;
 	border-radius: 4px 4px 0 0;
+	border-top: none !important;
 }
 
 /* Tab hover effect */
@@ -171,8 +172,8 @@
 }
 
 /* ============================================
-   Quick Input (Command Palette) - Elevated white card above toolbar
-   NO BORDER - Just shadow
+   Quick Input (Command Palette) - Frosted Glass Effect
+   Transparent background with backdrop blur
    ============================================ */
 
 .quick-input-widget {
@@ -180,7 +181,23 @@
 	border: none !important;
 	border-radius: 12px;
 	overflow: hidden;
-	background: var(--vscode-sideBar-background, #FCFCFC) !important;
+	/* Frosted glass effect - more transparent with stronger blur */
+	background: rgba(252, 252, 252, 0.2) !important;
+	backdrop-filter: blur(20px) saturate(100%);
+	-webkit-backdrop-filter: blur(40px) saturate(180%);
+}
+
+/* Dark theme frosted glass for command palette */
+.monaco-workbench.vs-dark .quick-input-widget,
+.monaco-workbench.hc-black .quick-input-widget {
+	background: rgba(30, 30, 30, 0.65) !important;
+	backdrop-filter: blur(40px) saturate(180%);
+	-webkit-backdrop-filter: blur(40px) saturate(180%);
+}
+
+/* Transparent list rows to show blur through */
+.quick-input-widget .monaco-list-rows {
+	background-color: transparent !important;
 }
 
 /* Remove ALL borders from quick input */
@@ -209,8 +226,14 @@
 }
 
 .quick-input-widget .quick-input-filter .monaco-inputbox {
-	background: var(--vscode-input-background, #FFFFFF) !important;
+	background: rgba(255, 255, 255, 0.4) !important;
 	border-radius: 6px;
+}
+
+/* Dark theme input box */
+.monaco-workbench.vs-dark .quick-input-widget .quick-input-filter .monaco-inputbox,
+.monaco-workbench.hc-black .quick-input-widget .quick-input-filter .monaco-inputbox {
+	background: rgba(60, 60, 60, 0.4) !important;
 }
 
 /* ============================================
@@ -221,7 +244,7 @@
 .interactive-session .chat-input-container {
 	box-shadow: var(--vscode-stealth-shadow-lg);
 	border: none !important;
-	border-radius: 12px;
+	border-radius: 6px;
 	background-color: var(--vscode-panel-background, var(--vscode-sideBar-background)) !important;
 }
 
@@ -235,12 +258,12 @@
 .interactive-session .chat-editing-session .chat-editing-session-container {
 	box-shadow: var(--vscode-stealth-shadow-md);
 	border: none !important;
-	border-radius: 8px 8px 0 0;
+	border-radius: 4px 4px 0 0;
 }
 
 /* When editing session is present, adjust input container */
 .interactive-input-part:has(.chat-editing-session > .chat-editing-session-container) .chat-input-container {
-	border-radius: 0 0 12px 12px;
+	border-radius: 0 0 6px 6px;
 }
 
 /* Chat panel overall */
@@ -391,11 +414,20 @@
 }
 
 /* ============================================
-   Breadcrumbs - Subtle Shadow
+   Breadcrumbs - Frosted Glass Effect
    ============================================ */
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .breadcrumbs-control {
-	box-shadow: var(--vscode-stealth-shadow-xs);
+	box-shadow: 0 0 12px rgba(0, 0, 0, 0.08) !important;
+	background: rgba(252, 252, 252, 0.65) !important;
+	backdrop-filter: blur(40px) saturate(180%) !important;
+	-webkit-backdrop-filter: blur(40px) saturate(180%) !important;
+}
+
+/* Dark theme breadcrumbs frosted glass */
+.monaco-workbench.vs-dark .part.editor > .content .editor-group-container > .title .breadcrumbs-control,
+.monaco-workbench.hc-black .part.editor > .content .editor-group-container > .title .breadcrumbs-control {
+	background: rgba(30, 30, 30, 0.65) !important;
 }
 
 /* ============================================
@@ -488,31 +520,90 @@
 }
 
 /* ============================================
-   Minimap Shadow (scrolling indicator)
+   Minimap - Frosted Glass Effect
    ============================================ */
 
-.monaco-editor .minimap-shadow-visible {
+.monaco-workbench .monaco-editor .minimap {
+	background: rgba(252, 252, 252, 0.65) !important;
+	backdrop-filter: blur(40px) saturate(180%) !important;
+	-webkit-backdrop-filter: blur(40px) saturate(180%) !important;
+	border-radius: 8px 0 0 8px;
+}
+
+/* Minimap canvas should be semi-transparent */
+.monaco-workbench .monaco-editor .minimap canvas {
+	opacity: 0.85;
+}
+
+/* Dark theme minimap frosted glass */
+.monaco-workbench.vs-dark .monaco-editor .minimap,
+.monaco-workbench.hc-black .monaco-editor .minimap {
+	background: rgba(30, 30, 30, 0.65) !important;
+}
+
+.monaco-workbench .monaco-editor .minimap-shadow-visible {
 	box-shadow: var(--vscode-stealth-shadow-md);
 }
 
 /* ============================================
-   Editor Sticky Scroll
+   Editor Sticky Scroll - Frosted Glass Effect
    ============================================ */
 
-.monaco-editor .sticky-widget {
-	box-shadow: var(--vscode-stealth-shadow-sm);
+.monaco-workbench .monaco-editor .sticky-widget {
+	/* Override the default shadow and border with our frosted glass effect */
+	box-shadow: 0 0 12px rgba(0, 0, 0, 0.10) !important;
+	border-bottom: none !important;
+	border: none !important;
+	/* Frosted glass effect */
+	background: rgba(252, 252, 252, 0.65) !important;
+	backdrop-filter: blur(40px) saturate(180%) !important;
+	-webkit-backdrop-filter: blur(40px) saturate(180%) !important;
+	border-radius: 0 0 8px 8px !important;
+}
+
+/* Sticky widget inner content should be transparent for frosted glass to show */
+.monaco-workbench .monaco-editor .sticky-widget *,
+.monaco-workbench .monaco-editor .sticky-widget > *,
+.monaco-workbench .monaco-editor .sticky-widget .sticky-widget-line-numbers,
+.monaco-workbench .monaco-editor .sticky-widget .sticky-widget-lines-scrollable,
+.monaco-workbench .monaco-editor .sticky-widget .sticky-widget-lines,
+.monaco-workbench .monaco-editor .sticky-widget .sticky-line-number,
+.monaco-workbench .monaco-editor .sticky-widget .sticky-line-content,
+.monaco-workbench .monaco-editor .sticky-widget .sticky-line-content:hover {
+	background-color: transparent !important;
+	background: transparent !important;
+}
+
+/* Dark theme sticky scroll frosted glass */
+.monaco-workbench.vs-dark .monaco-editor .sticky-widget,
+.monaco-workbench.hc-black .monaco-editor .sticky-widget {
+	background: rgba(30, 30, 30, 0.65) !important;
+	backdrop-filter: blur(40px) saturate(180%) !important;
+	-webkit-backdrop-filter: blur(40px) saturate(180%) !important;
 }
 
 /* Sticky Scroll Focus Preview (floating document preview) */
-.monaco-editor .sticky-widget-focus-preview,
-.monaco-editor .sticky-scroll-focus-line,
-.monaco-editor .focused .sticky-widget,
-.monaco-editor:has(.sticky-widget:focus-within) .sticky-widget {
-	background: var(--vscode-editor-background, #EDEDED) !important;
-	backdrop-filter: blur(12px);
-	-webkit-backdrop-filter: blur(12px);
-	box-shadow: var(--vscode-stealth-shadow-lg);
-	border-radius: 8px;
+.monaco-workbench .monaco-editor .sticky-widget-focus-preview,
+.monaco-workbench .monaco-editor .sticky-scroll-focus-line,
+.monaco-workbench .monaco-editor .focused .sticky-widget,
+.monaco-workbench .monaco-editor:has(.sticky-widget:focus-within) .sticky-widget {
+	background: rgba(252, 252, 252, 0.75) !important;
+	backdrop-filter: blur(40px) saturate(180%) !important;
+	-webkit-backdrop-filter: blur(40px) saturate(180%) !important;
+	box-shadow: 0 0 16px rgba(0, 0, 0, 0.12) !important;
+	border-radius: 0 0 8px 8px !important;
+}
+
+/* Dark theme sticky scroll focus state */
+.monaco-workbench.vs-dark .monaco-editor .sticky-widget-focus-preview,
+.monaco-workbench.vs-dark .monaco-editor .sticky-scroll-focus-line,
+.monaco-workbench.vs-dark .monaco-editor .focused .sticky-widget,
+.monaco-workbench.vs-dark .monaco-editor:has(.sticky-widget:focus-within) .sticky-widget,
+.monaco-workbench.hc-black .monaco-editor .sticky-widget-focus-preview,
+.monaco-workbench.hc-black .monaco-editor .sticky-scroll-focus-line,
+.monaco-workbench.hc-black .monaco-editor .focused .sticky-widget,
+.monaco-workbench.hc-black .monaco-editor:has(.sticky-widget:focus-within) .sticky-widget {
+	background: rgba(30, 30, 30, 0.75) !important;
 }
 
 /* ============================================
@@ -539,19 +630,35 @@
 }
 
 /* ============================================
-   Command Center (in title bar)
+   Command Center (in title bar) - Frosted Glass Effect
    ============================================ */
 
-/* Command center pops out with ambient shadow like chat input */
+/* Command center default state - frosted glass */
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center {
 	box-shadow: 0 0 16px rgba(0, 0, 0, 0.09) !important;
 	border-radius: 8px !important;
-	background: var(--vscode-titleBar-activeBackground, #F9F9F9) !important;
+	background: rgba(249, 249, 249, 0.55) !important;
+	backdrop-filter: blur(24px) saturate(150%);
+	-webkit-backdrop-filter: blur(24px) saturate(150%);
 	overflow: visible !important;
 }
 
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center:hover {
 	box-shadow: 0 0 20px rgba(0, 0, 0, 0.11) !important;
+	background: rgba(249, 249, 249, 0.70) !important;
+}
+
+/* Dark theme command center frosted glass */
+.monaco-workbench.vs-dark .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center,
+.monaco-workbench.hc-black .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center {
+	background: rgba(40, 40, 40, 0.55) !important;
+	backdrop-filter: blur(24px) saturate(150%);
+	-webkit-backdrop-filter: blur(24px) saturate(150%);
+}
+
+.monaco-workbench.vs-dark .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center:hover,
+.monaco-workbench.hc-black .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center:hover {
+	background: rgba(50, 50, 50, 0.70) !important;
 }
 
 /* Remove ALL borders from command center */
@@ -606,4 +713,79 @@
 /* Remove editor group borders in favor of shadows */
 .monaco-workbench .part.editor > .content .editor-group-container {
 	border: none !important;
+}
+
+/* ============================================
+   Focus Dimming - Dim peripheral UI when editor is focused
+   ============================================ */
+
+/* Define the dimmed transition */
+:root {
+	--vscode-stealth-dim-opacity: 0.2;
+	--vscode-stealth-dim-transition: opacity 0.2s ease-in-out;
+}
+
+/* Primary sidebar - dim when editor has focus (requires focus-dimming-enabled setting) */
+.monaco-workbench.focus-dimming-enabled:has(.part.editor:focus-within) .part.sidebar {
+	opacity: var(--vscode-stealth-dim-opacity);
+	transition: var(--vscode-stealth-dim-transition);
+}
+
+/* Restore sidebar when hovered or focused */
+.monaco-workbench.focus-dimming-enabled .part.sidebar:hover,
+.monaco-workbench.focus-dimming-enabled .part.sidebar:focus-within {
+	opacity: 1 !important;
+	transition: var(--vscode-stealth-dim-transition);
+}
+
+/* Status bar - dim when editor has focus (requires focus-dimming-enabled setting) */
+.monaco-workbench.focus-dimming-enabled:has(.part.editor:focus-within) .part.statusbar {
+	opacity: var(--vscode-stealth-dim-opacity);
+	transition: var(--vscode-stealth-dim-transition);
+}
+
+/* Restore status bar when hovered or focused */
+.monaco-workbench.focus-dimming-enabled .part.statusbar:hover,
+.monaco-workbench.focus-dimming-enabled .part.statusbar:focus-within {
+	opacity: 1 !important;
+	transition: var(--vscode-stealth-dim-transition);
+}
+
+/* Command center - remove shadow by default, show on titlebar hover */
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center {
+	box-shadow: none !important;
+	transition: box-shadow 0.2s ease-in-out;
+}
+
+/* Show command center shadow when hovering titlebar */
+.monaco-workbench .part.titlebar:hover > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center,
+.monaco-workbench .part.titlebar:focus-within > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center {
+	box-shadow: 0 0 16px rgba(0, 0, 0, 0.09) !important;
+}
+
+/* Command center content (search icon + text) - always visible */
+.monaco-workbench .part.titlebar .command-center .action-item.command-center-center {
+	opacity: 1 !important;
+}
+
+/* Titlebar action buttons - hide by default (left, right, and non-command-center items) */
+.monaco-workbench .part.titlebar .titlebar-container .titlebar-left .action-item,
+.monaco-workbench .part.titlebar .titlebar-container .titlebar-right .action-item,
+.monaco-workbench .part.titlebar .titlebar-container .menubar-menu-button,
+.monaco-workbench .part.titlebar .command-center .action-item:not(.command-center-center) {
+	opacity: 0;
+	transition: opacity 0.2s ease-in-out;
+}
+
+/* Show all titlebar buttons when hovering anywhere on titlebar */
+.monaco-workbench .part.titlebar:hover .titlebar-container .titlebar-left .action-item,
+.monaco-workbench .part.titlebar:hover .titlebar-container .titlebar-right .action-item,
+.monaco-workbench .part.titlebar:hover .titlebar-container .menubar-menu-button,
+.monaco-workbench .part.titlebar:hover .command-center .action-item:not(.command-center-center),
+.monaco-workbench .part.titlebar:focus-within .titlebar-container .titlebar-left .action-item,
+.monaco-workbench .part.titlebar:focus-within .titlebar-container .titlebar-right .action-item,
+.monaco-workbench .part.titlebar:focus-within .titlebar-container .menubar-menu-button,
+.monaco-workbench .part.titlebar:focus-within .command-center .action-item:not(.command-center-center) {
+	opacity: 1;
+	transition: opacity 0.2s ease-in-out;
 }

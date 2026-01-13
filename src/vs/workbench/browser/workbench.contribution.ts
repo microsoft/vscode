@@ -709,6 +709,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': true,
 				'description': localize('tips.enabled', "When enabled, will show the watermark tips when no editor is open.")
 			},
+			'workbench.experimental.focusDimming.enabled': {
+				'type': 'boolean',
+				'default': false,
+				'description': localize('focusDimming.enabled', "When enabled, dims the sidebar and status bar when focus is in the editor area.")
+			},
 		}
 	});
 
