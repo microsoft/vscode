@@ -26,12 +26,12 @@ variables:
     value: true
   - name: Codeql.SkipTaskAutoInjection
     value: true
-  - name: NPM_REGISTRY
-    value: ${{ parameters.NPM_REGISTRY }}
   - name: BUILD_COMMIT
     value: ${{ parameters.BUILD_COMMIT }}
   - name: BUILD_QUALITY
     value: ${{ parameters.BUILD_QUALITY }}
+  - name: NPM_REGISTRY
+    value: ${{ parameters.NPM_REGISTRY }}
 
 name: "$(Date:yyyyMMdd).$(Rev:r) (${{ parameters.BUILD_QUALITY }} ${{ parameters.BUILD_COMMIT }})"
 
