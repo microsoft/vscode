@@ -5,7 +5,7 @@
 
 import { localize2 } from '../../../../nls.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { Action2, registerAction2, MenuId } from '../../../../platform/actions/common/actions.js';
+import { Action2, registerAction2, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
@@ -18,6 +18,7 @@ import { BrowserViewStorageScope } from '../../../../platform/browserView/common
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
+import { MOVE_EDITOR_INTO_NEW_WINDOW_COMMAND_ID } from '../../../browser/parts/editor/editorCommands.js';
 
 // Context key expression to check if browser editor is active
 const BROWSER_EDITOR_ACTIVE = ContextKeyExpr.equals('activeEditor', BrowserEditor.ID);
@@ -309,3 +310,13 @@ registerAction2(OpenInExternalBrowserAction);
 registerAction2(ClearGlobalBrowserStorageAction);
 registerAction2(ClearWorkspaceBrowserStorageAction);
 registerAction2(OpenBrowserSettingsAction);
+
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+	command: {
+		id: MOVE_EDITOR_INTO_NEW_WINDOW_COMMAND_ID,
+		title: localize2('moveBrowserIntoNewWindow', "Move Browser into New Window"),
+		icon: Codicon.emptyWindow,
+	},
+	group: 'navigation',
+	when: BROWSER_EDITOR_ACTIVE
+});
