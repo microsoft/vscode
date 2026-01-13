@@ -318,6 +318,7 @@ class GutterColumnRenderer extends ModelsTableColumnRenderer<IToggleCollapseColu
 
 	constructor(
 		private readonly viewModel: ChatModelsViewModel,
+		private readonly getTable: () => WorkbenchTable<IViewModelEntry> | undefined,
 	) {
 		super();
 	}
@@ -375,7 +376,27 @@ class GutterColumnRenderer extends ModelsTableColumnRenderer<IToggleCollapseColu
 			class: `model-visibility-toggle ${isVisible ? `${ThemeIcon.asClassName(Codicon.eye)} model-visible` : `${ThemeIcon.asClassName(Codicon.eyeClosed)} model-hidden`}`,
 			tooltip: isVisible ? localize('models.visible', 'Hide in the chat model picker') : localize('models.hidden', 'Show in the chat model picker'),
 			checked: !isVisible,
-			run: async () => this.viewModel.toggleVisibility(entry)
+			run: async () => {
+				const table = this.getTable();
+				if (!table) {
+					return;
+				}
+
+				// Get all selected entries
+				const selectedIndices = table.getSelection();
+				const selectedEntries = selectedIndices
+					.map(i => this.viewModel.viewModelEntries[i])
+					.filter((e): e is ILanguageModelEntry => e.type === 'model');
+
+				// If the current entry is part of the selection and there are multiple selections,
+				// toggle visibility for all selected models
+				if (selectedEntries.length > 1 && selectedEntries.some(e => e.id === entry.id)) {
+					this.viewModel.toggleVisibilityForModels(selectedEntries);
+				} else {
+					// Otherwise, just toggle this single model
+					this.viewModel.toggleVisibility(entry);
+				}
+			}
 		});
 		templateData.actionBar.push(toggleVisibilityAction, { icon: true, label: false });
 	}
@@ -998,7 +1019,7 @@ export class ChatModelsWidget extends Disposable {
 		this.tableDisposables.clear();
 		DOM.clearNode(this.tableContainer);
 
-		const gutterColumnRenderer = this.instantiationService.createInstance(GutterColumnRenderer, this.viewModel);
+		const gutterColumnRenderer = this.instantiationService.createInstance(GutterColumnRenderer, this.viewModel, () => this.table);
 		const modelNameColumnRenderer = this.instantiationService.createInstance(ModelNameColumnRenderer);
 		const costColumnRenderer = this.instantiationService.createInstance(MultiplierColumnRenderer);
 		const tokenLimitsColumnRenderer = this.instantiationService.createInstance(TokenLimitsColumnRenderer);
@@ -1129,7 +1150,7 @@ export class ChatModelsWidget extends Disposable {
 					},
 					getWidgetAriaLabel: () => localize('modelsTable.ariaLabel', 'Language Models')
 				},
-				multipleSelectionSupport: false,
+				multipleSelectionSupport: true,
 				setRowLineHeight: false,
 				openOnSingleClick: true,
 				alwaysConsumeMouseWheel: false,

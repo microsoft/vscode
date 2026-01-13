@@ -530,6 +530,42 @@ export class ChatModelsViewModel extends Disposable {
 		}
 	}
 
+	toggleVisibilityForModels(models: ILanguageModelEntry[]): void {
+		if (models.length === 0) {
+			return;
+		}
+
+		// Determine the new visibility based on the first model
+		const firstModel = models[0];
+		const isVisible = firstModel.model.metadata.isUserSelectable ?? false;
+		const newVisibility = !isVisible;
+
+		// Update all models
+		for (const model of models) {
+			this.languageModelsService.updateModelPickerPreference(model.model.identifier, newVisibility);
+			const metadata = this.languageModelsService.lookupLanguageModel(model.model.identifier);
+			const index = this.viewModelEntries.indexOf(model);
+			if (metadata && index !== -1) {
+				model.id = this.getModelId(model.model);
+				model.model.metadata = metadata;
+			}
+		}
+
+		// If grouping by visibility, need to re-sort
+		if (this.groupBy === ChatModelGroup.Visibility) {
+			this.modelsSorted = false;
+			this.doFilter();
+		} else {
+			// Otherwise, just update the affected entries in place
+			for (const model of models) {
+				const index = this.viewModelEntries.indexOf(model);
+				if (index !== -1) {
+					this.splice(index, 1, [model]);
+				}
+			}
+		}
+	}
+
 	private getModelId(modelEntry: ILanguageModel): string {
 		return `${modelEntry.provider.group.name}.${modelEntry.identifier}.${modelEntry.metadata.version}-visible:${modelEntry.metadata.isUserSelectable}`;
 	}

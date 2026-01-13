@@ -956,4 +956,78 @@ suite('ChatModelsViewModel', () => {
 		assert.strictEqual(models.length, 0);
 	});
 
+	test('should toggle visibility for multiple models at once', () => {
+		const results = viewModel.filter('');
+		const models = results.filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r)) as ILanguageModelEntry[];
+
+		// Get first two visible models (copilot-gpt-4 and copilot-gpt-4o)
+		const visibleModels = models.filter(m => m.model.metadata.isUserSelectable === true).slice(0, 2);
+		assert.strictEqual(visibleModels.length, 2);
+		assert.strictEqual(visibleModels[0].model.metadata.isUserSelectable, true);
+		assert.strictEqual(visibleModels[1].model.metadata.isUserSelectable, true);
+
+		// Toggle visibility for both models at once
+		viewModel.toggleVisibilityForModels(visibleModels);
+
+		// Both should now be hidden
+		const updatedModel0 = languageModelsService.lookupLanguageModel(visibleModels[0].model.identifier);
+		const updatedModel1 = languageModelsService.lookupLanguageModel(visibleModels[1].model.identifier);
+		assert.strictEqual(updatedModel0?.isUserSelectable, false);
+		assert.strictEqual(updatedModel1?.isUserSelectable, false);
+
+		// Toggle back
+		viewModel.toggleVisibilityForModels(visibleModels);
+		const revertedModel0 = languageModelsService.lookupLanguageModel(visibleModels[0].model.identifier);
+		const revertedModel1 = languageModelsService.lookupLanguageModel(visibleModels[1].model.identifier);
+		assert.strictEqual(revertedModel0?.isUserSelectable, true);
+		assert.strictEqual(revertedModel1?.isUserSelectable, true);
+	});
+
+	test('should handle empty array when toggling visibility for multiple models', () => {
+		// Should not throw
+		viewModel.toggleVisibilityForModels([]);
+	});
+
+	test('should determine new visibility based on first model in selection', () => {
+		const results = viewModel.filter('');
+		const models = results.filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r)) as ILanguageModelEntry[];
+
+		// Get one visible and one hidden model
+		const visibleModel = models.find(m => m.model.metadata.isUserSelectable === true);
+		const hiddenModel = models.find(m => m.model.metadata.isUserSelectable === false);
+
+		assert.ok(visibleModel, 'Should have at least one visible model');
+		assert.ok(hiddenModel, 'Should have at least one hidden model');
+
+		// Toggle with visible model first - should hide both
+		viewModel.toggleVisibilityForModels([visibleModel!, hiddenModel!]);
+
+		const updatedVisible = languageModelsService.lookupLanguageModel(visibleModel!.model.identifier);
+		const updatedHidden = languageModelsService.lookupLanguageModel(hiddenModel!.model.identifier);
+
+		// Both should now be hidden (based on first model which was visible)
+		assert.strictEqual(updatedVisible?.isUserSelectable, false);
+		assert.strictEqual(updatedHidden?.isUserSelectable, false);
+	});
+
+	test('should trigger re-filter when toggling visibility with visibility grouping', async () => {
+		viewModel.groupBy = ChatModelGroup.Visibility;
+		const results = viewModel.filter('');
+		const models = results.filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r)) as ILanguageModelEntry[];
+
+		const visibleModels = models.filter(m => m.model.metadata.isUserSelectable === true).slice(0, 2);
+		assert.strictEqual(visibleModels.length, 2);
+
+		let changeEventFired = false;
+		store.add(viewModel.onDidChange(() => {
+			changeEventFired = true;
+		}));
+
+		// Toggle visibility for both models
+		viewModel.toggleVisibilityForModels(visibleModels);
+
+		// Should have fired a change event due to re-filtering
+		assert.strictEqual(changeEventFired, true);
+	});
+
 });
