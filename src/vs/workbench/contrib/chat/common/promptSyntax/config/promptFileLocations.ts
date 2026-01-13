@@ -61,7 +61,7 @@ export const AGENTS_SOURCE_FOLDER = '.github/agents';
 /**
  * Location type for prompt source folders.
  */
-export type PromptSourceLocation = 'workspace' | 'userHome';
+export type PromptSourceLocation = 'workspace' | 'userHome' | 'config';
 
 /**
  * Prompt source folder definition with location metadata.
@@ -85,21 +85,21 @@ export const DEFAULT_SKILL_SOURCE_FOLDERS: readonly IPromptSourceFolder[] = [
 /**
  * Default instructions source folders.
  */
-const DEFAULT_INSTRUCTIONS_SOURCE_FOLDERS: readonly IPromptSourceFolder[] = [
+export const DEFAULT_INSTRUCTIONS_SOURCE_FOLDERS: readonly IPromptSourceFolder[] = [
 	{ path: INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, type: 'github-workspace', location: 'workspace' },
 ];
 
 /**
  * Default prompt source folders.
  */
-const DEFAULT_PROMPT_SOURCE_FOLDERS: readonly IPromptSourceFolder[] = [
+export const DEFAULT_PROMPT_SOURCE_FOLDERS: readonly IPromptSourceFolder[] = [
 	{ path: PROMPT_DEFAULT_SOURCE_FOLDER, type: 'github-workspace', location: 'workspace' },
 ];
 
 /**
  * Default agent source folders.
  */
-const DEFAULT_AGENT_SOURCE_FOLDERS: readonly IPromptSourceFolder[] = [
+export const DEFAULT_AGENT_SOURCE_FOLDERS: readonly IPromptSourceFolder[] = [
 	{ path: AGENTS_SOURCE_FOLDER, type: 'github-workspace', location: 'workspace' },
 ];
 
@@ -163,32 +163,19 @@ export function getPromptFileExtension(type: PromptsType): string {
 	}
 }
 
-/**
- * Gets the default source folders for a prompt type with full location metadata.
- * This allows types to have multiple default locations including user home folders.
- */
-export function getPromptFileDefaultLocations(type: PromptsType, location?: PromptSourceLocation): readonly IPromptSourceFolder[] {
-	let folders: readonly IPromptSourceFolder[];
+export function getPromptFileDefaultLocations(type: PromptsType): readonly IPromptSourceFolder[] {
 	switch (type) {
 		case PromptsType.instructions:
-			folders = DEFAULT_INSTRUCTIONS_SOURCE_FOLDERS;
-			break;
+			return DEFAULT_INSTRUCTIONS_SOURCE_FOLDERS;
 		case PromptsType.prompt:
-			folders = DEFAULT_PROMPT_SOURCE_FOLDERS;
-			break;
+			return DEFAULT_PROMPT_SOURCE_FOLDERS;
 		case PromptsType.agent:
-			folders = DEFAULT_AGENT_SOURCE_FOLDERS;
-			break;
+			return DEFAULT_AGENT_SOURCE_FOLDERS;
 		case PromptsType.skill:
-			folders = DEFAULT_SKILL_SOURCE_FOLDERS;
-			break;
+			return DEFAULT_SKILL_SOURCE_FOLDERS;
 		default:
 			throw new Error('Unknown prompt type');
 	}
-	if (location === undefined) {
-		return folders;
-	}
-	return folders.filter(f => f.location === location);
 }
 
 

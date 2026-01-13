@@ -11,7 +11,7 @@ import { getPromptFileLocationsConfigKey, PromptsConfig } from '../config/config
 import { basename, dirname, isEqualOrParent, joinPath } from '../../../../../../base/common/resources.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, AGENTS_SOURCE_FOLDER, getPromptFileExtension, getPromptFileType, LEGACY_MODE_FILE_EXTENSION, getCleanPromptName, AGENT_FILE_EXTENSION, getPromptFileDefaultLocations, SKILL_FILENAME, IPromptSourceFolder } from '../config/promptFileLocations.js';
+import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, AGENTS_SOURCE_FOLDER, getPromptFileExtension, getPromptFileType, LEGACY_MODE_FILE_EXTENSION, getCleanPromptName, AGENT_FILE_EXTENSION, getPromptFileDefaultLocations, SKILL_FILENAME, IPromptSourceFolder, DEFAULT_AGENT_SOURCE_FOLDERS } from '../config/promptFileLocations.js';
 import { PromptsType } from '../promptTypes.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -132,7 +132,6 @@ export class PromptFilesLocator {
 				eventEmitter.fire();
 			}
 		}));
-
 		disposables.add(this.fileService.onDidFilesChange(e => {
 			if (e.affects(userDataFolder)) {
 				eventEmitter.fire();
@@ -153,7 +152,7 @@ export class PromptFilesLocator {
 	}
 
 	public getAgentSourceFolder(): readonly URI[] {
-		return this.toAbsoluteLocations([{ path: AGENTS_SOURCE_FOLDER, type: 'github-workspace', location: 'workspace' }]).map(l => l.uri);
+		return this.toAbsoluteLocations(DEFAULT_AGENT_SOURCE_FOLDERS).map(l => l.uri);
 	}
 
 	/**
@@ -243,6 +242,9 @@ export class PromptFilesLocator {
 
 	private getLocalParentFolders(type: PromptsType): readonly { parent: URI; filePattern?: string }[] {
 		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, type);
+		if (type === PromptsType.agent) {
+			configuredLocations.push(...DEFAULT_AGENT_SOURCE_FOLDERS);
+		}
 		const absoluteLocations = this.toAbsoluteLocations(configuredLocations).map(l => l.uri);
 		return absoluteLocations.map(firstNonGlobParentAndPattern);
 	}
@@ -502,7 +504,7 @@ export class PromptFilesLocator {
 	public async findAgentSkillsInUserHome(token: CancellationToken): Promise<Array<{ uri: URI; type: string }>> {
 		const userHome = await this.pathService.userHome();
 		const allResults: Array<{ uri: URI; type: string }> = [];
-		for (const { path, type } of getPromptFileDefaultLocations(PromptsType.skill, 'userHome')) {
+		for (const { path, type } of getPromptFileDefaultLocations(PromptsType.skill).filter((folder) => folder.location === 'userHome')) {
 			const results = await this.findAgentSkillsInFolder(userHome, path, token);
 			allResults.push(...results.map(uri => ({ uri, type })));
 		}

@@ -90,6 +90,7 @@ export namespace PromptsConfig {
 
 	/**
 	 * Get value of the `reusable prompt locations` configuration setting.
+	 * @see {@link PROMPT_LOCATIONS_CONFIG_KEY}, {@link INSTRUCTIONS_LOCATIONS_CONFIG_KEY}, {@link MODE_LOCATIONS_CONFIG_KEY}, {@link SKILLS_LOCATION_KEY}.
 	 */
 	export function getLocationsValue(configService: IConfigurationService, type: PromptsType): Record<string, boolean> | undefined {
 		const key = getPromptFileLocationsConfigKey(type);
@@ -123,15 +124,16 @@ export namespace PromptsConfig {
 
 	/**
 	 * Gets list of source folders for prompt files.
+	 * Defaults to {@link PROMPT_DEFAULT_SOURCE_FOLDER}, {@link INSTRUCTIONS_DEFAULT_SOURCE_FOLDER}, {@link MODE_DEFAULT_SOURCE_FOLDER} or {@link SKILLS_LOCATION_KEY}.
 	 */
 	export function promptSourceFolders(configService: IConfigurationService, type: PromptsType): IPromptSourceFolder[] {
 		const value = getLocationsValue(configService, type);
-		const defaultSourceFolders = getPromptFileDefaultLocations(type, 'workspace');
+		const defaultSourceFolders = getPromptFileDefaultLocations(type);
 
 		// note! the `value &&` part handles the `undefined`, `null`, and `false` cases
 		if (value && (typeof value === 'object')) {
 			const paths: IPromptSourceFolder[] = [];
-			const defaultFolderPaths = defaultSourceFolders.map(f => f.path);
+			const defaultFolderPathsSet = new Set(defaultSourceFolders.map(f => f.path));
 
 			// add default source folders that are not explicitly disabled
 			for (const defaultFolder of defaultSourceFolders) {
@@ -143,12 +145,12 @@ export namespace PromptsConfig {
 			// copy all the enabled paths to the result list
 			for (const [path, enabledValue] of Object.entries(value)) {
 				// we already added the default source folders, so skip them
-				if ((enabledValue === false) || defaultFolderPaths.includes(path)) {
+				if ((enabledValue === false) || defaultFolderPathsSet.has(path)) {
 					continue;
 				}
 
 				// user-configured paths are treated as workspace locations with custom type
-				paths.push({ path, type: 'custom', location: 'workspace' });
+				paths.push({ path, type: 'custom', location: 'config' });
 			}
 
 			return paths;
