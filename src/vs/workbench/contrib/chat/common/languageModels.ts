@@ -437,15 +437,16 @@ export class LanguageModelsService implements ILanguageModelsService {
 		this._hasUserSelectableModels = ChatContextKeys.languageModelsAreUserSelectable.bindTo(_contextKeyService);
 		this._modelPickerUserPreferences = this._storageService.getObject<IStringDictionary<boolean>>('chatModelPickerPreferences', StorageScope.PROFILE, this._modelPickerUserPreferences);
 
-		const entitlementChangeHandler = () => {
+		// Clear model picker preferences when entitlement changes to Business/Enterprise
+		// (these users get all models from their organization and shouldn't have custom preferences)
+		// Note: We only clear on entitlement *change*, not on initialization, to avoid
+		// clearing preferences during transient authentication/service issues
+		this._store.add(this._chatEntitlementService.onDidChangeEntitlement(() => {
 			if ((this._chatEntitlementService.entitlement === ChatEntitlement.Business || this._chatEntitlementService.entitlement === ChatEntitlement.Enterprise) && !this._chatEntitlementService.isInternal) {
 				this._modelPickerUserPreferences = {};
 				this._storageService.store('chatModelPickerPreferences', this._modelPickerUserPreferences, StorageScope.PROFILE, StorageTarget.USER);
 			}
-		};
-
-		entitlementChangeHandler();
-		this._store.add(this._chatEntitlementService.onDidChangeEntitlement(entitlementChangeHandler));
+		}));
 
 		this._store.add(this.onDidChangeLanguageModels(() => this._hasUserSelectableModels.set(this._modelCache.size > 0 && Array.from(this._modelCache.values()).some(model => model.isUserSelectable))));
 

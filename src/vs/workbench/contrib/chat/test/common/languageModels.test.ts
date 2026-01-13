@@ -217,6 +217,96 @@ suite('LanguageModels', function () {
 		assert.ok(vendors.some(v => v.vendor === 'test-vendor'));
 		assert.ok(vendors.some(v => v.vendor === 'actual-vendor'));
 	});
+
+	test('model picker preferences are preserved during service initialization', async function () {
+		// Create a storage service with pre-existing preferences
+		const storageService = new TestStorageService();
+		const preferences = { 'test-id-1': false, 'test-id-12': true };
+		storageService.store('chatModelPickerPreferences', JSON.stringify(preferences), 0 /* StorageScope.PROFILE */, 0 /* StorageTarget.USER */);
+
+		// Create a new language models service with the storage containing preferences
+		const testLanguageModels = new LanguageModelsService(
+			new class extends mock<IExtensionService>() {
+				override activateByEvent(name: string) {
+					return Promise.resolve();
+				}
+			},
+			new NullLogService(),
+			storageService,
+			new MockContextKeyService(),
+			new TestConfigurationService(),
+			new TestChatEntitlementService(), // Default entitlement (not Business/Enterprise)
+			new class extends mock<ILanguageModelsConfigurationService>() {
+				override getLanguageModelsProviderGroups() {
+					return [];
+				}
+			},
+			new class extends mock<IQuickInputService>() { },
+			new TestSecretStorageService(),
+		);
+
+		try {
+			// Register the extension point
+			const ext = ExtensionsRegistry.getExtensionPoints().find(e => e.name === languageModelChatProviderExtensionPoint.name)!;
+			ext.acceptUsers([{
+				description: { ...nullExtensionDescription },
+				value: { vendor: 'test-vendor' },
+				collector: null!
+			}]);
+
+			// Register a provider
+			const disposable = testLanguageModels.registerLanguageModelProvider('test-vendor', {
+				onDidChange: Event.None,
+				provideLanguageModelChatInfo: async () => {
+					return [{
+						metadata: {
+							extension: nullExtensionDescription.identifier,
+							name: 'Test Model 1',
+							vendor: 'test-vendor',
+							family: 'test-family',
+							version: '1.0',
+							id: 'test-id-1',
+							maxInputTokens: 100,
+							maxOutputTokens: 100,
+							isUserSelectable: true, // Default is true
+						},
+						identifier: 'test-id-1',
+					}, {
+						metadata: {
+							extension: nullExtensionDescription.identifier,
+							name: 'Test Model 2',
+							vendor: 'test-vendor',
+							family: 'test-family',
+							version: '2.0',
+							id: 'test-id-12',
+							maxInputTokens: 100,
+							maxOutputTokens: 100,
+							isUserSelectable: true, // Default is true
+						},
+						identifier: 'test-id-12',
+					}];
+				},
+				sendChatRequest: async () => { throw new Error(); },
+				provideTokenCount: async () => { throw new Error(); }
+			});
+
+			// Wait for models to be resolved
+			await testLanguageModels.selectLanguageModels({ vendor: 'test-vendor' });
+
+			// Check that preferences are applied correctly
+			const model1 = testLanguageModels.lookupLanguageModel('test-id-1');
+			const model2 = testLanguageModels.lookupLanguageModel('test-id-12');
+
+			assert.ok(model1, 'Model 1 should exist');
+			assert.ok(model2, 'Model 2 should exist');
+			assert.strictEqual(model1!.isUserSelectable, false, 'Model 1 should have user preference applied (false)');
+			assert.strictEqual(model2!.isUserSelectable, true, 'Model 2 should have user preference applied (true)');
+
+			disposable.dispose();
+		} finally {
+			testLanguageModels.dispose();
+		}
+	});
 });
 
 suite('LanguageModels - When Clause', function () {
