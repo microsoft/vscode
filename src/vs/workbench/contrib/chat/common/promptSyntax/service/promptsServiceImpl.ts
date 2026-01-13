@@ -710,8 +710,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				claudeWorkspace: number;
 				copilotPersonal: number;
 				githubWorkspace: number;
-				customPersonal: number;
-				customWorkspace: number;
+				custom: number;
 				skippedDuplicateName: number;
 				skippedMissingName: number;
 				skippedParseFailed: number;
@@ -723,8 +722,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				claudeWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of Claude workspace skills.' };
 				copilotPersonal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of Copilot personal skills.' };
 				githubWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of GitHub workspace skills.' };
-				customPersonal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of custom personal skills.' };
-				customWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of custom workspace skills.' };
+				custom: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of custom personal skills.' };
 				skippedDuplicateName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of skills skipped due to duplicate names.' };
 				skippedMissingName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of skills skipped due to missing name attribute.' };
 				skippedParseFailed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of skills skipped due to parse failures.' };
@@ -738,8 +736,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				claudeWorkspace: skillTypes.get('claude-workspace') ?? 0,
 				copilotPersonal: skillTypes.get('copilot-personal') ?? 0,
 				githubWorkspace: skillTypes.get('github-workspace') ?? 0,
-				customPersonal: skillTypes.get('custom-personal') ?? 0,
-				customWorkspace: skillTypes.get('custom-workspace') ?? 0,
+				custom: skillTypes.get('custom') ?? 0,
 				skippedDuplicateName,
 				skippedMissingName,
 				skippedParseFailed

@@ -713,11 +713,23 @@ configurationRegistry.registerConfiguration({
 		[PromptsConfig.USE_AGENT_SKILLS]: {
 			type: 'boolean',
 			title: nls.localize('chat.useAgentSkills.title', "Use Agent skills",),
-			markdownDescription: nls.localize('chat.useAgentSkills.description', "Controls whether skills are provided as specialized capabilities to the chat requests. Skills are loaded from `.github/skills`, `~/.copilot/skills`, `.claude/skills`, and `~/.claude/skills`. The language model can load these skills on-demand if the `read` tool is available. Learn more about [Agent Skills](https://aka.ms/vscode-agent-skills).",),
-			default: false,
+			markdownDescription: nls.localize('chat.useAgentSkills.description', "Controls whether skills are provided as specialized capabilities to the chat requests. Skills are loaded from `.github/skills`, `~/.copilot/skills`, `.claude/skills`, `~/.claude/skills`, and any additional folders configured in `#chat.agentSkillsLocations#`. The language model can load these skills on-demand if the `read` tool is available. Learn more about [Agent Skills](https://aka.ms/vscode-agent-skills).",), default: false,
 			restricted: true,
 			disallowConfigurationDefault: true,
-			tags: ['experimental', 'prompts', 'reusable prompts', 'prompt snippets', 'instructions']
+			tags: ['prompts', 'reusable prompts', 'prompt snippets', 'instructions']
+		},
+		[PromptsConfig.SKILLS_LOCATION_KEY]: {
+			type: 'array',
+			items: { type: 'string' },
+			title: nls.localize('chat.agentSkillsLocations.title', "Agent Skills Locations",),
+			markdownDescription: nls.localize('chat.agentSkillsLocations.description', "Specify additional folders containing agent skills. Each folder should have skill subdirectories with `SKILL.md` files (e.g., for `my-skills/skillA/SKILL.md`, add `my-skills`). Relative paths are resolved from workspace root.",),
+			default: [],
+			restricted: true,
+			tags: ['prompts', 'reusable prompts', 'prompt snippets', 'instructions'],
+			examples: [
+				['my-skills'],
+				['my-project-skills', '/shared/team-skills'],
+			],
 		},
 		[PromptsConfig.PROMPT_FILES_SUGGEST_KEY]: {
 			type: 'object',

@@ -6,7 +6,7 @@
 import type { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { PromptsType } from '../promptTypes.js';
-import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, getPromptFileDefaultLocation } from './promptFileLocations.js';
+import { getPromptFileDefaultLocations } from './promptFileLocations.js';
 
 /**
  * Configuration helper for the `reusable prompts` feature.
@@ -59,9 +59,9 @@ export namespace PromptsConfig {
 	export const MODE_LOCATION_KEY = 'chat.modeFilesLocations';
 
 	/**
-	 * Configuration key for the locations of skill files.
+	 * Configuration key for the locations of skill folders.
 	 */
-	export const SKILLS_LOCATION_KEY = 'chat.skillFilesLocations';
+	export const SKILLS_LOCATION_KEY = 'chat.agentSkillsLocations';
 
 	/**
 	 * Configuration key for prompt file suggestions.
@@ -90,7 +90,6 @@ export namespace PromptsConfig {
 
 	/**
 	 * Get value of the `reusable prompt locations` configuration setting.
-	 * @see {@link PROMPT_LOCATIONS_CONFIG_KEY}, {@link INSTRUCTIONS_LOCATIONS_CONFIG_KEY}, {@link MODE_LOCATIONS_CONFIG_KEY}.
 	 */
 	export function getLocationsValue(configService: IConfigurationService, type: PromptsType): Record<string, boolean> | undefined {
 		const key = getPromptFileLocationsConfigKey(type);
@@ -124,25 +123,26 @@ export namespace PromptsConfig {
 
 	/**
 	 * Gets list of source folders for prompt files.
-	 * Defaults to {@link PROMPT_DEFAULT_SOURCE_FOLDER}, {@link INSTRUCTIONS_DEFAULT_SOURCE_FOLDER} or {@link MODE_DEFAULT_SOURCE_FOLDER}.
 	 */
 	export function promptSourceFolders(configService: IConfigurationService, type: PromptsType): string[] {
 		const value = getLocationsValue(configService, type);
-		const defaultSourceFolder = getPromptFileDefaultLocation(type);
+		const defaultSourceFolders = getPromptFileDefaultLocations(type, 'workspace').map(f => f.path);
 
 		// note! the `value &&` part handles the `undefined`, `null`, and `false` cases
 		if (value && (typeof value === 'object')) {
 			const paths: string[] = [];
 
-			// if the default source folder is not explicitly disabled, add it
-			if (value[defaultSourceFolder] !== false) {
-				paths.push(defaultSourceFolder);
+			// add default source folders that are not explicitly disabled
+			for (const defaultFolder of defaultSourceFolders) {
+				if (value[defaultFolder] !== false) {
+					paths.push(defaultFolder);
+				}
 			}
 
 			// copy all the enabled paths to the result list
 			for (const [path, enabledValue] of Object.entries(value)) {
-				// we already added the default source folder, so skip it
-				if ((enabledValue === false) || (path === defaultSourceFolder)) {
+				// we already added the default source folders, so skip them
+				if ((enabledValue === false) || defaultSourceFolders.includes(path)) {
 					continue;
 				}
 

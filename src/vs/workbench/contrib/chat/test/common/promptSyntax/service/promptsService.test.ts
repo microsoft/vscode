@@ -1060,6 +1060,182 @@ suite('PromptsService', () => {
 		});
 	});
 
+	suite('listPromptFiles - skills', () => {
+		teardown(() => {
+			sinon.restore();
+		});
+
+		test('should list skill files from workspace', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+
+			const rootFolderName = 'list-skills-workspace';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/skills/skill1/SKILL.md`,
+					contents: [
+						'---',
+						'name: "Skill 1"',
+						'description: "First skill"',
+						'---',
+						'Skill 1 content',
+					],
+				},
+				{
+					path: `${rootFolder}/.claude/skills/skill2/SKILL.md`,
+					contents: [
+						'---',
+						'name: "Skill 2"',
+						'description: "Second skill"',
+						'---',
+						'Skill 2 content',
+					],
+				},
+			]);
+
+			const result = await service.listPromptFiles(PromptsType.skill, CancellationToken.None);
+
+			assert.strictEqual(result.length, 2, 'Should find 2 skills');
+
+			const skill1 = result.find(s => s.uri.path.includes('skill1'));
+			assert.ok(skill1, 'Should find skill1');
+			assert.strictEqual(skill1.type, PromptsType.skill);
+			assert.strictEqual(skill1.storage, PromptsStorage.local);
+
+			const skill2 = result.find(s => s.uri.path.includes('skill2'));
+			assert.ok(skill2, 'Should find skill2');
+			assert.strictEqual(skill2.type, PromptsType.skill);
+			assert.strictEqual(skill2.storage, PromptsStorage.local);
+		});
+
+		test('should list skill files from user home', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+
+			const rootFolderName = 'list-skills-user-home';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await mockFiles(fileService, [
+				{
+					path: '/home/user/.copilot/skills/personal-skill/SKILL.md',
+					contents: [
+						'---',
+						'name: "Personal Skill"',
+						'description: "A personal skill"',
+						'---',
+						'Personal skill content',
+					],
+				},
+				{
+					path: '/home/user/.claude/skills/claude-personal/SKILL.md',
+					contents: [
+						'---',
+						'name: "Claude Personal Skill"',
+						'description: "A Claude personal skill"',
+						'---',
+						'Claude personal skill content',
+					],
+				},
+			]);
+
+			const result = await service.listPromptFiles(PromptsType.skill, CancellationToken.None);
+
+			const personalSkills = result.filter(s => s.storage === PromptsStorage.user);
+			assert.strictEqual(personalSkills.length, 2, 'Should find 2 personal skills');
+
+			const copilotSkill = personalSkills.find(s => s.uri.path.includes('.copilot'));
+			assert.ok(copilotSkill, 'Should find copilot personal skill');
+
+			const claudeSkill = personalSkills.find(s => s.uri.path.includes('.claude'));
+			assert.ok(claudeSkill, 'Should find claude personal skill');
+		});
+
+		test('should not list skills when not in skill folder structure', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+
+			const rootFolderName = 'no-skills';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			// Create files in non-skill locations
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/prompts/SKILL.md`,
+					contents: [
+						'---',
+						'name: "Not a skill"',
+						'---',
+						'This is in prompts folder, not skills',
+					],
+				},
+				{
+					path: `${rootFolder}/SKILL.md`,
+					contents: [
+						'---',
+						'name: "Root skill"',
+						'---',
+						'This is in root, not skills folder',
+					],
+				},
+			]);
+
+			const result = await service.listPromptFiles(PromptsType.skill, CancellationToken.None);
+
+			assert.strictEqual(result.length, 0, 'Should not find any skills in non-skill locations');
+		});
+
+		test('should handle mixed workspace and user home skills', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+
+			const rootFolderName = 'mixed-skills';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await mockFiles(fileService, [
+				// Workspace skills
+				{
+					path: `${rootFolder}/.github/skills/workspace-skill/SKILL.md`,
+					contents: [
+						'---',
+						'name: "Workspace Skill"',
+						'description: "A workspace skill"',
+						'---',
+						'Workspace skill content',
+					],
+				},
+				// User home skills
+				{
+					path: '/home/user/.copilot/skills/personal-skill/SKILL.md',
+					contents: [
+						'---',
+						'name: "Personal Skill"',
+						'description: "A personal skill"',
+						'---',
+						'Personal skill content',
+					],
+				},
+			]);
+
+			const result = await service.listPromptFiles(PromptsType.skill, CancellationToken.None);
+
+			const workspaceSkills = result.filter(s => s.storage === PromptsStorage.local);
+			const userSkills = result.filter(s => s.storage === PromptsStorage.user);
+
+			assert.strictEqual(workspaceSkills.length, 1, 'Should find 1 workspace skill');
+			assert.strictEqual(userSkills.length, 1, 'Should find 1 user skill');
+		});
+	});
+
 	suite('listPromptFiles - extensions', () => {
 
 		test('Contributed prompt file', async () => {
@@ -1462,6 +1638,125 @@ suite('PromptsService', () => {
 
 		assert.ok(readonlyPrompt, 'Readonly prompt should be found');
 		assert.ok(editablePrompt, 'Editable prompt should be found');
+
+		registered.dispose();
+	});
+
+	test('Skill file provider', async () => {
+		const skillUri = URI.parse('file://extensions/my-extension/mySkill/SKILL.md');
+		const extension = {
+			identifier: { value: 'test.my-extension' },
+			enabledApiProposals: ['chatParticipantPrivate']
+		} as unknown as IExtensionDescription;
+
+		// Mock the skill file content
+		await mockFiles(fileService, [
+			{
+				path: skillUri.path,
+				contents: [
+					'---',
+					'name: "My Custom Skill"',
+					'description: "A custom skill from provider"',
+					'---',
+					'Custom skill content.',
+				]
+			}
+		]);
+
+		const provider = {
+			providePromptFiles: async (_context: IPromptFileContext, _token: CancellationToken) => {
+				return [
+					{
+						uri: skillUri
+					}
+				];
+			}
+		};
+
+		const registered = service.registerPromptFileProvider(extension, PromptsType.skill, provider);
+
+		const actual = await service.listPromptFiles(PromptsType.skill, CancellationToken.None);
+		const providerSkill = actual.find(i => i.uri.toString() === skillUri.toString());
+
+		assert.ok(providerSkill, 'Provider skill should be found');
+		assert.strictEqual(providerSkill!.uri.toString(), skillUri.toString());
+		assert.strictEqual(providerSkill!.storage, PromptsStorage.extension);
+		assert.strictEqual(providerSkill!.source, ExtensionAgentSourceType.provider);
+
+		registered.dispose();
+
+		// After disposal, the skill should no longer be listed
+		const actualAfterDispose = await service.listPromptFiles(PromptsType.skill, CancellationToken.None);
+		const foundAfterDispose = actualAfterDispose.find(i => i.uri.toString() === skillUri.toString());
+		assert.strictEqual(foundAfterDispose, undefined);
+	});
+
+	test('Skill file provider with isEditable flag', async () => {
+		const readonlySkillUri = URI.parse('file://extensions/my-extension/readonlySkill/SKILL.md');
+		const editableSkillUri = URI.parse('file://extensions/my-extension/editableSkill/SKILL.md');
+		const extension = {
+			identifier: { value: 'test.my-extension' },
+			enabledApiProposals: ['chatParticipantPrivate']
+		} as unknown as IExtensionDescription;
+
+		// Mock the skill file content
+		await mockFiles(fileService, [
+			{
+				path: readonlySkillUri.path,
+				contents: [
+					'---',
+					'name: "Readonly Skill"',
+					'description: "A readonly skill"',
+					'---',
+					'Readonly skill content.',
+				]
+			},
+			{
+				path: editableSkillUri.path,
+				contents: [
+					'---',
+					'name: "Editable Skill"',
+					'description: "An editable skill"',
+					'---',
+					'Editable skill content.',
+				]
+			}
+		]);
+
+		const provider = {
+			providePromptFiles: async (_context: IPromptFileContext, _token: CancellationToken) => {
+				return [
+					{
+						uri: readonlySkillUri,
+						isEditable: false
+					},
+					{
+						uri: editableSkillUri,
+						isEditable: true
+					}
+				];
+			}
+		};
+
+		const registered = service.registerPromptFileProvider(extension, PromptsType.skill, provider);
+
+		// Spy on updateReadonly to verify it's called correctly
+		const filesConfigService = instaService.get(IFilesConfigurationService);
+		const updateReadonlySpy = sinon.spy(filesConfigService, 'updateReadonly');
+
+		// List prompt files to trigger the readonly check
+		await service.listPromptFiles(PromptsType.skill, CancellationToken.None);
+
+		// Verify updateReadonly was called only for the non-editable skill
+		assert.strictEqual(updateReadonlySpy.callCount, 1, 'updateReadonly should be called once');
+		assert.ok(updateReadonlySpy.calledWith(readonlySkillUri, true), 'updateReadonly should be called with readonly skill URI and true');
+
+		const actual = await service.listPromptFiles(PromptsType.skill, CancellationToken.None);
+		const readonlySkill = actual.find(i => i.uri.toString() === readonlySkillUri.toString());
+		const editableSkill = actual.find(i => i.uri.toString() === editableSkillUri.toString());
+
+		assert.ok(readonlySkill, 'Readonly skill should be found');
+		assert.ok(editableSkill, 'Editable skill should be found');
 
 		registered.dispose();
 	});

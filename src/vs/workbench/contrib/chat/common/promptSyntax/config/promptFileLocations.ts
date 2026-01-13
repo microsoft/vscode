@@ -59,25 +59,49 @@ export const LEGACY_MODE_DEFAULT_SOURCE_FOLDER = '.github/chatmodes';
 export const AGENTS_SOURCE_FOLDER = '.github/agents';
 
 /**
- * Default skills source folder.
+ * Location type for prompt source folders.
  */
-export const SKILLS_DEFAULT_SOURCE_FOLDER = '.github/skills';
+export type PromptSourceLocation = 'workspace' | 'userHome';
 
 /**
- * Default agent skills workspace source folders.
+ * Prompt source folder definition with location metadata.
  */
-export const DEFAULT_AGENT_SKILLS_WORKSPACE_FOLDERS = [
-	{ path: '.github/skills', type: 'github-workspace' },
-	{ path: '.claude/skills', type: 'claude-workspace' }
-] as const;
+export interface IPromptSourceFolder {
+	readonly path: string;
+	readonly type: string;
+	readonly location: PromptSourceLocation;
+}
 
 /**
- * Default agent skills user home source folders.
+ * All default skill source folders (both workspace and user home).
  */
-export const DEFAULT_AGENT_SKILLS_USER_HOME_FOLDERS = [
-	{ path: '.copilot/skills', type: 'copilot-personal' },
-	{ path: '.claude/skills', type: 'claude-personal' }
-] as const;
+const DEFAULT_SKILL_SOURCE_FOLDERS: readonly IPromptSourceFolder[] = [
+	{ path: '.github/skills', type: 'github-workspace', location: 'workspace' },
+	{ path: '.claude/skills', type: 'claude-workspace', location: 'workspace' },
+	{ path: '.copilot/skills', type: 'copilot-personal', location: 'userHome' },
+	{ path: '.claude/skills', type: 'claude-personal', location: 'userHome' },
+];
+
+/**
+ * Default instructions source folders.
+ */
+const DEFAULT_INSTRUCTIONS_SOURCE_FOLDERS: readonly IPromptSourceFolder[] = [
+	{ path: INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, type: 'github-workspace', location: 'workspace' },
+];
+
+/**
+ * Default prompt source folders.
+ */
+const DEFAULT_PROMPT_SOURCE_FOLDERS: readonly IPromptSourceFolder[] = [
+	{ path: PROMPT_DEFAULT_SOURCE_FOLDER, type: 'github-workspace', location: 'workspace' },
+];
+
+/**
+ * Default agent source folders.
+ */
+const DEFAULT_AGENT_SOURCE_FOLDERS: readonly IPromptSourceFolder[] = [
+	{ path: AGENTS_SOURCE_FOLDER, type: 'github-workspace', location: 'workspace' },
+];
 
 /**
  * Helper function to check if a file is directly in the .github/agents/ folder (not in subfolders).
@@ -139,19 +163,32 @@ export function getPromptFileExtension(type: PromptsType): string {
 	}
 }
 
-export function getPromptFileDefaultLocation(type: PromptsType): string {
+/**
+ * Gets the default source folders for a prompt type with full location metadata.
+ * This allows types to have multiple default locations including user home folders.
+ */
+export function getPromptFileDefaultLocations(type: PromptsType, location?: PromptSourceLocation): readonly IPromptSourceFolder[] {
+	let folders: readonly IPromptSourceFolder[];
 	switch (type) {
 		case PromptsType.instructions:
-			return INSTRUCTIONS_DEFAULT_SOURCE_FOLDER;
+			folders = DEFAULT_INSTRUCTIONS_SOURCE_FOLDERS;
+			break;
 		case PromptsType.prompt:
-			return PROMPT_DEFAULT_SOURCE_FOLDER;
+			folders = DEFAULT_PROMPT_SOURCE_FOLDERS;
+			break;
 		case PromptsType.agent:
-			return AGENTS_SOURCE_FOLDER;
+			folders = DEFAULT_AGENT_SOURCE_FOLDERS;
+			break;
 		case PromptsType.skill:
-			return SKILLS_DEFAULT_SOURCE_FOLDER;
+			folders = DEFAULT_SKILL_SOURCE_FOLDERS;
+			break;
 		default:
 			throw new Error('Unknown prompt type');
 	}
+	if (location === undefined) {
+		return folders;
+	}
+	return folders.filter(f => f.location === location);
 }
 
 
