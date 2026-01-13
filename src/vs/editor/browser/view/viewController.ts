@@ -133,20 +133,10 @@ export class ViewController {
 
 	/**
 	 * Selects content inside brackets if the position is right after an opening bracket or right before a closing bracket.
-	 * @param viewPosition The position in the view.
-	 */
-	private _trySelectBracketContentInViewModel(viewPosition: Position): Selection | undefined {
-		const pos = this._convertViewToModelPosition(viewPosition);
-		const model = this.viewModel.model;
-		return ViewController._trySelectBracketContent(pos, model);
-	}
-
-	/**
-	 * Selects content inside brackets if the position is right after an opening bracket or right before a closing bracket.
 	 * @param pos The position in the model.
 	 * @param model The text model.
 	 */
-	private static _trySelectBracketContent(pos: Position, model: ITextModel): Selection | undefined {
+	private static _trySelectBracketContent(model: ITextModel, pos: Position): Selection | undefined {
 		// Try to find bracket match if we're right after an opening bracket.
 		if (pos.column > 1) {
 			const pair = model.bracketPairs.matchBracket(pos.with(undefined, pos.column - 1));
@@ -168,10 +158,12 @@ export class ViewController {
 
 	/**
 	 * Selects content inside a string if the position is right after an opening quote or right before a closing quote.
+	 * @param pos The position in the model.
+	 * @param model The text model.
 	 */
-	private _trySelectStringContent(viewPosition: Position): Selection | undefined {
-		const { lineNumber, column } = this._convertViewToModelPosition(viewPosition);
-		const { tokenization: tokens } = this.viewModel.model;
+	private static _trySelectStringContent(model: ITextModel, pos: Position): Selection | undefined {
+		const { lineNumber, column } = pos;
+		const { tokenization: tokens } = model;
 
 		// Ensure we have accurate tokens for the line.
 		if (!tokens.hasAccurateTokensForLine(lineNumber)) {
@@ -250,7 +242,9 @@ export class ViewController {
 					if (data.inSelectionMode) {
 						this._wordSelectDrag(data.position, data.revealType);
 					} else {
-						const selection = this._trySelectBracketContentInViewModel(data.position) || this._trySelectStringContent(data.position);
+						const model = this.viewModel.model;
+						const modelPos = this._convertViewToModelPosition(data.position);
+						const selection = ViewController._trySelectBracketContent(model, modelPos) || ViewController._trySelectStringContent(model, modelPos);
 						if (selection) {
 							this._select(selection);
 						} else {
