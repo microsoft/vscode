@@ -400,7 +400,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 
 			for (const id of languageModelsService.getLanguageModelIds()) {
 				const model = languageModelsService.lookupLanguageModel(id);
-				if (model?.isDefault) {
+				if (model?.isDefaultForLocation[ChatAgentLocation.Chat]) {
 					return true;
 				}
 			}

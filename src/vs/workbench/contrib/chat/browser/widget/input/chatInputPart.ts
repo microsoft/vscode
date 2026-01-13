@@ -115,10 +115,12 @@ import { resizeImage } from '../../chatImageUtils.js';
 import { IModelPickerDelegate, ModelPickerActionItem } from './modelPickerActionItem.js';
 import { IModePickerDelegate, ModePickerActionItem } from './modePickerActionItem.js';
 import { SearchableOptionPickerActionItem } from '../../chatSessions/searchableOptionPickerActionItemtest.js';
+import { mixin } from '../../../../../../base/common/objects.js';
 
 const $ = dom.$;
 
 const INPUT_EDITOR_MAX_HEIGHT = 250;
+const CachedLanguageModelsKey = 'chat.cachedLanguageModels.v2';
 
 export interface IChatInputStyles {
 	overlayBackground: string;
@@ -152,7 +154,18 @@ const emptyInputState = observableMemento<IChatModelInputState | undefined>({
 	defaultValue: undefined,
 	key: 'chat.untitledInputState',
 	toStorage: JSON.stringify,
-	fromStorage: JSON.parse,
+	fromStorage(value) {
+		const obj = JSON.parse(value) as IChatModelInputState;
+		if (obj.selectedModel && !obj.selectedModel.metadata.isDefaultForLocation) {
+			// Migrate old `isDefault` to `isDefaultForLocation`
+			type OldILanguageModelChatMetadata = ILanguageModelChatMetadata & { isDefault?: boolean };
+			const oldIsDefault = (obj.selectedModel.metadata as OldILanguageModelChatMetadata).isDefault;
+			const isDefaultForLocation = { [ChatAgentLocation.Chat]: Boolean(oldIsDefault) };
+			mixin(obj.selectedModel.metadata, { isDefaultForLocation: isDefaultForLocation } satisfies Partial<ILanguageModelChatMetadata>);
+			delete (obj.selectedModel.metadata as OldILanguageModelChatMetadata).isDefault;
+		}
+		return obj;
+	},
 });
 
 export class ChatInputPart extends Disposable implements IHistoryNavigationWidget {
@@ -553,8 +566,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// Remove vendor from cache since the models changed and what is stored is no longer valid
 			// TODO @lramos15 - The cache should be less confusing since we have the LM Service cache + the view cache interacting weirdly
 			this.storageService.store(
-				'chat.cachedLanguageModels',
-				this.storageService.getObject<ILanguageModelChatMetadataAndIdentifier[]>('chat.cachedLanguageModels', StorageScope.APPLICATION, []).filter(m => !m.identifier.startsWith(vendor)),
+				CachedLanguageModelsKey,
+				this.storageService.getObject<ILanguageModelChatMetadataAndIdentifier[]>(CachedLanguageModelsKey, StorageScope.APPLICATION, []).filter(m => !m.identifier.startsWith(vendor)),
 				StorageScope.APPLICATION,
 				StorageTarget.MACHINE
 			);
@@ -621,7 +634,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const model = this.getModels().find(m => m.identifier === persistedSelection);
 			if (model) {
 				// Only restore the model if it wasn't the default at the time of storing or it is now the default
-				if (!persistedAsDefault || model.metadata.isDefault) {
+				if (!persistedAsDefault || model.metadata.isDefaultForLocation[this.location]) {
 					this.setCurrentLanguageModel(model);
 					this.checkModelSupported();
 				}
@@ -632,7 +645,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						this._waitForPersistedLanguageModel.clear();
 
 						// Only restore the model if it wasn't the default at the time of storing or it is now the default
-						if (!persistedAsDefault || persistedModel.isDefault) {
+						if (!persistedAsDefault || persistedModel.isDefaultForLocation[this.location]) {
 							if (persistedModel.isUserSelectable) {
 								this.setCurrentLanguageModel({ metadata: persistedModel, identifier: persistedSelection });
 								this.checkModelSupported();
@@ -929,7 +942,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		// Store as global user preference (session-specific state is in the model's inputModel)
 		this.storageService.store(this.getSelectedModelStorageKey(), model.identifier, StorageScope.APPLICATION, StorageTarget.USER);
-		this.storageService.store(this.getSelectedModelIsDefaultStorageKey(), !!model.metadata.isDefault, StorageScope.APPLICATION, StorageTarget.USER);
+		this.storageService.store(this.getSelectedModelIsDefaultStorageKey(), !!model.metadata.isDefaultForLocation[this.location], StorageScope.APPLICATION, StorageTarget.USER);
 
 		this._onDidChangeCurrentLanguageModel.fire(model);
 
@@ -986,13 +999,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private getModels(): ILanguageModelChatMetadataAndIdentifier[] {
-		const cachedModels = this.storageService.getObject<ILanguageModelChatMetadataAndIdentifier[]>('chat.cachedLanguageModels', StorageScope.APPLICATION, []);
+		const cachedModels = this.storageService.getObject<ILanguageModelChatMetadataAndIdentifier[]>(CachedLanguageModelsKey, StorageScope.APPLICATION, []);
 		let models = this.languageModelsService.getLanguageModelIds()
 			.map(modelId => ({ identifier: modelId, metadata: this.languageModelsService.lookupLanguageModel(modelId)! }));
-		if (models.length === 0 || models.some(m => m.metadata.isDefault) === false) {
+		if (models.length === 0 || models.some(m => m.metadata.isDefaultForLocation[this.location]) === false) {
 			models = cachedModels;
 		} else {
-			this.storageService.store('chat.cachedLanguageModels', models, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			this.storageService.store(CachedLanguageModelsKey, models, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		}
 		models.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
 		return models.filter(entry => entry.metadata?.isUserSelectable && this.modelSupportedForDefaultAgent(entry) && this.modelSupportedForInlineChat(entry));
@@ -1000,7 +1013,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private setCurrentLanguageModelToDefault() {
 		const allModels = this.getModels();
-		const defaultModel = allModels.find(m => m.metadata.isDefault) || allModels.find(m => m.metadata.isUserSelectable);
+		const defaultModel = allModels.find(m => m.metadata.isDefaultForLocation[this.location]) || allModels.find(m => m.metadata.isUserSelectable);
 		if (defaultModel) {
 			this.setCurrentLanguageModel(defaultModel);
 		}

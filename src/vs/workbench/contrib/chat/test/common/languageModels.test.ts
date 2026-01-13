@@ -10,7 +10,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { ChatMessageRole, languageModelChatProviderExtensionPoint, LanguageModelsService, IChatMessage, IChatResponsePart } from '../../common/languageModels.js';
+import { ChatMessageRole, languageModelChatProviderExtensionPoint, LanguageModelsService, IChatMessage, IChatResponsePart, ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { IExtensionService, nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry } from '../../../../services/extensions/common/extensionsRegistry.js';
 import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../common/widget/input/modelPickerWidget.js';
@@ -80,7 +80,8 @@ suite('LanguageModels', function () {
 						id: 'test-id-1',
 						maxInputTokens: 100,
 						maxOutputTokens: 100,
-					},
+						isDefaultForLocation: {}
+					} satisfies ILanguageModelChatMetadata,
 					{
 						extension: nullExtensionDescription.identifier,
 						name: 'Pretty Name',
@@ -91,7 +92,8 @@ suite('LanguageModels', function () {
 						id: 'test-id-12',
 						maxInputTokens: 100,
 						maxOutputTokens: 100,
-					}
+						isDefaultForLocation: {}
+					} satisfies ILanguageModelChatMetadata
 				];
 				const modelMetadataAndIdentifier = modelMetadata.map(m => ({
 					metadata: m,
@@ -154,7 +156,8 @@ suite('LanguageModels', function () {
 						maxInputTokens: 100,
 						maxOutputTokens: 100,
 						modelPickerCategory: DEFAULT_MODEL_PICKER_CATEGORY,
-					}
+						isDefaultForLocation: {}
+					} satisfies ILanguageModelChatMetadata
 				];
 				const modelMetadataAndIdentifier = modelMetadata.map(m => ({
 					metadata: m,

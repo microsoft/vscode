@@ -27,6 +27,7 @@ import { IExtHostAuthentication } from './extHostAuthentication.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
+import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 
 export interface IExtHostLanguageModels extends ExtHostLanguageModels { }
 
@@ -189,6 +190,22 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				checkProposedApiEnabled(data.extension, 'chatProvider');
 			}
 
+			const isDefaultForLocation: { [K in ChatAgentLocation]?: boolean } = {};
+			if (isProposedApiEnabled(data.extension, 'chatProvider')) {
+				if (m.isDefault === true) {
+					for (const key of Object.values(ChatAgentLocation)) {
+						if (typeof key === 'string') {
+							isDefaultForLocation[key as ChatAgentLocation] = true;
+						}
+					}
+				} else if (typeof m.isDefault === 'object') {
+					for (const key of Object.keys(m.isDefault)) {
+						const enumKey = parseInt(key) as extHostTypes.ChatLocation;
+						isDefaultForLocation[typeConvert.ChatLocation.from(enumKey)] = m.isDefault[enumKey];
+					}
+				}
+			}
+
 			return {
 				metadata: {
 					extension: data.extension.identifier,
@@ -202,7 +219,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 					maxInputTokens: m.maxInputTokens,
 					maxOutputTokens: m.maxOutputTokens,
 					auth,
-					isDefault: m.isDefault,
+					isDefaultForLocation,
 					isUserSelectable: m.isUserSelectable,
 					statusIcon: m.statusIcon,
 					modelPickerCategory: m.category ?? DEFAULT_MODEL_PICKER_CATEGORY,
@@ -333,7 +350,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		}
 
 		for (const [modelIdentifier, modelData] of this._localModels) {
-			if (modelData.metadata.isDefault) {
+			if (modelData.metadata.isDefaultForLocation[ChatAgentLocation.Chat]) {
 				defaultModelId = modelIdentifier;
 				break;
 			}
