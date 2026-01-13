@@ -81,21 +81,6 @@ export class SearchableOptionPickerActionItem extends ActionWidgetDropdownAction
 					if (!optionGroup) {
 						return [];
 					}
-					// Add "See more..." action if onSearch is available
-					if (optionGroup.onSearch) {
-						actions.push({
-							id: SearchableOptionPickerActionItem.SEE_MORE_ID,
-							enabled: true,
-							checked: false,
-							class: 'searchable-picker-see-more',
-							description: undefined,
-							tooltip: localize('seeMore.tooltip', "Search for more options"),
-							label: localize('seeMore', "See more..."),
-							run: () => {
-								this.showSearchableQuickPick(optionGroup);
-							}
-						} satisfies IActionWidgetDropdownAction);
-					}
 
 					// Build actions from items
 					optionGroup.items.map(optionItem => {
@@ -114,6 +99,22 @@ export class SearchableOptionPickerActionItem extends ActionWidgetDropdownAction
 							}
 						});
 					});
+
+					// Add "See more..." action if onSearch is available
+					if (optionGroup.onSearch) {
+						actions.push({
+							id: SearchableOptionPickerActionItem.SEE_MORE_ID,
+							enabled: true,
+							checked: false,
+							class: 'searchable-picker-see-more',
+							description: undefined,
+							tooltip: localize('seeMore.tooltip', "Search for more options"),
+							label: localize('seeMore', "See more..."),
+							run: () => {
+								this.showSearchableQuickPick(optionGroup);
+							}
+						} satisfies IActionWidgetDropdownAction);
+					}
 
 					return actions;
 				}
