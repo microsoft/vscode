@@ -13,6 +13,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IEditorGroupsService, IEditorWorkingSet } from '../../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
@@ -117,6 +118,7 @@ export class FocusViewService extends Disposable implements IFocusViewService {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
+		@IEditorService private readonly editorService: IEditorService,
 		@ILogService private readonly logService: ILogService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
@@ -164,6 +166,12 @@ export class FocusViewService extends Disposable implements IFocusViewService {
 		// Clear editors first
 		await this.editorGroupsService.applyWorkingSet('empty', { preserveFocus: true });
 
+		this.logService.trace(`[FocusView] Opening files for session '${session.label}'`, {
+			hasChanges: !!session.changes,
+			isArray: Array.isArray(session.changes),
+			changeCount: Array.isArray(session.changes) ? session.changes.length : 0
+		});
+
 		// Open changes from the session as a multi-diff editor (like edit session view)
 		if (session.changes && Array.isArray(session.changes) && session.changes.length > 0) {
 			// Filter to changes that have both original and modified URIs for diff view
@@ -174,20 +182,43 @@ export class FocusViewService extends Disposable implements IFocusViewService {
 					modifiedUri: change.modifiedUri
 				}));
 
+			this.logService.trace(`[FocusView] Found ${diffResources.length} files with diffs to display`);
+
 			if (diffResources.length > 0) {
-				// Open multi-diff editor showing all changes
+				// First, open each modified file individually so they appear as tabs
+				const filesToOpen = session.changes
+					.filter(change => change.modifiedUri)
+					.map(change => ({
+						resource: change.modifiedUri,
+						options: { inactive: true, preserveFocus: true, pinned: false }
+					}));
+
+				this.logService.trace(`[FocusView] Opening ${filesToOpen.length} individual files as tabs`);
+
+				if (filesToOpen.length > 0) {
+					await this.editorService.openEditors(filesToOpen);
+					this.logService.trace(`[FocusView] Individual files opened successfully`);
+				}
+
+				// Then, open multi-diff editor showing all changes (this becomes the active tab)
 				await this.commandService.executeCommand('_workbench.openMultiDiffEditor', {
 					multiDiffSourceUri: session.resource.with({ scheme: session.resource.scheme + '-agent-session-projection' }),
 					title: localize('agentSessionProjection.changes.title', '{0} - All Changes', session.label),
 					resources: diffResources,
 				});
 
+				this.logService.trace(`[FocusView] Multi-diff editor opened successfully`);
+
 				// Save this as the session's working set so it persists
 				const sessionKey = session.resource.toString();
 				const newWorkingSet = this.editorGroupsService.saveWorkingSet(`focus-view-session-${sessionKey}`);
 				this._sessionWorkingSets.set(sessionKey, newWorkingSet);
 				this._saveWorkingSets();
+			} else {
+				this.logService.trace(`[FocusView] No files with diffs to display (all changes missing originalUri)`);
 			}
+		} else {
+			this.logService.trace(`[FocusView] Session has no changes to display`);
 		}
 	}
 
@@ -204,8 +235,6 @@ export class FocusViewService extends Disposable implements IFocusViewService {
 			return;
 		}
 
-		const sessionKey = session.resource.toString();
-
 		if (!this._isActive) {
 			// First time entering focus view - save the current working set as our "non-focus-view" backup
 			this._nonFocusViewWorkingSet = this.editorGroupsService.saveWorkingSet('focus-view-backup');
@@ -217,40 +246,8 @@ export class FocusViewService extends Disposable implements IFocusViewService {
 			this._saveWorkingSets();
 		}
 
-		// Check if we have a saved working set for this session
-		const savedWorkingSet = this._sessionWorkingSets.get(sessionKey);
-
-		if (savedWorkingSet) {
-			// Check if the working set still exists (might have been deleted or VS Code restarted)
-			const existingWorkingSets = this.editorGroupsService.getWorkingSets();
-			const workingSetExists = existingWorkingSets.some(ws => ws.id === savedWorkingSet.id);
-
-			if (workingSetExists) {
-				// Restore the session's saved working set
-				const applied = await this.editorGroupsService.applyWorkingSet(savedWorkingSet, { preserveFocus: true });
-				if (applied) {
-					// Check if the restored working set actually has any editors
-					const hasEditors = this.editorGroupsService.groups.some(g => g.count > 0);
-					if (!hasEditors) {
-						// Working set was empty, open the session's files instead
-						this._sessionWorkingSets.delete(sessionKey);
-						this._saveWorkingSets();
-						await this._openSessionFiles(session);
-					}
-				} else {
-					// Failed to apply working set, fall through to open modified files
-					await this._openSessionFiles(session);
-				}
-			} else {
-				// Saved working set no longer exists
-				this._sessionWorkingSets.delete(sessionKey);
-				this._saveWorkingSets();
-				await this._openSessionFiles(session);
-			}
-		} else {
-			// No saved working set - open modified files from session
-			await this._openSessionFiles(session);
-		}
+		// Always open session files to ensure they're displayed
+		await this._openSessionFiles(session);
 
 		// Set active state
 		const wasActive = this._isActive;

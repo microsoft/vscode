@@ -99,8 +99,8 @@ Agents Control - Unified titlebar control
 }
 
 .agents-control-pill.chat-input-mode .agents-control-icon {
-	color: var(--vscode-foreground);
-	opacity: 0.7;
+	color: #0078d4;
+	opacity: 0.9;
 }
 
 .agents-control-pill.session-mode .agents-control-icon {
@@ -112,6 +112,49 @@ Agents Control - Unified titlebar control
 	color: var(--vscode-foreground);
 	opacity: 0.8;
 	white-space: nowrap;
+}
+
+/* Statistics container (chat input mode) */
+.agents-control-stats {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	color: var(--vscode-foreground);
+	font-size: 12px;
+	white-space: nowrap;
+}
+
+.agents-control-stat {
+	opacity: 0.8;
+}
+
+.agents-control-stat.active {
+	color: var(--vscode-charts-green);
+	font-weight: 500;
+}
+
+.agents-control-badge {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 18px;
+	width: 18px;
+	height: 18px;
+	padding: 0;
+	border-radius: 50%;
+	font-size: 10px;
+	font-weight: 600;
+}
+
+.agents-control-badge.unread {
+	background-color: rgba(0, 120, 212, 0.15);
+	border: 1px solid rgba(0, 120, 212, 0.5);
+	color: #0078d4;
+}
+
+.agents-control-separator {
+	opacity: 0.5;
+	font-size: 8px;
 }
 
 /* Title styles (session mode) */

@@ -22,6 +22,8 @@ import { MenuId, SubmenuItemAction } from '../../../../../platform/actions/commo
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IActionViewItem } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { IAction, ActionRunner } from '../../../../../base/common/actions.js';
+import { IAgentSessionsService } from './agentSessionsService.js';
+import { isSessionInProgressStatus } from './agentSessionsModel.js';
 
 const TOGGLE_CHAT_ACTION_ID = 'workbench.action.chat.toggle';
 
@@ -66,6 +68,7 @@ export class AgentsControl implements ICommandCenterControl {
 		@ICommandService private readonly commandService: ICommandService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 	) {
 		// Create main container with command-center class for proper styling
 		this.element = $('div.command-center');
@@ -105,6 +108,11 @@ export class AgentsControl implements ICommandCenterControl {
 		this._disposables.add(this.focusViewService.onDidChangeFocusViewMode(() => {
 			this._render();
 		}));
+
+		// Re-render when sessions change to update statistics
+		this._disposables.add(this.agentSessionsService.model.onDidChangeSessions(() => {
+			this._render();
+		}));
 	}
 
 	private _render(): void {
@@ -130,16 +138,48 @@ export class AgentsControl implements ICommandCenterControl {
 		pill.tabIndex = 0;
 		this._pillContainer.appendChild(pill);
 
-		// Send icon
-		const sendIcon = $('span.agents-control-icon');
-		sendIcon.classList.add('codicon', 'codicon-send');
-		sendIcon.ariaHidden = 'true';
-		pill.appendChild(sendIcon);
+		// Get agent session statistics
+		const sessions = this.agentSessionsService.model.sessions;
+		const activeSessions = sessions.filter(s => isSessionInProgressStatus(s.status));
+		const unreadSessions = sessions.filter(s => !s.isRead() && !s.isArchived());
+		const totalSessions = sessions.filter(s => !s.isArchived()).length;
 
-		// Label
-		const label = $('span.agents-control-label');
-		label.textContent = localize('askMeAnything', "Ask me anything...");
-		pill.appendChild(label);
+		// Copilot icon
+		const icon = $('span.agents-control-icon');
+		reset(icon, renderIcon(Codicon.copilot));
+		pill.appendChild(icon);
+
+		// Display statistics
+		const statsContainer = $('span.agents-control-stats');
+
+		if (activeSessions.length > 0) {
+			// Show running agents count
+			const activeCount = $('span.agents-control-stat.active');
+			activeCount.textContent = localize('activeAgents', "{0} running", activeSessions.length);
+			statsContainer.appendChild(activeCount);
+		}
+
+		if (unreadSessions.length > 0) {
+			// Show unread count as a badge
+			const unreadBadge = $('span.agents-control-badge.unread');
+			unreadBadge.textContent = String(unreadSessions.length);
+			statsContainer.appendChild(unreadBadge);
+		}
+
+		if (activeSessions.length === 0 && unreadSessions.length === 0) {
+			// Show total sessions count if no active or unread
+			const totalCount = $('span.agents-control-stat');
+			if (totalSessions === 0) {
+				totalCount.textContent = localize('noSessions', "No agent sessions");
+			} else if (totalSessions === 1) {
+				totalCount.textContent = localize('oneSession', "1 agent session");
+			} else {
+				totalCount.textContent = localize('totalSessions', "{0} agent sessions", totalSessions);
+			}
+			statsContainer.appendChild(totalCount);
+		}
+
+		pill.appendChild(statsContainer);
 
 		// Setup hover with keyboard shortcut
 		const hoverDelegate = getDefaultHoverDelegate('mouse');
