@@ -71,4 +71,7 @@ export class NullLanguageModelsService implements ILanguageModelsService {
 	async addLanguageModelsProviderGroup(name: string, vendorId: string, configuration: IStringDictionary<unknown> | undefined): Promise<void> {
 
 	}
+
+	async removeLanguageModelsProviderGroup(vendorId: string, providerGroupName: string): Promise<void> {
+	}
 }
