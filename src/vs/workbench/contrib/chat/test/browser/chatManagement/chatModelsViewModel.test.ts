@@ -15,6 +15,7 @@ import { ExtensionIdentifier } from '../../../../../../platform/extensions/commo
 import { IStringDictionary } from '../../../../../../base/common/collections.js';
 import { ILanguageModelsConfigurationService } from '../../../common/languageModelsConfiguration.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
+import { ChatAgentLocation } from '../../../common/constants.js';
 
 class MockLanguageModelsService implements ILanguageModelsService {
 	_serviceBrand: undefined;
@@ -115,6 +116,9 @@ class MockLanguageModelsService implements ILanguageModelsService {
 	async fetchLanguageModelGroups(vendor: string): Promise<ILanguageModelsGroup[]> {
 		return this.modelGroups.get(vendor) || [];
 	}
+
+	async removeLanguageModelsProviderGroup(vendorId: string, providerGroupName: string): Promise<void> {
+	}
 }
 
 class MockChatEntitlementService implements IChatEntitlementService {
@@ -211,6 +215,9 @@ suite('ChatModelsViewModel', () => {
 				toolCalling: true,
 				vision: true,
 				agentMode: false
+			},
+			isDefaultForLocation: {
+				[ChatAgentLocation.Chat]: true
 			}
 		});
 
@@ -229,6 +236,9 @@ suite('ChatModelsViewModel', () => {
 				toolCalling: true,
 				vision: true,
 				agentMode: true
+			},
+			isDefaultForLocation: {
+				[ChatAgentLocation.Chat]: true
 			}
 		});
 
@@ -247,6 +257,9 @@ suite('ChatModelsViewModel', () => {
 				toolCalling: true,
 				vision: false,
 				agentMode: false
+			},
+			isDefaultForLocation: {
+				[ChatAgentLocation.Chat]: true
 			}
 		});
 
@@ -265,6 +278,9 @@ suite('ChatModelsViewModel', () => {
 				toolCalling: false,
 				vision: true,
 				agentMode: false
+			},
+			isDefaultForLocation: {
+				[ChatAgentLocation.Chat]: true
 			}
 		});
 
@@ -601,6 +617,9 @@ suite('ChatModelsViewModel', () => {
 				toolCalling: true,
 				vision: true,
 				agentMode: false
+			},
+			isDefaultForLocation: {
+				[ChatAgentLocation.Chat]: true
 			}
 		});
 
@@ -620,6 +639,9 @@ suite('ChatModelsViewModel', () => {
 					toolCalling: true,
 					vision: true,
 					agentMode: true
+				},
+				isDefaultForLocation: {
+					[ChatAgentLocation.Chat]: true
 				}
 			});
 		}
@@ -705,6 +727,9 @@ suite('ChatModelsViewModel', () => {
 				toolCalling: true,
 				vision: false,
 				agentMode: false
+			},
+			isDefaultForLocation: {
+				[ChatAgentLocation.Chat]: true
 			}
 		});
 
@@ -731,6 +756,9 @@ suite('ChatModelsViewModel', () => {
 				toolCalling: true,
 				vision: false,
 				agentMode: false
+			},
+			isDefaultForLocation: {
+				[ChatAgentLocation.Chat]: true
 			}
 		});
 
@@ -840,6 +868,9 @@ suite('ChatModelsViewModel', () => {
 				toolCalling: true,
 				vision: false,
 				agentMode: false
+			},
+			isDefaultForLocation: {
+				[ChatAgentLocation.Chat]: true
 			}
 		});
 

@@ -82,7 +82,10 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 	 * Map of uri -> chat sessions infos
 	 */
 	private readonly _extHostChatSessions = new ResourceMap<{ readonly sessionObj: ExtHostChatSession; readonly disposeCts: CancellationTokenSource }>();
-
+	/**
+	 * Store option groups with onSearch callbacks per provider handle
+	 */
+	private readonly _providerOptionGroups = new Map<number, vscode.ChatSessionProviderOptionGroup[]>();
 
 	constructor(
 		private readonly commands: ExtHostCommands,
@@ -324,6 +327,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			if (!optionGroups) {
 				return;
 			}
+			this._providerOptionGroups.set(handle, optionGroups);
 			return {
 				optionGroups,
 			};
@@ -459,5 +463,27 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			parts,
 			participant: turn.participant
 		};
+	}
+
+	async $invokeOptionGroupSearch(providerHandle: number, optionGroupId: string, token: CancellationToken): Promise<IChatSessionProviderOptionItem[]> {
+		const optionGroups = this._providerOptionGroups.get(providerHandle);
+		if (!optionGroups) {
+			this._logService.warn(`No option groups found for provider handle ${providerHandle}`);
+			return [];
+		}
+
+		const group = optionGroups.find((g: vscode.ChatSessionProviderOptionGroup) => g.id === optionGroupId);
+		if (!group || !group.onSearch) {
+			this._logService.warn(`No onSearch callback found for option group ${optionGroupId}`);
+			return [];
+		}
+
+		try {
+			const results = await group.onSearch(token);
+			return results ?? [];
+		} catch (error) {
+			this._logService.error(`Error calling onSearch for option group ${optionGroupId}:`, error);
+			return [];
+		}
 	}
 }

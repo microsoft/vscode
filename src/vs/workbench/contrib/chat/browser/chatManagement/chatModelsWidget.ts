@@ -10,7 +10,6 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { Button, IButtonOptions } from '../../../../../base/browser/ui/button/button.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ILanguageModelsService, IUserFriendlyLanguageModel } from '../../../chat/common/languageModels.js';
-import { ILanguageModelsConfigurationService } from '../../common/languageModelsConfiguration.js';
 import { localize } from '../../../../../nls.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -712,7 +711,6 @@ class ActionsColumnRenderer extends ModelsTableColumnRenderer<IActionsColumnTemp
 		private readonly viewModel: ChatModelsViewModel,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
-		@ILanguageModelsConfigurationService private readonly languageModelsConfigurationService: ILanguageModelsConfigurationService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService
@@ -770,7 +768,7 @@ class ActionsColumnRenderer extends ModelsTableColumnRenderer<IActionsColumnTemp
 					if (!result.confirmed) {
 						return;
 					}
-					await this.languageModelsConfigurationService.removeLanguageModelsProviderGroup(vendorEntry.group);
+					await this.languageModelsService.removeLanguageModelsProviderGroup(vendorEntry.vendor.vendor, vendorEntry.group.name);
 				}
 			}));
 		} else if (vendorEntry.vendor.managementCommand) {

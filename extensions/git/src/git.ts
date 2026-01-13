@@ -29,6 +29,7 @@ export interface IDotGit {
 	readonly path: string;
 	readonly commonPath?: string;
 	readonly superProjectPath?: string;
+	readonly isBare: boolean;
 }
 
 export interface IFileStatus {
@@ -575,7 +576,12 @@ export class Git {
 			commonDotGitPath = path.normalize(commonDotGitPath);
 		}
 
+		const raw = await fs.readFile(path.join(commonDotGitPath ?? dotGitPath, 'config'), 'utf8');
+		const coreSections = GitConfigParser.parse(raw).find(s => s.name === 'core');
+		const isBare = coreSections?.properties['bare'] === 'true';
+
 		return {
+			isBare,
 			path: dotGitPath,
 			commonPath: commonDotGitPath !== dotGitPath ? commonDotGitPath : undefined,
 			superProjectPath: superProjectPath ? path.normalize(superProjectPath) : undefined
@@ -2954,9 +2960,26 @@ export class Repository {
 	private async getWorktreesFS(): Promise<Worktree[]> {
 		try {
 			// List all worktree folder names
-			const worktreesPath = path.join(this.dotGit.commonPath ?? this.dotGit.path, 'worktrees');
+			const mainRepositoryPath = this.dotGit.commonPath ?? this.dotGit.path;
+			const worktreesPath = path.join(mainRepositoryPath, 'worktrees');
 			const dirents = await fs.readdir(worktreesPath, { withFileTypes: true });
 			const result: Worktree[] = [];
+
+			if (!this.dotGit.isBare) {
+				// Add main worktree for a non-bare repository
+				const headPath = path.join(mainRepositoryPath, 'HEAD');
+				const headContent = (await fs.readFile(headPath, 'utf8')).trim();
+
+				const mainRepositoryWorktreeName = path.basename(path.dirname(mainRepositoryPath));
+
+				result.push({
+					name: mainRepositoryWorktreeName,
+					path: path.dirname(mainRepositoryPath),
+					ref: headContent.replace(/^ref: /, ''),
+					detached: !headContent.startsWith('ref: '),
+					main: true
+				} satisfies Worktree);
+			}
 
 			for (const dirent of dirents) {
 				if (!dirent.isDirectory()) {
@@ -2977,7 +3000,8 @@ export class Repository {
 						// Remove 'ref: ' prefix
 						ref: headContent.replace(/^ref: /, ''),
 						// Detached if HEAD does not start with 'ref: '
-						detached: !headContent.startsWith('ref: ')
+						detached: !headContent.startsWith('ref: '),
+						main: false
 					});
 				} catch (err) {
 					if (/ENOENT/.test(err.message)) {
