@@ -1122,4 +1122,63 @@ suite('PromptValidator', () => {
 
 	});
 
+	suite('skills', () => {
+
+		test('skill name matches folder name', async () => {
+			const content = [
+				'---',
+				'name: my-skill',
+				'description: Test Skill',
+				'---',
+				'This is a skill.'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			assert.deepStrictEqual(markers, [], 'Expected no validation issues when name matches folder');
+		});
+
+		test('skill name does not match folder name', async () => {
+			const content = [
+				'---',
+				'name: different-name',
+				'description: Test Skill',
+				'---',
+				'This is a skill.'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.strictEqual(markers[0].message, `The skill name 'different-name' should match the folder name 'my-skill'.`);
+		});
+
+		test('skill without name attribute does not error', async () => {
+			const content = [
+				'---',
+				'description: Test Skill',
+				'---',
+				'This is a skill without a name.'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			assert.deepStrictEqual(markers, [], 'Expected no validation issues when name is missing');
+		});
+
+		test('skill with unknown attributes shows warning', async () => {
+			const content = [
+				'---',
+				'name: my-skill',
+				'description: Test Skill',
+				'unknownAttr: value',
+				'anotherUnknown: 123',
+				'---',
+				'This is a skill.'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			assert.strictEqual(markers.length, 2);
+			assert.ok(markers.every(m => m.severity === MarkerSeverity.Warning));
+			assert.ok(markers.some(m => m.message.includes('unknownAttr')));
+			assert.ok(markers.some(m => m.message.includes('anotherUnknown')));
+			assert.ok(markers.every(m => m.message.includes('Supported: ')));
+		});
+
+	});
+
 });

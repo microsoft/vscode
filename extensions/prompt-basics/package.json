@@ -50,6 +50,19 @@
           "**/.github/agents/*.md"
         ],
         "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "skill",
+        "aliases": [
+          "Skill",
+          "skill"
+        ],
+        "filenamePatterns": [
+          "**/.github/skills/*/SKILL.md",
+          "**/.claude/skills/*/SKILL.md",
+          "**/.copilot/skills/*/SKILL.md"
+        ],
+        "configuration": "./language-configuration.json"
       }
     ],
     "grammars": [
@@ -73,6 +86,15 @@
       },
       {
         "language": "chatagent",
+        "path": "./syntaxes/prompt.tmLanguage.json",
+        "scopeName": "text.html.markdown.prompt",
+        "unbalancedBracketScopes": [
+          "markup.underline.link.markdown",
+          "punctuation.definition.list.begin.markdown"
+        ]
+      },
+      {
+        "language": "skill",
         "path": "./syntaxes/prompt.tmLanguage.json",
         "scopeName": "text.html.markdown.prompt",
         "unbalancedBracketScopes": [
@@ -113,6 +135,21 @@
         "editor.wordBasedSuggestions": "off"
       },
       "[chatagent]": {
+        "editor.insertSpaces": true,
+        "editor.tabSize": 2,
+        "editor.autoIndent": "advanced",
+        "editor.unicodeHighlight.ambiguousCharacters": false,
+        "editor.unicodeHighlight.invisibleCharacters": false,
+        "diffEditor.ignoreTrimWhitespace": false,
+        "editor.wordWrap": "on",
+        "editor.quickSuggestions": {
+          "comments": "off",
+          "strings": "on",
+          "other": "on"
+        },
+        "editor.wordBasedSuggestions": "off"
+      },
+      "[skill]": {
         "editor.insertSpaces": true,
         "editor.tabSize": 2,
         "editor.autoIndent": "advanced",
