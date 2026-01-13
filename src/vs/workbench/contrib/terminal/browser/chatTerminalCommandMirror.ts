@@ -82,7 +82,13 @@ interface IDetachedTerminalCommandMirror {
 
 const enum ChatTerminalMirrorMetrics {
 	MirrorRowCount = 10,
-	MirrorColCountFallback = 80
+	MirrorColCountFallback = 80,
+	/**
+	 * Maximum number of lines for which we compute the max column width.
+	 * Computing max column width iterates the entire buffer, so we skip it
+	 * for large outputs to avoid performance issues.
+	 */
+	MaxLinesForColumnWidthComputation = 100
 }
 
 export async function getCommandOutputSnapshot(
@@ -294,7 +300,11 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 		}
 
 		this._lineCount = this._getRenderedLineCount();
-		this._maxColumnWidth = this._computeMaxColumnWidth();
+		// Only compute max column width after the command finishes and for small outputs
+		const commandFinished = this._command.endMarker && !this._command.endMarker.isDisposed;
+		if (commandFinished && this._lineCount <= ChatTerminalMirrorMetrics.MaxLinesForColumnWidthComputation) {
+			this._maxColumnWidth = this._computeMaxColumnWidth();
+		}
 
 		return { lineCount: this._lineCount, maxColumnWidth: this._maxColumnWidth };
 	}
@@ -504,13 +514,18 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 
 		this._lastVT = vt.text;
 		this._lineCount = this._getRenderedLineCount();
-		this._maxColumnWidth = this._computeMaxColumnWidth();
 		this._lastUpToDateCursorY = currentCursor;
-		this._onDidUpdateEmitter.fire({ lineCount: this._lineCount, maxColumnWidth: this._maxColumnWidth });
 
-		if (this._command.endMarker && !this._command.endMarker.isDisposed) {
+		const commandFinished = this._command.endMarker && !this._command.endMarker.isDisposed;
+		if (commandFinished) {
+			// Only compute max column width after the command finishes and for small outputs
+			if (this._lineCount <= ChatTerminalMirrorMetrics.MaxLinesForColumnWidthComputation) {
+				this._maxColumnWidth = this._computeMaxColumnWidth();
+			}
 			this._stopStreaming();
 		}
+
+		this._onDidUpdateEmitter.fire({ lineCount: this._lineCount, maxColumnWidth: this._maxColumnWidth });
 	}
 
 	private _getAbsoluteCursorY(raw: RawXtermTerminal): number {
@@ -604,7 +619,10 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 		await new Promise<void>(resolve => terminal.xterm.write(text, resolve));
 		this._dirty = false;
 		this._lastRenderedLineCount = lineCount;
-		this._lastRenderedMaxColumnWidth = this._computeMaxColumnWidth(terminal);
+		// Only compute max column width for small outputs to avoid performance issues
+		if (this._shouldComputeMaxColumnWidth(lineCount)) {
+			this._lastRenderedMaxColumnWidth = this._computeMaxColumnWidth(terminal);
+		}
 		return { lineCount, maxColumnWidth: this._lastRenderedMaxColumnWidth };
 	}
 
@@ -620,6 +638,10 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 		const segments = sanitized.split('\n');
 		const count = sanitized.endsWith('\n') ? segments.length - 1 : segments.length;
 		return Math.max(count, 1);
+	}
+
+	private _shouldComputeMaxColumnWidth(lineCount: number): boolean {
+		return lineCount <= ChatTerminalMirrorMetrics.MaxLinesForColumnWidthComputation;
 	}
 
 	private _applyTheme(container: HTMLElement): void {
