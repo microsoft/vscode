@@ -603,13 +603,13 @@ export class ChatSubmitWithCodebaseAction extends Action2 {
 	}
 }
 
-class SendToNewChatAction extends Action2 {
+class SendToChatAndCreateNewChatAction extends Action2 {
 	constructor() {
 		const precondition = ChatContextKeys.inputHasText;
 
 		super({
-			id: 'workbench.action.chat.sendToNewChat',
-			title: localize2('chat.newChat.label', "Send to New Chat"),
+			id: 'workbench.action.chat.sendToChatAndCreateNewChat',
+			title: localize2('chat.sendAndNewChat.label', "Send and Create New Chat"),
 			precondition,
 			category: CHAT_CATEGORY,
 			f1: false,
@@ -626,17 +626,11 @@ class SendToNewChatAction extends Action2 {
 
 		const widgetService = accessor.get(IChatWidgetService);
 		const dialogService = accessor.get(IDialogService);
-		const chatService = accessor.get(IChatService);
+		const commandService = accessor.get(ICommandService);
+
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
 		if (!widget) {
 			return;
-		}
-
-		const inputBeforeClear = widget.getInput();
-
-		// Cancel any in-progress request before clearing
-		if (widget.viewModel) {
-			chatService.cancelCurrentRequestForSession(widget.viewModel.sessionResource);
 		}
 
 		if (widget.viewModel?.model) {
@@ -645,8 +639,11 @@ class SendToNewChatAction extends Action2 {
 			}
 		}
 
-		await widget.clear();
-		widget.acceptInput(inputBeforeClear, { storeToHistory: true });
+		// Submit to current chat first
+		widget.acceptInput();
+
+		// Then clear to start a new chat
+		commandService.executeCommand(ACTION_ID_NEW_CHAT);
 	}
 }
 
@@ -749,7 +746,7 @@ export function registerChatExecuteActions() {
 	registerAction2(ChatEditingSessionSubmitAction);
 	registerAction2(SubmitWithoutDispatchingAction);
 	registerAction2(CancelAction);
-	registerAction2(SendToNewChatAction);
+	registerAction2(SendToChatAndCreateNewChatAction);
 	registerAction2(ChatSubmitWithCodebaseAction);
 	registerAction2(ContinueChatInSessionAction);
 	registerAction2(ToggleChatModeAction);
