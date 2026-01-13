@@ -98,7 +98,8 @@ jobs:
           npm run sanity-test --
             --commit $BUILD_COMMIT
             --quality $BUILD_QUALITY
-            --verbose --test-results $LOG_FILE
+            --test-results $LOG_FILE
+            --verbose
         displayName: Run Sanity Tests
 
       - task: PublishTestResults@2
