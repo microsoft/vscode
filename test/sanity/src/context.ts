@@ -40,6 +40,7 @@ export class TestContext {
 		public readonly commit: string,
 		public readonly verbose: boolean,
 		public readonly skipSigningCheck: boolean,
+		public readonly headless: boolean,
 	) {
 	}
 
@@ -523,7 +524,7 @@ export class TestContext {
 	 */
 	public installRpm(packagePath: string): string {
 		this.log(`Installing ${packagePath} using RPM package manager`);
-		this.runNoErrors('sudo', 'rpm', '-i', packagePath);
+		this.runNoErrors('sudo', 'alien', '-i', packagePath);
 		this.log(`Installed ${packagePath} successfully`);
 
 		const entryPoint = this.getEntryPoint('desktop', '/usr/bin');
@@ -659,11 +660,11 @@ export class TestContext {
 		this.log(`Launching web browser`);
 		switch (os.platform()) {
 			case 'darwin':
-				return await webkit.launch({ headless: false });
+				return await webkit.launch({ headless: this.headless });
 			case 'win32':
-				return await chromium.launch({ channel: 'msedge', headless: false });
+				return await chromium.launch({ channel: 'msedge', headless: this.headless });
 			default:
-				return await chromium.launch({ channel: 'chrome', headless: false });
+				return await chromium.launch({ channel: 'chrome', headless: this.headless });
 		}
 	}
 

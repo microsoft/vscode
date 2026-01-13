@@ -12,9 +12,9 @@ import { setup as setupServerWebTests } from './serverWeb.test';
 
 const options = minimist(process.argv.slice(2), {
 	string: ['commit', 'quality'],
-	boolean: ['cleanup', 'verbose', 'signing-check'],
+	boolean: ['cleanup', 'verbose', 'signing-check', 'headless'],
 	alias: { commit: 'c', quality: 'q', verbose: 'v' },
-	default: { cleanup: true, verbose: false, 'signing-check': true },
+	default: { cleanup: true, verbose: false, 'signing-check': true, headless: true },
 });
 
 if (!options.commit) {
@@ -25,7 +25,12 @@ if (!options.quality) {
 	throw new Error('--quality is required');
 }
 
-const context = new TestContext(options.quality, options.commit, options.verbose, !options['signing-check']);
+const context = new TestContext(
+	options.quality,
+	options.commit,
+	options.verbose,
+	!options['signing-check'],
+	options.headless);
 
 beforeEach(function () {
 	context.currentTest = this.currentTest!;
