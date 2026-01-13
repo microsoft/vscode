@@ -1129,7 +1129,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 		const charWidth = font.charWidth;
 
 		if (!charWidth || !maxColumnWidth || maxColumnWidth <= 0) {
-			// No content width info, use full width (auto)
+			// No content width info, leave existing width unchanged
 			return;
 		}
 
