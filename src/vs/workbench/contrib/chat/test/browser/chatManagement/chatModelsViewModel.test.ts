@@ -999,11 +999,15 @@ suite('ChatModelsViewModel', () => {
 		assert.ok(visibleModel, 'Should have at least one visible model');
 		assert.ok(hiddenModel, 'Should have at least one hidden model');
 
-		// Toggle with visible model first - should hide both
-		viewModel.toggleVisibilityForModels([visibleModel!, hiddenModel!]);
+		if (!visibleModel || !hiddenModel) {
+			return; // Skip test if models not found (though assertions above should catch this)
+		}
 
-		const updatedVisible = languageModelsService.lookupLanguageModel(visibleModel!.model.identifier);
-		const updatedHidden = languageModelsService.lookupLanguageModel(hiddenModel!.model.identifier);
+		// Toggle with visible model first - should hide both
+		viewModel.toggleVisibilityForModels([visibleModel, hiddenModel]);
+
+		const updatedVisible = languageModelsService.lookupLanguageModel(visibleModel.model.identifier);
+		const updatedHidden = languageModelsService.lookupLanguageModel(hiddenModel.model.identifier);
 
 		// Both should now be hidden (based on first model which was visible)
 		assert.strictEqual(updatedVisible?.isUserSelectable, false);

@@ -540,7 +540,8 @@ export class ChatModelsViewModel extends Disposable {
 		const isVisible = firstModel.model.metadata.isUserSelectable ?? false;
 		const newVisibility = !isVisible;
 
-		// Update all models
+		// Update all models and store their indices
+		const modelIndices: Array<{ model: ILanguageModelEntry; index: number }> = [];
 		for (const model of models) {
 			this.languageModelsService.updateModelPickerPreference(model.model.identifier, newVisibility);
 			const metadata = this.languageModelsService.lookupLanguageModel(model.model.identifier);
@@ -548,6 +549,7 @@ export class ChatModelsViewModel extends Disposable {
 			if (metadata && index !== -1) {
 				model.id = this.getModelId(model.model);
 				model.model.metadata = metadata;
+				modelIndices.push({ model, index });
 			}
 		}
 
@@ -556,12 +558,9 @@ export class ChatModelsViewModel extends Disposable {
 			this.modelsSorted = false;
 			this.doFilter();
 		} else {
-			// Otherwise, just update the affected entries in place
-			for (const model of models) {
-				const index = this.viewModelEntries.indexOf(model);
-				if (index !== -1) {
-					this.splice(index, 1, [model]);
-				}
+			// Otherwise, just update the affected entries in place using stored indices
+			for (const { model, index } of modelIndices) {
+				this.splice(index, 1, [model]);
 			}
 		}
 	}
