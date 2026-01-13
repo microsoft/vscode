@@ -9,7 +9,6 @@ import { CancellationToken, CancellationTokenSource } from '../../../base/common
 import { CancellationError } from '../../../base/common/errors.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
-import { revive } from '../../../base/common/marshalling.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
@@ -83,7 +82,10 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 	 * Map of uri -> chat sessions infos
 	 */
 	private readonly _extHostChatSessions = new ResourceMap<{ readonly sessionObj: ExtHostChatSession; readonly disposeCts: CancellationTokenSource }>();
-
+	/**
+	 * Store option groups with onSearch callbacks per provider handle
+	 */
+	private readonly _providerOptionGroups = new Map<number, vscode.ChatSessionProviderOptionGroup[]>();
 
 	constructor(
 		private readonly commands: ExtHostCommands,
@@ -202,41 +204,6 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 					deletions: sessionContent.changes?.deletions ?? 0,
 				}),
 		};
-	}
-
-	async $provideNewChatSessionItem(handle: number, options: { request: IChatAgentRequest; metadata?: any }, token: CancellationToken): Promise<IChatSessionItem> {
-		const entry = this._chatSessionItemProviders.get(handle);
-		if (!entry || !entry.provider.provideNewChatSessionItem) {
-			throw new Error(`No provider registered for handle ${handle} or provider does not support creating sessions`);
-		}
-
-		try {
-			const model = await this.getModelForRequest(options.request, entry.extension);
-			const vscodeRequest = typeConvert.ChatAgentRequest.to(
-				revive(options.request),
-				undefined,
-				model,
-				[],
-				new Map(),
-				entry.extension,
-				this._logService);
-
-			const vscodeOptions = {
-				request: vscodeRequest,
-				metadata: options.metadata
-			};
-
-			const chatSessionItem = await entry.provider.provideNewChatSessionItem(vscodeOptions, token);
-			if (!chatSessionItem) {
-				throw new Error('Provider did not create session');
-			}
-
-			this._sessionItems.set(chatSessionItem.resource, chatSessionItem);
-			return this.convertChatSessionItem(entry.sessionType, chatSessionItem);
-		} catch (error) {
-			this._logService.error(`Error creating chat session: ${error}`);
-			throw error;
-		}
 	}
 
 	async $provideChatSessionItems(handle: number, token: vscode.CancellationToken): Promise<IChatSessionItem[]> {
@@ -360,6 +327,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			if (!optionGroups) {
 				return;
 			}
+			this._providerOptionGroups.set(handle, optionGroups);
 			return {
 				optionGroups,
 			};
@@ -495,5 +463,27 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			parts,
 			participant: turn.participant
 		};
+	}
+
+	async $invokeOptionGroupSearch(providerHandle: number, optionGroupId: string, token: CancellationToken): Promise<IChatSessionProviderOptionItem[]> {
+		const optionGroups = this._providerOptionGroups.get(providerHandle);
+		if (!optionGroups) {
+			this._logService.warn(`No option groups found for provider handle ${providerHandle}`);
+			return [];
+		}
+
+		const group = optionGroups.find((g: vscode.ChatSessionProviderOptionGroup) => g.id === optionGroupId);
+		if (!group || !group.onSearch) {
+			this._logService.warn(`No onSearch callback found for option group ${optionGroupId}`);
+			return [];
+		}
+
+		try {
+			const results = await group.onSearch(token);
+			return results ?? [];
+		} catch (error) {
+			this._logService.error(`Error calling onSearch for option group ${optionGroupId}:`, error);
+			return [];
+		}
 	}
 }

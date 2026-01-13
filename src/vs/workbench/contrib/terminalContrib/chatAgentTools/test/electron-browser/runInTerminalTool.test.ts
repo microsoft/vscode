@@ -39,6 +39,7 @@ import { RunInTerminalTool, type IRunInTerminalInputParams } from '../../browser
 import { ShellIntegrationQuality } from '../../browser/toolTerminalCreator.js';
 import { terminalChatAgentToolsConfiguration, TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { TerminalChatService } from '../../../chat/browser/terminalChatService.js';
+import type { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 
 class TestRunInTerminalTool extends RunInTerminalTool {
 	protected override _osBackend: Promise<OperatingSystem> = Promise.resolve(OperatingSystem.Windows);
@@ -1040,17 +1041,18 @@ suite('RunInTerminalTool', () => {
 			let terminalDisposed = false;
 			mockTerminal.dispose = () => { terminalDisposed = true; };
 
-			runInTerminalTool.sessionTerminalAssociations.set(sessionId, {
+			const sessionResource = LocalChatSessionUri.forSession(sessionId);
+			runInTerminalTool.sessionTerminalAssociations.set(sessionResource, {
 				instance: mockTerminal,
 				shellIntegrationQuality: ShellIntegrationQuality.None
 			});
 
-			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionId), 'Terminal association should exist before disposal');
+			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionResource), 'Terminal association should exist before disposal');
 
-			chatServiceDisposeEmitter.fire({ sessionResource: [LocalChatSessionUri.forSession(sessionId)], reason: 'cleared' });
+			chatServiceDisposeEmitter.fire({ sessionResource: [sessionResource], reason: 'cleared' });
 
 			strictEqual(terminalDisposed, true, 'Terminal should have been disposed');
-			ok(!runInTerminalTool.sessionTerminalAssociations.has(sessionId), 'Terminal association should be removed after disposal');
+			ok(!runInTerminalTool.sessionTerminalAssociations.has(sessionResource), 'Terminal association should be removed after disposal');
 		});
 
 		test('should not affect other sessions when one session is disposed', () => {
@@ -1072,24 +1074,26 @@ suite('RunInTerminalTool', () => {
 			mockTerminal1.dispose = () => { terminal1Disposed = true; };
 			mockTerminal2.dispose = () => { terminal2Disposed = true; };
 
-			runInTerminalTool.sessionTerminalAssociations.set(sessionId1, {
+			const sessionResource1 = LocalChatSessionUri.forSession(sessionId1);
+			const sessionResource2 = LocalChatSessionUri.forSession(sessionId2);
+			runInTerminalTool.sessionTerminalAssociations.set(sessionResource1, {
 				instance: mockTerminal1,
 				shellIntegrationQuality: ShellIntegrationQuality.None
 			});
-			runInTerminalTool.sessionTerminalAssociations.set(sessionId2, {
+			runInTerminalTool.sessionTerminalAssociations.set(sessionResource2, {
 				instance: mockTerminal2,
 				shellIntegrationQuality: ShellIntegrationQuality.None
 			});
 
-			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionId1), 'Session 1 terminal association should exist');
-			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionId2), 'Session 2 terminal association should exist');
+			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionResource1), 'Session 1 terminal association should exist');
+			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionResource2), 'Session 2 terminal association should exist');
 
-			chatServiceDisposeEmitter.fire({ sessionResource: [LocalChatSessionUri.forSession(sessionId1)], reason: 'cleared' });
+			chatServiceDisposeEmitter.fire({ sessionResource: [sessionResource1], reason: 'cleared' });
 
 			strictEqual(terminal1Disposed, true, 'Terminal 1 should have been disposed');
 			strictEqual(terminal2Disposed, false, 'Terminal 2 should NOT have been disposed');
-			ok(!runInTerminalTool.sessionTerminalAssociations.has(sessionId1), 'Session 1 terminal association should be removed');
-			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionId2), 'Session 2 terminal association should remain');
+			ok(!runInTerminalTool.sessionTerminalAssociations.has(sessionResource1), 'Session 1 terminal association should be removed');
+			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionResource2), 'Session 2 terminal association should remain');
 		});
 
 		test('should handle disposal of non-existent session gracefully', () => {
@@ -1167,6 +1171,7 @@ suite('RunInTerminalTool', () => {
 	suite('session auto approval', () => {
 		test('should auto approve all commands when session has auto approval enabled', async () => {
 			const sessionId = 'test-session-123';
+			const sessionResource = LocalChatSessionUri.forSession(sessionId);
 			const terminalChatService = instantiationService.get(ITerminalChatService);
 
 			const context: IToolInvocationPreparationContext = {
@@ -1175,13 +1180,13 @@ suite('RunInTerminalTool', () => {
 					explanation: 'Remove a file',
 					isBackground: false
 				} as IRunInTerminalInputParams,
-				chatSessionId: sessionId
+				chatSessionResource: sessionResource
 			} as IToolInvocationPreparationContext;
 
 			let result = await runInTerminalTool.prepareToolInvocation(context, CancellationToken.None);
 			assertConfirmationRequired(result);
 
-			terminalChatService.setChatSessionAutoApproval(sessionId, true);
+			terminalChatService.setChatSessionAutoApproval(sessionResource, true);
 
 			result = await runInTerminalTool.prepareToolInvocation(context, CancellationToken.None);
 			assertAutoApproved(result);
@@ -1211,6 +1216,99 @@ suite('RunInTerminalTool', () => {
 				strictEqual(typeof result, 'object');
 				strictEqual((result as ITerminalProfile).path, 'bash');
 			});
+		});
+	});
+
+	suite('denial info in disclaimers', () => {
+		function getDisclaimerValue(disclaimer: string | IMarkdownString | undefined): string | undefined {
+			if (!disclaimer) {
+				return undefined;
+			}
+			return typeof disclaimer === 'string' ? disclaimer : disclaimer.value;
+		}
+
+		test('should include denial reason in disclaimer when command is denied by rule', async () => {
+			setAutoApprove({
+				npm: { approve: false }
+			});
+			const result = await executeToolTest({
+				command: 'npm run build',
+				explanation: 'Build the project'
+			});
+
+			assertConfirmationRequired(result, 'Run `bash` command?');
+			const disclaimerValue = getDisclaimerValue(result?.confirmationMessages?.disclaimer);
+			ok(disclaimerValue, 'Expected disclaimer to be defined');
+			ok(disclaimerValue.includes('denied'), 'Expected disclaimer to mention denial');
+			ok(disclaimerValue.includes('npm'), 'Expected disclaimer to mention the denied rule');
+		});
+
+		test('should include link to settings in denial disclaimer', async () => {
+			setAutoApprove({
+				rm: { approve: false }
+			});
+			const result = await executeToolTest({
+				command: 'rm -rf temp',
+				explanation: 'Remove temp folder'
+			});
+
+			assertConfirmationRequired(result, 'Run `bash` command?');
+			ok(result?.confirmationMessages?.disclaimer, 'Expected disclaimer to be defined');
+			// The disclaimer should have trusted commands enabled for settings links
+			const disclaimer = result.confirmationMessages.disclaimer;
+			ok(typeof disclaimer !== 'string' && disclaimer.isTrusted, 'Expected disclaimer to be trusted for command links');
+		});
+
+		test('should include denial reason for multiple denied sub-commands', async () => {
+			setAutoApprove({
+				rm: { approve: false },
+				sudo: { approve: false }
+			});
+			const result = await executeToolTest({
+				command: 'sudo rm -rf /',
+				explanation: 'Dangerous command'
+			});
+
+			assertConfirmationRequired(result, 'Run `bash` command?');
+			const disclaimerValue = getDisclaimerValue(result?.confirmationMessages?.disclaimer);
+			ok(disclaimerValue, 'Expected disclaimer to be defined');
+			ok(disclaimerValue.includes('denied'), 'Expected disclaimer to mention denial');
+		});
+
+		test('should not include denial info when auto-approve is disabled', async () => {
+			setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, false);
+			setAutoApprove({
+				npm: { approve: false }
+			});
+			const result = await executeToolTest({
+				command: 'npm run build',
+				explanation: 'Build the project'
+			});
+
+			assertConfirmationRequired(result, 'Run `bash` command?');
+			// When auto-approve is disabled, there should be no denial-related disclaimer
+			const disclaimerValue = getDisclaimerValue(result?.confirmationMessages?.disclaimer);
+			if (disclaimerValue) {
+				ok(!disclaimerValue.includes('denied'), 'Should not mention denial when auto-approve is disabled');
+			}
+		});
+
+		test('should not include denial info for commands that are simply not approved', async () => {
+			// Command is not in auto-approve list, but not explicitly denied
+			setAutoApprove({
+				echo: true
+			});
+			const result = await executeToolTest({
+				command: 'npm run build',
+				explanation: 'Build the project'
+			});
+
+			assertConfirmationRequired(result, 'Run `bash` command?');
+			// There should be no denial disclaimer since npm is not explicitly denied
+			const disclaimerValue = getDisclaimerValue(result?.confirmationMessages?.disclaimer);
+			if (disclaimerValue) {
+				ok(!disclaimerValue.includes('denied'), 'Should not mention denial for non-denied commands');
+			}
 		});
 	});
 });

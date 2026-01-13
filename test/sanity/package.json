@@ -1,0 +1,19 @@
+{
+  "name": "code-oss-dev-sanity-test",
+  "version": "0.1.0",
+  "license": "MIT",
+  "main": "./out/index.js",
+  "scripts": {
+    "postinstall": "playwright install --with-deps chromium webkit",
+    "compile": "node ../../node_modules/typescript/bin/tsc",
+    "start": "node ./out/index.js"
+  },
+  "dependencies": {
+    "mocha-junit-reporter": "^2.2.1",
+    "node-fetch": "^3.3.2",
+    "playwright": "^1.57.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.x"
+  }
+}

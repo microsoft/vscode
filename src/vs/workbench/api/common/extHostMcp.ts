@@ -21,7 +21,7 @@ import { StorageScope } from '../../../platform/storage/common/storage.js';
 import { extensionPrefixedIdentifier, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerStaticMetadata, McpServerStaticToolAvailability, McpServerTransportHTTP, McpServerTransportType, UserInteractionRequiredError } from '../../contrib/mcp/common/mcpTypes.js';
 import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
-import { ExtHostMcpShape, IMcpAuthenticationDetails, IMcpAuthSetupTelemetry, IStartMcpOptions, MainContext, MainThreadMcpShape, McpAuthResourceMetadataSource, McpAuthServerMetadataSource } from './extHost.protocol.js';
+import { ExtHostMcpShape, IMcpAuthenticationDetails, IAuthMetadataSource, IStartMcpOptions, MainContext, MainThreadMcpShape, IAuthResourceMetadataSource, IAuthServerMetadataSource } from './extHost.protocol.js';
 import { IExtHostInitDataService } from './extHostInitDataService.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import * as Convert from './extHostTypeConverters.js';
@@ -310,7 +310,13 @@ export class McpHTTPHandle extends Disposable {
 			'Mcp-Session-Id': sessionId,
 		};
 
-		await this._addAuthHeader(headers);
+		try {
+			await this._addAuthHeader(headers, { errorOnUserInteraction: true });
+		} catch (e) {
+			// If auth is no longer available (e.g. user signed out), skip the close request
+			this._log(LogLevel.Debug, `Skipping session close: authentication no longer available`);
+			return;
+		}
 
 		// no fetch with retry here -- don't try to auth if we get an auth failure
 		await this._fetch(
@@ -616,7 +622,8 @@ export class McpHTTPHandle extends Disposable {
 		} while (!chunk.done);
 	}
 
-	private async _addAuthHeader(headers: Record<string, string>, forceNewRegistration?: boolean) {
+	private async _addAuthHeader(headers: Record<string, string>, options?: { forceNewRegistration?: boolean; errorOnUserInteraction?: boolean }) {
+		const errorOnUserInteraction = options?.errorOnUserInteraction ?? this._errorOnUserInteraction;
 		if (this._authMetadata) {
 			try {
 				const authDetails: IMcpAuthenticationDetails = {
@@ -629,8 +636,8 @@ export class McpHTTPHandle extends Disposable {
 					this._id,
 					authDetails,
 					{
-						errorOnUserInteraction: this._errorOnUserInteraction,
-						forceNewRegistration
+						errorOnUserInteraction,
+						forceNewRegistration: options?.forceNewRegistration
 					});
 				if (token) {
 					headers['Authorization'] = `Bearer ${token}`;
@@ -651,8 +658,8 @@ export class McpHTTPHandle extends Disposable {
 					this._launch.authentication.providerId,
 					this._launch.authentication.scopes,
 					{
-						errorOnUserInteraction: this._errorOnUserInteraction,
-						forceNewRegistration
+						errorOnUserInteraction,
+						forceNewRegistration: options?.forceNewRegistration
 					}
 				);
 				if (token) {
@@ -696,8 +703,11 @@ export class McpHTTPHandle extends Disposable {
 		let res = await doFetch();
 		if (isAuthStatusCode(res.status)) {
 			if (!this._authMetadata) {
-				this._authMetadata = await createAuthMetadata(mcpUrl, res, {
-					launchHeaders: this._launch.headers,
+				this._authMetadata = await createAuthMetadata(mcpUrl, res.headers, {
+					sameOriginHeaders: {
+						...Object.fromEntries(this._launch.headers),
+						'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION
+					},
 					fetch: (url, init) => this._fetch(url, init as MinimalRequestInit),
 					log: (level, message) => this._log(level, message)
 				});
@@ -710,7 +720,7 @@ export class McpHTTPHandle extends Disposable {
 				}
 			} else {
 				// We have auth metadata, but got an auth error. Check if the scopes changed.
-				if (this._authMetadata.update(res)) {
+				if (this._authMetadata.update(res.headers)) {
 					await this._addAuthHeader(headers);
 					if (headers['Authorization']) {
 						// Update the headers in the init object
@@ -724,7 +734,7 @@ export class McpHTTPHandle extends Disposable {
 		if (headers['Authorization'] && isAuthStatusCode(res.status)) {
 			const errorText = await this._getErrText(res);
 			this._log(LogLevel.Info, `Received ${res.status} status with Authorization header, retrying with new auth registration. Error details: ${errorText || 'no additional details'}`);
-			await this._addAuthHeader(headers, true);
+			await this._addAuthHeader(headers, { forceNewRegistration: true });
 			res = await doFetch();
 		}
 		return res;
@@ -841,14 +851,14 @@ export interface IAuthMetadata {
 	readonly resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined;
 	readonly scopes: string[] | undefined;
 	/** Telemetry data about how auth metadata was discovered */
-	readonly telemetry: IMcpAuthSetupTelemetry;
+	readonly telemetry: IAuthMetadataSource;
 
 	/**
 	 * Updates the scopes based on the WWW-Authenticate header in the response.
 	 * @param response The HTTP response containing potential scope challenges
 	 * @returns true if scopes were updated, false otherwise
 	 */
-	update(response: CommonResponse): boolean;
+	update(responseHeaders: Headers): boolean;
 }
 
 /**
@@ -863,7 +873,7 @@ class AuthMetadata implements IAuthMetadata {
 		public readonly serverMetadata: IAuthorizationServerMetadata,
 		public readonly resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined,
 		scopes: string[] | undefined,
-		public readonly telemetry: IMcpAuthSetupTelemetry,
+		public readonly telemetry: IAuthMetadataSource,
 		private readonly _log: AuthMetadataLogger,
 	) {
 		this._scopes = scopes;
@@ -873,8 +883,8 @@ class AuthMetadata implements IAuthMetadata {
 		return this._scopes;
 	}
 
-	update(response: CommonResponse): boolean {
-		const scopesChallenge = this._parseScopesFromResponse(response);
+	update(responseHeaders: Headers): boolean {
+		const scopesChallenge = this._parseScopesFromResponse(responseHeaders);
 		if (!scopesMatch(scopesChallenge, this._scopes)) {
 			this._log(LogLevel.Info, `Scopes changed from ${JSON.stringify(this._scopes)} to ${JSON.stringify(scopesChallenge)}, updating`);
 			this._scopes = scopesChallenge;
@@ -883,12 +893,11 @@ class AuthMetadata implements IAuthMetadata {
 		return false;
 	}
 
-	private _parseScopesFromResponse(response: CommonResponse): string[] | undefined {
-		if (!response.headers.has('WWW-Authenticate')) {
+	private _parseScopesFromResponse(responseHeaders: Headers): string[] | undefined {
+		const authHeader = responseHeaders.get('WWW-Authenticate');
+		if (!authHeader) {
 			return undefined;
 		}
-
-		const authHeader = response.headers.get('WWW-Authenticate')!;
 		const challenges = parseWWWAuthenticateHeader(authHeader);
 		for (const challenge of challenges) {
 			if (challenge.scheme === 'Bearer' && challenge.params['scope']) {
@@ -907,8 +916,8 @@ class AuthMetadata implements IAuthMetadata {
  * Options for creating AuthMetadata.
  */
 export interface ICreateAuthMetadataOptions {
-	/** Headers to include when fetching metadata from the same origin as the MCP server */
-	launchHeaders: Iterable<readonly [string, string]>;
+	/** Headers to include when fetching metadata from the same origin as the resource server */
+	sameOriginHeaders?: Record<string, string>;
 	/** Fetch function to use for HTTP requests */
 	fetch: (url: string, init: MinimalRequestInit) => Promise<CommonResponse>;
 	/** Logger function for diagnostic output */
@@ -924,24 +933,24 @@ export interface ICreateAuthMetadataOptions {
  * 3. Fetches authorization server metadata
  * 4. Falls back to default metadata if discovery fails
  *
- * @param mcpUrl The MCP server URL
- * @param originalResponse The original HTTP response that triggered auth (typically 401/403)
+ * @param resourceUrl The resource server URL
+ * @param wwwAuthenticateValue The value of the WWW-Authenticate header from the original HTTP response
  * @param options Configuration options including headers, fetch function, and logger
  * @returns A new AuthMetadata instance
  */
 export async function createAuthMetadata(
-	mcpUrl: string,
-	originalResponse: CommonResponse,
+	resourceUrl: string,
+	initialResponseHeaders: Headers,
 	options: ICreateAuthMetadataOptions
 ): Promise<AuthMetadata> {
-	const { launchHeaders, fetch, log } = options;
+	const { sameOriginHeaders, fetch, log } = options;
 
 	// Track discovery sources for telemetry
-	let resourceMetadataSource = McpAuthResourceMetadataSource.None;
-	let serverMetadataSource: McpAuthServerMetadataSource | undefined;
+	let resourceMetadataSource = IAuthResourceMetadataSource.None;
+	let serverMetadataSource: IAuthServerMetadataSource | undefined;
 
 	// Parse the WWW-Authenticate header for resource_metadata and scope challenges
-	const { resourceMetadataChallenge, scopesChallenge: scopesChallengeFromHeader } = parseWWWAuthenticateHeaderForChallenges(originalResponse, log);
+	const { resourceMetadataChallenge, scopesChallenge: scopesChallengeFromHeader } = parseWWWAuthenticateHeaderForChallenges(initialResponseHeaders.get('WWW-Authenticate') ?? undefined, log);
 
 	// Fetch the resource metadata either from the challenge URL or from well-known URIs
 	let serverMetadataUrl: string | undefined;
@@ -949,11 +958,8 @@ export async function createAuthMetadata(
 	let scopesChallenge = scopesChallengeFromHeader;
 
 	try {
-		const { metadata, discoveryUrl, errors } = await fetchResourceMetadata(mcpUrl, resourceMetadataChallenge, {
-			sameOriginHeaders: {
-				...Object.fromEntries(launchHeaders),
-				'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION
-			},
+		const { metadata, discoveryUrl, errors } = await fetchResourceMetadata(resourceUrl, resourceMetadataChallenge, {
+			sameOriginHeaders,
 			fetch: (url, init) => fetch(url, init as MinimalRequestInit)
 		});
 		for (const err of errors) {
@@ -962,7 +968,7 @@ export async function createAuthMetadata(
 		log(LogLevel.Info, `Discovered resource metadata at ${discoveryUrl}`);
 
 		// Determine if resource metadata came from header or well-known
-		resourceMetadataSource = resourceMetadataChallenge ? McpAuthResourceMetadataSource.Header : McpAuthResourceMetadataSource.WellKnown;
+		resourceMetadataSource = resourceMetadataChallenge ? IAuthResourceMetadataSource.Header : IAuthResourceMetadataSource.WellKnown;
 
 		// TODO:@TylerLeonhardt support multiple authorization servers
 		// Consider using one that has an auth provider first, over the dynamic flow
@@ -971,7 +977,7 @@ export async function createAuthMetadata(
 			log(LogLevel.Warning, `No authorization_servers found in resource metadata ${discoveryUrl} - Is this resource metadata configured correctly?`);
 		} else {
 			log(LogLevel.Info, `Using auth server metadata url: ${serverMetadataUrl}`);
-			serverMetadataSource = McpAuthServerMetadataSource.ResourceMetadata;
+			serverMetadataSource = IAuthServerMetadataSource.ResourceMetadata;
 		}
 		scopesChallenge ??= metadata.scopes_supported;
 		resource = metadata;
@@ -979,18 +985,17 @@ export async function createAuthMetadata(
 		log(LogLevel.Warning, `Could not fetch resource metadata: ${String(e)}`);
 	}
 
-	const baseUrl = new URL(originalResponse.url).origin;
+	const baseUrl = new URL(resourceUrl).origin;
 
 	// If we are not given a resource_metadata, see if the well-known server metadata is available
 	// on the base url.
 	let additionalHeaders: Record<string, string> = {};
 	if (!serverMetadataUrl) {
 		serverMetadataUrl = baseUrl;
-		// Maintain the launch headers when talking to the MCP origin.
-		additionalHeaders = {
-			...Object.fromEntries(launchHeaders),
-			'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION
-		};
+		// Maintain the same origin headers when talking to the resource origin.
+		if (sameOriginHeaders) {
+			additionalHeaders = sameOriginHeaders;
+		}
 	}
 
 	try {
@@ -1006,7 +1011,7 @@ export async function createAuthMetadata(
 
 		// If serverMetadataSource is not yet defined, it means we fell back to baseUrl
 		// and successfully fetched from well-known
-		serverMetadataSource ??= McpAuthServerMetadataSource.WellKnown;
+		serverMetadataSource ??= IAuthServerMetadataSource.WellKnown;
 
 		return new AuthMetadata(
 			URI.parse(serverMetadataUrl),
@@ -1028,7 +1033,7 @@ export async function createAuthMetadata(
 		defaultMetadata,
 		resource,
 		scopesChallenge,
-		{ resourceMetadataSource, serverMetadataSource: McpAuthServerMetadataSource.Default },
+		{ resourceMetadataSource, serverMetadataSource: IAuthServerMetadataSource.Default },
 		log
 	);
 }
@@ -1037,31 +1042,31 @@ export async function createAuthMetadata(
  * Parses the WWW-Authenticate header for resource_metadata and scope challenges.
  */
 function parseWWWAuthenticateHeaderForChallenges(
-	response: CommonResponse,
+	wwwAuthenticateValue: string | undefined,
 	log: AuthMetadataLogger
-): { resourceMetadataChallenge: string | undefined; scopesChallenge: string[] | undefined } {
+): { resourceMetadataChallenge?: string; scopesChallenge?: string[] } {
+	if (!wwwAuthenticateValue) {
+		return {};
+	}
 	let resourceMetadataChallenge: string | undefined;
 	let scopesChallenge: string[] | undefined;
 
-	if (response.headers.has('WWW-Authenticate')) {
-		const authHeader = response.headers.get('WWW-Authenticate')!;
-		const challenges = parseWWWAuthenticateHeader(authHeader);
-		for (const challenge of challenges) {
-			if (challenge.scheme === 'Bearer') {
-				if (!resourceMetadataChallenge && challenge.params['resource_metadata']) {
-					resourceMetadataChallenge = challenge.params['resource_metadata'];
-					log(LogLevel.Debug, `Found resource_metadata challenge in WWW-Authenticate header: ${resourceMetadataChallenge}`);
+	const challenges = parseWWWAuthenticateHeader(wwwAuthenticateValue);
+	for (const challenge of challenges) {
+		if (challenge.scheme === 'Bearer') {
+			if (!resourceMetadataChallenge && challenge.params['resource_metadata']) {
+				resourceMetadataChallenge = challenge.params['resource_metadata'];
+				log(LogLevel.Debug, `Found resource_metadata challenge in WWW-Authenticate header: ${resourceMetadataChallenge}`);
+			}
+			if (!scopesChallenge && challenge.params['scope']) {
+				const scopes = challenge.params['scope'].split(AUTH_SCOPE_SEPARATOR).filter(s => s.trim().length);
+				if (scopes.length) {
+					log(LogLevel.Debug, `Found scope challenge in WWW-Authenticate header: ${challenge.params['scope']}`);
+					scopesChallenge = scopes;
 				}
-				if (!scopesChallenge && challenge.params['scope']) {
-					const scopes = challenge.params['scope'].split(AUTH_SCOPE_SEPARATOR).filter(s => s.trim().length);
-					if (scopes.length) {
-						log(LogLevel.Debug, `Found scope challenge in WWW-Authenticate header: ${challenge.params['scope']}`);
-						scopesChallenge = scopes;
-					}
-				}
-				if (resourceMetadataChallenge && scopesChallenge) {
-					break;
-				}
+			}
+			if (resourceMetadataChallenge && scopesChallenge) {
+				break;
 			}
 		}
 	}

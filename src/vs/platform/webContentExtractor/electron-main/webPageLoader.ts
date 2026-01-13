@@ -5,6 +5,7 @@
 
 import type { BeforeSendResponse, BrowserWindow, BrowserWindowConstructorOptions, Event, OnBeforeSendHeadersListenerDetails } from 'electron';
 import { Queue, raceTimeout, TimeoutTimer } from '../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { createSingleCallFunction } from '../../../base/common/functional.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
@@ -20,6 +21,17 @@ type NetworkRequestEventParams = Readonly<{
 	type?: string;
 }>;
 
+type FrameInfo = Readonly<{
+	id: string;
+	url?: string;
+	name?: string;
+}>;
+
+type FrameTreeNode = Readonly<{
+	frame: FrameInfo;
+	childFrames?: FrameTreeNode[];
+}>;
+
 /**
  * A web page loader that uses Electron to load web pages and extract their content.
  */
@@ -27,6 +39,7 @@ export class WebPageLoader extends Disposable {
 	private static readonly TIMEOUT = 30000; // 30 seconds
 	private static readonly POST_LOAD_TIMEOUT = 5000; // 5 seconds - increased for dynamic content
 	private static readonly FRAME_TIMEOUT = 500; // 0.5 seconds
+	private static readonly EXTRACT_CONTENT_TIMEOUT = 2000; // 2 seconds
 	private static readonly IDLE_DEBOUNCE_TIME = 500; // 0.5 seconds - wait after last network request
 	private static readonly MIN_CONTENT_LENGTH = 100; // Minimum content length to consider extraction successful
 
@@ -329,11 +342,23 @@ export class WebPageLoader extends Disposable {
 		try {
 			const title = this._window.webContents.getTitle();
 
-			let result = await this.extractAccessibilityTreeContent() ?? '';
-			if (result.length < WebPageLoader.MIN_CONTENT_LENGTH) {
-				this.trace(`Accessibility tree extraction yielded insufficient content, trying main DOM element extraction`);
-				const domContent = await this.extractMainDomElementContent() ?? '';
-				result = domContent.length > result.length ? domContent : result;
+			let result = '';
+			const cts = new CancellationTokenSource();
+			try {
+				await raceTimeout((async () => {
+					if (!cts.token.isCancellationRequested) {
+						result = await this.extractAccessibilityTreeContent(cts.token) ?? '';
+					}
+
+					if (!cts.token.isCancellationRequested && result.length < WebPageLoader.MIN_CONTENT_LENGTH) {
+						this.trace(`Accessibility tree extraction yielded insufficient content, trying main DOM element extraction`);
+						const domContent = await this.extractMainDomElementContent() ?? '';
+						result = domContent.length > result.length ? domContent : result;
+					}
+				})(), WebPageLoader.EXTRACT_CONTENT_TIMEOUT);
+			} finally {
+				cts.cancel();
+				cts.dispose();
 			}
 
 			if (result.length === 0) {
@@ -357,13 +382,44 @@ export class WebPageLoader extends Disposable {
 
 	/**
 	 * Extracts content from the Accessibility tree of the loaded web page.
-	 * @return The extracted content, or undefined if extraction fails.
+	 * @param token Cancellation token to abort the operation.
+	 * @return The extracted content, or undefined if extraction fails or is cancelled.
 	 */
-	private async extractAccessibilityTreeContent(): Promise<string | undefined> {
+	private async extractAccessibilityTreeContent(token: CancellationToken): Promise<string | undefined> {
 		this.trace(`Extracting content using Accessibility domain`);
 		try {
-			const { nodes } = await this._debugger.sendCommand('Accessibility.getFullAXTree') as { nodes: AXNode[] };
-			return convertAXTreeToMarkdown(this._uri, nodes);
+			// Enable the Page domain to get frame information
+			await this._debugger.sendCommand('Page.enable');
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
+
+			// Get all frames including iframes
+			const { frameTree } = await this._debugger.sendCommand('Page.getFrameTree') as { frameTree: FrameTreeNode };
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
+
+			const frameNodes = [frameTree];
+			for (let i = 0; i < frameNodes.length; i++) {
+				frameNodes.push(...frameNodes[i].childFrames ?? []);
+			}
+
+			// Collect accessibility nodes from all frames
+			const allNodes: AXNode[] = [];
+			for (const { frame } of frameNodes) {
+				try {
+					const { nodes } = await this._debugger.sendCommand('Accessibility.getFullAXTree', { frameId: frame.id }) as { nodes: AXNode[] };
+					allNodes.push(...nodes);
+					if (token.isCancellationRequested) {
+						return undefined;
+					}
+				} catch {
+					// ignore
+				}
+			}
+
+			return convertAXTreeToMarkdown(this._uri, allNodes);
 		} catch (error) {
 			this.trace(`Accessibility tree extraction failed: ${error instanceof Error ? error.message : String(error)}`);
 			return undefined;

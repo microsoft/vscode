@@ -711,7 +711,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		}
 		let part!: ChatElicitationRequestPart;
 		const promise = new Promise<T | undefined>(resolve => {
-			const thePart = part = this._register(new ChatElicitationRequestPart(
+			const thePart = part = new ChatElicitationRequestPart(
 				title,
 				detail,
 				subtitle,
@@ -744,7 +744,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				undefined, // source
 				moreActions,
 				() => this._outputMonitorTelemetryCounters.inputToolManualShownCount++
-			));
+			);
 
 			chatModel.acceptResponseProgress(request, thePart);
 			this._promptPart = thePart;

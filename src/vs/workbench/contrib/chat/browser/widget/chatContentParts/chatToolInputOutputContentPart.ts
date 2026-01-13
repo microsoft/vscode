@@ -98,7 +98,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		@IHoverService hoverService: IHoverService,
 	) {
 		super();
-		this._currentWidth = context.currentWidth();
+		this._currentWidth = context.currentWidth.get();
 
 		const container = dom.h('.chat-confirmation-widget-container');
 		const titleEl = dom.h('.chat-confirmation-widget-title-inner');

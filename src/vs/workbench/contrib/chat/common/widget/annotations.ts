@@ -117,6 +117,10 @@ export function extractCodeblockUrisFromText(text: string): { uri: URI; isEdit?:
 	return undefined;
 }
 
+export function hasCodeblockUriTag(text: string): boolean {
+	return text.includes('<vscode_codeblock_uri');
+}
+
 export function extractVulnerabilitiesFromText(text: string): { newText: string; vulnerabilities: IMarkdownVulnerability[] } {
 	const vulnerabilities: IMarkdownVulnerability[] = [];
 	let newText = text;

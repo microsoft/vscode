@@ -193,7 +193,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 								isReadOnly: true,
 								horizontalPadding: this.rendererOptions.horizontalPadding,
 							};
-							const diffPart = this.instantiationService.createInstance(MarkdownDiffBlockPart, diffData, context.diffEditorPool, context.currentWidth());
+							const diffPart = this.instantiationService.createInstance(MarkdownDiffBlockPart, diffData, context.diffEditorPool, context.currentWidth.get());
 							const ref: IDisposableReference<MarkdownDiffBlockPart> = {
 								object: diffPart,
 								isStale: () => false,

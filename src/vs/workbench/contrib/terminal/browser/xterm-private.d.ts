@@ -31,3 +31,13 @@ export interface IXtermCore {
 		};
 	};
 }
+
+export interface IBufferSet {
+	readonly active: {
+		readonly baseY: number;
+		readonly cursorY: number;
+		readonly cursorX: number;
+		readonly length: number;
+		getLine(y: number): { translateToString(trimRight?: boolean): string } | undefined;
+	};
+}
