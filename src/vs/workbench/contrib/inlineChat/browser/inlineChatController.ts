@@ -200,6 +200,8 @@ export class InlineChatController implements IEditorContribution {
 				() => Promise.resolve(),
 			);
 
+			this._store.add(result);
+
 			result.domNode.classList.add('inline-chat-2');
 
 			return result;
