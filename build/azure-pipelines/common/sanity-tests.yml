@@ -38,19 +38,19 @@ jobs:
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Registry
 
-      - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts compile $(node -p process.arch) > .build/packagelockhash
-        displayName: Prepare node_modules cache key
+      # - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts compile $(node -p process.arch) > .build/packagelockhash
+      #   displayName: Prepare node_modules cache key
 
-      - task: Cache@2
-        inputs:
-          key: '"node_modules" | .build/packagelockhash'
-          path: .build/node_modules_cache
-          cacheHitVar: NODE_MODULES_RESTORED
-        displayName: Restore node_modules cache
+      # - task: Cache@2
+      #   inputs:
+      #     key: '"node_modules" | .build/packagelockhash'
+      #     path: .build/node_modules_cache
+      #     cacheHitVar: NODE_MODULES_RESTORED
+      #   displayName: Restore node_modules cache
 
-      - script: tar -xzf .build/node_modules_cache/cache.tgz
-        condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
-        displayName: Extract node_modules cache
+      # - script: tar -xzf .build/node_modules_cache/cache.tgz
+      #   condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
+      #   displayName: Extract node_modules cache
 
       - bash: |
           set -e
@@ -83,13 +83,13 @@ jobs:
         displayName: Install dependencies
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
-      - bash: |
-          set -e
-          node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
-          mkdir -p .build/node_modules_cache
-          tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-        displayName: Create node_modules archive
+      # - bash: |
+      #     set -e
+      #     node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
+      #     mkdir -p .build/node_modules_cache
+      #     tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
+      #   condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+      #   displayName: Create node_modules archive
 
       - script: npm run postinstall
         workingDirectory: ./test/sanity
