@@ -12,11 +12,16 @@ declare module 'vscode' {
 	/**
 	 * Describes a chat resource file.
 	 */
-	export type ChatResourceDescriptor = Uri |
-	{
-		uri: Uri;
-		isEditable?: boolean;
-	};
+	export type ChatResourceDescriptor =
+		| Uri
+		| {
+			uri: Uri;
+			isEditable?: boolean;
+		}
+		| {
+			id: string;
+			content: string;
+		};
 
 	/**
 	 * Represents a custom agent resource file (e.g., .agent.md).
@@ -28,17 +33,10 @@ declare module 'vscode' {
 		readonly uri: Uri;
 
 		/**
-		 * Creates a new custom agent resource from an existing file.
+		 * Creates a new custom agent resource from the specified resource.
 		 * @param resource The chat resource descriptor.
 		 */
 		constructor(resource: ChatResourceDescriptor);
-
-		/**
-		 * Creates a new custom agent resource with generated virtual URI from the provided content.
-		 * @param id The unique identifier for this custom agent resource.
-		 * @param content The markdown content for the custom agent.
-		 */
-		constructor(id: string, content: string);
 	}
 
 	/**
@@ -51,17 +49,10 @@ declare module 'vscode' {
 		readonly uri: Uri;
 
 		/**
-		 * Creates a new instructions resource from an existing file.
+		 * Creates a new instructions resource from the specified resource.
 		 * @param resource The chat resource descriptor.
 		 */
 		constructor(resource: ChatResourceDescriptor);
-
-		/**
-		 * Creates a new instructions resource with generated virtual URI from the provided content.
-		 * @param id The unique identifier for this instructions resource.
-		 * @param content The markdown content for the instructions.
-		 */
-		constructor(id: string, content: string);
 	}
 
 	/**
@@ -74,17 +65,10 @@ declare module 'vscode' {
 		readonly uri: Uri;
 
 		/**
-		 * Creates a new prompt file resource from an existing file.
+		 * Creates a new prompt file resource from the specified resource.
 		 * @param resource The chat resource descriptor.
 		 */
 		constructor(resource: ChatResourceDescriptor);
-
-		/**
-		 * Creates a new prompt file resource with generated virtual URI from the provided content.
-		 * @param id The unique identifier for this prompt file resource.
-		 * @param content The markdown content for the prompt file.
-		 */
-		constructor(id: string, content: string);
 	}
 
 	// #endregion
@@ -116,7 +100,10 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @returns An array of custom agents or a promise that resolves to such.
 		 */
-		provideCustomAgents(context: CustomAgentContext, token: CancellationToken): ProviderResult<CustomAgentChatResource[]>;
+		provideCustomAgents(
+			context: CustomAgentContext,
+			token: CancellationToken
+		): ProviderResult<CustomAgentChatResource[]>;
 	}
 
 	/**
@@ -144,7 +131,10 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @returns An array of instructions or a promise that resolves to such.
 		 */
-		provideInstructions(context: InstructionsContext, token: CancellationToken): ProviderResult<InstructionsChatResource[]>;
+		provideInstructions(
+			context: InstructionsContext,
+			token: CancellationToken
+		): ProviderResult<InstructionsChatResource[]>;
 	}
 
 	/**
@@ -172,7 +162,10 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @returns An array of prompt files or a promise that resolves to such.
 		 */
-		providePromptFiles(context: PromptFileContext, token: CancellationToken): ProviderResult<PromptFileChatResource[]>;
+		providePromptFiles(
+			context: PromptFileContext,
+			token: CancellationToken
+		): ProviderResult<PromptFileChatResource[]>;
 	}
 
 	// #endregion
@@ -185,21 +178,27 @@ declare module 'vscode' {
 		 * @param provider The custom agent provider.
 		 * @returns A disposable that unregisters the provider when disposed.
 		 */
-		export function registerCustomAgentProvider(provider: CustomAgentProvider): Disposable;
+		export function registerCustomAgentProvider(
+			provider: CustomAgentProvider
+		): Disposable;
 
 		/**
 		 * Register a provider for instructions.
 		 * @param provider The instructions provider.
 		 * @returns A disposable that unregisters the provider when disposed.
 		 */
-		export function registerInstructionsProvider(provider: InstructionsProvider): Disposable;
+		export function registerInstructionsProvider(
+			provider: InstructionsProvider
+		): Disposable;
 
 		/**
 		 * Register a provider for prompt files.
 		 * @param provider The prompt file provider.
 		 * @returns A disposable that unregisters the provider when disposed.
 		 */
-		export function registerPromptFileProvider(provider: PromptFileProvider): Disposable;
+		export function registerPromptFileProvider(
+			provider: PromptFileProvider
+		): Disposable;
 	}
 
 	// #endregion

@@ -809,7 +809,7 @@ suite('ExtHostTypes', function () {
 
 	test('CustomAgentChatResource - content constructor', function () {
 		const content = '# My Agent\nThis is agent content';
-		const resource = new types.CustomAgentChatResource('my-agent-id', content);
+		const resource = new types.CustomAgentChatResource({ id: 'my-agent-id', content });
 
 		assert.strictEqual(resource.uri.scheme, 'vscode-chat-prompt');
 		assert.ok(resource.uri.path.includes('.agent.md'));
@@ -840,7 +840,7 @@ suite('ExtHostTypes', function () {
 
 	test('InstructionsChatResource - content constructor', function () {
 		const content = '# Instructions\nFollow these steps';
-		const resource = new types.InstructionsChatResource('my-instructions-id', content);
+		const resource = new types.InstructionsChatResource({ id: 'my-instructions-id', content });
 
 		assert.strictEqual(resource.uri.scheme, 'vscode-chat-prompt');
 		assert.ok(resource.uri.path.includes('.instructions.md'));
@@ -871,7 +871,7 @@ suite('ExtHostTypes', function () {
 
 	test('PromptFileChatResource - content constructor', function () {
 		const content = '# Prompt\nThis is my prompt content';
-		const resource = new types.PromptFileChatResource('my-prompt-id', content);
+		const resource = new types.PromptFileChatResource({ id: 'my-prompt-id', content });
 
 		assert.strictEqual(resource.uri.scheme, 'vscode-chat-prompt');
 		assert.ok(resource.uri.path.includes('.prompt.md'));
@@ -883,16 +883,16 @@ suite('ExtHostTypes', function () {
 
 
 	test('Chat prompt resources generate unique URIs for different IDs', function () {
-		const resource1 = new types.CustomAgentChatResource('id-one', 'content1');
-		const resource2 = new types.CustomAgentChatResource('id-two', 'content2');
+		const resource1 = new types.CustomAgentChatResource({ id: 'id-one', content: 'content1' });
+		const resource2 = new types.CustomAgentChatResource({ id: 'id-two', content: 'content2' });
 
 		assert.notStrictEqual(resource1.uri.toString(), resource2.uri.toString());
 	});
 
 	test('Chat prompt resources use correct file extensions', function () {
-		const agent = new types.CustomAgentChatResource('test', 'content');
-		const instructions = new types.InstructionsChatResource('test', 'content');
-		const prompt = new types.PromptFileChatResource('test', 'content');
+		const agent = new types.CustomAgentChatResource({ id: 'test', content: 'content' });
+		const instructions = new types.InstructionsChatResource({ id: 'test', content: 'content' });
+		const prompt = new types.PromptFileChatResource({ id: 'test', content: 'content' });
 
 		assert.ok(agent.uri.path.includes('.agent.md'), `Expected .agent.md in path, got ${agent.uri.path}`);
 		assert.ok(instructions.uri.path.includes('.instructions.md'), `Expected .instructions.md in path, got ${instructions.uri.path}`);
