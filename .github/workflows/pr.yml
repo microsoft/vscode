@@ -33,7 +33,7 @@ jobs:
 
       - name: Restore node_modules cache
         id: cache-node-modules
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: .build/node_modules_cache
           key: "node_modules-compile-${{ hashFiles('.build/packagelockhash') }}"
@@ -77,7 +77,7 @@ jobs:
         working-directory: build
 
       - name: Compile & Hygiene
-        run: npm exec -- npm-run-all -lp core-ci extensions-ci hygiene eslint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
+        run: npm exec -- npm-run-all2 -lp core-ci extensions-ci hygiene eslint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

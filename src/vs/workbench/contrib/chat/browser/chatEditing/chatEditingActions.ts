@@ -27,11 +27,11 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { IEditorPane } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
-import { isChatViewTitleActionContext } from '../../common/chatActions.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, ModifiedFileEntryState } from '../../common/chatEditingService.js';
-import { IChatService } from '../../common/chatService.js';
-import { isChatTreeItem, isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
+import { isChatViewTitleActionContext } from '../../common/actions/chatActions.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
+import { IChatService } from '../../common/chatService/chatService.js';
+import { isChatTreeItem, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
@@ -257,7 +257,7 @@ export async function discardAllEditsWithConfirmation(accessor: ServicesAccessor
 	const dialogService = accessor.get(IDialogService);
 
 	// Ask for confirmation if there are any edits
-	const entries = currentEditingSession.entries.get();
+	const entries = currentEditingSession.entries.get().filter(e => e.state.get() === ModifiedFileEntryState.Modified);
 	if (entries.length > 0) {
 		const confirmation = await dialogService.confirm({
 			title: localize('chat.editing.discardAll.confirmation.title', "Undo all edits?"),

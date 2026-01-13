@@ -349,6 +349,8 @@ export interface IDefaultChatAgent {
 	readonly extensionId: string;
 	readonly chatExtensionId: string;
 
+	readonly chatExtensionOutputId: string;
+
 	readonly documentationUrl: string;
 	readonly skusDocumentationUrl: string;
 	readonly publicCodeMatchesUrl: string;

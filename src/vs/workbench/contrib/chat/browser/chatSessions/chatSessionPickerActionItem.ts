@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/chatSessionAction.css';
+import './media/chatSessionPickerActionItem.css';
 import { IAction } from '../../../../../base/common/actions.js';
 import { Event } from '../../../../../base/common/event.js';
 import * as dom from '../../../../../base/browser/dom.js';
@@ -25,7 +25,7 @@ export interface IChatSessionPickerDelegate {
 	readonly onDidChangeOption: Event<IChatSessionProviderOptionItem>;
 	getCurrentOption(): IChatSessionProviderOptionItem | undefined;
 	setOption(option: IChatSessionProviderOptionItem): void;
-	getAllOptions(): IChatSessionProviderOptionItem[];
+	getOptionGroup(): IChatSessionProviderOptionGroup | undefined;
 }
 
 /**
@@ -71,7 +71,11 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 							run: () => { }
 						} satisfies IActionWidgetDropdownAction];
 					} else {
-						return this.delegate.getAllOptions().map(optionItem => {
+						const group = this.delegate.getOptionGroup();
+						if (!group) {
+							return [];
+						}
+						return group.items.map(optionItem => {
 							const isCurrent = optionItem.id === this.delegate.getCurrentOption()?.id;
 							return {
 								id: optionItem.id,

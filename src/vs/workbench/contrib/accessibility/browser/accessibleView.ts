@@ -46,7 +46,7 @@ import { IQuickInputService, IQuickPick, IQuickPickItem } from '../../../../plat
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { FloatingEditorClickMenu } from '../../../browser/codeeditor.js';
 import { IChatCodeBlockContextProviderService } from '../../chat/browser/chat.js';
-import { ICodeBlockActionContext } from '../../chat/browser/codeBlockPart.js';
+import { ICodeBlockActionContext } from '../../chat/browser/widget/chatContentParts/codeBlockPart.js';
 import { getSimpleEditorOptions } from '../../codeEditor/browser/simpleEditorOptions.js';
 import { AccessibilityCommandId } from '../common/accessibilityCommands.js';
 import { AccessibilityVerbositySettingId, AccessibilityWorkbenchSettingId, accessibilityHelpIsShown, accessibleViewContainsCodeBlocks, accessibleViewCurrentProviderId, accessibleViewGoToSymbolSupported, accessibleViewHasAssignedKeybindings, accessibleViewHasUnassignedKeybindings, accessibleViewInCodeBlock, accessibleViewIsShown, accessibleViewOnLastLine, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from './accessibilityConfiguration.js';
@@ -581,6 +581,8 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 	}
 
 	private _render(provider: AccesibleViewContentProvider, container: HTMLElement, showAccessibleViewHelp?: boolean, updatedContent?: string): IDisposable {
+		const isSameProvider = this._currentProvider?.id === provider.id;
+		const previousPosition = isSameProvider ? this._editorWidget.getPosition() : undefined;
 		this._currentProvider = provider;
 		this._accessibleViewCurrentProviderId.set(provider.id);
 		const verbose = this._verbosityEnabled();
@@ -629,6 +631,8 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 						this._editorWidget.revealLine(position.lineNumber);
 					}
 				}
+			} else if (previousPosition) {
+				this._editorWidget.setPosition(previousPosition);
 			}
 		});
 		this._updateToolbar(this._currentProvider.actions, provider.options.type);

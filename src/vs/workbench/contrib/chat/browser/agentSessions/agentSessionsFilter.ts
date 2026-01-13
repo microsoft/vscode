@@ -10,10 +10,10 @@ import { localize } from '../../../../../nls.js';
 import { registerAction2, Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { ChatSessionStatus, IChatSessionsService } from '../../common/chatSessionsService.js';
+import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { AgentSessionProviders, getAgentSessionProviderName } from './agentSessions.js';
-import { IAgentSession } from './agentSessionsModel.js';
-import { IAgentSessionsFilter } from './agentSessionsViewer.js';
+import { AgentSessionStatus, IAgentSession } from './agentSessionsModel.js';
+import { IAgentSessionsFilter, IAgentSessionsFilterExcludes } from './agentSessionsViewer.js';
 
 export interface IAgentSessionsFilterOptions extends Partial<IAgentSessionsFilter> {
 
@@ -22,21 +22,15 @@ export interface IAgentSessionsFilterOptions extends Partial<IAgentSessionsFilte
 	readonly limitResults?: () => number | undefined;
 	notifyResults?(count: number): void;
 
+	readonly groupResults?: () => boolean | undefined;
+
 	overrideExclude?(session: IAgentSession): boolean | undefined;
 }
 
-interface IAgentSessionsViewExcludes {
-	readonly providers: readonly string[];
-	readonly states: readonly ChatSessionStatus[];
-
-	readonly archived: boolean;
-	readonly read: boolean;
-}
-
-const DEFAULT_EXCLUDES: IAgentSessionsViewExcludes = Object.freeze({
+const DEFAULT_EXCLUDES: IAgentSessionsFilterExcludes = Object.freeze({
 	providers: [] as const,
 	states: [] as const,
-	archived: true as const,
+	archived: true as const /* archived are never excluded but toggle between expanded and collapsed */,
 	read: false as const,
 });
 
@@ -48,6 +42,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 	readonly onDidChange = this._onDidChange.event;
 
 	readonly limitResults = () => this.options.limitResults?.();
+	readonly groupResults = () => this.options.groupResults?.();
 
 	private excludes = DEFAULT_EXCLUDES;
 
@@ -78,12 +73,12 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		const excludedTypesRaw = this.storageService.get(this.STORAGE_KEY, StorageScope.PROFILE);
 		if (excludedTypesRaw) {
 			try {
-				this.excludes = JSON.parse(excludedTypesRaw) as IAgentSessionsViewExcludes;
+				this.excludes = JSON.parse(excludedTypesRaw) as IAgentSessionsFilterExcludes;
 			} catch {
-				this.resetExcludes();
+				this.excludes = { ...DEFAULT_EXCLUDES };
 			}
 		} else {
-			this.resetExcludes();
+			this.excludes = { ...DEFAULT_EXCLUDES };
 		}
 
 		this.updateFilterActions();
@@ -93,19 +88,14 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		}
 	}
 
-	private resetExcludes(): void {
-		this.excludes = {
-			providers: [...DEFAULT_EXCLUDES.providers],
-			states: [...DEFAULT_EXCLUDES.states],
-			archived: DEFAULT_EXCLUDES.archived,
-			read: DEFAULT_EXCLUDES.read,
-		};
-	}
-
-	private storeExcludes(excludes: IAgentSessionsViewExcludes): void {
+	private storeExcludes(excludes: IAgentSessionsFilterExcludes): void {
 		this.excludes = excludes;
 
-		this.storageService.store(this.STORAGE_KEY, JSON.stringify(this.excludes), StorageScope.PROFILE, StorageTarget.USER);
+		if (equals(this.excludes, DEFAULT_EXCLUDES)) {
+			this.storageService.remove(this.STORAGE_KEY, StorageScope.PROFILE);
+		} else {
+			this.storageService.store(this.STORAGE_KEY, JSON.stringify(this.excludes), StorageScope.PROFILE, StorageTarget.USER);
+		}
 	}
 
 	private updateFilterActions(): void {
@@ -162,10 +152,11 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 	}
 
 	private registerStateActions(disposables: DisposableStore): void {
-		const states: { id: ChatSessionStatus; label: string }[] = [
-			{ id: ChatSessionStatus.Completed, label: localize('chatSessionStatus.completed', "Completed") },
-			{ id: ChatSessionStatus.InProgress, label: localize('chatSessionStatus.inProgress', "In Progress") },
-			{ id: ChatSessionStatus.Failed, label: localize('chatSessionStatus.failed', "Failed") },
+		const states: { id: AgentSessionStatus; label: string }[] = [
+			{ id: AgentSessionStatus.Completed, label: localize('agentSessionStatus.completed', "Completed") },
+			{ id: AgentSessionStatus.InProgress, label: localize('agentSessionStatus.inProgress', "In Progress") },
+			{ id: AgentSessionStatus.NeedsInput, label: localize('agentSessionStatus.needsInput', "Input Needed") },
+			{ id: AgentSessionStatus.Failed, label: localize('agentSessionStatus.failed', "Failed") },
 		];
 
 		const that = this;
@@ -253,9 +244,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 				});
 			}
 			run(): void {
-				that.resetExcludes();
-
-				that.storageService.store(that.STORAGE_KEY, JSON.stringify(that.excludes), StorageScope.PROFILE, StorageTarget.USER);
+				that.storeExcludes({ ...DEFAULT_EXCLUDES });
 			}
 		}));
 	}
@@ -264,14 +253,14 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		return equals(this.excludes, DEFAULT_EXCLUDES);
 	}
 
+	getExcludes(): IAgentSessionsFilterExcludes {
+		return this.excludes;
+	}
+
 	exclude(session: IAgentSession): boolean {
 		const overrideExclude = this.options?.overrideExclude?.(session);
 		if (typeof overrideExclude === 'boolean') {
 			return overrideExclude;
-		}
-
-		if (this.excludes.archived && session.isArchived()) {
-			return true;
 		}
 
 		if (this.excludes.read && (session.isArchived() || session.isRead())) {

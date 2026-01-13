@@ -49,26 +49,6 @@ declare module 'vscode' {
 		 */
 		readonly onDidCommitChatSessionItem: Event<{ original: ChatSessionItem /** untitled */; modified: ChatSessionItem /** newly created */ }>;
 
-		/**
-		 * DEPRECATED: Will be removed!
-		 * Creates a new chat session.
-		 *
-		 * @param options Options for the new session including an optional initial prompt and history
-		 * @param token A cancellation token
-		 * @returns Metadata for the chat session
-		 */
-		provideNewChatSessionItem?(options: {
-			/**
-			 * The chat request that initiated the session creation
-			 */
-			readonly request: ChatRequest;
-
-			/**
-			 * Additional metadata to use for session creation
-			 */
-			metadata?: any;
-		}, token: CancellationToken): ProviderResult<ChatSessionItem>;
-
 		// #endregion
 	}
 
@@ -94,6 +74,11 @@ declare module 'vscode' {
 		 * An optional description that provides additional context about the chat session.
 		 */
 		description?: string | MarkdownString;
+
+		/**
+		 * An optional badge that provides additional context about the chat session.
+		 */
+		badge?: string | MarkdownString;
 
 		/**
 		 * An optional status indicating the current state of the session.
@@ -237,6 +222,14 @@ declare module 'vscode' {
 		readonly onDidChangeChatSessionOptions?: Event<ChatSessionOptionChangeEvent>;
 
 		/**
+		 * Event that the provider can fire to signal that the available provider options have changed.
+		 *
+		 * When fired, the editor will re-query {@link ChatSessionContentProvider.provideChatSessionProviderOptions}
+		 * and update the UI to reflect the new option groups.
+		 */
+		readonly onDidChangeChatSessionProviderOptions?: Event<void>;
+
+		/**
 		 * Provides the chat session content for a given uri.
 		 *
 		 * The returned {@linkcode ChatSession} is used to populate the history of the chat UI.
@@ -259,7 +252,7 @@ declare module 'vscode' {
 		 * Called as soon as you register (call me once)
 		 * @param token
 		 */
-		provideChatSessionProviderOptions?(token: CancellationToken): Thenable<ChatSessionProviderOptions> | ChatSessionProviderOptions;
+		provideChatSessionProviderOptions?(token: CancellationToken): Thenable<ChatSessionProviderOptions | ChatSessionProviderOptions>;
 	}
 
 	export interface ChatSessionOptionUpdate {
@@ -344,6 +337,12 @@ declare module 'vscode' {
 		 * An icon for the option item shown in UI.
 		 */
 		readonly icon?: ThemeIcon;
+
+		/**
+		 * Indicates if this option should be selected by default.
+		 * Only one item per option group should be marked as default.
+		 */
+		readonly default?: boolean;
 	}
 
 	/**
@@ -369,6 +368,36 @@ declare module 'vscode' {
 		 * The selectable items within this option group.
 		 */
 		readonly items: ChatSessionProviderOptionItem[];
+
+		/**
+		 * A context key expression that controls when this option group picker is visible.
+		 * When specified, the picker is only shown when the expression evaluates to true.
+		 * The expression can reference other option group values via `chatSessionOption.<groupId>`.
+		 *
+		 * Example: `"chatSessionOption.models == 'gpt-4'"` - only show this picker when
+		 * the 'models' option group has 'gpt-4' selected.
+		 */
+		readonly when?: string;
+
+		/**
+		 * When true, displays a searchable QuickPick with a "See more..." option.
+		 * Recommended for option groups with additional async items (e.g., repositories).
+		 */
+		readonly searchable?: boolean;
+
+		/**
+		 * An icon for the option group shown in UI.
+		 */
+		readonly icon?: ThemeIcon;
+
+		/**
+		 * Handler for dynamic search when `searchable` is true.
+		 * Called when the user clicks "See more..." to load additional items.
+		 *
+		 * @param token A cancellation token.
+		 * @returns Additional items to display in the searchable QuickPick.
+		 */
+		readonly onSearch?: (token: CancellationToken) => Thenable<ChatSessionProviderOptionItem[]>;
 	}
 
 	export interface ChatSessionProviderOptions {

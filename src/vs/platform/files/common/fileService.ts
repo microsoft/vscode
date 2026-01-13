@@ -260,6 +260,7 @@ export class FileService extends Disposable implements IFileService {
 			size: stat.size,
 			readonly: Boolean((stat.permissions ?? 0) & FilePermission.Readonly) || Boolean(provider.capabilities & FileSystemProviderCapabilities.Readonly),
 			locked: Boolean((stat.permissions ?? 0) & FilePermission.Locked),
+			executable: Boolean((stat.permissions ?? 0) & FilePermission.Executable),
 			etag: etag({ mtime: stat.mtime, size: stat.size }),
 			children: undefined
 		};
