@@ -316,6 +316,8 @@ export interface ILanguageModelsService {
 
 	addLanguageModelsProviderGroup(name: string, vendorId: string, configuration: IStringDictionary<unknown> | undefined): Promise<void>;
 
+	removeLanguageModelsProviderGroup(vendorId: string, providerGroupName: string): Promise<void>;
+
 	configureLanguageModelsProviderGroup(vendorId: string, name?: string): Promise<void>;
 }
 
@@ -402,7 +404,8 @@ export const languageModelChatProviderExtensionPoint = ExtensionsRegistry.regist
 
 export class LanguageModelsService implements ILanguageModelsService {
 
-	private static SECRET_KEY = '${input:{0}}';
+	private static SECRET_KEY_PREFIX = 'chat.lm.secret.';
+	private static SECRET_INPUT = '${input:{0}}';
 
 	readonly _serviceBrand: undefined;
 
@@ -753,6 +756,23 @@ export class LanguageModelsService implements ILanguageModelsService {
 		await this._languageModelsConfigurationService.addLanguageModelsProviderGroup(languageModelProviderGroup);
 	}
 
+	async removeLanguageModelsProviderGroup(vendorId: string, providerGroupName: string): Promise<void> {
+		const vendor = this.getVendors().find(({ vendor }) => vendor === vendorId);
+		if (!vendor) {
+			throw new Error(`Vendor ${vendorId} not found.`);
+		}
+
+		const languageModelProviderGroups = this._languageModelsConfigurationService.getLanguageModelsProviderGroups();
+		const existing = languageModelProviderGroups.find(g => g.vendor === vendorId && g.name === providerGroupName);
+
+		if (!existing) {
+			throw new Error(`Language model provider group ${providerGroupName} for vendor ${vendorId} not found.`);
+		}
+
+		await this._deleteSecretsInConfiguration(existing, vendor.configuration);
+		await this._languageModelsConfigurationService.removeLanguageModelsProviderGroup(existing);
+	}
+
 	private canConfigure(configuration: IStringDictionary<unknown>, schema: IJSONSchema): boolean {
 		if (schema.additionalProperties) {
 			return true;
@@ -969,7 +989,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 	}
 
 	private encodeSecretKey(property: string): string {
-		return format(LanguageModelsService.SECRET_KEY, property);
+		return format(LanguageModelsService.SECRET_INPUT, property);
 	}
 
 	private decodeSecretKey(secretInput: unknown): string | undefined {
@@ -1017,7 +1037,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		for (const key in configuration) {
 			let value = configuration[key];
 			if (schema.properties?.[key]?.secret && isString(value)) {
-				const secretKey = `secret.${hash(generateUuid())}`;
+				const secretKey = `${LanguageModelsService.SECRET_KEY_PREFIX}${hash(generateUuid()).toString(16)}`;
 				await this._secretStorageService.set(secretKey, value);
 				value = this.encodeSecretKey(secretKey);
 			}
@@ -1025,6 +1045,23 @@ export class LanguageModelsService implements ILanguageModelsService {
 		}
 
 		return { name, vendor, ...result };
+	}
+
+	private async _deleteSecretsInConfiguration(group: ILanguageModelsProviderGroup, schema: IJSONSchema | undefined): Promise<void> {
+		if (!schema) {
+			return;
+		}
+
+		const { vendor, name, range, ...configuration } = group;
+		for (const key in configuration) {
+			const value = group[key];
+			if (schema.properties?.[key]?.secret) {
+				const secretKey = this.decodeSecretKey(value);
+				if (secretKey) {
+					await this._secretStorageService.delete(secretKey);
+				}
+			}
+		}
 	}
 
 	dispose() {
