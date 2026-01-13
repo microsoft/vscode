@@ -793,16 +793,16 @@ suite('ExtHostTypes', function () {
 		const uri = URI.file('/path/to/agent.md');
 		const resource = new types.CustomAgentChatResource(uri);
 
-		assert.strictEqual(resource.uri, uri);
+		assert.strictEqual(resource.uri.toString(), uri.toString());
 		assert.strictEqual(resource.content, undefined);
 		assert.strictEqual(resource.isEditable, undefined);
 	});
 
 	test('CustomAgentChatResource - URI constructor with options', function () {
 		const uri = URI.file('/path/to/agent.md');
-		const resource = new types.CustomAgentChatResource(uri, { isEditable: true });
+		const resource = new types.CustomAgentChatResource({ uri, isEditable: true });
 
-		assert.strictEqual(resource.uri, uri);
+		assert.strictEqual(resource.uri.toString(), uri.toString());
 		assert.strictEqual(resource.content, undefined);
 		assert.strictEqual(resource.isEditable, true);
 	});
@@ -818,30 +818,22 @@ suite('ExtHostTypes', function () {
 		assert.strictEqual(resource.isEditable, undefined);
 	});
 
-	test('CustomAgentChatResource - content constructor with options', function () {
-		const content = '# My Agent\nThis is agent content';
-		const resource = new types.CustomAgentChatResource('my-agent-id', content, { isEditable: false });
 
-		assert.strictEqual(resource.uri.scheme, 'vscode-chat-prompt');
-		assert.ok(resource.uri.path.includes('.agent.md'));
-		assert.strictEqual(resource.content, content);
-		assert.strictEqual(resource.isEditable, false);
-	});
 
 	test('InstructionsChatResource - URI constructor', function () {
 		const uri = URI.file('/path/to/instructions.md');
 		const resource = new types.InstructionsChatResource(uri);
 
-		assert.strictEqual(resource.uri, uri);
+		assert.strictEqual(resource.uri.toString(), uri.toString());
 		assert.strictEqual(resource.content, undefined);
 		assert.strictEqual(resource.isEditable, undefined);
 	});
 
 	test('InstructionsChatResource - URI constructor with options', function () {
 		const uri = URI.file('/path/to/instructions.md');
-		const resource = new types.InstructionsChatResource(uri, { isEditable: true });
+		const resource = new types.InstructionsChatResource({ uri, isEditable: true });
 
-		assert.strictEqual(resource.uri, uri);
+		assert.strictEqual(resource.uri.toString(), uri.toString());
 		assert.strictEqual(resource.content, undefined);
 		assert.strictEqual(resource.isEditable, true);
 	});
@@ -857,32 +849,24 @@ suite('ExtHostTypes', function () {
 		assert.strictEqual(resource.isEditable, undefined);
 	});
 
-	test('InstructionsChatResource - content constructor with options', function () {
-		const content = '# Instructions\nFollow these steps';
-		const resource = new types.InstructionsChatResource('my-instructions-id', content, { isEditable: true });
 
-		assert.strictEqual(resource.uri.scheme, 'vscode-chat-prompt');
-		assert.ok(resource.uri.path.includes('.instructions.md'));
-		assert.strictEqual(resource.content, content);
-		assert.strictEqual(resource.isEditable, true);
-	});
 
 	test('PromptFileChatResource - URI constructor', function () {
 		const uri = URI.file('/path/to/prompt.md');
 		const resource = new types.PromptFileChatResource(uri);
 
-		assert.strictEqual(resource.uri, uri);
+		assert.strictEqual(resource.uri.toString(), uri.toString());
 		assert.strictEqual(resource.content, undefined);
 		assert.strictEqual(resource.isEditable, undefined);
 	});
 
 	test('PromptFileChatResource - URI constructor with options', function () {
 		const uri = URI.file('/path/to/prompt.md');
-		const resource = new types.PromptFileChatResource(uri, { isEditable: false });
+		const resource = new types.PromptFileChatResource({ uri, isEditable: true });
 
-		assert.strictEqual(resource.uri, uri);
+		assert.strictEqual(resource.uri.toString(), uri.toString());
 		assert.strictEqual(resource.content, undefined);
-		assert.strictEqual(resource.isEditable, false);
+		assert.strictEqual(resource.isEditable, true);
 	});
 
 	test('PromptFileChatResource - content constructor', function () {
@@ -896,15 +880,7 @@ suite('ExtHostTypes', function () {
 		assert.strictEqual(resource.isEditable, undefined);
 	});
 
-	test('PromptFileChatResource - content constructor with options', function () {
-		const content = '# Prompt\nThis is my prompt content';
-		const resource = new types.PromptFileChatResource('my-prompt-id', content, { isEditable: true });
 
-		assert.strictEqual(resource.uri.scheme, 'vscode-chat-prompt');
-		assert.ok(resource.uri.path.includes('.prompt.md'));
-		assert.strictEqual(resource.content, content);
-		assert.strictEqual(resource.isEditable, true);
-	});
 
 	test('Chat prompt resources generate unique URIs for different IDs', function () {
 		const resource1 = new types.CustomAgentChatResource('id-one', 'content1');

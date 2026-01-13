@@ -10,14 +10,13 @@ declare module 'vscode' {
 	// #region Resource Classes
 
 	/**
-	 * Options for creating a custom agent resource.
+	 * Describes a chat resource file.
 	 */
-	export interface CustomAgentOptions {
-		/**
-		 * Indicates whether the custom agent is editable. Defaults to false.
-		 */
+	export type ChatResourceDescriptor = Uri |
+	{
+		uri: Uri;
 		isEditable?: boolean;
-	}
+	};
 
 	/**
 	 * Represents a custom agent resource file (e.g., .agent.md).
@@ -29,36 +28,17 @@ declare module 'vscode' {
 		readonly uri: Uri;
 
 		/**
-		 * Indicates whether the custom agent is editable. Defaults to false.
-		 */
-		readonly isEditable?: boolean;
-
-		/**
 		 * Creates a new custom agent resource from an existing file.
-		 * @param uri The URI to the custom agent resource file.
-		 * @param options Optional settings for the custom agent.
+		 * @param resource The chat resource descriptor.
 		 */
-		constructor(uri: Uri, options?: CustomAgentOptions);
+		constructor(resource: ChatResourceDescriptor);
 
 		/**
-		 * Creates a new custom agent resource from content. A virtual URI will be generated
-		 * and the markdown content will be constructed from the provided content.
+		 * Creates a new custom agent resource with generated virtual URI from the provided content.
 		 * @param id The unique identifier for this custom agent resource.
-		 * @param content The content for creating the custom agent - either a string (body only)
-		 *                or a structured PromptFileContent object with header and body.
-		 * @param options Optional settings for the custom agent.
+		 * @param content The markdown content for the custom agent.
 		 */
-		constructor(id: string, content: string, options?: CustomAgentOptions);
-	}
-
-	/**
-	 * Options for creating an instructions resource.
-	 */
-	export interface InstructionsOptions {
-		/**
-		 * Indicates whether the instructions are editable. Defaults to false.
-		 */
-		isEditable?: boolean;
+		constructor(id: string, content: string);
 	}
 
 	/**
@@ -71,36 +51,17 @@ declare module 'vscode' {
 		readonly uri: Uri;
 
 		/**
-		 * Indicates whether the instructions are editable. Defaults to false.
-		 */
-		readonly isEditable?: boolean;
-
-		/**
 		 * Creates a new instructions resource from an existing file.
-		 * @param uri The URI to the instructions resource file.
-		 * @param options Optional settings for the instructions.
+		 * @param resource The chat resource descriptor.
 		 */
-		constructor(uri: Uri, options?: InstructionsOptions);
+		constructor(resource: ChatResourceDescriptor);
 
 		/**
-		 * Creates a new instructions resource from content. A virtual URI will be generated
-		 * and the markdown content will be constructed from the provided content.
+		 * Creates a new instructions resource with generated virtual URI from the provided content.
 		 * @param id The unique identifier for this instructions resource.
-		 * @param content The content for creating the instructions - either a string (body only)
-		 *                or a structured PromptFileContent object with header and body.
-		 * @param options Optional settings for the instructions.
+		 * @param content The markdown content for the instructions.
 		 */
-		constructor(id: string, content: string, options?: InstructionsOptions);
-	}
-
-	/**
-	 * Options for creating a prompt file resource.
-	 */
-	export interface PromptFileOptions {
-		/**
-		 * Indicates whether the prompt file is editable. Defaults to false.
-		 */
-		isEditable?: boolean;
+		constructor(id: string, content: string);
 	}
 
 	/**
@@ -113,26 +74,17 @@ declare module 'vscode' {
 		readonly uri: Uri;
 
 		/**
-		 * Indicates whether the prompt file is editable. Defaults to false.
-		 */
-		readonly isEditable?: boolean;
-
-		/**
 		 * Creates a new prompt file resource from an existing file.
-		 * @param uri The URI to the prompt file resource file.
-		 * @param options Optional settings for the prompt file.
+		 * @param resource The chat resource descriptor.
 		 */
-		constructor(uri: Uri, options?: PromptFileOptions);
+		constructor(resource: ChatResourceDescriptor);
 
 		/**
-		 * Creates a new prompt file resource from content. A virtual URI will be generated
-		 * and the markdown content will be constructed from the provided content.
+		 * Creates a new prompt file resource with generated virtual URI from the provided content.
 		 * @param id The unique identifier for this prompt file resource.
-		 * @param content The content for creating the prompt file - either a string (body only)
-		 *                or a structured PromptFileContent object with header and body.
-		 * @param options Optional settings for the prompt file.
+		 * @param content The markdown content for the prompt file.
 		 */
-		constructor(id: string, content: string, options?: PromptFileOptions);
+		constructor(id: string, content: string);
 	}
 
 	// #endregion
