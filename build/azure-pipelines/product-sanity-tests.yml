@@ -64,15 +64,18 @@ extends:
         jobs:
           - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
+              displayName: Windows x64 Sanity Tests
               poolName: 1es-windows-2022-x64
               os: windows
 
           - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
+              displayName: Linux x64 Sanity Tests
               poolName: 1es-ubuntu-22.04-x64
               os: linux
 
           - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
+              displayName: MacOS arm64 Sanity Tests
               poolName: AcesShared
               os: macOS

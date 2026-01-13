@@ -1,4 +1,6 @@
 parameters:
+  - name: displayName
+    type: string
   - name: poolName
     type: string
   - name: os
@@ -6,7 +8,7 @@ parameters:
 
 jobs:
   - job: ${{ parameters.os }}
-    displayName: ${{ parameters.os }} Sanity Tests
+    displayName: ${{ parameters.displayName }}
     pool:
       name: ${{ parameters.poolName }}
       os: ${{ parameters.os }}
@@ -17,7 +19,7 @@ jobs:
     templateContext:
       outputs:
         - output: pipelineArtifact
-          targetPath: $SANITY_TEST_LOGS
+          targetPath: $(SANITY_TEST_LOGS)
           artifactName: sanity-test-logs-${{ lower(parameters.os) }}-$(System.JobAttempt)
           displayName: Sanity Tests Logs
           sbomEnabled: false
@@ -91,8 +93,8 @@ jobs:
         displayName: Create node_modules archive
 
       - script: npm run postinstall
-        displayName: Install Playwright dependencies
         workingDirectory: ./test/sanity
+        displayName: Install Playwright dependencies
 
       - script: npm run sanity-test -- -c $BUILD_COMMIT -q $BUILD_QUALITY -t $LOG_FILE -v
         displayName: Run Sanity Tests
@@ -101,6 +103,6 @@ jobs:
         inputs:
           testResultsFormat: JUnit
           testResultsFiles: $LOG_FILE
-          testRunTitle: ${{ parameters.os }} Sanity Tests
+          testRunTitle: ${{ parameters.displayName }}
         condition: succeededOrFailed()
         displayName: Publish Test Results
