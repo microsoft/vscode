@@ -54,6 +54,7 @@ jobs:
         displayName: Compile Sanity Tests
 
       - script: npm run start -- -c $BUILD_COMMIT -q $BUILD_QUALITY -t $LOG_FILE -v
+        workingDirectory: ./test/sanity
         displayName: Run Sanity Tests
 
       - task: PublishTestResults@2
