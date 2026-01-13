@@ -272,7 +272,9 @@ export async function showToolsPicker(
 
 	// Helper function to check if virtual mode is active based on tool count
 	const isVirtualModeActive = (currentResults: ReadonlyMap<ToolSet | IToolData, boolean>): boolean => {
-		if (!toolLimit) return false;
+		if (!toolLimit) {
+			return false;
+		}
 
 		let enabledToolCount = 0;
 		for (const [item, enabled] of currentResults.entries()) {
@@ -366,7 +368,13 @@ export async function showToolsPicker(
 							telemetryService.publicLog2<ToolPickerActionData, ToolPickerActionClassification>('chat.toolPicker.action', {
 								action: 'configureMcpServer'
 							});
-							collection.source ? collection.source instanceof ExtensionIdentifier ? extensionsWorkbenchService.open(collection.source.value, { tab: ExtensionEditorTab.Features, feature: 'mcp' }) : mcpWorkbenchService.open(collection.source, { tab: McpServerEditorTab.Configuration }) : undefined;
+							if (collection.source) {
+								if (collection.source instanceof ExtensionIdentifier) {
+									extensionsWorkbenchService.open(collection.source.value, { tab: ExtensionEditorTab.Features, feature: 'mcp' });
+								} else {
+									mcpWorkbenchService.open(collection.source, { tab: McpServerEditorTab.Configuration });
+								}
+							}
 						}
 					});
 				} else if (collection?.presentation?.origin) {
