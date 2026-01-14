@@ -139,7 +139,14 @@ export class SessionTypePickerActionItem extends ActionWidgetDropdownActionViewI
 		const label = getAgentSessionProviderName(currentType ?? AgentSessionProviders.Local);
 		const icon = getAgentSessionProviderIcon(currentType ?? AgentSessionProviders.Local);
 
-		dom.reset(element, ...renderLabelWithIcons(`$(${icon.id})`), dom.$('span.chat-input-picker-label', undefined, label), ...renderLabelWithIcons(`$(chevron-down)`));
+		const labelElements = [];
+		labelElements.push(...renderLabelWithIcons(`$(${icon.id})`));
+		if (currentType !== AgentSessionProviders.Local) {
+			labelElements.push(dom.$('span.chat-input-picker-label', undefined, label));
+		}
+		labelElements.push(...renderLabelWithIcons(`$(chevron-down)`));
+
+		dom.reset(element, ...labelElements);
 		return null;
 	}
 
