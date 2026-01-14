@@ -18,6 +18,7 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { MultiRowEditorControl } from './multiRowEditorTabsControl.js';
 import { IReadonlyEditorGroupModel } from '../../../common/editor/editorGroupModel.js';
 import { NoEditorTabsControl } from './noEditorTabsControl.js';
+import { TypeGroupedEditorTabsControl } from './typeGroupedEditorTabsControl.js';
 
 export interface IEditorTitleControlDimensions {
 
@@ -68,7 +69,13 @@ export class EditorTitleControl extends Themable {
 				break;
 			case 'multiple':
 			default:
-				tabsControlType = this.groupsView.partOptions.pinnedTabsOnSeparateRow ? MultiRowEditorControl : MultiEditorTabsControl;
+				if (this.groupsView.partOptions.groupTabsByType) {
+					tabsControlType = TypeGroupedEditorTabsControl;
+				} else if (this.groupsView.partOptions.pinnedTabsOnSeparateRow) {
+					tabsControlType = MultiRowEditorControl;
+				} else {
+					tabsControlType = MultiEditorTabsControl;
+				}
 				break;
 		}
 
@@ -179,7 +186,8 @@ export class EditorTitleControl extends Themable {
 		// Update editor tabs control if options changed
 		if (
 			oldOptions.showTabs !== newOptions.showTabs ||
-			(newOptions.showTabs !== 'single' && oldOptions.pinnedTabsOnSeparateRow !== newOptions.pinnedTabsOnSeparateRow)
+			(newOptions.showTabs !== 'single' && oldOptions.pinnedTabsOnSeparateRow !== newOptions.pinnedTabsOnSeparateRow) ||
+			(newOptions.showTabs !== 'single' && oldOptions.groupTabsByType !== newOptions.groupTabsByType)
 		) {
 			// Clear old
 			this.editorTabsControlDisposable.clear();

@@ -149,3 +149,146 @@ export class UnstickyEditorGroupModel extends FilteredEditorGroupModel {
 		return !this.model.isSticky(candidateOrIndex);
 	}
 }
+
+/**
+ * A filter function that determines if an editor belongs to a specific type group.
+ */
+export type EditorTypeGroupFilter = (editor: EditorInput) => boolean;
+
+/**
+ * A filtered editor group model that filters editors by their type group.
+ * This model filters out sticky editors and only includes editors matching the provided type group filter.
+ */
+export class TypeFilteredEditorGroupModel extends Disposable implements IReadonlyEditorGroupModel {
+
+	private readonly _onDidModelChange = this._register(new Emitter<IGroupModelChangeEvent>());
+	readonly onDidModelChange = this._onDidModelChange.event;
+
+	private readonly _onDidFilterChange = this._register(new Emitter<void>());
+	readonly onDidFilterChange = this._onDidFilterChange.event;
+
+	private _typeGroupFilter: EditorTypeGroupFilter;
+
+	constructor(
+		private readonly model: IReadonlyEditorGroupModel,
+		typeGroupFilter: EditorTypeGroupFilter
+	) {
+		super();
+
+		this._typeGroupFilter = typeGroupFilter;
+
+		this._register(this.model.onDidModelChange(e => {
+			const candidateOrIndex = e.editorIndex ?? e.editor;
+			if (candidateOrIndex !== undefined) {
+				if (!this.filter(candidateOrIndex)) {
+					return; // exclude events for excluded items
+				}
+			}
+			this._onDidModelChange.fire(e);
+		}));
+	}
+
+	/**
+	 * Update the type group filter. Call this when the expanded type group changes.
+	 */
+	setTypeGroupFilter(filter: EditorTypeGroupFilter): void {
+		this._typeGroupFilter = filter;
+		this._onDidFilterChange.fire();
+	}
+
+	get id(): GroupIdentifier { return this.model.id; }
+	get isLocked(): boolean { return this.model.isLocked; }
+	get stickyCount(): number { return 0; } // Type filtered model excludes sticky editors
+
+	get count(): number {
+		return this.getEditors(EditorsOrder.SEQUENTIAL).length;
+	}
+
+	get activeEditor(): EditorInput | null {
+		return this.model.activeEditor && this.filter(this.model.activeEditor) ? this.model.activeEditor : null;
+	}
+
+	get previewEditor(): EditorInput | null {
+		return this.model.previewEditor && this.filter(this.model.previewEditor) ? this.model.previewEditor : null;
+	}
+
+	get selectedEditors(): EditorInput[] {
+		return this.model.selectedEditors.filter(e => this.filter(e));
+	}
+
+	isPinned(editorOrIndex: EditorInput | number): boolean { return this.model.isPinned(editorOrIndex); }
+	isTransient(editorOrIndex: EditorInput | number): boolean { return this.model.isTransient(editorOrIndex); }
+	isSticky(editorOrIndex: EditorInput | number): boolean { return false; } // Type filtered model excludes sticky editors
+	isActive(editor: EditorInput | IUntypedEditorInput): boolean { return this.model.isActive(editor); }
+	isSelected(editorOrIndex: EditorInput | number): boolean { return this.model.isSelected(editorOrIndex); }
+
+	isFirst(editor: EditorInput): boolean {
+		return this.model.isFirst(editor, this.getEditors(EditorsOrder.SEQUENTIAL));
+	}
+
+	isLast(editor: EditorInput): boolean {
+		return this.model.isLast(editor, this.getEditors(EditorsOrder.SEQUENTIAL));
+	}
+
+	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): EditorInput[] {
+		// Always exclude sticky editors in type filtered model
+		const editors = this.model.getEditors(order, { excludeSticky: true });
+		return editors.filter(e => this._typeGroupFilter(e));
+	}
+
+	getEditorByIndex(index: number): EditorInput | undefined {
+		const editors = this.getEditors(EditorsOrder.SEQUENTIAL);
+		return editors[index];
+	}
+
+	indexOf(editor: EditorInput | IUntypedEditorInput | null, editors?: EditorInput[], options?: IMatchEditorOptions): number {
+		if (!editor) {
+			return -1;
+		}
+		const filteredEditors = editors ?? this.getEditors(EditorsOrder.SEQUENTIAL);
+		return filteredEditors.findIndex(e => {
+			if (editor instanceof EditorInput) {
+				return e.matches(editor);
+			}
+			return e.matches(editor);
+		});
+	}
+
+	contains(candidate: EditorInput | IUntypedEditorInput, options?: IMatchEditorOptions): boolean {
+		return this.indexOf(candidate, undefined, options) !== -1;
+	}
+
+	findEditor(candidate: EditorInput | null, options?: IMatchEditorOptions): [EditorInput, number] | undefined {
+		if (!candidate) {
+			return undefined;
+		}
+		const index = this.indexOf(candidate, undefined, options);
+		if (index === -1) {
+			return undefined;
+		}
+		const editors = this.getEditors(EditorsOrder.SEQUENTIAL);
+		return [editors[index], index];
+	}
+
+	private filter(candidateOrIndex: EditorInput | number): boolean {
+		let editor: EditorInput | undefined;
+		if (typeof candidateOrIndex === 'number') {
+			editor = this.model.getEditorByIndex(candidateOrIndex);
+		} else {
+			editor = candidateOrIndex;
+		}
+
+		if (!editor) {
+			return false;
+		}
+
+		// Exclude sticky editors
+		if (this.model.isSticky(editor)) {
+			return false;
+		}
+
+		// Check type group filter
+		return this._typeGroupFilter(editor);
+	}
+}
+

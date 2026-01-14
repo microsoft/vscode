@@ -1,0 +1,182 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Type Grouped Editor Tabs Control */
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title.type-grouped-tabs {
+	position: relative;
+}
+
+/* Collapsed Type Tabs Container - positioned at the right side of the tabs row */
+.monaco-workbench .part.editor > .content .editor-group-container > .title.type-grouped-tabs > .collapsed-type-tabs-container {
+	position: absolute;
+	right: 36px; /* Leave space for editor actions */
+	top: 0;
+	display: flex;
+	flex-direction: row;
+	flex-wrap: nowrap;
+	align-items: stretch;
+	height: var(--editor-group-tab-height);
+	z-index: 100;
+	background-color: var(--vscode-editorGroupHeader-tabsBackground);
+}
+
+/* When there are sticky tabs, offset by one row */
+.monaco-workbench .part.editor > .content .editor-group-container > .title.type-grouped-tabs.has-sticky-tabs > .collapsed-type-tabs-container {
+	top: var(--editor-group-tab-height);
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title.type-grouped-tabs > .collapsed-type-tabs-container:empty {
+	display: none;
+}
+
+/* Collapsed Type Tab - styled like a regular tab */
+.monaco-workbench .part.editor > .content .editor-group-container > .title .collapsed-type-tab {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 6px;
+	padding: 0 10px;
+	height: var(--editor-group-tab-height);
+	cursor: pointer;
+	white-space: nowrap;
+	box-sizing: border-box;
+	background-color: var(--vscode-tab-inactiveBackground);
+	color: var(--vscode-tab-inactiveForeground);
+	border-left: 1px solid var(--vscode-tab-border);
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container.active > .title .collapsed-type-tab {
+	background-color: var(--vscode-tab-inactiveBackground);
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .collapsed-type-tab.hidden {
+	display: none;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .collapsed-type-tab:hover {
+	background-color: var(--vscode-tab-hoverBackground);
+	color: var(--vscode-tab-hoverForeground);
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container.active > .title .collapsed-type-tab:hover {
+	background-color: var(--vscode-tab-hoverBackground);
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .collapsed-type-tab:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .collapsed-type-tab:focus:not(:focus-visible) {
+	outline: none;
+}
+
+/* Collapsed Type Tab Icon */
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .collapsed-type-tab-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	height: 16px;
+	font-size: 16px;
+}
+
+/* Collapsed Type Tab Label */
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .collapsed-type-tab-label {
+	font-size: 12px;
+}
+
+/* Collapsed Type Tab Badge */
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .collapsed-type-tab-badge {
+	display: flex;
+	align-items: center;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .collapsed-type-tab-badge .monaco-count-badge {
+	min-width: 18px;
+	height: 18px;
+	line-height: 18px;
+	padding: 0 4px;
+	font-size: 11px;
+	border-radius: 9px;
+}
+
+/* Animation for Type Group Expansion/Collapse */
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title.type-group-animating .tabs-container {
+	transition: max-width 150ms ease-out, opacity 100ms ease-out;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title.type-group-animating .collapsed-type-tab {
+	transition: max-width 150ms ease-out, opacity 100ms ease-out, transform 150ms ease-out;
+}
+
+/* Expanding animation */
+.monaco-workbench .part.editor > .content .editor-group-container > .title.type-group-animating .tabs-container.expanding {
+	animation: tabsExpand 150ms ease-out forwards;
+}
+
+/* Collapsing animation */
+.monaco-workbench .part.editor > .content .editor-group-container > .title.type-group-animating .tabs-container.collapsing {
+	animation: tabsCollapse 150ms ease-out forwards;
+}
+
+@keyframes tabsExpand {
+	from {
+		max-width: 0;
+		opacity: 0;
+		transform: scaleX(0.8);
+	}
+	to {
+		max-width: 100%;
+		opacity: 1;
+		transform: scaleX(1);
+	}
+}
+
+@keyframes tabsCollapse {
+	from {
+		max-width: 100%;
+		opacity: 1;
+		transform: scaleX(1);
+	}
+	to {
+		max-width: 0;
+		opacity: 0;
+		transform: scaleX(0.8);
+	}
+}
+
+/* Reduced Motion Support */
+.monaco-workbench.reduce-motion .part.editor > .content .editor-group-container > .title .collapsed-type-tab,
+.monaco-workbench.reduce-motion .part.editor > .content .editor-group-container > .title .tabs-container,
+.monaco-workbench.reduce-motion .part.editor > .content .editor-group-container > .title.type-group-animating .collapsed-type-tab,
+.monaco-workbench.reduce-motion .part.editor > .content .editor-group-container > .title.type-group-animating .tabs-container {
+	transition-duration: 0s !important;
+	animation-duration: 0s !important;
+}
+
+/* High Contrast Mode */
+
+.monaco-workbench.hc-black .part.editor > .content .editor-group-container > .title .collapsed-type-tab,
+.monaco-workbench.hc-light .part.editor > .content .editor-group-container > .title .collapsed-type-tab {
+	border: 1px solid var(--vscode-contrastBorder);
+}
+
+.monaco-workbench.hc-black .part.editor > .content .editor-group-container > .title .collapsed-type-tab:focus,
+.monaco-workbench.hc-light .part.editor > .content .editor-group-container > .title .collapsed-type-tab:focus {
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: -2px;
+}
+
+/* Layout adjustments when type grouping is active */
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title.type-grouped-tabs.has-sticky-tabs > .tabs-and-actions-container:first-child {
+	border-bottom: 1px solid var(--vscode-tab-border);
+}

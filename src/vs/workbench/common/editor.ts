@@ -1183,6 +1183,7 @@ export const enum GroupModelChangeKind {
 	GROUP_INDEX,
 	GROUP_LABEL,
 	GROUP_LOCKED,
+	GROUP_TYPE_EXPANDED,
 
 	/* Editors Change */
 	EDITORS_SELECTION,
@@ -1239,6 +1240,7 @@ interface IEditorPartConfiguration {
 	tabSizingFixedMaxWidth?: number;
 	pinnedTabSizing?: 'normal' | 'compact' | 'shrink';
 	pinnedTabsOnSeparateRow?: boolean;
+	groupTabsByType?: boolean;
 	tabHeight?: 'default' | 'compact';
 	preventPinnedEditorClose?: PreventPinnedEditorClose;
 	titleScrollbarSizing?: 'default' | 'large';

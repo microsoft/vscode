@@ -810,7 +810,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		if (
 			event.oldPartOptions.showTabs !== event.newPartOptions.showTabs ||
 			event.oldPartOptions.tabHeight !== event.newPartOptions.tabHeight ||
-			(event.oldPartOptions.showTabs === 'multiple' && event.oldPartOptions.pinnedTabsOnSeparateRow !== event.newPartOptions.pinnedTabsOnSeparateRow)
+			(event.oldPartOptions.showTabs === 'multiple' && event.oldPartOptions.pinnedTabsOnSeparateRow !== event.newPartOptions.pinnedTabsOnSeparateRow) ||
+			(event.oldPartOptions.showTabs === 'multiple' && event.oldPartOptions.groupTabsByType !== event.newPartOptions.groupTabsByType)
 		) {
 
 			// Re-layout

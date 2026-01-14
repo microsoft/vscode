@@ -23,7 +23,7 @@ import { TestContextService, TestStorageService } from '../../../common/workbenc
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { StickyEditorGroupModel, UnstickyEditorGroupModel } from '../../../../common/editor/filteredEditorGroupModel.js';
+import { StickyEditorGroupModel, UnstickyEditorGroupModel, TypeFilteredEditorGroupModel, EditorTypeGroupFilter } from '../../../../common/editor/filteredEditorGroupModel.js';
 
 suite('FilteredEditorGroupModel', () => {
 
@@ -810,6 +810,410 @@ suite('FilteredEditorGroupModel', () => {
 		assert.strictEqual(unstickyFilteredEditorGroup.isTransient(input2), false);
 		assert.strictEqual(stickyFilteredEditorGroup.isTransient(input3), true);
 		assert.strictEqual(unstickyFilteredEditorGroup.isTransient(input4), true);
+	});
+
+	// TypeFilteredEditorGroupModel tests
+
+	class TypedEditorInput extends EditorInput {
+		readonly resource = undefined;
+
+		constructor(public id: string, private _typeId: string) {
+			super();
+		}
+		override get typeId() { return this._typeId; }
+		override async resolve(): Promise<IDisposable> { return null!; }
+
+		override matches(other: TypedEditorInput): boolean {
+			return other && this.id === other.id && other instanceof TypedEditorInput;
+		}
+
+		setDirty(): void {
+			this._onDidChangeDirty.fire();
+		}
+
+		setLabel(): void {
+			this._onDidChangeLabel.fire();
+		}
+	}
+
+	function typedInput(id: string, typeId: string): TypedEditorInput {
+		return disposables.add(new TypedEditorInput(id, typeId));
+	}
+
+	function createTerminalFilter(): EditorTypeGroupFilter {
+		return (editor: EditorInput) => editor.typeId === 'workbench.editors.terminal';
+	}
+
+	function createTextEditorFilter(): EditorTypeGroupFilter {
+		return (editor: EditorInput) => editor.typeId === 'testEditorInputForGroups';
+	}
+
+	test('TypeFiltered count', async () => {
+		const model = createEditorGroupModel();
+
+		const terminalFilter = createTerminalFilter();
+		const typeFilteredGroup = disposables.add(new TypeFilteredEditorGroupModel(model, terminalFilter));
+
+		const textEditor1 = input();
+		const textEditor2 = input();
+		const terminalEditor1 = typedInput('terminal1', 'workbench.editors.terminal');
+		const terminalEditor2 = typedInput('terminal2', 'workbench.editors.terminal');
+
+		model.openEditor(textEditor1, { pinned: true });
+		model.openEditor(terminalEditor1, { pinned: true });
+		model.openEditor(textEditor2, { pinned: true });
+		model.openEditor(terminalEditor2, { pinned: true });
+
+		assert.strictEqual(typeFilteredGroup.count, 2);
+
+		model.closeEditor(terminalEditor1);
+
+		assert.strictEqual(typeFilteredGroup.count, 1);
+
+		model.closeEditor(terminalEditor2);
+
+		assert.strictEqual(typeFilteredGroup.count, 0);
+	});
+
+	test('TypeFiltered stickyCount always returns 0', async () => {
+		const model = createEditorGroupModel();
+
+		const terminalFilter = createTerminalFilter();
+		const typeFilteredGroup = disposables.add(new TypeFilteredEditorGroupModel(model, terminalFilter));
+
+		const terminalEditor1 = typedInput('terminal1', 'workbench.editors.terminal');
+		const terminalEditor2 = typedInput('terminal2', 'workbench.editors.terminal');
+
+		model.openEditor(terminalEditor1, { pinned: true, sticky: true });
+		model.openEditor(terminalEditor2, { pinned: true, sticky: true });
+
+		// stickyCount should always be 0 because type filtered excludes sticky
+		assert.strictEqual(typeFilteredGroup.stickyCount, 0);
+		assert.strictEqual(model.stickyCount, 2);
+	});
+
+	test('TypeFiltered activeEditor returns null if not matching filter', async () => {
+		const model = createEditorGroupModel();
+
+		const terminalFilter = createTerminalFilter();
+		const typeFilteredGroup = disposables.add(new TypeFilteredEditorGroupModel(model, terminalFilter));
+
+		const textEditor = input();
+		const terminalEditor = typedInput('terminal1', 'workbench.editors.terminal');
+
+		model.openEditor(textEditor, { pinned: true, active: true });
+
+		assert.strictEqual(typeFilteredGroup.activeEditor, null);
+
+		model.openEditor(terminalEditor, { pinned: true, active: true });
+
+		assert.strictEqual(typeFilteredGroup.activeEditor, terminalEditor);
+
+		model.setActive(textEditor);
+
+		assert.strictEqual(typeFilteredGroup.activeEditor, null);
+	});
+
+	test('TypeFiltered previewEditor returns null if not matching filter', async () => {
+		const model = createEditorGroupModel();
+
+		const terminalFilter = createTerminalFilter();
+		const typeFilteredGroup = disposables.add(new TypeFilteredEditorGroupModel(model, terminalFilter));
+
+		const textEditor = input();
+		const terminalEditor = typedInput('terminal1', 'workbench.editors.terminal');
+
+		model.openEditor(textEditor, { pinned: false }); // preview
+
+		assert.strictEqual(typeFilteredGroup.previewEditor, null);
+
+		model.openEditor(terminalEditor, { pinned: false }); // preview
+
+		assert.strictEqual(typeFilteredGroup.previewEditor, terminalEditor);
+	});
+
+	test('TypeFiltered selectedEditors only returns editors matching filter', async () => {
+		const model = createEditorGroupModel();
+
+		const terminalFilter = createTerminalFilter();
+		const typeFilteredGroup = disposables.add(new TypeFilteredEditorGroupModel(model, terminalFilter));
+
+		const textEditor = input();
+		const terminalEditor1 = typedInput('terminal1', 'workbench.editors.terminal');
+		const terminalEditor2 = typedInput('terminal2', 'workbench.editors.terminal');
+
+		model.openEditor(textEditor, { pinned: true });
+		model.openEditor(terminalEditor1, { pinned: true });
+		model.openEditor(terminalEditor2, { pinned: true });
+
+		const selectedEditors = typeFilteredGroup.selectedEditors;
+		// By default only active editor is selected
+		assert.strictEqual(selectedEditors.length <= 2, true);
+		// Verify text editor is not in selected
+		assert.strictEqual(selectedEditors.includes(textEditor), false);
+	});
+
+	test('TypeFiltered getEditors() filters by type and excludes sticky', async () => {
+		const model = createEditorGroupModel();
+
+		const terminalFilter = createTerminalFilter();
+		const typeFilteredGroup = disposables.add(new TypeFilteredEditorGroupModel(model, terminalFilter));
+
+		const textEditor = input();
+		const terminalEditor1 = typedInput('terminal1', 'workbench.editors.terminal');
+		const terminalEditor2 = typedInput('terminal2', 'workbench.editors.terminal');
+		const stickyTerminal = typedInput('terminal3', 'workbench.editors.terminal');
+
+		model.openEditor(textEditor, { pinned: true });
+		model.openEditor(terminalEditor1, { pinned: true });
+		model.openEditor(terminalEditor2, { pinned: true });
+		model.openEditor(stickyTerminal, { pinned: true, sticky: true });
+
+		const editors = typeFilteredGroup.getEditors(EditorsOrder.SEQUENTIAL);
+
+		// Should include non-sticky terminals only
+		assert.strictEqual(editors.length, 2);
+		assert.strictEqual(editors.includes(terminalEditor1), true);
+		assert.strictEqual(editors.includes(terminalEditor2), true);
+		assert.strictEqual(editors.includes(stickyTerminal), false); // sticky excluded
+		assert.strictEqual(editors.includes(textEditor), false); // wrong type excluded
+	});
+
+	test('TypeFiltered getEditorByIndex() returns correct editor within filtered subset', async () => {
+		const model = createEditorGroupModel();
+
+		const terminalFilter = createTerminalFilter();
+		const typeFilteredGroup = disposables.add(new TypeFilteredEditorGroupModel(model, terminalFilter));
+
+		const textEditor = input();
+		const terminalEditor1 = typedInput('terminal1', 'workbench.editors.terminal');
+		const terminalEditor2 = typedInput('terminal2', 'workbench.editors.terminal');
+
+		model.openEditor(textEditor, { pinned: true });
+		model.openEditor(terminalEditor1, { pinned: true });
+		model.openEditor(terminalEditor2, { pinned: true });
+
+		assert.strictEqual(typeFilteredGroup.getEditorByIndex(0), terminalEditor1);
+		assert.strictEqual(typeFilteredGroup.getEditorByIndex(1), terminalEditor2);
+		assert.strictEqual(typeFilteredGroup.getEditorByIndex(2), undefined);
+	});
+
+	test('TypeFiltered indexOf() returns index within filtered subset, -1 if not matching', async () => {
+		const model = createEditorGroupModel();
+
+		const terminalFilter = createTerminalFilter();
+		const typeFilteredGroup = disposables.add(new TypeFilteredEditorGroupModel(model, terminalFilter));
+
+		const textEditor = input();
+		const terminalEditor1 = typedInput('terminal1', 'workbench.editors.terminal');
+		const terminalEditor2 = typedInput('terminal2', 'workbench.editors.terminal');
+
+		model.openEditor(textEditor, { pinned: true });
+		model.openEditor(terminalEditor1, { pinned: true });
+		model.openEditor(terminalEditor2, { pinned: true });
+
+		assert.strictEqual(typeFilteredGroup.indexOf(terminalEditor1), 0);
+		assert.strictEqual(typeFilteredGroup.indexOf(terminalEditor2), 1);
+		assert.strictEqual(typeFilteredGroup.indexOf(textEditor), -1); // not in filtered set
+		assert.strictEqual(typeFilteredGroup.indexOf(null), -1);
+	});
+
+	test('TypeFiltered contains() true only if editor matches filter', async () => {
+		const model = createEditorGroupModel();
+
+		const terminalFilter = createTerminalFilter();
+		const typeFilteredGroup = disposables.add(new TypeFilteredEditorGroupModel(model, terminalFilter));
+
+		const textEditor = input();
+		const terminalEditor = typedInput('terminal1', 'workbench.editors.terminal');
+		const stickyTerminal = typedInput('terminal2', 'workbench.editors.terminal');
+
+		model.openEditor(textEditor, { pinned: true });
+		model.openEditor(terminalEditor, { pinned: true });
+		model.openEditor(stickyTerminal, { pinned: true, sticky: true });
+
+		assert.strictEqual(typeFilteredGroup.contains(terminalEditor), true);
+		assert.strictEqual(typeFilteredGroup.contains(textEditor), false); // wrong type
+		assert.strictEqual(typeFilteredGroup.contains(stickyTerminal), false); // sticky excluded
+	});
+
+	test('TypeFiltered isFirst/isLast correct within filtered subset', async () => {
+		const model = createEditorGroupModel();
+
+		const terminalFilter = createTerminalFilter();
+		const typeFilteredGroup = disposables.add(new TypeFilteredEditorGroupModel(model, terminalFilter));
+
+		const textEditor = input();
+		const terminalEditor1 = typedInput('terminal1', 'workbench.editors.terminal');
+		const terminalEditor2 = typedInput('terminal2', 'workbench.editors.terminal');
+
+		model.openEditor(textEditor, { pinned: true });
+		model.openEditor(terminalEditor1, { pinned: true });
+		model.openEditor(terminalEditor2, { pinned: true });
+
+		assert.strictEqual(typeFilteredGroup.isFirst(terminalEditor1), true);
+		assert.strictEqual(typeFilteredGroup.isFirst(terminalEditor2), false);
+		assert.strictEqual(typeFilteredGroup.isLast(terminalEditor1), false);
+		assert.strictEqual(typeFilteredGroup.isLast(terminalEditor2), true);
+	});
+
+	test('TypeFiltered setTypeGroupFilter() changes filter and fires onDidFilterChange', async () => {
+		const model = createEditorGroupModel();
+
+		const terminalFilter = createTerminalFilter();
+		const textEditorFilter = createTextEditorFilter();
+		const typeFilteredGroup = disposables.add(new TypeFilteredEditorGroupModel(model, terminalFilter));
+
+		const textEditor = input();
+		const terminalEditor = typedInput('terminal1', 'workbench.editors.terminal');
+
+		model.openEditor(textEditor, { pinned: true });
+		model.openEditor(terminalEditor, { pinned: true });
+
+		assert.strictEqual(typeFilteredGroup.count, 1);
+		assert.strictEqual(typeFilteredGroup.contains(terminalEditor), true);
+		assert.strictEqual(typeFilteredGroup.contains(textEditor), false);
+
+		let filterChangeFired = false;
+		disposables.add(typeFilteredGroup.onDidFilterChange(() => {
+			filterChangeFired = true;
+		}));
+
+		typeFilteredGroup.setTypeGroupFilter(textEditorFilter);
+
+		assert.strictEqual(filterChangeFired, true);
+		assert.strictEqual(typeFilteredGroup.count, 1);
+		assert.strictEqual(typeFilteredGroup.contains(terminalEditor), false);
+		assert.strictEqual(typeFilteredGroup.contains(textEditor), true);
+	});
+
+	test('TypeFiltered onDidModelChange events are filtered appropriately', async () => {
+		const model = createEditorGroupModel();
+
+		const terminalFilter = createTerminalFilter();
+		const typeFilteredGroup = disposables.add(new TypeFilteredEditorGroupModel(model, terminalFilter));
+
+		const textEditor = input();
+		const terminalEditor = typedInput('terminal1', 'workbench.editors.terminal');
+
+		model.openEditor(textEditor, { pinned: true });
+		model.openEditor(terminalEditor, { pinned: true });
+
+		let dirtyCounterTerminal = 0;
+		disposables.add(typeFilteredGroup.onDidModelChange((e) => {
+			if (e.kind === GroupModelChangeKind.EDITOR_DIRTY) {
+				dirtyCounterTerminal++;
+			}
+		}));
+
+		// Dirty event for terminal should fire on filtered model
+		(terminalEditor as TypedEditorInput).setDirty();
+		assert.strictEqual(dirtyCounterTerminal, 1);
+
+		// Dirty event for text editor should NOT fire on filtered model
+		(<TestEditorInput>textEditor).setDirty();
+		assert.strictEqual(dirtyCounterTerminal, 1); // still 1, not fired
+	});
+
+	test('TypeFiltered isSticky() always returns false', async () => {
+		const model = createEditorGroupModel();
+
+		const terminalFilter = createTerminalFilter();
+		const typeFilteredGroup = disposables.add(new TypeFilteredEditorGroupModel(model, terminalFilter));
+
+		const terminalEditor = typedInput('terminal1', 'workbench.editors.terminal');
+
+		model.openEditor(terminalEditor, { pinned: true, sticky: true });
+
+		// isSticky always returns false for type filtered model
+		assert.strictEqual(typeFilteredGroup.isSticky(terminalEditor), false);
+		assert.strictEqual(model.isSticky(terminalEditor), true);
+	});
+
+	test('TypeFiltered filter() correctly excludes sticky editors AND editors not matching type filter', async () => {
+		const model = createEditorGroupModel();
+
+		const terminalFilter = createTerminalFilter();
+		const typeFilteredGroup = disposables.add(new TypeFilteredEditorGroupModel(model, terminalFilter));
+
+		const textEditor = input();
+		const terminalEditor = typedInput('terminal1', 'workbench.editors.terminal');
+		const stickyTerminal = typedInput('terminal2', 'workbench.editors.terminal');
+		const stickyText = input();
+
+		model.openEditor(textEditor, { pinned: true });
+		model.openEditor(terminalEditor, { pinned: true });
+		model.openEditor(stickyTerminal, { pinned: true, sticky: true });
+		model.openEditor(stickyText, { pinned: true, sticky: true });
+
+		const editors = typeFilteredGroup.getEditors(EditorsOrder.SEQUENTIAL);
+
+		// Only non-sticky terminal should be included
+		assert.strictEqual(editors.length, 1);
+		assert.strictEqual(editors[0], terminalEditor);
+	});
+
+	test('TypeFiltered findEditor()', async () => {
+		const model = createEditorGroupModel();
+
+		const terminalFilter = createTerminalFilter();
+		const typeFilteredGroup = disposables.add(new TypeFilteredEditorGroupModel(model, terminalFilter));
+
+		const textEditor = input();
+		const terminalEditor = typedInput('terminal1', 'workbench.editors.terminal');
+
+		model.openEditor(textEditor, { pinned: true });
+		model.openEditor(terminalEditor, { pinned: true });
+
+		const foundTerminal = typeFilteredGroup.findEditor(terminalEditor);
+		assert.ok(foundTerminal);
+		assert.strictEqual(foundTerminal[0], terminalEditor);
+		assert.strictEqual(foundTerminal[1], 0);
+
+		const foundText = typeFilteredGroup.findEditor(textEditor);
+		assert.strictEqual(foundText, undefined);
+
+		const foundNull = typeFilteredGroup.findEditor(null);
+		assert.strictEqual(foundNull, undefined);
+	});
+
+	test('TypeFiltered group information', async () => {
+		const model = createEditorGroupModel();
+
+		const terminalFilter = createTerminalFilter();
+		const typeFilteredGroup = disposables.add(new TypeFilteredEditorGroupModel(model, terminalFilter));
+
+		// same id
+		assert.strictEqual(typeFilteredGroup.id, model.id);
+
+		// group locking same behaviour
+		assert.strictEqual(typeFilteredGroup.isLocked, model.isLocked);
+
+		model.lock(true);
+		assert.strictEqual(typeFilteredGroup.isLocked, model.isLocked);
+
+		model.lock(false);
+		assert.strictEqual(typeFilteredGroup.isLocked, model.isLocked);
+	});
+
+	test('TypeFiltered isPinned/isActive/isTransient delegate to underlying model', async () => {
+		const model = createEditorGroupModel();
+
+		const terminalFilter = createTerminalFilter();
+		const typeFilteredGroup = disposables.add(new TypeFilteredEditorGroupModel(model, terminalFilter));
+
+		const terminalEditor = typedInput('terminal1', 'workbench.editors.terminal');
+		const terminalEditor2 = typedInput('terminal2', 'workbench.editors.terminal');
+
+		model.openEditor(terminalEditor, { pinned: true, active: true, transient: false });
+		model.openEditor(terminalEditor2, { pinned: false, active: false, transient: true });
+
+		assert.strictEqual(typeFilteredGroup.isPinned(terminalEditor), true);
+		assert.strictEqual(typeFilteredGroup.isPinned(terminalEditor2), false);
+		assert.strictEqual(typeFilteredGroup.isActive(terminalEditor), true);
+		assert.strictEqual(typeFilteredGroup.isActive(terminalEditor2), false);
+		assert.strictEqual(typeFilteredGroup.isTransient(terminalEditor), false);
+		assert.strictEqual(typeFilteredGroup.isTransient(terminalEditor2), true);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

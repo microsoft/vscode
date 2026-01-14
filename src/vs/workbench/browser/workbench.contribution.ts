@@ -264,6 +264,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': false,
 				'markdownDescription': localize({ comment: ['{0}, {1} will be a setting name rendered as a link'], key: 'workbench.editor.pinnedTabsOnSeparateRow' }, "When enabled, displays pinned tabs in a separate row above all other tabs. This value is ignored when {0} is not set to {1}.", '`#workbench.editor.showTabs#`', '`multiple`'),
 			},
+			'workbench.editor.groupTabsByType': {
+				'type': 'boolean',
+				'default': false,
+				'markdownDescription': localize({ comment: ['{0}, {1} will be a setting name rendered as a link'], key: 'workbench.editor.groupTabsByType' }, "When enabled, groups editor tabs by their type (text editors, terminals, browsers, etc.). Inactive type groups collapse into summary tabs that can be clicked to expand. This value is ignored when {0} is not set to {1}.", '`#workbench.editor.showTabs#`', '`multiple`'),
+			},
 			'workbench.editor.preventPinnedEditorClose': {
 				'type': 'string',
 				'enum': ['keyboardAndMouse', 'keyboard', 'mouse', 'never'],
