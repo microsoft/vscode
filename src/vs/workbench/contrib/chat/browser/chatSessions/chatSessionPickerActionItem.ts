@@ -35,6 +35,7 @@ export interface IChatSessionPickerDelegate {
  */
 export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewItem {
 	currentOption: IChatSessionProviderOptionItem | undefined;
+	protected container: HTMLElement | undefined;
 	constructor(
 		action: IAction,
 		initialState: { group: IChatSessionProviderOptionGroup; item: IChatSessionProviderOptionItem | undefined },
@@ -131,6 +132,7 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 	}
 
 	override render(container: HTMLElement): void {
+		this.container = container;
 		super.render(container);
 		container.classList.add('chat-sessionPicker-item');
 
@@ -143,21 +145,22 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 	protected override updateEnabled(): void {
 		// When locked, treat as disabled for dropdown functionality
 		const effectivelyDisabled = !this.action.enabled || !!this.currentOption?.locked;
-		
-		// Update DOM classes and dropdown state
-		// Note: actionItem and actionWidgetDropdown are private in the base class,
-		// so we access them via reflection. This mirrors the parent implementation.
-		const actionItem = (this as any)['actionItem'] as HTMLElement | null;
-		const dropdown = (this as any)['actionWidgetDropdown'] as any;
-		
-		actionItem?.classList.toggle('disabled', effectivelyDisabled);
-		this.element?.classList.toggle('disabled', effectivelyDisabled);
-		dropdown?.setEnabled(!effectivelyDisabled);
-		
-		// Update visual state for locked items
-		const container = this.element?.parentElement;
-		if (container) {
-			container.classList.toggle('locked', !!this.currentOption?.locked);
+
+		// Temporarily modify action.enabled to influence parent's behavior
+		const originalEnabled = this.action.enabled;
+		if (this.currentOption?.locked) {
+			this.action.enabled = false;
+		}
+
+		// Call parent implementation which handles actionItem and dropdown
+		super.updateEnabled();
+
+		// Restore original action.enabled
+		this.action.enabled = originalEnabled;
+
+		// Update visual state for locked items on our container
+		if (this.container) {
+			this.container.classList.toggle('locked', !!this.currentOption?.locked);
 		}
 	}
 
