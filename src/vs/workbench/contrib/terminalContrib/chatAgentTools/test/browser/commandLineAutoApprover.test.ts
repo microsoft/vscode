@@ -1245,6 +1245,51 @@ suite('CommandLineAutoApprover', () => {
 	});
 
 	suite('od, xxd, docker defaults', () => {
+		function setAutoApproveWithDefaults(userConfig: { [key: string]: boolean }, defaultConfig: { [key: string]: boolean }) {
+			configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AutoApprove, userConfig);
+			const originalInspect = configurationService.inspect;
+			const originalGetValue = configurationService.getValue;
+			configurationService.inspect = (key: string): any => {
+				if (key === TerminalChatAgentToolsSettingId.AutoApprove) {
+					return {
+						default: { value: defaultConfig },
+						user: { value: userConfig },
+						workspace: undefined,
+						workspaceFolder: undefined,
+						application: undefined,
+						policy: undefined,
+						memory: undefined,
+						value: { ...defaultConfig, ...userConfig }
+					};
+				}
+				return originalInspect.call(configurationService, key);
+			};
+			configurationService.getValue = (key: string): any => {
+				if (key === TerminalChatAgentToolsSettingId.AutoApprove) {
+					return { ...defaultConfig, ...userConfig };
+				}
+				return originalGetValue.call(configurationService, key);
+			};
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: () => true,
+				affectedKeys: new Set([TerminalChatAgentToolsSettingId.AutoApprove]),
+				source: ConfigurationTarget.USER,
+				change: null!,
+			});
+		}
+
+		const defaultRules: { [key: string]: boolean } = {
+			od: true,
+			'/^xxd\\b(\\s+-\\S+)*\\s+[^-\\s]\\S*$/': true,
+			'/^docker\\s+(ps|images|info|version|inspect|logs|top|stats|port|diff|search|events)\\b/': true,
+			'/^docker\\s+(container|image|network|volume|context|system)\\s+(ls|ps|inspect|history|show|df|info)\\b/': true,
+			'/^docker\\s+compose\\s+(ps|ls|top|logs|images|config|version|port|events)\\b/': true,
+		};
+
+		setup(() => {
+			setAutoApproveWithDefaults({}, defaultRules);
+		});
+
 		test('od should be auto-approved', async () => {
 			ok(await isAutoApproved('od somefile'));
 			ok(await isAutoApproved('od -A x somefile'));
@@ -1252,17 +1297,17 @@ suite('CommandLineAutoApprover', () => {
 
 		test('xxd should be auto-approved for simple usage', async () => {
 			ok(await isAutoApproved('xxd somefile'));
-			ok(await isAutoApproved('xxd -l 100 somefile'));
+			ok(await isAutoApproved('xxd -l100 somefile'));
 		});
 
-		test('xxd should NOT be auto-approved with -r (revert/patch mode)', async () => {
-			ok(!await isAutoApproved('xxd -r somefile'));
-			ok(!await isAutoApproved('xxd -r -p somefile'));
+		test('xxd should be auto-approved with -r (outputs to stdout)', async () => {
+			ok(await isAutoApproved('xxd -r somefile'));
+			ok(await isAutoApproved('xxd -rp somefile'));
 		});
 
-		test('xxd should NOT be auto-approved with outfile argument', async () => {
+		test('xxd should NOT be auto-approved with outfile or ambiguous args', async () => {
 			ok(!await isAutoApproved('xxd infile outfile'));
-			ok(!await isAutoApproved('xxd -l 100 infile outfile'));
+			ok(!await isAutoApproved('xxd -l 100 somefile'));  // ambiguous - could be flag+value or two positional
 		});
 
 		test('docker readonly sub-commands should be auto-approved', async () => {

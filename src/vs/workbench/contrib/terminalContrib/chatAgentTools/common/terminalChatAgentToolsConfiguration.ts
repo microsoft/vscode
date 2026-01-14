@@ -340,11 +340,9 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			'/^tree\\b.*-o\\b/': false,
 
 			// xxd
-			// - `-r`/`-revert`: Revert mode can patch existing files
-			// - Second positional argument writes to outfile
-			xxd: true,
-			'/^xxd\\b.*-r\\b/': false,
-			'/^xxd\\b(\\s+-\\S+)*\\s+\\S+\\s+\\S+/': false,
+			// - Only allow flags and a single input file as it's difficult to parse the outfile
+			//   positional argument safely.
+			'/^xxd\\b(\\s+-\\S+)*\\s+[^-\\s]\\S*$/': true,
 
 			// #endregion
 
