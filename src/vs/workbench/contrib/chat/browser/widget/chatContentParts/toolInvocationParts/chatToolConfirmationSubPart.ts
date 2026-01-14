@@ -77,11 +77,6 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 			partType: 'chatToolConfirmation',
 			subtitle: typeof toolInvocation.originMessage === 'string' ? toolInvocation.originMessage : toolInvocation.originMessage?.value,
 		});
-
-		// Tag for sub-agent styling
-		if (toolInvocation.fromSubAgent) {
-			context.container.classList.add('from-sub-agent');
-		}
 	}
 
 	protected override additionalPrimaryActions() {

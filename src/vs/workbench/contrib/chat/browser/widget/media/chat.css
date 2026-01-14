@@ -563,15 +563,6 @@
 	}
 }
 
-.interactive-item-container .value .from-sub-agent {
-	&.chat-tool-invocation-part,
-	&.chat-confirmation-widget,
-	&.chat-terminal-confirmation-widget,
-	&.chat-codeblock-pill-widget {
-		margin-left: 18px;
-	}
-}
-
 .interactive-item-container .value > .rendered-markdown li > p {
 	margin: 0;
 }

@@ -2846,7 +2846,7 @@ export namespace ChatToolInvocationPart {
 				: part.presentation === 'hiddenAfterComplete'
 					? ToolInvocationPresentation.HiddenAfterComplete
 					: undefined,
-			fromSubAgent: part.fromSubAgent
+			subAgentInvocationId: part.subAgentInvocationId
 		};
 	}
 
@@ -2895,7 +2895,7 @@ export namespace ChatToolInvocationPart {
 		if (part.toolSpecificData) {
 			toolInvocation.toolSpecificData = convertFromInternalToolSpecificData(part.toolSpecificData);
 		}
-		toolInvocation.fromSubAgent = part.fromSubAgent;
+		toolInvocation.subAgentInvocationId = part.subAgentInvocationId;
 
 		return toolInvocation;
 	}
@@ -3176,7 +3176,7 @@ export namespace ChatAgentRequest {
 			editedFileEvents: request.editedFileEvents,
 			modeInstructions: request.modeInstructions?.content,
 			modeInstructions2: ChatRequestModeInstructions.to(request.modeInstructions),
-			isSubagent: request.isSubagent,
+			subAgentInvocationId: request.subAgentInvocationId,
 		};
 
 		if (!isProposedApiEnabled(extension, 'chatParticipantPrivate')) {
@@ -3197,7 +3197,7 @@ export namespace ChatAgentRequest {
 			// eslint-disable-next-line local/code-no-any-casts
 			delete (requestWithAllProps as any).sessionId;
 			// eslint-disable-next-line local/code-no-any-casts
-			delete (requestWithAllProps as any).isSubagent;
+			delete (requestWithAllProps as any).subAgentInvocationId;
 		}
 
 		if (!isProposedApiEnabled(extension, 'chatParticipantAdditions')) {

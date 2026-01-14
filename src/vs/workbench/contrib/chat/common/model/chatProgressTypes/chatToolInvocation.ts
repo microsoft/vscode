@@ -7,7 +7,7 @@ import { encodeBase64 } from '../../../../../../base/common/buffer.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
-import { ConfirmedReason, IChatExtensionsContent, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatTerminalToolInvocationData } from '../../chatService/chatService.js';
+import { ConfirmedReason, IChatExtensionsContent, IChatSubagentToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatTerminalToolInvocationData } from '../../chatService/chatService.js';
 import { IPreparedToolInvocation, isToolResultOutputDetails, IToolConfirmationMessages, IToolData, IToolProgressStep, IToolResult, ToolDataSource } from '../../tools/languageModelToolsService.js';
 
 export class ChatToolInvocation implements IChatToolInvocation {
@@ -20,11 +20,11 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	public readonly presentation: IPreparedToolInvocation['presentation'];
 	public readonly toolId: string;
 	public readonly source: ToolDataSource;
-	public readonly fromSubAgent: boolean | undefined;
+	public readonly subAgentInvocationId: string | undefined;
 	public readonly parameters: unknown;
 	public generatedTitle?: string;
 
-	public readonly toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent;
+	public toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData;
 
 	private readonly _progress = observableValue<{ message?: string | IMarkdownString; progress: number | undefined }>(this, { progress: 0 });
 	private readonly _state: ISettableObservable<IChatToolInvocation.State>;
@@ -34,7 +34,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	}
 
 
-	constructor(preparedInvocation: IPreparedToolInvocation | undefined, toolData: IToolData, public readonly toolCallId: string, fromSubAgent: boolean | undefined, parameters: unknown) {
+	constructor(preparedInvocation: IPreparedToolInvocation | undefined, toolData: IToolData, public readonly toolCallId: string, subAgentInvocationId: string | undefined, parameters: unknown) {
 		const defaultMessage = localize('toolInvocationMessage', "Using {0}", `"${toolData.displayName}"`);
 		const invocationMessage = preparedInvocation?.invocationMessage ?? defaultMessage;
 		this.invocationMessage = invocationMessage;
@@ -45,7 +45,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		this.toolSpecificData = preparedInvocation?.toolSpecificData;
 		this.toolId = toolData.id;
 		this.source = toolData.source;
-		this.fromSubAgent = fromSubAgent;
+		this.subAgentInvocationId = subAgentInvocationId;
 		this.parameters = parameters;
 
 		if (!this.confirmationMessages?.title) {
@@ -129,7 +129,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			toolSpecificData: this.toolSpecificData,
 			toolCallId: this.toolCallId,
 			toolId: this.toolId,
-			fromSubAgent: this.fromSubAgent,
+			subAgentInvocationId: this.subAgentInvocationId,
 			generatedTitle: this.generatedTitle,
 		};
 	}
