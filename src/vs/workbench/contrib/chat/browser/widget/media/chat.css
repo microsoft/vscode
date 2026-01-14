@@ -1029,8 +1029,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button.secondary.monaco-text-button.codicon {
 	cursor: pointer;
-	padding: 0 3px;
-	border-radius: 2px;
+	padding: 3px;
+	border-radius: 4px;
 	display: inline-flex;
 }
 
