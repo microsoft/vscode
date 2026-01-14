@@ -13,6 +13,7 @@ import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { IFocusViewService } from './focusViewService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ChatConfiguration } from '../../common/constants.js';
 
 export async function openSession(accessor: ServicesAccessor, session: IAgentSession, openOptions?: { sideBySide?: boolean; editorOptions?: IEditorOptions }): Promise<void> {
 	const configurationService = accessor.get(IConfigurationService);
@@ -27,7 +28,7 @@ export async function openSession(accessor: ServicesAccessor, session: IAgentSes
 	}
 
 	// Check if Agent Session Projection is enabled for agent sessions
-	const agentSessionProjectionEnabled = configurationService.getValue<boolean>('chat.agentSessionProjection.enabled') === true;
+	const agentSessionProjectionEnabled = configurationService.getValue<boolean>(ChatConfiguration.AgentSessionProjectionEnabled) === true;
 
 	if (agentSessionProjectionEnabled) {
 		// Enter Agent Session Projection mode for the session

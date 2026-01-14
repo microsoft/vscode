@@ -21,6 +21,7 @@ import { IAgentSession } from './agentSessionsModel.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../chat.js';
 import { AgentSessionProviders } from './agentSessions.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
+import { ChatConfiguration } from '../../common/constants.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { ACTION_ID_NEW_CHAT } from '../actions/chatActions.js';
 
@@ -162,7 +163,7 @@ export class FocusViewService extends Disposable implements IFocusViewService {
 	}
 
 	private _isEnabled(): boolean {
-		return this.configurationService.getValue<boolean>('chat.agentSessionProjection.enabled') === true;
+		return this.configurationService.getValue<boolean>(ChatConfiguration.AgentSessionProjectionEnabled) === true;
 	}
 
 	private _checkForEmptyEditors(): void {

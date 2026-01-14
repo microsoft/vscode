@@ -10,6 +10,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { ChatConfiguration } from '../../common/constants.js';
 import { IFocusViewService } from './focusViewService.js';
 import { IAgentSession, isMarshalledAgentSessionContext, IMarshalledAgentSessionContext } from './agentSessionsModel.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
@@ -28,9 +29,9 @@ export class EnterFocusViewAction extends Action2 {
 			id: EnterFocusViewAction.ID,
 			title: localize2('enterAgentSessionProjection', "Enter Agent Session Projection"),
 			category: CHAT_CATEGORY,
-			f1: true,
+			f1: false,
 			precondition: ContextKeyExpr.and(
-				ContextKeyExpr.has('config.chat.agentSessionProjection.enabled'),
+				ContextKeyExpr.has(`config.${ChatConfiguration.AgentSessionProjectionEnabled}`),
 				ChatContextKeys.inFocusViewMode.negate()
 			),
 		});
@@ -137,7 +138,7 @@ export class OpenInChatPanelAction extends Action2 {
 export class ToggleAgentsControl extends ToggleTitleBarConfigAction {
 	constructor() {
 		super(
-			'chat.agentSessionProjection.enabled',
+			ChatConfiguration.AgentSessionProjectionEnabled,
 			localize('toggle.agentsControl', 'Agents Controls'),
 			localize('toggle.agentsControlDescription', "Toggle visibility of the Agents Controls in title bar"), 6,
 			ContextKeyExpr.and(

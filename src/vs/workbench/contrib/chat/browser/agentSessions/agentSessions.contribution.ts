@@ -25,6 +25,7 @@ import { AgentsControlViewItem } from './agentsControl.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ChatConfiguration } from '../../common/constants.js';
 
 //#region Actions and Menus
 
@@ -190,7 +191,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	submenu: MenuId.AgentsControlMenu,
 	title: localize('agentsControl', "Agents"),
 	icon: Codicon.chatSparkle,
-	when: ContextKeyExpr.has('config.chat.agentSessionProjection.enabled'),
+	when: ContextKeyExpr.has(`config.${ChatConfiguration.AgentSessionProjectionEnabled}`),
 	order: 10002 // to the right of the chat button
 });
 
@@ -200,7 +201,7 @@ MenuRegistry.appendMenuItem(MenuId.AgentsControlMenu, {
 		id: 'workbench.action.chat.toggle',
 		title: localize('openChat', "Open Chat"),
 	},
-	when: ContextKeyExpr.has('config.chat.agentSessionProjection.enabled'),
+	when: ContextKeyExpr.has(`config.${ChatConfiguration.AgentSessionProjectionEnabled}`),
 });
 
 /**
@@ -229,12 +230,12 @@ class AgentsControlRendering extends Disposable implements IWorkbenchContributio
 
 		// Add/remove CSS class on workbench based on setting
 		const updateClass = () => {
-			const enabled = configurationService.getValue<boolean>('chat.agentSessionProjection.enabled') === true;
+			const enabled = configurationService.getValue<boolean>(ChatConfiguration.AgentSessionProjectionEnabled) === true;
 			mainWindow.document.body.classList.toggle('agents-control-enabled', enabled);
 		};
 		updateClass();
 		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('chat.agentSessionProjection.enabled')) {
+			if (e.affectsConfiguration(ChatConfiguration.AgentSessionProjectionEnabled)) {
 				updateClass();
 			}
 		}));

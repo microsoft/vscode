@@ -948,7 +948,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 			ChatContextKeys.Setup.disabled.negate()
 		),
 		ContextKeyExpr.has('config.chat.commandCenter.enabled'),
-		ContextKeyExpr.has('config.chat.agentSessionProjection.enabled').negate() // Hide when agent controls are shown
+		ContextKeyExpr.has(`config.${ChatConfiguration.AgentSessionProjectionEnabled}`).negate() // Hide when agent controls are shown
 	),
 	order: 10001 // to the right of command center
 });

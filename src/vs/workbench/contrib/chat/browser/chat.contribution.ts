@@ -188,7 +188,7 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('chat.commandCenter.enabled', "Controls whether the command center shows a menu for actions to control chat (requires {0}).", '`#window.commandCenter#`'),
 			default: true
 		},
-		'chat.agentSessionProjection.enabled': {
+		[ChatConfiguration.AgentSessionProjectionEnabled]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.agentSessionProjection.enabled', "Controls whether Agent Session Projection mode is enabled for reviewing agent sessions in a focused workspace."),
 			default: false,
