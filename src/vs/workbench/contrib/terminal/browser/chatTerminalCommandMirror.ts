@@ -341,13 +341,14 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 	private _getRenderedLineCount(): number {
 		// Calculate line count from the command's markers when available
 		const endMarker = this._command.endMarker;
-		if (this._command.executedMarker && endMarker && !endMarker.isDisposed) {
+		if (this._command.executedMarker && endMarker && !endMarker.isDisposed && endMarker.line > this._command.executedMarker.line) {
 			const startLine = this._command.executedMarker.line;
 			const endLine = endMarker.line;
 			return computeOutputLineCount(startLine, endLine);
 		}
 
-		// During streaming (no end marker), calculate from the source terminal buffer
+		// During streaming (no end marker or end marker hasn't moved past executed marker),
+		// calculate from the source terminal buffer
 		const executedMarker = this._command.executedMarker ?? (this._command as unknown as ICurrentPartialCommand).commandExecutedMarker;
 		if (executedMarker && this._sourceRaw) {
 			const buffer = this._sourceRaw.buffer.active;
