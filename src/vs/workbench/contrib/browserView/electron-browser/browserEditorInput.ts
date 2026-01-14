@@ -31,7 +31,7 @@ const LOADING_SPINNER_SVG = (color: string | undefined) => `
 /**
  * Maximum length for browser page titles before truncation
  */
-const MAX_TITLE_LENGTH = 100;
+const MAX_TITLE_LENGTH = 30;
 
 /**
  * JSON-serializable type used during browser state serialization/deserialization
