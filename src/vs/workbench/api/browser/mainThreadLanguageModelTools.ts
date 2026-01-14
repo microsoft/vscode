@@ -181,7 +181,7 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 			icon,
 			when,
 			models: definition.models,
-			canBeReferencedInPrompt: true,
+			canBeReferencedInPrompt: !!definition.userDescription,
 		};
 
 		// Register both tool data and implementation

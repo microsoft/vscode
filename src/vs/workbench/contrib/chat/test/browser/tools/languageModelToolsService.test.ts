@@ -2658,4 +2658,480 @@ suite('LanguageModelToolsService', () => {
 		const result = await promise;
 		assert.strictEqual(result.content[0].value, 'commit blocked');
 	});
+
+	test('beginToolCall creates streaming tool invocation', () => {
+		const tool = registerToolForTest(service, store, 'streamingTool', {
+			invoke: async () => ({ content: [{ kind: 'text', value: 'result' }] }),
+		});
+
+		const sessionId = 'streaming-session';
+		const requestId = 'streaming-request';
+		stubGetSession(chatService, sessionId, { requestId });
+
+		const invocation = service.beginToolCall({
+			toolCallId: 'call-123',
+			toolId: tool.id,
+			chatRequestId: requestId,
+			sessionResource: LocalChatSessionUri.forSession(sessionId),
+		});
+
+		assert.ok(invocation, 'beginToolCall should return an invocation');
+		assert.strictEqual(invocation.toolId, tool.id);
+	});
+
+	test('beginToolCall returns undefined for unknown tool', () => {
+		const invocation = service.beginToolCall({
+			toolCallId: 'call-unknown',
+			toolId: 'nonExistentTool',
+		});
+
+		assert.strictEqual(invocation, undefined, 'beginToolCall should return undefined for unknown tools');
+	});
+
+	test('updateToolStream calls handleToolStream on tool implementation', async () => {
+		let handleToolStreamCalled = false;
+		let receivedRawInput: unknown;
+
+		const tool = registerToolForTest(service, store, 'streamHandlerTool', {
+			invoke: async () => ({ content: [{ kind: 'text', value: 'result' }] }),
+			handleToolStream: async (context) => {
+				handleToolStreamCalled = true;
+				receivedRawInput = context.rawInput;
+				return { invocationMessage: 'Processing...' };
+			},
+		});
+
+		const sessionId = 'stream-handler-session';
+		const requestId = 'stream-handler-request';
+		stubGetSession(chatService, sessionId, { requestId });
+
+		const invocation = service.beginToolCall({
+			toolCallId: 'call-stream',
+			toolId: tool.id,
+			chatRequestId: requestId,
+			sessionResource: LocalChatSessionUri.forSession(sessionId),
+		});
+
+		assert.ok(invocation, 'should create invocation');
+
+		// Update the stream with partial input
+		const partialInput = { partial: 'data' };
+		await service.updateToolStream('call-stream', partialInput, CancellationToken.None);
+
+		assert.strictEqual(handleToolStreamCalled, true, 'handleToolStream should be called');
+		assert.deepStrictEqual(receivedRawInput, partialInput, 'should receive the partial input');
+	});
+
+	test('updateToolStream does nothing for unknown tool call', async () => {
+		// Should not throw
+		await service.updateToolStream('unknown-call-id', { data: 'test' }, CancellationToken.None);
+	});
+
+	test('toToolAndToolSetEnablementMap with contextKeyService filters tools', () => {
+		// The toolsWithFullReferenceName observable uses the service's context key service
+		// to filter tools. This test verifies that when a tool's when clause matches,
+		// it's included in the enablement map.
+		contextKeyService.createKey('chat.model.family', 'gpt-4');
+
+		// Tool that requires gpt-4 family (matches current context)
+		const gpt4ToolDef: IToolData = {
+			id: 'gpt4Tool',
+			toolReferenceName: 'gpt4ToolRef',
+			modelDescription: 'GPT-4 Tool',
+			displayName: 'GPT-4 Tool',
+			source: ToolDataSource.Internal,
+			canBeReferencedInPrompt: true,
+			when: ContextKeyEqualsExpr.create('chat.model.family', 'gpt-4'),
+		};
+
+		// Tool with no when clause (always matches)
+		const anyModelToolDef: IToolData = {
+			id: 'anyModelTool',
+			toolReferenceName: 'anyModelToolRef',
+			modelDescription: 'Any Model Tool',
+			displayName: 'Any Model Tool',
+			source: ToolDataSource.Internal,
+			canBeReferencedInPrompt: true,
+		};
+
+		store.add(service.registerToolData(gpt4ToolDef));
+		store.add(service.registerToolData(anyModelToolDef));
+
+		// Get the tools from the service
+		const gpt4Tool = service.getTool('gpt4Tool');
+		const anyModelTool = service.getTool('anyModelTool');
+		assert.ok(gpt4Tool && anyModelTool, 'tools should be registered');
+
+		// Both tools should be in the map since gpt4Tool's when clause matches
+		const enabledNames = ['gpt4ToolRef', 'anyModelToolRef'];
+		const result = service.toToolAndToolSetEnablementMap(enabledNames, undefined, contextKeyService);
+
+		assert.strictEqual(result.get(gpt4Tool), true, 'gpt4Tool should be enabled');
+		assert.strictEqual(result.get(anyModelTool), true, 'anyModelTool should be enabled');
+	});
+
+	test('observeTools returns tools filtered by context', async () => {
+		return runWithFakedTimers({}, async () => {
+			contextKeyService.createKey('featureEnabled', true);
+
+			const enabledTool: IToolData = {
+				id: 'enabledObsTool',
+				modelDescription: 'Enabled Tool',
+				displayName: 'Enabled Tool',
+				source: ToolDataSource.Internal,
+				when: ContextKeyEqualsExpr.create('featureEnabled', true),
+			};
+
+			const disabledTool: IToolData = {
+				id: 'disabledObsTool',
+				modelDescription: 'Disabled Tool',
+				displayName: 'Disabled Tool',
+				source: ToolDataSource.Internal,
+				when: ContextKeyEqualsExpr.create('featureEnabled', false),
+			};
+
+			store.add(service.registerToolData(enabledTool));
+			store.add(service.registerToolData(disabledTool));
+
+			const toolsObs = service.observeTools(contextKeyService);
+
+			// Read current value directly
+			const tools = toolsObs.get();
+
+			assert.strictEqual(tools.length, 1, 'should only include enabled tool');
+			assert.strictEqual(tools[0].id, 'enabledObsTool');
+		});
+	});
+
+	test('invokeTool with chatStreamToolCallId correlates with pending streaming call', async () => {
+		const tool = registerToolForTest(service, store, 'correlatedTool', {
+			invoke: async () => ({ content: [{ kind: 'text', value: 'correlated result' }] }),
+		});
+
+		const sessionId = 'correlated-session';
+		const requestId = 'correlated-request';
+		const capture: { invocation?: any } = {};
+		stubGetSession(chatService, sessionId, { requestId, capture });
+
+		// Start a streaming tool call
+		const streamingInvocation = service.beginToolCall({
+			toolCallId: 'stream-call-id',
+			toolId: tool.id,
+			chatRequestId: requestId,
+			sessionResource: LocalChatSessionUri.forSession(sessionId),
+		});
+
+		assert.ok(streamingInvocation, 'should create streaming invocation');
+
+		// Now invoke the tool with a different callId but matching chatStreamToolCallId
+		const dto: IToolInvocation = {
+			callId: 'different-call-id',
+			toolId: tool.id,
+			tokenBudget: 100,
+			parameters: { test: 1 },
+			context: {
+				sessionId,
+				sessionResource: LocalChatSessionUri.forSession(sessionId),
+			},
+			chatStreamToolCallId: 'stream-call-id', // This should correlate
+		};
+
+		const result = await service.invokeTool(dto, async () => 0, CancellationToken.None);
+		assert.strictEqual(result.content[0].value, 'correlated result');
+	});
+
+	test('getAllToolsIncludingDisabled returns tools regardless of when clause', () => {
+		contextKeyService.createKey('featureFlag', false);
+
+		const enabledTool: IToolData = {
+			id: 'enabledTool',
+			modelDescription: 'Enabled Tool',
+			displayName: 'Enabled Tool',
+			source: ToolDataSource.Internal,
+		};
+
+		const disabledTool: IToolData = {
+			id: 'disabledTool',
+			modelDescription: 'Disabled Tool',
+			displayName: 'Disabled Tool',
+			source: ToolDataSource.Internal,
+			when: ContextKeyEqualsExpr.create('featureFlag', true), // Will be disabled
+		};
+
+		store.add(service.registerToolData(enabledTool));
+		store.add(service.registerToolData(disabledTool));
+
+		// getAllToolsIncludingDisabled should return both tools
+		const allTools = Array.from(service.getAllToolsIncludingDisabled());
+		assert.strictEqual(allTools.length, 2, 'getAllToolsIncludingDisabled should return all tools');
+		assert.ok(allTools.some(t => t.id === 'enabledTool'), 'should include enabled tool');
+		assert.ok(allTools.some(t => t.id === 'disabledTool'), 'should include disabled tool');
+
+		// getTools should only return tools matching when clause
+		const enabledTools = Array.from(service.getTools(contextKeyService));
+		assert.strictEqual(enabledTools.length, 1, 'getTools should only return matching tools');
+		assert.strictEqual(enabledTools[0].id, 'enabledTool');
+	});
+
+	test('getTools filters by chatModelId context key', () => {
+		contextKeyService.createKey('chatModelId', 'gpt-4-turbo');
+
+		const gpt4Tool: IToolData = {
+			id: 'gpt4Tool',
+			modelDescription: 'GPT-4 Tool',
+			displayName: 'GPT-4 Tool',
+			source: ToolDataSource.Internal,
+			when: ContextKeyEqualsExpr.create('chatModelId', 'gpt-4-turbo'),
+		};
+
+		const claudeTool: IToolData = {
+			id: 'claudeTool',
+			modelDescription: 'Claude Tool',
+			displayName: 'Claude Tool',
+			source: ToolDataSource.Internal,
+			when: ContextKeyEqualsExpr.create('chatModelId', 'claude-3-opus'),
+		};
+
+		const universalTool: IToolData = {
+			id: 'universalTool',
+			modelDescription: 'Universal Tool',
+			displayName: 'Universal Tool',
+			source: ToolDataSource.Internal,
+			// No when clause - available for all models
+		};
+
+		store.add(service.registerToolData(gpt4Tool));
+		store.add(service.registerToolData(claudeTool));
+		store.add(service.registerToolData(universalTool));
+
+		const tools = Array.from(service.getTools(contextKeyService));
+
+		assert.strictEqual(tools.length, 2, 'should return 2 tools');
+		assert.ok(tools.some(t => t.id === 'gpt4Tool'), 'should include GPT-4 tool');
+		assert.ok(tools.some(t => t.id === 'universalTool'), 'should include universal tool');
+		assert.ok(!tools.some(t => t.id === 'claudeTool'), 'should NOT include Claude tool');
+	});
+
+	test('getTools filters by chatModelVendor context key', () => {
+		contextKeyService.createKey('chatModelVendor', 'anthropic');
+
+		const anthropicTool: IToolData = {
+			id: 'anthropicTool',
+			modelDescription: 'Anthropic Tool',
+			displayName: 'Anthropic Tool',
+			source: ToolDataSource.Internal,
+			when: ContextKeyEqualsExpr.create('chatModelVendor', 'anthropic'),
+		};
+
+		const openaiTool: IToolData = {
+			id: 'openaiTool',
+			modelDescription: 'OpenAI Tool',
+			displayName: 'OpenAI Tool',
+			source: ToolDataSource.Internal,
+			when: ContextKeyEqualsExpr.create('chatModelVendor', 'openai'),
+		};
+
+		store.add(service.registerToolData(anthropicTool));
+		store.add(service.registerToolData(openaiTool));
+
+		const tools = Array.from(service.getTools(contextKeyService));
+
+		assert.strictEqual(tools.length, 1, 'should return 1 tool');
+		assert.strictEqual(tools[0].id, 'anthropicTool', 'should include Anthropic tool');
+	});
+
+	test('getTools filters by chatModelFamily context key', () => {
+		contextKeyService.createKey('chatModelFamily', 'gpt-4');
+
+		const gpt4FamilyTool: IToolData = {
+			id: 'gpt4FamilyTool',
+			modelDescription: 'GPT-4 Family Tool',
+			displayName: 'GPT-4 Family Tool',
+			source: ToolDataSource.Internal,
+			when: ContextKeyEqualsExpr.create('chatModelFamily', 'gpt-4'),
+		};
+
+		const gpt35FamilyTool: IToolData = {
+			id: 'gpt35FamilyTool',
+			modelDescription: 'GPT-3.5 Family Tool',
+			displayName: 'GPT-3.5 Family Tool',
+			source: ToolDataSource.Internal,
+			when: ContextKeyEqualsExpr.create('chatModelFamily', 'gpt-3.5'),
+		};
+
+		store.add(service.registerToolData(gpt4FamilyTool));
+		store.add(service.registerToolData(gpt35FamilyTool));
+
+		const tools = Array.from(service.getTools(contextKeyService));
+
+		assert.strictEqual(tools.length, 1, 'should return 1 tool');
+		assert.strictEqual(tools[0].id, 'gpt4FamilyTool', 'should include GPT-4 family tool');
+	});
+
+	test('getTool returns tool regardless of when clause', () => {
+		contextKeyService.createKey('someFlag', false);
+
+		const disabledTool: IToolData = {
+			id: 'disabledLookupTool',
+			modelDescription: 'Disabled Lookup Tool',
+			displayName: 'Disabled Lookup Tool',
+			source: ToolDataSource.Internal,
+			when: ContextKeyEqualsExpr.create('someFlag', true), // Disabled
+		};
+
+		store.add(service.registerToolData(disabledTool));
+
+		// getTool should still find the tool by ID
+		const tool = service.getTool('disabledLookupTool');
+		assert.ok(tool, 'getTool should return tool even when disabled');
+		assert.strictEqual(tool.id, 'disabledLookupTool');
+	});
+
+	test('getToolByName returns tool regardless of when clause', () => {
+		contextKeyService.createKey('anotherFlag', false);
+
+		const disabledTool: IToolData = {
+			id: 'disabledNamedTool',
+			toolReferenceName: 'disabledNamedToolRef',
+			modelDescription: 'Disabled Named Tool',
+			displayName: 'Disabled Named Tool',
+			source: ToolDataSource.Internal,
+			when: ContextKeyEqualsExpr.create('anotherFlag', true), // Disabled
+		};
+
+		store.add(service.registerToolData(disabledTool));
+
+		// getToolByName should still find the tool by reference name
+		const tool = service.getToolByName('disabledNamedToolRef');
+		assert.ok(tool, 'getToolByName should return tool even when disabled');
+		assert.strictEqual(tool.id, 'disabledNamedTool');
+	});
+
+	test('IToolData models property stores selector information', () => {
+		const toolWithModels: IToolData = {
+			id: 'modelSpecificTool',
+			modelDescription: 'Model Specific Tool',
+			displayName: 'Model Specific Tool',
+			source: ToolDataSource.Internal,
+			models: [
+				{ vendor: 'openai', family: 'gpt-4' },
+				{ vendor: 'anthropic', family: 'claude-3' },
+			],
+		};
+
+		store.add(service.registerToolData(toolWithModels));
+
+		const tool = service.getTool('modelSpecificTool');
+		assert.ok(tool, 'tool should be registered');
+		assert.ok(tool.models, 'tool should have models property');
+		assert.strictEqual(tool.models.length, 2, 'tool should have 2 model selectors');
+		assert.deepStrictEqual(tool.models[0], { vendor: 'openai', family: 'gpt-4' });
+		assert.deepStrictEqual(tool.models[1], { vendor: 'anthropic', family: 'claude-3' });
+	});
+
+	test('tools with extension tools disabled setting are filtered', () => {
+		// Create a tool from an extension
+		const extensionTool: IToolData = {
+			id: 'extensionTool',
+			modelDescription: 'Extension Tool',
+			displayName: 'Extension Tool',
+			source: { type: 'extension', label: 'Test Extension', extensionId: new ExtensionIdentifier('test.extension') },
+		};
+
+		store.add(service.registerToolData(extensionTool));
+
+		// With extension tools enabled (default in setup)
+		let tools = Array.from(service.getTools(contextKeyService));
+		assert.ok(tools.some(t => t.id === 'extensionTool'), 'extension tool should be included when enabled');
+
+		// Disable extension tools
+		configurationService.setUserConfiguration(ChatConfiguration.ExtensionToolsEnabled, false);
+
+		tools = Array.from(service.getTools(contextKeyService));
+		assert.ok(!tools.some(t => t.id === 'extensionTool'), 'extension tool should be excluded when disabled');
+
+		// Re-enable for cleanup
+		configurationService.setUserConfiguration(ChatConfiguration.ExtensionToolsEnabled, true);
+	});
+
+	test('observeTools changes when context key changes', async () => {
+		return runWithFakedTimers({}, async () => {
+			const testCtxKey = contextKeyService.createKey<string>('dynamicTestKey', 'value1');
+
+			const tool1: IToolData = {
+				id: 'dynamicTool1',
+				modelDescription: 'Dynamic Tool 1',
+				displayName: 'Dynamic Tool 1',
+				source: ToolDataSource.Internal,
+				when: ContextKeyEqualsExpr.create('dynamicTestKey', 'value1'),
+			};
+
+			const tool2: IToolData = {
+				id: 'dynamicTool2',
+				modelDescription: 'Dynamic Tool 2',
+				displayName: 'Dynamic Tool 2',
+				source: ToolDataSource.Internal,
+				when: ContextKeyEqualsExpr.create('dynamicTestKey', 'value2'),
+			};
+
+			store.add(service.registerToolData(tool1));
+			store.add(service.registerToolData(tool2));
+
+			const toolsObs = service.observeTools(contextKeyService);
+
+			// Initial state: value1 matches tool1
+			let tools = toolsObs.get();
+			assert.strictEqual(tools.length, 1, 'should have 1 tool initially');
+			assert.strictEqual(tools[0].id, 'dynamicTool1', 'should be dynamicTool1');
+
+			// Change context key to value2
+			testCtxKey.set('value2');
+
+			// Wait for scheduler to trigger
+			await new Promise(resolve => setTimeout(resolve, 800));
+
+			// Now tool2 should be available
+			tools = toolsObs.get();
+			assert.strictEqual(tools.length, 1, 'should have 1 tool after change');
+			assert.strictEqual(tools[0].id, 'dynamicTool2', 'should be dynamicTool2 after context change');
+		});
+	});
+
+	test('getTools with scoped contextKeyService', () => {
+		// Create a scoped context key service with different value
+		const scopedContextKeyService = store.add(contextKeyService.createScoped(document.createElement('div')));
+		scopedContextKeyService.createKey('toolFilter', 'scopedValue');
+
+		// Also set a different value in the parent context
+		contextKeyService.createKey('toolFilter', 'parentValue');
+
+		const parentTool: IToolData = {
+			id: 'parentFilterTool',
+			modelDescription: 'Parent Filter Tool',
+			displayName: 'Parent Filter Tool',
+			source: ToolDataSource.Internal,
+			when: ContextKeyEqualsExpr.create('toolFilter', 'parentValue'),
+		};
+
+		const scopedTool: IToolData = {
+			id: 'scopedFilterTool',
+			modelDescription: 'Scoped Filter Tool',
+			displayName: 'Scoped Filter Tool',
+			source: ToolDataSource.Internal,
+			when: ContextKeyEqualsExpr.create('toolFilter', 'scopedValue'),
+		};
+
+		store.add(service.registerToolData(parentTool));
+		store.add(service.registerToolData(scopedTool));
+
+		// Getting tools with parent context should return parentTool
+		const toolsFromParent = Array.from(service.getTools(contextKeyService));
+		assert.ok(toolsFromParent.some(t => t.id === 'parentFilterTool'), 'parent context should include parentTool');
+		assert.ok(!toolsFromParent.some(t => t.id === 'scopedFilterTool'), 'parent context should NOT include scopedTool');
+
+		// Getting tools with scoped context should return scopedTool
+		const toolsFromScoped = Array.from(service.getTools(scopedContextKeyService));
+		assert.ok(toolsFromScoped.some(t => t.id === 'scopedFilterTool'), 'scoped context should include scopedTool');
+		assert.ok(!toolsFromScoped.some(t => t.id === 'parentFilterTool'), 'scoped context should NOT include parentTool');
+	});
 });
