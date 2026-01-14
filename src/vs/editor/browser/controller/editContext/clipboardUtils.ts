@@ -38,8 +38,9 @@ export function ensureClipboardGetsEditorSelection(e: ClipboardEvent, context: V
 export function generateDataToCopyAndStoreInMemory(viewModel: IViewModel, options: IComputedEditorOptions, id: string | undefined, isFirefox: boolean) {
 	const emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
 	const copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
+	const copyExcludesHiddenAreas = options.get(EditorOption.copyExcludesHiddenAreas);
 	const selections = viewModel.getCursorStates().map(cursorState => cursorState.modelState.selection);
-	const dataToCopy = getDataToCopy(viewModel, selections, emptySelectionClipboard, copyWithSyntaxHighlighting);
+	const dataToCopy = getDataToCopy(viewModel, selections, emptySelectionClipboard, copyWithSyntaxHighlighting, copyExcludesHiddenAreas);
 	const storedMetadata: ClipboardStoredMetadata = {
 		version: 1,
 		id,
@@ -56,9 +57,11 @@ export function generateDataToCopyAndStoreInMemory(viewModel: IViewModel, option
 	return { dataToCopy, storedMetadata };
 }
 
-function getDataToCopy(viewModel: IViewModel, modelSelections: Range[], emptySelectionClipboard: boolean, copyWithSyntaxHighlighting: boolean): ClipboardDataToCopy {
-	// Filter selections to exclude hidden areas
-	const filteredSelections = filterSelectionsExcludingHiddenAreas(viewModel, modelSelections);
+function getDataToCopy(viewModel: IViewModel, modelSelections: Range[], emptySelectionClipboard: boolean, copyWithSyntaxHighlighting: boolean, copyExcludesHiddenAreas: boolean): ClipboardDataToCopy {
+	// Filter selections to exclude hidden areas if the option is enabled
+	const filteredSelections = copyExcludesHiddenAreas 
+		? filterSelectionsExcludingHiddenAreas(viewModel, modelSelections)
+		: modelSelections;
 	
 	const rawTextToCopy = viewModel.getPlainTextToCopy(filteredSelections, emptySelectionClipboard, isWindows);
 	const newLineCharacter = viewModel.model.getEOL();

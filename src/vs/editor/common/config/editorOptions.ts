@@ -599,6 +599,10 @@ export interface IEditorOptions {
 	 */
 	copyWithSyntaxHighlighting?: boolean;
 	/**
+	 * Controls whether copying should exclude hidden areas (e.g., folded code, filtered content).
+	 */
+	copyExcludesHiddenAreas?: boolean;
+	/**
 	 * The history mode for suggestions.
 	 */
 	suggestSelection?: 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
@@ -5755,6 +5759,7 @@ export const enum EditorOption {
 	comments,
 	contextmenu,
 	copyWithSyntaxHighlighting,
+	copyExcludesHiddenAreas,
 	cursorBlinking,
 	cursorSmoothCaretAnimation,
 	cursorStyle,
@@ -6118,6 +6123,10 @@ export const EditorOptions = {
 	copyWithSyntaxHighlighting: register(new EditorBooleanOption(
 		EditorOption.copyWithSyntaxHighlighting, 'copyWithSyntaxHighlighting', true,
 		{ description: nls.localize('copyWithSyntaxHighlighting', "Controls whether syntax highlighting should be copied into the clipboard.") }
+	)),
+	copyExcludesHiddenAreas: register(new EditorBooleanOption(
+		EditorOption.copyExcludesHiddenAreas, 'copyExcludesHiddenAreas', false,
+		{ description: nls.localize('copyExcludesHiddenAreas', "Controls whether copying excludes hidden areas such as folded code or filtered content.") }
 	)),
 	cursorBlinking: register(new EditorEnumOption(
 		EditorOption.cursorBlinking, 'cursorBlinking',

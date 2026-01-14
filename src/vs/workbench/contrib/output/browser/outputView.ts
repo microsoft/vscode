@@ -268,6 +268,7 @@ export class OutputEditor extends AbstractTextResourceEditor {
 		options.padding = undefined;
 		options.readOnly = true;
 		options.domReadOnly = true;
+		options.copyExcludesHiddenAreas = true;	// output editors exclude filtered content when copying
 		options.unicodeHighlight = {
 			nonBasicASCII: false,
 			invisibleCharacters: false,
