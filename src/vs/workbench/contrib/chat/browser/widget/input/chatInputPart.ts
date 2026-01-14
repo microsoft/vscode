@@ -330,6 +330,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private withinEditSessionKey: IContextKey<boolean>;
 	private filePartOfEditSessionKey: IContextKey<boolean>;
 	private chatSessionHasOptions: IContextKey<boolean>;
+	private chatSessionOptionsValid: IContextKey<boolean>;
 	private modelWidget: ModelPickerActionItem | undefined;
 	private modeWidget: ModePickerActionItem | undefined;
 	private chatSessionPickerWidgets: Map<string, ChatSessionPickerActionItem | SearchableOptionPickerActionItem> = new Map();
@@ -518,6 +519,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.withinEditSessionKey = ChatContextKeys.withinEditSessionDiff.bindTo(contextKeyService);
 		this.filePartOfEditSessionKey = ChatContextKeys.filePartOfEditSession.bindTo(contextKeyService);
 		this.chatSessionHasOptions = ChatContextKeys.chatSessionHasModels.bindTo(contextKeyService);
+		this.chatSessionOptionsValid = ChatContextKeys.chatSessionOptionsValid.bindTo(contextKeyService);
 
 		const chatToolCount = ChatContextKeys.chatToolCount.bindTo(contextKeyService);
 
@@ -1362,6 +1364,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const sessionResource = this._widget?.viewModel?.model.sessionResource;
 		const hideAll = () => {
 			this.chatSessionHasOptions.set(false);
+			this.chatSessionOptionsValid.set(true); // No options means nothing to validate
 			this.hideAllSessionPickerWidgets();
 		};
 
@@ -1407,6 +1410,21 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (visibleGroupIds.size === 0) {
 			return hideAll();
 		}
+
+		// Validate that all selected options exist in their respective option group items
+		let allOptionsValid = true;
+		for (const optionGroup of optionGroups) {
+			const currentOption = this.chatSessionsService.getSessionOption(ctx.chatSessionResource, optionGroup.id);
+			if (currentOption) {
+				const currentOptionId = typeof currentOption === 'string' ? currentOption : currentOption.id;
+				const isValidOption = optionGroup.items.some(item => item.id === currentOptionId);
+				if (!isValidOption) {
+					this.logService.trace(`[ChatInputPart] Selected option '${currentOptionId}' is not valid for group '${optionGroup.id}'`);
+					allOptionsValid = false;
+				}
+			}
+		}
+		this.chatSessionOptionsValid.set(allOptionsValid);
 
 		this.chatSessionHasOptions.set(true);
 
