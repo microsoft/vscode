@@ -143,10 +143,20 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 							: toolContentToA11yString(state.contentForModel);
 					responseContent += localize('toolPostApprovalA11yView', "Approve results of {0}? Result: ", toolInvocation.toolId) + (postApprovalDetails ?? '') + '\n';
 				} else {
+					// Show completed or in-progress tool invocations
+					const isCompleted = IChatToolInvocation.isComplete(toolInvocation);
+					const message = (isCompleted && toolInvocation.pastTenseMessage) 
+						? toolInvocation.pastTenseMessage 
+						: toolInvocation.invocationMessage;
+					const messageText = typeof message === 'string' ? message : stripIcons(renderAsPlaintext(message));
+					
 					const resultDetails = IChatToolInvocation.resultDetails(toolInvocation);
 					if (resultDetails && 'input' in resultDetails) {
 						responseContent += '\n' + (resultDetails.isError ? 'Errored ' : 'Completed ');
-						responseContent += `${`${typeof toolInvocation.invocationMessage === 'string' ? toolInvocation.invocationMessage : stripIcons(renderAsPlaintext(toolInvocation.invocationMessage))} with input: ${resultDetails.input}`}\n`;
+						responseContent += `${messageText} with input: ${resultDetails.input}\n`;
+					} else if (messageText) {
+						// Show the message even if there's no input field
+						responseContent += '\n' + messageText + '\n';
 					}
 				}
 			}
@@ -166,9 +176,16 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 				return true;
 			});
 			for (const pastConfirmation of pastConfirmations) {
-				if (pastConfirmation.isComplete && pastConfirmation.resultDetails && 'input' in pastConfirmation.resultDetails) {
-					if (pastConfirmation.pastTenseMessage) {
-						responseContent += `\n${`${typeof pastConfirmation.pastTenseMessage === 'string' ? pastConfirmation.pastTenseMessage : stripIcons(renderAsPlaintext(pastConfirmation.pastTenseMessage))} with input: ${pastConfirmation.resultDetails.input}`}\n`;
+				if (pastConfirmation.isComplete) {
+					const message = pastConfirmation.pastTenseMessage || pastConfirmation.invocationMessage;
+					if (message) {
+						const messageText = typeof message === 'string' ? message : stripIcons(renderAsPlaintext(message));
+						if (pastConfirmation.resultDetails && 'input' in pastConfirmation.resultDetails) {
+							responseContent += `\n${messageText} with input: ${pastConfirmation.resultDetails.input}\n`;
+						} else {
+							// Show the message even if there's no input field
+							responseContent += '\n' + messageText + '\n';
+						}
 					}
 				}
 			}
