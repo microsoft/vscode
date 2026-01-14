@@ -1489,14 +1489,26 @@ export interface IToolDataDto {
 	inputSchema?: IJSONSchema;
 }
 
+export interface ILanguageModelChatSelectorDto {
+	vendor?: string;
+	family?: string;
+	version?: string;
+	id?: string;
+}
+
+export interface IToolDefinitionDto extends IToolDataDto {
+	icon?: IconPathDto;
+	models?: ILanguageModelChatSelectorDto[];
+}
+
 export interface MainThreadLanguageModelToolsShape extends IDisposable {
 	$getTools(): Promise<Dto<IToolDataDto>[]>;
 	$acceptToolProgress(callId: string, progress: IToolProgressStep): void;
 	$invokeTool(dto: Dto<IToolInvocation>, token?: CancellationToken): Promise<Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>>>;
 	$countTokensForInvocation(callId: string, input: string, token: CancellationToken): Promise<number>;
 	$registerTool(id: string): void;
+	$registerToolWithDefinition(definition: IToolDefinitionDto): void;
 	$unregisterTool(name: string): void;
-	$supportsModel(toolId: string, modelId: string, token: CancellationToken): Promise<boolean | undefined>;
 }
 
 export type IChatRequestVariableValueDto = Dto<IChatRequestVariableValue>;
@@ -1505,9 +1517,7 @@ export interface ExtHostLanguageModelToolsShape {
 	$onDidChangeTools(tools: IToolDataDto[]): void;
 	$invokeTool(dto: Dto<IToolInvocation>, token: CancellationToken): Promise<Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>>>;
 	$countTokensForInvocation(callId: string, input: string, token: CancellationToken): Promise<number>;
-
 	$prepareToolInvocation(toolId: string, context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined>;
-	$supportsModel(toolId: string, modelId: string, token: CancellationToken): Promise<boolean | undefined>;
 }
 
 export interface MainThreadUrlsShape extends IDisposable {

@@ -9,6 +9,7 @@ import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IProgressStep } from '../../../../../../platform/progress/common/progress.js';
 import { IVariableReference } from '../../../common/chatModes.js';
 import { ChatRequestToolReferenceEntry } from '../../../common/attachments/chatVariableEntries.js';
@@ -62,25 +63,27 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 		return Disposable.None;
 	}
 
-	async supportsModel(toolId: string, modelId: string, token: CancellationToken): Promise<boolean | undefined> {
-		return undefined;
-	}
-
 	registerTool(toolData: IToolData, tool: IToolImpl): IDisposable {
 		return Disposable.None;
 	}
 
-	getTools(): Iterable<IToolData> {
+	getTools(contextKeyService: IContextKeyService): Iterable<IToolData> {
 		return [];
 	}
 
-	toolsObservable: IObservable<readonly IToolData[]> = constObservable([]);
+	getAllToolsIncludingDisabled(): Iterable<IToolData> {
+		return [];
+	}
 
 	getTool(id: string): IToolData | undefined {
 		return undefined;
 	}
 
-	getToolByName(name: string, includeDisabled?: boolean): IToolData | undefined {
+	observeTools(contextKeyService: IContextKeyService): IObservable<readonly IToolData[]> {
+		return constObservable([]);
+	}
+
+	getToolByName(name: string): IToolData | undefined {
 		return undefined;
 	}
 

@@ -17,7 +17,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Location } from '../../../../../editor/common/languages.js';
 import { localize } from '../../../../../nls.js';
-import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ByteSize } from '../../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -28,6 +28,17 @@ import { IChatExtensionsContent, IChatTodoListContent, IChatToolInputInvocationD
 import { ChatRequestToolReferenceEntry } from '../attachments/chatVariableEntries.js';
 import { LanguageModelPartAudience } from '../languageModels.js';
 import { PromptElementJSON, stringifyPromptElementJSON } from './promptTsxTypes.js';
+
+/**
+ * Selector for matching language models by vendor, family, version, or id.
+ * Used to filter tools to specific models or model families.
+ */
+export interface ILanguageModelChatSelector {
+	readonly vendor?: string;
+	readonly family?: string;
+	readonly version?: string;
+	readonly id?: string;
+}
 
 export interface IToolData {
 	readonly id: string;
@@ -52,6 +63,11 @@ export interface IToolData {
 	readonly canRequestPreApproval?: boolean;
 	/** True if this tool might ask for post-approval */
 	readonly canRequestPostApproval?: boolean;
+	/**
+	 * Model selectors that this tool is available for.
+	 * If defined, the tool is only available when the selected model matches one of the selectors.
+	 */
+	readonly models?: readonly ILanguageModelChatSelector[];
 }
 
 export interface IToolProgressStep {
@@ -298,7 +314,6 @@ export interface IPreparedToolInvocation {
 export interface IToolImpl {
 	invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult>;
 	prepareToolInvocation?(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined>;
-	supportsModel?(modelId: string, token: CancellationToken): Promise<boolean | undefined>;
 }
 
 export type IToolAndToolSetEnablementMap = ReadonlyMap<IToolData | ToolSet, boolean>;
@@ -369,11 +384,43 @@ export interface ILanguageModelToolsService {
 	registerToolData(toolData: IToolData): IDisposable;
 	registerToolImplementation(id: string, tool: IToolImpl): IDisposable;
 	registerTool(toolData: IToolData, tool: IToolImpl): IDisposable;
-	supportsModel(toolId: string, modelId: string, token: CancellationToken): Promise<boolean | undefined>;
-	getTools(): Iterable<IToolData>;
-	readonly toolsObservable: IObservable<readonly IToolData[]>;
+
+	/**
+	 * Get all tools currently enabled (matching the context key service's context).
+	 * @param contextKeyService The context key service to evaluate `when` clauses against
+	 */
+	getTools(contextKeyService: IContextKeyService): Iterable<IToolData>;
+
+	/**
+	 * Creats an observable of enabled tools in the context. Note the observable
+	 * should be created and reused, not created per reader, for example:
+	 *
+	 * ```
+	 * const toolsObs = toolsService.observeTools(contextKeyService);
+	 * autorun(reader => {
+	 *  const tools = toolsObs.read(reader);
+	 *  ...
+	 * });
+	 * ```
+	 */
+	observeTools(contextKeyService: IContextKeyService): IObservable<readonly IToolData[]>;
+
+	/**
+	 * Get all registered tools regardless of enablement state.
+	 * Use this for configuration UIs, completions, etc. where all tools should be visible.
+	 */
+	getAllToolsIncludingDisabled(): Iterable<IToolData>;
+
+	/**
+	 * Get a tool by its ID. Does not check when clauses.
+	 */
 	getTool(id: string): IToolData | undefined;
-	getToolByName(name: string, includeDisabled?: boolean): IToolData | undefined;
+
+	/**
+	 * Get a tool by its reference name. Does not check when clauses.
+	 */
+	getToolByName(name: string): IToolData | undefined;
+
 	invokeTool(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
 	cancelToolCallsForRequest(requestId: string): void;
 	/** Flush any pending tool updates to the extension hosts. */
@@ -390,7 +437,19 @@ export interface ILanguageModelToolsService {
 	getToolByFullReferenceName(fullReferenceName: string): IToolData | ToolSet | undefined;
 	getDeprecatedFullReferenceNames(): Map<string, Set<string>>;
 
-	toToolAndToolSetEnablementMap(fullReferenceNames: readonly string[], target: string | undefined): IToolAndToolSetEnablementMap;
+	/**
+	 * Gets the enablement maps based on the given set of references.
+	 * @param fullReferenceNames The full reference names of the tools and tool sets to enable.
+	 * @param target Optional target to filter tools by.
+	 * @param contextKeyService Context key service to evaluate tool enablement.
+	 * If undefined is passed, all tools will be returned, even if normally disabled.
+	 */
+	toToolAndToolSetEnablementMap(
+		fullReferenceNames: readonly string[],
+		target: string | undefined,
+		contextKeyService: IContextKeyService | undefined,
+	): IToolAndToolSetEnablementMap;
+
 	toFullReferenceNames(map: IToolAndToolSetEnablementMap): string[];
 	toToolReferences(variableReferences: readonly IVariableReference[]): ChatRequestToolReferenceEntry[];
 }

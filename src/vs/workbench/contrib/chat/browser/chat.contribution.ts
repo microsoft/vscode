@@ -1058,7 +1058,7 @@ class ToolReferenceNamesContribution extends Disposable implements IWorkbenchCon
 
 	private _updateToolReferenceNames(): void {
 		const tools =
-			Array.from(this._languageModelToolsService.getTools())
+			Array.from(this._languageModelToolsService.getAllToolsIncludingDisabled())
 				.filter((tool): tool is typeof tool & { toolReferenceName: string } => typeof tool.toolReferenceName === 'string')
 				.sort((a, b) => a.toolReferenceName.localeCompare(b.toolReferenceName));
 		toolReferenceNameEnumValues.length = 0;

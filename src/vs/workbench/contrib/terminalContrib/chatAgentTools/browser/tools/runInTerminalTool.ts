@@ -58,6 +58,7 @@ import { isNumber, isString } from '../../../../../../base/common/types.js';
 import { ChatConfiguration } from '../../../../chat/common/constants.js';
 import { IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { TerminalChatCommandId } from '../../../chat/browser/terminalChat.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 
 // #region Tool data
 
@@ -308,6 +309,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super();
 
@@ -407,7 +409,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		// HACK: Exit early if there's an alternative recommendation, this is a little hacky but
 		// it's the current mechanism for re-routing terminal tool calls to something else.
-		const alternativeRecommendation = getRecommendedToolsOverRunInTerminal(args.command, this._languageModelToolsService);
+		const alternativeRecommendation = getRecommendedToolsOverRunInTerminal(args.command, this._contextKeyService, this._languageModelToolsService);
 		if (alternativeRecommendation) {
 			toolSpecificData.alternativeRecommendation = alternativeRecommendation;
 			return {

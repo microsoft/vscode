@@ -18,7 +18,7 @@ import { InternalFetchWebPageToolId } from '../../contrib/chat/common/tools/buil
 import { SearchExtensionsToolId } from '../../contrib/extensions/common/searchExtensionsTool.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { Dto, SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostLanguageModelToolsShape, IMainContext, IToolDataDto, MainContext, MainThreadLanguageModelToolsShape } from './extHost.protocol.js';
+import { ExtHostLanguageModelToolsShape, IMainContext, IToolDataDto, IToolDefinitionDto, MainContext, MainThreadLanguageModelToolsShape } from './extHost.protocol.js';
 import { ExtHostLanguageModels } from './extHostLanguageModels.js';
 import * as typeConvert from './extHostTypeConverters.js';
 
@@ -172,14 +172,6 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			});
 	}
 
-	/**
-	 * Check if a tool supports a specific model.
-	 * @returns `true` if supported, `false` if not, `undefined` if no supportsModel implementation (treat as supported)
-	 */
-	async supportsModel(toolId: string, modelId: string, token: CancellationToken): Promise<boolean | undefined> {
-		return this._proxy.$supportsModel(toolId, modelId, token);
-	}
-
 	async $invokeTool(dto: Dto<IToolInvocation>, token: CancellationToken): Promise<Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>>> {
 		const item = this._registeredTools.get(dto.toolId);
 		if (!item) {
@@ -287,24 +279,40 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		return undefined;
 	}
 
-	async $supportsModel(toolId: string, modelId: string, token: CancellationToken): Promise<boolean | undefined> {
-		const item = this._registeredTools.get(toolId);
-		if (!item) {
-			throw new Error(`Unknown tool ${toolId}`);
-		}
-
-		// supportsModel is a proposed API
-		const supportsModelFn = item.tool.supportsModel;
-		if (supportsModelFn) {
-			return supportsModelFn(modelId);
-		}
-
-		return undefined;
-	}
-
 	registerTool(extension: IExtensionDescription, id: string, tool: vscode.LanguageModelTool<any>): IDisposable {
 		this._registeredTools.set(id, { extension, tool });
 		this._proxy.$registerTool(id);
+
+		return toDisposable(() => {
+			this._registeredTools.delete(id);
+			this._proxy.$unregisterTool(id);
+		});
+	}
+
+	registerToolDefinition(extension: IExtensionDescription, definition: vscode.LanguageModelToolDefinition, tool: vscode.LanguageModelTool<any>): IDisposable {
+		checkProposedApiEnabled(extension, 'languageModelToolSupportsModel');
+
+		const id = definition.name;
+
+		// Convert the definition to a DTO
+		const dto: IToolDefinitionDto = {
+			id,
+			displayName: definition.displayName,
+			toolReferenceName: definition.toolReferenceName,
+			userDescription: definition.userDescription,
+			modelDescription: definition.description,
+			inputSchema: definition.inputSchema as object,
+			source: {
+				type: 'extension',
+				label: extension.displayName ?? extension.name,
+				extensionId: extension.identifier,
+			},
+			icon: typeConvert.IconPath.from(definition.icon),
+			models: definition.models,
+		};
+
+		this._registeredTools.set(id, { extension, tool });
+		this._proxy.$registerToolWithDefinition(dto);
 
 		return toDisposable(() => {
 			this._registeredTools.delete(id);

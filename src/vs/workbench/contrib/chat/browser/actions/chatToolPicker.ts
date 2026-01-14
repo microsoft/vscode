@@ -194,7 +194,6 @@ export async function showToolsPicker(
 	placeHolder: string,
 	description?: string,
 	getToolsEntries?: () => ReadonlyMap<ToolSet | IToolData, boolean>,
-	modelId?: string,
 	token?: CancellationToken
 ): Promise<ReadonlyMap<ToolSet | IToolData, boolean> | undefined> {
 
@@ -215,40 +214,15 @@ export async function showToolsPicker(
 		}
 	}
 
-	// Pre-compute which tools support the model (if modelId is provided)
-	const supportedTools = new Set<string>();
-	if (modelId) {
-		const allTools = Array.from(toolsService.getTools());
-		const checks = await Promise.all(
-			allTools.map(async (tool) => {
-				const supports = await toolsService.supportsModel(tool.id, modelId, CancellationToken.None);
-				// undefined means no supportsModel impl, treat as supported
-				// false means explicitly not supported
-				return { toolId: tool.id, supported: supports !== false };
-			})
-		);
-		for (const { toolId, supported } of checks) {
-			if (supported) {
-				supportedTools.add(toolId);
-			}
-		}
-	}
-
-	const isToolSupportedForModel = (toolId: string): boolean => {
-		// If no modelId specified, all tools are available
-		if (!modelId) {
-			return true;
-		}
-		return supportedTools.has(toolId);
-	};
+	const contextKeyService = accessor.get(IContextKeyService);
 
 	function computeItems(previousToolsEntries?: ReadonlyMap<ToolSet | IToolData, boolean>) {
 		// Create default entries if none provided
 		let toolsEntries = getToolsEntries ? new Map(getToolsEntries()) : undefined;
 		if (!toolsEntries) {
 			const defaultEntries = new Map();
-			for (const tool of toolsService.getTools()) {
-				if (tool.canBeReferencedInPrompt && isToolSupportedForModel(tool.id)) {
+			for (const tool of toolsService.getTools(contextKeyService)) {
+				if (tool.canBeReferencedInPrompt) {
 					defaultEntries.set(tool, false);
 				}
 			}
@@ -431,9 +405,6 @@ export async function showToolsPicker(
 				bucket.children.push(treeItem);
 				const children = [];
 				for (const tool of toolSet.getTools()) {
-					if (!isToolSupportedForModel(tool.id)) {
-						continue;
-					}
 					const toolChecked = toolSetChecked || toolsEntries.get(tool) === true;
 					const toolTreeItem = createToolTreeItemFromData(tool, toolChecked);
 					children.push(toolTreeItem);
@@ -443,11 +414,9 @@ export async function showToolsPicker(
 				}
 			}
 		}
-		for (const tool of toolsService.getTools()) {
+		// getting potentially disabled tools is fine here because we filter `toolsEntries.has`
+		for (const tool of toolsService.getAllToolsIncludingDisabled()) {
 			if (!tool.canBeReferencedInPrompt || !toolsEntries.has(tool)) {
-				continue;
-			}
-			if (!isToolSupportedForModel(tool.id)) {
 				continue;
 			}
 			const bucket = getBucket(tool.source);

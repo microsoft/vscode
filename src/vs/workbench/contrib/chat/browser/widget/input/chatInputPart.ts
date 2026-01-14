@@ -330,6 +330,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private withinEditSessionKey: IContextKey<boolean>;
 	private filePartOfEditSessionKey: IContextKey<boolean>;
 	private chatSessionHasOptions: IContextKey<boolean>;
+	private modelIdKey: IContextKey<string>;
+	private modelVendorKey: IContextKey<string>;
+	private modelFamilyKey: IContextKey<string>;
+	private modelVersionKey: IContextKey<string>;
 	private modelWidget: ModelPickerActionItem | undefined;
 	private modeWidget: ModePickerActionItem | undefined;
 	private chatSessionPickerWidgets: Map<string, ChatSessionPickerActionItem | SearchableOptionPickerActionItem> = new Map();
@@ -518,6 +522,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.withinEditSessionKey = ChatContextKeys.withinEditSessionDiff.bindTo(contextKeyService);
 		this.filePartOfEditSessionKey = ChatContextKeys.filePartOfEditSession.bindTo(contextKeyService);
 		this.chatSessionHasOptions = ChatContextKeys.chatSessionHasModels.bindTo(contextKeyService);
+		this.modelIdKey = ChatContextKeys.Model.id.bindTo(contextKeyService);
+		this.modelVendorKey = ChatContextKeys.Model.vendor.bindTo(contextKeyService);
+		this.modelFamilyKey = ChatContextKeys.Model.family.bindTo(contextKeyService);
+		this.modelVersionKey = ChatContextKeys.Model.version.bindTo(contextKeyService);
 
 		const chatToolCount = ChatContextKeys.chatToolCount.bindTo(contextKeyService);
 
@@ -934,6 +942,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	public setCurrentLanguageModel(model: ILanguageModelChatMetadataAndIdentifier) {
 		this._currentLanguageModel = model;
+
+		// Update model context keys for tool filtering
+		this.modelIdKey.set(model.metadata.id);
+		this.modelVendorKey.set(model.metadata.vendor);
+		this.modelFamilyKey.set(model.metadata.family);
+		this.modelVersionKey.set(model.metadata.version ?? '');
 
 		if (this.cachedDimensions) {
 			// For quick chat and editor chat, relayout because the input may need to shrink to accomodate the model name

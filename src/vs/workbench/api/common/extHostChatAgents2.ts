@@ -738,22 +738,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			return new Map();
 		}
 		const result = new Map<vscode.LanguageModelToolInformation, boolean>();
-		const allTools = this._tools.getTools(extension);
-
-		// Check model support for all tools in parallel
-		const toolChecks = await Promise.all(
-			Array.from(allTools).map(async (tool) => {
-				const supports = await this._tools.supportsModel(tool.name, modelId, token);
-				// undefined means no supportsModel impl, treat as supported
-				// false means explicitly not supported
-				return { tool, supported: supports === true };
-			})
-		);
-
-		for (const { tool, supported } of toolChecks) {
-			if (!supported) {
-				continue;
-			}
+		for (const tool of this._tools.getTools(extension)) {
 			if (typeof tools[tool.name] === 'boolean') {
 				result.set(tool, tools[tool.name]);
 			}
