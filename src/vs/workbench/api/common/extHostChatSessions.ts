@@ -31,8 +31,6 @@ import { basename } from '../../../base/common/resources.js';
 import { Diagnostic } from './extHostTypeConverters.js';
 import { SymbolKind, SymbolKinds } from '../../../editor/common/languages.js';
 
-type ChatSessionTiming = vscode.ChatSessionItem['timing'];
-
 // #region Chat Session Item Controller
 
 class ChatSessionItemImpl implements vscode.ChatSessionItem {
@@ -43,7 +41,7 @@ class ChatSessionItemImpl implements vscode.ChatSessionItem {
 	#status?: vscode.ChatSessionStatus;
 	#archived?: boolean;
 	#tooltip?: string | vscode.MarkdownString;
-	#timing?: ChatSessionTiming;
+	#timing?: { startTime: number; endTime?: number };
 	#changes?: readonly vscode.ChatSessionChangedFile[] | { files: number; insertions: number; deletions: number };
 	#onChanged: () => void;
 
@@ -132,11 +130,11 @@ class ChatSessionItemImpl implements vscode.ChatSessionItem {
 		}
 	}
 
-	get timing(): ChatSessionTiming | undefined {
+	get timing(): { startTime: number; endTime?: number } | undefined {
 		return this.#timing;
 	}
 
-	set timing(value: ChatSessionTiming | undefined) {
+	set timing(value: { startTime: number; endTime?: number } | undefined) {
 		if (this.#timing !== value) {
 			this.#timing = value;
 			this.#onChanged();
@@ -411,12 +409,6 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 	}
 
 	private convertChatSessionItem(sessionContent: vscode.ChatSessionItem): IChatSessionItem {
-		// Support both new (created, lastRequestStarted, lastRequestEnded) and old (startTime, endTime) timing properties
-		const timing = sessionContent.timing;
-		const created = timing?.created ?? timing?.startTime ?? 0;
-		const lastRequestStarted = timing?.lastRequestStarted ?? timing?.startTime;
-		const lastRequestEnded = timing?.lastRequestEnded ?? timing?.endTime;
-
 		return {
 			resource: sessionContent.resource,
 			label: sessionContent.label,
@@ -426,9 +418,8 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			archived: sessionContent.archived,
 			tooltip: typeConvert.MarkdownString.fromStrict(sessionContent.tooltip),
 			timing: {
-				created,
-				lastRequestStarted,
-				lastRequestEnded,
+				startTime: sessionContent.timing?.startTime ?? 0,
+				endTime: sessionContent.timing?.endTime
 			},
 			changes: sessionContent.changes instanceof Array
 				? sessionContent.changes :

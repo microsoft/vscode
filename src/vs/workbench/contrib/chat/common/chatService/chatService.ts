@@ -941,24 +941,8 @@ export interface IChatSessionStats {
 }
 
 export interface IChatSessionTiming {
-	/**
-	 * Timestamp when the session was created in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
-	 */
-	created: number;
-
-	/**
-	 * Timestamp when the most recent request started in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
-	 *
-	 * Should be undefined if no requests have been made yet.
-	 */
-	lastRequestStarted: number | undefined;
-
-	/**
-	 * Timestamp when the most recent request completed in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
-	 *
-	 * Should be undefined if the most recent request is still in progress or if no requests have been made yet.
-	 */
-	lastRequestEnded: number | undefined;
+	startTime: number;
+	endTime?: number;
 }
 
 export const enum ResponseModelState {

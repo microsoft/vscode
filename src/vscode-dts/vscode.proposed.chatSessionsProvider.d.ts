@@ -195,37 +195,15 @@ declare module 'vscode' {
 		archived?: boolean;
 
 		/**
-		 * Timing information for the chat session
+		 * The times at which session started and ended
 		 */
 		timing?: {
 			/**
-			 * Timestamp when the session was created in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
-			 */
-			created: number;
-
-			/**
-			 * Timestamp when the most recent request started in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
-			 *
-			 * Should be undefined if no requests have been made yet.
-			 */
-			lastRequestStarted?: number;
-
-			/**
-			 * Timestamp when the most recent request completed in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
-			 *
-			 * Should be undefined if the most recent request is still in progress or if no requests have been made yet.
-			 */
-			lastRequestEnded?: number;
-
-			/**
 			 * Session start timestamp in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
-			 * @deprecated Use `created` and `lastRequestStarted` instead.
 			 */
-			startTime?: number;
-
+			startTime: number;
 			/**
 			 * Session end timestamp in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
-			 * @deprecated Use `lastRequestEnded` instead.
 			 */
 			endTime?: number;
 		};
