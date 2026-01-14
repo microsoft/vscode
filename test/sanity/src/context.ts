@@ -33,19 +33,17 @@ export class TestContext {
 	private static readonly codesignExclude = /node_modules\/(@parcel\/watcher\/build\/Release\/watcher\.node|@vscode\/deviceid\/build\/Release\/windows\.node|@vscode\/ripgrep\/bin\/rg|@vscode\/spdlog\/build\/Release\/spdlog.node|kerberos\/build\/Release\/kerberos.node|native-watchdog\/build\/Release\/watchdog\.node|node-pty\/build\/Release\/(pty\.node|spawn-helper)|vsda\/build\/Release\/vsda\.node)$/;
 
 	private readonly tempDirs = new Set<string>();
-	private readonly logFile: string;
 	private _currentTest?: Mocha.Test & { consoleOutputs?: string[] };
+	private _osTempDir?: string;
 
 	public constructor(
 		public readonly quality: 'stable' | 'insider' | 'exploration',
 		public readonly commit: string,
 		public readonly verbose: boolean,
 		public readonly skipSigningCheck: boolean,
+		public readonly headless: boolean,
+		public readonly skipRuntimeCheck: boolean,
 	) {
-		const osTempDir = fs.realpathSync(os.tmpdir());
-		const logDir = fs.mkdtempSync(path.join(osTempDir, 'vscode-sanity-log'));
-		this.logFile = path.join(logDir, 'sanity.log');
-		console.log(`Log file: ${this.logFile}`);
 	}
 
 	/**
@@ -64,11 +62,30 @@ export class TestContext {
 	}
 
 	/**
+	 * Returns the OS temp directory with expanded long names on Windows.
+	 */
+	public get osTempDir(): string {
+		if (this._osTempDir === undefined) {
+			let tempDir = fs.realpathSync(os.tmpdir());
+
+			// On Windows, expand short 8.3 file names to long names
+			if (os.platform() === 'win32') {
+				const result = spawnSync('powershell', ['-Command', `(Get-Item "${tempDir}").FullName`], { encoding: 'utf-8' });
+				if (result.status === 0 && result.stdout) {
+					tempDir = result.stdout.trim();
+				}
+			}
+
+			this._osTempDir = tempDir;
+		}
+		return this._osTempDir;
+	}
+
+	/**
 	 * Logs a message with a timestamp.
 	 */
 	public log(message: string) {
 		const line = `[${new Date().toISOString()}] ${message}`;
-		fs.appendFileSync(this.logFile, line + '\n');
 		this._currentTest?.consoleOutputs?.push(line);
 		if (this.verbose) {
 			console.log(line);
@@ -80,7 +97,6 @@ export class TestContext {
 	 */
 	public error(message: string): never {
 		const line = `[${new Date().toISOString()}] ERROR: ${message}`;
-		fs.appendFileSync(this.logFile, line + '\n');
 		this._currentTest?.consoleOutputs?.push(line);
 		console.error(line);
 		throw new Error(message);
@@ -90,8 +106,7 @@ export class TestContext {
 	 * Creates a new temporary directory and returns its path.
 	 */
 	public createTempDir(): string {
-		const osTempDir = fs.realpathSync(os.tmpdir());
-		const tempDir = fs.mkdtempSync(path.join(osTempDir, 'vscode-sanity'));
+		const tempDir = fs.mkdtempSync(path.join(this.osTempDir, 'vscode-sanity'));
 		this.log(`Created temp directory: ${tempDir}`);
 		this.tempDirs.add(tempDir);
 		return tempDir;
@@ -233,7 +248,7 @@ export class TestContext {
 	 * @param filePath The path to the file to validate.
 	 */
 	public validateAuthenticodeSignature(filePath: string) {
-		if (this.skipSigningCheck) {
+		if (this.skipSigningCheck || os.platform() !== 'win32') {
 			this.log(`Skipping Authenticode signature validation for ${filePath} (signing checks disabled)`);
 			return;
 		}
@@ -256,7 +271,7 @@ export class TestContext {
 	 * @param dir The directory to scan for executable files.
 	 */
 	public validateAllAuthenticodeSignatures(dir: string) {
-		if (this.skipSigningCheck) {
+		if (this.skipSigningCheck || os.platform() !== 'win32') {
 			this.log(`Skipping Authenticode signature validation for ${dir} (signing checks disabled)`);
 			return;
 		}
@@ -277,7 +292,7 @@ export class TestContext {
 	 * @param filePath The path to the file or app bundle to validate.
 	 */
 	public validateCodesignSignature(filePath: string) {
-		if (this.skipSigningCheck) {
+		if (this.skipSigningCheck || os.platform() !== 'darwin') {
 			this.log(`Skipping codesign signature validation for ${filePath} (signing checks disabled)`);
 			return;
 		}
@@ -299,7 +314,7 @@ export class TestContext {
 	 * @param dir The directory to scan for Mach-O binaries.
 	 */
 	public validateAllCodesignSignatures(dir: string) {
-		if (this.skipSigningCheck) {
+		if (this.skipSigningCheck || os.platform() !== 'darwin') {
 			this.log(`Skipping codesign signature validation for ${dir} (signing checks disabled)`);
 			return;
 		}
@@ -496,11 +511,11 @@ export class TestContext {
 	}
 
 	/**
-	 * Prepares a macOS .app bundle for execution by removing the quarantine attribute.
+	 * Returns the path to the VS Code Electron executable within a macOS .app bundle.
 	 * @param bundleDir The directory containing the .app bundle.
 	 * @returns The path to the VS Code Electron executable.
 	 */
-	public installMacApp(bundleDir: string): string {
+	public getMacAppEntryPoint(bundleDir: string): string {
 		let appName: string;
 		switch (this.quality) {
 			case 'stable':
@@ -666,11 +681,11 @@ export class TestContext {
 		this.log(`Launching web browser`);
 		switch (os.platform()) {
 			case 'darwin':
-				return await webkit.launch({ headless: false });
+				return await webkit.launch({ headless: this.headless });
 			case 'win32':
-				return await chromium.launch({ channel: 'msedge', headless: false });
+				return await chromium.launch({ channel: 'msedge', headless: this.headless });
 			default:
-				return await chromium.launch({ channel: 'chrome', headless: false });
+				return await chromium.launch({ channel: 'chrome', headless: this.headless });
 		}
 	}
 

@@ -465,7 +465,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		};
 	}
 
-	async $invokeOptionGroupSearch(providerHandle: number, optionGroupId: string, token: CancellationToken): Promise<IChatSessionProviderOptionItem[]> {
+	async $invokeOptionGroupSearch(providerHandle: number, optionGroupId: string, query: string, token: CancellationToken): Promise<IChatSessionProviderOptionItem[]> {
 		const optionGroups = this._providerOptionGroups.get(providerHandle);
 		if (!optionGroups) {
 			this._logService.warn(`No option groups found for provider handle ${providerHandle}`);
@@ -479,7 +479,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		}
 
 		try {
-			const results = await group.onSearch(token);
+			const results = await group.onSearch(query, token);
 			return results ?? [];
 		} catch (error) {
 			this._logService.error(`Error calling onSearch for option group ${optionGroupId}:`, error);

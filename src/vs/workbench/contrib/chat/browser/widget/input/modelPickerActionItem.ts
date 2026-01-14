@@ -192,7 +192,7 @@ export class ModelPickerActionItem extends ActionWidgetDropdownActionViewItem {
 			domChildren.push(iconElement);
 		}
 
-		domChildren.push(dom.$('span.chat-model-label', undefined, name ?? localize('chat.modelPicker.auto', "Auto")));
+		domChildren.push(dom.$('span.chat-input-picker-label', undefined, name ?? localize('chat.modelPicker.auto', "Auto")));
 		domChildren.push(...renderLabelWithIcons(`$(chevron-down)`));
 
 		dom.reset(element, ...domChildren);
@@ -202,6 +202,6 @@ export class ModelPickerActionItem extends ActionWidgetDropdownActionViewItem {
 
 	override render(container: HTMLElement): void {
 		super.render(container);
-		container.classList.add('chat-modelPicker-item');
+		container.classList.add('chat-input-picker-item');
 	}
 }

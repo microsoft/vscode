@@ -176,6 +176,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			readlink: true,
 			stat: true,
 			file: true,
+			od: true,
 			du: true,
 			df: true,
 			sleep: true,
@@ -216,6 +217,11 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			// - `--force`: Generally dangerous
 			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+branch\\b/': true,
 			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+branch\\b.*-(d|D|m|M|-delete|-force)\\b/': false,
+
+			// docker - readonly sub-commands
+			'/^docker\\s+(ps|images|info|version|inspect|logs|top|stats|port|diff|search|events)\\b/': true,
+			'/^docker\\s+(container|image|network|volume|context|system)\\s+(ls|ps|inspect|history|show|df|info)\\b/': true,
+			'/^docker\\s+compose\\s+(ps|ls|top|logs|images|config|version|port|events)\\b/': true,
 
 			// #endregion
 
@@ -332,6 +338,11 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			//   blocked currently
 			tree: true,
 			'/^tree\\b.*-o\\b/': false,
+
+			// xxd
+			// - Only allow flags and a single input file as it's difficult to parse the outfile
+			//   positional argument safely.
+			'/^xxd\\b(\\s+-\\S+)*\\s+[^-\\s]\\S*$/': true,
 
 			// #endregion
 
