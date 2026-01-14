@@ -140,7 +140,7 @@ export class SearchableOptionPickerActionItem extends ActionWidgetDropdownAction
 		const optionGroup = this.delegate.getOptionGroup();
 
 		element.classList.add('chat-session-option-picker');
-		
+
 		if (optionGroup?.icon) {
 			domChildren.push(renderIcon(optionGroup.icon));
 		}
@@ -164,7 +164,7 @@ export class SearchableOptionPickerActionItem extends ActionWidgetDropdownAction
 	override render(container: HTMLElement): void {
 		super.render(container);
 		container.classList.add('chat-searchable-option-picker-item');
-		
+
 		// Set initial locked state on container
 		if (this.currentOption?.locked) {
 			container.classList.add('locked');

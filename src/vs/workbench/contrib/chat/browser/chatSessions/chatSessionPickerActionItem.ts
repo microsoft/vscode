@@ -112,19 +112,19 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
 		const domChildren = [];
 		element.classList.add('chat-session-option-picker');
-		
+
 		if (this.currentOption?.icon) {
 			domChildren.push(renderIcon(this.currentOption.icon));
 		}
 		domChildren.push(dom.$('span.chat-session-option-label', undefined, this.currentOption?.name ?? localize('chat.sessionPicker.label', "Pick Option")));
-		
+
 		// Show lock icon instead of chevron when locked
 		if (this.currentOption?.locked) {
 			domChildren.push(renderIcon(Codicon.lock));
 		} else {
 			domChildren.push(...renderLabelWithIcons(`$(chevron-down)`));
 		}
-		
+
 		dom.reset(element, ...domChildren);
 		this.setAriaLabelAttributes(element);
 		return null;
@@ -133,7 +133,7 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 	override render(container: HTMLElement): void {
 		super.render(container);
 		container.classList.add('chat-sessionPicker-item');
-		
+
 		// Set initial locked state on container
 		if (this.currentOption?.locked) {
 			container.classList.add('locked');
