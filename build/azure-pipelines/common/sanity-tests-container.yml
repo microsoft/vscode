@@ -79,9 +79,9 @@ jobs:
                 curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
                 apt-get install -y nodejs
               elif command -v dnf &> /dev/null; then
-                dnf install -y nodejs xorg-x11-server-Xvfb gtk3 nss mesa-libgbm
+                dnf install -y nodejs xorg-x11-server-Xvfb gtk3 nss mesa-libgbm xdg-utils
               elif command -v yum &> /dev/null; then
-                yum install -y nodejs xorg-x11-server-Xvfb gtk3 nss mesa-libgbm
+                yum install -y nodejs xorg-x11-server-Xvfb gtk3 nss mesa-libgbm xdg-utils
               elif command -v zypper &> /dev/null; then
                 zypper install -y nodejs22 xorg-x11-server-Xvfb libgtk-3-0 mozilla-nss Mesa-libgbm1
               elif command -v apk &> /dev/null; then
