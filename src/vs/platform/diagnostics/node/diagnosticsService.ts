@@ -257,10 +257,8 @@ export class DiagnosticsService implements IDiagnosticsService {
 		output.push(`GPU Status:       ${this.expandGPUFeatures(info.gpuFeatureStatus)}`);
 		if (info.gpuLogMessages && info.gpuLogMessages.length > 0) {
 			output.push(`GPU Log Messages:`);
-			output.join('\n');
 			info.gpuLogMessages.forEach(msg => {
 				output.push(`${msg.header}: ${msg.message}`);
-				output.join('\n');
 			});
 		}
 
