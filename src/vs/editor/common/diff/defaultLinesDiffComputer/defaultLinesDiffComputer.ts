@@ -12,7 +12,7 @@ import { Range } from '../../core/range.js';
 import { ArrayText } from '../../core/text/abstractText.js';
 import { ILinesDiffComputer, ILinesDiffComputerOptions, LinesDiff, MovedText } from '../linesDiffComputer.js';
 import { DetailedLineRangeMapping, LineRangeMapping, lineRangeMappingFromRangeMappings, RangeMapping } from '../rangeMapping.js';
-import { DateTimeout, InfiniteTimeout, ITimeout, SequenceDiff } from './algorithms/diffAlgorithm.js';
+import { DateTimeout, InfiniteTimeout, ITimeout, SequenceDiff, ModelDisposalTimeout } from './algorithms/diffAlgorithm.js';
 import { DynamicProgrammingDiffing } from './algorithms/dynamicProgrammingDiffing.js';
 import { MyersDiffAlgorithm } from './algorithms/myersDiffAlgorithm.js';
 import { computeMovedLines } from './computeMovedLines.js';
@@ -44,7 +44,11 @@ export class DefaultLinesDiffComputer implements ILinesDiffComputer {
 			], [], false);
 		}
 
-		const timeout = options.maxComputationTimeMs === 0 ? InfiniteTimeout.instance : new DateTimeout(options.maxComputationTimeMs);
+		const timeout = options.maxComputationTimeMs === 0 
+			? InfiniteTimeout.instance 
+			: (options.models 
+				? new ModelDisposalTimeout(options.maxComputationTimeMs, [...options.models])
+				: new DateTimeout(options.maxComputationTimeMs));
 		const considerWhitespaceChanges = !options.ignoreTrimWhitespace;
 
 		const perfectHashes = new Map<string, number>();

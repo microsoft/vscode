@@ -166,11 +166,15 @@ export class WorkerTextModelSyncServer implements IWorkerTextModelSyncChannelSer
 		if (!this._models[uri]) {
 			return;
 		}
+		const model = this._models[uri];
+		model.dispose();
 		delete this._models[uri];
 	}
 }
 
 export class MirrorModel extends BaseMirrorModel implements ICommonModel {
+
+	private _disposed: boolean = false;
 
 	public get uri(): URI {
 		return this._uri;
@@ -178,6 +182,14 @@ export class MirrorModel extends BaseMirrorModel implements ICommonModel {
 
 	public get eol(): string {
 		return this._eol;
+	}
+
+	public isDisposed(): boolean {
+		return this._disposed;
+	}
+
+	public dispose(): void {
+		this._disposed = true;
 	}
 
 	public getValue(): string {
@@ -423,5 +435,7 @@ export interface ICommonModel extends ILinkComputerTarget, IDocumentColorCompute
 	getWordAtPosition(position: IPosition, wordDefinition: RegExp): Range | null;
 	offsetAt(position: IPosition): number;
 	positionAt(offset: number): IPosition;
+	isDisposed(): boolean;
+}
 	findMatches(regex: RegExp): RegExpMatchArray[];
 }

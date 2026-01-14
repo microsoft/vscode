@@ -206,3 +206,29 @@ export class DateTimeout implements ITimeout {
 		this.valid = true;
 	}
 }
+
+/**
+ * A timeout that also checks if models are disposed.
+ * This allows diff computation to be cancelled when the editor window is closed.
+ */
+export class ModelDisposalTimeout implements ITimeout {
+	private readonly dateTimeout: DateTimeout | InfiniteTimeout;
+
+	constructor(
+		timeout: number,
+		private readonly models: { isDisposed(): boolean }[]
+	) {
+		this.dateTimeout = timeout === 0 ? InfiniteTimeout.instance : new DateTimeout(timeout);
+	}
+
+	public isValid(): boolean {
+		// Check if any model is disposed
+		for (const model of this.models) {
+			if (model.isDisposed()) {
+				return false;
+			}
+		}
+		// Also check the time-based timeout
+		return this.dateTimeout.isValid();
+	}
+}

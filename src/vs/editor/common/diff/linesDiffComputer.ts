@@ -14,6 +14,11 @@ export interface ILinesDiffComputerOptions {
 	readonly maxComputationTimeMs: number;
 	readonly computeMoves: boolean;
 	readonly extendToSubwords?: boolean;
+	/**
+	 * Optional models to check for disposal during diff computation.
+	 * If any model is disposed, the computation will be cancelled.
+	 */
+	readonly models?: readonly { isDisposed(): boolean }[];
 }
 
 export class LinesDiff {

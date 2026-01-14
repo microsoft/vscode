@@ -128,6 +128,11 @@ export class EditorWorker implements IDisposable, IWorkerTextModelSyncChannelSer
 			return null;
 		}
 
+		// Check if models are already disposed before starting computation
+		if (original.isDisposed() || modified.isDisposed()) {
+			return null;
+		}
+
 		const result = EditorWorker.computeDiff(original, modified, options, algorithm);
 		return result;
 	}
@@ -138,7 +143,15 @@ export class EditorWorker implements IDisposable, IWorkerTextModelSyncChannelSer
 		const originalLines = originalTextModel.getLinesContent();
 		const modifiedLines = modifiedTextModel.getLinesContent();
 
-		const result = diffAlgorithm.computeDiff(originalLines, modifiedLines, options);
+		// Create options with model references for disposal checking
+		const computeOptions: ILinesDiffComputerOptions = {
+			ignoreTrimWhitespace: options.ignoreTrimWhitespace,
+			maxComputationTimeMs: options.maxComputationTimeMs,
+			computeMoves: options.computeMoves,
+			models: [originalTextModel, modifiedTextModel]
+		};
+
+		const result = diffAlgorithm.computeDiff(originalLines, modifiedLines, computeOptions);
 
 		const identical = (result.changes.length > 0 ? false : this._modelsAreIdentical(originalTextModel, modifiedTextModel));
 
