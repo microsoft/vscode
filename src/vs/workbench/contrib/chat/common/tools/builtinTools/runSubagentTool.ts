@@ -184,22 +184,22 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				}
 			}
 
-			// Track whether we should collect markdown (after the last prepare tool invocation)
+			// Track whether we should collect markdown (after the last tool invocation)
 			const markdownParts: string[] = [];
 
 			let inEdit = false;
 			const progressCallback = (parts: IChatProgress[]) => {
 				for (const part of parts) {
 					// Write certain parts immediately to the model
-					if (part.kind === 'prepareToolInvocation' || part.kind === 'textEdit' || part.kind === 'notebookEdit' || part.kind === 'codeblockUri') {
+					if (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized' || part.kind === 'textEdit' || part.kind === 'notebookEdit' || part.kind === 'codeblockUri') {
 						if (part.kind === 'codeblockUri' && !inEdit) {
 							inEdit = true;
 							model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('```\n') });
 						}
 						model.acceptResponseProgress(request, part);
 
-						// When we see a prepare tool invocation, reset markdown collection
-						if (part.kind === 'prepareToolInvocation') {
+						// When we see a tool invocation starting, reset markdown collection
+						if (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') {
 							markdownParts.length = 0; // Clear previously collected markdown
 						}
 					} else if (part.kind === 'markdownContent') {
