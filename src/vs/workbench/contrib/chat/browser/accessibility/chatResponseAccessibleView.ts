@@ -159,7 +159,7 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 				if (item.presentation === ToolInvocationPresentation.Hidden) {
 					return false;
 				}
-				// Filter out hiddenAfterComplete tool invocations
+				// Filter out hiddenAfterComplete tool invocations (serialized invocations are always complete)
 				if (item.presentation === ToolInvocationPresentation.HiddenAfterComplete) {
 					return false;
 				}
