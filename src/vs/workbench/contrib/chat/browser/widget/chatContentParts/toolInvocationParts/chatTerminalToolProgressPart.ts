@@ -205,6 +205,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private readonly _showOutputAction = this._register(new MutableDisposable<ToggleChatTerminalOutputAction>());
 	private _showOutputActionAdded = false;
 	private readonly _focusAction = this._register(new MutableDisposable<FocusChatInstanceAction>());
+	private readonly _continueInBackgroundAction = this._register(new MutableDisposable<ContinueInBackgroundAction>());
 
 	private readonly _terminalData: IChatTerminalToolInvocationData;
 	private _terminalCommandUri: URI | undefined;
@@ -427,6 +428,13 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			const focusAction = this._instantiationService.createInstance(FocusChatInstanceAction, terminalInstance, resolvedCommand, this._terminalCommandUri, this._storedCommandId, isTerminalHidden);
 			this._focusAction.value = focusAction;
 			actionBar.push(focusAction, { icon: true, label: false, index: 0 });
+			
+			// Add "Continue in Background" button for background terminals that are still polling
+			if (isTerminalHidden && terminalToolSessionId && !resolvedCommand) {
+				const continueAction = new ContinueInBackgroundAction(terminalToolSessionId);
+				this._continueInBackgroundAction.value = continueAction;
+				actionBar.push(continueAction, { icon: true, label: false, index: 1 });
+			}
 		}
 
 		this._ensureShowOutputAction(resolvedCommand);
@@ -1340,5 +1348,24 @@ export class FocusChatInstanceAction extends Action implements IAction {
 
 	private _updateTooltip(): void {
 		this.tooltip = this._keybindingService.appendKeybinding(this.label, TerminalContribCommandId.FocusMostRecentChatTerminal);
+	}
+}
+
+export class ContinueInBackgroundAction extends Action implements IAction {
+	constructor(
+		private readonly _terminalToolSessionId: string,
+	) {
+		super(
+			'terminal.continueInBackground',
+			localize('continueInBackground', 'Continue in Background'),
+			ThemeIcon.asClassName(Codicon.debug),
+			true,
+		);
+		this.tooltip = localize('continueInBackgroundTooltip', 'Stop waiting and continue running the command in the background');
+	}
+
+	public override async run() {
+		const { RunInTerminalTool } = await import('../../../../../terminalContrib/chatAgentTools/browser/tools/runInTerminalTool.js');
+		RunInTerminalTool.convertToBackground(this._terminalToolSessionId);
 	}
 }

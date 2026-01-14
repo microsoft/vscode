@@ -10,7 +10,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { basename } from '../../../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../../../base/common/platform.js';
@@ -287,12 +287,21 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	protected readonly _osBackend: Promise<OperatingSystem>;
 
 	private static readonly _backgroundExecutions = new Map<string, BackgroundTerminalExecution>();
+	private static readonly _activeOutputMonitors = new Map<string, OutputMonitor>();
+	
 	public static getBackgroundOutput(id: string): string {
 		const backgroundExecution = RunInTerminalTool._backgroundExecutions.get(id);
 		if (!backgroundExecution) {
 			throw new Error('Invalid terminal ID');
 		}
 		return backgroundExecution.getOutput();
+	}
+
+	public static convertToBackground(terminalToolSessionId: string): void {
+		const outputMonitor = RunInTerminalTool._activeOutputMonitors.get(terminalToolSessionId);
+		if (outputMonitor) {
+			outputMonitor.convertToBackground();
+		}
 	}
 
 	constructor(
@@ -592,6 +601,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				RunInTerminalTool._backgroundExecutions.set(termId, execution);
 
 				outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, execution, undefined, invocation.context!, token, command));
+				
+				// Register the OutputMonitor so UI can access it
+				if (terminalToolSessionId) {
+					RunInTerminalTool._activeOutputMonitors.set(terminalToolSessionId, outputMonitor);
+					store.add(toDisposable(() => {
+						RunInTerminalTool._activeOutputMonitors.delete(terminalToolSessionId);
+					}));
+				}
+				
 				await Event.toPromise(outputMonitor.onDidFinishCommand);
 				const pollingResult = outputMonitor.pollingResult;
 
