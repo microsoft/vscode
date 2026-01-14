@@ -76,33 +76,29 @@ jobs:
               # Install Node.js and X11
               if command -v apt-get &> /dev/null; then
 
-                apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
-                  curl ca-certificates xvfb libx11-6 libx11-xcb1 libxcomposite1 \
-                  libxcursor1 libxdamage1 libxi6 libxtst6 libnss3 libcups2 libxss1 \
-                  libxrandr2 libasound2 libatk1.0-0 libatk-bridge2.0-0 \
-                  libpangocairo-1.0-0 libgtk-3-0
+                apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y curl ca-certificates \
+                  xvfb libx11-6 libx11-xcb1 libxcomposite1 libxcursor1 libxdamage1 libxi6 libxtst6 libnss3 \
+                  libcups2 libxss1 libxrandr2 libasound2 libatk1.0-0 libatk-bridge2.0-0 libpangocairo-1.0-0 \
+                  libgtk-3-0
 
                 curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
                 apt-get install -y nodejs
 
               elif command -v dnf &> /dev/null; then
 
-                dnf install -y nodejs xorg-x11-server-Xvfb libX11 libX11-xcb \
-                  libXcomposite libXcursor libXdamage libXi libXtst nss cups-libs \
-                  libXScrnSaver libXrandr alsa-lib atk at-spi2-atk gtk3
+                dnf install -y nodejs xorg-x11-server-Xvfb libX11 libX11-xcb libXcomposite libXcursor \
+                  libXdamage libXi libXtst nss cups-libs libXScrnSaver libXrandr alsa-lib atk at-spi2-atk gtk3
 
               elif command -v yum &> /dev/null; then
 
-                yum install -y nodejs xorg-x11-server-Xvfb libX11 libX11-xcb \
-                  libXcomposite libXcursor libXdamage libXi libXtst nss cups-libs \
-                  libXScrnSaver libXrandr alsa-lib atk at-spi2-atk gtk3
+                yum install -y nodejs xorg-x11-server-Xvfb libX11 libX11-xcb libXcomposite libXcursor \
+                  libXdamage libXi libXtst nss cups-libs libXScrnSaver libXrandr alsa-lib atk at-spi2-atk gtk3
 
               fi
 
               # Run tests
               cd /workspace/test/sanity
-              node out/index.js -c "$(BUILD_COMMIT)" -q "$(BUILD_QUALITY)" \
-                -t "/.build/sanity-test-logs/results.xml" -v
+              node out/index.js -c "$(BUILD_COMMIT)" -q "$(BUILD_QUALITY)" -t "/workspace/.build/sanity-test-logs/results.xml" -v
             '
         displayName: Run Sanity Tests
 
