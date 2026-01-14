@@ -12,7 +12,7 @@
     "minimist": "^1.2.8",
     "mocha": "^11.7.5",
     "mocha-junit-reporter": "^2.2.1",
-    "node-fetch": "^3.3.2",
+    "node-fetch": "^2.7.0",
     "playwright": "^1.57.0",
     "typescript": "^6.0.0-dev.20251110"
   },

@@ -7,7 +7,9 @@ import { spawnSync, SpawnSyncReturns } from 'child_process';
 import { createHash } from 'crypto';
 import fs from 'fs';
 import { test } from 'mocha';
-import fetch, { Response } from 'node-fetch';
+import fetch from 'node-fetch';
+// eslint-disable-next-line no-duplicate-imports
+import type { Response } from 'node-fetch';
 import os from 'os';
 import path from 'path';
 import { Browser, chromium, webkit } from 'playwright';
@@ -650,7 +652,7 @@ export class TestContext {
 						binaryName = `code-exploration`;
 						break;
 				}
-				filePath = path.join(dir, binaryName);
+				filePath = path.join(this.getFirstSubdirectory(dir), binaryName);
 				break;
 			}
 			case 'win32': {
@@ -712,11 +714,6 @@ export class TestContext {
 	 * @returns The path to the server entry point executable.
 	 */
 	public getServerEntryPoint(dir: string): string {
-		const serverDir = fs.readdirSync(dir, { withFileTypes: true }).filter(o => o.isDirectory()).at(0)?.name;
-		if (!serverDir) {
-			this.error(`No subdirectories found in server directory: ${dir}`);
-		}
-
 		let filename: string;
 		switch (this.quality) {
 			case 'stable':
@@ -734,12 +731,22 @@ export class TestContext {
 			filename += '.cmd';
 		}
 
-		const entryPoint = path.join(dir, serverDir, 'bin', filename);
+		const entryPoint = path.join(this.getFirstSubdirectory(dir), 'bin', filename);
 		if (!fs.existsSync(entryPoint)) {
 			this.error(`Server entry point does not exist: ${entryPoint}`);
 		}
 
 		return entryPoint;
+	}
+	/**
+	 * Returns the first subdirectory within the specified directory.
+	 */
+	private getFirstSubdirectory(dir: string): string {
+		const subDir = fs.readdirSync(dir, { withFileTypes: true }).filter(o => o.isDirectory()).at(0)?.name;
+		if (!subDir) {
+			this.error(`No subdirectories found in directory: ${dir}`);
+		}
+		return path.join(dir, subDir);
 	}
 
 	/**
