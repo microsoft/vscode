@@ -91,6 +91,7 @@ interface ICommonQueryBuilderOptions<U extends UriComponents = URI> {
 	disregardExcludeSettings?: boolean;
 	disregardSearchExcludeSettings?: boolean;
 	ignoreSymlinks?: boolean;
+	ignoreGlobCase?: boolean;
 	onlyOpenEditors?: boolean;
 	onlyFileScheme?: boolean;
 }
@@ -269,6 +270,7 @@ export class QueryBuilder {
 
 			excludePattern: excludeSearchPathsInfo.pattern,
 			includePattern: includeSearchPathsInfo.pattern,
+			ignoreGlobCase: options.ignoreGlobCase,
 			onlyOpenEditors: options.onlyOpenEditors,
 			maxResults: options.maxResults,
 			onlyFileScheme: options.onlyFileScheme
@@ -617,6 +619,7 @@ export class QueryBuilder {
 			disregardGlobalIgnoreFiles: typeof options.disregardGlobalIgnoreFiles === 'boolean' ? options.disregardGlobalIgnoreFiles : !folderConfig.search.useGlobalIgnoreFiles,
 			disregardParentIgnoreFiles: typeof options.disregardParentIgnoreFiles === 'boolean' ? options.disregardParentIgnoreFiles : !folderConfig.search.useParentIgnoreFiles,
 			ignoreSymlinks: typeof options.ignoreSymlinks === 'boolean' ? options.ignoreSymlinks : !folderConfig.search.followSymlinks,
+			ignoreGlobCase: options.ignoreGlobCase,
 		};
 	}
 }

@@ -46,9 +46,9 @@ export interface IChatContentPartRenderContext {
 	readonly container: HTMLElement;
 	readonly content: ReadonlyArray<IChatRendererContent>;
 	readonly contentIndex: number;
-	readonly preceedingContentParts: ReadonlyArray<IChatContentPart>;
 	readonly editorPool: EditorPool;
 	readonly codeBlockStartIndex: number;
+	readonly treeStartIndex: number;
 	readonly diffEditorPool: DiffEditorPool;
 	readonly codeBlockModelCollection: CodeBlockModelCollection;
 	readonly currentWidth: IObservable<number>;

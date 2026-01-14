@@ -595,9 +595,6 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 				return;
 			}
 			this._editorWidget.setModel(model);
-			if (previousPosition) {
-				this._editorWidget.setPosition(previousPosition);
-			}
 			const domNode = this._editorWidget.getDomNode();
 			if (!domNode) {
 				return;
@@ -634,6 +631,8 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 						this._editorWidget.revealLine(position.lineNumber);
 					}
 				}
+			} else if (previousPosition) {
+				this._editorWidget.setPosition(previousPosition);
 			}
 		});
 		this._updateToolbar(this._currentProvider.actions, provider.options.type);
