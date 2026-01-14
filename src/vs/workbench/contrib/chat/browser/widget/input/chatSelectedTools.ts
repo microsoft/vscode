@@ -20,15 +20,19 @@ import { ILanguageModelToolsService, IToolAndToolSetEnablementMap, IToolData, To
 import { PromptFileRewriter } from '../../promptSyntax/promptFileRewriter.js';
 
 
-// todo@connor4312/bhavyaus: make tools key off displayName so model-specific tool
-// enablement can stick between models with different underlying tool definitions
 type ToolEnablementStates = {
+	/**
+	 * Whether tools are keyed by their reference name. This is a new format to
+	 * work with model-specific tools that may have different underlying names.
+	 */
+	readonly keyedByRefName: boolean;
 	readonly toolSets: ReadonlyMap<string, boolean>;
 	readonly tools: ReadonlyMap<string, boolean>;
 };
 
 type StoredDataV2 = {
 	readonly version: 2;
+	readonly keyedByRefName?: boolean;
 	readonly toolSetEntries: [string, boolean][];
 	readonly toolEntries: [string, boolean][];
 };
@@ -46,10 +50,10 @@ namespace ToolEnablementStates {
 			if (entry instanceof ToolSet) {
 				toolSets.set(entry.id, enabled);
 			} else {
-				tools.set(entry.id, enabled);
+				tools.set(entry.toolReferenceName || entry.id, enabled);
 			}
 		}
-		return { toolSets, tools };
+		return { keyedByRefName: true, toolSets, tools };
 	}
 
 	function isStoredDataV1(data: StoredDataV1 | StoredDataV2 | undefined): data is StoredDataV1 {
@@ -66,17 +70,17 @@ namespace ToolEnablementStates {
 		try {
 			const parsed = JSON.parse(storage);
 			if (isStoredDataV2(parsed)) {
-				return { toolSets: new Map(parsed.toolSetEntries), tools: new Map(parsed.toolEntries) };
+				return { keyedByRefName: !!parsed.keyedByRefName, toolSets: new Map(parsed.toolSetEntries), tools: new Map(parsed.toolEntries) };
 			} else if (isStoredDataV1(parsed)) {
 				const toolSetEntries = parsed.disabledToolSets?.map(id => [id, false] as [string, boolean]);
 				const toolEntries = parsed.disabledTools?.map(id => [id, false] as [string, boolean]);
-				return { toolSets: new Map(toolSetEntries), tools: new Map(toolEntries) };
+				return { keyedByRefName: false, toolSets: new Map(toolSetEntries), tools: new Map(toolEntries) };
 			}
 		} catch {
 			// ignore
 		}
 		// invalid data
-		return { toolSets: new Map(), tools: new Map() };
+		return { keyedByRefName: true, toolSets: new Map(), tools: new Map() };
 	}
 
 	export function toStorage(state: ToolEnablementStates): string {
@@ -114,7 +118,7 @@ export class ChatSelectedTools extends Disposable {
 
 		const globalStateMemento = observableMemento<ToolEnablementStates>({
 			key: 'chat/selectedTools',
-			defaultValue: { toolSets: new Map(), tools: new Map() },
+			defaultValue: { keyedByRefName: true, toolSets: new Map(), tools: new Map() },
 			fromStorage: ToolEnablementStates.fromStorage,
 			toStorage: ToolEnablementStates.toStorage
 		});
@@ -146,14 +150,16 @@ export class ChatSelectedTools extends Disposable {
 		// Use getTools with contextKeyService to filter tools by current model
 		for (const tool of this._currentTools.read(r)) {
 			if (tool.canBeReferencedInPrompt) {
-				map.set(tool, currentMap.tools.get(tool.id) !== false); // if unknown, it's enabled
+				const key = currentMap.keyedByRefName ? (tool.toolReferenceName || tool.id) : tool.id;
+				map.set(tool, currentMap.tools.get(key) !== false); // if unknown, it's enabled
 			}
 		}
 		for (const toolSet of this._toolsService.toolSets.read(r)) {
 			const toolSetEnabled = currentMap.toolSets.get(toolSet.id) !== false; // if unknown, it's enabled
 			map.set(toolSet, toolSetEnabled);
 			for (const tool of toolSet.getTools(r)) {
-				map.set(tool, toolSetEnabled || currentMap.tools.get(tool.id) === true); // if unknown, use toolSetEnabled
+				const key = currentMap.keyedByRefName ? (tool.toolReferenceName || tool.id) : tool.id;
+				map.set(tool, toolSetEnabled || currentMap.tools.get(key) === true); // if unknown, use toolSetEnabled
 			}
 		}
 		return map;
