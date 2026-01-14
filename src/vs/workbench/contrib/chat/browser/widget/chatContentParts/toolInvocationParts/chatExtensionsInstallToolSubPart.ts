@@ -55,7 +55,8 @@ export class ExtensionsInstallConfirmationWidgetSubPart extends BaseChatToolInvo
 		this._register(chatExtensionsContentPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 		dom.append(this.domNode, chatExtensionsContentPart.domNode);
 
-		if (toolInvocation.state.get().type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+		const state = toolInvocation.state.get();
+		if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
 			const allowLabel = localize('allow', "Allow");
 			const allowTooltip = keybindingService.appendKeybinding(allowLabel, AcceptToolConfirmationActionId);
 
@@ -83,8 +84,8 @@ export class ExtensionsInstallConfirmationWidgetSubPart extends BaseChatToolInvo
 				ChatConfirmationWidget<ConfirmedReason>,
 				context,
 				{
-					title: toolInvocation.confirmationMessages?.title ?? localize('installExtensions', "Install Extensions"),
-					message: toolInvocation.confirmationMessages?.message ?? localize('installExtensionsConfirmation', "Click the Install button on the extension and then press Allow when finished."),
+					title: state.confirmationMessages?.title ?? localize('installExtensions', "Install Extensions"),
+					message: state.confirmationMessages?.message ?? localize('installExtensionsConfirmation', "Click the Install button on the extension and then press Allow when finished."),
 					buttons,
 				}
 			));
