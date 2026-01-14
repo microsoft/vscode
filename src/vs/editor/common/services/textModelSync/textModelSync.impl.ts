@@ -190,6 +190,7 @@ export class MirrorModel extends BaseMirrorModel implements ICommonModel {
 
 	public override dispose(): void {
 		this._disposed = true;
+		super.dispose();
 	}
 
 	public getValue(): string {

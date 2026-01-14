@@ -8,23 +8,23 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { DefaultLinesDiffComputer } from '../../../common/diff/defaultLinesDiffComputer/defaultLinesDiffComputer.js';
 import { ILinesDiffComputerOptions } from '../../../common/diff/linesDiffComputer.js';
 
+// Mock model that can be disposed for testing
+class MockDisposableModel {
+	private _disposed = false;
+
+	isDisposed(): boolean {
+		return this._disposed;
+	}
+
+	dispose(): void {
+		this._disposed = true;
+	}
+}
+
 suite('Model Disposal Cancellation', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('Diff computation stops when model is disposed', () => {
-		// Create a mock model that can be disposed
-		class MockDisposableModel {
-			private _disposed = false;
-
-			isDisposed(): boolean {
-				return this._disposed;
-			}
-
-			dispose(): void {
-				this._disposed = true;
-			}
-		}
-
 		const originalModel = new MockDisposableModel();
 		const modifiedModel = new MockDisposableModel();
 
@@ -57,19 +57,6 @@ suite('Model Disposal Cancellation', () => {
 	});
 
 	test('Diff computation completes when models are not disposed', () => {
-		// Create a mock model that won't be disposed
-		class MockDisposableModel {
-			private _disposed = false;
-
-			isDisposed(): boolean {
-				return this._disposed;
-			}
-
-			dispose(): void {
-				this._disposed = true;
-			}
-		}
-
 		const originalModel = new MockDisposableModel();
 		const modifiedModel = new MockDisposableModel();
 

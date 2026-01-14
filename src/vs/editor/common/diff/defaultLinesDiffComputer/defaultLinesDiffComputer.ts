@@ -44,11 +44,15 @@ export class DefaultLinesDiffComputer implements ILinesDiffComputer {
 			], [], false);
 		}
 
-		const timeout = options.maxComputationTimeMs === 0 
-			? InfiniteTimeout.instance 
-			: (options.models 
-				? new ModelDisposalTimeout(options.maxComputationTimeMs, [...options.models])
-				: new DateTimeout(options.maxComputationTimeMs));
+		// Create timeout that checks both time and model disposal
+		let timeout: ITimeout;
+		if (options.maxComputationTimeMs === 0) {
+			timeout = InfiniteTimeout.instance;
+		} else if (options.models) {
+			timeout = new ModelDisposalTimeout(options.maxComputationTimeMs, [...options.models]);
+		} else {
+			timeout = new DateTimeout(options.maxComputationTimeMs);
+		}
 		const considerWhitespaceChanges = !options.ignoreTrimWhitespace;
 
 		const perfectHashes = new Map<string, number>();
