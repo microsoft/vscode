@@ -799,19 +799,37 @@ export function rcut(text: string, n: number, suffix = ''): string {
 
 	const re = /\b/g;
 	let lastGoodBreak = 0;
+	let foundBoundaryAfterN = false;
 	while (re.test(trimmed)) {
 		if (re.lastIndex > n) {
+			foundBoundaryAfterN = true;
 			break;
 		}
 		lastGoodBreak = re.lastIndex;
 		re.lastIndex += 1;
 	}
 
-	if (lastGoodBreak === 0) {
-		return trimmed.substring(0, n).trimEnd() + suffix;
+	// If no boundary was found after n, return the full trimmed string
+	// (there's no good place to cut)
+	if (!foundBoundaryAfterN) {
+		return trimmed;
 	}
 
-	return trimmed.substring(0, lastGoodBreak).trimEnd() + suffix;
+	// If the only boundary <= n is at position 0 (start of string),
+	// cutting there gives empty string, so just return the suffix
+	if (lastGoodBreak === 0) {
+		return suffix;
+	}
+
+	const result = trimmed.substring(0, lastGoodBreak).trimEnd();
+
+	// If trimEnd removed more than half of what we cut (meaning we cut
+	// mostly through whitespace), return the full string instead
+	if (result.length < lastGoodBreak / 2) {
+		return trimmed;
+	}
+
+	return result + suffix;
 }
 
 // Defacto standard: https://invisible-island.net/xterm/ctlseqs/ctlseqs.html
