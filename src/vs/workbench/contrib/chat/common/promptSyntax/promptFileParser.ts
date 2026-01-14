@@ -75,6 +75,7 @@ export namespace PromptHeaderAttributes {
 	export const excludeAgent = 'excludeAgent';
 	export const target = 'target';
 	export const infer = 'infer';
+	export const agents = 'agents';
 }
 
 export namespace GithubPromptHeaderAttributes {
@@ -271,6 +272,27 @@ export class PromptHeader {
 			return handoffs;
 		}
 		return undefined;
+	}
+
+	private getStringArrayAttribute(key: string): string[] | undefined {
+		const attribute = this._parsedHeader.attributes.find(attr => attr.key === key);
+		if (!attribute) {
+			return undefined;
+		}
+		if (attribute.value.type === 'array') {
+			const result: string[] = [];
+			for (const item of attribute.value.items) {
+				if (item.type === 'string' && item.value) {
+					result.push(item.value);
+				}
+			}
+			return result;
+		}
+		return undefined;
+	}
+
+	public get agents(): string[] | undefined {
+		return this.getStringArrayAttribute(PromptHeaderAttributes.agents);
 	}
 }
 

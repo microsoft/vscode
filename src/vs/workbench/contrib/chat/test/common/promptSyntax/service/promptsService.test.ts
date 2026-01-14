@@ -736,6 +736,7 @@ suite('PromptsService', () => {
 					tools: undefined,
 					target: undefined,
 					infer: undefined,
+					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -791,6 +792,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					target: undefined,
 					infer: undefined,
+					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
 					source: { storage: PromptsStorage.local },
 				},
@@ -863,6 +865,7 @@ suite('PromptsService', () => {
 					model: undefined,
 					target: undefined,
 					infer: undefined,
+					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -880,6 +883,7 @@ suite('PromptsService', () => {
 					tools: undefined,
 					target: undefined,
 					infer: undefined,
+					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent2.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -949,6 +953,7 @@ suite('PromptsService', () => {
 					model: undefined,
 					argumentHint: undefined,
 					infer: undefined,
+					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/github-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -966,6 +971,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					tools: undefined,
 					infer: undefined,
+					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/vscode-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -983,6 +989,7 @@ suite('PromptsService', () => {
 					tools: undefined,
 					target: undefined,
 					infer: undefined,
+					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/generic-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1037,6 +1044,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					target: undefined,
 					infer: undefined,
+					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/demonstrate.md'),
 					source: { storage: PromptsStorage.local },
 				},
@@ -1056,6 +1064,118 @@ suite('PromptsService', () => {
 				result,
 				expected,
 				'Must get custom agents with .md extension from .github/agents/ folder.',
+			);
+		});
+
+		test('header with agents, skills, and instructions', async () => {
+			const rootFolderName = 'custom-agents-with-restrictions';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/agents/restricted-agent.agent.md`,
+					contents: [
+						'---',
+						'description: \'Agent with restricted access.\'',
+						'agents: [ subagent1, subagent2 ]',
+						'skills: [ skill1, skill2, skill3 ]',
+						'instructions: [ instruction1 ]',
+						'tools: [ tool1 ]',
+						'---',
+						'This agent has restricted access.',
+					]
+				},
+				{
+					path: `${rootFolder}/.github/agents/no-access-agent.agent.md`,
+					contents: [
+						'---',
+						'description: \'Agent with no access to subagents, skills, or instructions.\'',
+						'agents: []',
+						'skills: []',
+						'instructions: []',
+						'---',
+						'This agent has no access.',
+					]
+				},
+				{
+					path: `${rootFolder}/.github/agents/full-access-agent.agent.md`,
+					contents: [
+						'---',
+						'description: \'Agent with full access.\'',
+						'agents: [ "*" ]',
+						'skills: [ "*" ]',
+						'instructions: [ "*" ]',
+						'---',
+						'This agent has full access.',
+					]
+				}
+			]);
+
+			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
+			const expected: ICustomAgent[] = [
+				{
+					name: 'restricted-agent',
+					description: 'Agent with restricted access.',
+					agents: ['subagent1', 'subagent2'],
+					tools: ['tool1'],
+					agentInstructions: {
+						content: 'This agent has restricted access.',
+						toolReferences: [],
+						metadata: undefined
+					},
+					handOffs: undefined,
+					model: undefined,
+					argumentHint: undefined,
+					target: undefined,
+					infer: undefined,
+					uri: URI.joinPath(rootFolderUri, '.github/agents/restricted-agent.agent.md'),
+					source: { storage: PromptsStorage.local }
+				},
+				{
+					name: 'no-access-agent',
+					description: 'Agent with no access to subagents, skills, or instructions.',
+					agents: [],
+					agentInstructions: {
+						content: 'This agent has no access.',
+						toolReferences: [],
+						metadata: undefined
+					},
+					handOffs: undefined,
+					model: undefined,
+					argumentHint: undefined,
+					tools: undefined,
+					target: undefined,
+					infer: undefined,
+					uri: URI.joinPath(rootFolderUri, '.github/agents/no-access-agent.agent.md'),
+					source: { storage: PromptsStorage.local }
+				},
+				{
+					name: 'full-access-agent',
+					description: 'Agent with full access.',
+					agents: ['*'],
+					agentInstructions: {
+						content: 'This agent has full access.',
+						toolReferences: [],
+						metadata: undefined
+					},
+					handOffs: undefined,
+					model: undefined,
+					argumentHint: undefined,
+					tools: undefined,
+					target: undefined,
+					infer: undefined,
+					uri: URI.joinPath(rootFolderUri, '.github/agents/full-access-agent.agent.md'),
+					source: { storage: PromptsStorage.local }
+				},
+			];
+
+			assert.deepEqual(
+				result,
+				expected,
+				'Must get custom agents with agents, skills, and instructions attributes.',
 			);
 		});
 	});

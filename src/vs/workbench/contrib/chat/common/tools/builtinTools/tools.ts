@@ -42,10 +42,6 @@ export class BuiltinToolsContribution extends Disposable implements IWorkbenchCo
 		this._register(toolsService.registerTool(ConfirmationToolData, confirmationTool));
 
 		const runSubagentTool = this._register(instantiationService.createInstance(RunSubagentTool));
-		const customAgentToolSet = this._register(toolsService.createToolSet(ToolDataSource.Internal, 'custom-agent', SpecedToolAliases.agent, {
-			icon: ThemeIcon.fromId(Codicon.agent.id),
-			description: localize('toolset.custom-agent', 'Delegate tasks to other agents'),
-		}));
 
 		let runSubagentRegistration: IDisposable | undefined;
 		let toolSetRegistration: IDisposable | undefined;
@@ -54,7 +50,7 @@ export class BuiltinToolsContribution extends Disposable implements IWorkbenchCo
 			toolSetRegistration?.dispose();
 			const runSubagentToolData = runSubagentTool.getToolData();
 			runSubagentRegistration = toolsService.registerTool(runSubagentToolData, runSubagentTool);
-			toolSetRegistration = customAgentToolSet.addTool(runSubagentToolData);
+			toolSetRegistration = toolsService.agentToolSet.addTool(runSubagentToolData);
 		};
 		registerRunSubagentTool();
 		this._register(runSubagentTool.onDidUpdateToolData(registerRunSubagentTool));

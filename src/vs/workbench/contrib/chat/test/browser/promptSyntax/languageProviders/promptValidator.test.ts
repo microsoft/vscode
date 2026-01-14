@@ -400,7 +400,7 @@ suite('PromptValidator', () => {
 			assert.deepStrictEqual(
 				markers.map(m => ({ severity: m.severity, message: m.message })),
 				[
-					{ severity: MarkerSeverity.Warning, message: `Attribute 'applyTo' is not supported in VS Code agent files. Supported: argument-hint, description, handoffs, infer, model, name, target, tools.` },
+					{ severity: MarkerSeverity.Warning, message: `Attribute 'applyTo' is not supported in VS Code agent files. Supported: agents, argument-hint, description, handoffs, infer, model, name, target, tools.` },
 				]
 			);
 		});
@@ -807,6 +807,81 @@ suite('PromptValidator', () => {
 				const markers = await validate(content, PromptsType.agent);
 				assert.deepStrictEqual(markers, [], 'Missing infer attribute should be allowed');
 			}
+		});
+
+		test('agents attribute must be an array', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				`agents: 'myAgent'`,
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.strictEqual(markers.length, 1);
+			assert.deepStrictEqual(markers.map(m => m.message), [`The 'agents' attribute must be an array.`]);
+		});
+
+		test('each agent name in agents attribute must be a string', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				`agents: ['valid', 123]`,
+				`tools: ['agent']`,
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			const stringErrorMarkers = markers.filter(m => m.message.includes('must be a string'));
+			assert.strictEqual(stringErrorMarkers.length, 1);
+			assert.strictEqual(stringErrorMarkers[0].message, `Each agent name in the 'agents' attribute must be a string.`);
+		});
+
+		test('agents attribute with non-empty value requires agent tool', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				`agents: ['Planning', 'Research']`,
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].message, `When 'agents' is specified, the 'agent' tool must be included in the 'tools' attribute.`);
+		});
+
+		test('agents attribute with agent tool does not warn about agents', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				`agents: ['Planning', 'Research']`,
+				`tools: ['agent']`,
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			// 'agent' is a GitHub Copilot tool alias, not registered in test setup, so it may warn about unknown tool
+			// But it should NOT warn about agents requiring agent tool
+			const agentsWarnings = markers.filter(m => m.message.includes('\'agents\''));
+			assert.deepStrictEqual(agentsWarnings, [], 'No warnings about agents attribute when agent tool is in header');
+		});
+
+		test('agents attribute with wildcard does not require agent tool', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				`agents: ['*']`,
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(markers, [], 'Wildcard should not require agent tool');
+		});
+
+		test('agents attribute with empty array does not require agent tool', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				`agents: []`,
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(markers, [], 'Empty array should not require agent tool');
 		});
 	});
 

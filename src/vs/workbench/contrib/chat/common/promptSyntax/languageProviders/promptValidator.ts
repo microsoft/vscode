@@ -155,6 +155,7 @@ export class PromptValidator {
 				if (!isGitHubTarget) {
 					this.validateModel(attributes, ChatModeKind.Agent, report);
 					this.validateHandoffs(attributes, report);
+					this.validateAgentsAttribute(attributes, report);
 				}
 				break;
 			}
@@ -494,12 +495,48 @@ export class PromptValidator {
 			report(toMarker(localize('promptValidator.targetInvalidValue', "The 'target' attribute must be one of: {0}.", validTargets.join(', ')), attribute.value.range, MarkerSeverity.Error));
 		}
 	}
+
+	private hasToolInHeader(attributes: IHeaderAttribute[], toolName: string): boolean {
+		const toolsAttribute = attributes.find(attr => attr.key === PromptHeaderAttributes.tools);
+		if (!toolsAttribute || toolsAttribute.value.type !== 'array') {
+			return false;
+		}
+		return toolsAttribute.value.items.some(item => item.type === 'string' && item.value === toolName);
+	}
+
+	private validateAgentsAttribute(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): undefined {
+		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.agents);
+		if (!attribute) {
+			return;
+		}
+		if (attribute.value.type !== 'array') {
+			report(toMarker(localize('promptValidator.agentsMustBeArray', "The 'agents' attribute must be an array."), attribute.value.range, MarkerSeverity.Error));
+			return;
+		}
+
+		// Check each item is a string
+		const agentNames: string[] = [];
+		for (const item of attribute.value.items) {
+			if (item.type !== 'string') {
+				report(toMarker(localize('promptValidator.eachAgentMustBeString', "Each agent name in the 'agents' attribute must be a string."), item.range, MarkerSeverity.Error));
+			} else if (item.value) {
+				agentNames.push(item.value);
+			}
+		}
+
+		// If not wildcard and not empty, check that 'agent' tool is available
+		if (agentNames.length > 0 && !(agentNames.length === 1 && agentNames[0] === '*')) {
+			if (!this.hasToolInHeader(attributes, SpecedToolAliases.agent)) {
+				report(toMarker(localize('promptValidator.agentsRequiresAgentTool', "When 'agents' is specified, the 'agent' tool must be included in the 'tools' attribute."), attribute.range, MarkerSeverity.Warning));
+			}
+		}
+	}
 }
 
 const allAttributeNames = {
 	[PromptsType.prompt]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.mode, PromptHeaderAttributes.agent, PromptHeaderAttributes.argumentHint],
 	[PromptsType.instructions]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.applyTo, PromptHeaderAttributes.excludeAgent],
-	[PromptsType.agent]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.advancedOptions, PromptHeaderAttributes.handOffs, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.target, PromptHeaderAttributes.infer]
+	[PromptsType.agent]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.advancedOptions, PromptHeaderAttributes.handOffs, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.target, PromptHeaderAttributes.infer, PromptHeaderAttributes.agents]
 };
 const githubCopilotAgentAttributeNames = [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.tools, PromptHeaderAttributes.target, GithubPromptHeaderAttributes.mcpServers, PromptHeaderAttributes.infer];
 const recommendedAttributeNames = {
