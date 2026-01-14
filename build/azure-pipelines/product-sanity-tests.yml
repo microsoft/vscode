@@ -176,22 +176,6 @@ extends:
 
           - template: build/azure-pipelines/common/sanity-tests-container.yml@self
             parameters:
-              name: RedHat_UBI9_arm32
-              displayName: Red Hat UBI 9 arm32 Sanity Tests
-              poolName: 1es-ubuntu-22.04-x64
-              container: redhat/ubi9:latest
-              containerPlatform: linux/arm
-
-          - template: build/azure-pipelines/common/sanity-tests-container.yml@self
-            parameters:
-              name: Fedora_40_arm32
-              displayName: Fedora 40 arm32 Sanity Tests
-              poolName: 1es-ubuntu-22.04-x64
-              container: fedora:40
-              containerPlatform: linux/arm
-
-          - template: build/azure-pipelines/common/sanity-tests-container.yml@self
-            parameters:
               name: openSUSE_Leap_arm32
               displayName: openSUSE Leap arm32 Sanity Tests
               poolName: 1es-ubuntu-22.04-x64

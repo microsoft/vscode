@@ -83,7 +83,7 @@ jobs:
               elif command -v yum &> /dev/null; then
                 yum install -y nodejs xorg-x11-server-Xvfb gtk3 nss mesa-libgbm xdg-utils sudo
               elif command -v zypper &> /dev/null; then
-                zypper install -y nodejs22 xorg-x11-server-Xvfb libgtk-3-0 mozilla-nss Mesa-libgbm sudo
+                zypper install -y nodejs xorg-x11-server-Xvfb libgtk-3-0 mozilla-nss Mesa-libgbm sudo
               elif command -v apk &> /dev/null; then
                 apk add --no-cache nodejs npm xvfb gtk+3.0 nss mesa-gbm sudo
               fi
