@@ -31,11 +31,12 @@ import { ACTION_ID_NEW_CHAT } from '../actions/chatActions.js';
  * Only sessions from these providers will trigger focus view.
  *
  * Configuration:
- * - AgentSessionProviders.Local: Local chat sessions (disabled)
+ * - AgentSessionProviders.Local: Local chat sessions (enabled)
  * - AgentSessionProviders.Background: Background CLI agents (enabled)
  * - AgentSessionProviders.Cloud: Cloud agents (enabled)
  */
 const AGENT_SESSION_PROJECTION_ENABLED_PROVIDERS: Set<string> = new Set([
+	AgentSessionProviders.Local,
 	AgentSessionProviders.Background,
 	AgentSessionProviders.Cloud,
 ]);
