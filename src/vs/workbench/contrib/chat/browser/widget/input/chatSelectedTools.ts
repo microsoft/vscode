@@ -8,17 +8,20 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { derived, IObservable, ObservableMap } from '../../../../../../base/common/observable.js';
 import { isObject } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ObservableMemento, observableMemento } from '../../../../../../platform/observable/common/observableMemento.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-import { UserSelectedTools } from '../../../common/participants/chatAgents.js';
 import { IChatMode } from '../../../common/chatModes.js';
 import { ChatModeKind } from '../../../common/constants.js';
-import { ILanguageModelToolsService, IToolAndToolSetEnablementMap, IToolData, ToolSet } from '../../../common/tools/languageModelToolsService.js';
+import { UserSelectedTools } from '../../../common/participants/chatAgents.js';
 import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { ILanguageModelToolsService, IToolAndToolSetEnablementMap, IToolData, ToolSet } from '../../../common/tools/languageModelToolsService.js';
 import { PromptFileRewriter } from '../../promptSyntax/promptFileRewriter.js';
 
 
+// todo@connor4312/bhavyaus: make tools key off displayName so model-specific tool
+// enablement can stick between models with different underlying tool definitions
 type ToolEnablementStates = {
 	readonly toolSets: ReadonlyMap<string, boolean>;
 	readonly tools: ReadonlyMap<string, boolean>;
@@ -98,9 +101,11 @@ export class ChatSelectedTools extends Disposable {
 	private readonly _globalState: ObservableMemento<ToolEnablementStates>;
 
 	private readonly _sessionStates = new ObservableMap<string, ToolEnablementStates | undefined>();
+	private readonly _currentTools: IObservable<readonly IToolData[]>;
 
 	constructor(
 		private readonly _mode: IObservable<IChatMode>,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
 		@IStorageService _storageService: IStorageService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -115,10 +120,12 @@ export class ChatSelectedTools extends Disposable {
 		});
 
 		this._globalState = this._store.add(globalStateMemento(StorageScope.PROFILE, StorageTarget.MACHINE, _storageService));
+		this._currentTools = _toolsService.observeTools(this._contextKeyService);
 	}
 
 	/**
 	 * All tools and tool sets with their enabled state.
+	 * Tools are filtered based on the current model context.
 	 */
 	public readonly entriesMap: IObservable<IToolAndToolSetEnablementMap> = derived(r => {
 		const map = new Map<IToolData | ToolSet, boolean>();
@@ -130,13 +137,14 @@ export class ChatSelectedTools extends Disposable {
 			const modeTools = currentMode.customTools?.read(r);
 			if (modeTools) {
 				const target = currentMode.target?.read(r);
-				currentMap = ToolEnablementStates.fromMap(this._toolsService.toToolAndToolSetEnablementMap(modeTools, target));
+				currentMap = ToolEnablementStates.fromMap(this._toolsService.toToolAndToolSetEnablementMap(modeTools, target, this._contextKeyService));
 			}
 		}
 		if (!currentMap) {
 			currentMap = this._globalState.read(r);
 		}
-		for (const tool of this._toolsService.toolsObservable.read(r)) {
+		// Use getTools with contextKeyService to filter tools by current model
+		for (const tool of this._currentTools.read(r)) {
 			if (tool.canBeReferencedInPrompt) {
 				map.set(tool, currentMap.tools.get(tool.id) !== false); // if unknown, it's enabled
 			}

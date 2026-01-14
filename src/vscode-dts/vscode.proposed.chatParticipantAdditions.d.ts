@@ -412,18 +412,6 @@ declare module 'vscode' {
 		 * Fired when the set of tools on a chat request changes.
 		 */
 		export const onDidChangeChatRequestTools: Event<ChatRequest>;
-
-		/**
-		 * Invoke a tool by its full information object rather than just name.
-		 * This allows disambiguation when multiple tools have the same name
-		 * (e.g., from different MCP servers or model-specific implementations).
-		 *
-		 * @param tool The tool information object, typically obtained from {@link lm.tools}.
-		 * @param options The options to use when invoking the tool.
-		 * @param token A cancellation token.
-		 * @returns The result of the tool invocation.
-		 */
-		export function invokeTool(tool: LanguageModelToolInformation, options: LanguageModelToolInvocationOptions<object>, token?: CancellationToken): Thenable<LanguageModelToolResult>;
 	}
 
 	export class LanguageModelToolExtensionSource {

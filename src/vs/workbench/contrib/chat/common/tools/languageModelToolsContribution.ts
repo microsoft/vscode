@@ -329,7 +329,7 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 					const toolSets: ToolSet[] = [];
 
 					for (const toolName of toolSet.tools) {
-						const toolObj = languageModelToolsService.getToolByName(toolName, true);
+						const toolObj = languageModelToolsService.getToolByName(toolName);
 						if (toolObj) {
 							tools.push(toolObj);
 							continue;

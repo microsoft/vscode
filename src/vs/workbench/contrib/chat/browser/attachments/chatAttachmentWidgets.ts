@@ -721,12 +721,13 @@ export class ToolSetOrToolItemAttachmentWidget extends AbstractChatAttachmentWid
 		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
 		@ICommandService commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
-		@IHoverService hoverService: IHoverService
+		@IHoverService hoverService: IHoverService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService);
 
 
-		const toolOrToolSet = Iterable.find(toolsService.getTools(), tool => tool.id === attachment.id) ?? Iterable.find(toolsService.toolSets.get(), toolSet => toolSet.id === attachment.id);
+		const toolOrToolSet = Iterable.find(toolsService.getTools(contextKeyService), tool => tool.id === attachment.id) ?? Iterable.find(toolsService.toolSets.get(), toolSet => toolSet.id === attachment.id);
 
 		let name = attachment.name;
 		const icon = attachment.icon ?? Codicon.tools;

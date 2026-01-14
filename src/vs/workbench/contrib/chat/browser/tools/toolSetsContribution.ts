@@ -146,7 +146,7 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 			lifecycleService.when(LifecyclePhase.Restored)
 		]).then(() => this._initToolSets());
 
-		const toolsObs = observableFromEvent(this, _languageModelToolsService.onDidChangeTools, () => Array.from(_languageModelToolsService.getTools()));
+		const toolsObs = observableFromEvent(this, _languageModelToolsService.onDidChangeTools, () => Array.from(_languageModelToolsService.getAllToolsIncludingDisabled()));
 		const store = this._store.add(new DisposableStore());
 
 		this._store.add(autorun(r => {
