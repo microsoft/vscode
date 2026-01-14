@@ -925,7 +925,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				},
 				content: [{
 					kind: 'text',
-					value: resultText.join('')
+					value: resultText.join(''),
 				}]
 			};
 		}
