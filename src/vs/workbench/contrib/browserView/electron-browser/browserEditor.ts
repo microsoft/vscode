@@ -412,6 +412,7 @@ export class BrowserEditor extends EditorPane {
 		const error: IBrowserViewLoadError | undefined = this._model.error;
 		if (error) {
 			// Update error content
+
 			while (this._errorContainer.firstChild) {
 				this._errorContainer.removeChild(this._errorContainer.firstChild);
 			}
