@@ -17,6 +17,9 @@ import * as types from '../../../common/types.js';
 import './splitview.css';
 export { Orientation } from '../sash/sash.js';
 
+// Panel margins feature: spacing between workbench parts when panel-margins-enabled class is present
+const PANEL_MARGIN = 8; // Change this single value to adjust all panel margins/gaps
+
 export interface ISplitViewStyles {
 	readonly separatorBorder: Color;
 }
@@ -279,17 +282,22 @@ abstract class ViewItem<TLayoutContext, TView extends IView<TLayoutContext>> {
 	}
 
 	layout(offset: number, layoutContext: TLayoutContext | undefined): void {
-		this.layoutContainer(offset);
+		const { adjustedOffset, adjustedSize, orthogonalSizeAdjustment } = this.layoutContainer(offset);
+
+		let adjustedLayoutContext = layoutContext;
+		if (typeof orthogonalSizeAdjustment === 'number' && layoutContext && typeof (layoutContext as { orthogonalSize?: unknown }).orthogonalSize === 'number') {
+			adjustedLayoutContext = { ...layoutContext, orthogonalSize: (layoutContext as unknown as { orthogonalSize: number }).orthogonalSize + orthogonalSizeAdjustment };
+		}
 
 		try {
-			this.view.layout(this.size, offset, layoutContext);
+			this.view.layout(adjustedSize, adjustedOffset, adjustedLayoutContext);
 		} catch (e) {
 			console.error('Splitview: Failed to layout view');
 			console.error(e);
 		}
 	}
 
-	abstract layoutContainer(offset: number): void;
+	abstract layoutContainer(offset: number): { adjustedOffset: number; adjustedSize: number; orthogonalSizeAdjustment?: number };
 
 	dispose(): void {
 		this.disposable.dispose();
@@ -298,9 +306,10 @@ abstract class ViewItem<TLayoutContext, TView extends IView<TLayoutContext>> {
 
 class VerticalViewItem<TLayoutContext, TView extends IView<TLayoutContext>> extends ViewItem<TLayoutContext, TView> {
 
-	layoutContainer(offset: number): void {
+	layoutContainer(offset: number): { adjustedOffset: number; adjustedSize: number; orthogonalSizeAdjustment?: number } {
 		let adjustedOffset = offset;
 		let adjustedSize = this.size;
+		let orthogonalSizeAdjustment = 0;
 
 		// Check if panel margins are enabled in workbench
 		const workbench = this.container.closest('.monaco-workbench');
@@ -327,28 +336,67 @@ class VerticalViewItem<TLayoutContext, TView extends IView<TLayoutContext>> exte
 				if (classList.contains('banner')) {
 					// No adjustments for banner
 				}
-				// Apply vertical margins for panel (top gap)
-				else if (classList.contains('panel')) {
-					adjustedOffset += 8;
-					adjustedSize -= 8;
-				}
-				// Apply vertical margins for titlebar (bottom gap)
-				else if (classList.contains('titlebar')) {
-					adjustedSize -= 8;
-				}
-				// Apply vertical margins for statusbar (bottom gap only - middle section creates top gap)
-				else if (classList.contains('statusbar')) {
-					// No offset - middle section's height reduction creates the top gap
-					adjustedSize -= 16; // -8px for bottom outer margin, -8px to account for accumulated spacing
-				}
-				// Middle section (grid branch node) - add gap for statusbar
-				else if (classList.contains('monaco-grid-branch-node')) {
-					// Check if this is the main middle section (between titlebar and statusbar)
+				// Apply vertical margins
+				// Titlebar: No adjustment.
+
+				// Middle section (grid branch node, editor, panel)
+				// Needs to shrink to account for:
+				// - Top Gap (8px) for Titlebar (except Editor)
+				// - Bottom Gap (8px) for Statusbar or next Panel
+				if (classList.contains('monaco-grid-branch-node') || classList.contains('panel') || classList.contains('editor')) {
+					// Only apply if we are in the root workbench grid (checking parent)
 					const parentGrid = this.container.closest('.monaco-grid-view');
 					if (parentGrid?.parentElement?.classList.contains('monaco-workbench')) {
-						adjustedOffset += 8; // Start after titlebar's bottom gap
-						adjustedSize -= 16; // -8px for titlebar gap consumed by offset, -8px for bottom gap before statusbar
+
+						// Always shrink size by 8px to create bottom gap (or gap between items)
+						adjustedSize -= PANEL_MARGIN;
+
+						// If this is the first item (offset 0), check if we need Top Gap
+						if (offset === 0) {
+							// Editor should NOT have top gap (flush with titlebar/tabs)
+							if (!classList.contains('editor')) {
+								adjustedOffset += PANEL_MARGIN;
+								adjustedSize -= PANEL_MARGIN; // Shrink to accommodate top margin
+							}
+							// If Editor: No top offset, No top size shrink.
+						}
+
+						// Apply radius
+						if (classList.contains('editor') || classList.contains('panel')) {
+							partElement.style.borderRadius = '16px';
+							partElement.style.border = '1px solid var(--vscode-widget-border)';
+						}
 					}
+				}
+				// Statusbar:
+				// Reduce width by 16px (margin * 2) and center (left: 8px)
+				else if (classList.contains('statusbar')) {
+					this.container.style.left = '';
+					this.container.style.width = `calc(100% - ${PANEL_MARGIN * 2}px)`;
+					orthogonalSizeAdjustment = -(PANEL_MARGIN * 2);
+
+					// Helper to remove bg
+					partElement.style.backgroundColor = 'transparent';
+					partElement.style.border = 'none';
+					partElement.style.setProperty('--status-border-top-color', 'transparent');
+				}
+				// Titlebar:
+				// Reduce width by 8px (margin)
+				else if (classList.contains('titlebar')) {
+					this.container.style.left = '';
+					this.container.style.width = `calc(100% - ${PANEL_MARGIN}px)`;
+					orthogonalSizeAdjustment = -PANEL_MARGIN;
+
+					// Helper to remove bg
+					partElement.style.backgroundColor = 'transparent';
+					partElement.style.border = 'none';
+					partElement.style.setProperty('--title-border-bottom-color', 'transparent');
+				}
+				// Others:
+				// Full width
+				else {
+					this.container.style.left = '0px';
+					this.container.style.width = '100%';
 				}
 
 				if (adjustedOffset !== offset || adjustedSize !== this.size) {
@@ -360,14 +408,17 @@ class VerticalViewItem<TLayoutContext, TView extends IView<TLayoutContext>> exte
 		this.container.style.top = `${adjustedOffset}px`;
 		this.container.style.height = `${adjustedSize}px`;
 		console.log(`[VerticalViewItem] Applied styles - top: ${adjustedOffset}px, height: ${adjustedSize}px`);
+
+		return { adjustedOffset, adjustedSize, orthogonalSizeAdjustment };
 	}
 }
 
 class HorizontalViewItem<TLayoutContext, TView extends IView<TLayoutContext>> extends ViewItem<TLayoutContext, TView> {
 
-	layoutContainer(offset: number): void {
+	layoutContainer(offset: number): { adjustedOffset: number; adjustedSize: number; orthogonalSizeAdjustment?: number } {
 		let adjustedOffset = offset;
 		let adjustedSize = this.size;
+		let orthogonalSizeAdjustment = 0;
 
 		// Check if panel margins are enabled in workbench
 		const workbench = this.container.closest('.monaco-workbench');
@@ -389,24 +440,23 @@ class HorizontalViewItem<TLayoutContext, TView extends IView<TLayoutContext>> ex
 					console.log(`[HorizontalViewItem] OTHER details - tagName: ${partElement.tagName}, classes: ${Array.from(classList).join(' ')}, parent classes: ${Array.from(this.container.classList).join(' ')}`);
 				}
 
-				// Sidebar: gap on right
-				if (classList.contains('sidebar')) {
-					adjustedSize -= 8;
+				// Apply horizontal margins
+				// Sidebar: No adjustment.
+
+				// Editor/Middle:
+				// Needs to shrink to account for:
+				// - Left Gap (8px)
+				// - Right Gap (8px)
+				// Total Shrink: 16px
+				if (classList.contains('editor') || classList.contains('monaco-grid-branch-node') || classList.contains('panel')) {
+					adjustedOffset += PANEL_MARGIN;
+					adjustedSize -= PANEL_MARGIN * 2; // 16px
 				}
-				// Auxiliary bar: no offset needed (middle grid creates gap)
+				// Auxiliary Bar (Right Panel):
+				// Needs to shrink to fit in grid (W-16) vs Logical (W)
+				// Shrink: 16px
 				else if (classList.contains('auxiliarybar')) {
-					// No offset - middle grid's width reduction creates the left gap
-					adjustedSize -= 16; // -8px for right outer margin, -8px to compensate for grid's left:8px offset
-				}
-				// Editor: gaps on both sides
-				else if (classList.contains('editor')) {
-					adjustedOffset += 8;
-					adjustedSize -= 16;
-				}
-				// Middle grid in horizontal layout (contains editor/panel vertically): no offset needed (sidebar creates gap)
-				else if (classList.contains('monaco-grid-branch-node')) {
-					// No offset - sidebar's width reduction creates the left gap
-					adjustedSize -= 8; // Only reduce for right gap before auxiliarybar
+					adjustedSize -= PANEL_MARGIN * 2;
 				}
 				// Check if this is inside an editor part (for nested grids)
 				else if (this.container.closest('.part.editor')) {
@@ -414,10 +464,43 @@ class HorizontalViewItem<TLayoutContext, TView extends IView<TLayoutContext>> ex
 					const editorPart = this.container.closest('.part.editor');
 					const isDirectChild = editorPart?.parentElement?.classList.contains('split-view-view');
 					if (isDirectChild) {
-						adjustedOffset += 8;
-						adjustedSize -= 16;
+						adjustedOffset += PANEL_MARGIN;
+						adjustedSize -= PANEL_MARGIN * 2;
 						console.log(`[HorizontalViewItem] Inside editor part (direct child)`);
 					}
+				}
+
+				// Apply Vertical margins (Top/Bottom) for floating panels in horizontal layout
+
+				// Group 1: Items that handle their own internal bottom margin via VerticalViewItem logic.
+				// We only provide the Top margin (8px) here.
+				// Visual Height = Container(100% - 8px) - Internal(8px) = Total - 16px.
+				if (classList.contains('editor') || classList.contains('monaco-grid-branch-node') || classList.contains('panel')) {
+					this.container.style.top = `${PANEL_MARGIN}px`;
+					orthogonalSizeAdjustment = -PANEL_MARGIN;
+
+					// Apply radius to contents if applicable
+					if (classList.contains('editor') || classList.contains('panel')) {
+						partElement.style.borderRadius = '16px';
+						partElement.style.border = '1px solid var(--vscode-widget-border)';
+					}
+				}
+				// Group 2: Items that do NOT handle internal margins (Sidebars).
+				// We provide both Top (8px) and Bottom (8px) margins here.
+				// Visual Height = Container(100% - 16px) = Total - 16px.
+				else if (classList.contains('sidebar') || classList.contains('auxiliarybar') || classList.contains('activitybar')) {
+					this.container.style.top = `${PANEL_MARGIN}px`;
+					this.container.style.height = `calc(100% - ${PANEL_MARGIN * 2}px)`;
+					orthogonalSizeAdjustment = -(PANEL_MARGIN * 2);
+
+					// Apply radius
+					partElement.style.borderRadius = '16px';
+					partElement.style.border = '1px solid var(--vscode-widget-border)';
+				}
+				else {
+					// Ensure reset for others
+					this.container.style.top = '';
+					this.container.style.height = '';
 				}
 
 				if (adjustedOffset !== offset || adjustedSize !== this.size) {
@@ -429,6 +512,8 @@ class HorizontalViewItem<TLayoutContext, TView extends IView<TLayoutContext>> ex
 		this.container.style.left = `${adjustedOffset}px`;
 		this.container.style.width = `${adjustedSize}px`;
 		console.log(`[HorizontalViewItem] Applied styles - left: ${adjustedOffset}px, width: ${adjustedSize}px`);
+
+		return { adjustedOffset, adjustedSize, orthogonalSizeAdjustment };
 	}
 }
 
