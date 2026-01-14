@@ -162,11 +162,11 @@ export interface IFontTokenOption {
 	/**
 	 * Font size of the token.
 	 */
-	readonly fontSize?: string;
+	readonly fontSizeMultiplier?: number;
 	/**
 	 * Line height of the token.
 	 */
-	readonly lineHeight?: number;
+	readonly lineHeightMultiplier?: number;
 }
 
 /**
@@ -189,8 +189,8 @@ export function serializeFontTokenOptions(): (options: IFontTokenOption) => IFon
 	return (annotation: IFontTokenOption) => {
 		return {
 			fontFamily: annotation.fontFamily ?? '',
-			fontSize: annotation.fontSize ?? '',
-			lineHeight: annotation.lineHeight ?? 0
+			fontSizeMultiplier: annotation.fontSizeMultiplier ?? 0,
+			lineHeightMultiplier: annotation.lineHeightMultiplier ?? 0
 		};
 	};
 }
@@ -202,8 +202,8 @@ export function deserializeFontTokenOptions(): (options: IFontTokenOption) => IF
 	return (annotation: IFontTokenOption) => {
 		return {
 			fontFamily: annotation.fontFamily ? String(annotation.fontFamily) : undefined,
-			fontSize: annotation.fontSize ? String(annotation.fontSize) : undefined,
-			lineHeight: annotation.lineHeight ? Number(annotation.lineHeight) : undefined
+			fontSizeMultiplier: annotation.fontSizeMultiplier ? Number(annotation.fontSizeMultiplier) : undefined,
+			lineHeightMultiplier: annotation.lineHeightMultiplier ? Number(annotation.lineHeightMultiplier) : undefined
 		};
 	};
 }
@@ -348,13 +348,13 @@ export class ModelLineHeightChanged {
 	/**
 	 * The line height on the line.
 	 */
-	public readonly lineHeight: number | null;
+	public readonly lineHeightMultiplier: number | null;
 
-	constructor(ownerId: number, decorationId: string, lineNumber: number, lineHeight: number | null) {
+	constructor(ownerId: number, decorationId: string, lineNumber: number, lineHeightMultiplier: number | null) {
 		this.ownerId = ownerId;
 		this.decorationId = decorationId;
 		this.lineNumber = lineNumber;
-		this.lineHeight = lineHeight;
+		this.lineHeightMultiplier = lineHeightMultiplier;
 	}
 }
 

@@ -185,6 +185,9 @@ div.chat-terminal-content-part.progress-step > div.chat-terminal-output-containe
 .chat-terminal-output-terminal.chat-terminal-output-terminal-no-output {
 	display: none;
 }
+.chat-terminal-output-terminal.chat-terminal-output-terminal-clipped {
+	overflow: hidden;
+}
 .chat-terminal-output {
 	margin: 0;
 	white-space: pre;

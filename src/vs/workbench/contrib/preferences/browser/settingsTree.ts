@@ -963,11 +963,9 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 	}
 
 	protected renderSettingToolbar(container: HTMLElement): ToolBar {
-		const toggleMenuKeybinding = this._keybindingService.lookupKeybinding(SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU);
-		let toggleMenuTitle = localize('settingsContextMenuTitle', "More Actions... ");
-		if (toggleMenuKeybinding) {
-			toggleMenuTitle += ` (${toggleMenuKeybinding && toggleMenuKeybinding.getLabel()})`;
-		}
+		const toggleMenuTitle = this._keybindingService.appendKeybinding(
+			localize('settingsContextMenuTitle', "More Actions... "),
+			SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU);
 
 		const toolbar = new ToolBar(container, this._contextMenuService, {
 			toggleMenuTitle,

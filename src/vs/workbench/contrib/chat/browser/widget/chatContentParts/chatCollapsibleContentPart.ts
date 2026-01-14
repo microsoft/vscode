@@ -45,14 +45,17 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 		this._overrideIcon.set(value, undefined);
 	}
 
+	protected readonly element: ChatTreeItem;
+
 	constructor(
 		private title: IMarkdownString | string,
-		protected readonly context: IChatContentPartRenderContext,
+		context: IChatContentPartRenderContext,
 		private readonly hoverMessage: IMarkdownString | undefined,
 		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
-		this.hasFollowingContent = this.context.contentIndex + 1 < this.context.content.length;
+		this.element = context.element;
+		this.hasFollowingContent = context.contentIndex + 1 < context.content.length;
 	}
 
 	get domNode(): HTMLElement {

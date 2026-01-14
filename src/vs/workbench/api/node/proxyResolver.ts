@@ -105,7 +105,14 @@ export function connectProxyResolver(
 				extHostLogService.trace('ProxyResolver#loadAdditionalCertificates: Loading test certificates');
 				promises.push(Promise.resolve(https.globalAgent.testCertificates as string[]));
 			}
-			return (await Promise.all(promises)).flat();
+			const result = (await Promise.all(promises)).flat();
+			mainThreadTelemetry.$publicLog2<AdditionalCertificatesEvent, AdditionalCertificatesClassification>('additionalCertificates', {
+				count: result.length,
+				isRemote,
+				loadLocalCertificates,
+				useNodeSystemCerts,
+			});
+			return result;
 		},
 		env: process.env,
 	};
@@ -256,6 +263,22 @@ function recordFetchFeatureUse(mainThreadTelemetry: MainThreadTelemetryShape, fe
 		(timer as unknown as NodeJS.Timeout).unref?.();
 	}
 }
+
+type AdditionalCertificatesClassification = {
+	owner: 'chrmarti';
+	comment: 'Tracks the number of additional certificates loaded for TLS connections';
+	count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of additional certificates loaded' };
+	isRemote: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether this is a remote extension host' };
+	loadLocalCertificates: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether local certificates are loaded' };
+	useNodeSystemCerts: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether Node.js system certificates are used' };
+};
+
+type AdditionalCertificatesEvent = {
+	count: number;
+	isRemote: boolean;
+	loadLocalCertificates: boolean;
+	useNodeSystemCerts: boolean;
+};
 
 type ProxyResolveStatsClassification = {
 	owner: 'chrmarti';

@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
-import { IChatMessage, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsService, IUserFriendlyLanguageModel } from '../../common/languageModels.js';
+import { IChatMessage, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsGroup, ILanguageModelsService, IUserFriendlyLanguageModel } from '../../common/languageModels.js';
 
 export class NullLanguageModelsService implements ILanguageModelsService {
 	_serviceBrand: undefined;
@@ -46,6 +47,10 @@ export class NullLanguageModelsService implements ILanguageModelsService {
 		return;
 	}
 
+	async fetchLanguageModelGroups(vendor: string): Promise<ILanguageModelsGroup[]> {
+		return [];
+	}
+
 	async selectLanguageModels(selector: ILanguageModelChatSelector): Promise<string[]> {
 		return [];
 	}
@@ -57,5 +62,16 @@ export class NullLanguageModelsService implements ILanguageModelsService {
 
 	computeTokenLength(identifier: string, message: string | IChatMessage, token: CancellationToken): Promise<number> {
 		throw new Error('Method not implemented.');
+	}
+
+	async configureLanguageModelsProviderGroup(vendorId: string, name?: string): Promise<void> {
+
+	}
+
+	async addLanguageModelsProviderGroup(name: string, vendorId: string, configuration: IStringDictionary<unknown> | undefined): Promise<void> {
+
+	}
+
+	async removeLanguageModelsProviderGroup(vendorId: string, providerGroupName: string): Promise<void> {
 	}
 }

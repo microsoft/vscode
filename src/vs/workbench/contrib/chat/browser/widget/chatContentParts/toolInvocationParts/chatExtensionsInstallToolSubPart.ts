@@ -55,14 +55,13 @@ export class ExtensionsInstallConfirmationWidgetSubPart extends BaseChatToolInvo
 		this._register(chatExtensionsContentPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 		dom.append(this.domNode, chatExtensionsContentPart.domNode);
 
-		if (toolInvocation.state.get().type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+		const state = toolInvocation.state.get();
+		if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
 			const allowLabel = localize('allow', "Allow");
-			const allowKeybinding = keybindingService.lookupKeybinding(AcceptToolConfirmationActionId)?.getLabel();
-			const allowTooltip = allowKeybinding ? `${allowLabel} (${allowKeybinding})` : allowLabel;
+			const allowTooltip = keybindingService.appendKeybinding(allowLabel, AcceptToolConfirmationActionId);
 
 			const cancelLabel = localize('cancel', "Cancel");
-			const cancelKeybinding = keybindingService.lookupKeybinding(CancelChatActionId)?.getLabel();
-			const cancelTooltip = cancelKeybinding ? `${cancelLabel} (${cancelKeybinding})` : cancelLabel;
+			const cancelTooltip = keybindingService.appendKeybinding(cancelLabel, CancelChatActionId);
 			const enableAllowButtonEvent = this._register(new Emitter<boolean>());
 
 			const buttons: IChatConfirmationButton<ConfirmedReason>[] = [
@@ -85,8 +84,8 @@ export class ExtensionsInstallConfirmationWidgetSubPart extends BaseChatToolInvo
 				ChatConfirmationWidget<ConfirmedReason>,
 				context,
 				{
-					title: toolInvocation.confirmationMessages?.title ?? localize('installExtensions', "Install Extensions"),
-					message: toolInvocation.confirmationMessages?.message ?? localize('installExtensionsConfirmation', "Click the Install button on the extension and then press Allow when finished."),
+					title: state.confirmationMessages?.title ?? localize('installExtensions', "Install Extensions"),
+					message: state.confirmationMessages?.message ?? localize('installExtensionsConfirmation', "Click the Install button on the extension and then press Allow when finished."),
 					buttons,
 				}
 			));

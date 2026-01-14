@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/KapitanOczywisty/language-php/commit/b17fdadac1756fc13a0853c26fca2f0b4495c0bd",
+	"version": "https://github.com/KapitanOczywisty/language-php/commit/6941b924add3b2587a5be789248176edf5f14595",
 	"scopeName": "source.php",
 	"patterns": [
 		{
@@ -982,8 +982,12 @@
 			"name": "keyword.operator.arithmetic.php"
 		},
 		{
-			"match": "(?i)(!|&&|\\|\\|)|\\b(and|or|xor|as)\\b",
+			"match": "(?i)(!|&&|\\|\\|)|\\b(and|or|xor)\\b",
 			"name": "keyword.operator.logical.php"
+		},
+		{
+			"match": "(?i)\\bas\\b",
+			"name": "keyword.operator.as.php"
 		},
 		{
 			"include": "#function-call"

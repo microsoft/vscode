@@ -36,7 +36,7 @@ declare module 'vscode' {
 		 * Whether or not this will be selected by default in the model picker
 		 * NOT BEING FINALIZED
 		 */
-		readonly isDefault?: boolean;
+		readonly isDefault?: boolean | { [K in ChatLocation]?: boolean };
 
 		/**
 		 * Whether or not the model will show up in the model picker immediately upon being made known via {@linkcode LanguageModelChatProvider.provideLanguageModelChatInformation}.
@@ -78,6 +78,20 @@ declare module 'vscode' {
 	export type LanguageModelResponsePart2 = LanguageModelResponsePart | LanguageModelDataPart | LanguageModelThinkingPart;
 
 	export interface LanguageModelChatProvider<T extends LanguageModelChatInformation = LanguageModelChatInformation> {
+		provideLanguageModelChatInformation(options: PrepareLanguageModelChatModelOptions, token: CancellationToken): ProviderResult<T[]>;
 		provideLanguageModelChatResponse(model: T, messages: readonly LanguageModelChatRequestMessage[], options: ProvideLanguageModelChatResponseOptions, progress: Progress<LanguageModelResponsePart2>, token: CancellationToken): Thenable<void>;
+	}
+
+	/**
+	 * The list of options passed into {@linkcode LanguageModelChatProvider.provideLanguageModelChatInformation}
+	 */
+	export interface PrepareLanguageModelChatModelOptions {
+		/**
+		 * Configuration for the model. This is only present if the provider has declared that it requires configuration via the `configuration` property.
+		 * The object adheres to the schema that the extension provided during declaration.
+		 */
+		readonly configuration?: {
+			readonly [key: string]: any;
+		};
 	}
 }

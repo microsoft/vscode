@@ -7,7 +7,7 @@ import { memoize } from '../../../../base/common/decorators.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { StringBuilder } from '../../../common/core/stringBuilder.js';
-import { FontStyle, TokenMetadata } from '../../../common/encodedTokenAttributes.js';
+import { ColorId, FontStyle, TokenMetadata } from '../../../common/encodedTokenAttributes.js';
 import type { DecorationStyleCache } from '../css/decorationStyleCache.js';
 import { ensureNonNullable } from '../gpuUtils.js';
 import { type IBoundingBox, type IGlyphRasterizer, type IRasterizedGlyph } from './raster.js';
@@ -118,7 +118,7 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 		const subPixelXOffset = (tokenMetadata & 0b1111) / 10;
 
 		const bgId = TokenMetadata.getBackground(tokenMetadata);
-		const bg = colorMap[bgId];
+		const bg = colorMap[bgId] ?? colorMap[ColorId.DefaultBackground];
 
 		const decorationStyleSet = this._decorationStyleCache.getStyleSet(decorationStyleSetId);
 

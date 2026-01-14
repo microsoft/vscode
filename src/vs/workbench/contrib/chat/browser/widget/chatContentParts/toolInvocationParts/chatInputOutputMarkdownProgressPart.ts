@@ -96,7 +96,7 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 			this.getAutoApproveMessageContent(),
 			context,
 			toCodePart(input),
-			processedOutput && {
+			processedOutput && processedOutput.length > 0 ? {
 				parts: processedOutput.map((o, i): ChatCollapsibleIOPart => {
 					const permalinkBasename = o.type === 'ref' || o.uri
 						? basename(o.uri!)
@@ -124,7 +124,7 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 						return { kind: 'data', value: decoded || new TextEncoder().encode(o.value), mimeType: o.mimeType, uri: permalinkUri, audience: o.audience };
 					}
 				}),
-			},
+			} : undefined,
 			isError,
 			ChatInputOutputMarkdownProgressPart._expandedByDefault.get(toolInvocation) ?? false,
 		));

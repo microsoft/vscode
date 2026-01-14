@@ -22,8 +22,7 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 	const { codePath, workspacePath, extensionsPath, userDataDir, remote, logger, logsPath, crashesPath, extraArgs } = options;
 	const env = { ...process.env };
 
-	const args = [
-		workspacePath,
+	const args: string[] = [
 		'--skip-release-notes',
 		'--skip-welcome',
 		'--disable-telemetry',
@@ -35,6 +34,12 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 		'--disable-workspace-trust',
 		`--logsPath=${logsPath}`
 	];
+
+	// Only add workspace path if provided
+	if (workspacePath) {
+		args.unshift(workspacePath);
+	}
+
 	if (options.useInMemorySecretStorage) {
 		args.push('--use-inmemory-secretstorage');
 	}
@@ -49,6 +54,9 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 	}
 
 	if (remote) {
+		if (!workspacePath) {
+			throw new Error('Workspace path is required when running remote');
+		}
 		// Replace workspace path with URI
 		args[0] = `--${workspacePath.endsWith('.code-workspace') ? 'file' : 'folder'}-uri=vscode-remote://test+test/${URI.file(workspacePath).path}`;
 

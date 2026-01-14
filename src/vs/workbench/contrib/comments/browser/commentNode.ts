@@ -413,6 +413,14 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this._reactionsActionBar.clear();
 		this._reactionActions.clear();
 
+		const hasReactionHandler = this.commentService.hasReactionHandler(this.owner);
+		const reactions = this.comment.commentReactions?.filter(reaction => !!reaction.count) || [];
+
+		// Only create the container if there are reactions to show or if there's a reaction handler
+		if (reactions.length === 0 && !hasReactionHandler) {
+			return;
+		}
+
 		this._reactionActionsContainer = dom.append(commentDetailsContainer, dom.$('div.comment-reactions'));
 		this._reactionsActionBar.value = new ActionBar(this._reactionActionsContainer, {
 			actionViewItemProvider: (action, options) => {
@@ -432,8 +440,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			}
 		});
 
-		const hasReactionHandler = this.commentService.hasReactionHandler(this.owner);
-		this.comment.commentReactions?.filter(reaction => !!reaction.count).map(reaction => {
+		reactions.map(reaction => {
 			const action = this._reactionActions.add(new ReactionAction(`reaction.${reaction.label}`, `${reaction.label}`, reaction.hasReacted && (reaction.canEdit || hasReactionHandler) ? 'active' : '', (reaction.canEdit || hasReactionHandler), async () => {
 				try {
 					await this.commentService.toggleReaction(this.owner, this.resource, this.commentThread, this.comment, reaction);

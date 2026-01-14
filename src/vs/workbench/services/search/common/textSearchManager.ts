@@ -222,6 +222,7 @@ export class TextSearchManager {
 			},
 			followSymlinks: !fq.ignoreSymlinks,
 			encoding: (fq.fileEncoding && this.fileUtils.toCanonicalName(fq.fileEncoding)) ?? '',
+			ignoreGlobCase: this.query.ignoreGlobCase || fq.ignoreGlobCase,
 		};
 		return options;
 	}
@@ -259,6 +260,7 @@ export class TextSearchResultsCollector {
 
 		if (!this._currentFileMatch) {
 			this._currentFolderIdx = folderIdx;
+			this._currentUri = data.uri;
 			this._currentFileMatch = {
 				resource: data.uri,
 				results: []

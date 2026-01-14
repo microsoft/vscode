@@ -80,7 +80,7 @@ suite('CommandLineFileWriteAnalyzer', () => {
 				os: OperatingSystem.Linux,
 				treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
 				terminalToolSessionId: 'test',
-				chatSessionId: 'test',
+				chatSessionResource: undefined,
 			};
 
 			const result = await analyzer.analyze(options);
@@ -148,7 +148,7 @@ suite('CommandLineFileWriteAnalyzer', () => {
 					os: OperatingSystem.Linux,
 					treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
 					terminalToolSessionId: 'test',
-					chatSessionId: 'test',
+					chatSessionResource: undefined,
 				};
 
 				const result = await analyzer.analyze(options);
@@ -185,7 +185,7 @@ suite('CommandLineFileWriteAnalyzer', () => {
 				os: OperatingSystem.Windows,
 				treeSitterLanguage: TreeSitterCommandParserLanguage.PowerShell,
 				terminalToolSessionId: 'test',
-				chatSessionId: 'test',
+				chatSessionResource: undefined,
 			};
 
 			const result = await analyzer.analyze(options);
@@ -274,7 +274,7 @@ suite('CommandLineFileWriteAnalyzer', () => {
 				os: OperatingSystem.Linux,
 				treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
 				terminalToolSessionId: 'test',
-				chatSessionId: 'test',
+				chatSessionResource: undefined,
 			};
 
 			const result = await analyzer.analyze(options);
@@ -306,7 +306,7 @@ suite('CommandLineFileWriteAnalyzer', () => {
 				os: OperatingSystem.Linux,
 				treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
 				terminalToolSessionId: 'test',
-				chatSessionId: 'test',
+				chatSessionResource: undefined,
 			};
 
 			const result = await analyzer.analyze(options);
@@ -335,7 +335,7 @@ suite('CommandLineFileWriteAnalyzer', () => {
 				os: OperatingSystem.Linux,
 				treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
 				terminalToolSessionId: 'test',
-				chatSessionId: 'test',
+				chatSessionResource: undefined,
 			};
 
 			const result = await analyzer.analyze(options);
@@ -365,7 +365,7 @@ suite('CommandLineFileWriteAnalyzer', () => {
 				os: OperatingSystem.Linux,
 				treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
 				terminalToolSessionId: 'test',
-				chatSessionId: 'test',
+				chatSessionResource: undefined,
 			};
 
 			const result = await analyzer.analyze(options);
@@ -404,7 +404,7 @@ suite('CommandLineFileWriteAnalyzer', () => {
 				os: OperatingSystem.Linux,
 				treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
 				terminalToolSessionId: 'test',
-				chatSessionId: 'test',
+				chatSessionResource: undefined,
 			};
 
 			const result = await analyzer.analyze(options);

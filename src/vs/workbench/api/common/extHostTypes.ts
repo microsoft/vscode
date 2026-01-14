@@ -3340,17 +3340,6 @@ export class ChatResponseNotebookEditPart implements vscode.ChatResponseNotebook
 	}
 }
 
-export class ChatPrepareToolInvocationPart {
-	toolName: string;
-	/**
-	 * @param toolName The name of the tool being prepared for invocation.
-	 */
-	constructor(toolName: string) {
-		this.toolName = toolName;
-	}
-}
-
-
 export interface ChatTerminalToolInvocationData2 {
 	commandLine: {
 		original: string;

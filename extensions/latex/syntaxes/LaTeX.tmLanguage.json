@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/84ce12aa6be384369ff218ac25efb27e6f34e78c",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/620451dfbdcd7eb36dcd79633e38c62099c13e0e",
 	"name": "LaTeX",
 	"scopeName": "text.tex.latex",
 	"patterns": [
@@ -209,7 +209,7 @@
 			"name": "meta.function.section.$3.latex",
 			"patterns": [
 				{
-					"include": "text.tex#braces"
+					"include": "#braces"
 				},
 				{
 					"include": "$self"
@@ -241,7 +241,7 @@
 					"name": "meta.function.emph.latex",
 					"patterns": [
 						{
-							"include": "text.tex#braces"
+							"include": "#braces"
 						},
 						{
 							"include": "$self"
@@ -272,7 +272,7 @@
 					"name": "meta.function.textit.latex",
 					"patterns": [
 						{
-							"include": "text.tex#braces"
+							"include": "#braces"
 						},
 						{
 							"include": "$self"
@@ -302,7 +302,7 @@
 					"name": "meta.function.textbf.latex",
 					"patterns": [
 						{
-							"include": "text.tex#braces"
+							"include": "#braces"
 						},
 						{
 							"include": "$self"
@@ -332,7 +332,7 @@
 					"name": "meta.function.texttt.latex",
 					"patterns": [
 						{
-							"include": "text.tex#braces"
+							"include": "#braces"
 						},
 						{
 							"include": "$self"
@@ -3622,7 +3622,7 @@
 		"all-balanced-env": {
 			"patterns": [
 				{
-					"begin": "(?:\\s*)((\\\\)begin)(\\{)((?:\\+?array|equation|(?:IEEE|sub)?eqnarray|multline|align|aligned|alignat|alignedat|flalign|flaligned|flalignat|split|gather|gathered|\\+?cases|(?:display)?math|\\+?[a-zA-Z]*matrix|[pbBvV]?NiceMatrix|[pbBvV]?NiceArray|(?:(?:arg)?(?:mini|maxi)))(?:\\*|!)?)(\\})(\\s*\\n)?",
+					"begin": "(?:\\s*)((\\\\)begin)(\\{)((?:\\+?array|equation|(?:IEEE|sub)?eqnarray|multline|align|aligned|alignat|alignedat|flalign|flaligned|flalignat|split|gather|gathered|(?:\\+|d|r|dr)?cases|(?:display)?math|\\+?[a-zA-Z]*matrix|[pbBvV]?NiceMatrix|[pbBvV]?NiceArray|(?:(?:arg)?(?:mini|maxi)))(?:\\*|!)?)(\\})(\\s*\\n)?",
 					"captures": {
 						"1": {
 							"name": "support.function.be.latex"
@@ -3921,10 +3921,51 @@
 					"include": "#column-specials"
 				},
 				{
-					"include": "text.tex#braces"
+					"include": "#braces"
 				},
 				{
 					"include": "text.tex"
+				}
+			]
+		},
+		"braces": {
+			"begin": "(?<!\\\\)\\{",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.group.begin.latex"
+				}
+			},
+			"end": "(?<!\\\\)\\}",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.group.end.latex"
+				}
+			},
+			"name": "meta.group.braces.latex",
+			"patterns": [
+				{
+					"include": "#text-font-macro"
+				},
+				{
+					"include": "#citation-macro"
+				},
+				{
+					"include": "#references-macro"
+				},
+				{
+					"include": "#label-macro"
+				},
+				{
+					"include": "#macro-with-args-tokenizer"
+				},
+				{
+					"include": "#all-other-macro"
+				},
+				{
+					"include": "text.tex"
+				},
+				{
+					"include": "#braces"
 				}
 			]
 		},
@@ -3997,7 +4038,7 @@
 					},
 					"patterns": [
 						{
-							"include": "text.tex#braces"
+							"include": "#braces"
 						},
 						{
 							"include": "$self"
@@ -4033,7 +4074,7 @@
 					},
 					"patterns": [
 						{
-							"include": "text.tex#braces"
+							"include": "#braces"
 						},
 						{
 							"include": "$self"
@@ -4268,7 +4309,7 @@
 					"include": "#column-specials"
 				},
 				{
-					"include": "text.tex#braces"
+					"include": "#braces"
 				},
 				{
 					"include": "text.tex"

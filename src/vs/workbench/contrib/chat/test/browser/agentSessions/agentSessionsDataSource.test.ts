@@ -65,6 +65,7 @@ suite('AgentSessionsDataSource', () => {
 			onDidChange: Event.None,
 			groupResults: () => options.groupResults,
 			exclude: options.exclude ?? (() => false),
+			getExcludes: () => ({ providers: [], states: [], archived: false, read: false })
 		};
 	}
 

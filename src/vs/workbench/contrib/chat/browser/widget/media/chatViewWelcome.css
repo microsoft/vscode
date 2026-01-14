@@ -85,13 +85,15 @@ div.chat-welcome-view {
 		max-width: 100%;
 		padding: 0 20px;
 		margin: 0 auto;
-		color: var(--vscode-input-placeholderForeground);
+		color: var(--vscode-foreground);
 
 		a {
 			color: var(--vscode-textLink-foreground);
 		}
 
+		a:hover,
 		a:focus {
+			text-decoration: underline;
 			outline: 1px solid var(--vscode-focusBorder);
 		}
 
@@ -104,12 +106,21 @@ div.chat-welcome-view {
 	.monaco-button {
 		display: inline-block;
 		width: initial;
-		padding: 4px 7px;
 	}
 
 	& > .chat-welcome-view-tips {
 		max-width: 250px;
 		margin: 10px 5px 0px;
+
+		a {
+			color: var(--vscode-textLink-foreground);
+		}
+
+		a:hover,
+		a:focus {
+			text-decoration: underline;
+			outline: 1px solid var(--vscode-focusBorder);
+		}
 
 		.rendered-markdown {
 			gap: 6px;
@@ -130,7 +141,7 @@ div.chat-welcome-view {
 	}
 
 	& > .chat-welcome-view-disclaimer {
-		color: var(--vscode-input-placeholderForeground);
+		color: var(--vscode-foreground);
 		text-align: center;
 		margin: -16px auto;
 		max-width: 400px;
@@ -140,7 +151,9 @@ div.chat-welcome-view {
 			color: var(--vscode-textLink-foreground);
 		}
 
+		a:hover,
 		a:focus {
+			text-decoration: underline;
 			outline: 1px solid var(--vscode-focusBorder);
 		}
 	}

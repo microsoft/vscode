@@ -135,7 +135,12 @@ declare module 'vscode' {
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		handleListEndOfLifetime?(list: InlineCompletionList, reason: InlineCompletionsDisposeReason): void;
 
-		readonly onDidChange?: Event<void>;
+		/**
+		 * Fired when the provider wants to trigger a new completion request.
+		 * Can optionally pass a {@link InlineCompletionChangeHint} which will be
+		 * included in the {@link InlineCompletionContext.changeHint} of the subsequent request.
+		 */
+		readonly onDidChange?: Event<InlineCompletionChangeHint | void>;
 
 		readonly modelInfo?: InlineCompletionModelInfo;
 		readonly onDidChangeModelInfo?: Event<void>;
@@ -199,6 +204,18 @@ declare module 'vscode' {
 
 	export type InlineCompletionsDisposeReason = { kind: InlineCompletionsDisposeReasonKind };
 
+	/**
+	 * Arbitrary data that the provider can pass when firing {@link InlineCompletionItemProvider.onDidChange}.
+	 * This data is passed back to the provider in {@link InlineCompletionContext.changeHint}.
+	 */
+	export interface InlineCompletionChangeHint {
+		/**
+		 * Arbitrary data that the provider can use to identify what triggered the change.
+		 * This data must be JSON serializable.
+		 */
+		readonly data?: unknown;
+	}
+
 	export interface InlineCompletionContext {
 		readonly userPrompt?: string;
 
@@ -207,6 +224,12 @@ declare module 'vscode' {
 		readonly requestIssuedDateTime: number;
 
 		readonly earliestShownDateTime: number;
+
+		/**
+		 * The change hint that was passed to {@link InlineCompletionItemProvider.onDidChange}.
+		 * Only set if this request was triggered by such an event.
+		 */
+		readonly changeHint?: InlineCompletionChangeHint;
 	}
 
 	export interface PartialAcceptInfo {

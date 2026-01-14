@@ -16,7 +16,7 @@ import { ChatResponseReferencePartStatusKind, IChatContentReference } from '../.
 import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget, PromptFileAttachmentWidget, PromptTextAttachmentWidget, SCMHistoryItemAttachmentWidget, SCMHistoryItemChangeAttachmentWidget, SCMHistoryItemChangeRangeAttachmentWidget, TerminalCommandAttachmentWidget, ToolSetOrToolItemAttachmentWidget } from '../../attachments/chatAttachmentWidgets.js';
 
 export interface IChatAttachmentsContentPartOptions {
-	readonly variables: IChatRequestVariableEntry[];
+	readonly variables: readonly IChatRequestVariableEntry[];
 	readonly contentReferences?: ReadonlyArray<IChatContentReference>;
 	readonly domNode?: HTMLElement;
 	readonly limit?: number;
@@ -29,7 +29,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 	private readonly _contextResourceLabels: ResourceLabels;
 	private _showingAll = false;
 
-	private readonly variables: IChatRequestVariableEntry[];
+	private readonly variables: readonly IChatRequestVariableEntry[];
 	private readonly contentReferences: ReadonlyArray<IChatContentReference>;
 	private readonly limit?: number;
 	public readonly domNode: HTMLElement | undefined;
@@ -70,7 +70,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 		}
 	}
 
-	private getVisibleAttachments(): IChatRequestVariableEntry[] {
+	private getVisibleAttachments(): readonly IChatRequestVariableEntry[] {
 		if (!this.limit || this._showingAll) {
 			return this.variables;
 		}

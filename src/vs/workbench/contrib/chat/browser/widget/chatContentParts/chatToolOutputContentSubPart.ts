@@ -59,7 +59,7 @@ export class ChatToolOutputContentSubPart extends Disposable {
 	) {
 		super();
 		this.domNode = this.createOutputContents();
-		this._currentWidth = context.currentWidth();
+		this._currentWidth = context.currentWidth.get();
 	}
 
 	private toMdString(value: string | IMarkdownString): MarkdownString {

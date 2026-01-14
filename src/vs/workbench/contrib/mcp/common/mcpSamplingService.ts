@@ -18,6 +18,7 @@ import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { ChatImageMimeType, ChatMessageRole, IChatMessage, IChatMessagePart, ILanguageModelsService } from '../../chat/common/languageModels.js';
 import { McpCommandIds } from './mcpCommandIds.js';
 import { IMcpServerSamplingConfiguration, mcpServerSamplingSection } from './mcpConfiguration.js';
@@ -232,7 +233,7 @@ export class McpSamplingService extends Disposable implements IMcpSamplingServic
 		}
 
 		// 2. Get the configured models, or the default model(s)
-		const foundModelIdsDeep = config.allowedModels?.filter(m => !!this._languageModelsService.lookupLanguageModel(m)) || this._languageModelsService.getLanguageModelIds().filter(m => this._languageModelsService.lookupLanguageModel(m)?.isDefault);
+		const foundModelIdsDeep = config.allowedModels?.filter(m => !!this._languageModelsService.lookupLanguageModel(m)) || this._languageModelsService.getLanguageModelIds().filter(m => this._languageModelsService.lookupLanguageModel(m)?.isDefaultForLocation[ChatAgentLocation.Chat]);
 
 		const foundModelIds = foundModelIdsDeep.flat().sort((a, b) => b.length - a.length); // Sort by length to prefer most specific
 

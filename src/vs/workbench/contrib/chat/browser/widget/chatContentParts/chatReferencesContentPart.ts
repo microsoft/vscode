@@ -176,14 +176,14 @@ export class ChatUsedReferencesListContentPart extends ChatCollapsibleListConten
 	}
 
 	protected override isExpanded(): boolean {
-		const element = this.context.element as IChatResponseViewModel;
+		const element = this.element as IChatResponseViewModel;
 		return element.usedReferencesExpanded ?? !!(
 			this.options.expandedWhenEmptyResponse && element.response.value.length === 0
 		);
 	}
 
 	protected override setExpanded(value: boolean): void {
-		const element = this.context.element as IChatResponseViewModel;
+		const element = this.element as IChatResponseViewModel;
 		element.usedReferencesExpanded = !this.isExpanded();
 	}
 }

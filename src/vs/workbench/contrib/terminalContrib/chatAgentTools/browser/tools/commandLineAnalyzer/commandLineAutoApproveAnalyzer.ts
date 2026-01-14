@@ -51,9 +51,9 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 	}
 
 	async analyze(options: ICommandLineAnalyzerOptions): Promise<ICommandLineAnalyzerResult> {
-		if (options.chatSessionId && this._terminalChatService.hasChatSessionAutoApproval(options.chatSessionId)) {
+		if (options.chatSessionResource && this._terminalChatService.hasChatSessionAutoApproval(options.chatSessionResource)) {
 			this._log('Session has auto approval enabled, auto approving command');
-			const disableUri = createCommandUri(TerminalChatCommandId.DisableSessionAutoApproval, options.chatSessionId);
+			const disableUri = createCommandUri(TerminalChatCommandId.DisableSessionAutoApproval, options.chatSessionResource);
 			const mdTrustSettings = {
 				isTrusted: {
 					enabledCommands: [TerminalChatCommandId.DisableSessionAutoApproval]
@@ -89,8 +89,8 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 			};
 		}
 
-		const subCommandResults = await Promise.all(subCommands.map(e => this._commandLineAutoApprover.isCommandAutoApproved(e, options.shell, options.os, options.cwd, options.chatSessionId)));
-		const commandLineResult = this._commandLineAutoApprover.isCommandLineAutoApproved(trimmedCommandLine, options.chatSessionId);
+		const subCommandResults = await Promise.all(subCommands.map(e => this._commandLineAutoApprover.isCommandAutoApproved(e, options.shell, options.os, options.cwd, options.chatSessionResource)));
+		const commandLineResult = this._commandLineAutoApprover.isCommandLineAutoApproved(trimmedCommandLine, options.chatSessionResource);
 		const autoApproveReasons: string[] = [
 			...subCommandResults.map(e => e.reason),
 			commandLineResult.reason,
@@ -211,12 +211,13 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 					isAutoApproveRule(e.rule))
 				.map(e => {
 					// Session rules cannot be actioned currently so no link
+					const escapedSourceText = e.rule.sourceText.replaceAll('$', '\\$');
 					if (e.rule.sourceTarget === 'session') {
-						return localize('autoApproveRule.sessionIndicator', '{0} (session)', `\`${e.rule.sourceText}\``);
+						return localize('autoApproveRule.sessionIndicator', '{0} (session)', `\`${escapedSourceText}\``);
 					}
 					const settingsUri = createCommandUri(TerminalChatCommandId.OpenTerminalSettingsLink, e.rule.sourceTarget);
 					const tooltip = localize('ruleTooltip', 'View rule in settings');
-					let label = e.rule.sourceText;
+					let label = escapedSourceText;
 					switch (e.rule?.sourceTarget) {
 						case ConfigurationTarget.DEFAULT:
 							label = `${label} (default)`;

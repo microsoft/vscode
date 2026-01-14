@@ -1,0 +1,93 @@
+pr: none
+
+trigger: none
+
+parameters:
+  - name: BUILD_COMMIT
+    displayName: Published Build Commit
+    type: string
+
+  - name: BUILD_QUALITY
+    displayName: Published Build Quality
+    type: string
+    default: insider
+    values:
+      - exploration
+      - insider
+      - stable
+
+  - name: NPM_REGISTRY
+    displayName: Custom NPM Registry URL
+    type: string
+    default: "https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/"
+
+variables:
+  - name: skipComponentGovernanceDetection
+    value: true
+  - name: Codeql.SkipTaskAutoInjection
+    value: true
+  - name: BUILD_COMMIT
+    value: ${{ parameters.BUILD_COMMIT }}
+  - name: BUILD_QUALITY
+    value: ${{ parameters.BUILD_QUALITY }}
+  - name: NPM_REGISTRY
+    value: ${{ parameters.NPM_REGISTRY }}
+
+name: "$(Date:yyyyMMdd).$(Rev:r) (${{ parameters.BUILD_QUALITY }} ${{ parameters.BUILD_COMMIT }})"
+
+resources:
+  repositories:
+    - repository: 1ESPipelines
+      type: git
+      name: 1ESPipelineTemplates/1ESPipelineTemplates
+      ref: refs/tags/release
+
+extends:
+  template: v1/1ES.Official.PipelineTemplate.yml@1esPipelines
+  parameters:
+    sdl:
+      tsa:
+        enabled: false
+      codeql:
+        compiled:
+          enabled: false
+          justificationForDisabling: "Sanity tests only, no code compilation"
+      credscan:
+        suppressionsFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/CredScanSuppressions.json
+      eslint:
+        enabled: false
+      sourceAnalysisPool: 1es-windows-2022-x64
+      createAdoIssuesForJustificationsForDisablement: false
+    stages:
+      - stage: sanity_tests
+        displayName: Run Sanity Tests
+        jobs:
+          - template: build/azure-pipelines/common/sanity-tests.yml@self
+            parameters:
+              name: Windows_x64
+              displayName: Windows x64 Sanity Tests
+              poolName: 1es-windows-2022-x64
+              os: windows
+
+          - template: build/azure-pipelines/common/sanity-tests.yml@self
+            parameters:
+              name: Windows_arm64
+              displayName: Windows arm64 Sanity Tests (no runtime)
+              poolName: 1es-windows-2022-x64
+              os: windows
+              args: --no-runtime-check --grep "win32-arm64"
+
+          - template: build/azure-pipelines/common/sanity-tests.yml@self
+            parameters:
+              name: macOS_x64
+              displayName: MacOS x64 Sanity Tests (no runtime)
+              poolName: AcesShared
+              os: macOS
+              args: --no-runtime-check --grep "darwin-x64"
+
+          - template: build/azure-pipelines/common/sanity-tests.yml@self
+            parameters:
+              name: macOS_arm64
+              displayName: MacOS arm64 Sanity Tests
+              poolName: AcesShared
+              os: macOS

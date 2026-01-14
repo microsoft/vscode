@@ -1,0 +1,72 @@
+parameters:
+  - name: name
+    type: string
+  - name: displayName
+    type: string
+  - name: poolName
+    type: string
+  - name: os
+    type: string
+  - name: args
+    type: string
+    default: ""
+
+jobs:
+  - job: ${{ parameters.name }}
+    displayName: ${{ parameters.displayName }}
+    pool:
+      name: ${{ parameters.poolName }}
+      os: ${{ parameters.os }}
+    timeoutInMinutes: 30
+    variables:
+      SANITY_TEST_LOGS: $(Build.SourcesDirectory)/.build/sanity-test-logs
+      LOG_FILE: $(SANITY_TEST_LOGS)/results.xml
+    templateContext:
+      outputs:
+        - output: pipelineArtifact
+          targetPath: $(SANITY_TEST_LOGS)
+          artifactName: sanity-test-logs-${{ parameters.name }}-$(System.JobAttempt)
+          displayName: Sanity Tests Logs
+          sbomEnabled: false
+          isProduction: false
+          condition: succeededOrFailed()
+    steps:
+      - template: ./checkout.yml@self
+
+      - task: NodeTool@0
+        inputs:
+          versionSource: fromFile
+          versionFilePath: .nvmrc
+        displayName: Install Node.js
+
+      - bash: |
+          npm config set registry "$(NPM_REGISTRY)"
+          echo "##vso[task.setvariable variable=NPMRC_PATH]$(npm config get userconfig)"
+        condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+        displayName: Configure NPM Registry
+
+      - task: npmAuthenticate@0
+        inputs:
+          workingFile: $(NPMRC_PATH)
+        condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+        displayName: Authenticate with NPM Registry
+
+      - script: npm ci
+        workingDirectory: ./test/sanity
+        displayName: Install Dependencies
+
+      - script: npm run compile
+        workingDirectory: ./test/sanity
+        displayName: Compile Sanity Tests
+
+      - script: npm run start -- -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -v ${{ parameters.args }}
+        workingDirectory: ./test/sanity
+        displayName: Run Sanity Tests
+
+      - task: PublishTestResults@2
+        inputs:
+          testResultsFormat: JUnit
+          testResultsFiles: $(LOG_FILE)
+          testRunTitle: ${{ parameters.displayName }}
+        condition: succeededOrFailed()
+        displayName: Publish Test Results

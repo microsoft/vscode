@@ -67,6 +67,22 @@
 			}
 		}
 
+		.chat-thinking-tool-wrapper .chat-markdown-part.rendered-markdown {
+			padding: 5px 12px 4px 20px;
+
+			.status-icon.codicon-check {
+				display: none;
+			}
+
+			.code:has(.chat-codeblock-pill-container) {
+				margin-bottom: 0px;
+
+				.chat-codeblock-pill-container {
+					margin-bottom: 0px;
+				}
+			}
+		}
+
 		/* chain of thought lines */
 		.chat-thinking-tool-wrapper,
 		.chat-thinking-item.markdown-content {

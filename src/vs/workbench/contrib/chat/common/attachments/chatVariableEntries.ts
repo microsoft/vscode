@@ -16,6 +16,8 @@ import { ISCMHistoryItem } from '../../../scm/common/history.js';
 import { IChatContentReference } from '../chatService/chatService.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
 import { IToolData, ToolSet } from '../tools/languageModelToolsService.js';
+import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
+import { Mutable } from '../../../../../base/common/types.js';
 
 
 interface IBaseChatRequestVariableEntry {
@@ -287,6 +289,43 @@ export namespace IChatRequestVariableEntry {
 			: isLocation(entry.value)
 				? entry.value.uri
 				: undefined;
+	}
+
+	export function toExport(v: IChatRequestVariableEntry): IChatRequestVariableEntry {
+		if (v.value instanceof Uint8Array) {
+			// 'dup' here is needed otherwise TS complains about the narrowed `value` in a spread operation
+			const dup: Mutable<IChatRequestVariableEntry> = { ...v };
+			dup.value = { $base64: encodeBase64(VSBuffer.wrap(v.value)) };
+			return dup;
+		}
+
+		return v;
+	}
+
+	export function fromExport(v: IChatRequestVariableEntry): IChatRequestVariableEntry {
+		// Old variables format
+		// eslint-disable-next-line local/code-no-in-operator
+		if (v && 'values' in v && Array.isArray(v.values)) {
+			return {
+				kind: 'generic',
+				id: v.id ?? '',
+				name: v.name,
+				value: v.values[0]?.value,
+				range: v.range,
+				modelDescription: v.modelDescription,
+				references: v.references
+			};
+		} else {
+			// eslint-disable-next-line local/code-no-in-operator
+			if (v.value && typeof v.value === 'object' && '$base64' in v.value && typeof v.value.$base64 === 'string') {
+				// 'dup' here is needed otherwise TS complains about the narrowed `value` in a spread operation
+				const dup: Mutable<IChatRequestVariableEntry> = { ...v };
+				dup.value = decodeBase64(v.value.$base64).buffer;
+				return dup;
+			}
+
+			return v;
+		}
 	}
 }
 

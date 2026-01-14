@@ -53,7 +53,7 @@
     "Other"
   ],
   "activationEvents": [
-    "workspaceContains:src/vs/loader.js"
+    "workspaceContains:src/vscode-dts/vscode.d.ts"
   ],
   "workspaceTrust": {
     "request": "onDemand",

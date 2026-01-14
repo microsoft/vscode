@@ -350,7 +350,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 			this._onDidChangeAgents.fire(undefined);
 
 			if (entry.data.isDefault) {
-				this._hasDefaultAgent.set(Iterable.some(this._agents.values(), agent => agent.data.isDefault));
+				this._hasDefaultAgent.set(Iterable.some(this._agents.values(), agent => agent.data.isDefault && !!agent.impl));
 			}
 		});
 	}

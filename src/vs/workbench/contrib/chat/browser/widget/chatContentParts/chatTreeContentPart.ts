@@ -19,13 +19,12 @@ import { WorkbenchCompressibleAsyncDataTree } from '../../../../../../platform/l
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { IResourceLabel, ResourceLabels } from '../../../../../browser/labels.js';
-import { ChatTreeItem } from '../../chat.js';
-import { IDisposableReference, ResourcePool } from './chatCollections.js';
-import { IChatContentPart } from './chatContentParts.js';
-import { IChatProgressRenderableResponseContent } from '../../../common/model/chatModel.js';
-import { IChatResponseProgressFileTreeData } from '../../../common/chatService/chatService.js';
 import { createFileIconThemableTreeContainerScope } from '../../../../files/browser/views/explorerView.js';
 import { IFilesConfiguration } from '../../../../files/common/files.js';
+import { IChatResponseProgressFileTreeData } from '../../../common/chatService/chatService.js';
+import { IChatProgressRenderableResponseContent } from '../../../common/model/chatModel.js';
+import { IDisposableReference, ResourcePool } from './chatCollections.js';
+import { IChatContentPart } from './chatContentParts.js';
 
 const $ = dom.$;
 
@@ -41,9 +40,7 @@ export class ChatTreeContentPart extends Disposable implements IChatContentPart 
 
 	constructor(
 		data: IChatResponseProgressFileTreeData,
-		element: ChatTreeItem,
 		treePool: TreePool,
-		treeDataIndex: number,
 		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super();

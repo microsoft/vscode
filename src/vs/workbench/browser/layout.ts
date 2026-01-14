@@ -1118,6 +1118,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.whenReadyPromise.complete();
 
 			Promises.settled(layoutRestoredPromises).finally(() => {
+				if (
+					this.editorService.editors.length === 0 && 			// no editors opened or restored
+					this.isVisible(Parts.AUXILIARYBAR_PART) && 			// auxiliary bar is visible
+					!this.hasFocus(Parts.AUXILIARYBAR_PART) && 			// auxiliary bar does not have focus yet
+					!this.environmentService.enableSmokeTestDriver 		// not in smoke test mode (where focus is sensitive)
+				) {
+					this.focusPart(Parts.AUXILIARYBAR_PART);
+				}
+
 				this.restored = true;
 				this.whenRestoredPromise.complete();
 			});

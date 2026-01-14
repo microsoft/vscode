@@ -16,7 +16,7 @@ import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent, ViewDecorat
 import { ViewContext } from '../../../../common/viewModel/viewContext.js';
 import { RestrictedRenderingContext, RenderingContext, HorizontalPosition } from '../../../view/renderingContext.js';
 import { ViewController } from '../../../view/viewController.js';
-import { ensureClipboardGetsEditorSelection, computePasteData } from '../clipboardUtils.js';
+import { ClipboardEventUtils, ensureClipboardGetsEditorSelection, InMemoryClipboardMetadataManager } from '../clipboardUtils.js';
 import { AbstractEditContext } from '../editContext.js';
 import { editContextAddDisposableListener, FocusTracker, ITypeData } from './nativeEditContextUtils.js';
 import { ScreenReaderSupport } from './screenReaderSupport.js';
@@ -141,12 +141,28 @@ export class NativeEditContext extends AbstractEditContext {
 		}));
 		this._register(addDisposableListener(this.domNode.domNode, 'paste', (e) => {
 			this.logService.trace('NativeEditContext#paste');
-			const pasteData = computePasteData(e, this._context, this.logService);
-			if (!pasteData) {
+			e.preventDefault();
+			if (!e.clipboardData) {
 				return;
 			}
+			let [text, metadata] = ClipboardEventUtils.getTextData(e.clipboardData);
+			this.logService.trace('NativeEditContext#paste with id : ', metadata?.id, ' with text.length: ', text.length);
+			if (!text) {
+				return;
+			}
+			metadata = metadata || InMemoryClipboardMetadataManager.INSTANCE.get(text);
+			let pasteOnNewLine = false;
+			let multicursorText: string[] | null = null;
+			let mode: string | null = null;
+			if (metadata) {
+				const options = this._context.configuration.options;
+				const emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
+				pasteOnNewLine = emptySelectionClipboard && !!metadata.isFromEmptySelection;
+				multicursorText = typeof metadata.multicursorText !== 'undefined' ? metadata.multicursorText : null;
+				mode = metadata.mode;
+			}
 			this.logService.trace('NativeEditContext#paste (before viewController.paste)');
-			this._viewController.paste(pasteData.text, pasteData.pasteOnNewLine, pasteData.multicursorText, pasteData.mode);
+			this._viewController.paste(text, pasteOnNewLine, multicursorText, mode);
 		}));
 
 		// Edit context events

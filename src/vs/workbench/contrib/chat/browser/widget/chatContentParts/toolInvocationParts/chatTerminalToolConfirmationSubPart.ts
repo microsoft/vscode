@@ -100,13 +100,14 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			context.container.classList.add('from-sub-agent');
 		}
 
-		if (!toolInvocation.confirmationMessages?.title) {
+		const state = toolInvocation.state.get();
+		if (state.type !== IChatToolInvocation.StateKind.WaitingForConfirmation || !state.confirmationMessages?.title) {
 			throw new Error('Confirmation messages are missing');
 		}
 
 		terminalData = migrateLegacyTerminalToolSpecificData(terminalData);
 
-		const { title, message, disclaimer, terminalCustomActions } = toolInvocation.confirmationMessages;
+		const { title, message, disclaimer, terminalCustomActions } = state.confirmationMessages;
 
 		const autoApproveEnabled = this.configurationService.getValue(TerminalContribSettingId.EnableAutoApprove) === true;
 		const autoApproveWarningAccepted = this.storageService.getBoolean(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION, false);
@@ -149,8 +150,9 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			}
 		};
 		const languageId = this.languageService.getLanguageIdByLanguageName(terminalData.language ?? 'sh') ?? 'shellscript';
+		const initialContent = (terminalData.commandLine.toolEdited ?? terminalData.commandLine.original).trimStart();
 		const model = this._register(this.modelService.createModel(
-			terminalData.commandLine.toolEdited ?? terminalData.commandLine.original,
+			initialContent,
 			this.languageService.createById(languageId),
 			this._getUniqueCodeBlockUri(),
 			true
@@ -182,7 +184,9 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			this._onDidChangeHeight.fire();
 		}));
 		this._register(model.onDidChangeContent(e => {
-			terminalData.commandLine.userEdited = model.getValue();
+			const currentValue = model.getValue();
+			// Only set userEdited if the content actually differs from the initial value
+			terminalData.commandLine.userEdited = currentValue !== initialContent ? currentValue : undefined;
 		}));
 		const elements = h('.chat-confirmation-message-terminal', [
 			h('.chat-confirmation-message-terminal-editor@editor'),
@@ -266,9 +270,9 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 						const userRules = newRules.filter(r => r.scope === 'user');
 
 						// Handle session-scoped rules (temporary, in-memory only)
-						const chatSessionId = this.context.element.sessionId;
+						const chatSessionResource = this.context.element.sessionResource;
 						for (const rule of sessionRules) {
-							this.terminalChatService.addSessionAutoApproveRule(chatSessionId, rule.key, rule.value);
+							this.terminalChatService.addSessionAutoApproveRule(chatSessionResource, rule.key, rule.value);
 						}
 
 						// Handle workspace-scoped rules
@@ -357,9 +361,9 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 						break;
 					}
 					case 'sessionApproval': {
-						const sessionId = this.context.element.sessionId;
-						this.terminalChatService.setChatSessionAutoApproval(sessionId, true);
-						const disableUri = createCommandUri(TerminalContribCommandId.DisableSessionAutoApproval, sessionId);
+						const sessionResource = this.context.element.sessionResource;
+						this.terminalChatService.setChatSessionAutoApproval(sessionResource, true);
+						const disableUri = createCommandUri(TerminalContribCommandId.DisableSessionAutoApproval, sessionResource);
 						const mdTrustSettings = {
 							isTrusted: {
 								enabledCommands: [TerminalContribCommandId.DisableSessionAutoApproval]
@@ -384,8 +388,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 
 	private _createButtons(moreActions: (IChatConfirmationButton<TerminalNewAutoApproveButtonData> | Separator)[] | undefined): IChatConfirmationButton<boolean | TerminalNewAutoApproveButtonData>[] {
 		const getLabelAndTooltip = (label: string, actionId: string, tooltipDetail: string = label): { label: string; tooltip: string } => {
-			const keybinding = this.keybindingService.lookupKeybinding(actionId)?.getLabel();
-			const tooltip = keybinding ? `${tooltipDetail} (${keybinding})` : (tooltipDetail);
+			const tooltip = this.keybindingService.appendKeybinding(tooltipDetail, actionId);
 			return { label, tooltip };
 		};
 		return [

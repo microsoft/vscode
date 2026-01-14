@@ -275,11 +275,7 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 	}
 
 	private _getKeybinding(actionId: string): string {
-		const kb = this._keybindingService?.lookupKeybinding(actionId);
-		if (!kb) {
-			return '';
-		}
-		return ` (${kb.getLabel()})`;
+		return this._keybindingService.appendKeybinding('', actionId);
 	}
 
 	override dispose() {

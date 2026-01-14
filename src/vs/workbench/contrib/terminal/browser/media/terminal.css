@@ -351,8 +351,8 @@
 .monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry .terminal-tabs-entry {
 	display: flex;
 	align-items: center;
-	justify-content: center;
-	gap: 4px;
+	justify-content: flex-start;
+	gap: 6px;
 	width: 100%;
 	height: 100%;
 	padding: 0;
@@ -376,11 +376,41 @@
 }
 
 .monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text .terminal-tabs-chat-entry .terminal-tabs-entry {
-	justify-content: center;
+	justify-content: flex-start;
 	padding: 0 10px;
 }
 
 .monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry .terminal-tabs-chat-entry-label:empty {
+	display: none;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry .terminal-tabs-chat-entry-delete {
+	display: none;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	height: 16px;
+	padding: 2px;
+	margin-left: auto;
+	cursor: pointer;
+	opacity: 0.8;
+	flex-shrink: 0;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry:hover .terminal-tabs-chat-entry-delete,
+.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry:focus-within .terminal-tabs-chat-entry-delete {
+	display: flex;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry .terminal-tabs-chat-entry-delete:hover {
+	opacity: 1;
+	background-color: var(--vscode-toolbar-hoverBackground);
+	border-radius: 3px;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .tabs-container:not(.has-text) .terminal-tabs-chat-entry .terminal-tabs-chat-entry-delete,
+.monaco-workbench .pane-body.integrated-terminal .tabs-container:not(.has-text) .terminal-tabs-chat-entry:hover .terminal-tabs-chat-entry-delete,
+.monaco-workbench .pane-body.integrated-terminal .tabs-container:not(.has-text) .terminal-tabs-chat-entry:focus-within .terminal-tabs-chat-entry-delete {
 	display: none;
 }
 
