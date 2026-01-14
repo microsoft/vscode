@@ -201,8 +201,19 @@ export function setup(context: TestContext) {
 		];
 		args.push(test.workspaceDir);
 
+		// Set up environment for Linux headless mode
+		const env: { [key: string]: string } = {};
+		for (const [key, value] of Object.entries(process.env)) {
+			if (value !== undefined) {
+				env[key] = value;
+			}
+		}
+		if (process.platform === 'linux') {
+			env.DISPLAY = await context.ensureXDisplay();
+		}
+
 		context.log(`Starting VS Code ${entryPoint} with args ${args.join(' ')}`);
-		const app = await _electron.launch({ executablePath: entryPoint, args });
+		const app = await _electron.launch({ executablePath: entryPoint, args, env });
 		const window = await app.firstWindow();
 
 		await test.run(window);

@@ -110,8 +110,11 @@ jobs:
                 apk add --no-cache nodejs npm xvfb gtk+3.0 nss mesa-gbm sudo
               fi
 
-              # Run tests
+              # Install Playwright Chrome browser
               cd /workspace/test/sanity
+              ./node_modules/.bin/playwright install chrome
+
+              # Run tests
               node out/index.js -c "$(BUILD_COMMIT)" -q "$(BUILD_QUALITY)" \
                 -t "/workspace/.build/sanity-test-logs/results.xml" -v
             '

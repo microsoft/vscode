@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { spawnSync, SpawnSyncReturns } from 'child_process';
+import { spawn, ChildProcess, spawnSync, SpawnSyncReturns } from 'child_process';
 import { createHash } from 'crypto';
 import fs from 'fs';
 import { test } from 'mocha';
@@ -42,6 +42,7 @@ export class TestContext {
 	private _currentTest?: Mocha.Test & { consoleOutputs?: string[] };
 	private _osTempDir?: string;
 	private _capabilities?: Set<Capability>;
+	private _xvfbProcess?: ChildProcess;
 
 	public constructor(
 		public readonly quality: 'stable' | 'insider' | 'exploration',
@@ -184,6 +185,56 @@ export class TestContext {
 	}
 
 	/**
+	 * Ensures X display is available for Linux headless environments.
+	 * Starts Xvfb if DISPLAY is not set and we're on Linux in headless mode.
+	 * @returns The DISPLAY value to use.
+	 */
+	public async ensureXDisplay(): Promise<string> {
+		if (os.platform() !== 'linux' || !this.headless) {
+			return process.env.DISPLAY || '';
+		}
+
+		// If DISPLAY is already set, use it
+		if (process.env.DISPLAY) {
+			this.log(`Using existing DISPLAY: ${process.env.DISPLAY}`);
+			return process.env.DISPLAY;
+		}
+
+		// Check if Xvfb is available
+		const xvfbCheck = spawnSync('which', ['Xvfb'], { encoding: 'utf-8' });
+		if (xvfbCheck.status !== 0 || !xvfbCheck.stdout.trim()) {
+			this.error('Xvfb is not available. Install it or set DISPLAY environment variable.');
+		}
+
+		// Start Xvfb if not already started
+		if (!this._xvfbProcess) {
+			const display = ':99';
+			this.log(`Starting Xvfb on display ${display}`);
+			this._xvfbProcess = spawn('Xvfb', [display, '-screen', '0', '1280x960x24', '-ac', '+extension', 'GLX', '+render', '-noreset'], {
+				detached: true,
+				stdio: 'ignore'
+			});
+			this._xvfbProcess.unref();
+
+			// Give Xvfb time to start (check for up to 5 seconds)
+			const startTime = Date.now();
+			while (Date.now() - startTime < 5000) {
+				const checkDisplay = spawnSync('xdpyinfo', ['-display', display], { encoding: 'utf-8' });
+				if (checkDisplay.status === 0) {
+					this.log(`Xvfb started successfully on display ${display}`);
+					return display;
+				}
+				// Sleep for 100ms between checks
+				await new Promise(resolve => setTimeout(resolve, 100));
+			}
+
+			this.error(`Failed to start Xvfb on display ${display}`);
+		}
+
+		return ':99';
+	}
+
+	/**
 	 * Cleans up all temporary directories created during the test run.
 	 */
 	public cleanup() {
@@ -198,6 +249,12 @@ export class TestContext {
 			}
 		}
 		this.tempDirs.clear();
+
+		// Kill Xvfb process if we started it
+		if (this._xvfbProcess && !this._xvfbProcess.killed) {
+			this.log('Stopping Xvfb process');
+			this._xvfbProcess.kill();
+		}
 	}
 
 	/**
