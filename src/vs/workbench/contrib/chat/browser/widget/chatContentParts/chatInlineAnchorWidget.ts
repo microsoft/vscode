@@ -54,8 +54,8 @@ type ContentRefData =
 	};
 
 type InlineAnchorWidgetMetadata = {
-	vscodeLinkType: 'file';
-	fileName?: string;
+	vscodeLinkType: string;
+	linkText?: string;
 };
 
 export function renderFileWidgets(element: HTMLElement, instantiationService: IInstantiationService, chatMarkdownAnchorService: IChatMarkdownAnchorService, disposables: DisposableStore) {
@@ -63,42 +63,33 @@ export function renderFileWidgets(element: HTMLElement, instantiationService: II
 	const links = element.querySelectorAll('a');
 	links.forEach(a => {
 		// Empty link text -> render file widget
-		// Also support metadata format: [{"vscodeLinkType": "file", ...}](uri)
+		// Also support metadata format: [linkText](file:///...uri?vscodeLinkType=...)
 		const linkText = a.textContent?.trim();
 		let shouldRenderWidget = false;
 		let metadata: InlineAnchorWidgetMetadata | undefined;
 
+		const href = a.getAttribute('data-href');
+		const uri = href ? URI.parse(href) : undefined;
+
 		if (!linkText) {
 			shouldRenderWidget = true;
-		} else {
-			// Sanity check length to avoid parsing huge strings
-			if (linkText.length <= 1000) {
-				try {
-					const parsed = JSON.parse(linkText);
-					// Validate that the parsed result is a plain object and not an array or primitive
-					if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-						metadata = parsed as InlineAnchorWidgetMetadata;
-						if (metadata.vscodeLinkType === 'file') {
-							// If fileName is present, it must be a string
-							if (metadata.fileName !== undefined && typeof metadata.fileName !== 'string') {
-								shouldRenderWidget = false;
-							} else {
-								shouldRenderWidget = true;
-							}
-						}
-					}
-				} catch { }
+		} else if (uri) {
+			// Check for vscodeLinkType in query parameters
+			const searchParams = new URLSearchParams(uri.query);
+			const vscodeLinkType = searchParams.get('vscodeLinkType');
+			if (vscodeLinkType) {
+				metadata = {
+					vscodeLinkType,
+					linkText
+				};
+				shouldRenderWidget = true;
 			}
 		}
 
-		if (shouldRenderWidget) {
-			const href = a.getAttribute('data-href');
-			const uri = href ? URI.parse(href) : undefined;
-			if (uri?.scheme) {
-				const widget = instantiationService.createInstance(InlineAnchorWidget, a, { kind: 'inlineReference', inlineReference: uri }, metadata);
-				disposables.add(chatMarkdownAnchorService.register(widget));
-				disposables.add(widget);
-			}
+		if (shouldRenderWidget && uri?.scheme) {
+			const widget = instantiationService.createInstance(InlineAnchorWidget, a, { kind: 'inlineReference', inlineReference: uri }, metadata);
+			disposables.add(chatMarkdownAnchorService.register(widget));
+			disposables.add(widget);
 		}
 	});
 }
@@ -160,7 +151,7 @@ export class InlineAnchorWidget extends Disposable {
 		} else {
 			location = this.data;
 
-			const filePathLabel = this.metadata?.fileName ?? labelService.getUriBasenameLabel(location.uri);
+			const filePathLabel = this.metadata?.linkText ?? labelService.getUriBasenameLabel(location.uri);
 
 			if (location.range && this.data.kind !== 'symbol') {
 				const suffix = location.range.startLineNumber === location.range.endLineNumber

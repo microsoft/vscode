@@ -43,17 +43,12 @@ suite('ChatInlineAnchorWidget Metadata Validation', () => {
 		return container;
 	}
 
-	test('renders widget for valid metadata with correct format', () => {
-		const validMetadata = JSON.stringify({
-			vscodeLinkType: 'file',
-			fileName: 'test.txt'
-		});
-
-		const element = createTestElement(validMetadata);
+	test('renders widget for link with vscodeLinkType query parameter', () => {
+		const element = createTestElement('mySkill', 'file:///test.txt?vscodeLinkType=skill');
 		renderFileWidgets(element, instantiationService, mockAnchorService, disposables);
 
 		const widget = element.querySelector('.chat-inline-anchor-widget');
-		assert.ok(widget, 'Widget should be rendered for valid metadata');
+		assert.ok(widget, 'Widget should be rendered for link with vscodeLinkType query parameter');
 	});
 
 	test('renders widget for empty link text', () => {
@@ -64,187 +59,58 @@ suite('ChatInlineAnchorWidget Metadata Validation', () => {
 		assert.ok(widget, 'Widget should be rendered for empty link text');
 	});
 
-	test('does not render widget for metadata exceeding length limit', () => {
-		// Create a string longer than 1000 characters
-		const longMetadata = JSON.stringify({
-			vscodeLinkType: 'file',
-			fileName: 'a'.repeat(1000)
-		});
-
-		const element = createTestElement(longMetadata);
+	test('renders widget for vscodeLinkType=file', () => {
+		const element = createTestElement('document.txt', 'file:///path/to/document.txt?vscodeLinkType=file');
 		renderFileWidgets(element, instantiationService, mockAnchorService, disposables);
 
 		const widget = element.querySelector('.chat-inline-anchor-widget');
-		assert.ok(!widget, 'Widget should not be rendered for metadata exceeding length limit');
+		assert.ok(widget, 'Widget should be rendered for vscodeLinkType=file');
 	});
 
-	test('does not render widget for metadata that is an array', () => {
-		const arrayMetadata = JSON.stringify([
-			{ vscodeLinkType: 'file', fileName: 'test.txt' }
-		]);
-
-		const element = createTestElement(arrayMetadata);
+	test('does not render widget for link without vscodeLinkType query parameter', () => {
+		const element = createTestElement('regular link text', 'file:///test.txt');
 		renderFileWidgets(element, instantiationService, mockAnchorService, disposables);
 
 		const widget = element.querySelector('.chat-inline-anchor-widget');
-		assert.ok(!widget, 'Widget should not be rendered for array metadata');
-	});
-
-	test('does not render widget for metadata that is a primitive value', () => {
-		const primitiveMetadata = JSON.stringify('file:test.txt');
-
-		const element = createTestElement(primitiveMetadata);
-		renderFileWidgets(element, instantiationService, mockAnchorService, disposables);
-
-		const widget = element.querySelector('.chat-inline-anchor-widget');
-		assert.ok(!widget, 'Widget should not be rendered for primitive metadata');
-	});
-
-	test('does not render widget for metadata with null value', () => {
-		const element = createTestElement('null');
-		renderFileWidgets(element, instantiationService, mockAnchorService, disposables);
-
-		const widget = element.querySelector('.chat-inline-anchor-widget');
-		assert.ok(!widget, 'Widget should not be rendered for null metadata');
-	});
-
-	test('does not render widget for metadata missing vscodeLinkType', () => {
-		const invalidMetadata = JSON.stringify({
-			fileName: 'test.txt'
-		});
-
-		const element = createTestElement(invalidMetadata);
-		renderFileWidgets(element, instantiationService, mockAnchorService, disposables);
-
-		const widget = element.querySelector('.chat-inline-anchor-widget');
-		assert.ok(!widget, 'Widget should not be rendered for metadata missing vscodeLinkType');
-	});
-
-	test('does not render widget for metadata with wrong vscodeLinkType', () => {
-		const invalidMetadata = JSON.stringify({
-			vscodeLinkType: 'folder',
-			fileName: 'test.txt'
-		});
-
-		const element = createTestElement(invalidMetadata);
-		renderFileWidgets(element, instantiationService, mockAnchorService, disposables);
-
-		const widget = element.querySelector('.chat-inline-anchor-widget');
-		assert.ok(!widget, 'Widget should not be rendered for metadata with wrong vscodeLinkType');
-	});
-
-	test('does not render widget for metadata with non-string fileName', () => {
-		const invalidMetadata = JSON.stringify({
-			vscodeLinkType: 'file',
-			fileName: 123
-		});
-
-		const element = createTestElement(invalidMetadata);
-		renderFileWidgets(element, instantiationService, mockAnchorService, disposables);
-
-		const widget = element.querySelector('.chat-inline-anchor-widget');
-		assert.ok(!widget, 'Widget should not be rendered for metadata with non-string fileName');
-	});
-
-	test('renders widget for metadata without fileName', () => {
-		const validMetadata = JSON.stringify({
-			vscodeLinkType: 'file'
-		});
-
-		const element = createTestElement(validMetadata);
-		renderFileWidgets(element, instantiationService, mockAnchorService, disposables);
-
-		const widget = element.querySelector('.chat-inline-anchor-widget');
-		assert.ok(widget, 'Widget should be rendered for metadata without fileName (fileName is optional)');
-	});
-
-	test('does not render widget for invalid JSON', () => {
-		const invalidJSON = '{ vscodeLinkType: "file", fileName: "test.txt" }'; // Missing quotes
-
-		const element = createTestElement(invalidJSON);
-		renderFileWidgets(element, instantiationService, mockAnchorService, disposables);
-
-		const widget = element.querySelector('.chat-inline-anchor-widget');
-		assert.ok(!widget, 'Widget should not be rendered for invalid JSON');
-	});
-
-	test('does not render widget for regular text that looks like JSON', () => {
-		const regularText = 'This is a regular file link';
-
-		const element = createTestElement(regularText);
-		renderFileWidgets(element, instantiationService, mockAnchorService, disposables);
-
-		const widget = element.querySelector('.chat-inline-anchor-widget');
-		assert.ok(!widget, 'Widget should not be rendered for regular text');
+		assert.ok(!widget, 'Widget should not be rendered for link without vscodeLinkType query parameter');
 	});
 
 	test('does not render widget when URI scheme is missing', () => {
-		const validMetadata = JSON.stringify({
-			vscodeLinkType: 'file',
-			fileName: 'test.txt'
-		});
-
-		const element = createTestElement(validMetadata, ''); // Empty href
+		const element = createTestElement('mySkill', ''); // Empty href
 		renderFileWidgets(element, instantiationService, mockAnchorService, disposables);
 
 		const widget = element.querySelector('.chat-inline-anchor-widget');
 		assert.ok(!widget, 'Widget should not be rendered when URI scheme is missing');
 	});
 
-	test('handles metadata at exact length limit', () => {
-		// Create metadata that is exactly 1000 characters
-		const fileNameLength = 1000 - '{"vscodeLinkType":"file","fileName":""}'.length;
-		const fileName = 'a'.repeat(fileNameLength);
-		const exactLimitMetadata = JSON.stringify({
-			vscodeLinkType: 'file',
-			fileName: fileName
-		});
-
-		assert.strictEqual(exactLimitMetadata.length, 1000, 'Metadata should be exactly 1000 characters');
-
-		const element = createTestElement(exactLimitMetadata);
+	test('renders widget with various vscodeLinkType values', () => {
+		const element = createTestElement('customName', 'file:///test.txt?vscodeLinkType=custom');
 		renderFileWidgets(element, instantiationService, mockAnchorService, disposables);
 
 		const widget = element.querySelector('.chat-inline-anchor-widget');
-		assert.ok(widget, 'Widget should be rendered for metadata at exact length limit');
+		assert.ok(widget, 'Widget should be rendered for any vscodeLinkType value');
 	});
 
-	test('handles metadata one character over limit', () => {
-		// Create metadata that is 1001 characters
-		const fileNameLength = 1001 - '{"vscodeLinkType":"file","fileName":""}'.length;
-		const fileName = 'a'.repeat(fileNameLength);
-		const overLimitMetadata = JSON.stringify({
-			vscodeLinkType: 'file',
-			fileName: fileName
-		});
-
-		assert.strictEqual(overLimitMetadata.length, 1001, 'Metadata should be 1001 characters');
-
-		const element = createTestElement(overLimitMetadata);
+	test('handles vscodeLinkType with other query parameters', () => {
+		const element = createTestElement('skillName', 'file:///test.txt?other=value&vscodeLinkType=skill&another=param');
 		renderFileWidgets(element, instantiationService, mockAnchorService, disposables);
 
 		const widget = element.querySelector('.chat-inline-anchor-widget');
-		assert.ok(!widget, 'Widget should not be rendered for metadata one character over limit');
+		assert.ok(widget, 'Widget should be rendered when vscodeLinkType is among multiple query parameters');
 	});
 
 	test('handles multiple links in same element', () => {
 		const container = mainWindow.document.createElement('div');
 
-		// Add valid metadata link
+		// Add link with vscodeLinkType query parameter
 		const validAnchor = mainWindow.document.createElement('a');
-		validAnchor.textContent = JSON.stringify({
-			vscodeLinkType: 'file',
-			fileName: 'valid.txt'
-		});
-		validAnchor.setAttribute('data-href', 'file:///valid.txt');
+		validAnchor.textContent = 'validSkill';
+		validAnchor.setAttribute('data-href', 'file:///valid.txt?vscodeLinkType=skill');
 		container.appendChild(validAnchor);
 
-		// Add invalid metadata link
+		// Add link without vscodeLinkType query parameter
 		const invalidAnchor = mainWindow.document.createElement('a');
-		invalidAnchor.textContent = JSON.stringify({
-			vscodeLinkType: 'invalid',
-			fileName: 'invalid.txt'
-		});
+		invalidAnchor.textContent = 'regular text';
 		invalidAnchor.setAttribute('data-href', 'file:///invalid.txt');
 		container.appendChild(invalidAnchor);
 
@@ -257,20 +123,31 @@ suite('ChatInlineAnchorWidget Metadata Validation', () => {
 		renderFileWidgets(container, instantiationService, mockAnchorService, disposables);
 
 		const widgets = container.querySelectorAll('.chat-inline-anchor-widget');
-		assert.strictEqual(widgets.length, 2, 'Should render widgets for valid and empty link text only');
+		assert.strictEqual(widgets.length, 2, 'Should render widgets for link with vscodeLinkType and empty link text only');
 	});
 
-	test('preserves widget for additional properties in metadata', () => {
-		const metadataWithExtra = JSON.stringify({
-			vscodeLinkType: 'file',
-			fileName: 'test.txt',
-			additionalProperty: 'value'
-		});
-
-		const element = createTestElement(metadataWithExtra);
+	test('uses link text as fileName in metadata', () => {
+		const element = createTestElement('myCustomFileName', 'file:///test.txt?vscodeLinkType=skill');
 		renderFileWidgets(element, instantiationService, mockAnchorService, disposables);
 
 		const widget = element.querySelector('.chat-inline-anchor-widget');
-		assert.ok(widget, 'Widget should be rendered even with additional properties');
+		assert.ok(widget, 'Widget should be rendered');
+		// The link text becomes the fileName which is used as the label
+		const labelElement = widget?.querySelector('.icon-label');
+		assert.ok(labelElement?.textContent?.includes('myCustomFileName'), 'Label should contain the link text as fileName');
+	});
+
+	test('does not render widget for JSON metadata (old format no longer supported)', () => {
+		const jsonMetadata = JSON.stringify({
+			vscodeLinkType: 'file',
+			fileName: 'test.txt'
+		});
+
+		const element = createTestElement(jsonMetadata);
+		renderFileWidgets(element, instantiationService, mockAnchorService, disposables);
+
+		const widget = element.querySelector('.chat-inline-anchor-widget');
+		assert.ok(!widget, 'Widget should not be rendered for old JSON metadata format');
 	});
 });
+
