@@ -3,12 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { n } from '../../../../../base/browser/dom.js';
-import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, debouncedObservable, derived, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../../../editor/browser/editorExtensions.js';
 import { observableCodeEditor, ObservableCodeEditor } from '../../../../../editor/browser/observableCodeEditor.js';
@@ -16,19 +13,13 @@ import { LineRange } from '../../../../../editor/common/core/ranges/lineRange.js
 import { IEditorContribution } from '../../../../../editor/common/editorCommon.js';
 import { InlineEditTabAction } from '../../../../../editor/contrib/inlineCompletions/browser/view/inlineEdits/inlineEditsViewInterface.js';
 import { InlineEditsGutterIndicator, InlineEditsGutterIndicatorData, InlineSuggestionGutterMenuData, SimpleInlineSuggestModel } from '../../../../../editor/contrib/inlineCompletions/browser/view/inlineEdits/components/gutterIndicatorView.js';
-import { localize } from '../../../../../nls.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { HoverService } from '../../../../../platform/hover/browser/hoverService.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 
-/**
- * Editor contribution that shows a gutter indicator at the cursor position.
- * The indicator is more prominent when text is selected.
- * This is a prototype for UI exploration.
- */
+
 export class SelectionGutterIndicatorContribution extends Disposable implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.selectionGutterIndicator';
@@ -39,7 +30,6 @@ export class SelectionGutterIndicatorContribution extends Disposable implements 
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		@ICommandService private readonly _commandService: ICommandService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
@@ -63,13 +53,10 @@ export class SelectionGutterIndicatorContribution extends Disposable implements 
 			const cursorPosition = selection.getPosition();
 			const lineRange = new LineRange(cursorPosition.lineNumber, cursorPosition.lineNumber + 1);
 
-			// Check if there's actually selected text
-			const hasSelection = !selection.isEmpty();
-
 			// Create minimal gutter menu data (empty for prototype)
 			const gutterMenuData = new InlineSuggestionGutterMenuData(
 				undefined, // action
-				'Selection', // displayName
+				'', // displayName
 				[], // extensionCommands
 				undefined, // alternativeAction
 				undefined, // modelInfo
@@ -82,32 +69,18 @@ export class SelectionGutterIndicatorContribution extends Disposable implements 
 				() => console.log('[SelectionGutterIndicator] jump'),
 			);
 
-			// Use different styles based on whether there's a selection
-			const styles = hasSelection
-				? {
-					// Primary (blue) styling when text is selected
-					background: 'var(--vscode-inlineEdit-gutterIndicator-primaryBackground)',
-					foreground: 'var(--vscode-inlineEdit-gutterIndicator-primaryForeground)',
-					border: 'var(--vscode-inlineEdit-gutterIndicator-primaryBorder)',
-				}
-				: {
-					// Secondary (less prominent) styling when no selection
-					background: 'var(--vscode-inlineEdit-gutterIndicator-secondaryBackground)',
-					foreground: 'var(--vscode-inlineEdit-gutterIndicator-secondaryForeground)',
-					border: 'var(--vscode-inlineEdit-gutterIndicator-secondaryBorder)',
-				};
-
 			return new InlineEditsGutterIndicatorData(
 				gutterMenuData,
 				lineRange,
 				model,
 				undefined, // altAction
 				{
-					styles,
-					// Use pencil icon
+					// styles: {
+					// 	background: 'var(--vscode-inlineEdit-gutterIndicator-primaryBackground)',
+					// 	foreground: 'var(--vscode-inlineEdit-gutterIndicator-primaryForeground)',
+					// 	border: 'var(--vscode-inlineEdit-gutterIndicator-primaryBorder)',
+					// },
 					icon: Codicon.pencil,
-					// Custom menu content
-					menuContentFactory: (editorObs, close) => createSelectionMenu(editorObs, close, this._commandService),
 				}
 			);
 		});
@@ -117,7 +90,7 @@ export class SelectionGutterIndicatorContribution extends Disposable implements 
 			SelectionGutterIndicator,
 			editorObs,
 			data,
-			constObservable(InlineEditTabAction.Inactive), // tabAction - not used with custom styles
+			constObservable(InlineEditTabAction.Jump), // tabAction - not used with custom styles
 			constObservable(0), // verticalOffset
 			constObservable(false), // isHoveringOverInlineEdit
 			focusIsInMenu,
@@ -147,196 +120,6 @@ class SelectionGutterIndicator extends InlineEditsGutterIndicator {
 	protected override _showHover(): void {
 		console.log('here');
 	}
-}
-
-/**
- * Creates the custom menu content for the selection gutter indicator.
- */
-function createSelectionMenu(editorObs: ObservableCodeEditor, close: (focusEditor: boolean) => void, commandService: ICommandService) {
-	const activeElement = observableValue<string | undefined>('active', undefined);
-
-	return n.div({
-		class: 'selection-gutter-menu',
-		style: { margin: '4px', minWidth: '250px' }
-	}, [
-		// Header
-		n.div({
-			style: {
-				color: 'var(--vscode-descriptionForeground)',
-				fontSize: '13px',
-				fontWeight: '600',
-				padding: '0 4px',
-				lineHeight: '28px',
-			}
-		}, [localize('selectionActions', "Selection Actions")]),
-
-		// Prompt input box with shortcut hint
-		n.div({
-			style: {
-				padding: '4px',
-				position: 'relative',
-			}
-		}, [
-			n.elem('input', {
-				type: 'text',
-				placeholder: localize('promptPlaceholder', "Ask Copilot to Edit..."),
-				style: {
-					width: '100%',
-					padding: '6px 8px',
-					paddingRight: '45px', // Make room for shortcut
-					border: '1px solid var(--vscode-input-border)',
-					borderRadius: '4px',
-					backgroundColor: 'var(--vscode-input-background)',
-					color: 'var(--vscode-input-foreground)',
-					fontSize: '13px',
-					boxSizing: 'border-box',
-					outline: 'none',
-				},
-				onkeydown: (e: KeyboardEvent) => {
-					if (e.key === 'Enter') {
-						const input = e.target as HTMLInputElement;
-						const prompt = input.value.trim();
-						if (prompt) {
-							close(true);
-							commandService.executeCommand('inlineChat.start', { message: prompt, autoSend: true });
-						}
-					} else if (e.key === 'Escape') {
-						close(true);
-					}
-				},
-				onfocus: (e: FocusEvent) => {
-					const input = e.target as HTMLInputElement;
-					input.style.borderColor = 'var(--vscode-focusBorder)';
-				},
-				onblur: (e: FocusEvent) => {
-					const input = e.target as HTMLInputElement;
-					input.style.borderColor = 'var(--vscode-input-border)';
-				},
-			}),
-			// Shortcut hint inside input
-			n.div({
-				style: {
-					position: 'absolute',
-					right: '12px',
-					top: '50%',
-					transform: 'translateY(-50%)',
-					color: 'var(--vscode-descriptionForeground)',
-					fontSize: '11px',
-					pointerEvents: 'none',
-				}
-			}, ['⌘I']),
-		]),
-
-		// Separator
-		createMenuSeparator(),
-
-		// --- Inline Chat Actions ---
-		// Option: Edit Selection (runs inlineChat.start)
-		createMenuOption({
-			id: 'editSelection',
-			title: localize('editSelection', "Edit Selection"),
-			icon: Codicon.sparkle,
-			isActive: activeElement.map(v => v === 'editSelection'),
-			onHoverChange: v => activeElement.set(v ? 'editSelection' : undefined, undefined),
-			onAction: () => {
-				close(true);
-				commandService.executeCommand('inlineChat.start');
-			}
-		}),
-
-		// Separator
-		createMenuSeparator(),
-
-		// --- Chat View Actions ---
-		// Option: Attach to Chat
-		createMenuOption({
-			id: 'attachToChat',
-			title: localize('attachToChat', "Attach to Chat"),
-			icon: Codicon.attach,
-			isActive: activeElement.map(v => v === 'attachToChat'),
-			onHoverChange: v => activeElement.set(v ? 'attachToChat' : undefined, undefined),
-			onAction: () => {
-				close(true);
-				commandService.executeCommand('workbench.action.chat.attachSelection');
-			}
-		}),
-		// Option: Explain
-		createMenuOption({
-			id: 'explain',
-			title: localize('explain', "Explain"),
-			icon: Codicon.comment,
-			isActive: activeElement.map(v => v === 'explain'),
-			onHoverChange: v => activeElement.set(v ? 'explain' : undefined, undefined),
-			onAction: () => {
-				close(true);
-				commandService.executeCommand('workbench.action.chat.open', { query: '/explain' });
-			}
-		}),
-
-		// Separator
-		createMenuSeparator(),
-
-		// --- Editor Actions ---
-		// Option: Code Actions
-		createMenuOption({
-			id: 'codeActions',
-			title: localize('codeActions', "Code Actions"),
-			icon: Codicon.lightbulb,
-			shortcut: '⌘.',
-			isActive: activeElement.map(v => v === 'codeActions'),
-			onHoverChange: v => activeElement.set(v ? 'codeActions' : undefined, undefined),
-			onAction: () => {
-				close(true);
-				commandService.executeCommand('editor.action.quickFix');
-			}
-		}),
-	]).toDisposableLiveElement();
-}
-
-function createMenuSeparator() {
-	return n.div({
-		class: 'menu-separator',
-		style: {
-			padding: '4px 0',
-		}
-	}, [
-		n.div({
-			style: {
-				borderBottom: '1px solid var(--vscode-editorHoverWidget-border)',
-			}
-		})
-	]);
-}
-
-function createMenuOption(props: {
-	id: string;
-	title: string;
-	icon: ThemeIcon;
-	shortcut?: string;
-	isActive: IObservable<boolean>;
-	onHoverChange: (isHovered: boolean) => void;
-	onAction: () => void;
-}) {
-	return n.div({
-		class: ['monaco-menu-option', props.isActive.map(v => v && 'active')],
-		onmouseenter: () => props.onHoverChange(true),
-		onmouseleave: () => props.onHoverChange(false),
-		onclick: props.onAction,
-		tabIndex: 0,
-		style: { borderRadius: '3px' }
-	}, [
-		n.elem('span', {
-			style: { fontSize: '16px', display: 'flex' }
-		}, [renderIcon(props.icon)]),
-		n.elem('span', { style: { flex: '1' } }, [props.title]),
-		...(props.shortcut ? [n.elem('span', {
-			style: {
-				color: 'var(--vscode-descriptionForeground)',
-				fontSize: '11px',
-				marginLeft: '8px',
-			}
-		}, [props.shortcut])] : []),
-	]);
 }
 
 registerEditorContribution(

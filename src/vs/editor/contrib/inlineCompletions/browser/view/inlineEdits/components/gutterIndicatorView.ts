@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LiveElement, ModifierKeyEmitter, n, trackFocus } from '../../../../../../../base/browser/dom.js';
+import { ModifierKeyEmitter, n, trackFocus } from '../../../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { BugIndicatingError } from '../../../../../../../base/common/errors.js';
@@ -44,8 +44,6 @@ export interface GutterIndicatorCustomization {
 	readonly styles?: { background: string; foreground: string; border: string };
 	/** Override the default icon */
 	readonly icon?: ThemeIcon;
-	/** Factory to create custom menu content instead of the default */
-	readonly menuContentFactory?: (editorObs: ObservableCodeEditor, close: (focusEditor: boolean) => void) => LiveElement;
 }
 
 export class InlineEditsGutterIndicatorData {
@@ -482,15 +480,12 @@ export class InlineEditsGutterIndicator extends Disposable {
 			h?.dispose();
 		};
 
-		// Use custom menu factory if provided, otherwise use default
-		const content = data.customization?.menuContentFactory
-			? disposableStore.add(data.customization.menuContentFactory(this._editorObs, closeCallback))
-			: disposableStore.add(this._instantiationService.createInstance(
-				GutterIndicatorMenuContent,
-				this._editorObs,
-				data.gutterMenuData,
-				closeCallback,
-			).toDisposableLiveElement());
+		const content = disposableStore.add(this._instantiationService.createInstance(
+			GutterIndicatorMenuContent,
+			this._editorObs,
+			data.gutterMenuData,
+			closeCallback,
+		).toDisposableLiveElement());
 
 		const focusTracker = disposableStore.add(trackFocus(content.element)); // TODO@benibenj should this be removed?
 		disposableStore.add(focusTracker.onDidBlur(() => this._focusIsInMenu.set(false, undefined)));
