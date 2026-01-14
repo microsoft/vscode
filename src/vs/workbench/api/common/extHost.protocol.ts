@@ -2330,6 +2330,7 @@ export interface IChatBeginToolInvocationDto {
 	streamData?: {
 		partialInput?: unknown;
 	};
+	subagentInvocationId?: string;
 }
 
 export interface IChatUpdateToolInvocationDto {

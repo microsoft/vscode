@@ -151,7 +151,6 @@ export interface IChatMarkdownContent {
 	kind: 'markdownContent';
 	content: IMarkdownString;
 	inlineReferences?: Record<string, IChatContentInlineReference>;
-	fromSubagent?: boolean;
 }
 
 export interface IChatTreeData {
@@ -449,14 +448,14 @@ export type ConfirmedReason =
 
 export interface IChatToolInvocation {
 	readonly presentation: IPreparedToolInvocation['presentation'];
-	readonly toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent;
+	readonly toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData;
 	readonly originMessage: string | IMarkdownString | undefined;
 	readonly invocationMessage: string | IMarkdownString;
 	readonly pastTenseMessage: string | IMarkdownString | undefined;
 	readonly source: ToolDataSource;
 	readonly toolId: string;
 	readonly toolCallId: string;
-	readonly fromSubAgent?: boolean;
+	readonly subAgentInvocationId?: string;
 	readonly state: IObservable<IChatToolInvocation.State>;
 	generatedTitle?: string;
 
@@ -707,7 +706,7 @@ export interface IToolResultOutputDetailsSerialized {
  */
 export interface IChatToolInvocationSerialized {
 	presentation: IPreparedToolInvocation['presentation'];
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData;
 	invocationMessage: string | IMarkdownString;
 	originMessage: string | IMarkdownString | undefined;
 	pastTenseMessage: string | IMarkdownString | undefined;
@@ -718,7 +717,7 @@ export interface IChatToolInvocationSerialized {
 	toolCallId: string;
 	toolId: string;
 	source: ToolDataSource;
-	readonly fromSubAgent?: boolean;
+	readonly subAgentInvocationId?: string;
 	generatedTitle?: string;
 	kind: 'toolInvocationSerialized';
 }
@@ -735,6 +734,14 @@ export interface IChatPullRequestContent {
 	author: string;
 	linkTag: string;
 	kind: 'pullRequest';
+}
+
+export interface IChatSubagentToolInvocationData {
+	kind: 'subagent';
+	description?: string;
+	agentName?: string;
+	prompt?: string;
+	result?: string;
 }
 
 export interface IChatTodoListContent {

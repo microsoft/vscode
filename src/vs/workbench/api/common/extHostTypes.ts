@@ -3359,7 +3359,7 @@ export class ChatToolInvocationPart {
 	isConfirmed?: boolean;
 	isComplete?: boolean;
 	toolSpecificData?: ChatTerminalToolInvocationData2;
-	fromSubAgent?: boolean;
+	subAgentInvocationId?: string;
 	presentation?: 'hidden' | 'hiddenAfterComplete' | undefined;
 
 	constructor(toolName: string,
