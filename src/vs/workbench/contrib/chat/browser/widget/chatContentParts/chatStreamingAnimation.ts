@@ -116,7 +116,7 @@ function shouldSkipTextNode(node: Text): boolean {
 	const skipSelectors = [
 		`.${tokenClass}`,              // Already wrapped
 		'a',                           // Inside anchor (wrapped as unit)
-		'code:not(pre code)',          // Inline code (wrapped as unit)
+		'code',                        // Inline code (wrapped as unit)
 		...animatableWidgets.classes.map(cls => `.${cls}`),
 		skipSelector,
 	].join(', ');
