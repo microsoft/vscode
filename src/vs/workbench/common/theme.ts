@@ -20,7 +20,7 @@ export function WORKBENCH_BACKGROUND(theme: IColorTheme): Color {
 		case ColorScheme.HIGH_CONTRAST_DARK:
 			return Color.fromHex('#000000');
 		default:
-			return Color.fromHex('#252526');
+			return Color.fromHex('#000000');
 	}
 }
 
