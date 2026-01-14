@@ -61,6 +61,13 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	private _pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
 	get pollingResult(): IPollingResult & { pollDurationMs: number } | undefined { return this._pollingResult; }
 
+	/**
+	 * Flag to track if user has inputted since idle was detected.
+	 * This is used to skip showing prompts if the user already provided input.
+	 */
+	private _userInputtedSinceIdleDetected = false;
+	private _userInputListener: IDisposable | undefined;
+
 	private readonly _outputMonitorTelemetryCounters: IOutputMonitorTelemetryCounters = {
 		inputToolManualAcceptCount: 0,
 		inputToolManualRejectCount: 0,
@@ -159,6 +166,9 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				pollDurationMs: Date.now() - pollStartTime,
 				resources
 			};
+			// Clean up idle input listener if still active
+			this._userInputListener?.dispose();
+			this._userInputListener = undefined;
 			const promptPart = this._promptPart;
 			this._promptPart = undefined;
 			if (promptPart) {
@@ -180,9 +190,28 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			return { shouldContinuePollling: false, output };
 		}
 
+		// Check if user already inputted since idle was detected (before we even got here)
+		if (this._userInputtedSinceIdleDetected) {
+			this._cleanupIdleInputListener();
+			return { shouldContinuePollling: true };
+		}
+
 		const confirmationPrompt = await this._determineUserInputOptions(this._execution, token);
 
+		// Check again after the async LLM call - user may have inputted while we were analyzing
+		if (this._userInputtedSinceIdleDetected) {
+			this._cleanupIdleInputListener();
+			return { shouldContinuePollling: true };
+		}
+
 		if (confirmationPrompt?.detectedRequestForFreeFormInput) {
+			// Check again right before showing prompt
+			if (this._userInputtedSinceIdleDetected) {
+				this._cleanupIdleInputListener();
+				return { shouldContinuePollling: true };
+			}
+			// Clean up the input listener now - the prompt will set up its own
+			this._cleanupIdleInputListener();
 			this._outputMonitorTelemetryCounters.inputToolFreeFormInputShownCount++;
 			const receivedTerminalInput = await this._requestFreeFormTerminalInput(token, this._execution, confirmationPrompt);
 			if (receivedTerminalInput) {
@@ -200,8 +229,16 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			const suggestedOptionResult = await this._selectAndHandleOption(confirmationPrompt, token);
 			if (suggestedOptionResult?.sentToTerminal) {
 				// Continue polling as we sent the input
+				this._cleanupIdleInputListener();
 				return { shouldContinuePollling: true };
 			}
+			// Check again after LLM call - user may have inputted while we were selecting option
+			if (this._userInputtedSinceIdleDetected) {
+				this._cleanupIdleInputListener();
+				return { shouldContinuePollling: true };
+			}
+			// Clean up the input listener now - the prompt will set up its own
+			this._cleanupIdleInputListener();
 			const confirmed = await this._confirmRunInTerminal(token, suggestedOptionResult?.suggestedOption ?? confirmationPrompt.options[0], this._execution, confirmationPrompt);
 			if (confirmed) {
 				// Continue polling as we sent the input
@@ -212,6 +249,9 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				return { shouldContinuePollling: false };
 			}
 		}
+
+		// Clean up input listener before custom poll/error assessment
+		this._cleanupIdleInputListener();
 
 		// Let custom poller override if provided
 		const custom = await this._pollFn?.(this._execution, token, this._taskService);
@@ -310,12 +350,14 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 				if (detectsNonInteractiveHelpPattern(currentOutput)) {
 					this._state = OutputMonitorState.Idle;
+					this._setupIdleInputListener();
 					return this._state;
 				}
 
 				const promptResult = detectsInputRequiredPattern(currentOutput);
 				if (promptResult) {
 					this._state = OutputMonitorState.Idle;
+					this._setupIdleInputListener();
 					return this._state;
 				}
 
@@ -331,6 +373,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				this._logService.trace(`OutputMonitor: waitForIdle check: waited=${waited}ms, recentlyIdle=${recentlyIdle}, isActive=${isActive}`);
 				if (recentlyIdle && isActive !== true) {
 					this._state = OutputMonitorState.Idle;
+					this._setupIdleInputListener();
 					return this._state;
 				}
 			}
@@ -343,6 +386,32 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		}
 
 		return OutputMonitorState.Timeout;
+	}
+
+	/**
+	 * Sets up a listener for user input that triggers immediately when idle is detected.
+	 * This ensures we catch any input that happens between idle detection and prompt creation.
+	 */
+	private _setupIdleInputListener(): void {
+		// Clean up any existing listener
+		this._userInputListener?.dispose();
+		this._userInputtedSinceIdleDetected = false;
+
+		// Set up new listener
+		this._userInputListener = this._execution.instance.onDidInputData((data) => {
+			if (data === '\r' || data === '\n' || data === '\r\n') {
+				this._userInputtedSinceIdleDetected = true;
+			}
+		});
+	}
+
+	/**
+	 * Cleans up the idle input listener and resets the flag.
+	 */
+	private _cleanupIdleInputListener(): void {
+		this._userInputtedSinceIdleDetected = false;
+		this._userInputListener?.dispose();
+		this._userInputListener = undefined;
 	}
 
 	private async _promptForMorePolling(command: string, token: CancellationToken, context: IToolInvocationContext | undefined): Promise<{ promise: Promise<boolean>; part?: ChatElicitationRequestPart }> {
@@ -404,7 +473,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		}
 
 		const promptText =
-			`Analyze the following terminal output. If it contains a prompt requesting user input (such as a confirmation, selection, or yes/no question) and that prompt has NOT already been answered, extract the prompt text. The prompt may ask to choose from a set. If so, extract the possible options as a JSON object with keys 'prompt', 'options' (an array of strings or an object with option to description mappings), and 'freeFormInput': false. If no options are provided, and free form input is requested, for example: Password:, return the word freeFormInput. For example, if the options are "[Y] Yes  [A] Yes to All  [N] No  [L] No to All  [C] Cancel", the option to description mappings would be {"Y": "Yes", "A": "Yes to All", "N": "No", "L": "No to All", "C": "Cancel"}. If there is no such prompt, return null. If the option is ambiguous, return null.
+			`Analyze the following terminal output. If it contains a prompt requesting user input (such as a confirmation, selection, or yes/no question) that appears at the VERY END of the output and has NOT already been answered (i.e., there is no user response or subsequent output after the prompt), extract the prompt text. IMPORTANT: Only detect prompts that are at the end of the output with no content following them - if there is any output after the prompt, the prompt has already been answered and you should return null. The prompt may ask to choose from a set. If so, extract the possible options as a JSON object with keys 'prompt', 'options' (an array of strings or an object with option to description mappings), and 'freeFormInput': false. If no options are provided, and free form input is requested, for example: Password:, return the word freeFormInput. For example, if the options are "[Y] Yes  [A] Yes to All  [N] No  [L] No to All  [C] Cancel", the option to description mappings would be {"Y": "Yes", "A": "Yes to All", "N": "No", "L": "No to All", "C": "Cancel"}. If there is no such prompt, return null. If the option is ambiguous, return null.
 			Examples:
 			1. Output: "Do you want to overwrite? (y/n)"
 				Response: {"prompt": "Do you want to overwrite?", "options": ["y", "n"], "freeFormInput": false}
@@ -434,6 +503,10 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				Response: {"prompt": "Password:", "freeFormInput": true, "options": []}
 			10. Output: "press ctrl-c to detach, ctrl-d to kill"
 				Response: null
+			11. Output: "Continue (y/n)? y"
+				Response: null (the prompt was already answered with 'y')
+			12. Output: "Do you want to proceed? (yes/no)\nyes\nProceeding with operation..."
+				Response: null (the prompt was already answered and there is subsequent output)
 
 			Alternatively, the prompt may request free form input, for example:
 			1. Output: "Enter your username:"

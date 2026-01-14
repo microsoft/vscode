@@ -1253,6 +1253,9 @@ export interface IChatModel extends IDisposable {
 	toExport(): IExportableChatData;
 	toJSON(): ISerializableChatData;
 	readonly contributedChatSession: IChatSessionContext | undefined;
+
+	readonly repoData: IExportableRepoData | undefined;
+	setRepoData(data: IExportableRepoData | undefined): void;
 }
 
 export interface ISerializableChatsData {
@@ -1304,6 +1307,102 @@ export interface ISerializableMarkdownInfo {
 	readonly suggestionId: EditSuggestionId;
 }
 
+/**
+ * Repository state captured for chat session export.
+ * Enables reproducing the workspace state by cloning, checking out the commit, and applying diffs.
+ */
+export interface IExportableRepoData {
+	/**
+	 * Classification of the workspace's version control state.
+	 * - `remote-git`: Git repo with a configured remote URL
+	 * - `local-git`: Git repo without any remote (local only)
+	 * - `plain-folder`: Not a git repository
+	 */
+	workspaceType: 'remote-git' | 'local-git' | 'plain-folder';
+
+	/**
+	 * Sync status between local and remote.
+	 * - `synced`: Local HEAD matches remote tracking branch (fully pushed)
+	 * - `unpushed`: Local has commits not pushed to the remote tracking branch
+	 * - `unpublished`: Local branch has no remote tracking branch configured
+	 * - `local-only`: No remote configured (local git repo only)
+	 * - `no-git`: Not a git repository
+	 */
+	syncStatus: 'synced' | 'unpushed' | 'unpublished' | 'local-only' | 'no-git';
+
+	/**
+	 * Remote URL of the repository (e.g., https://github.com/org/repo.git).
+	 * Undefined if no remote is configured.
+	 */
+	remoteUrl?: string;
+
+	/**
+	 * Vendor/host of the remote repository.
+	 * Undefined if no remote is configured.
+	 */
+	remoteVendor?: 'github' | 'ado' | 'other';
+
+	/**
+	 * Remote tracking branch for the current branch (e.g., "origin/feature/my-work").
+	 * Undefined if branch is unpublished or no remote.
+	 */
+	remoteTrackingBranch?: string;
+
+	/**
+	 * Default remote branch used as base for unpublished branches (e.g., "origin/main").
+	 * Helpful for computing merge-base when branch has no tracking.
+	 */
+	remoteBaseBranch?: string;
+
+	/**
+	 * Commit hash of the remote tracking branch HEAD.
+	 * Undefined if branch has no remote tracking branch.
+	 */
+	remoteHeadCommit?: string;
+
+	/**
+	 * Name of the current local branch (e.g., "feature/my-work").
+	 */
+	localBranch?: string;
+
+	/**
+	 * Commit hash of the local HEAD when captured.
+	 */
+	localHeadCommit?: string;
+
+	/**
+	 * Working tree diffs (uncommitted changes).
+	 */
+	diffs?: IExportableRepoDiff[];
+
+	/**
+	 * Status of the diffs collection.
+	 * - `included`: Diffs were successfully captured and included
+	 * - `tooManyChanges`: Diffs skipped because >100 files changed (degenerate case like mass renames)
+	 * - `tooLarge`: Diffs skipped because total size exceeded 900KB
+	 * - `trimmedForStorage`: Diffs were trimmed to save storage (older session)
+	 * - `noChanges`: No working tree changes detected
+	 * - `notCaptured`: Diffs not captured (default/undefined case)
+	 */
+	diffsStatus?: 'included' | 'tooManyChanges' | 'tooLarge' | 'trimmedForStorage' | 'noChanges' | 'notCaptured';
+
+	/**
+	 * Number of changed files detected, even if diffs were not included.
+	 */
+	changedFileCount?: number;
+}
+
+/**
+ * A file change exported as a unified diff patch compatible with `git apply`.
+ */
+export interface IExportableRepoDiff {
+	relativePath: string;
+	changeType: 'added' | 'modified' | 'deleted' | 'renamed';
+	oldRelativePath?: string;
+	unifiedDiff?: string;
+	status: string;
+}
+
 export interface IExportableChatData {
 	initialLocation: ChatAgentLocation | undefined;
 	requests: ISerializableChatRequestData[];
@@ -1327,8 +1426,14 @@ export interface ISerializableChatData2 extends ISerializableChatData1 {
 export interface ISerializableChatData3 extends Omit<ISerializableChatData2, 'version' | 'computedTitle'> {
 	version: 3;
 	customTitle: string | undefined;
+	/**
+	 * Whether the session had pending edits when it was stored.
+	 * todo@connor4312 This will be cleaned up with the globalization of edits.
+	 */
+	hasPendingEdits?: boolean;
 	/** Current draft input state (added later, fully backwards compatible) */
 	inputState?: ISerializableChatModelInputState;
+	repoData?: IExportableRepoData;
 }
 
 /**
@@ -1652,6 +1757,15 @@ export class ChatModel extends Disposable implements IChatModel {
 	public setContributedChatSession(session: IChatSessionContext | undefined) {
 		this._contributedChatSession = session;
 	}
+
+	private _repoData: IExportableRepoData | undefined;
+	public get repoData(): IExportableRepoData | undefined {
+		return this._repoData;
+	}
+	public setRepoData(data: IExportableRepoData | undefined): void {
+		this._repoData = data;
+	}
+
 	readonly lastRequestObs: IObservable<IChatRequestModel | undefined>;
 
 	// TODO to be clear, this is not the same as the id from the session object, which belongs to the provider.
@@ -1791,6 +1905,9 @@ export class ChatModel extends Disposable implements IChatModel {
 
 		this.dataSerializer = dataRef?.serializer;
 		this._initialResponderUsername = initialData?.responderUsername;
+
+		this._repoData = isValidFullData && initialData.repoData ? initialData.repoData : undefined;
+
 		this._initialLocation = initialData?.initialLocation ?? initialModelProps.initialLocation;
 
 		this._canUseTools = initialModelProps.canUseTools;
@@ -2237,6 +2354,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			creationDate: this._timestamp,
 			customTitle: this._customTitle,
 			inputState: this.inputModel.toJSON(),
+			repoData: this._repoData,
 		};
 	}
 
