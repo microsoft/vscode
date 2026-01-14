@@ -64,7 +64,7 @@ import { IChatSessionItem, IChatSessionProviderOptionGroup, IChatSessionProvider
 import { IChatRequestVariableValue } from '../../contrib/chat/common/attachments/chatVariables.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IChatMessage, IChatResponsePart, ILanguageModelChatInfoOptions, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatSelector } from '../../contrib/chat/common/languageModels.js';
-import { IPreparedToolInvocation, IToolInvocation, IToolInvocationPreparationContext, IToolProgressStep, IToolResult, ToolDataSource } from '../../contrib/chat/common/tools/languageModelToolsService.js';
+import { IPreparedToolInvocation, IStreamedToolInvocation, IToolInvocation, IToolInvocationPreparationContext, IToolInvocationStreamContext, IToolProgressStep, IToolResult, ToolDataSource } from '../../contrib/chat/common/tools/languageModelToolsService.js';
 import { IPromptFileContext, IPromptFileResource } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { DebugConfigurationProviderTriggerKind, IAdapterDescriptor, IConfig, IDebugSessionReplMode, IDebugTestRunReference, IDebugVisualization, IDebugVisualizationContext, IDebugVisualizationTreeItem, MainThreadDebugVisualization } from '../../contrib/debug/common/debug.js';
 import { McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch } from '../../contrib/mcp/common/mcpTypes.js';
@@ -1509,6 +1509,7 @@ export interface ExtHostLanguageModelToolsShape {
 	$invokeTool(dto: Dto<IToolInvocation>, token: CancellationToken): Promise<Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>>>;
 	$countTokensForInvocation(callId: string, input: string, token: CancellationToken): Promise<number>;
 
+	$handleToolStream(toolId: string, context: IToolInvocationStreamContext, token: CancellationToken): Promise<IStreamedToolInvocation | undefined>;
 	$prepareToolInvocation(toolId: string, context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined>;
 }
 
@@ -1535,7 +1536,9 @@ export type IChatProgressDto =
 	| IChatTaskDto
 	| IChatNotebookEditDto
 	| IChatExternalEditsDto
-	| IChatResponseClearToPreviousToolInvocationDto;
+	| IChatResponseClearToPreviousToolInvocationDto
+	| IChatBeginToolInvocationDto
+	| IChatUpdateToolInvocationDto;
 
 export interface ExtHostUrlsShape {
 	$handleExternalUri(handle: number, uri: UriComponents): Promise<void>;
@@ -2318,6 +2321,23 @@ export interface IChatNotebookEditDto {
 export interface IChatResponseClearToPreviousToolInvocationDto {
 	kind: 'clearToPreviousToolInvocation';
 	reason: ChatResponseClearToPreviousToolInvocationReason;
+}
+
+export interface IChatBeginToolInvocationDto {
+	kind: 'beginToolInvocation';
+	toolCallId: string;
+	toolName: string;
+	streamData?: {
+		partialInput?: unknown;
+	};
+}
+
+export interface IChatUpdateToolInvocationDto {
+	kind: 'updateToolInvocation';
+	toolCallId: string;
+	streamData: {
+		partialInput?: unknown;
+	};
 }
 
 export type ICellEditOperationDto =

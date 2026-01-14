@@ -450,14 +450,12 @@ export type ConfirmedReason =
 export interface IChatToolInvocation {
 	readonly presentation: IPreparedToolInvocation['presentation'];
 	readonly toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent;
-	readonly confirmationMessages?: IToolConfirmationMessages;
 	readonly originMessage: string | IMarkdownString | undefined;
 	readonly invocationMessage: string | IMarkdownString;
 	readonly pastTenseMessage: string | IMarkdownString | undefined;
 	readonly source: ToolDataSource;
 	readonly toolId: string;
 	readonly toolCallId: string;
-	readonly parameters: unknown;
 	readonly fromSubAgent?: boolean;
 	readonly state: IObservable<IChatToolInvocation.State>;
 	generatedTitle?: string;
@@ -469,6 +467,8 @@ export interface IChatToolInvocation {
 
 export namespace IChatToolInvocation {
 	export const enum StateKind {
+		/** Tool call is streaming partial input from the LM */
+		Streaming,
 		WaitingForConfirmation,
 		Executing,
 		WaitingForPostApproval,
@@ -480,12 +480,26 @@ export namespace IChatToolInvocation {
 		type: StateKind;
 	}
 
-	interface IChatToolInvocationWaitingForConfirmationState extends IChatToolInvocationStateBase {
+	export interface IChatToolInvocationStreamingState extends IChatToolInvocationStateBase {
+		type: StateKind.Streaming;
+		/** Observable partial input from the LM stream */
+		readonly partialInput: IObservable<unknown>;
+		/** Custom invocation message from handleToolStream */
+		readonly streamingMessage: IObservable<string | IMarkdownString | undefined>;
+	}
+
+	/** Properties available after streaming is complete */
+	interface IChatToolInvocationPostStreamState {
+		readonly parameters: unknown;
+		readonly confirmationMessages?: IToolConfirmationMessages;
+	}
+
+	interface IChatToolInvocationWaitingForConfirmationState extends IChatToolInvocationStateBase, IChatToolInvocationPostStreamState {
 		type: StateKind.WaitingForConfirmation;
 		confirm(reason: ConfirmedReason): void;
 	}
 
-	interface IChatToolInvocationPostConfirmState {
+	interface IChatToolInvocationPostConfirmState extends IChatToolInvocationPostStreamState {
 		confirmed: ConfirmedReason;
 	}
 
@@ -510,12 +524,13 @@ export namespace IChatToolInvocation {
 		contentForModel: IToolResult['content'];
 	}
 
-	interface IChatToolInvocationCancelledState extends IChatToolInvocationStateBase {
+	interface IChatToolInvocationCancelledState extends IChatToolInvocationStateBase, IChatToolInvocationPostStreamState {
 		type: StateKind.Cancelled;
 		reason: ToolConfirmKind.Denied | ToolConfirmKind.Skipped;
 	}
 
 	export type State =
+		| IChatToolInvocationStreamingState
 		| IChatToolInvocationWaitingForConfirmationState
 		| IChatToolInvocationExecutingState
 		| IChatToolWaitingForPostApprovalState
@@ -531,7 +546,7 @@ export namespace IChatToolInvocation {
 		}
 
 		const state = invocation.state.read(reader);
-		if (state.type === StateKind.WaitingForConfirmation) {
+		if (state.type === StateKind.Streaming || state.type === StateKind.WaitingForConfirmation) {
 			return undefined; // don't know yet
 		}
 		if (state.type === StateKind.Cancelled) {
@@ -635,6 +650,47 @@ export namespace IChatToolInvocation {
 		const state = invocation.state.read(reader);
 		return state.type === StateKind.Completed || state.type === StateKind.Cancelled;
 	}
+
+	export function isStreaming(invocation: IChatToolInvocation | IChatToolInvocationSerialized, reader?: IReader): boolean {
+		if (invocation.kind === 'toolInvocationSerialized') {
+			return false;
+		}
+
+		const state = invocation.state.read(reader);
+		return state.type === StateKind.Streaming;
+	}
+
+	/**
+	 * Get parameters from invocation. Returns undefined during streaming state.
+	 */
+	export function getParameters(invocation: IChatToolInvocation | IChatToolInvocationSerialized, reader?: IReader): unknown | undefined {
+		if (invocation.kind === 'toolInvocationSerialized') {
+			return undefined; // serialized invocations don't store parameters
+		}
+
+		const state = invocation.state.read(reader);
+		if (state.type === StateKind.Streaming) {
+			return undefined;
+		}
+
+		return state.parameters;
+	}
+
+	/**
+	 * Get confirmation messages from invocation. Returns undefined during streaming state.
+	 */
+	export function getConfirmationMessages(invocation: IChatToolInvocation | IChatToolInvocationSerialized, reader?: IReader): IToolConfirmationMessages | undefined {
+		if (invocation.kind === 'toolInvocationSerialized') {
+			return undefined; // serialized invocations don't store confirmation messages
+		}
+
+		const state = invocation.state.read(reader);
+		if (state.type === StateKind.Streaming) {
+			return undefined;
+		}
+
+		return state.confirmationMessages;
+	}
 }
 
 
@@ -734,11 +790,6 @@ export class ChatMcpServersStarting implements IChatMcpServersStarting {
 	}
 }
 
-export interface IChatPrepareToolInvocationPart {
-	readonly kind: 'prepareToolInvocation';
-	readonly toolName: string;
-}
-
 export type IChatProgress =
 	| IChatMarkdownContent
 	| IChatAgentMarkdownContentWithVulnerability
@@ -765,7 +816,6 @@ export type IChatProgress =
 	| IChatExtensionsContent
 	| IChatPullRequestContent
 	| IChatUndoStop
-	| IChatPrepareToolInvocationPart
 	| IChatThinkingPart
 	| IChatTaskSerialized
 	| IChatElicitationRequest
