@@ -169,9 +169,6 @@ export class SearchableOptionPickerActionItem extends ActionWidgetDropdownAction
 	}
 
 	protected override updateEnabled(): void {
-		// When locked, treat as disabled for dropdown functionality
-		const effectivelyDisabled = !this.action.enabled || !!this.currentOption?.locked;
-
 		// Temporarily modify action.enabled to influence parent's behavior
 		const originalEnabled = this.action.enabled;
 		if (this.currentOption?.locked) {
