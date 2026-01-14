@@ -236,13 +236,13 @@ export class DragAndDropController extends Disposable implements IEditorContribu
 		this._contextMenuService.showContextMenu({
 			getAnchor: () => mouseEvent.event,
 			getActions: () => [
-				new Action('editor.action.moveHere', localize('moveHere', "Move here"), undefined, true, () => {
+				new Action('editor.action.moveHere', localize('moveHere', "Move here"), undefined, true, async () => {
 					this._executeDragAndDrop(targetPosition, false);
 				}),
-				new Action('editor.action.copyHere', localize('copyHere', "Copy here"), undefined, true, () => {
+				new Action('editor.action.copyHere', localize('copyHere', "Copy here"), undefined, true, async () => {
 					this._executeDragAndDrop(targetPosition, true);
 				}),
-				new Action('editor.action.cancel', localize('cancel', "Cancel"), undefined, true, () => {
+				new Action('editor.action.cancel', localize('cancel', "Cancel"), undefined, true, async () => {
 					// Do nothing, just close the menu
 				})
 			],
