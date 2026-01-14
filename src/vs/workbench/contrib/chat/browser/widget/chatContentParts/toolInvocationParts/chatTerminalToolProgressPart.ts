@@ -909,7 +909,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 		this.updateAriaLabel();
 
 		// Show horizontal scrollbar on hover/focus, hide otherwise to prevent flickering during streaming
-		this._register(dom.addDisposableListener(this.domNode, dom.EventType.MOUSE_OVER, () => {
+		this._register(dom.addDisposableListener(this.domNode, dom.EventType.MOUSE_ENTER, () => {
 			this._scrollableContainer?.updateOptions({ horizontal: ScrollbarVisibility.Auto });
 		}));
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.MOUSE_LEAVE, () => {
