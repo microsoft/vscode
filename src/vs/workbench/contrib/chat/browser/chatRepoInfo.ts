@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { relativePath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { linesDiffComputers } from '../../../../editor/common/diff/linesDiffComputers.js';
@@ -472,7 +472,6 @@ export class ChatRepoInfoContribution extends Disposable implements IWorkbenchCo
 
 	static readonly ID = 'workbench.contrib.chatRepoInfo';
 
-	private readonly _pendingSessions = new DisposableStore();
 	private _configurationRegistered = false;
 
 	constructor(
@@ -484,10 +483,6 @@ export class ChatRepoInfoContribution extends Disposable implements IWorkbenchCo
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
-
-		this._register(this._pendingSessions);
-
-		// Register configuration for internal users
 		this.registerConfigurationIfInternal();
 		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => {
 			this.registerConfigurationIfInternal();
