@@ -838,12 +838,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				newSessionsViewerOrientation = width >= ChatViewPane.SESSIONS_SIDEBAR_VIEW_MIN_WIDTH ? AgentSessionsViewerOrientation.SideBySide : AgentSessionsViewerOrientation.Stacked;
 		}
 
-		// In a maximized auxiliary bar, allow an even wider threshold before overriding a stacked configuration.
-		const maximizedAuxiliaryBarMinWidth = ChatViewPane.SESSIONS_SIDEBAR_VIEW_MIN_WIDTH + ChatViewPane.CHAT_WIDGET_DEFAULT_WIDTH;
-
 		if (
 			newSessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked &&
-			width >= maximizedAuxiliaryBarMinWidth &&
+			width >= ChatViewPane.SESSIONS_SIDEBAR_VIEW_MIN_WIDTH + ChatViewPane.CHAT_WIDGET_DEFAULT_WIDTH &&
 			this.getViewPositionAndLocation().location === ViewContainerLocation.AuxiliaryBar &&
 			this.layoutService.isAuxiliaryBarMaximized()
 		) {
