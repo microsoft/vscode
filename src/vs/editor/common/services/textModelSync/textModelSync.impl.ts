@@ -188,7 +188,7 @@ export class MirrorModel extends BaseMirrorModel implements ICommonModel {
 		return this._disposed;
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._disposed = true;
 	}
 
@@ -436,6 +436,5 @@ export interface ICommonModel extends ILinkComputerTarget, IDocumentColorCompute
 	offsetAt(position: IPosition): number;
 	positionAt(offset: number): IPosition;
 	isDisposed(): boolean;
-}
 	findMatches(regex: RegExp): RegExpMatchArray[];
 }
