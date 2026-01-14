@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, clearNode, hide } from '../../../../../../base/browser/dom.js';
+import { alert } from '../../../../../../base/browser/ui/aria/aria.js';
 import { IChatMarkdownContent, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import { IChatContentPartRenderContext, IChatContentPart } from './chatContentParts.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
@@ -128,6 +129,9 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.lastExtractedTitle = extractedTitle;
 		}
 		this.currentThinkingValue = initialText;
+
+		// Alert screen reader users that thinking has started
+		alert(localize('chat.thinking.started', 'Thinking'));
 
 		if (configuredMode === ThinkingDisplayMode.Collapsed) {
 			this.setExpanded(false);

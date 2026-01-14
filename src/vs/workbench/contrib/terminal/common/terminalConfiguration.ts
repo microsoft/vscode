@@ -672,6 +672,12 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 			localize('terminal.integrated.focusAfterRun.none', "Do nothing."),
 		]
 	},
+	[TerminalSettingId.AllowInUntrustedWorkspace]: {
+		restricted: true,
+		markdownDescription: localize('terminal.integrated.allowInUntrustedWorkspace', "Controls whether terminals can be created in an untrusted workspace.\n\n**This feature bypasses a security protection that prevents terminals from launching in untrusted workspaces. The reason this is a security risk is because shells are often set up to potentially execute code automatically based on the contents of the current working directory. This should be safe to use provided your shell is set up in such a way that code execution in the folder never happens.**"),
+		type: 'boolean',
+		default: false
+	},
 	[TerminalSettingId.DeveloperPtyHostLatency]: {
 		description: localize('terminal.integrated.developer.ptyHost.latency', "Simulated latency in milliseconds applied to all calls made to the pty host. This is useful for testing terminal behavior under high latency conditions."),
 		type: 'number',
