@@ -39,9 +39,9 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 	private resultContainer: HTMLElement | undefined;
 	private lastItemWrapper: HTMLElement | undefined;
 	private readonly layoutScheduler: RunOnceScheduler;
-	private readonly description: string;
-	private readonly agentName: string | undefined;
-	private readonly prompt: string | undefined;
+	private description: string;
+	private agentName: string | undefined;
+	private prompt: string | undefined;
 
 	/**
 	 * Extracts subagent info (description, agentName, prompt) from a tool invocation.
@@ -128,9 +128,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		this.layoutScheduler = this._register(new RunOnceScheduler(() => this.performLayout(), 0));
 
 		// Render the prompt section at the start if available (must be after wrapper is initialized)
-		if (this.prompt) {
-			this.renderPromptSection();
-		}
+		this.renderPromptSection();
 
 		// Watch for completion and render result
 		this.watchToolCompletion(toolInvocation);
@@ -196,18 +194,23 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		if (this._collapseButton) {
 			this._collapseButton.icon = Codicon.check;
 		}
-		this.finalizeTitleIfDefault();
+		this.finalizeTitle();
 		// Collapse when done
 		this.setExpanded(false);
 		this._onDidChangeHeight.fire();
 	}
 
-	public finalizeTitleIfDefault(): void {
-		const prefix = this.agentName || localize('chat.subagent.prefix', 'Subagent');
-		const finalLabel = `${prefix}: ${this.description}`;
-
+	public finalizeTitle(): void {
+		this.updateTitle();
 		if (this._collapseButton) {
 			this._collapseButton.icon = Codicon.check;
+		}
+	}
+
+	private updateTitle(): void {
+		if (this._collapseButton) {
+			const prefix = this.agentName || localize('chat.subagent.prefix', 'Subagent');
+			const finalLabel = `${prefix}: ${this.description}`;
 			this._collapseButton.label = finalLabel;
 		}
 	}
@@ -223,9 +226,11 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 
 		if (toolInvocation.kind === 'toolInvocation') {
 			// Watch for completion and render the result
+			let wasStreaming = toolInvocation.state.get().type === IChatToolInvocation.StateKind.Streaming;
 			this._register(autorun(r => {
 				const state = toolInvocation.state.read(r);
 				if (state.type === IChatToolInvocation.StateKind.Completed) {
+					wasStreaming = false;
 					// Extract text from result
 					const textParts = (state.contentForModel || [])
 						.filter((part): part is { kind: 'text'; value: string } => part.kind === 'text')
@@ -237,6 +242,15 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 
 					// Mark as inactive when the tool completes
 					this.markAsInactive();
+				} else if (wasStreaming && state.type !== IChatToolInvocation.StateKind.Streaming) {
+					wasStreaming = false;
+					// Update things that change when tool is done streaming
+					const { description, agentName, prompt } = ChatSubagentContentPart.extractSubagentInfo(toolInvocation);
+					this.description = description;
+					this.agentName = agentName;
+					this.prompt = prompt;
+					this.renderPromptSection();
+					this.updateTitle();
 				}
 			}));
 		} else if (toolInvocation.toolSpecificData?.kind === 'subagent' && toolInvocation.toolSpecificData.result) {
