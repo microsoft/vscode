@@ -520,7 +520,7 @@ export function registerChatActions() {
 				}, {
 					id: MenuId.EditorTitle,
 					group: 'navigation',
-					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), ChatContextKeys.lockedToCodingAgent.negate()),
+					when: ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
 					order: 1
 				}],
 			});
