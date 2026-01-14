@@ -132,10 +132,6 @@ export class TextMateTokenizationWorker implements IWebWorkerServerRequestHandle
 		this._models.get(controllerId)!.onLanguageId(newLanguageId, newEncodedLanguageId);
 	}
 
-	public $acceptTextmateCustomRulesChanged(controllerId: number): void {
-		this._models.get(controllerId)?.onTextmateCustomRulesChanged();
-	}
-
 	public $acceptRemovedModel(controllerId: number): void {
 		const model = this._models.get(controllerId);
 		if (model) {

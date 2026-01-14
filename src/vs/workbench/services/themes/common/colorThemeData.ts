@@ -408,6 +408,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		}
 
 		this.tokenColorIndex = undefined;
+		this.tokenFontIndex = undefined;
 		this.textMateThemingRules = undefined;
 		this.customTokenScopeMatchers = undefined;
 	}
@@ -437,6 +438,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		}
 
 		this.tokenColorIndex = undefined;
+		this.tokenFontIndex = undefined;
 		this.textMateThemingRules = undefined;
 		this.customTokenScopeMatchers = undefined;
 	}
@@ -462,6 +464,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		}
 
 		this.tokenColorIndex = undefined;
+		this.tokenFontIndex = undefined;
 		this.textMateThemingRules = undefined;
 	}
 
@@ -585,6 +588,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 
 	public clearCaches() {
 		this.tokenColorIndex = undefined;
+		this.tokenFontIndex = undefined;
 		this.textMateThemingRules = undefined;
 		this.themeTokenScopeMatchers = undefined;
 		this.customTokenScopeMatchers = undefined;
