@@ -5,18 +5,18 @@
 
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
-import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatWidgetService } from '../chat.js';
 import { IChatResponseViewModel, isResponseVM } from '../../common/model/chatViewModel.js';
-import { localize } from '../../../../../nls.js';
 
 export class ChatThinkingAccessibleView implements IAccessibleViewImplementation {
 	readonly priority = 105;
 	readonly name = 'chatThinking';
 	readonly type = AccessibleViewType.View;
-	readonly when = ChatContextKeys.inChatSession;
+	// Never match via the registry - this view is only opened via the explicit command (Alt+Shift+F2)
+	readonly when = ContextKeyExpr.false();
 
 	getProvider(accessor: ServicesAccessor) {
 		const widgetService = accessor.get(IChatWidgetService);
@@ -67,8 +67,7 @@ export class ChatThinkingAccessibleView implements IAccessibleViewImplementation
 		if (thinkingParts.length === 0) {
 			return undefined;
 		}
-
-		const header = localize('chat.thinking.accessibleView.header', 'Thinking content from the latest response:');
-		return `${header}\n\n${thinkingParts.join('\n\n')}`;
+		console.log(`${thinkingParts.join('\n\n')}`);
+		return `${thinkingParts.join('\n\n')}`;
 	}
 }
