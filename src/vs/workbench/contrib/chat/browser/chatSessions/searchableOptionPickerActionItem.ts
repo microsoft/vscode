@@ -131,6 +131,7 @@ export class SearchableOptionPickerActionItem extends ActionWidgetDropdownAction
 			if (this.element) {
 				this.renderLabel(this.element);
 			}
+			this.updateEnabled();
 		}));
 	}
 
@@ -139,6 +140,10 @@ export class SearchableOptionPickerActionItem extends ActionWidgetDropdownAction
 		const optionGroup = this.delegate.getOptionGroup();
 
 		element.classList.add('chat-session-option-picker');
+		
+		// Toggle locked class on element
+		element.classList.toggle('locked', !!this.currentOption?.locked);
+		
 		if (optionGroup?.icon) {
 			domChildren.push(renderIcon(optionGroup.icon));
 		}
@@ -147,12 +152,11 @@ export class SearchableOptionPickerActionItem extends ActionWidgetDropdownAction
 		const label = this.currentOption?.name ?? optionGroup?.name ?? localize('selectOption', "Select...");
 		domChildren.push(dom.$('span.chat-session-option-label', undefined, label));
 
-		// Chevron
-		domChildren.push(...renderLabelWithIcons(`$(chevron-down)`));
-
-		// Locked indicator
+		// Show lock icon instead of chevron when locked
 		if (this.currentOption?.locked) {
 			domChildren.push(renderIcon(Codicon.lock));
+		} else {
+			domChildren.push(...renderLabelWithIcons(`$(chevron-down)`));
 		}
 
 		dom.reset(element, ...domChildren);
@@ -163,6 +167,26 @@ export class SearchableOptionPickerActionItem extends ActionWidgetDropdownAction
 	override render(container: HTMLElement): void {
 		super.render(container);
 		container.classList.add('chat-searchable-option-picker-item');
+	}
+
+	protected override updateEnabled(): void {
+		// Call parent to handle base functionality
+		super.updateEnabled();
+		
+		// Additionally disable when locked
+		if (this.currentOption?.locked) {
+			// Use reflection to access the private actionWidgetDropdown property
+			const dropdown = (this as any)['actionWidgetDropdown'];
+			if (dropdown) {
+				dropdown.setEnabled(false);
+			}
+		}
+		
+		// Update visual state for locked items
+		const container = this.element?.parentElement;
+		if (container) {
+			container.classList.toggle('locked', !!this.currentOption?.locked);
+		}
 	}
 
 	/**

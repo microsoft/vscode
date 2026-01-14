@@ -19,6 +19,7 @@ import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem } from 
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { renderLabelWithIcons, renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { localize } from '../../../../../nls.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 
 
 export interface IChatSessionPickerDelegate {
@@ -105,16 +106,28 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 			if (this.element) {
 				this.renderLabel(this.element);
 			}
+			this.updateEnabled();
 		}));
 	}
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
 		const domChildren = [];
 		element.classList.add('chat-session-option-picker');
+		
+		// Toggle locked class on element
+		element.classList.toggle('locked', !!this.currentOption?.locked);
+		
 		if (this.currentOption?.icon) {
 			domChildren.push(renderIcon(this.currentOption.icon));
 		}
 		domChildren.push(dom.$('span.chat-session-option-label', undefined, this.currentOption?.name ?? localize('chat.sessionPicker.label', "Pick Option")));
-		domChildren.push(...renderLabelWithIcons(`$(chevron-down)`));
+		
+		// Show lock icon instead of chevron when locked
+		if (this.currentOption?.locked) {
+			domChildren.push(renderIcon(Codicon.lock));
+		} else {
+			domChildren.push(...renderLabelWithIcons(`$(chevron-down)`));
+		}
+		
 		dom.reset(element, ...domChildren);
 		this.setAriaLabelAttributes(element);
 		return null;
@@ -123,6 +136,26 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 	override render(container: HTMLElement): void {
 		super.render(container);
 		container.classList.add('chat-sessionPicker-item');
+	}
+
+	protected override updateEnabled(): void {
+		// Call parent to handle base functionality
+		super.updateEnabled();
+		
+		// Additionally disable when locked
+		if (this.currentOption?.locked) {
+			// Use reflection to access the private actionWidgetDropdown property
+			const dropdown = (this as any)['actionWidgetDropdown'];
+			if (dropdown) {
+				dropdown.setEnabled(false);
+			}
+		}
+		
+		// Update visual state for locked items
+		const container = this.element?.parentElement;
+		if (container) {
+			container.classList.toggle('locked', !!this.currentOption?.locked);
+		}
 	}
 
 }
