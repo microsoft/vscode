@@ -1243,4 +1243,84 @@ suite('CommandLineAutoApprover', () => {
 			ok(!await isAutoApproved('cat file.txt'), 'Default rule should be ignored');
 		});
 	});
+
+	suite('od, xxd, docker defaults', () => {
+		test('od should be auto-approved', async () => {
+			ok(await isAutoApproved('od somefile'));
+			ok(await isAutoApproved('od -A x somefile'));
+		});
+
+		test('xxd should be auto-approved for simple usage', async () => {
+			ok(await isAutoApproved('xxd somefile'));
+			ok(await isAutoApproved('xxd -l 100 somefile'));
+		});
+
+		test('xxd should NOT be auto-approved with -r (revert/patch mode)', async () => {
+			ok(!await isAutoApproved('xxd -r somefile'));
+			ok(!await isAutoApproved('xxd -r -p somefile'));
+		});
+
+		test('xxd should NOT be auto-approved with outfile argument', async () => {
+			ok(!await isAutoApproved('xxd infile outfile'));
+			ok(!await isAutoApproved('xxd -l 100 infile outfile'));
+		});
+
+		test('docker readonly sub-commands should be auto-approved', async () => {
+			ok(await isAutoApproved('docker ps'));
+			ok(await isAutoApproved('docker ps -a'));
+			ok(await isAutoApproved('docker images'));
+			ok(await isAutoApproved('docker info'));
+			ok(await isAutoApproved('docker version'));
+			ok(await isAutoApproved('docker inspect mycontainer'));
+			ok(await isAutoApproved('docker logs mycontainer'));
+			ok(await isAutoApproved('docker top mycontainer'));
+			ok(await isAutoApproved('docker stats'));
+			ok(await isAutoApproved('docker port mycontainer'));
+			ok(await isAutoApproved('docker diff mycontainer'));
+			ok(await isAutoApproved('docker search nginx'));
+			ok(await isAutoApproved('docker events'));
+		});
+
+		test('docker management command readonly sub-commands should be auto-approved', async () => {
+			ok(await isAutoApproved('docker container ls'));
+			ok(await isAutoApproved('docker container ps'));
+			ok(await isAutoApproved('docker container inspect mycontainer'));
+			ok(await isAutoApproved('docker image ls'));
+			ok(await isAutoApproved('docker image history myimage'));
+			ok(await isAutoApproved('docker image inspect myimage'));
+			ok(await isAutoApproved('docker network ls'));
+			ok(await isAutoApproved('docker network inspect mynetwork'));
+			ok(await isAutoApproved('docker volume ls'));
+			ok(await isAutoApproved('docker volume inspect myvolume'));
+			ok(await isAutoApproved('docker context ls'));
+			ok(await isAutoApproved('docker context inspect mycontext'));
+			ok(await isAutoApproved('docker context show'));
+			ok(await isAutoApproved('docker system df'));
+			ok(await isAutoApproved('docker system info'));
+		});
+
+		test('docker compose readonly sub-commands should be auto-approved', async () => {
+			ok(await isAutoApproved('docker compose ps'));
+			ok(await isAutoApproved('docker compose ls'));
+			ok(await isAutoApproved('docker compose top'));
+			ok(await isAutoApproved('docker compose logs'));
+			ok(await isAutoApproved('docker compose images'));
+			ok(await isAutoApproved('docker compose config'));
+			ok(await isAutoApproved('docker compose version'));
+			ok(await isAutoApproved('docker compose port'));
+			ok(await isAutoApproved('docker compose events'));
+		});
+
+		test('docker write/execute sub-commands should NOT be auto-approved', async () => {
+			ok(!await isAutoApproved('docker run nginx'));
+			ok(!await isAutoApproved('docker exec mycontainer bash'));
+			ok(!await isAutoApproved('docker rm mycontainer'));
+			ok(!await isAutoApproved('docker rmi myimage'));
+			ok(!await isAutoApproved('docker build .'));
+			ok(!await isAutoApproved('docker push myimage'));
+			ok(!await isAutoApproved('docker pull nginx'));
+			ok(!await isAutoApproved('docker compose up'));
+			ok(!await isAutoApproved('docker compose down'));
+		});
+	});
 });
