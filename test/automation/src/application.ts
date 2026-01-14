@@ -49,8 +49,8 @@ export class Application {
 		return !!this.options.web;
 	}
 
-	private _workspacePathOrFolder: string;
-	get workspacePathOrFolder(): string {
+	private _workspacePathOrFolder: string | undefined;
+	get workspacePathOrFolder(): string | undefined {
 		return this._workspacePathOrFolder;
 	}
 
@@ -109,6 +109,7 @@ export class Application {
 	private async startApplication(extraArgs: string[] = []): Promise<Code> {
 		const code = this._code = await launch({
 			...this.options,
+			workspacePath: this._workspacePathOrFolder,
 			extraArgs: [...(this.options.extraArgs || []), ...extraArgs],
 		});
 

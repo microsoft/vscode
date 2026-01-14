@@ -15,7 +15,12 @@ export function setup(logger: Logger) {
 
 		it('verifies quick outline (js)', async function () {
 			const app = this.app as Application;
-			await app.workbench.quickaccess.openFile(join(app.workspacePathOrFolder, 'bin', 'www'));
+			const workspacePathOrFolder = app.workspacePathOrFolder;
+			if (!workspacePathOrFolder) {
+				throw new Error('This test requires a workspace to be open');
+			}
+
+			await app.workbench.quickaccess.openFile(join(workspacePathOrFolder, 'bin', 'www'));
 
 			await app.workbench.quickaccess.openQuickOutline();
 			await app.workbench.quickinput.waitForQuickInputElements(names => names.length >= 6);
@@ -24,7 +29,12 @@ export function setup(logger: Logger) {
 
 		it('verifies quick outline (css)', async function () {
 			const app = this.app as Application;
-			await app.workbench.quickaccess.openFile(join(app.workspacePathOrFolder, 'public', 'stylesheets', 'style.css'));
+			const workspacePathOrFolder = app.workspacePathOrFolder;
+			if (!workspacePathOrFolder) {
+				throw new Error('This test requires a workspace to be open');
+			}
+
+			await app.workbench.quickaccess.openFile(join(workspacePathOrFolder, 'public', 'stylesheets', 'style.css'));
 
 			await app.workbench.quickaccess.openQuickOutline();
 			await app.workbench.quickinput.waitForQuickInputElements(names => names.length === 2);
@@ -33,7 +43,12 @@ export function setup(logger: Logger) {
 
 		it('verifies problems view (css)', async function () {
 			const app = this.app as Application;
-			await app.workbench.quickaccess.openFile(join(app.workspacePathOrFolder, 'public', 'stylesheets', 'style.css'));
+			const workspacePathOrFolder = app.workspacePathOrFolder;
+			if (!workspacePathOrFolder) {
+				throw new Error('This test requires a workspace to be open');
+			}
+
+			await app.workbench.quickaccess.openFile(join(workspacePathOrFolder, 'public', 'stylesheets', 'style.css'));
 			await app.workbench.editor.waitForTypeInEditor('style.css', '.foo{}');
 
 			await app.code.waitForElement(Problems.getSelectorInEditor(ProblemSeverity.WARNING));
@@ -45,8 +60,13 @@ export function setup(logger: Logger) {
 
 		it('verifies settings (css)', async function () {
 			const app = this.app as Application;
+			const workspacePathOrFolder = app.workspacePathOrFolder;
+			if (!workspacePathOrFolder) {
+				throw new Error('This test requires a workspace to be open');
+			}
+
 			await app.workbench.settingsEditor.addUserSetting('css.lint.emptyRules', '"error"');
-			await app.workbench.quickaccess.openFile(join(app.workspacePathOrFolder, 'public', 'stylesheets', 'style.css'));
+			await app.workbench.quickaccess.openFile(join(workspacePathOrFolder, 'public', 'stylesheets', 'style.css'));
 
 			await app.code.waitForElement(Problems.getSelectorInEditor(ProblemSeverity.ERROR));
 

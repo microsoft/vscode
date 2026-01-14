@@ -26,6 +26,7 @@ export const enum TerminalChatAgentToolsSettingId {
 	TerminalSandboxLinuxFileSystem = 'chat.tools.terminal.sandbox.linuxFileSystem',
 	TerminalSandboxMacFileSystem = 'chat.tools.terminal.sandbox.macFileSystem',
 	PreventShellHistory = 'chat.tools.terminal.preventShellHistory',
+	EnforceTimeoutFromModel = 'chat.tools.terminal.enforceTimeoutFromModel',
 
 	TerminalProfileLinux = 'chat.tools.terminal.terminalProfile.linux',
 	TerminalProfileMacOs = 'chat.tools.terminal.terminalProfile.osx',
@@ -246,6 +247,37 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 
 			// #endregion
 
+			// #region Package managers (npm, yarn, pnpm)
+			//
+			// Read-only commands that don't modify files or execute arbitrary code.
+
+			// npm read-only commands
+			'/^npm\\s+(ls|list|outdated|view|info|show|explain|why|root|prefix|bin|search|doctor|fund|repo|bugs|docs|home|help(-search)?)\\b/': true,
+			'/^npm\\s+config\\s+(list|get)\\b/': true,
+			'/^npm\\s+pkg\\s+get\\b/': true,
+			'/^npm\\s+audit$/': true,
+			'/^npm\\s+cache\\s+verify\\b/': true,
+
+			// yarn read-only commands
+			'/^yarn\\s+(list|outdated|info|why|bin|help|versions)\\b/': true,
+			'/^yarn\\s+licenses\\b/': true,
+			'/^yarn\\s+audit\\b(?!.*\\bfix\\b)/': true,
+			'/^yarn\\s+config\\s+(list|get)\\b/': true,
+			'/^yarn\\s+cache\\s+dir\\b/': true,
+
+			// pnpm read-only commands
+			'/^pnpm\\s+(ls|list|outdated|why|root|bin|doctor)\\b/': true,
+			'/^pnpm\\s+licenses\\b/': true,
+			'/^pnpm\\s+audit\\b(?!.*\\bfix\\b)/': true,
+			'/^pnpm\\s+config\\s+(list|get)\\b/': true,
+
+			// Safe lockfile-only installs since we trust the workspace and lock file is trusted.
+			'npm ci': true,
+			'/^yarn\\s+install\\s+--frozen-lockfile\\b/': true,
+			'/^pnpm\\s+install\\s+--frozen-lockfile\\b/': true,
+
+			// #endregion
+
 			// #region Safe + disabled args
 			//
 			// Commands that are generally allowed with special cases we block. Note that shell
@@ -355,6 +387,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			eval: false,
 			'Invoke-Expression': false,
 			iex: false,
+
 			// #endregion
 		} satisfies Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>,
 	},
@@ -448,7 +481,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		type: 'boolean',
 		default: false,
 		tags: ['experimental'],
-		markdownDescription: localize('autoReplyToPrompts.key', "Whether to automatically respond to prompts in the terminal such as `Confirm? y/n`. This is an experimental feature and may not work in all scenarios."),
+		markdownDescription: localize('autoReplyToPrompts.key', "Whether to automatically respond to prompts in the terminal such as `Confirm? y/n`. This is an experimental feature and may not work in all scenarios.\n\n**This feature is inherently risky to use as you're deferring potentially sensitive decisions to an LLM. Use at your own risk.**"),
 	},
 	[TerminalChatAgentToolsSettingId.OutputLocation]: {
 		markdownDescription: localize('outputLocation.description', "Where to show the output from the run in terminal tool session."),
@@ -564,6 +597,16 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			`- \`fish\`: ${localize('preventShellHistory.description.fish', "Sets `fish_private_mode` to prevent any command from entering history")}`,
 			`- \`pwsh\`: ${localize('preventShellHistory.description.pwsh', "Sets a custom history handler via PSReadLine's `AddToHistoryHandler` to prevent any command from entering history")}`,
 		].join('\n'),
+	},
+	[TerminalChatAgentToolsSettingId.EnforceTimeoutFromModel]: {
+		restricted: true,
+		type: 'boolean',
+		default: false,
+		tags: ['experimental'],
+		experiment: {
+			mode: 'auto'
+		},
+		markdownDescription: localize('enforceTimeoutFromModel.description', "Whether to enforce the timeout value provided by the model in the run in terminal tool. When enabled, if the model provides a timeout parameter, the tool will stop tracking the command after that duration and return the output collected so far."),
 	}
 };
 

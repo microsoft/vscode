@@ -157,7 +157,15 @@ async function launchBrowser(options: LaunchOptions, endpoint: string) {
 		`["logLevel","${options.verbose ? 'trace' : 'info'}"]`
 	].join(',')}]`;
 
-	const gotoPromise = measureAndLog(() => page.goto(`${endpoint}&${workspacePath.endsWith('.code-workspace') ? 'workspace' : 'folder'}=${URI.file(workspacePath!).path}&payload=${payloadParam}`), 'page.goto()', logger);
+	// Build URL with optional workspace path
+	let url = `${endpoint}&`;
+	if (workspacePath) {
+		const workspaceParam = workspacePath.endsWith('.code-workspace') ? 'workspace' : 'folder';
+		url += `${workspaceParam}=${URI.file(workspacePath).path}&`;
+	}
+	url += `payload=${payloadParam}`;
+
+	const gotoPromise = measureAndLog(() => page.goto(url), 'page.goto()', logger);
 	const pageLoadedPromise = page.waitForLoadState('load');
 
 	await gotoPromise;

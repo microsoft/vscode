@@ -35,6 +35,7 @@ export interface IChatSessionProviderOptionItem {
 	description?: string;
 	locked?: boolean;
 	icon?: ThemeIcon;
+	default?: boolean;
 	// [key: string]: any;
 }
 
@@ -43,6 +44,16 @@ export interface IChatSessionProviderOptionGroup {
 	name: string;
 	description?: string;
 	items: IChatSessionProviderOptionItem[];
+	searchable?: boolean;
+	onSearch?: (query: string, token: CancellationToken) => Thenable<IChatSessionProviderOptionItem[]>;
+	/**
+	 * A context key expression that controls visibility of this option group picker.
+	 * When specified, the picker is only visible when the expression evaluates to true.
+	 * The expression can reference other option group values via `chatSessionOption.<groupId>`.
+	 * Example: `"chatSessionOption.models == 'gpt-4'"`
+	 */
+	when?: string;
+	icon?: ThemeIcon;
 }
 
 export interface IChatSessionsExtensionPoint {
@@ -62,6 +73,7 @@ export interface IChatSessionsExtensionPoint {
 	readonly commands?: IChatSessionCommandContribution[];
 	readonly canDelegate?: boolean;
 }
+
 export interface IChatSessionItem {
 	resource: URI;
 	label: string;
