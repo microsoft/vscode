@@ -31,12 +31,20 @@ const THEME_BG_STORAGE_KEY = 'themeBackground';
 const THEME_WINDOW_SPLASH_KEY = 'windowSplash';
 const THEME_WINDOW_SPLASH_OVERRIDE_KEY = 'windowSplashWorkspaceOverride';
 
-const AUXILIARYBAR_DEFAULT_VISIBILITY = 'workbench.secondarySideBar.defaultVisibility';
+class Setting<T> {
+	constructor(public readonly key: string, public readonly defaultValue: T) {
+	}
+	getValue(configurationService: IConfigurationService): T {
+		return configurationService.getValue<T>(this.key) ?? this.defaultValue;
+	}
+}
 
-namespace ThemeSettings {
-	export const DETECT_COLOR_SCHEME = 'window.autoDetectColorScheme';
-	export const DETECT_HC = 'window.autoDetectHighContrast';
-	export const SYSTEM_COLOR_THEME = 'window.systemColorTheme';
+// in the main process, defaults are not known to the configuration service, so we need to define them here
+namespace Setting {
+	export const DETECT_COLOR_SCHEME = new Setting<boolean>('window.autoDetectColorScheme', false);
+	export const DETECT_HC = new Setting<boolean>('window.autoDetectHighContrast', true);
+	export const SYSTEM_COLOR_THEME = new Setting<'default' | 'auto' | 'light' | 'dark'>('window.systemColorTheme', 'default');
+	export const AUXILIARYBAR_DEFAULT_VISIBILITY = new Setting<'hidden' | 'visibleInWorkspace' | 'visible' | 'maximizedInWorkspace' | 'maximized'>('workbench.secondarySideBar.defaultVisibility', 'visibleInWorkspace');
 }
 
 interface IPartSplashOverrideWorkspaces {
@@ -76,8 +84,9 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 		// System Theme
 		if (!isLinux) {
 			this._register(this.configurationService.onDidChangeConfiguration(e => {
-				if (e.affectsConfiguration(ThemeSettings.SYSTEM_COLOR_THEME) || e.affectsConfiguration(ThemeSettings.DETECT_COLOR_SCHEME)) {
+				if (e.affectsConfiguration(Setting.SYSTEM_COLOR_THEME.key) || e.affectsConfiguration(Setting.DETECT_COLOR_SCHEME.key)) {
 					this.updateSystemColorTheme();
+					this.logThemeSettings();
 				}
 			}));
 		}
@@ -90,10 +99,11 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 			this._onDidChangeColorScheme.fire(this.getColorScheme());
 		}));
 	}
+
 	private logThemeSettings(): void {
 		if (this.logService.getLevel() >= LogLevel.Debug) {
-			const logSetting = (setting: string) => `${setting}=${this.configurationService.getValue(setting)}`;
-			this.logService.debug(`[theme main service] ${logSetting(ThemeSettings.DETECT_COLOR_SCHEME)}, ${logSetting(ThemeSettings.DETECT_HC)}, ${logSetting(ThemeSettings.SYSTEM_COLOR_THEME)}`);
+			const logSetting = (setting: Setting<string | boolean>) => `${setting.key}=${setting.getValue(this.configurationService)}`;
+			this.logService.debug(`[theme main service] ${logSetting(Setting.DETECT_COLOR_SCHEME)}, ${logSetting(Setting.DETECT_HC)}, ${logSetting(Setting.SYSTEM_COLOR_THEME)}`);
 
 			const logProperty = (property: keyof Electron.NativeTheme) => `${String(property)}=${electron.nativeTheme[property]}`;
 			this.logService.debug(`[theme main service] electron.nativeTheme: ${logProperty('themeSource')}, ${logProperty('shouldUseDarkColors')}, ${logProperty('shouldUseHighContrastColors')}, ${logProperty('shouldUseInvertedColorScheme')}, ${logProperty('shouldUseDarkColorsForSystemIntegratedUI')}	`);
@@ -102,10 +112,10 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 	}
 
 	private updateSystemColorTheme(): void {
-		if (isLinux || this.configurationService.getValue(ThemeSettings.DETECT_COLOR_SCHEME)) {
+		if (isLinux || Setting.DETECT_COLOR_SCHEME.getValue(this.configurationService)) {
 			electron.nativeTheme.themeSource = 'system'; // only with `system` we can detect the system color scheme
 		} else {
-			switch (this.configurationService.getValue<'default' | 'auto' | 'light' | 'dark'>(ThemeSettings.SYSTEM_COLOR_THEME)) {
+			switch (Setting.SYSTEM_COLOR_THEME.getValue(this.configurationService)) {
 				case 'dark':
 					electron.nativeTheme.themeSource = 'dark';
 					break;
@@ -159,11 +169,11 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 
 	getPreferredBaseTheme(): ThemeTypeSelector | undefined {
 		const colorScheme = this.getColorScheme();
-		if (this.configurationService.getValue(ThemeSettings.DETECT_HC) && colorScheme.highContrast) {
+		if (Setting.DETECT_HC.getValue(this.configurationService) && colorScheme.highContrast) {
 			return colorScheme.dark ? ThemeTypeSelector.HC_BLACK : ThemeTypeSelector.HC_LIGHT;
 		}
 
-		if (this.configurationService.getValue(ThemeSettings.DETECT_COLOR_SCHEME)) {
+		if (Setting.DETECT_COLOR_SCHEME.getValue(this.configurationService)) {
 			return colorScheme.dark ? ThemeTypeSelector.VS_DARK : ThemeTypeSelector.VS;
 		}
 
@@ -348,7 +358,7 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 		}
 
 		// Figure out auxiliary bar width based on workspace, configuration and overrides
-		const auxiliaryBarDefaultVisibility = this.configurationService.getValue(AUXILIARYBAR_DEFAULT_VISIBILITY) ?? 'visibleInWorkspace';
+		const auxiliaryBarDefaultVisibility = Setting.AUXILIARYBAR_DEFAULT_VISIBILITY.getValue(this.configurationService);
 		let auxiliaryBarWidth: number;
 		if (workspace) {
 			const auxiliaryBarVisible = override.layoutInfo.workspaces[workspace.id]?.auxiliaryBarVisible;
