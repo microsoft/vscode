@@ -10,13 +10,14 @@ import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { Event } from '../../../../base/common/event.js';
+import type { BrowserEditorInput } from './browserEditorInput.js';
 
 export class BrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _browserViewService: IBrowserViewService;
 	private readonly _models = new Map<string, IBrowserViewModel>();
-	private readonly _editorInputs = new Map<string, Set<import('./browserEditorInput.js').BrowserEditorInput>>();
+	private readonly _editorInputs = new Map<string, Set<BrowserEditorInput>>();
 
 	constructor(
 		@IMainProcessService mainProcessService: IMainProcessService,
@@ -60,7 +61,7 @@ export class BrowserViewWorkbenchService implements IBrowserViewWorkbenchService
 	 * Register a browser editor input. When a duplicate editor with the same ID is registered,
 	 * the previous one will be disposed to prevent syncing issues.
 	 */
-	registerEditorInput(input: import('./browserEditorInput.js').BrowserEditorInput): void {
+	registerEditorInput(input: BrowserEditorInput): void {
 		const id = input.id;
 		let inputs = this._editorInputs.get(id);
 
