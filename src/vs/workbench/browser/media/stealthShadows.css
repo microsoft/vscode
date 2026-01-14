@@ -61,13 +61,14 @@
 .monaco-workbench.stealth-shadows-enabled.hc-black .quick-input-widget .quick-input-filter .monaco-inputbox { background: rgba(20, 20, 22, 0.6) !important; }
 
 /* Chat Widget */
-.monaco-workbench.stealth-shadows-enabled .interactive-session .chat-input-container { box-shadow: 0 0 18px rgba(0, 0, 0, 0.12); border: none !important; border-radius: 6px; background-color: var(--vscode-panel-background, var(--vscode-sideBar-background)) !important; }
+.monaco-workbench.stealth-shadows-enabled .interactive-session .chat-input-container { box-shadow: 0 0 12px rgba(0, 0, 0, 0.10); border: none !important; border-radius: 6px; background-color: var(--vscode-panel-background, var(--vscode-sideBar-background)) !important; }
 .monaco-workbench.stealth-shadows-enabled .interactive-session .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor,
 .monaco-workbench.stealth-shadows-enabled .interactive-session .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor .monaco-editor-background { background-color: var(--vscode-panel-background, var(--vscode-sideBar-background)) !important; }
 .monaco-workbench.stealth-shadows-enabled .interactive-session .chat-editing-session .chat-editing-session-container { box-shadow: 0 0 12px rgba(0, 0, 0, 0.10); border: none !important; border-radius: 4px 4px 0 0; }
 .monaco-workbench.stealth-shadows-enabled .interactive-input-part:has(.chat-editing-session > .chat-editing-session-container) .chat-input-container { border-radius: 0 0 6px 6px; }
 .monaco-workbench.stealth-shadows-enabled .part.panel .interactive-session,
 .monaco-workbench.stealth-shadows-enabled .part.auxiliarybar .interactive-session { position: relative; }
+.monaco-workbench.stealth-shadows-enabled .chat-attached-context-attachment { box-shadow: 0 0 6px rgba(0, 0, 0, 0.08); border: none !important; }
 
 /* Notifications */
 .monaco-workbench.stealth-shadows-enabled .notifications-toasts { box-shadow: 0 0 28px rgba(0, 0, 0, 0.14); }
