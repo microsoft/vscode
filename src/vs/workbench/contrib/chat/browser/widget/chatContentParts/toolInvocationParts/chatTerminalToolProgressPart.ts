@@ -401,7 +401,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	}
 
 	public expandCollapsibleWrapper(): void {
-		this._thinkingCollapsibleWrapper?.setExpanded(true);
+		this._thinkingCollapsibleWrapper?.expand();
 	}
 
 	private async _initializeTerminalActions(): Promise<void> {
@@ -1460,8 +1460,8 @@ class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart 
 		return listWrapper;
 	}
 
-	public override setExpanded(value: boolean): void {
-		super.setExpanded(value);
+	public expand(): void {
+		this.setExpanded(true);
 	}
 
 	hasSameContent(_other: IChatRendererContent, _followingContent: IChatRendererContent[], _element: ChatTreeItem): boolean {
