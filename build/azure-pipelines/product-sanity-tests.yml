@@ -62,6 +62,7 @@ extends:
       - stage: sanity_tests
         displayName: Run Sanity Tests
         jobs:
+          # Windows tests
           - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
               name: Windows_x64
@@ -77,6 +78,7 @@ extends:
               os: windows
               args: --no-runtime-check --grep "win32-arm64"
 
+          # macOS tests
           - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
               name: macOS_x64
@@ -92,8 +94,8 @@ extends:
               poolName: AcesShared
               os: macOS
 
-          # Linux x64 containers
-          - template: build/azure-pipelines/common/sanity-tests-container.yml@self
+          # Linux x64 tests
+          - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
               name: Ubuntu_22_04_x64
               displayName: Ubuntu 22.04 x64 Sanity Tests
@@ -101,7 +103,7 @@ extends:
               container: ubuntu:22.04
               containerPlatform: linux/amd64
 
-          - template: build/azure-pipelines/common/sanity-tests-container.yml@self
+          - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
               name: Ubuntu_24_04_x64
               displayName: Ubuntu 24.04 x64 Sanity Tests
@@ -109,7 +111,7 @@ extends:
               container: ubuntu:24.04
               containerPlatform: linux/amd64
 
-          - template: build/azure-pipelines/common/sanity-tests-container.yml@self
+          - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
               name: Debian_12_x64
               displayName: Debian 12 x64 Sanity Tests
@@ -117,7 +119,7 @@ extends:
               container: debian:12
               containerPlatform: linux/amd64
 
-          - template: build/azure-pipelines/common/sanity-tests-container.yml@self
+          - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
               name: RedHat_UBI9_x64
               displayName: Red Hat UBI 9 x64 Sanity Tests
@@ -125,7 +127,7 @@ extends:
               container: redhat/ubi9:latest
               containerPlatform: linux/amd64
 
-          - template: build/azure-pipelines/common/sanity-tests-container.yml@self
+          - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
               name: Fedora_40_x64
               displayName: Fedora 40 x64 Sanity Tests
@@ -133,7 +135,7 @@ extends:
               container: fedora:40
               containerPlatform: linux/amd64
 
-          - template: build/azure-pipelines/common/sanity-tests-container.yml@self
+          - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
               name: openSUSE_Leap_x64
               displayName: openSUSE Leap x64 Sanity Tests
@@ -141,7 +143,7 @@ extends:
               container: opensuse/leap:latest
               containerPlatform: linux/amd64
 
-          - template: build/azure-pipelines/common/sanity-tests-container.yml@self
+          - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
               name: Alpine_x64
               displayName: Alpine x64 Sanity Tests
@@ -149,8 +151,8 @@ extends:
               container: alpine:latest
               containerPlatform: linux/amd64
 
-          # Linux arm32 containers (emulated via QEMU)
-          - template: build/azure-pipelines/common/sanity-tests-container.yml@self
+          # Linux arm32 tests (emulated via QEMU)
+          - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
               name: Ubuntu_22_04_arm32
               displayName: Ubuntu 22.04 arm32 Sanity Tests
@@ -158,7 +160,7 @@ extends:
               container: ubuntu:22.04
               containerPlatform: linux/arm
 
-          - template: build/azure-pipelines/common/sanity-tests-container.yml@self
+          - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
               name: Ubuntu_24_04_arm32
               displayName: Ubuntu 24.04 arm32 Sanity Tests
@@ -166,7 +168,7 @@ extends:
               container: ubuntu:24.04
               containerPlatform: linux/arm
 
-          - template: build/azure-pipelines/common/sanity-tests-container.yml@self
+          - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
               name: Debian_12_arm32
               displayName: Debian 12 arm32 Sanity Tests
@@ -174,7 +176,7 @@ extends:
               container: debian:12
               containerPlatform: linux/arm
 
-          - template: build/azure-pipelines/common/sanity-tests-container.yml@self
+          - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
               name: openSUSE_Leap_arm32
               displayName: openSUSE Leap arm32 Sanity Tests
@@ -182,7 +184,7 @@ extends:
               container: opensuse/leap:latest
               containerPlatform: linux/arm
 
-          - template: build/azure-pipelines/common/sanity-tests-container.yml@self
+          - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
               name: Alpine_arm32
               displayName: Alpine arm32 Sanity Tests
@@ -190,8 +192,8 @@ extends:
               container: alpine:latest
               containerPlatform: linux/arm
 
-          # Linux arm64 containers (emulated via QEMU)
-          - template: build/azure-pipelines/common/sanity-tests-container.yml@self
+          # Linux arm64 tests (emulated via QEMU)
+          - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
               name: Ubuntu_22_04_arm64
               displayName: Ubuntu 22.04 arm64 Sanity Tests
@@ -199,7 +201,7 @@ extends:
               container: ubuntu:22.04
               containerPlatform: linux/arm64
 
-          - template: build/azure-pipelines/common/sanity-tests-container.yml@self
+          - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
               name: Ubuntu_24_04_arm64
               displayName: Ubuntu 24.04 arm64 Sanity Tests
@@ -207,7 +209,7 @@ extends:
               container: ubuntu:24.04
               containerPlatform: linux/arm64
 
-          - template: build/azure-pipelines/common/sanity-tests-container.yml@self
+          - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
               name: Debian_12_arm64
               displayName: Debian 12 arm64 Sanity Tests
@@ -215,7 +217,7 @@ extends:
               container: debian:12
               containerPlatform: linux/arm64
 
-          - template: build/azure-pipelines/common/sanity-tests-container.yml@self
+          - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
               name: RedHat_UBI9_arm64
               displayName: Red Hat UBI 9 arm64 Sanity Tests
@@ -223,7 +225,7 @@ extends:
               container: redhat/ubi9:latest
               containerPlatform: linux/arm64
 
-          - template: build/azure-pipelines/common/sanity-tests-container.yml@self
+          - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
               name: Fedora_40_arm64
               displayName: Fedora 40 arm64 Sanity Tests
@@ -231,7 +233,7 @@ extends:
               container: fedora:40
               containerPlatform: linux/arm64
 
-          - template: build/azure-pipelines/common/sanity-tests-container.yml@self
+          - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
               name: openSUSE_Leap_arm64
               displayName: openSUSE Leap arm64 Sanity Tests
@@ -239,7 +241,7 @@ extends:
               container: opensuse/leap:latest
               containerPlatform: linux/arm64
 
-          - template: build/azure-pipelines/common/sanity-tests-container.yml@self
+          - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
               name: Alpine_arm64
               displayName: Alpine arm64 Sanity Tests
