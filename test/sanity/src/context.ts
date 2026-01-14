@@ -544,7 +544,7 @@ export class TestContext {
 	 */
 	public installRpm(packagePath: string): string {
 		this.log(`Installing ${packagePath} using RPM package manager`);
-		this.runNoErrors('sudo', 'alien', '-i', packagePath);
+		this.runNoErrors('sudo', 'rpm', '-i', packagePath);
 		this.log(`Installed ${packagePath} successfully`);
 
 		const entryPoint = this.getEntryPoint('desktop', '/usr/bin');
