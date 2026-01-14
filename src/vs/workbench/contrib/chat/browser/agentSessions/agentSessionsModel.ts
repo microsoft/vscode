@@ -365,17 +365,17 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 				let created = session.timing.created;
 				let lastRequestStarted = session.timing.lastRequestStarted;
 				let lastRequestEnded = session.timing.lastRequestEnded;
-				if (!created || lastRequestEnded === undefined) {
+				if (!created || !lastRequestEnded) {
 					const existing = this._sessions.get(session.resource);
 					if (!created && existing?.timing.created) {
 						created = existing.timing.created;
 					}
 
-					if (lastRequestEnded === undefined && existing?.timing.lastRequestEnded) {
+					if (!lastRequestEnded && existing?.timing.lastRequestEnded) {
 						lastRequestEnded = existing.timing.lastRequestEnded;
 					}
 
-					if (lastRequestStarted === undefined && existing?.timing.lastRequestStarted) {
+					if (!lastRequestStarted && existing?.timing.lastRequestStarted) {
 						lastRequestStarted = existing.timing.lastRequestStarted;
 					}
 				}
@@ -569,7 +569,7 @@ class AgentSessionsCache {
 
 		try {
 			const cached = JSON.parse(sessionsCache) as ISerializedAgentSession[];
-			return cached.map(session => ({
+			return cached.map((session): IInternalAgentSessionData => ({
 				providerType: session.providerType,
 				providerLabel: session.providerLabel,
 
@@ -589,9 +589,6 @@ class AgentSessionsCache {
 					created: session.timing.created ?? session.timing.startTime ?? 0,
 					lastRequestStarted: session.timing.lastRequestStarted ?? session.timing.startTime,
 					lastRequestEnded: session.timing.lastRequestEnded ?? session.timing.endTime,
-					// Deprecated fields for backward compatibility
-					startTime: session.timing.created ?? session.timing.startTime,
-					endTime: session.timing.lastRequestEnded ?? session.timing.endTime,
 				},
 
 				changes: Array.isArray(session.changes) ? session.changes.map((change: IChatSessionFileChange) => ({

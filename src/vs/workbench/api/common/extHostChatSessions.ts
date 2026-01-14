@@ -43,7 +43,7 @@ class ChatSessionItemImpl implements vscode.ChatSessionItem {
 	#status?: vscode.ChatSessionStatus;
 	#archived?: boolean;
 	#tooltip?: string | vscode.MarkdownString;
-	#timing?: { created: number; lastRequestStarted?: number; lastRequestEnded?: number; startTime?: number; endTime?: number };
+	#timing?: ChatSessionTiming;
 	#changes?: readonly vscode.ChatSessionChangedFile[] | { files: number; insertions: number; deletions: number };
 	#onChanged: () => void;
 
