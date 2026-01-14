@@ -37,14 +37,18 @@ import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { IChatModel } from '../../common/model/chatModel.js';
 import { IChatService, IChatToolInvocation } from '../../common/chatService/chatService.js';
-import { autorun, autorunIterableDelta, observableSignalFromEvent } from '../../../../../base/common/observable.js';
+import { autorun, autorunIterableDelta, observableFromEvent, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatViewId } from '../chat.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
-import { AgentSessionProviders } from '../agentSessions/agentSessions.js';
+import { AgentSessionProviders, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
+import { BugIndicatingError } from '../../../../../base/common/errors.js';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { LocalChatSessionUri } from '../../common/model/chatUri.js';
+import { assertNever } from '../../../../../base/common/assert.js';
 
 const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsExtensionPoint[]>({
 	extensionPoint: 'chatSessions',
@@ -313,6 +317,21 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			this._evaluateAvailability();
 		}));
 
+		const builtinSessionProviders = [AgentSessionProviders.Local];
+		const contributedSessionProviders = observableFromEvent(
+			this.onDidChangeAvailability,
+			() => Array.from(this._contributions.keys()).filter(isAgentSessionProviderType) as AgentSessionProviders[],
+		).recomputeInitiallyAndOnChange(this._store);
+
+		this._register(autorun(reader => {
+			const activatedProviders = [...builtinSessionProviders, ...contributedSessionProviders.read(reader)];
+			for (const provider of Object.values(AgentSessionProviders)) {
+				if (activatedProviders.includes(provider)) {
+					reader.store.add(registerNewSessionInPlaceAction(provider, getAgentSessionProviderName(provider)));
+				}
+			}
+		}));
+
 		this._register(this.onDidChangeSessionItems(chatSessionType => {
 			this.updateInProgressStatus(chatSessionType).catch(error => {
 				this._logService.warn(`Failed to update progress status for '${chatSessionType}':`, error);
@@ -510,6 +529,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	private _registerCommands(contribution: IChatSessionsExtensionPoint): IDisposable {
+		const isAvailableInSessionTypePicker = isAgentSessionProviderType(contribution.type);
+
 		return combinedDisposable(
 			registerAction2(class OpenChatSessionAction extends Action2 {
 				constructor() {
@@ -549,30 +570,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				}
 
 				async run(accessor: ServicesAccessor, chatOptions?: { prompt: string; attachedContext?: IChatRequestVariableEntry[] }): Promise<void> {
-					const editorService = accessor.get(IEditorService);
-					const logService = accessor.get(ILogService);
-					const chatService = accessor.get(IChatService);
-					const { type } = contribution;
-
-					try {
-						const options: IChatEditorOptions = {
-							override: ChatEditorInput.EditorID,
-							pinned: true,
-							title: {
-								fallback: localize('chatEditorContributionName', "{0}", contribution.displayName),
-							}
-						};
-						const resource = URI.from({
-							scheme: type,
-							path: `/untitled-${generateUuid()}`,
-						});
-						await editorService.openEditor({ resource, options });
-						if (chatOptions?.prompt) {
-							await chatService.sendRequest(resource, chatOptions.prompt, { agentIdSilent: type, attachedContext: chatOptions.attachedContext });
-						}
-					} catch (e) {
-						logService.error(`Failed to open new '${type}' chat session editor`, e);
-					}
+					const { type, displayName } = contribution;
+					await openChatSession(accessor, { type, displayName, position: ChatSessionPosition.Editor }, chatOptions);
 				}
 			}),
 			// New chat in sidebar chat (+ button)
@@ -585,34 +584,16 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 						icon: Codicon.plus,
 						f1: false, // Hide from Command Palette
 						precondition: ChatContextKeys.enabled,
-						menu: {
+						menu: !isAvailableInSessionTypePicker ? {
 							id: MenuId.ChatNewMenu,
 							group: '3_new_special',
-						}
+						} : undefined,
 					});
 				}
 
 				async run(accessor: ServicesAccessor, chatOptions?: { prompt: string; attachedContext?: IChatRequestVariableEntry[] }): Promise<void> {
-					const viewsService = accessor.get(IViewsService);
-					const logService = accessor.get(ILogService);
-					const chatService = accessor.get(IChatService);
-					const { type } = contribution;
-
-					try {
-						const resource = URI.from({
-							scheme: type,
-							path: `/untitled-${generateUuid()}`,
-						});
-
-						const view = await viewsService.openView(ChatViewId) as ChatViewPane;
-						await view.loadSession(resource);
-						if (chatOptions?.prompt) {
-							await chatService.sendRequest(resource, chatOptions.prompt, { agentIdSilent: type, attachedContext: chatOptions.attachedContext });
-						}
-						view.focus();
-					} catch (e) {
-						logService.error(`Failed to open new '${type}' chat session in sidebar`, e);
-					}
+					const { type, displayName } = contribution;
+					await openChatSession(accessor, { type, displayName, position: ChatSessionPosition.Sidebar }, chatOptions);
 				}
 			})
 		);
@@ -1096,3 +1077,130 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 }
 
 registerSingleton(IChatSessionsService, ChatSessionsService, InstantiationType.Delayed);
+
+function registerNewSessionInPlaceAction(type: string, displayName: string): IDisposable {
+	return registerAction2(class NewChatSessionInPlaceAction extends Action2 {
+		constructor() {
+			super({
+				id: `workbench.action.chat.openNewChatSessionInPlace.${type}`,
+				title: localize2('interactiveSession.openNewChatSessionInPlace', "New {0}", displayName),
+				category: CHAT_CATEGORY,
+				f1: false,
+				precondition: ChatContextKeys.enabled,
+			});
+		}
+
+		// Expected args: [chatSessionPosition: 'sidebar' | 'editor']
+		async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+			if (args.length === 0) {
+				throw new BugIndicatingError('Expected chat session position argument');
+			}
+
+			const chatSessionPosition = args[0];
+			if (chatSessionPosition !== ChatSessionPosition.Sidebar && chatSessionPosition !== ChatSessionPosition.Editor) {
+				throw new BugIndicatingError(`Invalid chat session position argument: ${chatSessionPosition}`);
+			}
+
+			await openChatSession(accessor, { type: type, displayName: localize('chat', "Chat"), position: chatSessionPosition, replaceEditor: true });
+		}
+	});
+}
+
+enum ChatSessionPosition {
+	Editor = 'editor',
+	Sidebar = 'sidebar'
+}
+
+type NewChatSessionSendOptions = {
+	readonly prompt: string;
+	readonly attachedContext?: IChatRequestVariableEntry[];
+};
+
+type NewChatSessionOpenOptions = {
+	readonly type: string;
+	readonly position: ChatSessionPosition;
+	readonly displayName: string;
+	readonly chatResource?: UriComponents;
+	readonly replaceEditor?: boolean;
+};
+
+async function openChatSession(accessor: ServicesAccessor, openOptions: NewChatSessionOpenOptions, chatSendOptions?: NewChatSessionSendOptions): Promise<void> {
+	const viewsService = accessor.get(IViewsService);
+	const chatService = accessor.get(IChatService);
+	const logService = accessor.get(ILogService);
+	const editorGroupService = accessor.get(IEditorGroupsService);
+	const editorService = accessor.get(IEditorService);
+
+	// Determine resource to open
+	const resource = getResourceForNewChatSession(openOptions);
+
+	// Open chat session
+	try {
+		switch (openOptions.position) {
+			case ChatSessionPosition.Sidebar: {
+				const view = await viewsService.openView(ChatViewId) as ChatViewPane;
+				await view.loadSession(resource);
+				view.focus();
+				break;
+			}
+			case ChatSessionPosition.Editor: {
+				const options: IChatEditorOptions = {
+					override: ChatEditorInput.EditorID,
+					pinned: true,
+					title: {
+						fallback: localize('chatEditorContributionName', "{0}", openOptions.displayName),
+					}
+				};
+				if (openOptions.replaceEditor) {
+					// TODO: Do not rely on active editor
+					const activeEditor = editorGroupService.activeGroup.activeEditor;
+					if (!activeEditor || !(activeEditor instanceof ChatEditorInput)) {
+						throw new Error('No active chat editor to replace');
+					}
+					await editorService.replaceEditors([{ editor: activeEditor, replacement: { resource, options } }], editorGroupService.activeGroup);
+				} else {
+					await editorService.openEditor({ resource, options });
+				}
+				break;
+			}
+			default: assertNever(openOptions.position, `Unknown chat session position: ${openOptions.position}`);
+		}
+	} catch (e) {
+		logService.error(`Failed to open '${openOptions.type}' chat session with openOptions: ${JSON.stringify(openOptions)}`, e);
+		return;
+	}
+
+	// Send initial prompt if provided
+	if (chatSendOptions) {
+		try {
+			await chatService.sendRequest(resource, chatSendOptions.prompt, { agentIdSilent: openOptions.type, attachedContext: chatSendOptions.attachedContext });
+		} catch (e) {
+			logService.error(`Failed to send initial request to '${openOptions.type}' chat session with contextOptions: ${JSON.stringify(chatSendOptions)}`, e);
+		}
+	}
+}
+
+function getResourceForNewChatSession(options: NewChatSessionOpenOptions): URI {
+	if (options.chatResource) {
+		return URI.revive(options.chatResource);
+	}
+
+	const isRemoteSession = options.type !== AgentSessionProviders.Local;
+	if (isRemoteSession) {
+		return URI.from({
+			scheme: options.type,
+			path: `/untitled-${generateUuid()}`,
+		});
+	}
+
+	const isEditorPosition = options.position === ChatSessionPosition.Editor;
+	if (isEditorPosition) {
+		return ChatEditorInput.getNewEditorUri();
+	}
+
+	return LocalChatSessionUri.forSession(generateUuid());
+}
+
+function isAgentSessionProviderType(type: string): boolean {
+	return Object.values(AgentSessionProviders).includes(type as AgentSessionProviders);
+}

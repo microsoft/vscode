@@ -15,7 +15,7 @@ import { Branch, BranchQuery, Change, CommitOptions, DiffChange, FetchOptions, F
 import { AutoFetcher } from './autofetch';
 import { GitBranchProtectionProvider, IBranchProtectionProviderRegistry } from './branchProtection';
 import { debounce, memoize, sequentialize, throttle } from './decorators';
-import { Repository as BaseRepository, BlameInformation, Commit, CommitShortStat, GitError, LogFileOptions, LsTreeElement, PullOptions, RefQuery, Stash, Submodule, Worktree } from './git';
+import { Repository as BaseRepository, BlameInformation, Commit, CommitShortStat, GitError, IDotGit, LogFileOptions, LsTreeElement, PullOptions, RefQuery, Stash, Submodule, Worktree } from './git';
 import { GitHistoryProvider } from './historyProvider';
 import { Operation, OperationKind, OperationManager, OperationResult } from './operation';
 import { CommitCommandsCenter, IPostCommitCommandsProviderRegistry } from './postCommitCommands';
@@ -866,7 +866,7 @@ export class Repository implements Disposable {
 		return this.repository.rootRealPath;
 	}
 
-	get dotGit(): { path: string; commonPath?: string } {
+	get dotGit(): IDotGit {
 		return this.repository.dotGit;
 	}
 
