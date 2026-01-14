@@ -55,71 +55,71 @@ export function setup(context: TestContext) {
 		});
 	}
 
-	if (context.skipRuntimeCheck || context.platform === 'linux-arm64') {
+	if (context.skipRuntimeCheck || (context.platform === 'linux-arm64' && context.isPackageManagerSupported('deb'))) {
 		test('desktop-linux-deb-arm64', async () => {
 			const packagePath = await context.downloadTarget('linux-deb-arm64');
+			const entryPoint = context.installDeb(packagePath);
 			if (!context.skipRuntimeCheck) {
-				const entryPoint = context.installDeb(packagePath);
 				await testDesktopApp(entryPoint);
 			}
 		});
 	}
 
-	if (context.skipRuntimeCheck || context.platform === 'linux-arm') {
+	if (context.skipRuntimeCheck || (context.platform === 'linux-arm' && context.isPackageManagerSupported('deb'))) {
 		test('desktop-linux-deb-armhf', async () => {
 			const packagePath = await context.downloadTarget('linux-deb-armhf');
+			const entryPoint = context.installDeb(packagePath);
 			if (!context.skipRuntimeCheck) {
-				const entryPoint = context.installDeb(packagePath);
 				await testDesktopApp(entryPoint);
 			}
 		});
 	}
 
-	if (context.skipRuntimeCheck || context.platform === 'linux-x64') {
+	if (context.skipRuntimeCheck || (context.platform === 'linux-x64' && context.isPackageManagerSupported('deb'))) {
 		test('desktop-linux-deb-x64', async () => {
 			const packagePath = await context.downloadTarget('linux-deb-x64');
+			const entryPoint = context.installDeb(packagePath);
 			if (!context.skipRuntimeCheck) {
-				const entryPoint = context.installDeb(packagePath);
 				await testDesktopApp(entryPoint);
 			}
 		});
 	}
 
-	if (context.skipRuntimeCheck || context.platform === 'linux-arm64') {
+	if (context.skipRuntimeCheck || (context.platform === 'linux-arm64' && context.isPackageManagerSupported('rpm'))) {
 		test('desktop-linux-rpm-arm64', async () => {
 			const packagePath = await context.downloadTarget('linux-rpm-arm64');
+			const entryPoint = context.installRpm(packagePath);
 			if (!context.skipRuntimeCheck) {
-				const entryPoint = context.installRpm(packagePath);
 				await testDesktopApp(entryPoint);
 			}
 		});
 	}
 
-	if (context.skipRuntimeCheck || context.platform === 'linux-arm') {
+	if (context.skipRuntimeCheck || (context.platform === 'linux-arm' && context.isPackageManagerSupported('rpm'))) {
 		test('desktop-linux-rpm-armhf', async () => {
 			const packagePath = await context.downloadTarget('linux-rpm-armhf');
+			const entryPoint = context.installRpm(packagePath);
 			if (!context.skipRuntimeCheck) {
-				const entryPoint = context.installRpm(packagePath);
 				await testDesktopApp(entryPoint);
 			}
 		});
 	}
 
-	if (context.skipRuntimeCheck || context.platform === 'linux-x64') {
+	if (context.skipRuntimeCheck || (context.platform === 'linux-x64' && context.isPackageManagerSupported('rpm'))) {
 		test('desktop-linux-rpm-x64', async () => {
 			const packagePath = await context.downloadTarget('linux-rpm-x64');
+			const entryPoint = context.installRpm(packagePath);
 			if (!context.skipRuntimeCheck) {
-				const entryPoint = context.installRpm(packagePath);
 				await testDesktopApp(entryPoint);
 			}
 		});
 	}
 
-	if (context.skipRuntimeCheck || context.platform === 'linux-x64') {
+	if (context.skipRuntimeCheck || (context.platform === 'linux-x64' && context.isPackageManagerSupported('snap'))) {
 		test('desktop-linux-snap-x64', async () => {
 			const packagePath = await context.downloadTarget('linux-snap-x64');
+			const entryPoint = context.installSnap(packagePath);
 			if (!context.skipRuntimeCheck) {
-				const entryPoint = context.installSnap(packagePath);
 				await testDesktopApp(entryPoint);
 			}
 		});

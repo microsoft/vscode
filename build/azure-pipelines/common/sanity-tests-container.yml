@@ -94,6 +94,12 @@ jobs:
                 yum install -y nodejs xorg-x11-server-Xvfb libX11 libX11-xcb libXcomposite libXcursor \
                   libXdamage libXi libXtst nss cups-libs libXScrnSaver libXrandr alsa-lib atk at-spi2-atk gtk3
 
+              elif command -v zypper &> /dev/null; then
+
+                zypper install -y nodejs22 xorg-x11-server-Xvfb libX11-6 libX11-xcb1 libXcomposite1 \
+                  libXcursor1 libXdamage1 libXi6 libXtst6 mozilla-nss libcups2 libXss1 libXrandr2 \
+                  libasound2 libatk-1_0-0 at-spi2-core libgtk-3-0
+
               fi
 
               # Run tests

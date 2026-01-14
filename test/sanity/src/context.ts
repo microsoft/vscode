@@ -724,4 +724,22 @@ export class TestContext {
 	public getRandomPort(): string {
 		return String(Math.floor(Math.random() * 7000) + 3000);
 	}
+
+	/**
+	 * Checks if a specific package manager is supported on the system.
+	 * @param packageManager The package manager to check.
+	 * @returns True if the package manager is available.
+	 */
+	public isPackageManagerSupported(packageManager: 'deb' | 'rpm' | 'snap' | 'zypper'): boolean {
+		switch (packageManager) {
+			case 'deb':
+				return fs.existsSync('/usr/bin/dpkg');
+			case 'rpm':
+				return fs.existsSync('/usr/bin/rpm');
+			case 'snap':
+				return fs.existsSync('/usr/bin/snap');
+			case 'zypper':
+				return fs.existsSync('/usr/bin/zypper');
+		}
+	}
 }
