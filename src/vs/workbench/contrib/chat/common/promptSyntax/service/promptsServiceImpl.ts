@@ -32,7 +32,7 @@ import { getCleanPromptName } from '../config/promptFileLocations.js';
 import { PROMPT_LANGUAGE_ID, PromptsType, getPromptsTypeForLanguageId } from '../promptTypes.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
-import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IAgentSkill, IUserPromptPath, PromptsStorage, ICustomAgentQueryOptions, IExternalCustomAgent, ExtensionAgentSourceType, CUSTOM_AGENTS_PROVIDER_ACTIVATION_EVENT } from './promptsService.js';
+import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IAgentSkill, IUserPromptPath, PromptsStorage, ExtensionAgentSourceType, CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT, IPromptFileContext, IPromptFileResource, PROMPT_FILE_PROVIDER_ACTIVATION_EVENT } from './promptsService.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 
@@ -165,46 +165,71 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	/**
-	 * Registry of CustomAgentsProvider instances. Extensions can register providers via the proposed API.
+	 * Registry of prompt file provider instances (custom agents, instructions, prompt files).
+	 * Extensions can register providers via the proposed API.
 	 */
-	private readonly customAgentsProviders: Array<{
+	private readonly promptFileProviders: Array<{
 		extension: IExtensionDescription;
-		onDidChangeCustomAgents?: Event<void>;
-		provideCustomAgents: (options: ICustomAgentQueryOptions, token: CancellationToken) => Promise<IExternalCustomAgent[] | undefined>;
+		type: PromptsType;
+		onDidChangePromptFiles?: Event<void>;
+		providePromptFiles: (context: IPromptFileContext, token: CancellationToken) => Promise<IPromptFileResource[] | undefined>;
 	}> = [];
 
 	/**
-	 * Registers a CustomAgentsProvider. This will be called by the extension host bridge when
-	 * an extension registers a provider via vscode.chat.registerCustomAgentsProvider().
+	 * Registers a prompt file provider (CustomAgentProvider, InstructionsProvider, or PromptFileProvider).
+	 * This will be called by the extension host bridge when
+	 * an extension registers a provider via vscode.chat.registerCustomAgentProvider(),
+	 * registerInstructionsProvider(), or registerPromptFileProvider().
 	 */
-	public registerCustomAgentsProvider(extension: IExtensionDescription, provider: {
-		onDidChangeCustomAgents?: Event<void>;
-		provideCustomAgents: (options: ICustomAgentQueryOptions, token: CancellationToken) => Promise<IExternalCustomAgent[] | undefined>;
+	public registerPromptFileProvider(extension: IExtensionDescription, type: PromptsType, provider: {
+		onDidChangePromptFiles?: Event<void>;
+		providePromptFiles: (context: IPromptFileContext, token: CancellationToken) => Promise<IPromptFileResource[] | undefined>;
 	}): IDisposable {
-		const providerEntry = { extension, ...provider };
-		this.customAgentsProviders.push(providerEntry);
+		const providerEntry = { extension, type, ...provider };
+		this.promptFileProviders.push(providerEntry);
 
 		const disposables = new DisposableStore();
 
 		// Listen to provider change events to rerun computeListPromptFiles
-		if (provider.onDidChangeCustomAgents) {
-			disposables.add(provider.onDidChangeCustomAgents(() => {
-				this.cachedFileLocations[PromptsType.agent] = undefined;
-				this.cachedCustomAgents.refresh();
+		if (provider.onDidChangePromptFiles) {
+			disposables.add(provider.onDidChangePromptFiles(() => {
+				if (type === PromptsType.agent) {
+					this.cachedFileLocations[PromptsType.agent] = undefined;
+					this.cachedCustomAgents.refresh();
+				} else if (type === PromptsType.instructions) {
+					this.cachedFileLocations[PromptsType.instructions] = undefined;
+				} else if (type === PromptsType.prompt) {
+					this.cachedFileLocations[PromptsType.prompt] = undefined;
+					this.cachedSlashCommands.refresh();
+				}
 			}));
 		}
 
-		// Invalidate agent cache when providers change
-		this.cachedFileLocations[PromptsType.agent] = undefined;
-		this.cachedCustomAgents.refresh();
+		// Invalidate cache when providers change
+		if (type === PromptsType.agent) {
+			this.cachedFileLocations[PromptsType.agent] = undefined;
+			this.cachedCustomAgents.refresh();
+		} else if (type === PromptsType.instructions) {
+			this.cachedFileLocations[PromptsType.instructions] = undefined;
+		} else if (type === PromptsType.prompt) {
+			this.cachedFileLocations[PromptsType.prompt] = undefined;
+			this.cachedSlashCommands.refresh();
+		}
 
 		disposables.add({
 			dispose: () => {
-				const index = this.customAgentsProviders.findIndex((p) => p === providerEntry);
+				const index = this.promptFileProviders.findIndex((p) => p === providerEntry);
 				if (index >= 0) {
-					this.customAgentsProviders.splice(index, 1);
-					this.cachedFileLocations[PromptsType.agent] = undefined;
-					this.cachedCustomAgents.refresh();
+					this.promptFileProviders.splice(index, 1);
+					if (type === PromptsType.agent) {
+						this.cachedFileLocations[PromptsType.agent] = undefined;
+						this.cachedCustomAgents.refresh();
+					} else if (type === PromptsType.instructions) {
+						this.cachedFileLocations[PromptsType.instructions] = undefined;
+					} else if (type === PromptsType.prompt) {
+						this.cachedFileLocations[PromptsType.prompt] = undefined;
+						this.cachedSlashCommands.refresh();
+					}
 				}
 			}
 		});
@@ -212,46 +237,48 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return disposables;
 	}
 
-	private async listCustomAgentsFromProvider(token: CancellationToken): Promise<IPromptPath[]> {
+	/**
+	 * Shared helper to list prompt files from registered providers for a given type.
+	 */
+	private async listFromProviders(type: PromptsType, activationEvent: string, token: CancellationToken): Promise<IPromptPath[]> {
 		const result: IPromptPath[] = [];
 
-		if (this.customAgentsProviders.length === 0) {
+		// Activate extensions that might provide files for this type
+		await this.extensionService.activateByEvent(activationEvent);
+
+		const providers = this.promptFileProviders.filter(p => p.type === type);
+		if (providers.length === 0) {
 			return result;
 		}
 
-		// Activate extensions that might provide custom agents
-		await this.extensionService.activateByEvent(CUSTOM_AGENTS_PROVIDER_ACTIVATION_EVENT);
-
-		// Collect agents from all providers
-		for (const providerEntry of this.customAgentsProviders) {
+		// Collect files from all providers
+		for (const providerEntry of providers) {
 			try {
-				const agents = await providerEntry.provideCustomAgents({}, token);
-				if (!agents || token.isCancellationRequested) {
+				const files = await providerEntry.providePromptFiles({}, token);
+				if (!files || token.isCancellationRequested) {
 					continue;
 				}
 
-				for (const agent of agents) {
-					if (!agent.isEditable) {
+				for (const file of files) {
+					if (!file.isEditable) {
 						try {
-							await this.filesConfigService.updateReadonly(agent.uri, true);
+							await this.filesConfigService.updateReadonly(file.uri, true);
 						} catch (e) {
 							const msg = e instanceof Error ? e.message : String(e);
-							this.logger.error(`[listCustomAgentsFromProvider] Failed to make agent file readonly: ${agent.uri}`, msg);
+							this.logger.error(`[listFromProviders] Failed to make file readonly: ${file.uri}`, msg);
 						}
 					}
 
 					result.push({
-						uri: agent.uri,
-						name: agent.name,
-						description: agent.description,
+						uri: file.uri,
 						storage: PromptsStorage.extension,
-						type: PromptsType.agent,
+						type,
 						extension: providerEntry.extension,
 						source: ExtensionAgentSourceType.provider
 					} satisfies IExtensionPromptPath);
 				}
 			} catch (e) {
-				this.logger.error(`[listCustomAgentsFromProvider] Failed to get custom agents from provider`, e instanceof Error ? e.message : String(e));
+				this.logger.error(`[listFromProviders] Failed to get ${type} files from provider`, e instanceof Error ? e.message : String(e));
 			}
 		}
 
@@ -276,11 +303,21 @@ export class PromptsService extends Disposable implements IPromptsService {
 	private async getExtensionPromptFiles(type: PromptsType, token: CancellationToken): Promise<IPromptPath[]> {
 		await this.extensionService.whenInstalledExtensionsRegistered();
 		const contributedFiles = await Promise.all(this.contributedFiles[type].values());
-		if (type === PromptsType.agent) {
-			const providerAgents = await this.listCustomAgentsFromProvider(token);
-			return [...contributedFiles, ...providerAgents];
+
+		const activationEvent = this.getProviderActivationEvent(type);
+		const providerFiles = await this.listFromProviders(type, activationEvent, token);
+		return [...contributedFiles, ...providerFiles];
+	}
+
+	private getProviderActivationEvent(type: PromptsType): string {
+		switch (type) {
+			case PromptsType.agent:
+				return CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT;
+			case PromptsType.instructions:
+				return INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT;
+			case PromptsType.prompt:
+				return PROMPT_FILE_PROVIDER_ACTIVATION_EVENT;
 		}
-		return contributedFiles;
 	}
 
 	public getSourceFolders(type: PromptsType): readonly IPromptPath[] {

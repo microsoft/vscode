@@ -25,7 +25,7 @@ import { Selection } from '../../../../common/core/selection.js';
 import { TextReplacement, TextEdit } from '../../../../common/core/edits/textEdit.js';
 import { TextLength } from '../../../../common/core/text/textLength.js';
 import { ScrollType } from '../../../../common/editorCommon.js';
-import { InlineCompletionEndOfLifeReasonKind, InlineCompletion, InlineCompletionTriggerKind, PartialAcceptTriggerKind, InlineCompletionsProvider, InlineCompletionCommand } from '../../../../common/languages.js';
+import { IInlineCompletionChangeHint, InlineCompletionEndOfLifeReasonKind, InlineCompletion, InlineCompletionTriggerKind, PartialAcceptTriggerKind, InlineCompletionsProvider, InlineCompletionCommand } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { EndOfLinePreference, IModelDeltaDecoration, ITextModel } from '../../../../common/model.js';
 import { TextModelText } from '../../../../common/model/textModelText.js';
@@ -52,6 +52,7 @@ import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
+import { Schemas } from '../../../../../base/common/network.js';
 
 export class InlineCompletionsModel extends Disposable {
 	private readonly _source;
@@ -60,7 +61,7 @@ export class InlineCompletionsModel extends Disposable {
 	private readonly _forceUpdateExplicitlySignal = observableSignal(this);
 	private readonly _noDelaySignal = observableSignal(this);
 
-	private readonly _fetchSpecificProviderSignal = observableSignal<InlineCompletionsProvider | undefined>(this);
+	private readonly _fetchSpecificProviderSignal = observableSignal<{ provider: InlineCompletionsProvider; changeHint?: IInlineCompletionChangeHint } | undefined>(this);
 
 	// We use a semantic id to keep the same inline completion selected even if the provider reorders the completions.
 	private readonly _selectedInlineCompletionId = observableValue<string | undefined>(this, undefined);
@@ -155,7 +156,7 @@ export class InlineCompletionsModel extends Disposable {
 		}));
 
 		{ // Determine editor type
-			const isNotebook = this.textModel.uri.scheme === 'vscode-notebook-cell';
+			const isNotebook = this.textModel.uri.scheme === Schemas.vscodeNotebookCell;
 			const [diffEditor] = this._codeEditorService.listDiffEditors()
 				.filter(d =>
 					d.getOriginalEditor().getId() === this._editor.getId() ||
@@ -214,7 +215,7 @@ export class InlineCompletionsModel extends Disposable {
 				return;
 			}
 
-			store.add(provider.onDidChangeInlineCompletions(() => {
+			store.add(provider.onDidChangeInlineCompletions(changeHint => {
 				if (!this._enabled.get()) {
 					return;
 				}
@@ -239,7 +240,7 @@ export class InlineCompletionsModel extends Disposable {
 				}
 
 				transaction(tx => {
-					this._fetchSpecificProviderSignal.trigger(tx, provider);
+					this._fetchSpecificProviderSignal.trigger(tx, { provider, changeHint: changeHint ?? undefined });
 					this.trigger(tx);
 				});
 
@@ -333,6 +334,7 @@ export class InlineCompletionsModel extends Disposable {
 				onlyRequestInlineEdits: false,
 				shouldDebounce: true,
 				provider: undefined as InlineCompletionsProvider | undefined,
+				changeHint: undefined as IInlineCompletionChangeHint | undefined,
 				textChange: false,
 				changeReason: '',
 			}),
@@ -353,7 +355,8 @@ export class InlineCompletionsModel extends Disposable {
 				} else if (ctx.didChange(this._onlyRequestInlineEditsSignal)) {
 					changeSummary.onlyRequestInlineEdits = true;
 				} else if (ctx.didChange(this._fetchSpecificProviderSignal)) {
-					changeSummary.provider = ctx.change;
+					changeSummary.provider = ctx.change?.provider;
+					changeSummary.changeHint = ctx.change?.changeHint;
 				}
 				return true;
 			},
@@ -423,6 +426,7 @@ export class InlineCompletionsModel extends Disposable {
 			includeInlineEdits: this._inlineEditsEnabled.read(reader),
 			requestIssuedDateTime: requestInfo.startTime,
 			earliestShownDateTime: requestInfo.startTime + (changeSummary.inlineCompletionTriggerKind === InlineCompletionTriggerKind.Explicit || this.inAcceptFlow.read(undefined) ? 0 : this._minShowDelay.read(undefined)),
+			changeHint: changeSummary.changeHint,
 		};
 
 		if (context.triggerKind === InlineCompletionTriggerKind.Automatic && changeSummary.textChange) {
@@ -473,7 +477,7 @@ export class InlineCompletionsModel extends Disposable {
 		return availableProviders;
 	}
 
-	public async trigger(tx?: ITransaction, options: { onlyFetchInlineEdits?: boolean; noDelay?: boolean; provider?: InlineCompletionsProvider; explicit?: boolean } = {}): Promise<void> {
+	public async trigger(tx?: ITransaction, options: { onlyFetchInlineEdits?: boolean; noDelay?: boolean; provider?: InlineCompletionsProvider; explicit?: boolean; changeHint?: IInlineCompletionChangeHint } = {}): Promise<void> {
 		subtransaction(tx, tx => {
 			if (options.onlyFetchInlineEdits) {
 				this._onlyRequestInlineEditsSignal.trigger(tx);
@@ -488,7 +492,7 @@ export class InlineCompletionsModel extends Disposable {
 				this._forceUpdateExplicitlySignal.trigger(tx);
 			}
 			if (options.provider) {
-				this._fetchSpecificProviderSignal.trigger(tx, options.provider);
+				this._fetchSpecificProviderSignal.trigger(tx, { provider: options.provider, changeHint: options.changeHint });
 			}
 		});
 		await this._fetchInlineCompletionsPromise.get();

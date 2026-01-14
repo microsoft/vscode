@@ -265,6 +265,7 @@ export class PromptFilesLocator {
 			type: QueryType.File,
 			shouldGlobMatchFilePattern: true,
 			excludePattern: workspaceRoot ? getExcludePattern(workspaceRoot.uri) : undefined,
+			ignoreGlobCase: true,
 			sortByScore: true,
 			filePattern
 		};

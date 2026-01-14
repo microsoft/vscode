@@ -10,8 +10,8 @@
     "postinstall": "node ./postinstall.mjs"
   },
   "devDependencies": {
-    "@parcel/watcher": "parcel-bundler/watcher#1ca032aa8339260a8a3bcf825c3a1a71e3e43542",
-    "esbuild": "0.25.0",
+    "@parcel/watcher": "^2.5.4",
+    "esbuild": "0.27.2",
     "vscode-grammar-updater": "^1.1.0"
   },
   "overrides": {

@@ -39,14 +39,14 @@ import { IMarkerData, IRelatedInformation, MarkerSeverity, MarkerTag } from '../
 import { ProgressLocation as MainProgressLocation } from '../../../platform/progress/common/progress.js';
 import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from '../../common/editor.js';
 import { IViewBadge } from '../../common/views.js';
-import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/chatAgents.js';
-import { IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
-import { IChatRequestModeInstructions } from '../../contrib/chat/common/chatModel.js';
-import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatMultiDiffDataSerialized, IChatPrepareToolInvocationPart, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatThinkingPart, IChatToolInvocationSerialized, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
-import { LocalChatSessionUri } from '../../contrib/chat/common/chatUri.js';
-import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry, isImageVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry } from '../../contrib/chat/common/chatVariableEntries.js';
+import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/participants/chatAgents.js';
+import { IChatRequestDraft } from '../../contrib/chat/common/editing/chatEditingService.js';
+import { IChatRequestModeInstructions } from '../../contrib/chat/common/model/chatModel.js';
+import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatMultiDiffDataSerialized, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatThinkingPart, IChatToolInvocationSerialized, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from '../../contrib/chat/common/chatService/chatService.js';
+import { LocalChatSessionUri } from '../../contrib/chat/common/model/chatUri.js';
+import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry, isImageVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
-import { IToolInvocationContext, IToolResult, IToolResultInputOutputDetails, IToolResultOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../contrib/chat/common/languageModelToolsService.js';
+import { IToolInvocationContext, IToolResult, IToolResultInputOutputDetails, IToolResultOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../contrib/chat/common/tools/languageModelToolsService.js';
 import * as chatProvider from '../../contrib/chat/common/languageModels.js';
 import { IChatMessageDataPart, IChatResponseDataPart, IChatResponsePromptTsxPart, IChatResponseTextPart } from '../../contrib/chat/common/languageModels.js';
 import { DebugTreeItemCollapsibleState, IDebugVisualizationTreeItem } from '../../contrib/debug/common/debug.js';
@@ -2813,19 +2813,6 @@ export namespace ChatResponseMovePart {
 	}
 }
 
-export namespace ChatPrepareToolInvocationPart {
-	export function from(part: vscode.ChatPrepareToolInvocationPart): IChatPrepareToolInvocationPart {
-		return {
-			kind: 'prepareToolInvocation',
-			toolName: part.toolName,
-		};
-	}
-
-	export function to(part: IChatPrepareToolInvocationPart): vscode.ChatPrepareToolInvocationPart {
-		return new types.ChatPrepareToolInvocationPart(part.toolName);
-	}
-}
-
 export namespace ChatToolInvocationPart {
 	export function from(part: vscode.ChatToolInvocationPart): IChatToolInvocationSerialized {
 		// Convert extension API ChatToolInvocationPart to internal serialized format
@@ -3098,8 +3085,6 @@ export namespace ChatResponsePart {
 			return ChatResponseMovePart.from(part);
 		} else if (part instanceof types.ChatResponseExtensionsPart) {
 			return ChatResponseExtensionsPart.from(part);
-		} else if (part instanceof types.ChatPrepareToolInvocationPart) {
-			return ChatPrepareToolInvocationPart.from(part);
 		} else if (part instanceof types.ChatResponsePullRequestPart) {
 			return ChatResponsePullRequestPart.from(part);
 		} else if (part instanceof types.ChatToolInvocationPart) {

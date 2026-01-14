@@ -14,7 +14,7 @@ import { OS } from '../../../../../../../base/common/platform.js';
 import { localize } from '../../../../../../../nls.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
-import { editorBackground, editorHoverForeground } from '../../../../../../../platform/theme/common/colorRegistry.js';
+import { editorHoverForeground } from '../../../../../../../platform/theme/common/colorRegistry.js';
 import { contrastBorder } from '../../../../../../../platform/theme/common/colors/baseColors.js';
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
@@ -30,13 +30,15 @@ import { ILanguageService } from '../../../../../../common/languages/language.js
 import { LineTokens, TokenArray } from '../../../../../../common/tokens/lineTokens.js';
 import { inlineSuggestCommitAlternativeActionId } from '../../../controller/commandIds.js';
 import { InlineSuggestAlternativeAction } from '../../../model/InlineSuggestAlternativeAction.js';
+import { InlineCompletionEditorType } from '../../../model/provideInlineCompletions.js';
 import { IInlineEditsView, InlineEditClickEvent, InlineEditTabAction } from '../inlineEditsViewInterface.js';
-import { getModifiedBorderColor, getOriginalBorderColor, INLINE_EDITS_BORDER_RADIUS, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorPrimaryBorder, inlineEditIndicatorPrimaryForeground, modifiedChangedTextOverlayColor, observeColor, originalChangedTextOverlayColor } from '../theme.js';
+import { getEditorBackgroundColor, getModifiedBorderColor, getOriginalBorderColor, INLINE_EDITS_BORDER_RADIUS, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorPrimaryBorder, inlineEditIndicatorPrimaryForeground, modifiedChangedTextOverlayColor, observeColor, originalChangedTextOverlayColor } from '../theme.js';
 import { getEditorValidOverlayRect, mapOutFalsy, rectToProps } from '../utils/utils.js';
 
 export class WordReplacementsViewData implements IEquatable<WordReplacementsViewData> {
 	constructor(
 		public readonly edit: TextReplacement,
+		public readonly editorType: InlineCompletionEditorType,
 		public readonly alternativeAction: InlineSuggestAlternativeAction | undefined,
 	) { }
 
@@ -205,11 +207,12 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 
 				const passiveStyles = {
 					borderColor: hcBorderColor ? hcBorderColor.toString() : observeColor(editorHoverForeground, this._themeService).map(c => c.transparent(0.2).toString()).read(reader),
-					backgroundColor: asCssVariable(editorBackground),
+					backgroundColor: getEditorBackgroundColor(this._viewData.editorType),
 					color: '',
 					opacity: '0.7',
 				};
 
+				const editorBackground = getEditorBackgroundColor(this._viewData.editorType);
 				const primaryActionStyles = derived(this, r => alternativeActionActive.read(r) ? primaryActiveStyles : primaryActiveStyles);
 				const secondaryActionStyles = derived(this, r => alternativeActionActive.read(r) ? secondaryActiveStyles : passiveStyles);
 				// TODO@benibenj clicking the arrow does not accept suggestion anymore
@@ -227,7 +230,7 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 							style: {
 								position: 'absolute',
 								...rectToProps(reader => layout.read(reader).lowerBackground.withMargin(BORDER_WIDTH, 2 * BORDER_WIDTH, BORDER_WIDTH, 0)),
-								background: asCssVariable(editorBackground),
+								background: editorBackground,
 								cursor: 'pointer',
 								pointerEvents: 'auto',
 							},
@@ -243,11 +246,11 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 								boxSizing: 'border-box',
 								borderRadius: `${INLINE_EDITS_BORDER_RADIUS}px`,
 
-								background: asCssVariable(editorBackground),
+								background: editorBackground,
 								display: 'flex',
 								justifyContent: 'left',
 
-								outline: `2px solid ${asCssVariable(editorBackground)}`,
+								outline: `2px solid ${editorBackground}`,
 							},
 							onmousedown: (e) => this._mouseDown(e),
 						}, [

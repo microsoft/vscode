@@ -300,7 +300,8 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 	private static readonly _DECORATION_OPTIONS_WITH_OVERVIEW_RULER = ModelDecorationOptions.register({
 		description: 'bracket-match-overview',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		inlineClassName: 'bracket-match',
+		className: 'bracket-match',
+		inlineClassName: 'bracket-match-inline',
 		overviewRuler: {
 			color: themeColorFromId(overviewRulerBracketMatchForeground),
 			position: OverviewRulerLane.Center
@@ -310,7 +311,8 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 	private static readonly _DECORATION_OPTIONS_WITHOUT_OVERVIEW_RULER = ModelDecorationOptions.register({
 		description: 'bracket-match-no-overview',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		inlineClassName: 'bracket-match'
+		className: 'bracket-match',
+		inlineClassName: 'bracket-match-inline'
 	});
 
 	private _updateBrackets(): void {
@@ -421,6 +423,7 @@ registerThemingParticipant((theme, collector) => {
 	const bracketMatchForeground = theme.getColor(editorBracketMatchForeground);
 	if (bracketMatchForeground) {
 		// Use higher specificity to override bracket pair colorization
-		collector.addRule(`.monaco-editor .bracket-match { color: ${bracketMatchForeground} !important; }`);
+		// Apply color to inline class to avoid layout jumps
+		collector.addRule(`.monaco-editor .bracket-match-inline { color: ${bracketMatchForeground} !important; }`);
 	}
 });
