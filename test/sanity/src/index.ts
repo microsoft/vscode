@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import fs from 'fs';
 import minimist from 'minimist';
 import Mocha, { MochaOptions } from 'mocha';
+import path from 'path';
 
 const options = minimist(process.argv.slice(2), {
 	string: ['fgrep', 'grep', 'test-results'],
@@ -19,6 +21,8 @@ if (options.help) {
 	console.info(`  --quality, -q <quality>         The quality to test (required, "stable", "insider" or "exploration")`);
 	console.info('  --no-cleanup                    Do not cleanup downloaded files after each test');
 	console.info('  --no-signing-check              Skip Authenticode and codesign signature checks');
+	console.info('  --no-headless                   Run tests with a visible UI (desktop tests only)');
+	console.info('  --no-runtime-check              Enable all tests regardless of platform and skip executable runs');
 	console.info('  --grep, -g <pattern>            Only run tests matching the given <pattern>');
 	console.info('  --fgrep, -f <string>            Only run tests containing the given <string>');
 	console.info('  --test-results, -t <path>       Output test results in JUnit format to the specified path');
@@ -37,6 +41,10 @@ const mochaOptions: MochaOptions = {
 	reporter: testResults ? 'mocha-junit-reporter' : undefined,
 	reporterOptions: testResults ? { mochaFile: testResults, outputs: true } : undefined,
 };
+
+if (testResults) {
+	fs.mkdirSync(path.dirname(testResults), { recursive: true });
+}
 
 const mocha = new Mocha(mochaOptions);
 mocha.addFile(require.resolve('./main.js'));

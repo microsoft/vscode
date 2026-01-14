@@ -378,7 +378,11 @@
 }
 
 .scm-view .scm-editor-container .monaco-editor {
-	border-radius: 2px;
+	border-radius: 4px;
+}
+
+.scm-view .scm-editor-container .monaco-editor .overflow-guard {
+	border-radius: 4px;
 }
 
 .scm-view .scm-editor {
@@ -389,7 +393,7 @@
 	box-sizing: border-box;
 	border: 1px solid var(--vscode-input-border, transparent);
 	background-color: var(--vscode-input-background);
-	border-radius: 2px;
+	border-radius: 4px;
 }
 
 .scm-view .button-container {

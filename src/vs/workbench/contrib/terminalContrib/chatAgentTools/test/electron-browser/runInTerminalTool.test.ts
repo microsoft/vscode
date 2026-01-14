@@ -251,7 +251,56 @@ suite('RunInTerminalTool', () => {
 			'sed "s/foo/bar/g"',
 			'sed -n "1,10p" file.txt',
 			'sort file.txt',
-			'tree directory'
+			'tree directory',
+
+			// od
+			'od somefile',
+			'od -A x somefile',
+
+			// xxd
+			'xxd somefile',
+			'xxd -l100 somefile',
+			'xxd -r somefile',
+			'xxd -rp somefile',
+
+			// docker readonly sub-commands
+			'docker ps',
+			'docker ps -a',
+			'docker images',
+			'docker info',
+			'docker version',
+			'docker inspect mycontainer',
+			'docker logs mycontainer',
+			'docker top mycontainer',
+			'docker stats',
+			'docker port mycontainer',
+			'docker diff mycontainer',
+			'docker search nginx',
+			'docker events',
+			'docker container ls',
+			'docker container ps',
+			'docker container inspect mycontainer',
+			'docker image ls',
+			'docker image history myimage',
+			'docker image inspect myimage',
+			'docker network ls',
+			'docker network inspect mynetwork',
+			'docker volume ls',
+			'docker volume inspect myvolume',
+			'docker context ls',
+			'docker context inspect mycontext',
+			'docker context show',
+			'docker system df',
+			'docker system info',
+			'docker compose ps',
+			'docker compose ls',
+			'docker compose top',
+			'docker compose logs',
+			'docker compose images',
+			'docker compose config',
+			'docker compose version',
+			'docker compose port',
+			'docker compose events',
 		];
 		const confirmationRequiredTestCases = [
 			// Dangerous file operations
@@ -325,6 +374,21 @@ suite('RunInTerminalTool', () => {
 			'HTTP_PROXY=proxy:8080 wget https://example.com',
 			'VAR1=value1 VAR2=value2 echo test',
 			'A=1 B=2 C=3 ./script.sh',
+
+			// xxd with outfile or ambiguous args
+			'xxd infile outfile',
+			'xxd -l 100 somefile',
+
+			// docker write/execute sub-commands
+			'docker run nginx',
+			'docker exec mycontainer bash',
+			'docker rm mycontainer',
+			'docker rmi myimage',
+			'docker build .',
+			'docker push myimage',
+			'docker pull nginx',
+			'docker compose up',
+			'docker compose down',
 		];
 
 		suite.skip('auto approved', () => {

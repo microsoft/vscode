@@ -18,7 +18,7 @@ export interface LaunchOptions {
 	// Allows you to override the Playwright instance
 	playwright?: typeof playwright;
 	codePath?: string;
-	readonly workspacePath: string;
+	readonly workspacePath?: string;
 	userDataDir?: string;
 	readonly extensionsPath?: string;
 	readonly logger: Logger;

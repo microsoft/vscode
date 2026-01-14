@@ -87,6 +87,8 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _onDidSubmitRequest = this._register(new Emitter<{ readonly chatSessionResource: URI }>());
 	public readonly onDidSubmitRequest = this._onDidSubmitRequest.event;
 
+	public get onDidCreateModel() { return this._sessionModels.onDidCreateModel; }
+
 	private readonly _onDidPerformUserAction = this._register(new Emitter<IChatUserActionEvent>());
 	public readonly onDidPerformUserAction: Event<IChatUserActionEvent> = this._onDidPerformUserAction.event;
 

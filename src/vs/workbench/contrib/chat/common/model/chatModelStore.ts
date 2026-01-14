@@ -38,6 +38,9 @@ export class ChatModelStore extends ReferenceCollection<ChatModel> implements ID
 	private readonly _onDidDisposeModel = this._store.add(new Emitter<ChatModel>());
 	public readonly onDidDisposeModel = this._onDidDisposeModel.event;
 
+	private readonly _onDidCreateModel = this._store.add(new Emitter<ChatModel>());
+	public readonly onDidCreateModel = this._onDidCreateModel.event;
+
 	constructor(
 		private readonly delegate: ChatModelStoreDelegate,
 		@ILogService private readonly logService: ILogService,
@@ -93,6 +96,7 @@ export class ChatModelStore extends ReferenceCollection<ChatModel> implements ID
 			throw new Error(`Chat session key mismatch for ${key}`);
 		}
 		this._models.set(key, model);
+		this._onDidCreateModel.fire(model);
 		return model;
 	}
 

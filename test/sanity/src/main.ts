@@ -12,9 +12,9 @@ import { setup as setupServerWebTests } from './serverWeb.test';
 
 const options = minimist(process.argv.slice(2), {
 	string: ['commit', 'quality'],
-	boolean: ['cleanup', 'verbose', 'signing-check'],
+	boolean: ['cleanup', 'verbose', 'signing-check', 'headless', 'runtime-check'],
 	alias: { commit: 'c', quality: 'q', verbose: 'v' },
-	default: { cleanup: true, verbose: false, 'signing-check': true },
+	default: { cleanup: true, verbose: false, 'signing-check': true, headless: true, 'runtime-check': true },
 });
 
 if (!options.commit) {
@@ -25,24 +25,28 @@ if (!options.quality) {
 	throw new Error('--quality is required');
 }
 
-const context = new TestContext(options.quality, options.commit, options.verbose, !options['signing-check']);
+const context = new TestContext(
+	options.quality,
+	options.commit,
+	options.verbose,
+	!options['signing-check'],
+	options.headless,
+	!options['runtime-check']);
 
-describe('VS Code Sanity Tests', () => {
-	beforeEach(function () {
-		context.currentTest = this.currentTest!;
-		const cwd = context.createTempDir();
-		process.chdir(cwd);
-		context.log(`Changed working directory to: ${cwd}`);
-	});
-
-	if (options.cleanup) {
-		afterEach(() => {
-			context.cleanup();
-		});
-	}
-
-	setupCliTests(context);
-	setupDesktopTests(context);
-	setupServerTests(context);
-	setupServerWebTests(context);
+beforeEach(function () {
+	context.currentTest = this.currentTest!;
+	const cwd = context.createTempDir();
+	process.chdir(cwd);
+	context.log(`Changed working directory to: ${cwd}`);
 });
+
+if (options.cleanup) {
+	afterEach(() => {
+		context.cleanup();
+	});
+}
+
+setupCliTests(context);
+setupDesktopTests(context);
+setupServerTests(context);
+setupServerWebTests(context);

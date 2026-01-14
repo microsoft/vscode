@@ -1035,6 +1035,8 @@ export interface IChatService {
 
 	readonly onDidSubmitRequest: Event<{ readonly chatSessionResource: URI }>;
 
+	readonly onDidCreateModel: Event<IChatModel>;
+
 	/**
 	 * An observable containing all live chat models.
 	 */

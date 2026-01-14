@@ -899,6 +899,7 @@
 		"--vscode-window-inactiveBorder"
 	],
 	"others": [
+		"--editor-font-size",
 		"--background-dark",
 		"--background-light",
 		"--chat-editing-last-edit-shift",

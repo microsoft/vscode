@@ -903,10 +903,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-editing-session .monaco-button {
-	height: 22px;
 	width: fit-content;
-	padding: 2px 6px;
-	font-size: 12px;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button:hover {
@@ -1031,9 +1028,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button.secondary.monaco-text-button.codicon {
-	background-color: transparent;
-	border-color: transparent;
-	color: var(--vscode-icon-foreground);
 	cursor: pointer;
 	padding: 0 3px;
 	border-radius: 2px;
@@ -1056,7 +1050,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-.interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button.secondary.monaco-text-button.codicon:not(.disabled):hover,
 .interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
@@ -1344,13 +1337,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	overflow: hidden;
 	min-width: 0px;
 
-	.chat-modelPicker-item {
+	.chat-input-picker-item {
 		min-width: 0px;
 
 		.action-label {
 			min-width: 0px;
 
-			.chat-model-label {
+			.chat-input-picker-label {
 				overflow: hidden;
 				text-overflow: ellipsis;
 			}
@@ -1359,8 +1352,18 @@ have to be updated for changes to the rules above, or to support more deeply nes
 				color: var(--vscode-problemsWarningIcon-foreground);
 			}
 
-			span + .chat-model-label {
+			span + .chat-input-picker-label {
 				margin-left: 2px;
+			}
+
+			.codicon {
+				font-size: 12px;
+			}
+		}
+
+		.action-label.disabled {
+			.codicon {
+				color: var(--vscode-disabledForeground);
 			}
 		}
 
@@ -1374,7 +1377,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	box-shadow: var(--vscode-scrollbar-shadow) 0 6px 6px -6px inset
 }
 
-.interactive-session .chat-input-toolbar .chat-modelPicker-item .action-label,
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label,
 .interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label {
 	height: 16px;
 	padding: 3px 0px 3px 6px;
@@ -1383,7 +1386,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 
-.interactive-session .chat-input-toolbar .chat-modelPicker-item .action-label .codicon-chevron-down,
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label .codicon-chevron-down,
 .interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label .codicon-chevron-down {
 	font-size: 12px;
 	margin-left: 2px;
@@ -2429,7 +2432,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.monaco-button {
 		width: fit-content;
-		padding: 2px 11px;
 	}
 
 	.chat-quota-error-button,
@@ -2751,7 +2753,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .chat-buttons-container .monaco-button:not(.monaco-dropdown-button) {
 	text-align: left;
 	width: initial;
-	padding: 4px 8px;
 }
 
 .interactive-item-container .chat-edit-input-container {

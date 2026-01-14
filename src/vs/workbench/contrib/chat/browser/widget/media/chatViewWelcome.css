@@ -106,7 +106,6 @@ div.chat-welcome-view {
 	.monaco-button {
 		display: inline-block;
 		width: initial;
-		padding: 4px 7px;
 	}
 
 	& > .chat-welcome-view-tips {

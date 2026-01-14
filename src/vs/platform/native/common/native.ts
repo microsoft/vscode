@@ -230,6 +230,15 @@ export interface ICommonNativeHostService {
 
 	// Registry (Windows only)
 	windowsGetStringRegKey(hive: 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG', path: string, name: string): Promise<string | undefined>;
+
+	// Zip
+	/**
+	 * Creates a zip file at the specified path containing the provided files.
+	 *
+	 * @param zipPath The URI where the zip file should be created.
+	 * @param files An array of file entries to include in the zip, each with a relative path and string contents.
+	 */
+	createZipFile(zipPath: URI, files: { path: string; contents: string }[]): Promise<void>;
 }
 
 export const INativeHostService = createDecorator<INativeHostService>('nativeHostService');
