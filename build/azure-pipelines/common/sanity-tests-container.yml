@@ -9,9 +9,6 @@ parameters:
     type: string
   - name: containerPlatform
     type: string
-  - name: args
-    type: string
-    default: ""
 
 jobs:
   - job: ${{ parameters.name }}
@@ -35,6 +32,32 @@ jobs:
     steps:
       - template: ./checkout.yml@self
 
+      - task: NodeTool@0
+        inputs:
+          versionSource: fromFile
+          versionFilePath: .nvmrc
+        displayName: Install Node.js
+
+      - bash: |
+          npm config set registry "$(NPM_REGISTRY)"
+          echo "##vso[task.setvariable variable=NPMRC_PATH]$(npm config get userconfig)"
+        condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+        displayName: Configure NPM Registry
+
+      - task: npmAuthenticate@0
+        inputs:
+          workingFile: $(NPMRC_PATH)
+        condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+        displayName: Authenticate with NPM Registry
+
+      - script: npm ci
+        workingDirectory: ./test/sanity
+        displayName: Install Dependencies
+
+      - script: npm run compile
+        workingDirectory: ./test/sanity
+        displayName: Compile Sanity Tests
+
       - bash: |
           docker run --privileged --rm tonistiigi/binfmt --uninstall '*'
           docker run --pull always --privileged --rm tonistiigi/binfmt --install all
@@ -49,6 +72,7 @@ jobs:
             ${{ parameters.container }} \
             /bin/bash -c '
               set -e
+
               # Install Node.js
               if command -v apt-get &> /dev/null; then
                 apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y curl ca-certificates
@@ -60,18 +84,8 @@ jobs:
                 yum install -y nodejs npm
               fi
 
-              # Configure NPM registry if needed
-              if [ "$(NPM_REGISTRY)" != "none" ] && [ -n "$(NPM_REGISTRY)" ]; then
-                npm config set registry "$(NPM_REGISTRY)"
-              fi
-
-              # Install dependencies and compile
-              cd test/sanity
-              npm ci
-              npm run compile
-
               # Run tests
-              npm run start -- -c "$(BUILD_COMMIT)" -q "$(BUILD_QUALITY)" -t "/.build/sanity-test-logs/results.xml" -v ${{ parameters.args }}
+              node tests/sanity/out/index.js -c "$(BUILD_COMMIT)" -q "$(BUILD_QUALITY)" -t "/.build/sanity-test-logs/results.xml" -v
             '
         displayName: Run Sanity Tests
 
