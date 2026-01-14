@@ -600,7 +600,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			if (lastWordFolder.length > 0) {
 				label = addPathRelativePrefix(lastWordFolder + label, resourceOptions, lastWordFolderHasDotPrefix);
 			}
-			const parentDir = URI.joinPath(cwd, '..' + resourceOptions.pathSeparator);
+			const parentDir = URI.joinPath(lastWordFolderResource, '..' + resourceOptions.pathSeparator);
 			resourceCompletions.push({
 				label,
 				provider,

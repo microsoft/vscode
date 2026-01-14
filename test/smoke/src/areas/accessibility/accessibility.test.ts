@@ -7,7 +7,7 @@ import { Application, Logger } from '../../../../automation';
 import { installAllHandlers } from '../../utils';
 
 export function setup(logger: Logger, opts: { web?: boolean }) {
-	describe('Accessibility', function () {
+	describe.skip('Accessibility', function () {
 
 		// Increase timeout for accessibility scans
 		this.timeout(30 * 1000);

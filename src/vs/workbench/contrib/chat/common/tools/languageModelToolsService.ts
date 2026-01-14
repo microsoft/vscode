@@ -156,7 +156,9 @@ export interface IToolInvocationPreparationContext {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	parameters: any;
 	chatRequestId?: string;
+	/** @deprecated Use {@link chatSessionResource} instead */
 	chatSessionId?: string;
+	chatSessionResource?: URI;
 	chatInteractionId?: string;
 }
 
