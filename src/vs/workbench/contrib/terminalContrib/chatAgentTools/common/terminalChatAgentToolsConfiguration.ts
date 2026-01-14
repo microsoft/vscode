@@ -586,7 +586,6 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		},
 		tags: ['experimental']
 	},
-
 	[TerminalChatAgentToolsSettingId.PreventShellHistory]: {
 		type: 'boolean',
 		default: true,
