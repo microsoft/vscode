@@ -76,7 +76,6 @@ export function registerChatExportZipAction() {
 			const hasMessages = model.getRequests().length > 0;
 
 			if (hasMessages) {
-				// Session has messages: export begin (stored) and end (current) states
 				if (model.repoData) {
 					files.push({
 						path: 'chat.repo.begin.json',
@@ -101,7 +100,6 @@ export function registerChatExportZipAction() {
 					}
 				}
 			} else {
-				// Session is empty: export only begin with current state
 				if (repoInfoEnabled) {
 					const currentRepoData = await captureRepoInfo(scmService, fileService);
 					if (currentRepoData) {

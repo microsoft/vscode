@@ -20,13 +20,8 @@ import { ChatConfiguration } from '../common/constants.js';
 import { IChatModel, IExportableRepoData, IExportableRepoDiff } from '../common/model/chatModel.js';
 import * as nls from '../../../../nls.js';
 
-// Max changes to avoid degenerate cases like mass renames
 const MAX_CHANGES = 100;
-
-// Max diff size to avoid excessive storage usage (aligned with telemetry limit)
 const MAX_DIFFS_SIZE_BYTES = 900 * 1024;
-
-// Number of recent sessions to keep full diffs for
 const MAX_SESSIONS_WITH_FULL_DIFFS = 5;
 /**
  * Regex to match `url = <remote-url>` lines in git config.
@@ -295,17 +290,15 @@ export async function captureRepoInfo(scmService: ISCMService, fileService: IFil
 		return undefined;
 	}
 
-	// Check if .git exists to determine if this is a git workspace
 	let hasGit = false;
 	try {
 		const gitDirUri = rootUri.with({ path: `${rootUri.path}/.git` });
 		hasGit = await fileService.exists(gitDirUri);
 	} catch {
-		// Ignore errors
+		// ignore
 	}
 
 	if (!hasGit) {
-		// Plain folder - no git
 		return {
 			workspaceType: 'plain-folder',
 			syncStatus: 'no-git',
@@ -313,7 +306,6 @@ export async function captureRepoInfo(scmService: ISCMService, fileService: IFil
 		};
 	}
 
-	// Read remote URL from git config
 	let remoteUrl: string | undefined;
 	try {
 		// TODO: Handle git worktrees where .git is a file pointing to the actual git directory
@@ -325,10 +317,9 @@ export async function captureRepoInfo(scmService: ISCMService, fileService: IFil
 			remoteUrl = remotes[0];
 		}
 	} catch {
-		// Ignore errors reading git config
+		// ignore
 	}
 
-	// Get branch and commit info from history provider
 	let localBranch: string | undefined;
 	let localHeadCommit: string | undefined;
 	let remoteTrackingBranch: string | undefined;
@@ -341,45 +332,36 @@ export async function captureRepoInfo(scmService: ISCMService, fileService: IFil
 		localBranch = historyItemRef?.name;
 		localHeadCommit = historyItemRef?.revision;
 
-		// Get remote tracking branch info
 		const historyItemRemoteRef = historyProvider.historyItemRemoteRef.get();
 		if (historyItemRemoteRef) {
 			remoteTrackingBranch = historyItemRemoteRef.name;
 			remoteHeadCommit = historyItemRemoteRef.revision;
 		}
 
-		// Get base branch info (for unpublished branches)
 		const historyItemBaseRef = historyProvider.historyItemBaseRef.get();
 		if (historyItemBaseRef) {
 			remoteBaseBranch = historyItemBaseRef.name;
-			// Note: remoteHeadCommit stays undefined if no tracking branch
 		}
 	}
 
-	// Determine workspace type and sync status
 	let workspaceType: IExportableRepoData['workspaceType'];
 	let syncStatus: IExportableRepoData['syncStatus'];
 
 	if (!remoteUrl) {
-		// Local git only - no remote configured
 		workspaceType = 'local-git';
 		syncStatus = 'local-only';
 	} else {
 		workspaceType = 'remote-git';
 
 		if (!remoteTrackingBranch) {
-			// Branch has no remote tracking branch
 			syncStatus = 'unpublished';
 		} else if (localHeadCommit === remoteHeadCommit) {
-			// Local HEAD matches remote tracking branch
 			syncStatus = 'synced';
 		} else {
-			// Local has commits not pushed to remote
 			syncStatus = 'unpushed';
 		}
 	}
 
-	// Determine remote vendor from URL
 	let remoteVendor: IExportableRepoData['remoteVendor'];
 	if (remoteUrl) {
 		const host = getRemoteHost(remoteUrl);
@@ -392,7 +374,6 @@ export async function captureRepoInfo(scmService: ISCMService, fileService: IFil
 		}
 	}
 
-	// Count total changes across all groups
 	let totalChangeCount = 0;
 	for (const group of repository.provider.groups) {
 		totalChangeCount += group.resources.length;
@@ -410,7 +391,6 @@ export async function captureRepoInfo(scmService: ISCMService, fileService: IFil
 		remoteHeadCommit,
 	};
 
-	// Check for no changes
 	if (totalChangeCount === 0) {
 		return {
 			...baseRepoData,
@@ -420,7 +400,6 @@ export async function captureRepoInfo(scmService: ISCMService, fileService: IFil
 		};
 	}
 
-	// Check for too many changes (degenerate cases like mass renames)
 	if (totalChangeCount > MAX_CHANGES) {
 		return {
 			...baseRepoData,
@@ -430,7 +409,6 @@ export async function captureRepoInfo(scmService: ISCMService, fileService: IFil
 		};
 	}
 
-	// Collect working tree diffs
 	const diffs: IExportableRepoDiff[] = [];
 	const diffPromises: Promise<IExportableRepoDiff | undefined>[] = [];
 
@@ -467,7 +445,6 @@ export async function captureRepoInfo(scmService: ISCMService, fileService: IFil
 		}
 	}
 
-	// Check total size of diffs
 	const diffsJson = JSON.stringify(diffs);
 	const diffsSizeBytes = new TextEncoder().encode(diffsJson).length;
 
