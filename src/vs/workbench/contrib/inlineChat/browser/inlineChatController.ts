@@ -204,10 +204,6 @@ export class InlineChatController implements IEditorContribution {
 
 			this._store.add(result);
 
-			this._store.add(result.widget.chatWidget.input.onDidChangeCurrentLanguageModel(newModel => {
-				InlineChatController._selectVendorDefaultLanguageModel = Boolean(newModel.metadata.isDefaultForLocation[location.location]);
-			}));
-
 			result.domNode.classList.add('inline-chat-2');
 
 			return result;
@@ -434,7 +430,7 @@ export class InlineChatController implements IEditorContribution {
 		this._isActiveController.set(true, undefined);
 
 		const session = this._inlineChatSessionService.createSession(this._editor);
-
+		const store = new DisposableStore();
 
 		// fallback to the default model of the selected vendor unless an explicit selection was made for the session
 		// or unless the user has chosen to persist their model choice
@@ -450,6 +446,10 @@ export class InlineChatController implements IEditorContribution {
 				}
 			}
 		}
+
+		store.add(this._zone.value.widget.chatWidget.input.onDidChangeCurrentLanguageModel(newModel => {
+			InlineChatController._selectVendorDefaultLanguageModel = Boolean(newModel.metadata.isDefaultForLocation[session.chatModel.initialLocation]);
+		}));
 
 		// ADD diagnostics
 		const entries: IChatRequestVariableEntry[] = [];
@@ -502,20 +502,25 @@ export class InlineChatController implements IEditorContribution {
 			}
 		}
 
-		if (!arg?.resolveOnResponse) {
-			// DEFAULT: wait for the session to be accepted or rejected
-			await Event.toPromise(session.editingSession.onDidDispose);
-			const rejected = session.editingSession.getEntry(uri)?.state.get() === ModifiedFileEntryState.Rejected;
-			return !rejected;
+		try {
+			if (!arg?.resolveOnResponse) {
+				// DEFAULT: wait for the session to be accepted or rejected
+				await Event.toPromise(session.editingSession.onDidDispose);
+				const rejected = session.editingSession.getEntry(uri)?.state.get() === ModifiedFileEntryState.Rejected;
+				return !rejected;
 
-		} else {
-			// resolveOnResponse: ONLY wait for the file to be modified
-			const modifiedObs = derived(r => {
-				const entry = session.editingSession.readEntry(uri, r);
-				return entry?.state.read(r) === ModifiedFileEntryState.Modified && !entry?.isCurrentlyBeingModifiedBy.read(r);
-			});
-			await waitForState(modifiedObs, state => state === true);
-			return true;
+			} else {
+				// resolveOnResponse: ONLY wait for the file to be modified
+				const modifiedObs = derived(r => {
+					const entry = session.editingSession.readEntry(uri, r);
+					return entry?.state.read(r) === ModifiedFileEntryState.Modified && !entry?.isCurrentlyBeingModifiedBy.read(r);
+				});
+				await waitForState(modifiedObs, state => state === true);
+				return true;
+			}
+
+		} finally {
+			store.dispose();
 		}
 	}
 
