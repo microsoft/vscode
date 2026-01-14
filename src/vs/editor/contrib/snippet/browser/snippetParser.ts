@@ -416,12 +416,16 @@ export class FormatString extends Marker {
 				.replace(/[\s_]+/g, '-');
 		}
 
-		const match2 = value
-			.trim()
-			.match(/\p{Lu}{2,}(?=\p{Lu}\p{Ll}+[0-9]*|\b)|\p{Lu}?\p{Ll}+[0-9]*|\p{Lu}|[0-9]+/gu);
+		const cleaned = value.trim().replace(/^_+|_+$/g, '');
+
+		const match2 = cleaned.match(/\p{Lu}{2,}(?=\p{Lu}\p{Ll}+[0-9]*|[\s_-]|$)|\p{Lu}?\p{Ll}+[0-9]*|\p{Lu}(?=\p{Lu}\p{Ll})|\p{Lu}(?=[\s_-]|$)|[0-9]+/gu);
 
 		if (!match2) {
-			return value;
+			return cleaned
+				.split(/[\s_-]+/)
+				.filter(word => word.length > 0)
+				.map(word => word.toLowerCase())
+				.join('-');
 		}
 
 		return match2
