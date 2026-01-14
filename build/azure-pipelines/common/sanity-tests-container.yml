@@ -85,7 +85,9 @@ jobs:
               fi
 
               # Run tests
-              node tests/sanity/out/index.js -c "$(BUILD_COMMIT)" -q "$(BUILD_QUALITY)" -t "/.build/sanity-test-logs/results.xml" -v
+              cd /workspace/test/sanity
+              mkdir -p /.build/sanity-test-logs
+              node out/index.js -c "$(BUILD_COMMIT)" -q "$(BUILD_QUALITY)" -t "/.build/sanity-test-logs/results.xml" -v
             '
         displayName: Run Sanity Tests
 
