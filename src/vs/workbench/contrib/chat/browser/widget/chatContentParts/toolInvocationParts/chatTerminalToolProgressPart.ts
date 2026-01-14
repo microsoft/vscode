@@ -590,7 +590,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				if (resolvedCommand?.exitCode === 0 && this._outputView.isExpanded && !this._userToggledOutput && !this._isInThinkingContainer) {
 					this._toggleOutput(false);
 				}
-				// keep outter wrapper expanded on error
+				// keep outer wrapper expanded on error
 				if (resolvedCommand?.exitCode !== undefined && resolvedCommand.exitCode !== 0 && this._thinkingCollapsibleWrapper) {
 					this.expandCollapsibleWrapper();
 				}
@@ -607,7 +607,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				if (resolvedImmediately.exitCode === 0 && this._outputView.isExpanded && !this._userToggledOutput && !this._isInThinkingContainer) {
 					this._toggleOutput(false);
 				}
-				// keep outter wrapper expanded on error
+				// keep outer wrapper expanded on error
 				if (resolvedImmediately.exitCode !== undefined && resolvedImmediately.exitCode !== 0 && this._thinkingCollapsibleWrapper) {
 					this.expandCollapsibleWrapper();
 				}
