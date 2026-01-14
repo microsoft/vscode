@@ -85,7 +85,7 @@ jobs:
             -v "$(Build.SourcesDirectory):/workspace" \
             -w /workspace \
             ${{ parameters.container }} \
-            /bin/bash -c '
+            /bin/sh -c '
               set -e
 
               # Install Node.js and X11
