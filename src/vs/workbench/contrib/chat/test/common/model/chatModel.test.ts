@@ -50,12 +50,11 @@ suite('ChatModel', () => {
 			initialLocation: ChatAgentLocation.Chat,
 			requests: [],
 			responderUsername: 'bot',
-			responderAvatarIconUri: undefined
 		};
 
 		const model = testDisposables.add(instantiationService.createInstance(
 			ChatModel,
-			exportedData,
+			{ value: exportedData, serializer: undefined! },
 			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
 		));
 
@@ -70,24 +69,21 @@ suite('ChatModel', () => {
 			version: 3,
 			sessionId: 'existing-session',
 			creationDate: now - 1000,
-			lastMessageDate: now,
 			customTitle: 'My Chat',
 			initialLocation: ChatAgentLocation.Chat,
 			requests: [],
 			responderUsername: 'bot',
-			responderAvatarIconUri: undefined
 		};
 
 		const model = testDisposables.add(instantiationService.createInstance(
 			ChatModel,
-			serializableData,
+			{ value: serializableData, serializer: undefined! },
 			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
 		));
 
 		assert.strictEqual(model.isImported, false);
 		assert.strictEqual(model.sessionId, 'existing-session');
 		assert.strictEqual(model.timestamp, now - 1000);
-		assert.strictEqual(model.lastMessageDate, now);
 		assert.strictEqual(model.customTitle, 'My Chat');
 	});
 
@@ -99,7 +95,7 @@ suite('ChatModel', () => {
 
 		const model = testDisposables.add(instantiationService.createInstance(
 			ChatModel,
-			invalidData,
+			{ value: invalidData, serializer: undefined! },
 			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
 		));
 
@@ -411,14 +407,12 @@ suite('normalizeSerializableChatData', () => {
 			creationDate: Date.now(),
 			initialLocation: undefined,
 			requests: [],
-			responderAvatarIconUri: undefined,
 			responderUsername: 'bot',
 			sessionId: 'session1',
 		};
 
 		const newData = normalizeSerializableChatData(v1Data);
 		assert.strictEqual(newData.creationDate, v1Data.creationDate);
-		assert.strictEqual(newData.lastMessageDate, v1Data.creationDate);
 		assert.strictEqual(newData.version, 3);
 	});
 
@@ -426,10 +420,8 @@ suite('normalizeSerializableChatData', () => {
 		const v2Data: ISerializableChatData2 = {
 			version: 2,
 			creationDate: 100,
-			lastMessageDate: Date.now(),
 			initialLocation: undefined,
 			requests: [],
-			responderAvatarIconUri: undefined,
 			responderUsername: 'bot',
 			sessionId: 'session1',
 			computedTitle: 'computed title'
@@ -438,7 +430,6 @@ suite('normalizeSerializableChatData', () => {
 		const newData = normalizeSerializableChatData(v2Data);
 		assert.strictEqual(newData.version, 3);
 		assert.strictEqual(newData.creationDate, v2Data.creationDate);
-		assert.strictEqual(newData.lastMessageDate, v2Data.lastMessageDate);
 		assert.strictEqual(newData.customTitle, v2Data.computedTitle);
 	});
 
@@ -450,14 +441,12 @@ suite('normalizeSerializableChatData', () => {
 
 			initialLocation: undefined,
 			requests: [],
-			responderAvatarIconUri: undefined,
 			responderUsername: 'bot',
 		};
 
 		const newData = normalizeSerializableChatData(v1Data);
 		assert.strictEqual(newData.version, 3);
 		assert.ok(newData.creationDate > 0);
-		assert.ok(newData.lastMessageDate > 0);
 		assert.ok(newData.sessionId);
 	});
 
@@ -465,12 +454,10 @@ suite('normalizeSerializableChatData', () => {
 		const v3Data: ISerializableChatData3 = {
 			// Test case where old data was wrongly normalized and these fields were missing
 			creationDate: undefined!,
-			lastMessageDate: undefined!,
 
 			version: 3,
 			initialLocation: undefined,
 			requests: [],
-			responderAvatarIconUri: undefined,
 			responderUsername: 'bot',
 			sessionId: 'session1',
 			customTitle: 'computed title'
@@ -479,7 +466,6 @@ suite('normalizeSerializableChatData', () => {
 		const newData = normalizeSerializableChatData(v3Data);
 		assert.strictEqual(newData.version, 3);
 		assert.ok(newData.creationDate > 0);
-		assert.ok(newData.lastMessageDate > 0);
 		assert.ok(newData.sessionId);
 	});
 });
@@ -492,7 +478,6 @@ suite('isExportableSessionData', () => {
 			initialLocation: ChatAgentLocation.Chat,
 			requests: [],
 			responderUsername: 'bot',
-			responderAvatarIconUri: undefined
 		};
 
 		assert.strictEqual(isExportableSessionData(validData), true);
@@ -502,7 +487,6 @@ suite('isExportableSessionData', () => {
 		const invalidData = {
 			initialLocation: ChatAgentLocation.Chat,
 			responderUsername: 'bot',
-			responderAvatarIconUri: undefined
 		};
 
 		assert.strictEqual(isExportableSessionData(invalidData), false);
@@ -513,7 +497,6 @@ suite('isExportableSessionData', () => {
 			initialLocation: ChatAgentLocation.Chat,
 			requests: 'not-an-array',
 			responderUsername: 'bot',
-			responderAvatarIconUri: undefined
 		};
 
 		assert.strictEqual(isExportableSessionData(invalidData), false);
@@ -523,7 +506,6 @@ suite('isExportableSessionData', () => {
 		const invalidData = {
 			initialLocation: ChatAgentLocation.Chat,
 			requests: [],
-			responderAvatarIconUri: undefined
 		};
 
 		assert.strictEqual(isExportableSessionData(invalidData), false);
@@ -534,7 +516,6 @@ suite('isExportableSessionData', () => {
 			initialLocation: ChatAgentLocation.Chat,
 			requests: [],
 			responderUsername: 123,
-			responderAvatarIconUri: undefined
 		};
 
 		assert.strictEqual(isExportableSessionData(invalidData), false);
@@ -557,12 +538,10 @@ suite('isSerializableSessionData', () => {
 			version: 3,
 			sessionId: 'session1',
 			creationDate: Date.now(),
-			lastMessageDate: Date.now(),
 			customTitle: undefined,
 			initialLocation: ChatAgentLocation.Chat,
 			requests: [],
 			responderUsername: 'bot',
-			responderAvatarIconUri: undefined
 		};
 
 		assert.strictEqual(isSerializableSessionData(validData), true);
@@ -573,7 +552,6 @@ suite('isSerializableSessionData', () => {
 			version: 3,
 			sessionId: 'session1',
 			creationDate: Date.now(),
-			lastMessageDate: Date.now(),
 			customTitle: undefined,
 			initialLocation: ChatAgentLocation.Chat,
 			requests: [{
@@ -584,7 +562,6 @@ suite('isSerializableSessionData', () => {
 				usedContext: { documents: [], kind: 'usedContext' }
 			}],
 			responderUsername: 'bot',
-			responderAvatarIconUri: undefined
 		};
 
 		assert.strictEqual(isSerializableSessionData(validData), true);
@@ -594,12 +571,10 @@ suite('isSerializableSessionData', () => {
 		const invalidData = {
 			version: 3,
 			creationDate: Date.now(),
-			lastMessageDate: Date.now(),
 			customTitle: undefined,
 			initialLocation: ChatAgentLocation.Chat,
 			requests: [],
 			responderUsername: 'bot',
-			responderAvatarIconUri: undefined
 		};
 
 		assert.strictEqual(isSerializableSessionData(invalidData), false);
@@ -609,12 +584,10 @@ suite('isSerializableSessionData', () => {
 		const invalidData = {
 			version: 3,
 			sessionId: 'session1',
-			lastMessageDate: Date.now(),
 			customTitle: undefined,
 			initialLocation: ChatAgentLocation.Chat,
 			requests: [],
 			responderUsername: 'bot',
-			responderAvatarIconUri: undefined
 		};
 
 		assert.strictEqual(isSerializableSessionData(invalidData), false);
@@ -625,12 +598,10 @@ suite('isSerializableSessionData', () => {
 			version: 3,
 			sessionId: 'session1',
 			creationDate: Date.now(),
-			lastMessageDate: Date.now(),
 			customTitle: undefined,
 			initialLocation: ChatAgentLocation.Chat,
 			requests: 'not-an-array',
 			responderUsername: 'bot',
-			responderAvatarIconUri: undefined
 		};
 
 		assert.strictEqual(isSerializableSessionData(invalidData), false);

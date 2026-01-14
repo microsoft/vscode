@@ -498,12 +498,14 @@ class DefaultAccountSetupContribution extends Disposable implements IWorkbenchCo
 	constructor(
 		@IProductService productService: IProductService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IDefaultAccountService defaultAccountService: IDefaultAccountService,
 		@ILogService logService: ILogService,
 	) {
 		super();
 		if (productService.defaultAccount) {
 			this._register(instantiationService.createInstance(DefaultAccountSetup, productService.defaultAccount)).setup();
 		} else {
+			defaultAccountService.setDefaultAccount(null);
 			logService.debug('[DefaultAccount] No default account configuration in product service, skipping initialization');
 		}
 	}
