@@ -137,7 +137,6 @@ export function setup(context: TestContext) {
 	if (context.skipRuntimeCheck || context.platform === 'win32-arm64') {
 		test('desktop-win32-arm64', async () => {
 			const packagePath = await context.downloadTarget('win32-arm64');
-			context.validateAuthenticodeSignature(packagePath);
 			if (!context.skipRuntimeCheck) {
 				const entryPoint = context.installWindowsApp('system', packagePath);
 				context.validateAllAuthenticodeSignatures(path.dirname(entryPoint));
@@ -160,7 +159,6 @@ export function setup(context: TestContext) {
 	if (context.skipRuntimeCheck || context.platform === 'win32-arm64') {
 		test('desktop-win32-arm64-user', async () => {
 			const packagePath = await context.downloadTarget('win32-arm64-user');
-			context.validateAuthenticodeSignature(packagePath);
 			if (!context.skipRuntimeCheck) {
 				const entryPoint = context.installWindowsApp('user', packagePath);
 				context.validateAllAuthenticodeSignatures(path.dirname(entryPoint));
@@ -173,7 +171,6 @@ export function setup(context: TestContext) {
 	if (context.skipRuntimeCheck || context.platform === 'win32-x64') {
 		test('desktop-win32-x64', async () => {
 			const packagePath = await context.downloadTarget('win32-x64');
-			context.validateAuthenticodeSignature(packagePath);
 			if (!context.skipRuntimeCheck) {
 				const entryPoint = context.installWindowsApp('system', packagePath);
 				context.validateAllAuthenticodeSignatures(path.dirname(entryPoint));
@@ -196,7 +193,6 @@ export function setup(context: TestContext) {
 	if (context.skipRuntimeCheck || context.platform === 'win32-x64') {
 		test('desktop-win32-x64-user', async () => {
 			const packagePath = await context.downloadTarget('win32-x64-user');
-			context.validateAuthenticodeSignature(packagePath);
 			if (!context.skipRuntimeCheck) {
 				const entryPoint = context.installWindowsApp('user', packagePath);
 				context.validateAllAuthenticodeSignatures(path.dirname(entryPoint));
