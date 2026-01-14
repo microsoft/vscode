@@ -17,7 +17,7 @@ import { migrateLegacyTerminalToolSpecificData } from '../../common/chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatToolInvocation } from '../../common/chatService/chatService.js';
 import { isResponseVM } from '../../common/model/chatViewModel.js';
-import { isToolResultInputOutputDetails, isToolResultOutputDetails, toolContentToA11yString } from '../../common/tools/languageModelToolsService.js';
+import { isToolResultInputOutputDetails, isToolResultOutputDetails, toolContentToA11yString, ToolInvocationPresentation } from '../../common/tools/languageModelToolsService.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
 
 export class ChatResponseAccessibleView implements IAccessibleViewImplementation {
@@ -96,7 +96,20 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 					responseContent += message;
 				}
 			});
-			const toolInvocations = item.response.value.filter(item => item.kind === 'toolInvocation');
+			const toolInvocations = item.response.value.filter(item => {
+				if (item.kind !== 'toolInvocation') {
+					return false;
+				}
+				// Filter out hidden tool invocations
+				if (item.presentation === ToolInvocationPresentation.Hidden) {
+					return false;
+				}
+				// Filter out hiddenAfterComplete tool invocations that are complete
+				if (item.presentation === ToolInvocationPresentation.HiddenAfterComplete && IChatToolInvocation.isComplete(item)) {
+					return false;
+				}
+				return true;
+			});
 			for (const toolInvocation of toolInvocations) {
 				const state = toolInvocation.state.get();
 				if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation && state.confirmationMessages?.title) {
@@ -138,7 +151,20 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 				}
 			}
 
-			const pastConfirmations = item.response.value.filter(item => item.kind === 'toolInvocationSerialized');
+			const pastConfirmations = item.response.value.filter(item => {
+				if (item.kind !== 'toolInvocationSerialized') {
+					return false;
+				}
+				// Filter out hidden tool invocations
+				if (item.presentation === ToolInvocationPresentation.Hidden) {
+					return false;
+				}
+				// Filter out hiddenAfterComplete tool invocations
+				if (item.presentation === ToolInvocationPresentation.HiddenAfterComplete) {
+					return false;
+				}
+				return true;
+			});
 			for (const pastConfirmation of pastConfirmations) {
 				if (pastConfirmation.isComplete && pastConfirmation.resultDetails && 'input' in pastConfirmation.resultDetails) {
 					if (pastConfirmation.pastTenseMessage) {
