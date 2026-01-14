@@ -286,6 +286,7 @@ export class WindowTitle extends Disposable {
 	 * {activeEditorLong}: e.g. /Users/Development/myFolder/myFileFolder/myFile.txt
 	 * {activeEditorMedium}: e.g. myFolder/myFileFolder/myFile.txt
 	 * {activeEditorShort}: e.g. myFile.txt
+	 * {activeEditorLanguageId}: e.g. typescript
 	 * {activeFolderLong}: e.g. /Users/Development/myFolder/myFileFolder
 	 * {activeFolderMedium}: e.g. myFolder/myFileFolder
 	 * {activeFolderShort}: e.g. myFileFolder
@@ -359,6 +360,7 @@ export class WindowTitle extends Disposable {
 		const profileName = this.userDataProfileService.currentProfile.isDefault ? '' : this.userDataProfileService.currentProfile.name;
 		const focusedView: string = this.viewsService.getFocusedViewName();
 		const activeEditorState = editorResource ? this.decorationsService.getDecoration(editorResource, false)?.tooltip : undefined;
+		const activeEditorLanguageId = this.editorService.activeTextEditorLanguageId;
 
 		const variables: Record<string, string> = {};
 		for (const [contextKey, name] of this.variables) {
@@ -384,6 +386,7 @@ export class WindowTitle extends Disposable {
 			activeEditorShort,
 			activeEditorLong,
 			activeEditorMedium,
+			activeEditorLanguageId,
 			activeFolderShort,
 			activeFolderMedium,
 			activeFolderLong,

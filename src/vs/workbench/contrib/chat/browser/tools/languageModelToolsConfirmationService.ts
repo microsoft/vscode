@@ -765,9 +765,9 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 			for (const item of quickTree.activeItems) {
 				if (item.type === 'manage') {
 					(item as ILanguageModelToolConfirmationContributionQuickTreeItem).onDidOpen?.();
+					quickTree.hide();
 				}
 			}
-			quickTree.hide();
 		}));
 
 		disposables.add(quickTree.onDidHide(() => {

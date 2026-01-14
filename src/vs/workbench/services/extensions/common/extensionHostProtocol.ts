@@ -46,6 +46,8 @@ export interface IExtensionHostInitData {
 		readonly firstSessionDate: string;
 		readonly msftInternal?: boolean;
 	};
+	remoteExtensionTips?: { readonly [remoteName: string]: unknown };
+	virtualWorkspaceExtensionTips?: { readonly [remoteName: string]: unknown };
 	logLevel: LogLevel;
 	loggers: UriDto<ILoggerResource>[];
 	logsLocation: URI;

@@ -29,7 +29,7 @@ import { ExtensionHostKind, extensionHostKindToString } from '../../services/ext
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostContext, ExtHostMcpShape, IMcpAuthenticationDetails, IMcpAuthenticationOptions, IMcpAuthSetupTelemetry, MainContext, MainThreadMcpShape } from '../common/extHost.protocol.js';
+import { ExtHostContext, ExtHostMcpShape, IMcpAuthenticationDetails, IMcpAuthenticationOptions, IAuthMetadataSource, MainContext, MainThreadMcpShape } from '../common/extHost.protocol.js';
 
 @extHostNamedCustomer(MainContext.MainThreadMcp)
 export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
@@ -357,14 +357,14 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		}
 	}
 
-	$logMcpAuthSetup(data: IMcpAuthSetupTelemetry): void {
+	$logMcpAuthSetup(data: IAuthMetadataSource): void {
 		type McpAuthSetupClassification = {
 			owner: 'TylerLeonhardt';
 			comment: 'Tracks how MCP OAuth authentication setup was discovered and configured';
 			resourceMetadataSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How resource metadata was discovered (header, wellKnown, or none)' };
 			serverMetadataSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How authorization server metadata was discovered (resourceMetadata, wellKnown, or default)' };
 		};
-		this._telemetryService.publicLog2<IMcpAuthSetupTelemetry, McpAuthSetupClassification>('mcp/authSetup', data);
+		this._telemetryService.publicLog2<IAuthMetadataSource, McpAuthSetupClassification>('mcp/authSetup', data);
 	}
 
 	private async loginPrompt(mcpLabel: string, providerLabel: string, recreatingSession: boolean): Promise<boolean> {

@@ -49,7 +49,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		this.parameters = parameters;
 
 		if (!this.confirmationMessages?.title) {
-			this._state = observableValue(this, { type: IChatToolInvocation.StateKind.Executing, confirmed: { type: ToolConfirmKind.ConfirmationNotNeeded }, progress: this._progress });
+			this._state = observableValue(this, { type: IChatToolInvocation.StateKind.Executing, confirmed: { type: ToolConfirmKind.ConfirmationNotNeeded, reason: this.confirmationMessages?.confirmationNotNeededReason }, progress: this._progress });
 		} else {
 			this._state = observableValue(this, {
 				type: IChatToolInvocation.StateKind.WaitingForConfirmation,

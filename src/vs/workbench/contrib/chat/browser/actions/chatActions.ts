@@ -205,7 +205,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 		}
 
 		if (opts?.modelSelector) {
-			const ids = await languageModelService.selectLanguageModels(opts.modelSelector, false);
+			const ids = await languageModelService.selectLanguageModels(opts.modelSelector);
 			const id = ids.sort().at(0);
 			if (!id) {
 				throw new Error(`No language models found matching selector: ${JSON.stringify(opts.modelSelector)}.`);
@@ -947,7 +947,8 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 			ChatContextKeys.Setup.hidden.negate(),
 			ChatContextKeys.Setup.disabled.negate()
 		),
-		ContextKeyExpr.has('config.chat.commandCenter.enabled')
+		ContextKeyExpr.has('config.chat.commandCenter.enabled'),
+		ContextKeyExpr.has(`config.${ChatConfiguration.AgentSessionProjectionEnabled}`).negate() // Hide when agent controls are shown
 	),
 	order: 10001 // to the right of command center
 });

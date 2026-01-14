@@ -562,7 +562,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 			localize('hideOnStartup.whenEmpty', "Only hide the terminal when there are no persistent sessions restored."),
 			localize('hideOnStartup.always', "Always hide the terminal, even when there are persistent sessions restored.")
 		],
-		default: 'never'
+		default: 'never',
 	},
 	[TerminalSettingId.HideOnLastClosed]: {
 		description: localize('terminal.integrated.hideOnLastClosed', "Whether to hide the terminal view when the last terminal is closed. This will only happen when the terminal is the only visible view in the view container."),
@@ -586,6 +586,26 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		markdownDescription: localize('terminal.integrated.rescaleOverlappingGlyphs', "Whether to rescale glyphs horizontally that are a single cell wide but have glyphs that would overlap following cell(s). This typically happens for ambiguous width characters (eg. the roman numeral characters U+2160+) which aren't featured in monospace fonts. Emoji glyphs are never rescaled."),
 		type: 'boolean',
 		default: true
+	},
+	[TerminalSettingId.EnableKittyKeyboardProtocol]: {
+		restricted: true,
+		markdownDescription: localize('terminal.integrated.enableKittyKeyboardProtocol', "Whether to enable the kitty keyboard protocol, which provides more detailed keyboard input reporting to the terminal."),
+		type: 'boolean',
+		default: false,
+		tags: ['experimental', 'advanced'],
+		experiment: {
+			mode: 'auto'
+		}
+	},
+	[TerminalSettingId.EnableWin32InputMode]: {
+		restricted: true,
+		markdownDescription: localize('terminal.integrated.enableWin32InputMode', "Whether to enable the win32 input mode, which provides enhanced keyboard input support on Windows."),
+		type: 'boolean',
+		default: false,
+		tags: ['experimental', 'advanced'],
+		experiment: {
+			mode: 'auto'
+		}
 	},
 	[TerminalSettingId.ShellIntegrationEnabled]: {
 		restricted: true,
@@ -651,6 +671,12 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 			localize('terminal.integrated.focusAfterRun.accessible-buffer', "Always focus the accessible buffer."),
 			localize('terminal.integrated.focusAfterRun.none', "Do nothing."),
 		]
+	},
+	[TerminalSettingId.AllowInUntrustedWorkspace]: {
+		restricted: true,
+		markdownDescription: localize('terminal.integrated.allowInUntrustedWorkspace', "Controls whether terminals can be created in an untrusted workspace.\n\n**This feature bypasses a security protection that prevents terminals from launching in untrusted workspaces. The reason this is a security risk is because shells are often set up to potentially execute code automatically based on the contents of the current working directory. This should be safe to use provided your shell is set up in such a way that code execution in the folder never happens.**"),
+		type: 'boolean',
+		default: false
 	},
 	[TerminalSettingId.DeveloperPtyHostLatency]: {
 		description: localize('terminal.integrated.developer.ptyHost.latency', "Simulated latency in milliseconds applied to all calls made to the pty host. This is useful for testing terminal behavior under high latency conditions."),

@@ -176,6 +176,7 @@ export interface IChatMultiDiffData {
 	kind: 'multiDiffData';
 	collapsed?: boolean;
 	readOnly?: boolean;
+	toJSON(): IChatMultiDiffDataSerialized;
 }
 
 export interface IChatMultiDiffDataSerialized {
@@ -225,6 +226,7 @@ export interface IChatTask extends IChatTaskDto {
 	complete: (result: string | void) => void;
 	task: () => Promise<string | void>;
 	isSettled: () => boolean;
+	toJSON(): IChatTaskSerialized;
 }
 
 export interface IChatUndoStop {
@@ -341,6 +343,7 @@ export interface IChatElicitationRequest {
 	reject?: () => Promise<void>;
 	isHidden?: IObservable<boolean>;
 	hide?(): void;
+	toJSON(): IChatElicitationRequestSerialized;
 }
 
 export interface IChatElicitationRequestSerialized {
@@ -416,6 +419,15 @@ export interface IChatToolInputInvocationData {
 	kind: 'input';
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	rawInput: any;
+	/** Optional MCP App UI metadata for rendering during and after tool execution */
+	mcpAppData?: {
+		/** URI of the UI resource for rendering (e.g., "ui://weather-server/dashboard") */
+		resourceUri: string;
+		/** Reference to the server definition for reconnection */
+		serverDefinitionId: string;
+		/** Reference to the collection containing the server */
+		collectionId: string;
+	};
 }
 
 export const enum ToolConfirmKind {
@@ -429,7 +441,7 @@ export const enum ToolConfirmKind {
 
 export type ConfirmedReason =
 	| { type: ToolConfirmKind.Denied }
-	| { type: ToolConfirmKind.ConfirmationNotNeeded }
+	| { type: ToolConfirmKind.ConfirmationNotNeeded; reason?: string | IMarkdownString }
 	| { type: ToolConfirmKind.Setting; id: string }
 	| { type: ToolConfirmKind.LmServicePerTool; scope: 'session' | 'workspace' | 'profile' }
 	| { type: ToolConfirmKind.UserAction }
@@ -451,6 +463,8 @@ export interface IChatToolInvocation {
 	generatedTitle?: string;
 
 	kind: 'toolInvocation';
+
+	toJSON(): IChatToolInvocationSerialized;
 }
 
 export namespace IChatToolInvocation {
@@ -682,6 +696,13 @@ export interface IChatMcpServersStarting {
 	readonly kind: 'mcpServersStarting';
 	readonly state?: IObservable<IAutostartResult>; // not hydrated when serialized
 	didStartServerIds?: string[];
+	toJSON(): IChatMcpServersStartingSerialized;
+}
+
+export interface IChatMcpServersStartingSerialized {
+	readonly kind: 'mcpServersStarting';
+	readonly state?: undefined;
+	didStartServerIds?: string[];
 }
 
 export class ChatMcpServersStarting implements IChatMcpServersStarting {
@@ -708,7 +729,7 @@ export class ChatMcpServersStarting implements IChatMcpServersStarting {
 		});
 	}
 
-	toJSON(): IChatMcpServersStarting {
+	toJSON(): IChatMcpServersStartingSerialized {
 		return { kind: 'mcpServersStarting', didStartServerIds: this.didStartServerIds };
 	}
 }
@@ -723,6 +744,7 @@ export type IChatProgress =
 	| IChatAgentMarkdownContentWithVulnerability
 	| IChatTreeData
 	| IChatMultiDiffData
+	| IChatMultiDiffDataSerialized
 	| IChatUsedContext
 	| IChatContentReference
 	| IChatContentInlineReference
@@ -748,7 +770,8 @@ export type IChatProgress =
 	| IChatTaskSerialized
 	| IChatElicitationRequest
 	| IChatElicitationRequestSerialized
-	| IChatMcpServersStarting;
+	| IChatMcpServersStarting
+	| IChatMcpServersStartingSerialized;
 
 export interface IChatFollowup {
 	kind: 'reply';
@@ -918,8 +941,24 @@ export interface IChatSessionStats {
 }
 
 export interface IChatSessionTiming {
-	startTime: number;
-	endTime?: number;
+	/**
+	 * Timestamp when the session was created in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
+	 */
+	created: number;
+
+	/**
+	 * Timestamp when the most recent request started in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
+	 *
+	 * Should be undefined if no requests have been made yet.
+	 */
+	lastRequestStarted: number | undefined;
+
+	/**
+	 * Timestamp when the most recent request completed in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
+	 *
+	 * Should be undefined if the most recent request is still in progress or if no requests have been made yet.
+	 */
+	lastRequestEnded: number | undefined;
 }
 
 export const enum ResponseModelState {
@@ -960,8 +999,6 @@ export interface IChatEditorLocationData {
 	document: URI;
 	selection: ISelection;
 	wholeRange: IRange;
-	close: () => void;
-	delegateSessionResource: URI | undefined;
 }
 
 export interface IChatNotebookLocationData {
@@ -1013,6 +1050,8 @@ export interface IChatService {
 	transferredSessionResource: URI | undefined;
 
 	readonly onDidSubmitRequest: Event<{ readonly chatSessionResource: URI }>;
+
+	readonly onDidCreateModel: Event<IChatModel>;
 
 	/**
 	 * An observable containing all live chat models.

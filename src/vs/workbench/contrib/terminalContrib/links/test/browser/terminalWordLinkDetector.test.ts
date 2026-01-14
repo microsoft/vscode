@@ -14,6 +14,7 @@ import { TerminalWordLinkDetector } from '../../browser/terminalWordLinkDetector
 import { assertLinkHelper } from './linkTestUtils.js';
 import { TestProductService } from '../../../../../test/common/workbenchTestServices.js';
 import type { Terminal } from '@xterm/xterm';
+import { TestXtermLogger } from '../../../../../../platform/terminal/test/common/terminalTestHelpers.js';
 
 suite('Workbench - TerminalWordLinkDetector', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -32,7 +33,7 @@ suite('Workbench - TerminalWordLinkDetector', () => {
 		instantiationService.set(IProductService, TestProductService);
 
 		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
-		xterm = store.add(new TerminalCtor({ allowProposedApi: true, cols: 80, rows: 30 }));
+		xterm = store.add(new TerminalCtor({ allowProposedApi: true, cols: 80, rows: 30, logger: TestXtermLogger }));
 		detector = store.add(instantiationService.createInstance(TerminalWordLinkDetector, xterm));
 	});
 
