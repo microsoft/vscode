@@ -213,7 +213,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private readonly _isSerializedInvocation: boolean;
 	private _terminalInstance: ITerminalInstance | undefined;
 	private readonly _decoration: TerminalCommandDecoration;
-	private _autoExpandTimeout: ReturnType<typeof setTimeout> | undefined;
 	private _userToggledOutput: boolean = false;
 
 	private markdownPart: ChatMarkdownContentPart | undefined;
@@ -509,30 +508,68 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			}
 
 			const store = new DisposableStore();
+			let commandFinished = false;
+			let dataEventTimeout: ReturnType<typeof setTimeout> | undefined;
+			let noDataTimeout: ReturnType<typeof setTimeout> | undefined;
+			let receivedData = false;
+
+			const clearAutoExpandTimeouts = () => {
+				if (dataEventTimeout) {
+					clearTimeout(dataEventTimeout);
+					dataEventTimeout = undefined;
+				}
+				if (noDataTimeout) {
+					clearTimeout(noDataTimeout);
+					noDataTimeout = undefined;
+				}
+			};
+
+			// Ensure timeouts are cleaned up when the store is disposed
+			store.add(toDisposable(() => clearAutoExpandTimeouts()));
+
+			const shouldAutoExpand = () => {
+				return !this._outputView.isExpanded && !this._userToggledOutput && !this._store.isDisposed;
+			};
+
 			store.add(commandDetection.onCommandExecuted(() => {
 				this._addActions(terminalInstance, this._terminalData.terminalToolSessionId);
-				// Auto-expand if there's output, checking periodically for up to 1 second
-				if (!this._outputView.isExpanded && !this._userToggledOutput && !this._autoExpandTimeout) {
-					let attempts = 0;
-					const maxAttempts = 5;
-					const checkForOutput = () => {
-						this._autoExpandTimeout = undefined;
-						if (this._store.isDisposed || this._outputView.isExpanded || this._userToggledOutput) {
-							return;
-						}
-						if (this._hasOutput(terminalInstance)) {
+				// Auto-expand for long-running commands:
+				// 1. Kick off 500ms timeout - if hit without any data events, expand
+				if (shouldAutoExpand() && !noDataTimeout) {
+					noDataTimeout = setTimeout(() => {
+						noDataTimeout = undefined;
+						if (!receivedData && shouldAutoExpand()) {
 							this._toggleOutput(true);
-							return;
 						}
-						attempts++;
-						if (attempts < maxAttempts) {
-							this._autoExpandTimeout = setTimeout(checkForOutput, 200);
-						}
-					};
-					this._autoExpandTimeout = setTimeout(checkForOutput, 200);
+					}, 500);
 				}
 			}));
+
+			// 2. Wait for first data event - when hit, wait 50ms and expand if command not yet finished
+			store.add(terminalInstance.onWillData(() => {
+				if (receivedData) {
+					return;
+				}
+				receivedData = true;
+				// Cancel the 500ms no-data timeout since we received data
+				if (noDataTimeout) {
+					clearTimeout(noDataTimeout);
+					noDataTimeout = undefined;
+				}
+				// Wait 50ms and expand if command hasn't finished yet
+				if (shouldAutoExpand() && !dataEventTimeout) {
+					dataEventTimeout = setTimeout(() => {
+						dataEventTimeout = undefined;
+						if (!commandFinished && shouldAutoExpand()) {
+							this._toggleOutput(true);
+						}
+					}, 50);
+				}
+			}));
+
 			store.add(commandDetection.onCommandFinished(() => {
+				commandFinished = true;
+				clearAutoExpandTimeouts();
 				this._addActions(terminalInstance, this._terminalData.terminalToolSessionId);
 				const resolvedCommand = this._getResolvedCommand(terminalInstance);
 
@@ -632,10 +669,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	}
 
 	private _handleDispose(): void {
-		if (this._autoExpandTimeout) {
-			clearTimeout(this._autoExpandTimeout);
-			this._autoExpandTimeout = undefined;
-		}
 		this._terminalOutputContextKey.reset();
 		this._terminalChatService.clearFocusedProgressPart(this);
 	}
@@ -687,24 +720,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			await this._toggleOutput(false);
 		}
 		this._focusChatInput();
-	}
-
-	private _hasOutput(terminalInstance: ITerminalInstance): boolean {
-		// Check for snapshot
-		if (this._terminalData.terminalCommandOutput?.text?.trim()) {
-			return true;
-		}
-		// Check for live output (cursor moved past executed marker)
-		const command = this._getResolvedCommand(terminalInstance);
-		if (!command?.executedMarker || terminalInstance.isDisposed) {
-			return false;
-		}
-		const buffer = terminalInstance.xterm?.raw.buffer.active;
-		if (!buffer) {
-			return false;
-		}
-		const cursorLine = buffer.baseY + buffer.cursorY;
-		return cursorLine > command.executedMarker.line;
 	}
 
 	private _resolveCommand(instance: ITerminalInstance): ITerminalCommand | undefined {
