@@ -152,7 +152,11 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 			if (existingOutputChannel) {
 				return existingOutputChannel;
 			}
-			logLevel = this.loggerService.getLogLevel(logFile) ?? logLevel;
+			// Only override the extension-specific default log level if there's an explicitly set level for this logger
+			const registeredLogger = this.loggerService.getRegisteredLogger(logFile);
+			if (registeredLogger?.logLevel !== undefined) {
+				logLevel = registeredLogger.logLevel;
+			}
 			extHostOutputChannelPromise = this.doCreateLogOutputChannel(name, logFile, logLevel, extension, channelDisposables);
 		} else {
 			extHostOutputChannelPromise = this.doCreateOutputChannel(name, languageId, extension, channelDisposables);
