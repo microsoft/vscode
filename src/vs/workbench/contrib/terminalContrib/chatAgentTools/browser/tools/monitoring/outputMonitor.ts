@@ -26,9 +26,9 @@ import { IConfirmationPrompt, IExecution, IPollingResult, OutputMonitorState, Po
 import { getTextResponseFromStream } from './utils.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TerminalChatAgentToolsSettingId } from '../../../common/terminalChatAgentToolsConfiguration.js';
-import { ILogService } from '../../../../../../../platform/log/common/log.js';
 import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
 import { LocalChatSessionUri } from '../../../../../chat/common/model/chatUri.js';
+import { ITerminalLogService } from '../../../../../../../platform/terminal/common/terminal.js';
 
 export interface IOutputMonitor extends Disposable {
 	readonly pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
@@ -94,7 +94,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		@IChatService private readonly _chatService: IChatService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ILogService private readonly _logService: ILogService,
+		@ITerminalLogService private readonly _logService: ITerminalLogService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 	) {
 		super();
