@@ -154,10 +154,14 @@ export class BrowserEditorInput extends EditorInput {
 	}
 
 	override getName(): string {
+		return truncate(this.getTitle(), MAX_TITLE_LENGTH);
+	}
+
+	override getTitle(): string {
 		// Use model data if available, otherwise fall back to initial data
 		if (this._model && this._model.url) {
 			if (this._model.title) {
-				return truncate(this._model.title, MAX_TITLE_LENGTH);
+				return this._model.title;
 			}
 			// Model exists, use its URL for authority
 			const authority = URI.parse(this._model.url).authority;
@@ -165,7 +169,7 @@ export class BrowserEditorInput extends EditorInput {
 		}
 		// Model not created yet, use initial data
 		if (this._initialData.title) {
-			return truncate(this._initialData.title, MAX_TITLE_LENGTH);
+			return this._initialData.title;
 		}
 		const url = this._initialData.url ?? '';
 		const authority = URI.parse(url).authority;
