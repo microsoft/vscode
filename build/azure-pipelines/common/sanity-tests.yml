@@ -6,13 +6,6 @@ parameters:
   - name: poolName
     type: string
   - name: os
-    type: string
-  - name: container
-    type: string
-    default: ""
-  - name: containerOptions
-    type: string
-    default: ""
 
 jobs:
   - job: ${{ parameters.name }}
@@ -20,12 +13,6 @@ jobs:
     pool:
       name: ${{ parameters.poolName }}
       os: ${{ parameters.os }}
-    ${{ if and(ne(parameters.container, ''), eq(parameters.containerOptions, '')) }}:
-      container: ${{ parameters.container }}
-    ${{ if and(ne(parameters.container, ''), ne(parameters.containerOptions, '')) }}:
-      container:
-        image: ${{ parameters.container }}
-        options: ${{ parameters.containerOptions }}
     timeoutInMinutes: 30
     variables:
       SANITY_TEST_LOGS: $(Build.SourcesDirectory)/.build/sanity-test-logs
