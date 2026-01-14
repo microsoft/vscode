@@ -141,19 +141,18 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 	}
 
 	protected override updateEnabled(): void {
-		// Override the action's enabled state when locked
-		const originalEnabled = this.action.enabled;
+		// When locked, treat as disabled for dropdown functionality
+		const effectivelyDisabled = !this.action.enabled || !!this.currentOption?.locked;
 		
-		// Temporarily set action.enabled to false if locked
-		if (this.currentOption?.locked) {
-			(this.action as any).enabled = false;
-		}
+		// Update DOM classes and dropdown state
+		// Note: actionItem and actionWidgetDropdown are private in the base class,
+		// so we access them via reflection. This mirrors the parent implementation.
+		const actionItem = (this as any)['actionItem'] as HTMLElement | null;
+		const dropdown = (this as any)['actionWidgetDropdown'] as any;
 		
-		// Call parent which will use action.enabled to set dropdown state
-		super.updateEnabled();
-		
-		// Restore original action.enabled
-		(this.action as any).enabled = originalEnabled;
+		actionItem?.classList.toggle('disabled', effectivelyDisabled);
+		this.element?.classList.toggle('disabled', effectivelyDisabled);
+		dropdown?.setEnabled(!effectivelyDisabled);
 		
 		// Update visual state for locked items
 		const container = this.element?.parentElement;
