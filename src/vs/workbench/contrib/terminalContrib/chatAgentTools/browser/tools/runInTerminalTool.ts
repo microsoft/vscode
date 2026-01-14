@@ -583,7 +583,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		const store = new DisposableStore();
 
-
 		this._logService.debug(`RunInTerminalTool: Creating ${args.isBackground ? 'background' : 'foreground'} terminal. termId=${termId}, chatSessionId=${chatSessionId}`);
 		const toolTerminal = await (args.isBackground
 			? this._initBackgroundTerminal(chatSessionResource, termId, terminalToolSessionId, token)
