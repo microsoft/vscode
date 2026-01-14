@@ -50,7 +50,10 @@ export class Application {
 	}
 
 	private _workspacePathOrFolder: string | undefined;
-	get workspacePathOrFolder(): string | undefined {
+	get workspacePathOrFolder(): string {
+		if (!this._workspacePathOrFolder) {
+			throw new Error('This test requires a workspace to be open');
+		}
 		return this._workspacePathOrFolder;
 	}
 
@@ -78,7 +81,7 @@ export class Application {
 		})(), 'Application#restart()', this.logger);
 	}
 
-	private async _start(workspaceOrFolder = this.workspacePathOrFolder, extraArgs: string[] = []): Promise<void> {
+	private async _start(workspaceOrFolder = this._workspacePathOrFolder, extraArgs: string[] = []): Promise<void> {
 		this._workspacePathOrFolder = workspaceOrFolder;
 
 		// Launch Code...
