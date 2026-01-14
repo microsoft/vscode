@@ -19,6 +19,7 @@ import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService, type ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService, ITerminalProfile } from '../../../../../../platform/terminal/common/terminal.js';
@@ -48,7 +49,7 @@ import { IPollingResult, OutputMonitorState } from './monitoring/types.js';
 import { chatSessionResourceToId, LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import type { ICommandLineRewriter } from './commandLineRewriter/commandLineRewriter.js';
-import { CommandLineCdPrefixRewriter } from './commandLineRewriter/commandLineCdPrefixRewriter.js';
+import { CommandLineCdPrefixRewriter, extractCdPrefix } from './commandLineRewriter/commandLineCdPrefixRewriter.js';
 import { CommandLinePreventHistoryRewriter } from './commandLineRewriter/commandLinePreventHistoryRewriter.js';
 import { CommandLinePwshChainOperatorRewriter } from './commandLineRewriter/commandLinePwshChainOperatorRewriter.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
@@ -300,6 +301,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IHistoryService private readonly _historyService: IHistoryService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ILabelService private readonly _labelService: ILabelService,
 		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IStorageService private readonly _storageService: IStorageService,
@@ -402,6 +404,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				original: args.command,
 				toolEdited: rewrittenCommand === args.command ? undefined : rewrittenCommand
 			},
+			cwd,
 			language,
 		};
 
@@ -498,10 +501,38 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			toolSpecificData.autoApproveInfo = commandLineAnalyzerResults.find(e => e.autoApproveInfo)?.autoApproveInfo;
 		}
 
-		const confirmationMessages = isFinalAutoApproved ? undefined : {
-			title: args.isBackground
+		// Extract cd prefix for display - show directory in title, command suffix in editor
+		const commandToDisplay = (toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original).trimStart();
+		const extractedCd = extractCdPrefix(commandToDisplay, shell, os);
+		let confirmationTitle: string;
+		if (extractedCd && cwd) {
+			// Construct the full directory path using the cwd's scheme/authority
+			const directoryUri = extractedCd.directory.startsWith('/') || /^[a-zA-Z]:/.test(extractedCd.directory)
+				? URI.from({ scheme: cwd.scheme, authority: cwd.authority, path: extractedCd.directory })
+				: URI.joinPath(cwd, extractedCd.directory);
+			const directoryLabel = this._labelService.getUriLabel(directoryUri);
+			const cdPrefix = commandToDisplay.substring(0, commandToDisplay.length - extractedCd.command.length);
+
+			toolSpecificData.confirmation = {
+				commandLine: extractedCd.command,
+				cwdLabel: directoryLabel,
+				cdPrefix,
+			};
+
+			confirmationTitle = args.isBackground
+				? localize('runInTerminal.background.inDirectory', "Run `{0}` command in `{1}`? (background terminal)", shellType, directoryLabel)
+				: localize('runInTerminal.inDirectory', "Run `{0}` command in `{1}`?", shellType, directoryLabel);
+		} else {
+			toolSpecificData.confirmation = {
+				commandLine: commandToDisplay,
+			};
+			confirmationTitle = args.isBackground
 				? localize('runInTerminal.background', "Run `{0}` command? (background terminal)", shellType)
-				: localize('runInTerminal', "Run `{0}` command?", shellType),
+				: localize('runInTerminal', "Run `{0}` command?", shellType);
+		}
+
+		const confirmationMessages = isFinalAutoApproved ? undefined : {
+			title: confirmationTitle,
 			message: new MarkdownString(args.explanation),
 			disclaimer,
 			terminalCustomActions: customActions,

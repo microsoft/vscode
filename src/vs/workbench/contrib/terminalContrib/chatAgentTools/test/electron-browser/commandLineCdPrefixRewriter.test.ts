@@ -9,7 +9,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import type { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { CommandLineCdPrefixRewriter } from '../../browser/tools/commandLineRewriter/commandLineCdPrefixRewriter.js';
+import { CommandLineCdPrefixRewriter, extractCdPrefix } from '../../browser/tools/commandLineRewriter/commandLineCdPrefixRewriter.js';
 import type { ICommandLineRewriterOptions } from '../../browser/tools/commandLineRewriter/commandLineRewriter.js';
 
 suite('CommandLineCdPrefixRewriter', () => {
@@ -78,5 +78,36 @@ suite('CommandLineCdPrefixRewriter', () => {
 			test('should not rewrite cd /d when directory does not match cwd', () => t('cd /d C:\\different\\path ; echo hello', 'pwsh', undefined));
 			test('should handle cd /d flag with semicolon separator', () => t('cd /d C:\\test\\workspace; echo hello', 'pwsh', 'echo hello'));
 		});
+	});
+});
+
+suite('extractCdPrefix', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('Posix', () => {
+		function t(commandLine: string, expectedDir: string | undefined, expectedCommand: string | undefined) {
+			const result = extractCdPrefix(commandLine, 'bash', OperatingSystem.Linux);
+			strictEqual(result?.directory, expectedDir);
+			strictEqual(result?.command, expectedCommand);
+		}
+
+		test('should return undefined when no cd prefix', () => t('echo hello', undefined, undefined));
+		test('should return undefined when cd has no suffix', () => t('cd /some/path', undefined, undefined));
+		test('should extract cd prefix with && separator', () => t('cd /some/path && npm install', '/some/path', 'npm install'));
+		test('should extract quoted path', () => t('cd "/some/path" && npm install', '/some/path', 'npm install'));
+		test('should extract complex suffix', () => t('cd /path && npm install && npm test', '/path', 'npm install && npm test'));
+	});
+
+	suite('PowerShell', () => {
+		function t(commandLine: string, expectedDir: string | undefined, expectedCommand: string | undefined) {
+			const result = extractCdPrefix(commandLine, 'pwsh', OperatingSystem.Windows);
+			strictEqual(result?.directory, expectedDir);
+			strictEqual(result?.command, expectedCommand);
+		}
+
+		test('should extract cd with ; separator', () => t('cd C:\\path; npm test', 'C:\\path', 'npm test'));
+		test('should extract cd /d with && separator', () => t('cd /d C:\\path && echo hello', 'C:\\path', 'echo hello'));
+		test('should extract Set-Location', () => t('Set-Location C:\\path; npm test', 'C:\\path', 'npm test'));
+		test('should extract Set-Location -Path', () => t('Set-Location -Path C:\\path; npm test', 'C:\\path', 'npm test'));
 	});
 });
