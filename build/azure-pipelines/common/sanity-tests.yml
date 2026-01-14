@@ -1,17 +1,31 @@
 parameters:
+  - name: name
+    type: string
   - name: displayName
     type: string
   - name: poolName
     type: string
   - name: os
     type: string
+  - name: container
+    type: string
+    default: ""
+  - name: containerOptions
+    type: string
+    default: ""
 
 jobs:
-  - job: ${{ parameters.os }}
+  - job: ${{ parameters.name }}
     displayName: ${{ parameters.displayName }}
     pool:
       name: ${{ parameters.poolName }}
       os: ${{ parameters.os }}
+    ${{ if and(ne(parameters.container, ''), eq(parameters.containerOptions, '')) }}:
+      container: ${{ parameters.container }}
+    ${{ if and(ne(parameters.container, ''), ne(parameters.containerOptions, '')) }}:
+      container:
+        image: ${{ parameters.container }}
+        options: ${{ parameters.containerOptions }}
     timeoutInMinutes: 30
     variables:
       SANITY_TEST_LOGS: $(Build.SourcesDirectory)/.build/sanity-test-logs
@@ -20,7 +34,7 @@ jobs:
       outputs:
         - output: pipelineArtifact
           targetPath: $(SANITY_TEST_LOGS)
-          artifactName: sanity-test-logs-${{ lower(parameters.os) }}-$(System.JobAttempt)
+          artifactName: sanity-test-logs-${{ parameters.name }}-$(System.JobAttempt)
           displayName: Sanity Tests Logs
           sbomEnabled: false
           isProduction: false
