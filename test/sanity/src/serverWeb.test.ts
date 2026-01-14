@@ -10,7 +10,7 @@ import { TestContext } from './context';
 import { UITest } from './uiTest';
 
 export function setup(context: TestContext) {
-	if (context.skipRuntimeCheck || context.platform === 'linux-arm64') {
+	if (context.skipRuntimeCheck || context.platform === 'linux-arm64' && context.isAlpineLinux) {
 		test('server-web-alpine-arm64', async () => {
 			const dir = await context.downloadAndUnpack('server-alpine-arm64-web');
 			const entryPoint = context.getServerEntryPoint(dir);
@@ -18,7 +18,7 @@ export function setup(context: TestContext) {
 		});
 	}
 
-	if (context.skipRuntimeCheck || context.platform === 'linux-x64') {
+	if (context.skipRuntimeCheck || context.platform === 'linux-x64' && context.isAlpineLinux) {
 		test('server-web-alpine-x64', async () => {
 			const dir = await context.downloadAndUnpack('server-linux-alpine-web');
 			const entryPoint = context.getServerEntryPoint(dir);
@@ -44,7 +44,7 @@ export function setup(context: TestContext) {
 		});
 	}
 
-	if (context.skipRuntimeCheck || context.platform === 'linux-arm64') {
+	if (context.skipRuntimeCheck || context.platform === 'linux-arm64' && !context.isAlpineLinux) {
 		test('server-web-linux-arm64', async () => {
 			const dir = await context.downloadAndUnpack('server-linux-arm64-web');
 			const entryPoint = context.getServerEntryPoint(dir);
@@ -52,7 +52,7 @@ export function setup(context: TestContext) {
 		});
 	}
 
-	if (context.skipRuntimeCheck || context.platform === 'linux-arm') {
+	if (context.skipRuntimeCheck || context.platform === 'linux-arm' && !context.isAlpineLinux) {
 		test('server-web-linux-armhf', async () => {
 			const dir = await context.downloadAndUnpack('server-linux-armhf-web');
 			const entryPoint = context.getServerEntryPoint(dir);
@@ -60,7 +60,7 @@ export function setup(context: TestContext) {
 		});
 	}
 
-	if (context.skipRuntimeCheck || context.platform === 'linux-x64') {
+	if (context.skipRuntimeCheck || context.platform === 'linux-x64' && !context.isAlpineLinux) {
 		test('server-web-linux-x64', async () => {
 			const dir = await context.downloadAndUnpack('server-linux-x64-web');
 			const entryPoint = context.getServerEntryPoint(dir);

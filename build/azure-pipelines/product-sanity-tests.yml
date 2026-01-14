@@ -141,6 +141,14 @@ extends:
               container: opensuse/leap:latest
               containerPlatform: linux/amd64
 
+          - template: build/azure-pipelines/common/sanity-tests-container.yml@self
+            parameters:
+              name: Alpine_x64
+              displayName: Alpine x64 Sanity Tests
+              poolName: 1es-ubuntu-22.04-x64
+              container: alpine:latest
+              containerPlatform: linux/amd64
+
           # Linux arm32 containers (emulated via QEMU)
           - template: build/azure-pipelines/common/sanity-tests-container.yml@self
             parameters:
@@ -190,6 +198,14 @@ extends:
               container: opensuse/leap:latest
               containerPlatform: linux/arm
 
+          - template: build/azure-pipelines/common/sanity-tests-container.yml@self
+            parameters:
+              name: Alpine_arm32
+              displayName: Alpine arm32 Sanity Tests
+              poolName: 1es-ubuntu-22.04-x64
+              container: alpine:latest
+              containerPlatform: linux/arm
+
           # Linux arm64 containers (emulated via QEMU)
           - template: build/azure-pipelines/common/sanity-tests-container.yml@self
             parameters:
@@ -237,4 +253,12 @@ extends:
               displayName: openSUSE Leap arm64 Sanity Tests
               poolName: 1es-ubuntu-22.04-x64
               container: opensuse/leap:latest
+              containerPlatform: linux/arm64
+
+          - template: build/azure-pipelines/common/sanity-tests-container.yml@self
+            parameters:
+              name: Alpine_arm64
+              displayName: Alpine arm64 Sanity Tests
+              poolName: 1es-ubuntu-22.04-x64
+              container: alpine:latest
               containerPlatform: linux/arm64

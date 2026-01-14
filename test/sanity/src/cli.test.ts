@@ -9,7 +9,7 @@ import { test } from 'mocha';
 import { TestContext } from './context';
 
 export function setup(context: TestContext) {
-	if (context.skipRuntimeCheck || context.platform === 'linux-arm64') {
+	if (context.skipRuntimeCheck || context.platform === 'linux-arm64' && context.isAlpineLinux) {
 		test('cli-alpine-arm64', async () => {
 			const dir = await context.downloadAndUnpack('cli-alpine-arm64');
 			const entryPoint = context.getEntryPoint('cli', dir);
@@ -17,7 +17,7 @@ export function setup(context: TestContext) {
 		});
 	}
 
-	if (context.skipRuntimeCheck || context.platform === 'linux-x64') {
+	if (context.skipRuntimeCheck || context.platform === 'linux-x64' && context.isAlpineLinux) {
 		test('cli-alpine-x64', async () => {
 			const dir = await context.downloadAndUnpack('cli-alpine-x64');
 			const entryPoint = context.getEntryPoint('cli', dir);
@@ -43,7 +43,7 @@ export function setup(context: TestContext) {
 		});
 	}
 
-	if (context.skipRuntimeCheck || context.platform === 'linux-arm64') {
+	if (context.skipRuntimeCheck || context.platform === 'linux-arm64' && !context.isAlpineLinux) {
 		test('cli-linux-arm64', async () => {
 			const dir = await context.downloadAndUnpack('cli-linux-arm64');
 			const entryPoint = context.getEntryPoint('cli', dir);
@@ -51,7 +51,7 @@ export function setup(context: TestContext) {
 		});
 	}
 
-	if (context.skipRuntimeCheck || context.platform === 'linux-arm') {
+	if (context.skipRuntimeCheck || context.platform === 'linux-arm' && !context.isAlpineLinux) {
 		test('cli-linux-armhf', async () => {
 			const dir = await context.downloadAndUnpack('cli-linux-armhf');
 			const entryPoint = context.getEntryPoint('cli', dir);
@@ -59,7 +59,7 @@ export function setup(context: TestContext) {
 		});
 	}
 
-	if (context.skipRuntimeCheck || context.platform === 'linux-x64') {
+	if (context.skipRuntimeCheck || context.platform === 'linux-x64' && !context.isAlpineLinux) {
 		test('cli-linux-x64', async () => {
 			const dir = await context.downloadAndUnpack('cli-linux-x64');
 			const entryPoint = context.getEntryPoint('cli', dir);

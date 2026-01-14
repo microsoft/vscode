@@ -742,4 +742,12 @@ export class TestContext {
 				return fs.existsSync('/usr/bin/zypper');
 		}
 	}
+
+	/**
+	 * Checks if the current system is Alpine Linux.
+	 * @returns True if running on Alpine Linux.
+	 */
+	public get isAlpineLinux(): boolean {
+		return fs.existsSync('/etc/alpine-release');
+	}
 }
