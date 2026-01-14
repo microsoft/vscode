@@ -745,10 +745,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				lastThinking.finalizeTitleIfDefault();
 				lastThinking.markAsInactive();
 			}
-			const lastSubagent = this.getSubagentPart(templateData.renderedParts);
-			if (lastSubagent?.domNode) {
-				lastSubagent.markAsInactive();
-			}
+			this.finalizeAllSubagentParts(templateData);
 		}
 
 		const content: IChatRendererContent[] = [];
@@ -1364,6 +1361,35 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 	}
 
+	private handleSubagentToolGrouping(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, part: ChatToolInvocationPart, subagentId: string, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): ChatSubagentContentPart {
+		// Finalize any active thinking part since subagent tools have their own grouping
+		this.finalizeCurrentThinkingPart(context, templateData);
+
+		const lastSubagent = this.getSubagentPart(templateData.renderedParts, subagentId);
+		if (lastSubagent) {
+			// Append to existing subagent part with matching ID
+			// But skip the runSubagent tool itself - we only want child tools
+			if (toolInvocation.toolId !== RunSubagentTool.Id) {
+				lastSubagent.appendItem(part.domNode!, toolInvocation);
+			}
+			lastSubagent.addDisposable(part);
+			return lastSubagent;
+		}
+
+		// Create a new subagent part - it will extract description/agentName/prompt and watch for completion
+		const subagentPart = this.instantiationService.createInstance(ChatSubagentContentPart, subagentId, toolInvocation, context, this.chatContentMarkdownRenderer);
+		// Don't append the runSubagent tool itself - its description is already shown in the title
+		// Only append child tools (those with subAgentInvocationId)
+		if (toolInvocation.toolId !== RunSubagentTool.Id) {
+			subagentPart.appendItem(part.domNode!, toolInvocation);
+		}
+		subagentPart.addDisposable(part);
+		subagentPart.addDisposable(subagentPart.onDidChangeHeight(() => {
+			this.updateItemHeight(templateData);
+		}));
+		return subagentPart;
+	}
+
 	private finalizeCurrentThinkingPart(context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): void {
 		const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
 		if (!lastThinking) {
@@ -1622,49 +1648,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		// Handle subagent tool grouping - group them together similar to thinking blocks
 		if (subagentId && isResponseVM(context.element) && part?.domNode && toolInvocation.presentation !== 'hidden') {
-			// Finalize any active thinking part since subagent tools have their own grouping
-			this.finalizeCurrentThinkingPart(context, templateData);
-
-			const lastSubagent = this.getSubagentPart(templateData.renderedParts, subagentId);
-			if (lastSubagent) {
-				// Append to existing subagent part with matching ID
-				// But skip the runSubagent tool itself - we only want child tools
-				if (toolInvocation.toolId !== RunSubagentTool.Id) {
-					lastSubagent.appendItem(part.domNode, toolInvocation);
-				}
-				lastSubagent.addDisposable(part);
-				return lastSubagent;
-			} else {
-				// Create a new subagent part for this subagent invocation
-				// Extract description and agentName from toolSpecificData (persisted) or parameters (live)
-				let description: string = localize('chat.subagent.defaultDescription', 'Running subagent...');
-				let agentName: string | undefined;
-				if (toolInvocation.toolId === RunSubagentTool.Id) {
-					// Check toolSpecificData first (works for both live and serialized)
-					if (toolInvocation.toolSpecificData?.kind === 'subagent') {
-						description = toolInvocation.toolSpecificData.description ?? description;
-						agentName = toolInvocation.toolSpecificData.agentName;
-					} else if (toolInvocation.kind === 'toolInvocation') {
-						// Fallback to parameters for live invocations
-						const params = toolInvocation.parameters as { description?: string; agentName?: string } | undefined;
-						description = params?.description ?? description;
-						agentName = params?.agentName;
-					}
-				}
-				const subagentPart = this.instantiationService.createInstance(ChatSubagentContentPart, subagentId, description, agentName, context, this.chatContentMarkdownRenderer);
-				// Set the tool invocation to watch for completion and render result
-				subagentPart.setToolInvocation(toolInvocation);
-				// Don't append the runSubagent tool itself - its description is already shown in the title
-				// Only append child tools (those with subAgentInvocationId)
-				if (toolInvocation.toolId !== RunSubagentTool.Id) {
-					subagentPart.appendItem(part.domNode, toolInvocation);
-				}
-				subagentPart.addDisposable(part);
-				subagentPart.addDisposable(subagentPart.onDidChangeHeight(() => {
-					this.updateItemHeight(templateData);
-				}));
-				return subagentPart;
-			}
+			return this.handleSubagentToolGrouping(toolInvocation, part, subagentId, context, templateData);
 		}
 
 		// handling for when we want to put tool invocations inside a thinking part

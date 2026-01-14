@@ -48,7 +48,7 @@ const BaseModelDescription = `Launch a new agent to handle complex, multi-step t
 - The agent's outputs should generally be trusted
 - Clearly tell the agent whether you expect it to write code or just to do research (search, file reads, web fetches, etc.), since it is not aware of the user\'s intent`;
 
-interface IRunSubagentToolInputParams {
+export interface IRunSubagentToolInputParams {
 	prompt: string;
 	description: string;
 	agentName?: string;
@@ -274,6 +274,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				kind: 'subagent',
 				description: args.description,
 				agentName: args.agentName,
+				prompt: args.prompt,
 			},
 		};
 	}

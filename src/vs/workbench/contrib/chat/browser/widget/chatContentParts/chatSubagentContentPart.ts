@@ -7,6 +7,7 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { $ } from '../../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { rcut } from '../../../../../../base/common/strings.js';
 import { localize } from '../../../../../../nls.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -17,11 +18,13 @@ import { IChatContentPart, IChatContentPartRenderContext } from './chatContentPa
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { ChatCollapsibleMarkdownContentPart } from './chatCollapsibleMarkdownContentPart.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
-import { RunSubagentTool } from '../../../common/tools/builtinTools/runSubagentTool.js';
+import { IRunSubagentToolInputParams, RunSubagentTool } from '../../../common/tools/builtinTools/runSubagentTool.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { RunOnceScheduler } from '../../../../../../base/common/async.js';
 import { createThinkingIcon, getToolInvocationIcon } from './chatThinkingContentPart.js';
 import './media/chatSubagentContent.css';
+
+const MAX_TITLE_LENGTH = 100;
 
 /**
  * This is generally copied from ChatThinkingContentPart. We are still experimenting with both UIs so I'm not
@@ -30,25 +33,67 @@ import './media/chatSubagentContent.css';
 export class ChatSubagentContentPart extends ChatCollapsibleContentPart implements IChatContentPart {
 	private wrapper!: HTMLElement;
 	private isActive: boolean = true;
+	private hasToolItems: boolean = false;
 	private readonly isInitiallyComplete: boolean;
+	private promptContainer: HTMLElement | undefined;
 	private resultContainer: HTMLElement | undefined;
 	private lastItemWrapper: HTMLElement | undefined;
 	private readonly layoutScheduler: RunOnceScheduler;
+	private readonly description: string;
+	private readonly agentName: string | undefined;
+	private readonly prompt: string | undefined;
+
+	/**
+	 * Extracts subagent info (description, agentName, prompt) from a tool invocation.
+	 */
+	private static extractSubagentInfo(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): { description: string; agentName: string | undefined; prompt: string | undefined } {
+		const defaultDescription = localize('chat.subagent.defaultDescription', 'Running subagent...');
+
+		if (toolInvocation.toolId !== RunSubagentTool.Id) {
+			return { description: defaultDescription, agentName: undefined, prompt: undefined };
+		}
+
+		// Check toolSpecificData first (works for both live and serialized)
+		if (toolInvocation.toolSpecificData?.kind === 'subagent') {
+			return {
+				description: toolInvocation.toolSpecificData.description ?? defaultDescription,
+				agentName: toolInvocation.toolSpecificData.agentName,
+				prompt: toolInvocation.toolSpecificData.prompt,
+			};
+		}
+
+		// Fallback to parameters for live invocations
+		if (toolInvocation.kind === 'toolInvocation') {
+			const params = toolInvocation.parameters as IRunSubagentToolInputParams | undefined;
+			return {
+				description: params?.description ?? defaultDescription,
+				agentName: params?.agentName,
+				prompt: params?.prompt,
+			};
+		}
+
+		return { description: defaultDescription, agentName: undefined, prompt: undefined };
+	}
 
 	constructor(
 		public readonly subAgentInvocationId: string,
-		private readonly description: string,
-		private readonly agentName: string | undefined,
+		toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
 		private readonly context: IChatContentPartRenderContext,
 		private readonly chatContentMarkdownRenderer: IMarkdownRenderer,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IHoverService hoverService: IHoverService,
 	) {
+		// Extract description, agentName, and prompt from toolInvocation
+		const { description, agentName, prompt } = ChatSubagentContentPart.extractSubagentInfo(toolInvocation);
+
 		// Build title: "AgentName: description" or "Subagent: description"
 		const prefix = agentName || localize('chat.subagent.prefix', 'Subagent');
 		const initialTitle = `${prefix}: ${description}`;
 		super(initialTitle, context, undefined, hoverService);
 
+		this.description = description;
+		this.agentName = agentName;
+		this.prompt = prompt;
 		this.isInitiallyComplete = this.element.isComplete;
 
 		const node = this.domNode;
@@ -78,6 +123,14 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 
 		// Scheduler for coalescing layout operations
 		this.layoutScheduler = this._register(new RunOnceScheduler(() => this.performLayout(), 0));
+
+		// Render the prompt section at the start if available (must be after wrapper is initialized)
+		if (this.prompt) {
+			this.renderPromptSection();
+		}
+
+		// Watch for completion and render result
+		this.watchToolCompletion(toolInvocation);
 	}
 
 	protected override initContent(): HTMLElement {
@@ -87,6 +140,45 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 			: `${baseClasses}.chat-thinking-streaming`;
 		this.wrapper = $(classes);
 		return this.wrapper;
+	}
+
+	/**
+	 * Renders the prompt as a collapsible section at the start of the content.
+	 */
+	private renderPromptSection(): void {
+		if (!this.prompt || this.promptContainer) {
+			return;
+		}
+
+		// Split into first line and rest
+		const lines = this.prompt.split('\n');
+		const rawFirstLine = lines[0] || localize('chat.subagent.prompt', 'Prompt');
+		const restOfLines = lines.slice(1).join('\n').trim();
+
+		// Limit first line length, moving overflow to content
+		const title = rcut(rawFirstLine, MAX_TITLE_LENGTH);
+		const titleRemainder = rawFirstLine.length > title.length ? rawFirstLine.slice(title.length).trim() : '';
+		const content = titleRemainder
+			? (titleRemainder + (restOfLines ? '\n' + restOfLines : ''))
+			: (restOfLines || this.prompt);
+
+		// Create collapsible prompt part with comment icon
+		const collapsiblePart = this._register(this.instantiationService.createInstance(
+			ChatCollapsibleMarkdownContentPart,
+			title,
+			content,
+			this.context,
+			this.chatContentMarkdownRenderer
+		));
+		collapsiblePart.icon = Codicon.comment;
+		this._register(collapsiblePart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+		this.promptContainer = collapsiblePart.domNode;
+		// Insert at the beginning of the wrapper
+		if (this.wrapper.firstChild) {
+			this.wrapper.insertBefore(this.promptContainer, this.wrapper.firstChild);
+		} else {
+			dom.append(this.wrapper, this.promptContainer);
+		}
 	}
 
 	public getIsActive(): boolean {
@@ -116,10 +208,10 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	/**
-	 * Sets the tool invocation for this subagent part. Handles both live and serialized invocations.
-	 * For the runSubagent tool, this watches for completion and renders the result.
+	 * Watches the tool invocation for completion and renders the result.
+	 * Handles both live and serialized invocations.
 	 */
-	public setToolInvocation(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): void {
+	private watchToolCompletion(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): void {
 		if (toolInvocation.toolId !== RunSubagentTool.Id) {
 			return;
 		}
@@ -155,16 +247,23 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 			return; // Already rendered or no content
 		}
 
-		// Split into first line (title) and rest (content)
+		// Split into first line and rest
 		const lines = resultText.split('\n');
-		const firstLine = lines[0] || '';
-		const restOfText = lines.slice(1).join('\n').trim();
+		const rawFirstLine = lines[0] || '';
+		const restOfLines = lines.slice(1).join('\n').trim();
+
+		// Limit first line length, moving overflow to content
+		const title = rcut(rawFirstLine, MAX_TITLE_LENGTH);
+		const titleRemainder = rawFirstLine.length > title.length ? rawFirstLine.slice(title.length).trim() : '';
+		const content = titleRemainder
+			? (titleRemainder + (restOfLines ? '\n' + restOfLines : ''))
+			: restOfLines;
 
 		// Create collapsible result part
 		const collapsiblePart = this._register(this.instantiationService.createInstance(
 			ChatCollapsibleMarkdownContentPart,
-			firstLine,
-			restOfText,
+			title,
+			content,
 			this.context,
 			this.chatContentMarkdownRenderer
 		));
@@ -185,9 +284,9 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 			return;
 		}
 
-		// Expand when first item is added, but not for already-completed responses
-		if (!this.wrapper.hasChildNodes()) {
-			// Show the container now that we have content
+		// Show the container when first tool item is added
+		if (!this.hasToolItems) {
+			this.hasToolItems = true;
 			this.domNode.style.display = '';
 		}
 

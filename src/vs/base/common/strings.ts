@@ -785,6 +785,35 @@ export function lcut(text: string, n: number, prefix = ''): string {
 	return prefix + trimmed.substring(i).trimStart();
 }
 
+/**
+ * Given a string and a max length returns a shortened version keeping the beginning.
+ * Shortening happens at favorable positions - such as whitespace or punctuation characters.
+ * Trailing whitespace is always trimmed.
+ */
+export function rcut(text: string, n: number, suffix = ''): string {
+	const trimmed = text.trimEnd();
+
+	if (trimmed.length <= n) {
+		return trimmed;
+	}
+
+	const re = /\b/g;
+	let lastGoodBreak = 0;
+	while (re.test(trimmed)) {
+		if (re.lastIndex > n) {
+			break;
+		}
+		lastGoodBreak = re.lastIndex;
+		re.lastIndex += 1;
+	}
+
+	if (lastGoodBreak === 0) {
+		return trimmed.substring(0, n).trimEnd() + suffix;
+	}
+
+	return trimmed.substring(0, lastGoodBreak).trimEnd() + suffix;
+}
+
 // Defacto standard: https://invisible-island.net/xterm/ctlseqs/ctlseqs.html
 const CSI_SEQUENCE = /(?:\x1b\[|\x9b)[=?>!]?[\d;:]*["$#'* ]?[a-zA-Z@^`{}|~]/;
 const OSC_SEQUENCE = /(?:\x1b\]|\x9d).*?(?:\x1b\\|\x07|\x9c)/;

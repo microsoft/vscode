@@ -684,6 +684,7 @@ export interface IChatSubagentToolInvocationData {
 	kind: 'subagent';
 	description?: string;
 	agentName?: string;
+	prompt?: string;
 	result?: string;
 }
 
