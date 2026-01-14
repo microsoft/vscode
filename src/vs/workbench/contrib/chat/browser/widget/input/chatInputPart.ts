@@ -116,7 +116,7 @@ import { IModelPickerDelegate, ModelPickerActionItem } from './modelPickerAction
 import { IModePickerDelegate, ModePickerActionItem } from './modePickerActionItem.js';
 import { ISessionTypePickerDelegate, SessionTypePickerActionItem } from './sessionTargetPickerActionItem.js';
 import { getAgentSessionProvider } from '../../agentSessions/agentSessions.js';
-import { SearchableOptionPickerActionItem } from '../../chatSessions/searchableOptionPickerActionItemtest.js';
+import { SearchableOptionPickerActionItem } from '../../chatSessions/searchableOptionPickerActionItem.js';
 import { mixin } from '../../../../../../base/common/objects.js';
 
 const $ = dom.$;
