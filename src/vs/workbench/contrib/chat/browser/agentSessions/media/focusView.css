@@ -17,21 +17,25 @@ Focus View Mode - Blue glow border around entire workbench
 	transition: box-shadow 0.2s ease-in-out;
 }
 
-/* High contrast mode adjustments */
 .hc-black .monaco-workbench.focus-view-active::after,
 .hc-light .monaco-workbench.focus-view-active::after {
 	box-shadow: inset 0 0 0 2px var(--vscode-contrastBorder);
 }
 
 /* ========================================
-Agents Control - Unified titlebar control
+Agents Control - Titlebar control
 ======================================== */
 
-/* Position the pill container within the command center layout */
-.command-center {
-	display: flex;
-	align-items: center;
-	gap: 0;
+/* Hide command center search box when agents control enabled */
+.agents-control-enabled .command-center .action-item.command-center-center {
+	display: none !important;
+}
+
+/* Give agents control same width as search box */
+.agents-control-enabled .command-center .action-item.agents-control-container {
+	width: 38vw;
+	max-width: 600px;
+	justify-content: center;
 }
 
 .agents-control-container {
@@ -39,28 +43,22 @@ Agents Control - Unified titlebar control
 	align-items: center;
 	justify-content: center;
 	-webkit-app-region: no-drag;
-	pointer-events: auto;
-	/* Order it after the toolbar */
-	order: 10;
 }
 
-/* Base pill styles - shared between modes */
+/* Pill - shared styles */
 .agents-control-pill {
 	display: flex;
 	align-items: center;
-	gap: 8px;
-	margin: 0 6px;
-	padding: 0 12px;
+	gap: 6px;
+	padding: 0 10px;
 	height: 22px;
 	border-radius: 6px;
-	transition: background-color 0.1s ease-in-out, border-color 0.1s ease-in-out;
+	position: relative;
 	-webkit-app-region: no-drag;
-	pointer-events: auto;
 }
 
-/* Chat input mode - default "Ask me anything" state */
+/* Chat input mode (default state) */
 .agents-control-pill.chat-input-mode {
-	padding: 0 16px;
 	background-color: var(--vscode-commandCenter-background, rgba(0, 0, 0, 0.05));
 	border: 1px solid var(--vscode-commandCenter-border, transparent);
 	cursor: pointer;
@@ -76,11 +74,28 @@ Agents Control - Unified titlebar control
 	outline-offset: -1px;
 }
 
-/* Session mode - glowing session title state */
+/* Active state - has running sessions */
+.agents-control-pill.chat-input-mode.has-active {
+	background-color: rgba(0, 120, 212, 0.15);
+	border: 1px solid rgba(0, 120, 212, 0.5);
+}
+
+.agents-control-pill.chat-input-mode.has-active:hover {
+	background-color: rgba(0, 120, 212, 0.25);
+	border-color: rgba(0, 120, 212, 0.7);
+}
+
+.agents-control-pill.chat-input-mode.has-active .agents-control-icon,
+.agents-control-pill.chat-input-mode.has-active .agents-control-label {
+	color: var(--vscode-textLink-foreground);
+	opacity: 1;
+}
+
+/* Session mode (viewing a session) */
 .agents-control-pill.session-mode {
 	background-color: rgba(0, 120, 212, 0.15);
 	border: 1px solid rgba(0, 120, 212, 0.5);
-	cursor: default;
+	padding: 0 12px;
 }
 
 .agents-control-pill.session-mode:hover {
@@ -88,86 +103,61 @@ Agents Control - Unified titlebar control
 	border-color: rgba(0, 120, 212, 0.7);
 }
 
-/* Icon styles */
+/* Icon */
 .agents-control-icon {
 	display: flex;
 	align-items: center;
-}
-
-.agents-control-icon .codicon {
-	font-size: 14px;
-}
-
-.agents-control-pill.chat-input-mode .agents-control-icon {
-	color: #0078d4;
-	opacity: 0.9;
+	color: var(--vscode-foreground);
+	opacity: 0.7;
 }
 
 .agents-control-pill.session-mode .agents-control-icon {
-	color: #0078d4;
+	color: var(--vscode-textLink-foreground);
+	opacity: 1;
 }
 
-/* Label styles */
+/* Label (workspace name, centered) */
 .agents-control-label {
+	flex: 1;
+	text-align: center;
 	color: var(--vscode-foreground);
 	opacity: 0.8;
 	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
-/* Statistics container (chat input mode) */
-.agents-control-stats {
+/* Running indicator (right side) */
+.agents-control-running {
+	position: absolute;
+	right: 8px;
 	display: flex;
 	align-items: center;
-	gap: 6px;
-	color: var(--vscode-foreground);
-	font-size: 12px;
-	white-space: nowrap;
+	gap: 4px;
+	color: var(--vscode-textLink-foreground);
 }
 
-.agents-control-stat {
-	opacity: 0.8;
+.agents-control-running-icon {
+	display: flex;
+	align-items: center;
 }
 
-.agents-control-stat.active {
-	color: var(--vscode-charts-green);
+.agents-control-running-count {
+	font-size: 11px;
 	font-weight: 500;
 }
 
-.agents-control-badge {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	min-width: 18px;
-	width: 18px;
-	height: 18px;
-	padding: 0;
-	border-radius: 50%;
-	font-size: 10px;
-	font-weight: 600;
-}
-
-.agents-control-badge.unread {
-	background-color: rgba(0, 120, 212, 0.15);
-	border: 1px solid rgba(0, 120, 212, 0.5);
-	color: #0078d4;
-}
-
-.agents-control-separator {
-	opacity: 0.5;
-	font-size: 8px;
-}
-
-/* Title styles (session mode) */
+/* Session title */
 .agents-control-title {
+	flex: 1;
 	font-weight: 500;
 	color: var(--vscode-foreground);
-	max-width: 300px;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
-/* Close button (session mode) */
+/* Close button */
 .agents-control-close {
 	display: flex;
 	align-items: center;
@@ -178,10 +168,8 @@ Agents Control - Unified titlebar control
 	cursor: pointer;
 	color: var(--vscode-foreground);
 	opacity: 0.8;
-	transition: opacity 0.1s ease-in-out, background-color 0.1s ease-in-out;
+	margin-left: auto;
 	-webkit-app-region: no-drag;
-	pointer-events: auto;
-	z-index: 1001;
 }
 
 .agents-control-close:hover {
@@ -193,4 +181,3 @@ Agents Control - Unified titlebar control
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 }
-

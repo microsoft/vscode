@@ -33,15 +33,6 @@ export class EnterFocusViewAction extends Action2 {
 				ContextKeyExpr.has('config.chat.agentSessionProjection.enabled'),
 				ChatContextKeys.inFocusViewMode.negate()
 			),
-			menu: [{
-				id: MenuId.AgentSessionsContext,
-				group: '0_focus',
-				order: 1,
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.has('config.chat.agentSessionProjection.enabled'),
-					ChatContextKeys.inFocusViewMode.negate()
-				)
-			}]
 		});
 	}
 
