@@ -136,6 +136,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 						}
 					}
 					case OutputMonitorState.Cancelled:
+					case OutputMonitorState.ConvertedToBackground:
 						break;
 					case OutputMonitorState.Idle: {
 						const idleResult = await this._handleIdleState(token);
@@ -150,7 +151,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 						break;
 					}
 				}
-				if (this._state === OutputMonitorState.Idle || this._state === OutputMonitorState.Cancelled || this._state === OutputMonitorState.Timeout) {
+				if (this._state === OutputMonitorState.Idle || this._state === OutputMonitorState.Cancelled || this._state === OutputMonitorState.Timeout || this._state === OutputMonitorState.ConvertedToBackground) {
 					break;
 				}
 			}
@@ -291,7 +292,10 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 			// User explicitly declined to keep waiting, so finish with the timed-out result
 			if (race.v === false) {
-				this._state = OutputMonitorState.Cancelled;
+				// Check if the state was converted to background before cancelling
+				if (this._state !== OutputMonitorState.ConvertedToBackground) {
+					this._state = OutputMonitorState.Cancelled;
+				}
 				return false;
 			}
 
@@ -305,7 +309,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			// r can be either an OutputMonitorState or an IPollingResult object (from catch)
 			const state = (typeof r === 'object' && r !== null) ? r.state : r;
 
-			if (state === OutputMonitorState.Idle || state === OutputMonitorState.Cancelled || state === OutputMonitorState.Timeout) {
+			if (state === OutputMonitorState.Idle || state === OutputMonitorState.Cancelled || state === OutputMonitorState.Timeout || state === OutputMonitorState.ConvertedToBackground) {
 				try { continuePollingPart?.hide(); } catch { /* noop */ }
 				continuePollingPart = undefined;
 				continuePollingDecisionP = undefined;
@@ -418,6 +422,17 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		if (token.isCancellationRequested || this._state === OutputMonitorState.Cancelled) {
 			return { promise: Promise.resolve(false) };
 		}
+
+		// Create "Continue in Background" action
+		const continueInBackgroundAction: IAction = {
+			id: 'terminal.poll.continueInBackground',
+			label: localize('poll.terminal.continueInBackground', 'Continue in Background'),
+			tooltip: localize('poll.terminal.continueInBackgroundTooltip', 'Let the command continue running in the background without waiting for it to complete.'),
+			class: undefined,
+			enabled: true,
+			run: async () => { }
+		};
+
 		const result = this._createElicitationPart<boolean>(
 			token,
 			context?.sessionId,
@@ -426,8 +441,16 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			'',
 			localize('poll.terminal.accept', 'Yes'),
 			localize('poll.terminal.reject', 'No'),
-			async () => true,
-			async () => { this._state = OutputMonitorState.Cancelled; return false; }
+			async (value: IAction | true) => {
+				// Check if the action is "Continue in Background"
+				if (value !== true && value.id === 'terminal.poll.continueInBackground') {
+					this._state = OutputMonitorState.ConvertedToBackground;
+					return false; // Don't continue polling, but we'll handle conversion
+				}
+				return true;
+			},
+			async () => { this._state = OutputMonitorState.Cancelled; return false; },
+			[continueInBackgroundAction]
 		);
 
 		return { promise: result.promise.then(p => p ?? false), part: result.part };

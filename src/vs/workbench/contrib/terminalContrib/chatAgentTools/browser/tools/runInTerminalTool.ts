@@ -611,7 +611,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 							? `Note: The tool simplified the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
 							: `Command is running in terminal with ID=${termId}`
 				);
-				if (pollingResult && pollingResult.modelOutputEvalResponse) {
+
+				// Check if user chose to continue in background
+				if (pollingResult && pollingResult.state === OutputMonitorState.ConvertedToBackground) {
+					resultText += `\n\nThe command will continue running in the background. You can check its output later using the terminal with ID=${termId}.`;
+				} else if (pollingResult && pollingResult.modelOutputEvalResponse) {
 					resultText += `\n\ The command became idle with output:\n${pollingResult.modelOutputEvalResponse}`;
 				} else if (pollingResult) {
 					resultText += `\n\ The command is still running, with output:\n${pollingResult.output}`;

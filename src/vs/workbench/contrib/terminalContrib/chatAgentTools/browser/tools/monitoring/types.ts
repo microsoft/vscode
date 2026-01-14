@@ -39,6 +39,7 @@ export enum OutputMonitorState {
 	Timeout = 'Timeout',
 	Active = 'Active',
 	Cancelled = 'Cancelled',
+	ConvertedToBackground = 'ConvertedToBackground',
 }
 
 export interface IRacePollingOrPromptResult {
