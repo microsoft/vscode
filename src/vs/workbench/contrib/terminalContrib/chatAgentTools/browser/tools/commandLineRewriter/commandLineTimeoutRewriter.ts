@@ -38,7 +38,7 @@ export class CommandLineTimeoutRewriter extends Disposable implements ICommandLi
 		const timeoutSeconds = parseInt(timeoutMatch[1], 10);
 		const remainingCommand = timeoutMatch[2];
 
-		if (isNaN(timeoutSeconds) || timeoutSeconds < 0 || !remainingCommand) {
+		if (isNaN(timeoutSeconds) || timeoutSeconds <= 0 || !remainingCommand) {
 			return undefined;
 		}
 
