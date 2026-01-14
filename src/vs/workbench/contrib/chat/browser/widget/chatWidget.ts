@@ -628,6 +628,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const renderInputToolbarBelowInput = this.viewOptions.renderInputToolbarBelowInput ?? false;
 
 		this.container = dom.append(parent, $('.interactive-session'));
+		const streamingTokenAnimationEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.StreamingTokenAnimation);
+		this.container.classList.toggle('chat-streaming-token-animation', streamingTokenAnimationEnabled);
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.StreamingTokenAnimation)) {
+				const newValue = this.configurationService.getValue<boolean>(ChatConfiguration.StreamingTokenAnimation);
+				this.container.classList.toggle('chat-streaming-token-animation', newValue);
+			}
+		}));
 		this.welcomeMessageContainer = dom.append(this.container, $('.chat-welcome-view-container', { style: 'display: none' }));
 		this._register(dom.addStandardDisposableListener(this.welcomeMessageContainer, dom.EventType.CLICK, () => this.focusInput()));
 

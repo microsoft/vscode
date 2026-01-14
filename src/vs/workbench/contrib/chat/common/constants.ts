@@ -13,6 +13,7 @@ export enum ChatConfiguration {
 	Edits2Enabled = 'chat.edits2.enabled',
 	ExtensionToolsEnabled = 'chat.extensionTools.enabled',
 	EditRequests = 'chat.editRequests',
+	StreamingTokenAnimation = 'chat.streamingTokenAnimation',
 	GlobalAutoApprove = 'chat.tools.global.autoApprove',
 	AutoApproveEdits = 'chat.tools.edits.autoApprove',
 	AutoApprovedUrls = 'chat.tools.urls.autoApprove',

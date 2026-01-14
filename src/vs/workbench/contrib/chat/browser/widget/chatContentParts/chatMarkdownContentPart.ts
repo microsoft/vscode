@@ -17,8 +17,9 @@ import { Emitter } from '../../../../../../base/common/event.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, autorunSelfDisposable, derived } from '../../../../../../base/common/observable.js';
+import { safeIntl } from '../../../../../../base/common/date.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
-import { equalsIgnoreCase } from '../../../../../../base/common/strings.js';
+import { equalsIgnoreCase, GraphemeIterator } from '../../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
@@ -48,7 +49,7 @@ import { extractCodeblockUrisFromText, IMarkdownVulnerability } from '../../../c
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
 import { IChatProgressRenderableResponseContent } from '../../../common/model/chatModel.js';
 import { IChatMarkdownContent, IChatService, IChatUndoStop } from '../../../common/chatService/chatService.js';
-import { isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
+import { IChatResponseViewModel, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { CodeBlockEntry, CodeBlockModelCollection } from '../../../common/widget/codeBlockModelCollection.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatCodeBlockInfo } from '../../chat.js';
@@ -65,6 +66,180 @@ import { ChatExtensionsContentPart } from './chatExtensionsContentPart.js';
 import './media/chatMarkdownPart.css';
 
 const $ = dom.$;
+
+const STREAMING_TOKEN_CLASS = 'chat-streaming-token';
+const STREAMING_TOKEN_ANIMATING_CLASS = 'chat-streaming-token-animating';
+const STREAMING_TOKEN_ANIMATION_DELAY_INCREMENT = 20; // ms delay between each token's animation start
+const STREAMING_TOKEN_ANIMATION_MAX_DELAY = 300; // ms cap on total animation delay
+
+// Track how many characters have already been animated per response
+// This persists across DOM re-renders so we don't re-animate already-visible content
+const animatedTextLengths = new WeakMap<IChatResponseViewModel, number>();
+
+/**
+ * Tokenizes new content in the chat markdown DOM for streaming animation.
+ * Only wraps NEW tokens (characters that haven't been animated yet) - old content is left as raw text.
+ */
+function tokenizeChatMarkdownDomForStreaming(root: HTMLElement, element: IChatResponseViewModel): { newTokens: HTMLElement[]; totalTextLength: number } {
+	const document = root.ownerDocument;
+	const newTokens: HTMLElement[] = [];
+
+	const totalTextLength = root.textContent?.length ?? 0;
+	const previouslyAnimatedLength = animatedTextLengths.get(element) ?? 0;
+
+	// If no new content, nothing to animate
+	if (totalTextLength <= previouslyAnimatedLength) {
+		return { newTokens, totalTextLength };
+	}
+
+	let currentCharPosition = 0;
+
+	// PASS 1: Collect all nodes to process without modifying DOM
+	// (TreeWalker breaks if you modify DOM while iterating)
+	const window = dom.getWindow(root);
+	const nodesToProcess: Array<{ node: Node; type: 'text' | 'anchor' | 'code' }> = [];
+
+	const walker = document.createTreeWalker(
+		root,
+		window.NodeFilter.SHOW_ELEMENT | window.NodeFilter.SHOW_TEXT
+	);
+
+	let node: Node | null;
+	while ((node = walker.nextNode())) {
+		if (node.nodeType === Node.TEXT_NODE) {
+			if (!node.nodeValue || shouldSkipTextNode(node as Text)) {
+				continue;
+			}
+			nodesToProcess.push({ node, type: 'text' });
+		} else if (dom.isHTMLAnchorElement(node)) {
+			if (shouldSkipElement(node) || node.closest(`.${STREAMING_TOKEN_CLASS}`)) {
+				continue;
+			}
+			nodesToProcess.push({ node, type: 'anchor' });
+		} else if (dom.isHTMLElement(node) && node.tagName.toLowerCase() === 'code') {
+			if (shouldSkipElement(node) || node.closest('pre') || node.closest(`.${STREAMING_TOKEN_CLASS}`)) {
+				continue;
+			}
+			nodesToProcess.push({ node, type: 'code' });
+		}
+	}
+
+	// PASS 2: Process collected nodes
+	for (const { node, type } of nodesToProcess) {
+		if (type === 'text' && node.nodeType === Node.TEXT_NODE) {
+			const text = node.nodeValue;
+			if (!text) {
+				continue;
+			}
+
+			const fragment = document.createDocumentFragment();
+
+			for (const grapheme of iterateGraphemes(text)) {
+				const isNew = currentCharPosition >= previouslyAnimatedLength;
+
+				// Whitespace and old content: add as raw text (no wrapper needed)
+				if (grapheme.trim().length === 0 || !isNew) {
+					fragment.appendChild(document.createTextNode(grapheme));
+					currentCharPosition += grapheme.length;
+					continue;
+				}
+
+				// New content: wrap in animating span
+				const span = document.createElement('span');
+				span.classList.add('token', STREAMING_TOKEN_CLASS, STREAMING_TOKEN_ANIMATING_CLASS);
+				span.textContent = grapheme;
+				fragment.appendChild(span);
+				newTokens.push(span);
+				currentCharPosition += grapheme.length;
+			}
+
+			const parent = node.parentNode;
+			if (parent) {
+				parent.replaceChild(fragment, node);
+			}
+		} else if (type === 'anchor' && dom.isHTMLAnchorElement(node)) {
+			// Wrap entire anchor as single token instead of tokens inside the link
+			const parent = node.parentNode;
+			if (!parent) {
+				continue;
+			}
+
+			const textLength = node.textContent?.length ?? 0;
+			const isNew = currentCharPosition >= previouslyAnimatedLength;
+
+			if (isNew) {
+				const wrapper = document.createElement('span');
+				wrapper.classList.add('token', STREAMING_TOKEN_CLASS, STREAMING_TOKEN_ANIMATING_CLASS);
+				parent.replaceChild(wrapper, node);
+				wrapper.appendChild(node);
+				newTokens.push(wrapper);
+			}
+			currentCharPosition += textLength;
+		} else if (type === 'code' && dom.isHTMLElement(node)) {
+			// Wrap entire code element as single token instead of tokens inside the code
+			const parent = node.parentNode;
+			if (!parent) {
+				continue;
+			}
+
+			const textLength = node.textContent?.length ?? 0;
+			const isNew = currentCharPosition >= previouslyAnimatedLength;
+
+			if (isNew) {
+				const wrapper = document.createElement('span');
+				wrapper.classList.add('token', STREAMING_TOKEN_CLASS, STREAMING_TOKEN_ANIMATING_CLASS);
+				parent.replaceChild(wrapper, node);
+				wrapper.appendChild(node);
+				newTokens.push(wrapper);
+			}
+			currentCharPosition += textLength;
+		}
+	}
+
+	return { newTokens, totalTextLength };
+}
+
+function* iterateGraphemes(str: string): IterableIterator<string> {
+	try {
+		const segmenter = safeIntl.Segmenter(undefined, { granularity: 'grapheme' }).value;
+		for (const segment of segmenter.segment(str)) {
+			yield segment.segment;
+		}
+		return;
+	} catch {
+		// Fall back to GraphemeIterator if Intl.Segmenter is not available
+	}
+
+	const iterator = new GraphemeIterator(str);
+	let offset = 0;
+	while (!iterator.eol()) {
+		const length = iterator.nextGraphemeLength();
+		yield str.substring(offset, offset + length);
+		offset += length;
+	}
+}
+
+function shouldSkipTextNode(node: Text): boolean {
+	const parent = node.parentElement;
+	if (!parent) {
+		return true;
+	}
+	if (parent.closest(`.${STREAMING_TOKEN_CLASS}`)) {
+		return true;
+	}
+	if (parent.closest('a')) {
+		return true;
+	}
+	const inlineCode = parent.closest('code');
+	if (inlineCode && !inlineCode.closest('pre')) {
+		return true;
+	}
+	return shouldSkipElement(parent);
+}
+
+function shouldSkipElement(element: HTMLElement): boolean {
+	return !!element.closest('pre, [data-code], .monaco-editor, .katex, .katex-display, .chat-codeblock-pill-container, .chat-codeblock-pill-widget');
+}
 
 export interface IChatMarkdownContentPartOptions {
 	readonly codeBlockRenderOptions?: ICodeBlockRenderOptions;
@@ -144,6 +319,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		}
 
 		const enableMath = configurationService.getValue<boolean>(ChatConfiguration.EnableMath);
+		const enableStreamingTokenAnimation = configurationService.getValue<boolean>(ChatConfiguration.StreamingTokenAnimation);
 
 		const doRenderMarkdown = () => {
 			if (this._store.isDisposed) {
@@ -316,6 +492,32 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				markedExtensions,
 				...markdownRenderOptions,
 			}, this.domNode));
+
+			// Tokenize for streaming animation if:
+			// 1. Setting is enabled
+			// 2. It's a response (not a request)
+			// 3. Not canceled
+			// 4. Either still streaming OR there's new content we haven't animated yet
+			if (enableStreamingTokenAnimation && isResponseVM(element) && !element.isCanceled) {
+				const previouslyAnimatedLength = animatedTextLengths.get(element) ?? 0;
+				const currentTextLength = this.domNode.textContent?.length ?? 0;
+				const hasNewContent = currentTextLength > previouslyAnimatedLength;
+
+				if (hasNewContent) {
+					const { newTokens, totalTextLength } = tokenizeChatMarkdownDomForStreaming(this.domNode, element);
+
+					// Set staggered animation delays for smoother wave effect
+					newTokens.forEach((token, index) => {
+						if (token.classList.contains(STREAMING_TOKEN_ANIMATING_CLASS)) {
+							const delay = Math.min(index * STREAMING_TOKEN_ANIMATION_DELAY_INCREMENT, STREAMING_TOKEN_ANIMATION_MAX_DELAY);
+							token.style.animationDelay = `${delay}ms`;
+						}
+					});
+
+					// Update the animated text length so next render knows what's already been shown
+					animatedTextLengths.set(element, totalTextLength);
+				}
+			}
 
 			// Ideally this would happen earlier, but we need to parse the markdown.
 			if (isResponseVM(element) && !element.model.codeBlockInfos && element.model.isComplete) {

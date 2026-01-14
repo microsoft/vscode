@@ -21,3 +21,36 @@
 		overflow: hidden;
 	}
 }
+
+@keyframes chat-streaming-token-blur {
+	0% {
+		opacity: 0.4;
+		filter: blur(2px);
+	}
+	40% {
+		opacity: 0.85;
+		filter: blur(0.5px);
+	}
+	100% {
+		opacity: 1;
+		filter: blur(0);
+	}
+}
+
+/* Base token style */
+.interactive-session.chat-streaming-token-animation .chat-markdown-part .token.chat-streaming-token {
+	display: inline-block;
+}
+
+/* Tokens currently animating */
+.interactive-session.chat-streaming-token-animation .chat-markdown-part .token.chat-streaming-token.chat-streaming-token-animating {
+	animation: chat-streaming-token-blur 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.interactive-session.chat-streaming-token-animation .chat-markdown-part .token.chat-streaming-token.chat-streaming-token-animating {
+		animation: none;
+		opacity: 1;
+		filter: none;
+	}
+}
