@@ -491,6 +491,10 @@ export interface IInlineCompletionModelInfoDto {
 	readonly currentModelId: string;
 }
 
+export interface IInlineCompletionChangeHintDto {
+	readonly data?: unknown;
+}
+
 export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$unregister(handle: number): void;
 	$registerDocumentSymbolProvider(handle: number, selector: IDocumentFilterDto[], label: string): void;
@@ -537,7 +541,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 		initialModelInfo: IInlineCompletionModelInfoDto | undefined,
 		supportsOnDidChangeModelInfo: boolean,
 	): void;
-	$emitInlineCompletionsChange(handle: number): void;
+	$emitInlineCompletionsChange(handle: number, changeHint: IInlineCompletionChangeHintDto | undefined): void;
 	$emitInlineCompletionModelInfoChange(handle: number, data: IInlineCompletionModelInfoDto | undefined): void;
 	$registerSignatureHelpProvider(handle: number, selector: IDocumentFilterDto[], metadata: ISignatureHelpProviderMetadataDto): void;
 	$registerInlayHintsProvider(handle: number, selector: IDocumentFilterDto[], supportsResolve: boolean, eventHandle: number | undefined, displayName: string | undefined): void;

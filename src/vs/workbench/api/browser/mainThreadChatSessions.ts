@@ -382,6 +382,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		));
 	}
 
+
 	$onDidChangeChatSessionItems(handle: number): void {
 		this._itemProvidersRegistrations.get(handle)?.onDidChangeItems.fire();
 	}
@@ -490,7 +491,6 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 					resource: uri,
 					iconPath: session.iconPath,
 					tooltip: session.tooltip ? this._reviveTooltip(session.tooltip) : undefined,
-					archived: session.archived,
 				} satisfies IChatSessionItem;
 			}));
 		} catch (error) {
