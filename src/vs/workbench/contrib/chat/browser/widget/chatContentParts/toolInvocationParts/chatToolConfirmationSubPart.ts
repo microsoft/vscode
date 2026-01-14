@@ -317,11 +317,14 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 
 	protected getTitle(): string {
 		const state = this.toolInvocation.state.get();
-		if (state.type === IChatToolInvocation.StateKind.Streaming) {
+		if (state.type !== IChatToolInvocation.StateKind.WaitingForConfirmation) {
 			return '';
 		}
-		const { title } = state.confirmationMessages!;
-		return typeof title === 'string' ? title : title!.value;
+		const title = state.confirmationMessages?.title;
+		if (!title) {
+			return '';
+		}
+		return typeof title === 'string' ? title : title.value;
 	}
 
 	private _makeMarkdownPart(container: HTMLElement, message: string | IMarkdownString, codeBlockRenderOptions: ICodeBlockRenderOptions) {
