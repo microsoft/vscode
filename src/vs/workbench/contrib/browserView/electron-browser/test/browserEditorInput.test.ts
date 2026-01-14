@@ -40,7 +40,8 @@ suite('BrowserEditorInput', () => {
 		// Should be truncated to 100 characters + ellipsis (…)
 		assert.strictEqual(name.length, 101); // 100 chars + 1 ellipsis char
 		assert.ok(name.endsWith('…'));
-		assert.ok(name.startsWith('a'.repeat(100)));
+		// Verify the first 100 chars are preserved (before ellipsis)
+		assert.strictEqual(name.substring(0, 100), 'a'.repeat(100));
 
 		input.dispose();
 	});
