@@ -288,6 +288,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	private static readonly _backgroundExecutions = new Map<string, BackgroundTerminalExecution>();
 	private static readonly _activeOutputMonitors = new Map<string, OutputMonitor>();
+	private static readonly _executionCancellations = new Map<string, CancellationTokenSource>();
+	private static readonly _convertToBackgroundRequested = new Set<string>();
 	
 	public static getBackgroundOutput(id: string): string {
 		const backgroundExecution = RunInTerminalTool._backgroundExecutions.get(id);
@@ -298,9 +300,18 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	}
 
 	public static convertToBackground(terminalToolSessionId: string): void {
+		// Mark that conversion was requested
+		RunInTerminalTool._convertToBackgroundRequested.add(terminalToolSessionId);
+		
 		const outputMonitor = RunInTerminalTool._activeOutputMonitors.get(terminalToolSessionId);
 		if (outputMonitor) {
 			outputMonitor.convertToBackground();
+		}
+		
+		// Cancel the execution to trigger the conversion flow
+		const cancellation = RunInTerminalTool._executionCancellations.get(terminalToolSessionId);
+		if (cancellation) {
+			cancellation.cancel();
 		}
 	}
 
@@ -695,6 +706,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			let timeoutPromise: CancelablePromise<void> | undefined;
 			const executeCancellation = store.add(new CancellationTokenSource(token));
 
+			// Register the cancellation token source so UI can cancel it for conversion to background
+			if (terminalToolSessionId) {
+				RunInTerminalTool._executionCancellations.set(terminalToolSessionId, executeCancellation);
+				store.add(toDisposable(() => {
+					RunInTerminalTool._executionCancellations.delete(terminalToolSessionId);
+				}));
+			}
+
 			// Set up timeout if provided and the setting is enabled
 			if (args.timeout !== undefined && args.timeout > 0) {
 				const shouldEnforceTimeout = this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnforceTimeoutFromModel) === true;
@@ -730,6 +749,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				store.add(strategy.onDidCreateStartMarker(startMarker => {
 					if (!outputMonitor) {
 						outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, { instance: toolTerminal.instance, sessionId: invocation.context?.sessionId, getOutput: (marker?: IXtermMarker) => getOutput(toolTerminal.instance, marker ?? startMarker) }, undefined, invocation.context, token, command));
+						
+						// Register the OutputMonitor so UI can access it for foreground terminals too
+						if (terminalToolSessionId) {
+							RunInTerminalTool._activeOutputMonitors.set(terminalToolSessionId, outputMonitor);
+							store.add(toDisposable(() => {
+								RunInTerminalTool._activeOutputMonitors.delete(terminalToolSessionId);
+							}));
+						}
 					}
 				}));
 				const executeResult = await strategy.execute(command, executeCancellation.token, commandId);
@@ -786,6 +813,67 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 
 			} catch (e) {
+				// Check if this was a conversion to background request
+				const wasConvertedToBackground = terminalToolSessionId && RunInTerminalTool._convertToBackgroundRequested.has(terminalToolSessionId);
+				
+				if (wasConvertedToBackground && e instanceof CancellationError) {
+					// Clean up the conversion request flag
+					RunInTerminalTool._convertToBackgroundRequested.delete(terminalToolSessionId!);
+					
+					this._logService.debug(`RunInTerminalTool: Converting foreground execution to background for termId=${termId}`);
+					
+					// Create a BackgroundTerminalExecution and register it
+					const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command, chatSessionId, commandId);
+					RunInTerminalTool._backgroundExecutions.set(termId, execution);
+					
+					// Update the terminal association to mark it as background
+					await this._associateProcessIdWithSession(toolTerminal.instance, chatSessionResource, termId, toolTerminal.shellIntegrationQuality, true);
+					
+					// Don't dispose the terminal - let it continue running
+					error = 'convertedToBackground';
+					
+					// Return immediately with a message that it's now running in background
+					const resultText = `Command is now running in the background with terminal ID=${termId}. You can check its output later using the terminal.`;
+					
+					// Update telemetry
+					const timingExecuteMs = Date.now() - timingStart;
+					this._telemetry.logInvoke(toolTerminal.instance, {
+						terminalToolSessionId: toolSpecificData.terminalToolSessionId,
+						didUserEditCommand,
+						didToolEditCommand,
+						isBackground: true, // Now it's background
+						shellIntegrationQuality: toolTerminal.shellIntegrationQuality,
+						error,
+						isNewSession,
+						outputLineCount: 0,
+						exitCode: undefined,
+						timingExecuteMs,
+						timingConnectMs,
+						inputUserChars,
+						inputUserSigint,
+						terminalExecutionIdleBeforeTimeout: undefined,
+						pollDurationMs: undefined,
+						inputToolManualAcceptCount: outputMonitor?.outputMonitorTelemetryCounters?.inputToolManualAcceptCount,
+						inputToolManualRejectCount: outputMonitor?.outputMonitorTelemetryCounters?.inputToolManualRejectCount,
+						inputToolManualChars: outputMonitor?.outputMonitorTelemetryCounters?.inputToolManualChars,
+						inputToolAutoAcceptCount: outputMonitor?.outputMonitorTelemetryCounters?.inputToolAutoAcceptCount,
+						inputToolAutoChars: outputMonitor?.outputMonitorTelemetryCounters?.inputToolAutoChars,
+						inputToolManualShownCount: outputMonitor?.outputMonitorTelemetryCounters?.inputToolManualShownCount,
+						inputToolFreeFormInputCount: outputMonitor?.outputMonitorTelemetryCounters?.inputToolFreeFormInputCount,
+						inputToolFreeFormInputShownCount: outputMonitor?.outputMonitorTelemetryCounters?.inputToolFreeFormInputShownCount
+					});
+					
+					return {
+						toolMetadata: {
+							exitCode: undefined
+						},
+						content: [{
+							kind: 'text',
+							value: resultText,
+						}],
+					};
+				}
+				
 				// Handle timeout case - get output collected so far and return it
 				if (didTimeout && e instanceof CancellationError) {
 					this._logService.debug(`RunInTerminalTool: Timeout reached, returning output collected so far`);

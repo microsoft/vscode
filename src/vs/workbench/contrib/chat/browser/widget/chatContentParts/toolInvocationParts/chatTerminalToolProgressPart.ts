@@ -429,8 +429,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			this._focusAction.value = focusAction;
 			actionBar.push(focusAction, { icon: true, label: false, index: 0 });
 			
-			// Add "Continue in Background" button for background terminals that are still polling
-			if (isTerminalHidden && terminalToolSessionId && !resolvedCommand) {
+			// Add "Continue in Background" button for non-background (foreground) terminals that are still executing
+			if (!isTerminalHidden && terminalToolSessionId && !resolvedCommand) {
 				const continueAction = new ContinueInBackgroundAction(terminalToolSessionId);
 				this._continueInBackgroundAction.value = continueAction;
 				actionBar.push(continueAction, { icon: true, label: false, index: 1 });
