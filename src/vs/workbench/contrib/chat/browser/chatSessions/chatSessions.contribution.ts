@@ -775,6 +775,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				results.push({ chatSessionType: provider.chatSessionType, items: providerSessions });
 			} catch (error) {
 				// Log error but continue with other providers
+				this._logService.error(`[ChatSessionsService] Failed to resolve sessions for provider ${provider.chatSessionType}`, error);
 				continue;
 			}
 		}
