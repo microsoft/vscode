@@ -49,8 +49,7 @@ import { removeAnsiEscapeCodes } from '../../../../../../../base/common/strings.
 import { PANEL_BACKGROUND } from '../../../../../../common/theme.js';
 import { editorBackground } from '../../../../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
-import { ISandboxUtility } from '../../../../common/sandboxUtility.js';
-
+import { ISandboxService } from '../../../../common/sandboxService.js';
 
 const MIN_OUTPUT_ROWS = 1;
 const MAX_OUTPUT_ROWS = 10;
@@ -244,7 +243,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@ISandboxUtility private readonly _sandboxUtility: ISandboxUtility,
+		@ISandboxService private readonly _sandboxService: ISandboxService,
 	) {
 		super(toolInvocation);
 
@@ -456,7 +455,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			showOutputAction = this._instantiationService.createInstance(ToggleChatTerminalOutputAction, () => this._toggleOutputFromAction());
 			this._showOutputAction.value = showOutputAction;
 			const exitCode = resolvedCommand?.exitCode ?? this._terminalData.terminalCommandState?.exitCode;
-			if (exitCode && !this._sandboxUtility.isEnabled()) {
+			if (exitCode && !this._sandboxService.isEnabled()) {
 				this._toggleOutput(true);
 			}
 		}

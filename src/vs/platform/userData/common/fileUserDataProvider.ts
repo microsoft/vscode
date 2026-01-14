@@ -65,7 +65,6 @@ export class FileUserDataProvider extends Disposable implements
 			this.atomicReadWriteResources.add(profile.keybindingsResource);
 			this.atomicReadWriteResources.add(profile.tasksResource);
 			this.atomicReadWriteResources.add(profile.extensionsResource);
-			this.atomicReadWriteResources.add(profile.sandboxSettingsResource);
 		}
 	}
 

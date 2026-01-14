@@ -30,11 +30,11 @@ import { CreateAndRunTaskTool, CreateAndRunTaskToolData } from './tools/task/cre
 import { GetTaskOutputTool, GetTaskOutputToolData } from './tools/task/getTaskOutputTool.js';
 import { RunTaskTool, RunTaskToolData } from './tools/task/runTaskTool.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
-import { ISandboxUtility, SandboxUtility } from '../../../chat/common/sandboxUtility.js';
+import { ISandboxService, SandboxService } from '../../../chat/common/sandboxService.js';
 
 // #region Services
 
-registerSingleton(ISandboxUtility, SandboxUtility, InstantiationType.Delayed);
+registerSingleton(ISandboxService, SandboxService, InstantiationType.Delayed);
 
 // #endregion Services
 
@@ -64,7 +64,6 @@ class ChatAgentToolsContribution extends Disposable implements IWorkbenchContrib
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
-		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -116,8 +115,6 @@ registerWorkbenchContribution2(ChatAgentToolsContribution.ID, ChatAgentToolsCont
 
 
 // #region Actions
-
-
 
 registerActiveInstanceAction({
 	id: TerminalChatAgentToolsCommandId.ChatAddTerminalSelection,

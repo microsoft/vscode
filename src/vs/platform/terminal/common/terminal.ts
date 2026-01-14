@@ -686,17 +686,8 @@ export interface IShellLaunchConfig {
 	shellIntegrationNonce?: string;
 }
 
-export interface ISandboxTerminalSettings {
+export interface ITerminalSandboxSettings extends ISandboxRuntimeConfig {
 	enabled?: boolean;
-	network?: {
-		allowedDomains?: string[];
-		deniedDomains?: string[];
-	};
-	filesystem?: {
-		denyRead?: string[];
-		allowWrite?: string[];
-		denyWrite?: string[];
-	};
 }
 
 
@@ -740,8 +731,6 @@ export interface IShellLaunchConfigDto {
 	isFeatureTerminal?: boolean;
 	tabActions?: ITerminalTabAction[];
 	shellIntegrationEnvironmentReporting?: boolean;
-	sandboxed?: boolean;
-	sandboxSettings?: ISandboxRuntimeConfig;
 }
 
 /**

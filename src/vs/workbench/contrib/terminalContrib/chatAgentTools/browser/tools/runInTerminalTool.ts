@@ -19,7 +19,7 @@ import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService, type ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-import { TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { ICommandDetectionCapability, TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService, ITerminalProfile } from '../../../../../../platform/terminal/common/terminal.js';
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
@@ -44,7 +44,7 @@ import { CommandLineAutoApproveAnalyzer } from './commandLineAnalyzer/commandLin
 import { CommandLineFileWriteAnalyzer } from './commandLineAnalyzer/commandLineFileWriteAnalyzer.js';
 import { OutputMonitor } from './monitoring/outputMonitor.js';
 import { IPollingResult, OutputMonitorState } from './monitoring/types.js';
-import { ISandboxUtility } from '../../../../chat/common/sandboxUtility.js';
+import { ISandboxService } from '../../../../chat/common/sandboxService.js';
 import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
 import type { ICommandLineRewriter } from './commandLineRewriter/commandLineRewriter.js';
 import { CommandLineCdPrefixRewriter } from './commandLineRewriter/commandLineCdPrefixRewriter.js';
@@ -270,18 +270,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	private readonly _treeSitterCommandParser: TreeSitterCommandParser;
 	private readonly _telemetry: RunInTerminalToolTelemetry;
 	private readonly _commandArtifactCollector: TerminalCommandArtifactCollector;
-	protected readonly _profileFetcher: TerminalProfileFetcher;
-
-
 	private readonly _commandLineRewriters: ICommandLineRewriter[];
 	private readonly _commandLineAnalyzers: ICommandLineAnalyzer[];
-
+	private static readonly _backgroundExecutions = new Map<string, BackgroundTerminalExecution>();
+	protected readonly _profileFetcher: TerminalProfileFetcher;
 	protected readonly _sessionTerminalAssociations: Map<string, IToolTerminal> = new Map();
-
 	// Immutable window state
 	protected readonly _osBackend: Promise<OperatingSystem>;
 
-	private static readonly _backgroundExecutions = new Map<string, BackgroundTerminalExecution>();
 	public static getBackgroundOutput(id: string): string {
 		const backgroundExecution = RunInTerminalTool._backgroundExecutions.get(id);
 		if (!backgroundExecution) {
@@ -303,7 +299,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
-		@ISandboxUtility private readonly _sandboxUtility: ISandboxUtility,
+		@ISandboxService private readonly _sandboxService: ISandboxService,
 	) {
 		super();
 
@@ -332,9 +328,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					this._storageService.remove(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION);
 				}
 			}
-			// if terminal sandbox setting changed, update sandbox config.
-			if (e?.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandbox)) {
-				this._sandboxUtility.setNeedsForceUpdateConfigFile();
+			// If terminal sandbox settings changed, update sandbox config.
+			if (
+				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxEnabled) ||
+				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork) ||
+				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxLinuxFileSystem) ||
+				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxMacFileSystem)
+			) {
+				this._sandboxService.setNeedsForceUpdateConfigFile();
 			}
 		}));
 
@@ -420,7 +421,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		toolSpecificData.autoApproveInfo = new MarkdownString(localize('autoApprove.sandbox', 'In sandbox mode'));
-		if (this._sandboxUtility.isEnabled()) {
+		// If in sandbox mode, skip confirmation logic. In sandbox mode, commands are run in a restricted environment and explicit
+		// user confirmation is not required.
+		if (this._sandboxService.isEnabled()) {
 			return {
 				toolSpecificData
 			};
@@ -552,10 +555,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			toolSpecificData.commandLine.toolEdited !== toolSpecificData.commandLine.original
 		);
 
-		if (this._sandboxUtility.isEnabled()) {
-			await this._sandboxUtility.getSandboxConfigPath();
+		if (this._sandboxService.isEnabled()) {
+			await this._sandboxService.getSandboxConfigPath();
 			this._logService.info(`RunInTerminalTool: Sandboxing is enabled, wrapping command with srt.`);
-			command = this._sandboxUtility.wrapCommand(command);
+			command = this._sandboxService.wrapCommand(command);
 		}
 
 		if (token.isCancellationRequested) {
@@ -686,21 +689,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			let altBufferResult: IToolResult | undefined;
 			const executeCancellation = store.add(new CancellationTokenSource(token));
 			try {
-				let strategy: ITerminalExecuteStrategy;
-				switch (toolTerminal.shellIntegrationQuality) {
-					case ShellIntegrationQuality.None: {
-						strategy = this._instantiationService.createInstance(NoneExecuteStrategy, toolTerminal.instance, () => toolTerminal.receivedUserInput ?? false);
-						toolResultMessage = '$(info) Enable [shell integration](https://code.visualstudio.com/docs/terminal/shell-integration) to improve command detection';
-						break;
-					}
-					case ShellIntegrationQuality.Basic: {
-						strategy = this._instantiationService.createInstance(BasicExecuteStrategy, toolTerminal.instance, () => toolTerminal.receivedUserInput ?? false, commandDetection!);
-						break;
-					}
-					case ShellIntegrationQuality.Rich: {
-						strategy = this._instantiationService.createInstance(RichExecuteStrategy, toolTerminal.instance, commandDetection!);
-						break;
-					}
+				const strategy: ITerminalExecuteStrategy = this._getExecuteStrategy(toolTerminal.shellIntegrationQuality, toolTerminal, commandDetection!);
+				if (toolTerminal.shellIntegrationQuality === ShellIntegrationQuality.None) {
+					toolResultMessage = '$(info) Enable [shell integration](https://code.visualstudio.com/docs/terminal/shell-integration) to improve command detection';
 				}
 				this._logService.debug(`RunInTerminalTool: Using \`${strategy.type}\` execute strategy for command \`${command}\``);
 				store.add(strategy.onDidCreateStartMarker(startMarker => {
@@ -762,7 +753,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 
 				//if sandboxed and there is error, retry without sandboxing.
-				if (exitCode !== 0 && this._sandboxUtility.isEnabled()) {
+				if (exitCode !== 0 && this._sandboxService.isEnabled()) {
 					const sessionResource = invocation.context?.sessionResource;
 					const session = sessionResource ? this._chatService.getSession(sessionResource) : undefined;
 
@@ -810,19 +801,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 					if (shouldRetryWithoutSandboxing) {
 						const commandDetectionRetry = toolTerminal.instance.capabilities.get(TerminalCapability.CommandDetection);
-						let retryStrategy: ITerminalExecuteStrategy;
-						switch (toolTerminal.shellIntegrationQuality) {
-							case ShellIntegrationQuality.None:
-								retryStrategy = this._instantiationService.createInstance(NoneExecuteStrategy, toolTerminal.instance, () => toolTerminal.receivedUserInput ?? false);
-								break;
-							case ShellIntegrationQuality.Basic:
-								retryStrategy = this._instantiationService.createInstance(BasicExecuteStrategy, toolTerminal.instance, () => toolTerminal.receivedUserInput ?? false, commandDetectionRetry!);
-								break;
-							case ShellIntegrationQuality.Rich:
-								retryStrategy = this._instantiationService.createInstance(RichExecuteStrategy, toolTerminal.instance, commandDetectionRetry!);
-								break;
-						}
-
+						const retryStrategy = this._getExecuteStrategy(toolTerminal.shellIntegrationQuality, toolTerminal, commandDetectionRetry!);
 						const retryCommandId = `tool-retry-${generateUuid()}`;
 						const retryResult = await retryStrategy.execute(commandToRetryWithoutSandboxing, token, retryCommandId);
 						toolTerminal.receivedUserInput = false;
@@ -1069,7 +1048,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 	}
 
-
 	private _cleanupSessionTerminals(sessionId: string): void {
 		const toolTerminal = this._sessionTerminalAssociations.get(sessionId);
 		if (toolTerminal) {
@@ -1090,6 +1068,22 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				RunInTerminalTool._backgroundExecutions.delete(termId);
 			}
 		}
+	}
+
+	private _getExecuteStrategy(shellIntegrationQuality: ShellIntegrationQuality, toolTerminal: IToolTerminal, commandDetection: ICommandDetectionCapability): ITerminalExecuteStrategy {
+		let strategy: ITerminalExecuteStrategy;
+		switch (shellIntegrationQuality) {
+			case ShellIntegrationQuality.None:
+				strategy = this._instantiationService.createInstance(NoneExecuteStrategy, toolTerminal.instance, () => toolTerminal.receivedUserInput ?? false);
+				break;
+			case ShellIntegrationQuality.Basic:
+				strategy = this._instantiationService.createInstance(BasicExecuteStrategy, toolTerminal.instance, () => toolTerminal.receivedUserInput ?? false, commandDetection!);
+				break;
+			case ShellIntegrationQuality.Rich:
+				strategy = this._instantiationService.createInstance(RichExecuteStrategy, toolTerminal.instance, commandDetection!);
+				break;
+		}
+		return strategy;
 	}
 	// #endregion
 }
