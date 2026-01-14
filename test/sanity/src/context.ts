@@ -248,7 +248,7 @@ export class TestContext {
 	 * @param filePath The path to the file to validate.
 	 */
 	public validateAuthenticodeSignature(filePath: string) {
-		if (this.skipSigningCheck) {
+		if (this.skipSigningCheck || os.platform() !== 'win32') {
 			this.log(`Skipping Authenticode signature validation for ${filePath} (signing checks disabled)`);
 			return;
 		}
@@ -271,7 +271,7 @@ export class TestContext {
 	 * @param dir The directory to scan for executable files.
 	 */
 	public validateAllAuthenticodeSignatures(dir: string) {
-		if (this.skipSigningCheck) {
+		if (this.skipSigningCheck || os.platform() !== 'win32') {
 			this.log(`Skipping Authenticode signature validation for ${dir} (signing checks disabled)`);
 			return;
 		}
@@ -292,7 +292,7 @@ export class TestContext {
 	 * @param filePath The path to the file or app bundle to validate.
 	 */
 	public validateCodesignSignature(filePath: string) {
-		if (this.skipSigningCheck) {
+		if (this.skipSigningCheck || os.platform() !== 'darwin') {
 			this.log(`Skipping codesign signature validation for ${filePath} (signing checks disabled)`);
 			return;
 		}
@@ -314,7 +314,7 @@ export class TestContext {
 	 * @param dir The directory to scan for Mach-O binaries.
 	 */
 	public validateAllCodesignSignatures(dir: string) {
-		if (this.skipSigningCheck) {
+		if (this.skipSigningCheck || os.platform() !== 'darwin') {
 			this.log(`Skipping codesign signature validation for ${dir} (signing checks disabled)`);
 			return;
 		}
