@@ -113,9 +113,6 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 		const domChildren = [];
 		element.classList.add('chat-session-option-picker');
 		
-		// Toggle locked class on element
-		element.classList.toggle('locked', !!this.currentOption?.locked);
-		
 		if (this.currentOption?.icon) {
 			domChildren.push(renderIcon(this.currentOption.icon));
 		}
@@ -136,20 +133,27 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 	override render(container: HTMLElement): void {
 		super.render(container);
 		container.classList.add('chat-sessionPicker-item');
+		
+		// Set initial locked state on container
+		if (this.currentOption?.locked) {
+			container.classList.add('locked');
+		}
 	}
 
 	protected override updateEnabled(): void {
-		// Call parent to handle base functionality
+		// Override the action's enabled state when locked
+		const originalEnabled = this.action.enabled;
+		
+		// Temporarily set action.enabled to false if locked
+		if (this.currentOption?.locked) {
+			(this.action as any).enabled = false;
+		}
+		
+		// Call parent which will use action.enabled to set dropdown state
 		super.updateEnabled();
 		
-		// Additionally disable when locked
-		if (this.currentOption?.locked) {
-			// Use reflection to access the private actionWidgetDropdown property
-			const dropdown = (this as any)['actionWidgetDropdown'];
-			if (dropdown) {
-				dropdown.setEnabled(false);
-			}
-		}
+		// Restore original action.enabled
+		(this.action as any).enabled = originalEnabled;
 		
 		// Update visual state for locked items
 		const container = this.element?.parentElement;
