@@ -15,7 +15,7 @@ import { ThemeTypeSelector } from '../common/theme.js';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { coalesce } from '../../../base/common/arrays.js';
 import { getAllWindowsExcludingOffscreen } from '../../windows/electron-main/windows.js';
-import { ILogService } from '../../log/common/log.js';
+import { ILogService, LogLevel } from '../../log/common/log.js';
 import { IThemeMainService } from './themeMainService.js';
 
 // These default colors match our default themes
@@ -82,9 +82,23 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 			}));
 		}
 		this.updateSystemColorTheme();
+		this.logThemeSettings();
 
 		// Color Scheme changes
-		this._register(Event.fromNodeEventEmitter(electron.nativeTheme, 'updated')(() => this._onDidChangeColorScheme.fire(this.getColorScheme())));
+		this._register(Event.fromNodeEventEmitter(electron.nativeTheme, 'updated')(() => {
+			this.logThemeSettings();
+			this._onDidChangeColorScheme.fire(this.getColorScheme());
+		}));
+	}
+	private logThemeSettings(): void {
+		if (this.logService.getLevel() >= LogLevel.Debug) {
+			const logSetting = (setting: string) => `${setting}=${this.configurationService.getValue(setting)}`;
+			this.logService.debug(`[theme main service] ${logSetting(ThemeSettings.DETECT_COLOR_SCHEME)}, ${logSetting(ThemeSettings.DETECT_HC)}, ${logSetting(ThemeSettings.SYSTEM_COLOR_THEME)}`);
+
+			const logProperty = (property: keyof Electron.NativeTheme) => `${String(property)}=${electron.nativeTheme[property]}`;
+			this.logService.debug(`[theme main service] electron.nativeTheme: ${logProperty('themeSource')}, ${logProperty('shouldUseDarkColors')}, ${logProperty('shouldUseHighContrastColors')}, ${logProperty('shouldUseInvertedColorScheme')}, ${logProperty('shouldUseDarkColorsForSystemIntegratedUI')}	`);
+			this.logService.debug(`[theme main service] New color scheme: ${JSON.stringify(this.getColorScheme())}`);
+		}
 	}
 
 	private updateSystemColorTheme(): void {
