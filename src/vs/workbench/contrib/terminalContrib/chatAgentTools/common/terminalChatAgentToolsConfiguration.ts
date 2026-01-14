@@ -8,7 +8,6 @@ import type { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
 import { localize } from '../../../../../nls.js';
 import { type IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
-import product from '../../../../../platform/product/common/product.js';
 import { terminalProfileBaseProperties } from '../../../../../platform/terminal/common/terminalPlatformConfiguration.js';
 import { PolicyCategory } from '../../../../../base/common/policy.js';
 
@@ -498,7 +497,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			localize('outputLocation.terminal', "Reveal the terminal in the panel or editor in addition to chat."),
 			localize('outputLocation.chat', "Reveal the terminal output within chat only."),
 		],
-		default: product.quality !== 'stable' ? 'chat' : 'terminal',
+		default: 'chat',
 		tags: ['experimental'],
 		experiment: {
 			mode: 'auto'
