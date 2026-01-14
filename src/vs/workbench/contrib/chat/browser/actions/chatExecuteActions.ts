@@ -478,11 +478,13 @@ export class ChatSessionPrimaryPickerAction extends Action2 {
 				id: MenuId.ChatInput,
 				order: 4,
 				group: 'navigation',
-				when:
-					ContextKeyExpr.and(
+				when: ContextKeyExpr.and(
+					ChatContextKeys.chatSessionHasModels,
+					ContextKeyExpr.or(
 						ChatContextKeys.lockedToCodingAgent,
-						ChatContextKeys.chatSessionHasModels
+						ChatContextKeys.isMultiRootChat
 					)
+				)
 			}
 		});
 	}

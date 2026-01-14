@@ -10,10 +10,13 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { localize } from '../../../../../nls.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IChatModel } from '../../common/model/chatModel.js';
 import { IChatDetail, IChatService, ResponseModelState } from '../../common/chatService/chatService.js';
-import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionGroup, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 
 interface IChatSessionItemWithProvider extends IChatSessionItem {
@@ -35,12 +38,43 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 	constructor(
 		@IChatService private readonly chatService: IChatService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@ILabelService private readonly labelService: ILabelService,
 	) {
 		super();
 
 		this._register(this.chatSessionsService.registerChatSessionItemProvider(this));
-
 		this.registerListeners();
+		this.registerOptionGroups();
+	}
+
+	private registerOptionGroups(): void {
+		const folders = this.workspaceContextService.getWorkspace().folders;
+		const optionGroups: IChatSessionProviderOptionGroup[] = [];
+
+		// Only add workspace folder picker for multi-root workspaces
+		if (folders.length > 1) {
+			optionGroups.push({
+				id: 'workspaceFolder',
+				name: localize('workspaceFolder', "Workspace Folder"),
+				description: localize('workspaceFolderDescription', "Select the workspace folder to work in"),
+				icon: Codicon.folder,
+				items: folders.map((folder, index) => ({
+					id: folder.uri.toString(),
+					name: folder.name,
+					description: this.labelService.getUriLabel(folder.uri, { relative: false }),
+					icon: Codicon.folder,
+					default: index === 0,
+				})),
+				searchable: folders.length > 5, // Use searchable QuickPick for many folders
+			});
+		}
+
+		this.chatSessionsService.setOptionGroupsForSessionType(
+			this.chatSessionType,
+			-1,
+			optionGroups.length > 0 ? optionGroups : undefined
+		);
 	}
 
 	private registerListeners(): void {
@@ -61,6 +95,11 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 			if (session.length > 0) {
 				this._onDidChangeChatSessionItems.fire();
 			}
+		}));
+
+		// Re-register option groups when workspace folders change
+		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => {
+			this.registerOptionGroups();
 		}));
 	}
 
