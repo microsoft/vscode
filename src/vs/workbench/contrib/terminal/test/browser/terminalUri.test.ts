@@ -5,7 +5,7 @@
 
 import { deepStrictEqual, strictEqual } from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { getInstanceFromResource, getTerminalResourcesFromDragEvent, getTerminalUri, IPartialDragEvent } from '../../browser/terminalUri.js';
+import { getInstanceFromResource, getTerminalResourcesFromDragEvent, getTerminalUri, IPartialDragEvent, parseTerminalSelectionFromUri } from '../../browser/terminalUri.js';
 
 function fakeDragEvent(data: string): IPartialDragEvent {
 	return {
@@ -76,6 +76,33 @@ suite('terminalUri', () => {
 				], getTerminalUri('workspace', 2, 'does not match!')),
 				instance
 			);
+		});
+	});
+	suite('parseTerminalSelectionFromUri', () => {
+		test('should return undefined for URIs without selection params', () => {
+			const uri = getTerminalUri('workspace', 1, 'title');
+			strictEqual(parseTerminalSelectionFromUri(uri), undefined);
+		});
+		test('should parse selection from URI with all params', () => {
+			const uri = getTerminalUri('workspace', 1, 'title', undefined, {
+				startLine: 5,
+				startColumn: 10,
+				endLine: 8,
+				endColumn: 20
+			});
+			const selection = parseTerminalSelectionFromUri(uri);
+			deepStrictEqual(selection, {
+				startLine: 5,
+				startColumn: 10,
+				endLine: 8,
+				endColumn: 20
+			});
+		});
+		test('should return undefined if only some selection params are present', () => {
+			const uri = getTerminalUri('workspace', 1, 'title');
+			// Manually add only some params
+			const uriWithPartialSelection = uri.with({ query: 'selectionStartLine=5&selectionStartColumn=10' });
+			strictEqual(parseTerminalSelectionFromUri(uriWithPartialSelection), undefined);
 		});
 	});
 });

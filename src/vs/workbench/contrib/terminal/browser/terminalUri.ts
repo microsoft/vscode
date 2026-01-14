@@ -11,6 +11,10 @@ export interface ITerminalUriMetadata {
 	title?: string;
 	commandId?: string;
 	commandLine?: string;
+	selectionStartLine?: number;
+	selectionStartColumn?: number;
+	selectionEndLine?: number;
+	selectionEndColumn?: number;
 }
 
 export function parseTerminalUri(resource: URI): ITerminalIdentifier {
@@ -21,16 +25,40 @@ export function parseTerminalUri(resource: URI): ITerminalIdentifier {
 	return { workspaceId, instanceId: Number.parseInt(instanceId) };
 }
 
-export function getTerminalUri(workspaceId: string, instanceId: number, title?: string, commandId?: string): URI {
+export function parseTerminalSelectionFromUri(resource: URI): { startLine: number; startColumn: number; endLine: number; endColumn: number } | undefined {
+	const params = new URLSearchParams(resource.query);
+	const startLine = params.get('selectionStartLine');
+	const startColumn = params.get('selectionStartColumn');
+	const endLine = params.get('selectionEndLine');
+	const endColumn = params.get('selectionEndColumn');
+	
+	if (startLine && startColumn && endLine && endColumn) {
+		return {
+			startLine: Number.parseInt(startLine),
+			startColumn: Number.parseInt(startColumn),
+			endLine: Number.parseInt(endLine),
+			endColumn: Number.parseInt(endColumn)
+		};
+	}
+	return undefined;
+}
+
+export function getTerminalUri(workspaceId: string, instanceId: number, title?: string, commandId?: string, selection?: { startLine: number; startColumn: number; endLine: number; endColumn: number }): URI {
 	const params = new URLSearchParams();
 	if (commandId) {
 		params.set('command', commandId);
+	}
+	if (selection) {
+		params.set('selectionStartLine', selection.startLine.toString());
+		params.set('selectionStartColumn', selection.startColumn.toString());
+		params.set('selectionEndLine', selection.endLine.toString());
+		params.set('selectionEndColumn', selection.endColumn.toString());
 	}
 	return URI.from({
 		scheme: Schemas.vscodeTerminal,
 		path: `/${workspaceId}/${instanceId}`,
 		fragment: title || undefined,
-		query: commandId ? params.toString() : undefined
+		query: (commandId || selection) ? params.toString() : undefined
 	});
 }
 
