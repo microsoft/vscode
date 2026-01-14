@@ -25,6 +25,11 @@ interface ITargetMetadata {
 	supportsFastUpdate: boolean;
 }
 
+type Capability =
+	| 'linux' | 'darwin' | 'windows' | 'alpine'
+	| 'x64' | 'arm64' | 'arm32'
+	| 'deb' | 'rpm' | 'snap' | 'zypper';
+
 /**
  * Provides context and utilities for VS Code sanity tests.
  */
@@ -35,6 +40,7 @@ export class TestContext {
 	private readonly tempDirs = new Set<string>();
 	private _currentTest?: Mocha.Test & { consoleOutputs?: string[] };
 	private _osTempDir?: string;
+	private _capabilities?: Set<Capability>;
 
 	public constructor(
 		public readonly quality: 'stable' | 'insider' | 'exploration',
@@ -55,10 +61,51 @@ export class TestContext {
 	}
 
 	/**
-	 * Returns the current platform in the format <platform>-<arch>.
+	 * Returns the detected capabilities of the current system.
 	 */
-	public get platform(): string {
-		return `${os.platform()}-${os.arch()}`;
+	public get capabilities(): ReadonlySet<Capability> {
+		if (!this._capabilities) {
+			this._capabilities = new Set<Capability>();
+			if (fs.existsSync('/etc/alpine-release')) {
+				this._capabilities.add('alpine');
+			} else {
+				switch (os.platform()) {
+					case 'linux':
+						this._capabilities.add('linux');
+						break;
+					case 'darwin':
+						this._capabilities.add('darwin');
+						break;
+					case 'win32':
+						this._capabilities.add('windows');
+						break;
+				}
+			}
+			switch (os.arch()) {
+				case 'x64':
+					this._capabilities.add('x64');
+					break;
+				case 'arm64':
+					this._capabilities.add('arm64');
+					break;
+				case 'arm':
+					this._capabilities.add('arm32');
+					break;
+			}
+			if (fs.existsSync('/usr/bin/dpkg')) {
+				this._capabilities.add('deb');
+			}
+			if (fs.existsSync('/usr/bin/rpm')) {
+				this._capabilities.add('rpm');
+			}
+			if (fs.existsSync('/usr/bin/snap')) {
+				this._capabilities.add('snap');
+			}
+			if (fs.existsSync('/usr/bin/zypper')) {
+				this._capabilities.add('zypper');
+			}
+		}
+		return this._capabilities;
 	}
 
 	/**
@@ -79,6 +126,19 @@ export class TestContext {
 			this._osTempDir = tempDir;
 		}
 		return this._osTempDir;
+	}
+
+	/**
+	 * Runs a test only if the required capabilities are present.
+	 * @param name The name of the test.
+	 * @param require The required capabilities for the test.
+	 * @param fn The test function.
+	 * @returns The Mocha test object or void if the test is skipped.
+	 */
+	public test(name: string, require: Capability[], fn: Mocha.Func): Mocha.Test | void {
+		if (this.skipRuntimeCheck || !require.some(o => !this.capabilities.has(o))) {
+			return test(name, fn);
+		}
 	}
 
 	/**
@@ -220,10 +280,6 @@ export class TestContext {
 		this.log(`Downloaded ${url} to ${filePath}`);
 		this.validateSha256Hash(filePath, sha256hash);
 
-		if (TestContext.authenticodeInclude.test(filePath) && os.platform() === 'win32') {
-			this.validateAuthenticodeSignature(filePath);
-		}
-
 		return filePath;
 	}
 
@@ -248,7 +304,7 @@ export class TestContext {
 	 * @param filePath The path to the file to validate.
 	 */
 	public validateAuthenticodeSignature(filePath: string) {
-		if (this.skipSigningCheck || os.platform() !== 'win32') {
+		if (this.skipSigningCheck || !this.capabilities.has('windows')) {
 			this.log(`Skipping Authenticode signature validation for ${filePath} (signing checks disabled)`);
 			return;
 		}
@@ -271,7 +327,7 @@ export class TestContext {
 	 * @param dir The directory to scan for executable files.
 	 */
 	public validateAllAuthenticodeSignatures(dir: string) {
-		if (this.skipSigningCheck || os.platform() !== 'win32') {
+		if (this.skipSigningCheck || !this.capabilities.has('windows')) {
 			this.log(`Skipping Authenticode signature validation for ${dir} (signing checks disabled)`);
 			return;
 		}
@@ -292,7 +348,7 @@ export class TestContext {
 	 * @param filePath The path to the file or app bundle to validate.
 	 */
 	public validateCodesignSignature(filePath: string) {
-		if (this.skipSigningCheck || os.platform() !== 'darwin') {
+		if (this.skipSigningCheck || !this.capabilities.has('darwin')) {
 			this.log(`Skipping codesign signature validation for ${filePath} (signing checks disabled)`);
 			return;
 		}
@@ -314,7 +370,7 @@ export class TestContext {
 	 * @param dir The directory to scan for Mach-O binaries.
 	 */
 	public validateAllCodesignSignatures(dir: string) {
-		if (this.skipSigningCheck || os.platform() !== 'darwin') {
+		if (this.skipSigningCheck || !this.capabilities.has('darwin')) {
 			this.log(`Skipping codesign signature validation for ${dir} (signing checks disabled)`);
 			return;
 		}
@@ -723,31 +779,5 @@ export class TestContext {
 	 */
 	public getRandomPort(): string {
 		return String(Math.floor(Math.random() * 7000) + 3000);
-	}
-
-	/**
-	 * Checks if a specific package manager is supported on the system.
-	 * @param packageManager The package manager to check.
-	 * @returns True if the package manager is available.
-	 */
-	public isPackageManagerSupported(packageManager: 'deb' | 'rpm' | 'snap' | 'zypper'): boolean {
-		switch (packageManager) {
-			case 'deb':
-				return fs.existsSync('/usr/bin/dpkg');
-			case 'rpm':
-				return fs.existsSync('/usr/bin/rpm');
-			case 'snap':
-				return fs.existsSync('/usr/bin/snap');
-			case 'zypper':
-				return fs.existsSync('/usr/bin/zypper');
-		}
-	}
-
-	/**
-	 * Checks if the current system is Alpine Linux.
-	 * @returns True if running on Alpine Linux.
-	 */
-	public get isAlpineLinux(): boolean {
-		return fs.existsSync('/etc/alpine-release');
 	}
 }

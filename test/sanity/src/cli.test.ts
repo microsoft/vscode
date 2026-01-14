@@ -5,85 +5,66 @@
 
 import assert from 'assert';
 import { spawn } from 'child_process';
-import { test } from 'mocha';
 import { TestContext } from './context';
 
 export function setup(context: TestContext) {
-	if (context.skipRuntimeCheck || context.platform === 'linux-arm64' && context.isAlpineLinux) {
-		test('cli-alpine-arm64', async () => {
-			const dir = await context.downloadAndUnpack('cli-alpine-arm64');
-			const entryPoint = context.getEntryPoint('cli', dir);
-			await testCliApp(entryPoint);
-		});
-	}
+	context.test('cli-alpine-arm64', ['alpine', 'arm64'], async () => {
+		const dir = await context.downloadAndUnpack('cli-alpine-arm64');
+		const entryPoint = context.getEntryPoint('cli', dir);
+		await testCliApp(entryPoint);
+	});
 
-	if (context.skipRuntimeCheck || context.platform === 'linux-x64' && context.isAlpineLinux) {
-		test('cli-alpine-x64', async () => {
-			const dir = await context.downloadAndUnpack('cli-alpine-x64');
-			const entryPoint = context.getEntryPoint('cli', dir);
-			await testCliApp(entryPoint);
-		});
-	}
+	context.test('cli-alpine-x64', ['alpine', 'x64'], async () => {
+		const dir = await context.downloadAndUnpack('cli-alpine-x64');
+		const entryPoint = context.getEntryPoint('cli', dir);
+		await testCliApp(entryPoint);
+	});
 
-	if (context.skipRuntimeCheck || context.platform === 'darwin-arm64') {
-		test('cli-darwin-arm64', async () => {
-			const dir = await context.downloadAndUnpack('cli-darwin-arm64');
-			context.validateAllCodesignSignatures(dir);
-			const entryPoint = context.getEntryPoint('cli', dir);
-			await testCliApp(entryPoint);
-		});
-	}
+	context.test('cli-darwin-arm64', ['darwin', 'arm64'], async () => {
+		const dir = await context.downloadAndUnpack('cli-darwin-arm64');
+		context.validateAllCodesignSignatures(dir);
+		const entryPoint = context.getEntryPoint('cli', dir);
+		await testCliApp(entryPoint);
+	});
 
-	if (context.skipRuntimeCheck || context.platform === 'darwin-x64') {
-		test('cli-darwin-x64', async () => {
-			const dir = await context.downloadAndUnpack('cli-darwin-x64');
-			context.validateAllCodesignSignatures(dir);
-			const entryPoint = context.getEntryPoint('cli', dir);
-			await testCliApp(entryPoint);
-		});
-	}
+	context.test('cli-darwin-x64', ['darwin', 'x64'], async () => {
+		const dir = await context.downloadAndUnpack('cli-darwin-x64');
+		context.validateAllCodesignSignatures(dir);
+		const entryPoint = context.getEntryPoint('cli', dir);
+		await testCliApp(entryPoint);
+	});
 
-	if (context.skipRuntimeCheck || context.platform === 'linux-arm64' && !context.isAlpineLinux) {
-		test('cli-linux-arm64', async () => {
-			const dir = await context.downloadAndUnpack('cli-linux-arm64');
-			const entryPoint = context.getEntryPoint('cli', dir);
-			await testCliApp(entryPoint);
-		});
-	}
+	context.test('cli-linux-arm64', ['linux', 'arm64'], async () => {
+		const dir = await context.downloadAndUnpack('cli-linux-arm64');
+		const entryPoint = context.getEntryPoint('cli', dir);
+		await testCliApp(entryPoint);
+	});
 
-	if (context.skipRuntimeCheck || context.platform === 'linux-arm' && !context.isAlpineLinux) {
-		test('cli-linux-armhf', async () => {
-			const dir = await context.downloadAndUnpack('cli-linux-armhf');
-			const entryPoint = context.getEntryPoint('cli', dir);
-			await testCliApp(entryPoint);
-		});
-	}
+	context.test('cli-linux-armhf', ['linux', 'arm32'], async () => {
+		const dir = await context.downloadAndUnpack('cli-linux-armhf');
+		const entryPoint = context.getEntryPoint('cli', dir);
+		await testCliApp(entryPoint);
+	});
 
-	if (context.skipRuntimeCheck || context.platform === 'linux-x64' && !context.isAlpineLinux) {
-		test('cli-linux-x64', async () => {
-			const dir = await context.downloadAndUnpack('cli-linux-x64');
-			const entryPoint = context.getEntryPoint('cli', dir);
-			await testCliApp(entryPoint);
-		});
-	}
+	context.test('cli-linux-x64', ['linux', 'x64'], async () => {
+		const dir = await context.downloadAndUnpack('cli-linux-x64');
+		const entryPoint = context.getEntryPoint('cli', dir);
+		await testCliApp(entryPoint);
+	});
 
-	if (context.skipRuntimeCheck || context.platform === 'win32-arm64') {
-		test('cli-win32-arm64', async () => {
-			const dir = await context.downloadAndUnpack('cli-win32-arm64');
-			context.validateAllAuthenticodeSignatures(dir);
-			const entryPoint = context.getEntryPoint('cli', dir);
-			await testCliApp(entryPoint);
-		});
-	}
+	context.test('cli-win32-arm64', ['windows', 'arm64'], async () => {
+		const dir = await context.downloadAndUnpack('cli-win32-arm64');
+		context.validateAllAuthenticodeSignatures(dir);
+		const entryPoint = context.getEntryPoint('cli', dir);
+		await testCliApp(entryPoint);
+	});
 
-	if (context.skipRuntimeCheck || context.platform === 'win32-x64') {
-		test('cli-win32-x64', async () => {
-			const dir = await context.downloadAndUnpack('cli-win32-x64');
-			context.validateAllAuthenticodeSignatures(dir);
-			const entryPoint = context.getEntryPoint('cli', dir);
-			await testCliApp(entryPoint);
-		});
-	}
+	context.test('cli-win32-x64', ['windows', 'x64'], async () => {
+		const dir = await context.downloadAndUnpack('cli-win32-x64');
+		context.validateAllAuthenticodeSignatures(dir);
+		const entryPoint = context.getEntryPoint('cli', dir);
+		await testCliApp(entryPoint);
+	});
 
 	async function testCliApp(entryPoint: string) {
 		if (context.skipRuntimeCheck) {
