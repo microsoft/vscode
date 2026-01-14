@@ -751,12 +751,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			clearWidget.dispose();
 			await queue;
 
-			const chatModel = await this.showModel(newModelRef);
-			if (chatModel) {
-				this._widget.input.setWorkingSetCollapsed(false);
-			}
-
-			return chatModel;
+			return this.showModel(newModelRef);
 		});
 	}
 
