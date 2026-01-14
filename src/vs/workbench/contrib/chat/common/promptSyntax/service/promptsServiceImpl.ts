@@ -522,6 +522,19 @@ export class PromptsService extends Disposable implements IPromptsService {
 			return Disposable.None;
 		}
 		const entryPromise = (async () => {
+			// For skills, validate that the file follows the required structure
+			if (type === PromptsType.skill) {
+				try {
+					const validated = await this.validateAndSanitizeSkillFile(uri, CancellationToken.None);
+					name = validated.name;
+					description = validated.description;
+				} catch (e) {
+					const msg = e instanceof Error ? e.message : String(e);
+					this.logger.error(`[registerContributedFile] Extension '${extension.identifier.value}' failed to validate skill file: ${uri}`, msg);
+					throw e;
+				}
+			}
+
 			try {
 				await this.filesConfigService.updateReadonly(uri, true);
 			} catch (e) {
@@ -632,6 +645,34 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return text.replace(/<[^>]+>/g, '');
 	}
 
+	/**
+	 * Validates and sanitizes a skill file. Throws an error if validation fails.
+	 * @returns The sanitized name and description
+	 */
+	private async validateAndSanitizeSkillFile(uri: URI, token: CancellationToken): Promise<{ name: string; description: string | undefined }> {
+		const parsedFile = await this.parseNew(uri, token);
+		const name = parsedFile.header?.name;
+
+		if (!name) {
+			this.logger.error(`[validateAndSanitizeSkillFile] Agent skill file missing name attribute: ${uri}`);
+			throw new Error('Skill file must have a name attribute');
+		}
+
+		// Sanitize the name first (remove XML tags and truncate)
+		const sanitizedName = this.truncateAgentSkillName(name, uri);
+
+		// Validate that the sanitized name matches the parent folder name (per agentskills.io specification)
+		const skillFolderUri = dirname(uri);
+		const folderName = basename(skillFolderUri);
+		if (sanitizedName !== folderName) {
+			this.logger.error(`[validateAndSanitizeSkillFile] Agent skill name "${sanitizedName}" does not match folder name "${folderName}": ${uri}`);
+			throw new Error(`Skill name must match folder name: expected "${folderName}" but got "${sanitizedName}"`);
+		}
+
+		const sanitizedDescription = this.truncateAgentSkillDescription(parsedFile.header?.description, uri);
+		return { name: sanitizedName, description: sanitizedDescription };
+	}
+
 	private truncateAgentSkillName(name: string, uri: URI): string {
 		const MAX_NAME_LENGTH = 64;
 		const sanitized = this.sanitizeAgentSkillText(name);
@@ -676,25 +717,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 			const process = async (uri: URI, skillType: string, scopeType: 'personal' | 'project' | 'config' | 'extension'): Promise<void> => {
 				try {
-					const parsedFile = await this.parseNew(uri, token);
-					const name = parsedFile.header?.name;
-					if (!name) {
-						skippedMissingName++;
-						this.logger.error(`[findAgentSkills] Agent skill file missing name attribute: ${uri}`);
-						return;
-					}
-
-					// Sanitize the name first (remove XML tags and truncate)
-					const sanitizedName = this.truncateAgentSkillName(name, uri);
-
-					// Validate that the sanitized name matches the parent folder name (per agentskills.io specification)
-					const skillFolderUri = dirname(uri);
-					const folderName = basename(skillFolderUri);
-					if (sanitizedName !== folderName) {
-						skippedNameMismatch++;
-						this.logger.error(`[findAgentSkills] Agent skill name "${sanitizedName}" does not match folder name "${folderName}": ${uri}`);
-						return;
-					}
+					const { name: sanitizedName, description: sanitizedDescription } = await this.validateAndSanitizeSkillFile(uri, token);
 
 					// Check for duplicate names
 					if (seenNames.has(sanitizedName)) {
@@ -704,14 +727,20 @@ export class PromptsService extends Disposable implements IPromptsService {
 					}
 
 					seenNames.add(sanitizedName);
-					const sanitizedDescription = this.truncateAgentSkillDescription(parsedFile.header?.description, uri);
 					result.push({ uri, type: scopeType, name: sanitizedName, description: sanitizedDescription } satisfies IAgentSkill);
 
 					// Track skill type
 					skillTypes.set(skillType, (skillTypes.get(skillType) || 0) + 1);
 				} catch (e) {
-					skippedParseFailed++;
-					this.logger.error(`[findAgentSkills] Failed to parse Agent skill file: ${uri}`, e instanceof Error ? e.message : String(e));
+					const msg = e instanceof Error ? e.message : String(e);
+					if (msg.includes('missing name attribute')) {
+						skippedMissingName++;
+					} else if (msg.includes('does not match folder name')) {
+						skippedNameMismatch++;
+					} else {
+						skippedParseFailed++;
+					}
+					this.logger.error(`[findAgentSkills] Failed to validate Agent skill file: ${uri}`, msg);
 				}
 			};
 

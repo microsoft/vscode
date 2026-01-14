@@ -18,7 +18,7 @@ interface IRawChatFileContribution {
 	readonly description?: string;
 }
 
-type ChatContributionPoint = 'chatPromptFiles' | 'chatInstructions' | 'chatAgents';
+type ChatContributionPoint = 'chatPromptFiles' | 'chatInstructions' | 'chatAgents' | 'chatSkills';
 
 function registerChatFilesExtensionPoint(point: ChatContributionPoint) {
 	return extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawChatFileContribution[]>({
@@ -59,12 +59,14 @@ function registerChatFilesExtensionPoint(point: ChatContributionPoint) {
 const epPrompt = registerChatFilesExtensionPoint('chatPromptFiles');
 const epInstructions = registerChatFilesExtensionPoint('chatInstructions');
 const epAgents = registerChatFilesExtensionPoint('chatAgents');
+const epSkills = registerChatFilesExtensionPoint('chatSkills');
 
 function pointToType(contributionPoint: ChatContributionPoint): PromptsType {
 	switch (contributionPoint) {
 		case 'chatPromptFiles': return PromptsType.prompt;
 		case 'chatInstructions': return PromptsType.instructions;
 		case 'chatAgents': return PromptsType.agent;
+		case 'chatSkills': return PromptsType.skill;
 	}
 }
 
@@ -83,6 +85,7 @@ export class ChatPromptFilesExtensionPointHandler implements IWorkbenchContribut
 		this.handle(epPrompt, 'chatPromptFiles');
 		this.handle(epInstructions, 'chatInstructions');
 		this.handle(epAgents, 'chatAgents');
+		this.handle(epSkills, 'chatSkills');
 	}
 
 	private handle(extensionPoint: extensionsRegistry.IExtensionPoint<IRawChatFileContribution[]>, contributionPoint: ChatContributionPoint) {

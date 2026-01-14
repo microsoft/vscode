@@ -1843,6 +1843,114 @@ suite('PromptsService', () => {
 		registered.dispose();
 	});
 
+	test('Contributed skill file with valid structure', async () => {
+		// The skill folder name must match the skill name per agentskills.io spec
+		const skillUri = URI.parse('file://extensions/my-extension/skills/mySkill/SKILL.md');
+		const extension = {
+			identifier: { value: 'test.my-extension' }
+		} as unknown as IExtensionDescription;
+
+		// Mock the skill file content with matching name
+		await mockFiles(fileService, [
+			{
+				path: skillUri.path,
+				contents: [
+					'---',
+					'name: "mySkill"',
+					'description: "A contributed skill from extension"',
+					'---',
+					'Skill content.',
+				]
+			}
+		]);
+
+		const registered = service.registerContributedFile(
+			PromptsType.skill,
+			skillUri,
+			extension,
+			undefined, // name will be extracted from skill file
+			undefined, // description will be extracted from skill file
+		);
+
+		const actual = await service.listPromptFiles(PromptsType.skill, CancellationToken.None);
+		assert.strictEqual(actual.length, 1, 'Should find the contributed skill');
+		assert.strictEqual(actual[0].uri.toString(), skillUri.toString());
+		assert.strictEqual(actual[0].name, 'mySkill', 'Name should be extracted from skill file header');
+		assert.strictEqual(actual[0].description, 'A contributed skill from extension', 'Description should be extracted from skill file header');
+		assert.strictEqual(actual[0].storage, PromptsStorage.extension);
+		assert.strictEqual(actual[0].type, PromptsType.skill);
+
+		registered.dispose();
+	});
+
+	test('Contributed skill file with missing name should fail validation', async () => {
+		const skillUri = URI.parse('file://extensions/my-extension/skills/skill-no-name/SKILL.md');
+		const extension = {
+			identifier: { value: 'test.my-extension' }
+		} as unknown as IExtensionDescription;
+
+		// Mock the skill file content without a name attribute
+		await mockFiles(fileService, [
+			{
+				path: skillUri.path,
+				contents: [
+					'---',
+					'description: "A skill without a name"',
+					'---',
+					'Skill content.',
+				]
+			}
+		]);
+
+		const registered = service.registerContributedFile(
+			PromptsType.skill,
+			skillUri,
+			extension,
+			undefined,
+			undefined,
+		);
+		const actual = await service.listPromptFiles(PromptsType.skill, CancellationToken.None);
+		// The skill should not appear in the list because validation fails
+		assert.strictEqual(actual.length, 0, 'Skill with missing name should not be listed');
+
+		registered.dispose();
+	});
+
+	test('Contributed skill file with name not matching folder should fail validation', async () => {
+		const skillUri = URI.parse('file://extensions/my-extension/skills/folderName/SKILL.md');
+		const extension = {
+			identifier: { value: 'test.my-extension' }
+		} as unknown as IExtensionDescription;
+
+		// Mock the skill file content with a name that doesn't match the folder
+		await mockFiles(fileService, [
+			{
+				path: skillUri.path,
+				contents: [
+					'---',
+					'name: "differentName"',
+					'description: "A skill with mismatched name"',
+					'---',
+					'Skill content.',
+				]
+			}
+		]);
+
+		const registered = service.registerContributedFile(
+			PromptsType.skill,
+			skillUri,
+			extension,
+			undefined,
+			undefined,
+		);
+
+		// The skill should not appear in the list because validation fails
+		const actual = await service.listPromptFiles(PromptsType.skill, CancellationToken.None);
+		assert.strictEqual(actual.length, 0, 'Skill with name not matching folder should not be listed');
+
+		registered.dispose();
+	});
+
 	suite('findAgentSkills', () => {
 		teardown(() => {
 			sinon.restore();
