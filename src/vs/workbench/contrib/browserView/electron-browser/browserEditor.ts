@@ -101,7 +101,7 @@ class BrowserNavigationBar extends Disposable {
 			{
 				hoverDelegate,
 				highlightToggledItems: true,
-				toolbarOptions: { primaryGroup: 'actions' },
+				toolbarOptions: { primaryGroup: (group) => group.startsWith('actions'), useSeparatorsInPrimaryActions: true },
 				menuOptions: { shouldForwardArgs: true }
 			}
 		));
@@ -429,6 +429,10 @@ export class BrowserEditor extends EditorPane {
 		}
 
 		this.updateVisibility();
+	}
+
+	getUrl(): string | undefined {
+		return this._model?.url;
 	}
 
 	async navigateToUrl(url: string): Promise<void> {
