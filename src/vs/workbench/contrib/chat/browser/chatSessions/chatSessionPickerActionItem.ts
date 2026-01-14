@@ -19,7 +19,6 @@ import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem } from 
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { renderLabelWithIcons, renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { localize } from '../../../../../nls.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
 
 
 export interface IChatSessionPickerDelegate {
@@ -119,12 +118,8 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 		}
 		domChildren.push(dom.$('span.chat-session-option-label', undefined, this.currentOption?.name ?? localize('chat.sessionPicker.label', "Pick Option")));
 
-		// Show lock icon instead of chevron when locked
-		if (this.currentOption?.locked) {
-			domChildren.push(renderIcon(Codicon.lock));
-		} else {
-			domChildren.push(...renderLabelWithIcons(`$(chevron-down)`));
-		}
+		// Always show chevron (will be grayed out when locked via CSS)
+		domChildren.push(...renderLabelWithIcons(`$(chevron-down)`));
 
 		dom.reset(element, ...domChildren);
 		this.setAriaLabelAttributes(element);

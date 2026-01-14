@@ -19,7 +19,6 @@ import { renderLabelWithIcons, renderIcon } from '../../../../../base/browser/ui
 import { localize } from '../../../../../nls.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
 import { IChatSessionPickerDelegate } from './chatSessionPickerActionItem.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 
@@ -150,12 +149,8 @@ export class SearchableOptionPickerActionItem extends ActionWidgetDropdownAction
 		const label = this.currentOption?.name ?? optionGroup?.name ?? localize('selectOption', "Select...");
 		domChildren.push(dom.$('span.chat-session-option-label', undefined, label));
 
-		// Show lock icon instead of chevron when locked
-		if (this.currentOption?.locked) {
-			domChildren.push(renderIcon(Codicon.lock));
-		} else {
-			domChildren.push(...renderLabelWithIcons(`$(chevron-down)`));
-		}
+		// Always show chevron (will be grayed out when locked via CSS)
+		domChildren.push(...renderLabelWithIcons(`$(chevron-down)`));
 
 		dom.reset(element, ...domChildren);
 		this.setAriaLabelAttributes(element);
