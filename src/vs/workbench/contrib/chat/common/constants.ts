@@ -12,6 +12,7 @@ export enum ChatConfiguration {
 	AgentEnabled = 'chat.agent.enabled',
 	Edits2Enabled = 'chat.edits2.enabled',
 	ExtensionToolsEnabled = 'chat.extensionTools.enabled',
+	RepoInfoEnabled = 'chat.repoInfo.enabled',
 	EditRequests = 'chat.editRequests',
 	GlobalAutoApprove = 'chat.tools.global.autoApprove',
 	AutoApproveEdits = 'chat.tools.edits.autoApprove',

@@ -8,6 +8,7 @@ import { isMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { equals as objectsEqual } from '../../../../../base/common/objects.js';
 import { isEqual as urisEqual } from '../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../base/common/types.js';
+import { ModifiedFileEntryState } from '../editing/chatEditingService.js';
 import { IChatMarkdownContent, ResponseModelState } from '../chatService/chatService.js';
 import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { IChatAgentEditedFileEvent, IChatDataSerializerLog, IChatModel, IChatProgressResponseContent, IChatRequestModel, IChatRequestVariableData, ISerializableChatData, ISerializableChatModelInputState, ISerializableChatRequestData, SerializedChatResponsePart } from './chatModel.js';
@@ -161,6 +162,8 @@ export const storageSchema = Adapt.object<IChatModel, ISerializableChatData>({
 	responderUsername: Adapt.v(m => m.responderUsername),
 	sessionId: Adapt.v(m => m.sessionId),
 	requests: Adapt.t(m => m.getRequests(), Adapt.array(requestSchema)),
+	hasPendingEdits: Adapt.v(m => m.editingSession?.entries.get().some(e => e.state.get() === ModifiedFileEntryState.Modified)),
+	repoData: Adapt.v(m => m.repoData, objectsEqual),
 });
 
 export class ChatSessionOperationLog extends Adapt.ObjectMutationLog<IChatModel, ISerializableChatData> implements IChatDataSerializerLog {

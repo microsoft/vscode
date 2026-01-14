@@ -7,13 +7,18 @@ import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.j
 import { relativePath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { linesDiffComputers } from '../../../../editor/common/diff/linesDiffComputers.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { ISCMService, ISCMResource } from '../../scm/common/scm.js';
 import { IChatService } from '../common/chatService/chatService.js';
+import { ChatConfiguration } from '../common/constants.js';
 import { IChatModel, IExportableRepoData, IExportableRepoDiff } from '../common/model/chatModel.js';
+import * as nls from '../../../../nls.js';
 
 // Max changes to avoid degenerate cases like mass renames
 const MAX_CHANGES = 100;
@@ -491,6 +496,7 @@ export class ChatRepoInfoContribution extends Disposable implements IWorkbenchCo
 	static readonly ID = 'workbench.contrib.chatRepoInfo';
 
 	private readonly _pendingSessions = new DisposableStore();
+	private _configurationRegistered = false;
 
 	constructor(
 		@IChatService private readonly chatService: IChatService,
@@ -498,10 +504,17 @@ export class ChatRepoInfoContribution extends Disposable implements IWorkbenchCo
 		@ISCMService private readonly scmService: ISCMService,
 		@IFileService private readonly fileService: IFileService,
 		@ILogService private readonly logService: ILogService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
 		this._register(this._pendingSessions);
+
+		// Register configuration for internal users
+		this.registerConfigurationIfInternal();
+		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => {
+			this.registerConfigurationIfInternal();
+		}));
 
 		this._register(this.chatService.onDidSubmitRequest(async ({ chatSessionResource }) => {
 			const model = this.chatService.getSession(chatSessionResource);
@@ -512,8 +525,40 @@ export class ChatRepoInfoContribution extends Disposable implements IWorkbenchCo
 		}));
 	}
 
+	private registerConfigurationIfInternal(): void {
+		if (this._configurationRegistered) {
+			return;
+		}
+
+		if (!this.chatEntitlementService.isInternal) {
+			return;
+		}
+
+		const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+		registry.registerConfiguration({
+			id: 'chatRepoInfo',
+			title: nls.localize('chatRepoInfoConfigurationTitle', "Chat Repository Info"),
+			type: 'object',
+			properties: {
+				[ChatConfiguration.RepoInfoEnabled]: {
+					type: 'boolean',
+					description: nls.localize('chat.repoInfo.enabled', "Controls whether repository information (branch, commit, working tree diffs) is captured at the start of chat sessions for internal diagnostics."),
+					default: true,
+				}
+			}
+		});
+
+		this._configurationRegistered = true;
+		this.logService.debug('[ChatRepoInfo] Configuration registered for internal user');
+	}
+
 	private async captureAndSetRepoData(model: IChatModel): Promise<void> {
 		if (!this.chatEntitlementService.isInternal) {
+			return;
+		}
+
+		// Check if repo info capture is enabled via configuration
+		if (!this.configurationService.getValue<boolean>(ChatConfiguration.RepoInfoEnabled)) {
 			return;
 		}
 
