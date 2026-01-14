@@ -26,6 +26,7 @@ import { IActionViewItemService } from '../../../../../platform/actions/browser/
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../../common/constants.js';
+import { AuxiliaryBarMaximizedContext } from '../../../../common/contextkeys.js';
 
 //#region Actions and Menus
 
@@ -80,7 +81,8 @@ MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
 	order: 5,
 	when: ContextKeyExpr.and(
 		ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
-		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Right)
+		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Right),
+		AuxiliaryBarMaximizedContext.negate()
 	)
 });
 
@@ -94,7 +96,8 @@ MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
 	order: 5,
 	when: ContextKeyExpr.and(
 		ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
-		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Left)
+		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Left),
+		AuxiliaryBarMaximizedContext.negate()
 	)
 });
 
@@ -108,7 +111,8 @@ MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
 	order: 5,
 	when: ContextKeyExpr.and(
 		ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.SideBySide),
-		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Right)
+		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Right),
+		AuxiliaryBarMaximizedContext.negate()
 	)
 });
 
@@ -122,7 +126,8 @@ MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
 	order: 5,
 	when: ContextKeyExpr.and(
 		ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.SideBySide),
-		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Left)
+		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Left),
+		AuxiliaryBarMaximizedContext.negate()
 	)
 });
 
