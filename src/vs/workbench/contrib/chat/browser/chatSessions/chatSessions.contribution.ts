@@ -373,7 +373,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	private async updateInProgressStatus(chatSessionType: string): Promise<void> {
 		try {
-			const items = await this.getChatSessionItems(chatSessionType, CancellationToken.None);
+			const results = await this.getChatSessionItems([chatSessionType], CancellationToken.None);
+			const items = results.flatMap(r => r.items);
 			const inProgress = items.filter(item => item.status && isSessionInProgressStatus(item.status));
 			this.reportInProgress(chatSessionType, inProgress.length);
 		} catch (error) {
@@ -716,7 +717,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return this._isContributionAvailable(contribution) ? contribution : undefined;
 	}
 
-	getAllChatSessionItemProviders(): IChatSessionItemProvider[] {
+	private _getAllChatSessionItemProviders(): IChatSessionItemProvider[] {
 		return [...this._itemsProviders.values()].filter(provider => {
 			// Check if the provider's corresponding contribution is available
 			const contribution = this._contributions.get(provider.chatSessionType)?.contribution;
@@ -761,32 +762,24 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return this._contentProviders.has(chatSessionResource.scheme);
 	}
 
-	async getAllChatSessionItems(token: CancellationToken): Promise<Array<{ readonly chatSessionType: string; readonly items: IChatSessionItem[] }>> {
-		return Promise.all(Array.from(this.getAllChatSessionContributions(), async contrib => {
-			return {
-				chatSessionType: contrib.type,
-				items: await this.getChatSessionItems(contrib.type, token)
-			};
-		}));
-	}
+	public async getChatSessionItems(providersToResolve: readonly string[] | undefined, token: CancellationToken): Promise<Array<{ readonly chatSessionType: string; readonly items: IChatSessionItem[] }>> {
+		const results: Array<{ readonly chatSessionType: string; readonly items: IChatSessionItem[] }> = [];
+		for (const provider of this._getAllChatSessionItemProviders()) {
+			if (providersToResolve && !providersToResolve.includes(provider.chatSessionType)) {
+				continue; // skip: not considered for resolving
+			}
 
-	private async getChatSessionItems(chatSessionType: string, token: CancellationToken): Promise<IChatSessionItem[]> {
-		if (!(await this.activateChatSessionItemProvider(chatSessionType))) {
-			return [];
+			try {
+				const providerSessions = await raceCancellationError(provider.provideChatSessionItems(token), token);
+				this._logService.trace(`[ChatSessionsService] Resolved ${providerSessions.length} sessions for provider ${provider.chatSessionType}`);
+				results.push({ chatSessionType: provider.chatSessionType, items: providerSessions });
+			} catch (error) {
+				// Log error but continue with other providers
+				continue;
+			}
 		}
 
-		const resolvedType = this._resolveToPrimaryType(chatSessionType);
-		if (resolvedType) {
-			chatSessionType = resolvedType;
-		}
-
-		const provider = this._itemsProviders.get(chatSessionType);
-		if (provider?.provideChatSessionItems) {
-			const sessions = await provider.provideChatSessionItems(token);
-			return sessions;
-		}
-
-		return [];
+		return results;
 	}
 
 	public registerChatSessionItemProvider(provider: IChatSessionItemProvider): IDisposable {
