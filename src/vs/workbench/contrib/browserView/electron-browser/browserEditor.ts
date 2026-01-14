@@ -390,7 +390,7 @@ export class BrowserEditor extends EditorPane {
 	}
 
 	private get shouldShowView(): boolean {
-		return this._editorVisible && !this._overlayVisible && !this._model?.error;
+		return this._editorVisible && !this._overlayVisible && !this._model?.error && !!this._model?.url;
 	}
 
 	private checkOverlays(): void {
