@@ -93,10 +93,10 @@ export class CreateAndRunTaskTool implements IToolImpl {
 			await timeout(100);
 		}
 		if (!task) {
-			return { content: [{ kind: 'text', value: `Task not found: ${args.task.label}` }], toolResultMessage: new MarkdownString(localize('copilotChat.taskNotFound', 'Task not found: `{0}`', args.task.label)) };
+			return { content: [{ kind: 'text', value: `Task not found: ${args.task.label}` }], toolResultMessage: new MarkdownString(localize('copilotChat.taskNotFound', 'Task not found: `{0}`', args.task.label), { supportThemeIcons: true }) };
 		}
 
-		_progress.report({ message: new MarkdownString(localize('copilotChat.runningTask', 'Running task `{0}`', args.task.label)) });
+		_progress.report({ message: new MarkdownString(localize('copilotChat.runningTask', 'Running task `{0}`', args.task.label), { supportThemeIcons: true }) });
 		const raceResult = await Promise.race([this._tasksService.run(task, undefined, TaskRunSource.ChatAgent), timeout(3000)]);
 		const result: ITaskSummary | undefined = raceResult && typeof raceResult === 'object' ? raceResult as ITaskSummary : undefined;
 
@@ -104,7 +104,7 @@ export class CreateAndRunTaskTool implements IToolImpl {
 		const resources = this._tasksService.getTerminalsForTasks(dependencyTasks ?? task);
 		const terminals = resources?.map(resource => this._terminalService.instances.find(t => t.resource.path === resource?.path && t.resource.scheme === resource.scheme)).filter(Boolean) as ITerminalInstance[];
 		if (!terminals || terminals.length === 0) {
-			return { content: [{ kind: 'text', value: `Task started but no terminal was found for: ${args.task.label}` }], toolResultMessage: new MarkdownString(localize('copilotChat.noTerminal', 'Task started but no terminal was found for: `{0}`', args.task.label)) };
+			return { content: [{ kind: 'text', value: `Task started but no terminal was found for: ${args.task.label}` }], toolResultMessage: new MarkdownString(localize('copilotChat.noTerminal', 'Task started but no terminal was found for: `{0}`', args.task.label), { supportThemeIcons: true }) };
 		}
 		const store = new DisposableStore();
 		const terminalResults = await collectTerminalResults(
@@ -157,8 +157,8 @@ export class CreateAndRunTaskTool implements IToolImpl {
 		const allTasks = await this._tasksService.tasks();
 		if (allTasks?.find(t => t._label === task.label)) {
 			return {
-				invocationMessage: new MarkdownString(localize('taskExists', 'Task \`{0}\` already exists.', task.label)),
-				pastTenseMessage: new MarkdownString(localize('taskExistsPast', 'Task \`{0}\` already exists.', task.label)),
+				invocationMessage: new MarkdownString(localize('taskExists', 'Task \`{0}\` already exists.', task.label), { supportThemeIcons: true }),
+				pastTenseMessage: new MarkdownString(localize('taskExistsPast', 'Task \`{0}\` already exists.', task.label), { supportThemeIcons: true }),
 				confirmationMessages: undefined
 			};
 		}
@@ -166,15 +166,15 @@ export class CreateAndRunTaskTool implements IToolImpl {
 		const activeTasks = await this._tasksService.getActiveTasks();
 		if (activeTasks.find(t => t._label === task.label)) {
 			return {
-				invocationMessage: new MarkdownString(localize('alreadyRunning', 'Task \`{0}\` is already running.', task.label)),
-				pastTenseMessage: new MarkdownString(localize('alreadyRunning', 'Task \`{0}\` is already running.', task.label)),
+				invocationMessage: new MarkdownString(localize('alreadyRunning', 'Task \`{0}\` is already running.', task.label), { supportThemeIcons: true }),
+				pastTenseMessage: new MarkdownString(localize('alreadyRunning', 'Task \`{0}\` is already running.', task.label), { supportThemeIcons: true }),
 				confirmationMessages: undefined
 			};
 		}
 
 		return {
-			invocationMessage: new MarkdownString(localize('createdTask', 'Created task \`{0}\`', task.label)),
-			pastTenseMessage: new MarkdownString(localize('createdTaskPast', 'Created task \`{0}\`', task.label)),
+			invocationMessage: new MarkdownString(localize('createdTask', 'Created task \`{0}\`', task.label), { supportThemeIcons: true }),
+			pastTenseMessage: new MarkdownString(localize('createdTaskPast', 'Created task \`{0}\`', task.label), { supportThemeIcons: true }),
 			confirmationMessages: {
 				title: localize('allowTaskCreationExecution', 'Allow task creation and execution?'),
 				message: new MarkdownString(
