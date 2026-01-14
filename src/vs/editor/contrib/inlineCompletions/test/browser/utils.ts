@@ -85,7 +85,7 @@ export class MockInlineCompletionsProvider implements InlineCompletionsProvider 
 			position: position.toString(),
 			triggerKind: context.triggerKind,
 			text: model.getValue(),
-			changeHint: context.changeHint,
+			...(context.changeHint !== undefined ? { changeHint: context.changeHint } : {}),
 		});
 		const result = new Array<InlineCompletion>();
 		for (const v of this.returnValue) {

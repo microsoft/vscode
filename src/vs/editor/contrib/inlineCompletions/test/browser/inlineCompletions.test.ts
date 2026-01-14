@@ -829,7 +829,6 @@ suite('Multi Cursor Support', () => {
 				assert.deepStrictEqual(
 					callHistory,
 					[{
-						changeHint: undefined,
 						position: '(1,3)',
 						text: 'foo',
 						triggerKind: 0
