@@ -273,6 +273,9 @@ export class OutputEditor extends AbstractTextResourceEditor {
 			invisibleCharacters: false,
 			ambiguousCharacters: false,
 		};
+		options.find = {
+			skipHiddenAreas: true,
+		};
 
 		const outputConfig = this.configurationService.getValue<{ 'editor.minimap.enabled'?: boolean; 'editor.wordWrap'?: 'off' | 'on' | 'wordWrapColumn' | 'bounded' }>('[Log]');
 		if (outputConfig) {
