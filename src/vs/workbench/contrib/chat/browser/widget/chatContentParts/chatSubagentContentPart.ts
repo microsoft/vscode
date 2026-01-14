@@ -64,7 +64,10 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 
 		// Fallback to parameters for live invocations
 		if (toolInvocation.kind === 'toolInvocation') {
-			const params = toolInvocation.parameters as IRunSubagentToolInputParams | undefined;
+			const state = toolInvocation.state.get();
+			const params = state.type !== IChatToolInvocation.StateKind.Streaming ?
+				state.parameters as IRunSubagentToolInputParams | undefined
+				: undefined;
 			return {
 				description: params?.description ?? defaultDescription,
 				agentName: params?.agentName,
@@ -296,7 +299,12 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 
 		// Wrap with icon like thinking parts do, but skip icon for tools needing confirmation
 		const itemWrapper = $('.chat-thinking-tool-wrapper');
-		const needsConfirmation = toolInvocation.kind === 'toolInvocation' && toolInvocation.confirmationMessages;
+		let needsConfirmation = false;
+		if (toolInvocation.kind === 'toolInvocation' && toolInvocation.state) {
+			const state = toolInvocation.state.get();
+			needsConfirmation = state.type === IChatToolInvocation.StateKind.WaitingForConfirmation || state.type === IChatToolInvocation.StateKind.WaitingForPostApproval;
+		}
+
 		if (!needsConfirmation) {
 			const icon = getToolInvocationIcon(toolInvocation.toolId);
 			const iconElement = createThinkingIcon(icon);

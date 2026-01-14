@@ -376,7 +376,7 @@ export interface IBeginToolCallOptions {
 	toolId: string;
 	chatRequestId?: string;
 	sessionResource?: URI;
-	fromSubAgent?: boolean;
+	subagentInvocationId?: string;
 }
 
 export const ILanguageModelToolsService = createDecorator<ILanguageModelToolsService>('ILanguageModelToolsService');
