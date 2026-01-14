@@ -44,7 +44,7 @@ export const deleteButton: IQuickInputButton = {
 
 export function getSessionDescription(session: IAgentSession): string {
 	const descriptionText = typeof session.description === 'string' ? session.description : session.description ? renderAsPlaintext(session.description) : undefined;
-	const timeAgo = fromNow(session.timing.endTime || session.timing.startTime);
+	const timeAgo = fromNow(session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created);
 	const descriptionParts = [descriptionText, session.providerLabel, timeAgo].filter(part => !!part);
 
 	return descriptionParts.join(' • ');
