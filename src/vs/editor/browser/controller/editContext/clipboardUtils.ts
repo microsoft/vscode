@@ -59,7 +59,7 @@ export function generateDataToCopyAndStoreInMemory(viewModel: IViewModel, option
 
 function getDataToCopy(viewModel: IViewModel, modelSelections: Range[], emptySelectionClipboard: boolean, copyWithSyntaxHighlighting: boolean, copyExcludesHiddenAreas: boolean): ClipboardDataToCopy {
 	// Filter selections to exclude hidden areas if the option is enabled
-	const filteredSelections = copyExcludesHiddenAreas 
+	const filteredSelections = copyExcludesHiddenAreas
 		? filterSelectionsExcludingHiddenAreas(viewModel, modelSelections)
 		: modelSelections;
 	
