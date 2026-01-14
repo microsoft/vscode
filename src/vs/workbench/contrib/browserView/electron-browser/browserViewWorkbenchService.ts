@@ -16,6 +16,7 @@ export class BrowserViewWorkbenchService implements IBrowserViewWorkbenchService
 
 	private readonly _browserViewService: IBrowserViewService;
 	private readonly _models = new Map<string, IBrowserViewModel>();
+	private readonly _editorInputs = new Map<string, Set<import('./browserEditorInput.js').BrowserEditorInput>>();
 
 	constructor(
 		@IMainProcessService mainProcessService: IMainProcessService,
@@ -53,5 +54,36 @@ export class BrowserViewWorkbenchService implements IBrowserViewWorkbenchService
 	async clearWorkspaceStorage(): Promise<void> {
 		const workspaceId = this.workspaceContextService.getWorkspace().id;
 		return this._browserViewService.clearWorkspaceStorage(workspaceId);
+	}
+
+	/**
+	 * Register a browser editor input. When a duplicate editor with the same ID is registered,
+	 * the previous one will be disposed to prevent syncing issues.
+	 */
+	registerEditorInput(input: import('./browserEditorInput.js').BrowserEditorInput): void {
+		const id = input.id;
+		let inputs = this._editorInputs.get(id);
+
+		if (!inputs) {
+			inputs = new Set();
+			this._editorInputs.set(id, inputs);
+		}
+
+		// If there's already an existing input with this ID, dispose it
+		// This prevents two windows from sharing the same underlying browser view
+		for (const existingInput of inputs) {
+			existingInput.dispose();
+		}
+		inputs.clear();
+
+		inputs.add(input);
+
+		// Clean up when the input is disposed
+		Event.once(input.onWillDispose)(() => {
+			inputs?.delete(input);
+			if (inputs?.size === 0) {
+				this._editorInputs.delete(id);
+			}
+		});
 	}
 }

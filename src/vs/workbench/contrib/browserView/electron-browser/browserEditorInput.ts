@@ -62,6 +62,11 @@ export class BrowserEditorInput extends EditorInput {
 		this._id = options.id;
 		this._initialData = options;
 
+		// Register this input with the workbench service
+		// This ensures that when a duplicate input is created (e.g., "Copy into New Window"),
+		// the original input will be disposed to prevent syncing issues
+		this.browserViewWorkbenchService.registerEditorInput(this);
+
 		this._register(this.lifecycleService.onWillShutdown((e) => {
 			if (this._model) {
 				// For reloads, we simply hide / re-show the view.
