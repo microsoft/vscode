@@ -12,36 +12,46 @@ export function setup(context: TestContext) {
 	context.test('desktop-darwin-x64', ['darwin', 'x64'], async () => {
 		const dir = await context.downloadAndUnpack('darwin');
 		context.validateAllCodesignSignatures(dir);
-		const entryPoint = context.getMacAppEntryPoint(dir);
-		await testDesktopApp(entryPoint);
+		if (!context.skipRuntimeCheck) {
+			const entryPoint = context.getDesktopEntryPoint(dir);
+			await testDesktopApp(entryPoint);
+		}
 	});
 
 	context.test('desktop-darwin-arm64', ['darwin', 'arm64'], async () => {
 		const dir = await context.downloadAndUnpack('darwin-arm64');
 		context.validateAllCodesignSignatures(dir);
-		const entryPoint = context.getMacAppEntryPoint(dir);
-		await testDesktopApp(entryPoint);
+		if (!context.skipRuntimeCheck) {
+			const entryPoint = context.getDesktopEntryPoint(dir);
+			await testDesktopApp(entryPoint);
+		}
 	});
 
 	context.test('desktop-darwin-universal', ['darwin'], async () => {
 		const dir = await context.downloadAndUnpack('darwin-universal');
 		context.validateAllCodesignSignatures(dir);
-		const entryPoint = context.getMacAppEntryPoint(dir);
-		await testDesktopApp(entryPoint);
+		if (!context.skipRuntimeCheck) {
+			const entryPoint = context.getDesktopEntryPoint(dir);
+			await testDesktopApp(entryPoint);
+		}
 	});
 
 	context.test('desktop-linux-arm64', ['linux', 'arm64'], async () => {
 		const dir = await context.downloadAndUnpack('linux-arm64');
-		const entryPoint = context.getEntryPoint('desktop', dir);
-		const dataDir = context.createPortableDataDir(dir);
-		await testDesktopApp(entryPoint, dataDir);
+		if (!context.skipRuntimeCheck) {
+			const entryPoint = context.getDesktopEntryPoint(dir);
+			const dataDir = context.createPortableDataDir(dir);
+			await testDesktopApp(entryPoint, dataDir);
+		}
 	});
 
 	context.test('desktop-linux-armhf', ['linux', 'arm32'], async () => {
 		const dir = await context.downloadAndUnpack('linux-armhf');
-		const entryPoint = context.getEntryPoint('desktop', dir);
-		const dataDir = context.createPortableDataDir(dir);
-		await testDesktopApp(entryPoint, dataDir);
+		if (!context.skipRuntimeCheck) {
+			const entryPoint = context.getDesktopEntryPoint(dir);
+			const dataDir = context.createPortableDataDir(dir);
+			await testDesktopApp(entryPoint, dataDir);
+		}
 	});
 
 	context.test('desktop-linux-deb-arm64', ['linux', 'arm64', 'deb'], async () => {
@@ -102,9 +112,11 @@ export function setup(context: TestContext) {
 
 	context.test('desktop-linux-x64', ['linux', 'x64'], async () => {
 		const dir = await context.downloadAndUnpack('linux-x64');
-		const entryPoint = context.getEntryPoint('desktop', dir);
-		const dataDir = context.createPortableDataDir(dir);
-		await testDesktopApp(entryPoint, dataDir);
+		if (!context.skipRuntimeCheck) {
+			const entryPoint = context.getDesktopEntryPoint(dir);
+			const dataDir = context.createPortableDataDir(dir);
+			await testDesktopApp(entryPoint, dataDir);
+		}
 	});
 
 	context.test('desktop-win32-arm64', ['windows', 'arm64'], async () => {
@@ -121,9 +133,11 @@ export function setup(context: TestContext) {
 	context.test('desktop-win32-arm64-archive', ['windows', 'arm64'], async () => {
 		const dir = await context.downloadAndUnpack('win32-arm64-archive');
 		context.validateAllAuthenticodeSignatures(dir);
-		const entryPoint = context.getEntryPoint('desktop', dir);
-		const dataDir = context.createPortableDataDir(dir);
-		await testDesktopApp(entryPoint, dataDir);
+		if (!context.skipRuntimeCheck) {
+			const entryPoint = context.getDesktopEntryPoint(dir);
+			const dataDir = context.createPortableDataDir(dir);
+			await testDesktopApp(entryPoint, dataDir);
+		}
 	});
 
 	context.test('desktop-win32-arm64-user', ['windows', 'arm64'], async () => {
@@ -151,9 +165,11 @@ export function setup(context: TestContext) {
 	context.test('desktop-win32-x64-archive', ['windows', 'x64'], async () => {
 		const dir = await context.downloadAndUnpack('win32-x64-archive');
 		context.validateAllAuthenticodeSignatures(dir);
-		const entryPoint = context.getEntryPoint('desktop', dir);
-		const dataDir = context.createPortableDataDir(dir);
-		await testDesktopApp(entryPoint, dataDir);
+		if (!context.skipRuntimeCheck) {
+			const entryPoint = context.getDesktopEntryPoint(dir);
+			const dataDir = context.createPortableDataDir(dir);
+			await testDesktopApp(entryPoint, dataDir);
+		}
 	});
 
 	context.test('desktop-win32-x64-user', ['windows', 'x64'], async () => {
@@ -168,10 +184,6 @@ export function setup(context: TestContext) {
 	});
 
 	async function testDesktopApp(entryPoint: string, dataDir?: string) {
-		if (context.skipRuntimeCheck) {
-			return;
-		}
-
 		const test = new UITest(context, dataDir);
 		const args = dataDir ? [] : [
 			'--extensions-dir', test.extensionsDir,

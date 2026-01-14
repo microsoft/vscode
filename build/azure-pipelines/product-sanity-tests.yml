@@ -239,14 +239,6 @@ extends:
 
           - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
-              name: Alpine_arm32
-              displayName: Alpine arm32 Sanity Tests
-              poolName: 1es-ubuntu-22.04-x64
-              container: alpine:latest
-              containerPlatform: linux/arm
-
-          - template: build/azure-pipelines/common/sanity-tests.yml@self
-            parameters:
               name: Alpine_arm64
               displayName: Alpine arm64 Sanity Tests
               poolName: 1es-ubuntu-22.04-x64

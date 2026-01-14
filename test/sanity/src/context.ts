@@ -568,34 +568,6 @@ export class TestContext {
 	}
 
 	/**
-	 * Returns the path to the VS Code Electron executable within a macOS .app bundle.
-	 * @param bundleDir The directory containing the .app bundle.
-	 * @returns The path to the VS Code Electron executable.
-	 */
-	public getMacAppEntryPoint(bundleDir: string): string {
-		let appName: string;
-		switch (this.quality) {
-			case 'stable':
-				appName = 'Visual Studio Code.app';
-				break;
-			case 'insider':
-				appName = 'Visual Studio Code - Insiders.app';
-				break;
-			case 'exploration':
-				appName = 'Visual Studio Code - Exploration.app';
-				break;
-		}
-
-		const entryPoint = path.join(bundleDir, appName, 'Contents/MacOS/Electron');
-		if (!fs.existsSync(entryPoint)) {
-			this.error(`Desktop entry point does not exist: ${entryPoint}`);
-		}
-
-		this.log(`VS Code executable at: ${entryPoint}`);
-		return entryPoint;
-	}
-
-	/**
 	 * Installs a Linux RPM package.
 	 * @param packagePath The path to the RPM file.
 	 * @returns The path to the installed VS Code executable.
@@ -605,7 +577,7 @@ export class TestContext {
 		this.runNoErrors('sudo', 'rpm', '-i', packagePath);
 		this.log(`Installed ${packagePath} successfully`);
 
-		const entryPoint = this.getEntryPoint('desktop', '/usr/bin');
+		const entryPoint = this.getDesktopEntryPoint('/usr/bin');
 		this.log(`Installed VS Code executable at: ${entryPoint}`);
 		return entryPoint;
 	}
@@ -620,7 +592,7 @@ export class TestContext {
 		this.runNoErrors('sudo', 'dpkg', '-i', packagePath);
 		this.log(`Installed ${packagePath} successfully`);
 
-		const entryPoint = this.getEntryPoint('desktop', '/usr/bin');
+		const entryPoint = this.getDesktopEntryPoint('/usr/bin');
 		this.log(`Installed VS Code executable at: ${entryPoint}`);
 		return entryPoint;
 	}
@@ -635,27 +607,93 @@ export class TestContext {
 		this.runNoErrors('sudo', 'snap', 'install', packagePath, '--classic', '--dangerous');
 		this.log(`Installed ${packagePath} successfully`);
 
-		const entryPoint = this.getEntryPoint('desktop', '/snap/bin');
+		const entryPoint = this.getDesktopEntryPoint('/snap/bin');
 		this.log(`Installed VS Code executable at: ${entryPoint}`);
 		return entryPoint;
 	}
 
 	/**
-	 * Returns the entry point executable for the VS Code CLI or Desktop installation in the specified directory.
+	 * Returns the entry point executable for the VS Code Desktop installation in the specified directory.
 	 * @param dir The directory of the VS Code installation.
 	 * @returns The path to the entry point executable.
 	 */
-	public getEntryPoint(type: 'cli' | 'desktop', dir: string): string {
+	public getDesktopEntryPoint(dir: string): string {
+		let filePath: string = '';
+
+		switch (os.platform()) {
+			case 'darwin': {
+				let appName: string;
+				switch (this.quality) {
+					case 'stable':
+						appName = 'Visual Studio Code.app';
+						break;
+					case 'insider':
+						appName = 'Visual Studio Code - Insiders.app';
+						break;
+					case 'exploration':
+						appName = 'Visual Studio Code - Exploration.app';
+						break;
+				}
+				filePath = path.join(dir, appName, 'Contents/MacOS/Electron');
+				break;
+			}
+			case 'linux': {
+				let binaryName: string;
+				switch (this.quality) {
+					case 'stable':
+						binaryName = `code`;
+						break;
+					case 'insider':
+						binaryName = `code-insiders`;
+						break;
+					case 'exploration':
+						binaryName = `code-exploration`;
+						break;
+				}
+				filePath = path.join(dir, binaryName);
+				break;
+			}
+			case 'win32': {
+				let exeName: string;
+				switch (this.quality) {
+					case 'stable':
+						exeName = 'Code.exe';
+						break;
+					case 'insider':
+						exeName = 'Code - Insiders.exe';
+						break;
+					case 'exploration':
+						exeName = 'Code - Exploration.exe';
+						break;
+				}
+				filePath = path.join(dir, exeName);
+				break;
+			}
+		}
+
+		if (!filePath || !fs.existsSync(filePath)) {
+			this.error(`Desktop entry point does not exist: ${filePath}`);
+		}
+
+		return filePath;
+	}
+
+	/**
+	 * Returns the entry point executable for the VS Code CLI installation in the specified directory.
+	 * @param dir The directory of the VS Code installation.
+	 * @returns The path to the entry point executable.
+	 */
+	public getCliEntryPoint(dir: string): string {
 		let suffix: string;
 		switch (this.quality) {
 			case 'stable':
-				suffix = type === 'cli' ? '' : '';
+				suffix = '';
 				break;
 			case 'insider':
-				suffix = type === 'cli' ? '-insiders' : ' - Insiders';
+				suffix = '-insiders';
 				break;
 			case 'exploration':
-				suffix = type === 'cli' ? '-exploration' : ' - Exploration';
+				suffix = '-exploration';
 				break;
 		}
 
@@ -666,21 +704,6 @@ export class TestContext {
 		}
 
 		return filePath;
-	}
-
-	/**
-	 * Creates a portable data directory in the specified unpacked VS Code directory.
-	 * @param dir The directory where VS Code was unpacked.
-	 * @returns The path to the created portable data directory.
-	 */
-	public createPortableDataDir(dir: string): string {
-		const dataDir = path.join(dir, os.platform() === 'darwin' ? 'code-portable-data' : 'data');
-
-		this.log(`Creating portable data directory: ${dataDir}`);
-		fs.mkdirSync(dataDir, { recursive: true });
-		this.log(`Created portable data directory: ${dataDir}`);
-
-		return dataDir;
 	}
 
 	/**
@@ -717,6 +740,21 @@ export class TestContext {
 		}
 
 		return entryPoint;
+	}
+
+	/**
+	 * Creates a portable data directory in the specified unpacked VS Code directory.
+	 * @param dir The directory where VS Code was unpacked.
+	 * @returns The path to the created portable data directory.
+	 */
+	public createPortableDataDir(dir: string): string {
+		const dataDir = path.join(dir, os.platform() === 'darwin' ? 'code-portable-data' : 'data');
+
+		this.log(`Creating portable data directory: ${dataDir}`);
+		fs.mkdirSync(dataDir, { recursive: true });
+		this.log(`Created portable data directory: ${dataDir}`);
+
+		return dataDir;
 	}
 
 	/**

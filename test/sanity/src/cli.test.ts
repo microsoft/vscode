@@ -10,67 +10,59 @@ import { TestContext } from './context';
 export function setup(context: TestContext) {
 	context.test('cli-alpine-arm64', ['alpine', 'arm64'], async () => {
 		const dir = await context.downloadAndUnpack('cli-alpine-arm64');
-		const entryPoint = context.getEntryPoint('cli', dir);
-		await testCliApp(entryPoint);
+		await testCliApp(dir);
 	});
 
 	context.test('cli-alpine-x64', ['alpine', 'x64'], async () => {
 		const dir = await context.downloadAndUnpack('cli-alpine-x64');
-		const entryPoint = context.getEntryPoint('cli', dir);
-		await testCliApp(entryPoint);
+		await testCliApp(dir);
 	});
 
 	context.test('cli-darwin-arm64', ['darwin', 'arm64'], async () => {
 		const dir = await context.downloadAndUnpack('cli-darwin-arm64');
 		context.validateAllCodesignSignatures(dir);
-		const entryPoint = context.getEntryPoint('cli', dir);
-		await testCliApp(entryPoint);
+		await testCliApp(dir);
 	});
 
 	context.test('cli-darwin-x64', ['darwin', 'x64'], async () => {
 		const dir = await context.downloadAndUnpack('cli-darwin-x64');
 		context.validateAllCodesignSignatures(dir);
-		const entryPoint = context.getEntryPoint('cli', dir);
-		await testCliApp(entryPoint);
+		await testCliApp(dir);
 	});
 
 	context.test('cli-linux-arm64', ['linux', 'arm64'], async () => {
 		const dir = await context.downloadAndUnpack('cli-linux-arm64');
-		const entryPoint = context.getEntryPoint('cli', dir);
-		await testCliApp(entryPoint);
+		await testCliApp(dir);
 	});
 
 	context.test('cli-linux-armhf', ['linux', 'arm32'], async () => {
 		const dir = await context.downloadAndUnpack('cli-linux-armhf');
-		const entryPoint = context.getEntryPoint('cli', dir);
-		await testCliApp(entryPoint);
+		await testCliApp(dir);
 	});
 
 	context.test('cli-linux-x64', ['linux', 'x64'], async () => {
 		const dir = await context.downloadAndUnpack('cli-linux-x64');
-		const entryPoint = context.getEntryPoint('cli', dir);
-		await testCliApp(entryPoint);
+		await testCliApp(dir);
 	});
 
 	context.test('cli-win32-arm64', ['windows', 'arm64'], async () => {
 		const dir = await context.downloadAndUnpack('cli-win32-arm64');
 		context.validateAllAuthenticodeSignatures(dir);
-		const entryPoint = context.getEntryPoint('cli', dir);
-		await testCliApp(entryPoint);
+		await testCliApp(dir);
 	});
 
 	context.test('cli-win32-x64', ['windows', 'x64'], async () => {
 		const dir = await context.downloadAndUnpack('cli-win32-x64');
 		context.validateAllAuthenticodeSignatures(dir);
-		const entryPoint = context.getEntryPoint('cli', dir);
-		await testCliApp(entryPoint);
+		await testCliApp(dir);
 	});
 
-	async function testCliApp(entryPoint: string) {
+	async function testCliApp(dir: string) {
 		if (context.skipRuntimeCheck) {
 			return;
 		}
 
+		const entryPoint = context.getCliEntryPoint(dir);
 		const result = context.runNoErrors(entryPoint, '--version');
 		const version = result.stdout.trim();
 		assert.ok(version.includes(`(commit ${context.commit})`));
