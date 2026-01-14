@@ -289,8 +289,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 			const scheduler = reader.store.add(new RunOnceScheduler(trigger, 750));
 
-			this._register(this.onDidChangeTools(trigger));
-			this._register(contextKeyService.onDidChangeContext(e => {
+			reader.store.add(this.onDidChangeTools(trigger));
+			reader.store.add(contextKeyService.onDidChangeContext(e => {
 				if (e.affectsSome(this._toolContextKeys) && !scheduler.isScheduled()) {
 					this._onDidChangeToolsScheduler.schedule();
 				}
