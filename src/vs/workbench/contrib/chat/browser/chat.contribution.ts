@@ -807,7 +807,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.TerminalToolsInThinking]: {
 			type: 'boolean',
-			default: false,
+			default: true,
 			markdownDescription: nls.localize('chat.agent.thinking.terminalTools', "When enabled, terminal tool calls are displayed inside the thinking dropdown with a simplified view."),
 			tags: ['experimental'],
 		},
