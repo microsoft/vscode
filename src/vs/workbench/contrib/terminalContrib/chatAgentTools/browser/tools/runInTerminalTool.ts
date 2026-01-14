@@ -394,8 +394,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			if (rewriteResult) {
 				rewrittenCommand = rewriteResult.rewritten;
 				this._logService.info(`RunInTerminalTool: Command rewritten by ${rewriter.constructor.name}: ${rewriteResult.reasoning}`);
-				// If a rewriter extracted a timeout value, use it (only if not already set in args)
-				if (rewriteResult.metadata?.extractedTimeout !== undefined && args.timeout === undefined) {
+				// If a rewriter extracted a timeout value, use it (only if not already set in args or args.timeout is 0)
+				if (rewriteResult.metadata?.extractedTimeout !== undefined && (args.timeout === undefined || args.timeout === 0)) {
 					extractedTimeout = rewriteResult.metadata.extractedTimeout;
 					this._logService.info(`RunInTerminalTool: Extracted timeout value: ${extractedTimeout}ms`);
 				}
