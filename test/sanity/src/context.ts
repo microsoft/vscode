@@ -613,6 +613,85 @@ export class TestContext {
 	}
 
 	/**
+	 * Uninstalls a Linux RPM package silently.
+	 */
+	public async uninstallRpm(): Promise<void> {
+		const packageName = this.getLinuxPackageName();
+		const entryPoint = path.join('/usr/bin', this.getLinuxBinaryName());
+
+		this.log(`Uninstalling RPM package ${packageName}`);
+		this.runNoErrors('sudo', 'rpm', '-e', packageName);
+		this.log(`Uninstalled RPM package ${packageName} successfully`);
+
+		await new Promise(resolve => setTimeout(resolve, 1000));
+		if (fs.existsSync(entryPoint)) {
+			this.error(`Binary still exists after uninstall: ${entryPoint}`);
+		}
+	}
+
+	/**
+	 * Uninstalls a Linux DEB package silently.
+	 */
+	public async uninstallDeb(): Promise<void> {
+		const packageName = this.getLinuxPackageName();
+		const entryPoint = path.join('/usr/bin', this.getLinuxBinaryName());
+
+		this.log(`Uninstalling DEB package ${packageName}`);
+		this.runNoErrors('sudo', 'dpkg', '-r', packageName);
+		this.log(`Uninstalled DEB package ${packageName} successfully`);
+
+		await new Promise(resolve => setTimeout(resolve, 1000));
+		if (fs.existsSync(entryPoint)) {
+			this.error(`Binary still exists after uninstall: ${entryPoint}`);
+		}
+	}
+
+	/**
+	 * Uninstalls a Linux Snap package silently.
+	 */
+	public async uninstallSnap(): Promise<void> {
+		const packageName = this.getLinuxPackageName();
+		const entryPoint = path.join('/snap/bin', this.getLinuxBinaryName());
+
+		this.log(`Uninstalling Snap package ${packageName}`);
+		this.runNoErrors('sudo', 'snap', 'remove', packageName);
+		this.log(`Uninstalled Snap package ${packageName} successfully`);
+
+		await new Promise(resolve => setTimeout(resolve, 1000));
+		if (fs.existsSync(entryPoint)) {
+			this.error(`Binary still exists after uninstall: ${entryPoint}`);
+		}
+	}
+
+	/**
+	 * Returns the Linux package name based on quality.
+	 */
+	private getLinuxPackageName(): string {
+		switch (this.quality) {
+			case 'stable':
+				return 'code';
+			case 'insider':
+				return 'code-insiders';
+			case 'exploration':
+				return 'code-exploration';
+		}
+	}
+
+	/**
+	 * Returns the Linux binary name based on quality.
+	 */
+	private getLinuxBinaryName(): string {
+		switch (this.quality) {
+			case 'stable':
+				return 'code';
+			case 'insider':
+				return 'code-insiders';
+			case 'exploration':
+				return 'code-exploration';
+		}
+	}
+
+	/**
 	 * Returns the entry point executable for the VS Code Desktop installation in the specified directory.
 	 * @param dir The directory of the VS Code installation.
 	 * @returns The path to the entry point executable.

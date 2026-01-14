@@ -61,6 +61,7 @@ export function setup(context: TestContext) {
 		if (!context.skipRuntimeCheck) {
 			const entryPoint = context.installDeb(packagePath);
 			await testDesktopApp(entryPoint);
+			await context.uninstallDeb();
 		}
 	});
 
@@ -69,6 +70,7 @@ export function setup(context: TestContext) {
 		if (!context.skipRuntimeCheck) {
 			const entryPoint = context.installDeb(packagePath);
 			await testDesktopApp(entryPoint);
+			await context.uninstallDeb();
 		}
 	});
 
@@ -77,6 +79,7 @@ export function setup(context: TestContext) {
 		if (!context.skipRuntimeCheck) {
 			const entryPoint = context.installDeb(packagePath);
 			await testDesktopApp(entryPoint);
+			await context.uninstallDeb();
 		}
 	});
 
@@ -85,6 +88,7 @@ export function setup(context: TestContext) {
 		if (!context.skipRuntimeCheck) {
 			const entryPoint = context.installRpm(packagePath);
 			await testDesktopApp(entryPoint);
+			await context.uninstallRpm();
 		}
 	});
 
@@ -93,6 +97,7 @@ export function setup(context: TestContext) {
 		if (!context.skipRuntimeCheck) {
 			const entryPoint = context.installRpm(packagePath);
 			await testDesktopApp(entryPoint);
+			await context.uninstallRpm();
 		}
 	});
 
@@ -101,6 +106,7 @@ export function setup(context: TestContext) {
 		if (!context.skipRuntimeCheck) {
 			const entryPoint = context.installRpm(packagePath);
 			await testDesktopApp(entryPoint);
+			await context.uninstallRpm();
 		}
 	});
 
@@ -109,6 +115,7 @@ export function setup(context: TestContext) {
 		if (!context.skipRuntimeCheck) {
 			const entryPoint = context.installSnap(packagePath);
 			await testDesktopApp(entryPoint);
+			await context.uninstallSnap();
 		}
 	});
 
