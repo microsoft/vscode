@@ -24,6 +24,7 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 
 const TOGGLE_CHAT_ACTION_ID = 'workbench.action.chat.toggle';
+const OPEN_CHAT_ACTION_ID = 'workbench.action.chat.open'; // Has the keybinding
 
 /**
  * Agents Control View Item - renders agent status in the command center when agent session projection is enabled.
@@ -126,23 +127,32 @@ export class AgentsControlViewItem extends BaseActionViewItem {
 		label.textContent = workspaceName;
 		pill.appendChild(label);
 
-		// Running indicator (right-justified) when there are active sessions
+		// Right side indicator
+		const rightIndicator = $('span.agents-control-status');
 		if (hasActiveSessions) {
-			const runningIndicator = $('span.agents-control-running');
-			const runningIcon = $('span.agents-control-running-icon');
+			// Running indicator when there are active sessions
+			const runningIcon = $('span.agents-control-status-icon');
 			reset(runningIcon, renderIcon(Codicon.sessionInProgress));
-			runningIndicator.appendChild(runningIcon);
-			const runningCount = $('span.agents-control-running-count');
+			rightIndicator.appendChild(runningIcon);
+			const runningCount = $('span.agents-control-status-text');
 			runningCount.textContent = String(activeSessions.length);
-			runningIndicator.appendChild(runningCount);
-			pill.appendChild(runningIndicator);
+			rightIndicator.appendChild(runningCount);
+		} else {
+			// Keyboard shortcut when idle (show open chat keybinding)
+			const kb = this.keybindingService.lookupKeybinding(OPEN_CHAT_ACTION_ID)?.getLabel();
+			if (kb) {
+				const kbLabel = $('span.agents-control-keybinding');
+				kbLabel.textContent = kb;
+				rightIndicator.appendChild(kbLabel);
+			}
 		}
+		pill.appendChild(rightIndicator);
 
 		// Setup hover with keyboard shortcut
 		const hoverDelegate = getDefaultHoverDelegate('mouse');
-		const kb = this.keybindingService.lookupKeybinding(TOGGLE_CHAT_ACTION_ID)?.getLabel();
-		const tooltip = kb
-			? localize('askTooltip', "Open Chat ({0})", kb)
+		const kbForTooltip = this.keybindingService.lookupKeybinding(OPEN_CHAT_ACTION_ID)?.getLabel();
+		const tooltip = kbForTooltip
+			? localize('askTooltip', "Open Chat ({0})", kbForTooltip)
 			: localize('askTooltip2', "Open Chat");
 		disposables.add(this.hoverService.setupManagedHover(hoverDelegate, pill, tooltip));
 

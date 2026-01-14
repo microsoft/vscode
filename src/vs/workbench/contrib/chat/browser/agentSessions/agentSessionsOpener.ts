@@ -20,7 +20,13 @@ export async function openSession(accessor: ServicesAccessor, session: IAgentSes
 
 	session.setRead(true); // mark as read when opened
 
-	// Check if Agent Session Projection is enabled
+	// Local chat sessions (chat history) should always open in the chat widget
+	if (isLocalAgentSessionItem(session)) {
+		await openSessionInChatWidget(accessor, session, openOptions);
+		return;
+	}
+
+	// Check if Agent Session Projection is enabled for agent sessions
 	const agentSessionProjectionEnabled = configurationService.getValue<boolean>('chat.agentSessionProjection.enabled') === true;
 
 	if (agentSessionProjectionEnabled) {

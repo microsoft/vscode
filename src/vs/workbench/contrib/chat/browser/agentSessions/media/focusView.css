@@ -127,24 +127,33 @@ Agents Control - Titlebar control
 	text-overflow: ellipsis;
 }
 
-/* Running indicator (right side) */
-.agents-control-running {
+/* Right side status indicator */
+.agents-control-status {
 	position: absolute;
 	right: 8px;
 	display: flex;
 	align-items: center;
 	gap: 4px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.agents-control-pill.has-active .agents-control-status {
 	color: var(--vscode-textLink-foreground);
 }
 
-.agents-control-running-icon {
+.agents-control-status-icon {
 	display: flex;
 	align-items: center;
 }
 
-.agents-control-running-count {
+.agents-control-status-text {
 	font-size: 11px;
 	font-weight: 500;
+}
+
+.agents-control-keybinding {
+	font-size: 11px;
+	opacity: 0.7;
 }
 
 /* Session title */
