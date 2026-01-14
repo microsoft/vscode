@@ -840,7 +840,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		if (
 			newSessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked &&
-			width >= ChatViewPane.SESSIONS_SIDEBAR_VIEW_MIN_WIDTH + ChatViewPane.CHAT_WIDGET_DEFAULT_WIDTH &&
+			width >= ChatViewPane.SESSIONS_SIDEBAR_VIEW_MIN_WIDTH &&
 			this.getViewPositionAndLocation().location === ViewContainerLocation.AuxiliaryBar &&
 			this.layoutService.isAuxiliaryBarMaximized()
 		) {
