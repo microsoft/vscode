@@ -38,10 +38,10 @@
 	}
 }
 
-/* Locked state styling */
+/* Locked state styling - matches disabled action item styling */
 .monaco-action-bar .action-item.locked .chat-session-option-picker,
 .monaco-action-bar .action-item .chat-session-option-picker.locked {
-	opacity: 0.6;
+	color: var(--vscode-disabledForeground);
 	cursor: default;
 }
 
