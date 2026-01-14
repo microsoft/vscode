@@ -113,6 +113,11 @@ interface IChatRequestInputOptions {
 	attachedContext: ChatRequestVariableSet;
 }
 
+interface IQueuedChatRequest {
+	query?: { query: string };
+	options?: IChatAcceptInputOptions;
+}
+
 export interface IChatWidgetLocationOptions {
 	location: ChatAgentLocation;
 
@@ -249,7 +254,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private visibleChangeCount = 0;
 	private requestInProgress: IContextKey<boolean>;
 	private agentInInput: IContextKey<boolean>;
+	private hasQueuedRequestContextKey: IContextKey<boolean>;
 	private currentRequest: Promise<void> | undefined;
+	private queuedRequest: IQueuedChatRequest | undefined;
 
 	private _visible = false;
 	get visible() { return this._visible; }
@@ -410,6 +417,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		ChatContextKeys.inQuickChat.bindTo(contextKeyService).set(isQuickChat(this));
 		this.agentInInput = ChatContextKeys.inputHasAgent.bindTo(contextKeyService);
 		this.requestInProgress = ChatContextKeys.requestInProgress.bindTo(contextKeyService);
+		this.hasQueuedRequestContextKey = ChatContextKeys.hasQueuedRequest.bindTo(contextKeyService);
 
 		this._register(this.chatEntitlementService.onDidChangeAnonymous(() => this.renderWelcomeViewContentIfNeeded()));
 
@@ -2239,6 +2247,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private async _acceptInput(query: { query: string } | undefined, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
 		if (this.viewModel?.model.requestInProgress.get()) {
+			// Queue the request instead of ignoring it
+			this.queuedRequest = { query, options };
+			this.hasQueuedRequestContextKey.set(true);
+			this.logService.debug('ChatWidget#_acceptInput: Request in progress, queuing message');
 			return;
 		}
 
@@ -2368,6 +2380,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}
 			}
 			this.currentRequest = undefined;
+
+			// Process queued request if one exists
+			if (this.queuedRequest) {
+				const queued = this.queuedRequest;
+				this.queuedRequest = undefined;
+				this.hasQueuedRequestContextKey.set(false);
+				this.logService.debug('ChatWidget#currentRequest: Processing queued message');
+				this._acceptInput(queued.query, queued.options).catch(e => this.logService.error('Failed to process queued request', e));
+			}
 		});
 
 		return result.responseCreatedPromise;
