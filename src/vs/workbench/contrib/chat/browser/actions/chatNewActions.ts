@@ -24,6 +24,7 @@ import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION, CHAT_CATEGORY, handleCurrentEditingSession } from './chatActions.js';
 import { clearChatEditor } from './chatClear.js';
 import { AgentSessionsViewerOrientation } from '../agentSessions/agentSessions.js';
+import { IFocusViewService } from '../agentSessions/focusViewService.js';
 
 export interface INewEditSessionActionContext {
 
@@ -114,6 +115,13 @@ export function registerNewChatActions() {
 
 		async run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const accessibilityService = accessor.get(IAccessibilityService);
+			const focusViewService = accessor.get(IFocusViewService);
+
+			// Exit focus view mode if active (back button behavior)
+			if (focusViewService.isActive) {
+				await focusViewService.exitFocusView();
+				return;
+			}
 
 			const executeCommandContext = args[0] as INewEditSessionActionContext | undefined;
 
