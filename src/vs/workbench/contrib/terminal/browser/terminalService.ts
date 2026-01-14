@@ -34,7 +34,7 @@ import { getCwdForSplit } from './terminalActions.js';
 import { TerminalEditorInput } from './terminalEditorInput.js';
 import { getColorStyleContent, getUriClasses } from './terminalIcon.js';
 import { TerminalProfileQuickpick } from './terminalProfileQuickpick.js';
-import { getInstanceFromResource, getTerminalUri, parseTerminalUri } from './terminalUri.js';
+import { getInstanceFromResource, getTerminalUri, parseTerminalUri, parseTerminalSelectionFromUri } from './terminalUri.js';
 import { IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalProcessExtHostProxy, ITerminalProfileService } from '../common/terminal.js';
 import { TerminalContextKeys } from '../common/terminalContextKey.js';
 import { columnToEditorGroup } from '../../../services/editor/common/editorGroupColumn.js';
@@ -792,6 +792,30 @@ export class TerminalService extends Disposable implements ITerminalService {
 			const relevantCommand = commands?.find(c => c.id === params.get('command'));
 			if (relevantCommand) {
 				instance.xterm?.markTracker.revealCommand(relevantCommand);
+			}
+			
+			// Handle terminal selection
+			const startLine = params.get('selectionStartLine');
+			const startColumn = params.get('selectionStartColumn');
+			const endLine = params.get('selectionEndLine');
+			const endColumn = params.get('selectionEndColumn');
+			if (startLine && startColumn && endLine && endColumn) {
+				const xterm = instance.xterm?.raw;
+				if (xterm) {
+					// Convert from 1-based to 0-based indexing for xterm.js
+					const col1 = Number.parseInt(startColumn) - 1;
+					const row1 = Number.parseInt(startLine) - 1;
+					const col2 = Number.parseInt(endColumn) - 1;
+					const row2 = Number.parseInt(endLine) - 1;
+					
+					// Select the range in the terminal
+					xterm.select(col1, row1, col2 - col1 + 1 + (row2 - row1) * xterm.cols);
+					
+					// Scroll to make the selection visible
+					if (row1 >= 0 && row1 < xterm.buffer.active.length) {
+						xterm.scrollToLine(row1);
+					}
+				}
 			}
 		}
 	}

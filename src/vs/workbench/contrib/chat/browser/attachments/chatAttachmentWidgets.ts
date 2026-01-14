@@ -57,7 +57,7 @@ import { toHistoryItemHoverContent } from '../../../scm/browser/scmHistory.js';
 import { getHistoryItemEditorTitle } from '../../../scm/browser/util.js';
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { IChatContentReference } from '../../common/chatService/chatService.js';
-import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry, ITerminalVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry, ITerminalVariableEntry, ITerminalSelectionVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../common/languageModels.js';
 import { ILanguageModelToolsService, ToolSet } from '../../common/tools/languageModelToolsService.js';
 import { getCleanPromptName } from '../../common/promptSyntax/config/promptFileLocations.js';
@@ -290,6 +290,36 @@ export class TerminalCommandAttachmentWidget extends AbstractChatAttachmentWidge
 	}
 }
 
+export class TerminalSelectionAttachmentWidget extends AbstractChatAttachmentWidget {
+
+	constructor(
+		attachment: ITerminalSelectionVariableEntry,
+		currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined,
+		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
+		container: HTMLElement,
+		contextResourceLabels: ResourceLabels,
+		@ICommandService commandService: ICommandService,
+		@IOpenerService openerService: IOpenerService,
+		@IHoverService private readonly hoverService: IHoverService,
+		@ITerminalService protected override readonly terminalService: ITerminalService,
+	) {
+		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, terminalService);
+
+		const ariaLabel = localize('chat.terminalSelection', "Terminal selection, lines {0}-{1}", attachment.selection.startLine, attachment.selection.endLine);
+		const clickHandler = () => this.openResource(attachment.resource, { editorOptions: { preserveFocus: true } }, false, undefined);
+
+		this._register(createTerminalSelectionElements(this.element, attachment, ariaLabel, this.hoverService, clickHandler));
+
+		this._register(dom.addDisposableListener(this.element, dom.EventType.KEY_DOWN, async (e: KeyboardEvent) => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
+				dom.EventHelper.stop(e, true);
+				await clickHandler();
+			}
+		}));
+	}
+}
+
 const enum TerminalConstants {
 	MaxAttachmentOutputLineCount = 5,
 	MaxAttachmentOutputLineLength = 80,
@@ -365,6 +395,72 @@ function getHoverContent(ariaLabel: string, attachment: ITerminalVariableEntry):
 			content: hoverElement,
 		};
 	}
+}
+
+function createTerminalSelectionElements(
+	element: HTMLElement,
+	attachment: ITerminalSelectionVariableEntry,
+	ariaLabel: string,
+	hoverService: IHoverService,
+	clickHandler: () => Promise<void>
+): IDisposable {
+	const disposable = new DisposableStore();
+	element.ariaLabel = ariaLabel;
+	element.style.cursor = 'pointer';
+
+	const terminalIconSpan = dom.$('span');
+	terminalIconSpan.classList.add(...ThemeIcon.asClassNameArray(Codicon.terminal));
+	const pillIcon = dom.$('div.chat-attached-context-pill', {}, terminalIconSpan);
+	const lineRange = attachment.selection.startLine === attachment.selection.endLine
+		? localize('chat.terminalSelectionLine', "line {0}", attachment.selection.startLine)
+		: localize('chat.terminalSelectionLines', "lines {0}-{1}", attachment.selection.startLine, attachment.selection.endLine);
+	const textLabel = dom.$('span.chat-attached-context-custom-text', {}, lineRange);
+	element.appendChild(pillIcon);
+	element.appendChild(textLabel);
+
+	disposable.add(dom.addDisposableListener(element, dom.EventType.CLICK, e => {
+		e.preventDefault();
+		e.stopPropagation();
+		clickHandler();
+	}));
+
+	disposable.add(hoverService.setupDelayedHover(element, () => getTerminalSelectionHoverContent(ariaLabel, attachment), commonHoverLifecycleOptions));
+	return disposable;
+}
+
+function getTerminalSelectionHoverContent(ariaLabel: string, attachment: ITerminalSelectionVariableEntry): IDelayedHoverOptions {
+	const hoverElement = dom.$('div.chat-attached-context-hover');
+	hoverElement.setAttribute('aria-label', ariaLabel);
+
+	const selectionTitle = dom.$('div', {}, localize('chat.terminalSelectionHoverTitle', "Terminal Selection (lines {0}-{1}):", attachment.selection.startLine, attachment.selection.endLine));
+	selectionTitle.classList.add('attachment-additional-info');
+	const selectionBlock = dom.$('pre.chat-terminal-command-output');
+	
+	// Show preview of selection content
+	const fullLines = attachment.value.split('\n');
+	const previewLines = [];
+	for (const line of fullLines) {
+		if (previewLines.length >= TerminalConstants.MaxAttachmentOutputLineCount) {
+			previewLines.push('...');
+			break;
+		}
+		const trimmed = line.trim();
+		if (trimmed.length === 0 && previewLines.length === 0) {
+			continue; // Skip leading empty lines
+		}
+		if (trimmed.length > TerminalConstants.MaxAttachmentOutputLineLength) {
+			previewLines.push(`${trimmed.slice(0, TerminalConstants.MaxAttachmentOutputLineLength)}...`);
+		} else {
+			previewLines.push(line); // Keep original formatting
+		}
+	}
+	selectionBlock.textContent = previewLines.join('\n');
+	hoverElement.append(selectionTitle, selectionBlock);
+
+	return {
+		...commonHoverOptions,
+		content: hoverElement,
+	};
 }
 
 export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {

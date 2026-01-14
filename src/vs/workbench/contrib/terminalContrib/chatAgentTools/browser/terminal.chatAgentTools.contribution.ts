@@ -143,17 +143,51 @@ registerActiveInstanceAction({
 			return;
 		}
 
+		// Get selection position from xterm
+		const xterm = activeInstance.xterm?.raw;
+		const selectionPosition = xterm?.getSelectionPosition();
+		if (!selectionPosition) {
+			return;
+		}
+
 		const chatView = chatWidgetService.lastFocusedWidget ?? await chatWidgetService.revealWidget();
 		if (!chatView) {
 			return;
 		}
 
+		// Parse terminal URI to get workspace and instance IDs
+		const pathParts = activeInstance.resource.path.split('/');
+		const workspaceId = pathParts[1];
+		const instanceId = Number.parseInt(pathParts[2]);
+
+		// Create a URI with selection information using getTerminalUri from terminalUri.ts
+		const { getTerminalUri } = await import('../../../terminal/browser/terminalUri.js');
+		const resource = getTerminalUri(
+			workspaceId,
+			instanceId,
+			activeInstance.title,
+			undefined,
+			{
+				startLine: selectionPosition.start.y,
+				startColumn: selectionPosition.start.x,
+				endLine: selectionPosition.end.y,
+				endColumn: selectionPosition.end.x
+			}
+		);
+
 		chatView.attachmentModel.addContext({
 			id: `terminal-selection-${Date.now()}`,
-			kind: 'generic' as const,
+			kind: 'terminalSelection' as const,
 			name: localize('terminalSelection', 'Terminal Selection'),
 			fullName: localize('terminalSelection', 'Terminal Selection'),
 			value: selection,
+			resource,
+			selection: {
+				startLine: selectionPosition.start.y,
+				startColumn: selectionPosition.start.x,
+				endLine: selectionPosition.end.y,
+				endColumn: selectionPosition.end.x
+			},
 			icon: Codicon.terminal
 		});
 		chatView.focusInput();
