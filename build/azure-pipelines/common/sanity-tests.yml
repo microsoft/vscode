@@ -105,7 +105,7 @@ jobs:
                 yum install -y xorg-x11-server-Xvfb 2>/dev/null || true
                 yum install -y xdg-utils 2>/dev/null || true
               elif command -v zypper &> /dev/null; then
-                zypper install -y nodejs22 xorg-x11-server-Xvfb libgtk-3-0 mozilla-nss libgbm1 alsa xdg-utils sudo
+                zypper install -y nodejs22 xorg-x11-server-Xvfb libgtk-3-0 mozilla-nss libgbm1 alsa xdg-utils sudo tar gzip
               elif command -v apk &> /dev/null; then
                 apk add --no-cache nodejs npm xvfb gtk+3.0 nss mesa-gbm sudo
               fi
