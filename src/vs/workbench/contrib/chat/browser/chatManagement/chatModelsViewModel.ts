@@ -497,7 +497,7 @@ export class ChatModelsViewModel extends Disposable {
 						}
 					});
 				}
-				for (const identifier of group.modelIndetifiers) {
+				for (const identifier of group.modelIdentifiers) {
 					const metadata = this.languageModelsService.lookupLanguageModel(identifier);
 					if (!metadata) {
 						continue;
