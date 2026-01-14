@@ -91,15 +91,23 @@ jobs:
               # Install Node.js and X11
               if command -v apt-get &> /dev/null; then
                 apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
-                  curl ca-certificates xvfb libgtk-3-0 libnss3 libgbm1 sudo
+                  curl ca-certificates xvfb libgtk-3-0 libnss3 libgbm1 libasound2 xdg-utils sudo
                 curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
                 apt-get install -y nodejs
               elif command -v dnf &> /dev/null; then
-                dnf install -y nodejs xorg-x11-server-Xvfb gtk3 nss mesa-libgbm xdg-utils sudo
+                # Try to enable EPEL for additional packages
+                dnf install -y epel-release || true
+                dnf install -y nodejs gtk3 nss mesa-libgbm alsa-lib sudo
+                # Install optional packages if available
+                dnf install -y xorg-x11-server-Xvfb xdg-utils || true
               elif command -v yum &> /dev/null; then
-                yum install -y nodejs xorg-x11-server-Xvfb gtk3 nss mesa-libgbm xdg-utils sudo
+                # Try to enable EPEL for additional packages
+                yum install -y epel-release || true
+                yum install -y nodejs gtk3 nss mesa-libgbm alsa-lib sudo
+                # Install optional packages if available
+                yum install -y xorg-x11-server-Xvfb xdg-utils || true
               elif command -v zypper &> /dev/null; then
-                zypper install -y nodejs xorg-x11-server-Xvfb libgtk-3-0 mozilla-nss Mesa-libgbm sudo
+                zypper install -y nodejs22 xorg-x11-server-Xvfb libgtk-3-0 mozilla-nss libgbm1 alsa xdg-utils sudo
               elif command -v apk &> /dev/null; then
                 apk add --no-cache nodejs npm xvfb gtk+3.0 nss mesa-gbm sudo
               fi
