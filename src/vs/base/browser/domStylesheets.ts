@@ -18,13 +18,18 @@ export function isGlobalStylesheet(node: Node): boolean {
 /**
  * A version of createStyleSheet which has a unified API to initialize/set the style content.
  */
-export function createStyleSheet2(): WrappedStyleElement {
-	return new WrappedStyleElement();
+export function createStyleSheet2(store: DisposableStore): WrappedStyleElement {
+	return new WrappedStyleElement(store);
 }
 
 class WrappedStyleElement {
 	private _currentCssStyle = '';
 	private _styleSheet: HTMLStyleElement | undefined = undefined;
+	private _store: DisposableStore | undefined;
+
+	constructor(store: DisposableStore | undefined) {
+		this._store = store;
+	}
 
 	public setStyle(cssStyle: string): void {
 		if (cssStyle === this._currentCssStyle) {
@@ -33,7 +38,7 @@ class WrappedStyleElement {
 		this._currentCssStyle = cssStyle;
 
 		if (!this._styleSheet) {
-			this._styleSheet = createStyleSheet(mainWindow.document.head, (s) => s.textContent = cssStyle);
+			this._styleSheet = createStyleSheet(mainWindow.document.head, (s) => s.textContent = cssStyle, this._store);
 		} else {
 			this._styleSheet.textContent = cssStyle;
 		}
@@ -174,7 +179,7 @@ function isCSSStyleRule(rule: CSSRule): rule is CSSStyleRule {
 
 export function createStyleSheetFromObservable(css: IObservable<string>): IDisposable {
 	const store = new DisposableStore();
-	const w = store.add(createStyleSheet2());
+	const w = store.add(createStyleSheet2(store));
 	store.add(autorun(reader => {
 		w.setStyle(css.read(reader));
 	}));
