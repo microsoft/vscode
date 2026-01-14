@@ -7,6 +7,7 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { safeIntl } from '../../../../../../base/common/date.js';
 import { GraphemeIterator } from '../../../../../../base/common/strings.js';
 import { IChatResponseViewModel } from '../../../common/model/chatViewModel.js';
+import './media/chatStreamingAnimation.css';
 
 export const STREAMING_ANIMATION_CONFIG = {
 	/** Class applied to all streaming tokens */
