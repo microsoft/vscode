@@ -37,8 +37,9 @@ export function setup(context: TestContext) {
 	});
 
 	context.test('desktop-linux-arm64', ['linux', 'arm64'], async () => {
-		const dir = await context.downloadAndUnpack('linux-arm64');
+		let dir = await context.downloadAndUnpack('linux-arm64');
 		if (!context.skipRuntimeCheck) {
+			dir = context.getFirstSubdirectory(dir);
 			const entryPoint = context.getDesktopEntryPoint(dir);
 			const dataDir = context.createPortableDataDir(dir);
 			await testDesktopApp(entryPoint, dataDir);
@@ -46,8 +47,9 @@ export function setup(context: TestContext) {
 	});
 
 	context.test('desktop-linux-armhf', ['linux', 'arm32'], async () => {
-		const dir = await context.downloadAndUnpack('linux-armhf');
+		let dir = await context.downloadAndUnpack('linux-armhf');
 		if (!context.skipRuntimeCheck) {
+			dir = context.getFirstSubdirectory(dir);
 			const entryPoint = context.getDesktopEntryPoint(dir);
 			const dataDir = context.createPortableDataDir(dir);
 			await testDesktopApp(entryPoint, dataDir);
@@ -111,8 +113,9 @@ export function setup(context: TestContext) {
 	});
 
 	context.test('desktop-linux-x64', ['linux', 'x64'], async () => {
-		const dir = await context.downloadAndUnpack('linux-x64');
+		let dir = await context.downloadAndUnpack('linux-x64');
 		if (!context.skipRuntimeCheck) {
+			dir = context.getFirstSubdirectory(dir);
 			const entryPoint = context.getDesktopEntryPoint(dir);
 			const dataDir = context.createPortableDataDir(dir);
 			await testDesktopApp(entryPoint, dataDir);

@@ -650,7 +650,7 @@ export class TestContext {
 						binaryName = `code-exploration`;
 						break;
 				}
-				filePath = path.join(this.getFirstSubdirectory(dir), binaryName);
+				filePath = path.join(dir, binaryName);
 				break;
 			}
 			case 'win32': {
@@ -739,7 +739,7 @@ export class TestContext {
 	/**
 	 * Returns the first subdirectory within the specified directory.
 	 */
-	private getFirstSubdirectory(dir: string): string {
+	public getFirstSubdirectory(dir: string): string {
 		const subDir = fs.readdirSync(dir, { withFileTypes: true }).filter(o => o.isDirectory()).at(0)?.name;
 		if (!subDir) {
 			this.error(`No subdirectories found in directory: ${dir}`);
