@@ -247,6 +247,9 @@ import './contrib/searchEditor/browser/searchEditor.contribution.js';
 // Sash
 import './contrib/sash/browser/sash.contribution.js';
 
+// Stealth Shadows
+import './contrib/stealthShadows/browser/stealthShadows.contribution.js';
+
 // SCM
 import './contrib/scm/browser/scm.contribution.js';
 

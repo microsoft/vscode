@@ -3,789 +3,216 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/*
- * Stealth Shadows CSS
- * This file implements shadow-based depth for the VS Code workbench UI.
- * Elements rely on box-shadow instead of borders to create visual hierarchy.
- *
- * Design Philosophy:
- * - Use soft, diffuse shadows for depth perception
- * - Remove harsh borders in favor of subtle shadow boundaries
- * - Create clear visual hierarchy through shadow intensity
- * - Maintain usability in both light and dark themes
- */
-
-/* ============================================
-   CSS Custom Properties for Shadow Depths
-   ============================================ */
-
-:root {
-	/* Light theme shadow depths - subtle but visible for white themes */
-	/* Ambient shadows - no specific direction (uniform spread) */
-	--vscode-stealth-shadow-xs: 0 0 4px rgba(0, 0, 0, 0.06);
-	--vscode-stealth-shadow-sm: 0 0 8px rgba(0, 0, 0, 0.08);
-	--vscode-stealth-shadow-md: 0 0 12px rgba(0, 0, 0, 0.10);
-	--vscode-stealth-shadow-lg: 0 0 18px rgba(0, 0, 0, 0.12);
-	--vscode-stealth-shadow-xl: 0 0 28px rgba(0, 0, 0, 0.14);
-	--vscode-stealth-shadow-2xl: 0 0 44px rgba(0, 0, 0, 0.18);
-
-	/* Ambient panel shadow */
-	--vscode-stealth-shadow-panel: 0 0 12px rgba(0, 0, 0, 0.08);
-
-	/* Inner glow for depth */
-	--vscode-stealth-inner-glow: inset 0 0 4px rgba(255, 255, 255, 0.1);
-}
-
-/* Dark theme shadows - more pronounced for visibility */
-/* Ambient shadows - no specific direction (uniform spread) */
-.monaco-workbench.vs-dark,
-.monaco-workbench.hc-black {
-	--vscode-stealth-shadow-xs: 0 0 3px rgba(0, 0, 0, 0.18);
-	--vscode-stealth-shadow-sm: 0 0 6px rgba(0, 0, 0, 0.22);
-	--vscode-stealth-shadow-md: 0 0 10px rgba(0, 0, 0, 0.32);
-	--vscode-stealth-shadow-lg: 0 0 16px rgba(0, 0, 0, 0.38);
-	--vscode-stealth-shadow-xl: 0 0 24px rgba(0, 0, 0, 0.42);
-	--vscode-stealth-shadow-2xl: 0 0 40px rgba(0, 0, 0, 0.52);
-
-	--vscode-stealth-shadow-panel: 0 0 10px rgba(0, 0, 0, 0.28);
-
-	--vscode-stealth-inner-glow: inset 0 0 4px rgba(255, 255, 255, 0.03);
-}
-
-/* ============================================
-   Activity Bar - Unified downward shadow
-   ============================================ */
-
-.monaco-workbench .part.activitybar {
-	box-shadow: var(--vscode-stealth-shadow-panel);
-	z-index: 50;
-	position: relative;
-}
-
-/* Activity bar on the right side - same shadow */
-.monaco-workbench.activitybar-right .part.activitybar {
-	box-shadow: var(--vscode-stealth-shadow-panel);
-}
-
-/* ============================================
-   Sidebar - Unified downward shadow
-   ============================================ */
-
-.monaco-workbench .part.sidebar {
-	box-shadow: var(--vscode-stealth-shadow-panel);
-	z-index: 40;
-	position: relative;
-}
-
-/* Sidebar on the right side - same shadow */
-.monaco-workbench.sidebar-right .part.sidebar {
-	box-shadow: var(--vscode-stealth-shadow-panel);
-}
-
-/* Auxiliary sidebar (secondary sidebar) */
-.monaco-workbench .part.auxiliarybar {
-	box-shadow: var(--vscode-stealth-shadow-panel);
-	z-index: 40;
-	position: relative;
-}
-
-/* ============================================
-   Panel (Bottom Panel) - Unified downward shadow
-   ============================================ */
-
-.monaco-workbench .part.panel {
-	box-shadow: var(--vscode-stealth-shadow-panel);
-	z-index: 35;
-	position: relative;
-}
-
-/* Panel on the side - same shadow */
-.monaco-workbench.panel-position-left .part.panel {
-	box-shadow: var(--vscode-stealth-shadow-panel);
-}
-
-.monaco-workbench.panel-position-right .part.panel {
-	box-shadow: var(--vscode-stealth-shadow-panel);
-}
-
-/* ============================================
-   Editor Area - Base Level
-   ============================================ */
-
-.monaco-workbench .part.editor {
-	position: relative;
-}
-
-/* ============================================
-   Editor Tabs - No shadow for seamless blend with editor
-   ============================================ */
-
-.monaco-workbench .part.editor > .content .editor-group-container > .title {
-	box-shadow: none;
-	position: relative;
-	z-index: 10;
-}
-
-/* Active tab - stronger ambient shadow */
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active {
-	box-shadow: 0 0 12px rgba(0, 0, 0, 0.10);
-	position: relative;
-	z-index: 5;
-	border-radius: 4px 4px 0 0;
-	border-top: none !important;
-}
-
-/* Tab hover effect */
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:hover:not(.active) {
-	box-shadow: var(--vscode-stealth-shadow-sm);
-}
-
-/* ============================================
-   Title Bar - Unified downward shadow
-   ============================================ */
-
-.monaco-workbench .part.titlebar {
-	box-shadow: var(--vscode-stealth-shadow-panel);
-	z-index: 60;
-	position: relative;
-	overflow: visible !important;
-}
-
-/* Allow command center shadow to render outside titlebar */
-.monaco-workbench .part.titlebar .titlebar-container,
-.monaco-workbench .part.titlebar .titlebar-center,
-.monaco-workbench .part.titlebar .titlebar-center .window-title,
-.monaco-workbench .part.titlebar .command-center,
-.monaco-workbench .part.titlebar .command-center .monaco-action-bar,
-.monaco-workbench .part.titlebar .command-center .actions-container {
-	overflow: visible !important;
-}
-
-/* ============================================
-   Status Bar - Unified downward shadow
-   ============================================ */
-
-.monaco-workbench .part.statusbar {
-	box-shadow: var(--vscode-stealth-shadow-panel);
-	z-index: 55;
-	position: relative;
-}
-
-/* ============================================
-   Quick Input (Command Palette) - Frosted Glass Effect
-   Transparent background with backdrop blur
-   ============================================ */
-
-.quick-input-widget {
-	box-shadow: 0 0 40px rgba(0, 0, 0, 0.15) !important;
-	border: none !important;
-	border-radius: 12px;
-	overflow: hidden;
-	/* Frosted glass effect - more transparent with stronger blur */
-	background: rgba(252, 252, 252, 0.2) !important;
-	backdrop-filter: blur(20px) saturate(100%);
-	-webkit-backdrop-filter: blur(40px) saturate(180%);
-}
-
-/* Dark theme frosted glass for command palette */
-.monaco-workbench.vs-dark .quick-input-widget,
-.monaco-workbench.hc-black .quick-input-widget {
-	background: rgba(30, 30, 30, 0.65) !important;
-	backdrop-filter: blur(40px) saturate(180%);
-	-webkit-backdrop-filter: blur(40px) saturate(180%);
-}
-
-/* Transparent list rows to show blur through */
-.quick-input-widget .monaco-list-rows {
-	background-color: transparent !important;
-}
-
-/* Remove ALL borders from quick input */
-.quick-input-widget,
-.quick-input-widget *,
-.quick-input-widget .quick-input-header,
-.quick-input-widget .quick-input-list,
-.quick-input-widget .quick-input-titlebar,
-.quick-input-widget .quick-input-title,
-.quick-input-widget .quick-input-description,
-.quick-input-widget .quick-input-filter,
-.quick-input-widget .quick-input-action,
-.quick-input-widget .quick-input-message,
-.quick-input-widget .monaco-inputbox,
-.quick-input-widget .monaco-list,
-.quick-input-widget .monaco-list-row {
-	border: none !important;
-	border-color: transparent !important;
-	outline: none !important;
-}
-
-/* Ensure input box inside command palette has no border */
-.quick-input-widget .monaco-inputbox {
-	box-shadow: none !important;
-	background: transparent !important;
-}
-
-.quick-input-widget .quick-input-filter .monaco-inputbox {
-	background: rgba(255, 255, 255, 0.4) !important;
-	border-radius: 6px;
-}
-
-/* Dark theme input box */
-.monaco-workbench.vs-dark .quick-input-widget .quick-input-filter .monaco-inputbox,
-.monaco-workbench.hc-black .quick-input-widget .quick-input-filter .monaco-inputbox {
-	background: rgba(60, 60, 60, 0.4) !important;
-}
-
-/* ============================================
-   Chat Widget Input - Shadow Instead of Border
-   NO BORDER - Just shadow
-   ============================================ */
-
-.interactive-session .chat-input-container {
-	box-shadow: var(--vscode-stealth-shadow-lg);
-	border: none !important;
-	border-radius: 6px;
-	background-color: var(--vscode-panel-background, var(--vscode-sideBar-background)) !important;
-}
-
-/* Chat input editor background to match container */
-.interactive-session .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor,
-.interactive-session .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor .monaco-editor-background {
-	background-color: var(--vscode-panel-background, var(--vscode-sideBar-background)) !important;
-}
-
-/* Chat editing session container */
-.interactive-session .chat-editing-session .chat-editing-session-container {
-	box-shadow: var(--vscode-stealth-shadow-md);
-	border: none !important;
-	border-radius: 4px 4px 0 0;
-}
-
-/* When editing session is present, adjust input container */
-.interactive-input-part:has(.chat-editing-session > .chat-editing-session-container) .chat-input-container {
-	border-radius: 0 0 6px 6px;
-}
-
-/* Chat panel overall */
-.monaco-workbench .part.panel .interactive-session,
-.monaco-workbench .part.auxiliarybar .interactive-session {
-	position: relative;
-}
-
-/* ============================================
-   Notifications - Floating Elements
-   ============================================ */
-
-.monaco-workbench .notifications-toasts {
-	box-shadow: var(--vscode-stealth-shadow-xl);
-}
-
-.monaco-workbench .notification-toast {
-	box-shadow: var(--vscode-stealth-shadow-lg);
-	border: none;
-	border-radius: 8px;
-	overflow: hidden;
-}
-
-/* ============================================
-   Context Menus - High Elevation
-   ============================================ */
-
-.monaco-menu .monaco-action-bar.vertical {
-	box-shadow: var(--vscode-stealth-shadow-xl);
-	border: none;
-	border-radius: 8px;
-	overflow: hidden;
-}
-
-.context-view .monaco-menu {
-	box-shadow: var(--vscode-stealth-shadow-xl);
-	border: none;
-	border-radius: 8px;
-}
-
-/* ============================================
-   Hover Widgets - Elevated
-   ============================================ */
-
-.monaco-hover {
-	box-shadow: var(--vscode-stealth-shadow-lg) !important;
-	border: none !important;
-	border-radius: 8px;
-}
-
-.monaco-hover.workbench-hover {
-	box-shadow: var(--vscode-stealth-shadow-lg) !important;
-	border: none !important;
-}
-
-/* ============================================
-   Suggest Widget (Autocomplete) - Elevated
-   ============================================ */
-
-.monaco-editor .suggest-widget {
-	box-shadow: var(--vscode-stealth-shadow-xl);
-	border: none;
-	border-radius: 8px;
-	overflow: hidden;
-}
-
-/* ============================================
-   Find Widget - Elevated
-   ============================================ */
-
-.monaco-editor .find-widget {
-	box-shadow: var(--vscode-stealth-shadow-lg);
-	border: none;
-	border-radius: 8px;
-}
-
-/* ============================================
-   Dialog Windows - Highest Elevation
-   ============================================ */
-
-.monaco-dialog-box {
-	box-shadow: var(--vscode-stealth-shadow-2xl);
-	border: none;
-	border-radius: 12px;
-	overflow: hidden;
-}
-
-/* ============================================
-   Peek View - Elevated with Blur Background
-   ============================================ */
-
-.monaco-editor .peekview-widget {
-	box-shadow: var(--vscode-stealth-shadow-lg);
-	border: none;
-	background: var(--vscode-editor-background, #EDEDED) !important;
-	backdrop-filter: blur(12px);
-	-webkit-backdrop-filter: blur(12px);
-	border-radius: 8px;
-	overflow: hidden;
-}
-
-/* Peek view header and content areas */
-.monaco-editor .peekview-widget .head,
-.monaco-editor .peekview-widget .body {
-	background: transparent !important;
-}
-
-/* Peek view tree (references list) */
-.monaco-editor .peekview-widget .ref-tree {
-	background: var(--vscode-editor-background, #EDEDED) !important;
-}
-
-/* ============================================
-   Settings Editor - Sections
-   ============================================ */
-
-.settings-editor .settings-toc-container {
-	box-shadow: var(--vscode-stealth-shadow-sm);
-}
-
-/* ============================================
-   Welcome Page Tiles - Cards with Shadow
-   ============================================ */
-
-.monaco-workbench .part.editor .welcomePageContainer .tile {
-	box-shadow: var(--vscode-stealth-shadow-md);
-	border: none;
-	border-radius: 8px;
-}
-
-.monaco-workbench .part.editor .welcomePageContainer .tile:hover {
-	box-shadow: var(--vscode-stealth-shadow-lg);
-}
-
-/* ============================================
-   Extension Cards - Elevated
-   ============================================ */
-
-.extensions-list .extension-list-item {
-	box-shadow: var(--vscode-stealth-shadow-sm);
-	border: none;
-	border-radius: 6px;
-	margin: 4px 0;
-}
-
-.extensions-list .extension-list-item:hover {
-	box-shadow: var(--vscode-stealth-shadow-md);
-}
-
-/* ============================================
-   Breadcrumbs - Frosted Glass Effect
-   ============================================ */
-
-.monaco-workbench .part.editor > .content .editor-group-container > .title .breadcrumbs-control {
-	box-shadow: 0 0 12px rgba(0, 0, 0, 0.08) !important;
-	background: rgba(252, 252, 252, 0.65) !important;
-	backdrop-filter: blur(40px) saturate(180%) !important;
-	-webkit-backdrop-filter: blur(40px) saturate(180%) !important;
-}
-
-/* Dark theme breadcrumbs frosted glass */
-.monaco-workbench.vs-dark .part.editor > .content .editor-group-container > .title .breadcrumbs-control,
-.monaco-workbench.hc-black .part.editor > .content .editor-group-container > .title .breadcrumbs-control {
-	background: rgba(30, 30, 30, 0.65) !important;
-}
-
-/* ============================================
-   Input Boxes - Focus State Shadow
-   ============================================ */
-
-.monaco-inputbox {
-	box-shadow: var(--vscode-stealth-shadow-sm);
-	border: none;
-	border-radius: 6px;
-}
-
-.monaco-inputbox.synthetic-focus,
-.monaco-inputbox:focus-within {
-	box-shadow: var(--vscode-stealth-shadow-md), 0 0 0 2px var(--vscode-focusBorder);
-}
-
-/* ============================================
-   Buttons - Subtle Depth
-   ============================================ */
-
-.monaco-button {
-	box-shadow: var(--vscode-stealth-shadow-xs);
-}
-
-.monaco-button:hover {
-	box-shadow: var(--vscode-stealth-shadow-sm);
-}
-
-.monaco-button:active {
-	box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
-}
-
-/* ============================================
-   Dropdowns - Elevated Menu
-   ============================================ */
-
-.monaco-dropdown .dropdown-menu {
-	box-shadow: var(--vscode-stealth-shadow-xl);
-	border: none;
-	border-radius: 8px;
-}
-
-/* ============================================
-   Terminal - Subtle Container
-   ============================================ */
-
-.monaco-workbench .pane-body.integrated-terminal {
-	box-shadow: var(--vscode-stealth-inner-glow);
-}
-
-/* ============================================
-   SCM (Source Control) View
-   ============================================ */
-
-.scm-view .scm-provider {
-	box-shadow: var(--vscode-stealth-shadow-sm);
-	border-radius: 6px;
-	margin: 4px;
-}
-
-/* ============================================
-   Debug Toolbar - Floating
-   ============================================ */
-
-.monaco-workbench .debug-toolbar {
-	box-shadow: var(--vscode-stealth-shadow-xl);
-	border: none;
-	border-radius: 8px;
-}
-
-/* ============================================
-   Action Widget (Lightbulb Menu)
-   ============================================ */
-
-.action-widget {
-	box-shadow: var(--vscode-stealth-shadow-xl) !important;
-	border: none !important;
-	border-radius: 8px;
-}
-
-/* ============================================
-   Parameter Hints Widget
-   ============================================ */
-
-.monaco-editor .parameter-hints-widget {
-	box-shadow: var(--vscode-stealth-shadow-lg);
-	border: none;
-	border-radius: 8px;
-}
-
-/* ============================================
-   Minimap - Frosted Glass Effect
-   ============================================ */
-
-.monaco-workbench .monaco-editor .minimap {
-	background: rgba(252, 252, 252, 0.65) !important;
-	backdrop-filter: blur(40px) saturate(180%) !important;
-	-webkit-backdrop-filter: blur(40px) saturate(180%) !important;
-	border-radius: 8px 0 0 8px;
-}
-
-/* Minimap canvas should be semi-transparent */
-.monaco-workbench .monaco-editor .minimap canvas {
-	opacity: 0.85;
-}
-
-/* Dark theme minimap frosted glass */
-.monaco-workbench.vs-dark .monaco-editor .minimap,
-.monaco-workbench.hc-black .monaco-editor .minimap {
-	background: rgba(30, 30, 30, 0.65) !important;
-}
-
-.monaco-workbench .monaco-editor .minimap-shadow-visible {
-	box-shadow: var(--vscode-stealth-shadow-md);
-}
-
-/* ============================================
-   Editor Sticky Scroll - Frosted Glass Effect
-   ============================================ */
-
-.monaco-workbench .monaco-editor .sticky-widget {
-	/* Override the default shadow and border with our frosted glass effect */
-	box-shadow: 0 0 12px rgba(0, 0, 0, 0.10) !important;
-	border-bottom: none !important;
-	border: none !important;
-	/* Frosted glass effect */
-	background: rgba(252, 252, 252, 0.65) !important;
-	backdrop-filter: blur(40px) saturate(180%) !important;
-	-webkit-backdrop-filter: blur(40px) saturate(180%) !important;
-	border-radius: 0 0 8px 8px !important;
-}
-
-/* Sticky widget inner content should be transparent for frosted glass to show */
-.monaco-workbench .monaco-editor .sticky-widget *,
-.monaco-workbench .monaco-editor .sticky-widget > *,
-.monaco-workbench .monaco-editor .sticky-widget .sticky-widget-line-numbers,
-.monaco-workbench .monaco-editor .sticky-widget .sticky-widget-lines-scrollable,
-.monaco-workbench .monaco-editor .sticky-widget .sticky-widget-lines,
-.monaco-workbench .monaco-editor .sticky-widget .sticky-line-number,
-.monaco-workbench .monaco-editor .sticky-widget .sticky-line-content,
-.monaco-workbench .monaco-editor .sticky-widget .sticky-line-content:hover {
-	background-color: transparent !important;
-	background: transparent !important;
-}
-
-/* Dark theme sticky scroll frosted glass */
-.monaco-workbench.vs-dark .monaco-editor .sticky-widget,
-.monaco-workbench.hc-black .monaco-editor .sticky-widget {
-	background: rgba(30, 30, 30, 0.65) !important;
-	backdrop-filter: blur(40px) saturate(180%) !important;
-	-webkit-backdrop-filter: blur(40px) saturate(180%) !important;
-}
-
-/* Sticky Scroll Focus Preview (floating document preview) */
-.monaco-workbench .monaco-editor .sticky-widget-focus-preview,
-.monaco-workbench .monaco-editor .sticky-scroll-focus-line,
-.monaco-workbench .monaco-editor .focused .sticky-widget,
-.monaco-workbench .monaco-editor:has(.sticky-widget:focus-within) .sticky-widget {
-	background: rgba(252, 252, 252, 0.75) !important;
-	backdrop-filter: blur(40px) saturate(180%) !important;
-	-webkit-backdrop-filter: blur(40px) saturate(180%) !important;
-	box-shadow: 0 0 16px rgba(0, 0, 0, 0.12) !important;
-	border-radius: 0 0 8px 8px !important;
-}
-
-/* Dark theme sticky scroll focus state */
-.monaco-workbench.vs-dark .monaco-editor .sticky-widget-focus-preview,
-.monaco-workbench.vs-dark .monaco-editor .sticky-scroll-focus-line,
-.monaco-workbench.vs-dark .monaco-editor .focused .sticky-widget,
-.monaco-workbench.vs-dark .monaco-editor:has(.sticky-widget:focus-within) .sticky-widget,
-.monaco-workbench.hc-black .monaco-editor .sticky-widget-focus-preview,
-.monaco-workbench.hc-black .monaco-editor .sticky-scroll-focus-line,
-.monaco-workbench.hc-black .monaco-editor .focused .sticky-widget,
-.monaco-workbench.hc-black .monaco-editor:has(.sticky-widget:focus-within) .sticky-widget {
-	background: rgba(30, 30, 30, 0.75) !important;
-}
-
-/* ============================================
-   Notebook Cells - Card Style
-   ============================================ */
-
-.monaco-workbench .notebookOverlay .monaco-list .cell-focus-indicator {
-	box-shadow: var(--vscode-stealth-shadow-sm);
-	border-radius: 6px;
-}
-
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator {
-	box-shadow: var(--vscode-stealth-shadow-md);
-}
-
-/* ============================================
-   Inline Chat - Elevated Dialog
-   ============================================ */
-
-.monaco-editor .inline-chat {
-	box-shadow: var(--vscode-stealth-shadow-xl);
-	border: none;
-	border-radius: 12px;
-}
-
-/* ============================================
-   Command Center (in title bar) - Frosted Glass Effect
-   ============================================ */
-
-/* Command center default state - frosted glass */
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center {
-	box-shadow: 0 0 16px rgba(0, 0, 0, 0.09) !important;
-	border-radius: 8px !important;
-	background: rgba(249, 249, 249, 0.55) !important;
-	backdrop-filter: blur(24px) saturate(150%);
-	-webkit-backdrop-filter: blur(24px) saturate(150%);
-	overflow: visible !important;
-}
-
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center:hover {
-	box-shadow: 0 0 20px rgba(0, 0, 0, 0.11) !important;
-	background: rgba(249, 249, 249, 0.70) !important;
-}
-
-/* Dark theme command center frosted glass */
-.monaco-workbench.vs-dark .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center,
-.monaco-workbench.hc-black .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center {
-	background: rgba(40, 40, 40, 0.55) !important;
-	backdrop-filter: blur(24px) saturate(150%);
-	-webkit-backdrop-filter: blur(24px) saturate(150%);
-}
-
-.monaco-workbench.vs-dark .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center:hover,
-.monaco-workbench.hc-black .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center:hover {
-	background: rgba(50, 50, 50, 0.70) !important;
-}
-
-/* Remove ALL borders from command center */
-.monaco-workbench .part.titlebar .command-center,
-.monaco-workbench .part.titlebar .command-center *,
-.monaco-workbench .part.titlebar .command-center-center,
-.monaco-workbench .part.titlebar .command-center .action-item,
-.monaco-workbench .part.titlebar .command-center .search-icon,
-.monaco-workbench .part.titlebar .command-center .search-label {
-	border: none !important;
-	border-color: transparent !important;
-	outline: none !important;
-}
-
-/* ============================================
-   Remove Explicit Borders in Favor of Shadows
-   ============================================ */
-
-/* Remove sidebar border */
-.monaco-workbench .part.sidebar {
-	border-right: none !important;
-	border-left: none !important;
-}
-
-/* Remove auxiliary sidebar border */
-.monaco-workbench .part.auxiliarybar {
-	border-right: none !important;
-	border-left: none !important;
-}
-
-/* Remove panel border */
-.monaco-workbench .part.panel {
-	border-top: none !important;
-}
-
-/* Remove activity bar border */
-.monaco-workbench .part.activitybar {
-	border-right: none !important;
-	border-left: none !important;
-}
-
-/* Remove title bar border */
-.monaco-workbench .part.titlebar {
-	border-bottom: none !important;
-}
-
-/* Remove status bar border */
-.monaco-workbench .part.statusbar {
-	border-top: none !important;
-}
-
-/* Remove editor group borders in favor of shadows */
-.monaco-workbench .part.editor > .content .editor-group-container {
-	border: none !important;
-}
-
-/* ============================================
-   Focus Dimming - Dim peripheral UI when editor is focused
-   ============================================ */
-
-/* Define the dimmed transition */
-:root {
-	--vscode-stealth-dim-opacity: 0.2;
-	--vscode-stealth-dim-transition: opacity 0.2s ease-in-out;
-}
-
-/* Primary sidebar - dim when editor has focus (requires focus-dimming-enabled setting) */
-.monaco-workbench.focus-dimming-enabled:has(.part.editor:focus-within) .part.sidebar {
-	opacity: var(--vscode-stealth-dim-opacity);
-	transition: var(--vscode-stealth-dim-transition);
-}
-
-/* Restore sidebar when hovered or focused */
-.monaco-workbench.focus-dimming-enabled .part.sidebar:hover,
-.monaco-workbench.focus-dimming-enabled .part.sidebar:focus-within {
-	opacity: 1 !important;
-	transition: var(--vscode-stealth-dim-transition);
-}
-
-/* Status bar - dim when editor has focus (requires focus-dimming-enabled setting) */
-.monaco-workbench.focus-dimming-enabled:has(.part.editor:focus-within) .part.statusbar {
-	opacity: var(--vscode-stealth-dim-opacity);
-	transition: var(--vscode-stealth-dim-transition);
-}
-
-/* Restore status bar when hovered or focused */
-.monaco-workbench.focus-dimming-enabled .part.statusbar:hover,
-.monaco-workbench.focus-dimming-enabled .part.statusbar:focus-within {
-	opacity: 1 !important;
-	transition: var(--vscode-stealth-dim-transition);
-}
-
-/* Command center - remove shadow by default, show on titlebar hover */
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center {
-	box-shadow: none !important;
-	transition: box-shadow 0.2s ease-in-out;
-}
-
-/* Show command center shadow when hovering titlebar */
-.monaco-workbench .part.titlebar:hover > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center,
-.monaco-workbench .part.titlebar:focus-within > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center {
-	box-shadow: 0 0 16px rgba(0, 0, 0, 0.09) !important;
-}
-
-/* Command center content (search icon + text) - always visible */
-.monaco-workbench .part.titlebar .command-center .action-item.command-center-center {
-	opacity: 1 !important;
-}
-
-/* Titlebar action buttons - hide by default (left, right, and non-command-center items) */
-.monaco-workbench .part.titlebar .titlebar-container .titlebar-left .action-item,
-.monaco-workbench .part.titlebar .titlebar-container .titlebar-right .action-item,
-.monaco-workbench .part.titlebar .titlebar-container .menubar-menu-button,
-.monaco-workbench .part.titlebar .command-center .action-item:not(.command-center-center) {
-	opacity: 0;
-	transition: opacity 0.2s ease-in-out;
-}
-
-/* Show all titlebar buttons when hovering anywhere on titlebar */
-.monaco-workbench .part.titlebar:hover .titlebar-container .titlebar-left .action-item,
-.monaco-workbench .part.titlebar:hover .titlebar-container .titlebar-right .action-item,
-.monaco-workbench .part.titlebar:hover .titlebar-container .menubar-menu-button,
-.monaco-workbench .part.titlebar:hover .command-center .action-item:not(.command-center-center),
-.monaco-workbench .part.titlebar:focus-within .titlebar-container .titlebar-left .action-item,
-.monaco-workbench .part.titlebar:focus-within .titlebar-container .titlebar-right .action-item,
-.monaco-workbench .part.titlebar:focus-within .titlebar-container .menubar-menu-button,
-.monaco-workbench .part.titlebar:focus-within .command-center .action-item:not(.command-center-center) {
-	opacity: 1;
-	transition: opacity 0.2s ease-in-out;
-}
+/* Stealth Shadows - shadow-based depth for UI elements, controlled by workbench.stealthShadows.enabled */
+
+/* Activity Bar */
+.monaco-workbench.stealth-shadows-enabled .part.activitybar { box-shadow: 0 0 12px rgba(0, 0, 0, 0.08); z-index: 50; position: relative; }
+.monaco-workbench.stealth-shadows-enabled.activitybar-right .part.activitybar { box-shadow: 0 0 12px rgba(0, 0, 0, 0.08); }
+
+/* Sidebar */
+.monaco-workbench.stealth-shadows-enabled .part.sidebar { box-shadow: 0 0 12px rgba(0, 0, 0, 0.08); z-index: 40; position: relative; }
+.monaco-workbench.stealth-shadows-enabled.sidebar-right .part.sidebar { box-shadow: 0 0 12px rgba(0, 0, 0, 0.08); }
+.monaco-workbench.stealth-shadows-enabled .part.auxiliarybar { box-shadow: 0 0 12px rgba(0, 0, 0, 0.08); z-index: 40; position: relative; }
+
+/* Panel */
+.monaco-workbench.stealth-shadows-enabled .part.panel { box-shadow: 0 0 12px rgba(0, 0, 0, 0.08); z-index: 35; position: relative; }
+.monaco-workbench.stealth-shadows-enabled.panel-position-left .part.panel { box-shadow: 0 0 12px rgba(0, 0, 0, 0.08); }
+.monaco-workbench.stealth-shadows-enabled.panel-position-right .part.panel { box-shadow: 0 0 12px rgba(0, 0, 0, 0.08); }
+
+/* Editor */
+.monaco-workbench.stealth-shadows-enabled .part.editor { position: relative; }
+.monaco-workbench.stealth-shadows-enabled .part.editor > .content .editor-group-container > .title { box-shadow: none; position: relative; z-index: 10; }
+.monaco-workbench.stealth-shadows-enabled .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active { box-shadow: 0 0 12px rgba(0, 0, 0, 0.10); position: relative; z-index: 5; border-radius: 4px 4px 0 0; border-top: none !important; }
+.monaco-workbench.stealth-shadows-enabled .part.editor > .content .editor-group-container > .title .tabs-container > .tab:hover:not(.active) { box-shadow: 0 0 8px rgba(0, 0, 0, 0.08); }
+
+/* Title Bar */
+.monaco-workbench.stealth-shadows-enabled .part.titlebar { box-shadow: 0 0 12px rgba(0, 0, 0, 0.08); z-index: 60; position: relative; overflow: visible !important; }
+.monaco-workbench.stealth-shadows-enabled .part.titlebar .titlebar-container,
+.monaco-workbench.stealth-shadows-enabled .part.titlebar .titlebar-center,
+.monaco-workbench.stealth-shadows-enabled .part.titlebar .titlebar-center .window-title,
+.monaco-workbench.stealth-shadows-enabled .part.titlebar .command-center,
+.monaco-workbench.stealth-shadows-enabled .part.titlebar .command-center .monaco-action-bar,
+.monaco-workbench.stealth-shadows-enabled .part.titlebar .command-center .actions-container { overflow: visible !important; }
+
+/* Status Bar */
+.monaco-workbench.stealth-shadows-enabled .part.statusbar { box-shadow: 0 0 12px rgba(0, 0, 0, 0.08); z-index: 55; position: relative; }
+
+/* Quick Input (Command Palette) */
+.monaco-workbench.stealth-shadows-enabled .quick-input-widget { box-shadow: 0 0 40px rgba(0, 0, 0, 0.15) !important; border: none !important; border-radius: 12px; overflow: hidden; background: rgba(252, 252, 253, 0.2) !important; backdrop-filter: blur(20px) saturate(100%); -webkit-backdrop-filter: blur(40px) saturate(180%); }
+.monaco-workbench.stealth-shadows-enabled.vs-dark .quick-input-widget,
+.monaco-workbench.stealth-shadows-enabled.hc-black .quick-input-widget { background: rgba(10, 10, 11, 0.85) !important; backdrop-filter: blur(40px) saturate(180%); -webkit-backdrop-filter: blur(40px) saturate(180%); box-shadow: 0 0 40px rgba(0, 0, 0, 0.15) !important; }
+.monaco-workbench.stealth-shadows-enabled .quick-input-widget .monaco-list-rows { background-color: transparent !important; }
+.monaco-workbench.stealth-shadows-enabled .quick-input-widget,
+.monaco-workbench.stealth-shadows-enabled .quick-input-widget *,
+.monaco-workbench.stealth-shadows-enabled .quick-input-widget .quick-input-header,
+.monaco-workbench.stealth-shadows-enabled .quick-input-widget .quick-input-list,
+.monaco-workbench.stealth-shadows-enabled .quick-input-widget .quick-input-titlebar,
+.monaco-workbench.stealth-shadows-enabled .quick-input-widget .quick-input-title,
+.monaco-workbench.stealth-shadows-enabled .quick-input-widget .quick-input-description,
+.monaco-workbench.stealth-shadows-enabled .quick-input-widget .quick-input-filter,
+.monaco-workbench.stealth-shadows-enabled .quick-input-widget .quick-input-action,
+.monaco-workbench.stealth-shadows-enabled .quick-input-widget .quick-input-message,
+.monaco-workbench.stealth-shadows-enabled .quick-input-widget .monaco-inputbox,
+.monaco-workbench.stealth-shadows-enabled .quick-input-widget .monaco-list,
+.monaco-workbench.stealth-shadows-enabled .quick-input-widget .monaco-list-row { border: none !important; border-color: transparent !important; outline: none !important; }
+.monaco-workbench.stealth-shadows-enabled .quick-input-widget .monaco-inputbox { box-shadow: none !important; background: transparent !important; }
+.monaco-workbench.stealth-shadows-enabled .quick-input-widget .quick-input-filter .monaco-inputbox { background: rgba(249, 250, 251, 0.4) !important; border-radius: 6px; }
+.monaco-workbench.stealth-shadows-enabled.vs-dark .quick-input-widget .quick-input-filter .monaco-inputbox,
+.monaco-workbench.stealth-shadows-enabled.hc-black .quick-input-widget .quick-input-filter .monaco-inputbox { background: rgba(20, 20, 22, 0.6) !important; }
+
+/* Chat Widget */
+.monaco-workbench.stealth-shadows-enabled .interactive-session .chat-input-container { box-shadow: 0 0 18px rgba(0, 0, 0, 0.12); border: none !important; border-radius: 6px; background-color: var(--vscode-panel-background, var(--vscode-sideBar-background)) !important; }
+.monaco-workbench.stealth-shadows-enabled .interactive-session .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor,
+.monaco-workbench.stealth-shadows-enabled .interactive-session .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor .monaco-editor-background { background-color: var(--vscode-panel-background, var(--vscode-sideBar-background)) !important; }
+.monaco-workbench.stealth-shadows-enabled .interactive-session .chat-editing-session .chat-editing-session-container { box-shadow: 0 0 12px rgba(0, 0, 0, 0.10); border: none !important; border-radius: 4px 4px 0 0; }
+.monaco-workbench.stealth-shadows-enabled .interactive-input-part:has(.chat-editing-session > .chat-editing-session-container) .chat-input-container { border-radius: 0 0 6px 6px; }
+.monaco-workbench.stealth-shadows-enabled .part.panel .interactive-session,
+.monaco-workbench.stealth-shadows-enabled .part.auxiliarybar .interactive-session { position: relative; }
+
+/* Notifications */
+.monaco-workbench.stealth-shadows-enabled .notifications-toasts { box-shadow: 0 0 28px rgba(0, 0, 0, 0.14); }
+.monaco-workbench.stealth-shadows-enabled .notification-toast { box-shadow: 0 0 18px rgba(0, 0, 0, 0.12); border: none; border-radius: 8px; overflow: hidden; }
+
+/* Context Menus */
+.monaco-workbench.stealth-shadows-enabled .monaco-menu .monaco-action-bar.vertical { box-shadow: 0 0 28px rgba(0, 0, 0, 0.14); border: none; border-radius: 12px; overflow: hidden; backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%); }
+.monaco-workbench.stealth-shadows-enabled .context-view .monaco-menu { box-shadow: 0 0 28px rgba(0, 0, 0, 0.14); border: none; border-radius: 12px; }
+.monaco-workbench.stealth-shadows-enabled.vs-dark .monaco-menu .monaco-action-bar.vertical,
+.monaco-workbench.stealth-shadows-enabled.vs-dark .context-view .monaco-menu,
+.monaco-workbench.stealth-shadows-enabled.hc-black .monaco-menu .monaco-action-bar.vertical,
+.monaco-workbench.stealth-shadows-enabled.hc-black .context-view .monaco-menu { background: rgba(10, 10, 11, 0.85) !important; }
+.monaco-workbench.stealth-shadows-enabled.vs .monaco-menu .monaco-action-bar.vertical,
+.monaco-workbench.stealth-shadows-enabled.vs .context-view .monaco-menu { background: rgba(252, 252, 253, 0.85) !important; }
+
+/* Hover Widgets */
+.monaco-workbench.stealth-shadows-enabled .monaco-hover { box-shadow: 0 0 18px rgba(0, 0, 0, 0.12) !important; border: none !important; border-radius: 12px !important; overflow: hidden; backdrop-filter: blur(20px) saturate(180%) !important; -webkit-backdrop-filter: blur(20px) saturate(180%) !important; }
+.monaco-workbench.stealth-shadows-enabled .monaco-hover.workbench-hover { box-shadow: 0 0 18px rgba(0, 0, 0, 0.12) !important; border: none !important; border-radius: 12px !important; }
+.monaco-workbench.stealth-shadows-enabled.vs-dark .monaco-hover,
+.monaco-workbench.stealth-shadows-enabled.hc-black .monaco-hover { background: rgba(10, 10, 11, 0.85) !important; }
+.monaco-workbench.stealth-shadows-enabled.vs .monaco-hover { background: rgba(252, 252, 253, 0.85) !important; }
+
+/* Suggest Widget */
+.monaco-workbench.stealth-shadows-enabled .monaco-editor .suggest-widget { box-shadow: 0 0 28px rgba(0, 0, 0, 0.14); border: none; border-radius: 12px; overflow: hidden; backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%); }
+.monaco-workbench.stealth-shadows-enabled.vs-dark .monaco-editor .suggest-widget,
+.monaco-workbench.stealth-shadows-enabled.hc-black .monaco-editor .suggest-widget { background: rgba(10, 10, 11, 0.85) !important; }
+.monaco-workbench.stealth-shadows-enabled.vs .monaco-editor .suggest-widget { background: rgba(252, 252, 253, 0.85) !important; }
+
+/* Find Widget */
+.monaco-workbench.stealth-shadows-enabled .monaco-editor .find-widget { box-shadow: 0 0 18px rgba(0, 0, 0, 0.12); border: none; border-radius: 8px; }
+
+/* Dialog */
+.monaco-workbench.stealth-shadows-enabled .monaco-dialog-box { box-shadow: 0 0 44px rgba(0, 0, 0, 0.18); border: none; border-radius: 12px; overflow: hidden; }
+
+/* Peek View */
+.monaco-workbench.stealth-shadows-enabled .monaco-editor .peekview-widget { box-shadow: 0 0 18px rgba(0, 0, 0, 0.12); border: none; background: var(--vscode-editor-background, #EDEDED) !important; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-radius: 8px; overflow: hidden; }
+.monaco-workbench.stealth-shadows-enabled .monaco-editor .peekview-widget .head,
+.monaco-workbench.stealth-shadows-enabled .monaco-editor .peekview-widget .body { background: transparent !important; }
+.monaco-workbench.stealth-shadows-enabled .monaco-editor .peekview-widget .ref-tree { background: var(--vscode-editor-background, #EDEDED) !important; }
+
+/* Settings */
+.monaco-workbench.stealth-shadows-enabled .settings-editor .settings-toc-container { box-shadow: 0 0 8px rgba(0, 0, 0, 0.08); }
+
+/* Welcome Tiles */
+.monaco-workbench.stealth-shadows-enabled .part.editor .welcomePageContainer .tile { box-shadow: 0 0 12px rgba(0, 0, 0, 0.10); border: none; border-radius: 8px; }
+.monaco-workbench.stealth-shadows-enabled .part.editor .welcomePageContainer .tile:hover { box-shadow: 0 0 18px rgba(0, 0, 0, 0.12); }
+
+/* Extensions */
+.monaco-workbench.stealth-shadows-enabled .extensions-list .extension-list-item { box-shadow: 0 0 8px rgba(0, 0, 0, 0.08); border: none; border-radius: 6px; margin: 4px 0; }
+.monaco-workbench.stealth-shadows-enabled .extensions-list .extension-list-item:hover { box-shadow: 0 0 12px rgba(0, 0, 0, 0.10); }
+
+/* Breadcrumbs */
+.monaco-workbench.stealth-shadows-enabled .part.editor > .content .editor-group-container > .title .breadcrumbs-control { box-shadow: 0 0 12px rgba(0, 0, 0, 0.08) !important; background: rgba(252, 252, 253, 0.65) !important; backdrop-filter: blur(40px) saturate(180%) !important; -webkit-backdrop-filter: blur(40px) saturate(180%) !important; }
+.monaco-workbench.stealth-shadows-enabled.vs-dark .part.editor > .content .editor-group-container > .title .breadcrumbs-control,
+.monaco-workbench.stealth-shadows-enabled.hc-black .part.editor > .content .editor-group-container > .title .breadcrumbs-control { background: rgba(10, 10, 11, 0.85) !important; box-shadow: 0 0 12px rgba(0, 0, 0, 0.08) !important; }
+
+/* Input Boxes */
+.monaco-workbench.stealth-shadows-enabled .monaco-inputbox { box-shadow: 0 0 8px rgba(0, 0, 0, 0.08); border: none; border-radius: 6px; }
+.monaco-workbench.stealth-shadows-enabled .monaco-inputbox.synthetic-focus,
+.monaco-workbench.stealth-shadows-enabled .monaco-inputbox:focus-within { box-shadow: 0 0 12px rgba(0, 0, 0, 0.10), 0 0 0 2px var(--vscode-focusBorder); }
+
+/* Buttons */
+.monaco-workbench.stealth-shadows-enabled .monaco-button { box-shadow: 0 0 4px rgba(0, 0, 0, 0.06); }
+.monaco-workbench.stealth-shadows-enabled .monaco-button:hover { box-shadow: 0 0 8px rgba(0, 0, 0, 0.08); }
+.monaco-workbench.stealth-shadows-enabled .monaco-button:active { box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1); }
+
+/* Dropdowns */
+.monaco-workbench.stealth-shadows-enabled .monaco-dropdown .dropdown-menu { box-shadow: 0 0 28px rgba(0, 0, 0, 0.14); border: none; border-radius: 8px; }
+
+/* Terminal */
+.monaco-workbench.stealth-shadows-enabled .pane-body.integrated-terminal { box-shadow: inset 0 0 4px rgba(255, 255, 255, 0.1); }
+
+/* SCM */
+.monaco-workbench.stealth-shadows-enabled .scm-view .scm-provider { box-shadow: 0 0 8px rgba(0, 0, 0, 0.08); border-radius: 6px; margin: 4px; }
+
+/* Debug Toolbar */
+.monaco-workbench.stealth-shadows-enabled .debug-toolbar { box-shadow: 0 0 28px rgba(0, 0, 0, 0.14); border: none; border-radius: 8px; }
+
+/* Action Widget */
+.monaco-workbench.stealth-shadows-enabled .action-widget { box-shadow: 0 0 28px rgba(0, 0, 0, 0.14) !important; border: none !important; border-radius: 8px; }
+
+/* Parameter Hints */
+.monaco-workbench.stealth-shadows-enabled .monaco-editor .parameter-hints-widget { box-shadow: 0 0 18px rgba(0, 0, 0, 0.12); border: none; border-radius: 12px; overflow: hidden; backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%); }
+.monaco-workbench.stealth-shadows-enabled.vs-dark .monaco-editor .parameter-hints-widget,
+.monaco-workbench.stealth-shadows-enabled.hc-black .monaco-editor .parameter-hints-widget { background: rgba(10, 10, 11, 0.85) !important; }
+.monaco-workbench.stealth-shadows-enabled.vs .monaco-editor .parameter-hints-widget { background: rgba(252, 252, 253, 0.85) !important; }
+
+/* Minimap */
+.monaco-workbench.stealth-shadows-enabled .monaco-editor .minimap { background: rgba(252, 252, 253, 0.65) !important; backdrop-filter: blur(40px) saturate(180%) !important; -webkit-backdrop-filter: blur(40px) saturate(180%) !important; border-radius: 8px 0 0 8px; }
+.monaco-workbench.stealth-shadows-enabled .monaco-editor .minimap canvas { opacity: 0.85; }
+.monaco-workbench.stealth-shadows-enabled.vs-dark .monaco-editor .minimap,
+.monaco-workbench.stealth-shadows-enabled.hc-black .monaco-editor .minimap { background: rgba(5, 5, 6, 0.85) !important; box-shadow: 0 0 12px rgba(0, 0, 0, 0.10) !important; }
+.monaco-workbench.stealth-shadows-enabled .monaco-editor .minimap-shadow-visible { box-shadow: 0 0 12px rgba(0, 0, 0, 0.10); }
+
+/* Sticky Scroll */
+.monaco-workbench.stealth-shadows-enabled .monaco-editor .sticky-widget { box-shadow: 0 0 12px rgba(0, 0, 0, 0.10) !important; border-bottom: none !important; border: none !important; background: rgba(252, 252, 253, 0.65) !important; backdrop-filter: blur(40px) saturate(180%) !important; -webkit-backdrop-filter: blur(40px) saturate(180%) !important; border-radius: 0 0 8px 8px !important; }
+.monaco-workbench.stealth-shadows-enabled .monaco-editor .sticky-widget *,
+.monaco-workbench.stealth-shadows-enabled .monaco-editor .sticky-widget > *,
+.monaco-workbench.stealth-shadows-enabled .monaco-editor .sticky-widget .sticky-widget-line-numbers,
+.monaco-workbench.stealth-shadows-enabled .monaco-editor .sticky-widget .sticky-widget-lines-scrollable,
+.monaco-workbench.stealth-shadows-enabled .monaco-editor .sticky-widget .sticky-widget-lines,
+.monaco-workbench.stealth-shadows-enabled .monaco-editor .sticky-widget .sticky-line-number,
+.monaco-workbench.stealth-shadows-enabled .monaco-editor .sticky-widget .sticky-line-content,
+.monaco-workbench.stealth-shadows-enabled .monaco-editor .sticky-widget .sticky-line-content:hover { background-color: transparent !important; background: transparent !important; }
+.monaco-workbench.stealth-shadows-enabled.vs-dark .monaco-editor .sticky-widget,
+.monaco-workbench.stealth-shadows-enabled.hc-black .monaco-editor .sticky-widget { background: rgba(10, 10, 11, 0.85) !important; backdrop-filter: blur(40px) saturate(180%) !important; -webkit-backdrop-filter: blur(40px) saturate(180%) !important; box-shadow: 0 0 12px rgba(0, 0, 0, 0.10) !important; }
+.monaco-workbench.stealth-shadows-enabled .monaco-editor .sticky-widget-focus-preview,
+.monaco-workbench.stealth-shadows-enabled .monaco-editor .sticky-scroll-focus-line,
+.monaco-workbench.stealth-shadows-enabled .monaco-editor .focused .sticky-widget,
+.monaco-workbench.stealth-shadows-enabled .monaco-editor:has(.sticky-widget:focus-within) .sticky-widget { background: rgba(252, 252, 253, 0.75) !important; backdrop-filter: blur(40px) saturate(180%) !important; -webkit-backdrop-filter: blur(40px) saturate(180%) !important; box-shadow: 0 0 16px rgba(0, 0, 0, 0.12) !important; border-radius: 0 0 8px 8px !important; }
+.monaco-workbench.stealth-shadows-enabled.vs-dark .monaco-editor .sticky-widget-focus-preview,
+.monaco-workbench.stealth-shadows-enabled.vs-dark .monaco-editor .sticky-scroll-focus-line,
+.monaco-workbench.stealth-shadows-enabled.vs-dark .monaco-editor .focused .sticky-widget,
+.monaco-workbench.stealth-shadows-enabled.vs-dark .monaco-editor:has(.sticky-widget:focus-within) .sticky-widget,
+.monaco-workbench.stealth-shadows-enabled.hc-black .monaco-editor .sticky-widget-focus-preview,
+.monaco-workbench.stealth-shadows-enabled.hc-black .monaco-editor .sticky-scroll-focus-line,
+.monaco-workbench.stealth-shadows-enabled.hc-black .monaco-editor .focused .sticky-widget,
+.monaco-workbench.stealth-shadows-enabled.hc-black .monaco-editor:has(.sticky-widget:focus-within) .sticky-widget { background: rgba(10, 10, 11, 0.90) !important; box-shadow: 0 0 16px rgba(0, 0, 0, 0.12) !important; }
+
+/* Notebook */
+.monaco-workbench.stealth-shadows-enabled .notebookOverlay .monaco-list .cell-focus-indicator { box-shadow: 0 0 8px rgba(0, 0, 0, 0.08); border-radius: 6px; }
+.monaco-workbench.stealth-shadows-enabled .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator { box-shadow: 0 0 12px rgba(0, 0, 0, 0.10); }
+
+/* Inline Chat */
+.monaco-workbench.stealth-shadows-enabled .monaco-editor .inline-chat { box-shadow: 0 0 28px rgba(0, 0, 0, 0.14); border: none; border-radius: 12px; }
+
+/* Command Center */
+.monaco-workbench.stealth-shadows-enabled .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center { box-shadow: 0 0 16px rgba(0, 0, 0, 0.09) !important; border-radius: 8px !important; background: rgba(249, 250, 251, 0.55) !important; backdrop-filter: blur(24px) saturate(150%); -webkit-backdrop-filter: blur(24px) saturate(150%); overflow: visible !important; }
+.monaco-workbench.stealth-shadows-enabled .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center:hover { box-shadow: 0 0 20px rgba(0, 0, 0, 0.11) !important; background: rgba(249, 250, 251, 0.70) !important; }
+.monaco-workbench.stealth-shadows-enabled.vs-dark .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center,
+.monaco-workbench.stealth-shadows-enabled.hc-black .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center { background: rgba(10, 10, 11, 0.75) !important; backdrop-filter: blur(24px) saturate(150%); -webkit-backdrop-filter: blur(24px) saturate(150%); }
+.monaco-workbench.stealth-shadows-enabled.vs-dark .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center:hover,
+.monaco-workbench.stealth-shadows-enabled.hc-black .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center:hover { background: rgba(15, 15, 17, 0.85) !important; }
+.monaco-workbench.stealth-shadows-enabled .part.titlebar .command-center,
+.monaco-workbench.stealth-shadows-enabled .part.titlebar .command-center *,
+.monaco-workbench.stealth-shadows-enabled .part.titlebar .command-center-center,
+.monaco-workbench.stealth-shadows-enabled .part.titlebar .command-center .action-item,
+.monaco-workbench.stealth-shadows-enabled .part.titlebar .command-center .search-icon,
+.monaco-workbench.stealth-shadows-enabled .part.titlebar .command-center .search-label { border: none !important; border-color: transparent !important; outline: none !important; }
+
+/* Remove Borders */
+.monaco-workbench.stealth-shadows-enabled .part.sidebar { border-right: none !important; border-left: none !important; }
+.monaco-workbench.stealth-shadows-enabled .part.auxiliarybar { border-right: none !important; border-left: none !important; }
+.monaco-workbench.stealth-shadows-enabled .part.panel { border-top: none !important; }
+.monaco-workbench.stealth-shadows-enabled .part.activitybar { border-right: none !important; border-left: none !important; }
+.monaco-workbench.stealth-shadows-enabled .part.titlebar { border-bottom: none !important; }
+.monaco-workbench.stealth-shadows-enabled .part.statusbar { border-top: none !important; }
+.monaco-workbench.stealth-shadows-enabled .part.editor > .content .editor-group-container { border: none !important; }
