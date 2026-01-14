@@ -91,3 +91,85 @@ extends:
               displayName: MacOS arm64 Sanity Tests
               poolName: AcesShared
               os: macOS
+
+          # Linux x64 containers
+          - template: build/azure-pipelines/common/sanity-tests-container.yml@self
+            parameters:
+              name: Ubuntu_22_04_x64
+              displayName: Ubuntu 22.04 x64 Sanity Tests
+              poolName: 1es-ubuntu-22.04-x64
+              container: ubuntu:22.04
+              containerPlatform: linux/amd64
+
+          - template: build/azure-pipelines/common/sanity-tests-container.yml@self
+            parameters:
+              name: Ubuntu_24_04_x64
+              displayName: Ubuntu 24.04 x64 Sanity Tests
+              poolName: 1es-ubuntu-22.04-x64
+              container: ubuntu:24.04
+              containerPlatform: linux/amd64
+
+          - template: build/azure-pipelines/common/sanity-tests-container.yml@self
+            parameters:
+              name: Debian_12_x64
+              displayName: Debian 12 x64 Sanity Tests
+              poolName: 1es-ubuntu-22.04-x64
+              container: debian:12
+              containerPlatform: linux/amd64
+
+          - template: build/azure-pipelines/common/sanity-tests-container.yml@self
+            parameters:
+              name: RedHat_UBI9_x64
+              displayName: Red Hat UBI 9 x64 Sanity Tests
+              poolName: 1es-ubuntu-22.04-x64
+              container: redhat/ubi9:latest
+              containerPlatform: linux/amd64
+
+          - template: build/azure-pipelines/common/sanity-tests-container.yml@self
+            parameters:
+              name: Fedora_40_x64
+              displayName: Fedora 40 x64 Sanity Tests
+              poolName: 1es-ubuntu-22.04-x64
+              container: fedora:40
+              containerPlatform: linux/amd64
+
+          # Linux arm64 containers (emulated via QEMU)
+          - template: build/azure-pipelines/common/sanity-tests-container.yml@self
+            parameters:
+              name: Ubuntu_22_04_arm64
+              displayName: Ubuntu 22.04 arm64 Sanity Tests
+              poolName: 1es-ubuntu-22.04-x64
+              container: ubuntu:22.04
+              containerPlatform: linux/arm64
+
+          - template: build/azure-pipelines/common/sanity-tests-container.yml@self
+            parameters:
+              name: Ubuntu_24_04_arm64
+              displayName: Ubuntu 24.04 arm64 Sanity Tests
+              poolName: 1es-ubuntu-22.04-x64
+              container: ubuntu:24.04
+              containerPlatform: linux/arm64
+
+          - template: build/azure-pipelines/common/sanity-tests-container.yml@self
+            parameters:
+              name: Debian_12_arm64
+              displayName: Debian 12 arm64 Sanity Tests
+              poolName: 1es-ubuntu-22.04-x64
+              container: debian:12
+              containerPlatform: linux/arm64
+
+          - template: build/azure-pipelines/common/sanity-tests-container.yml@self
+            parameters:
+              name: RedHat_UBI9_arm64
+              displayName: Red Hat UBI 9 arm64 Sanity Tests
+              poolName: 1es-ubuntu-22.04-x64
+              container: redhat/ubi9:latest
+              containerPlatform: linux/arm64
+
+          - template: build/azure-pipelines/common/sanity-tests-container.yml@self
+            parameters:
+              name: Fedora_40_arm64
+              displayName: Fedora 40 arm64 Sanity Tests
+              poolName: 1es-ubuntu-22.04-x64
+              container: fedora:40
+              containerPlatform: linux/arm64

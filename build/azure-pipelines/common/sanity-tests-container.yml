@@ -1,0 +1,84 @@
+parameters:
+  - name: name
+    type: string
+  - name: displayName
+    type: string
+  - name: poolName
+    type: string
+  - name: container
+    type: string
+  - name: containerPlatform
+    type: string
+  - name: args
+    type: string
+    default: ""
+
+jobs:
+  - job: ${{ parameters.name }}
+    displayName: ${{ parameters.displayName }}
+    pool:
+      name: ${{ parameters.poolName }}
+      os: linux
+    timeoutInMinutes: 30
+    variables:
+      SANITY_TEST_LOGS: $(Build.SourcesDirectory)/.build/sanity-test-logs
+      LOG_FILE: $(SANITY_TEST_LOGS)/results.xml
+    templateContext:
+      outputs:
+        - output: pipelineArtifact
+          targetPath: $(SANITY_TEST_LOGS)
+          artifactName: sanity-test-logs-${{ parameters.name }}-$(System.JobAttempt)
+          displayName: Sanity Tests Logs
+          sbomEnabled: false
+          isProduction: false
+          condition: succeededOrFailed()
+    steps:
+      - template: ./checkout.yml@self
+
+      - bash: |
+          docker run --privileged --rm tonistiigi/binfmt --uninstall '*'
+          docker run --pull always --privileged --rm tonistiigi/binfmt --install all
+        displayName: Setup QEMU for Multi-Architecture Support
+        condition: contains('${{ parameters.containerPlatform }}', 'arm')
+
+      - bash: |
+          set -e
+          docker run --rm --platform ${{ parameters.containerPlatform }} \
+            -v "$(Build.SourcesDirectory):/workspace" \
+            -w /workspace \
+            ${{ parameters.container }} \
+            /bin/bash -c '
+              set -e
+              # Install Node.js
+              if command -v apt-get &> /dev/null; then
+                apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y curl ca-certificates
+                curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
+                apt-get install -y nodejs
+              elif command -v dnf &> /dev/null; then
+                dnf install -y nodejs npm
+              elif command -v yum &> /dev/null; then
+                yum install -y nodejs npm
+              fi
+
+              # Configure NPM registry if needed
+              if [ "$(NPM_REGISTRY)" != "none" ] && [ -n "$(NPM_REGISTRY)" ]; then
+                npm config set registry "$(NPM_REGISTRY)"
+              fi
+
+              # Install dependencies and compile
+              cd test/sanity
+              npm ci
+              npm run compile
+
+              # Run tests
+              npm run start -- -c "$(BUILD_COMMIT)" -q "$(BUILD_QUALITY)" -t "/.build/sanity-test-logs/results.xml" -v ${{ parameters.args }}
+            '
+        displayName: Run Sanity Tests
+
+      - task: PublishTestResults@2
+        inputs:
+          testResultsFormat: JUnit
+          testResultsFiles: $(LOG_FILE)
+          testRunTitle: ${{ parameters.displayName }}
+        condition: succeededOrFailed()
+        displayName: Publish Test Results
