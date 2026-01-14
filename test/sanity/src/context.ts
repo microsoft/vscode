@@ -7,9 +7,7 @@ import { spawnSync, SpawnSyncReturns } from 'child_process';
 import { createHash } from 'crypto';
 import fs from 'fs';
 import { test } from 'mocha';
-import fetch from 'node-fetch';
-// eslint-disable-next-line no-duplicate-imports
-import type { Response } from 'node-fetch';
+import fetch, { Response } from 'node-fetch';
 import os from 'os';
 import path from 'path';
 import { Browser, chromium, webkit } from 'playwright';

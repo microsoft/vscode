@@ -1,6 +1,7 @@
 {
 	"compilerOptions": {
-		"module": "commonjs",
+		"module": "ES2022",
+		"moduleResolution": "bundler",
 		"noImplicitAny": true,
 		"removeComments": false,
 		"preserveConstEnums": true,

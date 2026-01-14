@@ -7,6 +7,7 @@ import fs from 'fs';
 import minimist from 'minimist';
 import Mocha, { MochaOptions } from 'mocha';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
 const options = minimist(process.argv.slice(2), {
 	string: ['fgrep', 'grep', 'test-results'],
@@ -47,7 +48,8 @@ if (testResults) {
 }
 
 const mocha = new Mocha(mochaOptions);
-mocha.addFile(require.resolve('./main.js'));
+mocha.addFile(fileURLToPath(new URL('./main.js', import.meta.url)));
+await mocha.loadFilesAsync();
 mocha.run(failures => {
 	process.exitCode = failures > 0 ? 1 : 0;
 });

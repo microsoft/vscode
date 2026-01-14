@@ -5,8 +5,8 @@
 
 import path from 'path';
 import { _electron } from 'playwright';
-import { TestContext } from './context';
-import { UITest } from './uiTest';
+import { TestContext } from './context.js';
+import { UITest } from './uiTest.js';
 
 export function setup(context: TestContext) {
 	context.test('desktop-darwin-x64', ['darwin', 'x64'], async () => {

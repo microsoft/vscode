@@ -5,8 +5,8 @@
 
 import { spawn } from 'child_process';
 import os from 'os';
-import { TestContext } from './context';
-import { UITest } from './uiTest';
+import { TestContext } from './context.js';
+import { UITest } from './uiTest.js';
 
 export function setup(context: TestContext) {
 	context.test('server-web-alpine-arm64', ['alpine', 'arm64'], async () => {

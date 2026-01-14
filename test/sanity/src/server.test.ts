@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { spawn } from 'child_process';
 import os from 'os';
-import { TestContext } from './context';
+import { TestContext } from './context.js';
 
 export function setup(context: TestContext) {
 	context.test('server-alpine-arm64', ['alpine', 'arm64'], async () => {

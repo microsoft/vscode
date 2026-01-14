@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import minimist from 'minimist';
-import { setup as setupCliTests } from './cli.test';
-import { TestContext } from './context';
-import { setup as setupDesktopTests } from './desktop.test';
-import { setup as setupServerTests } from './server.test';
-import { setup as setupServerWebTests } from './serverWeb.test';
+import { setup as setupCliTests } from './cli.test.js';
+import { TestContext } from './context.js';
+import { setup as setupDesktopTests } from './desktop.test.js';
+import { setup as setupServerTests } from './server.test.js';
+import { setup as setupServerWebTests } from './serverWeb.test.js';
 
 const options = minimist(process.argv.slice(2), {
 	string: ['commit', 'quality'],

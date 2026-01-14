@@ -7,7 +7,7 @@ import assert from 'assert';
 import fs from 'fs';
 import path from 'path';
 import { Page } from 'playwright';
-import { TestContext } from './context';
+import { TestContext } from './context.js';
 
 /**
  * UI Test helper class to perform common UI actions and verifications.
