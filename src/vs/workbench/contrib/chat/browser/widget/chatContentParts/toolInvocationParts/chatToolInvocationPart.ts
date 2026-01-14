@@ -143,13 +143,11 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 	}
 
 	private createToolInvocationSubPart(): BaseChatToolInvocationSubPart {
-		console.log(`[ChatToolInvocationPart#createToolInvocationSubPart] kind=${this.toolInvocation.kind}, toolId=${this.toolInvocation.toolId}, toolCallId=${this.toolInvocation.toolCallId}`);
 		if (this.toolInvocation.kind === 'toolInvocation') {
 			if (this.toolInvocation.toolSpecificData?.kind === 'extensions') {
 				return this.instantiationService.createInstance(ExtensionsInstallConfirmationWidgetSubPart, this.toolInvocation, this.context);
 			}
 			const state = this.toolInvocation.state.get();
-			console.log(`[ChatToolInvocationPart#createToolInvocationSubPart] state=${state.type}`);
 
 			// Handle streaming state - show streaming progress
 			if (state.type === IChatToolInvocation.StateKind.Streaming) {

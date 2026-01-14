@@ -37,9 +37,6 @@ export class ChatToolProgressSubPart extends BaseChatToolInvocationSubPart {
 
 	private createProgressPart(): HTMLElement {
 		const isComplete = IChatToolInvocation.isComplete(this.toolInvocation);
-		console.log(`[ChatToolProgressSubPart#createProgressPart] toolId=${this.toolInvocation.toolId}, isComplete=${isComplete}, toolIsConfirmed=${this.toolIsConfirmed}`);
-		console.log(`[ChatToolProgressSubPart#createProgressPart] invocationMessage=${typeof this.toolInvocation.invocationMessage === 'string' ? this.toolInvocation.invocationMessage : this.toolInvocation.invocationMessage?.value}`);
-		console.log(`[ChatToolProgressSubPart#createProgressPart] pastTenseMessage=${typeof this.toolInvocation.pastTenseMessage === 'string' ? this.toolInvocation.pastTenseMessage : this.toolInvocation.pastTenseMessage?.value}`);
 
 		if (isComplete && this.toolIsConfirmed && this.toolInvocation.pastTenseMessage) {
 			const key = this.getAnnouncementKey('complete');

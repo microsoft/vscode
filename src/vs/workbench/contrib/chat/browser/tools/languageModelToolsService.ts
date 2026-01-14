@@ -308,8 +308,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	async invokeTool(dto: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult> {
 		this._logService.trace(`[LanguageModelToolsService#invokeTool] Invoking tool ${dto.toolId} with parameters ${JSON.stringify(dto.parameters)}`);
-		this._logService.info(`[LanguageModelToolsService#invokeTool] callId=${dto.callId}, toolId=${dto.toolId}, chatStreamToolCallId=${dto.chatStreamToolCallId}`);
-		this._logService.info(`[LanguageModelToolsService#invokeTool] Pending tool calls: ${[...this._pendingToolCalls.keys()].join(', ')}`);
 
 		// When invoking a tool, don't validate the "when" clause. An extension may have invoked a tool just as it was becoming disabled, and just let it go through rather than throw and break the chat.
 		let tool = this._tools.get(dto.toolId);
@@ -339,7 +337,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			toolInvocation = this._pendingToolCalls.get(dto.chatStreamToolCallId);
 		}
 		const hadPendingInvocation = !!toolInvocation;
-		this._logService.info(`[LanguageModelToolsService#invokeTool] hadPendingInvocation=${hadPendingInvocation}, pendingToolCallKey=${pendingToolCallKey}, toolInvocation.toolCallId=${toolInvocation?.toolCallId}`);
 		if (hadPendingInvocation && pendingToolCallKey) {
 			// Remove from pending since we're now invoking it
 			this._pendingToolCalls.delete(pendingToolCallKey);
@@ -390,11 +387,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 				if (hadPendingInvocation && toolInvocation) {
 					// Transition from streaming to executing/waiting state
-					this._logService.info(`[LanguageModelToolsService#invokeTool] Transitioning from streaming to executing for toolCallId=${dto.callId}`);
 					toolInvocation.transitionFromStreaming(preparedInvocation, dto.parameters);
 				} else {
 					// Create a new tool invocation (no streaming phase)
-					this._logService.info(`[LanguageModelToolsService#invokeTool] Creating NEW tool invocation (no streaming match) for callId=${dto.callId}`);
 					toolInvocation = new ChatToolInvocation(preparedInvocation, tool.data, dto.callId, dto.fromSubAgent, dto.parameters);
 					this._chatService.appendProgress(request, toolInvocation);
 				}
@@ -587,7 +582,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		// then fall back to looking up by toolReferenceName
 		const toolEntry = this._tools.get(options.toolId);
 		if (!toolEntry) {
-			this._logService.warn(`[LanguageModelToolsService#beginToolCall] Tool ${options.toolId} not found`);
 			return undefined;
 		}
 
@@ -601,7 +595,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		});
 
 		// Track the pending tool call
-		this._logService.info(`[LanguageModelToolsService#beginToolCall] Storing pending tool call with key=${options.toolCallId}`);
 		this._pendingToolCalls.set(options.toolCallId, invocation);
 
 		// If we have a session, append the invocation to the chat as progress
@@ -614,19 +607,11 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					: model.getRequests().at(-1);
 				if (request) {
 					this._chatService.appendProgress(request, invocation);
-					this._logService.info(`[LanguageModelToolsService#beginToolCall] Appended progress for tool ${toolEntry.data.id} to request ${request.id}`);
-				} else {
-					this._logService.warn(`[LanguageModelToolsService#beginToolCall] No request found in session for chatRequestId=${options.chatRequestId}`);
 				}
-			} else {
-				this._logService.warn(`[LanguageModelToolsService#beginToolCall] Session not found for ${options.sessionResource}`);
 			}
-		} else {
-			this._logService.warn(`[LanguageModelToolsService#beginToolCall] No sessionResource provided`);
 		}
 
 		// Call handleToolStream to get initial streaming message
-		this._logService.info(`[LanguageModelToolsService#beginToolCall] Tool entry for ${options.toolId}: hasImpl=${!!toolEntry?.impl}, hasHandleToolStream=${!!toolEntry?.impl?.handleToolStream}`);
 		this._callHandleToolStream(toolEntry, invocation, options.toolCallId, undefined, CancellationToken.None);
 
 		return invocation;
@@ -643,7 +628,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				chatRequestId: invocation.chatRequestId,
 			}, token);
 
-			this._logService.info(`[LanguageModelToolsService#_callHandleToolStream] handleToolStream result: ${JSON.stringify(result)}`);
 			if (result?.invocationMessage) {
 				invocation.updateStreamingMessage(result.invocationMessage);
 			}
@@ -655,18 +639,14 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	async updateToolStream(toolCallId: string, partialInput: unknown, token: CancellationToken): Promise<void> {
 		const invocation = this._pendingToolCalls.get(toolCallId);
 		if (!invocation) {
-			this._logService.warn(`[LanguageModelToolsService#updateToolStream] No pending tool call for ${toolCallId}`);
 			return;
 		}
-
-		this._logService.info(`[LanguageModelToolsService#updateToolStream] Updating tool stream for ${toolCallId}, toolId=${invocation.toolId}`);
 
 		// Update the partial input on the invocation
 		invocation.updatePartialInput(partialInput);
 
 		// Call handleToolStream if the tool implements it
 		const toolEntry = this._tools.get(invocation.toolId);
-		this._logService.info(`[LanguageModelToolsService#updateToolStream] Tool entry: hasImpl=${!!toolEntry?.impl}, hasHandleToolStream=${!!toolEntry?.impl?.handleToolStream}`);
 		if (toolEntry) {
 			await this._callHandleToolStream(toolEntry, invocation, toolCallId, partialInput, token);
 		}
