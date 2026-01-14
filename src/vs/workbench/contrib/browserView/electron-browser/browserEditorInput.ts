@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
+import { truncate } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
@@ -26,6 +27,11 @@ const LOADING_SPINNER_SVG = (color: string | undefined) => `
 		</path>
 	</svg>
 `;
+
+/**
+ * Maximum length for browser page titles before truncation
+ */
+const MAX_TITLE_LENGTH = 100;
 
 /**
  * JSON-serializable type used during browser state serialization/deserialization
@@ -151,7 +157,7 @@ export class BrowserEditorInput extends EditorInput {
 		// Use model data if available, otherwise fall back to initial data
 		if (this._model && this._model.url) {
 			if (this._model.title) {
-				return this._model.title;
+				return truncate(this._model.title, MAX_TITLE_LENGTH);
 			}
 			// Model exists, use its URL for authority
 			const authority = URI.parse(this._model.url).authority;
@@ -159,7 +165,7 @@ export class BrowserEditorInput extends EditorInput {
 		}
 		// Model not created yet, use initial data
 		if (this._initialData.title) {
-			return this._initialData.title;
+			return truncate(this._initialData.title, MAX_TITLE_LENGTH);
 		}
 		const url = this._initialData.url ?? '';
 		const authority = URI.parse(url).authority;
