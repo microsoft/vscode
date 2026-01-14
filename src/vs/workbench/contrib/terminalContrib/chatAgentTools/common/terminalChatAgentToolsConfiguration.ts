@@ -610,7 +610,6 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 	}
 };
 
-
 for (const id of [
 	TerminalChatAgentToolsSettingId.DeprecatedAutoApprove1,
 	TerminalChatAgentToolsSettingId.DeprecatedAutoApprove2,
