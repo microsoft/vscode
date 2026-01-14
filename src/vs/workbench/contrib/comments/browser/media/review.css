@@ -319,10 +319,6 @@
 	margin: 0 10px 0 0;
 }
 
-.review-widget .body .comment-additional-actions .button-bar .monaco-text-button {
-	padding: 4px 10px;
-}
-
 .review-widget .body .comment-additional-actions .codicon-drop-down-button {
 	align-items: center;
 }
@@ -425,7 +421,6 @@
 .review-widget .body .comment-form-container .form-actions .monaco-text-button,
 .review-widget .body .edit-container .monaco-text-button {
 	width: auto;
-	padding: 4px 10px;
 	margin-left: 5px;
 }
 

@@ -652,8 +652,8 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			if (options?.optionGroups && options.optionGroups.length) {
 				const groupsWithCallbacks = options.optionGroups.map(group => ({
 					...group,
-					onSearch: group.searchable ? async (token: CancellationToken) => {
-						return await this._proxy.$invokeOptionGroupSearch(handle, group.id, token);
+					onSearch: group.searchable ? async (query: string, token: CancellationToken) => {
+						return await this._proxy.$invokeOptionGroupSearch(handle, group.id, query, token);
 					} : undefined,
 				}));
 				this._chatSessionsService.setOptionGroupsForSessionType(chatSessionScheme, handle, groupsWithCallbacks);

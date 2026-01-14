@@ -392,12 +392,13 @@ declare module 'vscode' {
 
 		/**
 		 * Handler for dynamic search when `searchable` is true.
-		 * Called when the user clicks "See more..." to load additional items.
+		 * Called when the user types in the searchable QuickPick or clicks "See more..." to load additional items.
 		 *
+		 * @param query The search query entered by the user. Empty string for initial load.
 		 * @param token A cancellation token.
 		 * @returns Additional items to display in the searchable QuickPick.
 		 */
-		readonly onSearch?: (token: CancellationToken) => Thenable<ChatSessionProviderOptionItem[]>;
+		readonly onSearch?: (query: string, token: CancellationToken) => Thenable<ChatSessionProviderOptionItem[]>;
 	}
 
 	export interface ChatSessionProviderOptions {

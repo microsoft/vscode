@@ -26,6 +26,7 @@ import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposab
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { Schemas } from '../../../../../../base/common/network.js';
+import { mixin } from '../../../../../../base/common/objects.js';
 import { autorun, derived, derivedOpts, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { isMacintosh } from '../../../../../../base/common/platform.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
@@ -78,44 +79,45 @@ import { AccessibilityCommandId } from '../../../../accessibility/common/accessi
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions, setupSimpleEditorSelectionStyling } from '../../../../codeEditor/browser/simpleEditorOptions.js';
 import { InlineChatConfigKeys } from '../../../../inlineChat/common/inlineChat.js';
 import { IChatViewTitleActionContext } from '../../../common/actions/chatActions.js';
-import { IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
-import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
-import { IChatModelInputState, IChatRequestModeInfo, IInputModel } from '../../../common/model/chatModel.js';
+import { ChatRequestVariableSet, IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isStringVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatMode, IChatMode, IChatModeService } from '../../../common/chatModes.js';
 import { IChatFollowup, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionFileChange, IChatSessionProviderOptionItem, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
-import { getChatSessionType } from '../../../common/model/chatUri.js';
-import { ChatRequestVariableSet, IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isStringVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
-import { IChatResponseViewModel } from '../../../common/model/chatViewModel.js';
-import { ChatHistoryNavigator } from '../../../common/widget/chatWidgetHistoryService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, validateChatMode } from '../../../common/constants.js';
+import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../common/languageModels.js';
+import { IChatModelInputState, IChatRequestModeInfo, IInputModel } from '../../../common/model/chatModel.js';
+import { getChatSessionType } from '../../../common/model/chatUri.js';
+import { IChatResponseViewModel } from '../../../common/model/chatViewModel.js';
+import { IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
+import { ChatHistoryNavigator } from '../../../common/widget/chatWidgetHistoryService.js';
 import { ActionLocation, ChatContinueInSessionActionItem, ContinueChatInSessionAction } from '../../actions/chatContinueInAction.js';
-import { ChatOpenModelPickerActionId, ChatSessionPrimaryPickerAction, ChatSubmitAction, IChatExecuteActionContext, OpenModePickerAction } from '../../actions/chatExecuteActions.js';
+import { ChatSessionPrimaryPickerAction, ChatSubmitAction, IChatExecuteActionContext, OpenModelPickerAction, OpenModePickerAction, OpenSessionTargetPickerAction } from '../../actions/chatExecuteActions.js';
+import { getAgentSessionProvider } from '../../agentSessions/agentSessions.js';
 import { IAgentSessionsService } from '../../agentSessions/agentSessionsService.js';
-import { ImplicitContextAttachmentWidget } from '../../attachments/implicitContextAttachment.js';
-import { IChatWidget } from '../../chat.js';
 import { ChatAttachmentModel } from '../../attachments/chatAttachmentModel.js';
 import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget, PromptFileAttachmentWidget, PromptTextAttachmentWidget, SCMHistoryItemAttachmentWidget, SCMHistoryItemChangeAttachmentWidget, SCMHistoryItemChangeRangeAttachmentWidget, TerminalCommandAttachmentWidget, ToolSetOrToolItemAttachmentWidget } from '../../attachments/chatAttachmentWidgets.js';
+import { ChatImplicitContext } from '../../attachments/chatImplicitContext.js';
+import { ChatRelatedFiles } from '../../attachments/chatInputRelatedFilesContrib.js';
+import { ImplicitContextAttachmentWidget } from '../../attachments/implicitContextAttachment.js';
+import { IChatWidget, isIChatResourceViewContext } from '../../chat.js';
+import { ChatEditingShowChangesAction, ViewAllSessionChangesAction, ViewPreviousEditsAction } from '../../chatEditing/chatEditingActions.js';
+import { resizeImage } from '../../chatImageUtils.js';
+import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from '../../chatSessions/chatSessionPickerActionItem.js';
+import { SearchableOptionPickerActionItem } from '../../chatSessions/searchableOptionPickerActionItem.js';
+import { IChatContextService } from '../../contextContrib/chatContextService.js';
 import { IDisposableReference } from '../chatContentParts/chatCollections.js';
 import { CollapsibleListPool, IChatCollapsibleListItem } from '../chatContentParts/chatReferencesContentPart.js';
 import { ChatTodoListWidget } from '../chatContentParts/chatTodoListWidget.js';
-import { IChatContextService } from '../../contextContrib/chatContextService.js';
 import { ChatDragAndDrop } from '../chatDragAndDrop.js';
-import { ChatEditingShowChangesAction, ViewAllSessionChangesAction, ViewPreviousEditsAction } from '../../chatEditing/chatEditingActions.js';
 import { ChatFollowups } from './chatFollowups.js';
 import { ChatInputPartWidgetController } from './chatInputPartWidgets.js';
 import { ChatSelectedTools } from './chatSelectedTools.js';
-import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from '../../chatSessions/chatSessionPickerActionItem.js';
-import { ChatImplicitContext } from '../../attachments/chatImplicitContext.js';
-import { ChatRelatedFiles } from '../../attachments/chatInputRelatedFilesContrib.js';
-import { resizeImage } from '../../chatImageUtils.js';
 import { IModelPickerDelegate, ModelPickerActionItem } from './modelPickerActionItem.js';
 import { IModePickerDelegate, ModePickerActionItem } from './modePickerActionItem.js';
-import { SearchableOptionPickerActionItem } from '../../chatSessions/searchableOptionPickerActionItemtest.js';
-import { mixin } from '../../../../../../base/common/objects.js';
+import { ISessionTypePickerDelegate, SessionTypePickerActionItem } from './sessionTargetPickerActionItem.js';
 
 const $ = dom.$;
 
@@ -334,8 +336,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private modelVendorKey: IContextKey<string>;
 	private modelFamilyKey: IContextKey<string>;
 	private modelVersionKey: IContextKey<string>;
+	private chatSessionOptionsValid: IContextKey<boolean>;
 	private modelWidget: ModelPickerActionItem | undefined;
 	private modeWidget: ModePickerActionItem | undefined;
+	private sessionTargetWidget: SessionTypePickerActionItem | undefined;
 	private chatSessionPickerWidgets: Map<string, ChatSessionPickerActionItem | SearchableOptionPickerActionItem> = new Map();
 	private chatSessionPickerContainer: HTMLElement | undefined;
 	private _lastSessionPickerAction: MenuItemAction | undefined;
@@ -526,6 +530,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.modelVendorKey = ChatContextKeys.Model.vendor.bindTo(contextKeyService);
 		this.modelFamilyKey = ChatContextKeys.Model.family.bindTo(contextKeyService);
 		this.modelVersionKey = ChatContextKeys.Model.version.bindTo(contextKeyService);
+		this.chatSessionOptionsValid = ChatContextKeys.chatSessionOptionsValid.bindTo(contextKeyService);
 
 		const chatToolCount = ChatContextKeys.chatToolCount.bindTo(contextKeyService);
 
@@ -713,6 +718,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	public openModePicker(): void {
 		this.modeWidget?.show();
+	}
+
+	public openSessionTargetPicker(): void {
+		this.sessionTargetWidget?.show();
 	}
 
 	public openChatSessionPicker(): void {
@@ -1376,6 +1385,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const sessionResource = this._widget?.viewModel?.model.sessionResource;
 		const hideAll = () => {
 			this.chatSessionHasOptions.set(false);
+			this.chatSessionOptionsValid.set(true); // No options means nothing to validate
 			this.hideAllSessionPickerWidgets();
 		};
 
@@ -1394,8 +1404,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (!this.chatSessionsService.hasAnySessionOptions(ctx.chatSessionResource)) {
 			return hideAll();
 		}
-
-		this.chatSessionHasOptions.set(true);
 
 		// First update all context keys with current values (before evaluating visibility)
 		for (const optionGroup of optionGroups) {
@@ -1418,6 +1426,28 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				visibleGroupIds.add(optionGroup.id);
 			}
 		}
+
+		// Only show the picker if there are visible option groups
+		if (visibleGroupIds.size === 0) {
+			return hideAll();
+		}
+
+		// Validate that all selected options exist in their respective option group items
+		let allOptionsValid = true;
+		for (const optionGroup of optionGroups) {
+			const currentOption = this.chatSessionsService.getSessionOption(ctx.chatSessionResource, optionGroup.id);
+			if (currentOption) {
+				const currentOptionId = typeof currentOption === 'string' ? currentOption : currentOption.id;
+				const isValidOption = optionGroup.items.some(item => item.id === currentOptionId);
+				if (!isValidOption) {
+					this.logService.trace(`[ChatInputPart] Selected option '${currentOptionId}' is not valid for group '${optionGroup.id}'`);
+					allOptionsValid = false;
+				}
+			}
+		}
+		this.chatSessionOptionsValid.set(allOptionsValid);
+
+		this.chatSessionHasOptions.set(true);
 
 		const currentWidgetGroupIds = new Set(this.chatSessionPickerWidgets.keys());
 
@@ -1747,7 +1777,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			hoverDelegate,
 			actionViewItemProvider: (action, options) => {
-				if (action.id === ChatOpenModelPickerActionId && action instanceof MenuItemAction) {
+				if (action.id === OpenModelPickerAction.ID && action instanceof MenuItemAction) {
 					if (!this._currentLanguageModel) {
 						this.setCurrentLanguageModelToDefault();
 					}
@@ -1769,6 +1799,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						sessionResource: () => this._widget?.viewModel?.sessionResource,
 					};
 					return this.modeWidget = this.instantiationService.createInstance(ModePickerActionItem, action, delegate);
+				} else if (action.id === OpenSessionTargetPickerAction.ID && action instanceof MenuItemAction) {
+					const delegate: ISessionTypePickerDelegate = {
+						getActiveSessionProvider: () => {
+							const sessionResource = this._widget?.viewModel?.sessionResource;
+							return sessionResource ? getAgentSessionProvider(sessionResource) : undefined;
+						},
+					};
+					const chatSessionPosition = isIChatResourceViewContext(widget.viewContext) ? 'editor' : 'sidebar';
+					return this.sessionTargetWidget = this.instantiationService.createInstance(SessionTypePickerActionItem, action, chatSessionPosition, delegate);
 				} else if (action.id === ChatSessionPrimaryPickerAction.ID && action instanceof MenuItemAction) {
 					// Create all pickers and return a container action view item
 					const widgets = this.createChatSessionPickerWidgets(action);
@@ -2168,6 +2207,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._chatInputTodoListWidget.value?.clear(sessionResource, force);
 	}
 
+	setWorkingSetCollapsed(collapsed: boolean): void {
+		this._workingSetCollapsed.set(collapsed, undefined);
+	}
+
 	renderChatEditingSessionState(chatEditingSession: IChatEditingSession | null) {
 		dom.setVisibility(Boolean(chatEditingSession), this.chatEditingSessionWidgetContainer);
 
@@ -2346,6 +2389,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const isSessionMenu = topLevelIsSessionMenu.read(reader);
 			reader.store.add(scopedInstantiationService.createInstance(MenuWorkbenchButtonBar, actionsContainer, isSessionMenu ? MenuId.ChatEditingSessionChangesToolbar : MenuId.ChatEditingWidgetToolbar, {
 				telemetrySource: this.options.menus.telemetrySource,
+				small: true,
 				menuOptions: {
 					arg: sessionResource && (isSessionMenu ? sessionResource : {
 						$mid: MarshalledId.ChatViewContext,

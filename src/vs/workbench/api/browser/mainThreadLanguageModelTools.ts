@@ -140,6 +140,7 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 					}
 				},
 				prepareToolInvocation: (context, token) => this._proxy.$prepareToolInvocation(id, context, token),
+				handleToolStream: (context, token) => this._proxy.$handleToolStream(id, context, token),
 			});
 		this._tools.set(id, disposable);
 	}

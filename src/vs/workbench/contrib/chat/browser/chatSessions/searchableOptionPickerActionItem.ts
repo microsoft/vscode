@@ -5,7 +5,8 @@
 
 import './media/chatSessionPickerActionItem.css';
 import { IAction } from '../../../../../base/common/actions.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { Delayer } from '../../../../../base/common/async.js';
 import * as dom from '../../../../../base/browser/dom.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction, IActionWidgetDropdownOptions } from '../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
@@ -13,7 +14,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ActionWidgetDropdownActionViewItem } from '../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
 import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem } from '../../common/chatSessionsService.js';
-import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { renderLabelWithIcons, renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { localize } from '../../../../../nls.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -170,26 +171,56 @@ export class SearchableOptionPickerActionItem extends ActionWidgetDropdownAction
 	 */
 	private async showSearchableQuickPick(optionGroup: IChatSessionProviderOptionGroup): Promise<void> {
 		if (optionGroup.onSearch) {
+			const disposables = new DisposableStore();
 			const quickPick = this.quickInputService.createQuickPick<ISearchableOptionQuickPickItem>();
+			disposables.add(quickPick);
 			quickPick.placeholder = optionGroup.description ?? localize('selectOption.placeholder', "Select {0}", optionGroup.name);
 			quickPick.matchOnDescription = true;
 			quickPick.matchOnDetail = true;
-			quickPick.busy = !!optionGroup.onSearch;
+			quickPick.ignoreFocusOut = true;
+			quickPick.busy = true;
 			quickPick.show();
-			let items: IChatSessionProviderOptionItem[] = [];
-			try {
-				items = await optionGroup.onSearch(CancellationToken.None);
-			} catch (error) {
-				this.logService.error('Error fetching searchable option items:', error);
-			} finally {
-				quickPick.items = items.map(item => this.createQuickPickItem(item));
-				quickPick.busy = false;
-			}
+
+			// Debounced search state
+			let currentSearchCts: CancellationTokenSource | undefined;
+			const searchDelayer = disposables.add(new Delayer<void>(300));
+
+			const performSearch = async (query: string) => {
+				// Cancel previous search
+				currentSearchCts?.cancel();
+				currentSearchCts?.dispose();
+				currentSearchCts = new CancellationTokenSource();
+				const token = currentSearchCts.token;
+
+				quickPick.busy = true;
+				try {
+					const items = await optionGroup.onSearch!(query, token);
+					if (!token.isCancellationRequested) {
+						quickPick.items = items.map(item => this.createQuickPickItem(item));
+					}
+				} catch (error) {
+					if (!token.isCancellationRequested) {
+						this.logService.error('Error fetching searchable option items:', error);
+					}
+				} finally {
+					if (!token.isCancellationRequested) {
+						quickPick.busy = false;
+					}
+				}
+			};
+
+			// Initial search with empty query
+			await performSearch('');
+
+			// Listen for value changes and perform debounced search
+			disposables.add(quickPick.onDidChangeValue(value => {
+				searchDelayer.trigger(() => performSearch(value));
+			}));
 
 
 			// Handle selection
 			return new Promise<void>((resolve) => {
-				quickPick.onDidAccept(() => {
+				disposables.add(quickPick.onDidAccept(() => {
 					const pick = quickPick.selectedItems[0];
 					if (isSearchableOptionQuickPickItem(pick)) {
 						const selectedItem = pick.optionItem;
@@ -198,12 +229,14 @@ export class SearchableOptionPickerActionItem extends ActionWidgetDropdownAction
 						}
 					}
 					quickPick.hide();
-				});
+				}));
 
-				quickPick.onDidHide(() => {
-					quickPick.dispose();
+				disposables.add(quickPick.onDidHide(() => {
+					currentSearchCts?.cancel();
+					currentSearchCts?.dispose();
+					disposables.dispose();
 					resolve();
-				});
+				}));
 			});
 		}
 	}
