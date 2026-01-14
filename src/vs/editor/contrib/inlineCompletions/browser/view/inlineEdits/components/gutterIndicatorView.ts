@@ -457,14 +457,14 @@ export class InlineEditsGutterIndicator extends Disposable {
 
 	public readonly isVisible = this._layout.map(l => !!l);
 
-	private readonly _hoverVisible = observableValue(this, false);
+	protected readonly _hoverVisible = observableValue(this, false);
 	public readonly isHoverVisible: IObservable<boolean> = this._hoverVisible;
 
 	private readonly _isHoveredOverIcon = observableValue(this, false);
 	private readonly _isHoveredOverIconDebounced: IObservable<boolean> = debouncedObservable(this._isHoveredOverIcon, 100);
 	public readonly isHoveredOverIcon: IObservable<boolean> = this._isHoveredOverIconDebounced;
 
-	private _showHover(): void {
+	protected _showHover(): void {
 		if (this._hoverVisible.get()) {
 			return;
 		}

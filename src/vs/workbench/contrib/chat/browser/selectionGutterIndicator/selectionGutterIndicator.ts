@@ -7,7 +7,7 @@ import { n } from '../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, debouncedObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, debouncedObservable, derived, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../../../editor/browser/editorExtensions.js';
@@ -19,6 +19,10 @@ import { InlineEditsGutterIndicator, InlineEditsGutterIndicatorData, InlineSugge
 import { localize } from '../../../../../nls.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { HoverService } from '../../../../../platform/hover/browser/hoverService.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 
 /**
  * Editor contribution that shows a gutter indicator at the cursor position.
@@ -110,7 +114,7 @@ export class SelectionGutterIndicatorContribution extends Disposable implements 
 
 		// Instantiate the gutter indicator
 		this._register(this._instantiationService.createInstance(
-			InlineEditsGutterIndicator,
+			SelectionGutterIndicator,
 			editorObs,
 			data,
 			constObservable(InlineEditTabAction.Inactive), // tabAction - not used with custom styles
@@ -118,6 +122,30 @@ export class SelectionGutterIndicatorContribution extends Disposable implements 
 			constObservable(false), // isHoveringOverInlineEdit
 			focusIsInMenu,
 		));
+	}
+}
+
+/**
+ * Custom gutter indicator for selection that shows a custom hover.
+ */
+class SelectionGutterIndicator extends InlineEditsGutterIndicator {
+	constructor(
+		editorObs: ObservableCodeEditor,
+		data: IObservable<InlineEditsGutterIndicatorData | undefined>,
+		tabAction: IObservable<InlineEditTabAction>,
+		verticalOffset: IObservable<number>,
+		isHoveringOverInlineEdit: IObservable<boolean>,
+		focusIsInMenu: ISettableObservable<boolean>,
+		@IHoverService hoverService: HoverService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IAccessibilityService accessibilityService: IAccessibilityService,
+		@IThemeService themeService: IThemeService,
+	) {
+		super(editorObs, data, tabAction, verticalOffset, isHoveringOverInlineEdit, focusIsInMenu, hoverService, instantiationService, accessibilityService, themeService);
+	}
+
+	protected override _showHover(): void {
+		console.log('here');
 	}
 }
 
