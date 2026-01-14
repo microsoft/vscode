@@ -128,6 +128,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 						const shouldContinuePolling = await this._handleTimeoutState(command, invocationContext, extended, token);
 						if (shouldContinuePolling) {
 							extended = true;
+							this._state = OutputMonitorState.PollingForIdle;
 							continue;
 						} else {
 							this._promptPart?.hide();
