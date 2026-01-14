@@ -280,7 +280,6 @@ export class BrowserEditor extends EditorPane {
 			canGoForward: this._model.canGoForward
 		});
 		this.setBackgroundImage(this._model.screenshot);
-		this.updateWelcomeVisibility();
 
 		if (context.newInGroup) {
 			this._navigationBar.focusUrlInput();
@@ -374,9 +373,18 @@ export class BrowserEditor extends EditorPane {
 	}
 
 	private updateVisibility(): void {
+		const hasUrl = !!this._model?.url;
+		const hasError = !!this._model?.error;
+
+		// Welcome container: shown when no URL is loaded
+		this._welcomeContainer.style.display = hasUrl ? 'none' : 'flex';
+
+		// Error container: shown when there's a load error
+		this._errorContainer.style.display = hasError ? 'flex' : 'none';
+
 		if (this._model) {
 			// Blur the background placeholder screenshot if the view is hidden due to an overlay.
-			this._placeholderScreenshot.classList.toggle('blur', this._editorVisible && this._overlayVisible && !this._model?.error);
+			this._placeholderScreenshot.classList.toggle('blur', this._editorVisible && this._overlayVisible && !hasError);
 			void this._model.setVisible(this.shouldShowView);
 		}
 	}
@@ -403,9 +411,7 @@ export class BrowserEditor extends EditorPane {
 
 		const error: IBrowserViewLoadError | undefined = this._model.error;
 		if (error) {
-			// Show error display
-			this._errorContainer.style.display = 'flex';
-
+			// Update error content
 			while (this._errorContainer.firstChild) {
 				this._errorContainer.removeChild(this._errorContainer.firstChild);
 			}
@@ -435,8 +441,6 @@ export class BrowserEditor extends EditorPane {
 
 			this.setBackgroundImage(undefined);
 		} else {
-			// Hide error display
-			this._errorContainer.style.display = 'none';
 			this.setBackgroundImage(this._model.screenshot);
 		}
 
@@ -577,16 +581,8 @@ export class BrowserEditor extends EditorPane {
 		this._canGoBackContext.set(event.canGoBack);
 		this._canGoForwardContext.set(event.canGoForward);
 
-		// Update welcome screen visible or not
-		this.updateWelcomeVisibility();
-	}
-
-	/**
-	 * Show or hide the welcome screen based on whether a URL is loaded
-	 */
-	private updateWelcomeVisibility(): void {
-		const showWelcome = !this._model?.url;
-		this._welcomeContainer.style.display = showWelcome ? 'flex' : 'none';
+		// Update visibility (welcome screen, error, browser view)
+		this.updateVisibility();
 	}
 
 	/**
