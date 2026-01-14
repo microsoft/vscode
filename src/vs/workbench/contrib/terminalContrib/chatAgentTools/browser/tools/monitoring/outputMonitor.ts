@@ -260,63 +260,15 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		return { resources, modelOutputEvalResponse, shouldContinuePollling: false, output: custom?.output ?? output };
 	}
 
-	private async _handleTimeoutState(command: string, invocationContext: IToolInvocationContext | undefined, extended: boolean, token: CancellationToken): Promise<boolean> {
-		let continuePollingPart: ChatElicitationRequestPart | undefined;
-		if (extended) {
+	private async _handleTimeoutState(_command: string, _invocationContext: IToolInvocationContext | undefined, _extended: boolean, _token: CancellationToken): Promise<boolean> {
+		// Stop after extended polling (2 minutes) without notifying user
+		if (_extended) {
+			this._logService.info('OutputMonitor: Extended polling timeout reached after 2 minutes');
 			this._state = OutputMonitorState.Cancelled;
 			return false;
 		}
-		extended = true;
-
-		const { promise: p, part } = await this._promptForMorePolling(command, token, invocationContext);
-		let continuePollingDecisionP: Promise<boolean> | undefined = p;
-		continuePollingPart = part;
-
-		// Start another polling pass and race it against the user's decision
-		const nextPollP = this._waitForIdle(this._execution, extended, token)
-			.catch((): IPollingResult => ({
-				state: OutputMonitorState.Cancelled,
-				output: this._execution.getOutput(),
-				modelOutputEvalResponse: 'Cancelled'
-			}));
-
-		const race = await Promise.race([
-			continuePollingDecisionP.then(v => ({ kind: 'decision' as const, v })),
-			nextPollP.then(r => ({ kind: 'poll' as const, r }))
-		]);
-
-		if (race.kind === 'decision') {
-			try { continuePollingPart?.hide(); } catch { /* noop */ }
-			continuePollingPart = undefined;
-
-			// User explicitly declined to keep waiting, so finish with the timed-out result
-			if (race.v === false) {
-				this._state = OutputMonitorState.Cancelled;
-				return false;
-			}
-
-			// User accepted; keep polling (the loop iterates again).
-			// Clear the decision so we don't race on a resolved promise.
-			continuePollingDecisionP = undefined;
-			return true;
-		} else {
-			// A background poll completed while waiting for a decision
-			const r = race.r;
-			// r can be either an OutputMonitorState or an IPollingResult object (from catch)
-			const state = (typeof r === 'object' && r !== null) ? r.state : r;
-
-			if (state === OutputMonitorState.Idle || state === OutputMonitorState.Cancelled || state === OutputMonitorState.Timeout) {
-				try { continuePollingPart?.hide(); } catch { /* noop */ }
-				continuePollingPart = undefined;
-				continuePollingDecisionP = undefined;
-				this._promptPart = undefined;
-
-				return false;
-			}
-
-			// Still timing out; loop and race again with the same prompt.
-			return true;
-		}
+		// Continue polling with exponential backoff
+		return true;
 	}
 
 	/**
@@ -413,27 +365,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		this._userInputListener?.dispose();
 		this._userInputListener = undefined;
 	}
-
-	private async _promptForMorePolling(command: string, token: CancellationToken, context: IToolInvocationContext | undefined): Promise<{ promise: Promise<boolean>; part?: ChatElicitationRequestPart }> {
-		if (token.isCancellationRequested || this._state === OutputMonitorState.Cancelled) {
-			return { promise: Promise.resolve(false) };
-		}
-		const result = this._createElicitationPart<boolean>(
-			token,
-			context?.sessionId,
-			new MarkdownString(localize('poll.terminal.waiting', "Continue waiting for `{0}`?", command)),
-			new MarkdownString(localize('poll.terminal.polling', "This will continue to poll for output to determine when the terminal becomes idle for up to 2 minutes.")),
-			'',
-			localize('poll.terminal.accept', 'Yes'),
-			localize('poll.terminal.reject', 'No'),
-			async () => true,
-			async () => { this._state = OutputMonitorState.Cancelled; return false; }
-		);
-
-		return { promise: result.promise.then(p => p ?? false), part: result.part };
-	}
-
-
 
 	private async _assessOutputForErrors(buffer: string, token: CancellationToken): Promise<string | undefined> {
 		const model = await this._getLanguageModel();
