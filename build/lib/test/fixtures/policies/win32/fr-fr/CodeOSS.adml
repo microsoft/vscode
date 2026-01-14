@@ -4,12 +4,12 @@
 	<description />
 	<resources>
 		<stringTable>
-			<string id="Application">ArchiCode</string>
-			<string id="Supported_1_101">ArchiCode &gt;= 1.101</string>
-			<string id="Supported_1_104">ArchiCode &gt;= 1.104</string>
-			<string id="Supported_1_67">ArchiCode &gt;= 1.67</string>
-			<string id="Supported_1_96">ArchiCode &gt;= 1.96</string>
-			<string id="Supported_1_99">ArchiCode &gt;= 1.99</string>
+			<string id="Application">Ada</string>
+			<string id="Supported_1_101">Ada &gt;= 1.101</string>
+			<string id="Supported_1_104">Ada &gt;= 1.104</string>
+			<string id="Supported_1_67">Ada &gt;= 1.67</string>
+			<string id="Supported_1_96">Ada &gt;= 1.96</string>
+			<string id="Supported_1_99">Ada &gt;= 1.99</string>
 			<string id="Category_interactiveSessionConfigurationTitle">Session interactive</string>
 			<string id="Category_extensionsConfigurationTitle">Extensions</string>
 			<string id="Category_terminalIntegratedConfigurationTitle">Terminal intégré</string>

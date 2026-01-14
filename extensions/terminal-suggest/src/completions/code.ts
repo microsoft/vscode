@@ -858,7 +858,7 @@ export const codeTunnelSubcommands: Fig.Subcommand[] = [
 	},
 	{
 		name: 'serve-web',
-		description: 'Runs a local web version of ArchiCode',
+		description: 'Runs a local web version of Ada',
 		options: [
 			{
 				name: '--host',
@@ -1027,7 +1027,7 @@ export const codeTunnelSubcommands: Fig.Subcommand[] = [
 			},
 			{
 				name: 'serve-web',
-				description: 'Runs a local web version of ArchiCode',
+				description: 'Runs a local web version of Ada',
 			},
 			{
 				name: 'command-shell',

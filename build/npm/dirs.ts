@@ -60,6 +60,7 @@ export const dirs = [
 	'test/mcp',
 	'.vscode/extensions/vscode-selfhost-import-aid',
 	'.vscode/extensions/vscode-selfhost-test-provider',
+	'extensions/open-remote-ssh',
 ];
 
 if (existsSync(`${import.meta.dirname}/../../.build/distro/npm`)) {

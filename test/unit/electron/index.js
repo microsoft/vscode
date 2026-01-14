@@ -108,7 +108,7 @@ if (crashReporterDirectory) {
 
 	crashReporter.start({
 		companyName: 'Microsoft',
-		productName: process.env['VSCODE_DEV'] ? `${product.nameShort} Dev` : product.nameShort,
+		productName: process.env['VSCODE_DEV'] ? `${product.nameShort}` : product.nameShort,
 		uploadToServer: false,
 		compress: true
 	});
@@ -240,8 +240,8 @@ app.on('ready', () => {
 		return {
 			product: {
 				version: '1.x.y',
-				nameShort: 'ArchiCode Dev',
-				nameLong: 'ArchiCode Dev',
+				nameShort: 'Ada',
+				nameLong: 'Ada',
 				applicationName: 'code-oss',
 				dataFolderName: '.vscode-oss',
 				urlProtocol: 'code-oss',

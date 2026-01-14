@@ -92,6 +92,7 @@ export const indentationFilter = Object.freeze<string[]>([
 	'!product.overrides.json',
 
 	// except specific folders
+	'!extensions/open-remote-ssh/**',
 	'!test/automation/out/**',
 	'!test/monaco/out/**',
 	'!test/smoke/out/**',
