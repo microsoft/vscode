@@ -142,10 +142,11 @@ function createSelectionMenu(editorObs: ObservableCodeEditor, close: (focusEdito
 			}
 		}, [localize('selectionActions', "Selection Actions")]),
 
-		// Prompt input box
+		// Prompt input box with shortcut hint
 		n.div({
 			style: {
 				padding: '4px',
+				position: 'relative',
 			}
 		}, [
 			n.elem('input', {
@@ -154,6 +155,7 @@ function createSelectionMenu(editorObs: ObservableCodeEditor, close: (focusEdito
 				style: {
 					width: '100%',
 					padding: '6px 8px',
+					paddingRight: '45px', // Make room for shortcut
 					border: '1px solid var(--vscode-input-border)',
 					borderRadius: '4px',
 					backgroundColor: 'var(--vscode-input-background)',
@@ -183,6 +185,18 @@ function createSelectionMenu(editorObs: ObservableCodeEditor, close: (focusEdito
 					input.style.borderColor = 'var(--vscode-input-border)';
 				},
 			}),
+			// Shortcut hint inside input
+			n.div({
+				style: {
+					position: 'absolute',
+					right: '12px',
+					top: '50%',
+					transform: 'translateY(-50%)',
+					color: 'var(--vscode-descriptionForeground)',
+					fontSize: '11px',
+					pointerEvents: 'none',
+				}
+			}, ['⌘I']),
 		]),
 
 		// Separator
@@ -230,6 +244,24 @@ function createSelectionMenu(editorObs: ObservableCodeEditor, close: (focusEdito
 				commandService.executeCommand('workbench.action.chat.open', { query: '/explain' });
 			}
 		}),
+
+		// Separator
+		createMenuSeparator(),
+
+		// --- Editor Actions ---
+		// Option: Code Actions
+		createMenuOption({
+			id: 'codeActions',
+			title: localize('codeActions', "Code Actions"),
+			icon: Codicon.lightbulb,
+			shortcut: '⌘.',
+			isActive: activeElement.map(v => v === 'codeActions'),
+			onHoverChange: v => activeElement.set(v ? 'codeActions' : undefined, undefined),
+			onAction: () => {
+				close(true);
+				commandService.executeCommand('editor.action.quickFix');
+			}
+		}),
 	]).toDisposableLiveElement();
 }
 
@@ -252,6 +284,7 @@ function createMenuOption(props: {
 	id: string;
 	title: string;
 	icon: ThemeIcon;
+	shortcut?: string;
 	isActive: IObservable<boolean>;
 	onHoverChange: (isHovered: boolean) => void;
 	onAction: () => void;
@@ -267,7 +300,14 @@ function createMenuOption(props: {
 		n.elem('span', {
 			style: { fontSize: '16px', display: 'flex' }
 		}, [renderIcon(props.icon)]),
-		n.elem('span', {}, [props.title]),
+		n.elem('span', { style: { flex: '1' } }, [props.title]),
+		...(props.shortcut ? [n.elem('span', {
+			style: {
+				color: 'var(--vscode-descriptionForeground)',
+				fontSize: '11px',
+				marginLeft: '8px',
+			}
+		}, [props.shortcut])] : []),
 	]);
 }
 
