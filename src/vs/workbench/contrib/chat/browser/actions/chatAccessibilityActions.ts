@@ -81,7 +81,7 @@ class OpenThinkingAccessibleViewAction extends Action2 {
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F2,
+				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F3,
 				when: ChatContextKeys.inChatSession
 			}
 		});
