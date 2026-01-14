@@ -45,6 +45,11 @@
 	cursor: default;
 }
 
+.monaco-action-bar .action-item.locked .chat-session-option-picker .codicon,
+.monaco-action-bar .action-item .chat-session-option-picker.locked .codicon {
+	color: var(--vscode-disabledForeground);
+}
+
 .monaco-action-bar .action-item.locked,
 .monaco-action-bar .action-item .chat-session-option-picker.locked {
 	pointer-events: none;
