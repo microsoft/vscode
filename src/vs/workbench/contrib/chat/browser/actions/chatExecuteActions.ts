@@ -156,6 +156,7 @@ export class ChatSubmitAction extends SubmitAction {
 		const precondition = ContextKeyExpr.and(
 			ChatContextKeys.inputHasText,
 			whenNotInProgress,
+			ChatContextKeys.chatSessionOptionsValid,
 		);
 
 		super({
@@ -528,7 +529,8 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 		const menuCondition = ChatContextKeys.chatModeKind.notEqualsTo(ChatModeKind.Ask);
 		const precondition = ContextKeyExpr.and(
 			ChatContextKeys.inputHasText,
-			whenNotInProgress
+			whenNotInProgress,
+			ChatContextKeys.chatSessionOptionsValid
 		);
 
 		super({

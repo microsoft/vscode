@@ -10,13 +10,14 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { IChatEditingSession } from '../../../common/editing/chatEditingService.js';
 import { IChatChangeEvent, IChatModel, IChatRequestModel, IChatRequestNeedsInputInfo, IExportableChatData, IInputModel, ISerializableChatData } from '../../../common/model/chatModel.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
+import { IChatSessionTiming } from '../../../common/chatService/chatService.js';
 
 export class MockChatModel extends Disposable implements IChatModel {
 	readonly onDidDispose = this._register(new Emitter<void>()).event;
 	readonly onDidChange = this._register(new Emitter<IChatChangeEvent>()).event;
 	sessionId = '';
 	readonly timestamp = 0;
-	readonly timing = { startTime: 0 };
+	readonly timing: IChatSessionTiming = { created: Date.now(), lastRequestStarted: undefined, lastRequestEnded: undefined };
 	readonly initialLocation = ChatAgentLocation.Chat;
 	readonly title = '';
 	readonly hasCustomTitle = false;
@@ -30,6 +31,7 @@ export class MockChatModel extends Disposable implements IChatModel {
 	readonly editingSession = undefined;
 	readonly checkpoint = undefined;
 	readonly willKeepAlive = true;
+	readonly responderUsername: string = 'agent';
 	readonly inputModel: IInputModel = {
 		state: observableValue('inputModelState', undefined),
 		setState: () => { },
@@ -62,7 +64,6 @@ export class MockChatModel extends Disposable implements IChatModel {
 			initialLocation: this.initialLocation,
 			requests: [],
 			responderUsername: '',
-			responderAvatarIconUri: undefined
 		};
 	}
 	toJSON(): ISerializableChatData {
@@ -70,12 +71,10 @@ export class MockChatModel extends Disposable implements IChatModel {
 			version: 3,
 			sessionId: this.sessionId,
 			creationDate: this.timestamp,
-			lastMessageDate: this.lastMessageDate,
 			customTitle: this.customTitle,
 			initialLocation: this.initialLocation,
 			requests: [],
 			responderUsername: '',
-			responderAvatarIconUri: undefined
 		};
 	}
 }

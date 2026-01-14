@@ -21,8 +21,13 @@ export function setup(logger: Logger) {
 
 		after(async function () {
 			const app = this.app as Application;
-			cp.execSync('git checkout . --quiet', { cwd: app.workspacePathOrFolder });
-			cp.execSync('git reset --hard HEAD --quiet', { cwd: app.workspacePathOrFolder });
+			const workspacePathOrFolder = app.workspacePathOrFolder;
+			if (!workspacePathOrFolder) {
+				throw new Error('This test requires a workspace to be open');
+			}
+
+			cp.execSync('git checkout . --quiet', { cwd: workspacePathOrFolder });
+			cp.execSync('git reset --hard HEAD --quiet', { cwd: workspacePathOrFolder });
 		});
 
 		// the heap snapshot fails to parse

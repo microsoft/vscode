@@ -1493,6 +1493,11 @@ export interface IDetachedXtermTerminal extends IXtermTerminal {
 	 * Access to the terminal buffer for reading cursor position and content.
 	 */
 	readonly buffer: IBufferSet;
+
+	/**
+	 * The number of columns in the terminal.
+	 */
+	readonly cols: number;
 }
 
 export interface IInternalXtermTerminal {
