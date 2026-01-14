@@ -2375,6 +2375,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const isSessionMenu = topLevelIsSessionMenu.read(reader);
 			reader.store.add(scopedInstantiationService.createInstance(MenuWorkbenchButtonBar, actionsContainer, isSessionMenu ? MenuId.ChatEditingSessionChangesToolbar : MenuId.ChatEditingWidgetToolbar, {
 				telemetrySource: this.options.menus.telemetrySource,
+				small: true,
 				menuOptions: {
 					arg: sessionResource && (isSessionMenu ? sessionResource : {
 						$mid: MarshalledId.ChatViewContext,
