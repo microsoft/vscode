@@ -105,14 +105,8 @@ export class MockChatSessionsService implements IChatSessionsService {
 	}
 
 	getChatSessionItems(providersToResolve: readonly string[] | undefined, token: CancellationToken): Promise<Array<{ readonly chatSessionType: string; readonly items: IChatSessionItem[] }>> {
-		const normalizedProviders = providersToResolve === undefined
-			? undefined
-			: Array.isArray(providersToResolve)
-				? providersToResolve
-				: [providersToResolve];
-
 		return Promise.all(Array.from(this.sessionItemProviders.values())
-			.filter(provider => normalizedProviders === undefined || normalizedProviders.includes(provider.chatSessionType))
+			.filter(provider => !providersToResolve || providersToResolve.includes(provider.chatSessionType))
 			.map(async provider => ({
 				chatSessionType: provider.chatSessionType,
 				items: await provider.provideChatSessionItems(token),

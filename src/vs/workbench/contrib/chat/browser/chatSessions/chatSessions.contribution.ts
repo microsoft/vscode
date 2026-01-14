@@ -717,14 +717,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return this._isContributionAvailable(contribution) ? contribution : undefined;
 	}
 
-	private _getAllChatSessionItemProviders(): IChatSessionItemProvider[] {
-		return [...this._itemsProviders.values()].filter(provider => {
-			// Check if the provider's corresponding contribution is available
-			const contribution = this._contributions.get(provider.chatSessionType)?.contribution;
-			return !contribution || this._isContributionAvailable(contribution);
-		});
-	}
-
 	async activateChatSessionItemProvider(chatViewType: string): Promise<IChatSessionItemProvider | undefined> {
 		await this._extensionService.whenInstalledExtensionsRegistered();
 		const resolvedType = this._resolveToPrimaryType(chatViewType);
@@ -764,9 +756,18 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	public async getChatSessionItems(providersToResolve: readonly string[] | undefined, token: CancellationToken): Promise<Array<{ readonly chatSessionType: string; readonly items: IChatSessionItem[] }>> {
 		const results: Array<{ readonly chatSessionType: string; readonly items: IChatSessionItem[] }> = [];
-		for (const provider of this._getAllChatSessionItemProviders()) {
-			if (providersToResolve && !providersToResolve.includes(provider.chatSessionType)) {
+		for (const contrib of this.getAllChatSessionContributions()) {
+			if (providersToResolve && !providersToResolve.includes(contrib.type)) {
 				continue; // skip: not considered for resolving
+			}
+
+			const provider = await this.activateChatSessionItemProvider(contrib.type);
+			if (!provider) {
+				// We requested this provider but it is not available
+				if (providersToResolve?.includes(contrib.type)) {
+					this._logService.trace(`[ChatSessionsService] No enabled provider found for chat session type ${contrib.type}`);
+				}
+				continue;
 			}
 
 			try {
