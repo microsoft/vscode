@@ -51,6 +51,7 @@ import type { ICommandLineRewriter } from './commandLineRewriter/commandLineRewr
 import { CommandLineCdPrefixRewriter } from './commandLineRewriter/commandLineCdPrefixRewriter.js';
 import { CommandLinePreventHistoryRewriter } from './commandLineRewriter/commandLinePreventHistoryRewriter.js';
 import { CommandLinePwshChainOperatorRewriter } from './commandLineRewriter/commandLinePwshChainOperatorRewriter.js';
+import { CommandLineTimeoutRewriter } from './commandLineRewriter/commandLineTimeoutRewriter.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IHistoryService } from '../../../../../services/history/common/history.js';
 import { TerminalCommandArtifactCollector } from './terminalCommandArtifactCollector.js';
@@ -320,6 +321,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		this._profileFetcher = this._instantiationService.createInstance(TerminalProfileFetcher);
 
 		this._commandLineRewriters = [
+			this._register(this._instantiationService.createInstance(CommandLineTimeoutRewriter)),
 			this._register(this._instantiationService.createInstance(CommandLineCdPrefixRewriter)),
 			this._register(this._instantiationService.createInstance(CommandLinePwshChainOperatorRewriter, this._treeSitterCommandParser)),
 			this._register(this._instantiationService.createInstance(CommandLinePreventHistoryRewriter)),
@@ -381,6 +383,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const terminalCommandId = `tool-${generateUuid()}`;
 
 		let rewrittenCommand: string | undefined = args.command;
+		let extractedTimeout: number | undefined;
 		for (const rewriter of this._commandLineRewriters) {
 			const rewriteResult = await rewriter.rewrite({
 				commandLine: rewrittenCommand,
@@ -391,6 +394,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			if (rewriteResult) {
 				rewrittenCommand = rewriteResult.rewritten;
 				this._logService.info(`RunInTerminalTool: Command rewritten by ${rewriter.constructor.name}: ${rewriteResult.reasoning}`);
+				// If a rewriter extracted a timeout value, use it (only if not already set in args)
+				if (rewriteResult.metadata?.extractedTimeout !== undefined && args.timeout === undefined) {
+					extractedTimeout = rewriteResult.metadata.extractedTimeout;
+					this._logService.info(`RunInTerminalTool: Extracted timeout value: ${extractedTimeout}ms`);
+				}
 			}
 		}
 
@@ -403,7 +411,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				toolEdited: rewrittenCommand === args.command ? undefined : rewrittenCommand
 			},
 			language,
-		};
+		} as IChatTerminalToolInvocationData & { extractedTimeout?: number };
+
+		// Store the extracted timeout if one was found during command rewriting
+		if (extractedTimeout !== undefined) {
+			(toolSpecificData as any).extractedTimeout = extractedTimeout;
+		}
 
 		// HACK: Exit early if there's an alternative recommendation, this is a little hacky but
 		// it's the current mechanism for re-routing terminal tool calls to something else.
@@ -674,10 +687,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			const executeCancellation = store.add(new CancellationTokenSource(token));
 
 			// Set up timeout if provided and the setting is enabled
-			if (args.timeout !== undefined && args.timeout > 0) {
+			// Use extracted timeout from command rewriting if available, otherwise use the model-provided timeout
+			const extractedTimeout = (toolSpecificData as any).extractedTimeout as number | undefined;
+			const effectiveTimeout = extractedTimeout ?? args.timeout;
+			if (effectiveTimeout !== undefined && effectiveTimeout > 0) {
 				const shouldEnforceTimeout = this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnforceTimeoutFromModel) === true;
-				if (shouldEnforceTimeout) {
-					timeoutPromise = timeout(args.timeout);
+				// When timeout is extracted from the command line, always enforce it
+				// When timeout is from model, only enforce if the setting is enabled
+				if (extractedTimeout !== undefined || shouldEnforceTimeout) {
+					timeoutPromise = timeout(effectiveTimeout);
 					timeoutPromise.then(() => {
 						if (!executeCancellation.token.isCancellationRequested) {
 							didTimeout = true;

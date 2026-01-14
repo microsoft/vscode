@@ -22,4 +22,7 @@ export interface ICommandLineRewriterOptions {
 export interface ICommandLineRewriterResult {
 	rewritten: string;
 	reasoning: string;
+	metadata?: {
+		extractedTimeout?: number;
+	};
 }
