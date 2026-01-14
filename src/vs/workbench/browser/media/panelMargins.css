@@ -1,0 +1,35 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * Panel Margins - Add 8px margins and border radius to all workbench parts for a modern look
+ * Enabled via workbench.panel.margins.enabled setting
+ */
+
+/* Offset the entire grid to create outer margins */
+.monaco-workbench.panel-margins-enabled > .monaco-grid-view {
+	position: relative;
+	left: 8px;
+	top: 0;
+	width: calc(100% - 16px); /* Account for 8px left offset + 8px right margin */
+}
+
+/* Apply border radius to part content */
+.monaco-workbench.panel-margins-enabled .part.editor > .content,
+.monaco-workbench.panel-margins-enabled .part.sidebar > .content,
+.monaco-workbench.panel-margins-enabled .part.panel > .content,
+.monaco-workbench.panel-margins-enabled .part.auxiliarybar > .content {
+	border-radius: 8px;
+	overflow: hidden;
+}
+
+
+
+
+
+
+
+
+

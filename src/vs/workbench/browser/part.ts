@@ -76,6 +76,7 @@ export abstract class Part<MementoType extends object = object> extends Componen
 	 */
 	create(parent: HTMLElement, options?: object): void {
 		this.parent = parent;
+		this.element = parent; // Ensure element references the container
 		this.titleArea = this.createTitleArea(parent, options);
 		this.contentArea = this.createContentArea(parent, options);
 
@@ -186,7 +187,42 @@ export abstract class Part<MementoType extends object = object> extends Componen
 	abstract maximumHeight: number;
 
 	layout(width: number, height: number, top: number, left: number): void {
-		this._dimension = new Dimension(width, height);
+		// Account for margins applied by splitview's layoutContainer
+		const mainContainer = this.layoutService.mainContainer;
+		const hasPanelMargins = mainContainer.classList.contains('panel-margins-enabled');
+
+		if (hasPanelMargins && this.parent) {
+			const classList = this.parent.classList;
+			let marginHorizontal = 0;
+			let marginVertical = 0;
+
+			console.log('[Part.layout] Panel margins enabled, part classes:', Array.from(classList).join(' '));
+
+			if (classList.contains('sidebar')) {
+				marginHorizontal = 8;
+			} else if (classList.contains('auxiliarybar')) {
+				marginHorizontal = 8;
+			} else if (classList.contains('editor')) {
+				marginHorizontal = 16;
+			} else if (classList.contains('panel')) {
+				marginVertical = 8;
+			} else if (classList.contains('titlebar')) {
+				marginVertical = 8;
+			}
+
+			console.log('[Part.layout] Original dimensions - width:', width, 'height:', height, 'margins - H:', marginHorizontal, 'V:', marginVertical);
+
+			// Store dimensions accounting for the margins that splitview applies
+			this._dimension = new Dimension(
+				Math.max(0, width - marginHorizontal),
+				Math.max(0, height - marginVertical)
+			);
+
+			console.log('[Part.layout] Adjusted dimensions - width:', this._dimension.width, 'height:', this._dimension.height);
+		} else {
+			this._dimension = new Dimension(width, height);
+		}
+
 		this._contentPosition = { top, left };
 	}
 

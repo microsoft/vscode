@@ -1648,10 +1648,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			size(this.mainContainer, this._mainContainerDimension.width, this._mainContainerDimension.height);
 
-			// Layout the grid widget
+			// Layout the grid widget (don't reduce size - parts handle their own margins)
 			this.workbenchGrid.layout(this._mainContainerDimension.width, this._mainContainerDimension.height);
-			this.initialized = true;
-
 			// Emit as event
 			this.handleContainerDidLayout(this.mainContainer, this._mainContainerDimension);
 		}

@@ -246,6 +246,9 @@ import './contrib/searchEditor/browser/searchEditor.contribution.js';
 // Sash
 import './contrib/sash/browser/sash.contribution.js';
 
+// Panel Margins
+import './contrib/panelMargins/browser/panelMargins.contribution.js';
+
 // SCM
 import './contrib/scm/browser/scm.contribution.js';
 

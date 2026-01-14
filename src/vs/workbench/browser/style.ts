@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/style.css';
+import './media/panelMargins.css';
 import { registerThemingParticipant } from '../../platform/theme/common/themeService.js';
 import { WORKBENCH_BACKGROUND, TITLE_BAR_ACTIVE_BACKGROUND } from '../common/theme.js';
 import { isWeb, isIOS } from '../../base/common/platform.js';
 import { createMetaElement } from '../../base/browser/dom.js';
 import { isSafari, isStandalone } from '../../base/browser/browser.js';
-import { selectionBackground } from '../../platform/theme/common/colorRegistry.js';
+import { selectionBackground, editorBackground } from '../../platform/theme/common/colorRegistry.js';
 import { mainWindow } from '../../base/browser/window.js';
 
 registerThemingParticipant((theme, collector) => {
@@ -17,6 +18,12 @@ registerThemingParticipant((theme, collector) => {
 	// Background (helps for subpixel-antialiasing on Windows)
 	const workbenchBackground = WORKBENCH_BACKGROUND(theme);
 	collector.addRule(`.monaco-workbench { background-color: ${workbenchBackground}; }`);
+
+	// When panel margins are enabled, use editor background for floating effect
+	const editorBg = theme.getColor(editorBackground);
+	if (editorBg) {
+		collector.addRule(`.monaco-workbench.panel-margins-enabled { background-color: ${editorBg}; }`);
+	}
 
 	// Selection (do NOT remove - https://github.com/microsoft/vscode/issues/169662)
 	const windowSelectionBackground = theme.getColor(selectionBackground);

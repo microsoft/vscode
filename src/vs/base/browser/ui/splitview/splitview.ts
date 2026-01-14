@@ -299,16 +299,136 @@ abstract class ViewItem<TLayoutContext, TView extends IView<TLayoutContext>> {
 class VerticalViewItem<TLayoutContext, TView extends IView<TLayoutContext>> extends ViewItem<TLayoutContext, TView> {
 
 	layoutContainer(offset: number): void {
-		this.container.style.top = `${offset}px`;
-		this.container.style.height = `${this.size}px`;
+		let adjustedOffset = offset;
+		let adjustedSize = this.size;
+
+		// Check if panel margins are enabled in workbench
+		const workbench = this.container.closest('.monaco-workbench');
+		const hasPanelMargins = workbench?.classList.contains('panel-margins-enabled');
+
+		if (hasPanelMargins) {
+			// The part classes are on the first child, not the container itself
+			const partElement = this.container.firstElementChild as HTMLElement;
+			if (partElement) {
+				const classList = partElement.classList;
+				const partType = classList.contains('panel') ? 'PANEL' :
+					classList.contains('titlebar') ? 'TITLEBAR' :
+						classList.contains('statusbar') ? 'STATUSBAR' :
+							classList.contains('editor') ? 'EDITOR' :
+								classList.contains('banner') ? 'BANNER' :
+									classList.contains('monaco-grid-branch-node') ? 'MIDDLE-SECTION' : 'OTHER';
+
+				console.log(`[VerticalViewItem] ${partType} - original offset: ${offset}, size: ${this.size}`);
+				if (partType === 'OTHER') {
+					console.log(`[VerticalViewItem] OTHER details - tagName: ${partElement.tagName}, classes: ${Array.from(classList).join(' ')}, parent classes: ${Array.from(this.container.classList).join(' ')}`);
+				}
+
+				// Skip banner - it's usually hidden
+				if (classList.contains('banner')) {
+					// No adjustments for banner
+				}
+				// Apply vertical margins for panel (top gap)
+				else if (classList.contains('panel')) {
+					adjustedOffset += 8;
+					adjustedSize -= 8;
+				}
+				// Apply vertical margins for titlebar (bottom gap)
+				else if (classList.contains('titlebar')) {
+					adjustedSize -= 8;
+				}
+				// Apply vertical margins for statusbar (bottom gap only - middle section creates top gap)
+				else if (classList.contains('statusbar')) {
+					// No offset - middle section's height reduction creates the top gap
+					adjustedSize -= 16; // -8px for bottom outer margin, -8px to account for accumulated spacing
+				}
+				// Middle section (grid branch node) - add gap for statusbar
+				else if (classList.contains('monaco-grid-branch-node')) {
+					// Check if this is the main middle section (between titlebar and statusbar)
+					const parentGrid = this.container.closest('.monaco-grid-view');
+					if (parentGrid?.parentElement?.classList.contains('monaco-workbench')) {
+						adjustedOffset += 8; // Start after titlebar's bottom gap
+						adjustedSize -= 16; // -8px for titlebar gap consumed by offset, -8px for bottom gap before statusbar
+					}
+				}
+
+				if (adjustedOffset !== offset || adjustedSize !== this.size) {
+					console.log(`[VerticalViewItem] ${partType} - ADJUSTED offset: ${adjustedOffset} (${adjustedOffset - offset >= 0 ? '+' : ''}${adjustedOffset - offset}), size: ${adjustedSize} (${adjustedSize - this.size >= 0 ? '+' : ''}${adjustedSize - this.size})`);
+				}
+			}
+		}
+
+		this.container.style.top = `${adjustedOffset}px`;
+		this.container.style.height = `${adjustedSize}px`;
+		console.log(`[VerticalViewItem] Applied styles - top: ${adjustedOffset}px, height: ${adjustedSize}px`);
 	}
 }
 
 class HorizontalViewItem<TLayoutContext, TView extends IView<TLayoutContext>> extends ViewItem<TLayoutContext, TView> {
 
 	layoutContainer(offset: number): void {
-		this.container.style.left = `${offset}px`;
-		this.container.style.width = `${this.size}px`;
+		let adjustedOffset = offset;
+		let adjustedSize = this.size;
+
+		// Check if panel margins are enabled in workbench
+		const workbench = this.container.closest('.monaco-workbench');
+		const hasPanelMargins = workbench?.classList.contains('panel-margins-enabled');
+
+		if (hasPanelMargins) {
+			// The part classes are on the first child, not the container itself
+			const partElement = this.container.firstElementChild as HTMLElement;
+			if (partElement) {
+				const classList = partElement.classList;
+				const partType = classList.contains('sidebar') ? 'SIDEBAR' :
+					classList.contains('auxiliarybar') ? 'AUXILIARYBAR' :
+						classList.contains('editor') ? 'EDITOR' :
+							classList.contains('activitybar') ? 'ACTIVITYBAR' :
+								classList.contains('monaco-grid-branch-node') ? 'MIDDLE-GRID' : 'OTHER';
+
+				console.log(`[HorizontalViewItem] ${partType} - original offset: ${offset}, size: ${this.size}`);
+				if (partType === 'OTHER') {
+					console.log(`[HorizontalViewItem] OTHER details - tagName: ${partElement.tagName}, classes: ${Array.from(classList).join(' ')}, parent classes: ${Array.from(this.container.classList).join(' ')}`);
+				}
+
+				// Sidebar: gap on right
+				if (classList.contains('sidebar')) {
+					adjustedSize -= 8;
+				}
+				// Auxiliary bar: no offset needed (middle grid creates gap)
+				else if (classList.contains('auxiliarybar')) {
+					// No offset - middle grid's width reduction creates the left gap
+					adjustedSize -= 16; // -8px for right outer margin, -8px to compensate for grid's left:8px offset
+				}
+				// Editor: gaps on both sides
+				else if (classList.contains('editor')) {
+					adjustedOffset += 8;
+					adjustedSize -= 16;
+				}
+				// Middle grid in horizontal layout (contains editor/panel vertically): no offset needed (sidebar creates gap)
+				else if (classList.contains('monaco-grid-branch-node')) {
+					// No offset - sidebar's width reduction creates the left gap
+					adjustedSize -= 8; // Only reduce for right gap before auxiliarybar
+				}
+				// Check if this is inside an editor part (for nested grids)
+				else if (this.container.closest('.part.editor')) {
+					// Only apply if this is the outermost container in the editor
+					const editorPart = this.container.closest('.part.editor');
+					const isDirectChild = editorPart?.parentElement?.classList.contains('split-view-view');
+					if (isDirectChild) {
+						adjustedOffset += 8;
+						adjustedSize -= 16;
+						console.log(`[HorizontalViewItem] Inside editor part (direct child)`);
+					}
+				}
+
+				if (adjustedOffset !== offset || adjustedSize !== this.size) {
+					console.log(`[HorizontalViewItem] ${partType} - ADJUSTED offset: ${adjustedOffset} (${adjustedOffset - offset >= 0 ? '+' : ''}${adjustedOffset - offset}), size: ${adjustedSize} (${adjustedSize - this.size >= 0 ? '+' : ''}${adjustedSize - this.size})`);
+				}
+			}
+		}
+
+		this.container.style.left = `${adjustedOffset}px`;
+		this.container.style.width = `${adjustedSize}px`;
+		console.log(`[HorizontalViewItem] Applied styles - left: ${adjustedOffset}px, width: ${adjustedSize}px`);
 	}
 }
 
