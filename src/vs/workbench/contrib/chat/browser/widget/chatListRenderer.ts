@@ -1293,7 +1293,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			&& part.kind === 'toolInvocationSerialized' && part.toolSpecificData?.kind === 'terminal'; // contributed serialized terminal tool invocations data
 		if (isTerminalTool && !isContributedTerminalToolInvocation) {
 			// don't pin terminals with confirmation
-			if (part.kind === 'toolInvocation' && part.confirmationMessages) {
+			if (part.kind === 'toolInvocation' && IChatToolInvocation.getConfirmationMessages(part)) {
 				return false;
 			}
 			const terminalToolsInThinking = this.configService.getValue<boolean>(ChatConfiguration.TerminalToolsInThinking);

@@ -358,9 +358,9 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		const progressPart = this._register(_instantiationService.createInstance(ChatProgressSubPart, elements.container, this.getIcon(), terminalData.autoApproveInfo));
 		this._decoration.update();
 
-		// wrap terminal when thinking settin enabled
+		// wrap terminal when thinking setting enabled
 		const terminalToolsInThinking = this._configurationService.getValue<boolean>(ChatConfiguration.TerminalToolsInThinking);
-		const requiresConfirmation = toolInvocation.kind === 'toolInvocation' && toolInvocation.confirmationMessages;
+		const requiresConfirmation = toolInvocation.kind === 'toolInvocation' && IChatToolInvocation.getConfirmationMessages(toolInvocation);
 
 		if (terminalToolsInThinking && !requiresConfirmation) {
 			this._isInThinkingContainer = true;
