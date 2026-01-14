@@ -35,13 +35,20 @@ Agents Control - Titlebar control
 .agents-control-enabled .command-center .action-item.agents-control-container {
 	width: 38vw;
 	max-width: 600px;
+	display: flex;
+	flex-direction: row;
+	flex-wrap: nowrap;
+	align-items: center;
 	justify-content: center;
 }
 
 .agents-control-container {
 	display: flex;
+	flex-direction: row;
+	flex-wrap: nowrap;
 	align-items: center;
 	justify-content: center;
+	gap: 4px;
 	-webkit-app-region: no-drag;
 }
 
@@ -54,6 +61,8 @@ Agents Control - Titlebar control
 	height: 22px;
 	border-radius: 6px;
 	position: relative;
+	flex: 1;
+	min-width: 0;
 	-webkit-app-region: no-drag;
 }
 
@@ -89,6 +98,11 @@ Agents Control - Titlebar control
 .agents-control-pill.chat-input-mode.has-active .agents-control-label {
 	color: var(--vscode-textLink-foreground);
 	opacity: 1;
+}
+
+/* Unread state - has unread sessions (no background change, just indicator) */
+.agents-control-pill.chat-input-mode.has-unread .agents-control-status-icon {
+	font-size: 8px;
 }
 
 /* Session mode (viewing a session) */
@@ -187,6 +201,30 @@ Agents Control - Titlebar control
 }
 
 .agents-control-close:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+/* Search button (right of pill) */
+.agents-control-search {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 22px;
+	border-radius: 4px;
+	cursor: pointer;
+	color: var(--vscode-foreground);
+	opacity: 0.7;
+	-webkit-app-region: no-drag;
+}
+
+.agents-control-search:hover {
+	opacity: 1;
+	background-color: var(--vscode-commandCenter-activeBackground, rgba(0, 0, 0, 0.1));
+}
+
+.agents-control-search:focus {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 }

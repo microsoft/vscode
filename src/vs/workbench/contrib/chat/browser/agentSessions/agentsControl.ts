@@ -25,6 +25,7 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 
 const TOGGLE_CHAT_ACTION_ID = 'workbench.action.chat.toggle';
 const OPEN_CHAT_ACTION_ID = 'workbench.action.chat.open'; // Has the keybinding
+const QUICK_OPEN_ACTION_ID = 'workbench.action.quickOpenWithModes';
 
 /**
  * Agents Control View Item - renders agent status in the command center when agent session projection is enabled.
@@ -105,12 +106,16 @@ export class AgentsControlViewItem extends BaseActionViewItem {
 		// Get agent session statistics
 		const sessions = this.agentSessionsService.model.sessions;
 		const activeSessions = sessions.filter(s => isSessionInProgressStatus(s.status));
+		const unreadSessions = sessions.filter(s => !s.isRead());
 		const hasActiveSessions = activeSessions.length > 0;
+		const hasUnreadSessions = unreadSessions.length > 0;
 
 		// Create pill - add 'has-active' class when sessions are in progress
 		const pill = $('div.agents-control-pill.chat-input-mode');
 		if (hasActiveSessions) {
 			pill.classList.add('has-active');
+		} else if (hasUnreadSessions) {
+			pill.classList.add('has-unread');
 		}
 		pill.setAttribute('role', 'button');
 		pill.tabIndex = 0;
@@ -137,6 +142,14 @@ export class AgentsControlViewItem extends BaseActionViewItem {
 			const runningCount = $('span.agents-control-status-text');
 			runningCount.textContent = String(activeSessions.length);
 			rightIndicator.appendChild(runningCount);
+		} else if (hasUnreadSessions) {
+			// Unread indicator when there are unread sessions
+			const unreadIcon = $('span.agents-control-status-icon');
+			reset(unreadIcon, renderIcon(Codicon.circleFilled));
+			rightIndicator.appendChild(unreadIcon);
+			const unreadCount = $('span.agents-control-status-text');
+			unreadCount.textContent = String(unreadSessions.length);
+			rightIndicator.appendChild(unreadCount);
 		} else {
 			// Keyboard shortcut when idle (show open chat keybinding)
 			const kb = this.keybindingService.lookupKeybinding(OPEN_CHAT_ACTION_ID)?.getLabel();
@@ -171,6 +184,9 @@ export class AgentsControlViewItem extends BaseActionViewItem {
 				this.commandService.executeCommand(TOGGLE_CHAT_ACTION_ID);
 			}
 		}));
+
+		// Search button (right of pill)
+		this._renderSearchButton(disposables);
 	}
 
 	private _renderSessionMode(disposables: DisposableStore): void {
@@ -227,6 +243,46 @@ export class AgentsControlViewItem extends BaseActionViewItem {
 				e.preventDefault();
 				e.stopPropagation();
 				this.commandService.executeCommand(ExitFocusViewAction.ID);
+			}
+		}));
+
+		// Search button (right of pill)
+		this._renderSearchButton(disposables);
+	}
+
+	private _renderSearchButton(disposables: DisposableStore): void {
+		if (!this._container) {
+			return;
+		}
+
+		const searchButton = $('span.agents-control-search');
+		reset(searchButton, renderIcon(Codicon.search));
+		searchButton.setAttribute('role', 'button');
+		searchButton.setAttribute('aria-label', localize('openQuickOpen', "Open Quick Open"));
+		searchButton.tabIndex = 0;
+		this._container.appendChild(searchButton);
+
+		// Setup hover
+		const hoverDelegate = getDefaultHoverDelegate('mouse');
+		const searchKb = this.keybindingService.lookupKeybinding(QUICK_OPEN_ACTION_ID)?.getLabel();
+		const searchTooltip = searchKb
+			? localize('openQuickOpenTooltip', "Go to File ({0})", searchKb)
+			: localize('openQuickOpenTooltip2', "Go to File");
+		disposables.add(this.hoverService.setupManagedHover(hoverDelegate, searchButton, searchTooltip));
+
+		// Click handler
+		disposables.add(addDisposableListener(searchButton, EventType.CLICK, (e) => {
+			e.preventDefault();
+			e.stopPropagation();
+			this.commandService.executeCommand(QUICK_OPEN_ACTION_ID);
+		}));
+
+		// Keyboard handler
+		disposables.add(addDisposableListener(searchButton, EventType.KEY_DOWN, (e) => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
+				e.stopPropagation();
+				this.commandService.executeCommand(QUICK_OPEN_ACTION_ID);
 			}
 		}));
 	}

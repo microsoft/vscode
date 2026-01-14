@@ -130,6 +130,9 @@ export class FocusViewService extends Disposable implements IFocusViewService {
 
 		this._inFocusViewModeContextKey = ChatContextKeys.inFocusViewMode.bindTo(contextKeyService);
 		this._sessionWorkingSets = this._loadWorkingSets();
+
+		// Listen for editor close events to exit focus view when all editors are closed
+		this._register(this.editorService.onDidCloseEditor(() => this._checkForEmptyEditors()));
 	}
 
 	private _loadWorkingSets(): Map<string, IEditorWorkingSet> {
@@ -162,6 +165,21 @@ export class FocusViewService extends Disposable implements IFocusViewService {
 		return this.configurationService.getValue<boolean>('chat.agentSessionProjection.enabled') === true;
 	}
 
+	private _checkForEmptyEditors(): void {
+		// Only check if we're in focus view mode
+		if (!this._isActive) {
+			return;
+		}
+
+		// Check if there are any visible editors
+		const hasVisibleEditors = this.editorService.visibleEditors.length > 0;
+
+		if (!hasVisibleEditors) {
+			this.logService.trace('[FocusView] All editors closed, exiting focus view mode');
+			this.exitFocusView();
+		}
+	}
+
 	private async _openSessionFiles(session: IAgentSession): Promise<void> {
 		// Clear editors first
 		await this.editorGroupsService.applyWorkingSet('empty', { preserveFocus: true });
@@ -185,22 +203,7 @@ export class FocusViewService extends Disposable implements IFocusViewService {
 			this.logService.trace(`[FocusView] Found ${diffResources.length} files with diffs to display`);
 
 			if (diffResources.length > 0) {
-				// First, open each modified file individually so they appear as tabs
-				const filesToOpen = session.changes
-					.filter(change => change.modifiedUri)
-					.map(change => ({
-						resource: change.modifiedUri,
-						options: { inactive: true, preserveFocus: true, pinned: false }
-					}));
-
-				this.logService.trace(`[FocusView] Opening ${filesToOpen.length} individual files as tabs`);
-
-				if (filesToOpen.length > 0) {
-					await this.editorService.openEditors(filesToOpen);
-					this.logService.trace(`[FocusView] Individual files opened successfully`);
-				}
-
-				// Then, open multi-diff editor showing all changes (this becomes the active tab)
+				// Open multi-diff editor showing all changes
 				await this.commandService.executeCommand('_workbench.openMultiDiffEditor', {
 					multiDiffSourceUri: session.resource.with({ scheme: session.resource.scheme + '-agent-session-projection' }),
 					title: localize('agentSessionProjection.changes.title', '{0} - All Changes', session.label),
