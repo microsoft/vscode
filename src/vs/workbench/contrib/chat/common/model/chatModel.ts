@@ -1802,10 +1802,14 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	get timing(): IChatSessionTiming {
-		const lastResponse = this._requests.at(-1)?.response;
+		const lastRequest = this._requests.at(-1);
+		const lastResponse = lastRequest?.response;
+		const lastRequestStarted = lastRequest?.timestamp;
+		const lastRequestEnded = lastResponse?.completedAt ?? lastResponse?.timestamp;
 		return {
-			startTime: this._timestamp,
-			endTime: lastResponse?.completedAt ?? lastResponse?.timestamp
+			created: this._timestamp,
+			lastRequestStarted,
+			lastRequestEnded,
 		};
 	}
 
