@@ -363,17 +363,17 @@ export class InlineEditsGutterIndicator extends Disposable {
 		if (pillIsFullyDocked) {
 			const pillRect = pillFullyDockedRect;
 
-			let lineNumberWidth;
+			let widthUntilLineNumberEnd;
 			if (layout.lineNumbersWidth === 0) {
-				lineNumberWidth = Math.min(Math.max(layout.lineNumbersLeft - gutterViewPortWithStickyScroll.left, 0), pillRect.width - idealIconAreaWidth);
+				widthUntilLineNumberEnd = Math.min(Math.max(layout.lineNumbersLeft - gutterViewPortWithStickyScroll.left, 0), pillRect.width - idealIconAreaWidth);
 			} else {
-				lineNumberWidth = Math.max(layout.lineNumbersLeft + layout.lineNumbersWidth - gutterViewPortWithStickyScroll.left, 0);
+				widthUntilLineNumberEnd = Math.max(layout.lineNumbersLeft + layout.lineNumbersWidth - gutterViewPortWithStickyScroll.left, 0);
 			}
 
-			const lineNumberRect = pillRect.withWidth(lineNumberWidth);
+			const lineNumberRect = pillRect.withWidth(widthUntilLineNumberEnd);
 			const minimalIconWidthWithPadding = CODICON_SIZE_PX + CODICON_PADDING_PX;
-			const iconWidth = Math.min(layout.decorationsWidth, idealIconAreaWidth);
-			const iconRect = pillRect.withWidth(Math.max(iconWidth, minimalIconWidthWithPadding)).translateX(lineNumberWidth);
+			const iconWidth = Math.min(pillRect.width - widthUntilLineNumberEnd, idealIconAreaWidth);
+			const iconRect = pillRect.withWidth(Math.max(iconWidth, minimalIconWidthWithPadding)).translateX(widthUntilLineNumberEnd);
 			const iconVisible = iconWidth >= minimalIconWidthWithPadding;
 
 			return {

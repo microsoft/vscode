@@ -868,7 +868,8 @@ export enum TerminalShellType {
 	Python = 10,
 	Julia = 11,
 	NuShell = 12,
-	Node = 13
+	Node = 13,
+	Xonsh = 14
 }
 
 export class TerminalLink implements vscode.TerminalLink {
@@ -3338,17 +3339,6 @@ export class ChatResponseNotebookEditPart implements vscode.ChatResponseNotebook
 		}
 	}
 }
-
-export class ChatPrepareToolInvocationPart {
-	toolName: string;
-	/**
-	 * @param toolName The name of the tool being prepared for invocation.
-	 */
-	constructor(toolName: string) {
-		this.toolName = toolName;
-	}
-}
-
 
 export interface ChatTerminalToolInvocationData2 {
 	commandLine: {

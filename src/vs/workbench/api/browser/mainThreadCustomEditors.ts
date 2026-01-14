@@ -176,6 +176,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 
 				const disposeSub = webviewInput.webview.onDidDispose(() => {
 					disposeSub.dispose();
+					inputDisposeSub.dispose();
 
 					// If the model is still dirty, make sure we have time to save it
 					if (modelRef.object.isDirty()) {
@@ -188,6 +189,14 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 						return;
 					}
 
+					modelRef.dispose();
+				});
+
+				// Also listen for when the input is disposed (e.g., during SaveAs when the webview is transferred to a new editor).
+				// In this case, webview.onDidDispose won't fire because the webview is reused.
+				const inputDisposeSub = webviewInput.onWillDispose(() => {
+					inputDisposeSub.dispose();
+					disposeSub.dispose();
 					modelRef.dispose();
 				});
 
@@ -335,7 +344,7 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 	private _currentEditIndex: number = -1;
 	private _savePoint: number = -1;
 	private readonly _edits: Array<number> = [];
-	private _isDirtyFromContentChange = false;
+	private _isDirtyFromContentChange: boolean;
 
 	private _ongoingSave?: CancelablePromise<void>;
 
@@ -390,17 +399,16 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 
 		this._fromBackup = fromBackup;
 
+		// Normally means we're re-opening an untitled file (set this before registering the working copy
+		// so that dirty state is correct when first queried).
+		this._isDirtyFromContentChange = startDirty;
+
 		if (_editable) {
 			this._register(workingCopyService.registerWorkingCopy(this));
 
 			this._register(extensionService.onWillStop(e => {
 				e.veto(true, localize('vetoExtHostRestart', "An extension provided editor for '{0}' is still open that would close otherwise.", this.name));
 			}));
-		}
-
-		// Normally means we're re-opening an untitled file
-		if (startDirty) {
-			this._isDirtyFromContentChange = true;
 		}
 	}
 
@@ -648,7 +656,9 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 			// TODO: handle cancellation
 			await createCancelablePromise(token => this._proxy.$onSaveAs(this._editorResource, this.viewType, targetResource, token));
 			this.change(() => {
+				this._isDirtyFromContentChange = false;
 				this._savePoint = this._currentEditIndex;
+				this._fromBackup = false;
 			});
 			return true;
 		} else {
