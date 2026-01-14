@@ -477,7 +477,7 @@ export class InlineCompletionsModel extends Disposable {
 		return availableProviders;
 	}
 
-	public async trigger(tx?: ITransaction, options: { onlyFetchInlineEdits?: boolean; noDelay?: boolean; provider?: InlineCompletionsProvider; explicit?: boolean } = {}): Promise<void> {
+	public async trigger(tx?: ITransaction, options: { onlyFetchInlineEdits?: boolean; noDelay?: boolean; provider?: InlineCompletionsProvider; explicit?: boolean; changeHint?: IInlineCompletionChangeHint } = {}): Promise<void> {
 		subtransaction(tx, tx => {
 			if (options.onlyFetchInlineEdits) {
 				this._onlyRequestInlineEditsSignal.trigger(tx);
@@ -492,7 +492,7 @@ export class InlineCompletionsModel extends Disposable {
 				this._forceUpdateExplicitlySignal.trigger(tx);
 			}
 			if (options.provider) {
-				this._fetchSpecificProviderSignal.trigger(tx, options.provider);
+				this._fetchSpecificProviderSignal.trigger(tx, { provider: options.provider, changeHint: options.changeHint });
 			}
 		});
 		await this._fetchInlineCompletionsPromise.get();
