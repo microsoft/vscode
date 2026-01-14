@@ -156,8 +156,10 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		const restOfLines = lines.slice(1).join('\n').trim();
 
 		// Limit first line length, moving overflow to content
-		const title = rcut(rawFirstLine, MAX_TITLE_LENGTH);
-		const titleRemainder = rawFirstLine.length > title.length ? rawFirstLine.slice(title.length).trim() : '';
+		const titleContent = rcut(rawFirstLine, MAX_TITLE_LENGTH);
+		const wasTruncated = rawFirstLine.length > MAX_TITLE_LENGTH;
+		const title = wasTruncated ? titleContent + '…' : titleContent;
+		const titleRemainder = rawFirstLine.length > titleContent.length ? rawFirstLine.slice(titleContent.length).trim() : '';
 		const content = titleRemainder
 			? (titleRemainder + (restOfLines ? '\n' + restOfLines : ''))
 			: (restOfLines || this.prompt);
@@ -253,8 +255,10 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		const restOfLines = lines.slice(1).join('\n').trim();
 
 		// Limit first line length, moving overflow to content
-		const title = rcut(rawFirstLine, MAX_TITLE_LENGTH);
-		const titleRemainder = rawFirstLine.length > title.length ? rawFirstLine.slice(title.length).trim() : '';
+		const titleContent = rcut(rawFirstLine, MAX_TITLE_LENGTH);
+		const wasTruncated = rawFirstLine.length > MAX_TITLE_LENGTH;
+		const title = wasTruncated ? titleContent + '…' : titleContent;
+		const titleRemainder = rawFirstLine.length > titleContent.length ? rawFirstLine.slice(titleContent.length).trim() : '';
 		const content = titleRemainder
 			? (titleRemainder + (restOfLines ? '\n' + restOfLines : ''))
 			: restOfLines;
