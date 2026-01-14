@@ -113,6 +113,11 @@ interface IChatRequestInputOptions {
 	attachedContext: ChatRequestVariableSet;
 }
 
+/**
+ * Represents a chat request that has been queued to be sent after the current request completes.
+ * When a user submits a message while a request is in progress, that message is stored here
+ * and will be automatically sent when the current request finishes.
+ */
 interface IQueuedChatRequest {
 	query?: { query: string };
 	options?: IChatAcceptInputOptions;
@@ -2247,7 +2252,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private async _acceptInput(query: { query: string } | undefined, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
 		if (this.viewModel?.model.requestInProgress.get()) {
-			// Queue the request instead of ignoring it
+			// Queue the request instead of ignoring it. When a request is in progress, we store
+			// the user's message to be sent automatically once the current request completes.
+			// If the user submits multiple messages while a request is in progress, only the most
+			// recent message is queued (previous queued messages are replaced).
 			this.queuedRequest = { query, options };
 			this.hasQueuedRequestContextKey.set(true);
 			this.logService.debug('ChatWidget#_acceptInput: Request in progress, queuing message');
