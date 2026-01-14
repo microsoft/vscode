@@ -118,6 +118,7 @@ export class AgentsControlViewItem extends BaseActionViewItem {
 			pill.classList.add('has-unread');
 		}
 		pill.setAttribute('role', 'button');
+		pill.setAttribute('aria-label', localize('openChat', "Open Chat"));
 		pill.tabIndex = 0;
 		this._container.appendChild(pill);
 

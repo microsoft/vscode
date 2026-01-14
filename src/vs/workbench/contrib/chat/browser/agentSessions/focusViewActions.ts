@@ -50,15 +50,6 @@ export class EnterFocusViewAction extends Action2 {
 			}
 		}
 
-		// If no session provided via context, get all sessions and pick the first one for now
-		// TODO: In the future, show a session picker
-		if (!session) {
-			const allSessions = agentSessionsService.model.sessions;
-			if (allSessions.length > 0) {
-				session = allSessions[0];
-			}
-		}
-
 		if (session) {
 			await focusViewService.enterFocusView(session);
 		}

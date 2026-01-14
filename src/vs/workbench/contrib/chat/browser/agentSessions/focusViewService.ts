@@ -30,7 +30,7 @@ import { ACTION_ID_NEW_CHAT } from '../actions/chatActions.js';
 /**
  * Provider types that support agent session projection mode.
  * Only sessions from these providers will trigger focus view.
- * 
+ *
  * Configuration:
  * - AgentSessionProviders.Local: Local chat sessions (disabled)
  * - AgentSessionProviders.Background: Background CLI agents (enabled)
