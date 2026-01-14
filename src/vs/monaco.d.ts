@@ -7494,6 +7494,18 @@ declare namespace monaco.languages {
 		Explicit = 1
 	}
 
+	/**
+	 * Arbitrary data that the provider can pass when firing {@link InlineCompletionsProvider.onDidChangeInlineCompletions}.
+	 * This data is passed back to the provider in {@link InlineCompletionContext.changeHint}.
+	 */
+	export interface IInlineCompletionChangeHint {
+		/**
+		 * Arbitrary data that the provider can use to identify what triggered the change.
+		 * This data must be JSON serializable.
+		 */
+		readonly data?: unknown;
+	}
+
 	export interface InlineCompletionContext {
 		/**
 		 * How the completion was triggered.
@@ -7504,6 +7516,11 @@ declare namespace monaco.languages {
 		readonly includeInlineCompletions: boolean;
 		readonly requestIssuedDateTime: number;
 		readonly earliestShownDateTime: number;
+		/**
+		 * The change hint that was passed to {@link InlineCompletionsProvider.onDidChangeInlineCompletions}.
+		 * Only set if this request was triggered by such an event.
+		 */
+		readonly changeHint?: IInlineCompletionChangeHint;
 	}
 
 	export interface IInlineCompletionModelInfo {
@@ -7648,7 +7665,12 @@ declare namespace monaco.languages {
 		 * Will be called when a completions list is no longer in use and can be garbage-collected.
 		*/
 		disposeInlineCompletions(completions: T, reason: InlineCompletionsDisposeReason): void;
-		onDidChangeInlineCompletions?: IEvent<void>;
+		/**
+		 * Fired when the provider wants to trigger a new completion request.
+		 * The event can pass a {@link IInlineCompletionChangeHint} which will be
+		 * included in the {@link InlineCompletionContext} of the subsequent request.
+		 */
+		onDidChangeInlineCompletions?: IEvent<IInlineCompletionChangeHint | void>;
 		/**
 		 * Only used for {@link yieldsToGroupIds}.
 		 * Multiple providers can have the same group id.

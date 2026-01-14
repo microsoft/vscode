@@ -451,10 +451,10 @@ export class ViewModel extends Disposable implements IViewModel {
 
 				this.viewLayout.changeSpecialLineHeights((accessor: ILineHeightChangeAccessor) => {
 					for (const change of filteredChanges) {
-						const { decorationId, lineNumber, lineHeight } = change;
+						const { decorationId, lineNumber, lineHeightMultiplier } = change;
 						const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber)));
-						if (lineHeight !== null) {
-							accessor.insertOrChangeCustomLineHeight(decorationId, viewRange.startLineNumber, viewRange.endLineNumber, lineHeight);
+						if (lineHeightMultiplier !== null) {
+							accessor.insertOrChangeCustomLineHeight(decorationId, viewRange.startLineNumber, viewRange.endLineNumber, lineHeightMultiplier * this._configuration.options.get(EditorOption.lineHeight));
 						} else {
 							accessor.removeCustomLineHeight(decorationId);
 						}
