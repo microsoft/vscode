@@ -274,6 +274,7 @@ export class OutputEditor extends AbstractTextResourceEditor {
 			ambiguousCharacters: false,
 		};
 		options.find = {
+			...options.find,
 			skipHiddenAreas: true,
 		};
 
