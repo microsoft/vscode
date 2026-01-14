@@ -18,23 +18,10 @@ import { LocalAgentsSessionsProvider } from '../../../browser/agentSessions/loca
 import { ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { IChatDetail, IChatService, IChatSessionStartOptions, ResponseModelState } from '../../../common/chatService/chatService.js';
-import { ChatSessionStatus, IChatSessionItem, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
 import { MockChatSessionsService } from '../../common/mockChatSessionsService.js';
-
-function createTestTiming(options?: {
-	created?: number;
-	lastRequestStarted?: number | undefined;
-	lastRequestEnded?: number | undefined;
-}): IChatSessionItem['timing'] {
-	const now = Date.now();
-	return {
-		created: options?.created ?? now,
-		lastRequestStarted: options?.lastRequestStarted,
-		lastRequestEnded: options?.lastRequestEnded,
-	};
-}
 
 class MockChatService implements IChatService {
 	private readonly _chatModels: ISettableObservable<Iterable<IChatModel>> = observableValue('chatModels', []);
@@ -332,7 +319,7 @@ suite('LocalAgentsSessionsProvider', () => {
 				title: 'Test Session',
 				lastMessageDate: Date.now(),
 				isActive: true,
-				timing: createTestTiming(),
+				timing: { startTime: 0, endTime: 1 },
 				lastResponseState: ResponseModelState.Complete
 			}]);
 
@@ -356,7 +343,7 @@ suite('LocalAgentsSessionsProvider', () => {
 				lastMessageDate: Date.now() - 10000,
 				isActive: false,
 				lastResponseState: ResponseModelState.Complete,
-				timing: createTestTiming()
+				timing: { startTime: 0, endTime: 1 }
 			}]);
 
 			const sessions = await provider.provideChatSessionItems(CancellationToken.None);
@@ -382,7 +369,7 @@ suite('LocalAgentsSessionsProvider', () => {
 				lastMessageDate: Date.now(),
 				isActive: true,
 				lastResponseState: ResponseModelState.Complete,
-				timing: createTestTiming()
+				timing: { startTime: 0, endTime: 1 }
 			}]);
 			mockChatService.setHistorySessionItems([{
 				sessionResource,
@@ -390,7 +377,7 @@ suite('LocalAgentsSessionsProvider', () => {
 				lastMessageDate: Date.now() - 10000,
 				isActive: false,
 				lastResponseState: ResponseModelState.Complete,
-				timing: createTestTiming()
+				timing: { startTime: 0, endTime: 1 }
 			}]);
 
 			const sessions = await provider.provideChatSessionItems(CancellationToken.None);
@@ -418,7 +405,7 @@ suite('LocalAgentsSessionsProvider', () => {
 					lastMessageDate: Date.now(),
 					isActive: true,
 					lastResponseState: ResponseModelState.Complete,
-					timing: createTestTiming()
+					timing: { startTime: 0, endTime: 1 }
 				}]);
 
 				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
@@ -448,7 +435,7 @@ suite('LocalAgentsSessionsProvider', () => {
 					lastMessageDate: Date.now(),
 					isActive: true,
 					lastResponseState: ResponseModelState.Complete,
-					timing: createTestTiming(),
+					timing: { startTime: 0, endTime: 1 },
 				}]);
 
 				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
@@ -477,7 +464,7 @@ suite('LocalAgentsSessionsProvider', () => {
 					lastMessageDate: Date.now(),
 					isActive: true,
 					lastResponseState: ResponseModelState.Complete,
-					timing: createTestTiming(),
+					timing: { startTime: 0, endTime: 1 },
 				}]);
 
 				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
@@ -506,7 +493,7 @@ suite('LocalAgentsSessionsProvider', () => {
 					lastMessageDate: Date.now(),
 					isActive: true,
 					lastResponseState: ResponseModelState.Complete,
-					timing: createTestTiming(),
+					timing: { startTime: 0, endTime: 1 },
 				}]);
 
 				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
@@ -550,7 +537,7 @@ suite('LocalAgentsSessionsProvider', () => {
 					lastMessageDate: Date.now(),
 					isActive: true,
 					lastResponseState: ResponseModelState.Complete,
-					timing: createTestTiming(),
+					timing: { startTime: 0, endTime: 1 },
 					stats: {
 						added: 30,
 						removed: 8,
@@ -595,7 +582,7 @@ suite('LocalAgentsSessionsProvider', () => {
 					lastMessageDate: Date.now(),
 					isActive: true,
 					lastResponseState: ResponseModelState.Complete,
-					timing: createTestTiming()
+					timing: { startTime: 0, endTime: 1 }
 				}]);
 
 				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
@@ -606,7 +593,7 @@ suite('LocalAgentsSessionsProvider', () => {
 	});
 
 	suite('Session Timing', () => {
-		test('should use model timestamp for created when model exists', async () => {
+		test('should use model timestamp for startTime when model exists', async () => {
 			return runWithFakedTimers({}, async () => {
 				const provider = createProvider();
 
@@ -625,16 +612,16 @@ suite('LocalAgentsSessionsProvider', () => {
 					lastMessageDate: Date.now(),
 					isActive: true,
 					lastResponseState: ResponseModelState.Complete,
-					timing: createTestTiming({ created: modelTimestamp })
+					timing: { startTime: modelTimestamp }
 				}]);
 
 				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
 				assert.strictEqual(sessions.length, 1);
-				assert.strictEqual(sessions[0].timing.created, modelTimestamp);
+				assert.strictEqual(sessions[0].timing.startTime, modelTimestamp);
 			});
 		});
 
-		test('should use lastMessageDate for created when model does not exist', async () => {
+		test('should use lastMessageDate for startTime when model does not exist', async () => {
 			return runWithFakedTimers({}, async () => {
 				const provider = createProvider();
 
@@ -648,16 +635,16 @@ suite('LocalAgentsSessionsProvider', () => {
 					lastMessageDate,
 					isActive: false,
 					lastResponseState: ResponseModelState.Complete,
-					timing: createTestTiming({ created: lastMessageDate })
+					timing: { startTime: lastMessageDate }
 				}]);
 
 				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
 				assert.strictEqual(sessions.length, 1);
-				assert.strictEqual(sessions[0].timing.created, lastMessageDate);
+				assert.strictEqual(sessions[0].timing.startTime, lastMessageDate);
 			});
 		});
 
-		test('should set lastRequestEnded from last response completedAt', async () => {
+		test('should set endTime from last response completedAt', async () => {
 			return runWithFakedTimers({}, async () => {
 				const provider = createProvider();
 
@@ -677,12 +664,12 @@ suite('LocalAgentsSessionsProvider', () => {
 					lastMessageDate: Date.now(),
 					isActive: true,
 					lastResponseState: ResponseModelState.Complete,
-					timing: createTestTiming({ lastRequestEnded: completedAt })
+					timing: { startTime: 0, endTime: completedAt }
 				}]);
 
 				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
 				assert.strictEqual(sessions.length, 1);
-				assert.strictEqual(sessions[0].timing.lastRequestEnded, completedAt);
+				assert.strictEqual(sessions[0].timing.endTime, completedAt);
 			});
 		});
 	});
@@ -705,7 +692,7 @@ suite('LocalAgentsSessionsProvider', () => {
 					lastMessageDate: Date.now(),
 					isActive: true,
 					lastResponseState: ResponseModelState.Complete,
-					timing: createTestTiming()
+					timing: { startTime: 0, endTime: 1 }
 				}]);
 
 				const sessions = await provider.provideChatSessionItems(CancellationToken.None);

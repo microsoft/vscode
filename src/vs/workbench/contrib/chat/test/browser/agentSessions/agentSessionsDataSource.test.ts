@@ -36,9 +36,8 @@ suite('AgentSessionsDataSource', () => {
 			label: `Session ${overrides.id ?? 'default'}`,
 			icon: Codicon.terminal,
 			timing: {
-				created: overrides.startTime ?? now,
-				lastRequestEnded: undefined,
-				lastRequestStarted: undefined,
+				startTime: overrides.startTime ?? now,
+				endTime: overrides.endTime ?? now,
 			},
 			isArchived: () => overrides.isArchived ?? false,
 			setArchived: () => { },
@@ -74,8 +73,8 @@ suite('AgentSessionsDataSource', () => {
 		return {
 			compare: (a, b) => {
 				// Sort by end time, most recent first
-				const aTime = a.timing.lastRequestEnded ?? a.timing.lastRequestStarted ?? a.timing.created;
-				const bTime = b.timing.lastRequestEnded ?? b.timing.lastRequestStarted ?? b.timing.created;
+				const aTime = a.timing.endTime || a.timing.startTime;
+				const bTime = b.timing.endTime || b.timing.startTime;
 				return bTime - aTime;
 			}
 		};

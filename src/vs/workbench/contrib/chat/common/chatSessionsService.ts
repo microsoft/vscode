@@ -14,7 +14,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from './participants/chatAgents.js';
 import { IChatEditingSession } from './editing/chatEditingService.js';
 import { IChatModel, IChatRequestVariableData, ISerializableChatModelInputState } from './model/chatModel.js';
-import { IChatProgress, IChatService, IChatSessionTiming } from './chatService/chatService.js';
+import { IChatProgress, IChatService } from './chatService/chatService.js';
 
 export const enum ChatSessionStatus {
 	Failed = 0,
@@ -73,7 +73,6 @@ export interface IChatSessionsExtensionPoint {
 	readonly commands?: IChatSessionCommandContribution[];
 	readonly canDelegate?: boolean;
 }
-
 export interface IChatSessionItem {
 	resource: URI;
 	label: string;
@@ -82,7 +81,10 @@ export interface IChatSessionItem {
 	description?: string | IMarkdownString;
 	status?: ChatSessionStatus;
 	tooltip?: string | IMarkdownString;
-	timing: IChatSessionTiming;
+	timing: {
+		startTime: number;
+		endTime?: number;
+	};
 	changes?: {
 		files: number;
 		insertions: number;
