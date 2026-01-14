@@ -69,7 +69,14 @@ export function renderFileWidgets(element: HTMLElement, instantiationService: II
 		let metadata: InlineAnchorWidgetMetadata | undefined;
 
 		const href = a.getAttribute('data-href');
-		const uri = href ? URI.parse(href) : undefined;
+		let uri: URI | undefined;
+		if (href) {
+			try {
+				uri = URI.parse(href);
+			} catch {
+				// Invalid URI, skip rendering widget
+			}
+		}
 
 		if (!linkText) {
 			shouldRenderWidget = true;

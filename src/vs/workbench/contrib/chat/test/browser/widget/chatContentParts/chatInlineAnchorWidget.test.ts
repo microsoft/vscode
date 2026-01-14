@@ -137,17 +137,12 @@ suite('ChatInlineAnchorWidget Metadata Validation', () => {
 		assert.ok(labelElement?.textContent?.includes('myCustomFileName'), 'Label should contain the link text as fileName');
 	});
 
-	test('does not render widget for JSON metadata (old format no longer supported)', () => {
-		const jsonMetadata = JSON.stringify({
-			vscodeLinkType: 'file',
-			fileName: 'test.txt'
-		});
-
-		const element = createTestElement(jsonMetadata);
+	test('does not render widget for malformed URI', () => {
+		const element = createTestElement('mySkill', '://malformed-uri-without-scheme');
 		renderFileWidgets(element, instantiationService, mockAnchorService, disposables);
 
 		const widget = element.querySelector('.chat-inline-anchor-widget');
-		assert.ok(!widget, 'Widget should not be rendered for old JSON metadata format');
+		assert.ok(!widget, 'Widget should not be rendered for malformed URI');
 	});
 });
 
