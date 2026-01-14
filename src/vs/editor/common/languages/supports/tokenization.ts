@@ -452,7 +452,7 @@ export function generateTokensCSSForFontMap(fontMap: readonly IFontTokenOptions[
 
 export function classNameForFontTokenDecorations(fontFamily: string, fontSize: number): string {
 	const safeFontFamily = sanitizeFontFamilyForClassName(fontFamily);
-	return `font-decoration-${safeFontFamily}-${fontSize}`;
+	return cleanClassName(`font-decoration-${safeFontFamily}-${fontSize}`);
 }
 
 function sanitizeFontFamilyForClassName(fontFamily: string): string {
@@ -460,5 +460,9 @@ function sanitizeFontFamilyForClassName(fontFamily: string): string {
 	if (!normalized) {
 		return 'default';
 	}
-	return normalized.replace(/[^a-z0-9_-]/g, '-');
+	return cleanClassName(normalized);
+}
+
+function cleanClassName(className: string): string {
+	return className.replace(/[^a-z0-9_-]/gi, '-');
 }
