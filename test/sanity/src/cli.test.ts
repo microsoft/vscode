@@ -9,7 +9,7 @@ import { test } from 'mocha';
 import { TestContext } from './context';
 
 export function setup(context: TestContext) {
-	if (context.platform === 'linux-arm64') {
+	if (context.skipRuntimeCheck || context.platform === 'linux-arm64') {
 		test('cli-alpine-arm64', async () => {
 			const dir = await context.downloadAndUnpack('cli-alpine-arm64');
 			const entryPoint = context.getEntryPoint('cli', dir);
@@ -17,7 +17,7 @@ export function setup(context: TestContext) {
 		});
 	}
 
-	if (context.platform === 'linux-x64') {
+	if (context.skipRuntimeCheck || context.platform === 'linux-x64') {
 		test('cli-alpine-x64', async () => {
 			const dir = await context.downloadAndUnpack('cli-alpine-x64');
 			const entryPoint = context.getEntryPoint('cli', dir);
@@ -25,7 +25,7 @@ export function setup(context: TestContext) {
 		});
 	}
 
-	if (context.platform === 'darwin-arm64') {
+	if (context.skipRuntimeCheck || context.platform === 'darwin-arm64') {
 		test('cli-darwin-arm64', async () => {
 			const dir = await context.downloadAndUnpack('cli-darwin-arm64');
 			context.validateAllCodesignSignatures(dir);
@@ -34,7 +34,7 @@ export function setup(context: TestContext) {
 		});
 	}
 
-	if (context.platform === 'darwin-x64') {
+	if (context.skipRuntimeCheck || context.platform === 'darwin-x64') {
 		test('cli-darwin-x64', async () => {
 			const dir = await context.downloadAndUnpack('cli-darwin-x64');
 			context.validateAllCodesignSignatures(dir);
@@ -43,7 +43,7 @@ export function setup(context: TestContext) {
 		});
 	}
 
-	if (context.platform === 'linux-arm64') {
+	if (context.skipRuntimeCheck || context.platform === 'linux-arm64') {
 		test('cli-linux-arm64', async () => {
 			const dir = await context.downloadAndUnpack('cli-linux-arm64');
 			const entryPoint = context.getEntryPoint('cli', dir);
@@ -51,7 +51,7 @@ export function setup(context: TestContext) {
 		});
 	}
 
-	if (context.platform === 'linux-arm') {
+	if (context.skipRuntimeCheck || context.platform === 'linux-arm') {
 		test('cli-linux-armhf', async () => {
 			const dir = await context.downloadAndUnpack('cli-linux-armhf');
 			const entryPoint = context.getEntryPoint('cli', dir);
@@ -59,7 +59,7 @@ export function setup(context: TestContext) {
 		});
 	}
 
-	if (context.platform === 'linux-x64') {
+	if (context.skipRuntimeCheck || context.platform === 'linux-x64') {
 		test('cli-linux-x64', async () => {
 			const dir = await context.downloadAndUnpack('cli-linux-x64');
 			const entryPoint = context.getEntryPoint('cli', dir);
@@ -67,7 +67,7 @@ export function setup(context: TestContext) {
 		});
 	}
 
-	if (context.platform === 'win32-arm64') {
+	if (context.skipRuntimeCheck || context.platform === 'win32-arm64') {
 		test('cli-win32-arm64', async () => {
 			const dir = await context.downloadAndUnpack('cli-win32-arm64');
 			context.validateAllAuthenticodeSignatures(dir);
@@ -76,7 +76,7 @@ export function setup(context: TestContext) {
 		});
 	}
 
-	if (context.platform === 'win32-x64') {
+	if (context.skipRuntimeCheck || context.platform === 'win32-x64') {
 		test('cli-win32-x64', async () => {
 			const dir = await context.downloadAndUnpack('cli-win32-x64');
 			context.validateAllAuthenticodeSignatures(dir);
@@ -86,6 +86,10 @@ export function setup(context: TestContext) {
 	}
 
 	async function testCliApp(entryPoint: string) {
+		if (context.skipRuntimeCheck) {
+			return;
+		}
+
 		const result = context.runNoErrors(entryPoint, '--version');
 		const version = result.stdout.trim();
 		assert.ok(version.includes(`(commit ${context.commit})`));

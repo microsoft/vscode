@@ -12,9 +12,9 @@ import { setup as setupServerWebTests } from './serverWeb.test';
 
 const options = minimist(process.argv.slice(2), {
 	string: ['commit', 'quality'],
-	boolean: ['cleanup', 'verbose', 'signing-check', 'headless'],
+	boolean: ['cleanup', 'verbose', 'signing-check', 'headless', 'runtime-check'],
 	alias: { commit: 'c', quality: 'q', verbose: 'v' },
-	default: { cleanup: true, verbose: false, 'signing-check': true, headless: true },
+	default: { cleanup: true, verbose: false, 'signing-check': true, headless: true, 'runtime-check': true },
 });
 
 if (!options.commit) {
@@ -30,7 +30,8 @@ const context = new TestContext(
 	options.commit,
 	options.verbose,
 	!options['signing-check'],
-	options.headless);
+	options.headless,
+	!options['runtime-check']);
 
 beforeEach(function () {
 	context.currentTest = this.currentTest!;

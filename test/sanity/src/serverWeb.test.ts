@@ -10,7 +10,7 @@ import { TestContext } from './context';
 import { UITest } from './uiTest';
 
 export function setup(context: TestContext) {
-	if (context.platform === 'linux-arm64') {
+	if (context.skipRuntimeCheck || context.platform === 'linux-arm64') {
 		test('server-web-alpine-arm64', async () => {
 			const dir = await context.downloadAndUnpack('server-alpine-arm64-web');
 			const entryPoint = context.getServerEntryPoint(dir);
@@ -18,7 +18,7 @@ export function setup(context: TestContext) {
 		});
 	}
 
-	if (context.platform === 'linux-x64') {
+	if (context.skipRuntimeCheck || context.platform === 'linux-x64') {
 		test('server-web-alpine-x64', async () => {
 			const dir = await context.downloadAndUnpack('server-linux-alpine-web');
 			const entryPoint = context.getServerEntryPoint(dir);
@@ -26,7 +26,7 @@ export function setup(context: TestContext) {
 		});
 	}
 
-	if (context.platform === 'darwin-arm64') {
+	if (context.skipRuntimeCheck || context.platform === 'darwin-arm64') {
 		test('server-web-darwin-arm64', async () => {
 			const dir = await context.downloadAndUnpack('server-darwin-arm64-web');
 			context.validateAllCodesignSignatures(dir);
@@ -35,7 +35,7 @@ export function setup(context: TestContext) {
 		});
 	}
 
-	if (context.platform === 'darwin-x64') {
+	if (context.skipRuntimeCheck || context.platform === 'darwin-x64') {
 		test('server-web-darwin-x64', async () => {
 			const dir = await context.downloadAndUnpack('server-darwin-web');
 			context.validateAllCodesignSignatures(dir);
@@ -44,7 +44,7 @@ export function setup(context: TestContext) {
 		});
 	}
 
-	if (context.platform === 'linux-arm64') {
+	if (context.skipRuntimeCheck || context.platform === 'linux-arm64') {
 		test('server-web-linux-arm64', async () => {
 			const dir = await context.downloadAndUnpack('server-linux-arm64-web');
 			const entryPoint = context.getServerEntryPoint(dir);
@@ -52,7 +52,7 @@ export function setup(context: TestContext) {
 		});
 	}
 
-	if (context.platform === 'linux-arm') {
+	if (context.skipRuntimeCheck || context.platform === 'linux-arm') {
 		test('server-web-linux-armhf', async () => {
 			const dir = await context.downloadAndUnpack('server-linux-armhf-web');
 			const entryPoint = context.getServerEntryPoint(dir);
@@ -60,7 +60,7 @@ export function setup(context: TestContext) {
 		});
 	}
 
-	if (context.platform === 'linux-x64') {
+	if (context.skipRuntimeCheck || context.platform === 'linux-x64') {
 		test('server-web-linux-x64', async () => {
 			const dir = await context.downloadAndUnpack('server-linux-x64-web');
 			const entryPoint = context.getServerEntryPoint(dir);
@@ -68,7 +68,7 @@ export function setup(context: TestContext) {
 		});
 	}
 
-	if (context.platform === 'win32-arm64') {
+	if (context.skipRuntimeCheck || context.platform === 'win32-arm64') {
 		test('server-web-win32-arm64', async () => {
 			const dir = await context.downloadAndUnpack('server-win32-arm64-web');
 			context.validateAllAuthenticodeSignatures(dir);
@@ -77,7 +77,7 @@ export function setup(context: TestContext) {
 		});
 	}
 
-	if (context.platform === 'win32-x64') {
+	if (context.skipRuntimeCheck || context.platform === 'win32-x64') {
 		test('server-web-win32-x64', async () => {
 			const dir = await context.downloadAndUnpack('server-win32-x64-web');
 			context.validateAllAuthenticodeSignatures(dir);
@@ -87,6 +87,10 @@ export function setup(context: TestContext) {
 	}
 
 	async function testServer(entryPoint: string) {
+		if (context.skipRuntimeCheck) {
+			return;
+		}
+
 		const token = context.getRandomToken();
 		const test = new UITest(context);
 		const args = [

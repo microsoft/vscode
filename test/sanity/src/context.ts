@@ -42,6 +42,7 @@ export class TestContext {
 		public readonly verbose: boolean,
 		public readonly skipSigningCheck: boolean,
 		public readonly headless: boolean,
+		public readonly skipRuntimeCheck: boolean,
 	) {
 	}
 
@@ -510,11 +511,11 @@ export class TestContext {
 	}
 
 	/**
-	 * Prepares a macOS .app bundle for execution by removing the quarantine attribute.
+	 * Returns the path to the VS Code Electron executable within a macOS .app bundle.
 	 * @param bundleDir The directory containing the .app bundle.
 	 * @returns The path to the VS Code Electron executable.
 	 */
-	public installMacApp(bundleDir: string): string {
+	public getMacAppEntryPoint(bundleDir: string): string {
 		let appName: string;
 		switch (this.quality) {
 			case 'stable':
