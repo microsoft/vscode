@@ -665,12 +665,13 @@ async function getSessionMetadata(session: ChatModel | ISerializableChatData): P
 		session.lastMessageDate :
 		session.requests.at(-1)?.timestamp ?? session.creationDate;
 
-	const timing = session instanceof ChatModel ?
+	const timing: IChatSessionTiming = session instanceof ChatModel ?
 		session.timing :
 		// session is only ISerializableChatData in the old pre-fs storage data migration scenario
 		{
-			startTime: session.creationDate,
-			endTime: lastMessageDate
+			created: session.creationDate,
+			lastRequestStarted: session.requests.at(-1)?.timestamp,
+			lastRequestEnded: lastMessageDate,
 		};
 
 	return {
