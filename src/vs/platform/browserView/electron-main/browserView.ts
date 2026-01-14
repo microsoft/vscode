@@ -24,7 +24,7 @@ const nativeShortcuts = new Set([
 	KeyMod.CtrlCmd | KeyCode.KeyV,
 	KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyV,
 	KeyMod.CtrlCmd | KeyCode.KeyX,
-	...[isMacintosh ? [] : [KeyMod.CtrlCmd | KeyCode.KeyY]],
+	...(isMacintosh ? [] : [KeyMod.CtrlCmd | KeyCode.KeyY]),
 	KeyMod.CtrlCmd | KeyCode.KeyZ,
 	KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyZ
 ]);

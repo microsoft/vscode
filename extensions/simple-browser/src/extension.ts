@@ -50,7 +50,7 @@ async function shouldUseIntegratedBrowser(): Promise<boolean> {
 /**
  * Opens a URL in the integrated browser
  */
-async function openInIntegratedBrowser(url: string): Promise<void> {
+async function openInIntegratedBrowser(url?: string): Promise<void> {
 	await vscode.commands.executeCommand(integratedBrowserCommand, url);
 }
 
@@ -66,6 +66,10 @@ export function activate(context: vscode.ExtensionContext) {
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand(showCommand, async (url?: string) => {
+		if (await shouldUseIntegratedBrowser()) {
+			return openInIntegratedBrowser(url);
+		}
+
 		if (!url) {
 			url = await vscode.window.showInputBox({
 				placeHolder: vscode.l10n.t("https://example.com"),
@@ -74,11 +78,7 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 
 		if (url) {
-			if (await shouldUseIntegratedBrowser()) {
-				await openInIntegratedBrowser(url);
-			} else {
-				manager.show(url);
-			}
+			manager.show(url);
 		}
 	}));
 

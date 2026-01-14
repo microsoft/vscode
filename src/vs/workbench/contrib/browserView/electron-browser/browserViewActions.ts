@@ -158,11 +158,15 @@ class AddElementToChatAction extends Action2 {
 				order: 1,
 				when: ChatContextKeys.enabled
 			},
-			keybinding: {
+			keybinding: [{
 				when: BROWSER_EDITOR_ACTIVE,
 				weight: KeybindingWeight.WorkbenchContrib + 50, // Priority over terminal
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyC,
-			}
+			}, {
+				when: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE),
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyCode.Escape
+			}]
 		});
 	}
 
@@ -289,7 +293,7 @@ class OpenBrowserSettingsAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenBrowserSettingsAction.ID,
-			title: localize2('browser.openSettingsAction', 'Configure Browser...'),
+			title: localize2('browser.openSettingsAction', 'Open Browser Settings'),
 			category: BrowserCategory,
 			icon: Codicon.settingsGear,
 			f1: false,
