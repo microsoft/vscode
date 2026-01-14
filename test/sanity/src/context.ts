@@ -34,6 +34,7 @@ export class TestContext {
 
 	private readonly tempDirs = new Set<string>();
 	private _currentTest?: Mocha.Test & { consoleOutputs?: string[] };
+	private _osTempDir?: string;
 
 	public constructor(
 		public readonly quality: 'stable' | 'insider' | 'exploration',
@@ -57,6 +58,26 @@ export class TestContext {
 	 */
 	public get platform(): string {
 		return `${os.platform()}-${os.arch()}`;
+	}
+
+	/**
+	 * Returns the OS temp directory with expanded long names on Windows.
+	 */
+	public get osTempDir(): string {
+		if (this._osTempDir === undefined) {
+			let tempDir = fs.realpathSync(os.tmpdir());
+
+			// On Windows, expand short 8.3 file names to long names
+			if (os.platform() === 'win32') {
+				const result = spawnSync('powershell', ['-Command', `(Get-Item "${tempDir}").FullName`], { encoding: 'utf-8' });
+				if (result.status === 0 && result.stdout) {
+					tempDir = result.stdout.trim();
+				}
+			}
+
+			this._osTempDir = tempDir;
+		}
+		return this._osTempDir;
 	}
 
 	/**
@@ -84,8 +105,7 @@ export class TestContext {
 	 * Creates a new temporary directory and returns its path.
 	 */
 	public createTempDir(): string {
-		const osTempDir = fs.realpathSync(os.tmpdir());
-		const tempDir = fs.mkdtempSync(path.join(osTempDir, 'vscode-sanity'));
+		const tempDir = fs.mkdtempSync(path.join(this.osTempDir, 'vscode-sanity'));
 		this.log(`Created temp directory: ${tempDir}`);
 		this.tempDirs.add(tempDir);
 		return tempDir;
