@@ -172,21 +172,10 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			}
 		));
 
-		// Create the internal Read tool set
-		this.readToolSet = this._register(this.createToolSet(
-			ToolDataSource.Internal,
-			'agent',
-			SpecedToolAliases.agent,
-			{
-				icon: ThemeIcon.fromId(Codicon.eye.id),
-				description: localize('copilot.toolSet.read.description', 'Read files in your workspace'),
-			}
-		));
-
 		// Create the internal Agent tool set
 		this.agentToolSet = this._register(this.createToolSet(
 			ToolDataSource.Internal,
-			'custom-agent',
+			'agent',
 			SpecedToolAliases.agent,
 			{
 				icon: ThemeIcon.fromId(Codicon.agent.id),

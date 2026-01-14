@@ -817,7 +817,6 @@ suite('PromptValidator', () => {
 				'---',
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
-			assert.strictEqual(markers.length, 1);
 			assert.deepStrictEqual(markers.map(m => m.message), [`The 'agents' attribute must be an array.`]);
 		});
 
@@ -830,9 +829,7 @@ suite('PromptValidator', () => {
 				'---',
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
-			const stringErrorMarkers = markers.filter(m => m.message.includes('must be a string'));
-			assert.strictEqual(stringErrorMarkers.length, 1);
-			assert.strictEqual(stringErrorMarkers[0].message, `Each agent name in the 'agents' attribute must be a string.`);
+			assert.deepStrictEqual(markers.map(m => m.message), [`Each agent name in the 'agents' attribute must be a string.`]);
 		});
 
 		test('agents attribute with non-empty value requires agent tool', async () => {
@@ -843,8 +840,7 @@ suite('PromptValidator', () => {
 				'---',
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
-			assert.strictEqual(markers.length, 1);
-			assert.strictEqual(markers[0].message, `When 'agents' is specified, the 'agent' tool must be included in the 'tools' attribute.`);
+			assert.deepStrictEqual(markers.map(m => m.message), [`When 'agents' is specified, the 'agent' tool must be included in the 'tools' attribute.`]);
 		});
 
 		test('agents attribute with agent tool does not warn about agents', async () => {
@@ -856,10 +852,7 @@ suite('PromptValidator', () => {
 				'---',
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
-			// 'agent' is a GitHub Copilot tool alias, not registered in test setup, so it may warn about unknown tool
-			// But it should NOT warn about agents requiring agent tool
-			const agentsWarnings = markers.filter(m => m.message.includes('\'agents\''));
-			assert.deepStrictEqual(agentsWarnings, [], 'No warnings about agents attribute when agent tool is in header');
+			assert.deepStrictEqual(markers.map(m => m.message), [], `No warnings about agents attribute when agent tool is in header`);
 		});
 
 		test('agents attribute with wildcard does not require agent tool', async () => {
