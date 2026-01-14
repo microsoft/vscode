@@ -518,7 +518,19 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 		const itemWrapper = $('.chat-thinking-tool-wrapper');
 		const isMarkdownEdit = toolInvocationOrMarkdown?.kind === 'markdownContent';
-		const icon = isMarkdownEdit ? Codicon.pencil : (toolInvocationId ? getToolInvocationIcon(toolInvocationId) : Codicon.tools);
+		const isTerminalTool = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') && toolInvocationOrMarkdown.toolSpecificData?.kind === 'terminal';
+
+		let icon: ThemeIcon;
+		if (isMarkdownEdit) {
+			icon = Codicon.pencil;
+		} else if (isTerminalTool) {
+			const terminalData = (toolInvocationOrMarkdown as IChatToolInvocation | IChatToolInvocationSerialized).toolSpecificData as { kind: 'terminal'; terminalCommandState?: { exitCode?: number } };
+			const exitCode = terminalData?.terminalCommandState?.exitCode;
+			icon = exitCode !== undefined && exitCode !== 0 ? Codicon.error : Codicon.terminal;
+		} else {
+			icon = toolInvocationId ? getToolInvocationIcon(toolInvocationId) : Codicon.tools;
+		}
+
 		const iconElement = createThinkingIcon(icon);
 		itemWrapper.appendChild(iconElement);
 		itemWrapper.appendChild(content);
