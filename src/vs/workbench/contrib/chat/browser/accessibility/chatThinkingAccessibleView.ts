@@ -67,7 +67,6 @@ export class ChatThinkingAccessibleView implements IAccessibleViewImplementation
 		if (thinkingParts.length === 0) {
 			return undefined;
 		}
-		console.log(`${thinkingParts.join('\n\n')}`);
-		return `${thinkingParts.join('\n\n')}`;
+		return thinkingParts.join('\n\n');
 	}
 }
