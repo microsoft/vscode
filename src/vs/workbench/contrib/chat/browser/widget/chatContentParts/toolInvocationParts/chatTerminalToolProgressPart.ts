@@ -531,14 +531,32 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				return !this._outputView.isExpanded && !this._userToggledOutput && !this._store.isDisposed;
 			};
 
+			const hasRealOutput = (): boolean => {
+				// Check for snapshot output
+				if (this._terminalData.terminalCommandOutput?.text?.trim()) {
+					return true;
+				}
+				// Check for live output (cursor moved past executed marker)
+				const command = this._getResolvedCommand(terminalInstance);
+				if (!command?.executedMarker || terminalInstance.isDisposed) {
+					return false;
+				}
+				const buffer = terminalInstance.xterm?.raw.buffer.active;
+				if (!buffer) {
+					return false;
+				}
+				const cursorLine = buffer.baseY + buffer.cursorY;
+				return cursorLine > command.executedMarker.line;
+			};
+
 			store.add(commandDetection.onCommandExecuted(() => {
 				this._addActions(terminalInstance, this._terminalData.terminalToolSessionId);
 				// Auto-expand for long-running commands:
-				// 1. Kick off 500ms timeout - if hit without any data events, expand
+				// 1. Kick off 500ms timeout - if hit without any data events, expand only if there's real output
 				if (shouldAutoExpand() && !noDataTimeout) {
 					noDataTimeout = setTimeout(() => {
 						noDataTimeout = undefined;
-						if (!receivedData && shouldAutoExpand()) {
+						if (!receivedData && shouldAutoExpand() && hasRealOutput()) {
 							this._toggleOutput(true);
 						}
 					}, 500);
@@ -546,6 +564,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			}));
 
 			// 2. Wait for first data event - when hit, wait 50ms and expand if command not yet finished
+			// This prevents flickering for fast commands like `ls` that finish quickly
 			store.add(terminalInstance.onWillData(() => {
 				if (receivedData) {
 					return;
@@ -556,11 +575,12 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 					clearTimeout(noDataTimeout);
 					noDataTimeout = undefined;
 				}
-				// Wait 50ms and expand if command hasn't finished yet
+				// Wait 50ms and expand if command hasn't finished yet and has real output
+				// (shell integration sequences trigger onWillData but aren't real output)
 				if (shouldAutoExpand() && !dataEventTimeout) {
 					dataEventTimeout = setTimeout(() => {
 						dataEventTimeout = undefined;
-						if (!commandFinished && shouldAutoExpand()) {
+						if (!commandFinished && shouldAutoExpand() && hasRealOutput()) {
 							this._toggleOutput(true);
 						}
 					}, 50);

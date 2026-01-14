@@ -13,7 +13,7 @@ import { timeout } from '../../../../../../../base/common/async.js';
  * These tests verify the auto-expand logic for terminal tool progress parts.
  *
  * The algorithm is:
- * 1. When command executes, kick off 500ms timeout - if hit without data events, expand
+ * 1. When command executes, kick off 500ms timeout - if hit without data events, expand only if there's real output
  * 2. On first data event, wait 50ms and expand if command not yet finished
  * 3. Fast commands (finishing quickly) should NOT auto-expand to prevent flickering
  */
@@ -30,6 +30,7 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 	let userToggledOutput: boolean;
 	let commandFinished: boolean;
 	let receivedData: boolean;
+	let hasRealOutputValue: boolean;
 	let dataEventTimeout: ReturnType<typeof setTimeout> | undefined;
 	let noDataTimeout: ReturnType<typeof setTimeout> | undefined;
 
@@ -40,6 +41,10 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 
 	function shouldAutoExpand(): boolean {
 		return !isExpanded && !userToggledOutput;
+	}
+
+	function hasRealOutput(): boolean {
+		return hasRealOutputValue;
 	}
 
 	function clearAutoExpandTimeouts(): void {
@@ -63,11 +68,11 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 		// Logic from _registerInstanceListener
 		localStore.add(onCommandExecuted.event(() => {
 			// Auto-expand for long-running commands:
-			// 1. Kick off 500ms timeout - if hit without any data events, expand
+			// 1. Kick off 500ms timeout - if hit without any data events, expand only if there's real output
 			if (shouldAutoExpand() && !noDataTimeout) {
 				noDataTimeout = setTimeout(() => {
 					noDataTimeout = undefined;
-					if (!receivedData && shouldAutoExpand()) {
+					if (!receivedData && shouldAutoExpand() && hasRealOutput()) {
 						toggleOutput(true);
 					}
 				}, 500);
@@ -75,6 +80,7 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 		}));
 
 		// 2. Wait for first data event - when hit, wait 50ms and expand if command not yet finished
+		// Also checks for real output since shell integration sequences trigger onWillData
 		localStore.add(onWillData.event(() => {
 			if (receivedData) {
 				return;
@@ -85,11 +91,11 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 				clearTimeout(noDataTimeout);
 				noDataTimeout = undefined;
 			}
-			// Wait 50ms and expand if command hasn't finished yet
+			// Wait 50ms and expand if command hasn't finished yet and has real output
 			if (shouldAutoExpand() && !dataEventTimeout) {
 				dataEventTimeout = setTimeout(() => {
 					dataEventTimeout = undefined;
-					if (!commandFinished && shouldAutoExpand()) {
+					if (!commandFinished && shouldAutoExpand() && hasRealOutput()) {
 						toggleOutput(true);
 					}
 				}, 50);
@@ -111,6 +117,7 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 		userToggledOutput = false;
 		commandFinished = false;
 		receivedData = false;
+		hasRealOutputValue = false;
 		dataEventTimeout = undefined;
 		noDataTimeout = undefined;
 	});
@@ -158,6 +165,7 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 
 	test('long-running command with data should auto-expand (data received, command still running after 50ms)', async () => {
 		const localStore = store.add(new DisposableStore());
+		hasRealOutputValue = true; // Has real output
 		setupAutoExpandLogic(localStore);
 
 		// Command executes
@@ -175,8 +183,29 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 		onCommandFinished.fire();
 	});
 
-	test('long-running command without data should auto-expand (no data for 500ms)', async () => {
+	test('long-running command with data but no real output should NOT auto-expand (like sleep with shell sequences)', async () => {
 		const localStore = store.add(new DisposableStore());
+		hasRealOutputValue = false; // Shell integration sequences, not real output
+		setupAutoExpandLogic(localStore);
+
+		// Command executes
+		onCommandExecuted.fire();
+
+		// Shell integration data arrives (not real output)
+		onWillData.fire('shell-sequence');
+
+		// Wait for 50ms timeout to trigger
+		await timeout(100);
+
+		assert.strictEqual(isExpanded, false, 'Should NOT expand when data is shell sequences, not real output');
+
+
+		onCommandFinished.fire();
+	});
+
+	test('long-running command without data should NOT auto-expand if no real output (like sleep)', async () => {
+		const localStore = store.add(new DisposableStore());
+		hasRealOutputValue = false; // No real output like `sleep 1`
 		setupAutoExpandLogic(localStore);
 
 		// Command executes
@@ -185,7 +214,24 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 		// Wait for 500ms timeout
 		await timeout(600);
 
-		assert.strictEqual(isExpanded, true, 'Should expand when no data received for 500ms');
+		assert.strictEqual(isExpanded, false, 'Should NOT expand when no real output even after 500ms');
+
+
+		onCommandFinished.fire();
+	});
+
+	test('long-running command without data SHOULD auto-expand if real output exists', async () => {
+		const localStore = store.add(new DisposableStore());
+		hasRealOutputValue = true; // Has real output in buffer
+		setupAutoExpandLogic(localStore);
+
+		// Command executes
+		onCommandExecuted.fire();
+
+		// Wait for 500ms timeout
+		await timeout(600);
+
+		assert.strictEqual(isExpanded, true, 'Should expand when real output exists after 500ms');
 
 
 		onCommandFinished.fire();
@@ -254,6 +300,7 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 
 	test('data arriving cancels 500ms no-data timeout', async () => {
 		const localStore = store.add(new DisposableStore());
+		hasRealOutputValue = true; // Would have expanded if 500ms fired
 		setupAutoExpandLogic(localStore);
 
 		// Command executes
@@ -275,6 +322,7 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 
 	test('multiple data events only trigger one timeout', async () => {
 		const localStore = store.add(new DisposableStore());
+		hasRealOutputValue = true; // Has real output
 		setupAutoExpandLogic(localStore);
 
 		// Command executes
