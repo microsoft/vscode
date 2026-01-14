@@ -14,7 +14,6 @@ import { createDecorator } from '../../../../../platform/instantiation/common/in
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IEditorGroupsService, IEditorWorkingSet } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IAgentSession } from './agentSessionsModel.js';
@@ -85,12 +84,6 @@ export const IFocusViewService = createDecorator<IFocusViewService>('focusViewSe
 
 //#region Focus View Service Implementation
 
-const STORAGE_KEY = 'chat.focusView.workingSets';
-
-type ISerializedWorkingSets = {
-	readonly sessionWorkingSets: [string, IEditorWorkingSet][];
-};
-
 export class FocusViewService extends Disposable implements IFocusViewService {
 
 	declare readonly _serviceBrand: undefined;
@@ -113,7 +106,7 @@ export class FocusViewService extends Disposable implements IFocusViewService {
 	private _nonFocusViewWorkingSet: IEditorWorkingSet | undefined;
 
 	/** Working sets per session, keyed by session resource URI string */
-	private _sessionWorkingSets: Map<string, IEditorWorkingSet>;
+	private readonly _sessionWorkingSets = new Map<string, IEditorWorkingSet>();
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -124,42 +117,14 @@ export class FocusViewService extends Disposable implements IFocusViewService {
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IStorageService private readonly storageService: IStorageService,
 		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 
 		this._inFocusViewModeContextKey = ChatContextKeys.inFocusViewMode.bindTo(contextKeyService);
-		this._sessionWorkingSets = this._loadWorkingSets();
 
 		// Listen for editor close events to exit focus view when all editors are closed
 		this._register(this.editorService.onDidCloseEditor(() => this._checkForEmptyEditors()));
-	}
-
-	private _loadWorkingSets(): Map<string, IEditorWorkingSet> {
-		const workingSets = new Map<string, IEditorWorkingSet>();
-		const raw = this.storageService.get(STORAGE_KEY, StorageScope.WORKSPACE);
-		if (!raw) {
-			return workingSets;
-		}
-
-		try {
-			const parsed = JSON.parse(raw) as ISerializedWorkingSets;
-			for (const [sessionKey, workingSet] of parsed.sessionWorkingSets) {
-				workingSets.set(sessionKey, workingSet);
-			}
-		} catch (e) {
-			this.logService.error('[FocusView] Failed to parse stored working sets:', e);
-		}
-
-		return workingSets;
-	}
-
-	private _saveWorkingSets(): void {
-		const serialized: ISerializedWorkingSets = {
-			sessionWorkingSets: [...this._sessionWorkingSets]
-		};
-		this.storageService.store(STORAGE_KEY, JSON.stringify(serialized), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	private _isEnabled(): boolean {
@@ -213,11 +178,10 @@ export class FocusViewService extends Disposable implements IFocusViewService {
 
 				this.logService.trace(`[FocusView] Multi-diff editor opened successfully`);
 
-				// Save this as the session's working set so it persists
+				// Save this as the session's working set
 				const sessionKey = session.resource.toString();
 				const newWorkingSet = this.editorGroupsService.saveWorkingSet(`focus-view-session-${sessionKey}`);
 				this._sessionWorkingSets.set(sessionKey, newWorkingSet);
-				this._saveWorkingSets();
 			} else {
 				this.logService.trace(`[FocusView] No files with diffs to display (all changes missing originalUri)`);
 			}
@@ -247,7 +211,6 @@ export class FocusViewService extends Disposable implements IFocusViewService {
 			const previousSessionKey = this._activeSession.resource.toString();
 			const previousWorkingSet = this.editorGroupsService.saveWorkingSet(`focus-view-session-${previousSessionKey}`);
 			this._sessionWorkingSets.set(previousSessionKey, previousWorkingSet);
-			this._saveWorkingSets();
 		}
 
 		// Always open session files to ensure they're displayed
@@ -284,7 +247,6 @@ export class FocusViewService extends Disposable implements IFocusViewService {
 			const sessionKey = this._activeSession.resource.toString();
 			const workingSet = this.editorGroupsService.saveWorkingSet(`focus-view-session-${sessionKey}`);
 			this._sessionWorkingSets.set(sessionKey, workingSet);
-			this._saveWorkingSets();
 		}
 
 		// Restore the non-focus-view working set

@@ -31,6 +31,7 @@ export class EnterFocusViewAction extends Action2 {
 			category: CHAT_CATEGORY,
 			f1: false,
 			precondition: ContextKeyExpr.and(
+				ChatContextKeys.enabled,
 				ContextKeyExpr.has(`config.${ChatConfiguration.AgentSessionProjectionEnabled}`),
 				ChatContextKeys.inFocusViewMode.negate()
 			),
@@ -69,7 +70,10 @@ export class ExitFocusViewAction extends Action2 {
 			title: localize2('exitAgentSessionProjection', "Exit Agent Session Projection"),
 			category: CHAT_CATEGORY,
 			f1: true,
-			precondition: ChatContextKeys.inFocusViewMode,
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.enabled,
+				ChatContextKeys.inFocusViewMode
+			),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyCode.Escape,
@@ -96,6 +100,7 @@ export class OpenInChatPanelAction extends Action2 {
 			id: OpenInChatPanelAction.ID,
 			title: localize2('openInChatPanel', "Open in Chat Panel"),
 			category: CHAT_CATEGORY,
+			precondition: ChatContextKeys.enabled,
 			menu: [{
 				id: MenuId.AgentSessionsContext,
 				group: '1_open',
@@ -133,6 +138,7 @@ export class ToggleAgentsControl extends ToggleTitleBarConfigAction {
 			localize('toggle.agentsControl', 'Agents Controls'),
 			localize('toggle.agentsControlDescription', "Toggle visibility of the Agents Controls in title bar"), 6,
 			ContextKeyExpr.and(
+				ChatContextKeys.enabled,
 				IsCompactTitleBarContext.negate(),
 				ChatContextKeys.supported
 			)
