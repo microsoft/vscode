@@ -491,14 +491,14 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		markdownDescription: localize('autoReplyToPrompts.key', "Whether to automatically respond to prompts in the terminal such as `Confirm? y/n`. This is an experimental feature and may not work in all scenarios.\n\n**This feature is inherently risky to use as you're deferring potentially sensitive decisions to an LLM. Use at your own risk.**"),
 	},
 	[TerminalChatAgentToolsSettingId.OutputLocation]: {
-		markdownDescription: localize('outputLocation.description', "Where to show the output from the run in terminal tool session."),
+		markdownDescription: localize('outputLocation.description', "Where to show the output from the run in terminal tool."),
 		type: 'string',
-		enum: ['terminal', 'none'],
+		enum: ['terminal', 'chat'],
 		enumDescriptions: [
-			localize('outputLocation.terminal', "Reveal the terminal when running the command."),
-			localize('outputLocation.none', "Do not reveal the terminal automatically."),
+			localize('outputLocation.terminal', "Reveal the terminal in the panel or editor in addition to chat."),
+			localize('outputLocation.chat', "Reveal the terminal output within chat only."),
 		],
-		default: product.quality !== 'stable' ? 'none' : 'terminal',
+		default: product.quality !== 'stable' ? 'chat' : 'terminal',
 		tags: ['experimental'],
 		experiment: {
 			mode: 'auto'
