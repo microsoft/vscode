@@ -209,6 +209,14 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 		return false;
 	}
 
+	/**
+	 * When `true`, the `ActionBar` will not trigger the action on Space/Enter keys.
+	 * Use this for action view items that handle their own keyboard input (e.g., text inputs).
+	 */
+	get trapsKeyboardTrigger(): boolean {
+		return false;
+	}
+
 	protected updateEnabled(): void {
 		// implement in subclass
 	}

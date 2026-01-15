@@ -4,32 +4,44 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
-import { ActionBar, ActionsOrientation } from '../../../../../base/browser/ui/actionbar/actionbar.js';
+import { IAction } from '../../../../../base/common/actions.js';
+import { IActionViewItem } from '../../../../../base/browser/ui/actionbar/actionbar.js';
+import { BaseActionViewItem, IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, debouncedObservable, derived, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from '../../../../../editor/browser/editorBrowser.js';
-import { EditorCommand, EditorContributionInstantiation, registerEditorCommand, registerEditorContribution } from '../../../../../editor/browser/editorExtensions.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { constObservable, debouncedObservable, derived, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IActiveCodeEditor, ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { EditorContributionInstantiation, EditorExtensionsRegistry, registerEditorContribution } from '../../../../../editor/browser/editorExtensions.js';
 import { observableCodeEditor, ObservableCodeEditor } from '../../../../../editor/browser/observableCodeEditor.js';
-import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
+import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { IEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
 import { LineRange } from '../../../../../editor/common/core/ranges/lineRange.js';
+import { ISelection } from '../../../../../editor/common/core/selection.js';
 import { IEditorContribution } from '../../../../../editor/common/editorCommon.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
 import { InlineEditTabAction } from '../../../../../editor/contrib/inlineCompletions/browser/view/inlineEdits/inlineEditsViewInterface.js';
 import { InlineEditsGutterIndicator, InlineEditsGutterIndicatorData, InlineSuggestionGutterMenuData, SimpleInlineSuggestModel } from '../../../../../editor/contrib/inlineCompletions/browser/view/inlineEdits/components/gutterIndicatorView.js';
-import { IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { HoverService } from '../../../../../platform/hover/browser/hoverService.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
-import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { localize } from '../../../../../nls.js';
-import { IMenu, IMenuService, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
-import { getFlatActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IMenuService, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { ACTION_START } from '../../../inlineChat/common/inlineChat.js';
-
-const CONTEXT_SELECTION_GUTTER_OVERLAY_VISIBLE = new RawContextKey<boolean>('selectionGutterOverlayVisible', false, localize('selectionGutterOverlayVisible', "Whether the selection gutter overlay is visible"));
+import { ContextMenuHandler } from '../../../../../platform/contextview/browser/contextMenuHandler.js';
+import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { getFlatActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { getSimpleEditorOptions } from '../../../codeEditor/browser/simpleEditorOptions.js';
+import { PlaceholderTextContribution } from '../../../../../editor/contrib/placeholderText/browser/placeholderTextContribution.js';
 
 // Register menu items for the selection gutter overlay
 MenuRegistry.appendMenuItems([
@@ -82,190 +94,118 @@ MenuRegistry.appendMenuItems([
 	},
 ]);
 
-interface TopLeftPosition {
-	top: number;
-	left: number;
-}
 
 /**
- * Overlay widget that shows actions near the gutter indicator.
+ * Custom action view item that renders an editor input for inline chat.
  */
-class SelectionOverlayWidget extends Disposable implements IOverlayWidget {
+class InlineChatInputActionViewItem extends BaseActionViewItem {
 
-	readonly allowEditorOverflow = true;
+	private _input: IActiveCodeEditor | undefined;
 
-	private readonly _domNode: HTMLDivElement;
-	private readonly _actionBar: ActionBar;
-	private readonly _menuDisposables = this._store.add(new DisposableStore());
-	private _menu: IMenu | undefined;
-	private _topLeft: TopLeftPosition | undefined;
-	private _anchorElement: HTMLElement | undefined;
-	private _visible = false;
+	override get trapsKeyboardTrigger(): boolean {
+		return true;
+	}
 
 	constructor(
-		private readonly _editor: ICodeEditor,
-		private readonly _ctxOverlayVisible: IContextKey<boolean>,
-		editorObs: ObservableCodeEditor,
-		@IMenuService private readonly _menuService: IMenuService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		action: IAction,
+		private readonly _initialSelection: ISelection,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IModelService private readonly _modelService: IModelService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ICommandService private readonly _commandService: ICommandService,
+		@IContextViewService private readonly _contextViewService: IContextViewService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
-		super();
+		super(null, action);
+	}
 
-		// Create container DOM node
-		this._domNode = dom.$('.selection-gutter-overlay');
-		this._domNode.style.position = 'absolute';
-		this._domNode.style.display = 'none';
-		this._domNode.style.zIndex = '100';
-		this._domNode.style.padding = '8px';
-		this._domNode.style.backgroundColor = 'var(--vscode-editorWidget-background)';
-		this._domNode.style.border = '1px solid var(--vscode-editorWidget-border)';
-		this._domNode.style.borderRadius = '4px';
-		this._domNode.style.boxShadow = '0 2px 8px var(--vscode-widget-shadow)';
+	override render(container: HTMLElement): void {
+		super.render(container);
 
-		// Create action bar with horizontal layout showing labels
-		this._actionBar = this._store.add(new ActionBar(this._domNode, {
-			orientation: ActionsOrientation.VERTICAL
-		}));
-		// Hide menu and clear selection when an action runs
-		this._store.add(this._actionBar.onDidRun(() => {
-			this.hide();
-			// Collapse selection to cursor position to also hide the gutter indicator
-			const position = this._editor.getPosition();
-			if (position) {
-				this._editor.setPosition(position);
+		const inputContainer = dom.append(container, dom.$('.inline-chat-input-action'));
+		inputContainer.style.width = '200px';
+		inputContainer.style.height = '24px';
+
+		const options = this._createEditorOptions();
+		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
+			isSimpleWidget: true,
+			contributions: EditorExtensionsRegistry.getSomeEditorContributions([
+				PlaceholderTextContribution.ID,
+			])
+		};
+		this._input = this._register(
+			this._instantiationService.createInstance(CodeEditorWidget, inputContainer, options, codeEditorWidgetOptions)
+		) as IActiveCodeEditor;
+
+		const model = this._register(
+			this._modelService.createModel('', null, URI.parse(`gutter-input:${Date.now()}`), true)
+		);
+		this._input.setModel(model);
+
+		// Layout the editor with proper dimensions
+		this._input.layout({ width: 200, height: 24 });
+
+		// Handle Enter key to submit
+		this._register(this._input.onKeyDown(e => {
+			if (e.keyCode === KeyCode.Enter && !e.shiftKey) {
+				e.preventDefault();
+				e.stopPropagation();
+				this._submit();
 			}
 		}));
-		// Register the overlay widget with the editor
-		this._editor.addOverlayWidget(this);
 
-		// Reactively reposition on layout changes (scroll, resize)
-		this._store.add(autorun(reader => {
-			editorObs.layoutInfo.read(reader);
-			editorObs.scrollTop.read(reader);
-			if (this._visible && this._anchorElement) {
-				this._placeAtAnchor(this._anchorElement);
-			}
-		}));
-
-		// Auto-dismiss on cursor movement
-		this._store.add(autorun(reader => {
-			editorObs.cursorSelection.read(reader);
-			if (this._visible) {
-				this.hide();
-			}
-		}));
+		// Focus the input
+		setTimeout(() => this._input?.focus(), 0);
 	}
 
-	override dispose(): void {
-		this._editor.removeOverlayWidget(this);
-		super.dispose();
+	private _createEditorOptions(): IEditorOptions {
+		const options = getSimpleEditorOptions(this._configurationService);
+		options.wordWrap = 'off';
+		options.lineNumbers = 'off';
+		options.glyphMargin = false;
+		options.lineDecorationsWidth = 0;
+		options.lineNumbersMinChars = 0;
+		options.folding = false;
+		options.minimap = { enabled: false };
+		options.scrollbar = { vertical: 'hidden', horizontal: 'hidden', alwaysConsumeMouseWheel: false };
+		options.renderLineHighlight = 'none';
+		options.placeholder = this._getPlaceholder();
+		return options;
 	}
 
-	getId(): string {
-		return 'selectionGutterOverlay';
+	private _getPlaceholder(): string {
+		const keybinding = this._keybindingService.lookupKeybinding(ACTION_START)?.getLabel();
+		return keybinding
+			? localize('inlineChatPlaceholderWithKb', "Edit selected code ({0})", keybinding)
+			: localize('inlineChatPlaceholder', "Edit selected code");
 	}
 
-	getDomNode(): HTMLElement {
-		return this._domNode;
+	private _submit(): void {
+		const value = this._input?.getModel()?.getValue() ?? '';
+
+		// Hide the context menu
+		this._contextViewService.hideContextView(false);
+
+		// Run the inline chat action with the message and selection
+		this._commandService.executeCommand(ACTION_START, {
+			message: value,
+			autoSend: value.length > 0,
+			initialSelection: this._initialSelection,
+		});
 	}
 
-	getPosition(): IOverlayWidgetPosition | null {
-		return this._topLeft ? { preference: this._topLeft } : null;
+	override focus(): void {
+		this._input?.focus();
 	}
 
-	show(anchor: HTMLElement): void {
-		if (this._visible) {
-			return;
-		}
-		this._visible = true;
-		this._anchorElement = anchor;
-		this._domNode.style.display = 'block';
-		this._ctxOverlayVisible.set(true);
-
-		// Create menu and populate action bar
-		this._updateActions();
-
-		this._placeAtAnchor(anchor);
+	override blur(): void {
+		// no-op - editor doesn't have blur method
 	}
 
-	private _updateActions(): void {
-		this._menuDisposables.clear();
-
-		// Create menu
-		this._menu = this._menuDisposables.add(this._menuService.createMenu(MenuId.SelectionGutterOverlay, this._contextKeyService));
-
-		// Get actions from menu
-		const groups = this._menu.getActions({ shouldForwardArgs: true });
-		const actions = getFlatActionBarActions(groups);
-
-		// Clear and fill action bar
-		this._actionBar.clear();
-		this._actionBar.push(actions, { icon: false, label: true });
-
-		// Listen for menu changes
-		this._menuDisposables.add(this._menu.onDidChange(() => {
-			this._updateActions();
-		}));
-	}
-
-	hide(): void {
-		if (!this._visible) {
-			return;
-		}
-		this._visible = false;
-		this._anchorElement = undefined;
-		this._domNode.style.display = 'none';
-		this._ctxOverlayVisible.set(false);
-		this._topLeft = undefined;
-		this._editor.layoutOverlayWidget(this);
-	}
-
-	private _placeAtAnchor(anchor: HTMLElement): void {
-		const anchorBox = anchor.getBoundingClientRect();
-		const bodyBox = dom.getClientArea(this._domNode.ownerDocument.body);
-
-		// Get actual widget dimensions after rendering
-		const widgetHeight = this._domNode.offsetHeight || 50;
-		const widgetWidth = this._domNode.offsetWidth || 200;
-
-		// Calculate available space above and below the anchor
-		const spaceAbove = anchorBox.top;
-		const spaceBelow = bodyBox.height - anchorBox.bottom;
-
-		// Prefer above if there's enough space, otherwise below
-		let top: number;
-		if (spaceAbove >= widgetHeight) {
-			// Place above the anchor
-			top = anchorBox.top - widgetHeight;
-		} else if (spaceBelow >= widgetHeight) {
-			// Place below the anchor
-			top = anchorBox.bottom;
-		} else {
-			// Not enough space either way, choose the side with more space
-			if (spaceAbove > spaceBelow) {
-				top = Math.max(0, anchorBox.top - widgetHeight);
-			} else {
-				top = anchorBox.bottom;
-			}
-		}
-
-		// Position horizontally centered over the anchor
-		const anchorCenterX = anchorBox.left + anchorBox.width / 2;
-		let left = anchorCenterX - widgetWidth / 2;
-
-		// Convert page coordinates to editor-relative coordinates
-		const editorDomNode = this._editor.getDomNode();
-		if (editorDomNode) {
-			const editorBoundingBox = editorDomNode.getBoundingClientRect();
-			top -= editorBoundingBox.top;
-			left -= editorBoundingBox.left;
-		}
-
-		this._topLeft = { top, left };
-		this._editor.layoutOverlayWidget(this);
+	override onClick(): void {
+		this._input?.focus();
 	}
 }
-
 
 export class SelectionGutterIndicatorContribution extends Disposable implements IEditorContribution {
 
@@ -275,23 +215,28 @@ export class SelectionGutterIndicatorContribution extends Disposable implements 
 		return editor.getContribution<SelectionGutterIndicatorContribution>(SelectionGutterIndicatorContribution.ID);
 	}
 
-	private readonly _overlayWidget: SelectionOverlayWidget;
+	private readonly _contextMenuHandler: ContextMenuHandler;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IContextViewService contextViewService: IContextViewService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@INotificationService notificationService: INotificationService,
+		@IKeybindingService keybindingService: IKeybindingService,
 	) {
 		super();
 
 		const editorObs = observableCodeEditor(this._editor);
 		const focusIsInMenu = observableValue<boolean>(this, false);
 
-		// Create context key for overlay visibility
-		const ctxOverlayVisible = CONTEXT_SELECTION_GUTTER_OVERLAY_VISIBLE.bindTo(this._contextKeyService);
-
-		// Create the overlay widget
-		this._overlayWidget = this._store.add(this._instantiationService.createInstance(SelectionOverlayWidget, this._editor, ctxOverlayVisible, editorObs));
+		// Create the context menu handler
+		this._contextMenuHandler = new ContextMenuHandler(
+			contextViewService,
+			telemetryService,
+			notificationService,
+			keybindingService
+		);
 
 		// Debounce the selection to add a delay before showing the indicator
 		const debouncedSelection = debouncedObservable(editorObs.cursorSelection, 500);
@@ -331,11 +276,6 @@ export class SelectionGutterIndicatorContribution extends Disposable implements 
 				model,
 				undefined, // altAction
 				{
-					// styles: {
-					// 	background: 'var(--vscode-inlineEdit-gutterIndicator-primaryBackground)',
-					// 	foreground: 'var(--vscode-inlineEdit-gutterIndicator-primaryForeground)',
-					// 	border: 'var(--vscode-inlineEdit-gutterIndicator-primaryBorder)',
-					// },
 					icon: Codicon.pencil,
 				}
 			);
@@ -350,41 +290,80 @@ export class SelectionGutterIndicatorContribution extends Disposable implements 
 			constObservable(0), // verticalOffset
 			constObservable(false), // isHoveringOverInlineEdit
 			focusIsInMenu,
-			this._overlayWidget,
+			this._contextMenuHandler,
 		));
-	}
-
-	hideOverlay(): void {
-		this._overlayWidget.hide();
 	}
 }
 
 /**
- * Custom gutter indicator for selection that shows a custom hover.
+ * Custom gutter indicator for selection that shows a context menu.
  */
 class SelectionGutterIndicator extends InlineEditsGutterIndicator {
+
+	private readonly _myInstantiationService: IInstantiationService;
+
 	constructor(
-		editorObs: ObservableCodeEditor,
+		private readonly _myEditorObs: ObservableCodeEditor,
 		data: IObservable<InlineEditsGutterIndicatorData | undefined>,
 		tabAction: IObservable<InlineEditTabAction>,
 		verticalOffset: IObservable<number>,
 		isHoveringOverInlineEdit: IObservable<boolean>,
 		focusIsInMenu: ISettableObservable<boolean>,
-		private readonly _overlayWidget: SelectionOverlayWidget,
+		private readonly _contextMenuHandler: ContextMenuHandler,
+		@IMenuService private readonly _menuService: IMenuService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IHoverService hoverService: HoverService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@IThemeService themeService: IThemeService,
 	) {
-		super(editorObs, data, tabAction, verticalOffset, isHoveringOverInlineEdit, focusIsInMenu, hoverService, instantiationService, accessibilityService, themeService);
+		super(_myEditorObs, data, tabAction, verticalOffset, isHoveringOverInlineEdit, focusIsInMenu, hoverService, instantiationService, accessibilityService, themeService);
+		this._myInstantiationService = instantiationService;
 	}
 
 	protected override _showHover(): void {
 		// Use the icon element from the base class as anchor
 		const iconElement = this._iconRef.element;
-		if (iconElement) {
-			this._overlayWidget.show(iconElement);
+		if (!iconElement) {
+			return;
 		}
+
+		// Create menu and get actions
+		const menu = this._menuService.createMenu(MenuId.SelectionGutterOverlay, this._contextKeyService);
+		const groups = menu.getActions({ shouldForwardArgs: true });
+		const actions = getFlatActionBarActions(groups);
+		menu.dispose();
+
+		if (actions.length === 0) {
+			return;
+		}
+
+		// Show context menu using ContextMenuHandler
+		this._contextMenuHandler.showContextMenu({
+			getAnchor: () => iconElement,
+			getActions: () => actions,
+			getActionViewItem: (action: IAction, options: IActionViewItemOptions): IActionViewItem | undefined => {
+				if (action.id === ACTION_START) {
+					const selection = this._myEditorObs.editor.getSelection();
+					if (selection) {
+						return this._myInstantiationService.createInstance(
+							InlineChatInputActionViewItem,
+							action,
+							selection,
+						);
+					}
+				}
+				return undefined;
+			},
+			onHide: () => {
+				// Collapse selection to cursor position to also hide the gutter indicator
+				const editor = this._myEditorObs.editor;
+				const position = editor.getPosition();
+				if (position) {
+					editor.setPosition(position);
+				}
+			}
+		});
 	}
 }
 
@@ -393,17 +372,3 @@ registerEditorContribution(
 	SelectionGutterIndicatorContribution,
 	EditorContributionInstantiation.AfterFirstRender,
 );
-
-// Command to hide the overlay widget (ESC key)
-const SelectionGutterCommand = EditorCommand.bindToContribution<SelectionGutterIndicatorContribution>(SelectionGutterIndicatorContribution.get);
-
-registerEditorCommand(new SelectionGutterCommand({
-	id: 'editor.action.selectionGutterIndicator.hideOverlay',
-	precondition: CONTEXT_SELECTION_GUTTER_OVERLAY_VISIBLE,
-	handler: x => x.hideOverlay(),
-	kbOpts: {
-		weight: KeybindingWeight.EditorContrib + 50,
-		kbExpr: EditorContextKeys.focus,
-		primary: KeyCode.Escape,
-	}
-}));
