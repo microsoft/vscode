@@ -78,7 +78,19 @@ export class ChatSuggestNextWidget extends Disposable {
 		const visibleHandoffs = handoffs.filter(handoff => {
 			if (handoff.model) {
 				// Direct lookup by model identifier (e.g., "cerebras/zai-glm-4.7")
-				const metadata = this.languageModelsService.lookupLanguageModel(handoff.model);
+				let metadata = this.languageModelsService.lookupLanguageModel(handoff.model);
+
+				// Fallback: if not found by ID, search by model name
+				if (!metadata) {
+					for (const modelId of this.languageModelsService.getLanguageModelIds()) {
+						const candidateMetadata = this.languageModelsService.lookupLanguageModel(modelId);
+						if (candidateMetadata?.name === handoff.model) {
+							metadata = candidateMetadata;
+							break;
+						}
+					}
+				}
+
 				// Model must exist and be user selectable (configured and in picker)
 				return metadata !== undefined && metadata.isUserSelectable === true;
 			}

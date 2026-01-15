@@ -616,7 +616,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.chatModeKindKey.set(mode.kind);
 			const model = mode.model?.read(r);
 			if (model) {
-				this.switchModelByQualifiedName(model);
+				this.switchModelByIdOrName(model);
 			}
 		}));
 
@@ -697,14 +697,20 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
-	public switchModelByQualifiedName(qualifiedModelName: string): boolean {
-		const models = this.getModels();
-		// First try to match by model identifier (e.g., "cerebras/zai-glm-4.7")
-		let model = models.find(m => m.identifier === qualifiedModelName);
-		// Fall back to qualified name match (e.g., "ModelName (vendor)")
-		if (!model) {
-			model = models.find(m => ILanguageModelChatMetadata.matchesQualifiedName(qualifiedModelName, m.metadata));
+	public switchModelByIdOrName(idOrName: string): boolean {
+		// First try direct lookup by ID (more efficient)
+		const metadata = this.languageModelsService.lookupLanguageModel(idOrName);
+		if (metadata) {
+			this.setCurrentLanguageModel({ identifier: idOrName, metadata });
+			return true;
 		}
+
+		// Fall back to searching by qualified name or model name
+		const models = this.getModels();
+		const model = models.find(m =>
+			ILanguageModelChatMetadata.matchesQualifiedName(idOrName, m.metadata) ||
+			m.metadata.name === idOrName
+		);
 		if (model) {
 			this.setCurrentLanguageModel(model);
 			return true;

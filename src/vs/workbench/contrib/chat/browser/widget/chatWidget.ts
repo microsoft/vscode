@@ -1219,7 +1219,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			// Switch to the specified model if provided
 			if (handoff.model) {
-				this.input.switchModelByQualifiedName(handoff.model);
+				this.input.switchModelByIdOrName(handoff.model);
 			}
 
 			// Insert the handoff prompt into the input
@@ -2377,7 +2377,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		if (model !== undefined) {
-			this.input.switchModelByQualifiedName(model);
+			this.input.switchModelByIdOrName(model);
 		}
 	}
 
