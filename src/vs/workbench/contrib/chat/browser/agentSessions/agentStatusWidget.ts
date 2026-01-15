@@ -27,13 +27,14 @@ import { IEditorGroupsService } from '../../../../services/editor/common/editorG
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { Verbosity } from '../../../../common/editor.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { isMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { openSession } from './agentSessionsOpener.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 
 // Action triggered when clicking the main pill - change this to modify the primary action
 const ACTION_ID = 'workbench.action.quickchat.toggle';
-const SEARCH_BUTTON_ACITON_ID = 'workbench.action.quickOpenWithModes';
+const SEARCH_BUTTON_ACTION_ID = 'workbench.action.quickOpenWithModes';
 
 const NLS_EXTENSION_HOST = localize('devExtensionWindowTitlePrefix', "[Extension Development Host]");
 const TITLE_DIRTY = '\u25cf ';
@@ -184,12 +185,13 @@ export class AgentStatusWidget extends BaseActionViewItem {
 		// Show label - either progress from most recent active session, or workspace name
 		const label = $('span.agent-status-label');
 		const { session: activeSession, progress: progressText } = this._getMostRecentActiveSession(activeSessions);
-		this._displayedSession = activeSession;
 		if (progressText) {
+			this._displayedSession = activeSession;
 			// Show progress with fade-in animation
 			label.classList.add('has-progress');
 			label.textContent = progressText;
 		} else {
+			this._displayedSession = undefined;
 			label.textContent = this._getLabel();
 		}
 		pill.appendChild(label);
@@ -303,7 +305,7 @@ export class AgentStatusWidget extends BaseActionViewItem {
 
 		// Setup hover
 		const hoverDelegate = getDefaultHoverDelegate('mouse');
-		const searchKb = this.keybindingService.lookupKeybinding(SEARCH_BUTTON_ACITON_ID)?.getLabel();
+		const searchKb = this.keybindingService.lookupKeybinding(SEARCH_BUTTON_ACTION_ID)?.getLabel();
 		const searchTooltip = searchKb
 			? localize('openQuickOpenTooltip', "Go to File ({0})", searchKb)
 			: localize('openQuickOpenTooltip2', "Go to File");
@@ -313,7 +315,7 @@ export class AgentStatusWidget extends BaseActionViewItem {
 		disposables.add(addDisposableListener(searchButton, EventType.CLICK, (e) => {
 			e.preventDefault();
 			e.stopPropagation();
-			this.commandService.executeCommand(SEARCH_BUTTON_ACITON_ID);
+			this.commandService.executeCommand(SEARCH_BUTTON_ACTION_ID);
 		}));
 
 		// Keyboard handler
@@ -321,7 +323,7 @@ export class AgentStatusWidget extends BaseActionViewItem {
 			if (e.key === 'Enter' || e.key === ' ') {
 				e.preventDefault();
 				e.stopPropagation();
-				this.commandService.executeCommand(SEARCH_BUTTON_ACITON_ID);
+				this.commandService.executeCommand(SEARCH_BUTTON_ACTION_ID);
 			}
 		}));
 	}
@@ -354,14 +356,20 @@ export class AgentStatusWidget extends BaseActionViewItem {
 		});
 
 		const mostRecent = sorted[0];
-		if (!mostRecent.description) {
+		const description = mostRecent.description;
+		if (!description) {
 			return { session: mostRecent, progress: undefined };
 		}
 
-		// Convert markdown to plain text if needed
-		const progress = typeof mostRecent.description === 'string'
-			? mostRecent.description
-			: renderAsPlaintext(mostRecent.description);
+		// Convert markdown to plain text if needed - validate type before calling renderAsPlaintext
+		let progress: string;
+		if (typeof description === 'string') {
+			progress = description;
+		} else if (isMarkdownString(description)) {
+			progress = renderAsPlaintext(description);
+		} else {
+			return { session: mostRecent, progress: undefined };
+		}
 
 		return { session: mostRecent, progress };
 	}
