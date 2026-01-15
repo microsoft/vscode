@@ -997,7 +997,7 @@ export interface IChatSessionStats {
 	removed: number;
 }
 
-export interface IChatSessionTiming {
+export type IChatSessionTiming = {
 	/**
 	 * Timestamp when the session was created in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
 	 */
@@ -1016,6 +1016,22 @@ export interface IChatSessionTiming {
 	 * Should be undefined if the most recent request is still in progress or if no requests have been made yet.
 	 */
 	lastRequestEnded: number | undefined;
+};
+
+interface ILegacyChatSessionTiming {
+	startTime: number;
+	endTime?: number;
+}
+
+export function convertLegacyChatSessionTiming(timing: IChatSessionTiming | ILegacyChatSessionTiming): IChatSessionTiming {
+	if (hasKey(timing, { created: true })) {
+		return timing;
+	}
+	return {
+		created: timing.startTime,
+		lastRequestStarted: timing.startTime,
+		lastRequestEnded: timing.endTime,
+	};
 }
 
 export const enum ResponseModelState {
@@ -1030,7 +1046,8 @@ export interface IChatDetail {
 	sessionResource: URI;
 	title: string;
 	lastMessageDate: number;
-	timing: IChatSessionTiming;
+	// Also support old timing format for backwards compatibility with persisted data
+	timing: IChatSessionTiming | ILegacyChatSessionTiming;
 	isActive: boolean;
 	stats?: IChatSessionStats;
 	lastResponseState: ResponseModelState;
