@@ -2156,10 +2156,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				// For non-center aligned panels, restore the sidebar and auxiliary bar visibility
 				if (needsHideSideParts) {
 					const state = this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_LAST_NON_MAXIMIZED_VISIBILITY);
-					if (state?.sideBarVisible) {
+					if (state.sideBarVisible) {
 						this.setSideBarHidden(false);
 					}
-					if (state?.auxiliaryBarVisible) {
+					if (state.auxiliaryBarVisible) {
 						this.setAuxiliaryBarHidden(false);
 					}
 				}
@@ -2763,7 +2763,7 @@ const LayoutStateKeys = {
 	PANEL_LAST_NON_MAXIMIZED_HEIGHT: new RuntimeStateKey<number>('panel.lastNonMaximizedHeight', StorageScope.PROFILE, StorageTarget.MACHINE, 300),
 	PANEL_LAST_NON_MAXIMIZED_WIDTH: new RuntimeStateKey<number>('panel.lastNonMaximizedWidth', StorageScope.PROFILE, StorageTarget.MACHINE, 300),
 	PANEL_WAS_LAST_MAXIMIZED: new RuntimeStateKey<boolean>('panel.wasLastMaximized', StorageScope.WORKSPACE, StorageTarget.MACHINE, false),
-	PANEL_LAST_NON_MAXIMIZED_VISIBILITY: new RuntimeStateKey('panel.lastNonMaximizedVisibility', StorageScope.WORKSPACE, StorageTarget.MACHINE, {
+	PANEL_LAST_NON_MAXIMIZED_VISIBILITY: new RuntimeStateKey<{ sideBarVisible: boolean; auxiliaryBarVisible: boolean }>('panel.lastNonMaximizedVisibility', StorageScope.WORKSPACE, StorageTarget.MACHINE, {
 		sideBarVisible: false,
 		auxiliaryBarVisible: false
 	}),
