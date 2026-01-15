@@ -533,7 +533,7 @@ export class FindModelBoundToEditorModel {
 		let currentStart = searchRange.getStartPosition();
 		const searchEnd = searchRange.getEndPosition();
 
-		// Sort hidden areas by start position
+		// Sort hidden areas by start position once
 		const sortedHidden = hiddenAreas
 			.filter(hidden => Range.areIntersecting(searchRange, hidden))
 			.sort((a, b) => Range.compareRangesUsingStarts(a, b));
@@ -547,8 +547,8 @@ export class FindModelBoundToEditorModel {
 				visibleRanges.push(Range.fromPositions(currentStart, hiddenStart));
 			}
 
-			// Move current start to after the hidden area
-			if (!hiddenEnd.isBefore(currentStart) && !hiddenEnd.equals(currentStart)) {
+			// Move current start to after the hidden area (if hidden end is after current start)
+			if (currentStart.isBefore(hiddenEnd) || currentStart.equals(hiddenEnd)) {
 				currentStart = hiddenEnd;
 			}
 		}
