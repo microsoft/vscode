@@ -64,7 +64,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		chatRequestId?: string
 	) {
 		// For streaming invocations, use a default message until handleToolStream provides one
-		const defaultStreamingMessage = isStreaming ? localize('toolInvocationMessage', "Using {0}", `"${toolData.displayName}"`) : '';
+		const defaultStreamingMessage = isStreaming ? localize('toolInvocationMessage', "Using \"{0}\"", toolData.displayName) : '';
 		this.invocationMessage = preparedInvocation?.invocationMessage ?? defaultStreamingMessage;
 		this.pastTenseMessage = preparedInvocation?.pastTenseMessage;
 		this.originMessage = preparedInvocation?.originMessage;
