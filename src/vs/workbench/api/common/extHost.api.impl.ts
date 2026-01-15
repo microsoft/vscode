@@ -1960,6 +1960,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			McpStdioServerDefinition2: extHostTypes.McpStdioServerDefinition,
 			McpToolAvailability: extHostTypes.McpToolAvailability,
 			SettingsSearchResultKind: extHostTypes.SettingsSearchResultKind,
+			CustomAgentChatResource: extHostTypes.CustomAgentChatResource,
+			InstructionsChatResource: extHostTypes.InstructionsChatResource,
+			PromptFileChatResource: extHostTypes.PromptFileChatResource,
 		};
 	};
 }
