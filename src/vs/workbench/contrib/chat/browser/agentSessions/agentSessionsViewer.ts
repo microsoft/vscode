@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/agentsessionsviewer.css';
+import * as dom from '../../../../../base/browser/dom.js';
 import { h } from '../../../../../base/browser/dom.js';
 import { localize } from '../../../../../nls.js';
 import { IIdentityProvider, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
@@ -39,6 +40,12 @@ import { ServiceCollection } from '../../../../../platform/instantiation/common/
 import { Event } from '../../../../../base/common/event.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { MarkdownString, IMarkdownString } from '../../../../../base/common/htmlContent.js';
+import { ChatListWidget } from '../widget/chatListWidget.js';
+import { IChatService } from '../../common/chatService/chatService.js';
+import { IChatWidgetService } from '../chat.js';
+import { ChatViewModel } from '../../common/model/chatViewModel.js';
+import { CodeBlockModelCollection } from '../../common/widget/codeBlockModelCollection.js';
+import { ChatModeKind } from '../../common/constants.js';
 
 export type AgentSessionListItem = IAgentSession | IAgentSessionSection;
 
@@ -89,6 +96,8 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		@IHoverService private readonly hoverService: IHoverService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IChatService private readonly chatService: IChatService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) { }
 
 	renderTemplate(container: HTMLElement): IAgentSessionItemTemplate {
@@ -344,14 +353,67 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 	private renderHover(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
 		template.elementDisposable.add(
-			this.hoverService.setupDelayedHover(template.element, () => ({
-				content: this.buildTooltip(session.element),
-				style: HoverStyle.Pointer,
-				position: {
-					hoverPosition: this.options.getHoverPosition()
-				}
-			}), { groupId: 'agent.sessions' })
+			this.hoverService.setupDelayedHover(template.element, () => this.buildHoverContent(session.element), { groupId: 'agent.sessions' })
 		);
+	}
+
+	private buildHoverContent(session: IAgentSession): { content: HTMLElement | IMarkdownString; style: HoverStyle; position: { hoverPosition: HoverPosition } } {
+		// Create container for the hover
+		const container = dom.$('.agent-session-hover');
+		container.style.width = '500px';
+		container.style.height = '300px';
+		container.style.overflow = 'hidden';
+
+		// Try to load the chat session
+		const sessionResource = session.resource;
+		this.chatService.getOrRestoreSession(sessionResource).then(modelRef => {
+			if (!modelRef) {
+				// Show fallback tooltip text
+				const tooltip = this.buildTooltip(session);
+				container.textContent = typeof tooltip === 'string' ? tooltip : tooltip.value;
+				return;
+			}
+
+			// Create view model
+			const codeBlockCollection = this.instantiationService.createInstance(CodeBlockModelCollection, 'agentSessionHover');
+			const viewModel = this.instantiationService.createInstance(
+				ChatViewModel,
+				modelRef.object,
+				codeBlockCollection
+			);
+
+			// Create the chat list widget
+			const listWidget = this.instantiationService.createInstance(
+				ChatListWidget,
+				container,
+				{
+					rendererOptions: {
+						renderStyle: 'minimal',
+						noHeader: true,
+						editableCodeBlock: false,
+					},
+					currentChatMode: () => ChatModeKind.Ask,
+				}
+			);
+			listWidget.setViewModel(viewModel);
+			listWidget.layout(300, 500);
+
+			// Handle followup clicks - open the session and accept input
+			listWidget.onDidClickFollowup(async (followup) => {
+				const widget = await this.chatWidgetService.openSession(sessionResource);
+				if (widget) {
+					widget.acceptInput(followup.message);
+				}
+			});
+		});
+
+		return {
+			content: container,
+			style: HoverStyle.Pointer,
+			position: {
+				hoverPosition: this.options.getHoverPosition()
+			}
+		};
 	}
 
 	private buildTooltip(session: IAgentSession): IMarkdownString {
