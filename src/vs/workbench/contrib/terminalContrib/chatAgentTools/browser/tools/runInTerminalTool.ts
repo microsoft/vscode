@@ -12,7 +12,7 @@ import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
-import { basename } from '../../../../../../base/common/path.js';
+import { basename, posix, win32 } from '../../../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../../../base/common/platform.js';
 import { count } from '../../../../../../base/common/strings.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
@@ -507,7 +507,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		let confirmationTitle: string;
 		if (extractedCd && cwd) {
 			// Construct the full directory path using the cwd's scheme/authority
-			const directoryUri = extractedCd.directory.startsWith('/') || /^[a-zA-Z]:/.test(extractedCd.directory)
+			const isAbsolutePath = os === OperatingSystem.Windows
+				? win32.isAbsolute(extractedCd.directory)
+				: posix.isAbsolute(extractedCd.directory);
+			const directoryUri = isAbsolutePath
 				? URI.from({ scheme: cwd.scheme, authority: cwd.authority, path: extractedCd.directory })
 				: URI.joinPath(cwd, extractedCd.directory);
 			const directoryLabel = this._labelService.getUriLabel(directoryUri);
