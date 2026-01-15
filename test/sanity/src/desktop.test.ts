@@ -12,7 +12,7 @@ export function setup(context: TestContext) {
 	context.test('desktop-darwin-x64', ['darwin', 'x64'], async () => {
 		const dir = await context.downloadAndUnpack('darwin');
 		context.validateAllCodesignSignatures(dir);
-		if (!context.skipRuntimeCheck) {
+		if (!context.options.downloadOnly) {
 			const entryPoint = context.getDesktopEntryPoint(dir);
 			await testDesktopApp(entryPoint);
 		}
@@ -21,7 +21,7 @@ export function setup(context: TestContext) {
 	context.test('desktop-darwin-arm64', ['darwin', 'arm64'], async () => {
 		const dir = await context.downloadAndUnpack('darwin-arm64');
 		context.validateAllCodesignSignatures(dir);
-		if (!context.skipRuntimeCheck) {
+		if (!context.options.downloadOnly) {
 			const entryPoint = context.getDesktopEntryPoint(dir);
 			await testDesktopApp(entryPoint);
 		}
@@ -30,7 +30,7 @@ export function setup(context: TestContext) {
 	context.test('desktop-darwin-universal', ['darwin'], async () => {
 		const dir = await context.downloadAndUnpack('darwin-universal');
 		context.validateAllCodesignSignatures(dir);
-		if (!context.skipRuntimeCheck) {
+		if (!context.options.downloadOnly) {
 			const entryPoint = context.getDesktopEntryPoint(dir);
 			await testDesktopApp(entryPoint);
 		}
@@ -38,7 +38,7 @@ export function setup(context: TestContext) {
 
 	context.test('desktop-linux-arm64', ['linux', 'arm64'], async () => {
 		let dir = await context.downloadAndUnpack('linux-arm64');
-		if (!context.skipRuntimeCheck) {
+		if (!context.options.downloadOnly) {
 			dir = context.getFirstSubdirectory(dir);
 			const entryPoint = context.getDesktopEntryPoint(dir);
 			const dataDir = context.createPortableDataDir(dir);
@@ -48,7 +48,7 @@ export function setup(context: TestContext) {
 
 	context.test('desktop-linux-armhf', ['linux', 'arm32'], async () => {
 		let dir = await context.downloadAndUnpack('linux-armhf');
-		if (!context.skipRuntimeCheck) {
+		if (!context.options.downloadOnly) {
 			dir = context.getFirstSubdirectory(dir);
 			const entryPoint = context.getDesktopEntryPoint(dir);
 			const dataDir = context.createPortableDataDir(dir);
@@ -58,7 +58,7 @@ export function setup(context: TestContext) {
 
 	context.test('desktop-linux-deb-arm64', ['linux', 'arm64', 'deb'], async () => {
 		const packagePath = await context.downloadTarget('linux-deb-arm64');
-		if (!context.skipRuntimeCheck) {
+		if (!context.options.downloadOnly) {
 			const entryPoint = context.installDeb(packagePath);
 			await testDesktopApp(entryPoint);
 			await context.uninstallDeb();
@@ -67,7 +67,7 @@ export function setup(context: TestContext) {
 
 	context.test('desktop-linux-deb-armhf', ['linux', 'arm32', 'deb'], async () => {
 		const packagePath = await context.downloadTarget('linux-deb-armhf');
-		if (!context.skipRuntimeCheck) {
+		if (!context.options.downloadOnly) {
 			const entryPoint = context.installDeb(packagePath);
 			await testDesktopApp(entryPoint);
 			await context.uninstallDeb();
@@ -76,7 +76,7 @@ export function setup(context: TestContext) {
 
 	context.test('desktop-linux-deb-x64', ['linux', 'x64', 'deb'], async () => {
 		const packagePath = await context.downloadTarget('linux-deb-x64');
-		if (!context.skipRuntimeCheck) {
+		if (!context.options.downloadOnly) {
 			const entryPoint = context.installDeb(packagePath);
 			await testDesktopApp(entryPoint);
 			await context.uninstallDeb();
@@ -85,7 +85,7 @@ export function setup(context: TestContext) {
 
 	context.test('desktop-linux-rpm-arm64', ['linux', 'arm64', 'rpm'], async () => {
 		const packagePath = await context.downloadTarget('linux-rpm-arm64');
-		if (!context.skipRuntimeCheck) {
+		if (!context.options.downloadOnly) {
 			const entryPoint = context.installRpm(packagePath);
 			await testDesktopApp(entryPoint);
 			await context.uninstallRpm();
@@ -94,7 +94,7 @@ export function setup(context: TestContext) {
 
 	context.test('desktop-linux-rpm-armhf', ['linux', 'arm32', 'rpm'], async () => {
 		const packagePath = await context.downloadTarget('linux-rpm-armhf');
-		if (!context.skipRuntimeCheck) {
+		if (!context.options.downloadOnly) {
 			const entryPoint = context.installRpm(packagePath);
 			await testDesktopApp(entryPoint);
 			await context.uninstallRpm();
@@ -103,7 +103,7 @@ export function setup(context: TestContext) {
 
 	context.test('desktop-linux-rpm-x64', ['linux', 'x64', 'rpm'], async () => {
 		const packagePath = await context.downloadTarget('linux-rpm-x64');
-		if (!context.skipRuntimeCheck) {
+		if (!context.options.downloadOnly) {
 			const entryPoint = context.installRpm(packagePath);
 			await testDesktopApp(entryPoint);
 			await context.uninstallRpm();
@@ -112,7 +112,7 @@ export function setup(context: TestContext) {
 
 	context.test('desktop-linux-snap-x64', ['linux', 'x64', 'snap'], async () => {
 		const packagePath = await context.downloadTarget('linux-snap-x64');
-		if (!context.skipRuntimeCheck) {
+		if (!context.options.downloadOnly) {
 			const entryPoint = context.installSnap(packagePath);
 			await testDesktopApp(entryPoint);
 			await context.uninstallSnap();
@@ -121,7 +121,7 @@ export function setup(context: TestContext) {
 
 	context.test('desktop-linux-x64', ['linux', 'x64'], async () => {
 		let dir = await context.downloadAndUnpack('linux-x64');
-		if (!context.skipRuntimeCheck) {
+		if (!context.options.downloadOnly) {
 			dir = context.getFirstSubdirectory(dir);
 			const entryPoint = context.getDesktopEntryPoint(dir);
 			const dataDir = context.createPortableDataDir(dir);
@@ -132,7 +132,7 @@ export function setup(context: TestContext) {
 	context.test('desktop-win32-arm64', ['windows', 'arm64'], async () => {
 		const packagePath = await context.downloadTarget('win32-arm64');
 		context.validateAuthenticodeSignature(packagePath);
-		if (!context.skipRuntimeCheck) {
+		if (!context.options.downloadOnly) {
 			const entryPoint = context.installWindowsApp('system', packagePath);
 			context.validateAllAuthenticodeSignatures(path.dirname(entryPoint));
 			await testDesktopApp(entryPoint);
@@ -143,7 +143,7 @@ export function setup(context: TestContext) {
 	context.test('desktop-win32-arm64-archive', ['windows', 'arm64'], async () => {
 		const dir = await context.downloadAndUnpack('win32-arm64-archive');
 		context.validateAllAuthenticodeSignatures(dir);
-		if (!context.skipRuntimeCheck) {
+		if (!context.options.downloadOnly) {
 			const entryPoint = context.getDesktopEntryPoint(dir);
 			const dataDir = context.createPortableDataDir(dir);
 			await testDesktopApp(entryPoint, dataDir);
@@ -153,7 +153,7 @@ export function setup(context: TestContext) {
 	context.test('desktop-win32-arm64-user', ['windows', 'arm64'], async () => {
 		const packagePath = await context.downloadTarget('win32-arm64-user');
 		context.validateAuthenticodeSignature(packagePath);
-		if (!context.skipRuntimeCheck) {
+		if (!context.options.downloadOnly) {
 			const entryPoint = context.installWindowsApp('user', packagePath);
 			context.validateAllAuthenticodeSignatures(path.dirname(entryPoint));
 			await testDesktopApp(entryPoint);
@@ -164,7 +164,7 @@ export function setup(context: TestContext) {
 	context.test('desktop-win32-x64', ['windows', 'x64'], async () => {
 		const packagePath = await context.downloadTarget('win32-x64');
 		context.validateAuthenticodeSignature(packagePath);
-		if (!context.skipRuntimeCheck) {
+		if (!context.options.downloadOnly) {
 			const entryPoint = context.installWindowsApp('system', packagePath);
 			context.validateAllAuthenticodeSignatures(path.dirname(entryPoint));
 			await testDesktopApp(entryPoint);
@@ -175,7 +175,7 @@ export function setup(context: TestContext) {
 	context.test('desktop-win32-x64-archive', ['windows', 'x64'], async () => {
 		const dir = await context.downloadAndUnpack('win32-x64-archive');
 		context.validateAllAuthenticodeSignatures(dir);
-		if (!context.skipRuntimeCheck) {
+		if (!context.options.downloadOnly) {
 			const entryPoint = context.getDesktopEntryPoint(dir);
 			const dataDir = context.createPortableDataDir(dir);
 			await testDesktopApp(entryPoint, dataDir);
@@ -185,7 +185,7 @@ export function setup(context: TestContext) {
 	context.test('desktop-win32-x64-user', ['windows', 'x64'], async () => {
 		const packagePath = await context.downloadTarget('win32-x64-user');
 		context.validateAuthenticodeSignature(packagePath);
-		if (!context.skipRuntimeCheck) {
+		if (!context.options.downloadOnly) {
 			const entryPoint = context.installWindowsApp('user', packagePath);
 			context.validateAllAuthenticodeSignatures(path.dirname(entryPoint));
 			await testDesktopApp(entryPoint);
@@ -201,14 +201,9 @@ export function setup(context: TestContext) {
 		];
 		args.push(test.workspaceDir);
 
-		// Set up environment for Linux headless mode
-		const env = { ...process.env };
-		if (process.platform === 'linux') {
-			env.DISPLAY = await context.ensureXDisplay();
-		}
 
 		context.log(`Starting VS Code ${entryPoint} with args ${args.join(' ')}`);
-		const app = await _electron.launch({ executablePath: entryPoint, args, env: env as Record<string, string> });
+		const app = await _electron.launch({ executablePath: entryPoint, args });
 		const window = await app.firstWindow();
 
 		await test.run(window);

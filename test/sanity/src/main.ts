@@ -25,13 +25,14 @@ if (!options.quality) {
 	throw new Error('--quality is required');
 }
 
-const context = new TestContext(
-	options.quality,
-	options.commit,
-	options.verbose,
-	!options['signing-check'],
-	options.headless,
-	!options['runtime-check']);
+const context = new TestContext({
+	quality: options.quality,
+	commit: options.commit,
+	verbose: options.verbose,
+	checkSigning: options['signing-check'],
+	headlessBrowser: options.headless,
+	downloadOnly: !options['runtime-check'],
+});
 
 beforeEach(function () {
 	context.currentTest = this.currentTest!;

@@ -68,7 +68,7 @@ export function setup(context: TestContext) {
 	});
 
 	async function testServer(entryPoint: string) {
-		if (context.skipRuntimeCheck) {
+		if (context.options.downloadOnly) {
 			return;
 		}
 

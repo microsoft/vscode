@@ -58,14 +58,14 @@ export function setup(context: TestContext) {
 	});
 
 	async function testCliApp(dir: string) {
-		if (context.skipRuntimeCheck) {
+		if (context.options.downloadOnly) {
 			return;
 		}
 
 		const entryPoint = context.getCliEntryPoint(dir);
 		const result = context.runNoErrors(entryPoint, '--version');
 		const version = result.stdout.trim();
-		assert.ok(version.includes(`(commit ${context.commit})`));
+		assert.ok(version.includes(`(commit ${context.options.commit})`));
 
 		const workspaceDir = context.createTempDir();
 		process.chdir(workspaceDir);

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { spawn, ChildProcess, spawnSync, SpawnSyncReturns } from 'child_process';
+import { spawnSync, SpawnSyncReturns } from 'child_process';
 import { createHash } from 'crypto';
 import fs from 'fs';
 import { test } from 'mocha';
@@ -42,16 +42,15 @@ export class TestContext {
 	private _currentTest?: Mocha.Test & { consoleOutputs?: string[] };
 	private _osTempDir?: string;
 	private _capabilities?: Set<Capability>;
-	private _xvfbProcess?: ChildProcess;
 
-	public constructor(
-		public readonly quality: 'stable' | 'insider' | 'exploration',
-		public readonly commit: string,
-		public readonly verbose: boolean,
-		public readonly skipSigningCheck: boolean,
-		public readonly headless: boolean,
-		public readonly skipRuntimeCheck: boolean,
-	) {
+	public constructor(public readonly options: {
+		quality: 'stable' | 'insider' | 'exploration';
+		commit: string;
+		verbose: boolean;
+		checkSigning: boolean;
+		headlessBrowser: boolean;
+		downloadOnly: boolean;
+	}) {
 	}
 
 	/**
@@ -138,7 +137,7 @@ export class TestContext {
 	 * @returns The Mocha test object or void if the test is skipped.
 	 */
 	public test(name: string, require: Capability[], fn: Mocha.Func): Mocha.Test | void {
-		if (this.skipRuntimeCheck || !require.some(o => !this.capabilities.has(o))) {
+		if (this.options.downloadOnly || !require.some(o => !this.capabilities.has(o))) {
 			return test(name, fn);
 		}
 	}
@@ -149,7 +148,7 @@ export class TestContext {
 	public log(message: string) {
 		const line = `[${new Date().toISOString()}] ${message}`;
 		this._currentTest?.consoleOutputs?.push(line);
-		if (this.verbose) {
+		if (this.options.verbose) {
 			console.log(line);
 		}
 	}
@@ -185,56 +184,6 @@ export class TestContext {
 	}
 
 	/**
-	 * Ensures X display is available for Linux headless environments.
-	 * Starts Xvfb if DISPLAY is not set and we're on Linux in headless mode.
-	 * @returns The DISPLAY value to use.
-	 */
-	public async ensureXDisplay(): Promise<string> {
-		if (os.platform() !== 'linux' || !this.headless) {
-			return process.env.DISPLAY || '';
-		}
-
-		// If DISPLAY is already set, use it
-		if (process.env.DISPLAY) {
-			this.log(`Using existing DISPLAY: ${process.env.DISPLAY}`);
-			return process.env.DISPLAY;
-		}
-
-		// Check if Xvfb is available
-		const xvfbCheck = spawnSync('which', ['Xvfb'], { encoding: 'utf-8' });
-		if (xvfbCheck.status !== 0 || !xvfbCheck.stdout.trim()) {
-			this.error('Xvfb is not available. Install it or set DISPLAY environment variable.');
-		}
-
-		// Start Xvfb if not already started
-		if (!this._xvfbProcess) {
-			const display = ':99';
-			this.log(`Starting Xvfb on display ${display}`);
-			this._xvfbProcess = spawn('Xvfb', [display, '-screen', '0', '1280x960x24', '-ac', '+extension', 'GLX', '+render', '-noreset'], {
-				detached: true,
-				stdio: 'ignore'
-			});
-			this._xvfbProcess.unref();
-
-			// Give Xvfb time to start (check for up to 5 seconds)
-			const startTime = Date.now();
-			while (Date.now() - startTime < 5000) {
-				const checkDisplay = spawnSync('xdpyinfo', ['-display', display], { encoding: 'utf-8' });
-				if (checkDisplay.status === 0) {
-					this.log(`Xvfb started successfully on display ${display}`);
-					return display;
-				}
-				// Sleep for 100ms between checks
-				await new Promise(resolve => setTimeout(resolve, 100));
-			}
-
-			this.error(`Failed to start Xvfb on display ${display}`);
-		}
-
-		return ':99';
-	}
-
-	/**
 	 * Cleans up all temporary directories created during the test run.
 	 */
 	public cleanup() {
@@ -249,12 +198,6 @@ export class TestContext {
 			}
 		}
 		this.tempDirs.clear();
-
-		// Kill Xvfb process if we started it
-		if (this._xvfbProcess && !this._xvfbProcess.killed) {
-			this.log('Stopping Xvfb process');
-			this._xvfbProcess.kill();
-		}
 	}
 
 	/**
@@ -301,7 +244,7 @@ export class TestContext {
 	 * @returns The target metadata.
 	 */
 	public async fetchMetadata(target: string): Promise<ITargetMetadata> {
-		const url = `https://update.code.visualstudio.com/api/versions/commit:${this.commit}/${target}/${this.quality}`;
+		const url = `https://update.code.visualstudio.com/api/versions/commit:${this.options.commit}/${target}/${this.options.quality}`;
 
 		this.log(`Fetching metadata for ${target} from ${url}`);
 		const response = await this.fetchNoErrors(url);
@@ -362,7 +305,7 @@ export class TestContext {
 	 * @param filePath The path to the file to validate.
 	 */
 	public validateAuthenticodeSignature(filePath: string) {
-		if (this.skipSigningCheck || !this.capabilities.has('windows')) {
+		if (!this.options.checkSigning || !this.capabilities.has('windows')) {
 			this.log(`Skipping Authenticode signature validation for ${filePath} (signing checks disabled)`);
 			return;
 		}
@@ -385,7 +328,7 @@ export class TestContext {
 	 * @param dir The directory to scan for executable files.
 	 */
 	public validateAllAuthenticodeSignatures(dir: string) {
-		if (this.skipSigningCheck || !this.capabilities.has('windows')) {
+		if (!this.options.checkSigning || !this.capabilities.has('windows')) {
 			this.log(`Skipping Authenticode signature validation for ${dir} (signing checks disabled)`);
 			return;
 		}
@@ -406,7 +349,7 @@ export class TestContext {
 	 * @param filePath The path to the file or app bundle to validate.
 	 */
 	public validateCodesignSignature(filePath: string) {
-		if (this.skipSigningCheck || !this.capabilities.has('darwin')) {
+		if (!this.options.checkSigning || !this.capabilities.has('darwin')) {
 			this.log(`Skipping codesign signature validation for ${filePath} (signing checks disabled)`);
 			return;
 		}
@@ -428,7 +371,7 @@ export class TestContext {
 	 * @param dir The directory to scan for Mach-O binaries.
 	 */
 	public validateAllCodesignSignatures(dir: string) {
-		if (this.skipSigningCheck || !this.capabilities.has('darwin')) {
+		if (!this.options.checkSigning || !this.capabilities.has('darwin')) {
 			this.log(`Skipping codesign signature validation for ${dir} (signing checks disabled)`);
 			return;
 		}
@@ -561,7 +504,7 @@ export class TestContext {
 			parentDir = path.join(process.env['LOCALAPPDATA'] || '', 'Programs');
 		}
 
-		switch (this.quality) {
+		switch (this.options.quality) {
 			case 'stable':
 				return path.join(parentDir, 'Microsoft VS Code');
 			case 'insider':
@@ -583,7 +526,7 @@ export class TestContext {
 
 		const appDir = this.getWindowsInstallDir(type);
 		let entryPoint: string;
-		switch (this.quality) {
+		switch (this.options.quality) {
 			case 'stable':
 				entryPoint = path.join(appDir, 'Code.exe');
 				break;
@@ -724,7 +667,7 @@ export class TestContext {
 	 * Returns the Linux package name based on quality.
 	 */
 	private getLinuxPackageName(): string {
-		switch (this.quality) {
+		switch (this.options.quality) {
 			case 'stable':
 				return 'code';
 			case 'insider':
@@ -738,7 +681,7 @@ export class TestContext {
 	 * Returns the Linux binary name based on quality.
 	 */
 	private getLinuxBinaryName(): string {
-		switch (this.quality) {
+		switch (this.options.quality) {
 			case 'stable':
 				return 'code';
 			case 'insider':
@@ -759,7 +702,7 @@ export class TestContext {
 		switch (os.platform()) {
 			case 'darwin': {
 				let appName: string;
-				switch (this.quality) {
+				switch (this.options.quality) {
 					case 'stable':
 						appName = 'Visual Studio Code.app';
 						break;
@@ -775,7 +718,7 @@ export class TestContext {
 			}
 			case 'linux': {
 				let binaryName: string;
-				switch (this.quality) {
+				switch (this.options.quality) {
 					case 'stable':
 						binaryName = `code`;
 						break;
@@ -791,7 +734,7 @@ export class TestContext {
 			}
 			case 'win32': {
 				let exeName: string;
-				switch (this.quality) {
+				switch (this.options.quality) {
 					case 'stable':
 						exeName = 'Code.exe';
 						break;
@@ -821,7 +764,7 @@ export class TestContext {
 	 */
 	public getCliEntryPoint(dir: string): string {
 		let suffix: string;
-		switch (this.quality) {
+		switch (this.options.quality) {
 			case 'stable':
 				suffix = '';
 				break;
@@ -849,7 +792,7 @@ export class TestContext {
 	 */
 	public getServerEntryPoint(dir: string): string {
 		let filename: string;
-		switch (this.quality) {
+		switch (this.options.quality) {
 			case 'stable':
 				filename = 'code-server';
 				break;
@@ -905,7 +848,7 @@ export class TestContext {
 	 */
 	public getTunnelUrl(baseUrl: string): string {
 		const url = new URL(baseUrl);
-		url.searchParams.set('vscode-version', this.commit);
+		url.searchParams.set('vscode-version', this.options.commit);
 		return url.toString();
 	}
 
@@ -915,13 +858,14 @@ export class TestContext {
 	 */
 	public async launchBrowser(): Promise<Browser> {
 		this.log(`Launching web browser`);
+		const headless = this.options.headlessBrowser;
 		switch (os.platform()) {
 			case 'darwin':
-				return await webkit.launch({ headless: this.headless });
+				return await webkit.launch({ headless });
 			case 'win32':
-				return await chromium.launch({ channel: 'msedge', headless: this.headless });
+				return await chromium.launch({ channel: 'msedge', headless });
 			default:
-				return await chromium.launch({ channel: 'chrome', headless: this.headless });
+				return await chromium.launch({ channel: 'chrome', headless });
 		}
 	}
 

@@ -68,7 +68,7 @@ export function setup(context: TestContext) {
 	});
 
 	async function testServer(entryPoint: string) {
-		if (context.skipRuntimeCheck) {
+		if (context.options.downloadOnly) {
 			return;
 		}
 
@@ -121,6 +121,6 @@ export function setup(context: TestContext) {
 		assert.strictEqual(response.status, 200, `Expected status 200 but got ${response.status}`);
 
 		const text = await response.text();
-		assert.strictEqual(text, context.commit, `Expected commit ${context.commit} but got ${text}`);
+		assert.strictEqual(text, context.options.commit, `Expected commit ${context.options.commit} but got ${text}`);
 	}
 }

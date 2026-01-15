@@ -28,15 +28,6 @@ jobs:
     variables:
       SANITY_TEST_LOGS: $(Build.SourcesDirectory)/.build/sanity-test-logs
       LOG_FILE: $(SANITY_TEST_LOGS)/results.xml
-    templateContext:
-      outputs:
-        - output: pipelineArtifact
-          targetPath: $(SANITY_TEST_LOGS)
-          artifactName: sanity-test-logs-${{ parameters.name }}-$(System.JobAttempt)
-          displayName: Sanity Tests Logs
-          sbomEnabled: false
-          isProduction: false
-          condition: succeededOrFailed()
     steps:
       - template: ./checkout.yml@self
 
@@ -67,7 +58,7 @@ jobs:
         displayName: Compile Sanity Tests
 
       # Host-based test execution (Windows, macOS)
-      - script: npm run start -- -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -v ${{ parameters.args }}
+      - script: node out/index.js -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -v ${{ parameters.args }}
         workingDirectory: ./test/sanity
         displayName: Run Sanity Tests
         condition: eq('${{ parameters.container }}', '')
@@ -88,45 +79,42 @@ jobs:
             /bin/sh -c '
               set -e
 
-              # Install Node.js and X11
               if command -v apt-get &> /dev/null; then
-                echo "Installing dependencies using apt-get"
+                echo "Installing dependencies using apt-get (Ubuntu, Debian)"
                 apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
-                  curl ca-certificates xvfb libgtk-3-0 libnss3 libgbm1 xdg-utils sudo dbus dbus-x11
+                  curl ca-certificates xvfb x11-utils libgtk-3-0 libnss3 libgbm1 xdg-utils sudo dbus dbus-x11
                 apt-get install -y libasound2t64 || apt-get install -y libasound2
                 curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
                 apt-get install -y nodejs
               elif command -v dnf &> /dev/null; then
-                echo "Installing dependencies using dnf"
+                echo "Installing dependencies using dnf (Fedora, RHEL)"
                 dnf install -y epel-release 2>/dev/null || true
                 dnf install -y nodejs gtk3 nss mesa-libgbm alsa-lib sudo dbus dbus-x11
-                dnf install -y xorg-x11-server-Xvfb
+                dnf install -y xorg-x11-server-Xvfb xorg-x11-apps
                 dnf install -y xdg-utils
-              elif command -v yum &> /dev/null; then
-                echo "Installing dependencies using yum"
-                yum install -y epel-release 2>/dev/null || true
-                yum install -y nodejs gtk3 nss mesa-libgbm alsa-lib sudo dbus dbus-x11
-                yum install -y xorg-x11-server-Xvfb
-                yum install -y xdg-utils
               elif command -v zypper &> /dev/null; then
-                echo "Installing dependencies using zypper"
-                zypper install -y nodejs22 xorg-x11-server-Xvfb libgtk-3-0 mozilla-nss libgbm1 alsa xdg-utils sudo tar gzip dbus-1 dbus-1-x11
+                echo "Installing dependencies using zypper (openSUSE)"
+                zypper install -y nodejs22 xorg-x11-server-Xvfb xorg-x11 libgtk-3-0 mozilla-nss libgbm1 alsa xdg-utils sudo tar gzip dbus-1 dbus-1-x11
               elif command -v apk &> /dev/null; then
-                echo "Installing dependencies using apk"
-                apk add --no-cache nodejs npm xvfb gtk+3.0 nss mesa-gbm sudo dbus dbus-x11
+                echo "Installing dependencies using apk (Alpine)"
+                apk add --no-cache nodejs npm xvfb xdpyinfo gtk+3.0 nss mesa-gbm sudo dbus dbus-x11
               fi
 
-              echo "Install Playwright Chrome browser"
-              cd /workspace/test/sanity
-              ./node_modules/.bin/playwright install chrome
+              echo "Starting Xvfb on display :99"
+              Xvfb :99 -screen 0 1280x960x24 -ac +extension GLX +render -noreset &
+              export DISPLAY=:99
+              sleep 2
 
               echo "Starting D-Bus session for Electron"
               mkdir -p /run/dbus
               dbus-daemon --system --fork
 
+              echo "Install Playwright Chrome browser"
+              cd /workspace/test/sanity
+              ./node_modules/.bin/playwright install chrome
+
               echo "Running sanity tests"
-              node out/index.js -c "$(BUILD_COMMIT)" -q "$(BUILD_QUALITY)" \
-                -t "/workspace/.build/sanity-test-logs/results.xml" -v
+              node out/index.js -c "$(BUILD_COMMIT)" -q "$(BUILD_QUALITY)" -t "/workspace/.build/sanity-test-logs/results.xml" -v
             '
         displayName: Run Sanity Tests in Container
         condition: ne('${{ parameters.container }}', '')
