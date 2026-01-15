@@ -35,7 +35,7 @@ function extractTextFromPart(content: IChatThinkingPart): string {
 	return raw.trim();
 }
 
-function getToolInvocationIcon(toolId: string): ThemeIcon {
+export function getToolInvocationIcon(toolId: string): ThemeIcon {
 	const lowerToolId = toolId.toLowerCase();
 
 	if (
@@ -75,7 +75,7 @@ function getToolInvocationIcon(toolId: string): ThemeIcon {
 	return Codicon.tools;
 }
 
-function createThinkingIcon(icon: ThemeIcon): HTMLElement {
+export function createThinkingIcon(icon: ThemeIcon): HTMLElement {
 	const iconElement = $('span.chat-thinking-icon');
 	iconElement.classList.add(...ThemeIcon.asClassNameArray(icon));
 	return iconElement;

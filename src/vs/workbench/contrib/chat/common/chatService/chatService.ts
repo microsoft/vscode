@@ -151,7 +151,6 @@ export interface IChatMarkdownContent {
 	kind: 'markdownContent';
 	content: IMarkdownString;
 	inlineReferences?: Record<string, IChatContentInlineReference>;
-	fromSubagent?: boolean;
 }
 
 export interface IChatTreeData {
@@ -449,14 +448,14 @@ export type ConfirmedReason =
 
 export interface IChatToolInvocation {
 	readonly presentation: IPreparedToolInvocation['presentation'];
-	readonly toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent;
+	readonly toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData;
 	readonly originMessage: string | IMarkdownString | undefined;
 	readonly invocationMessage: string | IMarkdownString;
 	readonly pastTenseMessage: string | IMarkdownString | undefined;
 	readonly source: ToolDataSource;
 	readonly toolId: string;
 	readonly toolCallId: string;
-	readonly fromSubAgent?: boolean;
+	readonly subAgentInvocationId?: string;
 	readonly state: IObservable<IChatToolInvocation.State>;
 	generatedTitle?: string;
 
@@ -707,7 +706,7 @@ export interface IToolResultOutputDetailsSerialized {
  */
 export interface IChatToolInvocationSerialized {
 	presentation: IPreparedToolInvocation['presentation'];
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData;
 	invocationMessage: string | IMarkdownString;
 	originMessage: string | IMarkdownString | undefined;
 	pastTenseMessage: string | IMarkdownString | undefined;
@@ -718,7 +717,7 @@ export interface IChatToolInvocationSerialized {
 	toolCallId: string;
 	toolId: string;
 	source: ToolDataSource;
-	readonly fromSubAgent?: boolean;
+	readonly subAgentInvocationId?: string;
 	generatedTitle?: string;
 	kind: 'toolInvocationSerialized';
 }
@@ -735,6 +734,14 @@ export interface IChatPullRequestContent {
 	author: string;
 	linkTag: string;
 	kind: 'pullRequest';
+}
+
+export interface IChatSubagentToolInvocationData {
+	kind: 'subagent';
+	description?: string;
+	agentName?: string;
+	prompt?: string;
+	result?: string;
 }
 
 export interface IChatTodoListContent {
@@ -990,7 +997,7 @@ export interface IChatSessionStats {
 	removed: number;
 }
 
-export interface IChatSessionTiming {
+export type IChatSessionTiming = {
 	/**
 	 * Timestamp when the session was created in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
 	 */
@@ -1009,6 +1016,22 @@ export interface IChatSessionTiming {
 	 * Should be undefined if the most recent request is still in progress or if no requests have been made yet.
 	 */
 	lastRequestEnded: number | undefined;
+};
+
+interface ILegacyChatSessionTiming {
+	startTime: number;
+	endTime?: number;
+}
+
+export function convertLegacyChatSessionTiming(timing: IChatSessionTiming | ILegacyChatSessionTiming): IChatSessionTiming {
+	if (hasKey(timing, { created: true })) {
+		return timing;
+	}
+	return {
+		created: timing.startTime,
+		lastRequestStarted: timing.startTime,
+		lastRequestEnded: timing.endTime,
+	};
 }
 
 export const enum ResponseModelState {
@@ -1023,7 +1046,8 @@ export interface IChatDetail {
 	sessionResource: URI;
 	title: string;
 	lastMessageDate: number;
-	timing: IChatSessionTiming;
+	// Also support old timing format for backwards compatibility with persisted data
+	timing: IChatSessionTiming | ILegacyChatSessionTiming;
 	isActive: boolean;
 	stats?: IChatSessionStats;
 	lastResponseState: ResponseModelState;

@@ -14,7 +14,6 @@ import { autorun, IObservable } from '../../../../../../base/common/observable.j
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
-import { ActionWidgetDropdownActionViewItem } from '../../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
 import { getFlatActionBarActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
@@ -30,16 +29,18 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../com
 import { ExtensionAgentSourceType, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { getOpenChatActionIdForMode } from '../../actions/chatActions.js';
 import { IToggleChatModeArgs, ToggleAgentModeActionId } from '../../actions/chatExecuteActions.js';
+import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 
 export interface IModePickerDelegate {
 	readonly currentMode: IObservable<IChatMode>;
 	readonly sessionResource: () => URI | undefined;
 }
 
-export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
+export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 	constructor(
 		action: MenuItemAction,
 		private readonly delegate: IModePickerDelegate,
+		pickerOptions: IChatInputPickerOptions,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
 		@IChatAgentService chatAgentService: IChatAgentService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -68,7 +69,7 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 				...action,
 				id: getOpenChatActionIdForMode(mode),
 				label: mode.label.get(),
-				icon: isDisabledViaPolicy ? ThemeIcon.fromId(Codicon.lock.id) : undefined,
+				icon: isDisabledViaPolicy ? ThemeIcon.fromId(Codicon.lock.id) : mode.icon.get(),
 				class: isDisabledViaPolicy ? 'disabled-by-policy' : undefined,
 				enabled: !isDisabledViaPolicy,
 				checked: !isDisabledViaPolicy && currentMode.id === mode.id,
@@ -94,6 +95,7 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 			return {
 				...makeAction(mode, currentMode),
 				tooltip: mode.description.get() ?? chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip,
+				icon: mode.icon.get(),
 				category: agentModeDisabledViaPolicy ? policyDisabledCategory : customCategory
 			};
 		};
@@ -132,7 +134,7 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 			showItemKeybindings: true
 		};
 
-		super(action, modePickerActionWidgetOptions, actionWidgetService, keybindingService, contextKeyService);
+		super(action, modePickerActionWidgetOptions, pickerOptions, actionWidgetService, keybindingService, contextKeyService);
 
 		// Listen to changes in the current mode and its properties
 		this._register(autorun(reader => {
@@ -153,13 +155,19 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
 		this.setAriaLabelAttributes(element);
-		const state = this.delegate.currentMode.get().label.get();
-		dom.reset(element, dom.$('span.chat-input-picker-label', undefined, state), ...renderLabelWithIcons(`$(chevron-down)`));
-		return null;
-	}
 
-	override render(container: HTMLElement): void {
-		super.render(container);
-		container.classList.add('chat-input-picker-item');
+		const isDefault = this.delegate.currentMode.get().id === ChatMode.Agent.id;
+		const state = this.delegate.currentMode.get().label.get();
+		const icon = this.delegate.currentMode.get().icon.get();
+
+		const labelElements = [];
+		labelElements.push(...renderLabelWithIcons(`$(${icon.id})`));
+		if (!isDefault) {
+			labelElements.push(dom.$('span.chat-input-picker-label', undefined, state));
+		}
+		labelElements.push(...renderLabelWithIcons(`$(chevron-down)`));
+
+		dom.reset(element, ...labelElements);
+		return null;
 	}
 }

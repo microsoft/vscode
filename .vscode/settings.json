@@ -210,6 +210,5 @@
 	],
 	"azureMcp.serverMode": "all",
 	"azureMcp.readOnly": true,
-	"chat.tools.terminal.outputLocation": "none",
 	"debug.breakpointsView.presentation": "tree"
 }

@@ -19,7 +19,7 @@
 .chat-diff-change-content-widget .monaco-action-bar {
 	padding: 4px 4px;
 	border-radius: 6px;
-	background-color: var(--vscode-editor-background);
+	background-color: var(--vscode-editorWidget-background);
 	color: var(--vscode-foreground);
 	border: 1px solid var(--vscode-contrastBorder);
 	overflow: hidden;
