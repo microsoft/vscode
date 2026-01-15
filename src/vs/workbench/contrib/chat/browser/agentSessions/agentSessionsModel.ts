@@ -19,7 +19,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { ChatSessionStatus as AgentSessionStatus, IChatSessionFileChange, IChatSessionItem, IChatSessionsExtensionPoint, IChatSessionsService, isSessionInProgressStatus } from '../../common/chatSessionsService.js';
-import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from './agentSessions.js';
+import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName } from './agentSessions.js';
 
 //#region Interfaces, Types
 
@@ -301,23 +301,13 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 				// Icon + Label
 				let icon: ThemeIcon;
 				let providerLabel: string;
-				switch ((chatSessionType)) {
-					case AgentSessionProviders.Local:
-						providerLabel = getAgentSessionProviderName(AgentSessionProviders.Local);
-						icon = getAgentSessionProviderIcon(AgentSessionProviders.Local);
-						break;
-					case AgentSessionProviders.Background:
-						providerLabel = getAgentSessionProviderName(AgentSessionProviders.Background);
-						icon = getAgentSessionProviderIcon(AgentSessionProviders.Background);
-						break;
-					case AgentSessionProviders.Cloud:
-						providerLabel = getAgentSessionProviderName(AgentSessionProviders.Cloud);
-						icon = getAgentSessionProviderIcon(AgentSessionProviders.Cloud);
-						break;
-					default: {
-						providerLabel = mapSessionContributionToType.get(chatSessionType)?.name ?? chatSessionType;
-						icon = session.iconPath ?? Codicon.terminal;
-					}
+				const agentSessionProvider = getAgentSessionProvider(chatSessionType);
+				if (agentSessionProvider !== undefined) {
+					providerLabel = getAgentSessionProviderName(agentSessionProvider);
+					icon = getAgentSessionProviderIcon(agentSessionProvider);
+				} else {
+					providerLabel = mapSessionContributionToType.get(chatSessionType)?.name ?? chatSessionType;
+					icon = session.iconPath ?? Codicon.terminal;
 				}
 
 				// State + Timings
@@ -355,19 +345,24 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 					? { files: changes.files, insertions: changes.insertions, deletions: changes.deletions }
 					: changes;
 
-				// Times: it is important to always provide a start and end time to track
+				// Times: it is important to always provide timing information to track
 				// unread/read state for example.
 				// If somehow the provider does not provide any, fallback to last known
-				let startTime = session.timing.startTime;
-				let endTime = session.timing.endTime;
-				if (!startTime || !endTime) {
+				let created = session.timing.created;
+				let lastRequestStarted = session.timing.lastRequestStarted;
+				let lastRequestEnded = session.timing.lastRequestEnded;
+				if (!created || !lastRequestEnded) {
 					const existing = this._sessions.get(session.resource);
-					if (!startTime && existing?.timing.startTime) {
-						startTime = existing.timing.startTime;
+					if (!created && existing?.timing.created) {
+						created = existing.timing.created;
 					}
 
-					if (!endTime && existing?.timing.endTime) {
-						endTime = existing.timing.endTime;
+					if (!lastRequestEnded && existing?.timing.lastRequestEnded) {
+						lastRequestEnded = existing.timing.lastRequestEnded;
+					}
+
+					if (!lastRequestStarted && existing?.timing.lastRequestStarted) {
+						lastRequestStarted = existing.timing.lastRequestStarted;
 					}
 				}
 
@@ -382,7 +377,13 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 					tooltip: session.tooltip,
 					status,
 					archived: session.archived,
-					timing: { startTime, endTime, inProgressTime, finishedOrFailedTime },
+					timing: {
+						created,
+						lastRequestStarted,
+						lastRequestEnded,
+						inProgressTime,
+						finishedOrFailedTime
+					},
 					changes: normalizedChanges,
 				}));
 			}
@@ -450,7 +451,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	private isRead(session: IInternalAgentSessionData): boolean {
 		const readDate = this.sessionStates.get(session.resource)?.read;
 
-		return (readDate ?? AgentSessionsModel.READ_STATE_INITIAL_DATE) >= (session.timing.endTime ?? session.timing.startTime);
+		return (readDate ?? AgentSessionsModel.READ_STATE_INITIAL_DATE) >= (session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created);
 	}
 
 	private setRead(session: IInternalAgentSessionData, read: boolean): void {
@@ -469,7 +470,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 
 //#region Sessions Cache
 
-interface ISerializedAgentSession extends Omit<IAgentSessionData, 'iconPath' | 'resource' | 'icon'> {
+interface ISerializedAgentSession {
 
 	readonly providerType: string;
 	readonly providerLabel: string;
@@ -488,7 +489,11 @@ interface ISerializedAgentSession extends Omit<IAgentSessionData, 'iconPath' | '
 	readonly archived: boolean | undefined;
 
 	readonly timing: {
-		readonly startTime: number;
+		readonly created: number;
+		readonly lastRequestStarted?: number;
+		readonly lastRequestEnded?: number;
+		// Old format for backward compatibility when reading
+		readonly startTime?: number;
 		readonly endTime?: number;
 	};
 
@@ -531,8 +536,9 @@ class AgentSessionsCache {
 			archived: session.archived,
 
 			timing: {
-				startTime: session.timing.startTime,
-				endTime: session.timing.endTime,
+				created: session.timing.created,
+				lastRequestStarted: session.timing.lastRequestStarted,
+				lastRequestEnded: session.timing.lastRequestEnded,
 			},
 
 			changes: session.changes,
@@ -549,7 +555,7 @@ class AgentSessionsCache {
 
 		try {
 			const cached = JSON.parse(sessionsCache) as ISerializedAgentSession[];
-			return cached.map(session => ({
+			return cached.map((session): IInternalAgentSessionData => ({
 				providerType: session.providerType,
 				providerLabel: session.providerLabel,
 
@@ -565,8 +571,10 @@ class AgentSessionsCache {
 				archived: session.archived,
 
 				timing: {
-					startTime: session.timing.startTime,
-					endTime: session.timing.endTime,
+					// Support loading both new and old cache formats
+					created: session.timing.created ?? session.timing.startTime ?? 0,
+					lastRequestStarted: session.timing.lastRequestStarted ?? session.timing.startTime,
+					lastRequestEnded: session.timing.lastRequestEnded ?? session.timing.endTime,
 				},
 
 				changes: Array.isArray(session.changes) ? session.changes.map((change: IChatSessionFileChange) => ({

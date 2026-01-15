@@ -124,6 +124,11 @@ class BrowserNavigationBar extends Disposable {
 				}
 			}
 		}));
+
+		// Select all URL bar text when the URL bar receives focus (like in regular browsers)
+		this._register(addDisposableListener(this._urlInput, EventType.FOCUS, () => {
+			this._urlInput.select();
+		}));
 	}
 
 	/**
