@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/focusView.css';
+import './media/agentSessionProjection.css';
 
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
@@ -24,36 +24,37 @@ import { ChatConfiguration } from '../../common/constants.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { ACTION_ID_NEW_CHAT } from '../actions/chatActions.js';
 import { IChatEditingService, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
+import { IAgentStatusService } from './agentStatusService.js';
 
 //#region Configuration
 
 /**
  * Provider types that support agent session projection mode.
- * Only sessions from these providers will trigger focus view.
+ * Only sessions from these providers will trigger projection mode.
  */
 const AGENT_SESSION_PROJECTION_ENABLED_PROVIDERS: Set<string> = new Set(Object.values(AgentSessionProviders));
 
 //#endregion
 
-//#region Focus View Service Interface
+//#region Agent Session Projection Service Interface
 
-export interface IFocusViewService {
+export interface IAgentSessionProjectionService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Whether focus view mode is active.
+	 * Whether projection mode is active.
 	 */
 	readonly isActive: boolean;
 
 	/**
-	 * The currently active session in focus view, if any.
+	 * The currently active session in projection mode, if any.
 	 */
 	readonly activeSession: IAgentSession | undefined;
 
 	/**
-	 * Event fired when focus view mode changes.
+	 * Event fired when projection mode changes.
 	 */
-	readonly onDidChangeFocusViewMode: Event<boolean>;
+	readonly onDidChangeProjectionMode: Event<boolean>;
 
 	/**
 	 * Event fired when the active session changes (including when switching between sessions).
@@ -61,23 +62,23 @@ export interface IFocusViewService {
 	readonly onDidChangeActiveSession: Event<IAgentSession | undefined>;
 
 	/**
-	 * Enter focus view mode for the given session.
+	 * Enter projection mode for the given session.
 	 */
-	enterFocusView(session: IAgentSession): Promise<void>;
+	enterProjection(session: IAgentSession): Promise<void>;
 
 	/**
-	 * Exit focus view mode.
+	 * Exit projection mode.
 	 */
-	exitFocusView(): Promise<void>;
+	exitProjection(): Promise<void>;
 }
 
-export const IFocusViewService = createDecorator<IFocusViewService>('focusViewService');
+export const IAgentSessionProjectionService = createDecorator<IAgentSessionProjectionService>('agentSessionProjectionService');
 
 //#endregion
 
-//#region Focus View Service Implementation
+//#region Agent Session Projection Service Implementation
 
-export class FocusViewService extends Disposable implements IFocusViewService {
+export class AgentSessionProjectionService extends Disposable implements IAgentSessionProjectionService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -87,16 +88,16 @@ export class FocusViewService extends Disposable implements IFocusViewService {
 	private _activeSession: IAgentSession | undefined;
 	get activeSession(): IAgentSession | undefined { return this._activeSession; }
 
-	private readonly _onDidChangeFocusViewMode = this._register(new Emitter<boolean>());
-	readonly onDidChangeFocusViewMode = this._onDidChangeFocusViewMode.event;
+	private readonly _onDidChangeProjectionMode = this._register(new Emitter<boolean>());
+	readonly onDidChangeProjectionMode = this._onDidChangeProjectionMode.event;
 
 	private readonly _onDidChangeActiveSession = this._register(new Emitter<IAgentSession | undefined>());
 	readonly onDidChangeActiveSession = this._onDidChangeActiveSession.event;
 
-	private readonly _inFocusViewModeContextKey: IContextKey<boolean>;
+	private readonly _inProjectionModeContextKey: IContextKey<boolean>;
 
-	/** Working set saved when entering focus view (to restore on exit) */
-	private _nonFocusViewWorkingSet: IEditorWorkingSet | undefined;
+	/** Working set saved when entering projection mode (to restore on exit) */
+	private _preProjectionWorkingSet: IEditorWorkingSet | undefined;
 
 	/** Working sets per session, keyed by session resource URI string */
 	private readonly _sessionWorkingSets = new Map<string, IEditorWorkingSet>();
@@ -112,12 +113,13 @@ export class FocusViewService extends Disposable implements IFocusViewService {
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
+		@IAgentStatusService private readonly agentStatusService: IAgentStatusService,
 	) {
 		super();
 
-		this._inFocusViewModeContextKey = ChatContextKeys.inFocusViewMode.bindTo(contextKeyService);
+		this._inProjectionModeContextKey = ChatContextKeys.inAgentSessionProjection.bindTo(contextKeyService);
 
-		// Listen for editor close events to exit focus view when all editors are closed
+		// Listen for editor close events to exit projection mode when all editors are closed
 		this._register(this.editorService.onDidCloseEditor(() => this._checkForEmptyEditors()));
 	}
 
@@ -126,7 +128,7 @@ export class FocusViewService extends Disposable implements IFocusViewService {
 	}
 
 	private _checkForEmptyEditors(): void {
-		// Only check if we're in focus view mode
+		// Only check if we're in projection mode
 		if (!this._isActive) {
 			return;
 		}
@@ -135,8 +137,8 @@ export class FocusViewService extends Disposable implements IFocusViewService {
 		const hasVisibleEditors = this.editorService.visibleEditors.length > 0;
 
 		if (!hasVisibleEditors) {
-			this.logService.trace('[FocusView] All editors closed, exiting focus view mode');
-			this.exitFocusView();
+			this.logService.trace('[AgentSessionProjection] All editors closed, exiting projection mode');
+			this.exitProjection();
 		}
 	}
 
@@ -144,7 +146,7 @@ export class FocusViewService extends Disposable implements IFocusViewService {
 		// Clear editors first
 		await this.editorGroupsService.applyWorkingSet('empty', { preserveFocus: true });
 
-		this.logService.trace(`[FocusView] Opening files for session '${session.label}'`, {
+		this.logService.trace(`[AgentSessionProjection] Opening files for session '${session.label}'`, {
 			hasChanges: !!session.changes,
 			isArray: Array.isArray(session.changes),
 			changeCount: Array.isArray(session.changes) ? session.changes.length : 0
@@ -160,7 +162,7 @@ export class FocusViewService extends Disposable implements IFocusViewService {
 					modifiedUri: change.modifiedUri
 				}));
 
-			this.logService.trace(`[FocusView] Found ${diffResources.length} files with diffs to display`);
+			this.logService.trace(`[AgentSessionProjection] Found ${diffResources.length} files with diffs to display`);
 
 			if (diffResources.length > 0) {
 				// Open multi-diff editor showing all changes
@@ -170,53 +172,53 @@ export class FocusViewService extends Disposable implements IFocusViewService {
 					resources: diffResources,
 				});
 
-				this.logService.trace(`[FocusView] Multi-diff editor opened successfully`);
+				this.logService.trace(`[AgentSessionProjection] Multi-diff editor opened successfully`);
 
 				// Save this as the session's working set
 				const sessionKey = session.resource.toString();
-				const newWorkingSet = this.editorGroupsService.saveWorkingSet(`focus-view-session-${sessionKey}`);
+				const newWorkingSet = this.editorGroupsService.saveWorkingSet(`agent-session-projection-${sessionKey}`);
 				this._sessionWorkingSets.set(sessionKey, newWorkingSet);
 			} else {
-				this.logService.trace(`[FocusView] No files with diffs to display (all changes missing originalUri)`);
+				this.logService.trace(`[AgentSessionProjection] No files with diffs to display (all changes missing originalUri)`);
 			}
 		} else {
-			this.logService.trace(`[FocusView] Session has no changes to display`);
+			this.logService.trace(`[AgentSessionProjection] Session has no changes to display`);
 		}
 	}
 
-	async enterFocusView(session: IAgentSession): Promise<void> {
+	async enterProjection(session: IAgentSession): Promise<void> {
 		// Check if the feature is enabled
 		if (!this._isEnabled()) {
-			this.logService.trace('[FocusView] Agent Session Projection is disabled');
+			this.logService.trace('[AgentSessionProjection] Agent Session Projection is disabled');
 			return;
 		}
 
 		// Check if this session's provider type supports agent session projection
 		if (!AGENT_SESSION_PROJECTION_ENABLED_PROVIDERS.has(session.providerType)) {
-			this.logService.trace(`[FocusView] Provider type '${session.providerType}' does not support agent session projection`);
+			this.logService.trace(`[AgentSessionProjection] Provider type '${session.providerType}' does not support agent session projection`);
 			return;
 		}
 
 		// For local sessions, check if there are pending edits to show
-		// If there's nothing to focus, just open the chat without entering focus view mode
+		// If there's nothing to focus, just open the chat without entering projection mode
 		let hasUndecidedChanges = true;
 		if (session.providerType === AgentSessionProviders.Local) {
 			const editingSession = this.chatEditingService.getEditingSession(session.resource);
 			hasUndecidedChanges = editingSession?.entries.get().some(e => e.state.get() === ModifiedFileEntryState.Modified) ?? false;
 			if (!hasUndecidedChanges) {
-				this.logService.trace('[FocusView] Local session has no undecided changes, opening chat without focus view');
+				this.logService.trace('[AgentSessionProjection] Local session has no undecided changes, opening chat without projection mode');
 			}
 		}
 
-		// Only enter focus view mode if there are changes to show
+		// Only enter projection mode if there are changes to show
 		if (hasUndecidedChanges) {
 			if (!this._isActive) {
-				// First time entering focus view - save the current working set as our "non-focus-view" backup
-				this._nonFocusViewWorkingSet = this.editorGroupsService.saveWorkingSet('focus-view-backup');
+				// First time entering projection mode - save the current working set as our backup
+				this._preProjectionWorkingSet = this.editorGroupsService.saveWorkingSet('agent-session-projection-backup');
 			} else if (this._activeSession) {
-				// Already in focus view, switching sessions - save the current session's working set
+				// Already in projection mode, switching sessions - save the current session's working set
 				const previousSessionKey = this._activeSession.resource.toString();
-				const previousWorkingSet = this.editorGroupsService.saveWorkingSet(`focus-view-session-${previousSessionKey}`);
+				const previousWorkingSet = this.editorGroupsService.saveWorkingSet(`agent-session-projection-${previousSessionKey}`);
 				this._sessionWorkingSets.set(previousSessionKey, previousWorkingSet);
 			}
 
@@ -227,10 +229,14 @@ export class FocusViewService extends Disposable implements IFocusViewService {
 			const wasActive = this._isActive;
 			this._isActive = true;
 			this._activeSession = session;
-			this._inFocusViewModeContextKey.set(true);
-			this.layoutService.mainContainer.classList.add('focus-view-active');
+			this._inProjectionModeContextKey.set(true);
+			this.layoutService.mainContainer.classList.add('agent-session-projection-active');
+
+			// Update the agent status to show session mode
+			this.agentStatusService.enterSessionMode(session.resource.toString(), session.label);
+
 			if (!wasActive) {
-				this._onDidChangeFocusViewMode.fire(true);
+				this._onDidChangeProjectionMode.fire(true);
 			}
 			// Always fire session change event (for title updates when switching sessions)
 			this._onDidChangeActiveSession.fire(session);
@@ -251,7 +257,7 @@ export class FocusViewService extends Disposable implements IFocusViewService {
 		}
 	}
 
-	async exitFocusView(): Promise<void> {
+	async exitProjection(): Promise<void> {
 		if (!this._isActive) {
 			return;
 		}
@@ -259,28 +265,32 @@ export class FocusViewService extends Disposable implements IFocusViewService {
 		// Save the current session's working set before exiting
 		if (this._activeSession) {
 			const sessionKey = this._activeSession.resource.toString();
-			const workingSet = this.editorGroupsService.saveWorkingSet(`focus-view-session-${sessionKey}`);
+			const workingSet = this.editorGroupsService.saveWorkingSet(`agent-session-projection-${sessionKey}`);
 			this._sessionWorkingSets.set(sessionKey, workingSet);
 		}
 
-		// Restore the non-focus-view working set
-		if (this._nonFocusViewWorkingSet) {
+		// Restore the pre-projection working set
+		if (this._preProjectionWorkingSet) {
 			const existingWorkingSets = this.editorGroupsService.getWorkingSets();
-			const exists = existingWorkingSets.some(ws => ws.id === this._nonFocusViewWorkingSet!.id);
+			const exists = existingWorkingSets.some(ws => ws.id === this._preProjectionWorkingSet!.id);
 			if (exists) {
-				await this.editorGroupsService.applyWorkingSet(this._nonFocusViewWorkingSet);
-				this.editorGroupsService.deleteWorkingSet(this._nonFocusViewWorkingSet);
+				await this.editorGroupsService.applyWorkingSet(this._preProjectionWorkingSet);
+				this.editorGroupsService.deleteWorkingSet(this._preProjectionWorkingSet);
 			} else {
 				await this.editorGroupsService.applyWorkingSet('empty', { preserveFocus: true });
 			}
-			this._nonFocusViewWorkingSet = undefined;
+			this._preProjectionWorkingSet = undefined;
 		}
 
 		this._isActive = false;
 		this._activeSession = undefined;
-		this._inFocusViewModeContextKey.set(false);
-		this.layoutService.mainContainer.classList.remove('focus-view-active');
-		this._onDidChangeFocusViewMode.fire(false);
+		this._inProjectionModeContextKey.set(false);
+		this.layoutService.mainContainer.classList.remove('agent-session-projection-active');
+
+		// Update the agent status to exit session mode
+		this.agentStatusService.exitSessionMode();
+
+		this._onDidChangeProjectionMode.fire(false);
 		this._onDidChangeActiveSession.fire(undefined);
 
 		// Start a new chat to clear the sidebar

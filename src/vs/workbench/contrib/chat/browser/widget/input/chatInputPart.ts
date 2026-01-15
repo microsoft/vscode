@@ -2284,7 +2284,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}))
 		);
 
-		const shouldRender = derived(reader => editSessionEntries.read(reader).length > 0 || sessionFiles.read(reader).length > 0);
+		const shouldRender = derived(reader => {
+			const sessionFilesLength = sessionFiles.read(reader).length;
+			const editSessionEntriesLength = editSessionEntries.read(reader).length;
+
+			const sessionResource = chatEditingSession?.chatSessionResource ?? this._widget?.viewModel?.model.sessionResource;
+			if (sessionResource && getChatSessionType(sessionResource) === localChatSessionType) {
+				return sessionFilesLength > 0 || editSessionEntriesLength > 0;
+			}
+
+			// For background sessions, only render the
+			// working set when there are session files
+			return sessionFilesLength > 0;
+		});
 
 		this._renderingChatEdits.value = autorun(reader => {
 			if (this.options.renderWorkingSet && shouldRender.read(reader)) {
