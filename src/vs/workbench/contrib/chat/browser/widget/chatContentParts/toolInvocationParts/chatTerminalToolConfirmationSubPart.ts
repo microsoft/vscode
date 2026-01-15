@@ -95,18 +95,14 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 	) {
 		super(toolInvocation);
 
-		// Tag for sub-agent styling
-		if (toolInvocation.fromSubAgent) {
-			context.container.classList.add('from-sub-agent');
-		}
-
-		if (!toolInvocation.confirmationMessages?.title) {
+		const state = toolInvocation.state.get();
+		if (state.type !== IChatToolInvocation.StateKind.WaitingForConfirmation || !state.confirmationMessages?.title) {
 			throw new Error('Confirmation messages are missing');
 		}
 
 		terminalData = migrateLegacyTerminalToolSpecificData(terminalData);
 
-		const { title, message, disclaimer, terminalCustomActions } = toolInvocation.confirmationMessages;
+		const { title, message, disclaimer, terminalCustomActions } = state.confirmationMessages;
 
 		const autoApproveEnabled = this.configurationService.getValue(TerminalContribSettingId.EnableAutoApprove) === true;
 		const autoApproveWarningAccepted = this.storageService.getBoolean(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION, false);

@@ -41,7 +41,7 @@ import { ConfirmedReason, IChatService, IChatToolInvocation, ToolConfirmKind } f
 import { ChatRequestToolReferenceEntry, toToolSetVariableEntry, toToolVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { ILanguageModelToolsConfirmationService } from '../../common/tools/languageModelToolsConfirmationService.js';
-import { CountTokensCallback, createToolSchemaUri, ILanguageModelToolsService, IPreparedToolInvocation, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, SpecedToolAliases, stringifyPromptTsxPart, ToolDataSource, ToolSet, VSCodeToolReference } from '../../common/tools/languageModelToolsService.js';
+import { CountTokensCallback, createToolSchemaUri, IBeginToolCallOptions, ILanguageModelToolsService, IPreparedToolInvocation, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, SpecedToolAliases, stringifyPromptTsxPart, ToolDataSource, ToolSet, VSCodeToolReference } from '../../common/tools/languageModelToolsService.js';
 import { getToolConfirmationAlert } from '../accessibility/chatAccessibilityProvider.js';
 
 const jsonSchemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
@@ -93,6 +93,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	private readonly _ctxToolsCount: IContextKey<number>;
 
 	private readonly _callsByRequestId = new Map<string, ITrackedCall[]>();
+
+	/** Pending tool calls in the streaming phase, keyed by toolCallId */
+	private readonly _pendingToolCalls = new Map<string, ChatToolInvocation>();
 
 	private readonly _isAgentModeEnabled: IObservable<boolean>;
 
@@ -196,6 +199,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		super.dispose();
 
 		this._callsByRequestId.forEach(calls => calls.forEach(call => call.store.dispose()));
+		this._pendingToolCalls.clear();
 		this._ctxToolsCount.reset();
 	}
 
@@ -321,8 +325,22 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			}
 		}
 
-		// Shortcut to write to the model directly here, but could call all the way back to use the real stream.
+		// Check if there's an existing pending tool call from streaming phase
+		// Try both the callId and the chatStreamToolCallId (if provided) as lookup keys
+		let pendingToolCallKey: string | undefined;
 		let toolInvocation: ChatToolInvocation | undefined;
+		if (this._pendingToolCalls.has(dto.callId)) {
+			pendingToolCallKey = dto.callId;
+			toolInvocation = this._pendingToolCalls.get(dto.callId);
+		} else if (dto.chatStreamToolCallId && this._pendingToolCalls.has(dto.chatStreamToolCallId)) {
+			pendingToolCallKey = dto.chatStreamToolCallId;
+			toolInvocation = this._pendingToolCalls.get(dto.chatStreamToolCallId);
+		}
+		const hadPendingInvocation = !!toolInvocation;
+		if (hadPendingInvocation && pendingToolCallKey) {
+			// Remove from pending since we're now invoking it
+			this._pendingToolCalls.delete(pendingToolCallKey);
+		}
 
 		let requestId: string | undefined;
 		let store: DisposableStore | undefined;
@@ -367,14 +385,20 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				preparedInvocation = await this.prepareToolInvocation(tool, dto, token);
 				prepareTimeWatch.stop();
 
-				toolInvocation = new ChatToolInvocation(preparedInvocation, tool.data, dto.callId, dto.fromSubAgent, dto.parameters);
+				if (hadPendingInvocation && toolInvocation) {
+					// Transition from streaming to executing/waiting state
+					toolInvocation.transitionFromStreaming(preparedInvocation, dto.parameters);
+				} else {
+					// Create a new tool invocation (no streaming phase)
+					toolInvocation = new ChatToolInvocation(preparedInvocation, tool.data, dto.callId, dto.subAgentInvocationId, dto.parameters);
+					this._chatService.appendProgress(request, toolInvocation);
+				}
+
 				trackedCall.invocation = toolInvocation;
 				const autoConfirmed = await this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace, tool.data.source, dto.parameters);
 				if (autoConfirmed) {
 					IChatToolInvocation.confirmWith(toolInvocation, autoConfirmed);
 				}
-
-				this._chatService.appendProgress(request, toolInvocation);
 
 				dto.toolSpecificData = toolInvocation?.toolSpecificData;
 				if (preparedInvocation?.confirmationMessages?.title) {
@@ -551,6 +575,87 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 
 		return prepared;
+	}
+
+	beginToolCall(options: IBeginToolCallOptions): IChatToolInvocation | undefined {
+		// First try to look up by tool ID (the package.json "name" field),
+		// then fall back to looking up by toolReferenceName
+		const toolEntry = this._tools.get(options.toolId);
+		if (!toolEntry) {
+			return undefined;
+		}
+
+		// Don't create a streaming invocation for tools that don't implement handleToolStream.
+		// These tools will have their invocation created directly in invokeToolInternal.
+		if (!toolEntry.impl?.handleToolStream) {
+			return undefined;
+		}
+
+		// Create the invocation in streaming state
+		const invocation = ChatToolInvocation.createStreaming({
+			toolCallId: options.toolCallId,
+			toolId: options.toolId,
+			toolData: toolEntry.data,
+			subagentInvocationId: options.subagentInvocationId,
+			chatRequestId: options.chatRequestId,
+		});
+
+		// Track the pending tool call
+		this._pendingToolCalls.set(options.toolCallId, invocation);
+
+		// If we have a session, append the invocation to the chat as progress
+		if (options.sessionResource) {
+			const model = this._chatService.getSession(options.sessionResource);
+			if (model) {
+				// Find the request by chatRequestId if available, otherwise use the last request
+				const request = (options.chatRequestId
+					? model.getRequests().find(r => r.id === options.chatRequestId)
+					: undefined) ?? model.getRequests().at(-1);
+				if (request) {
+					this._chatService.appendProgress(request, invocation);
+				}
+			}
+		}
+
+		// Call handleToolStream to get initial streaming message
+		this._callHandleToolStream(toolEntry, invocation, options.toolCallId, undefined, CancellationToken.None);
+
+		return invocation;
+	}
+
+	private async _callHandleToolStream(toolEntry: IToolEntry, invocation: ChatToolInvocation, toolCallId: string, rawInput: unknown, token: CancellationToken): Promise<void> {
+		if (!toolEntry.impl?.handleToolStream) {
+			return;
+		}
+		try {
+			const result = await toolEntry.impl.handleToolStream({
+				toolCallId,
+				rawInput,
+				chatRequestId: invocation.chatRequestId,
+			}, token);
+
+			if (result?.invocationMessage) {
+				invocation.updateStreamingMessage(result.invocationMessage);
+			}
+		} catch (error) {
+			this._logService.error(`[LanguageModelToolsService#_callHandleToolStream] Error calling handleToolStream for tool ${toolEntry.data.id}:`, error);
+		}
+	}
+
+	async updateToolStream(toolCallId: string, partialInput: unknown, token: CancellationToken): Promise<void> {
+		const invocation = this._pendingToolCalls.get(toolCallId);
+		if (!invocation) {
+			return;
+		}
+
+		// Update the partial input on the invocation
+		invocation.updatePartialInput(partialInput);
+
+		// Call handleToolStream if the tool implements it
+		const toolEntry = this._tools.get(invocation.toolId);
+		if (toolEntry) {
+			await this._callHandleToolStream(toolEntry, invocation, toolCallId, partialInput, token);
+		}
 	}
 
 	private playAccessibilitySignal(toolInvocations: ChatToolInvocation[]): void {
@@ -743,6 +848,13 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		if (calls) {
 			calls.forEach(call => call.store.dispose());
 			this._callsByRequestId.delete(requestId);
+		}
+
+		// Clean up any pending tool calls that belong to this request
+		for (const [toolCallId, invocation] of this._pendingToolCalls) {
+			if (invocation.chatRequestId === requestId) {
+				this._pendingToolCalls.delete(toolCallId);
+			}
 		}
 	}
 

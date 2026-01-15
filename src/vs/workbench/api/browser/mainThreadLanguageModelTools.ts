@@ -78,7 +78,7 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 		return fn.countTokens(input, token);
 	}
 
-	$registerTool(id: string): void {
+	$registerTool(id: string, hasHandleToolStream: boolean): void {
 		const disposable = this._languageModelToolsService.registerToolImplementation(
 			id,
 			{
@@ -93,6 +93,7 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 					}
 				},
 				prepareToolInvocation: (context, token) => this._proxy.$prepareToolInvocation(id, context, token),
+				handleToolStream: hasHandleToolStream ? (context, token) => this._proxy.$handleToolStream(id, context, token) : undefined,
 			});
 		this._tools.set(id, disposable);
 	}
