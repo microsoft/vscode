@@ -68,7 +68,12 @@ async function checkCopilotChatCompatibility(): Promise<void> {
 	const apiProposalsContent = fs.readFileSync(apiProposalsPath, 'utf8');
 	const allApiProposals = parseApiProposalsFromSource(apiProposalsContent);
 
-	console.log(`Loaded ${Object.keys(allApiProposals).length} API proposals from source`);
+	const proposalCount = Object.keys(allApiProposals).length;
+	if (proposalCount === 0) {
+		throw new Error('Failed to load API proposals from source');
+	}
+
+	console.log(`Loaded ${proposalCount} API proposals from source`);
 
 	// Fetch the latest extension manifest
 	const manifest = await retry(() => fetchLatestExtensionManifest(extensionId));
