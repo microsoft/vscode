@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isLinux, isMacintosh, isNative, isWindows } from '../../../../base/common/platform.js';
+import { isNative, OperatingSystem, OS } from '../../../../base/common/platform.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { ITerminalLogService, ITerminalSandboxSettings } from '../../../../platform/terminal/common/terminal.js';
+import { ITerminalSandboxSettings } from '../../../../platform/terminal/common/terminal.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { dirname, join } from '../../../../base/common/path.js';
 import { FileAccess } from '../../../../base/common/network.js';
@@ -16,6 +17,7 @@ import { joinPath } from '../../../../base/common/resources.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { TerminalContribSettingId } from '../../terminal/terminalContribExports.js';
+import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 
 export const IChatSandboxService = createDecorator<IChatSandboxService>('sandboxService');
 
@@ -28,29 +30,32 @@ export interface IChatSandboxService {
 	setNeedsForceUpdateConfigFile(): void;
 }
 
-export class SandboxService implements IChatSandboxService {
+export class ChatSandboxService implements IChatSandboxService {
 	readonly _serviceBrand: undefined;
 	private _srtPath: string;
 	private _sandboxConfigPath: string | undefined;
 	private _needsForceUpdateConfigFile = true;
 	private _tempDir: URI | undefined;
 	private _sandboxSettingsId: string | undefined;
+	private _os: OperatingSystem = OS;
 
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IFileService private readonly _fileService: IFileService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
-		@ITerminalLogService private readonly _logService: ITerminalLogService,
+		@ILogService private readonly _logService: ILogService,
+		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 	) {
 		const appRoot = dirname(FileAccess.asFileUri('').fsPath);
 		this._srtPath = join(appRoot, 'node_modules', '.bin', 'srt');
 		this._sandboxSettingsId = generateUuid();
 		this._initTempDir();
+		this._remoteAgentService.getEnvironment().then(remoteEnv => this._os = remoteEnv?.os ?? OS);
 	}
 
 	public isEnabled(): boolean {
-		if (isWindows) {
+		if (this._os === OperatingSystem.Windows) {
 			return false;
 		}
 		const enabledSetting = this._configurationService.getValue<boolean>(TerminalContribSettingId.TerminalSandboxEnabled);
@@ -91,10 +96,10 @@ export class SandboxService implements IChatSandboxService {
 		}
 		if (this._tempDir) {
 			const networkSetting = this._configurationService.getValue<ITerminalSandboxSettings['network']>(TerminalContribSettingId.TerminalSandboxNetwork) ?? {};
-			const linuxFileSystemSetting = isLinux
+			const linuxFileSystemSetting = this._os === OperatingSystem.Linux
 				? this._configurationService.getValue<ITerminalSandboxSettings['filesystem']>(TerminalContribSettingId.TerminalSandboxLinuxFileSystem) ?? {}
 				: {};
-			const macFileSystemSetting = isMacintosh
+			const macFileSystemSetting = this._os === OperatingSystem.Macintosh
 				? this._configurationService.getValue<ITerminalSandboxSettings['filesystem']>(TerminalContribSettingId.TerminalSandboxMacFileSystem) ?? {}
 				: {};
 			const configFileUri = joinPath(this._tempDir, `vscode-sandbox-settings-${this._sandboxSettingsId}.json`);
@@ -104,9 +109,9 @@ export class SandboxService implements IChatSandboxService {
 					deniedDomains: networkSetting.deniedDomains ?? []
 				},
 				filesystem: {
-					denyRead: isMacintosh ? macFileSystemSetting.denyRead : linuxFileSystemSetting.denyRead,
-					allowWrite: isMacintosh ? macFileSystemSetting.allowWrite : linuxFileSystemSetting.allowWrite,
-					denyWrite: isMacintosh ? macFileSystemSetting.denyWrite : linuxFileSystemSetting.denyWrite,
+					denyRead: this._os === OperatingSystem.Macintosh ? macFileSystemSetting.denyRead : linuxFileSystemSetting.denyRead,
+					allowWrite: this._os === OperatingSystem.Macintosh ? macFileSystemSetting.allowWrite : linuxFileSystemSetting.allowWrite,
+					denyWrite: this._os === OperatingSystem.Macintosh ? macFileSystemSetting.denyWrite : linuxFileSystemSetting.denyWrite,
 				}
 			};
 			this._sandboxConfigPath = configFileUri.fsPath;
@@ -121,13 +126,13 @@ export class SandboxService implements IChatSandboxService {
 			this._needsForceUpdateConfigFile = true;
 			const tmpDir = (this._environmentService as IEnvironmentService & { tmpDir: URI }).tmpDir;
 			if (!tmpDir) {
-				this._logService.warn('SandboxService: Cannot create sandbox settings file because no tmpDir is available in this environment');
+				this._logService.warn('ChatSandboxService: Cannot create sandbox settings file because no tmpDir is available in this environment');
 				return;
 			}
 			this._tempDir = tmpDir;
 			this._fileService.exists(this._tempDir).then(exists => {
 				if (!exists) {
-					this._logService.warn(`SandboxService: tmp directory is not present at ${this._tempDir}`);
+					this._logService.warn(`ChatSandboxService: tmp directory is not present at ${this._tempDir}`);
 				}
 			});
 		}

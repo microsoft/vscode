@@ -9,7 +9,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../ba
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { createCommandUri, MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { basename } from '../../../../../../base/common/path.js';
@@ -24,7 +24,7 @@ import { ICommandDetectionCapability, TerminalCapability } from '../../../../../
 import { ITerminalLogService, ITerminalProfile } from '../../../../../../platform/terminal/common/terminal.js';
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
-import { ElicitationState, IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
+import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import type { XtermTerminal } from '../../../../terminal/browser/xterm/xtermTerminal.js';
@@ -45,7 +45,7 @@ import { CommandLineAutoApproveAnalyzer } from './commandLineAnalyzer/commandLin
 import { CommandLineFileWriteAnalyzer } from './commandLineAnalyzer/commandLineFileWriteAnalyzer.js';
 import { OutputMonitor } from './monitoring/outputMonitor.js';
 import { IPollingResult, OutputMonitorState } from './monitoring/types.js';
-import { IChatSandboxService } from '../../../../chat/common/sandboxService.js';
+import { IChatSandboxService } from '../../../../chat/common/chatSandboxService.js';
 import { chatSessionResourceToId, LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import type { ICommandLineRewriter } from './commandLineRewriter/commandLineRewriter.js';
@@ -58,7 +58,6 @@ import { TerminalCommandArtifactCollector } from './terminalCommandArtifactColle
 import { isNumber, isString } from '../../../../../../base/common/types.js';
 import { ChatConfiguration } from '../../../../chat/common/constants.js';
 import { IChatWidgetService } from '../../../../chat/browser/chat.js';
-import { ChatElicitationRequestPart } from '../../../../chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { TerminalChatCommandId } from '../../../chat/browser/terminalChat.js';
 
 // #region Tool data
@@ -775,92 +774,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					}
 					terminalResult = resultArr.join('\n\n');
 				}
-
-				//if sandboxed and there is error, retry without sandboxing.
-				if (exitCode !== 0 && this._sandboxService.isEnabled()) {
-					const sessionResource = invocation.context?.sessionResource;
-					const session = sessionResource ? this._chatService.getSession(sessionResource) : undefined;
-
-					// Use the unsandboxed command line (no `srt` wrapper), preserving any user/tool edits.
-					const commandToRetryWithoutSandboxing = toolSpecificData.commandLine.userEdited ?? toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original;
-
-					let shouldRetryWithoutSandboxing = false;
-					if (session?.lastRequest) {
-						const lastRequest = session.lastRequest;
-						let didResolve = false;
-						const decisionPromise = new Promise<boolean>(resolve => {
-							const settingsUri = createCommandUri('workbench.action.openSettings', { query: 'sandbox' });
-							const settingsLink = new MarkdownString(
-								`[${localize('terminal.sandbox.retry.settings', 'Update Settings')}](${settingsUri.toString()} "${localize('terminal.sandbox.retry.settings.tooltip', 'Open settings and search for sandbox')}")`,
-								{ isTrusted: { enabledCommands: ['workbench.action.openSettings'] } }
-							);
-							const toolElicitation = new ChatElicitationRequestPart(
-								localize('terminal.sandbox.retry.title', 'Failed due to sandboxing restrictions'),
-								'Retry without sandboxing?',
-								settingsLink,
-								localize('terminal.sandbox.retry.yes', 'Yes'),
-								localize('terminal.sandbox.retry.no', 'No'),
-								async () => {
-									if (!didResolve) {
-										didResolve = true;
-										resolve(true);
-									}
-									return ElicitationState.Accepted;
-								},
-								async () => {
-									if (!didResolve) {
-										didResolve = true;
-										resolve(false);
-									}
-									return ElicitationState.Rejected;
-								},
-							);
-
-							this._chatService.appendProgress(lastRequest, toolElicitation);
-						});
-
-						const cancellationPromise = new Promise<boolean>((_resolve, reject) => token.onCancellationRequested(() => reject(new CancellationError())));
-						shouldRetryWithoutSandboxing = await Promise.race([decisionPromise, cancellationPromise]);
-					}
-
-					if (shouldRetryWithoutSandboxing) {
-						const commandDetectionRetry = toolTerminal.instance.capabilities.get(TerminalCapability.CommandDetection);
-						const retryStrategy = this._getExecuteStrategy(toolTerminal.shellIntegrationQuality, toolTerminal, commandDetectionRetry!);
-						const retryCommandId = `tool-retry-${generateUuid()}`;
-						const retryResult = await retryStrategy.execute(commandToRetryWithoutSandboxing, token, retryCommandId);
-						toolTerminal.receivedUserInput = false;
-
-						await this._commandArtifactCollector.capture(toolSpecificData, toolTerminal.instance, retryCommandId);
-						{
-							const state = toolSpecificData.terminalCommandState ?? {};
-							state.timestamp = state.timestamp ?? timingStart;
-							if (retryResult.exitCode !== undefined) {
-								state.exitCode = retryResult.exitCode;
-								if (state.timestamp !== undefined) {
-									state.duration = state.duration ?? Math.max(0, Date.now() - state.timestamp);
-								}
-							}
-							toolSpecificData.terminalCommandState = state;
-						}
-
-						outputLineCount = retryResult.output === undefined ? 0 : count(retryResult.output.trim(), '\n') + 1;
-						exitCode = retryResult.exitCode;
-						error = retryResult.error;
-
-						const retryResultArr: string[] = [];
-						if (retryResult.output !== undefined) {
-							retryResultArr.push(retryResult.output);
-						}
-						if (retryResult.additionalInformation) {
-							retryResultArr.push(retryResult.additionalInformation);
-						}
-						terminalResult = retryResultArr.join('\n\n');
-
-
-					}
-				}
-
-
 			} catch (e) {
 				// Handle timeout case - get output collected so far and return it
 				if (didTimeout && e instanceof CancellationError) {
