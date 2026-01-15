@@ -323,7 +323,7 @@ export class AgentStatusWidget extends BaseActionViewItem {
 		}
 
 		if (!label) {
-			label = localize('label.dfl', "Search");
+			label = localize('agentStatusWidget.askAnything', "Ask anything...");
 		}
 
 		// Apply prefix and suffix decorations
