@@ -183,13 +183,8 @@ jobs:
 
               echo "Install Playwright browser"
               cd /workspace/test/sanity
-              if [ "$(arch)" = "aarch64" ] || [ "$(arch)" = "armv7l" ] || [ "$(arch)" = "arm" ]; then
-                ./node_modules/.bin/playwright install-deps webkit
-                ./node_modules/.bin/playwright install webkit
-              else
-                ./node_modules/.bin/playwright install-deps chrome
-                ./node_modules/.bin/playwright install chrome
-              fi
+              ./node_modules/.bin/playwright install-deps firefox
+              ./node_modules/.bin/playwright install firefox
 
               echo "Running sanity tests"
               node out/index.js -c "$(BUILD_COMMIT)" -q "$(BUILD_QUALITY)" -t "/workspace/.build/sanity-test-logs/results.xml" -v

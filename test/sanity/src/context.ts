@@ -10,7 +10,7 @@ import { test } from 'mocha';
 import fetch, { Response } from 'node-fetch';
 import os from 'os';
 import path from 'path';
-import { Browser, chromium, webkit } from 'playwright';
+import { Browser, chromium, firefox, webkit } from 'playwright';
 
 /**
  * Response from https://update.code.visualstudio.com/api/versions/commit:<commit>/<target>/<quality>
@@ -890,12 +890,7 @@ export class TestContext {
 			case 'win32':
 				return await chromium.launch({ channel: 'msedge', headless });
 			default:
-				// Use webkit on ARM64 since Chrome doesn't support it
-				if (os.arch() === 'arm64' || os.arch() === 'arm') {
-					return await webkit.launch({ headless });
-				} else {
-					return await chromium.launch({ channel: 'chrome', headless });
-				}
+				return await firefox.launch({ headless });
 		}
 	}
 
