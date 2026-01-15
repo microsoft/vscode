@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { Emitter } from '../../../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { timeout } from '../../../../../../../base/common/async.js';
 import { TerminalToolAutoExpand, NO_DATA_TIMEOUT_MS, DATA_EVENT_TIMEOUT_MS } from '../../../../browser/widget/chatContentParts/toolInvocationParts/terminalToolAutoExpand.js';
@@ -45,7 +44,7 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 		return hasRealOutputValue;
 	}
 
-	function setupAutoExpandLogic(localStore: DisposableStore): void {
+	function setupAutoExpandLogic(): void {
 		// Create a mock command detection capability
 		const mockCommandDetection = {
 			onCommandExecuted: onCommandExecuted.event,
@@ -53,7 +52,7 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 		} as Pick<ICommandDetectionCapability, 'onCommandExecuted' | 'onCommandFinished'> as ICommandDetectionCapability;
 
 		// Use the real TerminalToolAutoExpand class
-		localStore.add(new TerminalToolAutoExpand({
+		store.add(new TerminalToolAutoExpand({
 			commandDetection: mockCommandDetection,
 			onWillData: onWillData.event,
 			shouldAutoExpand,
@@ -73,8 +72,7 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 	});
 
 	test('fast command without data should not auto-expand (finishes before 500ms)', async () => {
-		const localStore = store.add(new DisposableStore());
-		setupAutoExpandLogic(localStore);
+		setupAutoExpandLogic();
 
 		// Command executes
 		onCommandExecuted.fire(undefined);
@@ -90,8 +88,7 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 	});
 
 	test('fast command with quick data should not auto-expand (data + finish before 50ms)', async () => {
-		const localStore = store.add(new DisposableStore());
-		setupAutoExpandLogic(localStore);
+		setupAutoExpandLogic();
 
 		// Command executes
 		onCommandExecuted.fire(undefined);
@@ -110,9 +107,8 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 	});
 
 	test('long-running command with data should auto-expand (data received, command still running after 50ms)', async () => {
-		const localStore = store.add(new DisposableStore());
 		hasRealOutputValue = true; // Has real output
-		setupAutoExpandLogic(localStore);
+		setupAutoExpandLogic();
 
 		// Command executes
 		onCommandExecuted.fire(undefined);
@@ -130,9 +126,8 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 	});
 
 	test('long-running command with data but no real output should NOT auto-expand (like sleep with shell sequences)', async () => {
-		const localStore = store.add(new DisposableStore());
 		hasRealOutputValue = false; // Shell integration sequences, not real output
-		setupAutoExpandLogic(localStore);
+		setupAutoExpandLogic();
 
 		// Command executes
 		onCommandExecuted.fire(undefined);
@@ -150,9 +145,8 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 	});
 
 	test('long-running command without data should NOT auto-expand if no real output (like sleep)', async () => {
-		const localStore = store.add(new DisposableStore());
 		hasRealOutputValue = false; // No real output like `sleep 1`
-		setupAutoExpandLogic(localStore);
+		setupAutoExpandLogic();
 
 		// Command executes
 		onCommandExecuted.fire(undefined);
@@ -167,9 +161,8 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 	});
 
 	test('long-running command without data SHOULD auto-expand if real output exists', async () => {
-		const localStore = store.add(new DisposableStore());
 		hasRealOutputValue = true; // Has real output in buffer
-		setupAutoExpandLogic(localStore);
+		setupAutoExpandLogic();
 
 		// Command executes
 		onCommandExecuted.fire(undefined);
@@ -184,8 +177,7 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 	});
 
 	test('data arriving after command finish should not trigger expand', async () => {
-		const localStore = store.add(new DisposableStore());
-		setupAutoExpandLogic(localStore);
+		setupAutoExpandLogic();
 
 		// Command executes and finishes immediately
 		onCommandExecuted.fire(undefined);
@@ -201,9 +193,8 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 	});
 
 	test('user toggled output prevents auto-expand', async () => {
-		const localStore = store.add(new DisposableStore());
 		userToggledOutput = true;
-		setupAutoExpandLogic(localStore);
+		setupAutoExpandLogic();
 
 		// Command executes
 		onCommandExecuted.fire(undefined);
@@ -219,9 +210,8 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 	});
 
 	test('already expanded output prevents additional auto-expand', async () => {
-		const localStore = store.add(new DisposableStore());
 		isExpanded = true;
-		setupAutoExpandLogic(localStore);
+		setupAutoExpandLogic();
 
 		// Track if toggle was called
 		let toggleCalled = false;
@@ -245,9 +235,8 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 	});
 
 	test('data arriving cancels 500ms no-data timeout', async () => {
-		const localStore = store.add(new DisposableStore());
 		hasRealOutputValue = true; // Would have expanded if 500ms fired
-		setupAutoExpandLogic(localStore);
+		setupAutoExpandLogic();
 
 		// Command executes
 		onCommandExecuted.fire(undefined);
@@ -267,9 +256,8 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 	});
 
 	test('multiple data events only trigger one timeout', async () => {
-		const localStore = store.add(new DisposableStore());
 		hasRealOutputValue = true; // Has real output
-		setupAutoExpandLogic(localStore);
+		setupAutoExpandLogic();
 
 		// Command executes
 		onCommandExecuted.fire(undefined);
