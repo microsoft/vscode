@@ -30,7 +30,7 @@ import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 import { ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION, CHAT_CATEGORY, handleCurrentEditingSession } from './chatActions.js';
 import { clearChatEditor } from './chatClear.js';
 import { AgentSessionsViewerOrientation } from '../agentSessions/agentSessions.js';
-import { IFocusViewService } from '../agentSessions/focusViewService.js';
+import { IAgentSessionProjectionService } from '../agentSessions/agentSessionProjectionService.js';
 
 export interface INewEditSessionActionContext {
 
@@ -121,11 +121,11 @@ export function registerNewChatActions() {
 
 		async run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const accessibilityService = accessor.get(IAccessibilityService);
-			const focusViewService = accessor.get(IFocusViewService);
+			const projectionService = accessor.get(IAgentSessionProjectionService);
 
-			// Exit focus view mode if active (back button behavior)
-			if (focusViewService.isActive) {
-				await focusViewService.exitFocusView();
+			// Exit projection mode if active (back button behavior)
+			if (projectionService.isActive) {
+				await projectionService.exitProjection();
 				return;
 			}
 			const viewsService = accessor.get(IViewsService);

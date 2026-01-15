@@ -106,8 +106,7 @@ export namespace ChatContextKeys {
 
 	export const isKatexMathElement = new RawContextKey<boolean>('chatIsKatexMathElement', false, { type: 'boolean', description: localize('chatIsKatexMathElement', "True when focusing a KaTeX math element.") });
 
-	// Focus View mode
-	export const inFocusViewMode = new RawContextKey<boolean>('chatInFocusViewMode', false, { type: 'boolean', description: localize('chatInFocusViewMode', "True when the workbench is in focus view mode for an agent session.") });
+	export const inAgentSessionProjection = new RawContextKey<boolean>('chatInAgentSessionProjection', false, { type: 'boolean', description: localize('chatInAgentSessionProjection', "True when the workbench is in agent session projection mode for reviewing an agent session.") });
 }
 
 export namespace ChatContextKeyExprs {
