@@ -12,6 +12,7 @@ import { localize } from '../../../../../../nls.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IChatMode } from '../../../common/chatModes.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { IHandOff } from '../../../common/promptSyntax/promptFileParser.js';
 import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../agentSessions/agentSessions.js';
 
@@ -36,7 +37,8 @@ export class ChatSuggestNextWidget extends Disposable {
 
 	constructor(
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService
 	) {
 		super();
 		this.domNode = this.createSuggestNextWidget();
@@ -72,6 +74,22 @@ export class ChatSuggestNextWidget extends Disposable {
 			return;
 		}
 
+		// Filter handoffs: if a model is specified, only show if that model exists and is usable
+		const visibleHandoffs = handoffs.filter(handoff => {
+			if (handoff.model) {
+				// Direct lookup by model identifier (e.g., "cerebras/zai-glm-4.7")
+				const metadata = this.languageModelsService.lookupLanguageModel(handoff.model);
+				// Model must exist and be user selectable (configured and in picker)
+				return metadata !== undefined && metadata.isUserSelectable === true;
+			}
+			return true;
+		});
+
+		if (visibleHandoffs.length === 0) {
+			this.hide();
+			return;
+		}
+
 		this._currentMode = mode;
 
 		// Update title with mode name: "Proceed from {Mode}"
@@ -92,7 +110,7 @@ export class ChatSuggestNextWidget extends Disposable {
 			this.promptsContainer.removeChild(child);
 		}
 
-		for (const handoff of handoffs) {
+		for (const handoff of visibleHandoffs) {
 			const promptButton = this.createPromptButton(handoff);
 			this.promptsContainer.appendChild(promptButton);
 		}
