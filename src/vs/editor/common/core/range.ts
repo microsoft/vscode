@@ -514,51 +514,6 @@ export class Range {
 		return range.endLineNumber > range.startLineNumber;
 	}
 
-	/**
-	 * Subtracts excluded ranges from a source range, returning the visible parts.
-	 * This efficiently computes Range minus Range[].
-	 * 
-	 * @param range The source range to subtract from
-	 * @param excludeRanges Ranges to exclude from the source range
-	 * @returns Array of ranges representing the visible parts after exclusion
-	 */
-	public static subtractRanges(range: IRange, excludeRanges: IRange[]): Range[] {
-		if (excludeRanges.length === 0) {
-			return [Range.lift(range)];
-		}
-
-		const visibleRanges: Range[] = [];
-		let currentStart = Range.getStartPosition(range);
-		const searchEnd = Range.getEndPosition(range);
-
-		// Sort hidden areas by start position once, filtering to only intersecting ranges
-		const sortedHidden = excludeRanges
-			.filter(hidden => Range.areIntersecting(range, hidden))
-			.sort((a, b) => Range.compareRangesUsingStarts(a, b));
-
-		for (const hidden of sortedHidden) {
-			const hiddenStart = Range.getStartPosition(hidden);
-			const hiddenEnd = Range.getEndPosition(hidden);
-
-			// Add visible range before this hidden area
-			if (currentStart.isBefore(hiddenStart)) {
-				visibleRanges.push(Range.fromPositions(currentStart, hiddenStart));
-			}
-
-			// Move current start to after the hidden area (if hidden end is after current start)
-			if (currentStart.isBefore(hiddenEnd) || currentStart.equals(hiddenEnd)) {
-				currentStart = hiddenEnd;
-			}
-		}
-
-		// Add remaining visible range after all hidden areas
-		if (currentStart.isBefore(searchEnd)) {
-			visibleRanges.push(Range.fromPositions(currentStart, searchEnd));
-		}
-
-		return visibleRanges;
-	}
-
 	public toJSON(): IRange {
 		return this;
 	}

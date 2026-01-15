@@ -812,15 +812,6 @@ declare namespace monaco {
 		 * Test if the range spans multiple lines.
 		 */
 		static spansMultipleLines(range: IRange): boolean;
-		/**
-		 * Subtracts excluded ranges from a source range, returning the visible parts.
-		 * This efficiently computes Range minus Range[].
-		 *
-		 * @param range The source range to subtract from
-		 * @param excludeRanges Ranges to exclude from the source range
-		 * @returns Array of ranges representing the visible parts after exclusion
-		 */
-		static subtractRanges(range: IRange, excludeRanges: IRange[]): Range[];
 		toJSON(): IRange;
 	}
 

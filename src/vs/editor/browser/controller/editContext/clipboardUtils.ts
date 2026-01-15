@@ -10,6 +10,7 @@ import { ViewContext } from '../../../common/viewModel/viewContext.js';
 import { ILogService, LogLevel } from '../../../../platform/log/common/log.js';
 import { EditorOption, IComputedEditorOptions } from '../../../common/config/editorOptions.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { subtractRanges } from './rangeUtils.js';
 
 export function ensureClipboardGetsEditorSelection(e: ClipboardEvent, context: ViewContext, logService: ILogService, isFirefox: boolean): void {
 	const viewModel = context.viewModel;
@@ -60,7 +61,7 @@ export function generateDataToCopyAndStoreInMemory(viewModel: IViewModel, option
 function getDataToCopy(viewModel: IViewModel, modelSelections: Range[], emptySelectionClipboard: boolean, copyWithSyntaxHighlighting: boolean, copyExcludesHiddenAreas: boolean): ClipboardDataToCopy {
 	// Filter selections to exclude hidden areas if the option is enabled
 	const filteredSelections = copyExcludesHiddenAreas
-		? filterSelections(modelSelections, viewModel.getHiddenAreas())
+		? filterSelections(modelSelections, viewModel)
 		: modelSelections;
 
 	const rawTextToCopy = viewModel.getPlainTextToCopy(filteredSelections, emptySelectionClipboard, isWindows);
@@ -89,7 +90,8 @@ function getDataToCopy(viewModel: IViewModel, modelSelections: Range[], emptySel
 	return dataToCopy;
 }
 
-function filterSelections(selections: Range[], excludeRanges: Range[]): Range[] {
+function filterSelections(selections: Range[], viewModel: IViewModel): Range[] {
+	const excludeRanges = viewModel.getHiddenAreas();
 	if (excludeRanges.length === 0) {
 		return selections;
 	}
@@ -97,7 +99,7 @@ function filterSelections(selections: Range[], excludeRanges: Range[]): Range[] 
 	const result: Range[] = [];
 
 	for (const selection of selections) {
-		const visibleRanges = Range.subtractRanges(selection, excludeRanges);
+		const visibleRanges = subtractRanges(selection, excludeRanges, viewModel);
 		result.push(...visibleRanges);
 	}
 
