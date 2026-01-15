@@ -2290,6 +2290,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				dom.clearNode(this.chatEditingSessionWidgetContainer);
 				this._chatEditsDisposables.clear();
 				this._chatEditList = undefined;
+
+				this._onDidChangeHeight.fire();
 			}
 		});
 	}
