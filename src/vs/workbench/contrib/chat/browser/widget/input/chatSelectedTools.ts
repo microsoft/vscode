@@ -8,12 +8,12 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { derived, IObservable, ObservableMap } from '../../../../../../base/common/observable.js';
 import { isObject } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ObservableMemento, observableMemento } from '../../../../../../platform/observable/common/observableMemento.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IChatMode } from '../../../common/chatModes.js';
 import { ChatModeKind } from '../../../common/constants.js';
+import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
 import { UserSelectedTools } from '../../../common/participants/chatAgents.js';
 import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { ILanguageModelToolsService, IToolAndToolSetEnablementMap, IToolData, ToolSet } from '../../../common/tools/languageModelToolsService.js';
@@ -109,7 +109,7 @@ export class ChatSelectedTools extends Disposable {
 
 	constructor(
 		private readonly _mode: IObservable<IChatMode>,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		private readonly languageModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>,
 		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
 		@IStorageService _storageService: IStorageService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -124,7 +124,8 @@ export class ChatSelectedTools extends Disposable {
 		});
 
 		this._globalState = this._store.add(globalStateMemento(StorageScope.PROFILE, StorageTarget.MACHINE, _storageService));
-		this._currentTools = _toolsService.observeTools(this._contextKeyService);
+		this._currentTools = languageModel.map(lm =>
+			_toolsService.observeTools(lm?.metadata)).map((o, r) => o.read(r));
 	}
 
 	/**
@@ -140,8 +141,9 @@ export class ChatSelectedTools extends Disposable {
 		if (!currentMap && currentMode.kind === ChatModeKind.Agent) {
 			const modeTools = currentMode.customTools?.read(r);
 			if (modeTools) {
+				const lm = this.languageModel.read(r)?.metadata;
 				const target = currentMode.target?.read(r);
-				currentMap = ToolEnablementStates.fromMap(this._toolsService.toToolAndToolSetEnablementMap(modeTools, target, this._contextKeyService));
+				currentMap = ToolEnablementStates.fromMap(this._toolsService.toToolAndToolSetEnablementMap(modeTools, target, lm));
 			}
 		}
 		if (!currentMap) {

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAction } from '../../../../../../base/common/actions.js';
-import { Event } from '../../../../../../base/common/event.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
 import { localize } from '../../../../../../nls.js';
 import * as dom from '../../../../../../base/browser/dom.js';
@@ -24,10 +23,10 @@ import { IProductService } from '../../../../../../platform/product/common/produ
 import { MANAGE_CHAT_COMMAND_ID } from '../../../common/constants.js';
 import { TelemetryTrustedValue } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IManagedHoverContent } from '../../../../../../base/browser/ui/hover/hover.js';
+import { autorun, IObservable } from '../../../../../../base/common/observable.js';
 
 export interface IModelPickerDelegate {
-	readonly onDidChangeModel: Event<ILanguageModelChatMetadataAndIdentifier>;
-	getCurrentModel(): ILanguageModelChatMetadataAndIdentifier | undefined;
+	readonly currentModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>;
 	setModel(model: ILanguageModelChatMetadataAndIdentifier): void;
 	getModels(): ILanguageModelChatMetadataAndIdentifier[];
 }
@@ -67,14 +66,14 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, te
 					id: model.metadata.id,
 					enabled: true,
 					icon: model.metadata.statusIcon,
-					checked: model.identifier === delegate.getCurrentModel()?.identifier,
+					checked: model.identifier === delegate.currentModel.get()?.identifier,
 					category: model.metadata.modelPickerCategory || DEFAULT_MODEL_PICKER_CATEGORY,
 					class: undefined,
 					description: model.metadata.detail,
 					tooltip: model.metadata.tooltip ?? model.metadata.name,
 					label: model.metadata.name,
 					run: () => {
-						const previousModel = delegate.getCurrentModel();
+						const previousModel = delegate.currentModel.get();
 						telemetryService.publicLog2<ChatModelChangeEvent, ChatModelChangeClassification>('chat.modelChange', {
 							fromModel: previousModel?.metadata.vendor === 'copilot' ? new TelemetryTrustedValue(previousModel.identifier) : 'unknown',
 							toModel: model.metadata.vendor === 'copilot' ? new TelemetryTrustedValue(model.identifier) : 'unknown'
@@ -168,7 +167,8 @@ export class ModelPickerActionItem extends ActionWidgetDropdownActionViewItem {
 		super(actionWithLabel, widgetOptions ?? modelPickerActionWidgetOptions, actionWidgetService, keybindingService, contextKeyService);
 
 		// Listen for model changes from the delegate
-		this._register(delegate.onDidChangeModel(model => {
+		this._register(autorun(t => {
+			const model = delegate.currentModel.read(t);
 			this.currentModel = model;
 			this.updateTooltip();
 			if (this.element) {

@@ -86,13 +86,6 @@ export namespace ChatContextKeys {
 		toolsCount: new RawContextKey<number>('toolsCount', 0, { type: 'number', description: localize('toolsCount', "The count of tools available in the chat.") })
 	};
 
-	export const Model = {
-		id: new RawContextKey<string>('chatModelId', '', { type: 'string', description: localize('chatModelId', "The identifier of the currently selected language model.") }),
-		vendor: new RawContextKey<string>('chatModelVendor', '', { type: 'string', description: localize('chatModelVendor', "The vendor of the currently selected language model.") }),
-		family: new RawContextKey<string>('chatModelFamily', '', { type: 'string', description: localize('chatModelFamily', "The family of the currently selected language model.") }),
-		version: new RawContextKey<string>('chatModelVersion', '', { type: 'string', description: localize('chatModelVersion', "The version of the currently selected language model.") }),
-	};
-
 	export const Modes = {
 		hasCustomChatModes: new RawContextKey<boolean>('chatHasCustomAgents', false, { type: 'boolean', description: localize('chatHasAgents', "True when the chat has custom agents available.") }),
 		agentModeDisabledByPolicy: new RawContextKey<boolean>('chatAgentModeDisabledByPolicy', false, { type: 'boolean', description: localize('chatAgentModeDisabledByPolicy', "True when agent mode is disabled by organization policy.") }),

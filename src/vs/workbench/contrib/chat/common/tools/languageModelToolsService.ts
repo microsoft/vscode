@@ -17,16 +17,16 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Location } from '../../../../../editor/common/languages.js';
 import { localize } from '../../../../../nls.js';
-import { ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ByteSize } from '../../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IProgress } from '../../../../../platform/progress/common/progress.js';
-import { UserSelectedTools } from '../participants/chatAgents.js';
+import { ChatRequestToolReferenceEntry } from '../attachments/chatVariableEntries.js';
 import { IVariableReference } from '../chatModes.js';
 import { IChatExtensionsContent, IChatSubagentToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, type IChatTerminalToolInvocationData } from '../chatService/chatService.js';
-import { ChatRequestToolReferenceEntry } from '../attachments/chatVariableEntries.js';
-import { LanguageModelPartAudience } from '../languageModels.js';
+import { ILanguageModelChatMetadata, LanguageModelPartAudience } from '../languageModels.js';
+import { UserSelectedTools } from '../participants/chatAgents.js';
 import { PromptElementJSON, stringifyPromptElementJSON } from './promptTsxTypes.js';
 
 /**
@@ -411,24 +411,25 @@ export interface ILanguageModelToolsService {
 	registerTool(toolData: IToolData, tool: IToolImpl): IDisposable;
 
 	/**
-	 * Get all tools currently enabled (matching the context key service's context).
-	 * @param contextKeyService The context key service to evaluate `when` clauses against
+	 * Get all tools currently enabled (matching `when` clauses and model).
+	 * @param model The language model metadata to filter tools by. If undefined, model-specific filtering is skipped.
 	 */
-	getTools(contextKeyService: IContextKeyService): Iterable<IToolData>;
+	getTools(model: ILanguageModelChatMetadata | undefined): Iterable<IToolData>;
 
 	/**
 	 * Creats an observable of enabled tools in the context. Note the observable
 	 * should be created and reused, not created per reader, for example:
 	 *
 	 * ```
-	 * const toolsObs = toolsService.observeTools(contextKeyService);
+	 * const toolsObs = toolsService.observeTools(model);
 	 * autorun(reader => {
 	 *  const tools = toolsObs.read(reader);
 	 *  ...
 	 * });
 	 * ```
+	 * @param model The language model metadata to filter tools by. If undefined, model-specific filtering is skipped.
 	 */
-	observeTools(contextKeyService: IContextKeyService): IObservable<readonly IToolData[]>;
+	observeTools(model: ILanguageModelChatMetadata | undefined): IObservable<readonly IToolData[]>;
 
 	/**
 	 * Get all registered tools regardless of enablement state.
@@ -479,13 +480,13 @@ export interface ILanguageModelToolsService {
 	 * Gets the enablement maps based on the given set of references.
 	 * @param fullReferenceNames The full reference names of the tools and tool sets to enable.
 	 * @param target Optional target to filter tools by.
-	 * @param contextKeyService Context key service to evaluate tool enablement.
+	 * @param model Optional language model metadata to filter tools by.
 	 * If undefined is passed, all tools will be returned, even if normally disabled.
 	 */
 	toToolAndToolSetEnablementMap(
 		fullReferenceNames: readonly string[],
 		target: string | undefined,
-		contextKeyService: IContextKeyService | undefined,
+		model: ILanguageModelChatMetadata | undefined,
 	): IToolAndToolSetEnablementMap;
 
 	toFullReferenceNames(map: IToolAndToolSetEnablementMap): string[];

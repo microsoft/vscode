@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
@@ -28,7 +27,6 @@ suite('ChatSelectedTools', () => {
 
 	let toolsService: ILanguageModelToolsService;
 	let selectedTools: ChatSelectedTools;
-	let contextKeyService: IContextKeyService;
 
 	setup(() => {
 
@@ -42,8 +40,7 @@ suite('ChatSelectedTools', () => {
 
 		store.add(instaService);
 		toolsService = instaService.get(ILanguageModelToolsService);
-		contextKeyService = instaService.get(IContextKeyService);
-		selectedTools = store.add(instaService.createInstance(ChatSelectedTools, constObservable(ChatMode.Agent)));
+		selectedTools = store.add(instaService.createInstance(ChatSelectedTools, constObservable(ChatMode.Agent), constObservable(undefined)));
 	});
 
 	teardown(function () {
@@ -98,7 +95,7 @@ suite('ChatSelectedTools', () => {
 			store.add(toolset.addTool(toolData2));
 			store.add(toolset.addTool(toolData3));
 
-			assert.strictEqual(Iterable.length(toolsService.getTools(contextKeyService)), 3);
+			assert.strictEqual(Iterable.length(toolsService.getTools(undefined)), 3);
 
 			const size = Iterable.length(toolset.getTools());
 			assert.strictEqual(size, 3);
@@ -162,7 +159,7 @@ suite('ChatSelectedTools', () => {
 			store.add(toolset.addTool(toolData2));
 			store.add(toolset.addTool(toolData3));
 
-			assert.strictEqual(Iterable.length(toolsService.getTools(contextKeyService)), 3);
+			assert.strictEqual(Iterable.length(toolsService.getTools(undefined)), 3);
 
 			const size = Iterable.length(toolset.getTools());
 			assert.strictEqual(size, 3);

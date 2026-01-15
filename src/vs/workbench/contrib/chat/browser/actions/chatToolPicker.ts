@@ -24,6 +24,7 @@ import { IMcpRegistry } from '../../../mcp/common/mcpRegistryTypes.js';
 import { IMcpServer, IMcpService, IMcpWorkbenchService, McpConnectionState, McpServerCacheState, McpServerEditorTab } from '../../../mcp/common/mcpTypes.js';
 import { startServerAndWaitForLiveTools } from '../../../mcp/common/mcpTypesUtils.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ILanguageModelToolsService, IToolData, ToolDataSource, ToolSet } from '../../common/tools/languageModelToolsService.js';
 import { ConfigureToolSets } from '../tools/toolSetsContribution.js';
 
@@ -194,6 +195,7 @@ export async function showToolsPicker(
 	placeHolder: string,
 	description?: string,
 	getToolsEntries?: () => ReadonlyMap<ToolSet | IToolData, boolean>,
+	model?: ILanguageModelChatMetadata | undefined,
 	token?: CancellationToken
 ): Promise<ReadonlyMap<ToolSet | IToolData, boolean> | undefined> {
 
@@ -214,14 +216,12 @@ export async function showToolsPicker(
 		}
 	}
 
-	const contextKeyService = accessor.get(IContextKeyService);
-
 	function computeItems(previousToolsEntries?: ReadonlyMap<ToolSet | IToolData, boolean>) {
 		// Create default entries if none provided
 		let toolsEntries = getToolsEntries ? new Map(getToolsEntries()) : undefined;
 		if (!toolsEntries) {
 			const defaultEntries = new Map();
-			for (const tool of toolsService.getTools(contextKeyService)) {
+			for (const tool of toolsService.getTools(model)) {
 				if (tool.canBeReferencedInPrompt) {
 					defaultEntries.set(tool, false);
 				}

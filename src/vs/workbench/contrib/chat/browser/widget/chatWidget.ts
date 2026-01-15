@@ -1709,7 +1709,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		if (!isInput) {
 			this.inputPart.setChatMode(this.input.currentModeObs.get().id);
-			const currentModel = this.input.selectedLanguageModel;
+			const currentModel = this.input.selectedLanguageModel.get();
 			if (currentModel) {
 				this.inputPart.switchModel(currentModel.metadata);
 			}
@@ -2606,7 +2606,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// if not tools to enable are present, we are done
 		if (tools !== undefined && this.input.currentModeKind === ChatModeKind.Agent) {
-			const enablementMap = this.toolsService.toToolAndToolSetEnablementMap(tools, Target.VSCode, this.contextKeyService);
+			const enablementMap = this.toolsService.toToolAndToolSetEnablementMap(tools, Target.VSCode, this.input.selectedLanguageModel.get()?.metadata);
 			this.input.selectedToolsModel.set(enablementMap, true);
 		}
 

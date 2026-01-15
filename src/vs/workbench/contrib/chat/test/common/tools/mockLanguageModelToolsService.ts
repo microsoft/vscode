@@ -9,11 +9,10 @@ import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
-import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IProgressStep } from '../../../../../../platform/progress/common/progress.js';
+import { ChatRequestToolReferenceEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { IVariableReference } from '../../../common/chatModes.js';
 import { IChatToolInvocation } from '../../../common/chatService/chatService.js';
-import { ChatRequestToolReferenceEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { CountTokensCallback, IBeginToolCallOptions, ILanguageModelToolsService, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolDataSource, ToolSet } from '../../../common/tools/languageModelToolsService.js';
 
 export class MockLanguageModelToolsService implements ILanguageModelToolsService {
@@ -68,7 +67,7 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 		return Disposable.None;
 	}
 
-	getTools(contextKeyService: IContextKeyService): Iterable<IToolData> {
+	getTools(): Iterable<IToolData> {
 		return [];
 	}
 
@@ -80,7 +79,7 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 		return undefined;
 	}
 
-	observeTools(contextKeyService: IContextKeyService): IObservable<readonly IToolData[]> {
+	observeTools(): IObservable<readonly IToolData[]> {
 		return constObservable([]);
 	}
 

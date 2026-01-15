@@ -7,56 +7,11 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
-import { isDefined } from '../../../base/common/types.js';
 import { isUriComponents, URI, UriComponents } from '../../../base/common/uri.js';
-import { ContextKeyExpr, ContextKeyExpression } from '../../../platform/contextkey/common/contextkey.js';
-import { ChatContextKeys } from '../../contrib/chat/common/actions/chatContextKeys.js';
 import { CountTokensCallback, ILanguageModelToolsService, IToolData, IToolInvocation, IToolProgressStep, IToolResult, ToolDataSource, ToolProgress, toolResultHasBuffers } from '../../contrib/chat/common/tools/languageModelToolsService.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { Dto, SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostContext, ExtHostLanguageModelToolsShape, ILanguageModelChatSelectorDto, IToolDataDto, IToolDefinitionDto, MainContext, MainThreadLanguageModelToolsShape } from '../common/extHost.protocol.js';
-
-/**
- * Compile a single model selector to a ContextKeyExpression.
- * All specified fields must match (AND).
- */
-function selectorToContextKeyExpr(selector: ILanguageModelChatSelectorDto): ContextKeyExpression | undefined {
-	const conditions: ContextKeyExpression[] = [];
-	if (selector.id) {
-		conditions.push(ContextKeyExpr.equals(ChatContextKeys.Model.id.key, selector.id));
-	}
-	if (selector.vendor) {
-		conditions.push(ContextKeyExpr.equals(ChatContextKeys.Model.vendor.key, selector.vendor));
-	}
-	if (selector.family) {
-		conditions.push(ContextKeyExpr.equals(ChatContextKeys.Model.family.key, selector.family));
-	}
-	if (selector.version) {
-		conditions.push(ContextKeyExpr.equals(ChatContextKeys.Model.version.key, selector.version));
-	}
-	if (conditions.length === 0) {
-		return undefined;
-	}
-	return ContextKeyExpr.and(...conditions);
-}
-
-/**
- * Compile multiple model selectors to a ContextKeyExpression.
- * Any selector may match (OR).
- */
-function selectorsToContextKeyExpr(selectors: ILanguageModelChatSelectorDto[]): ContextKeyExpression | undefined {
-	if (selectors.length === 0) {
-		return undefined;
-	}
-	const expressions = selectors.map(selectorToContextKeyExpr).filter(isDefined);
-	if (expressions.length === 0) {
-		return undefined;
-	}
-	if (expressions.length === 1) {
-		return expressions[0];
-	}
-	return ContextKeyExpr.or(...expressions);
-}
+import { ExtHostContext, ExtHostLanguageModelToolsShape, IToolDataDto, IToolDefinitionDto, MainContext, MainThreadLanguageModelToolsShape } from '../common/extHost.protocol.js';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageModelTools)
 export class MainThreadLanguageModelTools extends Disposable implements MainThreadLanguageModelToolsShape {
@@ -158,12 +113,6 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 			}
 		}
 
-		// Compile model selectors to when clause
-		let when: ContextKeyExpression | undefined;
-		if (definition.models?.length) {
-			when = selectorsToContextKeyExpr(definition.models);
-		}
-
 		// Convert source from DTO
 		const source = revive<ToolDataSource>(definition.source);
 
@@ -179,7 +128,6 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 			inputSchema: definition.inputSchema,
 			source,
 			icon,
-			when,
 			models: definition.models,
 			canBeReferencedInPrompt: !!definition.userDescription,
 		};

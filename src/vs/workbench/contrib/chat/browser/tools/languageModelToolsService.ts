@@ -39,6 +39,7 @@ import { ChatRequestToolReferenceEntry, toToolSetVariableEntry, toToolVariableEn
 import { IVariableReference } from '../../common/chatModes.js';
 import { ConfirmedReason, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService/chatService.js';
 import { ChatConfiguration } from '../../common/constants.js';
+import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ChatToolInvocation } from '../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ILanguageModelToolsConfirmationService } from '../../common/tools/languageModelToolsConfirmationService.js';
 import { CountTokensCallback, createToolSchemaUri, IBeginToolCallOptions, ILanguageModelToolsService, IPreparedToolInvocation, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, SpecedToolAliases, stringifyPromptTsxPart, ToolDataSource, ToolSet, VSCodeToolReference } from '../../common/tools/languageModelToolsService.js';
@@ -269,44 +270,67 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		);
 	}
 
-	getTools(contextKeyService: IContextKeyService): Iterable<IToolData> {
+	getTools(model: ILanguageModelChatMetadata | undefined): Iterable<IToolData> {
 		const toolDatas = Iterable.map(this._tools.values(), i => i.data);
 		const extensionToolsEnabled = this._configurationService.getValue<boolean>(ChatConfiguration.ExtensionToolsEnabled);
 		return Iterable.filter(
 			toolDatas,
 			toolData => {
-				const satisfiesWhenClause = !toolData.when || contextKeyService.contextMatchesRules(toolData.when);
+				const satisfiesWhenClause = !toolData.when || this._contextKeyService.contextMatchesRules(toolData.when);
 				const satisfiesExternalToolCheck = toolData.source.type !== 'extension' || !!extensionToolsEnabled;
 				const satisfiesPermittedCheck = this.isPermitted(toolData);
-				return satisfiesWhenClause && satisfiesExternalToolCheck && satisfiesPermittedCheck;
+				const satisfiesModelFilter = this.toolMatchesModel(toolData, model);
+				return satisfiesWhenClause && satisfiesExternalToolCheck && satisfiesPermittedCheck && satisfiesModelFilter;
 			});
 	}
 
-	observeTools(contextKeyService: IContextKeyService): IObservable<readonly IToolData[]> {
+	/**
+	 * Check if a tool matches the given model metadata based on the tool's `models` selectors.
+	 * If the tool has no `models` defined, it matches all models.
+	 * If model is undefined, model-specific filtering is skipped (tool is included).
+	 */
+	private toolMatchesModel(toolData: IToolData, model: ILanguageModelChatMetadata | undefined): boolean {
+		// If no model selectors are defined, the tool is available for all models
+		if (!toolData.models || toolData.models.length === 0) {
+			return true;
+		}
+		// If model is undefined, skip model-specific filtering
+		if (!model) {
+			return true;
+		}
+		// Check if any selector matches the model (OR logic)
+		return toolData.models.some(selector =>
+			(!selector.id || selector.id === model.id) &&
+			(!selector.vendor || selector.vendor === model.vendor) &&
+			(!selector.family || selector.family === model.family) &&
+			(!selector.version || selector.version === model.version)
+		);
+	}
+
+	observeTools(model: ILanguageModelChatMetadata | undefined): IObservable<readonly IToolData[]> {
 		const meta = derived(reader => {
 			const signal = observableSignal('observeToolsContext');
 			const trigger = () => transaction(tx => signal.trigger(tx));
-
-			const scheduler = reader.store.add(new RunOnceScheduler(trigger, 750));
-
 			reader.store.add(this.onDidChangeTools(trigger));
-			reader.store.add(contextKeyService.onDidChangeContext(e => {
-				if (e.affectsSome(this._toolContextKeys) && !scheduler.isScheduled()) {
-					this._onDidChangeToolsScheduler.schedule();
-				}
-			}));
-
 			return signal;
 		});
 
 		return derivedOpts({ equalsFn: arrayEqualsC() }, reader => {
 			meta.read(reader).read(reader);
-			return Array.from(this.getTools(contextKeyService));
+			return Array.from(this.getTools(model));
 		});
 	}
 
 	getAllToolsIncludingDisabled(): Iterable<IToolData> {
-		return Iterable.map(this._tools.values(), i => i.data);
+		const toolDatas = Iterable.map(this._tools.values(), i => i.data);
+		const extensionToolsEnabled = this._configurationService.getValue<boolean>(ChatConfiguration.ExtensionToolsEnabled);
+		return Iterable.filter(
+			toolDatas,
+			toolData => {
+				const satisfiesExternalToolCheck = toolData.source.type !== 'extension' || !!extensionToolsEnabled;
+				const satisfiesPermittedCheck = this.isPermitted(toolData);
+				return satisfiesExternalToolCheck && satisfiesPermittedCheck;
+			});
 	}
 
 	getTool(id: string): IToolData | undefined {
@@ -941,7 +965,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	 * @param fullReferenceNames A list of tool or toolset by their full reference names that are enabled.
 	 * @returns A map of tool or toolset instances to their enablement state.
 	 */
-	toToolAndToolSetEnablementMap(fullReferenceNames: readonly string[], _target: string | undefined, contextKeyService: IContextKeyService | undefined): IToolAndToolSetEnablementMap {
+	toToolAndToolSetEnablementMap(fullReferenceNames: readonly string[], _target: string | undefined, model: ILanguageModelChatMetadata | undefined): IToolAndToolSetEnablementMap {
 		const toolOrToolSetNames = new Set(fullReferenceNames);
 		const result = new Map<ToolSet | IToolData, boolean>();
 		for (const [tool, fullReferenceName] of this.toolsWithFullReferenceName.get()) {
@@ -954,21 +978,20 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					}
 				}
 			} else {
-				if (result.has(tool)) { // already set via an enabled toolset
-					continue;
-				}
-				if (contextKeyService && tool.when && !contextKeyService.contextMatchesRules(tool.when)) {
+				if (model && !this.toolMatchesModel(tool, model)) {
 					continue;
 				}
 
-				const enabled = toolOrToolSetNames.has(fullReferenceName)
-					|| Iterable.some(this.getToolAliases(tool, fullReferenceName), name => toolOrToolSetNames.has(name))
-					|| !!tool.legacyToolReferenceFullNames?.some(toolFullName => {
-						// enable tool if just the legacy tool set name is present
-						const index = toolFullName.lastIndexOf('/');
-						return index !== -1 && toolOrToolSetNames.has(toolFullName.substring(0, index));
-					});
-				result.set(tool, enabled);
+				if (!result.has(tool)) { // already set via an enabled toolset
+					const enabled = toolOrToolSetNames.has(fullReferenceName)
+						|| Iterable.some(this.getToolAliases(tool, fullReferenceName), name => toolOrToolSetNames.has(name))
+						|| !!tool.legacyToolReferenceFullNames?.some(toolFullName => {
+							// enable tool if just the legacy tool set name is present
+							const index = toolFullName.lastIndexOf('/');
+							return index !== -1 && toolOrToolSetNames.has(toolFullName.substring(0, index));
+						});
+					result.set(tool, enabled);
+				}
 			}
 		}
 
