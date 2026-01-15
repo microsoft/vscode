@@ -437,7 +437,7 @@ export class InlineChatController implements IEditorContribution {
 		const persistModelChoice = this._configurationService.getValue<boolean>(InlineChatConfigKeys.PersistModelChoice);
 		const model = this._zone.value.widget.chatWidget.input.selectedLanguageModel;
 		if (!persistModelChoice && InlineChatController._selectVendorDefaultLanguageModel && model && !model.metadata.isDefaultForLocation[session.chatModel.initialLocation]) {
-			const ids = await this._languageModelService.selectLanguageModels({ vendor: model.metadata.vendor }, false);
+			const ids = await this._languageModelService.selectLanguageModels({ vendor: model.metadata.vendor });
 			for (const identifier of ids) {
 				const candidate = this._languageModelService.lookupLanguageModel(identifier);
 				if (candidate?.isDefaultForLocation[session.chatModel.initialLocation]) {
@@ -484,7 +484,7 @@ export class InlineChatController implements IEditorContribution {
 				delete arg.attachments;
 			}
 			if (arg.modelSelector) {
-				const id = (await this._languageModelService.selectLanguageModels(arg.modelSelector, false)).sort().at(0);
+				const id = (await this._languageModelService.selectLanguageModels(arg.modelSelector)).sort().at(0);
 				if (!id) {
 					throw new Error(`No language models found matching selector: ${JSON.stringify(arg.modelSelector)}.`);
 				}
