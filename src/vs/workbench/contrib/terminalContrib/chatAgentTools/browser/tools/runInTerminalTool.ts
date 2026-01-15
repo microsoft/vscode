@@ -277,13 +277,17 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	private readonly _treeSitterCommandParser: TreeSitterCommandParser;
 	private readonly _telemetry: RunInTerminalToolTelemetry;
 	private readonly _commandArtifactCollector: TerminalCommandArtifactCollector;
+	protected readonly _profileFetcher: TerminalProfileFetcher;
+
 	private readonly _commandLineRewriters: ICommandLineRewriter[];
 	private readonly _commandLineAnalyzers: ICommandLineAnalyzer[];
-	private static readonly _backgroundExecutions = new Map<string, BackgroundTerminalExecution>();
-	protected readonly _profileFetcher: TerminalProfileFetcher;
+
 	protected readonly _sessionTerminalAssociations = new ResourceMap<IToolTerminal>();
+
 	// Immutable window state
 	protected readonly _osBackend: Promise<OperatingSystem>;
+
+	private static readonly _backgroundExecutions = new Map<string, BackgroundTerminalExecution>();
 
 	public static getBackgroundOutput(id: string): string {
 		const backgroundExecution = RunInTerminalTool._backgroundExecutions.get(id);
@@ -426,6 +430,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			};
 		}
 
+		// If in sandbox mode, skip confirmation logic. In sandbox mode, commands are run in a restricted environment and explicit
+		// user confirmation is not required.
 		toolSpecificData.autoApproveInfo = new MarkdownString(localize('autoApprove.sandbox', 'In sandbox mode'));
 		// If in sandbox mode, skip confirmation logic. In sandbox mode, commands are run in a restricted environment and explicit
 		// user confirmation is not required.
@@ -545,6 +551,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}]
 			};
 		}
+
 		const args = invocation.parameters as IRunInTerminalInputParams;
 		this._logService.debug(`RunInTerminalTool: Invoking with options ${JSON.stringify(args)}`);
 		let toolResultMessage: string | IMarkdownString | undefined;
@@ -872,8 +879,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		await this._setupProcessIdAssociation(toolTerminal, chatSessionResource, termId, true);
 		return toolTerminal;
 	}
-
-
 
 	private async _initForegroundTerminal(chatSessionResource: URI, termId: string, terminalToolSessionId: string | undefined, token: CancellationToken): Promise<IToolTerminal> {
 		const cachedTerminal = this._sessionTerminalAssociations.get(chatSessionResource);
