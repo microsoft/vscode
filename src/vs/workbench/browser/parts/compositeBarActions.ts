@@ -164,6 +164,8 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 	private mouseUpTimeout: Timeout | undefined;
 	private keybindingLabel: string | undefined | null;
 
+	private _actionUpdated: ((rerender: boolean) => void) | undefined;
+
 	constructor(
 		action: CompositeBarAction,
 		options: ICompositeBarActionViewItemOptions,
@@ -178,9 +180,19 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 		this.options = options;
 
 		this._register(this.themeService.onDidColorThemeChange(this.onThemeChange, this));
-		this._register(action.onDidChangeCompositeBarActionItem(() => this.update()));
+		this._register(action.onDidChangeCompositeBarActionItem(() => {
+			const rerendered = this.update();
+			if (rerendered) {
+				this._actionUpdated?.(false);
+			}
+		}));
 		this._register(Event.filter(keybindingService.onDidUpdateKeybindings, () => this.keybindingLabel !== this.computeKeybindingLabel())(() => this.updateTitle()));
-		this._register(action.onDidChangeActivity(() => this.updateActivity()));
+		this._register(action.onDidChangeActivity(() => {
+			const rerendered = this.updateActivity();
+			if (rerendered) {
+				this._actionUpdated?.(false);
+			}
+		}));
 	}
 
 	protected get compositeBarActionItem(): ICompositeBarActionItem {
@@ -229,13 +241,12 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	override render(container: HTMLElement): void {
-		super.render(container);
+	override render(container: HTMLElement, actionUpdated: (rerender: boolean) => void): void {
+		super.render(container, actionUpdated);
+		this._actionUpdated = actionUpdated;
 
 		this.container = container;
-		if (this.options.icon) {
-			this.container.classList.add('icon');
-		}
+		this.container.classList.toggle('icon', this.options.icon);
 
 		if (this.options.hasPopup) {
 			this.container.setAttribute('role', 'button');
@@ -246,7 +257,7 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 
 		// Try hard to prevent keyboard only focus feedback when using mouse
 		this._register(addDisposableListener(this.container, EventType.MOUSE_DOWN, () => {
-			this.container.classList.add('clicked');
+			this.container.classList.toggle('clicked', true);
 		}));
 
 		this._register(addDisposableListener(this.container, EventType.MOUSE_UP, () => {
@@ -255,7 +266,7 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 			}
 
 			this.mouseUpTimeout = setTimeout(() => {
-				this.container.classList.remove('clicked');
+				this.container.classList.toggle('clicked', false);
 			}, 800); // delayed to prevent focus feedback from showing on mouse up
 		}));
 
@@ -283,19 +294,19 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 		hide(this.badge);
 
 		this.update();
-		this.updateStyles();
-		this.updateTitle();
 	}
 
 	private onThemeChange(theme: IColorTheme): void {
 		this.updateStyles();
 	}
 
-	protected update(): void {
+	protected update(): boolean {
+		let updated = false;
 		this.updateLabel();
-		this.updateActivity();
+		updated ||= this.updateActivity();
 		this.updateTitle();
 		this.updateStyles();
+		return updated;
 	}
 
 	private getActivities(): IActivity[] {
@@ -305,9 +316,9 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 		return [];
 	}
 
-	protected updateActivity(): void {
+	protected updateActivity(): boolean {
 		if (!this.badge || !this.badgeContent || !(this._action instanceof CompositeBarAction)) {
-			return;
+			return false;
 		}
 
 		const { badges, type } = this.getVisibleBadges(this.getActivities());
@@ -369,6 +380,8 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 
 		this.updateTitle();
 		this.updateStyles();
+
+		return shouldRenderBadges;
 	}
 
 	private getVisibleBadges(activities: IActivity[]): { badges: IBadge[]; type: 'progress' | 'icon' | 'number' | undefined } {
@@ -542,8 +555,8 @@ export class CompositeActionViewItem extends CompositeBarActionViewItem {
 		);
 	}
 
-	override render(container: HTMLElement): void {
-		super.render(container);
+	override render(container: HTMLElement, actionUpdated: (rerender: boolean) => void): void {
+		super.render(container, actionUpdated);
 
 		this.updateChecked();
 		this.updateEnabled();

@@ -408,6 +408,8 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 	private _class: string | undefined;
 	private readonly _elementDisposables: IDisposable[] = [];
 
+	private _actionUpdated: ((rerender: boolean) => void) | undefined;
+
 	constructor(
 		action: MenuItemAction,
 		private readonly _actions: IAction[],
@@ -447,6 +449,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 			for (const e of merged) {
 				this.updateLabel(e);
 			}
+			this._actionUpdated?.(false);
 		}));
 
 		// Clean up on dispose
@@ -460,6 +463,11 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 		} else {
 			this._openContextMenu();
 		}
+	}
+
+	override render(container: HTMLElement, actionUpdated: (rerender: boolean) => void): void {
+		this._actionUpdated = actionUpdated;
+		super.render(container, actionUpdated);
 	}
 
 	// eslint-disable-next-line @typescript-eslint/naming-convention

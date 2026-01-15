@@ -181,6 +181,8 @@ export class MenuEntryActionViewItem<T extends IMenuEntryActionViewItemOptions =
 	private readonly _itemClassDispose = this._register(new MutableDisposable());
 	private readonly _altKey: ModifierKeyEmitter;
 
+	private readonly _renderStore = this._register(new DisposableStore());
+
 	constructor(
 		action: MenuItemAction,
 		protected readonly _options: T | undefined,
@@ -214,8 +216,10 @@ export class MenuEntryActionViewItem<T extends IMenuEntryActionViewItemOptions =
 		}
 	}
 
-	override render(container: HTMLElement): void {
-		super.render(container);
+	override render(container: HTMLElement, actionUpdated?: (rerender: boolean) => void): void {
+		super.render(container, actionUpdated);
+
+		this._renderStore.clear();
 		container.classList.add('menu-entry');
 
 		if (this.options.icon) {
@@ -240,14 +244,14 @@ export class MenuEntryActionViewItem<T extends IMenuEntryActionViewItemOptions =
 				}
 			};
 
-			this._register(this._altKey.event(updateAltState));
+			this._renderStore.add(this._altKey.event(updateAltState));
 
-			this._register(addDisposableListener(container, 'mouseleave', _ => {
+			this._renderStore.add(addDisposableListener(container, 'mouseleave', _ => {
 				isMouseOver = false;
 				updateAltState();
 			}));
 
-			this._register(addDisposableListener(container, 'mouseenter', _ => {
+			this._renderStore.add(addDisposableListener(container, 'mouseenter', _ => {
 				isMouseOver = true;
 				updateAltState();
 			}));

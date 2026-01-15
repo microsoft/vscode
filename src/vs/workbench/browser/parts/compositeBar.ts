@@ -319,6 +319,10 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		const dndCallback = new CompositeBarDndCallbacks(parent, actionBarDiv, this.model, this.options.dndHandler, this.options.orientation);
 		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(parent, dndCallback));
 
+		this._register(this.compositeSwitcherBar.onDidRerenderItem(() => {
+			this.updateCompositeSwitcher();
+		}));
+
 		return actionBarDiv;
 	}
 
