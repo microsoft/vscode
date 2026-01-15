@@ -86,7 +86,7 @@ import { ChatMode, IChatMode, IChatModeService } from '../../../common/chatModes
 import { IChatFollowup, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionFileChange, IChatSessionProviderOptionItem, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
-import { ChatRequestVariableSet, IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isStringVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { ChatRequestVariableSet, IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isStringImplicitContextValue, isStringVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { IChatResponseViewModel } from '../../../common/model/chatViewModel.js';
 import { ChatHistoryNavigator } from '../../../common/widget/chatWidgetHistoryService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, validateChatMode } from '../../../common/constants.js';
@@ -217,7 +217,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		const contextArr = this.getAttachedContext(sessionResource);
 
-		if ((this.implicitContext?.enabled && this.implicitContext?.value) || (this.implicitContext && !URI.isUri(this.implicitContext.value) && this.configurationService.getValue<boolean>('chat.implicitContext.suggestedContext'))) {
+		if ((this.implicitContext?.enabled && this.implicitContext?.value) || (this.implicitContext && !URI.isUri(this.implicitContext.value) && !isStringImplicitContextValue(this.implicitContext.value) && this.configurationService.getValue<boolean>('chat.implicitContext.suggestedContext'))) {
 			const implicitChatVariables = this.implicitContext.toBaseEntries();
 			contextArr.add(...implicitChatVariables);
 		}

@@ -43,6 +43,11 @@ declare module 'vscode' {
 		 * The value of the context item. Can be omitted when returned from one of the `provide` methods if the provider supports `resolveChatContext`.
 		 */
 		value?: string;
+		/**
+		 * An optional command that is executed when the context item is clicked.
+		 * The original context item will be passed as the first argument to the command.
+		 */
+		command?: Command;
 	}
 
 	export interface ChatContextProvider<T extends ChatContextItem = ChatContextItem> {
