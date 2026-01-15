@@ -319,6 +319,8 @@ export interface ILanguageModelsService {
 	removeLanguageModelsProviderGroup(vendorId: string, providerGroupName: string): Promise<void>;
 
 	configureLanguageModelsProviderGroup(vendorId: string, name?: string): Promise<void>;
+
+	migrateLanguageModelsProviderGroup(languageModelsProviderGroup: ILanguageModelsProviderGroup): Promise<void>;
 }
 
 const languageModelChatProviderType = {
@@ -477,6 +479,10 @@ export class LanguageModelsService implements ILanguageModelsService {
 		});
 	}
 
+	private _saveModelPickerPreferences(): void {
+		this._storageService.store('chatModelPickerPreferences', this._modelPickerUserPreferences, StorageScope.PROFILE, StorageTarget.USER);
+	}
+
 	updateModelPickerPreference(modelIdentifier: string, showInModelPicker: boolean): void {
 		const model = this._modelCache.get(modelIdentifier);
 		if (!model) {
@@ -487,9 +493,9 @@ export class LanguageModelsService implements ILanguageModelsService {
 		this._modelPickerUserPreferences[modelIdentifier] = showInModelPicker;
 		if (showInModelPicker === model.isUserSelectable) {
 			delete this._modelPickerUserPreferences[modelIdentifier];
-			this._storageService.store('chatModelPickerPreferences', this._modelPickerUserPreferences, StorageScope.PROFILE, StorageTarget.USER);
+			this._saveModelPickerPreferences();
 		} else if (model.isUserSelectable !== showInModelPicker) {
-			this._storageService.store('chatModelPickerPreferences', this._modelPickerUserPreferences, StorageScope.PROFILE, StorageTarget.USER);
+			this._saveModelPickerPreferences();
 		}
 		this._onLanguageModelChange.fire(model.vendor);
 		this._logService.trace(`[LM] Updated model picker preference for ${modelIdentifier} to ${showInModelPicker}`);
@@ -1048,6 +1054,31 @@ export class LanguageModelsService implements ILanguageModelsService {
 				}
 			}
 		}
+	}
+
+	async migrateLanguageModelsProviderGroup(languageModelsProviderGroup: ILanguageModelsProviderGroup): Promise<void> {
+		const { vendor, name, ...configuration } = languageModelsProviderGroup;
+		if (!this._vendors.get(vendor)) {
+			throw new Error(`Vendor ${vendor} not found.`);
+		}
+
+		await this._extensionService.activateByEvent(`onLanguageModelChatProvider:${vendor}`);
+		const provider = this._providers.get(vendor);
+		if (!provider) {
+			throw new Error(`Chat model provider for vendor ${vendor} is not registered.`);
+		}
+
+		const models = await this._resolveLanguageModels(provider, { group: name, silent: false, configuration });
+		for (const model of models) {
+			const oldIdentifier = `${vendor}/${model.metadata.id}`;
+			if (this._modelPickerUserPreferences[oldIdentifier] === true) {
+				this._modelPickerUserPreferences[model.identifier] = true;
+			}
+			delete this._modelPickerUserPreferences[oldIdentifier];
+		}
+		this._saveModelPickerPreferences();
+
+		await this.addLanguageModelsProviderGroup(name, vendor, configuration);
 	}
 
 	dispose() {
