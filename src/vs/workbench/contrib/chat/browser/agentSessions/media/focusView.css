@@ -216,29 +216,36 @@ Agents Control - Titlebar control
 	white-space: nowrap;
 }
 
-/* Close button (right side in session mode) */
-.agents-control-close {
-	display: flex;
+/* Escape button (right side in session mode) - serves as keybinding hint and close button */
+.agents-control-esc-button {
+	display: inline-flex;
 	align-items: center;
+	align-self: center;
 	justify-content: center;
-	width: 20px;
-	height: 20px;
-	border-radius: 4px;
+	box-sizing: border-box;
+	border-style: solid;
+	border-width: 1px;
+	border-radius: 3px;
+	height: 16px;
+	line-height: 14px;
+	font-size: 10px;
+	padding: 0 6px;
+	margin: 0 2px 0 6px;
+	background-color: transparent;
+	color: var(--vscode-descriptionForeground);
+	border-color: color-mix(in srgb, var(--vscode-descriptionForeground) 50%, transparent);
 	cursor: pointer;
-	color: var(--vscode-foreground);
-	opacity: 0.8;
-	margin-left: auto;
 	-webkit-app-region: no-drag;
 }
 
-.agents-control-close:hover {
-	opacity: 1;
-	background-color: rgba(0, 0, 0, 0.1);
+.agents-control-esc-button:hover {
+	color: var(--vscode-foreground);
+	border-color: color-mix(in srgb, var(--vscode-foreground) 60%, transparent);
 }
 
-.agents-control-close:focus {
+.agents-control-esc-button:focus {
 	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
+	outline-offset: 1px;
 }
 
 /* Search button (right of pill) */
