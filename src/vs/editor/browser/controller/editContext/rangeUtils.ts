@@ -14,10 +14,6 @@ import { IViewModel } from '../../../common/viewModel.js';
  * @param excludeRanges Ranges to exclude from the source range
  * @param viewModel The view model used to get line column bounds
  * @returns Array of ranges representing the visible parts after exclusion
- *
- * Performance: O(n + m*k) where n is the number of lines in the range,
- * m is the number of exclude ranges, and k is the average number of exclude
- * ranges that start at the same line (typically k is very small, close to 1).
  */
 export function subtractRanges(range: Range, excludeRanges: Range[], viewModel: IViewModel,): Range[] {
 	if (excludeRanges.length === 0) {
