@@ -57,10 +57,8 @@
           "Skill",
           "skill"
         ],
-        "filenamePatterns": [
-          "**/.github/skills/*/SKILL.md",
-          "**/.claude/skills/*/SKILL.md",
-          "**/.copilot/skills/*/SKILL.md"
+        "filenames": [
+          "SKILL.md"
         ],
         "configuration": "./language-configuration.json"
       }
