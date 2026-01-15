@@ -19,10 +19,7 @@ import { IKeybindingService } from '../../../../../../platform/keybinding/common
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../agentSessions/agentSessions.js';
-
-export interface ISessionTypePickerDelegate {
-	getActiveSessionProvider(): AgentSessionProviders | undefined;
-}
+import { ISessionTypePickerDelegate } from '../../chat.js';
 
 interface ISessionTypeItem {
 	type: AgentSessionProviders;
@@ -64,7 +61,13 @@ export class SessionTypePickerActionItem extends ActionWidgetDropdownActionViewI
 						icon: getAgentSessionProviderIcon(sessionTypeItem.type),
 						enabled: true,
 						run: async () => {
-							this.commandService.executeCommand(sessionTypeItem.commandId, this.chatSessionPosition);
+							// If delegate provides a setter, use it for local state management
+							// Otherwise execute the command to open a new session
+							if (this.delegate.setActiveSessionProvider) {
+								this.delegate.setActiveSessionProvider(sessionTypeItem.type);
+							} else {
+								this.commandService.executeCommand(sessionTypeItem.commandId, this.chatSessionPosition);
+							}
 							if (this.element) {
 								this.renderLabel(this.element);
 							}

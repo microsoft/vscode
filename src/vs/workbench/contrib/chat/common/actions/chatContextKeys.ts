@@ -61,6 +61,8 @@ export namespace ChatContextKeys {
 	export const inputHasAgent = new RawContextKey<boolean>('chatInputHasAgent', false);
 	export const location = new RawContextKey<ChatAgentLocation>('chatLocation', undefined);
 	export const inQuickChat = new RawContextKey<boolean>('quickChatHasFocus', false, { type: 'boolean', description: localize('inQuickChat', "True when the quick chat UI has focus, false otherwise.") });
+	export const inAgentSessionsWelcome = new RawContextKey<boolean>('inAgentSessionsWelcome', false, { type: 'boolean', description: localize('inAgentSessionsWelcome', "True when the chat input is within the agent sessions welcome page.") });
+	export const chatSessionType = new RawContextKey<string>('chatSessionType', '', { type: 'string', description: localize('chatSessionType', "The type of the current chat session.") });
 	export const hasFileAttachments = new RawContextKey<boolean>('chatHasFileAttachments', false, { type: 'boolean', description: localize('chatHasFileAttachments', "True when the chat has file attachments.") });
 	export const chatSessionIsEmpty = new RawContextKey<boolean>('chatSessionIsEmpty', true, { type: 'boolean', description: localize('chatSessionIsEmpty', "True when the current chat session has no requests.") });
 
