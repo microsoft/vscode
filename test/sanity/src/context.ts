@@ -884,7 +884,12 @@ export class TestContext {
 			case 'win32':
 				return await chromium.launch({ channel: 'msedge', headless });
 			default:
-				return await chromium.launch({ channel: 'chrome', headless });
+				// Use webkit on ARM64 since Chrome doesn't support it
+				if (os.arch() === 'arm64' || os.arch() === 'arm') {
+					return await webkit.launch({ headless });
+				} else {
+					return await chromium.launch({ channel: 'chrome', headless });
+				}
 		}
 	}
 
