@@ -130,6 +130,8 @@ jobs:
                   apt-get install -y libavif15 libavif13 || true
                   apt-get install -y libx264-163 libx264-164 || true
                   apt-get install -y libwoff2-1.0.2 || true
+
+                  # From error: apt-get install libavif13
                 fi
 
               elif command -v dnf &> /dev/null; then
@@ -140,7 +142,7 @@ jobs:
                 dnf install -y dbus-x11 || true
                 dnf install -y xorg-x11-server-Xvfb || true
                 dnf install -y xorg-x11-utils || true
-                dnf install -y xdg-utils
+                dnf install -y xdg-utils || true
 
               elif command -v zypper &> /dev/null; then
 
@@ -166,8 +168,10 @@ jobs:
               echo "Install Playwright browser"
               cd /workspace/test/sanity
               if [ "$(arch)" = "aarch64" ] || [ "$(arch)" = "armv7l" ] || [ "$(arch)" = "arm" ]; then
+                ./node_modules/.bin/playwright install-deps wekit
                 ./node_modules/.bin/playwright install webkit
               else
+                ./node_modules/.bin/playwright install-deps chrome
                 ./node_modules/.bin/playwright install chrome
               fi
 
