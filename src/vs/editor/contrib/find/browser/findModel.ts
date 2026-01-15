@@ -500,33 +500,65 @@ export class FindModelBoundToEditorModel {
 	}
 
 	private _findMatches(findScopes: Range[] | null, captureMatches: boolean, limitResultCount: number): FindMatch[] {
-		const searchRanges = (findScopes as [] || [null]).map((scope: Range | null) =>
+		let searchRanges = (findScopes as [] || [null]).map((scope: Range | null) =>
 			FindModelBoundToEditorModel._getSearchRange(this._editor.getModel(), scope)
 		);
 
-		const allMatches = this._editor.getModel().findMatches(this._state.searchString, searchRanges, this._state.isRegex, this._state.matchCase, this._state.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, captureMatches, limitResultCount);
-
-		// Filter out matches that are in hidden areas if the option is enabled
+		// If skipHiddenAreas option is enabled, exclude hidden areas from search ranges
 		const findOptions = this._editor.getOption(EditorOption.find);
 		if (findOptions.skipHiddenAreas) {
 			const viewModel = this._editor._getViewModel();
 			if (viewModel) {
 				const hiddenAreas = viewModel.getHiddenAreas();
 				if (hiddenAreas.length > 0) {
-					return allMatches.filter(match => {
-						// Check if the match intersects with any hidden area
-						for (const hiddenArea of hiddenAreas) {
-							if (Range.areIntersecting(match.range, hiddenArea)) {
-								return false;
-							}
-						}
-						return true;
-					});
+					// Compute visible ranges by subtracting hidden areas from search ranges
+					const visibleRanges: Range[] = [];
+					for (const searchRange of searchRanges) {
+						const ranges = this._subtractHiddenAreas(searchRange, hiddenAreas);
+						visibleRanges.push(...ranges);
+					}
+					searchRanges = visibleRanges;
 				}
 			}
 		}
 
-		return allMatches;
+		return this._editor.getModel().findMatches(this._state.searchString, searchRanges, this._state.isRegex, this._state.matchCase, this._state.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, captureMatches, limitResultCount);
+	}
+
+	/**
+	 * Subtracts hidden areas from a search range, returning an array of visible ranges
+	 */
+	private _subtractHiddenAreas(searchRange: Range, hiddenAreas: Range[]): Range[] {
+		const visibleRanges: Range[] = [];
+		let currentStart = searchRange.getStartPosition();
+		const searchEnd = searchRange.getEndPosition();
+
+		// Sort hidden areas by start position
+		const sortedHidden = hiddenAreas
+			.filter(hidden => Range.areIntersecting(searchRange, hidden))
+			.sort((a, b) => Range.compareRangesUsingStarts(a, b));
+
+		for (const hidden of sortedHidden) {
+			const hiddenStart = hidden.getStartPosition();
+			const hiddenEnd = hidden.getEndPosition();
+
+			// Add visible range before this hidden area
+			if (currentStart.isBefore(hiddenStart)) {
+				visibleRanges.push(Range.fromPositions(currentStart, hiddenStart));
+			}
+
+			// Move current start to after the hidden area
+			if (!hiddenEnd.isBefore(currentStart) && !hiddenEnd.equals(currentStart)) {
+				currentStart = hiddenEnd;
+			}
+		}
+
+		// Add remaining visible range after all hidden areas
+		if (currentStart.isBefore(searchEnd)) {
+			visibleRanges.push(Range.fromPositions(currentStart, searchEnd));
+		}
+
+		return visibleRanges;
 	}
 
 	public replaceAll(): void {
