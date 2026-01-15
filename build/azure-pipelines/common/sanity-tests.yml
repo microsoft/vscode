@@ -95,15 +95,15 @@ jobs:
                 curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
                 apt-get install -y nodejs
               elif command -v dnf &> /dev/null; then
-                dnf install -y epel-release 2>/dev/null || true
+                dnf install -y epel-release
                 dnf install -y nodejs gtk3 nss mesa-libgbm alsa-lib sudo
-                dnf install -y xorg-x11-server-Xvfb 2>/dev/null || true
-                dnf install -y xdg-utils 2>/dev/null || true
+                dnf install -y xorg-x11-server-Xvfb
+                dnf install -y xdg-utils
               elif command -v yum &> /dev/null; then
-                yum install -y epel-release 2>/dev/null || true
+                yum install -y epel-release
                 yum install -y nodejs gtk3 nss mesa-libgbm alsa-lib sudo
-                yum install -y xorg-x11-server-Xvfb 2>/dev/null || true
-                yum install -y xdg-utils 2>/dev/null || true
+                yum install -y xorg-x11-server-Xvfb
+                yum install -y xdg-utils
               elif command -v zypper &> /dev/null; then
                 zypper install -y nodejs22 xorg-x11-server-Xvfb libgtk-3-0 mozilla-nss libgbm1 alsa xdg-utils sudo tar gzip
               elif command -v apk &> /dev/null; then
