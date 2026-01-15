@@ -510,11 +510,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 			const store = new DisposableStore();
 
-			const onCommandExecuted = new Emitter<void>();
-			const onCommandFinished = new Emitter<void>();
-			store.add(onCommandExecuted);
-			store.add(onCommandFinished);
-
 			const hasRealOutput = (): boolean => {
 				// Check for snapshot output
 				if (this._terminalData.terminalCommandOutput?.text?.trim()) {
@@ -535,9 +530,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 			// Use the extracted auto-expand logic
 			store.add(new TerminalToolAutoExpand({
-				onCommandExecuted: onCommandExecuted.event,
+				commandDetection,
 				onWillData: terminalInstance.onWillData,
-				onCommandFinished: onCommandFinished.event,
 				shouldAutoExpand: () => !this._outputView.isExpanded && !this._userToggledOutput && !this._store.isDisposed,
 				hasRealOutput,
 				toggleOutput: (expanded) => this._toggleOutput(expanded),
@@ -545,11 +539,9 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 			store.add(commandDetection.onCommandExecuted(() => {
 				this._addActions(terminalInstance, this._terminalData.terminalToolSessionId);
-				onCommandExecuted.fire();
 			}));
 
 			store.add(commandDetection.onCommandFinished(() => {
-				onCommandFinished.fire();
 				this._addActions(terminalInstance, this._terminalData.terminalToolSessionId);
 				const resolvedCommand = this._getResolvedCommand(terminalInstance);
 
