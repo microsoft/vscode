@@ -27,8 +27,8 @@ const cliPath = process.env.VSCODE_FORWARDING_IS_DEV
 		vscode.env.appRoot,
 		process.platform === 'darwin'
 			? 'bin'
-			: process.platform === 'win32' && vscode.env.appQuality === 'insider'
-				? '../../../bin' // TODO: remove as part of https://github.com/microsoft/vscode/issues/282514
+			: process.platform === 'win32' && vscode.env.appQuality
+				? '../../../bin'
 				: '../../bin',
 		vscode.env.appQuality === 'stable' ? 'code-tunnel' : 'code-tunnel-insiders',
 	) + (process.platform === 'win32' ? '.exe' : '');
