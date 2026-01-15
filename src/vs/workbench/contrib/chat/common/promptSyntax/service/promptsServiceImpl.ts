@@ -35,6 +35,7 @@ import { PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../p
 import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IAgentSkill, IUserPromptPath, PromptsStorage, ExtensionAgentSourceType, CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT, IPromptFileContext, IPromptFileResource, PROMPT_FILE_PROVIDER_ACTIVATION_EVENT, SKILL_PROVIDER_ACTIVATION_EVENT } from './promptsService.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
+import { IChatPromptContentStore } from '../chatPromptContentStore.js';
 
 /**
  * Provides prompt services.
@@ -98,7 +99,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IChatPromptContentStore private readonly chatPromptContentStore: IChatPromptContentStore
 	) {
 		super();
 
@@ -202,6 +204,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 				} else if (type === PromptsType.prompt) {
 					this.cachedFileLocations[PromptsType.prompt] = undefined;
 					this.cachedSlashCommands.refresh();
+				} else if (type === PromptsType.skill) {
+					this.cachedFileLocations[PromptsType.skill] = undefined;
 				}
 			}));
 		}
@@ -215,6 +219,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 		} else if (type === PromptsType.prompt) {
 			this.cachedFileLocations[PromptsType.prompt] = undefined;
 			this.cachedSlashCommands.refresh();
+		} else if (type === PromptsType.skill) {
+			this.cachedFileLocations[PromptsType.skill] = undefined;
 		}
 
 		disposables.add({
@@ -230,6 +236,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 					} else if (type === PromptsType.prompt) {
 						this.cachedFileLocations[PromptsType.prompt] = undefined;
 						this.cachedSlashCommands.refresh();
+					} else if (type === PromptsType.skill) {
+						this.cachedFileLocations[PromptsType.skill] = undefined;
 					}
 				}
 			}
@@ -337,8 +345,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 			}
 		}
 
-		const userHome = this.userDataService.currentProfile.promptsHome;
-		result.push({ uri: userHome, storage: PromptsStorage.user, type });
+		if (type !== PromptsType.skill) {
+			// no user source folders for skills
+			const userHome = this.userDataService.currentProfile.promptsHome;
+			result.push({ uri: userHome, storage: PromptsStorage.user, type });
+		}
 
 		return result;
 	}
@@ -502,6 +513,16 @@ export class PromptsService extends Disposable implements IPromptsService {
 		if (model) {
 			return this.getParsedPromptFile(model);
 		}
+
+		// Handle virtual prompt URIs - get content from the content store
+		if (uri.scheme === Schemas.vscodeChatPrompt) {
+			const content = this.chatPromptContentStore.getContent(uri);
+			if (content !== undefined) {
+				return new PromptFileParser().parse(uri, content);
+			}
+			throw new Error(`Content not found in store for virtual prompt URI: ${uri.toString()}`);
+		}
+
 		const fileContent = await this.fileService.readFile(uri);
 		if (token.isCancellationRequested) {
 			throw new CancellationError();

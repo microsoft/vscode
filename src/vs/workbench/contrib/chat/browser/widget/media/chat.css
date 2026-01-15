@@ -1308,7 +1308,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: flex;
 }
 
-.interactive-session .chat-input-toolbars :first-child {
+.interactive-session .chat-input-toolbars :not(.responsive.chat-input-toolbar) .actions-container:first-child {
 	margin-right: auto;
 }
 
@@ -1327,12 +1327,15 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-input-toolbars > .chat-input-toolbar {
 	overflow: hidden;
 	min-width: 0px;
+	width: 100%;
 
 	.chat-input-picker-item {
 		min-width: 0px;
+		overflow: hidden;
 
 		.action-label {
 			min-width: 0px;
+			overflow: hidden;
 
 			.chat-input-picker-label {
 				overflow: hidden;

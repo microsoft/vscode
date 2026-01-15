@@ -109,6 +109,10 @@ export class ParcelWatcherInstance extends Disposable {
 	}
 
 	notifyWatchFailed(): void {
+		if (this.didFail) {
+			return;
+		}
+
 		this.didFail = true;
 
 		this._onDidFail.fire();
