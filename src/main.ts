@@ -227,10 +227,7 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 		// bypass any specified proxy for the given semi-colon-separated list of hosts
 		'proxy-bypass-list',
 
-		'remote-debugging-port',
-
-		// Enable recovery from invalid Graphite recordings
-		'enable-graphite-invalid-recording-recovery'
+		'remote-debugging-port'
 	];
 
 	if (process.platform === 'linux') {
@@ -381,7 +378,6 @@ interface IArgvConfig {
 	readonly 'use-inmemory-secretstorage'?: boolean;
 	readonly 'enable-rdp-display-tracking'?: boolean;
 	readonly 'remote-debugging-port'?: string;
-	readonly 'enable-graphite-invalid-recording-recovery'?: boolean;
 }
 
 function readArgvConfigSync(): IArgvConfig {
