@@ -6,6 +6,7 @@
 import { URI } from '../../../../../../base/common/uri.js';
 import { basename, dirname } from '../../../../../../base/common/path.js';
 import { PromptsType } from '../promptTypes.js';
+import { PromptsStorage } from '../service/promptsService.js';
 
 /**
  * File extension for the reusable prompt files.
@@ -59,48 +60,75 @@ export const LEGACY_MODE_DEFAULT_SOURCE_FOLDER = '.github/chatmodes';
 export const AGENTS_SOURCE_FOLDER = '.github/agents';
 
 /**
- * Location type for prompt source folders.
+ * Tracks where prompt files originate from.
  */
-export type PromptSourceLocation = 'workspace' | 'userHome' | 'config';
+export enum PromptFileSource {
+	GitHubWorkspace = 'github-workspace',
+	CopilotPersonal = 'copilot-personal',
+	ClaudePersonal = 'claude-personal',
+	ClaudeWorkspace = 'claude-workspace',
+	ConfigWorkspace = 'config-workspace',
+	ConfigPersonal = 'config-personal',
+	ExtensionContribution = 'extension-contribution',
+	ExtensionAPI = 'extension-api',
+}
 
 /**
- * Prompt source folder definition with location metadata.
+ * Prompt source folder path with source and storage type.
  */
 export interface IPromptSourceFolder {
 	readonly path: string;
-	readonly type: string;
-	readonly location: PromptSourceLocation;
+	readonly source: PromptFileSource;
+	readonly storage: PromptsStorage;
+}
+
+/**
+ * Resolved prompt folder with source and storage type.
+ */
+export interface IResolvedPromptSourceFolder {
+	readonly uri: URI;
+	readonly source: PromptFileSource;
+	readonly storage: PromptsStorage;
+}
+
+/**
+ * Resolved prompt markdown file with source and storage type.
+ */
+export interface IResolvedPromptFile {
+	readonly fileUri: URI;
+	readonly source: PromptFileSource;
+	readonly storage: PromptsStorage;
 }
 
 /**
  * All default skill source folders (both workspace and user home).
  */
 export const DEFAULT_SKILL_SOURCE_FOLDERS: readonly IPromptSourceFolder[] = [
-	{ path: '.github/skills', type: 'github-workspace', location: 'workspace' },
-	{ path: '.claude/skills', type: 'claude-workspace', location: 'workspace' },
-	{ path: '~/.copilot/skills', type: 'copilot-personal', location: 'userHome' },
-	{ path: '~/.claude/skills', type: 'claude-personal', location: 'userHome' },
+	{ path: '.github/skills', source: PromptFileSource.GitHubWorkspace, storage: PromptsStorage.local },
+	{ path: '.claude/skills', source: PromptFileSource.ClaudeWorkspace, storage: PromptsStorage.local },
+	{ path: '~/.copilot/skills', source: PromptFileSource.CopilotPersonal, storage: PromptsStorage.user },
+	{ path: '~/.claude/skills', source: PromptFileSource.ClaudePersonal, storage: PromptsStorage.user },
 ];
 
 /**
  * Default instructions source folders.
  */
 export const DEFAULT_INSTRUCTIONS_SOURCE_FOLDERS: readonly IPromptSourceFolder[] = [
-	{ path: INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, type: 'github-workspace', location: 'workspace' },
+	{ path: INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, source: PromptFileSource.GitHubWorkspace, storage: PromptsStorage.local },
 ];
 
 /**
  * Default prompt source folders.
  */
 export const DEFAULT_PROMPT_SOURCE_FOLDERS: readonly IPromptSourceFolder[] = [
-	{ path: PROMPT_DEFAULT_SOURCE_FOLDER, type: 'github-workspace', location: 'workspace' },
+	{ path: PROMPT_DEFAULT_SOURCE_FOLDER, source: PromptFileSource.GitHubWorkspace, storage: PromptsStorage.local },
 ];
 
 /**
  * Default agent source folders.
  */
 export const DEFAULT_AGENT_SOURCE_FOLDERS: readonly IPromptSourceFolder[] = [
-	{ path: AGENTS_SOURCE_FOLDER, type: 'github-workspace', location: 'workspace' },
+	{ path: AGENTS_SOURCE_FOLDER, source: PromptFileSource.GitHubWorkspace, storage: PromptsStorage.local },
 ];
 
 /**

@@ -6,8 +6,10 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
+import { match } from '../../../../../../../base/common/glob.js';
 import { ResourceSet } from '../../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
+import { relativePath } from '../../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
@@ -41,7 +43,7 @@ import { PromptsService } from '../../../../common/promptSyntax/service/promptsS
 import { mockFiles } from '../testUtils/mockFilesystem.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../../platform/storage/common/storage.js';
 import { IPathService } from '../../../../../../services/path/common/pathService.js';
-import { ISearchService } from '../../../../../../services/search/common/search.js';
+import { IFileMatch, IFileQuery, ISearchService } from '../../../../../../services/search/common/search.js';
 import { IExtensionService } from '../../../../../../services/extensions/common/extensions.js';
 import { IDefaultAccountService } from '../../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IDefaultAccount } from '../../../../../../../base/common/defaultAccount.js';
@@ -116,7 +118,38 @@ suite('PromptsService', () => {
 		} as IPathService;
 		instaService.stub(IPathService, pathService);
 
-		instaService.stub(ISearchService, {});
+		instaService.stub(ISearchService, {
+			async fileSearch(query: IFileQuery) {
+				// mock the search service - recursively find files matching pattern
+				const findFilesInLocation = async (location: URI, results: URI[] = []): Promise<URI[]> => {
+					try {
+						const resolve = await fileService.resolve(location);
+						if (resolve.isFile) {
+							results.push(resolve.resource);
+						} else if (resolve.isDirectory && resolve.children) {
+							for (const child of resolve.children) {
+								await findFilesInLocation(child.resource, results);
+							}
+						}
+					} catch (error) {
+						// folder doesn't exist
+					}
+					return results;
+				};
+
+				const results: IFileMatch[] = [];
+				for (const folderQuery of query.folderQueries) {
+					const allFiles = await findFilesInLocation(folderQuery.folder);
+					for (const resource of allFiles) {
+						const pathInFolder = relativePath(folderQuery.folder, resource) ?? '';
+						if (query.filePattern === undefined || match(query.filePattern, pathInFolder)) {
+							results.push({ resource });
+						}
+					}
+				}
+				return { results, messages: [] };
+			}
+		});
 
 		service = disposables.add(instaService.createInstance(PromptsService));
 		instaService.stub(IPromptsService, service);
@@ -1969,7 +2002,7 @@ suite('PromptsService', () => {
 			assert.strictEqual(result.length, 4, 'Should find 4 skills total');
 
 			// Check project skills (both from .github/skills and .claude/skills)
-			const projectSkills = result.filter(skill => skill.type === 'project');
+			const projectSkills = result.filter(skill => skill.storage === PromptsStorage.local);
 			assert.strictEqual(projectSkills.length, 2, 'Should find 2 project skills');
 
 			const githubSkill1 = projectSkills.find(skill => skill.name === 'GitHub Skill 1');
@@ -1983,7 +2016,7 @@ suite('PromptsService', () => {
 			assert.strictEqual(claudeSkill1.uri.path, `${rootFolder}/.claude/skills/Claude Skill 1/SKILL.md`);
 
 			// Check personal skills
-			const personalSkills = result.filter(skill => skill.type === 'personal');
+			const personalSkills = result.filter(skill => skill.storage === PromptsStorage.user);
 			assert.strictEqual(personalSkills.length, 2, 'Should find 2 personal skills');
 
 			const personalSkill1 = personalSkills.find(skill => skill.name === 'Personal Skill 1');
@@ -2037,7 +2070,7 @@ suite('PromptsService', () => {
 			assert.ok(result, 'Should return results even with parsing errors');
 			assert.strictEqual(result.length, 1, 'Should find 1 valid skill');
 			assert.strictEqual(result[0].name, 'Valid Skill');
-			assert.strictEqual(result[0].type, 'project');
+			assert.strictEqual(result[0].storage, PromptsStorage.local);
 		});
 
 		test('should return empty array when no skills found', async () => {
@@ -2165,6 +2198,319 @@ suite('PromptsService', () => {
 			assert.ok(!result[0].description?.includes('<'), 'Description should not contain XML tags');
 			assert.ok(!result[0].description?.includes('>'), 'Description should not contain XML tags');
 			assert.strictEqual(result[0].description?.length, 1024, 'Description should be truncated to 1024 characters');
+		});
+
+		test('should skip duplicate skill names and keep first by priority', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
+
+			const rootFolderName = 'duplicate-skills-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			// Create skills with duplicate names in different locations
+			// Workspace skill should be kept (higher priority), user skill should be skipped
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/skills/Duplicate Skill/SKILL.md`,
+					contents: [
+						'---',
+						'name: "Duplicate Skill"',
+						'description: "Workspace version"',
+						'---',
+						'Workspace skill content',
+					],
+				},
+				{
+					path: '/home/user/.copilot/skills/Duplicate Skill/SKILL.md',
+					contents: [
+						'---',
+						'name: "Duplicate Skill"',
+						'description: "User version - should be skipped"',
+						'---',
+						'User skill content',
+					],
+				},
+				{
+					path: `${rootFolder}/.claude/skills/Unique Skill/SKILL.md`,
+					contents: [
+						'---',
+						'name: "Unique Skill"',
+						'description: "A unique skill"',
+						'---',
+						'Unique skill content',
+					],
+				},
+			]);
+
+			const result = await service.findAgentSkills(CancellationToken.None);
+
+			assert.ok(result, 'Should return results');
+			assert.strictEqual(result.length, 2, 'Should find 2 skills (duplicate skipped)');
+
+			const duplicateSkill = result.find(s => s.name === 'Duplicate Skill');
+			assert.ok(duplicateSkill, 'Should find the duplicate skill');
+			assert.strictEqual(duplicateSkill.description, 'Workspace version', 'Should keep workspace version (higher priority)');
+			assert.strictEqual(duplicateSkill.storage, PromptsStorage.local, 'Should be from workspace');
+
+			const uniqueSkill = result.find(s => s.name === 'Unique Skill');
+			assert.ok(uniqueSkill, 'Should find the unique skill');
+		});
+
+		test('should prioritize skills by source: workspace > user > extension', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
+
+			const rootFolderName = 'priority-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			// Create skills from different sources with same name
+			await mockFiles(fileService, [
+				{
+					path: '/home/user/.copilot/skills/Priority Skill/SKILL.md',
+					contents: [
+						'---',
+						'name: "Priority Skill"',
+						'description: "User version"',
+						'---',
+						'User skill content',
+					],
+				},
+				{
+					path: `${rootFolder}/.github/skills/Priority Skill/SKILL.md`,
+					contents: [
+						'---',
+						'name: "Priority Skill"',
+						'description: "Workspace version - highest priority"',
+						'---',
+						'Workspace skill content',
+					],
+				},
+			]);
+
+			const result = await service.findAgentSkills(CancellationToken.None);
+
+			assert.ok(result, 'Should return results');
+			assert.strictEqual(result.length, 1, 'Should find 1 skill (duplicates resolved by priority)');
+			assert.strictEqual(result[0].description, 'Workspace version - highest priority', 'Workspace should win over user');
+			assert.strictEqual(result[0].storage, PromptsStorage.local);
+		});
+
+		test('should skip skills where name does not match folder name', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
+
+			const rootFolderName = 'name-mismatch-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await mockFiles(fileService, [
+				{
+					// Folder name "wrong-folder-name" doesn't match skill name "Correct Skill Name"
+					path: `${rootFolder}/.github/skills/wrong-folder-name/SKILL.md`,
+					contents: [
+						'---',
+						'name: "Correct Skill Name"',
+						'description: "This skill should be skipped due to name mismatch"',
+						'---',
+						'Skill content',
+					],
+				},
+				{
+					// Folder name matches skill name
+					path: `${rootFolder}/.github/skills/Valid Skill/SKILL.md`,
+					contents: [
+						'---',
+						'name: "Valid Skill"',
+						'description: "This skill should be found"',
+						'---',
+						'Valid skill content',
+					],
+				},
+			]);
+
+			const result = await service.findAgentSkills(CancellationToken.None);
+
+			assert.ok(result, 'Should return results');
+			assert.strictEqual(result.length, 1, 'Should find only 1 skill (mismatched one skipped)');
+			assert.strictEqual(result[0].name, 'Valid Skill', 'Should only find the valid skill');
+		});
+
+		test('should skip skills with missing name attribute', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
+
+			const rootFolderName = 'missing-name-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/skills/no-name-skill/SKILL.md`,
+					contents: [
+						'---',
+						'description: "This skill has no name attribute"',
+						'---',
+						'Skill content without name',
+					],
+				},
+				{
+					path: `${rootFolder}/.github/skills/Valid Named Skill/SKILL.md`,
+					contents: [
+						'---',
+						'name: "Valid Named Skill"',
+						'description: "This skill has a name"',
+						'---',
+						'Valid skill content',
+					],
+				},
+			]);
+
+			const result = await service.findAgentSkills(CancellationToken.None);
+
+			assert.ok(result, 'Should return results');
+			assert.strictEqual(result.length, 1, 'Should find only 1 skill (one without name skipped)');
+			assert.strictEqual(result[0].name, 'Valid Named Skill', 'Should only find skill with name attribute');
+		});
+
+		test('should include extension-provided skills in findAgentSkills', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
+
+			const rootFolderName = 'extension-skills-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			const extensionSkillUri = URI.parse('file://extensions/my-extension/Extension Skill/SKILL.md');
+			const extension = {
+				identifier: { value: 'test.my-extension' },
+				enabledApiProposals: ['chatParticipantPrivate']
+			} as unknown as IExtensionDescription;
+
+			// Create workspace skill and extension skill
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/skills/Workspace Skill/SKILL.md`,
+					contents: [
+						'---',
+						'name: "Workspace Skill"',
+						'description: "A workspace skill"',
+						'---',
+						'Workspace skill content',
+					],
+				},
+				{
+					path: extensionSkillUri.path,
+					contents: [
+						'---',
+						'name: "Extension Skill"',
+						'description: "A skill from extension provider"',
+						'---',
+						'Extension skill content',
+					],
+				},
+			]);
+
+			const provider = {
+				providePromptFiles: async (_context: IPromptFileContext, _token: CancellationToken) => {
+					return [{ uri: extensionSkillUri }];
+				}
+			};
+
+			const registered = service.registerPromptFileProvider(extension, PromptsType.skill, provider);
+
+			const result = await service.findAgentSkills(CancellationToken.None);
+
+			assert.ok(result, 'Should return results');
+			assert.strictEqual(result.length, 2, 'Should find 2 skills (workspace + extension)');
+
+			const workspaceSkill = result.find(s => s.name === 'Workspace Skill');
+			assert.ok(workspaceSkill, 'Should find workspace skill');
+			assert.strictEqual(workspaceSkill.storage, PromptsStorage.local);
+
+			const extensionSkill = result.find(s => s.name === 'Extension Skill');
+			assert.ok(extensionSkill, 'Should find extension skill');
+			assert.strictEqual(extensionSkill.storage, PromptsStorage.extension);
+
+			registered.dispose();
+		});
+
+		test('should include contributed skill files in findAgentSkills', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
+
+			const rootFolderName = 'contributed-skills-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			const contributedSkillUri = URI.parse('file://extensions/my-extension/Contributed Skill/SKILL.md');
+			const extension = {
+				identifier: { value: 'test.my-extension' }
+			} as unknown as IExtensionDescription;
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/skills/Local Skill/SKILL.md`,
+					contents: [
+						'---',
+						'name: "Local Skill"',
+						'description: "A local skill"',
+						'---',
+						'Local skill content',
+					],
+				},
+				{
+					path: contributedSkillUri.path,
+					contents: [
+						'---',
+						'name: "Contributed Skill"',
+						'description: "A contributed skill from extension"',
+						'---',
+						'Contributed skill content',
+					],
+				},
+			]);
+
+			const registered = service.registerContributedFile(
+				PromptsType.skill,
+				contributedSkillUri,
+				extension,
+				'Contributed Skill',
+				'A contributed skill from extension'
+			);
+
+			const result = await service.findAgentSkills(CancellationToken.None);
+
+			assert.ok(result, 'Should return results');
+			assert.strictEqual(result.length, 2, 'Should find 2 skills (local + contributed)');
+
+			const localSkill = result.find(s => s.name === 'Local Skill');
+			assert.ok(localSkill, 'Should find local skill');
+			assert.strictEqual(localSkill.storage, PromptsStorage.local);
+
+			const contributedSkill = result.find(s => s.name === 'Contributed Skill');
+			assert.ok(contributedSkill, 'Should find contributed skill');
+			assert.strictEqual(contributedSkill.storage, PromptsStorage.extension);
+
+			registered.dispose();
+
+			// After disposal, only local skill should remain
+			const resultAfterDispose = await service.findAgentSkills(CancellationToken.None);
+			assert.strictEqual(resultAfterDispose?.length, 1, 'Should find 1 skill after disposal');
+			assert.strictEqual(resultAfterDispose?.[0].name, 'Local Skill');
 		});
 	});
 });

@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { getPromptFileType, getCleanPromptName } from '../../../../common/promptSyntax/config/promptFileLocations.js';
+import { getPromptFileType, getCleanPromptName, isPromptOrInstructionsFile } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
 
 suite('promptFileLocations', function () {
@@ -133,6 +133,24 @@ suite('promptFileLocations', function () {
 		test('removes .md extension for Skill.md (mixed case)', () => {
 			const uri = URI.file('/workspace/.github/skills/test/Skill.md');
 			assert.strictEqual(getCleanPromptName(uri), 'Skill');
+		});
+	});
+
+	suite('isPromptOrInstructionsFile', () => {
+		test('SKILL.md files should return true', () => {
+			assert.strictEqual(isPromptOrInstructionsFile(URI.file('/workspace/.github/skills/test/SKILL.md')), true);
+		});
+
+		test('skill.md (lowercase) should return true', () => {
+			assert.strictEqual(isPromptOrInstructionsFile(URI.file('/workspace/.claude/skills/myskill/skill.md')), true);
+		});
+
+		test('Skill.md (mixed case) should return true', () => {
+			assert.strictEqual(isPromptOrInstructionsFile(URI.file('/workspace/skills/Skill.md')), true);
+		});
+
+		test('regular .md files should return false', () => {
+			assert.strictEqual(isPromptOrInstructionsFile(URI.file('/workspace/SKILL2.md')), false);
 		});
 	});
 });

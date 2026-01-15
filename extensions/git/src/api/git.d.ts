@@ -80,6 +80,7 @@ export interface Worktree {
 	readonly name: string;
 	readonly path: string;
 	readonly ref: string;
+	readonly main: boolean;
 	readonly detached: boolean;
 }
 
@@ -124,6 +125,8 @@ export interface DiffChange extends Change {
 	readonly insertions: number;
 	readonly deletions: number;
 }
+
+export type RepositoryKind = 'repository' | 'submodule' | 'worktree';
 
 export interface RepositoryState {
 	readonly HEAD: Branch | undefined;
