@@ -63,20 +63,24 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y xvfb x11-utils dbus dbus-x11 snapd
 
-          # Start Xvfb on display :99
+          echo "Start Xvfb on display :99"
           sudo Xvfb :99 -screen 0 1280x960x24 -ac +extension GLX +render -noreset &
+          echo "##vso[task.setvariable variable=DISPLAY]:99"
           sleep 2
 
-          # Start D-Bus daemon
+          echo "Start D-Bus daemon"
           sudo mkdir -p /var/run/dbus
           sudo dbus-daemon --system --fork || true
 
-          # Start snapd service for snap package tests
+          echo "Start snapd service for snap package tests"
           sudo systemctl start snapd.socket || true
           sudo systemctl start snapd.service || true
           sleep 2
 
-          echo "##vso[task.setvariable variable=DISPLAY]:99"
+          echo "Install Playwright browser"
+          cd /workspace/test/sanity/node_modules/.bin
+          playwright install-deps firefox
+          playwright install firefox
         displayName: Setup X11 Display
         condition: and(eq('${{ parameters.container }}', ''), eq('${{ parameters.os }}', 'linux'))
 
