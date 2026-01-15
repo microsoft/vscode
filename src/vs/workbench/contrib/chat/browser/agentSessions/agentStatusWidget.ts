@@ -194,10 +194,12 @@ export class AgentStatusWidget extends BaseActionViewItem {
 		}
 		pill.appendChild(label);
 
-		// Send icon (right side)
-		const sendIcon = $('span.agent-status-send');
-		reset(sendIcon, renderIcon(Codicon.send));
-		pill.appendChild(sendIcon);
+		// Send icon (right side) - only show when not streaming progress
+		if (!progressText) {
+			const sendIcon = $('span.agent-status-send');
+			reset(sendIcon, renderIcon(Codicon.send));
+			pill.appendChild(sendIcon);
+		}
 
 		// Setup hover - show session name when displaying progress, otherwise show keybinding
 		const hoverDelegate = getDefaultHoverDelegate('mouse');
