@@ -30,17 +30,8 @@ import { IChatEditingService, ModifiedFileEntryState } from '../../common/editin
 /**
  * Provider types that support agent session projection mode.
  * Only sessions from these providers will trigger focus view.
- *
- * Configuration:
- * - AgentSessionProviders.Local: Local chat sessions (enabled)
- * - AgentSessionProviders.Background: Background CLI agents (enabled)
- * - AgentSessionProviders.Cloud: Cloud agents (enabled)
  */
-const AGENT_SESSION_PROJECTION_ENABLED_PROVIDERS: Set<string> = new Set([
-	AgentSessionProviders.Local,
-	AgentSessionProviders.Background,
-	AgentSessionProviders.Cloud,
-]);
+const AGENT_SESSION_PROJECTION_ENABLED_PROVIDERS: Set<string> = new Set(Object.values(AgentSessionProviders));
 
 //#endregion
 

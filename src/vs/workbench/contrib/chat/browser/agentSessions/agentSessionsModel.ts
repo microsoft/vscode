@@ -18,7 +18,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { ChatSessionStatus as AgentSessionStatus, IChatSessionFileChange, IChatSessionItem, IChatSessionsExtensionPoint, IChatSessionsService, isSessionInProgressStatus } from '../../common/chatSessionsService.js';
-import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from './agentSessions.js';
+import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName } from './agentSessions.js';
 
 //#region Interfaces, Types
 
@@ -305,23 +305,13 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 				// Icon + Label
 				let icon: ThemeIcon;
 				let providerLabel: string;
-				switch ((provider.chatSessionType)) {
-					case AgentSessionProviders.Local:
-						providerLabel = getAgentSessionProviderName(AgentSessionProviders.Local);
-						icon = getAgentSessionProviderIcon(AgentSessionProviders.Local);
-						break;
-					case AgentSessionProviders.Background:
-						providerLabel = getAgentSessionProviderName(AgentSessionProviders.Background);
-						icon = getAgentSessionProviderIcon(AgentSessionProviders.Background);
-						break;
-					case AgentSessionProviders.Cloud:
-						providerLabel = getAgentSessionProviderName(AgentSessionProviders.Cloud);
-						icon = getAgentSessionProviderIcon(AgentSessionProviders.Cloud);
-						break;
-					default: {
-						providerLabel = mapSessionContributionToType.get(provider.chatSessionType)?.name ?? provider.chatSessionType;
-						icon = session.iconPath ?? Codicon.terminal;
-					}
+				const agentSessionProvider = getAgentSessionProvider(provider.chatSessionType);
+				if (agentSessionProvider !== undefined) {
+					providerLabel = getAgentSessionProviderName(agentSessionProvider);
+					icon = getAgentSessionProviderIcon(agentSessionProvider);
+				} else {
+					providerLabel = mapSessionContributionToType.get(provider.chatSessionType)?.name ?? provider.chatSessionType;
+					icon = session.iconPath ?? Codicon.terminal;
 				}
 
 				// State + Timings
