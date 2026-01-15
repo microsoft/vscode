@@ -60,7 +60,7 @@ export function generateDataToCopyAndStoreInMemory(viewModel: IViewModel, option
 function getDataToCopy(viewModel: IViewModel, modelSelections: Range[], emptySelectionClipboard: boolean, copyWithSyntaxHighlighting: boolean, copyExcludesHiddenAreas: boolean): ClipboardDataToCopy {
 	// Filter selections to exclude hidden areas if the option is enabled
 	const filteredSelections = copyExcludesHiddenAreas
-		? filterSelectionsExcludingHiddenAreas(viewModel, modelSelections)
+		? filterSelections(viewModel, modelSelections, viewModel.getHiddenAreas())
 		: modelSelections;
 
 	const rawTextToCopy = viewModel.getPlainTextToCopy(filteredSelections, emptySelectionClipboard, isWindows);
@@ -89,24 +89,15 @@ function getDataToCopy(viewModel: IViewModel, modelSelections: Range[], emptySel
 	return dataToCopy;
 }
 
-/**
- * Filters the given selection ranges to exclude any hidden areas.
- * If there are no hidden areas, returns the original selections.
- * @param viewModel The view model containing hidden areas information
- * @param selections The original selection ranges
- * @returns Filtered selection ranges with hidden areas excluded
- */
-function filterSelectionsExcludingHiddenAreas(viewModel: IViewModel, selections: Range[]): Range[] {
-	const hiddenAreas = viewModel.getHiddenAreas();
-
-	if (hiddenAreas.length === 0) {
+function filterSelections(viewModel: IViewModel, selections: Range[], excludeRanges: Range[]): Range[] {
+	if (excludeRanges.length === 0) {
 		return selections;
 	}
 
 	const result: Range[] = [];
 
 	for (const selection of selections) {
-		const visibleRanges = splitRangeByHiddenAreas(viewModel, selection, hiddenAreas);
+		const visibleRanges = splitRangeByHiddenAreas(viewModel, selection, excludeRanges);
 		result.push(...visibleRanges);
 	}
 
