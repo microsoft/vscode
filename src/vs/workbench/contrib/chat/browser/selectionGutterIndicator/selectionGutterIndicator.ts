@@ -43,6 +43,26 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { getSimpleEditorOptions } from '../../../codeEditor/browser/simpleEditorOptions.js';
 import { PlaceholderTextContribution } from '../../../../../editor/contrib/placeholderText/browser/placeholderTextContribution.js';
 import { AnchorPosition, IAnchor } from '../../../../../base/browser/ui/contextview/contextview.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
+
+// Setting key for the selection gutter indicator
+const selectionGutterIndicatorEnabledKey = 'chat.experimental.selectionGutterIndicator.enabled';
+
+// Register the experimental setting
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	id: 'chat',
+	properties: {
+		[selectionGutterIndicatorEnabledKey]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('chat.selectionGutterIndicator.enabled', "Controls whether the selection gutter indicator is shown when text is selected."),
+			tags: ['experimental']
+		}
+	}
+});
 
 // Register menu items for the selection gutter overlay
 MenuRegistry.appendMenuItems([
@@ -222,8 +242,11 @@ export class SelectionGutterIndicatorContribution extends Disposable implements 
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService notificationService: INotificationService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
+
+		const enabled = observableConfigValue(selectionGutterIndicatorEnabledKey, false, configurationService);
 
 		const editorObs = observableCodeEditor(this._editor);
 		const focusIsInMenu = observableValue<boolean>(this, false);
@@ -242,6 +265,11 @@ export class SelectionGutterIndicatorContribution extends Disposable implements 
 		// Create data observable based on the primary selection
 		// Use raw selection for immediate hide, debounced for delayed show
 		const data = derived(reader => {
+			// Check if feature is enabled
+			if (!enabled.read(reader)) {
+				return undefined;
+			}
+
 			// Read raw selection - if empty, immediately hide
 			const rawSelection = editorObs.cursorSelection.read(reader);
 			if (!rawSelection || rawSelection.isEmpty()) {
