@@ -108,6 +108,24 @@ Agent Status Widget - Titlebar control
 	text-overflow: ellipsis;
 }
 
+/* Progress label - fade in animation when showing session progress */
+.agent-status-label.has-progress {
+	animation: agentStatusFadeIn 0.3s ease-out;
+	color: var(--vscode-progressBar-background);
+	opacity: 1;
+}
+
+@keyframes agentStatusFadeIn {
+	from {
+		opacity: 0;
+		transform: translateY(2px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
 /* Left side status indicator */
 .agent-status-indicator {
 	display: flex;
