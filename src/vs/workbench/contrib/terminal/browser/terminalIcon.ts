@@ -25,7 +25,7 @@ export function getColorClass(terminal: ITerminalInstance): string | undefined;
 export function getColorClass(extensionTerminalProfile: IExtensionTerminalProfile): string | undefined;
 export function getColorClass(terminalOrColorKey: ITerminalInstance | IExtensionTerminalProfile | ITerminalProfile | string): string | undefined {
 	let color = undefined;
-	if (typeof terminalOrColorKey === 'string') {
+	if (isString(terminalOrColorKey)) {
 		color = terminalOrColorKey;
 	} else if (terminalOrColorKey.color) {
 		color = terminalOrColorKey.color.replace(/\./g, '_');
@@ -102,9 +102,9 @@ export function getUriClasses(terminal: ITerminalInstance | IExtensionTerminalPr
 	let uri = undefined;
 
 	if (extensionContributed) {
-		if (typeof icon === 'string' && (icon.startsWith('$(') || getIconRegistry().getIcon(icon))) {
+		if (isString(icon) && (icon.startsWith('$(') || getIconRegistry().getIcon(icon))) {
 			return iconClasses;
-		} else if (typeof icon === 'string') {
+		} else if (isString(icon)) {
 			uri = URI.parse(icon);
 		}
 	}

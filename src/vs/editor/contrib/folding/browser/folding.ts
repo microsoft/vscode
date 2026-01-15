@@ -613,7 +613,7 @@ interface FoldingArguments {
 	selectionLines?: number[];
 }
 
-function foldingArgumentsConstraint(args: any) {
+function foldingArgumentsConstraint(args: unknown) {
 	if (!types.isUndefined(args)) {
 		if (!types.isObject(args)) {
 			return false;

@@ -4,14 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableMap, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../../base/common/map.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { ITerminalChatService, ITerminalInstance, ITerminalService } from '../../../terminal/browser/terminal.js';
+import { IChatTerminalToolProgressPart, ITerminalChatService, ITerminalInstance, ITerminalService } from '../../../terminal/browser/terminal.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { IChatService } from '../../../chat/common/chatService.js';
+import { IChatService } from '../../../chat/common/chatService/chatService.js';
 import { TerminalChatContextKeys } from './terminalChat.js';
-import { LocalChatSessionUri } from '../../../chat/common/chatUri.js';
+import { chatSessionResourceToId, LocalChatSessionUri } from '../../../chat/common/model/chatUri.js';
+import { isNumber, isString } from '../../../../../base/common/types.js';
 
 const enum StorageKeys {
 	ToolSessionMappings = 'terminalChat.toolSessionMappings',
@@ -27,11 +30,14 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 
 	private readonly _terminalInstancesByToolSessionId = new Map<string, ITerminalInstance>();
 	private readonly _toolSessionIdByTerminalInstance = new Map<ITerminalInstance, string>();
-	private readonly _chatSessionIdByTerminalInstance = new Map<ITerminalInstance, string>();
+	private readonly _chatSessionResourceByTerminalInstance = new Map<ITerminalInstance, URI>();
 	private readonly _terminalInstanceListenersByToolSessionId = this._register(new DisposableMap<string, IDisposable>());
 	private readonly _chatSessionListenersByTerminalInstance = this._register(new DisposableMap<ITerminalInstance, IDisposable>());
 	private readonly _onDidRegisterTerminalInstanceForToolSession = new Emitter<ITerminalInstance>();
 	readonly onDidRegisterTerminalInstanceWithToolSession: Event<ITerminalInstance> = this._onDidRegisterTerminalInstanceForToolSession.event;
+	private readonly _activeProgressParts = new Set<IChatTerminalToolProgressPart>();
+	private _focusedProgressPart: IChatTerminalToolProgressPart | undefined;
+	private _mostRecentProgressPart: IChatTerminalToolProgressPart | undefined;
 
 	/**
 	 * Pending mappings restored from storage that have not yet been matched to a live terminal
@@ -42,6 +48,18 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 
 	private readonly _hasToolTerminalContext: IContextKey<boolean>;
 	private readonly _hasHiddenToolTerminalContext: IContextKey<boolean>;
+
+	/**
+	 * Tracks chat session resources that have auto approval enabled for all commands. This is a temporary
+	 * approval that lasts only for the duration of the session.
+	 */
+	private readonly _sessionAutoApprovalEnabled = new ResourceMap<boolean>();
+
+	/**
+	 * Tracks session-scoped auto-approve rules per chat session. These are temporary rules that
+	 * last only for the duration of the chat session (not persisted to disk).
+	 */
+	private readonly _sessionAutoApproveRules = new ResourceMap<Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>>();
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -56,6 +74,14 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		this._hasHiddenToolTerminalContext = TerminalChatContextKeys.hasHiddenChatTerminals.bindTo(this._contextKeyService);
 
 		this._restoreFromStorage();
+
+		// Clear session auto-approve rules when chat sessions end
+		this._register(this._chatService.onDidDisposeSession(e => {
+			for (const resource of e.sessionResource) {
+				this._sessionAutoApproveRules.delete(resource);
+				this._sessionAutoApprovalEnabled.delete(resource);
+			}
+		}));
 	}
 
 	registerTerminalInstanceWithToolSession(terminalToolSessionId: string | undefined, instance: ITerminalInstance): void {
@@ -75,19 +101,23 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		}));
 
 		this._register(this._chatService.onDidDisposeSession(e => {
-			if (LocalChatSessionUri.parseLocalSessionId(e.sessionResource) === terminalToolSessionId) {
-				this._terminalInstancesByToolSessionId.delete(terminalToolSessionId);
-				this._toolSessionIdByTerminalInstance.delete(instance);
-				this._terminalInstanceListenersByToolSessionId.deleteAndDispose(terminalToolSessionId);
-				this._persistToStorage();
-				this._updateHasToolTerminalContextKeys();
+			for (const resource of e.sessionResource) {
+				if (LocalChatSessionUri.parseLocalSessionId(resource) === terminalToolSessionId) {
+					this._terminalInstancesByToolSessionId.delete(terminalToolSessionId);
+					this._toolSessionIdByTerminalInstance.delete(instance);
+					this._terminalInstanceListenersByToolSessionId.deleteAndDispose(terminalToolSessionId);
+					// Clean up session auto approval state
+					this._sessionAutoApprovalEnabled.delete(resource);
+					this._persistToStorage();
+					this._updateHasToolTerminalContextKeys();
+				}
 			}
 		}));
 
 		// Update context keys when terminal instances change (including when terminals are created, disposed, revealed, or hidden)
 		this._register(this._terminalService.onDidChangeInstances(() => this._updateHasToolTerminalContextKeys()));
 
-		if (typeof instance.shellLaunchConfig?.attachPersistentProcess?.id === 'number' || typeof instance.persistentProcessId === 'number') {
+		if (isNumber(instance.shellLaunchConfig?.attachPersistentProcess?.id) || isNumber(instance.persistentProcessId)) {
 			this._persistToStorage();
 		}
 
@@ -123,26 +153,32 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		return this._toolSessionIdByTerminalInstance.get(instance);
 	}
 
-	registerTerminalInstanceWithChatSession(chatSessionId: string, instance: ITerminalInstance): void {
-		// If already registered with the same session ID, skip to avoid duplicate listeners
-		if (this._chatSessionIdByTerminalInstance.get(instance) === chatSessionId) {
+	registerTerminalInstanceWithChatSession(chatSessionResource: URI, instance: ITerminalInstance): void {
+		// If already registered with the same session, skip to avoid duplicate listeners
+		const existingResource = this._chatSessionResourceByTerminalInstance.get(instance);
+		if (existingResource && existingResource.toString() === chatSessionResource.toString()) {
 			return;
 		}
 
 		// Clean up previous listener if the instance was registered with a different session
 		this._chatSessionListenersByTerminalInstance.deleteAndDispose(instance);
 
-		this._chatSessionIdByTerminalInstance.set(instance, chatSessionId);
+		this._chatSessionResourceByTerminalInstance.set(instance, chatSessionResource);
 		// Clean up when the instance is disposed
 		const disposable = instance.onDisposed(() => {
-			this._chatSessionIdByTerminalInstance.delete(instance);
+			this._chatSessionResourceByTerminalInstance.delete(instance);
 			this._chatSessionListenersByTerminalInstance.deleteAndDispose(instance);
 		});
 		this._chatSessionListenersByTerminalInstance.set(instance, disposable);
 	}
 
+	getChatSessionResourceForInstance(instance: ITerminalInstance): URI | undefined {
+		return this._chatSessionResourceByTerminalInstance.get(instance);
+	}
+
 	getChatSessionIdForInstance(instance: ITerminalInstance): string | undefined {
-		return this._chatSessionIdByTerminalInstance.get(instance);
+		const resource = this._chatSessionResourceByTerminalInstance.get(instance);
+		return resource ? chatSessionResourceToId(resource) : undefined;
 	}
 
 	isBackgroundTerminal(terminalToolSessionId?: string): boolean {
@@ -156,6 +192,63 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		return this._terminalService.instances.includes(instance) && !this._terminalService.foregroundInstances.includes(instance);
 	}
 
+	registerProgressPart(part: IChatTerminalToolProgressPart): IDisposable {
+		this._activeProgressParts.add(part);
+		if (this._isAfter(part, this._mostRecentProgressPart)) {
+			this._mostRecentProgressPart = part;
+		}
+		return toDisposable(() => {
+			this._activeProgressParts.delete(part);
+			if (this._focusedProgressPart === part) {
+				this._focusedProgressPart = undefined;
+			}
+			if (this._mostRecentProgressPart === part) {
+				this._mostRecentProgressPart = this._getLastActiveProgressPart();
+			}
+		});
+	}
+
+	setFocusedProgressPart(part: IChatTerminalToolProgressPart): void {
+		this._focusedProgressPart = part;
+	}
+
+	clearFocusedProgressPart(part: IChatTerminalToolProgressPart): void {
+		if (this._focusedProgressPart === part) {
+			this._focusedProgressPart = undefined;
+		}
+	}
+
+	getFocusedProgressPart(): IChatTerminalToolProgressPart | undefined {
+		return this._focusedProgressPart;
+	}
+
+	getMostRecentProgressPart(): IChatTerminalToolProgressPart | undefined {
+		if (!this._mostRecentProgressPart || !this._activeProgressParts.has(this._mostRecentProgressPart)) {
+			this._mostRecentProgressPart = this._getLastActiveProgressPart();
+		}
+		return this._mostRecentProgressPart;
+	}
+
+	private _getLastActiveProgressPart(): IChatTerminalToolProgressPart | undefined {
+		let latest: IChatTerminalToolProgressPart | undefined;
+		for (const part of this._activeProgressParts) {
+			if (this._isAfter(part, latest)) {
+				latest = part;
+			}
+		}
+		return latest;
+	}
+
+	private _isAfter(candidate: IChatTerminalToolProgressPart, current: IChatTerminalToolProgressPart | undefined): boolean {
+		if (!current) {
+			return true;
+		}
+		if (candidate.elementIndex === current.elementIndex) {
+			return candidate.contentIndex >= current.contentIndex;
+		}
+		return candidate.elementIndex > current.elementIndex;
+	}
+
 	private _restoreFromStorage(): void {
 		try {
 			const raw = this._storageService.get(StorageKeys.ToolSessionMappings, StorageScope.WORKSPACE);
@@ -164,7 +257,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 			}
 			const parsed: [string, number][] = JSON.parse(raw);
 			for (const [toolSessionId, persistentProcessId] of parsed) {
-				if (typeof toolSessionId === 'string' && typeof persistentProcessId === 'number') {
+				if (isString(toolSessionId) && isNumber(persistentProcessId)) {
 					this._pendingRestoredMappings.set(toolSessionId, persistentProcessId);
 				}
 			}
@@ -201,8 +294,14 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		try {
 			const entries: [string, number][] = [];
 			for (const [toolSessionId, instance] of this._terminalInstancesByToolSessionId.entries()) {
-				if (typeof instance.persistentProcessId === 'number' && instance.shouldPersist) {
-					entries.push([toolSessionId, instance.persistentProcessId]);
+				// Use the live persistent process id when available, otherwise fall back to the id
+				// from the attached process so mappings survive early in the terminal lifecycle.
+				const persistentId = isNumber(instance.persistentProcessId)
+					? instance.persistentProcessId
+					: instance.shellLaunchConfig.attachPersistentProcess?.id;
+				const shouldPersist = instance.shouldPersist || instance.shellLaunchConfig.forcePersist;
+				if (isNumber(persistentId) && shouldPersist) {
+					entries.push([toolSessionId, persistentId]);
 				}
 			}
 			if (entries.length > 0) {
@@ -220,5 +319,30 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		this._hasToolTerminalContext.set(toolCount > 0);
 		const hiddenTerminalCount = this.getToolSessionTerminalInstances(true).length;
 		this._hasHiddenToolTerminalContext.set(hiddenTerminalCount > 0);
+	}
+
+	setChatSessionAutoApproval(chatSessionResource: URI, enabled: boolean): void {
+		if (enabled) {
+			this._sessionAutoApprovalEnabled.set(chatSessionResource, true);
+		} else {
+			this._sessionAutoApprovalEnabled.delete(chatSessionResource);
+		}
+	}
+
+	hasChatSessionAutoApproval(chatSessionResource: URI): boolean {
+		return this._sessionAutoApprovalEnabled.has(chatSessionResource);
+	}
+
+	addSessionAutoApproveRule(chatSessionResource: URI, key: string, value: boolean | { approve: boolean; matchCommandLine?: boolean }): void {
+		let sessionRules = this._sessionAutoApproveRules.get(chatSessionResource);
+		if (!sessionRules) {
+			sessionRules = {};
+			this._sessionAutoApproveRules.set(chatSessionResource, sessionRules);
+		}
+		sessionRules[key] = value;
+	}
+
+	getSessionAutoApproveRules(chatSessionResource: URI): Readonly<Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>> {
+		return this._sessionAutoApproveRules.get(chatSessionResource) ?? {};
 	}
 }

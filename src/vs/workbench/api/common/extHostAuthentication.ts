@@ -143,7 +143,13 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 			}
 			const listener = provider.onDidChangeSessions(e => this._proxy.$sendDidChangeSessions(id, e));
 			this._authenticationProviders.set(id, { label, provider, disposable: listener, options: options ?? { supportsMultipleAccounts: false } });
-			await this._proxy.$registerAuthenticationProvider(id, label, options?.supportsMultipleAccounts ?? false, options?.supportedAuthorizationServers, options?.supportsChallenges);
+			await this._proxy.$registerAuthenticationProvider({
+				id,
+				label,
+				supportsMultipleAccounts: options?.supportsMultipleAccounts ?? false,
+				supportedAuthorizationServers: options?.supportedAuthorizationServers,
+				supportsChallenges: options?.supportsChallenges
+			});
 		});
 
 		// unregister
@@ -314,11 +320,23 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 							clientSecret: provider.clientSecret
 						}))
 					),
-					options: { supportsMultipleAccounts: false }
+					options: { supportsMultipleAccounts: true }
 				}
 			);
-			await this._proxy.$registerDynamicAuthenticationProvider(provider.id, provider.label, provider.authorizationServer, provider.clientId, provider.clientSecret);
+
+			await this._proxy.$registerDynamicAuthenticationProvider({
+				id: provider.id,
+				label: provider.label,
+				supportsMultipleAccounts: true,
+				authorizationServer: authorizationServerComponents,
+				resourceServer: resourceMetadata ? URI.parse(resourceMetadata.resource) : undefined,
+				clientId: provider.clientId,
+				clientSecret: provider.clientSecret
+			});
 		});
+
+
+
 
 		return provider.id;
 	}

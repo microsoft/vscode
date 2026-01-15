@@ -39,6 +39,7 @@ import { IKeybindingService } from '../../../platform/keybinding/common/keybindi
 import { IMarker, IMarkerData, IMarkerService } from '../../../platform/markers/common/markers.js';
 import { IOpenerService } from '../../../platform/opener/common/opener.js';
 import { MultiDiffEditorWidget } from '../../browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
+import { IWebWorkerService } from '../../../platform/webWorker/browser/webWorkerService.js';
 
 /**
  * Create a new editor under `domElement`.
@@ -332,7 +333,7 @@ export function onDidChangeModelLanguage(listener: (e: { readonly model: ITextMo
  * Specify an AMD module to load that will `create` an object that will be proxied.
  */
 export function createWebWorker<T extends object>(opts: IInternalWebWorkerOptions): MonacoWebWorker<T> {
-	return actualCreateWebWorker<T>(StandaloneServices.get(IModelService), opts);
+	return actualCreateWebWorker<T>(StandaloneServices.get(IModelService), StandaloneServices.get(IWebWorkerService), opts);
 }
 
 /**

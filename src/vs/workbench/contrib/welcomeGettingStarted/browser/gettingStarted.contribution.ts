@@ -61,6 +61,7 @@ registerAction2(class extends Action2 {
 		const commandService = accessor.get(ICommandService);
 
 		const toSide = typeof optionsOrToSide === 'object' ? optionsOrToSide.toSide : optionsOrToSide;
+		const inactive = typeof optionsOrToSide === 'object' ? optionsOrToSide.inactive : false;
 		const activeEditor = editorService.activeEditor;
 
 		if (walkthroughID) {
@@ -82,10 +83,10 @@ registerAction2(class extends Action2 {
 			let options: GettingStartedEditorOptions;
 			if (selectedCategory) {
 				// Otherwise open the walkthrough editor with the selected category and step
-				options = { selectedCategory, selectedStep, showWelcome: false, preserveFocus: toSide ?? false };
+				options = { selectedCategory, selectedStep, showWelcome: false, preserveFocus: toSide ?? false, inactive };
 			} else {
 				// Open Welcome page
-				options = { selectedCategory, selectedStep, showWelcome: true, preserveFocus: toSide ?? false };
+				options = { selectedCategory, selectedStep, showWelcome: true, preserveFocus: toSide ?? false, inactive };
 			}
 			editorService.openEditor({
 				resource: GettingStartedInput.RESOURCE,
@@ -95,7 +96,7 @@ registerAction2(class extends Action2 {
 		} else {
 			editorService.openEditor({
 				resource: GettingStartedInput.RESOURCE,
-				options: { preserveFocus: toSide ?? false }
+				options: { preserveFocus: toSide ?? false, inactive }
 			}, toSide ? SIDE_GROUP : undefined);
 		}
 	}

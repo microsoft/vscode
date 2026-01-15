@@ -141,7 +141,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 				this.dispose();
 			}
 		}));
-		this.codeEditorService.registerDecorationType('breakpoint-widget', DECORATION_KEY, {});
+		this.store.add(this.codeEditorService.registerDecorationType('breakpoint-widget', DECORATION_KEY, {}));
 
 		this.create();
 	}

@@ -120,6 +120,9 @@ export const enum TerminalSettingId {
 	FontLigaturesEnabled = 'terminal.integrated.fontLigatures.enabled',
 	FontLigaturesFeatureSettings = 'terminal.integrated.fontLigatures.featureSettings',
 	FontLigaturesFallbackLigatures = 'terminal.integrated.fontLigatures.fallbackLigatures',
+	EnableKittyKeyboardProtocol = 'terminal.integrated.enableKittyKeyboardProtocol',
+	EnableWin32InputMode = 'terminal.integrated.enableWin32InputMode',
+	AllowInUntrustedWorkspace = 'terminal.integrated.allowInUntrustedWorkspace',
 
 	// Developer/debug settings
 
@@ -152,6 +155,7 @@ export const enum GeneralShellType {
 	Julia = 'julia',
 	NuShell = 'nu',
 	Node = 'node',
+	Xonsh = 'xonsh',
 }
 export type TerminalShellType = PosixShellType | WindowsShellType | GeneralShellType | undefined;
 
@@ -819,12 +823,6 @@ export interface ITerminalChildProcess {
 	acknowledgeDataEvent(charCount: number): void;
 
 	/**
-	 * Pre-assigns the command identifier that should be associated with the next command detected by
-	 * shell integration. This keeps the pty host and renderer command stores aligned.
-	 */
-	setNextCommandId(commandLine: string, commandId: string): Promise<void>;
-
-	/**
 	 * Sets the unicode version for the process, this drives the size of some characters in the
 	 * xterm-headless instance.
 	 */
@@ -1151,6 +1149,7 @@ export interface ITerminalBackend extends ITerminalBackendPtyServiceContribution
 	setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void>;
 	updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void>;
 	updateIcon(id: number, userInitiated: boolean, icon: TerminalIcon, color?: string): Promise<void>;
+	setNextCommandId(id: number, commandLine: string, commandId: string): Promise<void>;
 	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
 	getPerformanceMarks(): Promise<performance.PerformanceMark[]>;
 	reduceConnectionGraceTime(): Promise<void>;

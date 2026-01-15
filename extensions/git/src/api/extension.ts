@@ -9,13 +9,13 @@ import { ApiRepository, ApiImpl } from './api1';
 import { Event, EventEmitter } from 'vscode';
 import { CloneManager } from '../cloneManager';
 
-function deprecated(original: any, context: ClassMemberDecoratorContext) {
-	if (context.kind !== 'method') {
+function deprecated(original: unknown, context: ClassMemberDecoratorContext) {
+	if (typeof original !== 'function' || context.kind !== 'method') {
 		throw new Error('not supported');
 	}
 
 	const key = context.name.toString();
-	return function (this: any, ...args: any[]): any {
+	return function (this: unknown, ...args: unknown[]) {
 		console.warn(`Git extension API method '${key}' is deprecated.`);
 		return original.apply(this, args);
 	};

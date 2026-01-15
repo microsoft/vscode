@@ -10,7 +10,7 @@ import type { ReadableStream } from 'stream/web';
 import { pipeline } from 'node:stream/promises';
 import yauzl from 'yauzl';
 import crypto from 'crypto';
-import { retry } from './retry';
+import { retry } from './retry.ts';
 import { CosmosClient } from '@azure/cosmos';
 import cp from 'child_process';
 import os from 'os';
@@ -73,15 +73,16 @@ interface ReleaseError {
 	errorMessages: string[];
 }
 
-const enum StatusCode {
-	Pass = 'pass',
-	Aborted = 'aborted',
-	Inprogress = 'inprogress',
-	FailCanRetry = 'failCanRetry',
-	FailDoNotRetry = 'failDoNotRetry',
-	PendingAnalysis = 'pendingAnalysis',
-	Cancelled = 'cancelled'
-}
+const StatusCode = Object.freeze({
+	Pass: 'pass',
+	Aborted: 'aborted',
+	Inprogress: 'inprogress',
+	FailCanRetry: 'failCanRetry',
+	FailDoNotRetry: 'failDoNotRetry',
+	PendingAnalysis: 'pendingAnalysis',
+	Cancelled: 'cancelled'
+});
+type StatusCode = typeof StatusCode[keyof typeof StatusCode];
 
 interface ReleaseResultMessage {
 	activities: ReleaseActivityInfo[];
@@ -349,15 +350,31 @@ class ESRPReleaseService {
 
 	private static API_URL = 'https://api.esrp.microsoft.com/api/v3/releaseservices/clients/';
 
+	private readonly log: (...args: unknown[]) => void;
+	private readonly clientId: string;
+	private readonly accessToken: string;
+	private readonly requestSigningCertificates: string[];
+	private readonly requestSigningKey: string;
+	private readonly containerClient: ContainerClient;
+	private readonly stagingSasToken: string;
+
 	private constructor(
-		private readonly log: (...args: unknown[]) => void,
-		private readonly clientId: string,
-		private readonly accessToken: string,
-		private readonly requestSigningCertificates: string[],
-		private readonly requestSigningKey: string,
-		private readonly containerClient: ContainerClient,
-		private readonly stagingSasToken: string
-	) { }
+		log: (...args: unknown[]) => void,
+		clientId: string,
+		accessToken: string,
+		requestSigningCertificates: string[],
+		requestSigningKey: string,
+		containerClient: ContainerClient,
+		stagingSasToken: string
+	) {
+		this.log = log;
+		this.clientId = clientId;
+		this.accessToken = accessToken;
+		this.requestSigningCertificates = requestSigningCertificates;
+		this.requestSigningKey = requestSigningKey;
+		this.containerClient = containerClient;
+		this.stagingSasToken = stagingSasToken;
+	}
 
 	async createRelease(version: string, filePath: string, friendlyFileName: string) {
 		const correlationId = crypto.randomUUID();
@@ -1009,7 +1026,7 @@ async function main() {
 
 			processing.add(artifact.name);
 			const promise = new Promise<void>((resolve, reject) => {
-				const worker = new Worker(__filename, { workerData: { artifact, artifactFilePath } });
+				const worker = new Worker(import.meta.filename, { workerData: { artifact, artifactFilePath } });
 				worker.on('error', reject);
 				worker.on('exit', code => {
 					if (code === 0) {
@@ -1075,7 +1092,7 @@ async function main() {
 	console.log(`All ${done.size} artifacts published!`);
 }
 
-if (require.main === module) {
+if (import.meta.main) {
 	main().then(() => {
 		process.exit(0);
 	}, err => {

@@ -29,9 +29,9 @@ import { GitCommitInputBoxCodeActionsProvider, GitCommitInputBoxDiagnosticsManag
 import { GitBlameController } from './blame';
 import { CloneManager } from './cloneManager';
 
-const deactivateTasks: { (): Promise<any> }[] = [];
+const deactivateTasks: { (): Promise<void> }[] = [];
 
-export async function deactivate(): Promise<any> {
+export async function deactivate(): Promise<void> {
 	for (const task of deactivateTasks) {
 		await task();
 	}

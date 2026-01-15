@@ -3,12 +3,12 @@
 		"c": "@",
 		"t": "text.html.cshtml meta.structure.razor.codeblock keyword.control.cshtml.transition",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -17,12 +17,12 @@
 		"c": "{",
 		"t": "text.html.cshtml meta.structure.razor.codeblock keyword.control.razor.directive.codeblock.open",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -311,12 +311,12 @@
 		"c": "@",
 		"t": "text.html.cshtml meta.structure.razor.codeblock source.cs meta.comment.razor keyword.control.cshtml.transition",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -325,12 +325,12 @@
 		"c": "*",
 		"t": "text.html.cshtml meta.structure.razor.codeblock source.cs meta.comment.razor keyword.control.razor.comment.star",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -367,12 +367,12 @@
 		"c": "*",
 		"t": "text.html.cshtml meta.structure.razor.codeblock source.cs meta.comment.razor keyword.control.razor.comment.star",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -381,12 +381,12 @@
 		"c": "@",
 		"t": "text.html.cshtml meta.structure.razor.codeblock source.cs meta.comment.razor keyword.control.cshtml.transition",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -409,12 +409,12 @@
 		"c": "if",
 		"t": "text.html.cshtml meta.structure.razor.codeblock source.cs meta.statement.if.razor keyword.control.conditional.if.cs",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -1473,12 +1473,12 @@
 		"c": "}",
 		"t": "text.html.cshtml meta.structure.razor.codeblock keyword.control.razor.directive.codeblock.close",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -3993,12 +3993,12 @@
 		"c": "@",
 		"t": "text.html.cshtml meta.comment.razor keyword.control.cshtml.transition",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -4007,12 +4007,12 @@
 		"c": "*",
 		"t": "text.html.cshtml meta.comment.razor keyword.control.razor.comment.star",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -4049,12 +4049,12 @@
 		"c": "*",
 		"t": "text.html.cshtml meta.comment.razor keyword.control.razor.comment.star",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -4063,12 +4063,12 @@
 		"c": "@",
 		"t": "text.html.cshtml meta.comment.razor keyword.control.cshtml.transition",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -4133,12 +4133,12 @@
 		"c": "@",
 		"t": "text.html.cshtml meta.expression.implicit.cshtml keyword.control.cshtml.transition",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -4259,12 +4259,12 @@
 		"c": "@",
 		"t": "text.html.cshtml meta.expression.explicit.cshtml keyword.control.cshtml.transition",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -4273,12 +4273,12 @@
 		"c": "(",
 		"t": "text.html.cshtml meta.expression.explicit.cshtml keyword.control.cshtml",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -4357,12 +4357,12 @@
 		"c": ")",
 		"t": "text.html.cshtml meta.expression.explicit.cshtml keyword.control.cshtml",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}

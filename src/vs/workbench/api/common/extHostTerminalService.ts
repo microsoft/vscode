@@ -364,10 +364,6 @@ class ExtHostPseudoterminal implements ITerminalChildProcess {
 		// No-op, xterm-headless isn't used for extension owned terminals.
 	}
 
-	async setNextCommandId(commandLine: string, commandId: string): Promise<void> {
-		// No-op, command IDs are only tracked on the renderer for extension terminals.
-	}
-
 	getInitialCwd(): Promise<string> {
 		return Promise.resolve('');
 	}

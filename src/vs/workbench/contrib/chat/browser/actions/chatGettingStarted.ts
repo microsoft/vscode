@@ -11,9 +11,7 @@ import { ExtensionIdentifier } from '../../../../../platform/extensions/common/e
 import { IExtensionManagementService, InstallOperation } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IDefaultChatAgent } from '../../../../../base/common/product.js';
-import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { showChatView } from '../chat.js';
+import { IChatWidgetService } from '../chat.js';
 
 export class ChatGettingStartedContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.chatGettingStarted';
@@ -24,10 +22,9 @@ export class ChatGettingStartedContribution extends Disposable implements IWorkb
 	constructor(
 		@IProductService private readonly productService: IProductService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IViewsService private readonly viewsService: IViewsService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super();
 
@@ -67,7 +64,7 @@ export class ChatGettingStartedContribution extends Disposable implements IWorkb
 	private async onDidInstallChat() {
 
 		// Open Chat view
-		showChatView(this.viewsService, this.layoutService);
+		this.chatWidgetService.revealWidget();
 
 		// Only do this once
 		this.storageService.store(ChatGettingStartedContribution.hideWelcomeView, true, StorageScope.APPLICATION, StorageTarget.MACHINE);

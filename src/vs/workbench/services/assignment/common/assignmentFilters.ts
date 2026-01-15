@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IExperimentationFilterProvider } from 'tas-client-umd';
+import type { IExperimentationFilterProvider } from 'tas-client';
 import { IExtensionService } from '../../extensions/common/extensions.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';

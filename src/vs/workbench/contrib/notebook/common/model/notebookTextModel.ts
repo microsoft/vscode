@@ -1110,8 +1110,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		let k: keyof NullablePartialNotebookCellMetadata;
 		for (k in metadata) {
 			const value = metadata[k] ?? undefined;
-			// eslint-disable-next-line local/code-no-any-casts
-			newMetadata[k] = value as any;
+			newMetadata[k] = value;
 		}
 
 		return this._changeCellMetadata(cell, newMetadata, computeUndoRedo, beginSelectionState, undoRedoGroup);
@@ -1152,8 +1151,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		let k: keyof NotebookCellInternalMetadata;
 		for (k in internalMetadata) {
 			const value = internalMetadata[k] ?? undefined;
-			// eslint-disable-next-line local/code-no-any-casts
-			newInternalMetadata[k] = value as any;
+			(newInternalMetadata[k] as unknown) = value;
 		}
 
 		cell.internalMetadata = newInternalMetadata;

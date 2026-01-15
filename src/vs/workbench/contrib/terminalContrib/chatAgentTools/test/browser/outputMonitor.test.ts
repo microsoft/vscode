@@ -4,23 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { detectsInputRequiredPattern, OutputMonitor } from '../../browser/tools/monitoring/outputMonitor.js';
+import { detectsInputRequiredPattern, detectsNonInteractiveHelpPattern, OutputMonitor } from '../../browser/tools/monitoring/outputMonitor.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { IPollingResult, OutputMonitorState } from '../../browser/tools/monitoring/types.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILanguageModelsService } from '../../../../chat/common/languageModels.js';
-import { IChatService } from '../../../../chat/common/chatService.js';
+import { IChatService } from '../../../../chat/common/chatService/chatService.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { ChatModel } from '../../../../chat/common/chatModel.js';
-import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { ChatModel } from '../../../../chat/common/model/chatModel.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
+import { IToolInvocationContext } from '../../../../chat/common/tools/languageModelToolsService.js';
+import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
+import { isNumber } from '../../../../../../base/common/types.js';
 
 suite('OutputMonitor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let monitor: OutputMonitor;
-	let execution: { getOutput: () => string; isActive?: () => Promise<boolean>; instance: Pick<ITerminalInstance, 'instanceId' | 'sendText' | 'onData' | 'onDidInputData' | 'focus' | 'registerMarker'>; sessionId: string };
+	let execution: { getOutput: () => string; isActive?: () => Promise<boolean>; instance: Pick<ITerminalInstance, 'instanceId' | 'sendText' | 'onData' | 'onDidInputData' | 'focus' | 'registerMarker' | 'onDisposed'>; sessionId: string };
 	let cts: CancellationTokenSource;
 	let instantiationService: TestInstantiationService;
 	let sendTextCalled: boolean;
@@ -36,6 +40,7 @@ suite('OutputMonitor', () => {
 				instanceId: 1,
 				sendText: async () => { sendTextCalled = true; },
 				onDidInputData: dataEmitter.event,
+				onDisposed: Event.None,
 				onData: dataEmitter.event,
 				focus: () => { },
 				// eslint-disable-next-line local/code-no-any-casts
@@ -68,7 +73,7 @@ suite('OutputMonitor', () => {
 				} as any)
 			}
 		);
-		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ITerminalLogService, new NullLogService());
 		cts = new CancellationTokenSource();
 	});
 
@@ -84,7 +89,7 @@ suite('OutputMonitor', () => {
 				callCount++;
 				return callCount > 1 ? 'changed output' : 'test output';
 			};
-			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, { sessionId: '1' }, cts.token, 'test command'));
+			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), cts.token, 'test command'));
 			await Event.toPromise(monitor.onDidFinishCommand);
 			const pollingResult = monitor.pollingResult;
 			assert.strictEqual(pollingResult?.state, OutputMonitorState.Idle);
@@ -95,7 +100,7 @@ suite('OutputMonitor', () => {
 
 	test('startMonitoring returns cancelled when token is cancelled', async () => {
 		return runWithFakedTimers({}, async () => {
-			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, { sessionId: '1' }, cts.token, 'test command'));
+			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), cts.token, 'test command'));
 			cts.cancel();
 			await Event.toPromise(monitor.onDidFinishCommand);
 			const pollingResult = monitor.pollingResult;
@@ -105,7 +110,7 @@ suite('OutputMonitor', () => {
 	test('startMonitoring returns idle when isActive is false', async () => {
 		return runWithFakedTimers({}, async () => {
 			execution.isActive = async () => false;
-			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, { sessionId: '1' }, cts.token, 'test command'));
+			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), cts.token, 'test command'));
 			await Event.toPromise(monitor.onDidFinishCommand);
 			const pollingResult = monitor.pollingResult;
 			assert.strictEqual(pollingResult?.state, OutputMonitorState.Idle);
@@ -121,10 +126,27 @@ suite('OutputMonitor', () => {
 				return callCount > 1 ? 'changed output' : 'test output';
 			};
 			delete execution.isActive;
-			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, { sessionId: '1' }, cts.token, 'test command'));
+			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), cts.token, 'test command'));
 			await Event.toPromise(monitor.onDidFinishCommand);
 			const pollingResult = monitor.pollingResult;
 			assert.strictEqual(pollingResult?.state, OutputMonitorState.Idle);
+		});
+	});
+
+	test('non-interactive help completes without prompting', async () => {
+		return runWithFakedTimers({}, async () => {
+			execution.getOutput = () => 'press h + enter to show help';
+			instantiationService.stub(
+				ILanguageModelsService,
+				{
+					selectLanguageModels: async () => { throw new Error('language model should not be consulted'); }
+				}
+			);
+			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), cts.token, 'test command'));
+			await Event.toPromise(monitor.onDidFinishCommand);
+			const pollingResult = monitor.pollingResult;
+			assert.strictEqual(pollingResult?.state, OutputMonitorState.Idle);
+			assert.strictEqual(pollingResult?.output, 'press h + enter to show help');
 		});
 	});
 
@@ -136,7 +158,7 @@ suite('OutputMonitor', () => {
 				callCount++;
 				return callCount > 1 ? 'changed output' : 'test output';
 			};
-			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, { sessionId: '1' }, cts.token, 'test command'));
+			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), cts.token, 'test command'));
 			await Event.toPromise(monitor.onDidFinishCommand);
 			const pollingResult = monitor.pollingResult;
 			assert.strictEqual(pollingResult?.state, OutputMonitorState.Idle);
@@ -168,7 +190,7 @@ suite('OutputMonitor', () => {
 					OutputMonitor,
 					execution,
 					timeoutThenIdle,
-					{ sessionId: '1' },
+					createTestContext('1'),
 					cts.token,
 					'test command'
 				)
@@ -179,7 +201,7 @@ suite('OutputMonitor', () => {
 			const res = monitor.pollingResult!;
 			assert.strictEqual(res.state, OutputMonitorState.Idle);
 			assert.strictEqual(res.output, 'test output');
-			assert.ok(typeof res.pollDurationMs === 'number');
+			assert.ok(isNumber(res.pollDurationMs));
 		});
 	});
 
@@ -242,6 +264,30 @@ suite('OutputMonitor', () => {
 			assert.strictEqual(detectsInputRequiredPattern('Press any key to continue...'), true);
 			assert.strictEqual(detectsInputRequiredPattern('Press a key'), true);
 		});
+
+		test('detects non-interactive help prompts without treating them as input', () => {
+			assert.strictEqual(detectsInputRequiredPattern('press h + enter to show help'), false);
+			assert.strictEqual(detectsInputRequiredPattern('press h to show help'), false);
+			assert.strictEqual(detectsNonInteractiveHelpPattern('press h + enter to show help'), true);
+			assert.strictEqual(detectsNonInteractiveHelpPattern('press h to show help'), true);
+			assert.strictEqual(detectsNonInteractiveHelpPattern('press h to show commands'), true);
+			assert.strictEqual(detectsNonInteractiveHelpPattern('press ? to see commands'), true);
+			assert.strictEqual(detectsNonInteractiveHelpPattern('press ? + enter for options'), true);
+			assert.strictEqual(detectsNonInteractiveHelpPattern('type h + enter to show help'), true);
+			assert.strictEqual(detectsNonInteractiveHelpPattern('hit ? for help'), true);
+			assert.strictEqual(detectsNonInteractiveHelpPattern('type h to see options'), true);
+			assert.strictEqual(detectsInputRequiredPattern('press o to open the app'), false);
+			assert.strictEqual(detectsNonInteractiveHelpPattern('press o to open the app'), true);
+			assert.strictEqual(detectsInputRequiredPattern('press r to restart the server'), false);
+			assert.strictEqual(detectsNonInteractiveHelpPattern('press r to restart the server'), true);
+			assert.strictEqual(detectsInputRequiredPattern('press q to quit'), false);
+			assert.strictEqual(detectsNonInteractiveHelpPattern('press q to quit'), true);
+			assert.strictEqual(detectsInputRequiredPattern('press u to show server url'), false);
+			assert.strictEqual(detectsNonInteractiveHelpPattern('press u to show server url'), true);
+		});
 	});
 
 });
+function createTestContext(id: string): IToolInvocationContext {
+	return { sessionId: id, sessionResource: LocalChatSessionUri.forSession(id) };
+}

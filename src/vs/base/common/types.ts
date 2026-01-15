@@ -348,6 +348,13 @@ export type DeepImmutable<T> = T extends (infer U)[]
  */
 export type SingleOrMany<T> = T | T[];
 
+/**
+ * Given a `type X = { foo?: string }` checking that an object `satisfies X`
+ * will ensure each property was explicitly defined, ensuring no properties
+ * are omitted or forgotten.
+ */
+export type WithDefinedProps<T> = { [K in keyof Required<T>]: T[K] };
+
 
 /**
  * A type that recursively makes all properties of `T` required

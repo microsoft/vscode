@@ -43,6 +43,7 @@ import { IV8Profile } from '../../profiling/common/profiling.js';
 import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-main/auxiliaryWindows.js';
 import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
 import { CancellationError } from '../../../base/common/errors.js';
+import { zip } from '../../../base/node/zip.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IProxyAuthService } from './auth.js';
 import { AuthInfo, Credentials, IRequestService } from '../../request/common/request.js';
@@ -353,13 +354,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			return;
 		}
 
-		let activeWindowAccentColor: string | boolean;
-		let inactiveWindowAccentColor: string | boolean;
+		let activeWindowAccentColor: string | boolean | null;
+		let inactiveWindowAccentColor: string | boolean | null;
 
 		if (color === 'default') {
-			// using '' allows us to restore the default accent color
-			activeWindowAccentColor = '';
-			inactiveWindowAccentColor = '';
+			activeWindowAccentColor = null;
+			inactiveWindowAccentColor = null;
 		} else if (color === 'off') {
 			activeWindowAccentColor = false;
 			inactiveWindowAccentColor = false;
@@ -1021,6 +1021,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#region Development
 
 	private gpuInfoWindowId: number | undefined;
+	private contentTracingWindowId: number | undefined;
 
 	async openDevTools(windowId: number | undefined, options?: Partial<OpenDevToolsOptions> & INativeHostOptions): Promise<void> {
 		const window = this.windowById(options?.targetWindowId, windowId);
@@ -1041,11 +1042,16 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		this.openChildWindow(parentWindow.win, url);
 	}
 
-	private openChildWindow(parentWindow: BrowserWindow | null, url: string): BrowserWindow {
+	private openChildWindow(parentWindow: BrowserWindow | null, url: string, overrideWindowOptions: Electron.BrowserWindowConstructorOptions = {}): BrowserWindow {
 		const options = this.instantiationService.invokeFunction(defaultBrowserWindowOptions, defaultWindowState(), { forceNativeTitlebar: true });
-		options.parent = parentWindow ?? undefined;
 
-		const window = new BrowserWindow(options);
+		const windowOptions: Electron.BrowserWindowConstructorOptions = {
+			...options,
+			parent: parentWindow ?? undefined,
+			...overrideWindowOptions
+		};
+
+		const window = new BrowserWindow(windowOptions);
 		window.setMenuBarVisibility(false);
 		window.loadURL(url);
 
@@ -1069,6 +1075,40 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 		if (typeof this.gpuInfoWindowId === 'number') {
 			const window = BrowserWindow.fromId(this.gpuInfoWindowId);
+			if (window?.isMinimized()) {
+				window?.restore();
+			}
+			window?.focus();
+		}
+	}
+
+	async openContentTracingWindow(): Promise<void> {
+		if (typeof this.contentTracingWindowId !== 'number') {
+			// Disable ready-to-show event with paintWhenInitiallyHidden to
+			// customize content tracing window below.
+			const contentTracingWindow = this.openChildWindow(null, 'chrome://tracing', {
+				paintWhenInitiallyHidden: false,
+				webPreferences: {
+					backgroundThrottling: false
+				}
+			});
+			contentTracingWindow.webContents.once('did-finish-load', async () => {
+				// Mock window.prompt to support save action from the tracing UI
+				// since Electron by default doesn't provide the api.
+				// See requestFilename_ implementation under
+				// https://source.chromium.org/chromium/chromium/src/+/main:third_party/catapult/tracing/tracing/ui/extras/about_tracing/profiling_view.html;l=334-379
+				await contentTracingWindow.webContents.executeJavaScript(`
+					window.prompt = () => '';
+					null
+				`);
+				contentTracingWindow.show();
+			});
+			contentTracingWindow.once('close', () => this.contentTracingWindowId = undefined);
+			this.contentTracingWindowId = contentTracingWindow.id;
+		}
+
+		if (typeof this.contentTracingWindowId === 'number') {
+			const window = BrowserWindow.fromId(this.contentTracingWindowId);
 			if (window?.isMinimized()) {
 				window?.restore();
 			}
@@ -1125,6 +1165,14 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		} catch {
 			return undefined;
 		}
+	}
+
+	//#endregion
+
+	//#region Zip
+
+	async createZipFile(windowId: number | undefined, zipPath: URI, files: { path: string; contents: string }[]): Promise<void> {
+		await zip(zipPath.fsPath, files);
 	}
 
 	//#endregion

@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IConfigurationService, type IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ITerminalChildProcess, type ITerminalBackend } from '../../../../../platform/terminal/common/terminal.js';
-import { ITerminalInstanceService } from '../../browser/terminal.js';
+import { ITerminalInstanceService, ITerminalService } from '../../browser/terminal.js';
 import { TerminalProcessManager } from '../../browser/terminalProcessManager.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
@@ -44,7 +44,6 @@ class TestTerminalChildProcess implements ITerminalChildProcess {
 	clearBuffer(): void { }
 	acknowledgeDataEvent(charCount: number): void { }
 	async setUnicodeVersion(version: '6' | '11'): Promise<void> { }
-	async setNextCommandId(commandLine: string, commandId: string): Promise<void> { }
 	async getInitialCwd(): Promise<string> { return ''; }
 	async getCwd(): Promise<string> { return ''; }
 	async processBinary(data: string): Promise<void> { }
@@ -97,6 +96,7 @@ suite('Workbench - TerminalProcessManager', () => {
 			affectsConfiguration: () => true,
 		} satisfies Partial<IConfigurationChangeEvent> as unknown as IConfigurationChangeEvent);
 		instantiationService.stub(ITerminalInstanceService, new TestTerminalInstanceService());
+		instantiationService.stub(ITerminalService, { setNextCommandId: async () => { } } as Partial<ITerminalService>);
 
 		manager = store.add(instantiationService.createInstance(TerminalProcessManager, 1, undefined, undefined, undefined));
 	});

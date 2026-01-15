@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Artifact, requestAZDOAPI } from '../common/publish';
-import { retry } from '../common/retry';
+import { type Artifact, requestAZDOAPI } from '../common/publish.ts';
+import { retry } from '../common/retry.ts';
 
 async function getPipelineArtifacts(): Promise<Artifact[]> {
 	const result = await requestAZDOAPI<{ readonly value: Artifact[] }>('artifacts');
@@ -13,7 +13,7 @@ async function getPipelineArtifacts(): Promise<Artifact[]> {
 
 async function main(artifacts: string[]): Promise<void> {
 	if (artifacts.length === 0) {
-		throw new Error(`Usage: node waitForArtifacts.js <artifactName1> <artifactName2> ...`);
+		throw new Error(`Usage: node waitForArtifacts.ts <artifactName1> <artifactName2> ...`);
 	}
 
 	// This loop will run for 30 minutes and waits to the x64 and arm64 artifacts

@@ -257,7 +257,7 @@
 		},
 		{
 			"type": "shell",
-			"command": "node build/lib/preLaunch.js",
+			"command": "node build/lib/preLaunch.ts",
 			"label": "Ensure Prelaunch Dependencies",
 			"presentation": {
 				"reveal": "silent",
@@ -283,17 +283,24 @@
 			"type": "shell",
 			"command": "npm run dev",
 			"options": {
-				"cwd": "./build/monaco-editor-playground/"
+				"cwd": "./build/vite/"
 			},
 			"isBackground": true,
 			"problemMatcher": {
+				"owner": "vite",
+				"fileLocation": "absolute",
 				"pattern": {
-					"regexp": ""
+					"regexp": "^(.+?):(\\d+):(\\d+):\\s+(error|warning)\\s+(.*)$",
+					"file": 1,
+					"line": 2,
+					"column": 3,
+					"severity": 4,
+					"message": 5
 				},
 				"background": {
 					"activeOnStart": true,
-					"beginsPattern": "never match",
-					"endsPattern": ".*"
+					"beginsPattern": ".*VITE.*",
+					"endsPattern": "(Local|Network):.*"
 				}
 			}
 		},

@@ -21,7 +21,7 @@ import { IFigExecuteExternals } from './execute';
 
 export interface IFigSpecSuggestionsResult {
 	showFiles: boolean;
-	showFolders: boolean;
+	showDirectories: boolean;
 	fileExtensions?: string[];
 	hasCurrentArg: boolean;
 	items: vscode.TerminalCompletionItem[];
@@ -41,7 +41,7 @@ export async function getFigSuggestions(
 ): Promise<IFigSpecSuggestionsResult> {
 	const result: IFigSpecSuggestionsResult = {
 		showFiles: false,
-		showFolders: false,
+		showDirectories: false,
 		hasCurrentArg: false,
 		items: [],
 	};
@@ -107,7 +107,7 @@ export async function getFigSuggestions(
 			result.hasCurrentArg ||= !!completionItemResult?.hasCurrentArg;
 			if (completionItemResult) {
 				result.showFiles ||= completionItemResult.showFiles;
-				result.showFolders ||= completionItemResult.showFolders;
+				result.showDirectories ||= completionItemResult.showDirectories;
 				result.fileExtensions ||= completionItemResult.fileExtensions;
 				if (completionItemResult.items) {
 					result.items = result.items.concat(completionItemResult.items);
@@ -129,7 +129,7 @@ async function getFigSpecSuggestions(
 	token?: vscode.CancellationToken,
 ): Promise<IFigSpecSuggestionsResult | undefined> {
 	let showFiles = false;
-	let showFolders = false;
+	let showDirectories = false;
 	let fileExtensions: string[] | undefined;
 
 	const command = getCommand(terminalContext.commandLine, {}, terminalContext.cursorIndex);
@@ -154,13 +154,13 @@ async function getFigSpecSuggestions(
 
 	if (completionItemResult) {
 		showFiles = completionItemResult.showFiles;
-		showFolders = completionItemResult.showFolders;
+		showDirectories = completionItemResult.showDirectories;
 		fileExtensions = completionItemResult.fileExtensions;
 	}
 
 	return {
 		showFiles: showFiles,
-		showFolders: showFolders,
+		showDirectories: showDirectories,
 		fileExtensions,
 		hasCurrentArg: !!parsedArguments.currentArg,
 		items,
@@ -178,9 +178,9 @@ export async function collectCompletionItemResult(
 	env: Record<string, string>,
 	items: vscode.TerminalCompletionItem[],
 	executeExternals: IFigExecuteExternals
-): Promise<{ showFiles: boolean; showFolders: boolean; fileExtensions: string[] | undefined } | undefined> {
+): Promise<{ showFiles: boolean; showDirectories: boolean; fileExtensions: string[] | undefined } | undefined> {
 	let showFiles = false;
-	let showFolders = false;
+	let showDirectories = false;
 	let fileExtensions: string[] | undefined;
 
 	const addSuggestions = async (specArgs: SpecArg[] | Record<string, SpecArg> | undefined, kind: vscode.TerminalCompletionItemKind, parsedArguments?: ArgumentParserResult) => {
@@ -223,11 +223,11 @@ export async function collectCompletionItemResult(
 				for (const item of (await generatorResult?.request) ?? []) {
 					if (item.type === 'file') {
 						showFiles = true;
-						showFolders = true;
+						showDirectories = true;
 						fileExtensions = item._internal?.fileExtensions as string[] | undefined;
 					}
 					if (item.type === 'folder') {
-						showFolders = true;
+						showDirectories = true;
 					}
 
 					if (!item.name) {
@@ -258,14 +258,14 @@ export async function collectCompletionItemResult(
 						if (template === 'filepaths') {
 							showFiles = true;
 						} else if (template === 'folders') {
-							showFolders = true;
+							showDirectories = true;
 						}
 					}
 				}
 			}
 		}
 		if (!specArgs) {
-			return { showFiles, showFolders };
+			return { showFiles, showDirectories };
 		}
 		const flagsToExclude = kind === vscode.TerminalCompletionItemKind.Flag ? parsedArguments?.passedOptions.map(option => option.name).flat() : undefined;
 
@@ -344,7 +344,7 @@ export async function collectCompletionItemResult(
 		await addSuggestions(parsedArguments.completionObj.persistentOptions, vscode.TerminalCompletionItemKind.Flag, parsedArguments);
 	}
 
-	return { showFiles, showFolders, fileExtensions };
+	return { showFiles, showDirectories, fileExtensions };
 }
 
 function convertEnvRecordToArray(env: Record<string, string>): EnvironmentVariable[] {

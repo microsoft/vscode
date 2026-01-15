@@ -92,9 +92,10 @@
         "editor.wordWrap": "on",
         "editor.quickSuggestions": {
           "comments": "off",
-          "strings": "off",
-          "other": "off"
-        }
+          "strings": "on",
+          "other": "on"
+        },
+        "editor.wordBasedSuggestions": "off"
       },
       "[instructions]": {
         "editor.insertSpaces": true,
@@ -106,9 +107,10 @@
         "editor.wordWrap": "on",
         "editor.quickSuggestions": {
           "comments": "off",
-          "strings": "off",
-          "other": "off"
-        }
+          "strings": "on",
+          "other": "on"
+        },
+        "editor.wordBasedSuggestions": "off"
       },
       "[chatagent]": {
         "editor.insertSpaces": true,
@@ -120,9 +122,10 @@
         "editor.wordWrap": "on",
         "editor.quickSuggestions": {
           "comments": "off",
-          "strings": "off",
-          "other": "off"
-        }
+          "strings": "on",
+          "other": "on"
+        },
+        "editor.wordBasedSuggestions": "off"
       }
     }
   },

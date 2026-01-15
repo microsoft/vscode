@@ -352,12 +352,12 @@ export function isEngineValid(engine: string, version: string, date: ProductDate
 export function areApiProposalsCompatible(apiProposals: string[]): boolean;
 export function areApiProposalsCompatible(apiProposals: string[], notices: string[]): boolean;
 export function areApiProposalsCompatible(apiProposals: string[], productApiProposals: Readonly<{ [proposalName: string]: Readonly<{ proposal: string; version?: number }> }>): boolean;
-export function areApiProposalsCompatible(apiProposals: string[], arg1?: any): boolean {
+export function areApiProposalsCompatible(apiProposals: string[], arg1?: string[] | Readonly<{ [proposalName: string]: Readonly<{ proposal: string; version?: number }> }>): boolean {
 	if (apiProposals.length === 0) {
 		return true;
 	}
 	const notices: string[] | undefined = Array.isArray(arg1) ? arg1 : undefined;
-	const productApiProposals: Readonly<{ [proposalName: string]: Readonly<{ proposal: string; version?: number }> }> = (notices ? undefined : arg1) ?? allApiProposals;
+	const productApiProposals: Readonly<{ [proposalName: string]: Readonly<{ proposal: string; version?: number }> }> = (Array.isArray(arg1) ? undefined : arg1) ?? allApiProposals;
 	const incompatibleProposals: string[] = [];
 	const parsedProposals = parseApiProposals(apiProposals);
 	for (const { proposalName, version } of parsedProposals) {

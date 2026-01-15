@@ -1,0 +1,212 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import gulp from 'gulp';
+import * as path from 'path';
+import es from 'event-stream';
+import * as util from './lib/util.ts';
+import { getVersion } from './lib/getVersion.ts';
+import * as task from './lib/task.ts';
+import * as optimize from './lib/optimize.ts';
+import { readISODate } from './lib/date.ts';
+import product from '../product.json' with { type: 'json' };
+import rename from 'gulp-rename';
+import filter from 'gulp-filter';
+import { getProductionDependencies } from './lib/dependencies.ts';
+import vfs from 'vinyl-fs';
+import packageJson from '../package.json' with { type: 'json' };
+import { compileBuildWithManglingTask } from './gulpfile.compile.ts';
+import * as extensions from './lib/extensions.ts';
+import jsonEditor from 'gulp-json-editor';
+import buildfile from './buildfile.ts';
+
+const REPO_ROOT = path.dirname(import.meta.dirname);
+const BUILD_ROOT = path.dirname(REPO_ROOT);
+const WEB_FOLDER = path.join(REPO_ROOT, 'remote', 'web');
+
+const commit = getVersion(REPO_ROOT);
+const quality = (product as { quality?: string }).quality;
+const version = (quality && quality !== 'stable') ? `${packageJson.version}-${quality}` : packageJson.version;
+
+export const vscodeWebResourceIncludes = [
+
+	// NLS
+	'out-build/nls.messages.js',
+
+	// Accessibility Signals
+	'out-build/vs/platform/accessibilitySignal/browser/media/*.mp3',
+
+	// Welcome
+	'out-build/vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.{svg,png}',
+
+	// Extensions
+	'out-build/vs/workbench/contrib/extensions/browser/media/{theme-icon.png,language-icon.svg}',
+	'out-build/vs/workbench/services/extensionManagement/common/media/*.{svg,png}',
+
+	// Webview
+	'out-build/vs/workbench/contrib/webview/browser/pre/*.{js,html}',
+
+	// Tree Sitter highlights
+	'out-build/vs/editor/common/languages/highlights/*.scm',
+
+	// Tree Sitter injections
+	'out-build/vs/editor/common/languages/injections/*.scm',
+
+	// Extension Host Worker
+	'out-build/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html'
+];
+
+const vscodeWebResources = [
+
+	// Includes
+	...vscodeWebResourceIncludes,
+
+	// Excludes
+	'!out-build/vs/**/{node,electron-browser,electron-main,electron-utility}/**',
+	'!out-build/vs/editor/standalone/**',
+	'!out-build/vs/workbench/**/*-tb.png',
+	'!out-build/vs/code/**/*-dev.html',
+	'!**/test/**'
+];
+
+const vscodeWebEntryPoints = [
+	buildfile.workerEditor,
+	buildfile.workerExtensionHost,
+	buildfile.workerNotebook,
+	buildfile.workerLanguageDetection,
+	buildfile.workerLocalFileSearch,
+	buildfile.workerOutputLinks,
+	buildfile.workerBackgroundTokenization,
+	buildfile.keyboardMaps,
+	buildfile.workbenchWeb,
+].flat();
+
+/**
+ * @param extensionsRoot The location where extension will be read from
+ * @param product The parsed product.json file contents
+ */
+export const createVSCodeWebFileContentMapper = (extensionsRoot: string, product: typeof import('../product.json')) => {
+	return (path: string): ((content: string) => string) | undefined => {
+		if (path.endsWith('vs/platform/product/common/product.js')) {
+			return content => {
+				const productConfiguration = JSON.stringify({
+					...product,
+					version,
+					commit,
+					date: readISODate('out-build')
+				});
+				return content.replace('/*BUILD->INSERT_PRODUCT_CONFIGURATION*/', () => productConfiguration.substr(1, productConfiguration.length - 2) /* without { and }*/);
+			};
+		} else if (path.endsWith('vs/workbench/services/extensionManagement/browser/builtinExtensionsScannerService.js')) {
+			return content => {
+				const builtinExtensions = JSON.stringify(extensions.scanBuiltinExtensions(extensionsRoot));
+				return content.replace('/*BUILD->INSERT_BUILTIN_EXTENSIONS*/', () => builtinExtensions.substr(1, builtinExtensions.length - 2) /* without [ and ]*/);
+			};
+		}
+
+		return undefined;
+	};
+};
+
+const bundleVSCodeWebTask = task.define('bundle-vscode-web', task.series(
+	util.rimraf('out-vscode-web'),
+	optimize.bundleTask(
+		{
+			out: 'out-vscode-web',
+			esm: {
+				src: 'out-build',
+				entryPoints: vscodeWebEntryPoints,
+				resources: vscodeWebResources,
+				fileContentMapper: createVSCodeWebFileContentMapper('.build/web/extensions', product)
+			}
+		}
+	)
+));
+
+const minifyVSCodeWebTask = task.define('minify-vscode-web', task.series(
+	bundleVSCodeWebTask,
+	util.rimraf('out-vscode-web-min'),
+	optimize.minifyTask('out-vscode-web', `https://main.vscode-cdn.net/sourcemaps/${commit}/core`)
+));
+gulp.task(minifyVSCodeWebTask);
+
+function packageTask(sourceFolderName: string, destinationFolderName: string) {
+	const destination = path.join(BUILD_ROOT, destinationFolderName);
+
+	return () => {
+		const src = gulp.src(sourceFolderName + '/**', { base: '.' })
+			.pipe(rename(function (path) { path.dirname = path.dirname!.replace(new RegExp('^' + sourceFolderName), 'out'); }));
+
+		const extensions = gulp.src('.build/web/extensions/**', { base: '.build/web', dot: true });
+
+		const sources = es.merge(src, extensions)
+			.pipe(filter(['**', '!**/*.{js,css}.map'], { dot: true }));
+
+		const name = product.nameShort;
+		const packageJsonStream = gulp.src(['remote/web/package.json'], { base: 'remote/web' })
+			.pipe(jsonEditor({ name, version, type: 'module' }));
+
+		const license = gulp.src(['remote/LICENSE'], { base: 'remote', allowEmpty: true });
+
+		const productionDependencies = getProductionDependencies(WEB_FOLDER);
+		const dependenciesSrc = productionDependencies.map(d => path.relative(REPO_ROOT, d)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`, `!${d}/.bin/**`]).flat();
+
+		const deps = gulp.src(dependenciesSrc, { base: 'remote/web', dot: true })
+			.pipe(filter(['**', '!**/package-lock.json']))
+			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, '.webignore')));
+
+		const favicon = gulp.src('resources/server/favicon.ico', { base: 'resources/server' });
+		const manifest = gulp.src('resources/server/manifest.json', { base: 'resources/server' });
+		const pwaicons = es.merge(
+			gulp.src('resources/server/code-192.png', { base: 'resources/server' }),
+			gulp.src('resources/server/code-512.png', { base: 'resources/server' })
+		);
+
+		const all = es.merge(
+			packageJsonStream,
+			license,
+			sources,
+			deps,
+			favicon,
+			manifest,
+			pwaicons
+		);
+
+		const result = all
+			.pipe(util.skipDirectories())
+			.pipe(util.fixWin32DirectoryPermissions());
+
+		return result.pipe(vfs.dest(destination));
+	};
+}
+
+const compileWebExtensionsBuildTask = task.define('compile-web-extensions-build', task.series(
+	task.define('clean-web-extensions-build', util.rimraf('.build/web/extensions')),
+	task.define('bundle-web-extensions-build', () => extensions.packageAllLocalExtensionsStream(true, false).pipe(gulp.dest('.build/web'))),
+	task.define('bundle-marketplace-web-extensions-build', () => extensions.packageMarketplaceExtensionsStream(true).pipe(gulp.dest('.build/web'))),
+	task.define('bundle-web-extension-media-build', () => extensions.buildExtensionMedia(false, '.build/web/extensions')),
+));
+gulp.task(compileWebExtensionsBuildTask);
+
+const dashed = (str: string) => (str ? `-${str}` : ``);
+
+['', 'min'].forEach(minified => {
+	const sourceFolderName = `out-vscode-web${dashed(minified)}`;
+	const destinationFolderName = `vscode-web`;
+
+	const vscodeWebTaskCI = task.define(`vscode-web${dashed(minified)}-ci`, task.series(
+		compileWebExtensionsBuildTask,
+		minified ? minifyVSCodeWebTask : bundleVSCodeWebTask,
+		util.rimraf(path.join(BUILD_ROOT, destinationFolderName)),
+		packageTask(sourceFolderName, destinationFolderName)
+	));
+	gulp.task(vscodeWebTaskCI);
+
+	const vscodeWebTask = task.define(`vscode-web${dashed(minified)}`, task.series(
+		compileBuildWithManglingTask,
+		vscodeWebTaskCI
+	));
+	gulp.task(vscodeWebTask);
+});

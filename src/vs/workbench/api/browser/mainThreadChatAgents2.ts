@@ -24,16 +24,19 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { ILogService } from '../../../platform/log/common/log.js';
 import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
 import { IChatWidgetService } from '../../contrib/chat/browser/chat.js';
-import { AddDynamicVariableAction, IAddDynamicVariableContext } from '../../contrib/chat/browser/contrib/chatDynamicVariables.js';
-import { IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../contrib/chat/common/chatAgents.js';
-import { IChatEditingService, IChatRelatedFileProviderMetadata } from '../../contrib/chat/common/chatEditingService.js';
-import { IChatModel } from '../../contrib/chat/common/chatModel.js';
-import { ChatRequestAgentPart } from '../../contrib/chat/common/chatParserTypes.js';
-import { ChatRequestParser } from '../../contrib/chat/common/chatRequestParser.js';
-import { IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatService, IChatTask, IChatTaskSerialized, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
+import { AddDynamicVariableAction, IAddDynamicVariableContext } from '../../contrib/chat/browser/attachments/chatDynamicVariables.js';
+import { IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../contrib/chat/common/participants/chatAgents.js';
+import { IPromptFileContext, IPromptsService } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
+import { isValidPromptType } from '../../contrib/chat/common/promptSyntax/promptTypes.js';
+import { IChatPromptContentStore } from '../../contrib/chat/common/promptSyntax/chatPromptContentStore.js';
+import { IChatEditingService, IChatRelatedFileProviderMetadata } from '../../contrib/chat/common/editing/chatEditingService.js';
+import { IChatModel } from '../../contrib/chat/common/model/chatModel.js';
+import { ChatRequestAgentPart } from '../../contrib/chat/common/requestParser/chatParserTypes.js';
+import { ChatRequestParser } from '../../contrib/chat/common/requestParser/chatRequestParser.js';
+import { IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatService, IChatTask, IChatTaskSerialized, IChatWarningMessage } from '../../contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
-import { LocalChatSessionUri } from '../../contrib/chat/common/chatUri.js';
 import { ChatAgentLocation, ChatModeKind } from '../../contrib/chat/common/constants.js';
+import { ILanguageModelToolsService } from '../../contrib/chat/common/tools/languageModelToolsService.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
@@ -96,6 +99,10 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 	private readonly _chatRelatedFilesProviders = this._register(new DisposableMap<number, IDisposable>());
 
+	private readonly _promptFileProviders = this._register(new DisposableMap<number, IDisposable>());
+	private readonly _promptFileProviderEmitters = this._register(new DisposableMap<number, Emitter<void>>());
+	private readonly _promptFileContentRegistrations = this._register(new DisposableMap<number, DisposableMap<string, IDisposable>>());
+
 	private readonly _pendingProgress = new Map<string, { progress: (parts: IChatProgress[]) => void; chatSession: IChatModel | undefined }>();
 	private readonly _proxy: ExtHostChatAgentsShape2;
 
@@ -115,14 +122,16 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		@ILogService private readonly _logService: ILogService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
+		@IPromptsService private readonly _promptsService: IPromptsService,
+		@IChatPromptContentStore private readonly _chatPromptContentStore: IChatPromptContentStore,
+		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatAgents2);
 
 		this._register(this._chatService.onDidDisposeSession(e => {
-			const localSessionId = LocalChatSessionUri.parseLocalSessionId(e.sessionResource);
-			if (localSessionId) {
-				this._proxy.$releaseSession(localSessionId);
+			for (const resource of e.sessionResource) {
+				this._proxy.$releaseSession(resource);
 			}
 		}));
 		this._register(this._chatService.onDidPerformUserAction(e => {
@@ -145,18 +154,15 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._agents.deleteAndDispose(handle);
 	}
 
-	$transferActiveChatSession(toWorkspace: UriComponents): void {
+	async $transferActiveChatSession(toWorkspace: UriComponents): Promise<void> {
 		const widget = this._chatWidgetService.lastFocusedWidget;
-		const sessionId = widget?.viewModel?.model.sessionId;
-		if (!sessionId) {
+		const model = widget?.viewModel?.model;
+		if (!model) {
 			this._logService.error(`MainThreadChat#$transferActiveChatSession: No active chat session found`);
 			return;
 		}
 
-		const inputValue = widget?.inputEditor.getValue() ?? '';
-		const location = widget.location;
-		const mode = widget.input.currentModeKind;
-		this._chatService.transferChatSession({ sessionId, inputValue, location, mode }, URI.revive(toWorkspace));
+		await this._chatService.transferChatSession(model.sessionResource, URI.revive(toWorkspace));
 	}
 
 	async $registerAgent(handle: number, extension: ExtensionIdentifier, id: string, metadata: IExtensionChatAgentMetadata, dynamicProps: IDynamicChatAgentProps | undefined): Promise<void> {
@@ -175,13 +181,12 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 		const impl: IChatAgentImplementation = {
 			invoke: async (request, progress, history, token) => {
-				const chatSession = this._chatService.getSessionByLegacyId(request.sessionId);
+				const chatSession = this._chatService.getSession(request.sessionResource);
 				this._pendingProgress.set(request.requestId, { progress, chatSession });
 				try {
 					return await this._proxy.$invokeAgent(handle, request, {
 						history,
-						chatSessionContext: chatSession?.contributedChatSession,
-						chatSummary: request.chatSummary
+						chatSessionContext: chatSession?.contributedChatSession
 					}, token) ?? {};
 				} finally {
 					this._pendingProgress.delete(request.requestId);
@@ -204,6 +209,11 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				return this._proxy.$provideChatSummary(handle, history, token);
 			},
 		};
+
+		// Do not attempt to register migrated chatSession providers
+		if (chatSessionRegistration?.alternativeIds?.includes(id)) {
+			return;
+		}
 
 		let disposable: IDisposable;
 		if (!staticAgentRegistration && dynamicProps) {
@@ -267,10 +277,28 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				const response = chatSession?.getRequests().at(-1)?.response;
 				if (chatSession?.editingSession && responsePartHandle !== undefined && response) {
 					const parts = progress.start
-						? await chatSession.editingSession.startExternalEdits(response, responsePartHandle, revive(progress.resources))
+						? await chatSession.editingSession.startExternalEdits(response, responsePartHandle, revive(progress.resources), progress.undoStopId)
 						: await chatSession.editingSession.stopExternalEdits(response, responsePartHandle);
 					chatProgressParts.push(...parts);
 				}
+				continue;
+			}
+
+			if (progress.kind === 'beginToolInvocation') {
+				// Begin a streaming tool invocation
+				this._languageModelToolsService.beginToolCall({
+					toolCallId: progress.toolCallId,
+					toolId: progress.toolName,
+					chatRequestId: requestId,
+					sessionResource: chatSession?.sessionResource,
+					subagentInvocationId: progress.subagentInvocationId
+				});
+				continue;
+			}
+
+			if (progress.kind === 'updateToolInvocation') {
+				// Update the streaming data for an existing tool invocation
+				this._languageModelToolsService.updateToolStream(progress.toolCallId, progress.streamData?.partialInput, CancellationToken.None);
 				continue;
 			}
 
@@ -429,6 +457,66 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 	$unregisterRelatedFilesProvider(handle: number): void {
 		this._chatRelatedFilesProviders.deleteAndDispose(handle);
+	}
+
+	async $registerPromptFileProvider(handle: number, type: string, extensionId: ExtensionIdentifier): Promise<void> {
+		const extension = await this._extensionService.getExtension(extensionId.value);
+		if (!extension) {
+			this._logService.error(`[MainThreadChatAgents2] Could not find extension for prompt file provider: ${extensionId.value}`);
+			return;
+		}
+
+		if (!isValidPromptType(type)) {
+			this._logService.error(`[MainThreadChatAgents2] Invalid contribution type: ${type}`);
+			return;
+		}
+
+		const emitter = new Emitter<void>();
+		this._promptFileProviderEmitters.set(handle, emitter);
+
+		// Track content registrations for this provider so they can be disposed when provider is unregistered
+		const contentRegistrations = new DisposableMap<string, IDisposable>();
+		this._promptFileContentRegistrations.set(handle, contentRegistrations);
+
+		const disposable = this._promptsService.registerPromptFileProvider(extension, type, {
+			onDidChangePromptFiles: emitter.event,
+			providePromptFiles: async (context: IPromptFileContext, token: CancellationToken) => {
+				const contributions = await this._proxy.$providePromptFiles(handle, type, context, token);
+				if (!contributions) {
+					return undefined;
+				}
+				// Convert UriComponents to URI and register any inline content
+				return contributions.map(c => {
+					const uri = URI.revive(c.uri);
+					// If this is a virtual prompt with inline content, register it with the store
+					if (c.content && uri.scheme === Schemas.vscodeChatPrompt) {
+						const uriKey = uri.toString();
+						// Dispose any previous registration for this URI before registering new content
+						contentRegistrations.deleteAndDispose(uriKey);
+						contentRegistrations.set(uriKey, this._chatPromptContentStore.registerContent(uri, c.content));
+					}
+					return {
+						uri,
+						isEditable: c.isEditable
+					};
+				});
+			}
+		});
+
+		this._promptFileProviders.set(handle, disposable);
+	}
+
+	$unregisterPromptFileProvider(handle: number): void {
+		this._promptFileProviders.deleteAndDispose(handle);
+		this._promptFileProviderEmitters.deleteAndDispose(handle);
+		this._promptFileContentRegistrations.deleteAndDispose(handle);
+	}
+
+	$onDidChangePromptFiles(handle: number): void {
+		const emitter = this._promptFileProviderEmitters.get(handle);
+		if (emitter) {
+			emitter.fire();
+		}
 	}
 }
 

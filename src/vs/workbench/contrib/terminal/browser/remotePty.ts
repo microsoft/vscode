@@ -117,10 +117,6 @@ export class RemotePty extends BasePty implements ITerminalChildProcess {
 		return this._remoteTerminalChannel.setUnicodeVersion(this.id, version);
 	}
 
-	async setNextCommandId(commandLine: string, commandId: string): Promise<void> {
-		return this._remoteTerminalChannel.setNextCommandId(this.id, commandLine, commandId);
-	}
-
 	async refreshProperty<T extends ProcessPropertyType>(type: T): Promise<IProcessPropertyMap[T]> {
 		return this._remoteTerminalChannel.refreshProperty(this.id, type);
 	}

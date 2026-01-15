@@ -52,7 +52,7 @@ import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/
 import { Position } from '../../../../editor/common/core/position.js';
 
 class CommentsActionRunner extends ActionRunner {
-	protected override async runAction(action: IAction, context: any[]): Promise<void> {
+	protected override async runAction(action: IAction, context: unknown[]): Promise<void> {
 		await action.run(...context);
 	}
 }
@@ -279,7 +279,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		return result;
 	}
 
-	private get commentNodeContext(): [any, MarshalledCommentThread] {
+	private get commentNodeContext(): [{ thread: languages.CommentThread<T>; commentUniqueId: number; $mid: MarshalledId.CommentNode }, MarshalledCommentThread] {
 		return [{
 			thread: this.commentThread,
 			commentUniqueId: this.comment.uniqueIdInThread,
@@ -413,6 +413,14 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this._reactionsActionBar.clear();
 		this._reactionActions.clear();
 
+		const hasReactionHandler = this.commentService.hasReactionHandler(this.owner);
+		const reactions = this.comment.commentReactions?.filter(reaction => !!reaction.count) || [];
+
+		// Only create the container if there are reactions to show or if there's a reaction handler
+		if (reactions.length === 0 && !hasReactionHandler) {
+			return;
+		}
+
 		this._reactionActionsContainer = dom.append(commentDetailsContainer, dom.$('div.comment-reactions'));
 		this._reactionsActionBar.value = new ActionBar(this._reactionActionsContainer, {
 			actionViewItemProvider: (action, options) => {
@@ -432,8 +440,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			}
 		});
 
-		const hasReactionHandler = this.commentService.hasReactionHandler(this.owner);
-		this.comment.commentReactions?.filter(reaction => !!reaction.count).map(reaction => {
+		reactions.map(reaction => {
 			const action = this._reactionActions.add(new ReactionAction(`reaction.${reaction.label}`, `${reaction.label}`, reaction.hasReacted && (reaction.canEdit || hasReactionHandler) ? 'active' : '', (reaction.canEdit || hasReactionHandler), async () => {
 				try {
 					await this.commentService.toggleReaction(this.owner, this.resource, this.commentThread, this.comment, reaction);

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CosmosClient } from '@azure/cosmos';
-import { retry } from './retry';
+import { retry } from './retry.ts';
 
 function getEnv(name: string): string {
 	const result = process.env[name];
@@ -59,8 +59,15 @@ async function main(force: boolean): Promise<void> {
 
 	console.log(`Releasing build ${commit}...`);
 
+	let rolloutDurationMs = undefined;
+
+	// If the build is insiders or exploration, start a rollout of 4 hours
+	if (quality === 'insider') {
+		rolloutDurationMs = 4 * 60 * 60 * 1000; // 4 hours
+	}
+
 	const scripts = client.database('builds').container(quality).scripts;
-	await retry(() => scripts.storedProcedure('releaseBuild').execute('', [commit]));
+	await retry(() => scripts.storedProcedure('releaseBuild').execute('', [commit, rolloutDurationMs]));
 }
 
 const [, , force] = process.argv;

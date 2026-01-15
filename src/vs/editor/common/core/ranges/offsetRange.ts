@@ -18,6 +18,10 @@ export class OffsetRange implements IOffsetRange {
 		return new OffsetRange(start, endExclusive);
 	}
 
+	public static equals(r1: IOffsetRange, r2: IOffsetRange): boolean {
+		return r1.start === r2.start && r1.endExclusive === r2.endExclusive;
+	}
+
 	public static addRange(range: OffsetRange, sortedRanges: OffsetRange[]): void {
 		let i = 0;
 		while (i < sortedRanges.length && sortedRanges[i].endExclusive < range.start) {
@@ -207,6 +211,15 @@ export class OffsetRange implements IOffsetRange {
 			throw new BugIndicatingError(`Invalid join: ${this.toString()} and ${range.toString()}`);
 		}
 		return new OffsetRange(this.start, range.endExclusive);
+	}
+
+	public withMargin(margin: number): OffsetRange;
+	public withMargin(marginStart: number, marginEnd: number): OffsetRange;
+	public withMargin(marginStart: number, marginEnd?: number): OffsetRange {
+		if (marginEnd === undefined) {
+			marginEnd = marginStart;
+		}
+		return new OffsetRange(this.start - marginStart, this.endExclusive + marginEnd);
 	}
 }
 

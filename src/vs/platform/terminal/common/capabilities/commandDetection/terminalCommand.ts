@@ -281,6 +281,11 @@ export class PartialTerminalCommand implements ICurrentPartialCommand {
 
 	isTrusted?: boolean;
 	isInvalid?: boolean;
+	/**
+	 * Track temporarily if the command was recently cleared, this can be used for marker
+	 * adjustments
+	 */
+	wasCleared?: boolean;
 
 	constructor(
 		private readonly _xterm: Terminal,

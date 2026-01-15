@@ -6,9 +6,9 @@
 import { TSESTree } from '@typescript-eslint/utils';
 import * as eslint from 'eslint';
 import * as visitorKeys from 'eslint-visitor-keys';
-import * as ESTree from 'estree';
+import type * as ESTree from 'estree';
 
-export = new class NoObservableGetInReactiveContext implements eslint.Rule.RuleModule {
+export default new class NoObservableGetInReactiveContext implements eslint.Rule.RuleModule {
 	meta: eslint.Rule.RuleMetaData = {
 		type: 'problem',
 		docs: {
@@ -19,7 +19,7 @@ export = new class NoObservableGetInReactiveContext implements eslint.Rule.RuleM
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 		return {
-			'CallExpression': (node: any) => {
+			'CallExpression': (node: ESTree.CallExpression) => {
 				const callExpression = node as TSESTree.CallExpression;
 
 				if (!isReactiveFunctionWithReader(callExpression.callee)) {

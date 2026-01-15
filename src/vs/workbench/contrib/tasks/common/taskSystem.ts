@@ -152,7 +152,7 @@ export interface ITaskSystem {
 	revealTask(task: Task): boolean;
 	customExecutionComplete(task: Task, result: number): Promise<void>;
 	isTaskVisible(task: Task): boolean;
-	getTaskForTerminal(instanceId: number): Task | undefined;
+	getTaskForTerminal(instanceId: number): Promise<Task | undefined>;
 	getTerminalsForTasks(tasks: SingleOrMany<Task>): URI[] | undefined;
 	getTaskProblems(instanceId: number): Map<string, { resources: URI[]; markers: IMarkerData[] }> | undefined;
 	getFirstInstance(task: Task): Task | undefined;

@@ -66,15 +66,11 @@ body {
 }
 
 .monaco-workbench.border.mac {
-	border-radius: 5px;
+	border-radius: 10px;
 }
 
-.monaco-workbench.border.mac.macos-bigsur-or-newer {
-	border-radius: 10px; /* macOS Big Sur increased rounded corners size */
-}
-
-.monaco-workbench.border.mac.macos-tahoe-or-newer {
-	border-radius: 12px; /* macOS Tahoe increased rounded corners size even more */
+.monaco-workbench.border.mac.macos-tahoe {
+	border-radius: 16px; /* macOS Tahoe increased rounded corners size */
 }
 
 .monaco-workbench img {
@@ -264,7 +260,7 @@ body {
 	border-color: transparent; /* outline is a square, but border has a radius, so we avoid this glitch when focused (https://github.com/microsoft/vscode/issues/26045) */
 }
 
-.monaco-workbench .monaco-list:not(.element-focused):focus:before {
+.monaco-workbench .monaco-list:not(.element-focused):not(:active):focus:before {
 	position: absolute;
 	top: 0;
 	left: 0;

@@ -255,6 +255,12 @@ export class DiagnosticsService implements IDiagnosticsService {
 		output.push(`Screen Reader:    ${info.screenReader ? 'yes' : 'no'}`);
 		output.push(`Process Argv:     ${info.mainArguments.join(' ')}`);
 		output.push(`GPU Status:       ${this.expandGPUFeatures(info.gpuFeatureStatus)}`);
+		if (info.gpuLogMessages && info.gpuLogMessages.length > 0) {
+			output.push(`GPU Log Messages:`);
+			info.gpuLogMessages.forEach(msg => {
+				output.push(`${msg.header}: ${msg.message}`);
+			});
+		}
 
 		return output.join('\n');
 	}
@@ -431,7 +437,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 		return output.join('\n');
 	}
 
-	private expandGPUFeatures(gpuFeatures: any): string {
+	private expandGPUFeatures(gpuFeatures: Record<string, string>): string {
 		const longestFeatureName = Math.max(...Object.keys(gpuFeatures).map(feature => feature.length));
 		// Make columns aligned by adding spaces after feature name
 		return Object.keys(gpuFeatures).map(feature => `${feature}:  ${' '.repeat(longestFeatureName - feature.length)}  ${gpuFeatures[feature]}`).join('\n                  ');

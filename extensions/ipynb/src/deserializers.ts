@@ -20,8 +20,7 @@ const jupyterLanguageToMonacoLanguageMapping = new Map([
 export function getPreferredLanguage(metadata?: nbformat.INotebookMetadata) {
 	const jupyterLanguage =
 		metadata?.language_info?.name ||
-		// eslint-disable-next-line local/code-no-any-casts
-		(metadata?.kernelspec as any)?.language;
+		(metadata?.kernelspec as unknown as { language: string })?.language;
 
 	// Default to python language only if the Python extension is installed.
 	const defaultLanguage =
@@ -291,8 +290,7 @@ export function jupyterCellOutputToCellOutput(output: nbformat.IOutput): Noteboo
 	if (fn) {
 		result = fn(output);
 	} else {
-		// eslint-disable-next-line local/code-no-any-casts
-		result = translateDisplayDataOutput(output as any);
+		result = translateDisplayDataOutput(output as unknown as nbformat.IDisplayData | nbformat.IDisplayUpdate | nbformat.IExecuteResult);
 	}
 	return result;
 }
@@ -324,7 +322,7 @@ function createNotebookCellDataFromCodeCell(cell: nbformat.ICodeCell, cellLangua
 		? { executionOrder: cell.execution_count as number }
 		: {};
 
-	const vscodeCustomMetadata = cell.metadata['vscode'] as { [key: string]: any } | undefined;
+	const vscodeCustomMetadata = cell.metadata?.['vscode'] as { [key: string]: any } | undefined;
 	const cellLanguageId = vscodeCustomMetadata && vscodeCustomMetadata.languageId && typeof vscodeCustomMetadata.languageId === 'string' ? vscodeCustomMetadata.languageId : cellLanguage;
 	const cellData = new NotebookCellData(NotebookCellKind.Code, source, cellLanguageId);
 

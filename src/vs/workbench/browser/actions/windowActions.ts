@@ -73,6 +73,17 @@ abstract class BaseOpenRecentAction extends Action2 {
 		tooltip: localize('openedRecentlyOpenedWorkspace', "Workspace Opened in a Window"),
 	};
 
+	private readonly activeWindowOpenedRecentlyOpenedFolder: IQuickInputButton = {
+		iconClass: 'opened-workspace ' + ThemeIcon.asClassName(Codicon.windowActive),
+		tooltip: localize('activeOpenedRecentlyOpenedFolder', "Folder Opened in Active Window"),
+		alwaysVisible: true
+	};
+
+	private readonly activeWindowOpenedRecentlyOpenedWorkspace: IQuickInputButton = {
+		...this.activeWindowOpenedRecentlyOpenedFolder,
+		tooltip: localize('activeOpenedRecentlyOpenedWorkspace', "Workspace Opened in Active Window"),
+	};
+
 	protected abstract isQuickNavigate(): boolean;
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
@@ -107,12 +118,14 @@ abstract class BaseOpenRecentAction extends Action2 {
 		}
 
 		// Identify all folders and workspaces opened in main windows
-		const openedInWindows = new ResourceMap<boolean>();
+		const activeWindowId = getActiveWindow().vscodeWindowId;
+		const openedInWindows = new ResourceMap<{ isActive: boolean }>();
 		for (const window of mainWindows) {
+			const isActive = window.id === activeWindowId;
 			if (isSingleFolderWorkspaceIdentifier(window.workspace)) {
-				openedInWindows.set(window.workspace.uri, true);
+				openedInWindows.set(window.workspace.uri, { isActive });
 			} else if (isWorkspaceIdentifier(window.workspace)) {
-				openedInWindows.set(window.workspace.configPath, true);
+				openedInWindows.set(window.workspace.configPath, { isActive });
 			}
 		}
 
@@ -132,21 +145,21 @@ abstract class BaseOpenRecentAction extends Action2 {
 		const workspacePicks: IRecentlyOpenedPick[] = [];
 		for (const recent of recentlyOpened.workspaces) {
 			const isDirty = isRecentFolder(recent) ? dirtyFolders.has(recent.folderUri) : dirtyWorkspaces.has(recent.workspace.configPath);
-			const isOpenedInWindow = isRecentFolder(recent) ? openedInWindows.has(recent.folderUri) : openedInWindows.has(recent.workspace.configPath);
+			const windowState = isRecentFolder(recent) ? openedInWindows.get(recent.folderUri) : openedInWindows.get(recent.workspace.configPath);
 
-			workspacePicks.push(this.toQuickPick(modelService, languageService, labelService, recent, { isDirty, isOpenedInWindow }));
+			workspacePicks.push(this.toQuickPick(modelService, languageService, labelService, recent, { isDirty, windowState }));
 		}
 
 		// Fill any backup workspace that is not yet shown at the end
 		for (const dirtyWorkspaceOrFolder of dirtyWorkspacesAndFolders) {
 			if (isFolderBackupInfo(dirtyWorkspaceOrFolder) && !recentFolders.has(dirtyWorkspaceOrFolder.folderUri)) {
-				workspacePicks.push(this.toQuickPick(modelService, languageService, labelService, dirtyWorkspaceOrFolder, { isDirty: true, isOpenedInWindow: false }));
+				workspacePicks.push(this.toQuickPick(modelService, languageService, labelService, dirtyWorkspaceOrFolder, { isDirty: true, windowState: undefined }));
 			} else if (isWorkspaceBackupInfo(dirtyWorkspaceOrFolder) && !recentWorkspaces.has(dirtyWorkspaceOrFolder.workspace.configPath)) {
-				workspacePicks.push(this.toQuickPick(modelService, languageService, labelService, dirtyWorkspaceOrFolder, { isDirty: true, isOpenedInWindow: false }));
+				workspacePicks.push(this.toQuickPick(modelService, languageService, labelService, dirtyWorkspaceOrFolder, { isDirty: true, windowState: undefined }));
 			}
 		}
 
-		const filePicks = recentlyOpened.files.map(p => this.toQuickPick(modelService, languageService, labelService, p, { isDirty: false, isOpenedInWindow: false }));
+		const filePicks = recentlyOpened.files.map(p => this.toQuickPick(modelService, languageService, labelService, p, { isDirty: false, windowState: undefined }));
 
 		// focus second entry if the first recent workspace is the current workspace
 		const firstEntry = recentlyOpened.workspaces[0];
@@ -204,7 +217,7 @@ abstract class BaseOpenRecentAction extends Action2 {
 		}
 	}
 
-	private toQuickPick(modelService: IModelService, languageService: ILanguageService, labelService: ILabelService, recent: IRecent, kind: { isDirty: boolean; isOpenedInWindow: boolean }): IRecentlyOpenedPick {
+	private toQuickPick(modelService: IModelService, languageService: ILanguageService, labelService: ILabelService, recent: IRecent, kind: { isDirty: boolean; windowState?: { isActive: boolean } }): IRecentlyOpenedPick {
 		let openable: IWindowOpenable | undefined;
 		let iconClasses: string[];
 		let fullLabel: string | undefined;
@@ -241,8 +254,12 @@ abstract class BaseOpenRecentAction extends Action2 {
 		const buttons: IQuickInputButton[] = [];
 		if (kind.isDirty) {
 			buttons.push(isWorkspace ? this.dirtyRecentlyOpenedWorkspace : this.dirtyRecentlyOpenedFolder);
-		} else if (kind.isOpenedInWindow) {
-			buttons.push(isWorkspace ? this.windowOpenedRecentlyOpenedWorkspace : this.windowOpenedRecentlyOpenedFolder);
+		} else if (kind.windowState) {
+			if (kind.windowState.isActive) {
+				buttons.push(isWorkspace ? this.activeWindowOpenedRecentlyOpenedWorkspace : this.activeWindowOpenedRecentlyOpenedFolder);
+			} else {
+				buttons.push(isWorkspace ? this.windowOpenedRecentlyOpenedWorkspace : this.windowOpenedRecentlyOpenedFolder);
+			}
 		} else {
 			buttons.push(this.removeFromRecentlyOpened);
 		}

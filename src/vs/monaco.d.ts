@@ -771,6 +771,9 @@ declare namespace monaco {
 		 * Moves the range by the given amount of lines.
 		 */
 		delta(lineCount: number): Range;
+		/**
+		 * Test if this range starts and ends on the same line.
+		 */
 		isSingleLine(): boolean;
 		static fromPositions(start: IPosition, end?: IPosition): Range;
 		/**
@@ -5589,6 +5592,11 @@ declare namespace monaco.editor {
 		 */
 		allowEditorOverflow?: boolean;
 		/**
+		 * If true, this widget doesn't have a visual representation.
+		 * The element will have display set to 'none'.
+		*/
+		useDisplayNone?: boolean;
+		/**
 		 * Call preventDefault() on mousedown events that target the content widget.
 		 */
 		suppressMouseDown?: boolean;
@@ -6129,6 +6137,7 @@ declare namespace monaco.editor {
 		 * Fires after the editor completes the operation it fired `onBeginUpdate` for.
 		*/
 		readonly onEndUpdate: IEvent<void>;
+		readonly onDidChangeViewZones: IEvent<void>;
 		/**
 		 * Saves current view state of the editor in a serializable object.
 		 */
@@ -6263,6 +6272,10 @@ declare namespace monaco.editor {
 		 */
 		executeCommands(source: string | null | undefined, commands: (ICommand | null)[]): void;
 		/**
+		 * Scroll vertically or horizontally as necessary and reveal the current cursors.
+		 */
+		revealAllCursors(revealHorizontal: boolean, minimalReveal?: boolean): void;
+		/**
 		 * Get all the decorations on a line (filtering out decorations from other editors).
 		 */
 		getLineDecorations(lineNumber: number): IModelDecoration[] | null;
@@ -6371,6 +6384,7 @@ declare namespace monaco.editor {
 		 * Use this method with caution.
 		 */
 		getOffsetForColumn(lineNumber: number, column: number): number;
+		getWidthOfLine(lineNumber: number): number;
 		/**
 		 * Force an editor render now.
 		 */
@@ -7480,6 +7494,18 @@ declare namespace monaco.languages {
 		Explicit = 1
 	}
 
+	/**
+	 * Arbitrary data that the provider can pass when firing {@link InlineCompletionsProvider.onDidChangeInlineCompletions}.
+	 * This data is passed back to the provider in {@link InlineCompletionContext.changeHint}.
+	 */
+	export interface IInlineCompletionChangeHint {
+		/**
+		 * Arbitrary data that the provider can use to identify what triggered the change.
+		 * This data must be JSON serializable.
+		 */
+		readonly data?: unknown;
+	}
+
 	export interface InlineCompletionContext {
 		/**
 		 * How the completion was triggered.
@@ -7490,6 +7516,21 @@ declare namespace monaco.languages {
 		readonly includeInlineCompletions: boolean;
 		readonly requestIssuedDateTime: number;
 		readonly earliestShownDateTime: number;
+		/**
+		 * The change hint that was passed to {@link InlineCompletionsProvider.onDidChangeInlineCompletions}.
+		 * Only set if this request was triggered by such an event.
+		 */
+		readonly changeHint?: IInlineCompletionChangeHint;
+	}
+
+	export interface IInlineCompletionModelInfo {
+		models: IInlineCompletionModel[];
+		currentModelId: string;
+	}
+
+	export interface IInlineCompletionModel {
+		name: string;
+		id: string;
 	}
 
 	export class SelectedSuggestionInfo {
@@ -7550,11 +7591,14 @@ declare namespace monaco.languages {
 		/** Only show the inline suggestion when the cursor is in the showRange. */
 		readonly showRange?: IRange;
 		readonly warning?: InlineCompletionWarning;
-		readonly hint?: InlineCompletionHint;
+		readonly hint?: IInlineCompletionHint;
+		readonly supportsRename?: boolean;
 		/**
 		 * Used for telemetry.
 		 */
 		readonly correlationId?: string | undefined;
+		readonly jumpToPosition?: IPosition;
+		readonly doNotLog?: boolean;
 	}
 
 	export interface InlineCompletionWarning {
@@ -7567,12 +7611,11 @@ declare namespace monaco.languages {
 		Label = 2
 	}
 
-	export interface InlineCompletionHint {
+	export interface IInlineCompletionHint {
 		/** Refers to the current document. */
 		range: IRange;
 		style: InlineCompletionHintStyle;
 		content: string;
-		jumpToEdit: boolean;
 	}
 
 	export type IconPath = editor.ThemeIcon;
@@ -7622,7 +7665,12 @@ declare namespace monaco.languages {
 		 * Will be called when a completions list is no longer in use and can be garbage-collected.
 		*/
 		disposeInlineCompletions(completions: T, reason: InlineCompletionsDisposeReason): void;
-		onDidChangeInlineCompletions?: IEvent<void>;
+		/**
+		 * Fired when the provider wants to trigger a new completion request.
+		 * The event can pass a {@link IInlineCompletionChangeHint} which will be
+		 * included in the {@link InlineCompletionContext} of the subsequent request.
+		 */
+		onDidChangeInlineCompletions?: IEvent<IInlineCompletionChangeHint | void>;
 		/**
 		 * Only used for {@link yieldsToGroupIds}.
 		 * Multiple providers can have the same group id.
@@ -7636,6 +7684,9 @@ declare namespace monaco.languages {
 		excludesGroupIds?: InlineCompletionProviderGroupId[];
 		displayName?: string;
 		debounceDelayMs?: number;
+		modelInfo?: IInlineCompletionModelInfo;
+		onDidModelInfoChange?: IEvent<void>;
+		setModelId?(modelId: string): Promise<void>;
 		toString?(): string;
 	}
 
@@ -7651,6 +7702,7 @@ declare namespace monaco.languages {
 
 	export type InlineCompletionEndOfLifeReason<TInlineCompletion = InlineCompletion> = {
 		kind: InlineCompletionEndOfLifeReasonKind.Accepted;
+		alternativeAction: boolean;
 	} | {
 		kind: InlineCompletionEndOfLifeReasonKind.Rejected;
 	} | {
@@ -7670,6 +7722,7 @@ declare namespace monaco.languages {
 		shownDuration: number;
 		shownDurationUncollapsed: number;
 		timeUntilShown: number | undefined;
+		timeUntilActuallyShown: number | undefined;
 		timeUntilProviderRequest: number;
 		timeUntilProviderResponse: number;
 		notShownReason: string | undefined;
@@ -7678,6 +7731,7 @@ declare namespace monaco.languages {
 		preceeded: boolean;
 		languageId: string;
 		requestReason: string;
+		performanceMarkers?: string;
 		cursorColumnDistance?: number;
 		cursorLineDistance?: number;
 		lineCountOriginal?: number;
@@ -7690,6 +7744,16 @@ declare namespace monaco.languages {
 		typingIntervalCharacterCount: number;
 		selectedSuggestionInfo: boolean;
 		availableProviders: string;
+		skuPlan: string | undefined;
+		skuType: string | undefined;
+		renameCreated: boolean | undefined;
+		renameDuration: number | undefined;
+		renameTimedOut: boolean | undefined;
+		renameDroppedOtherEdits: number | undefined;
+		renameDroppedRenameEdits: number | undefined;
+		editKind: string | undefined;
+		longDistanceHintVisible?: boolean;
+		longDistanceHintDistance?: number;
 	};
 
 	export interface CodeAction {

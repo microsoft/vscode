@@ -82,7 +82,7 @@ jobs:
 
           $VERSION = node -p "require('./package.json').version"
           Write-Host "Creating build with version: $VERSION"
-          exec { node build/azure-pipelines/common/createBuild.js $VERSION }
+          exec { node build/azure-pipelines/common/createBuild.ts $VERSION }
         env:
           AZURE_TENANT_ID: "$(AZURE_TENANT_ID)"
           AZURE_CLIENT_ID: "$(AZURE_CLIENT_ID)"
@@ -90,7 +90,7 @@ jobs:
         displayName: Create build if it hasn't been created before
 
       - pwsh: |
-          $publishAuthTokens = (node build/azure-pipelines/common/getPublishAuthTokens)
+          $publishAuthTokens = (node build/azure-pipelines/common/getPublishAuthTokens.ts)
           Write-Host "##vso[task.setvariable variable=PUBLISH_AUTH_TOKENS;issecret=true]$publishAuthTokens"
         env:
           AZURE_TENANT_ID: "$(AZURE_TENANT_ID)"
@@ -98,7 +98,7 @@ jobs:
           AZURE_ID_TOKEN: "$(AZURE_ID_TOKEN)"
         displayName: Get publish auth tokens
 
-      - pwsh: node build/azure-pipelines/common/publish.js
+      - pwsh: node build/azure-pipelines/common/publish.ts
         env:
           SYSTEM_ACCESSTOKEN: $(System.AccessToken)
           PUBLISH_AUTH_TOKENS: "$(PUBLISH_AUTH_TOKENS)"
@@ -110,7 +110,7 @@ jobs:
         retryCountOnTaskFailure: 3
 
       - ${{ if and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(parameters.VSCODE_SCHEDULEDBUILD, true)) }}:
-        - script: node build/azure-pipelines/common/releaseBuild.js
+        - script: node build/azure-pipelines/common/releaseBuild.ts
           env:
             PUBLISH_AUTH_TOKENS: "$(PUBLISH_AUTH_TOKENS)"
           displayName: Release build

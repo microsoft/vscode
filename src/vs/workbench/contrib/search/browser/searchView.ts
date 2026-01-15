@@ -13,7 +13,8 @@ import { Delayer, RunOnceScheduler, Throttler } from '../../../../base/common/as
 import * as errors from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { isLinux } from '../../../../base/common/platform.js';
 import * as strings from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as network from '../../../../base/common/network.js';
@@ -56,7 +57,6 @@ import { Memento } from '../../../common/memento.js';
 import { IViewDescriptorService } from '../../../common/views.js';
 import { NotebookEditor } from '../../notebook/browser/notebookEditor.js';
 import { ExcludePatternInputWidget, IncludePatternInputWidget } from './patternInputWidget.js';
-import { appendKeyBindingLabel } from './searchActionsBase.js';
 import { IFindInFilesArgs } from './searchActionsFind.js';
 import { searchDetailsIcon } from './searchIcons.js';
 import { renderSearchMessage } from './searchMessage.js';
@@ -173,6 +173,7 @@ export class SearchView extends ViewPane {
 	private resultsElement!: HTMLElement;
 
 	private currentSelectedFileMatch: ISearchTreeFileMatch | undefined;
+	private readonly currentEditorCursorListener = this._register(new MutableDisposable());
 
 	private delayedRefresh: Delayer<void>;
 	private changedWhileHidden: boolean;
@@ -1043,6 +1044,15 @@ export class SearchView extends ViewPane {
 			this.searchResultHeaderFocused.reset();
 			this.isEditableItem.reset();
 		}));
+
+		// Setup cursor position monitoring to clear selected match when cursor moves
+		this._register(this.editorService.onDidActiveEditorChange(() => {
+			const editor = getCodeEditor(this.editorService.activeTextEditorControl);
+			this.currentEditorCursorListener.value = editor?.onDidChangeCursorPosition(() => {
+				this.currentSelectedFileMatch?.setSelectedMatch(null);
+				this.currentSelectedFileMatch = undefined;
+			});
+		}));
 	}
 
 	private onContextMenu(e: ITreeContextMenuEvent<RenderableMatch | null>): void {
@@ -1618,6 +1628,7 @@ export class SearchView extends ViewPane {
 			maxResults: this.searchConfig.maxResults ?? undefined,
 			disregardIgnoreFiles: !useExcludesAndIgnoreFiles || undefined,
 			disregardExcludeSettings: !useExcludesAndIgnoreFiles || undefined,
+			ignoreGlobCase: !isLinux || undefined,
 			onlyOpenEditors: onlySearchInOpenEditors,
 			excludePattern,
 			includePattern,
@@ -1726,6 +1737,20 @@ export class SearchView extends ViewPane {
 		}
 	}
 
+	private appendSearchWithAIButton(messageEl: HTMLElement) {
+		const searchWithAIButtonTooltip = this.keybindingService.appendKeybinding(
+			nls.localize('triggerAISearch.tooltip', "Search with AI."),
+			Constants.SearchCommandIds.SearchWithAIActionId
+		);
+		const searchWithAIButtonText = nls.localize('searchWithAIButtonTooltip', "Search with AI");
+		const searchWithAIButton = this.messageDisposables.add(new SearchLinkButton(
+			searchWithAIButtonText,
+			() => {
+				this.commandService.executeCommand(Constants.SearchCommandIds.SearchWithAIActionId);
+			}, this.hoverService, searchWithAIButtonTooltip));
+		dom.append(messageEl, searchWithAIButton.element);
+	}
+
 	private async onSearchComplete(
 		progressComplete: () => void,
 		excludePatternText?: string,
@@ -1797,17 +1822,7 @@ export class SearchView extends ViewPane {
 			dom.append(messageEl, message);
 
 			if (this.shouldShowAIResults()) {
-				const searchWithAIButtonTooltip = appendKeyBindingLabel(
-					nls.localize('triggerAISearch.tooltip', "Search with AI."),
-					this.keybindingService.lookupKeybinding(Constants.SearchCommandIds.SearchWithAIActionId)
-				);
-				const searchWithAIButtonText = nls.localize('searchWithAIButtonTooltip', "Search with AI");
-				const searchWithAIButton = this.messageDisposables.add(new SearchLinkButton(
-					searchWithAIButtonText,
-					() => {
-						this.commandService.executeCommand(Constants.SearchCommandIds.SearchWithAIActionId);
-					}, this.hoverService, searchWithAIButtonTooltip));
-				dom.append(messageEl, searchWithAIButton.element);
+				this.appendSearchWithAIButton(messageEl);
 				dom.append(messageEl, $('span', undefined, ' - '));
 			}
 
@@ -1822,13 +1837,6 @@ export class SearchView extends ViewPane {
 			} else {
 				const openSettingsButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('openSettings.message', "Open Settings"), this.onOpenSettings.bind(this), this.hoverService));
 				dom.append(messageEl, openSettingsButton.element);
-			}
-
-			if (completed) {
-				dom.append(messageEl, $('span', undefined, ' - '));
-
-				const learnMoreButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('openSettings.learnMore', "Learn More"), this.onLearnMore.bind(this), this.hoverService));
-				dom.append(messageEl, learnMoreButton.element);
 			}
 
 			if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
@@ -1984,10 +1992,6 @@ export class SearchView extends ViewPane {
 			this.preferencesService.openUserSettings(options);
 	}
 
-	private onLearnMore(): void {
-		this.openerService.open(URI.parse('https://go.microsoft.com/fwlink/?linkid=853977'));
-	}
-
 	private onSearchAgain(): void {
 		this.inputPatternExcludes.setValue('');
 		this.inputPatternIncludes.setValue('');
@@ -2036,14 +2040,19 @@ export class SearchView extends ViewPane {
 
 			dom.append(messageEl, ' - ');
 
-			const openInEditorTooltip = appendKeyBindingLabel(
+			const openInEditorTooltip = this.keybindingService.appendKeybinding(
 				nls.localize('openInEditor.tooltip', "Copy current search results to an editor"),
-				this.keybindingService.lookupKeybinding(Constants.SearchCommandIds.OpenInEditorCommandId));
+				Constants.SearchCommandIds.OpenInEditorCommandId);
 			const openInEditorButton = this.messageDisposables.add(new SearchLinkButton(
 				nls.localize('openInEditor.message', "Open in editor"),
 				() => this.instantiationService.invokeFunction(createEditorFromSearchResult, this.searchResult, this.searchIncludePattern.getValue(), this.searchExcludePattern.getValue(), this.searchIncludePattern.onlySearchInOpenEditors()), this.hoverService,
 				openInEditorTooltip));
 			dom.append(messageEl, openInEditorButton.element);
+
+			if (this.shouldShowAIResults()) {
+				dom.append(messageEl, ' - ');
+				this.appendSearchWithAIButton(messageEl);
+			}
 
 			this.reLayout();
 		} else if (!msgWasHidden) {

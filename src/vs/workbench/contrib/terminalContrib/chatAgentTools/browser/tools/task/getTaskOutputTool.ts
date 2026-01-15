@@ -10,16 +10,17 @@ import { localize } from '../../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
-import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../../../chat/common/languageModelToolsService.js';
+import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../../../chat/common/tools/languageModelToolsService.js';
 import { ITaskService, Task, TasksAvailableContext } from '../../../../../tasks/common/taskService.js';
 import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
-import { collectTerminalResults, getTaskDefinition, getTaskForTool, resolveDependencyTasks } from '../../taskHelpers.js';
+import { collectTerminalResults, getTaskDefinition, getTaskForTool, resolveDependencyTasks, tasksMatch } from '../../taskHelpers.js';
 import { toolResultDetailsFromResponse, toolResultMessageFromResponse } from './taskHelpers.js';
 import { TaskToolEvent, TaskToolClassification } from './taskToolsTelemetry.js';
 
 export const GetTaskOutputToolData: IToolData = {
 	id: 'get_task_output',
 	toolReferenceName: 'getTaskOutput',
+	legacyToolReferenceFullNames: ['runTasks/getTaskOutput'],
 	displayName: localize('getTaskOutputTool.displayName', 'Get Task Output'),
 	modelDescription: 'Get the output of a task',
 	source: ToolDataSource.Internal,
@@ -64,17 +65,17 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 		const taskDefinition = getTaskDefinition(args.id);
 		const task = await getTaskForTool(args.id, taskDefinition, args.workspaceFolder, this._configurationService, this._tasksService, true);
 		if (!task) {
-			return { invocationMessage: new MarkdownString(localize('copilotChat.taskNotFound', 'Task not found: `{0}`', args.id)) };
+			return { invocationMessage: new MarkdownString(localize('copilotChat.taskNotFound', 'Task not found: \`{0}\`', args.id)) };
 		}
 		const taskLabel = task._label;
 		const activeTasks = await this._tasksService.getActiveTasks();
 		if (activeTasks.includes(task)) {
-			return { invocationMessage: new MarkdownString(localize('copilotChat.taskAlreadyRunning', 'The task `{0}` is already running.', taskLabel)) };
+			return { invocationMessage: new MarkdownString(localize('copilotChat.taskAlreadyRunning', 'The task \`{0}\` is already running.', taskLabel)) };
 		}
 
 		return {
-			invocationMessage: new MarkdownString(localize('copilotChat.checkingTerminalOutput', 'Checking output for task `{0}`', taskLabel)),
-			pastTenseMessage: new MarkdownString(localize('copilotChat.checkedTerminalOutput', 'Checked output for task `{0}`', taskLabel)),
+			invocationMessage: new MarkdownString(localize('copilotChat.checkingTerminalOutput', 'Checking output for task \`{0}\`', taskLabel)),
+			pastTenseMessage: new MarkdownString(localize('copilotChat.checkedTerminalOutput', 'Checked output for task \`{0}\`', taskLabel)),
 		};
 	}
 
@@ -83,7 +84,7 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 		const taskDefinition = getTaskDefinition(args.id);
 		const task = await getTaskForTool(args.id, taskDefinition, args.workspaceFolder, this._configurationService, this._tasksService, true);
 		if (!task) {
-			return { content: [{ kind: 'text', value: `Task not found: ${args.id}` }], toolResultMessage: new MarkdownString(localize('copilotChat.taskNotFound', 'Task not found: `{0}`', args.id)) };
+			return { content: [{ kind: 'text', value: `Task not found: ${args.id}` }], toolResultMessage: new MarkdownString(localize('copilotChat.taskNotFound', 'Task not found: \`{0}\`', args.id)) };
 		}
 
 		const dependencyTasks = await resolveDependencyTasks(task, args.workspaceFolder, this._configurationService, this._tasksService);
@@ -91,7 +92,7 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 		const taskLabel = task._label;
 		const terminals = resources?.map(resource => this._terminalService.instances.find(t => t.resource.path === resource?.path && t.resource.scheme === resource.scheme)).filter(t => !!t);
 		if (!terminals || terminals.length === 0) {
-			return { content: [{ kind: 'text', value: `Terminal not found for task ${taskLabel}` }], toolResultMessage: new MarkdownString(localize('copilotChat.terminalNotFound', 'Terminal not found for task `{0}`', taskLabel)) };
+			return { content: [{ kind: 'text', value: `Terminal not found for task ${taskLabel}` }], toolResultMessage: new MarkdownString(localize('copilotChat.terminalNotFound', 'Terminal not found for task \`{0}\`', taskLabel)) };
 		}
 		const store = new DisposableStore();
 		const terminalResults = await collectTerminalResults(
@@ -103,7 +104,8 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 			token,
 			store,
 			(terminalTask) => this._isTaskActive(terminalTask),
-			dependencyTasks
+			dependencyTasks,
+			this._tasksService
 		);
 		store.dispose();
 		for (const r of terminalResults) {
@@ -122,7 +124,7 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 		const details = terminalResults.map(r => `Terminal: ${r.name}\nOutput:\n${r.output}`);
 		const uniqueDetails = Array.from(new Set(details)).join('\n\n');
 		const toolResultDetails = toolResultDetailsFromResponse(terminalResults);
-		const toolResultMessage = toolResultMessageFromResponse(undefined, taskLabel, toolResultDetails, terminalResults, true);
+		const toolResultMessage = toolResultMessageFromResponse(undefined, taskLabel, toolResultDetails, terminalResults, true, task.configurationProperties.isBackground);
 
 		return {
 			content: [{ kind: 'text', value: uniqueDetails }],
@@ -131,7 +133,7 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 		};
 	}
 	private async _isTaskActive(task: Task): Promise<boolean> {
-		const activeTasks = await this._tasksService.getActiveTasks();
-		return activeTasks?.some((t) => t._id === task._id);
+		const busyTasks = await this._tasksService.getBusyTasks();
+		return busyTasks?.some(t => tasksMatch(t, task)) ?? false;
 	}
 }

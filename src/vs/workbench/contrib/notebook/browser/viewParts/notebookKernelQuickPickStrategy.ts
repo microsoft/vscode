@@ -421,8 +421,8 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 	 */
 	private getSuggestedLanguage(notebookTextModel: NotebookTextModel): string | undefined {
 		const metaData = notebookTextModel.metadata;
-		// eslint-disable-next-line local/code-no-any-casts
-		let suggestedKernelLanguage: string | undefined = (metaData as any)?.metadata?.language_info?.name;
+		const language_info = (metaData?.metadata as Record<string, unknown>)?.language_info as Record<string, string> | undefined;
+		let suggestedKernelLanguage: string | undefined = language_info?.name;
 		// TODO how do we suggest multi language notebooks?
 		if (!suggestedKernelLanguage) {
 			const cellLanguages = notebookTextModel.cells.map(cell => cell.language).filter(language => language !== 'markdown');

@@ -8,13 +8,13 @@ import { escapeDoubleQuotes, IMarkdownString, MarkdownStringTrustedOptions, pars
 import { markdownEscapeEscapedIcons } from '../common/iconLabels.js';
 import { defaultGenerator } from '../common/idGenerator.js';
 import { KeyCode } from '../common/keyCodes.js';
-import { Lazy } from '../common/lazy.js';
 import { DisposableStore, IDisposable } from '../common/lifecycle.js';
 import * as marked from '../common/marked/marked.js';
 import { parse } from '../common/marshalling.js';
 import { FileAccess, Schemas } from '../common/network.js';
 import { cloneAndChange } from '../common/objects.js';
-import { dirname, resolvePath } from '../common/resources.js';
+import { basename as pathBasename } from '../common/path.js';
+import { basename, dirname, resolvePath } from '../common/resources.js';
 import { escape } from '../common/strings.js';
 import { URI, UriComponents } from '../common/uri.js';
 import * as DOM from './dom.js';
@@ -220,7 +220,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	let outElement: HTMLElement;
 	if (target) {
 		outElement = target;
-		DOM.reset(target, ...renderedContent.children);
+		DOM.reset(target, ...renderedContent.childNodes);
 	} else {
 		outElement = renderedContent;
 	}
@@ -435,6 +435,7 @@ function activateLink(mdStr: IMarkdownString, options: MarkdownRenderOptions, ev
 		onUnexpectedError(err);
 	} finally {
 		event.preventDefault();
+		event.stopPropagation();
 	}
 }
 
@@ -598,7 +599,9 @@ function getDomSanitizerConfig(mdStrConfig: MdStrConfig, options: MarkdownSaniti
 		Schemas.vscodeFileResource,
 		Schemas.vscodeRemote,
 		Schemas.vscodeRemoteResource,
-		Schemas.vscodeNotebookCell
+		Schemas.vscodeNotebookCell,
+		// For links that are handled entirely by the action handler
+		Schemas.internal,
 	];
 
 	if (isTrusted) {
@@ -648,6 +651,8 @@ function getDomSanitizerConfig(mdStrConfig: MdStrConfig, options: MarkdownSaniti
 export function renderAsPlaintext(str: IMarkdownString | string, options?: {
 	/** Controls if the ``` of code blocks should be preserved in the output or not */
 	readonly includeCodeBlocksFences?: boolean;
+	/** Controls if we want to format empty links from "Link [](file)" to "Link file" */
+	readonly useLinkFormatter?: boolean;
 }) {
 	if (typeof str === 'string') {
 		return str;
@@ -659,7 +664,15 @@ export function renderAsPlaintext(str: IMarkdownString | string, options?: {
 		value = `${value.substr(0, 100_000)}…`;
 	}
 
-	const html = marked.parse(value, { async: false, renderer: options?.includeCodeBlocksFences ? plainTextWithCodeBlocksRenderer.value : plainTextRenderer.value });
+	const renderer = createPlainTextRenderer();
+	if (options?.includeCodeBlocksFences) {
+		renderer.code = codeBlockFences;
+	}
+	if (options?.useLinkFormatter) {
+		renderer.link = linkFormatter;
+	}
+
+	const html = marked.parse(value, { async: false, renderer });
 	return sanitizeRenderedMarkdown(html, { isTrusted: false }, {})
 		.toString()
 		.replace(/&(#\d+|[a-zA-Z]+);/g, m => unescapeInfo.get(m) ?? m)
@@ -737,15 +750,22 @@ function createPlainTextRenderer(): marked.Renderer {
 	};
 	return renderer;
 }
-const plainTextRenderer = new Lazy<marked.Renderer>(createPlainTextRenderer);
 
-const plainTextWithCodeBlocksRenderer = new Lazy<marked.Renderer>(() => {
-	const renderer = createPlainTextRenderer();
-	renderer.code = ({ text }: marked.Tokens.Code): string => {
-		return `\n\`\`\`\n${escape(text)}\n\`\`\`\n`;
-	};
-	return renderer;
-});
+const codeBlockFences = ({ text }: marked.Tokens.Code): string => {
+	return `\n\`\`\`\n${escape(text)}\n\`\`\`\n`;
+};
+
+const linkFormatter = ({ text, href }: marked.Tokens.Link): string => {
+	try {
+		if (href) {
+			const uri = URI.parse(href);
+			return text.trim() || basename(uri);
+		}
+	} catch (e) {
+		return text.trim() || pathBasename(href);
+	}
+	return text;
+};
 
 function mergeRawTokenText(tokens: marked.Token[]): string {
 	let mergedTokenText = '';

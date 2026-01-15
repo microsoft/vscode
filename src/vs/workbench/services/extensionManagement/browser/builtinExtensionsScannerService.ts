@@ -20,7 +20,7 @@ import { mainWindow } from '../../../../base/browser/window.js';
 interface IBundledExtension {
 	extensionPath: string;
 	packageJSON: IExtensionManifest;
-	packageNLS?: any;
+	packageNLS?: ITranslations;
 	readmePath?: string;
 	changelogPath?: string;
 }

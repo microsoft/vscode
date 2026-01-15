@@ -20,7 +20,7 @@ export interface IExecution {
 	isActive?: () => Promise<boolean>;
 	task?: Task | Pick<Task, 'configurationProperties'>;
 	dependencyTasks?: Task[];
-	instance: Pick<ITerminalInstance, 'sendText' | 'instanceId' | 'onDidInputData' | 'onData' | 'focus' | 'registerMarker'>;
+	instance: Pick<ITerminalInstance, 'sendText' | 'instanceId' | 'onDidInputData' | 'onDisposed' | 'onData' | 'focus' | 'registerMarker'>;
 	sessionId: string | undefined;
 }
 
@@ -53,6 +53,6 @@ export const enum PollingConsts {
 	MinPollingDuration = 500,
 	FirstPollingMaxDuration = 20000, // 20 seconds
 	ExtendedPollingMaxDuration = 120000, // 2 minutes
-	MaxPollingIntervalDuration = 2000, // 2 seconds
+	MaxPollingIntervalDuration = 10000, // 10 seconds - grows via exponential backoff
 	MaxRecursionCount = 5
 }

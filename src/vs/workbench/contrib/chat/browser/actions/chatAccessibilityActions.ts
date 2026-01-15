@@ -6,15 +6,19 @@
 import { alert } from '../../../../../base/browser/ui/aria/aria.js';
 import { localize } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { IChatWidgetService } from '../chat.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { isResponseVM } from '../../common/chatViewModel.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { isResponseVM } from '../../common/model/chatViewModel.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../../platform/accessibility/common/accessibility.js';
+import { IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
+import { ChatThinkingAccessibleView } from '../accessibility/chatThinkingAccessibleView.js';
+import { CHAT_CATEGORY } from './chatActions.js';
 
 export const ACTION_ID_FOCUS_CHAT_CONFIRMATION = 'workbench.action.chat.focusConfirmation';
+export const ACTION_ID_OPEN_THINKING_ACCESSIBLE_VIEW = 'workbench.action.chat.openThinkingAccessibleView';
 
 class AnnounceChatConfirmationAction extends Action2 {
 	constructor() {
@@ -34,14 +38,14 @@ class AnnounceChatConfirmationAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const chatWidgetService = accessor.get(IChatWidgetService);
-		const lastFocusedWidget = chatWidgetService.lastFocusedWidget;
+		const pendingWidget = chatWidgetService.getAllWidgets().find(widget => widget.viewModel?.model.requestNeedsInput.get());
 
-		if (!lastFocusedWidget) {
+		if (!pendingWidget) {
 			alert(localize('noChatSession', 'No active chat session found.'));
 			return;
 		}
 
-		const viewModel = lastFocusedWidget.viewModel;
+		const viewModel = pendingWidget.viewModel;
 		if (!viewModel) {
 			alert(localize('chatNotReady', 'Chat interface not ready.'));
 			return;
@@ -53,7 +57,7 @@ class AnnounceChatConfirmationAction extends Action2 {
 		const lastResponse = viewModel.getItems()[viewModel.getItems().length - 1];
 		if (isResponseVM(lastResponse)) {
 			// eslint-disable-next-line no-restricted-syntax
-			const confirmationWidgets = lastFocusedWidget.domNode.querySelectorAll('.chat-confirmation-widget-container');
+			const confirmationWidgets = pendingWidget.domNode.querySelectorAll('.chat-confirmation-widget-container');
 			if (confirmationWidgets.length > 0) {
 				firstConfirmationElement = confirmationWidgets[0] as HTMLElement;
 			}
@@ -67,6 +71,39 @@ class AnnounceChatConfirmationAction extends Action2 {
 	}
 }
 
+class OpenThinkingAccessibleViewAction extends Action2 {
+	constructor() {
+		super({
+			id: ACTION_ID_OPEN_THINKING_ACCESSIBLE_VIEW,
+			title: { value: localize('openThinkingAccessibleView', 'Open Thinking Accessible View'), original: 'Open Thinking Accessible View' },
+			category: CHAT_CATEGORY,
+			precondition: ChatContextKeys.enabled,
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F3,
+				when: ChatContextKeys.inChatSession
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const accessibleViewService = accessor.get(IAccessibleViewService);
+		const instantiationService = accessor.get(IInstantiationService);
+
+		const thinkingView = new ChatThinkingAccessibleView();
+		const provider = instantiationService.invokeFunction(thinkingView.getProvider.bind(thinkingView));
+
+		if (!provider) {
+			alert(localize('noThinking', 'No thinking'));
+			return;
+		}
+
+		accessibleViewService.show(provider);
+	}
+}
+
 export function registerChatAccessibilityActions(): void {
 	registerAction2(AnnounceChatConfirmationAction);
+	registerAction2(OpenThinkingAccessibleViewAction);
 }

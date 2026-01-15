@@ -18,7 +18,7 @@ import { URI } from '../common/uri.js';
 import { hash } from '../common/hash.js';
 import { CodeWindow, ensureCodeWindow, mainWindow } from './window.js';
 import { isPointWithinTriangle } from '../common/numbers.js';
-import { IObservable, derived, derivedOpts, IReader, observableValue } from '../common/observable.js';
+import { IObservable, derived, derivedOpts, IReader, observableValue, isObservable } from '../common/observable.js';
 
 export interface IRegisteredCodeWindow {
 	readonly window: CodeWindow;
@@ -2571,7 +2571,43 @@ export abstract class ObserverNode<T extends HTMLOrSVGElement = HTMLOrSVGElement
 		this.keepUpdated(store);
 		return new LiveElement(this._element, store);
 	}
+
+	private _isHovered: IObservable<boolean> | undefined = undefined;
+
+	get isHovered(): IObservable<boolean> {
+		if (!this._isHovered) {
+			const hovered = observableValue<boolean>('hovered', false);
+			this._element.addEventListener('mouseenter', (_e) => hovered.set(true, undefined));
+			this._element.addEventListener('mouseleave', (_e) => hovered.set(false, undefined));
+			this._isHovered = hovered;
+		}
+		return this._isHovered;
+	}
+
+	private _didMouseMoveDuringHover: IObservable<boolean> | undefined = undefined;
+
+	get didMouseMoveDuringHover(): IObservable<boolean> {
+		if (!this._didMouseMoveDuringHover) {
+			let _hovering = false;
+			const hovered = observableValue<boolean>('didMouseMoveDuringHover', false);
+			this._element.addEventListener('mouseenter', (_e) => {
+				_hovering = true;
+			});
+			this._element.addEventListener('mousemove', (_e) => {
+				if (_hovering) {
+					hovered.set(true, undefined);
+				}
+			});
+			this._element.addEventListener('mouseleave', (_e) => {
+				_hovering = false;
+				hovered.set(false, undefined);
+			});
+			this._didMouseMoveDuringHover = hovered;
+		}
+		return this._didMouseMoveDuringHover;
+	}
 }
+
 function setClassName(domNode: HTMLOrSVGElement, className: string) {
 	if (isSVGElement(domNode)) {
 		domNode.setAttribute('class', className);
@@ -2579,6 +2615,7 @@ function setClassName(domNode: HTMLOrSVGElement, className: string) {
 		domNode.className = className;
 	}
 }
+
 function resolve<T>(value: ValueOrList<T>, reader: IReader | undefined, cb: (val: T) => void): void {
 	if (isObservable(value)) {
 		cb(value.read(reader));
@@ -2646,41 +2683,6 @@ export class ObserverNodeWithElement<T extends HTMLOrSVGElement = HTMLOrSVGEleme
 	public get element() {
 		return this._element;
 	}
-
-	private _isHovered: IObservable<boolean> | undefined = undefined;
-
-	get isHovered(): IObservable<boolean> {
-		if (!this._isHovered) {
-			const hovered = observableValue<boolean>('hovered', false);
-			this._element.addEventListener('mouseenter', (_e) => hovered.set(true, undefined));
-			this._element.addEventListener('mouseleave', (_e) => hovered.set(false, undefined));
-			this._isHovered = hovered;
-		}
-		return this._isHovered;
-	}
-
-	private _didMouseMoveDuringHover: IObservable<boolean> | undefined = undefined;
-
-	get didMouseMoveDuringHover(): IObservable<boolean> {
-		if (!this._didMouseMoveDuringHover) {
-			let _hovering = false;
-			const hovered = observableValue<boolean>('didMouseMoveDuringHover', false);
-			this._element.addEventListener('mouseenter', (_e) => {
-				_hovering = true;
-			});
-			this._element.addEventListener('mousemove', (_e) => {
-				if (_hovering) {
-					hovered.set(true, undefined);
-				}
-			});
-			this._element.addEventListener('mouseleave', (_e) => {
-				_hovering = false;
-				hovered.set(false, undefined);
-			});
-			this._didMouseMoveDuringHover = hovered;
-		}
-		return this._didMouseMoveDuringHover;
-	}
 }
 function setOrRemoveAttribute(element: HTMLOrSVGElement, key: string, value: unknown) {
 	if (value === null || value === undefined) {
@@ -2690,9 +2692,6 @@ function setOrRemoveAttribute(element: HTMLOrSVGElement, key: string, value: unk
 	}
 }
 
-function isObservable<T>(obj: unknown): obj is IObservable<T> {
-	return !!obj && (<IObservable<T>>obj).read !== undefined && (<IObservable<T>>obj).reportChanges !== undefined;
-}
 type ElementAttributeKeys<T> = Partial<{
 	[K in keyof T]: T[K] extends Function ? never : T[K] extends object ? ElementAttributeKeys<T[K]> : Value<number | T[K] | undefined | null>;
 }>;

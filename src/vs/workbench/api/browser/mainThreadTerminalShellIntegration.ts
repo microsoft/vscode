@@ -87,7 +87,7 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 			// TerminalShellExecution.createDataStream
 			// Debounce events to reduce the message count - when this listener is disposed the events will be flushed
 			instanceDataListeners.get(instanceId)?.dispose();
-			instanceDataListeners.set(instanceId, Event.accumulate(e.instance.onData, 50, this._store)(events => {
+			instanceDataListeners.set(instanceId, Event.accumulate(e.instance.onData, 50, true, this._store)(events => {
 				this._proxy.$shellExecutionData(instanceId, events.join(''));
 			}));
 		}));

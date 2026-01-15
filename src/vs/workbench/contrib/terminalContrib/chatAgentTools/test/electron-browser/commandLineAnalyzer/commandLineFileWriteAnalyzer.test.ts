@@ -4,29 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { strictEqual } from 'assert';
+import { Schemas } from '../../../../../../../base/common/network.js';
+import { isWindows, OperatingSystem } from '../../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import type { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { ITreeSitterLibraryService } from '../../../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
-import { TreeSitterLibraryService } from '../../../../../../services/treeSitter/browser/treeSitterLibraryService.js';
-import { FileService } from '../../../../../../../platform/files/common/fileService.js';
-import { NullLogService } from '../../../../../../../platform/log/common/log.js';
-import { Schemas } from '../../../../../../../base/common/network.js';
-import { TestIPCFileSystemProvider } from '../../../../../../test/electron-browser/workbenchTestServices.js';
-import { TreeSitterCommandParser, TreeSitterCommandParserLanguage } from '../../../browser/treeSitterCommandParser.js';
-import { arch } from '../../../../../../../base/common/process.js';
-import { isWindows, OperatingSystem } from '../../../../../../../base/common/platform.js';
-import { CommandLineFileWriteAnalyzer } from '../../../browser/tools/commandLineAnalyzer/commandLineFileWriteAnalyzer.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { FileService } from '../../../../../../../platform/files/common/fileService.js';
+import type { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { IWorkspaceContextService, toWorkspaceFolder } from '../../../../../../../platform/workspace/common/workspace.js';
-import { TerminalChatAgentToolsSettingId } from '../../../common/terminalChatAgentToolsConfiguration.js';
-import type { ICommandLineAnalyzerOptions } from '../../../browser/tools/commandLineAnalyzer/commandLineAnalyzer.js';
-import { TestContextService } from '../../../../../../test/common/workbenchTestServices.js';
 import { Workspace } from '../../../../../../../platform/workspace/test/common/testWorkspace.js';
+import { TreeSitterLibraryService } from '../../../../../../services/treeSitter/browser/treeSitterLibraryService.js';
+import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
+import { TestContextService } from '../../../../../../test/common/workbenchTestServices.js';
+import { TestIPCFileSystemProvider } from '../../../../../../test/electron-browser/workbenchTestServices.js';
+import type { ICommandLineAnalyzerOptions } from '../../../browser/tools/commandLineAnalyzer/commandLineAnalyzer.js';
+import { CommandLineFileWriteAnalyzer } from '../../../browser/tools/commandLineAnalyzer/commandLineFileWriteAnalyzer.js';
+import { TreeSitterCommandParser, TreeSitterCommandParserLanguage } from '../../../browser/treeSitterCommandParser.js';
+import { TerminalChatAgentToolsSettingId } from '../../../common/terminalChatAgentToolsConfiguration.js';
 
-// TODO: The powershell grammar can cause an OOM crash on Windows/arm https://github.com/microsoft/vscode/issues/273177
-(isWindows && (arch === 'arm' || arch === 'arm64') ? suite.skip : suite)('CommandLineFileWriteAnalyzer', () => {
+suite('CommandLineFileWriteAnalyzer', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instantiationService: TestInstantiationService;
@@ -81,7 +79,8 @@ import { Workspace } from '../../../../../../../platform/workspace/test/common/t
 				shell: 'bash',
 				os: OperatingSystem.Linux,
 				treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
-				terminalToolSessionId: 'test'
+				terminalToolSessionId: 'test',
+				chatSessionResource: undefined,
 			};
 
 			const result = await analyzer.analyze(options);
@@ -110,10 +109,11 @@ import { Workspace } from '../../../../../../../platform/workspace/test/common/t
 			test('absolute path - /etc - block', () => t('echo hello > /etc/config.txt', 'outsideWorkspace', false, 1));
 			test('absolute path - /home - block', () => t('echo hello > /home/user/file.txt', 'outsideWorkspace', false, 1));
 			test('absolute path - root - block', () => t('echo hello > /file.txt', 'outsideWorkspace', false, 1));
-			test('absolute path - /dev/null - block', () => t('echo hello > /dev/null', 'outsideWorkspace', false, 1));
+			test('absolute path - /dev/null - allow (null device)', () => t('echo hello > /dev/null', 'outsideWorkspace', true, 1));
 
 			// Special cases
 			test('no workspace folders - block', () => t('echo hello > file.txt', 'outsideWorkspace', false, 1, []));
+			test('no workspace folders - /dev/null allowed', () => t('echo hello > /dev/null', 'outsideWorkspace', true, 1, []));
 			test('no redirections - allow', () => t('echo hello', 'outsideWorkspace', true, 0));
 			test('variable in filename - block', () => t('echo hello > $HOME/file.txt', 'outsideWorkspace', false, 1));
 			test('command substitution - block', () => t('echo hello > $(pwd)/file.txt', 'outsideWorkspace', false, 1));
@@ -131,6 +131,7 @@ import { Workspace } from '../../../../../../../platform/workspace/test/common/t
 			test('pipeline with redirection inside workspace', () => t('cat file.txt | grep "test" > output.txt', 'outsideWorkspace', true, 1));
 			test('multiple redirections mixed inside/outside', () => t('echo hello > file.txt && echo world > /tmp/file.txt', 'outsideWorkspace', false, 1));
 			test('here-document', () => t('cat > file.txt << EOF\nhello\nEOF', 'outsideWorkspace', true, 1));
+			test('error output to /dev/null - allow', () => t('cat missing.txt 2> /dev/null', 'outsideWorkspace', true, 1));
 		});
 
 		suite('no cwd provided', () => {
@@ -146,7 +147,8 @@ import { Workspace } from '../../../../../../../platform/workspace/test/common/t
 					shell: 'bash',
 					os: OperatingSystem.Linux,
 					treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
-					terminalToolSessionId: 'test'
+					terminalToolSessionId: 'test',
+					chatSessionResource: undefined,
 				};
 
 				const result = await analyzer.analyze(options);
@@ -182,7 +184,8 @@ import { Workspace } from '../../../../../../../platform/workspace/test/common/t
 				shell: 'pwsh',
 				os: OperatingSystem.Windows,
 				treeSitterLanguage: TreeSitterCommandParserLanguage.PowerShell,
-				terminalToolSessionId: 'test'
+				terminalToolSessionId: 'test',
+				chatSessionResource: undefined,
 			};
 
 			const result = await analyzer.analyze(options);
@@ -235,10 +238,23 @@ import { Workspace } from '../../../../../../../platform/workspace/test/common/t
 		});
 
 		suite('edge cases', () => {
-			test('redirection to $null (variable) - block', () => t('Write-Host "hello" > $null', 'outsideWorkspace', false, 1));
+			test('redirection to $null (PowerShell null device) - allow', () => t('Write-Host "hello" > $null', 'outsideWorkspace', true, 1));
 			test('relative path with backslashes - allow', () => t('Write-Host "hello" > server\\share\\file.txt', 'outsideWorkspace', true, 1));
-			test('quoted filename inside workspace - allow', () => t('Write-Host "hello" > "file with spaces.txt"', 'outsideWorkspace', true, 1));
 			test('forward slashes on Windows (relative) - allow', () => t('Write-Host "hello" > subdir/file.txt', 'outsideWorkspace', true, 1));
+		});
+
+		suite('quoted file paths', () => {
+			// Double-quoted paths
+			test('double-quoted relative path inside workspace - allow', () => t('Write-Host "hello" > "file.txt"', 'outsideWorkspace', true, 1));
+			test('double-quoted relative path with spaces inside workspace - allow', () => t('Write-Host "hello" > "file with spaces.txt"', 'outsideWorkspace', true, 1));
+			test('double-quoted absolute path outside workspace - block', () => t('Write-Host "hello" > "C:\\temp\\file.txt"', 'outsideWorkspace', false, 1));
+			test('double-quoted absolute path to different drive - block', () => t('Write-Host "hello" > "D:\\data\\file.txt"', 'outsideWorkspace', false, 1));
+
+			// Single-quoted paths
+			test('single-quoted relative path inside workspace - allow', () => t('Write-Host \'hello\' > \'file.txt\'', 'outsideWorkspace', true, 1));
+			test('single-quoted relative path with spaces inside workspace - allow', () => t('Write-Host \'hello\' > \'file with spaces.txt\'', 'outsideWorkspace', true, 1));
+			test('single-quoted absolute path outside workspace - block', () => t('Write-Host \'hello\' > \'C:\\temp\\file.txt\'', 'outsideWorkspace', false, 1));
+			test('single-quoted absolute path to different drive - block', () => t('Write-Host \'hello\' > \'D:\\data\\file.txt\'', 'outsideWorkspace', false, 1));
 		});
 	});
 
@@ -257,7 +273,8 @@ import { Workspace } from '../../../../../../../platform/workspace/test/common/t
 				shell: 'bash',
 				os: OperatingSystem.Linux,
 				treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
-				terminalToolSessionId: 'test'
+				terminalToolSessionId: 'test',
+				chatSessionResource: undefined,
 			};
 
 			const result = await analyzer.analyze(options);
@@ -288,7 +305,8 @@ import { Workspace } from '../../../../../../../platform/workspace/test/common/t
 				shell: 'bash',
 				os: OperatingSystem.Linux,
 				treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
-				terminalToolSessionId: 'test'
+				terminalToolSessionId: 'test',
+				chatSessionResource: undefined,
 			};
 
 			const result = await analyzer.analyze(options);
@@ -303,10 +321,10 @@ import { Workspace } from '../../../../../../../platform/workspace/test/common/t
 	});
 
 	suite('uri schemes', () => {
-		async function t(cwdScheme: string, filePath: string, expectedAutoApprove: boolean) {
+		async function t(cwdScheme: string, cwdAuthority: string | undefined, filePath: string, expectedAutoApprove: boolean) {
 			configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.BlockDetectedFileWrites, 'outsideWorkspace');
 
-			const cwd = URI.from({ scheme: cwdScheme, path: '/workspace/project' });
+			const cwd = URI.from({ scheme: cwdScheme, authority: cwdAuthority, path: '/workspace/project' });
 			const workspace = new Workspace('test', [toWorkspaceFolder(cwd)]);
 			workspaceContextService.setWorkspace(workspace);
 
@@ -316,15 +334,93 @@ import { Workspace } from '../../../../../../../platform/workspace/test/common/t
 				shell: 'bash',
 				os: OperatingSystem.Linux,
 				treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
-				terminalToolSessionId: 'test'
+				terminalToolSessionId: 'test',
+				chatSessionResource: undefined,
 			};
 
 			const result = await analyzer.analyze(options);
 			strictEqual(result.isAutoApproveAllowed, expectedAutoApprove);
 		}
 
-		test('file scheme - relative path inside workspace', () => t('file', 'file.txt', true));
-		test('vscode-remote scheme - relative path inside workspace', () => t('vscode-remote', 'file.txt', true));
-		test('vscode-remote scheme - absolute path outside workspace', () => t('vscode-remote', '/tmp/file.txt', false));
+		test('file scheme - relative path inside workspace', () => t('file', undefined, 'file.txt', true));
+		test('vscode-remote scheme - relative path inside workspace', () => t('vscode-remote', 'wsl+debian', 'file.txt', true));
+		test('vscode-remote scheme - absolute path inside workspace', () => t('vscode-remote', 'wsl+debian', '/workspace/project/file.txt', true));
+		test('vscode-remote scheme - absolute path outside workspace', () => t('vscode-remote', 'wsl+debian', '/tmp/file.txt', false));
+		test('vscode-remote scheme - absolute path to home directory outside workspace', () => t('vscode-remote', 'wsl+debian', '/home/user/file.txt', false));
+	});
+
+	suite('quoted file paths', () => {
+		const cwd = URI.file('/workspace/project');
+
+		async function t(commandLine: string, blockDetectedFileWrites: 'never' | 'outsideWorkspace' | 'all', expectedAutoApprove: boolean, expectedDisclaimers: number = 0) {
+			configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.BlockDetectedFileWrites, blockDetectedFileWrites);
+
+			const workspace = new Workspace('test', [toWorkspaceFolder(cwd)]);
+			workspaceContextService.setWorkspace(workspace);
+
+			const options: ICommandLineAnalyzerOptions = {
+				commandLine,
+				cwd,
+				shell: 'bash',
+				os: OperatingSystem.Linux,
+				treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
+				terminalToolSessionId: 'test',
+				chatSessionResource: undefined,
+			};
+
+			const result = await analyzer.analyze(options);
+			strictEqual(result.isAutoApproveAllowed, expectedAutoApprove, `Expected auto approve to be ${expectedAutoApprove} for: ${commandLine}`);
+			strictEqual((result.disclaimers || []).length, expectedDisclaimers, `Expected ${expectedDisclaimers} disclaimers for: ${commandLine}`);
+		}
+
+		// Double-quoted paths
+		test('double-quoted relative path inside workspace - allow', () => t('echo hello > "file.txt"', 'outsideWorkspace', true, 1));
+		test('double-quoted relative path with spaces inside workspace - allow', () => t('echo hello > "file with spaces.txt"', 'outsideWorkspace', true, 1));
+		test('double-quoted absolute path outside workspace - block', () => t('echo hello > "/tmp/file.txt"', 'outsideWorkspace', false, 1));
+		test('double-quoted absolute path to home - block', () => t('echo hello > "/home/user/foo.txt"', 'outsideWorkspace', false, 1));
+
+		// Single-quoted paths
+		test('single-quoted relative path inside workspace - allow', () => t('echo hello > \'file.txt\'', 'outsideWorkspace', true, 1));
+		test('single-quoted relative path with spaces inside workspace - allow', () => t('echo hello > \'file with spaces.txt\'', 'outsideWorkspace', true, 1));
+		test('single-quoted absolute path outside workspace - block', () => t('echo hello > \'/tmp/file.txt\'', 'outsideWorkspace', false, 1));
+		test('single-quoted absolute path to home - block', () => t('echo hello > \'/home/user/foo.txt\'', 'outsideWorkspace', false, 1));
+
+		// Note: Backticks in bash are command substitution, not quoting, so no tests for backtick-quoted paths
+	});
+
+	suite('remote workspace with quoted absolute paths', () => {
+		async function t(commandLine: string, expectedAutoApprove: boolean, expectedDisclaimers: number = 0) {
+			configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.BlockDetectedFileWrites, 'outsideWorkspace');
+
+			// Simulate a remote workspace (e.g., WSL)
+			const cwd = URI.from({ scheme: 'vscode-remote', authority: 'wsl+debian', path: '/home/user/workspace' });
+			const workspace = new Workspace('test', [toWorkspaceFolder(cwd)]);
+			workspaceContextService.setWorkspace(workspace);
+
+			const options: ICommandLineAnalyzerOptions = {
+				commandLine,
+				cwd,
+				shell: 'bash',
+				os: OperatingSystem.Linux,
+				treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
+				terminalToolSessionId: 'test',
+				chatSessionResource: undefined,
+			};
+
+			const result = await analyzer.analyze(options);
+			strictEqual(result.isAutoApproveAllowed, expectedAutoApprove, `Expected auto approve to be ${expectedAutoApprove} for: ${commandLine}`);
+			strictEqual((result.disclaimers || []).length, expectedDisclaimers, `Expected ${expectedDisclaimers} disclaimers for: ${commandLine}`);
+		}
+
+		// These tests verify that absolute paths preserve the remote scheme/authority
+		// and are correctly compared against workspace folders
+		test('quoted absolute path inside remote workspace - allow', () => t('echo hello > "/home/user/workspace/file.txt"', true, 1));
+		test('quoted absolute path outside remote workspace - block', () => t('echo hello > "/home/user/other/file.txt"', false, 1));
+		test('quoted absolute path to different home dir - block', () => t('echo hello > "/home/otheruser/file.txt"', false, 1));
+		test('quoted absolute path to settings.json - block', () => t('echo hello > "/home/user/.vscode/settings.json"', false, 1));
+		test('unquoted absolute path inside remote workspace - allow', () => t('echo hello > /home/user/workspace/file.txt', true, 1));
+		test('unquoted absolute path outside remote workspace - block', () => t('echo hello > /home/user/other/file.txt', false, 1));
+		test('relative path in remote workspace - allow', () => t('echo hello > file.txt', true, 1));
+		test('relative path with subdirectory in remote workspace - allow', () => t('echo hello > subdir/file.txt', true, 1));
 	});
 });
