@@ -168,7 +168,7 @@ jobs:
               echo "Install Playwright browser"
               cd /workspace/test/sanity
               if [ "$(arch)" = "aarch64" ] || [ "$(arch)" = "armv7l" ] || [ "$(arch)" = "arm" ]; then
-                ./node_modules/.bin/playwright install-deps wekit
+                ./node_modules/.bin/playwright install-deps webkit
                 ./node_modules/.bin/playwright install webkit
               else
                 ./node_modules/.bin/playwright install-deps chrome
