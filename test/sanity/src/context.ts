@@ -127,28 +127,39 @@ export class TestContext {
 	 * @returns The Mocha test object or void if the test is skipped.
 	 */
 	public test(name: string, require: Capability[], fn: () => Promise<void>): Mocha.Test | void {
-		if (this.options.downloadOnly || !require.some(o => !this.capabilities.has(o))) {
-			const self = this;
-			return test(name, async function () {
-				self._consoleOutputs = [];
-				(this.currentTest! as { consoleOutputs?: string[] }).consoleOutputs = self._consoleOutputs;
-				const homeDir = os.homedir();
+		if (!this.options.downloadOnly && require.some(o => !this.capabilities.has(o))) {
+			return;
+		}
+
+		const self = this;
+		return test(name, async function () {
+			self._consoleOutputs = [];
+			(this.currentTest! as { consoleOutputs?: string[] }).consoleOutputs = self._consoleOutputs;
+
+			self.log(`Starting test: ${name}`);
+
+			const homeDir = os.homedir();
+			process.chdir(homeDir);
+			self.log(`Changed working directory to: ${homeDir}`);
+
+			try {
+				await fn();
+
+			} catch (error) {
+				self.log(`Test failed with error: ${error instanceof Error ? error.message : String(error)}`);
+				throw error;
+
+			} finally {
 				process.chdir(homeDir);
 				self.log(`Changed working directory to: ${homeDir}`);
-				try {
-					await fn();
-				} catch (error) {
-					self.log(`Test failed with error: ${error instanceof Error ? error.message : String(error)}`);
-					throw error;
-				} finally {
-					process.chdir(homeDir);
-					self.log(`Changed working directory to: ${homeDir}`);
-					if (self.options.cleanup) {
-						self.cleanup();
-					}
+
+				if (self.options.cleanup) {
+					self.cleanup();
 				}
-			});
-		}
+
+				self.log(`Finished test: ${name}`);
+			}
+		});
 	}
 
 	/**
