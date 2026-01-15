@@ -52,6 +52,9 @@ extends:
         compiled:
           enabled: false
           justificationForDisabling: "Sanity tests only, no code compilation"
+      componentgovernance:
+        enabled: false
+        justificationForDisabling: "Sanity tests only, no source code"
       credscan:
         suppressionsFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/CredScanSuppressions.json
       eslint:
