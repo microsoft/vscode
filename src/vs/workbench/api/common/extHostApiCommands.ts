@@ -22,6 +22,7 @@ import * as types from './extHostTypes.js';
 import { TransientCellMetadata, TransientDocumentMetadata } from '../../contrib/notebook/common/notebookCommon.js';
 import * as search from '../../contrib/search/common/search.js';
 import type * as vscode from 'vscode';
+import { PromptsType } from '../../contrib/chat/common/promptSyntax/promptTypes.js';
 
 //#region --- NEW world
 
@@ -559,7 +560,7 @@ const newCommands: ApiCommand[] = [
 	new ApiCommand(
 		'vscode.extensionPromptFileProvider', '_listExtensionPromptFiles', 'Get all extension-contributed prompt files (custom agents, instructions, and prompt files).',
 		[],
-		new ApiCommandResult<{ uri: UriComponents; type: string }[], { uri: vscode.Uri; type: 'agent' | 'instructions' | 'promptFile' }[]>(
+		new ApiCommandResult<{ uri: UriComponents; type: PromptsType }[], { uri: vscode.Uri; type: PromptsType }[]>(
 			'A promise that resolves to an array of objects containing uri and type.',
 			(value) => {
 				if (!value) {
@@ -567,7 +568,7 @@ const newCommands: ApiCommand[] = [
 				}
 				return value.map(item => ({
 					uri: URI.revive(item.uri),
-					type: item.type as 'agent' | 'instructions' | 'promptFile'
+					type: item.type
 				}));
 			}
 		)
