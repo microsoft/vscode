@@ -209,7 +209,9 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 				name: this.attachment.name,
 				icon: this.attachment.value.icon,
 				modelDescription: this.attachment.value.modelDescription,
-				uri: this.attachment.value.uri
+				uri: this.attachment.value.uri,
+				commandId: this.attachment.value.commandId,
+				handle: this.attachment.value.handle
 			};
 			this.attachmentModel.addContext(context);
 		} else {

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, clearNode, hide } from '../../../../../../base/browser/dom.js';
+import { alert } from '../../../../../../base/browser/ui/aria/aria.js';
 import { IChatMarkdownContent, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import { IChatContentPartRenderContext, IChatContentPart } from './chatContentParts.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
@@ -34,7 +35,7 @@ function extractTextFromPart(content: IChatThinkingPart): string {
 	return raw.trim();
 }
 
-function getToolInvocationIcon(toolId: string): ThemeIcon {
+export function getToolInvocationIcon(toolId: string): ThemeIcon {
 	const lowerToolId = toolId.toLowerCase();
 
 	if (
@@ -64,11 +65,17 @@ function getToolInvocationIcon(toolId: string): ThemeIcon {
 		return Codicon.pencil;
 	}
 
+	if (
+		lowerToolId.includes('terminal')
+	) {
+		return Codicon.terminal;
+	}
+
 	// default to generic tool icon
 	return Codicon.tools;
 }
 
-function createThinkingIcon(icon: ThemeIcon): HTMLElement {
+export function createThinkingIcon(icon: ThemeIcon): HTMLElement {
 	const iconElement = $('span.chat-thinking-icon');
 	iconElement.classList.add(...ThemeIcon.asClassNameArray(icon));
 	return iconElement;
@@ -128,6 +135,9 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.lastExtractedTitle = extractedTitle;
 		}
 		this.currentThinkingValue = initialText;
+
+		// Alert screen reader users that thinking has started
+		alert(localize('chat.thinking.started', 'Thinking'));
 
 		if (configuredMode === ThinkingDisplayMode.Collapsed) {
 			this.setExpanded(false);
@@ -518,7 +528,19 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 		const itemWrapper = $('.chat-thinking-tool-wrapper');
 		const isMarkdownEdit = toolInvocationOrMarkdown?.kind === 'markdownContent';
-		const icon = isMarkdownEdit ? Codicon.pencil : (toolInvocationId ? getToolInvocationIcon(toolInvocationId) : Codicon.tools);
+		const isTerminalTool = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') && toolInvocationOrMarkdown.toolSpecificData?.kind === 'terminal';
+
+		let icon: ThemeIcon;
+		if (isMarkdownEdit) {
+			icon = Codicon.pencil;
+		} else if (isTerminalTool) {
+			const terminalData = (toolInvocationOrMarkdown as IChatToolInvocation | IChatToolInvocationSerialized).toolSpecificData as { kind: 'terminal'; terminalCommandState?: { exitCode?: number } };
+			const exitCode = terminalData?.terminalCommandState?.exitCode;
+			icon = exitCode !== undefined && exitCode !== 0 ? Codicon.error : Codicon.terminal;
+		} else {
+			icon = toolInvocationId ? getToolInvocationIcon(toolInvocationId) : Codicon.tools;
+		}
+
 		const iconElement = createThinkingIcon(icon);
 		itemWrapper.appendChild(iconElement);
 		itemWrapper.appendChild(content);

@@ -7,25 +7,76 @@
 
 declare module 'vscode' {
 
-	// #region CustomAgentProvider
+	// #region Resource Classes
 
 	/**
-	 * Represents a custom agent resource file (e.g., .agent.md) available for a repository.
+	 * Describes a chat resource file.
 	 */
-	export interface CustomAgentResource {
+	export type ChatResourceDescriptor =
+		| Uri
+		| {
+			uri: Uri;
+			isEditable?: boolean;
+		}
+		| {
+			id: string;
+			content: string;
+		};
+
+	/**
+	 * Represents a custom agent resource file (e.g., .agent.md).
+	 */
+	export class CustomAgentChatResource {
 		/**
-		 * The URI to the custom agent resource file.
+		 * The custom agent resource descriptor.
 		 */
-		readonly uri: Uri;
+		readonly resource: ChatResourceDescriptor;
 
 		/**
-		 * Indicates whether the custom agent is editable. Defaults to false.
+		 * Creates a new custom agent resource from the specified resource.
+		 * @param resource The chat resource descriptor.
 		 */
-		readonly isEditable?: boolean;
+		constructor(resource: ChatResourceDescriptor);
 	}
 
 	/**
-	 * Context for querying custom agents.
+	 * Represents an instructions resource file.
+	 */
+	export class InstructionsChatResource {
+		/**
+		 * The instructions resource descriptor.
+		 */
+		readonly resource: ChatResourceDescriptor;
+
+		/**
+		 * Creates a new instructions resource from the specified resource.
+		 * @param resource The chat resource descriptor.
+		 */
+		constructor(resource: ChatResourceDescriptor);
+	}
+
+	/**
+	 * Represents a prompt file resource (e.g., .prompt.md).
+	 */
+	export class PromptFileChatResource {
+		/**
+		 * The prompt file resource descriptor.
+		 */
+		readonly resource: ChatResourceDescriptor;
+
+		/**
+		 * Creates a new prompt file resource from the specified resource.
+		 * @param resource The chat resource descriptor.
+		 */
+		constructor(resource: ChatResourceDescriptor);
+	}
+
+	// #endregion
+
+	// #region Providers
+
+	/**
+	 * Options for querying custom agents.
 	 */
 	export type CustomAgentContext = object;
 
@@ -47,28 +98,12 @@ declare module 'vscode' {
 		 * Provide the list of custom agents available.
 		 * @param context Context for the query.
 		 * @param token A cancellation token.
-		 * @returns An array of custom agent resources or a promise that resolves to such.
+		 * @returns An array of custom agents or a promise that resolves to such.
 		 */
-		provideCustomAgents(context: CustomAgentContext, token: CancellationToken): ProviderResult<CustomAgentResource[]>;
-	}
-
-	// #endregion
-
-	// #region InstructionsProvider
-
-	/**
-	 * Represents an instructions resource file available for a repository.
-	 */
-	export interface InstructionsResource {
-		/**
-		 * The URI to the instructions resource file.
-		 */
-		readonly uri: Uri;
-
-		/**
-		 * Indicates whether the instructions are editable. Defaults to false.
-		 */
-		readonly isEditable?: boolean;
+		provideCustomAgents(
+			context: CustomAgentContext,
+			token: CancellationToken
+		): ProviderResult<CustomAgentChatResource[]>;
 	}
 
 	/**
@@ -94,28 +129,12 @@ declare module 'vscode' {
 		 * Provide the list of instructions available.
 		 * @param context Context for the query.
 		 * @param token A cancellation token.
-		 * @returns An array of instructions resources or a promise that resolves to such.
+		 * @returns An array of instructions or a promise that resolves to such.
 		 */
-		provideInstructions(context: InstructionsContext, token: CancellationToken): ProviderResult<InstructionsResource[]>;
-	}
-
-	// #endregion
-
-	// #region PromptFileProvider
-
-	/**
-	 * Represents a prompt file resource (e.g., .prompt.md) available for a repository.
-	 */
-	export interface PromptFileResource {
-		/**
-		 * The URI to the prompt file resource.
-		 */
-		readonly uri: Uri;
-
-		/**
-		 * Indicates whether the prompt file is editable. Defaults to false.
-		 */
-		readonly isEditable?: boolean;
+		provideInstructions(
+			context: InstructionsContext,
+			token: CancellationToken
+		): ProviderResult<InstructionsChatResource[]>;
 	}
 
 	/**
@@ -141,9 +160,12 @@ declare module 'vscode' {
 		 * Provide the list of prompt files available.
 		 * @param context Context for the query.
 		 * @param token A cancellation token.
-		 * @returns An array of prompt file resources or a promise that resolves to such.
+		 * @returns An array of prompt files or a promise that resolves to such.
 		 */
-		providePromptFiles(context: PromptFileContext, token: CancellationToken): ProviderResult<PromptFileResource[]>;
+		providePromptFiles(
+			context: PromptFileContext,
+			token: CancellationToken
+		): ProviderResult<PromptFileChatResource[]>;
 	}
 
 	// #endregion
@@ -156,21 +178,27 @@ declare module 'vscode' {
 		 * @param provider The custom agent provider.
 		 * @returns A disposable that unregisters the provider when disposed.
 		 */
-		export function registerCustomAgentProvider(provider: CustomAgentProvider): Disposable;
+		export function registerCustomAgentProvider(
+			provider: CustomAgentProvider
+		): Disposable;
 
 		/**
 		 * Register a provider for instructions.
 		 * @param provider The instructions provider.
 		 * @returns A disposable that unregisters the provider when disposed.
 		 */
-		export function registerInstructionsProvider(provider: InstructionsProvider): Disposable;
+		export function registerInstructionsProvider(
+			provider: InstructionsProvider
+		): Disposable;
 
 		/**
 		 * Register a provider for prompt files.
 		 * @param provider The prompt file provider.
 		 * @returns A disposable that unregisters the provider when disposed.
 		 */
-		export function registerPromptFileProvider(provider: PromptFileProvider): Disposable;
+		export function registerPromptFileProvider(
+			provider: PromptFileProvider
+		): Disposable;
 	}
 
 	// #endregion
