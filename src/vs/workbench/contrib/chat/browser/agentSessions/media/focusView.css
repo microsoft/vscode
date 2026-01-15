@@ -264,3 +264,48 @@ Agents Control - Titlebar control
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 }
+
+/* ========================================
+Agent Session Status Control - Compact running indicator
+======================================== */
+
+.agent-session-status-container {
+	display: flex;
+	align-items: center;
+	-webkit-app-region: no-drag;
+}
+
+.agent-session-status-pill {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 2px 8px;
+	height: 22px;
+	border-radius: 6px;
+	background-color: color-mix(in srgb, var(--vscode-progressBar-background) 15%, transparent);
+	border: 1px solid color-mix(in srgb, var(--vscode-progressBar-background) 50%, transparent);
+	cursor: pointer;
+	-webkit-app-region: no-drag;
+}
+
+.agent-session-status-pill:hover {
+	background-color: color-mix(in srgb, var(--vscode-progressBar-background) 25%, transparent);
+	border-color: color-mix(in srgb, var(--vscode-progressBar-background) 70%, transparent);
+}
+
+.agent-session-status-pill:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.agent-session-status-icon {
+	display: flex;
+	align-items: center;
+	color: var(--vscode-progressBar-background);
+}
+
+.agent-session-status-count {
+	font-size: 11px;
+	font-weight: 500;
+	color: var(--vscode-progressBar-background);
+}

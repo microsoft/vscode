@@ -7,7 +7,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { registerSingleton, InstantiationType } from '../../../../../platform/instantiation/common/extensions.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { Extensions as QuickAccessExtensions, IQuickAccessRegistry } from '../../../../../platform/quickinput/common/quickAccess.js';
@@ -22,6 +22,8 @@ import { AgentSessionsQuickAccessProvider, AGENT_SESSIONS_QUICK_ACCESS_PREFIX } 
 import { IFocusViewService, FocusViewService } from './focusViewService.js';
 import { EnterFocusViewAction, ExitFocusViewAction, OpenInChatPanelAction, ToggleAgentsControl } from './focusViewActions.js';
 import { AgentsControlViewItem } from './agentsControl.js';
+import { AgentSessionStatusControlViewItem } from './agentSessionStatusControl.js';
+import { isSessionInProgressStatus } from './agentSessionsModel.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -209,6 +211,65 @@ MenuRegistry.appendMenuItem(MenuId.AgentsControlMenu, {
 	when: ContextKeyExpr.has(`config.${ChatConfiguration.AgentSessionProjectionEnabled}`),
 });
 
+// Register Agent Session Status as a menu item in the command center
+// Shows when there are running sessions AND AgentSessionProjectionEnabled is disabled
+MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
+	submenu: MenuId.AgentSessionStatusMenu,
+	title: localize('agentSessionStatus', "Agent Session Status"),
+	icon: Codicon.sessionInProgress,
+	when: ContextKeyExpr.and(
+		ChatContextKeys.hasActiveAgentSessions,
+		ContextKeyExpr.has(`config.${ChatConfiguration.AgentSessionProjectionEnabled}`).negate()
+	),
+	order: 10001 // to the left of the agents control
+});
+
+// Register a placeholder action to the session status submenu so it appears (required for submenus)
+MenuRegistry.appendMenuItem(MenuId.AgentSessionStatusMenu, {
+	command: {
+		id: 'workbench.action.chat.history',
+		title: localize('viewSessions', "View Sessions"),
+	},
+	when: ContextKeyExpr.and(
+		ChatContextKeys.hasActiveAgentSessions,
+		ContextKeyExpr.has(`config.${ChatConfiguration.AgentSessionProjectionEnabled}`).negate()
+	),
+});
+
+/**
+ * Tracks running agent sessions and updates the context key.
+ */
+class AgentSessionStatusTracking extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.agentSessionStatus.tracking';
+
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IAgentSessionsService agentSessionsService: IAgentSessionsService,
+	) {
+		super();
+
+		const hasActiveAgentSessionsKey = ChatContextKeys.hasActiveAgentSessions.bindTo(contextKeyService);
+
+		const updateContextKey = () => {
+			const sessions = agentSessionsService.model.sessions;
+			const hasActiveSessions = sessions.some(s => isSessionInProgressStatus(s.status));
+			hasActiveAgentSessionsKey.set(hasActiveSessions);
+		};
+
+		// Initial update
+		updateContextKey();
+
+		// Listen for session changes
+		this._register(agentSessionsService.model.onDidChangeSessions(() => {
+			updateContextKey();
+		}));
+	}
+}
+
+// Register the session status tracking contribution
+registerWorkbenchContribution2(AgentSessionStatusTracking.ID, AgentSessionStatusTracking, WorkbenchPhase.AfterRestored);
+
 /**
  * Provides custom rendering for the agents control in the command center.
  * Uses IActionViewItemService to render a custom AgentsControlViewItem
@@ -231,6 +292,14 @@ class AgentsControlRendering extends Disposable implements IWorkbenchContributio
 				return undefined;
 			}
 			return instantiationService.createInstance(AgentsControlViewItem, action, options);
+		}, undefined));
+
+		// Register the session status indicator
+		this._register(actionViewItemService.register(MenuId.CommandCenter, MenuId.AgentSessionStatusMenu, (action, options) => {
+			if (!(action instanceof SubmenuItemAction)) {
+				return undefined;
+			}
+			return instantiationService.createInstance(AgentSessionStatusControlViewItem, action, options);
 		}, undefined));
 
 		// Add/remove CSS class on workbench based on setting

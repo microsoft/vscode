@@ -108,6 +108,9 @@ export namespace ChatContextKeys {
 
 	// Focus View mode
 	export const inFocusViewMode = new RawContextKey<boolean>('chatInFocusViewMode', false, { type: 'boolean', description: localize('chatInFocusViewMode', "True when the workbench is in focus view mode for an agent session.") });
+
+	// Running agent sessions
+	export const hasActiveAgentSessions = new RawContextKey<boolean>('chat.hasActiveAgentSessions', false, { type: 'boolean', description: localize('chat.hasActiveAgentSessions', "True when there are agent sessions currently running.") });
 }
 
 export namespace ChatContextKeyExprs {
