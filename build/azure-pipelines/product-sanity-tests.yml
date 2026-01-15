@@ -244,3 +244,11 @@ extends:
               poolName: 1es-ubuntu-22.04-x64
               container: alpine:latest
               containerPlatform: linux/arm64
+
+          # Native Ubuntu tests (for snap and other host-only tests)
+          - template: build/azure-pipelines/common/sanity-tests.yml@self
+            parameters:
+              name: Ubuntu_Native_x64
+              displayName: Ubuntu x64 Native Sanity Tests
+              poolName: 1es-ubuntu-22.04-x64
+              os: linux

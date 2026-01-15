@@ -106,9 +106,6 @@ jobs:
                     libmanette-0.2-0 gstreamer1.0-libav flite1-dev libx264-163 || true
                 fi
 
-                # Install snapd for snap package testing
-                apt-get install -y snapd || true
-
               elif command -v dnf &> /dev/null; then
 
                 echo "Installing dependencies using dnf (Fedora, RHEL)"
@@ -118,16 +115,10 @@ jobs:
                 dnf install -y xorg-x11-server-Xvfb xorg-x11-utils
                 dnf install -y xdg-utils
 
-                # Install snapd for snap package testing
-                dnf install -y snapd || true
-
               elif command -v zypper &> /dev/null; then
 
                 echo "Installing dependencies using zypper (openSUSE)"
                 zypper install -y nodejs22 xorg-x11-server-Xvfb xorg-x11 libgtk-3-0 mozilla-nss libgbm1 alsa xdg-utils sudo tar gzip dbus-1 dbus-1-x11
-
-                # Install snapd for snap package testing
-                zypper install -y snapd || true
 
               elif command -v apk &> /dev/null; then
 
@@ -144,13 +135,6 @@ jobs:
               echo "Starting D-Bus session for Electron"
               mkdir -p /run/dbus
               dbus-daemon --system --fork
-
-              # Start snapd daemon if snap is installed
-              if command -v snap &> /dev/null; then
-                echo "Starting snapd service"
-                /usr/lib/snapd/snapd &
-                sleep 2
-              fi
 
               echo "Install Playwright browser"
               cd /workspace/test/sanity
