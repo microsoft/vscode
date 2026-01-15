@@ -9,7 +9,7 @@ import { timeout, type MaybePromise } from '../../../../../../../base/common/asy
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
-import { Disposable, type IDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable, type IDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { isObject, isString } from '../../../../../../../base/common/types.js';
 import { localize } from '../../../../../../../nls.js';
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
@@ -66,7 +66,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	 * This is used to skip showing prompts if the user already provided input.
 	 */
 	private _userInputtedSinceIdleDetected = false;
-	private _userInputListener: IDisposable | undefined;
+	private readonly _userInputListener = this._register(new MutableDisposable<IDisposable>());
 
 	private readonly _outputMonitorTelemetryCounters: IOutputMonitorTelemetryCounters = {
 		inputToolManualAcceptCount: 0,
@@ -168,8 +168,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				resources
 			};
 			// Clean up idle input listener if still active
-			this._userInputListener?.dispose();
-			this._userInputListener = undefined;
+			this._userInputListener.clear();
 			const promptPart = this._promptPart;
 			this._promptPart = undefined;
 			if (promptPart) {
@@ -346,15 +345,11 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	 * This ensures we catch any input that happens between idle detection and prompt creation.
 	 */
 	private _setupIdleInputListener(): void {
-		// Clean up any existing listener
-		this._userInputListener?.dispose();
 		this._userInputtedSinceIdleDetected = false;
 
-		// Set up new listener
-		this._userInputListener = this._execution.instance.onDidInputData((data) => {
-			if (data === '\r' || data === '\n' || data === '\r\n') {
-				this._userInputtedSinceIdleDetected = true;
-			}
+		// Set up new listener (MutableDisposable auto-disposes previous)
+		this._userInputListener.value = this._execution.instance.onDidInputData(() => {
+			this._userInputtedSinceIdleDetected = true;
 		});
 	}
 
@@ -363,8 +358,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	 */
 	private _cleanupIdleInputListener(): void {
 		this._userInputtedSinceIdleDetected = false;
-		this._userInputListener?.dispose();
-		this._userInputListener = undefined;
+		this._userInputListener.clear();
 	}
 
 	private async _assessOutputForErrors(buffer: string, token: CancellationToken): Promise<string | undefined> {
