@@ -204,6 +204,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 				} else if (type === PromptsType.prompt) {
 					this.cachedFileLocations[PromptsType.prompt] = undefined;
 					this.cachedSlashCommands.refresh();
+				} else if (type === PromptsType.skill) {
+					this.cachedFileLocations[PromptsType.skill] = undefined;
 				}
 			}));
 		}
@@ -217,6 +219,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 		} else if (type === PromptsType.prompt) {
 			this.cachedFileLocations[PromptsType.prompt] = undefined;
 			this.cachedSlashCommands.refresh();
+		} else if (type === PromptsType.skill) {
+			this.cachedFileLocations[PromptsType.skill] = undefined;
 		}
 
 		disposables.add({
@@ -232,6 +236,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 					} else if (type === PromptsType.prompt) {
 						this.cachedFileLocations[PromptsType.prompt] = undefined;
 						this.cachedSlashCommands.refresh();
+					} else if (type === PromptsType.skill) {
+						this.cachedFileLocations[PromptsType.skill] = undefined;
 					}
 				}
 			}
@@ -339,8 +345,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 			}
 		}
 
-		const userHome = this.userDataService.currentProfile.promptsHome;
-		result.push({ uri: userHome, storage: PromptsStorage.user, type });
+		if (type !== PromptsType.skill) {
+			// no user source folders for skills
+			const userHome = this.userDataService.currentProfile.promptsHome;
+			result.push({ uri: userHome, storage: PromptsStorage.user, type });
+		}
 
 		return result;
 	}
