@@ -650,6 +650,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				sessionsControl.reveal(sessionResource);
 			}
 		}));
+
+		// Update sessions control layout when chat widget content height changes (e.g., context added)
+		this._register(chatWidget.onDidChangeContentHeight(() => {
+			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked && this.lastDimensions) {
+				this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
+			}
+		}));
 	}
 
 	private setupContextMenu(parent: HTMLElement): void {
