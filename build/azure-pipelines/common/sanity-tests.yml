@@ -138,7 +138,7 @@ jobs:
 
                 echo "Installing dependencies using dnf (Fedora, RHEL, CentOS)"
                 dnf install -y epel-release 2>/dev/null || true
-                dnf install -y nodejs gtk3 nss mesa-libgbm alsa-lib sudo dbus
+                dnf install -y nodejs gtk3 nss mesa-libgbm alsa-lib sudo dbus dbus-daemon
                 dnf install -y dbus-x11 || true
                 dnf install -y xorg-x11-server-Xvfb || true
                 dnf install -y xorg-x11-utils || true
