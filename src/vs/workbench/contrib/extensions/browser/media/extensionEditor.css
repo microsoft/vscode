@@ -193,6 +193,10 @@
 	text-align: initial;
 }
 
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container {
+	flex-wrap: wrap;
+}
+
 .extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item {
 	margin-right: 0;
 	overflow: hidden;
