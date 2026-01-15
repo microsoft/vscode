@@ -17,7 +17,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ExitAgentSessionProjectionAction } from './agentSessionProjectionActions.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
-import { isSessionInProgressStatus } from './agentSessionsModel.js';
+import { IAgentSession, isSessionInProgressStatus } from './agentSessionsModel.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../../base/common/actions.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
@@ -27,10 +27,13 @@ import { IEditorGroupsService } from '../../../../services/editor/common/editorG
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { Verbosity } from '../../../../common/editor.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
+import { openSession } from './agentSessionsOpener.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 
-const OPEN_CHAT_ACTION_ID = 'workbench.action.chat.open';
-const QUICK_CHAT_ACTION_ID = 'workbench.action.quickchat.toggle';
-const QUICK_OPEN_ACTION_ID = 'workbench.action.quickOpenWithModes';
+// Action triggered when clicking the main pill - change this to modify the primary action
+const ACTION_ID = 'workbench.action.quickchat.toggle';
+const SEARCH_BUTTON_ACITON_ID = 'workbench.action.quickOpenWithModes';
 
 const NLS_EXTENSION_HOST = localize('devExtensionWindowTitlePrefix', "[Extension Development Host]");
 const TITLE_DIRTY = '\u25cf ';
@@ -49,9 +52,13 @@ export class AgentStatusWidget extends BaseActionViewItem {
 	private _container: HTMLElement | undefined;
 	private readonly _dynamicDisposables = this._register(new DisposableStore());
 
+	/** The currently displayed in-progress session (if any) - clicking pill opens this */
+	private _displayedSession: IAgentSession | undefined;
+
 	constructor(
 		action: IAction,
 		options: IBaseActionViewItemOptions | undefined,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IAgentStatusService private readonly agentStatusService: IAgentStatusService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@ICommandService private readonly commandService: ICommandService,
@@ -164,8 +171,8 @@ export class AgentStatusWidget extends BaseActionViewItem {
 			unreadCount.textContent = String(unreadSessions.length);
 			leftIndicator.appendChild(unreadCount);
 		} else {
-			// Keyboard shortcut when idle (show open chat keybinding)
-			const kb = this.keybindingService.lookupKeybinding(OPEN_CHAT_ACTION_ID)?.getLabel();
+			// Keyboard shortcut when idle (show quick chat keybinding - matches click action)
+			const kb = this.keybindingService.lookupKeybinding(ACTION_ID)?.getLabel();
 			if (kb) {
 				const kbLabel = $('span.agent-status-keybinding');
 				kbLabel.textContent = kb;
@@ -174,29 +181,43 @@ export class AgentStatusWidget extends BaseActionViewItem {
 		}
 		pill.appendChild(leftIndicator);
 
-		// Show label (matching command center behavior - includes prefix/suffix decorations)
+		// Show label - either progress from most recent active session, or workspace name
 		const label = $('span.agent-status-label');
-		label.textContent = this._getLabel();
+		const { session: activeSession, progress: progressText } = this._getMostRecentActiveSession(activeSessions);
+		this._displayedSession = activeSession;
+		if (progressText) {
+			// Show progress with fade-in animation
+			label.classList.add('has-progress');
+			label.textContent = progressText;
+		} else {
+			label.textContent = this._getLabel();
+		}
 		pill.appendChild(label);
 
-		// Send icon (right side)
-		const sendIcon = $('span.agent-status-send');
-		reset(sendIcon, renderIcon(Codicon.send));
-		pill.appendChild(sendIcon);
+		// Send icon (right side) - only show when not streaming progress
+		if (!progressText) {
+			const sendIcon = $('span.agent-status-send');
+			reset(sendIcon, renderIcon(Codicon.send));
+			pill.appendChild(sendIcon);
+		}
 
-		// Setup hover with keyboard shortcut
+		// Setup hover - show session name when displaying progress, otherwise show keybinding
 		const hoverDelegate = getDefaultHoverDelegate('mouse');
-		const kbForTooltip = this.keybindingService.lookupKeybinding(QUICK_CHAT_ACTION_ID)?.getLabel();
-		const tooltip = kbForTooltip
-			? localize('askTooltip', "Open Quick Chat ({0})", kbForTooltip)
-			: localize('askTooltip2', "Open Quick Chat");
-		disposables.add(this.hoverService.setupManagedHover(hoverDelegate, pill, tooltip));
+		disposables.add(this.hoverService.setupManagedHover(hoverDelegate, pill, () => {
+			if (this._displayedSession) {
+				return localize('openSessionTooltip', "Open session: {0}", this._displayedSession.label);
+			}
+			const kbForTooltip = this.keybindingService.lookupKeybinding(ACTION_ID)?.getLabel();
+			return kbForTooltip
+				? localize('askTooltip', "Open Quick Chat ({0})", kbForTooltip)
+				: localize('askTooltip2', "Open Quick Chat");
+		}));
 
-		// Click handler - open quick chat
+		// Click handler - open displayed session if showing progress, otherwise open quick chat
 		disposables.add(addDisposableListener(pill, EventType.CLICK, (e) => {
 			e.preventDefault();
 			e.stopPropagation();
-			this.commandService.executeCommand(QUICK_CHAT_ACTION_ID);
+			this._handlePillClick();
 		}));
 
 		// Keyboard handler
@@ -204,7 +225,7 @@ export class AgentStatusWidget extends BaseActionViewItem {
 			if (e.key === 'Enter' || e.key === ' ') {
 				e.preventDefault();
 				e.stopPropagation();
-				this.commandService.executeCommand(QUICK_CHAT_ACTION_ID);
+				this._handlePillClick();
 			}
 		}));
 
@@ -282,7 +303,7 @@ export class AgentStatusWidget extends BaseActionViewItem {
 
 		// Setup hover
 		const hoverDelegate = getDefaultHoverDelegate('mouse');
-		const searchKb = this.keybindingService.lookupKeybinding(QUICK_OPEN_ACTION_ID)?.getLabel();
+		const searchKb = this.keybindingService.lookupKeybinding(SEARCH_BUTTON_ACITON_ID)?.getLabel();
 		const searchTooltip = searchKb
 			? localize('openQuickOpenTooltip', "Go to File ({0})", searchKb)
 			: localize('openQuickOpenTooltip2', "Go to File");
@@ -292,7 +313,7 @@ export class AgentStatusWidget extends BaseActionViewItem {
 		disposables.add(addDisposableListener(searchButton, EventType.CLICK, (e) => {
 			e.preventDefault();
 			e.stopPropagation();
-			this.commandService.executeCommand(QUICK_OPEN_ACTION_ID);
+			this.commandService.executeCommand(SEARCH_BUTTON_ACITON_ID);
 		}));
 
 		// Keyboard handler
@@ -300,9 +321,49 @@ export class AgentStatusWidget extends BaseActionViewItem {
 			if (e.key === 'Enter' || e.key === ' ') {
 				e.preventDefault();
 				e.stopPropagation();
-				this.commandService.executeCommand(QUICK_OPEN_ACTION_ID);
+				this.commandService.executeCommand(SEARCH_BUTTON_ACITON_ID);
 			}
 		}));
+	}
+
+	/**
+	 * Handle pill click - opens the displayed session if showing progress, otherwise executes default action
+	 */
+	private _handlePillClick(): void {
+		if (this._displayedSession) {
+			this.instantiationService.invokeFunction(openSession, this._displayedSession);
+		} else {
+			this.commandService.executeCommand(ACTION_ID);
+		}
+	}
+
+	/**
+	 * Get the most recently interacted active session and its progress text.
+	 * Returns undefined session if no active sessions.
+	 */
+	private _getMostRecentActiveSession(activeSessions: IAgentSession[]): { session: IAgentSession | undefined; progress: string | undefined } {
+		if (activeSessions.length === 0) {
+			return { session: undefined, progress: undefined };
+		}
+
+		// Sort by most recently started request
+		const sorted = [...activeSessions].sort((a, b) => {
+			const timeA = a.timing.lastRequestStarted ?? a.timing.created;
+			const timeB = b.timing.lastRequestStarted ?? b.timing.created;
+			return timeB - timeA;
+		});
+
+		const mostRecent = sorted[0];
+		if (!mostRecent.description) {
+			return { session: mostRecent, progress: undefined };
+		}
+
+		// Convert markdown to plain text if needed
+		const progress = typeof mostRecent.description === 'string'
+			? mostRecent.description
+			: renderAsPlaintext(mostRecent.description);
+
+		return { session: mostRecent, progress };
 	}
 
 	/**
