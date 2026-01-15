@@ -91,16 +91,17 @@ jobs:
               # Install Node.js and X11
               if command -v apt-get &> /dev/null; then
                 apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
-                  curl ca-certificates xvfb libgtk-3-0 libnss3 libgbm1 libasound2 xdg-utils sudo dbus dbus-x11
+                  curl ca-certificates xvfb libgtk-3-0 libnss3 libgbm1 xdg-utils sudo dbus dbus-x11
+                apt-get install -y libasound2t64 || apt-get install -y libasound2
                 curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
                 apt-get install -y nodejs
               elif command -v dnf &> /dev/null; then
-                dnf install -y epel-release
+                dnf install -y epel-release 2>/dev/null || true
                 dnf install -y nodejs gtk3 nss mesa-libgbm alsa-lib sudo dbus dbus-x11
                 dnf install -y xorg-x11-server-Xvfb
                 dnf install -y xdg-utils
               elif command -v yum &> /dev/null; then
-                yum install -y epel-release
+                yum install -y epel-release 2>/dev/null || true
                 yum install -y nodejs gtk3 nss mesa-libgbm alsa-lib sudo dbus dbus-x11
                 yum install -y xorg-x11-server-Xvfb
                 yum install -y xdg-utils
