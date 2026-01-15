@@ -144,7 +144,7 @@ export function reviveProfile(profile: UriDto<IUserDataProfile>, scheme: string)
 		cacheHome: URI.revive(profile.cacheHome).with({ scheme }),
 		useDefaultFlags: profile.useDefaultFlags,
 		isTransient: profile.isTransient,
-		workspaces: profile.workspaces?.map(w => URI.revive(w))
+		workspaces: profile.workspaces?.map(w => URI.revive(w)),
 	};
 }
 
@@ -166,7 +166,7 @@ export function toUserDataProfile(id: string, name: string, location: URI, profi
 		cacheHome: joinPath(profilesCacheHome, id),
 		useDefaultFlags: options?.useDefaultFlags,
 		isTransient: options?.transient,
-		workspaces: options?.workspaces
+		workspaces: options?.workspaces,
 	};
 }
 
