@@ -331,7 +331,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		// Clear out warning accepted state if the setting is disabled
 		this._register(Event.runAndSubscribe(this._configurationService.onDidChangeConfiguration, e => {
-		this._register(Event.runAndSubscribe(this._configurationService.onDidChangeConfiguration, e => {
 			// Clear out warning accepted state if the setting is disabled
 			if (!e || e.affectsConfiguration(TerminalChatAgentToolsSettingId.EnableAutoApprove)) {
 				if (this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnableAutoApprove) !== true) {
