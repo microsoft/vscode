@@ -129,7 +129,6 @@ registerWorkbenchContribution2(ChatAgentToolsContribution.ID, ChatAgentToolsCont
 
 // #endregion Contributions
 
-
 // #region Actions
 
 registerActiveInstanceAction({
