@@ -12,7 +12,7 @@ import { IExtHostRpcService } from './extHostRpcService.js';
 import { IExtHostTerminalService } from './extHostTerminalService.js';
 import { Emitter, type Event } from '../../../base/common/event.js';
 import { URI } from '../../../base/common/uri.js';
-import { AsyncIterableObject, Barrier, type AsyncIterableEmitter } from '../../../base/common/async.js';
+import { AsyncIterableObject, AsyncIterableProducer, Barrier, DeferredPromise, type AsyncIterableEmitter } from '../../../base/common/async.js';
 
 export interface IExtHostTerminalShellIntegration extends ExtHostTerminalShellIntegrationShape {
 	readonly _serviceBrand: undefined;
@@ -432,7 +432,7 @@ class InternalTerminalShellExecution {
 
 class ShellExecutionDataStream extends Disposable {
 	private _barrier: Barrier | undefined;
-	private _iterables: AsyncIterableObject<string>[] = [];
+	private _completionPromises: Promise<void>[] = [];
 	private _emitters: AsyncIterableEmitter<string>[] = [];
 
 	createIterable(): AsyncIterable<string> {
@@ -440,12 +440,20 @@ class ShellExecutionDataStream extends Disposable {
 			this._barrier = new Barrier();
 		}
 		const barrier = this._barrier;
-		const iterable = new AsyncIterableObject<string>(async emitter => {
+		const deferred = new DeferredPromise<void>();
+		this._completionPromises.push(deferred.p);
+		return new AsyncIterableProducer<string>(async emitter => {
 			this._emitters.push(emitter);
-			await barrier.wait();
+			try {
+				await barrier.wait();
+			} finally {
+				const idx = this._emitters.indexOf(emitter);
+				if (idx >= 0) {
+					this._emitters.splice(idx, 1);
+				}
+				deferred.complete();
+			}
 		});
-		this._iterables.push(iterable);
-		return iterable;
 	}
 
 	emitData(data: string): void {
@@ -459,7 +467,7 @@ class ShellExecutionDataStream extends Disposable {
 	}
 
 	async flush(): Promise<void> {
-		await Promise.all(this._iterables.map(e => e.toPromise()));
+		await Promise.all(this._completionPromises);
 	}
 }
 
