@@ -3279,6 +3279,34 @@ export class Repository implements Disposable {
 		return this.unpublishedCommits;
 	}
 
+	async sparseCheckoutList(): Promise<string[]> {
+		return await this.run(Operation.Config(true), () => this.repository.sparseCheckoutList());
+	}
+
+	async sparseCheckoutInit(cone: boolean = true): Promise<void> {
+		await this.run(Operation.Config(false), () => this.repository.sparseCheckoutInit(cone));
+	}
+
+	async sparseCheckoutSet(paths: string[]): Promise<void> {
+		await this.run(Operation.Config(false), () => this.repository.sparseCheckoutSet(paths));
+	}
+
+	async sparseCheckoutAdd(paths: string[]): Promise<void> {
+		await this.run(Operation.Config(false), () => this.repository.sparseCheckoutAdd(paths));
+	}
+
+	async sparseCheckoutReapply(): Promise<void> {
+		await this.run(Operation.Config(false), () => this.repository.sparseCheckoutReapply());
+	}
+
+	async sparseCheckoutDisable(): Promise<void> {
+		await this.run(Operation.Config(false), () => this.repository.sparseCheckoutDisable());
+	}
+
+	async getTopLevelDirectories(): Promise<string[]> {
+		return await this.run(Operation.Config(false), () => this.repository.getTopLevelDirectories());
+	}
+
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
 	}

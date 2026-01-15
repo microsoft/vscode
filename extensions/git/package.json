@@ -96,6 +96,12 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.sparseCheckout",
+        "title": "%command.sparseCheckout%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.init",
         "title": "%command.init%",
         "category": "Git",

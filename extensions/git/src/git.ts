@@ -3510,4 +3510,44 @@ export class Repository {
 		this.logger.trace(`[Git][sanitizeRelativePath] relativePath (fallback): ${filePath}`);
 		return filePath;
 	}
+
+	async sparseCheckoutList(): Promise<string[]> {
+		const result = await this.exec(['sparse-checkout', 'list']);
+		return result.stdout.trim().split('\n').filter(line => line.length > 0);
+	}
+
+	async sparseCheckoutInit(cone: boolean = true): Promise<void> {
+		const args = ['sparse-checkout', 'init'];
+		if (cone) {
+			args.push('--cone');
+		}
+		await this.exec(args);
+	}
+
+	async sparseCheckoutSet(paths: string[]): Promise<void> {
+		if (paths.length === 0) {
+			throw new Error('At least one path must be specified');
+		}
+		await this.exec(['sparse-checkout', 'set', ...paths]);
+	}
+
+	async sparseCheckoutAdd(paths: string[]): Promise<void> {
+		if (paths.length === 0) {
+			throw new Error('At least one path must be specified');
+		}
+		await this.exec(['sparse-checkout', 'add', ...paths]);
+	}
+
+	async sparseCheckoutReapply(): Promise<void> {
+		await this.exec(['sparse-checkout', 'reapply']);
+	}
+
+	async sparseCheckoutDisable(): Promise<void> {
+		await this.exec(['sparse-checkout', 'disable']);
+	}
+
+	async getTopLevelDirectories(): Promise<string[]> {
+		const result = await this.exec(['ls-tree', '-d', '--name-only', 'HEAD']);
+		return result.stdout.trim().split('\n').filter(line => line.length > 0);
+	}
 }
