@@ -44,15 +44,19 @@ export interface ITerminalToolAutoExpandOptions {
 }
 
 /**
- * Timeout in milliseconds to wait when no data events are received before checking for auto-expand.
+ * Timeout constants for the auto-expand algorithm.
  */
-export const NO_DATA_TIMEOUT_MS = 500;
-
-/**
- * Timeout in milliseconds to wait after first data event before checking for auto-expand.
- * This prevents flickering for fast commands like `ls` that finish quickly.
- */
-export const DATA_EVENT_TIMEOUT_MS = 50;
+export const enum TerminalToolAutoExpandTimeout {
+	/**
+	 * Timeout in milliseconds to wait when no data events are received before checking for auto-expand.
+	 */
+	NoData = 500,
+	/**
+	 * Timeout in milliseconds to wait after first data event before checking for auto-expand.
+	 * This prevents flickering for fast commands like `ls` that finish quickly.
+	 */
+	DataEvent = 50,
+}
 
 export class TerminalToolAutoExpand extends Disposable {
 	private _commandFinished = false;
@@ -80,7 +84,7 @@ export class TerminalToolAutoExpand extends Disposable {
 					if (!this._receivedData && this._options.shouldAutoExpand() && this._options.hasRealOutput()) {
 						this._options.toggleOutput(true);
 					}
-				}, NO_DATA_TIMEOUT_MS, store);
+				}, TerminalToolAutoExpandTimeout.NoData, store);
 			}
 		}));
 
@@ -91,7 +95,6 @@ export class TerminalToolAutoExpand extends Disposable {
 				return;
 			}
 			this._receivedData = true;
-			// Cancel the 500ms no-data timeout since we received data
 			this._noDataTimeout?.dispose();
 			this._noDataTimeout = undefined;
 			// Wait 50ms and expand if command hasn't finished yet and has real output
@@ -101,7 +104,7 @@ export class TerminalToolAutoExpand extends Disposable {
 					if (!this._commandFinished && this._options.shouldAutoExpand() && this._options.hasRealOutput()) {
 						this._options.toggleOutput(true);
 					}
-				}, DATA_EVENT_TIMEOUT_MS, store);
+				}, TerminalToolAutoExpandTimeout.DataEvent, store);
 			}
 		}));
 
