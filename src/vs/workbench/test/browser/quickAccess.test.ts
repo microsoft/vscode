@@ -13,7 +13,7 @@ import { DisposableStore, toDisposable, IDisposable } from '../../../base/common
 import { timeout } from '../../../base/common/async.js';
 import { PickerQuickAccessProvider, FastAndSlowPicks } from '../../../platform/quickinput/browser/pickerQuickAccess.js';
 import { URI } from '../../../base/common/uri.js';
-import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
+import { GroupDirection, IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../services/editor/common/editorService.js';
 import { EditorService } from '../../services/editor/browser/editorService.js';
 import { PickerEditorState } from '../../browser/quickaccess.js';
@@ -449,5 +449,63 @@ suite('QuickAccess', () => {
 			assert.deepStrictEqual(part.activeGroup.activeEditorPane?.getSelection(), input1.options.selection);
 		}
 		await part.activeGroup.closeAllEditors();
+	});
+
+	test('PickerEditorState restoreEditorViewStates restores view states in other groups', async () => {
+
+		const part = await createEditorPart(instantiationService, disposables.add(new DisposableStore()));
+		instantiationService.stub(IEditorGroupsService, part);
+
+		const editorService = disposables.add(instantiationService.createInstance(EditorService, undefined));
+		instantiationService.stub(IEditorService, editorService);
+
+		const editorViewState = disposables.add(instantiationService.createInstance(PickerEditorState));
+		disposables.add(part);
+		disposables.add(editorService);
+
+		// Create two editor groups
+		const group1 = part.activeGroup;
+		const group2 = part.addGroup(group1, GroupDirection.RIGHT);
+
+		// Open a file in group2 (simulating having a file open in another split)
+		const sharedInput = {
+			resource: URI.parse('foo://shared'),
+			options: {
+				pinned: true, preserveFocus: true
+			}
+		};
+		await editorService.openEditor(sharedInput, group2);
+
+		// Open a different file in group1 (the active group)
+		const input1 = {
+			resource: URI.parse('foo://bar1'),
+			options: {
+				pinned: true, preserveFocus: true
+			}
+		};
+		await editorService.openEditor(input1, group1);
+
+		// Activate group1 and set the editor view state
+		part.activateGroup(group1);
+		editorViewState.set();
+
+		// Verify group2 has the shared file as active editor
+		assert.strictEqual(group2.activeEditor?.resource?.toString(), sharedInput.resource.toString());
+
+		// Open transient editor with revealIfOpened - this would reveal the file in group2
+		await editorViewState.openTransientEditor({
+			resource: sharedInput.resource,
+			options: { preserveFocus: true, revealIfOpened: true }
+		});
+
+		// Call restoreEditorViewStates (simulating what happens on accept in active group)
+		await editorViewState.restoreEditorViewStates();
+
+		// Verify group2 still has the shared file (view state was restored)
+		assert.strictEqual(group2.activeEditor?.resource?.toString(), sharedInput.resource.toString());
+
+		// Cleanup
+		await group1.closeAllEditors();
+		await group2.closeAllEditors();
 	});
 });
