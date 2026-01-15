@@ -51,8 +51,22 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 	readonly onDidChangeSessions: Event<this> = this._onDidChangeSessions.event;
 
 	constructor(
-		@IChatService private readonly _chatService: IChatService
-	) { }
+		@IChatService private readonly _chatService: IChatService,
+		@IChatAgentService chatAgentService: IChatAgentService,
+	) {
+		// Listen for agent changes and dispose all sessions when there is no agent
+		const agentObs = observableFromEvent(this, chatAgentService.onDidChangeAgents, () => chatAgentService.getDefaultAgent(ChatAgentLocation.EditorInline));
+		this._store.add(autorun(r => {
+			const agent = agentObs.read(r);
+			if (!agent) {
+				// No agent available, dispose all sessions
+				// Copy to array to avoid modifying the map while iterating
+				for (const session of [...this._sessions.values()]) {
+					session.dispose();
+				}
+			}
+		}));
+	}
 
 	dispose() {
 		this._store.dispose();
