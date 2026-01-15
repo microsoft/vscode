@@ -180,6 +180,56 @@ export class FindModelBoundToEditorModel {
 		return model.getFullModelRange();
 	}
 
+	/**
+	 * Computes search ranges, optionally excluding hidden areas
+	 */
+	private static _getSearchRanges(model: ITextModel, findScope: Range | null, hiddenAreas?: Range[]): Range[] {
+		const baseRange = this._getSearchRange(model, findScope);
+
+		// If hidden areas are provided, subtract them from the base range
+		if (hiddenAreas && hiddenAreas.length > 0) {
+			return this._subtractHiddenAreas(baseRange, hiddenAreas);
+		}
+
+		return [baseRange];
+	}
+
+	/**
+	 * Subtracts hidden areas from a search range, returning an array of visible ranges
+	 */
+	private static _subtractHiddenAreas(searchRange: Range, hiddenAreas: Range[]): Range[] {
+		const visibleRanges: Range[] = [];
+		let currentStart = searchRange.getStartPosition();
+		const searchEnd = searchRange.getEndPosition();
+
+		// Sort hidden areas by start position once
+		const sortedHidden = hiddenAreas
+			.filter(hidden => Range.areIntersecting(searchRange, hidden))
+			.sort((a, b) => Range.compareRangesUsingStarts(a, b));
+
+		for (const hidden of sortedHidden) {
+			const hiddenStart = hidden.getStartPosition();
+			const hiddenEnd = hidden.getEndPosition();
+
+			// Add visible range before this hidden area
+			if (currentStart.isBefore(hiddenStart)) {
+				visibleRanges.push(Range.fromPositions(currentStart, hiddenStart));
+			}
+
+			// Move current start to after the hidden area (if hidden end is after current start)
+			if (currentStart.isBefore(hiddenEnd) || currentStart.equals(hiddenEnd)) {
+				currentStart = hiddenEnd;
+			}
+		}
+
+		// Add remaining visible range after all hidden areas
+		if (currentStart.isBefore(searchEnd)) {
+			visibleRanges.push(Range.fromPositions(currentStart, searchEnd));
+		}
+
+		return visibleRanges;
+	}
+
 	private research(moveCursor: boolean, newFindScope?: Range | Range[] | null): void {
 		let findScopes: Range[] | null = null;
 		if (typeof newFindScope !== 'undefined') {
@@ -500,65 +550,27 @@ export class FindModelBoundToEditorModel {
 	}
 
 	private _findMatches(findScopes: Range[] | null, captureMatches: boolean, limitResultCount: number): FindMatch[] {
-		let searchRanges = (findScopes as [] || [null]).map((scope: Range | null) =>
-			FindModelBoundToEditorModel._getSearchRange(this._editor.getModel(), scope)
-		);
-
-		// If skipHiddenAreas option is enabled, exclude hidden areas from search ranges
+		// Get hidden areas if skipHiddenAreas option is enabled
 		const findOptions = this._editor.getOption(EditorOption.find);
+		let hiddenAreas: Range[] | undefined;
 		if (findOptions.skipHiddenAreas) {
 			const viewModel = this._editor._getViewModel();
 			if (viewModel) {
-				const hiddenAreas = viewModel.getHiddenAreas();
-				if (hiddenAreas.length > 0) {
-					// Compute visible ranges by subtracting hidden areas from search ranges
-					const visibleRanges: Range[] = [];
-					for (const searchRange of searchRanges) {
-						const ranges = this._subtractHiddenAreas(searchRange, hiddenAreas);
-						visibleRanges.push(...ranges);
-					}
-					searchRanges = visibleRanges;
+				const areas = viewModel.getHiddenAreas();
+				if (areas.length > 0) {
+					hiddenAreas = areas;
 				}
 			}
 		}
 
+		// Compute search ranges, excluding hidden areas if needed
+		const searchRanges: Range[] = [];
+		for (const scope of (findScopes as [] || [null])) {
+			const ranges = FindModelBoundToEditorModel._getSearchRanges(this._editor.getModel(), scope, hiddenAreas);
+			searchRanges.push(...ranges);
+		}
+
 		return this._editor.getModel().findMatches(this._state.searchString, searchRanges, this._state.isRegex, this._state.matchCase, this._state.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, captureMatches, limitResultCount);
-	}
-
-	/**
-	 * Subtracts hidden areas from a search range, returning an array of visible ranges
-	 */
-	private _subtractHiddenAreas(searchRange: Range, hiddenAreas: Range[]): Range[] {
-		const visibleRanges: Range[] = [];
-		let currentStart = searchRange.getStartPosition();
-		const searchEnd = searchRange.getEndPosition();
-
-		// Sort hidden areas by start position once
-		const sortedHidden = hiddenAreas
-			.filter(hidden => Range.areIntersecting(searchRange, hidden))
-			.sort((a, b) => Range.compareRangesUsingStarts(a, b));
-
-		for (const hidden of sortedHidden) {
-			const hiddenStart = hidden.getStartPosition();
-			const hiddenEnd = hidden.getEndPosition();
-
-			// Add visible range before this hidden area
-			if (currentStart.isBefore(hiddenStart)) {
-				visibleRanges.push(Range.fromPositions(currentStart, hiddenStart));
-			}
-
-			// Move current start to after the hidden area (if hidden end is after current start)
-			if (currentStart.isBefore(hiddenEnd) || currentStart.equals(hiddenEnd)) {
-				currentStart = hiddenEnd;
-			}
-		}
-
-		// Add remaining visible range after all hidden areas
-		if (currentStart.isBefore(searchEnd)) {
-			visibleRanges.push(Range.fromPositions(currentStart, searchEnd));
-		}
-
-		return visibleRanges;
 	}
 
 	public replaceAll(): void {
