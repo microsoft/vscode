@@ -585,6 +585,12 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			return undefined;
 		}
 
+		// Don't create a streaming invocation for tools that don't implement handleToolStream.
+		// These tools will have their invocation created directly in invokeToolInternal.
+		if (!toolEntry.impl?.handleToolStream) {
+			return undefined;
+		}
+
 		// Create the invocation in streaming state
 		const invocation = ChatToolInvocation.createStreaming({
 			toolCallId: options.toolCallId,
