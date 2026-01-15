@@ -1201,7 +1201,8 @@ export class ChangeLanguageAction extends Action2 {
 					label: languageName,
 					meta: extensions,
 					iconClasses: getIconClassesForLanguageId(languageId),
-					description
+					description,
+					id: languageId
 				};
 			});
 
@@ -1280,8 +1281,7 @@ export class ChangeLanguageAction extends Action2 {
 						}
 					}
 				} else {
-					const languageId = languageService.getLanguageIdByLanguageName(pick.label);
-					languageSelection = languageService.createById(languageId);
+					languageSelection = languageService.createById(pick.id!);
 
 					if (resource) {
 						// fire and forget to not slow things down
