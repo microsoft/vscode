@@ -125,7 +125,7 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 		return fn.countTokens(input, token);
 	}
 
-	$registerTool(id: string): void {
+	$registerTool(id: string, hasHandleToolStream: boolean): void {
 		const disposable = this._languageModelToolsService.registerToolImplementation(
 			id,
 			{
@@ -140,12 +140,12 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 					}
 				},
 				prepareToolInvocation: (context, token) => this._proxy.$prepareToolInvocation(id, context, token),
-				handleToolStream: (context, token) => this._proxy.$handleToolStream(id, context, token),
+				handleToolStream: hasHandleToolStream ? (context, token) => this._proxy.$handleToolStream(id, context, token) : undefined,
 			});
 		this._tools.set(id, disposable);
 	}
 
-	$registerToolWithDefinition(definition: IToolDefinitionDto): void {
+	$registerToolWithDefinition(definition: IToolDefinitionDto, hasHandleToolStream: boolean): void {
 		let icon: IToolData['icon'] | undefined;
 		if (definition.icon) {
 			if (ThemeIcon.isThemeIcon(definition.icon)) {
@@ -199,6 +199,7 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 						this._runningToolCalls.delete(dto.callId);
 					}
 				},
+				handleToolStream: hasHandleToolStream ? (context, token) => this._proxy.$handleToolStream(id, context, token) : undefined,
 				prepareToolInvocation: (context, token) => this._proxy.$prepareToolInvocation(id, context, token),
 			}
 		);

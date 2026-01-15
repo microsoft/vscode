@@ -406,7 +406,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					toolInvocation.transitionFromStreaming(preparedInvocation, dto.parameters);
 				} else {
 					// Create a new tool invocation (no streaming phase)
-					toolInvocation = new ChatToolInvocation(preparedInvocation, tool.data, dto.callId, dto.fromSubAgent, dto.parameters);
+					toolInvocation = new ChatToolInvocation(preparedInvocation, tool.data, dto.callId, dto.subAgentInvocationId, dto.parameters);
 					this._chatService.appendProgress(request, toolInvocation);
 				}
 
@@ -601,12 +601,18 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			return undefined;
 		}
 
+		// Don't create a streaming invocation for tools that don't implement handleToolStream.
+		// These tools will have their invocation created directly in invokeToolInternal.
+		if (!toolEntry.impl?.handleToolStream) {
+			return undefined;
+		}
+
 		// Create the invocation in streaming state
 		const invocation = ChatToolInvocation.createStreaming({
 			toolCallId: options.toolCallId,
 			toolId: options.toolId,
 			toolData: toolEntry.data,
-			fromSubAgent: options.fromSubAgent,
+			subagentInvocationId: options.subagentInvocationId,
 			chatRequestId: options.chatRequestId,
 		});
 
@@ -618,9 +624,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			const model = this._chatService.getSession(options.sessionResource);
 			if (model) {
 				// Find the request by chatRequestId if available, otherwise use the last request
-				const request = options.chatRequestId
+				const request = (options.chatRequestId
 					? model.getRequests().find(r => r.id === options.chatRequestId)
-					: model.getRequests().at(-1);
+					: undefined) ?? model.getRequests().at(-1);
 				if (request) {
 					this._chatService.appendProgress(request, invocation);
 				}

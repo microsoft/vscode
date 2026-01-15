@@ -1510,8 +1510,8 @@ export interface MainThreadLanguageModelToolsShape extends IDisposable {
 	$acceptToolProgress(callId: string, progress: IToolProgressStep): void;
 	$invokeTool(dto: Dto<IToolInvocation>, token?: CancellationToken): Promise<Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>>>;
 	$countTokensForInvocation(callId: string, input: string, token: CancellationToken): Promise<number>;
-	$registerTool(id: string): void;
-	$registerToolWithDefinition(definition: IToolDefinitionDto): void;
+	$registerTool(id: string, hasHandleToolStream: boolean): void;
+	$registerToolWithDefinition(definition: IToolDefinitionDto, hasHandleToolStream: boolean): void;
 	$unregisterTool(name: string): void;
 }
 
@@ -2343,6 +2343,7 @@ export interface IChatBeginToolInvocationDto {
 	streamData?: {
 		partialInput?: unknown;
 	};
+	subagentInvocationId?: string;
 }
 
 export interface IChatUpdateToolInvocationDto {

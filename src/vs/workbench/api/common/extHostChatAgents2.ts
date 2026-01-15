@@ -311,7 +311,8 @@ export class ChatAgentResponseStream {
 						toolName,
 						streamData: streamData ? {
 							partialInput: streamData.partialInput
-						} : undefined
+						} : undefined,
+						subagentInvocationId: streamData?.subagentInvocationId
 					};
 					_report(dto);
 					return this;
@@ -559,6 +560,8 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				return await (provider as vscode.InstructionsProvider).provideInstructions(context, token) ?? undefined;
 			case PromptsType.prompt:
 				return await (provider as vscode.PromptFileProvider).providePromptFiles(context, token) ?? undefined;
+			case PromptsType.skill:
+				throw new Error('Skills prompt file provider not implemented yet');
 		}
 	}
 

@@ -6,15 +6,14 @@
 import { encodeBase64 } from '../../../../../../base/common/buffer.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
-import { localize } from '../../../../../../nls.js';
-import { ConfirmedReason, IChatExtensionsContent, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatTerminalToolInvocationData } from '../../chatService/chatService.js';
+import { ConfirmedReason, IChatExtensionsContent, IChatSubagentToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatTerminalToolInvocationData } from '../../chatService/chatService.js';
 import { IPreparedToolInvocation, isToolResultOutputDetails, IToolConfirmationMessages, IToolData, IToolProgressStep, IToolResult, ToolDataSource } from '../../tools/languageModelToolsService.js';
 
 export interface IStreamingToolCallOptions {
 	toolCallId: string;
 	toolId: string;
 	toolData: IToolData;
-	fromSubAgent?: boolean;
+	subagentInvocationId?: string;
 	chatRequestId?: string;
 }
 
@@ -28,12 +27,12 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	public presentation: IPreparedToolInvocation['presentation'];
 	public readonly toolId: string;
 	public source: ToolDataSource;
-	public readonly fromSubAgent: boolean | undefined;
+	public readonly subAgentInvocationId: string | undefined;
 	public parameters: unknown;
 	public generatedTitle?: string;
 	public readonly chatRequestId?: string;
 
-	public toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent;
+	public toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData;
 
 	private readonly _progress = observableValue<{ message?: string | IMarkdownString; progress: number | undefined }>(this, { progress: 0 });
 	private readonly _state: ISettableObservable<IChatToolInvocation.State>;
@@ -51,21 +50,19 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	 * Use this when the tool call is beginning to stream partial input from the LM.
 	 */
 	public static createStreaming(options: IStreamingToolCallOptions): ChatToolInvocation {
-		return new ChatToolInvocation(undefined, options.toolData, options.toolCallId, options.fromSubAgent, undefined, true, options.chatRequestId);
+		return new ChatToolInvocation(undefined, options.toolData, options.toolCallId, options.subagentInvocationId, undefined, true, options.chatRequestId);
 	}
 
 	constructor(
 		preparedInvocation: IPreparedToolInvocation | undefined,
 		toolData: IToolData,
 		public readonly toolCallId: string,
-		fromSubAgent: boolean | undefined,
+		subAgentInvocationId: string | undefined,
 		parameters: unknown,
 		isStreaming: boolean = false,
 		chatRequestId?: string
 	) {
-		const defaultMessage = localize('toolInvocationMessage', "Using {0}", `"${toolData.displayName}"`);
-		const invocationMessage = preparedInvocation?.invocationMessage ?? defaultMessage;
-		this.invocationMessage = invocationMessage;
+		this.invocationMessage = preparedInvocation?.invocationMessage ?? '';
 		this.pastTenseMessage = preparedInvocation?.pastTenseMessage;
 		this.originMessage = preparedInvocation?.originMessage;
 		this.confirmationMessages = preparedInvocation?.confirmationMessages;
@@ -73,7 +70,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		this.toolSpecificData = preparedInvocation?.toolSpecificData;
 		this.toolId = toolData.id;
 		this.source = toolData.source;
-		this.fromSubAgent = fromSubAgent;
+		this.subAgentInvocationId = subAgentInvocationId;
 		this.parameters = parameters;
 		this.chatRequestId = chatRequestId;
 
@@ -278,7 +275,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			toolSpecificData: this.toolSpecificData,
 			toolCallId: this.toolCallId,
 			toolId: this.toolId,
-			fromSubAgent: this.fromSubAgent,
+			subAgentInvocationId: this.subAgentInvocationId,
 			generatedTitle: this.generatedTitle,
 		};
 	}
