@@ -33,7 +33,8 @@ function getCodiconFontUri(environmentService: IEnvironmentService): URI {
 	if (!globalThis._VSCODE_FILE_ROOT) {
 		// In standalone Monaco, the codicon.ttf is bundled at the package root
 		// This file is at esm/vs/platform/theme/browser/, so we go up 5 levels
-		return URI.joinPath(URI.parse(new URL('.', import.meta.url).href), '../../../../../codicon.ttf');
+		// We use new URL(path, import.meta.url) to resolve the relative path
+		return URI.parse(new URL('../../../../../codicon.ttf', import.meta.url).href);
 	}
 
 	// Standard VS Code path resolution
