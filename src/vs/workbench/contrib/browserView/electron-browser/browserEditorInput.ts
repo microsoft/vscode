@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
+import { truncate } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
@@ -26,6 +27,11 @@ const LOADING_SPINNER_SVG = (color: string | undefined) => `
 		</path>
 	</svg>
 `;
+
+/**
+ * Maximum length for browser page titles before truncation
+ */
+const MAX_TITLE_LENGTH = 30;
 
 /**
  * JSON-serializable type used during browser state serialization/deserialization
@@ -148,6 +154,10 @@ export class BrowserEditorInput extends EditorInput {
 	}
 
 	override getName(): string {
+		return truncate(this.getTitle(), MAX_TITLE_LENGTH);
+	}
+
+	override getTitle(): string {
 		// Use model data if available, otherwise fall back to initial data
 		if (this._model && this._model.url) {
 			if (this._model.title) {

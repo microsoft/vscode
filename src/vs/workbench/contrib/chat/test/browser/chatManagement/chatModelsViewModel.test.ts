@@ -48,10 +48,10 @@ class MockLanguageModelsService implements ILanguageModelsService {
 					vendor: vendorId,
 					name: this.vendors.find(v => v.vendor === vendorId)?.displayName || 'Default'
 				},
-				models: []
+				modelIdentifiers: []
 			});
 		}
-		groups[0].models.push({ identifier, metadata });
+		groups[0].modelIdentifiers.push(identifier);
 		this.modelGroups.set(vendorId, groups);
 	}
 

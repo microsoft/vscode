@@ -1530,6 +1530,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatSessionsProvider');
 				return extHostChatSessions.registerChatSessionItemProvider(extension, chatSessionType, provider);
 			},
+			createChatSessionItemController: (chatSessionType: string, refreshHandler: () => Thenable<void>) => {
+				checkProposedApiEnabled(extension, 'chatSessionsProvider');
+				return extHostChatSessions.createChatSessionItemController(extension, chatSessionType, refreshHandler);
+			},
 			registerChatSessionContentProvider(scheme: string, provider: vscode.ChatSessionContentProvider, chatParticipant: vscode.ChatParticipant, capabilities?: vscode.ChatSessionCapabilities) {
 				checkProposedApiEnabled(extension, 'chatSessionsProvider');
 				return extHostChatSessions.registerChatSessionContentProvider(extension, scheme, chatParticipant, provider, capabilities);
@@ -1906,7 +1910,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatResponseExtensionsPart: extHostTypes.ChatResponseExtensionsPart,
 			ChatResponseExternalEditPart: extHostTypes.ChatResponseExternalEditPart,
 			ChatResponsePullRequestPart: extHostTypes.ChatResponsePullRequestPart,
-			ChatPrepareToolInvocationPart: extHostTypes.ChatPrepareToolInvocationPart,
 			ChatResponseMultiDiffPart: extHostTypes.ChatResponseMultiDiffPart,
 			ChatResponseReferencePartStatusKind: extHostTypes.ChatResponseReferencePartStatusKind,
 			ChatResponseClearToPreviousToolInvocationReason: extHostTypes.ChatResponseClearToPreviousToolInvocationReason,

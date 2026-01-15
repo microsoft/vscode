@@ -916,7 +916,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				const state = toolInvocation.state.get();
 				description = toolInvocation.generatedTitle || toolInvocation.pastTenseMessage || toolInvocation.invocationMessage;
 				if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
-					const confirmationTitle = toolInvocation.confirmationMessages?.title;
+					const confirmationTitle = state.confirmationMessages?.title;
 					const titleMessage = confirmationTitle && (typeof confirmationTitle === 'string'
 						? confirmationTitle
 						: confirmationTitle.value);
@@ -932,7 +932,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			}
 		}
 
-		return renderAsPlaintext(description, { useLinkFormatter: true });
+		return description ? renderAsPlaintext(description, { useLinkFormatter: true }) : '';
 	}
 
 	public async getOrCreateChatSession(sessionResource: URI, token: CancellationToken): Promise<IChatSession> {

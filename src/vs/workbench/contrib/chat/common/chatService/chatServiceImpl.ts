@@ -377,7 +377,11 @@ export class ChatService extends Disposable implements IChatService {
 					...entry,
 					sessionResource,
 					// TODO@roblourens- missing for old data- normalize inside the store
-					timing: entry.timing ?? { startTime: entry.lastMessageDate },
+					timing: entry.timing ?? {
+						created: entry.lastMessageDate,
+						lastRequestStarted: undefined,
+						lastRequestEnded: entry.lastMessageDate,
+					},
 					isActive: this._sessionModels.has(sessionResource),
 					// TODO@roblourens- missing for old data- normalize inside the store
 					lastResponseState: entry.lastResponseState ?? ResponseModelState.Complete,
@@ -393,7 +397,11 @@ export class ChatService extends Disposable implements IChatService {
 				...metadata,
 				sessionResource,
 				// TODO@roblourens- missing for old data- normalize inside the store
-				timing: metadata.timing ?? { startTime: metadata.lastMessageDate },
+				timing: metadata.timing ?? {
+					created: metadata.lastMessageDate,
+					lastRequestStarted: undefined,
+					lastRequestEnded: metadata.lastMessageDate,
+				},
 				isActive: this._sessionModels.has(sessionResource),
 				// TODO@roblourens- missing for old data- normalize inside the store
 				lastResponseState: metadata.lastResponseState ?? ResponseModelState.Complete,

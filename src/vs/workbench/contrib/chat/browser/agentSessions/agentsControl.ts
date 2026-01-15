@@ -23,8 +23,8 @@ import { IAction } from '../../../../../base/common/actions.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 
-const TOGGLE_CHAT_ACTION_ID = 'workbench.action.chat.toggle';
-const OPEN_CHAT_ACTION_ID = 'workbench.action.chat.open'; // Has the keybinding
+const OPEN_CHAT_ACTION_ID = 'workbench.action.chat.open';
+const QUICK_CHAT_ACTION_ID = 'workbench.action.quickchat.toggle';
 const QUICK_OPEN_ACTION_ID = 'workbench.action.quickOpenWithModes';
 
 /**
@@ -118,14 +118,38 @@ export class AgentsControlViewItem extends BaseActionViewItem {
 			pill.classList.add('has-unread');
 		}
 		pill.setAttribute('role', 'button');
-		pill.setAttribute('aria-label', localize('openChat', "Open Chat"));
+		pill.setAttribute('aria-label', localize('openQuickChat', "Open Quick Chat"));
 		pill.tabIndex = 0;
 		this._container.appendChild(pill);
 
-		// Copilot icon (always shown)
-		const icon = $('span.agents-control-icon');
-		reset(icon, renderIcon(Codicon.chatSparkle));
-		pill.appendChild(icon);
+		// Left side indicator (status)
+		const leftIndicator = $('span.agents-control-status');
+		if (hasActiveSessions) {
+			// Running indicator when there are active sessions
+			const runningIcon = $('span.agents-control-status-icon');
+			reset(runningIcon, renderIcon(Codicon.sessionInProgress));
+			leftIndicator.appendChild(runningIcon);
+			const runningCount = $('span.agents-control-status-text');
+			runningCount.textContent = String(activeSessions.length);
+			leftIndicator.appendChild(runningCount);
+		} else if (hasUnreadSessions) {
+			// Unread indicator when there are unread sessions
+			const unreadIcon = $('span.agents-control-status-icon');
+			reset(unreadIcon, renderIcon(Codicon.circleFilled));
+			leftIndicator.appendChild(unreadIcon);
+			const unreadCount = $('span.agents-control-status-text');
+			unreadCount.textContent = String(unreadSessions.length);
+			leftIndicator.appendChild(unreadCount);
+		} else {
+			// Keyboard shortcut when idle (show open chat keybinding)
+			const kb = this.keybindingService.lookupKeybinding(OPEN_CHAT_ACTION_ID)?.getLabel();
+			if (kb) {
+				const kbLabel = $('span.agents-control-keybinding');
+				kbLabel.textContent = kb;
+				leftIndicator.appendChild(kbLabel);
+			}
+		}
+		pill.appendChild(leftIndicator);
 
 		// Show workspace name (centered)
 		const label = $('span.agents-control-label');
@@ -133,48 +157,24 @@ export class AgentsControlViewItem extends BaseActionViewItem {
 		label.textContent = workspaceName;
 		pill.appendChild(label);
 
-		// Right side indicator
-		const rightIndicator = $('span.agents-control-status');
-		if (hasActiveSessions) {
-			// Running indicator when there are active sessions
-			const runningIcon = $('span.agents-control-status-icon');
-			reset(runningIcon, renderIcon(Codicon.sessionInProgress));
-			rightIndicator.appendChild(runningIcon);
-			const runningCount = $('span.agents-control-status-text');
-			runningCount.textContent = String(activeSessions.length);
-			rightIndicator.appendChild(runningCount);
-		} else if (hasUnreadSessions) {
-			// Unread indicator when there are unread sessions
-			const unreadIcon = $('span.agents-control-status-icon');
-			reset(unreadIcon, renderIcon(Codicon.circleFilled));
-			rightIndicator.appendChild(unreadIcon);
-			const unreadCount = $('span.agents-control-status-text');
-			unreadCount.textContent = String(unreadSessions.length);
-			rightIndicator.appendChild(unreadCount);
-		} else {
-			// Keyboard shortcut when idle (show open chat keybinding)
-			const kb = this.keybindingService.lookupKeybinding(OPEN_CHAT_ACTION_ID)?.getLabel();
-			if (kb) {
-				const kbLabel = $('span.agents-control-keybinding');
-				kbLabel.textContent = kb;
-				rightIndicator.appendChild(kbLabel);
-			}
-		}
-		pill.appendChild(rightIndicator);
+		// Send icon (right side)
+		const sendIcon = $('span.agents-control-send');
+		reset(sendIcon, renderIcon(Codicon.send));
+		pill.appendChild(sendIcon);
 
 		// Setup hover with keyboard shortcut
 		const hoverDelegate = getDefaultHoverDelegate('mouse');
-		const kbForTooltip = this.keybindingService.lookupKeybinding(OPEN_CHAT_ACTION_ID)?.getLabel();
+		const kbForTooltip = this.keybindingService.lookupKeybinding(QUICK_CHAT_ACTION_ID)?.getLabel();
 		const tooltip = kbForTooltip
-			? localize('askTooltip', "Open Chat ({0})", kbForTooltip)
-			: localize('askTooltip2', "Open Chat");
+			? localize('askTooltip', "Open Quick Chat ({0})", kbForTooltip)
+			: localize('askTooltip2', "Open Quick Chat");
 		disposables.add(this.hoverService.setupManagedHover(hoverDelegate, pill, tooltip));
 
-		// Click handler - open chat
+		// Click handler - open quick chat
 		disposables.add(addDisposableListener(pill, EventType.CLICK, (e) => {
 			e.preventDefault();
 			e.stopPropagation();
-			this.commandService.executeCommand(TOGGLE_CHAT_ACTION_ID);
+			this.commandService.executeCommand(QUICK_CHAT_ACTION_ID);
 		}));
 
 		// Keyboard handler
@@ -182,7 +182,7 @@ export class AgentsControlViewItem extends BaseActionViewItem {
 			if (e.key === 'Enter' || e.key === ' ') {
 				e.preventDefault();
 				e.stopPropagation();
-				this.commandService.executeCommand(TOGGLE_CHAT_ACTION_ID);
+				this.commandService.executeCommand(QUICK_CHAT_ACTION_ID);
 			}
 		}));
 
@@ -198,18 +198,13 @@ export class AgentsControlViewItem extends BaseActionViewItem {
 		const pill = $('div.agents-control-pill.session-mode');
 		this._container.appendChild(pill);
 
-		// Copilot icon
-		const iconContainer = $('span.agents-control-icon');
-		reset(iconContainer, renderIcon(Codicon.chatSparkle));
-		pill.appendChild(iconContainer);
-
-		// Session title
+		// Session title (left/center)
 		const titleLabel = $('span.agents-control-title');
 		const session = this.focusViewService.activeSession;
 		titleLabel.textContent = session?.label ?? localize('agentSessionProjection', "Agent Session Projection");
 		pill.appendChild(titleLabel);
 
-		// Close button
+		// Close button (right side)
 		const closeButton = $('span.agents-control-close');
 		closeButton.classList.add('codicon', 'codicon-close');
 		closeButton.setAttribute('role', 'button');

@@ -11,8 +11,9 @@ import { constObservable, IObservable } from '../../../../../../base/common/obse
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { IProgressStep } from '../../../../../../platform/progress/common/progress.js';
 import { IVariableReference } from '../../../common/chatModes.js';
+import { IChatToolInvocation } from '../../../common/chatService/chatService.js';
 import { ChatRequestToolReferenceEntry } from '../../../common/attachments/chatVariableEntries.js';
-import { CountTokensCallback, ILanguageModelToolsService, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolDataSource, ToolSet } from '../../../common/tools/languageModelToolsService.js';
+import { CountTokensCallback, IBeginToolCallOptions, ILanguageModelToolsService, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolDataSource, ToolSet } from '../../../common/tools/languageModelToolsService.js';
 
 export class MockLanguageModelToolsService implements ILanguageModelToolsService {
 	_serviceBrand: undefined;
@@ -90,6 +91,15 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 		};
 	}
 
+	beginToolCall(_options: IBeginToolCallOptions): IChatToolInvocation | undefined {
+		// Mock implementation - return undefined
+		return undefined;
+	}
+
+	async updateToolStream(_toolCallId: string, _partialInput: unknown, _token: CancellationToken): Promise<void> {
+		// Mock implementation - do nothing
+	}
+
 	toolSets: IObservable<readonly ToolSet[]> = constObservable([]);
 
 	getToolSetByName(name: string): ToolSet | undefined {
@@ -104,7 +114,7 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 		throw new Error('Method not implemented.');
 	}
 
-	toToolAndToolSetEnablementMap(toolOrToolSetNames: readonly string[]): IToolAndToolSetEnablementMap {
+	toToolAndToolSetEnablementMap(toolOrToolSetNames: readonly string[], target: string | undefined): IToolAndToolSetEnablementMap {
 		throw new Error('Method not implemented.');
 	}
 
