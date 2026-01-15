@@ -54,6 +54,7 @@ export class ContextMenuHandler {
 			getAnchor: () => delegate.getAnchor(),
 			canRelayout: false,
 			anchorAlignment: delegate.anchorAlignment,
+			anchorPosition: delegate.anchorPosition,
 			anchorAxisAlignment: delegate.anchorAxisAlignment,
 			layer: delegate.layer,
 			render: (container) => {

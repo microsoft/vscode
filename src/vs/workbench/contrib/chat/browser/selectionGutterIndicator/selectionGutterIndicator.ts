@@ -18,7 +18,7 @@ import { observableCodeEditor, ObservableCodeEditor } from '../../../../../edito
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { IEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
 import { LineRange } from '../../../../../editor/common/core/ranges/lineRange.js';
-import { ISelection } from '../../../../../editor/common/core/selection.js';
+import { ISelection, SelectionDirection } from '../../../../../editor/common/core/selection.js';
 import { IEditorContribution } from '../../../../../editor/common/editorCommon.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { InlineEditTabAction } from '../../../../../editor/contrib/inlineCompletions/browser/view/inlineEdits/inlineEditsViewInterface.js';
@@ -42,6 +42,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { getSimpleEditorOptions } from '../../../codeEditor/browser/simpleEditorOptions.js';
 import { PlaceholderTextContribution } from '../../../../../editor/contrib/placeholderText/browser/placeholderTextContribution.js';
+import { AnchorPosition, IAnchor } from '../../../../../base/browser/ui/contextview/contextview.js';
 
 // Register menu items for the selection gutter overlay
 MenuRegistry.appendMenuItems([
@@ -124,7 +125,11 @@ class InlineChatInputActionViewItem extends BaseActionViewItem {
 
 		const inputContainer = dom.append(container, dom.$('.inline-chat-input-action'));
 		inputContainer.style.width = '200px';
-		inputContainer.style.height = '24px';
+		inputContainer.style.height = '26px';
+		inputContainer.style.paddingLeft = '22px';
+		inputContainer.style.display = 'flex';
+		inputContainer.style.alignItems = 'center';
+		inputContainer.style.justifyContent = 'center';
 
 		const options = this._createEditorOptions();
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
@@ -143,7 +148,7 @@ class InlineChatInputActionViewItem extends BaseActionViewItem {
 		this._input.setModel(model);
 
 		// Layout the editor with proper dimensions
-		this._input.layout({ width: 200, height: 24 });
+		this._input.layout({ width: 200, height: 18 });
 
 		// Handle Enter key to submit
 		this._register(this._input.onKeyDown(e => {
@@ -169,15 +174,8 @@ class InlineChatInputActionViewItem extends BaseActionViewItem {
 		options.minimap = { enabled: false };
 		options.scrollbar = { vertical: 'hidden', horizontal: 'hidden', alwaysConsumeMouseWheel: false };
 		options.renderLineHighlight = 'none';
-		options.placeholder = this._getPlaceholder();
+		options.placeholder = this._keybindingService.appendKeybinding(localize('inlineChatPlaceholder', "Edit selected code"), ACTION_START);
 		return options;
-	}
-
-	private _getPlaceholder(): string {
-		const keybinding = this._keybindingService.lookupKeybinding(ACTION_START)?.getLabel();
-		return keybinding
-			? localize('inlineChatPlaceholderWithKb', "Edit selected code ({0})", keybinding)
-			: localize('inlineChatPlaceholder', "Edit selected code");
 	}
 
 	private _submit(): void {
@@ -242,10 +240,16 @@ export class SelectionGutterIndicatorContribution extends Disposable implements 
 		const debouncedSelection = debouncedObservable(editorObs.cursorSelection, 500);
 
 		// Create data observable based on the primary selection
+		// Use raw selection for immediate hide, debounced for delayed show
 		const data = derived(reader => {
-			const selection = debouncedSelection.read(reader);
+			// Read raw selection - if empty, immediately hide
+			const rawSelection = editorObs.cursorSelection.read(reader);
+			if (!rawSelection || rawSelection.isEmpty()) {
+				return undefined;
+			}
 
-			// Always show when we have a selection (even if empty)
+			// Read debounced selection for showing - this adds delay
+			const selection = debouncedSelection.read(reader);
 			if (!selection || selection.isEmpty()) {
 				return undefined;
 			}
@@ -338,13 +342,21 @@ class SelectionGutterIndicator extends InlineEditsGutterIndicator {
 			return;
 		}
 
+		// Determine selection direction to position menu above or below
+		const selection = this._myEditorObs.cursorSelection.get();
+		const direction = selection?.getDirection() ?? SelectionDirection.LTR;
+
 		// Show context menu using ContextMenuHandler
 		this._contextMenuHandler.showContextMenu({
-			getAnchor: () => iconElement,
+			anchorPosition: direction === SelectionDirection.RTL ? AnchorPosition.ABOVE : AnchorPosition.BELOW,
+			getAnchor: () => {
+				const rect = iconElement.getBoundingClientRect();
+				return { x: rect.left, y: rect.top, height: rect.height } satisfies IAnchor;
+			},
 			getActions: () => actions,
 			getActionViewItem: (action: IAction, options: IActionViewItemOptions): IActionViewItem | undefined => {
 				if (action.id === ACTION_START) {
-					const selection = this._myEditorObs.editor.getSelection();
+					const selection = this._myEditorObs.cursorSelection.get();
 					if (selection) {
 						return this._myInstantiationService.createInstance(
 							InlineChatInputActionViewItem,
@@ -356,12 +368,13 @@ class SelectionGutterIndicator extends InlineEditsGutterIndicator {
 				return undefined;
 			},
 			onHide: () => {
-				// Collapse selection to cursor position to also hide the gutter indicator
+				// Collapse selection to cursor position to immediately hide the gutter indicator
 				const editor = this._myEditorObs.editor;
 				const position = editor.getPosition();
 				if (position) {
-					editor.setPosition(position);
+					editor.setSelection({ startLineNumber: position.lineNumber, startColumn: position.column, endLineNumber: position.lineNumber, endColumn: position.column });
 				}
+				editor.focus();
 			}
 		});
 	}
