@@ -563,15 +563,6 @@
 	}
 }
 
-.interactive-item-container .value .from-sub-agent {
-	&.chat-tool-invocation-part,
-	&.chat-confirmation-widget,
-	&.chat-terminal-confirmation-widget,
-	&.chat-codeblock-pill-widget {
-		margin-left: 18px;
-	}
-}
-
 .interactive-item-container .value > .rendered-markdown li > p {
 	margin: 0;
 }
@@ -903,10 +894,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-editing-session .monaco-button {
-	height: 22px;
 	width: fit-content;
-	padding: 2px 6px;
-	font-size: 12px;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button:hover {
@@ -1032,8 +1020,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button.secondary.monaco-text-button.codicon {
 	cursor: pointer;
-	padding: 0 3px;
-	border-radius: 2px;
+	padding: 3px;
+	border-radius: 4px;
 	display: inline-flex;
 }
 
@@ -2435,7 +2423,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.monaco-button {
 		width: fit-content;
-		padding: 2px 11px;
 	}
 
 	.chat-quota-error-button,
@@ -2757,7 +2744,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .chat-buttons-container .monaco-button:not(.monaco-dropdown-button) {
 	text-align: left;
 	width: initial;
-	padding: 4px 8px;
 }
 
 .interactive-item-container .chat-edit-input-container {

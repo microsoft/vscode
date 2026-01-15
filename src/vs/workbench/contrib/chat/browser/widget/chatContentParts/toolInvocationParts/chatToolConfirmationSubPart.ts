@@ -23,7 +23,7 @@ import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browse
 import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../../../platform/markers/common/markers.js';
 import { IChatToolInvocation, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { CodeBlockModelCollection } from '../../../../common/widget/codeBlockModelCollection.js';
-import { createToolInputUri, createToolSchemaUri, ILanguageModelToolsService } from '../../../../common/tools/languageModelToolsService.js';
+import { createToolInputUri, createToolSchemaUri, ILanguageModelToolsService, IToolConfirmationMessages } from '../../../../common/tools/languageModelToolsService.js';
 import { ILanguageModelToolsConfirmationService } from '../../../../common/tools/languageModelToolsConfirmationService.js';
 import { AcceptToolConfirmationActionId, SkipToolConfirmationActionId } from '../../../actions/chatToolActions.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../../chat.js';
@@ -63,7 +63,8 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 		@ILanguageModelToolsConfirmationService private readonly confirmationService: ILanguageModelToolsConfirmationService,
 	) {
-		if (!toolInvocation.confirmationMessages?.title) {
+		const state = toolInvocation.state.get();
+		if (state.type !== IChatToolInvocation.StateKind.WaitingForConfirmation || !state.confirmationMessages?.title) {
 			throw new Error('Confirmation messages are missing');
 		}
 
@@ -72,26 +73,27 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 		this.render({
 			allowActionId: AcceptToolConfirmationActionId,
 			skipActionId: SkipToolConfirmationActionId,
-			allowLabel: toolInvocation.confirmationMessages.confirmResults ? localize('allowReview', "Allow and Review") : localize('allow', "Allow"),
+			allowLabel: state.confirmationMessages.confirmResults ? localize('allowReview', "Allow and Review") : localize('allow', "Allow"),
 			skipLabel: localize('skip.detail', 'Proceed without running this tool'),
 			partType: 'chatToolConfirmation',
 			subtitle: typeof toolInvocation.originMessage === 'string' ? toolInvocation.originMessage : toolInvocation.originMessage?.value,
 		});
-
-		// Tag for sub-agent styling
-		if (toolInvocation.fromSubAgent) {
-			context.container.classList.add('from-sub-agent');
-		}
 	}
 
 	protected override additionalPrimaryActions() {
 		const actions = super.additionalPrimaryActions();
-		if (this.toolInvocation.confirmationMessages?.allowAutoConfirm !== false) {
+
+		const state = this.toolInvocation.state.get();
+		if (state.type !== IChatToolInvocation.StateKind.WaitingForConfirmation) {
+			return actions;
+		}
+
+		if (state.confirmationMessages?.allowAutoConfirm !== false) {
 			// Get actions from confirmation service
 			const confirmActions = this.confirmationService.getPreConfirmActions({
 				toolId: this.toolInvocation.toolId,
 				source: this.toolInvocation.source,
-				parameters: this.toolInvocation.parameters
+				parameters: state.parameters
 			});
 
 			for (const action of confirmActions) {
@@ -110,12 +112,12 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 				});
 			}
 		}
-		if (this.toolInvocation.confirmationMessages?.confirmResults) {
+		if (state.confirmationMessages?.confirmResults) {
 			actions.unshift(
 				{
 					label: localize('allowSkip', 'Allow and Skip Reviewing Result'),
 					data: () => {
-						this.toolInvocation.confirmationMessages!.confirmResults = undefined;
+						(state.confirmationMessages as IToolConfirmationMessages).confirmResults = undefined;
 						this.confirmWith(this.toolInvocation, { type: ToolConfirmKind.UserAction });
 					}
 				},
@@ -127,7 +129,11 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 	}
 
 	protected createContentElement(): HTMLElement | string {
-		const { message, disclaimer } = this.toolInvocation.confirmationMessages!;
+		const state = this.toolInvocation.state.get();
+		if (state.type !== IChatToolInvocation.StateKind.WaitingForConfirmation) {
+			return '';
+		}
+		const { message, disclaimer } = state.confirmationMessages!;
 		const toolInvocation = this.toolInvocation as IChatToolInvocation;
 
 		if (typeof message === 'string' && !disclaimer) {
@@ -305,8 +311,15 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 	}
 
 	protected getTitle(): string {
-		const { title } = this.toolInvocation.confirmationMessages!;
-		return typeof title === 'string' ? title : title!.value;
+		const state = this.toolInvocation.state.get();
+		if (state.type !== IChatToolInvocation.StateKind.WaitingForConfirmation) {
+			return '';
+		}
+		const title = state.confirmationMessages?.title;
+		if (!title) {
+			return '';
+		}
+		return typeof title === 'string' ? title : title.value;
 	}
 
 	private _makeMarkdownPart(container: HTMLElement, message: string | IMarkdownString, codeBlockRenderOptions: ICodeBlockRenderOptions) {

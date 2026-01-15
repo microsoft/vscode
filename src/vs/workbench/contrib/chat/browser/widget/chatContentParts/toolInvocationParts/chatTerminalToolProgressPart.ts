@@ -900,13 +900,27 @@ class ChatTerminalToolOutputSection extends Disposable {
 	private async _createScrollableContainer(): Promise<void> {
 		this._scrollableContainer = this._register(new DomScrollableElement(this._outputBody, {
 			vertical: ScrollbarVisibility.Hidden,
-			horizontal: ScrollbarVisibility.Auto,
+			horizontal: ScrollbarVisibility.Hidden,
 			handleMouseWheel: true
 		}));
 		const scrollableDomNode = this._scrollableContainer.getDomNode();
 		scrollableDomNode.tabIndex = 0;
 		this.domNode.appendChild(scrollableDomNode);
 		this.updateAriaLabel();
+
+		// Show horizontal scrollbar on hover/focus, hide otherwise to prevent flickering during streaming
+		this._register(dom.addDisposableListener(this.domNode, dom.EventType.MOUSE_ENTER, () => {
+			this._scrollableContainer?.updateOptions({ horizontal: ScrollbarVisibility.Auto });
+		}));
+		this._register(dom.addDisposableListener(this.domNode, dom.EventType.MOUSE_LEAVE, () => {
+			this._scrollableContainer?.updateOptions({ horizontal: ScrollbarVisibility.Hidden });
+		}));
+		this._register(dom.addDisposableListener(this.domNode, dom.EventType.FOCUS_IN, () => {
+			this._scrollableContainer?.updateOptions({ horizontal: ScrollbarVisibility.Auto });
+		}));
+		this._register(dom.addDisposableListener(this.domNode, dom.EventType.FOCUS_OUT, () => {
+			this._scrollableContainer?.updateOptions({ horizontal: ScrollbarVisibility.Hidden });
+		}));
 
 		// Track scroll state to enable scroll lock behavior (only for user scrolls)
 		this._register(this._scrollableContainer.onScroll(() => {
