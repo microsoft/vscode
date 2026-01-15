@@ -129,4 +129,178 @@ suite('Editor Core - Range', () => {
 		assert.strictEqual(Range.areIntersecting(new Range(2, 2, 2, 7), new Range(2, 4, 2, 9)), true);
 		assert.strictEqual(Range.areIntersecting(new Range(2, 4, 2, 9), new Range(2, 2, 2, 7)), true);
 	});
+
+	suite('subtractRanges', () => {
+
+		function getLineMaxColumn(lineNumber: number): number {
+			// Simple mock: each line has max column of 9 (8 chars + 1)
+			return 9;
+		}
+
+		test('subtractRanges with no exclude ranges returns original range', () => {
+			const range = new Range(1, 1, 2, 7);
+			const excludeRanges: Range[] = [];
+
+			const result = Range.subtractRanges(range, excludeRanges, getLineMaxColumn);
+
+			assert.strictEqual(result.length, 1);
+			assert.ok(result[0].equalsRange(new Range(1, 1, 2, 7)));
+		});
+
+		test('subtractRanges with exclude range splits selection', () => {
+			const range = new Range(1, 1, 5, 7);
+			const excludeRanges = [
+				new Range(2, 1, 3, 7)
+			];
+
+			const result = Range.subtractRanges(range, excludeRanges, getLineMaxColumn);
+
+			// Expected: selection should be split into:
+			// - Range(1, 1, 1, 9) - Line 1 (visible)
+			// - Range(4, 1, 5, 7) - Lines 4-5 (visible)
+			assert.strictEqual(result.length, 2);
+			assert.strictEqual(result[0].startLineNumber, 1);
+			assert.strictEqual(result[0].endLineNumber, 1);
+			assert.strictEqual(result[1].startLineNumber, 4);
+			assert.strictEqual(result[1].endLineNumber, 5);
+		});
+
+		test('subtractRanges with selection completely hidden', () => {
+			const range = new Range(2, 1, 3, 7);
+			const excludeRanges = [
+				new Range(2, 1, 3, 7)
+			];
+
+			const result = Range.subtractRanges(range, excludeRanges, getLineMaxColumn);
+
+			// Expected: empty result since the entire selection is hidden
+			assert.strictEqual(result.length, 0);
+		});
+
+		test('subtractRanges with multiple exclude ranges', () => {
+			const range = new Range(1, 1, 8, 7);
+			const excludeRanges = [
+				new Range(2, 1, 2, 7),
+				new Range(7, 1, 7, 7)
+			];
+
+			const result = Range.subtractRanges(range, excludeRanges, getLineMaxColumn);
+
+			// Expected: selections split around hidden areas
+			// Range(1,1,1,9), Range(3,1,6,9), Range(8,1,8,7)
+			assert.strictEqual(result.length, 3);
+			assert.strictEqual(result[0].startLineNumber, 1);
+			assert.strictEqual(result[0].endLineNumber, 1);
+			assert.strictEqual(result[1].startLineNumber, 3);
+			assert.strictEqual(result[1].endLineNumber, 6);
+			assert.strictEqual(result[2].startLineNumber, 8);
+			assert.strictEqual(result[2].endLineNumber, 8);
+		});
+
+		test('subtractRanges with selection starting in hidden area', () => {
+			const range = new Range(2, 1, 5, 7);
+			const excludeRanges = [
+				new Range(1, 1, 3, 7)
+			];
+
+			const result = Range.subtractRanges(range, excludeRanges, getLineMaxColumn);
+
+			// Expected: only the visible portion Range(4, 1, 5, 7)
+			assert.strictEqual(result.length, 1);
+			assert.strictEqual(result[0].startLineNumber, 4);
+			assert.strictEqual(result[0].endLineNumber, 5);
+		});
+
+		test('subtractRanges with selection ending in hidden area', () => {
+			const range = new Range(1, 1, 4, 7);
+			const excludeRanges = [
+				new Range(3, 1, 5, 7)
+			];
+
+			const result = Range.subtractRanges(range, excludeRanges, getLineMaxColumn);
+
+			// Expected: only the visible portion Range(1, 1, 2, maxColumn)
+			assert.strictEqual(result.length, 1);
+			assert.strictEqual(result[0].startLineNumber, 1);
+			assert.strictEqual(result[0].endLineNumber, 2);
+		});
+
+		test('subtractRanges with adjacent hidden areas', () => {
+			const range = new Range(1, 1, 6, 7);
+			const excludeRanges = [
+				new Range(2, 1, 2, 7),
+				new Range(3, 1, 3, 7),
+				new Range(5, 1, 5, 7)
+			];
+
+			const result = Range.subtractRanges(range, excludeRanges, getLineMaxColumn);
+
+			// Expected: selections for lines 1, 4, and 6
+			assert.strictEqual(result.length, 3);
+			assert.strictEqual(result[0].startLineNumber, 1);
+			assert.strictEqual(result[0].endLineNumber, 1);
+			assert.strictEqual(result[1].startLineNumber, 4);
+			assert.strictEqual(result[1].endLineNumber, 4);
+			assert.strictEqual(result[2].startLineNumber, 6);
+			assert.strictEqual(result[2].endLineNumber, 6);
+		});
+
+		test('subtractRanges with overlapping hidden areas', () => {
+			const range = new Range(1, 1, 5, 7);
+			const excludeRanges = [
+				new Range(2, 1, 3, 7),
+				new Range(3, 1, 4, 7)
+			];
+
+			const result = Range.subtractRanges(range, excludeRanges, getLineMaxColumn);
+
+			// Expected: selections for lines 1 and 5
+			assert.strictEqual(result.length, 2);
+			assert.strictEqual(result[0].startLineNumber, 1);
+			assert.strictEqual(result[0].endLineNumber, 1);
+			assert.strictEqual(result[1].startLineNumber, 5);
+			assert.strictEqual(result[1].endLineNumber, 5);
+		});
+
+		test('subtractRanges preserves column positions', () => {
+			const range = new Range(1, 3, 5, 5);
+			const excludeRanges = [
+				new Range(3, 1, 3, 7)
+			];
+
+			const result = Range.subtractRanges(range, excludeRanges, getLineMaxColumn);
+
+			// Expected:
+			// - First range preserves start column 3
+			// - Second range preserves end column 5
+			assert.strictEqual(result.length, 2);
+			assert.strictEqual(result[0].startColumn, 3, 'First range should preserve start column 3');
+			assert.strictEqual(result[1].endColumn, 5, 'Second range should preserve end column 5');
+		});
+
+		test('subtractRanges with single line selection not hidden', () => {
+			const range = new Range(2, 1, 2, 7);
+			const excludeRanges = [
+				new Range(1, 1, 1, 7)
+			];
+
+			const result = Range.subtractRanges(range, excludeRanges, getLineMaxColumn);
+
+			// Expected: original selection unchanged
+			assert.strictEqual(result.length, 1);
+			assert.ok(result[0].equalsRange(new Range(2, 1, 2, 7)));
+		});
+
+		test('subtractRanges with single line selection that is hidden', () => {
+			const range = new Range(2, 1, 2, 7);
+			const excludeRanges = [
+				new Range(2, 1, 2, 7)
+			];
+
+			const result = Range.subtractRanges(range, excludeRanges, getLineMaxColumn);
+
+			// Expected: empty result
+			assert.strictEqual(result.length, 0);
+		});
+	});
 });
