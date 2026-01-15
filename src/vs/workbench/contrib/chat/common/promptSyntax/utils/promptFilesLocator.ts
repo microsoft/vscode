@@ -64,6 +64,8 @@ export class PromptFilesLocator {
 			: this.toAbsoluteLocations(configuredLocations, userHome);
 
 		const paths = new ResourceSet();
+
+		// Search in config-based user locations (e.g., tilde paths like ~/.copilot/skills)
 		for (const { uri, storage } of absoluteLocations) {
 			if (storage !== PromptsStorage.user) {
 				continue;
@@ -76,6 +78,17 @@ export class PromptFilesLocator {
 			}
 			if (token.isCancellationRequested) {
 				return [];
+			}
+		}
+
+		// Also search in the VS Code user data prompts folder (for all types except skills)
+		if (type !== PromptsType.skill) {
+			const userDataPromptsHome = this.userDataService.currentProfile.promptsHome;
+			const files = await this.resolveFilesAtLocation(userDataPromptsHome, type, token);
+			for (const file of files) {
+				if (getPromptFileType(file) === type) {
+					paths.add(file);
+				}
 			}
 		}
 
