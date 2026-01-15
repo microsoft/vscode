@@ -4,21 +4,49 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Event } from '../../../../../base/common/event.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IDefaultAccountProvider, IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { DefaultAccountService } from '../../../accounts/common/defaultAccount.js';
 import { AccountPolicyService } from '../../common/accountPolicyService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { Extensions, IConfigurationNode, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { DefaultConfiguration, PolicyConfiguration } from '../../../../../platform/configuration/common/configurations.js';
-import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
+import { IDefaultAccount, IDefaultAccountAuthenticationProvider } from '../../../../../base/common/defaultAccount.js';
 import { PolicyCategory } from '../../../../../base/common/policy.js';
+import { TestProductService } from '../../../../test/common/workbenchTestServices.js';
 
 const BASE_DEFAULT_ACCOUNT: IDefaultAccount = {
-	enterprise: false,
+	authenticationProvider: {
+		id: 'github',
+		name: 'GitHub',
+		enterprise: false,
+	},
 	sessionId: 'abc123',
+	enterprise: false,
 };
+
+class DefaultAccountProvider implements IDefaultAccountProvider {
+
+	readonly onDidChangeDefaultAccount = Event.None;
+
+	constructor(
+		readonly defaultAccount: IDefaultAccount,
+	) { }
+
+	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider {
+		return this.defaultAccount.authenticationProvider;
+	}
+
+	async refresh(): Promise<IDefaultAccount | null> {
+		return this.defaultAccount;
+	}
+
+	isEnterpriseAuthenticationProvider(provider: IDefaultAccountAuthenticationProvider): boolean {
+		return false;
+	}
+}
 
 suite('AccountPolicyService', () => {
 
@@ -53,7 +81,7 @@ suite('AccountPolicyService', () => {
 					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
 					localization: { description: { key: '', value: '' } },
-					value: account => account.chat_preview_features_enabled === false ? 'policyValueB' : undefined,
+					value: account => account.policyData?.chat_preview_features_enabled === false ? 'policyValueB' : undefined,
 				}
 			},
 			'setting.C': {
@@ -64,7 +92,7 @@ suite('AccountPolicyService', () => {
 					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
 					localization: { description: { key: '', value: '' } },
-					value: account => account.chat_preview_features_enabled === false ? JSON.stringify(['policyValueC1', 'policyValueC2']) : undefined,
+					value: account => account.policyData?.chat_preview_features_enabled === false ? JSON.stringify(['policyValueC1', 'policyValueC2']) : undefined,
 				}
 			},
 			'setting.D': {
@@ -75,7 +103,7 @@ suite('AccountPolicyService', () => {
 					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
 					localization: { description: { key: '', value: '' } },
-					value: account => account.chat_preview_features_enabled === false ? false : undefined,
+					value: account => account.policyData?.chat_preview_features_enabled === false ? false : undefined,
 				}
 			},
 			'setting.E': {
@@ -93,14 +121,14 @@ suite('AccountPolicyService', () => {
 		const defaultConfiguration = disposables.add(new DefaultConfiguration(new NullLogService()));
 		await defaultConfiguration.initialize();
 
-		defaultAccountService = disposables.add(new DefaultAccountService());
+		defaultAccountService = disposables.add(new DefaultAccountService(TestProductService));
 		policyService = disposables.add(new AccountPolicyService(logService, defaultAccountService));
 		policyConfiguration = disposables.add(new PolicyConfiguration(defaultConfiguration, policyService, new NullLogService()));
 
 	});
 
 	async function assertDefaultBehavior(defaultAccount: IDefaultAccount) {
-		defaultAccountService.setDefaultAccount(defaultAccount);
+		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(defaultAccount));
 
 		await policyConfiguration.initialize();
 
@@ -141,7 +169,7 @@ suite('AccountPolicyService', () => {
 
 	test('should initialize with default account and preview features disabled', async () => {
 		const defaultAccount = { ...BASE_DEFAULT_ACCOUNT, chat_preview_features_enabled: false };
-		defaultAccountService.setDefaultAccount(defaultAccount);
+		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(defaultAccount));
 
 		await policyConfiguration.initialize();
 		const actualConfigurationModel = policyConfiguration.configurationModel;

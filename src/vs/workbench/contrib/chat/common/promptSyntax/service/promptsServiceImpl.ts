@@ -679,7 +679,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	public async findAgentSkills(token: CancellationToken): Promise<IAgentSkill[] | undefined> {
 		const useAgentSkills = this.configurationService.getValue(PromptsConfig.USE_AGENT_SKILLS);
 		const defaultAccount = await this.defaultAccountService.getDefaultAccount();
-		const previewFeaturesEnabled = defaultAccount?.chat_preview_features_enabled ?? true;
+		const previewFeaturesEnabled = defaultAccount?.policyData?.chat_preview_features_enabled ?? true;
 		if (useAgentSkills && previewFeaturesEnabled) {
 			const result: IAgentSkill[] = [];
 			const seenNames = new Set<string>();

@@ -83,7 +83,7 @@ suite('PromptsService', () => {
 		});
 
 		instaService.stub(IDefaultAccountService, {
-			getDefaultAccount: () => Promise.resolve({ chat_preview_features_enabled: true } as IDefaultAccount)
+			getDefaultAccount: () => Promise.resolve({ policyData: { chat_preview_features_enabled: true } } as IDefaultAccount)
 		});
 
 		fileService = disposables.add(instaService.createInstance(FileService));
@@ -1891,7 +1891,7 @@ suite('PromptsService', () => {
 		test('should return undefined when chat_preview_features_enabled is false', async () => {
 			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
 			instaService.stub(IDefaultAccountService, {
-				getDefaultAccount: () => Promise.resolve({ chat_preview_features_enabled: false } as IDefaultAccount)
+				getDefaultAccount: () => Promise.resolve({ policyData: { chat_preview_features_enabled: false } } as IDefaultAccount)
 			});
 
 			// Recreate service with new stub
@@ -1902,14 +1902,14 @@ suite('PromptsService', () => {
 
 			// Restore default stub for other tests
 			instaService.stub(IDefaultAccountService, {
-				getDefaultAccount: () => Promise.resolve({ chat_preview_features_enabled: true } as IDefaultAccount)
+				getDefaultAccount: () => Promise.resolve({ policyData: { chat_preview_features_enabled: true } } as IDefaultAccount)
 			});
 		});
 
 		test('should return undefined when USE_AGENT_SKILLS is enabled but chat_preview_features_enabled is false', async () => {
 			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
 			instaService.stub(IDefaultAccountService, {
-				getDefaultAccount: () => Promise.resolve({ chat_preview_features_enabled: false } as IDefaultAccount)
+				getDefaultAccount: () => Promise.resolve({ policyData: { chat_preview_features_enabled: false } } as IDefaultAccount)
 			});
 
 			// Recreate service with new stub
@@ -1920,7 +1920,7 @@ suite('PromptsService', () => {
 
 			// Restore default stub for other tests
 			instaService.stub(IDefaultAccountService, {
-				getDefaultAccount: () => Promise.resolve({ chat_preview_features_enabled: true } as IDefaultAccount)
+				getDefaultAccount: () => Promise.resolve({ policyData: { chat_preview_features_enabled: true } } as IDefaultAccount)
 			});
 		});
 
