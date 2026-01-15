@@ -514,6 +514,79 @@ export class Range {
 		return range.endLineNumber > range.startLineNumber;
 	}
 
+	/**
+	 * Subtracts excluded ranges from a source range, returning the visible parts.
+	 * This efficiently computes Range minus Range[].
+	 * 
+	 * @param range The source range to subtract from
+	 * @param excludeRanges Ranges to exclude from the source range
+	 * @param getLineMaxColumn Callback to get the maximum column for a line
+	 * @returns Array of ranges representing the visible parts after exclusion
+	 * 
+	 * Performance: O(n + m*k) where n is the number of lines in the range,
+	 * m is the number of exclude ranges, and k is the average number of exclude
+	 * ranges that start at the same line (typically k is very small, close to 1).
+	 */
+	public static subtractRanges(range: IRange, excludeRanges: IRange[], getLineMaxColumn: (lineNumber: number) => number): Range[] {
+		if (excludeRanges.length === 0) {
+			return [Range.lift(range)];
+		}
+
+		// Sort exclude ranges by start line for efficient processing
+		const sortedExcludes = excludeRanges
+			.slice()
+			.sort((a, b) => a.startLineNumber - b.startLineNumber);
+
+		const result: Range[] = [];
+		let visibleStart: number | null = null;
+		let excludeIndex = 0;
+
+		for (let line = range.startLineNumber; line <= range.endLineNumber; line++) {
+			// Advance excludeIndex past any exclude ranges that end before the current line
+			while (excludeIndex < sortedExcludes.length && sortedExcludes[excludeIndex].endLineNumber < line) {
+				excludeIndex++;
+			}
+
+			let hidden = false;
+			let checkIndex = excludeIndex;
+
+			// Check current and subsequent exclude ranges that could cover this line
+			// In practice, very few ranges start at the same line, so this inner loop is fast
+			while (checkIndex < sortedExcludes.length && sortedExcludes[checkIndex].startLineNumber <= line) {
+				const exclude = sortedExcludes[checkIndex];
+				if (line >= exclude.startLineNumber && line <= exclude.endLineNumber) {
+					hidden = true;
+					break;
+				}
+				checkIndex++;
+			}
+
+			if (hidden) {
+				// End current visible range if any
+				if (visibleStart !== null) {
+					const startCol = visibleStart === range.startLineNumber ? range.startColumn : 1;
+					const endLine = line - 1;
+					const endCol = endLine === range.endLineNumber ? range.endColumn : getLineMaxColumn(endLine);
+					result.push(new Range(visibleStart, startCol, endLine, endCol));
+					visibleStart = null;
+				}
+			} else {
+				// Start or continue visible range
+				if (visibleStart === null) {
+					visibleStart = line;
+				}
+			}
+		}
+
+		// Add any remaining visible range
+		if (visibleStart !== null) {
+			const startCol = visibleStart === range.startLineNumber ? range.startColumn : 1;
+			result.push(new Range(visibleStart, startCol, range.endLineNumber, range.endColumn));
+		}
+
+		return result;
+	}
+
 	public toJSON(): IRange {
 		return this;
 	}
