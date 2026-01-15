@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 /* ========================================
-Focus View Mode - Blue glow border around entire workbench
+Focus View Mode - Themed glow border around entire workbench
 ======================================== */
 
 .monaco-workbench.focus-view-active::after {
@@ -13,7 +13,7 @@ Focus View Mode - Blue glow border around entire workbench
 	inset: 0;
 	pointer-events: none;
 	z-index: 10000;
-	box-shadow: inset 0 0 0 3px rgba(0, 120, 212, 0.8), inset 0 0 30px rgba(0, 120, 212, 0.4);
+	box-shadow: inset 0 0 0 3px var(--vscode-progressBar-background), inset 0 0 30px color-mix(in srgb, var(--vscode-progressBar-background) 35%, transparent);
 	transition: box-shadow 0.2s ease-in-out;
 }
 
@@ -85,17 +85,17 @@ Agents Control - Titlebar control
 
 /* Active state - has running sessions */
 .agents-control-pill.chat-input-mode.has-active {
-	background-color: rgba(0, 120, 212, 0.15);
-	border: 1px solid rgba(0, 120, 212, 0.5);
+	background-color: color-mix(in srgb, var(--vscode-progressBar-background) 15%, transparent);
+	border: 1px solid color-mix(in srgb, var(--vscode-progressBar-background) 50%, transparent);
 }
 
 .agents-control-pill.chat-input-mode.has-active:hover {
-	background-color: rgba(0, 120, 212, 0.25);
-	border-color: rgba(0, 120, 212, 0.7);
+	background-color: color-mix(in srgb, var(--vscode-progressBar-background) 25%, transparent);
+	border-color: color-mix(in srgb, var(--vscode-progressBar-background) 70%, transparent);
 }
 
 .agents-control-pill.chat-input-mode.has-active .agents-control-label {
-	color: var(--vscode-textLink-foreground);
+	color: var(--vscode-progressBar-background);
 	opacity: 1;
 }
 
@@ -106,14 +106,14 @@ Agents Control - Titlebar control
 
 /* Session mode (viewing a session) */
 .agents-control-pill.session-mode {
-	background-color: rgba(0, 120, 212, 0.15);
-	border: 1px solid rgba(0, 120, 212, 0.5);
+	background-color: color-mix(in srgb, var(--vscode-progressBar-background) 15%, transparent);
+	border: 1px solid color-mix(in srgb, var(--vscode-progressBar-background) 50%, transparent);
 	padding: 0 12px;
 }
 
 .agents-control-pill.session-mode:hover {
-	background-color: rgba(0, 120, 212, 0.25);
-	border-color: rgba(0, 120, 212, 0.7);
+	background-color: color-mix(in srgb, var(--vscode-progressBar-background) 25%, transparent);
+	border-color: color-mix(in srgb, var(--vscode-progressBar-background) 70%, transparent);
 }
 
 /* Label (workspace name, centered) */
@@ -136,7 +136,7 @@ Agents Control - Titlebar control
 }
 
 .agents-control-pill.has-active .agents-control-status {
-	color: var(--vscode-textLink-foreground);
+	color: var(--vscode-progressBar-background);
 }
 
 .agents-control-status-icon {

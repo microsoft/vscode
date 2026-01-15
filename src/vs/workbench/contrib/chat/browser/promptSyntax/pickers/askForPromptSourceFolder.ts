@@ -34,7 +34,7 @@ export async function askForPromptSourceFolder(
 	const workspaceService = accessor.get(IWorkspaceContextService);
 
 	// get prompts source folders based on the prompt type
-	const folders = promptsService.getSourceFolders(type);
+	const folders = await promptsService.getSourceFolders(type);
 
 	// if no source folders found, show 'learn more' dialog
 	// note! this is a temporary solution and must be replaced with a dialog to select
