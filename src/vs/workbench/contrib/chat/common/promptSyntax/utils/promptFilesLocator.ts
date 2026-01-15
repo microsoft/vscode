@@ -68,7 +68,7 @@ export class PromptFilesLocator {
 			if (storage !== PromptsStorage.user) {
 				continue;
 			}
-			const files = await this.resolveFilesAtLocation(uri, token, type);
+			const files = await this.resolveFilesAtLocation(uri, type, token);
 			for (const file of files) {
 				if (getPromptFileType(file) === type) {
 					paths.add(file);
@@ -240,7 +240,7 @@ export class PromptFilesLocator {
 
 		for (const { parent, filePattern } of this.getLocalParentFolders(type)) {
 			const files = (filePattern === undefined)
-				? await this.resolveFilesAtLocation(parent, token) // if the location does not contain a glob pattern, resolve the location directly
+				? await this.resolveFilesAtLocation(parent, type, token) // if the location does not contain a glob pattern, resolve the location directly
 				: await this.searchFilesInLocation(parent, filePattern, token);
 			for (const file of files) {
 				if (getPromptFileType(file) === type) {
@@ -260,8 +260,9 @@ export class PromptFilesLocator {
 		if (type === PromptsType.agent) {
 			configuredLocations.push(...DEFAULT_AGENT_SOURCE_FOLDERS);
 		}
-		const absoluteLocations = this.toAbsoluteLocations(configuredLocations, undefined).map(l => l.uri);
-		return absoluteLocations.map(firstNonGlobParentAndPattern);
+		const absoluteLocations = type === PromptsType.skill ?
+			this.toAbsoluteLocationsForSkills(configuredLocations, undefined) : this.toAbsoluteLocations(configuredLocations, undefined);
+		return absoluteLocations.map((location) => firstNonGlobParentAndPattern(location.uri));
 	}
 
 	/**
@@ -350,7 +351,7 @@ export class PromptFilesLocator {
 	/**
 	 * Uses the file service to resolve the provided location and return either the file at the location of files in the directory.
 	 */
-	private async resolveFilesAtLocation(location: URI, token: CancellationToken, type?: PromptsType): Promise<URI[]> {
+	private async resolveFilesAtLocation(location: URI, type: PromptsType, token: CancellationToken): Promise<URI[]> {
 		if (type === PromptsType.skill) {
 			return this.findAgentSkillsInFolder(location, token);
 		}
@@ -489,28 +490,14 @@ export class PromptFilesLocator {
 	}
 
 	private async findAgentSkillsInFolder(uri: URI, token: CancellationToken): Promise<URI[]> {
-		const result = [];
 		try {
-			const stat = await this.fileService.resolve(uri);
-			if (token.isCancellationRequested) {
-				return [];
+			return await this.searchFilesInLocation(uri, `*/${SKILL_FILENAME}`, token);
+		} catch (e) {
+			if (!isCancellationError(e)) {
+				this.logService.trace(`[PromptFilesLocator] Error searching for skills in ${uri.toString()}: ${e}`);
 			}
-			if (stat.isDirectory && stat.children) {
-				for (const skillDir of stat.children) {
-					if (skillDir.isDirectory) {
-						const skillFile = joinPath(skillDir.resource, SKILL_FILENAME);
-						if (await this.fileService.exists(skillFile)) {
-							result.push(skillFile);
-						}
-					}
-				}
-			}
-		} catch (error) {
-			// no such folder, return empty list
 			return [];
 		}
-
-		return result;
 	}
 
 	/**
@@ -523,6 +510,9 @@ export class PromptFilesLocator {
 		const allResults: IResolvedPromptFile[] = [];
 
 		for (const { uri, source, storage } of absoluteLocations) {
+			if (token.isCancellationRequested) {
+				return [];
+			}
 			const results = await this.findAgentSkillsInFolder(uri, token);
 			allResults.push(...results.map(uri => ({ fileUri: uri, source, storage })));
 		}
@@ -645,19 +635,23 @@ function firstNonGlobParentAndPattern(location: URI): { parent: URI; filePattern
  * Regex pattern string for validating skill paths.
  * Skills only support:
  * - Relative paths: someFolder, ./someFolder
- * - User home paths: ~/folder
+ * - User home paths: ~/folder or ~\folder
  * - Parent relative paths for monorepos: ../folder
  *
  * NOT supported:
  * - Absolute paths (portability issue)
  * - Glob patterns with * or ** (performance issue)
+ * - Tilde without path separator (e.g., ~abc)
+ * - Empty or whitespace-only paths
  *
  * The regex validates:
  * - Not a Windows absolute path (e.g., C:\)
  * - Not starting with / (Unix absolute path)
+ * - If starts with ~, must be followed by / or \
  * - No glob pattern characters: * ? [ ] { }
+ * - At least one non-whitespace character
  */
-export const VALID_SKILL_PATH_PATTERN = '^(?![A-Za-z]:[\\\\/])(?![\\\\/])(?!.*[*?\\[\\]{}]).+$';
+export const VALID_SKILL_PATH_PATTERN = '^(?![A-Za-z]:[\\\\/])(?![\\\\/])(?!~(?![\\\\/]))(?!.*[*?\\[\\]{}]).*\\S.*$';
 
 /**
  * Validates if a path is allowed for skills configuration.

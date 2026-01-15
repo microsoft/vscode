@@ -731,15 +731,17 @@ configurationRegistry.registerConfiguration({
 		[PromptsConfig.SKILLS_LOCATION_KEY]: {
 			type: 'object',
 			title: nls.localize('chat.agentSkillsLocations.title', "Agent Skills Locations",),
-			markdownDescription: nls.localize('chat.agentSkillsLocations.description', "Specify location(s) of agent skills. Each folder should have skill subdirectories with `SKILL.md` files (e.g., for `my-skills/skillA/SKILL.md`, add `my-skills`).\n\n**Supported path types:**\n- Relative paths: `my-skills`, `./my-skills`, `../shared-skills`\n- User home paths: `~/.copilot/skills`, `~/.claude/skills`\n\nRelative paths are resolved from the root folder(s) of your workspace.",),
+			markdownDescription: nls.localize('chat.agentSkillsLocations.description', "Specify where agent skills are located. Each path should contain skill subfolders with SKILL.md files (e.g., my-skills/skillA/SKILL.md → add my-skills).\n\n**Supported path types:**\n- Workspace paths: `my-skills`, `./my-skills`, `../shared-skills`\n- User home paths: `~/.copilot/skills`, `~/.claude/skills`",),
 			default: {
 				...DEFAULT_SKILL_SOURCE_FOLDERS.map((folder) => ({ [folder.path]: true })).reduce((acc, curr) => ({ ...acc, ...curr }), {}),
 			},
 			additionalProperties: { type: 'boolean' },
+			propertyNames: {
+				pattern: VALID_SKILL_PATH_PATTERN,
+				patternErrorMessage: nls.localize('chat.agentSkillsLocations.invalidPath', "Skill location paths must either be relative paths or start with '~' for user home directory."),
+			},
 			restricted: true,
 			tags: ['prompts', 'reusable prompts', 'prompt snippets', 'instructions'],
-			pattern: VALID_SKILL_PATH_PATTERN,
-			patternErrorMessage: nls.localize('chat.agentSkillsLocations.invalidPath', "Skill location paths must either be relative paths or start with '~' for user home directory."),
 			examples: [
 				{
 					[DEFAULT_SKILL_SOURCE_FOLDERS[0].path]: true,

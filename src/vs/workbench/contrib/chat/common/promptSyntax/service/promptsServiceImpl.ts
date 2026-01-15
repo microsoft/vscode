@@ -735,7 +735,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				}
 				return 4;
 			};
-			// stable sort; we should keep order consistent to the order in the user's configuration object
+			// Stable sort; we should keep order consistent to the order in the user's configuration object
 			allSkills.sort((a, b) => getPriority(a) - getPriority(b));
 
 			// Process sequentially to maintain order (important for duplicate name resolution)
