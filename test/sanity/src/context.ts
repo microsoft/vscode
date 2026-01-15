@@ -88,7 +88,7 @@ export class TestContext {
 			if (fs.existsSync('/usr/bin/dpkg')) {
 				this._capabilities.add('deb');
 			}
-			if (fs.existsSync('/usr/bin/rpm')) {
+			if (fs.existsSync('/usr/bin/dnf') || fs.existsSync('/usr/bin/yum')) {
 				this._capabilities.add('rpm');
 			}
 			if (fs.existsSync('/usr/bin/snap')) {
