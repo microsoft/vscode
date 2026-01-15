@@ -26,6 +26,7 @@ import { InlineSuggestionItem } from './inlineSuggestionItem.js';
 import { IInlineSuggestDataActionEdit, InlineCompletionContextWithoutUuid } from './provideInlineCompletions.js';
 import { InlineSuggestAlternativeAction } from './InlineSuggestAlternativeAction.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { IRenameSymbolTrackerService } from '../../../../browser/services/renameSymbolTrackerService.js';
 
 enum RenameKind {
 	no = 'no',
@@ -331,6 +332,7 @@ export class RenameSymbolProcessor extends Disposable {
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
 		@IBulkEditService bulkEditService: IBulkEditService,
+		@IRenameSymbolTrackerService renameSymbolTrackerService: IRenameSymbolTrackerService,
 	) {
 		super();
 		this._register(CommandsRegistry.registerCommand(renameSymbolCommandId, async (_: ServicesAccessor, source: TextModelEditSource, renameRunnable: RenameSymbolRunnable | undefined) => {
@@ -350,6 +352,7 @@ export class RenameSymbolProcessor extends Disposable {
 				}
 			}
 		}));
+		console.log('RenameSymbolProcessor initialized', renameSymbolTrackerService);
 	}
 
 	public async proposeRenameRefactoring(textModel: ITextModel, suggestItem: InlineSuggestionItem, context: InlineCompletionContextWithoutUuid): Promise<InlineSuggestionItem> {
