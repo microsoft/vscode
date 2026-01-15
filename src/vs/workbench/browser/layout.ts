@@ -1939,11 +1939,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.setPanelPosition(Position.BOTTOM);
 		}
 
-		// the workbench grid currently prevents us from supporting panel maximization with non-center panel alignment
-		if (alignment !== 'center' && this.isPanelMaximized()) {
-			this.toggleMaximizedPanel();
-		}
-
 		this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_ALIGNMENT, alignment);
 
 		this.adjustPartPositions(this.getSideBarPosition(), alignment, this.getPanelPosition());
@@ -2111,42 +2106,77 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	isPanelMaximized(): boolean {
-		return (
-			this.getPanelAlignment() === 'center' || 	// the workbench grid currently prevents us from supporting panel
-			!isHorizontal(this.getPanelPosition())		// maximization with non-center panel alignment
-		) && !this.isVisible(Parts.EDITOR_PART, mainWindow) && !this.isAuxiliaryBarMaximized();
+		return !this.isVisible(Parts.EDITOR_PART, mainWindow) && !this.isAuxiliaryBarMaximized();
 	}
+
+	private inMaximizedPanelTransition = false;
 
 	toggleMaximizedPanel(): void {
 		const size = this.workbenchGrid.getViewSize(this.panelPartView);
 		const panelPosition = this.getPanelPosition();
+		const panelAlignment = this.getPanelAlignment();
 		const maximize = !this.isPanelMaximized();
-		if (maximize) {
-			if (this.isVisible(Parts.PANEL_PART)) {
-				if (isHorizontal(panelPosition)) {
-					this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_LAST_NON_MAXIMIZED_HEIGHT, size.height);
-				} else {
-					this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_LAST_NON_MAXIMIZED_WIDTH, size.width);
-				}
-			}
+		const needsHideSideParts = panelAlignment !== 'center' && isHorizontal(panelPosition);
 
-			this.setEditorHidden(true);
-		} else {
-			this.setEditorHidden(false);
-
-			this.workbenchGrid.resizeView(this.panelPartView, {
-				width: isHorizontal(panelPosition) ? size.width : this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_LAST_NON_MAXIMIZED_WIDTH),
-				height: isHorizontal(panelPosition) ? this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_LAST_NON_MAXIMIZED_HEIGHT) : size.height
-			});
+		if (this.inMaximizedPanelTransition) {
+			return; // prevent re-entrance
 		}
 
-		this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_WAS_LAST_MAXIMIZED, maximize);
+		this.inMaximizedPanelTransition = true;
+		try {
+			if (maximize) {
+				if (this.isVisible(Parts.PANEL_PART)) {
+					if (isHorizontal(panelPosition)) {
+						this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_LAST_NON_MAXIMIZED_HEIGHT, size.height);
+					} else {
+						this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_LAST_NON_MAXIMIZED_WIDTH, size.width);
+					}
+				}
+
+				// For non-center aligned panels, we need to also hide the sidebar and auxiliary bar
+				if (needsHideSideParts) {
+					const state = {
+						sideBarVisible: this.isVisible(Parts.SIDEBAR_PART),
+						auxiliaryBarVisible: this.isVisible(Parts.AUXILIARYBAR_PART)
+					};
+					this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_LAST_NON_MAXIMIZED_VISIBILITY, state);
+
+					if (state.sideBarVisible) {
+						this.setSideBarHidden(true);
+					}
+					if (state.auxiliaryBarVisible) {
+						this.setAuxiliaryBarHidden(true);
+					}
+				}
+
+				this.setEditorHidden(true);
+			} else {
+				this.setEditorHidden(false);
+
+				// For non-center aligned panels, restore the sidebar and auxiliary bar visibility
+				if (needsHideSideParts) {
+					const state = this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_LAST_NON_MAXIMIZED_VISIBILITY);
+					if (state?.sideBarVisible) {
+						this.setSideBarHidden(false);
+					}
+					if (state?.auxiliaryBarVisible) {
+						this.setAuxiliaryBarHidden(false);
+					}
+				}
+
+				this.workbenchGrid.resizeView(this.panelPartView, {
+					width: isHorizontal(panelPosition) ? size.width : this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_LAST_NON_MAXIMIZED_WIDTH),
+					height: isHorizontal(panelPosition) ? this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_LAST_NON_MAXIMIZED_HEIGHT) : size.height
+				});
+			}
+
+			this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_WAS_LAST_MAXIMIZED, maximize);
+		} finally {
+			this.inMaximizedPanelTransition = false;
+		}
 	}
 
 	private panelOpensMaximized(): boolean {
-		if (this.getPanelAlignment() !== 'center' && isHorizontal(this.getPanelPosition())) {
-			return false; // The workbench grid currently prevents us from supporting panel maximization with non-center panel alignment
-		}
 
 		const panelOpensMaximized = partOpensMaximizedFromString(this.configurationService.getValue<string>(WorkbenchLayoutSettings.PANEL_OPENS_MAXIMIZED));
 		const panelLastIsMaximized = this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_WAS_LAST_MAXIMIZED);
@@ -2733,6 +2763,10 @@ const LayoutStateKeys = {
 	PANEL_LAST_NON_MAXIMIZED_HEIGHT: new RuntimeStateKey<number>('panel.lastNonMaximizedHeight', StorageScope.PROFILE, StorageTarget.MACHINE, 300),
 	PANEL_LAST_NON_MAXIMIZED_WIDTH: new RuntimeStateKey<number>('panel.lastNonMaximizedWidth', StorageScope.PROFILE, StorageTarget.MACHINE, 300),
 	PANEL_WAS_LAST_MAXIMIZED: new RuntimeStateKey<boolean>('panel.wasLastMaximized', StorageScope.WORKSPACE, StorageTarget.MACHINE, false),
+	PANEL_LAST_NON_MAXIMIZED_VISIBILITY: new RuntimeStateKey('panel.lastNonMaximizedVisibility', StorageScope.WORKSPACE, StorageTarget.MACHINE, {
+		sideBarVisible: false,
+		auxiliaryBarVisible: false
+	}),
 
 	AUXILIARYBAR_WAS_LAST_MAXIMIZED: new RuntimeStateKey<boolean>('auxiliaryBar.wasLastMaximized', StorageScope.WORKSPACE, StorageTarget.MACHINE, false),
 	AUXILIARYBAR_LAST_NON_MAXIMIZED_SIZE: new RuntimeStateKey<number>('auxiliaryBar.lastNonMaximizedSize', StorageScope.PROFILE, StorageTarget.MACHINE, 300),
