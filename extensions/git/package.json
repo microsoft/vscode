@@ -2232,6 +2232,21 @@
           "command": "git.stageAllUntracked",
           "when": "scmProvider == git && scmResourceGroup == untracked",
           "group": "inline@2"
+        },
+        {
+          "submenu": "git.stash",
+          "group": "2_stash",
+          "when": "scmProvider == git && scmResourceGroup == workingTree"
+        },
+        {
+          "submenu": "git.stash",
+          "group": "2_stash",
+          "when": "scmProvider == git && scmResourceGroup == index"
+        },
+        {
+          "submenu": "git.stash",
+          "group": "2_stash",
+          "when": "scmProvider == git && scmResourceGroup == untracked"
         }
       ],
       "scm/resourceFolder/context": [
