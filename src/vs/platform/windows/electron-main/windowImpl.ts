@@ -392,6 +392,10 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		}
 
 		win.focus();
+
+		// Also focus the webContents to ensure focus is taken from any
+		// child views that may currently have focus
+		win.webContents.focus();
 	}
 
 	//#region Window Control Overlays
