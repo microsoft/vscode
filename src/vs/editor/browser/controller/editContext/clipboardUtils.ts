@@ -89,7 +89,7 @@ function getDataToCopy(viewModel: IViewModel, modelSelections: Range[], emptySel
 	return dataToCopy;
 }
 
-function filterSelections(viewModel: IViewModel, selections: Range[], excludeRanges: Range[]): Range[] {
+export function filterSelections(viewModel: IViewModel, selections: Range[], excludeRanges: Range[]): Range[] {
 	if (excludeRanges.length === 0) {
 		return selections;
 	}
