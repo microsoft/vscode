@@ -23,8 +23,8 @@ import { IAction } from '../../../../../base/common/actions.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 
-const TOGGLE_CHAT_ACTION_ID = 'workbench.action.chat.toggle';
-const OPEN_CHAT_ACTION_ID = 'workbench.action.chat.open'; // Has the keybinding
+const OPEN_CHAT_ACTION_ID = 'workbench.action.chat.open';
+const QUICK_CHAT_ACTION_ID = 'workbench.action.quickchat.toggle';
 const QUICK_OPEN_ACTION_ID = 'workbench.action.quickOpenWithModes';
 
 /**
@@ -118,7 +118,7 @@ export class AgentsControlViewItem extends BaseActionViewItem {
 			pill.classList.add('has-unread');
 		}
 		pill.setAttribute('role', 'button');
-		pill.setAttribute('aria-label', localize('openChat', "Open Chat"));
+		pill.setAttribute('aria-label', localize('openQuickChat', "Open Quick Chat"));
 		pill.tabIndex = 0;
 		this._container.appendChild(pill);
 
@@ -164,17 +164,17 @@ export class AgentsControlViewItem extends BaseActionViewItem {
 
 		// Setup hover with keyboard shortcut
 		const hoverDelegate = getDefaultHoverDelegate('mouse');
-		const kbForTooltip = this.keybindingService.lookupKeybinding(OPEN_CHAT_ACTION_ID)?.getLabel();
+		const kbForTooltip = this.keybindingService.lookupKeybinding(QUICK_CHAT_ACTION_ID)?.getLabel();
 		const tooltip = kbForTooltip
-			? localize('askTooltip', "Open Chat ({0})", kbForTooltip)
-			: localize('askTooltip2', "Open Chat");
+			? localize('askTooltip', "Open Quick Chat ({0})", kbForTooltip)
+			: localize('askTooltip2', "Open Quick Chat");
 		disposables.add(this.hoverService.setupManagedHover(hoverDelegate, pill, tooltip));
 
-		// Click handler - open chat
+		// Click handler - open quick chat
 		disposables.add(addDisposableListener(pill, EventType.CLICK, (e) => {
 			e.preventDefault();
 			e.stopPropagation();
-			this.commandService.executeCommand(TOGGLE_CHAT_ACTION_ID);
+			this.commandService.executeCommand(QUICK_CHAT_ACTION_ID);
 		}));
 
 		// Keyboard handler
@@ -182,7 +182,7 @@ export class AgentsControlViewItem extends BaseActionViewItem {
 			if (e.key === 'Enter' || e.key === ' ') {
 				e.preventDefault();
 				e.stopPropagation();
-				this.commandService.executeCommand(TOGGLE_CHAT_ACTION_ID);
+				this.commandService.executeCommand(QUICK_CHAT_ACTION_ID);
 			}
 		}));
 
