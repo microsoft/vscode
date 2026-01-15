@@ -250,7 +250,7 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 		await timeout(200);
 		onWillData.fire('output');
 
-		// Command finishes at 300ms (before 50ms data timeout would fire at 250ms)
+		// Command finishes at 230ms (before 50ms data timeout would fire at 250ms)
 		await timeout(30);
 		onCommandFinished.fire();
 
