@@ -80,25 +80,51 @@ jobs:
               set -e
 
               if command -v apt-get &> /dev/null; then
+
                 echo "Installing dependencies using apt-get (Ubuntu, Debian)"
                 apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
                   curl ca-certificates xvfb x11-utils libnss3 libgbm1 xdg-utils sudo dbus dbus-x11
                 apt-get install -y libgtk-3-0t64 || apt-get install -y libgtk-3-0
                 apt-get install -y libasound2t64 || apt-get install -y libasound2
+
                 curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
                 apt-get install -y nodejs
+
+                # Install webkit dependencies for ARM platforms
+                if [ "$(arch)" = "aarch64" ] || [ "$(arch)" = "armv7l" ] || [ "$(arch)" = "arm" ]; then
+                  echo "Installing webkit dependencies for ARM"
+
+                  apt-get install -y \
+                    libgstreamer1.0-0 libgstreamer-plugins-base1.0-0 libgstreamer-gl1.0-0 \
+                    gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
+                    libxslt1.1 libvpx7 libevent-2.1-7 libopus0 \
+                    libwebpdemux2 libwebpmux3 libharfbuzz-icu0 \
+                    libenchant-2-2 libsecret-1-0 libhyphen0 libgles2 || true
+
+                  # Try to install optional packages that may not be available on all versions
+                  apt-get install -y libgtk-4-1 libgraphene-1.0-0 libwoff1 libavif15 \
+                    libmanette-0.2-0 gstreamer1.0-libav flite1-dev libx264-163 || true
+                fi
+
               elif command -v dnf &> /dev/null; then
+
                 echo "Installing dependencies using dnf (Fedora, RHEL)"
                 dnf install -y epel-release 2>/dev/null || true
-                dnf install -y nodejs gtk3 nss mesa-libgbm alsa-lib sudo dbus dbus-x11
-                dnf install -y xorg-x11-server-Xvfb xorg-x11-apps
+                dnf install -y nodejs gtk3 nss mesa-libgbm alsa-lib sudo dbus
+                dnf install -y dbus-x11 || true
+                dnf install -y xorg-x11-server-Xvfb xorg-x11-utils
                 dnf install -y xdg-utils
+
               elif command -v zypper &> /dev/null; then
+
                 echo "Installing dependencies using zypper (openSUSE)"
                 zypper install -y nodejs22 xorg-x11-server-Xvfb xorg-x11 libgtk-3-0 mozilla-nss libgbm1 alsa xdg-utils sudo tar gzip dbus-1 dbus-1-x11
+
               elif command -v apk &> /dev/null; then
+
                 echo "Installing dependencies using apk (Alpine)"
                 apk add --no-cache nodejs npm xvfb xdpyinfo gtk+3.0 nss mesa-gbm sudo dbus dbus-x11
+
               fi
 
               echo "Starting Xvfb on display :99"
