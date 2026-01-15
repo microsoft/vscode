@@ -28,6 +28,21 @@ Focus View Mode - Tab styling to match agents control
 	position: relative;
 }
 
+@keyframes focus-view-glow-pulse {
+	0%, 100% {
+		box-shadow:
+			0 0 8px 2px color-mix(in srgb, var(--vscode-progressBar-background) 50%, transparent),
+			0 0 20px 4px color-mix(in srgb, var(--vscode-progressBar-background) 25%, transparent),
+			inset 0 0 15px 2px color-mix(in srgb, var(--vscode-progressBar-background) 15%, transparent);
+	}
+	50% {
+		box-shadow:
+			0 0 15px 4px color-mix(in srgb, var(--vscode-progressBar-background) 70%, transparent),
+			0 0 35px 8px color-mix(in srgb, var(--vscode-progressBar-background) 35%, transparent),
+			inset 0 0 25px 4px color-mix(in srgb, var(--vscode-progressBar-background) 25%, transparent);
+	}
+}
+
 .monaco-workbench.focus-view-active .part.editor::after {
 	content: '';
 	position: absolute;
@@ -36,11 +51,14 @@ Focus View Mode - Tab styling to match agents control
 	z-index: 1000;
 	border: 2px solid var(--vscode-progressBar-background);
 	border-radius: 4px;
+	animation: focus-view-glow-pulse 2s ease-in-out infinite;
 }
 
 .hc-black .monaco-workbench.focus-view-active .part.editor::after,
 .hc-light .monaco-workbench.focus-view-active .part.editor::after {
 	border-color: var(--vscode-contrastBorder);
+	animation: none;
+	box-shadow: none;
 }
 
 /* ========================================
