@@ -10,13 +10,14 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { IChatEditingSession } from '../../../common/editing/chatEditingService.js';
 import { IChatChangeEvent, IChatModel, IChatRequestModel, IChatRequestNeedsInputInfo, IExportableChatData, IExportableRepoData, IInputModel, ISerializableChatData } from '../../../common/model/chatModel.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
+import { IChatSessionTiming } from '../../../common/chatService/chatService.js';
 
 export class MockChatModel extends Disposable implements IChatModel {
 	readonly onDidDispose = this._register(new Emitter<void>()).event;
 	readonly onDidChange = this._register(new Emitter<IChatChangeEvent>()).event;
 	sessionId = '';
 	readonly timestamp = 0;
-	readonly timing = { startTime: 0 };
+	readonly timing: IChatSessionTiming = { created: Date.now(), lastRequestStarted: undefined, lastRequestEnded: undefined };
 	readonly initialLocation = ChatAgentLocation.Chat;
 	readonly title = '';
 	readonly hasCustomTitle = false;

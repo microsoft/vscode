@@ -19,13 +19,15 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { ISubmenuItem, MenuId, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { ArchiveAgentSessionAction, ArchiveAgentSessionSectionAction, UnarchiveAgentSessionSectionAction, UnarchiveAgentSessionAction, OpenAgentSessionInEditorGroupAction, OpenAgentSessionInNewEditorGroupAction, OpenAgentSessionInNewWindowAction, ShowAgentSessionsSidebar, HideAgentSessionsSidebar, ToggleAgentSessionsSidebar, RefreshAgentSessionsViewerAction, FindAgentSessionInViewerAction, MarkAgentSessionUnreadAction, MarkAgentSessionReadAction, FocusAgentSessionsAction, SetAgentSessionsOrientationStackedAction, SetAgentSessionsOrientationSideBySideAction, ToggleChatViewSessionsAction, PickAgentSessionAction, ArchiveAllAgentSessionsAction, RenameAgentSessionAction, DeleteAgentSessionAction, DeleteAllLocalSessionsAction } from './agentSessionsActions.js';
 import { AgentSessionsQuickAccessProvider, AGENT_SESSIONS_QUICK_ACCESS_PREFIX } from './agentSessionsQuickAccess.js';
-import { IFocusViewService, FocusViewService } from './focusViewService.js';
-import { EnterFocusViewAction, ExitFocusViewAction, OpenInChatPanelAction, ToggleAgentsControl } from './focusViewActions.js';
-import { AgentsControlViewItem } from './agentsControl.js';
+import { IAgentSessionProjectionService, AgentSessionProjectionService } from './agentSessionProjectionService.js';
+import { EnterAgentSessionProjectionAction, ExitAgentSessionProjectionAction, OpenInChatPanelAction, ToggleAgentStatusAction, ToggleAgentSessionProjectionAction } from './agentSessionProjectionActions.js';
+import { IAgentStatusService, AgentStatusService } from './agentStatusService.js';
+import { AgentStatusWidget } from './agentStatusWidget.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../../common/constants.js';
+import { AuxiliaryBarMaximizedContext } from '../../../../common/contextkeys.js';
 
 //#region Actions and Menus
 
@@ -53,11 +55,12 @@ registerAction2(ToggleChatViewSessionsAction);
 registerAction2(SetAgentSessionsOrientationStackedAction);
 registerAction2(SetAgentSessionsOrientationSideBySideAction);
 
-// Focus View
-registerAction2(EnterFocusViewAction);
-registerAction2(ExitFocusViewAction);
+// Agent Session Projection
+registerAction2(EnterAgentSessionProjectionAction);
+registerAction2(ExitAgentSessionProjectionAction);
 registerAction2(OpenInChatPanelAction);
-registerAction2(ToggleAgentsControl);
+registerAction2(ToggleAgentStatusAction);
+registerAction2(ToggleAgentSessionProjectionAction);
 
 // --- Agent Sessions Toolbar
 
@@ -80,7 +83,8 @@ MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
 	order: 5,
 	when: ContextKeyExpr.and(
 		ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
-		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Right)
+		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Right),
+		AuxiliaryBarMaximizedContext.negate()
 	)
 });
 
@@ -94,7 +98,8 @@ MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
 	order: 5,
 	when: ContextKeyExpr.and(
 		ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
-		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Left)
+		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Left),
+		AuxiliaryBarMaximizedContext.negate()
 	)
 });
 
@@ -108,7 +113,8 @@ MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
 	order: 5,
 	when: ContextKeyExpr.and(
 		ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.SideBySide),
-		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Right)
+		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Right),
+		AuxiliaryBarMaximizedContext.negate()
 	)
 });
 
@@ -122,7 +128,8 @@ MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
 	order: 5,
 	when: ContextKeyExpr.and(
 		ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.SideBySide),
-		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Left)
+		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Left),
+		AuxiliaryBarMaximizedContext.negate()
 	)
 });
 
@@ -184,14 +191,15 @@ Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess).registerQui
 
 registerWorkbenchContribution2(LocalAgentsSessionsProvider.ID, LocalAgentsSessionsProvider, WorkbenchPhase.AfterRestored);
 registerSingleton(IAgentSessionsService, AgentSessionsService, InstantiationType.Delayed);
-registerSingleton(IFocusViewService, FocusViewService, InstantiationType.Delayed);
+registerSingleton(IAgentStatusService, AgentStatusService, InstantiationType.Delayed);
+registerSingleton(IAgentSessionProjectionService, AgentSessionProjectionService, InstantiationType.Delayed);
 
-// Register Agents Control as a menu item in the command center (alongside the search box, not replacing it)
+// Register Agent Status as a menu item in the command center (alongside the search box, not replacing it)
 MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	submenu: MenuId.AgentsControlMenu,
 	title: localize('agentsControl', "Agents"),
 	icon: Codicon.chatSparkle,
-	when: ContextKeyExpr.has(`config.${ChatConfiguration.AgentSessionProjectionEnabled}`),
+	when: ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`),
 	order: 10002 // to the right of the chat button
 });
 
@@ -201,18 +209,18 @@ MenuRegistry.appendMenuItem(MenuId.AgentsControlMenu, {
 		id: 'workbench.action.chat.toggle',
 		title: localize('openChat', "Open Chat"),
 	},
-	when: ContextKeyExpr.has(`config.${ChatConfiguration.AgentSessionProjectionEnabled}`),
+	when: ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`),
 });
 
 /**
- * Provides custom rendering for the agents control in the command center.
- * Uses IActionViewItemService to render a custom AgentsControlViewItem
+ * Provides custom rendering for the agent status in the command center.
+ * Uses IActionViewItemService to render a custom AgentStatusWidget
  * for the AgentsControlMenu submenu.
- * Also adds a CSS class to the workbench when agents control is enabled.
+ * Also adds a CSS class to the workbench when agent status is enabled.
  */
-class AgentsControlRendering extends Disposable implements IWorkbenchContribution {
+class AgentStatusRendering extends Disposable implements IWorkbenchContribution {
 
-	static readonly ID = 'workbench.contrib.agentsControl.rendering';
+	static readonly ID = 'workbench.contrib.agentStatus.rendering';
 
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
@@ -225,24 +233,24 @@ class AgentsControlRendering extends Disposable implements IWorkbenchContributio
 			if (!(action instanceof SubmenuItemAction)) {
 				return undefined;
 			}
-			return instantiationService.createInstance(AgentsControlViewItem, action, options);
+			return instantiationService.createInstance(AgentStatusWidget, action, options);
 		}, undefined));
 
 		// Add/remove CSS class on workbench based on setting
 		const updateClass = () => {
-			const enabled = configurationService.getValue<boolean>(ChatConfiguration.AgentSessionProjectionEnabled) === true;
-			mainWindow.document.body.classList.toggle('agents-control-enabled', enabled);
+			const enabled = configurationService.getValue<boolean>(ChatConfiguration.AgentStatusEnabled) === true;
+			mainWindow.document.body.classList.toggle('agent-status-enabled', enabled);
 		};
 		updateClass();
 		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.AgentSessionProjectionEnabled)) {
+			if (e.affectsConfiguration(ChatConfiguration.AgentStatusEnabled)) {
 				updateClass();
 			}
 		}));
 	}
 }
 
-// Register the workbench contribution that provides custom rendering for the agents control
-registerWorkbenchContribution2(AgentsControlRendering.ID, AgentsControlRendering, WorkbenchPhase.AfterRestored);
+// Register the workbench contribution that provides custom rendering for the agent status
+registerWorkbenchContribution2(AgentStatusRendering.ID, AgentStatusRendering, WorkbenchPhase.AfterRestored);
 
 //#endregion
