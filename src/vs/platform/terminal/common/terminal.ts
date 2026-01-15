@@ -23,7 +23,7 @@ import type { SingleOrMany } from '../../../base/common/types.js';
  * Local type definition for sandbox runtime configuration to avoid importing external package
  * in the common layer. The actual type should match @anthropic-ai/sandbox-runtime.
  */
-export interface ISandboxRuntimeConfig {
+export interface ITerminalSandboxRuntimeConfig {
 	network?: {
 		allowedDomains?: string[];
 		deniedDomains?: string[];
@@ -689,7 +689,7 @@ export interface IShellLaunchConfig {
 	shellIntegrationNonce?: string;
 }
 
-export interface ITerminalSandboxSettings extends ISandboxRuntimeConfig {
+export interface ITerminalSandboxSettings extends ITerminalSandboxRuntimeConfig {
 	enabled?: boolean;
 }
 
@@ -751,7 +751,7 @@ export interface ITerminalProcessOptions {
 	environmentVariableCollections: ISerializableEnvironmentVariableCollections | undefined;
 	workspaceFolder: IWorkspaceFolder | undefined;
 	isScreenReaderOptimized: boolean;
-	sandboxSettings?: ISandboxRuntimeConfig;
+	sandboxSettings?: ITerminalSandboxRuntimeConfig;
 }
 
 export interface ITerminalEnvironment {
@@ -944,7 +944,7 @@ export interface ITerminalProfile {
 	color?: string;
 	icon?: ThemeIcon | URI | { light: URI; dark: URI };
 	sandboxed?: boolean;
-	sandboxSettings?: ISandboxRuntimeConfig;
+	sandboxSettings?: ITerminalSandboxRuntimeConfig;
 }
 
 export interface ITerminalDimensionsOverride extends Readonly<ITerminalDimensions> {

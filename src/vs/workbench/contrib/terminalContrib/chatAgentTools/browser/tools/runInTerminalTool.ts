@@ -45,7 +45,7 @@ import { CommandLineAutoApproveAnalyzer } from './commandLineAnalyzer/commandLin
 import { CommandLineFileWriteAnalyzer } from './commandLineAnalyzer/commandLineFileWriteAnalyzer.js';
 import { OutputMonitor } from './monitoring/outputMonitor.js';
 import { IPollingResult, OutputMonitorState } from './monitoring/types.js';
-import { ISandboxService } from '../../../../chat/common/sandboxService.js';
+import { IChatSandboxService } from '../../../../chat/common/sandboxService.js';
 import { chatSessionResourceToId, LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import type { ICommandLineRewriter } from './commandLineRewriter/commandLineRewriter.js';
@@ -307,7 +307,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
-		@ISandboxService private readonly _sandboxService: ISandboxService,
+		@IChatSandboxService private readonly _sandboxService: IChatSandboxService,
 	) {
 		super();
 

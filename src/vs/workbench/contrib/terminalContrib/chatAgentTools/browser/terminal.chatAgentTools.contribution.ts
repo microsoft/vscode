@@ -30,11 +30,11 @@ import { CreateAndRunTaskTool, CreateAndRunTaskToolData } from './tools/task/cre
 import { GetTaskOutputTool, GetTaskOutputToolData } from './tools/task/getTaskOutputTool.js';
 import { RunTaskTool, RunTaskToolData } from './tools/task/runTaskTool.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
-import { ISandboxService, SandboxService } from '../../../chat/common/sandboxService.js';
+import { IChatSandboxService, SandboxService } from '../../../chat/common/sandboxService.js';
 
 // #region Services
 
-registerSingleton(ISandboxService, SandboxService, InstantiationType.Delayed);
+registerSingleton(IChatSandboxService, SandboxService, InstantiationType.Delayed);
 
 // #endregion Services
 

@@ -32,7 +32,7 @@ import { TestIPCFileSystemProvider } from '../../../../../test/electron-browser/
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
 import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
-import { ISandboxService } from '../../../../chat/common/sandboxService.js';
+import { IChatSandboxService } from '../../../../chat/common/sandboxService.js';
 import { ILanguageModelToolsService, IPreparedToolInvocation, IToolInvocationPreparationContext, type ToolConfirmationAction } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
@@ -92,7 +92,7 @@ suite('RunInTerminalTool', () => {
 		instantiationService.stub(IHistoryService, {
 			getLastActiveWorkspaceRoot: () => undefined
 		});
-		instantiationService.stub(ISandboxService, {
+		instantiationService.stub(IChatSandboxService, {
 			_serviceBrand: undefined,
 			isEnabled: () => false,
 			wrapCommand: command => command,

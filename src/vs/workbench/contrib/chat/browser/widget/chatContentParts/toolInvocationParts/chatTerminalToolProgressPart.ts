@@ -49,7 +49,7 @@ import { removeAnsiEscapeCodes } from '../../../../../../../base/common/strings.
 import { PANEL_BACKGROUND } from '../../../../../../common/theme.js';
 import { editorBackground } from '../../../../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
-import { ISandboxService } from '../../../../common/sandboxService.js';
+import { IChatSandboxService } from '../../../../common/sandboxService.js';
 
 const MIN_OUTPUT_ROWS = 1;
 const MAX_OUTPUT_ROWS = 10;
@@ -245,7 +245,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@ISandboxService private readonly _sandboxService: ISandboxService,
+		@IChatSandboxService private readonly _sandboxService: IChatSandboxService,
 	) {
 		super(toolInvocation);
 

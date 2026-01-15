@@ -17,9 +17,9 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { TerminalContribSettingId } from '../../terminal/terminalContribExports.js';
 
-export const ISandboxService = createDecorator<ISandboxService>('sandboxService');
+export const IChatSandboxService = createDecorator<IChatSandboxService>('sandboxService');
 
-export interface ISandboxService {
+export interface IChatSandboxService {
 	readonly _serviceBrand: undefined;
 	isEnabled(): boolean;
 	wrapCommand(command: string): string;
@@ -28,7 +28,7 @@ export interface ISandboxService {
 	setNeedsForceUpdateConfigFile(): void;
 }
 
-export class SandboxService implements ISandboxService {
+export class SandboxService implements IChatSandboxService {
 	readonly _serviceBrand: undefined;
 	private _srtPath: string;
 	private _sandboxConfigPath: string | undefined;
