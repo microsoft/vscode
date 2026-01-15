@@ -837,6 +837,12 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('chat.agent.thinking.collapsedTools', "Controls how tool calls are displayed in relation to thinking sections."),
 			tags: ['experimental'],
 		},
+		[ChatConfiguration.TerminalToolsInThinking]: {
+			type: 'boolean',
+			default: true,
+			markdownDescription: nls.localize('chat.agent.thinking.terminalTools', "When enabled, terminal tool calls are displayed inside the thinking dropdown with a simplified view."),
+			tags: ['experimental'],
+		},
 		'chat.disableAIFeatures': {
 			type: 'boolean',
 			description: nls.localize('chat.disableAIFeatures', "Disable and hide built-in AI features provided by GitHub Copilot, including chat and inline suggestions."),
