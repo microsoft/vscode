@@ -4,22 +4,43 @@
  *--------------------------------------------------------------------------------------------*/
 
 /* ========================================
-Focus View Mode - Themed glow border around entire workbench
+Focus View Mode - Tab styling to match agents control
 ======================================== */
 
-.monaco-workbench.focus-view-active::after {
+/* Style all tabs with the same background as the agents control */
+.monaco-workbench.focus-view-active .part.editor > .content .editor-group-container > .title .tabs-container > .tab {
+	background-color: color-mix(in srgb, var(--vscode-progressBar-background) 15%, transparent) !important;
+}
+
+/* Active tab gets slightly stronger tint */
+.monaco-workbench.focus-view-active .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active {
+	background-color: color-mix(in srgb, var(--vscode-progressBar-background) 25%, transparent) !important;
+}
+
+.hc-black .monaco-workbench.focus-view-active .part.editor > .content .editor-group-container > .title .tabs-container > .tab,
+.hc-light .monaco-workbench.focus-view-active .part.editor > .content .editor-group-container > .title .tabs-container > .tab {
+	background-color: transparent !important;
+	border: 1px solid var(--vscode-contrastBorder);
+}
+
+/* Border around entire editor area using pseudo-element overlay */
+.monaco-workbench.focus-view-active .part.editor {
+	position: relative;
+}
+
+.monaco-workbench.focus-view-active .part.editor::after {
 	content: '';
 	position: absolute;
 	inset: 0;
 	pointer-events: none;
-	z-index: 10000;
-	box-shadow: inset 0 0 0 3px var(--vscode-progressBar-background), inset 0 0 30px color-mix(in srgb, var(--vscode-progressBar-background) 35%, transparent);
-	transition: box-shadow 0.2s ease-in-out;
+	z-index: 1000;
+	border: 2px solid var(--vscode-progressBar-background);
+	border-radius: 4px;
 }
 
-.hc-black .monaco-workbench.focus-view-active::after,
-.hc-light .monaco-workbench.focus-view-active::after {
-	box-shadow: inset 0 0 0 2px var(--vscode-contrastBorder);
+.hc-black .monaco-workbench.focus-view-active .part.editor::after,
+.hc-light .monaco-workbench.focus-view-active .part.editor::after {
+	border-color: var(--vscode-contrastBorder);
 }
 
 /* ========================================
