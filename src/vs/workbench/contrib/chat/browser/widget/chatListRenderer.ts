@@ -1294,13 +1294,18 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return false;
 		}
 
-		// Don't pin terminal tools
+		// only pin terminal tools based on settings
 		const isTerminalTool = (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.toolSpecificData?.kind === 'terminal';
 		const isContributedTerminalToolInvocation = element
 			&& (element.sessionResource.scheme !== Schemas.vscodeChatInput && element.sessionResource.scheme !== Schemas.vscodeLocalChatSession) // contributed sessions
 			&& part.kind === 'toolInvocationSerialized' && part.toolSpecificData?.kind === 'terminal'; // contributed serialized terminal tool invocations data
 		if (isTerminalTool && !isContributedTerminalToolInvocation) {
-			return false;
+			// don't pin terminals with confirmation
+			if (part.kind === 'toolInvocation' && IChatToolInvocation.getConfirmationMessages(part)) {
+				return false;
+			}
+			const terminalToolsInThinking = this.configService.getValue<boolean>(ChatConfiguration.TerminalToolsInThinking);
+			return !!terminalToolsInThinking;
 		}
 
 		if (part.kind === 'toolInvocation') {

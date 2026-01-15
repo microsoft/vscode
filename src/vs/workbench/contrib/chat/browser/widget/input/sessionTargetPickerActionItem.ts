@@ -9,7 +9,6 @@ import { IAction } from '../../../../../../base/common/actions.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
-import { ActionWidgetDropdownActionViewItem } from '../../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
 import { MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider, IActionWidgetDropdownOptions } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
@@ -19,6 +18,7 @@ import { IKeybindingService } from '../../../../../../platform/keybinding/common
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../agentSessions/agentSessions.js';
+import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 
 export interface ISessionTypePickerDelegate {
 	getActiveSessionProvider(): AgentSessionProviders | undefined;
@@ -35,13 +35,14 @@ interface ISessionTypeItem {
  * Action view item for selecting a session target in the chat interface.
  * This picker allows switching between different chat session types contributed via extensions.
  */
-export class SessionTypePickerActionItem extends ActionWidgetDropdownActionViewItem {
+export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 	private _sessionTypeItems: ISessionTypeItem[] = [];
 
 	constructor(
 		action: MenuItemAction,
 		private readonly chatSessionPosition: 'sidebar' | 'editor',
 		private readonly delegate: ISessionTypePickerDelegate,
+		pickerOptions: IChatInputPickerOptions,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -97,7 +98,7 @@ export class SessionTypePickerActionItem extends ActionWidgetDropdownActionViewI
 			showItemKeybindings: true,
 		};
 
-		super(action, sessionTargetPickerOptions, actionWidgetService, keybindingService, contextKeyService);
+		super(action, sessionTargetPickerOptions, pickerOptions, actionWidgetService, keybindingService, contextKeyService);
 
 		this._updateAgentSessionItems();
 		this._register(this.chatSessionsService.onDidChangeAvailability(() => {
@@ -139,12 +140,15 @@ export class SessionTypePickerActionItem extends ActionWidgetDropdownActionViewI
 		const label = getAgentSessionProviderName(currentType ?? AgentSessionProviders.Local);
 		const icon = getAgentSessionProviderIcon(currentType ?? AgentSessionProviders.Local);
 
-		dom.reset(element, ...renderLabelWithIcons(`$(${icon.id})`), dom.$('span.chat-input-picker-label', undefined, label), ...renderLabelWithIcons(`$(chevron-down)`));
-		return null;
-	}
+		const labelElements = [];
+		labelElements.push(...renderLabelWithIcons(`$(${icon.id})`));
+		if (currentType !== AgentSessionProviders.Local) {
+			labelElements.push(dom.$('span.chat-input-picker-label', undefined, label));
+		}
+		labelElements.push(...renderLabelWithIcons(`$(chevron-down)`));
 
-	override render(container: HTMLElement): void {
-		super.render(container);
-		container.classList.add('chat-input-picker-item');
+		dom.reset(element, ...labelElements);
+
+		return null;
 	}
 }
