@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../base/common/lifecycle.js';
+import { isEqual } from '../../base/common/resources.js';
 import { getIEditor } from '../../editor/browser/editorBrowser.js';
 import { ICodeEditorViewState, IDiffEditorViewState } from '../../editor/common/editorCommon.js';
 import { localize } from '../../nls.js';
@@ -118,7 +119,7 @@ export class PickerEditorState extends Disposable {
 					// Only save view state if this group already has the editor as its visible (active) editor.
 					// If the editor is in a background tab, there's no scroll position to preserve.
 					const activeEditor = otherGroup.activeEditor;
-					if (activeEditor && activeEditor.resource?.toString() === resource.toString() && !this.revealedEditorsInOtherGroups.has(otherGroup)) {
+					if (activeEditor && isEqual(activeEditor.resource, resource) && !this.revealedEditorsInOtherGroups.has(otherGroup)) {
 						const pane = otherGroup.activeEditorPane;
 						const viewState = pane ? getIEditor(pane.getControl())?.saveViewState() ?? undefined : undefined;
 						this.revealedEditorsInOtherGroups.set(otherGroup, {
