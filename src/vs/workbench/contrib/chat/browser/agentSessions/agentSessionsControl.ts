@@ -202,11 +202,27 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 	}
 
 	private async showContextMenu({ element, anchor, browserEvent }: ITreeContextMenuEvent<AgentSessionListItem>): Promise<void> {
-		if (!element || isAgentSessionSection(element)) {
-			return; // No context menu for section headers
+		if (!element) {
+			return;
 		}
 
 		EventHelper.stop(browserEvent, true);
+
+		if (isAgentSessionSection(element)) {
+			// Context menu for section headers
+			const contextOverlay: Array<[string, boolean | string]> = [];
+			contextOverlay.push([ChatContextKeys.agentSessionSection.key, element.section]);
+			const menu = this.menuService.createMenu(MenuId.AgentSessionSectionContext, this.contextKeyService.createOverlay(contextOverlay));
+
+			this.contextMenuService.showContextMenu({
+				getActions: () => Separator.join(...menu.getActions({ arg: element, shouldForwardArgs: true }).map(([, actions]) => actions)),
+				getAnchor: () => anchor,
+				getActionsContext: () => element,
+			});
+
+			menu.dispose();
+			return;
+		}
 
 		await this.chatSessionsService.activateChatSessionItemProvider(element.providerType);
 
