@@ -105,8 +105,14 @@ jobs:
                 apt-get install -y libgtk-3-0t64 || apt-get install -y libgtk-3-0
                 apt-get install -y libasound2t64 || apt-get install -y libasound2
 
-                curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
-                apt-get install -y nodejs
+                # Install Node.js 22 from NodeSource (only supports amd64 and arm64)
+                if [ "$(arch)" = "x86_64" ] || [ "$(arch)" = "aarch64" ]; then
+                  curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+                  apt-get install -y nodejs
+                else
+                  # For arm32, use system nodejs (may be older)
+                  apt-get install -y nodejs npm
+                fi
 
                 # Install webkit dependencies for ARM platforms
                 if [ "$(arch)" = "aarch64" ] || [ "$(arch)" = "armv7l" ] || [ "$(arch)" = "arm" ]; then
@@ -138,7 +144,12 @@ jobs:
 
                 echo "Installing dependencies using dnf (Fedora, RHEL, CentOS)"
                 dnf install -y epel-release 2>/dev/null || true
-                dnf install -y nodejs gtk3 nss mesa-libgbm alsa-lib sudo dbus dbus-daemon
+
+                # Install Node.js 22 from NodeSource
+                curl -fsSL https://rpm.nodesource.com/setup_22.x | bash -
+                dnf install -y nodejs
+
+                dnf install -y gtk3 nss mesa-libgbm alsa-lib sudo dbus dbus-daemon
                 dnf install -y dbus-x11 || true
                 dnf install -y xorg-x11-server-Xvfb || true
                 dnf install -y xorg-x11-utils || true
