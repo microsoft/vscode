@@ -294,6 +294,7 @@ export class MenuId {
 	static readonly AgentsControlMenu = new MenuId('AgentsControlMenu');
 	static readonly ChatViewSessionTitleNavigationToolbar = new MenuId('ChatViewSessionTitleNavigationToolbar');
 	static readonly ChatViewSessionTitleToolbar = new MenuId('ChatViewSessionTitleToolbar');
+	static readonly SelectionGutterOverlay = new MenuId('SelectionGutterOverlay');
 
 	/**
 	 * Create or reuse a `MenuId` with the given identifier

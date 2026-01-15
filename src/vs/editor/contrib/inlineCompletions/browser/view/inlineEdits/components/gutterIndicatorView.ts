@@ -451,7 +451,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 	});
 
 
-	private readonly _iconRef = n.ref<HTMLDivElement>();
+	protected readonly _iconRef = n.ref<HTMLDivElement>();
 
 	public readonly isVisible = this._layout.map(l => !!l);
 
