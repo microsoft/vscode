@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../../../base/test/common/timeTravelScheduler.js';
 import { timeout } from '../../../../../../../base/common/async.js';
 import { TerminalToolAutoExpand, NO_DATA_TIMEOUT_MS, DATA_EVENT_TIMEOUT_MS } from '../../../../browser/widget/chatContentParts/toolInvocationParts/terminalToolAutoExpand.js';
 import type { ICommandDetectionCapability } from '../../../../../../../platform/terminal/common/capabilities/capabilities.js';
@@ -71,23 +72,22 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 		hasRealOutputValue = false;
 	});
 
-	test('fast command without data should not auto-expand (finishes before 500ms)', async () => {
+	test('fast command without data should not auto-expand (finishes before timeout)', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		setupAutoExpandLogic();
 
 		// Command executes
 		onCommandExecuted.fire(undefined);
 
-		// Command finishes quickly (before 500ms timeout)
-		await timeout(100);
+		// Command finishes quickly (before timeout)
 		onCommandFinished.fire(undefined);
 
-		// Wait past the 500ms mark
-		await timeout(NO_DATA_TIMEOUT_MS);
+		// Wait past all timeouts (faked timers advance instantly)
+		await timeout(NO_DATA_TIMEOUT_MS + 100);
 
 		assert.strictEqual(isExpanded, false, 'Should NOT expand for fast command without data');
-	});
+	}));
 
-	test('fast command with quick data should not auto-expand (data + finish before 50ms)', async () => {
+	test('fast command with quick data should not auto-expand (data + finish before timeout)', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		setupAutoExpandLogic();
 
 		// Command executes
@@ -96,17 +96,16 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 		// Data arrives
 		onWillData.fire('output');
 
-		// Command finishes quickly (before 50ms timeout)
-		await timeout(10);
+		// Command finishes quickly (before timeout)
 		onCommandFinished.fire(undefined);
 
-		// Wait past all timeouts
-		await timeout(100);
+		// Wait past all timeouts (faked timers advance instantly)
+		await timeout(DATA_EVENT_TIMEOUT_MS + 100);
 
-		assert.strictEqual(isExpanded, false, 'Should NOT expand when command finishes within 50ms of first data');
-	});
+		assert.strictEqual(isExpanded, false, 'Should NOT expand when command finishes within timeout of first data');
+	}));
 
-	test('long-running command with data should auto-expand (data received, command still running after 50ms)', async () => {
+	test('long-running command with data should auto-expand (data received, command still running after timeout)', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		hasRealOutputValue = true; // Has real output
 		setupAutoExpandLogic();
 
@@ -116,16 +115,15 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 		// Data arrives
 		onWillData.fire('output');
 
-		// Wait for 50ms timeout to trigger
-		await timeout(DATA_EVENT_TIMEOUT_MS + 50);
+		// Wait for timeout to fire (faked timers advance instantly)
+		await timeout(DATA_EVENT_TIMEOUT_MS + 100);
 
-		assert.strictEqual(isExpanded, true, 'Should expand when command still running 50ms after first data');
-
+		assert.strictEqual(isExpanded, true, 'Should expand when command still running after first data timeout');
 
 		onCommandFinished.fire(undefined);
-	});
+	}));
 
-	test('long-running command with data but no real output should NOT auto-expand (like sleep with shell sequences)', async () => {
+	test('long-running command with data but no real output should NOT auto-expand (like sleep with shell sequences)', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		hasRealOutputValue = false; // Shell integration sequences, not real output
 		setupAutoExpandLogic();
 
@@ -135,48 +133,45 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 		// Shell integration data arrives (not real output)
 		onWillData.fire('shell-sequence');
 
-		// Wait for 50ms timeout to trigger
-		await timeout(DATA_EVENT_TIMEOUT_MS + 50);
+		// Wait for timeout to fire (faked timers advance instantly)
+		await timeout(DATA_EVENT_TIMEOUT_MS + 100);
 
 		assert.strictEqual(isExpanded, false, 'Should NOT expand when data is shell sequences, not real output');
 
-
 		onCommandFinished.fire(undefined);
-	});
+	}));
 
-	test('long-running command without data should NOT auto-expand if no real output (like sleep)', async () => {
+	test('long-running command without data should NOT auto-expand if no real output (like sleep)', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		hasRealOutputValue = false; // No real output like `sleep 1`
 		setupAutoExpandLogic();
 
 		// Command executes
 		onCommandExecuted.fire(undefined);
 
-		// Wait for 500ms timeout
+		// Wait for timeout to fire (faked timers advance instantly)
 		await timeout(NO_DATA_TIMEOUT_MS + 100);
 
-		assert.strictEqual(isExpanded, false, 'Should NOT expand when no real output even after 500ms');
-
+		assert.strictEqual(isExpanded, false, 'Should NOT expand when no real output even after timeout');
 
 		onCommandFinished.fire(undefined);
-	});
+	}));
 
-	test('long-running command without data SHOULD auto-expand if real output exists', async () => {
+	test('long-running command without data SHOULD auto-expand if real output exists', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		hasRealOutputValue = true; // Has real output in buffer
 		setupAutoExpandLogic();
 
 		// Command executes
 		onCommandExecuted.fire(undefined);
 
-		// Wait for 500ms timeout
+		// Wait for timeout to fire (faked timers advance instantly)
 		await timeout(NO_DATA_TIMEOUT_MS + 100);
 
-		assert.strictEqual(isExpanded, true, 'Should expand when real output exists after 500ms');
-
+		assert.strictEqual(isExpanded, true, 'Should expand when real output exists after timeout');
 
 		onCommandFinished.fire(undefined);
-	});
+	}));
 
-	test('data arriving after command finish should not trigger expand', async () => {
+	test('data arriving after command finish should not trigger expand', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		setupAutoExpandLogic();
 
 		// Command executes and finishes immediately
@@ -186,13 +181,13 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 		// Data arrives after command finished
 		onWillData.fire('late output');
 
-		// Wait past all timeouts
-		await timeout(100);
+		// Wait past all timeouts (faked timers advance instantly)
+		await timeout(NO_DATA_TIMEOUT_MS + 100);
 
 		assert.strictEqual(isExpanded, false, 'Should NOT expand when data arrives after command finished');
-	});
+	}));
 
-	test('user toggled output prevents auto-expand', async () => {
+	test('user toggled output prevents auto-expand', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		userToggledOutput = true;
 		setupAutoExpandLogic();
 
@@ -202,14 +197,14 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 		// Data arrives
 		onWillData.fire('output');
 
-		// Wait past all timeouts
+		// Wait past all timeouts (faked timers advance instantly)
 		await timeout(NO_DATA_TIMEOUT_MS + 100);
 
 		assert.strictEqual(isExpanded, false, 'Should NOT expand when user has manually toggled output');
 		onCommandFinished.fire(undefined);
-	});
+	}));
 
-	test('already expanded output prevents additional auto-expand', async () => {
+	test('already expanded output prevents additional auto-expand', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		isExpanded = true;
 		setupAutoExpandLogic();
 
@@ -227,35 +222,33 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 		// Data arrives
 		onWillData.fire('output');
 
-		// Wait past all timeouts
+		// Wait past all timeouts (faked timers advance instantly)
 		await timeout(NO_DATA_TIMEOUT_MS + 100);
 
 		assert.strictEqual(toggleCalled, false, 'Should NOT call toggle when already expanded');
 		onCommandFinished.fire(undefined);
-	});
+	}));
 
-	test('data arriving cancels 500ms no-data timeout', async () => {
-		hasRealOutputValue = true; // Would have expanded if 500ms fired
+	test('data arriving cancels no-data timeout', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		hasRealOutputValue = true; // Would have expanded if no-data timeout fired
 		setupAutoExpandLogic();
 
 		// Command executes
 		onCommandExecuted.fire(undefined);
 
-		// Data arrives at 200ms (before 500ms timeout)
-		await timeout(200);
+		// Data arrives (cancels no-data timeout)
 		onWillData.fire('output');
 
-		// Command finishes at 230ms (before 50ms data timeout would fire at 250ms)
-		await timeout(30);
+		// Command finishes immediately after data (before data timeout would fire)
 		onCommandFinished.fire(undefined);
 
-		// Wait past 500ms mark - should NOT have expanded because data arrived
-		// and then command finished before the 50ms data timeout
-		await timeout(400);
-		assert.strictEqual(isExpanded, false, '500ms timeout should be cancelled when data arrives');
-	});
+		// Wait past all timeouts (faked timers advance instantly)
+		await timeout(NO_DATA_TIMEOUT_MS + 100);
 
-	test('multiple data events only trigger one timeout', async () => {
+		assert.strictEqual(isExpanded, false, 'No-data timeout should be cancelled when data arrives');
+	}));
+
+	test('multiple data events only trigger one timeout', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		hasRealOutputValue = true; // Has real output
 		setupAutoExpandLogic();
 
@@ -267,9 +260,10 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 		onWillData.fire('output 2');
 		onWillData.fire('output 3');
 
-		// Wait for timeout
-		await timeout(DATA_EVENT_TIMEOUT_MS + 50);
+		// Wait for timeout to fire (faked timers advance instantly)
+		await timeout(DATA_EVENT_TIMEOUT_MS + 100);
+
 		assert.strictEqual(isExpanded, true, 'Should expand exactly once after first data');
 		onCommandFinished.fire(undefined);
-	});
+	}));
 });
