@@ -87,8 +87,8 @@ export class AgentSessionStatusControlViewItem extends BaseActionViewItem {
 		const pill = $('div.agent-session-status-pill');
 		pill.setAttribute('role', 'button');
 		pill.setAttribute('aria-label', activeCount === 1
-			? localize('oneSessionRunning', "1 agent session running")
-			: localize('sessionsRunning', "{0} agent sessions running", activeCount));
+			? localize('oneSessionRunningAction', "1 agent session running, click to view sessions")
+			: localize('sessionsRunningAction', "{0} agent sessions running, click to view sessions", activeCount));
 		pill.tabIndex = 0;
 		this._container.appendChild(pill);
 
