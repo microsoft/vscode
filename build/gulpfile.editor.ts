@@ -127,7 +127,9 @@ const finalEditorResourcesTask = task.define('final-editor-resources', () => {
 		es.merge(
 			gulp.src('build/monaco/LICENSE'),
 			gulp.src('build/monaco/ThirdPartyNotices.txt'),
-			gulp.src('src/vs/monaco.d.ts')
+			gulp.src('src/vs/monaco.d.ts'),
+			// Include codicon font for standalone Monaco usage
+			gulp.src('node_modules/@vscode/codicons/dist/codicon.ttf')
 		).pipe(gulp.dest('out-monaco-editor-core')),
 
 		// place the .d.ts in the esm folder

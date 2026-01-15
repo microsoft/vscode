@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { canASAR, resolveAmdNodeModulePath } from '../../../amdX.js';
+import { canASAR } from '../../../amdX.js';
 import * as css from '../../../base/browser/cssValue.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { AppResourcePath, FileAccess, nodeModulesAsarUnpackedPath, nodeModulesPath } from '../../../base/common/network.js';
-import { isWeb } from '../../../base/common/platform.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { URI } from '../../../base/common/uri.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
@@ -22,6 +21,24 @@ export interface IIconsStyleSheet extends IDisposable {
 
 export function getModuleLocation(environmentService: IEnvironmentService): AppResourcePath {
 	return `${(canASAR && environmentService.isBuilt) ? nodeModulesAsarUnpackedPath : nodeModulesPath}/@vscode/codicons/dist/codicon.ttf`;
+}
+
+/**
+ * Resolves the codicon font URI.
+ * In standalone Monaco editor (when _VSCODE_FILE_ROOT is not set), we resolve relative to import.meta.url.
+ * In VS Code, we use the standard FileAccess resolution.
+ */
+function getCodiconFontUri(environmentService: IEnvironmentService): URI {
+	// When _VSCODE_FILE_ROOT is not set (standalone Monaco), resolve relative to this module
+	if (!globalThis._VSCODE_FILE_ROOT) {
+		// In standalone Monaco, the codicon.ttf is bundled at the package root
+		// This file is at esm/vs/platform/theme/browser/, so we go up 5 levels
+		return URI.joinPath(URI.parse(new URL('.', import.meta.url).href), '../../../../../codicon.ttf');
+	}
+
+	// Standard VS Code path resolution
+	const location = getModuleLocation(environmentService);
+	return FileAccess.asBrowserUri(location);
 }
 
 export function getIconsStyleSheet(themeService: IThemeService | undefined, environmentService: IEnvironmentService): IIconsStyleSheet {
@@ -43,13 +60,7 @@ export function getIconsStyleSheet(themeService: IThemeService | undefined, envi
 
 			const rules = new css.Builder();
 			const rootAttribs = new css.Builder();
-			let fileUri: URI;
-			if (isWeb) {
-				fileUri = URI.parse(resolveAmdNodeModulePath('@vscode/codicons', 'dist/codicon.ttf'));
-			} else {
-				const location = getModuleLocation(environmentService);
-				fileUri = FileAccess.asBrowserUri(location);
-			}
+			const fileUri = getCodiconFontUri(environmentService);
 			const withQuery = fileUri.with({ query: '5d4d76ab2ce5108968ad644d591a16a6' });
 			const asCSSUrl = css.asCSSUrl(withQuery);
 			rules.push(css.inline`@font-face { font-family: "codicon"; font-display: block; src: ${asCSSUrl} format("truetype");}`);
