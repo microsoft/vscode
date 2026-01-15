@@ -9,12 +9,12 @@ import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js'
 import { PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IConfigurationOverrides, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
-import { IPromptFileSource } from '../../../../common/promptSyntax/config/promptFileLocations.js';
+import { IPromptSourceFolder } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 
 /**
  * Helper to extract just the paths from IPromptSourceFolder array for testing.
  */
-function getPaths(folders: IPromptFileSource[]): string[] {
+function getPaths(folders: IPromptSourceFolder[]): string[] {
 	return folders.map(f => f.path);
 }
 

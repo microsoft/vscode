@@ -156,8 +156,8 @@ suite('PromptFilesLocator', () => {
 			async listFiles(type: PromptsType, storage: PromptsStorage, token: CancellationToken): Promise<readonly URI[]> {
 				return locator.listFiles(type, storage, token);
 			},
-			getConfigBasedSourceFolders(type: PromptsType): readonly URI[] {
-				return locator.getConfigBasedSourceFolders(type);
+			async getConfigBasedSourceFolders(type: PromptsType): Promise<readonly URI[]> {
+				return await locator.getConfigBasedSourceFolders(type);
 			},
 			async disposeAsync(): Promise<void> {
 				await mockFs.delete();
@@ -2589,7 +2589,7 @@ suite('PromptFilesLocator', () => {
 			);
 
 			assertOutcome(
-				locator.getConfigBasedSourceFolders(PromptsType.prompt),
+				await locator.getConfigBasedSourceFolders(PromptsType.prompt),
 				[
 					'/Users/legomushroom/repos/vscode/.github/prompts',
 					'/Users/legomushroom/repos/prompts/.github/prompts',
