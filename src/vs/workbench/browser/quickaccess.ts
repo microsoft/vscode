@@ -65,6 +65,12 @@ export class PickerEditorState extends Disposable {
 
 	private readonly openedTransientEditors = new Set<EditorInput>(); // editors that were opened between set and restore
 
+	// editors that were revealed (not opened new) in other groups and their view states
+	private readonly revealedEditorsInOtherGroups = new Map<IEditorGroup, {
+		editor: EditorInput;
+		state: ICodeEditorViewState | IDiffEditorViewState | undefined;
+	}>();
+
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService
@@ -90,9 +96,39 @@ export class PickerEditorState extends Disposable {
 	/**
 	 * Open a transient editor such that it may be closed when the state is restored.
 	 * Note that, when the state is restored, if the editor is no longer transient, it will not be closed.
+	 *
+	 * If revealIfOpened is true and the editor is already visible in another group, the view state
+	 * of the editor in that group is saved and will be restored when restore() is called.
 	 */
 	async openTransientEditor(editor: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IUntypedEditorInput, group?: PreferredGroup): Promise<IEditorPane | undefined> {
 		editor.options = { ...editor.options, transient: true };
+
+		// If revealIfOpened is set, an editor in another group might be revealed (scrolled).
+		// Save the view state of the active editor in other groups that matches the resource
+		// before opening, so we can restore it later.
+		if (editor.options?.revealIfOpened && this.editorViewState) {
+			const activeGroup = this.editorViewState.group;
+			const resource = 'resource' in editor ? editor.resource : undefined;
+			if (resource) {
+				for (const otherGroup of this.editorGroupsService.groups) {
+					if (otherGroup.id === activeGroup.id) {
+						continue; // skip the original active group
+					}
+
+					// Only save view state if this group already has the editor as its visible (active) editor.
+					// If the editor is in a background tab, there's no scroll position to preserve.
+					const activeEditor = otherGroup.activeEditor;
+					if (activeEditor && activeEditor.resource?.toString() === resource.toString() && !this.revealedEditorsInOtherGroups.has(otherGroup)) {
+						const pane = otherGroup.activeEditorPane;
+						const viewState = pane ? getIEditor(pane.getControl())?.saveViewState() ?? undefined : undefined;
+						this.revealedEditorsInOtherGroups.set(otherGroup, {
+							editor: activeEditor,
+							state: viewState
+						});
+					}
+				}
+			}
+		}
 
 		const editorPane = await this.editorService.openEditor(editor, group);
 		if (editorPane?.input && editorPane.input !== this.editorViewState?.editor && editorPane.group.isTransient(editorPane.input)) {
@@ -116,6 +152,9 @@ export class PickerEditorState extends Disposable {
 				}
 			}
 
+			// Restore view states of editors that were revealed in other groups
+			await this.restoreEditorViewStates();
+
 			await this.editorViewState.group.openEditor(this.editorViewState.editor, {
 				viewState: this.editorViewState.state,
 				preserveFocus: true // important to not close the picker as a result
@@ -125,9 +164,27 @@ export class PickerEditorState extends Disposable {
 		}
 	}
 
+	/**
+	 * Restore view states of editors that were revealed in other groups during
+	 * transient editor opens with revealIfOpened option.
+	 *
+	 * This is useful when accepting a pick to restore the scroll position of
+	 * editors in other groups that were scrolled during symbol preview.
+	 */
+	async restoreEditorViewStates(): Promise<void> {
+		for (const [group, { editor, state }] of this.revealedEditorsInOtherGroups) {
+			await group.openEditor(editor, {
+				viewState: state,
+				preserveFocus: true
+			});
+		}
+		this.revealedEditorsInOtherGroups.clear();
+	}
+
 	reset() {
 		this.editorViewState = undefined;
 		this.openedTransientEditors.clear();
+		this.revealedEditorsInOtherGroups.clear();
 	}
 
 	override dispose(): void {

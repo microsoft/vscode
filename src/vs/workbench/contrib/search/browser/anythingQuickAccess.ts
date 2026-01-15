@@ -1102,6 +1102,10 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		// Restore any view state if the target is the side group
 		if (targetGroup === SIDE_GROUP) {
 			await this.pickState.editorViewState.restore();
+		} else {
+			// Restore view states of editors that were revealed in other groups
+			// during symbol preview (e.g., when revealIfOpened was used)
+			await this.pickState.editorViewState.restoreEditorViewStates();
 		}
 
 		// Open editor (typed)
