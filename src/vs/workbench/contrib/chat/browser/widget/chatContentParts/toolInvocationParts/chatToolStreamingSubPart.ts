@@ -62,6 +62,13 @@ export class ChatToolStreamingSubPart extends BaseChatToolInvocationSubPart {
 			const streamingMessage = currentState.streamingMessage.read(reader);
 			const displayMessage = streamingMessage ?? toolInvocation.invocationMessage;
 
+			// Don't render anything if there's no meaningful content
+			const messageText = typeof displayMessage === 'string' ? displayMessage : displayMessage.value;
+			if (!messageText || messageText.trim().length === 0) {
+				dom.clearNode(container);
+				return;
+			}
+
 			const content: IMarkdownString = typeof displayMessage === 'string'
 				? new MarkdownString().appendText(displayMessage)
 				: displayMessage;
