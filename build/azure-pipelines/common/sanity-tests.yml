@@ -57,7 +57,25 @@ jobs:
         workingDirectory: ./test/sanity
         displayName: Compile Sanity Tests
 
-      # Host-based test execution (Windows, macOS)
+      # Setup X11 for native Linux hosts (needed for Electron tests)
+      - bash: |
+          set -e
+          sudo apt-get update
+          sudo apt-get install -y xvfb x11-utils dbus dbus-x11
+
+          # Start Xvfb on display :99
+          sudo Xvfb :99 -screen 0 1280x960x24 -ac +extension GLX +render -noreset &
+          sleep 2
+
+          # Start D-Bus daemon
+          sudo mkdir -p /var/run/dbus
+          sudo dbus-daemon --system --fork || true
+
+          echo "##vso[task.setvariable variable=DISPLAY]:99"
+        displayName: Setup X11 Display
+        condition: and(eq('${{ parameters.container }}', ''), eq('${{ parameters.os }}', 'linux'))
+
+      # Host-based test execution (Windows, macOS, Linux)
       - script: node out/index.js -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -v ${{ parameters.args }}
         workingDirectory: ./test/sanity
         displayName: Run Sanity Tests

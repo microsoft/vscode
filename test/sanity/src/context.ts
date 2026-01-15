@@ -629,7 +629,10 @@ export class TestContext {
 		this.runNoErrors('sudo', 'snap', 'install', packagePath, '--classic', '--dangerous');
 		this.log(`Installed ${packagePath} successfully`);
 
-		const entryPoint = this.getDesktopEntryPoint('/snap/bin');
+		// Snap wrapper scripts are in /snap/bin, but actual Electron binary is in /snap/<package>/current/usr/share/
+		const packageName = this.getLinuxPackageName();
+		const binaryName = this.getLinuxBinaryName();
+		const entryPoint = `/snap/${packageName}/current/usr/share/${binaryName}/${binaryName}`;
 		this.log(`Installed VS Code executable at: ${entryPoint}`);
 		return entryPoint;
 	}
