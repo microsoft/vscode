@@ -89,31 +89,47 @@ function getDataToCopy(viewModel: IViewModel, modelSelections: Range[], emptySel
 	return dataToCopy;
 }
 
-export function filterSelections(viewModel: IViewModel, selections: Range[], excludeRanges: Range[]): Range[] {
-	if (excludeRanges.length === 0) {
-		return selections;
-	}
-
-	const result: Range[] = [];
-
-	for (const selection of selections) {
-		const visibleRanges = splitRangeByHiddenAreas(viewModel, selection, excludeRanges);
-		result.push(...visibleRanges);
-	}
-
-	return result;
-}
-
 /**
- * Splits a range into visible sub-ranges by excluding hidden areas.
- * Uses a line-by-line approach to identify continuous visible ranges.
+ * Subtracts excluded ranges from a source range, returning the visible parts.
+ * This efficiently computes Range minus Range[].
+ * 
+ * @param viewModel The view model for getting line metadata
+ * @param range The source range to subtract from
+ * @param excludeRanges Ranges to exclude from the source range
+ * @returns Array of ranges representing the visible parts after exclusion
  */
-function splitRangeByHiddenAreas(viewModel: IViewModel, range: Range, hiddenAreas: Range[]): Range[] {
+function subtractRanges(viewModel: IViewModel, range: Range, excludeRanges: Range[]): Range[] {
+	if (excludeRanges.length === 0) {
+		return [range];
+	}
+
+	// Sort exclude ranges by start line for efficient processing
+	const sortedExcludes = excludeRanges
+		.slice()
+		.sort((a, b) => a.startLineNumber - b.startLineNumber);
+
 	const result: Range[] = [];
 	let visibleStart: number | null = null;
+	let excludeIndex = 0;
 
 	for (let line = range.startLineNumber; line <= range.endLineNumber; line++) {
-		const hidden = hiddenAreas.some(h => line >= h.startLineNumber && line <= h.endLineNumber);
+		// Advance excludeIndex past any exclude ranges that end before the current line
+		while (excludeIndex < sortedExcludes.length && sortedExcludes[excludeIndex].endLineNumber < line) {
+			excludeIndex++;
+		}
+
+		let hidden = false;
+		let checkIndex = excludeIndex;
+
+		// Check current and subsequent exclude ranges that could cover this line
+		while (checkIndex < sortedExcludes.length && sortedExcludes[checkIndex].startLineNumber <= line) {
+			const exclude = sortedExcludes[checkIndex];
+			if (line >= exclude.startLineNumber && line <= exclude.endLineNumber) {
+				hidden = true;
+				break;
+			}
+			checkIndex++;
+		}
 
 		if (hidden) {
 			// End current visible range if any
@@ -136,6 +152,21 @@ function splitRangeByHiddenAreas(viewModel: IViewModel, range: Range, hiddenArea
 	if (visibleStart !== null) {
 		const startCol = visibleStart === range.startLineNumber ? range.startColumn : 1;
 		result.push(new Range(visibleStart, startCol, range.endLineNumber, range.endColumn));
+	}
+
+	return result;
+}
+
+export function filterSelections(viewModel: IViewModel, selections: Range[], excludeRanges: Range[]): Range[] {
+	if (excludeRanges.length === 0) {
+		return selections;
+	}
+
+	const result: Range[] = [];
+
+	for (const selection of selections) {
+		const visibleRanges = subtractRanges(viewModel, selection, excludeRanges);
+		result.push(...visibleRanges);
 	}
 
 	return result;
