@@ -597,7 +597,8 @@ export class TestContext {
 		this.runNoErrors('sudo', 'rpm', '-i', packagePath);
 		this.log(`Installed ${packagePath} successfully`);
 
-		const entryPoint = this.getDesktopEntryPoint('/usr/bin');
+		const binaryName = this.getLinuxBinaryName();
+		const entryPoint = path.join('/usr/share', binaryName, binaryName);
 		this.log(`Installed VS Code executable at: ${entryPoint}`);
 		return entryPoint;
 	}
@@ -612,7 +613,8 @@ export class TestContext {
 		this.runNoErrors('sudo', 'dpkg', '-i', packagePath);
 		this.log(`Installed ${packagePath} successfully`);
 
-		const entryPoint = this.getDesktopEntryPoint('/usr/bin');
+		const binaryName = this.getLinuxBinaryName();
+		const entryPoint = path.join('/usr/share', binaryName, binaryName);
 		this.log(`Installed VS Code executable at: ${entryPoint}`);
 		return entryPoint;
 	}
