@@ -2506,6 +2506,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		border: 1px dotted var(--vscode-focusBorder);
 	}
 
+	.interactive-item-container.interactive-request .value .rendered-markdown > :first-child {
+		margin-top: 0px;
+	}
+
 	.interactive-item-container.interactive-request .value .rendered-markdown > :last-child {
 		margin-bottom: 0px;
 	}
