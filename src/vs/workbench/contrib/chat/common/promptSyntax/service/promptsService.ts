@@ -193,7 +193,7 @@ export interface IChatPromptSlashCommand {
 
 export interface IAgentSkill {
 	readonly uri: URI;
-	readonly type: 'personal' | 'project' | 'config' | 'extension';
+	readonly storage: PromptsStorage;
 	readonly name: string;
 	readonly description: string | undefined;
 }
@@ -223,7 +223,7 @@ export interface IPromptsService extends IDisposable {
 	/**
 	 * Get a list of prompt source folders based on the provided prompt type.
 	 */
-	getSourceFolders(type: PromptsType): readonly IPromptPath[];
+	getSourceFolders(type: PromptsType): Promise<readonly IPromptPath[]>;
 
 	/**
 	 * Validates if the provided command name is a valid prompt slash command.

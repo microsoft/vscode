@@ -28,7 +28,7 @@ import { IUserDataProfileService } from '../../../../../services/userDataProfile
 import { IVariableReference } from '../../chatModes.js';
 import { PromptsConfig } from '../config/config.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { getCleanPromptName } from '../config/promptFileLocations.js';
+import { getCleanPromptName, IResolvedPromptFile, PromptFileSource } from '../config/promptFileLocations.js';
 import { PROMPT_LANGUAGE_ID, PromptsType, getPromptsTypeForLanguageId } from '../promptTypes.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
@@ -241,8 +241,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 	/**
 	 * Shared helper to list prompt files from registered providers for a given type.
 	 */
-	private async listFromProviders(type: PromptsType, activationEvent: string, token: CancellationToken): Promise<IPromptPath[]> {
-		const result: IPromptPath[] = [];
+	private async listFromProviders(type: PromptsType, activationEvent: string, token: CancellationToken): Promise<IExtensionPromptPath[]> {
+		const result: IExtensionPromptPath[] = [];
 
 		// Activate extensions that might provide files for this type
 		await this.extensionService.activateByEvent(activationEvent);
@@ -301,7 +301,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		}
 	}
 
-	private async getExtensionPromptFiles(type: PromptsType, token: CancellationToken): Promise<IPromptPath[]> {
+	private async getExtensionPromptFiles(type: PromptsType, token: CancellationToken): Promise<IExtensionPromptPath[]> {
 		await this.extensionService.whenInstalledExtensionsRegistered();
 		const contributedFiles = await Promise.all(this.contributedFiles[type].values());
 
@@ -323,16 +323,16 @@ export class PromptsService extends Disposable implements IPromptsService {
 		}
 	}
 
-	public getSourceFolders(type: PromptsType): readonly IPromptPath[] {
+	public async getSourceFolders(type: PromptsType): Promise<readonly IPromptPath[]> {
 		const result: IPromptPath[] = [];
 
 		if (type === PromptsType.agent) {
-			const folders = this.fileLocator.getAgentSourceFolder();
+			const folders = await this.fileLocator.getAgentSourceFolders();
 			for (const uri of folders) {
 				result.push({ uri, storage: PromptsStorage.local, type });
 			}
 		} else {
-			for (const uri of this.fileLocator.getConfigBasedSourceFolders(type)) {
+			for (const uri of await this.fileLocator.getConfigBasedSourceFolders(type)) {
 				result.push({ uri, storage: PromptsStorage.local, type });
 			}
 		}
@@ -668,7 +668,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			let skippedParseFailed = 0;
 			let skippedNameMismatch = 0;
 
-			const process = async (uri: URI, skillType: string, scopeType: 'personal' | 'project' | 'config' | 'extension'): Promise<void> => {
+			const process = async (uri: URI, source: PromptFileSource, storage: PromptsStorage): Promise<void> => {
 				try {
 					const parsedFile = await this.parseNew(uri, token);
 					const name = parsedFile.header?.name;
@@ -699,24 +699,49 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 					seenNames.add(sanitizedName);
 					const sanitizedDescription = this.truncateAgentSkillDescription(parsedFile.header?.description, uri);
-					result.push({ uri, type: scopeType, name: sanitizedName, description: sanitizedDescription } satisfies IAgentSkill);
+					result.push({ uri, storage, name: sanitizedName, description: sanitizedDescription } satisfies IAgentSkill);
 
 					// Track skill type
-					skillTypes.set(skillType, (skillTypes.get(skillType) || 0) + 1);
+					skillTypes.set(source, (skillTypes.get(source) || 0) + 1);
 				} catch (e) {
 					skippedParseFailed++;
 					this.logger.error(`[findAgentSkills] Failed to parse Agent skill file: ${uri}`, e instanceof Error ? e.message : String(e));
 				}
 			};
 
-			const workspaceSkills = await this.fileLocator.findAgentSkillsInWorkspace(token);
-			await Promise.all(workspaceSkills.map(({ uri, type }) => process(uri, type, 'project')));
-			const userSkills = await this.fileLocator.findAgentSkillsInUserHome(token);
-			await Promise.all(userSkills.map(({ uri, type }) => process(uri, type, 'personal')));
-			const configSkills = await this.fileLocator.findAgentSkillsInConfiguredPaths(token);
-			await Promise.all(configSkills.map(({ uri, type }) => process(uri, type, 'config')));
+			// Collect all skills with their metadata for sorting
+			const allSkills: Array<IResolvedPromptFile> = [];
+			const discoveredSkills = await this.fileLocator.findAgentSkills(token);
 			const extensionSkills = await this.getExtensionPromptFiles(PromptsType.skill, token);
-			await Promise.all(extensionSkills.map(promptPath => process(promptPath.uri, 'extension', 'extension')));
+			allSkills.push(...discoveredSkills, ...extensionSkills.map((extPath) => (
+				{
+					fileUri: extPath.uri,
+					storage: extPath.storage,
+					source: extPath.source === ExtensionAgentSourceType.contribution ? PromptFileSource.ExtensionContribution : PromptFileSource.ExtensionAPI
+				})));
+
+			const getPriority = (skill: IResolvedPromptFile | IExtensionPromptPath): number => {
+				if (skill.storage === PromptsStorage.local) {
+					return 0; // workspace
+				}
+				if (skill.storage === PromptsStorage.user) {
+					return 1; // personal
+				}
+				if (skill.source === PromptFileSource.ExtensionAPI) {
+					return 2;
+				}
+				if (skill.source === PromptFileSource.ExtensionContribution) {
+					return 3;
+				}
+				return 4;
+			};
+			// stable sort; we should keep order consistent to the order in the user's configuration object
+			allSkills.sort((a, b) => getPriority(a) - getPriority(b));
+
+			// Process sequentially to maintain order (important for duplicate name resolution)
+			for (const skill of allSkills) {
+				await process(skill.fileUri, skill.source, skill.storage);
+			}
 
 			// Send telemetry about skill usage
 			type AgentSkillsFoundEvent = {
@@ -725,7 +750,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 				claudeWorkspace: number;
 				copilotPersonal: number;
 				githubWorkspace: number;
-				custom: number;
+				configPersonal: number;
+				configWorkspace: number;
+				extensionContribution: number;
+				extensionAPI: number;
 				skippedDuplicateName: number;
 				skippedMissingName: number;
 				skippedNameMismatch: number;
@@ -738,7 +766,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 				claudeWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of Claude workspace skills.' };
 				copilotPersonal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of Copilot personal skills.' };
 				githubWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of GitHub workspace skills.' };
-				custom: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of custom personal skills.' };
+				configPersonal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of custom configured personal skills.' };
+				configWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of custom configured workspace skills.' };
+				extensionContribution: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of extension contributed skills.' };
+				extensionAPI: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of extension API provided skills.' };
 				skippedDuplicateName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of skills skipped due to duplicate names.' };
 				skippedMissingName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of skills skipped due to missing name attribute.' };
 				skippedNameMismatch: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of skills skipped due to name not matching folder name.' };
@@ -749,11 +780,14 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 			this.telemetryService.publicLog2<AgentSkillsFoundEvent, AgentSkillsFoundClassification>('agentSkillsFound', {
 				totalSkillsFound: result.length,
-				claudePersonal: skillTypes.get('claude-personal') ?? 0,
-				claudeWorkspace: skillTypes.get('claude-workspace') ?? 0,
-				copilotPersonal: skillTypes.get('copilot-personal') ?? 0,
-				githubWorkspace: skillTypes.get('github-workspace') ?? 0,
-				custom: skillTypes.get('custom') ?? 0,
+				claudePersonal: skillTypes.get(PromptFileSource.ClaudePersonal) ?? 0,
+				claudeWorkspace: skillTypes.get(PromptFileSource.ClaudeWorkspace) ?? 0,
+				copilotPersonal: skillTypes.get(PromptFileSource.CopilotPersonal) ?? 0,
+				githubWorkspace: skillTypes.get(PromptFileSource.GitHubWorkspace) ?? 0,
+				configWorkspace: skillTypes.get(PromptFileSource.ConfigWorkspace) ?? 0,
+				configPersonal: skillTypes.get(PromptFileSource.ConfigPersonal) ?? 0,
+				extensionContribution: skillTypes.get(PromptFileSource.ExtensionContribution) ?? 0,
+				extensionAPI: skillTypes.get(PromptFileSource.ExtensionAPI) ?? 0,
 				skippedDuplicateName,
 				skippedMissingName,
 				skippedNameMismatch,

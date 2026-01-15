@@ -1969,7 +1969,7 @@ suite('PromptsService', () => {
 			assert.strictEqual(result.length, 4, 'Should find 4 skills total');
 
 			// Check project skills (both from .github/skills and .claude/skills)
-			const projectSkills = result.filter(skill => skill.type === 'project');
+			const projectSkills = result.filter(skill => skill.storage === PromptsStorage.local);
 			assert.strictEqual(projectSkills.length, 2, 'Should find 2 project skills');
 
 			const githubSkill1 = projectSkills.find(skill => skill.name === 'GitHub Skill 1');
@@ -1983,7 +1983,7 @@ suite('PromptsService', () => {
 			assert.strictEqual(claudeSkill1.uri.path, `${rootFolder}/.claude/skills/Claude Skill 1/SKILL.md`);
 
 			// Check personal skills
-			const personalSkills = result.filter(skill => skill.type === 'personal');
+			const personalSkills = result.filter(skill => skill.storage === PromptsStorage.user);
 			assert.strictEqual(personalSkills.length, 2, 'Should find 2 personal skills');
 
 			const personalSkill1 = personalSkills.find(skill => skill.name === 'Personal Skill 1');
@@ -2037,7 +2037,7 @@ suite('PromptsService', () => {
 			assert.ok(result, 'Should return results even with parsing errors');
 			assert.strictEqual(result.length, 1, 'Should find 1 valid skill');
 			assert.strictEqual(result[0].name, 'Valid Skill');
-			assert.strictEqual(result[0].type, 'project');
+			assert.strictEqual(result[0].storage, 'project');
 		});
 
 		test('should return empty array when no skills found', async () => {
