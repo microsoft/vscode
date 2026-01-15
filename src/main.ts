@@ -254,6 +254,18 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 		'enable-rdp-display-tracking',
 	];
 
+	// Path switches that can be configured via argv.json to support XDG Base Directory Specification
+	// These are merged into CLI args (CLI takes precedence) to allow configuration without command line
+	// See: https://github.com/microsoft/vscode/issues/162712
+	const SUPPORTED_PATH_SWITCHES = [
+
+		// Custom user data directory path
+		'user-data-dir',
+
+		// Custom extensions directory path
+		'extensions-dir',
+	];
+
 	// Read argv config
 	const argvConfig = readArgvConfigSync();
 
@@ -317,6 +329,18 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 					break;
 			}
 		}
+
+		// Merge path switches into CLI args (CLI args take precedence)
+		// This allows users to configure paths via argv.json without using command line
+		else if (SUPPORTED_PATH_SWITCHES.indexOf(argvKey) !== -1) {
+			if (typeof argvValue === 'string' && argvValue) {
+				const cliArgKey = argvKey as keyof NativeParsedArgs;
+				// Only set if not already specified via CLI (CLI takes precedence)
+				if (!cliArgs[cliArgKey]) {
+					(cliArgs as Record<string, string>)[cliArgKey] = argvValue;
+				}
+			}
+		}
 	});
 
 	// Following features are enabled from the runtime:
@@ -374,6 +398,10 @@ interface IArgvConfig {
 	readonly 'use-inmemory-secretstorage'?: boolean;
 	readonly 'enable-rdp-display-tracking'?: boolean;
 	readonly 'remote-debugging-port'?: string;
+
+	// XDG Base Directory Specification support (https://github.com/microsoft/vscode/issues/162712)
+	readonly 'user-data-dir'?: string;
+	readonly 'extensions-dir'?: string;
 }
 
 function readArgvConfigSync(): IArgvConfig {
@@ -421,6 +449,14 @@ function createDefaultArgvConfigSync(argvConfigPath: string): void {
 			'	// Use software rendering instead of hardware accelerated rendering.',
 			'	// This can help in cases where you see rendering issues in VS Code.',
 			'	// "disable-hardware-acceleration": true',
+			'',
+			'	// Custom path for user data (settings, extensions state, etc.).',
+			'	// Useful for XDG Base Directory compliance on Linux.',
+			'	// "user-data-dir": "/path/to/custom/user-data"',
+			'',
+			'	// Custom path for extensions.',
+			'	// Useful for XDG Base Directory compliance on Linux.',
+			'	// "extensions-dir": "/path/to/custom/extensions"',
 			'}'
 		];
 
