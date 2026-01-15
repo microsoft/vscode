@@ -37,13 +37,13 @@ import { IAgentSessionsService } from '../../chat/browser/agentSessions/agentSes
 import { AgentSessionProviders } from '../../chat/browser/agentSessions/agentSessions.js';
 import { IAgentSession } from '../../chat/browser/agentSessions/agentSessionsModel.js';
 import { AgentSessionsWelcomeEditorOptions, AgentSessionsWelcomeInput } from './agentSessionsWelcomeInput.js';
-import { IWalkthroughsService, IResolvedWalkthrough } from './gettingStartedService.js';
 import { IChatService } from '../../chat/common/chatService/chatService.js';
 import { IChatModel } from '../../chat/common/model/chatModel.js';
 import { ISessionTypePickerDelegate } from '../../chat/browser/chat.js';
 import { AgentSessionsControl, IAgentSessionsControlOptions } from '../../chat/browser/agentSessions/agentSessionsControl.js';
 import { IAgentSessionsFilter } from '../../chat/browser/agentSessions/agentSessionsViewer.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
+import { IResolvedWalkthrough, IWalkthroughsService } from '../../welcomeGettingStarted/browser/gettingStartedService.js';
 
 const configurationKey = 'workbench.startupEditor';
 const MAX_SESSIONS = 6;
@@ -192,6 +192,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		this.chatWidget = this.contentDisposables.add(scopedInstantiationService.createInstance(
 			ChatWidget,
 			ChatAgentLocation.Chat,
+			// TODO: @osortega should we have a completely different ID and check that context instead in chatInputPart?
 			{}, // Empty resource view context
 			{
 				autoScroll: mode => mode !== ChatModeKind.Ask,
@@ -399,6 +400,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 			return;
 		}
 
+		// TODO: @osortega this is a weird way of doing this, maybe we handle the 2-colum layout in the control itself?
 		const sessionsWidth = Math.min(800, this.lastDimension.width - 80);
 		// Calculate height based on actual visible sessions (capped at MAX_SESSIONS)
 		// Use 52px per item from AgentSessionsListDelegate.ITEM_HEIGHT

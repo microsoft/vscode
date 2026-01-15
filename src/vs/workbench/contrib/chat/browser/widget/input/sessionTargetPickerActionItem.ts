@@ -61,8 +61,6 @@ export class SessionTypePickerActionItem extends ActionWidgetDropdownActionViewI
 						icon: getAgentSessionProviderIcon(sessionTypeItem.type),
 						enabled: true,
 						run: async () => {
-							// If delegate provides a setter, use it for local state management
-							// Otherwise execute the command to open a new session
 							if (this.delegate.setActiveSessionProvider) {
 								this.delegate.setActiveSessionProvider(sessionTypeItem.type);
 							} else {
