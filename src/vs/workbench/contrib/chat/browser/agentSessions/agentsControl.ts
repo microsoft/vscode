@@ -204,37 +204,37 @@ export class AgentsControlViewItem extends BaseActionViewItem {
 		titleLabel.textContent = session?.label ?? localize('agentSessionProjection', "Agent Session Projection");
 		pill.appendChild(titleLabel);
 
-		// Close button (right side)
-		const closeButton = $('span.agents-control-close');
-		closeButton.classList.add('codicon', 'codicon-close');
-		closeButton.setAttribute('role', 'button');
-		closeButton.setAttribute('aria-label', localize('exitAgentSessionProjection', "Exit Agent Session Projection"));
-		closeButton.tabIndex = 0;
-		pill.appendChild(closeButton);
+		// Escape button (right side) - serves as both keybinding hint and close button
+		const escButton = $('span.agents-control-esc-button');
+		escButton.textContent = 'Esc';
+		escButton.setAttribute('role', 'button');
+		escButton.setAttribute('aria-label', localize('exitAgentSessionProjection', "Exit Agent Session Projection"));
+		escButton.tabIndex = 0;
+		pill.appendChild(escButton);
 
 		// Setup hovers
 		const hoverDelegate = getDefaultHoverDelegate('mouse');
-		disposables.add(this.hoverService.setupManagedHover(hoverDelegate, closeButton, localize('exitAgentSessionProjectionTooltip', "Exit Agent Session Projection (Escape)")));
+		disposables.add(this.hoverService.setupManagedHover(hoverDelegate, escButton, localize('exitAgentSessionProjectionTooltip', "Exit Agent Session Projection (Escape)")));
 		disposables.add(this.hoverService.setupManagedHover(hoverDelegate, pill, () => {
 			const activeSession = this.focusViewService.activeSession;
 			return activeSession ? localize('agentSessionProjectionTooltip', "Agent Session Projection: {0}", activeSession.label) : localize('agentSessionProjection', "Agent Session Projection");
 		}));
 
-		// Close button click handler
-		disposables.add(addDisposableListener(closeButton, EventType.MOUSE_DOWN, (e) => {
+		// Esc button click handler
+		disposables.add(addDisposableListener(escButton, EventType.MOUSE_DOWN, (e) => {
 			e.preventDefault();
 			e.stopPropagation();
 			this.commandService.executeCommand(ExitFocusViewAction.ID);
 		}));
 
-		disposables.add(addDisposableListener(closeButton, EventType.CLICK, (e) => {
+		disposables.add(addDisposableListener(escButton, EventType.CLICK, (e) => {
 			e.preventDefault();
 			e.stopPropagation();
 			this.commandService.executeCommand(ExitFocusViewAction.ID);
 		}));
 
-		// Close button keyboard handler
-		disposables.add(addDisposableListener(closeButton, EventType.KEY_DOWN, (e) => {
+		// Esc button keyboard handler
+		disposables.add(addDisposableListener(escButton, EventType.KEY_DOWN, (e) => {
 			if (e.key === 'Enter' || e.key === ' ') {
 				e.preventDefault();
 				e.stopPropagation();
