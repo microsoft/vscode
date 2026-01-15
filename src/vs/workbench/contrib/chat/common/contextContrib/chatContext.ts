@@ -13,6 +13,9 @@ export interface IChatContextItem {
 	modelDescription?: string;
 	handle: number;
 	value?: string;
+	command?: {
+		id: string;
+	};
 }
 
 export interface IChatContextSupport {

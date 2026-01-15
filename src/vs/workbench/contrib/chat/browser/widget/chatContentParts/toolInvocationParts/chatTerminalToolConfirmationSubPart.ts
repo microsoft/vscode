@@ -95,11 +95,6 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 	) {
 		super(toolInvocation);
 
-		// Tag for sub-agent styling
-		if (toolInvocation.fromSubAgent) {
-			context.container.classList.add('from-sub-agent');
-		}
-
 		const state = toolInvocation.state.get();
 		if (state.type !== IChatToolInvocation.StateKind.WaitingForConfirmation || !state.confirmationMessages?.title) {
 			throw new Error('Confirmation messages are missing');

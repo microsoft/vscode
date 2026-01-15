@@ -21,6 +21,7 @@ import { ResourceSet } from '../../../../../../base/common/map.js';
 export const CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT = 'onCustomAgentProvider';
 export const INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT = 'onInstructionsProvider';
 export const PROMPT_FILE_PROVIDER_ACTIVATION_EVENT = 'onPromptFileProvider';
+export const SKILL_PROVIDER_ACTIVATION_EVENT = 'onSkillProvider';
 
 /**
  * Context for querying prompt files.
@@ -40,6 +41,13 @@ export interface IPromptFileResource {
 	 * Indicates whether the custom agent resource is editable. Defaults to false.
 	 */
 	readonly isEditable?: boolean;
+
+	/**
+	 * The inline content for virtual prompt files. This property is only used
+	 * during IPC transfer from extension host to main thread - the content is
+	 * immediately registered with the ChatPromptContentStore and not passed further.
+	 */
+	readonly content?: string;
 }
 
 /**
@@ -192,7 +200,7 @@ export interface IChatPromptSlashCommand {
 
 export interface IAgentSkill {
 	readonly uri: URI;
-	readonly type: 'personal' | 'project';
+	readonly storage: PromptsStorage;
 	readonly name: string;
 	readonly description: string | undefined;
 }
@@ -222,7 +230,7 @@ export interface IPromptsService extends IDisposable {
 	/**
 	 * Get a list of prompt source folders based on the provided prompt type.
 	 */
-	getSourceFolders(type: PromptsType): readonly IPromptPath[];
+	getSourceFolders(type: PromptsType): Promise<readonly IPromptPath[]>;
 
 	/**
 	 * Validates if the provided command name is a valid prompt slash command.

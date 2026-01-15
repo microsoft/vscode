@@ -149,7 +149,10 @@ export interface IChatAgentRequest {
 	userSelectedTools?: UserSelectedTools;
 	modeInstructions?: IChatRequestModeInstructions;
 	editedFileEvents?: IChatAgentEditedFileEvent[];
-	isSubagent?: boolean;
+	/**
+	 * Unique ID for the subagent invocation, used to group tool calls from the same subagent run together.
+	 */
+	subAgentInvocationId?: string;
 
 }
 

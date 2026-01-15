@@ -109,11 +109,10 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 	}
 
 	private registerProviderActions(disposables: DisposableStore): void {
-		const providers: { id: string; label: string }[] = [
-			{ id: AgentSessionProviders.Local, label: getAgentSessionProviderName(AgentSessionProviders.Local) },
-			{ id: AgentSessionProviders.Background, label: getAgentSessionProviderName(AgentSessionProviders.Background) },
-			{ id: AgentSessionProviders.Cloud, label: getAgentSessionProviderName(AgentSessionProviders.Cloud) },
-		];
+		const providers: { id: string; label: string }[] = Object.values(AgentSessionProviders).map(provider => ({
+			id: provider,
+			label: getAgentSessionProviderName(provider)
+		}));
 
 		for (const provider of this.chatSessionsService.getAllChatSessionContributions()) {
 			if (providers.find(p => p.id === provider.type)) {

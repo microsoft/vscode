@@ -10,7 +10,6 @@ import { localize } from '../../../../../../nls.js';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { renderIcon, renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
-import { ActionWidgetDropdownActionViewItem } from '../../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider, IActionWidgetDropdownOptions } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -24,6 +23,7 @@ import { IProductService } from '../../../../../../platform/product/common/produ
 import { MANAGE_CHAT_COMMAND_ID } from '../../../common/constants.js';
 import { TelemetryTrustedValue } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IManagedHoverContent } from '../../../../../../base/browser/ui/hover/hover.js';
+import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 
 export interface IModelPickerDelegate {
 	readonly onDidChangeModel: Event<ILanguageModelChatMetadataAndIdentifier>;
@@ -138,13 +138,14 @@ function getModelPickerActionBarActionProvider(commandService: ICommandService, 
 /**
  * Action view item for selecting a language model in the chat interface.
  */
-export class ModelPickerActionItem extends ActionWidgetDropdownActionViewItem {
+export class ModelPickerActionItem extends ChatInputPickerActionViewItem {
 
 	constructor(
 		action: IAction,
 		protected currentModel: ILanguageModelChatMetadataAndIdentifier | undefined,
 		widgetOptions: Omit<IActionWidgetDropdownOptions, 'label' | 'labelRenderer'> | undefined,
 		delegate: IModelPickerDelegate,
+		pickerOptions: IChatInputPickerOptions,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService commandService: ICommandService,
@@ -162,10 +163,10 @@ export class ModelPickerActionItem extends ActionWidgetDropdownActionViewItem {
 
 		const modelPickerActionWidgetOptions: Omit<IActionWidgetDropdownOptions, 'label' | 'labelRenderer'> = {
 			actionProvider: modelDelegateToWidgetActionsProvider(delegate, telemetryService),
-			actionBarActionProvider: getModelPickerActionBarActionProvider(commandService, chatEntitlementService, productService)
+			actionBarActionProvider: getModelPickerActionBarActionProvider(commandService, chatEntitlementService, productService),
 		};
 
-		super(actionWithLabel, widgetOptions ?? modelPickerActionWidgetOptions, actionWidgetService, keybindingService, contextKeyService);
+		super(actionWithLabel, widgetOptions ?? modelPickerActionWidgetOptions, pickerOptions, actionWidgetService, keybindingService, contextKeyService);
 
 		// Listen for model changes from the delegate
 		this._register(delegate.onDidChangeModel(model => {
@@ -200,8 +201,4 @@ export class ModelPickerActionItem extends ActionWidgetDropdownActionViewItem {
 		return null;
 	}
 
-	override render(container: HTMLElement): void {
-		super.render(container);
-		container.classList.add('chat-input-picker-item');
-	}
 }

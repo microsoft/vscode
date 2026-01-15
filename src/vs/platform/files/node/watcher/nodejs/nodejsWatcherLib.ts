@@ -125,6 +125,10 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 	}
 
 	private notifyWatchFailed(): void {
+		if (this.didFail) {
+			return;
+		}
+
 		this.didFail = true;
 
 		this.onDidWatchFail?.();

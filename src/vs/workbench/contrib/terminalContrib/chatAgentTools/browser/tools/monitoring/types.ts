@@ -53,6 +53,6 @@ export const enum PollingConsts {
 	MinPollingDuration = 500,
 	FirstPollingMaxDuration = 20000, // 20 seconds
 	ExtendedPollingMaxDuration = 120000, // 2 minutes
-	MaxPollingIntervalDuration = 2000, // 2 seconds
+	MaxPollingIntervalDuration = 10000, // 10 seconds - grows via exponential backoff
 	MaxRecursionCount = 5
 }

@@ -21,6 +21,8 @@ import { ChatContextKeys } from './actions/chatContextKeys.js';
 import { ChatConfiguration, ChatModeKind } from './constants.js';
 import { IHandOff } from './promptSyntax/promptFileParser.js';
 import { ExtensionAgentSourceType, IAgentSource, ICustomAgent, IPromptsService, PromptsStorage } from './promptSyntax/service/promptsService.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 
 export const IChatModeService = createDecorator<IChatModeService>('chatModeService');
 export interface IChatModeService {
@@ -248,6 +250,7 @@ export interface IChatMode {
 	readonly id: string;
 	readonly name: IObservable<string>;
 	readonly label: IObservable<string>;
+	readonly icon: IObservable<ThemeIcon>;
 	readonly description: IObservable<string | undefined>;
 	readonly isBuiltin: boolean;
 	readonly kind: ChatModeKind;
@@ -315,6 +318,10 @@ export class CustomChatMode implements IChatMode {
 
 	get description(): IObservable<string | undefined> {
 		return this._descriptionObservable;
+	}
+
+	get icon(): IObservable<ThemeIcon> {
+		return constObservable(Codicon.tasklist);
 	}
 
 	public get isBuiltin(): boolean {
@@ -457,15 +464,18 @@ export class BuiltinChatMode implements IChatMode {
 	public readonly name: IObservable<string>;
 	public readonly label: IObservable<string>;
 	public readonly description: IObservable<string>;
+	public readonly icon: IObservable<ThemeIcon>;
 
 	constructor(
 		public readonly kind: ChatModeKind,
 		label: string,
-		description: string
+		description: string,
+		icon: ThemeIcon,
 	) {
 		this.name = constObservable(kind);
 		this.label = constObservable(label);
 		this.description = observableValue('description', description);
+		this.icon = constObservable(icon);
 	}
 
 	public get isBuiltin(): boolean {
@@ -495,9 +505,9 @@ export class BuiltinChatMode implements IChatMode {
 }
 
 export namespace ChatMode {
-	export const Ask = new BuiltinChatMode(ChatModeKind.Ask, 'Ask', localize('chatDescription', "Explore and understand your code"));
-	export const Edit = new BuiltinChatMode(ChatModeKind.Edit, 'Edit', localize('editsDescription', "Edit or refactor selected code"));
-	export const Agent = new BuiltinChatMode(ChatModeKind.Agent, 'Agent', localize('agentDescription', "Describe what to build next"));
+	export const Ask = new BuiltinChatMode(ChatModeKind.Ask, 'Ask', localize('chatDescription', "Explore and understand your code"), Codicon.question);
+	export const Edit = new BuiltinChatMode(ChatModeKind.Edit, 'Edit', localize('editsDescription', "Edit or refactor selected code"), Codicon.edit);
+	export const Agent = new BuiltinChatMode(ChatModeKind.Agent, 'Agent', localize('agentDescription', "Describe what to build next"), Codicon.agent);
 }
 
 export function isBuiltinChatMode(mode: IChatMode): boolean {

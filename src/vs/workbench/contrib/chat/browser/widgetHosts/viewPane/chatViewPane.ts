@@ -58,6 +58,7 @@ import { AgentSessionsFilter } from '../../agentSessions/agentSessionsFilter.js'
 import { IAgentSessionsService } from '../../agentSessions/agentSessionsService.js';
 import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidget.js';
 import { IAgentSession } from '../../agentSessions/agentSessionsModel.js';
+import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 
 interface IChatViewPaneState extends Partial<IChatModelInputState> {
 	sessionId?: string;
@@ -108,6 +109,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -174,7 +176,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	private updateViewPaneClasses(fromEvent: boolean): void {
-		const welcomeEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewWelcomeEnabled) !== false;
+		const welcomeEnabled = !this.chatEntitlementService.sentiment.installed; // only show initially until Chat is setup
 		this.viewPaneContainer?.classList.toggle('chat-view-welcome-enabled', welcomeEnabled);
 
 		const activityBarLocationDefault = this.configurationService.getValue<string>(LayoutSettings.ACTIVITY_BAR_LOCATION) === 'default';
@@ -212,8 +214,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		// Settings changes
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => {
-			return e.affectsConfiguration(ChatConfiguration.ChatViewWelcomeEnabled) || e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION);
+			return e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION);
 		})(() => this.updateViewPaneClasses(true)));
+
+		// Entitlement changes
+		this._register(this.chatEntitlementService.onDidChangeSentiment(() => {
+			this.updateViewPaneClasses(true);
+		}));
 	}
 
 	private onDidChangeAgents(): void {
@@ -290,7 +297,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	//#region Sessions Control
 
-	private static readonly SESSIONS_LIMIT = 3;
+	private static readonly SESSIONS_LIMIT = 5;
 	private static readonly SESSIONS_SIDEBAR_MIN_WIDTH = 200;
 	private static readonly SESSIONS_SIDEBAR_DEFAULT_WIDTH = 300;
 	private static readonly CHAT_WIDGET_DEFAULT_WIDTH = 300;
@@ -831,6 +838,16 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				newSessionsViewerOrientation = width >= ChatViewPane.SESSIONS_SIDEBAR_VIEW_MIN_WIDTH ? AgentSessionsViewerOrientation.SideBySide : AgentSessionsViewerOrientation.Stacked;
 		}
 
+		if (
+			newSessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked &&
+			width >= ChatViewPane.SESSIONS_SIDEBAR_VIEW_MIN_WIDTH &&
+			this.getViewPositionAndLocation().location === ViewContainerLocation.AuxiliaryBar &&
+			this.layoutService.isAuxiliaryBarMaximized()
+		) {
+			// Always side-by-side in maximized auxiliary bar if space allows
+			newSessionsViewerOrientation = AgentSessionsViewerOrientation.SideBySide;
+		}
+
 		this.sessionsViewerOrientation = newSessionsViewerOrientation;
 
 		if (newSessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
@@ -911,7 +928,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			if (this.sessionsViewerLimited) {
 				sessionsHeight = this.sessionsCount * AgentSessionsListDelegate.ITEM_HEIGHT;
 			} else {
-				sessionsHeight = (ChatViewPane.SESSIONS_LIMIT * 2 /* expand a bit to indicate more items */) * AgentSessionsListDelegate.ITEM_HEIGHT;
+				sessionsHeight = availableSessionsHeight;
 			}
 
 			sessionsHeight = Math.min(availableSessionsHeight, sessionsHeight);

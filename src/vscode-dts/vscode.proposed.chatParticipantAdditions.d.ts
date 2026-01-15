@@ -107,7 +107,7 @@ declare module 'vscode' {
 		isConfirmed?: boolean;
 		isComplete?: boolean;
 		toolSpecificData?: ChatTerminalToolInvocationData;
-		fromSubAgent?: boolean;
+		subAgentInvocationId?: string;
 		presentation?: 'hidden' | 'hiddenAfterComplete' | undefined;
 
 		constructor(toolName: string, toolCallId: string, isError?: boolean);
@@ -359,7 +359,7 @@ declare module 'vscode' {
 		 * @param toolName The name of the tool being invoked.
 		 * @param streamData Optional initial streaming data with partial arguments.
 		 */
-		beginToolInvocation(toolCallId: string, toolName: string, streamData?: ChatToolInvocationStreamData): void;
+		beginToolInvocation(toolCallId: string, toolName: string, streamData?: ChatToolInvocationStreamData & { subagentInvocationId?: string }): void;
 
 		/**
 		 * Update the streaming data for a tool invocation that was started with `beginToolInvocation`.

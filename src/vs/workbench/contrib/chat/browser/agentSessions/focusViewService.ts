@@ -23,22 +23,15 @@ import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { ACTION_ID_NEW_CHAT } from '../actions/chatActions.js';
+import { IChatEditingService, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 
 //#region Configuration
 
 /**
  * Provider types that support agent session projection mode.
  * Only sessions from these providers will trigger focus view.
- *
- * Configuration:
- * - AgentSessionProviders.Local: Local chat sessions (disabled)
- * - AgentSessionProviders.Background: Background CLI agents (enabled)
- * - AgentSessionProviders.Cloud: Cloud agents (enabled)
  */
-const AGENT_SESSION_PROJECTION_ENABLED_PROVIDERS: Set<string> = new Set([
-	AgentSessionProviders.Background,
-	AgentSessionProviders.Cloud,
-]);
+const AGENT_SESSION_PROJECTION_ENABLED_PROVIDERS: Set<string> = new Set(Object.values(AgentSessionProviders));
 
 //#endregion
 
@@ -118,6 +111,7 @@ export class FocusViewService extends Disposable implements IFocusViewService {
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IChatEditingService private readonly chatEditingService: IChatEditingService,
 	) {
 		super();
 
@@ -203,38 +197,58 @@ export class FocusViewService extends Disposable implements IFocusViewService {
 			return;
 		}
 
-		if (!this._isActive) {
-			// First time entering focus view - save the current working set as our "non-focus-view" backup
-			this._nonFocusViewWorkingSet = this.editorGroupsService.saveWorkingSet('focus-view-backup');
-		} else if (this._activeSession) {
-			// Already in focus view, switching sessions - save the current session's working set
-			const previousSessionKey = this._activeSession.resource.toString();
-			const previousWorkingSet = this.editorGroupsService.saveWorkingSet(`focus-view-session-${previousSessionKey}`);
-			this._sessionWorkingSets.set(previousSessionKey, previousWorkingSet);
+		// For local sessions, check if there are pending edits to show
+		// If there's nothing to focus, just open the chat without entering focus view mode
+		let hasUndecidedChanges = true;
+		if (session.providerType === AgentSessionProviders.Local) {
+			const editingSession = this.chatEditingService.getEditingSession(session.resource);
+			hasUndecidedChanges = editingSession?.entries.get().some(e => e.state.get() === ModifiedFileEntryState.Modified) ?? false;
+			if (!hasUndecidedChanges) {
+				this.logService.trace('[FocusView] Local session has no undecided changes, opening chat without focus view');
+			}
 		}
 
-		// Always open session files to ensure they're displayed
-		await this._openSessionFiles(session);
+		// Only enter focus view mode if there are changes to show
+		if (hasUndecidedChanges) {
+			if (!this._isActive) {
+				// First time entering focus view - save the current working set as our "non-focus-view" backup
+				this._nonFocusViewWorkingSet = this.editorGroupsService.saveWorkingSet('focus-view-backup');
+			} else if (this._activeSession) {
+				// Already in focus view, switching sessions - save the current session's working set
+				const previousSessionKey = this._activeSession.resource.toString();
+				const previousWorkingSet = this.editorGroupsService.saveWorkingSet(`focus-view-session-${previousSessionKey}`);
+				this._sessionWorkingSets.set(previousSessionKey, previousWorkingSet);
+			}
 
-		// Set active state
-		const wasActive = this._isActive;
-		this._isActive = true;
-		this._activeSession = session;
-		this._inFocusViewModeContextKey.set(true);
-		this.layoutService.mainContainer.classList.add('focus-view-active');
-		if (!wasActive) {
-			this._onDidChangeFocusViewMode.fire(true);
+			// Always open session files to ensure they're displayed
+			await this._openSessionFiles(session);
+
+			// Set active state
+			const wasActive = this._isActive;
+			this._isActive = true;
+			this._activeSession = session;
+			this._inFocusViewModeContextKey.set(true);
+			this.layoutService.mainContainer.classList.add('focus-view-active');
+			if (!wasActive) {
+				this._onDidChangeFocusViewMode.fire(true);
+			}
+			// Always fire session change event (for title updates when switching sessions)
+			this._onDidChangeActiveSession.fire(session);
 		}
-		// Always fire session change event (for title updates when switching sessions)
-		this._onDidChangeActiveSession.fire(session);
 
-		// Open the session in the chat panel
+		// Open the session in the chat panel (always, even without changes)
 		session.setRead(true);
 		await this.chatSessionsService.activateChatSessionItemProvider(session.providerType);
 		await this.chatWidgetService.openSession(session.resource, ChatViewPaneTarget, {
 			title: { preferred: session.label },
 			revealIfOpened: true
 		});
+
+		// For local sessions with changes, also pop open the edit session's changes view
+		// Must be after openSession so the editing session context is available
+		if (session.providerType === AgentSessionProviders.Local && hasUndecidedChanges) {
+			await this.commandService.executeCommand('chatEditing.viewChanges');
+		}
 	}
 
 	async exitFocusView(): Promise<void> {

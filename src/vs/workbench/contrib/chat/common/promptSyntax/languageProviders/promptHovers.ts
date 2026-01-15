@@ -68,63 +68,78 @@ export class PromptHoverProvider implements HoverProvider {
 	}
 
 	private async provideHeaderHover(position: Position, promptType: PromptsType, header: PromptHeader): Promise<Hover | undefined> {
-		if (promptType === PromptsType.instructions) {
-			for (const attribute of header.attributes) {
-				if (attribute.range.containsPosition(position)) {
-					switch (attribute.key) {
-						case PromptHeaderAttributes.name:
-							return this.createHover(localize('promptHeader.instructions.name', 'The name of the instruction file as shown in the UI. If not set, the name is derived from the file name.'), attribute.range);
-						case PromptHeaderAttributes.description:
-							return this.createHover(localize('promptHeader.instructions.description', 'The description of the instruction file. It can be used to provide additional context or information about the instructions and is passed to the language model as part of the prompt.'), attribute.range);
-						case PromptHeaderAttributes.applyTo:
-							return this.createHover(localize('promptHeader.instructions.applyToRange', 'One or more glob pattern (separated by comma) that describe for which files the instructions apply to. Based on these patterns, the file is automatically included in the prompt, when the context contains a file that matches one or more of these patterns. Use `**` when you want this file to always be added.\nExample: `**/*.ts`, `**/*.js`, `client/**`'), attribute.range);
+		switch (promptType) {
+			case PromptsType.instructions:
+				for (const attribute of header.attributes) {
+					if (attribute.range.containsPosition(position)) {
+						switch (attribute.key) {
+							case PromptHeaderAttributes.name:
+								return this.createHover(localize('promptHeader.instructions.name', 'The name of the instruction file as shown in the UI. If not set, the name is derived from the file name.'), attribute.range);
+							case PromptHeaderAttributes.description:
+								return this.createHover(localize('promptHeader.instructions.description', 'The description of the instruction file. It can be used to provide additional context or information about the instructions and is passed to the language model as part of the prompt.'), attribute.range);
+							case PromptHeaderAttributes.applyTo:
+								return this.createHover(localize('promptHeader.instructions.applyToRange', 'One or more glob pattern (separated by comma) that describe for which files the instructions apply to. Based on these patterns, the file is automatically included in the prompt, when the context contains a file that matches one or more of these patterns. Use `**` when you want this file to always be added.\nExample: `**/*.ts`, `**/*.js`, `client/**`'), attribute.range);
+						}
 					}
 				}
-			}
-		} else if (promptType === PromptsType.agent) {
-			const isGitHubTarget = isGithubTarget(promptType, header.target);
-			for (const attribute of header.attributes) {
-				if (attribute.range.containsPosition(position)) {
-					switch (attribute.key) {
-						case PromptHeaderAttributes.name:
-							return this.createHover(localize('promptHeader.agent.name', 'The name of the agent as shown in the UI.'), attribute.range);
-						case PromptHeaderAttributes.description:
-							return this.createHover(localize('promptHeader.agent.description', 'The description of the custom agent, what it does and when to use it.'), attribute.range);
-						case PromptHeaderAttributes.argumentHint:
-							return this.createHover(localize('promptHeader.agent.argumentHint', 'The argument-hint describes what inputs the custom agent expects or supports.'), attribute.range);
-						case PromptHeaderAttributes.model:
-							return this.getModelHover(attribute, attribute.range, localize('promptHeader.agent.model', 'Specify the model that runs this custom agent.'), isGitHubTarget);
-						case PromptHeaderAttributes.tools:
-							return this.getToolHover(attribute, position, localize('promptHeader.agent.tools', 'The set of tools that the custom agent has access to.'));
-						case PromptHeaderAttributes.handOffs:
-							return this.getHandsOffHover(attribute, position, isGitHubTarget);
-						case PromptHeaderAttributes.target:
-							return this.createHover(localize('promptHeader.agent.target', 'The target to which the header attributes like tools apply to. Possible values are `github-copilot` and `vscode`.'), attribute.range);
-						case PromptHeaderAttributes.infer:
-							return this.createHover(localize('promptHeader.agent.infer', 'Whether the agent can be used as a subagent.'), attribute.range);
+				break;
+			case PromptsType.skill:
+				for (const attribute of header.attributes) {
+					if (attribute.range.containsPosition(position)) {
+						switch (attribute.key) {
+							case PromptHeaderAttributes.name:
+								return this.createHover(localize('promptHeader.skill.name', 'The name of the skill.'), attribute.range);
+							case PromptHeaderAttributes.description:
+								return this.createHover(localize('promptHeader.skill.description', 'The description of the skill. The description is added to every request and will be used by the agent to decide when to load the skill.'), attribute.range);
+						}
 					}
 				}
-			}
-		} else {
-			for (const attribute of header.attributes) {
-				if (attribute.range.containsPosition(position)) {
-					switch (attribute.key) {
-						case PromptHeaderAttributes.name:
-							return this.createHover(localize('promptHeader.prompt.name', 'The name of the prompt. This is also the name of the slash command that will run this prompt.'), attribute.range);
-						case PromptHeaderAttributes.description:
-							return this.createHover(localize('promptHeader.prompt.description', 'The description of the reusable prompt, what it does and when to use it.'), attribute.range);
-						case PromptHeaderAttributes.argumentHint:
-							return this.createHover(localize('promptHeader.prompt.argumentHint', 'The argument-hint describes what inputs the prompt expects or supports.'), attribute.range);
-						case PromptHeaderAttributes.model:
-							return this.getModelHover(attribute, attribute.range, localize('promptHeader.prompt.model', 'The model to use in this prompt.'), false);
-						case PromptHeaderAttributes.tools:
-							return this.getToolHover(attribute, position, localize('promptHeader.prompt.tools', 'The tools to use in this prompt.'));
-						case PromptHeaderAttributes.agent:
-						case PromptHeaderAttributes.mode:
-							return this.getAgentHover(attribute, position);
+				break;
+			case PromptsType.agent:
+				for (const attribute of header.attributes) {
+					if (attribute.range.containsPosition(position)) {
+						switch (attribute.key) {
+							case PromptHeaderAttributes.name:
+								return this.createHover(localize('promptHeader.agent.name', 'The name of the agent as shown in the UI.'), attribute.range);
+							case PromptHeaderAttributes.description:
+								return this.createHover(localize('promptHeader.agent.description', 'The description of the custom agent, what it does and when to use it.'), attribute.range);
+							case PromptHeaderAttributes.argumentHint:
+								return this.createHover(localize('promptHeader.agent.argumentHint', 'The argument-hint describes what inputs the custom agent expects or supports.'), attribute.range);
+							case PromptHeaderAttributes.model:
+								return this.getModelHover(attribute, attribute.range, localize('promptHeader.agent.model', 'Specify the model that runs this custom agent.'), isGithubTarget(promptType, header.target));
+							case PromptHeaderAttributes.tools:
+								return this.getToolHover(attribute, position, localize('promptHeader.agent.tools', 'The set of tools that the custom agent has access to.'));
+							case PromptHeaderAttributes.handOffs:
+								return this.getHandsOffHover(attribute, position, isGithubTarget(promptType, header.target));
+							case PromptHeaderAttributes.target:
+								return this.createHover(localize('promptHeader.agent.target', 'The target to which the header attributes like tools apply to. Possible values are `github-copilot` and `vscode`.'), attribute.range);
+							case PromptHeaderAttributes.infer:
+								return this.createHover(localize('promptHeader.agent.infer', 'Whether the agent can be used as a subagent.'), attribute.range);
+						}
 					}
 				}
-			}
+				break;
+			case PromptsType.prompt:
+				for (const attribute of header.attributes) {
+					if (attribute.range.containsPosition(position)) {
+						switch (attribute.key) {
+							case PromptHeaderAttributes.name:
+								return this.createHover(localize('promptHeader.prompt.name', 'The name of the prompt. This is also the name of the slash command that will run this prompt.'), attribute.range);
+							case PromptHeaderAttributes.description:
+								return this.createHover(localize('promptHeader.prompt.description', 'The description of the reusable prompt, what it does and when to use it.'), attribute.range);
+							case PromptHeaderAttributes.argumentHint:
+								return this.createHover(localize('promptHeader.prompt.argumentHint', 'The argument-hint describes what inputs the prompt expects or supports.'), attribute.range);
+							case PromptHeaderAttributes.model:
+								return this.getModelHover(attribute, attribute.range, localize('promptHeader.prompt.model', 'The model to use in this prompt.'), false);
+							case PromptHeaderAttributes.tools:
+								return this.getToolHover(attribute, position, localize('promptHeader.prompt.tools', 'The tools to use in this prompt.'));
+							case PromptHeaderAttributes.agent:
+							case PromptHeaderAttributes.mode:
+								return this.getAgentHover(attribute, position);
+						}
+					}
+				}
+				break;
 		}
 		return undefined;
 	}

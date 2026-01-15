@@ -259,7 +259,7 @@ export class ChatTodoListWidget extends Disposable {
 		}
 
 		const todoList = this.chatTodoListService.getTodos(this._currentSessionResource);
-		const shouldShow = todoList.length > 2;
+		const shouldShow = todoList.length > 0;
 
 		if (!shouldShow) {
 			this.domNode.classList.remove('has-todos');

@@ -28,6 +28,7 @@ import { AddDynamicVariableAction, IAddDynamicVariableContext } from '../../cont
 import { IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../contrib/chat/common/participants/chatAgents.js';
 import { IPromptFileContext, IPromptsService } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { isValidPromptType } from '../../contrib/chat/common/promptSyntax/promptTypes.js';
+import { IChatPromptContentStore } from '../../contrib/chat/common/promptSyntax/chatPromptContentStore.js';
 import { IChatEditingService, IChatRelatedFileProviderMetadata } from '../../contrib/chat/common/editing/chatEditingService.js';
 import { IChatModel } from '../../contrib/chat/common/model/chatModel.js';
 import { ChatRequestAgentPart } from '../../contrib/chat/common/requestParser/chatParserTypes.js';
@@ -100,6 +101,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 	private readonly _promptFileProviders = this._register(new DisposableMap<number, IDisposable>());
 	private readonly _promptFileProviderEmitters = this._register(new DisposableMap<number, Emitter<void>>());
+	private readonly _promptFileContentRegistrations = this._register(new DisposableMap<number, DisposableMap<string, IDisposable>>());
 
 	private readonly _pendingProgress = new Map<string, { progress: (parts: IChatProgress[]) => void; chatSession: IChatModel | undefined }>();
 	private readonly _proxy: ExtHostChatAgentsShape2;
@@ -121,6 +123,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IPromptsService private readonly _promptsService: IPromptsService,
+		@IChatPromptContentStore private readonly _chatPromptContentStore: IChatPromptContentStore,
 		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
 	) {
 		super();
@@ -288,6 +291,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					toolId: progress.toolName,
 					chatRequestId: requestId,
 					sessionResource: chatSession?.sessionResource,
+					subagentInvocationId: progress.subagentInvocationId
 				});
 				continue;
 			}
@@ -470,6 +474,10 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		const emitter = new Emitter<void>();
 		this._promptFileProviderEmitters.set(handle, emitter);
 
+		// Track content registrations for this provider so they can be disposed when provider is unregistered
+		const contentRegistrations = new DisposableMap<string, IDisposable>();
+		this._promptFileContentRegistrations.set(handle, contentRegistrations);
+
 		const disposable = this._promptsService.registerPromptFileProvider(extension, type, {
 			onDidChangePromptFiles: emitter.event,
 			providePromptFiles: async (context: IPromptFileContext, token: CancellationToken) => {
@@ -477,11 +485,21 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				if (!contributions) {
 					return undefined;
 				}
-				// Convert UriComponents to URI
-				return contributions.map(c => ({
-					...c,
-					uri: URI.revive(c.uri)
-				}));
+				// Convert UriComponents to URI and register any inline content
+				return contributions.map(c => {
+					const uri = URI.revive(c.uri);
+					// If this is a virtual prompt with inline content, register it with the store
+					if (c.content && uri.scheme === Schemas.vscodeChatPrompt) {
+						const uriKey = uri.toString();
+						// Dispose any previous registration for this URI before registering new content
+						contentRegistrations.deleteAndDispose(uriKey);
+						contentRegistrations.set(uriKey, this._chatPromptContentStore.registerContent(uri, c.content));
+					}
+					return {
+						uri,
+						isEditable: c.isEditable
+					};
+				});
 			}
 		});
 
@@ -491,6 +509,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 	$unregisterPromptFileProvider(handle: number): void {
 		this._promptFileProviders.deleteAndDispose(handle);
 		this._promptFileProviderEmitters.deleteAndDispose(handle);
+		this._promptFileContentRegistrations.deleteAndDispose(handle);
 	}
 
 	$onDidChangePromptFiles(handle: number): void {

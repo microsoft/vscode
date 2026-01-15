@@ -84,7 +84,6 @@ export interface ICodeBlockData {
 	readonly languageId: string;
 
 	readonly codemapperUri?: URI;
-	readonly fromSubagent?: boolean;
 
 	readonly vulns?: readonly IMarkdownVulnerability[];
 	readonly range?: Range;

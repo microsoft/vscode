@@ -73,6 +73,11 @@ export interface StringChatContextValue {
 	modelDescription?: string;
 	icon: ThemeIcon;
 	uri: URI;
+	/**
+	 * Command ID to execute when this context item is clicked.
+	 */
+	readonly commandId?: string;
+	readonly handle: number;
 }
 
 export interface IChatRequestImplicitVariableEntry extends IBaseChatRequestVariableEntry {
@@ -90,6 +95,11 @@ export interface IChatRequestStringVariableEntry extends IBaseChatRequestVariabl
 	readonly modelDescription?: string;
 	readonly icon: ThemeIcon;
 	readonly uri: URI;
+	/**
+	 * Command ID to execute when this context item is clicked.
+	 */
+	readonly commandId?: string;
+	readonly handle: number;
 }
 
 export interface IChatRequestWorkspaceVariableEntry extends IBaseChatRequestVariableEntry {
@@ -328,7 +338,6 @@ export namespace IChatRequestVariableEntry {
 		}
 	}
 }
-
 
 export function isImplicitVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestImplicitVariableEntry {
 	return obj.kind === 'implicit';

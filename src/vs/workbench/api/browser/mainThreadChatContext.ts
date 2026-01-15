@@ -23,12 +23,13 @@ export class MainThreadChatContext extends Disposable implements MainThreadChatC
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatContext);
+		this._chatContextService.setExecuteCommandCallback((itemHandle) => this._proxy.$executeChatContextItemCommand(itemHandle));
 	}
 
 	$registerChatContextProvider(handle: number, id: string, selector: IDocumentFilterDto[] | undefined, _options: { icon: ThemeIcon }, support: IChatContextSupport): void {
 		this._providers.set(handle, { selector, support, id });
 		this._chatContextService.registerChatContextProvider(id, selector, {
-			provideChatContext: (token: CancellationToken) => {
+			provideChatContext: (_options: {}, token: CancellationToken) => {
 				return this._proxy.$provideChatContext(handle, token);
 			},
 			resolveChatContext: support.supportsResolve ? (context: IChatContextItem, token: CancellationToken) => {
@@ -36,7 +37,7 @@ export class MainThreadChatContext extends Disposable implements MainThreadChatC
 			} : undefined,
 			provideChatContextForResource: support.supportsResource ? (resource: URI, withValue: boolean, token: CancellationToken) => {
 				return this._proxy.$provideChatContextForResource(handle, { resource, withValue }, token);
-			} : undefined
+			} : undefined,
 		});
 	}
 
@@ -55,5 +56,9 @@ export class MainThreadChatContext extends Disposable implements MainThreadChatC
 			return;
 		}
 		this._chatContextService.updateWorkspaceContextItems(provider.id, items);
+	}
+
+	$executeChatContextItemCommand(itemHandle: number): Promise<void> {
+		return this._proxy.$executeChatContextItemCommand(itemHandle);
 	}
 }

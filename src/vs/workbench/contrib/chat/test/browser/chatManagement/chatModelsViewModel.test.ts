@@ -13,7 +13,7 @@ import { IChatEntitlementService, ChatEntitlement } from '../../../../../service
 import { IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IStringDictionary } from '../../../../../../base/common/collections.js';
-import { ILanguageModelsConfigurationService } from '../../../common/languageModelsConfiguration.js';
+import { ILanguageModelsConfigurationService, ILanguageModelsProviderGroup } from '../../../common/languageModelsConfiguration.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
 
@@ -119,6 +119,8 @@ class MockLanguageModelsService implements ILanguageModelsService {
 
 	async removeLanguageModelsProviderGroup(vendorId: string, providerGroupName: string): Promise<void> {
 	}
+
+	async migrateLanguageModelsProviderGroup(languageModelsProviderGroup: ILanguageModelsProviderGroup): Promise<void> { }
 }
 
 class MockChatEntitlementService implements IChatEntitlementService {

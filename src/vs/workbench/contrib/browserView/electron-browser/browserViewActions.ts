@@ -16,6 +16,8 @@ import { BrowserViewUri } from '../../../../platform/browserView/common/browserV
 import { IBrowserViewWorkbenchService } from '../common/browserView.js';
 import { BrowserViewStorageScope } from '../../../../platform/browserView/common/browserView.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 
 // Context key expression to check if browser editor is active
 const BROWSER_EDITOR_ACTIVE = ContextKeyExpr.equals('activeEditor', BrowserEditor.ID);
@@ -55,7 +57,7 @@ class GoBackAction extends Action2 {
 				group: 'navigation',
 				order: 1,
 			},
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_CAN_GO_BACK),
+			precondition: CONTEXT_BROWSER_CAN_GO_BACK,
 			keybinding: {
 				when: BROWSER_EDITOR_ACTIVE,
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -87,9 +89,9 @@ class GoForwardAction extends Action2 {
 				id: MenuId.BrowserNavigationToolbar,
 				group: 'navigation',
 				order: 2,
-				when: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_CAN_GO_FORWARD)
+				when: CONTEXT_BROWSER_CAN_GO_FORWARD
 			},
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_CAN_GO_FORWARD),
+			precondition: CONTEXT_BROWSER_CAN_GO_FORWARD,
 			keybinding: {
 				when: BROWSER_EDITOR_ACTIVE,
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -123,7 +125,7 @@ class ReloadAction extends Action2 {
 				order: 3,
 			},
 			keybinding: {
-				when: CONTEXT_BROWSER_FOCUSED, // Keybinding is only active when focus is within the browser editor
+				when: CONTEXT_BROWSER_FOCUSED,
 				weight: KeybindingWeight.WorkbenchContrib + 50, // Priority over debug
 				primary: KeyCode.F5,
 				secondary: [KeyMod.CtrlCmd | KeyCode.KeyR],
@@ -155,7 +157,16 @@ class AddElementToChatAction extends Action2 {
 				group: 'actions',
 				order: 1,
 				when: ChatContextKeys.enabled
-			}
+			},
+			keybinding: [{
+				when: BROWSER_EDITOR_ACTIVE,
+				weight: KeybindingWeight.WorkbenchContrib + 50, // Priority over terminal
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyC,
+			}, {
+				when: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE),
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyCode.Escape
+			}]
 		});
 	}
 
@@ -174,14 +185,18 @@ class ToggleDevToolsAction extends Action2 {
 			id: ToggleDevToolsAction.ID,
 			title: localize2('browser.toggleDevToolsAction', 'Toggle Developer Tools'),
 			category: BrowserCategory,
-			icon: Codicon.tools,
+			icon: Codicon.console,
 			f1: false,
 			toggled: ContextKeyExpr.equals(CONTEXT_BROWSER_DEVTOOLS_OPEN.key, true),
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: 'actions',
-				order: 2,
-				when: BROWSER_EDITOR_ACTIVE
+				group: '1_developer',
+				order: 1,
+			},
+			keybinding: {
+				when: BROWSER_EDITOR_ACTIVE,
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyCode.F12
 			}
 		});
 	}
@@ -189,6 +204,35 @@ class ToggleDevToolsAction extends Action2 {
 	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
 		if (browserEditor instanceof BrowserEditor) {
 			await browserEditor.toggleDevTools();
+		}
+	}
+}
+
+class OpenInExternalBrowserAction extends Action2 {
+	static readonly ID = 'workbench.action.browser.openExternal';
+
+	constructor() {
+		super({
+			id: OpenInExternalBrowserAction.ID,
+			title: localize2('browser.openExternalAction', 'Open in External Browser'),
+			category: BrowserCategory,
+			icon: Codicon.linkExternal,
+			f1: false,
+			menu: {
+				id: MenuId.BrowserActionsToolbar,
+				group: '2_export',
+				order: 1
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+		if (browserEditor instanceof BrowserEditor) {
+			const url = browserEditor.getUrl();
+			if (url) {
+				const openerService = accessor.get(IOpenerService);
+				await openerService.open(url, { openExternal: true });
+			}
 		}
 	}
 }
@@ -205,7 +249,7 @@ class ClearGlobalBrowserStorageAction extends Action2 {
 			f1: true,
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: 'storage',
+				group: '3_settings',
 				order: 1,
 				when: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Global)
 			}
@@ -230,7 +274,7 @@ class ClearWorkspaceBrowserStorageAction extends Action2 {
 			f1: true,
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: 'storage',
+				group: '3_settings',
 				order: 2,
 				when: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Workspace)
 			}
@@ -243,6 +287,30 @@ class ClearWorkspaceBrowserStorageAction extends Action2 {
 	}
 }
 
+class OpenBrowserSettingsAction extends Action2 {
+	static readonly ID = 'workbench.action.browser.openSettings';
+
+	constructor() {
+		super({
+			id: OpenBrowserSettingsAction.ID,
+			title: localize2('browser.openSettingsAction', 'Open Browser Settings'),
+			category: BrowserCategory,
+			icon: Codicon.settingsGear,
+			f1: false,
+			menu: {
+				id: MenuId.BrowserActionsToolbar,
+				group: '3_settings',
+				order: 3
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const preferencesService = accessor.get(IPreferencesService);
+		await preferencesService.openSettings({ query: '@id:workbench.browser.*,chat.sendElementsToChat.*' });
+	}
+}
+
 // Register actions
 registerAction2(OpenIntegratedBrowserAction);
 registerAction2(GoBackAction);
@@ -250,5 +318,7 @@ registerAction2(GoForwardAction);
 registerAction2(ReloadAction);
 registerAction2(AddElementToChatAction);
 registerAction2(ToggleDevToolsAction);
+registerAction2(OpenInExternalBrowserAction);
 registerAction2(ClearGlobalBrowserStorageAction);
 registerAction2(ClearWorkspaceBrowserStorageAction);
+registerAction2(OpenBrowserSettingsAction);

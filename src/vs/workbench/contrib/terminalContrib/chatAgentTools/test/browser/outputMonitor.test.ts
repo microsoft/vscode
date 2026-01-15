@@ -14,7 +14,8 @@ import { ILanguageModelsService } from '../../../../chat/common/languageModels.j
 import { IChatService } from '../../../../chat/common/chatService/chatService.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ChatModel } from '../../../../chat/common/model/chatModel.js';
-import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { IToolInvocationContext } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
@@ -72,7 +73,7 @@ suite('OutputMonitor', () => {
 				} as any)
 			}
 		);
-		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ITerminalLogService, new NullLogService());
 		cts = new CancellationTokenSource();
 	});
 

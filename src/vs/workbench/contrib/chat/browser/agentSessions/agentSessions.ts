@@ -15,6 +15,7 @@ export enum AgentSessionProviders {
 	Local = localChatSessionType,
 	Background = 'copilotcli',
 	Cloud = 'copilot-cloud-agent',
+	ClaudeCode = 'claude-code',
 }
 
 export function getAgentSessionProvider(sessionResource: URI | string): AgentSessionProviders | undefined {
@@ -23,6 +24,7 @@ export function getAgentSessionProvider(sessionResource: URI | string): AgentSes
 		case AgentSessionProviders.Local:
 		case AgentSessionProviders.Background:
 		case AgentSessionProviders.Cloud:
+		case AgentSessionProviders.ClaudeCode:
 			return type;
 		default:
 			return undefined;
@@ -37,6 +39,8 @@ export function getAgentSessionProviderName(provider: AgentSessionProviders): st
 			return localize('chat.session.providerLabel.background', "Background");
 		case AgentSessionProviders.Cloud:
 			return localize('chat.session.providerLabel.cloud', "Cloud");
+		case AgentSessionProviders.ClaudeCode:
+			return localize('chat.session.providerLabel.claude', "Claude");
 	}
 }
 
@@ -48,6 +52,8 @@ export function getAgentSessionProviderIcon(provider: AgentSessionProviders): Th
 			return Codicon.worktree;
 		case AgentSessionProviders.Cloud:
 			return Codicon.cloud;
+		case AgentSessionProviders.ClaudeCode:
+			return Codicon.code;
 	}
 }
 

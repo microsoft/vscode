@@ -53,19 +53,50 @@ type ContentRefData =
 		readonly range?: IRange;
 	};
 
+type InlineAnchorWidgetMetadata = {
+	vscodeLinkType: string;
+	linkText?: string;
+};
+
 export function renderFileWidgets(element: HTMLElement, instantiationService: IInstantiationService, chatMarkdownAnchorService: IChatMarkdownAnchorService, disposables: DisposableStore) {
 	// eslint-disable-next-line no-restricted-syntax
 	const links = element.querySelectorAll('a');
 	links.forEach(a => {
 		// Empty link text -> render file widget
-		if (!a.textContent?.trim()) {
-			const href = a.getAttribute('data-href');
-			const uri = href ? URI.parse(href) : undefined;
-			if (uri?.scheme) {
-				const widget = instantiationService.createInstance(InlineAnchorWidget, a, { kind: 'inlineReference', inlineReference: uri });
-				disposables.add(chatMarkdownAnchorService.register(widget));
-				disposables.add(widget);
+		// Also support metadata format: [linkText](file:///...uri?vscodeLinkType=...)
+		const linkText = a.textContent?.trim();
+		let shouldRenderWidget = false;
+		let metadata: InlineAnchorWidgetMetadata | undefined;
+
+		const href = a.getAttribute('data-href');
+		let uri: URI | undefined;
+		if (href) {
+			try {
+				uri = URI.parse(href);
+			} catch {
+				// Invalid URI, skip rendering widget
 			}
+		}
+
+		if (!linkText) {
+			shouldRenderWidget = true;
+		} else if (uri) {
+			// Check for vscodeLinkType in query parameters
+			const searchParams = new URLSearchParams(uri.query);
+			const vscodeLinkType = searchParams.get('vscodeLinkType');
+			if (vscodeLinkType) {
+				metadata = {
+					vscodeLinkType,
+					linkText
+				};
+				shouldRenderWidget = true;
+			}
+		}
+
+		if (shouldRenderWidget && uri?.scheme) {
+			const widget = instantiationService.createInstance(InlineAnchorWidget, a, { kind: 'inlineReference', inlineReference: uri }, metadata);
+			disposables.add(chatMarkdownAnchorService.register(widget));
+			disposables.add(widget);
 		}
 	});
 }
@@ -81,6 +112,7 @@ export class InlineAnchorWidget extends Disposable {
 	constructor(
 		private readonly element: HTMLAnchorElement | HTMLElement,
 		public readonly inlineReference: IChatContentInlineReference,
+		private readonly metadata: InlineAnchorWidgetMetadata | undefined,
 		@IContextKeyService originalContextKeyService: IContextKeyService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IFileService fileService: IFileService,
@@ -126,7 +158,8 @@ export class InlineAnchorWidget extends Disposable {
 		} else {
 			location = this.data;
 
-			const filePathLabel = labelService.getUriBasenameLabel(location.uri);
+			const filePathLabel = this.metadata?.linkText ?? labelService.getUriBasenameLabel(location.uri);
+
 			if (location.range && this.data.kind !== 'symbol') {
 				const suffix = location.range.startLineNumber === location.range.endLineNumber
 					? `:${location.range.startLineNumber}`

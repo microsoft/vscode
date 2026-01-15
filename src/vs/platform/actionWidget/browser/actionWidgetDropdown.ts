@@ -33,6 +33,9 @@ export interface IActionWidgetDropdownOptions extends IBaseDropdownOptions {
 	readonly actionBarActions?: IAction[];
 	readonly actionBarActionProvider?: IActionProvider;
 	readonly showItemKeybindings?: boolean;
+
+	// Function that returns the anchor element for the dropdown
+	getAnchor?: () => HTMLElement;
 }
 
 /**
@@ -169,7 +172,7 @@ export class ActionWidgetDropdown extends BaseDropdown {
 			false,
 			actionWidgetItems,
 			actionWidgetDelegate,
-			this.element,
+			this._options.getAnchor?.() ?? this.element,
 			undefined,
 			actionBarActions,
 			accessibilityProvider

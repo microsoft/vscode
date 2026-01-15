@@ -454,6 +454,10 @@ import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL } from '../../platform/window/electron-b
 			'remote-debugging-port': {
 				type: 'string',
 				description: localize('argv.remoteDebuggingPort', "Specifies the port to use for remote debugging.")
+			},
+			'enable-graphite-invalid-recording-recovery': {
+				type: 'boolean',
+				description: localize('argv.enableGraphiteInvalidRecordingRecovery', "Enables recovery from invalid Graphite recordings.")
 			}
 		}
 	};

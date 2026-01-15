@@ -21,9 +21,10 @@ import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../..
 import { IWorkbenchEnvironmentService } from '../../../../../../services/environment/common/environmentService.js';
 import { IFileMatch, IFileQuery, ISearchService } from '../../../../../../services/search/common/search.js';
 import { IUserDataProfileService } from '../../../../../../services/userDataProfile/common/userDataProfile.js';
+import { IPathService } from '../../../../../../services/path/common/pathService.js';
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
 import { PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
-import { isValidGlob, PromptFilesLocator } from '../../../../common/promptSyntax/utils/promptFilesLocator.js';
+import { isValidGlob, isValidSkillPath, PromptFilesLocator } from '../../../../common/promptSyntax/utils/promptFilesLocator.js';
 import { IMockFolder, MockFilesystem } from '../testUtils/mockFilesystem.js';
 import { mockService } from './mock.js';
 import { TestUserDataProfileService } from '../../../../../../test/common/workbenchTestServices.js';
@@ -45,7 +46,7 @@ function mockConfigService<T>(value: T): IConfigurationService {
 			}
 
 			assert(
-				[PromptsConfig.PROMPT_LOCATIONS_KEY, PromptsConfig.INSTRUCTIONS_LOCATION_KEY, PromptsConfig.MODE_LOCATION_KEY].includes(key),
+				[PromptsConfig.PROMPT_LOCATIONS_KEY, PromptsConfig.INSTRUCTIONS_LOCATION_KEY, PromptsConfig.MODE_LOCATION_KEY, PromptsConfig.SKILLS_LOCATION_KEY].includes(key),
 				`Unsupported configuration key '${key}'.`,
 			);
 
@@ -149,6 +150,15 @@ suite('PromptFilesLocator', () => {
 				return { results, messages: [] };
 			}
 		});
+		instantiationService.stub(IPathService, {
+			userHome(options?: { preferLocal: boolean }): URI | Promise<URI> {
+				const uri = URI.file('/Users/legomushroom');
+				if (options?.preferLocal) {
+					return uri;
+				}
+				return Promise.resolve(uri);
+			}
+		} as IPathService);
 
 		const locator = instantiationService.createInstance(PromptFilesLocator);
 
@@ -156,8 +166,11 @@ suite('PromptFilesLocator', () => {
 			async listFiles(type: PromptsType, storage: PromptsStorage, token: CancellationToken): Promise<readonly URI[]> {
 				return locator.listFiles(type, storage, token);
 			},
-			getConfigBasedSourceFolders(type: PromptsType): readonly URI[] {
-				return locator.getConfigBasedSourceFolders(type);
+			async getConfigBasedSourceFolders(type: PromptsType): Promise<readonly URI[]> {
+				return await locator.getConfigBasedSourceFolders(type);
+			},
+			async findAgentSkills(token: CancellationToken) {
+				return await locator.findAgentSkills(token);
 			},
 			async disposeAsync(): Promise<void> {
 				await mockFs.delete();
@@ -2349,6 +2362,473 @@ suite('PromptFilesLocator', () => {
 		});
 	});
 
+	suite('skills', () => {
+		suite('findAgentSkills', () => {
+			testT('finds skill files in configured locations', async () => {
+				const locator = await createPromptsLocator(
+					{
+						'.claude/skills': true,
+						// disable other defaults
+						'.github/skills': false,
+						'~/.copilot/skills': false,
+						'~/.claude/skills': false,
+					},
+					['/Users/legomushroom/repos/vscode'],
+					[
+						{
+							name: '/Users/legomushroom/repos/vscode/.claude/skills',
+							children: [
+								{
+									name: 'pptx',
+									children: [
+										{
+											name: 'SKILL.md',
+											contents: '# PPTX Skill',
+										},
+									],
+								},
+								{
+									name: 'excel',
+									children: [
+										{
+											name: 'SKILL.md',
+											contents: '# Excel Skill',
+										},
+									],
+								},
+							],
+						},
+					],
+				);
+
+				const skills = await locator.findAgentSkills(CancellationToken.None);
+				assertOutcome(
+					skills.map(s => s.fileUri),
+					[
+						'/Users/legomushroom/repos/vscode/.claude/skills/pptx/SKILL.md',
+						'/Users/legomushroom/repos/vscode/.claude/skills/excel/SKILL.md',
+					],
+					'Must find skill files.',
+				);
+				await locator.disposeAsync();
+			});
+
+			testT('ignores folders without SKILL.md', async () => {
+				const locator = await createPromptsLocator(
+					{
+						'.claude/skills': true,
+						// disable other defaults
+						'.github/skills': false,
+						'~/.copilot/skills': false,
+						'~/.claude/skills': false,
+					},
+					['/Users/legomushroom/repos/vscode'],
+					[
+						{
+							name: '/Users/legomushroom/repos/vscode/.claude/skills',
+							children: [
+								{
+									name: 'valid-skill',
+									children: [
+										{
+											name: 'SKILL.md',
+											contents: '# Valid Skill',
+										},
+									],
+								},
+								{
+									name: 'invalid-skill',
+									children: [
+										{
+											name: 'readme.md',
+											contents: 'Not a skill file',
+										},
+									],
+								},
+								{
+									name: 'another-invalid',
+									children: [
+										{
+											name: 'index.js',
+											contents: 'console.log("not a skill")',
+										},
+									],
+								},
+							],
+						},
+					],
+				);
+
+				const skills = await locator.findAgentSkills(CancellationToken.None);
+				assertOutcome(
+					skills.map(s => s.fileUri),
+					[
+						'/Users/legomushroom/repos/vscode/.claude/skills/valid-skill/SKILL.md',
+					],
+					'Must only find folders with SKILL.md.',
+				);
+				await locator.disposeAsync();
+			});
+
+			testT('returns empty array when no skills exist', async () => {
+				const locator = await createPromptsLocator(
+					{
+						'.claude/skills': true,
+						// disable other defaults
+						'.github/skills': false,
+						'~/.copilot/skills': false,
+						'~/.claude/skills': false,
+					},
+					['/Users/legomushroom/repos/vscode'],
+					[
+						{
+							name: '/Users/legomushroom/repos/vscode/.claude/skills',
+							children: [],
+						},
+					],
+				);
+
+				const skills = await locator.findAgentSkills(CancellationToken.None);
+				assertOutcome(
+					skills.map(s => s.fileUri),
+					[],
+					'Must return empty array when no skills exist.',
+				);
+				await locator.disposeAsync();
+			});
+
+			testT('returns empty array when skill folder does not exist', async () => {
+				const locator = await createPromptsLocator(
+					{
+						'.claude/skills': true,
+						// disable other defaults
+						'.github/skills': false,
+						'~/.copilot/skills': false,
+						'~/.claude/skills': false,
+					},
+					['/Users/legomushroom/repos/vscode'],
+					[], // empty filesystem
+				);
+
+				const skills = await locator.findAgentSkills(CancellationToken.None);
+				assertOutcome(
+					skills.map(s => s.fileUri),
+					[],
+					'Must return empty array when folder does not exist.',
+				);
+				await locator.disposeAsync();
+			});
+
+			testT('finds skills across multiple workspace folders', async () => {
+				const locator = await createPromptsLocator(
+					{
+						'.claude/skills': true,
+						// disable other defaults
+						'.github/skills': false,
+						'~/.copilot/skills': false,
+						'~/.claude/skills': false,
+					},
+					[
+						'/Users/legomushroom/repos/vscode',
+						'/Users/legomushroom/repos/node',
+					],
+					[
+						{
+							name: '/Users/legomushroom/repos/vscode/.claude/skills',
+							children: [
+								{
+									name: 'skill-a',
+									children: [
+										{
+											name: 'SKILL.md',
+											contents: '# Skill A',
+										},
+									],
+								},
+							],
+						},
+						{
+							name: '/Users/legomushroom/repos/node/.claude/skills',
+							children: [
+								{
+									name: 'skill-b',
+									children: [
+										{
+											name: 'SKILL.md',
+											contents: '# Skill B',
+										},
+									],
+								},
+							],
+						},
+					],
+				);
+
+				const skills = await locator.findAgentSkills(CancellationToken.None);
+				assertOutcome(
+					skills.map(s => s.fileUri),
+					[
+						'/Users/legomushroom/repos/vscode/.claude/skills/skill-a/SKILL.md',
+						'/Users/legomushroom/repos/node/.claude/skills/skill-b/SKILL.md',
+					],
+					'Must find skills across all workspace folders.',
+				);
+				await locator.disposeAsync();
+			});
+		});
+
+		suite('listFiles with PromptsType.skill', () => {
+			testT('does not list skills when location is disabled', async () => {
+				const locator = await createPromptsLocator(
+					{
+						'.claude/skills': false,
+						// disable other defaults
+						'.github/skills': false,
+						'~/.copilot/skills': false,
+						'~/.claude/skills': false,
+					},
+					['/Users/legomushroom/repos/vscode'],
+					[
+						{
+							name: '/Users/legomushroom/repos/vscode/.claude/skills',
+							children: [
+								{
+									name: 'pptx',
+									children: [
+										{
+											name: 'SKILL.md',
+											contents: '# PPTX Skill',
+										},
+									],
+								},
+							],
+						},
+					],
+				);
+
+				const files = await locator.listFiles(PromptsType.skill, PromptsStorage.local, CancellationToken.None);
+				assertOutcome(
+					files,
+					[],
+					'Must not list skills when location is disabled.',
+				);
+				await locator.disposeAsync();
+			});
+		});
+
+		suite('toAbsoluteLocationsForSkills path validation', () => {
+			testT('rejects glob patterns in skill paths via getConfigBasedSourceFolders', async () => {
+				const locator = await createPromptsLocator(
+					{
+						'skills/**': true,
+						'skills/*': true,
+						'**/skills': true,
+						// disable defaults
+						'.github/skills': false,
+						'.claude/skills': false,
+						'~/.copilot/skills': false,
+						'~/.claude/skills': false,
+					},
+					['/Users/legomushroom/repos/vscode'],
+					[],
+				);
+
+				const folders = await locator.getConfigBasedSourceFolders(PromptsType.skill);
+				assertOutcome(
+					folders,
+					[],
+					'Must reject glob patterns in skill paths.',
+				);
+				await locator.disposeAsync();
+			});
+
+			testT('rejects absolute paths in skill paths via getConfigBasedSourceFolders', async () => {
+				const locator = await createPromptsLocator(
+					{
+						'/absolute/path/skills': true,
+						// disable defaults
+						'.github/skills': false,
+						'.claude/skills': false,
+						'~/.copilot/skills': false,
+						'~/.claude/skills': false,
+					},
+					['/Users/legomushroom/repos/vscode'],
+					[],
+				);
+
+				const folders = await locator.getConfigBasedSourceFolders(PromptsType.skill);
+				assertOutcome(
+					folders,
+					[],
+					'Must reject absolute paths in skill paths.',
+				);
+				await locator.disposeAsync();
+			});
+
+			testT('accepts relative paths in skill paths via getConfigBasedSourceFolders', async () => {
+				const locator = await createPromptsLocator(
+					{
+						'./my-skills': true,
+						'custom/skills': true,
+						// disable defaults
+						'.github/skills': false,
+						'.claude/skills': false,
+						'~/.copilot/skills': false,
+						'~/.claude/skills': false,
+					},
+					['/Users/legomushroom/repos/vscode'],
+					[],
+				);
+
+				const folders = await locator.getConfigBasedSourceFolders(PromptsType.skill);
+				assertOutcome(
+					folders,
+					[
+						'/Users/legomushroom/repos/vscode/my-skills',
+						'/Users/legomushroom/repos/vscode/custom/skills',
+					],
+					'Must accept relative paths in skill paths.',
+				);
+				await locator.disposeAsync();
+			});
+
+			testT('accepts parent relative paths for monorepos via getConfigBasedSourceFolders', async () => {
+				const locator = await createPromptsLocator(
+					{
+						'../shared-skills': true,
+						// disable defaults
+						'.github/skills': false,
+						'.claude/skills': false,
+						'~/.copilot/skills': false,
+						'~/.claude/skills': false,
+					},
+					['/Users/legomushroom/repos/vscode'],
+					[],
+				);
+
+				const folders = await locator.getConfigBasedSourceFolders(PromptsType.skill);
+				assertOutcome(
+					folders,
+					[
+						'/Users/legomushroom/repos/shared-skills',
+					],
+					'Must accept parent relative paths for monorepos.',
+				);
+				await locator.disposeAsync();
+			});
+
+			testT('accepts tilde paths for user home skills', async () => {
+				const locator = await createPromptsLocator(
+					{
+						'~/my-skills': true,
+						// disable defaults
+						'.github/skills': false,
+						'.claude/skills': false,
+						'~/.copilot/skills': false,
+						'~/.claude/skills': false,
+					},
+					['/Users/legomushroom/repos/vscode'],
+					[],
+				);
+
+				const folders = await locator.getConfigBasedSourceFolders(PromptsType.skill);
+				assertOutcome(
+					folders,
+					[
+						'/Users/legomushroom/my-skills',
+					],
+					'Must accept tilde paths for user home skills.',
+				);
+				await locator.disposeAsync();
+			});
+		});
+
+		suite('getConfigBasedSourceFolders for skills', () => {
+			testT('returns source folders without glob processing', async () => {
+				const locator = await createPromptsLocator(
+					{
+						'.claude/skills': true,
+						'custom-skills': true,
+						// explicitly disable other defaults we don't want for this test
+						'.github/skills': false,
+						'~/.copilot/skills': false,
+						'~/.claude/skills': false,
+					},
+					[
+						'/Users/legomushroom/repos/vscode',
+						'/Users/legomushroom/repos/node',
+					],
+					[],
+				);
+
+				const folders = await locator.getConfigBasedSourceFolders(PromptsType.skill);
+				assertOutcome(
+					folders,
+					[
+						'/Users/legomushroom/repos/vscode/.claude/skills',
+						'/Users/legomushroom/repos/node/.claude/skills',
+						'/Users/legomushroom/repos/vscode/custom-skills',
+						'/Users/legomushroom/repos/node/custom-skills',
+					],
+					'Must return skill source folders without glob processing.',
+				);
+				await locator.disposeAsync();
+			});
+
+			testT('filters out invalid skill paths from source folders', async () => {
+				const locator = await createPromptsLocator(
+					{
+						'.claude/skills': true,
+						'skills/**': true, // glob - should be filtered out
+						'/absolute/skills': true, // absolute - should be filtered out
+						// explicitly disable other defaults we don't want for this test
+						'.github/skills': false,
+						'~/.copilot/skills': false,
+						'~/.claude/skills': false,
+					},
+					['/Users/legomushroom/repos/vscode'],
+					[],
+				);
+
+				const folders = await locator.getConfigBasedSourceFolders(PromptsType.skill);
+				assertOutcome(
+					folders,
+					[
+						'/Users/legomushroom/repos/vscode/.claude/skills',
+					],
+					'Must filter out invalid skill paths.',
+				);
+				await locator.disposeAsync();
+			});
+
+			testT('includes default skill source folders from defaults', async () => {
+				const locator = await createPromptsLocator(
+					{
+						'custom-skills': true,
+					},
+					['/Users/legomushroom/repos/vscode'],
+					[],
+				);
+
+				const folders = await locator.getConfigBasedSourceFolders(PromptsType.skill);
+				assertOutcome(
+					folders,
+					[
+						// defaults
+						'/Users/legomushroom/repos/vscode/.github/skills',
+						'/Users/legomushroom/repos/vscode/.claude/skills',
+						'/Users/legomushroom/.copilot/skills',
+						'/Users/legomushroom/.claude/skills',
+						// custom
+						'/Users/legomushroom/repos/vscode/custom-skills',
+					],
+					'Must include default skill source folders.',
+				);
+				await locator.disposeAsync();
+			});
+		});
+	});
+
 	suite('isValidGlob', () => {
 		testT('valid patterns', async () => {
 			const globs = [
@@ -2424,6 +2904,155 @@ suite('PromptFilesLocator', () => {
 		});
 	});
 
+	suite('isValidSkillPath', () => {
+		testT('accepts relative paths', async () => {
+			const validPaths = [
+				'someFolder',
+				'./someFolder',
+				'my-skills',
+				'./my-skills',
+				'folder/subfolder',
+				'./folder/subfolder',
+			];
+
+			for (const path of validPaths) {
+				assert.strictEqual(
+					isValidSkillPath(path),
+					true,
+					`'${path}' must be accepted as a valid skill path (relative path).`,
+				);
+			}
+		});
+
+		testT('accepts user home paths', async () => {
+			const validPaths = [
+				'~/folder',
+				'~/.copilot/skills',
+				'~/.claude/skills',
+				'~/my-skills',
+			];
+
+			for (const path of validPaths) {
+				assert.strictEqual(
+					isValidSkillPath(path),
+					true,
+					`'${path}' must be accepted as a valid skill path (user home path).`,
+				);
+			}
+		});
+
+		testT('accepts parent relative paths for monorepos', async () => {
+			const validPaths = [
+				'../folder',
+				'../shared-skills',
+				'../../common/skills',
+				'../parent/folder',
+			];
+
+			for (const path of validPaths) {
+				assert.strictEqual(
+					isValidSkillPath(path),
+					true,
+					`'${path}' must be accepted as a valid skill path (parent relative path).`,
+				);
+			}
+		});
+
+		testT('rejects absolute paths', async () => {
+			const invalidPaths = [
+				// Unix absolute paths
+				'/Users/username/skills',
+				'/absolute/path',
+				'/usr/local/skills',
+				// Windows absolute paths
+				'C:\\Users\\skills',
+				'D:/skills',
+				'c:\\folder',
+			];
+
+			for (const path of invalidPaths) {
+				assert.strictEqual(
+					isValidSkillPath(path),
+					false,
+					`'${path}' must be rejected (absolute paths not supported for portability).`,
+				);
+			}
+		});
+
+		testT('rejects tilde paths without path separator', async () => {
+			const invalidPaths = [
+				'~abc',
+				'~skills',
+				'~.config',
+			];
+
+			for (const path of invalidPaths) {
+				assert.strictEqual(
+					isValidSkillPath(path),
+					false,
+					`'${path}' must be rejected (tilde must be followed by / or \\).`,
+				);
+			}
+		});
+
+		testT('rejects glob patterns', async () => {
+			const invalidPaths = [
+				'skills/*',
+				'skills/**',
+				'**/skills',
+				'skills/*.md',
+				'skills/**/*.md',
+				'{skill1,skill2}',
+				'skill[1,2,3]',
+				'skills?',
+				'./skills/*',
+				'~/skills/**',
+			];
+
+			for (const path of invalidPaths) {
+				assert.strictEqual(
+					isValidSkillPath(path),
+					false,
+					`'${path}' must be rejected (glob patterns not supported for performance).`,
+				);
+			}
+		});
+
+		testT('rejects empty or whitespace paths', async () => {
+			const invalidPaths = [
+				'',
+				'   ',
+				'\t',
+				'\n',
+			];
+
+			for (const path of invalidPaths) {
+				assert.strictEqual(
+					isValidSkillPath(path),
+					false,
+					`'${path}' must be rejected (empty or whitespace only).`,
+				);
+			}
+		});
+
+		testT('handles paths with spaces', async () => {
+			const validPaths = [
+				'my skills',
+				'./my skills/folder',
+				'~/my skills',
+				'../shared skills',
+			];
+
+			for (const path of validPaths) {
+				assert.strictEqual(
+					isValidSkillPath(path),
+					true,
+					`'${path}' must be accepted (paths with spaces are valid).`,
+				);
+			}
+		});
+	});
+
 	suite('getConfigBasedSourceFolders', () => {
 		testT('gets unambiguous list of folders', async () => {
 			const locator = await createPromptsLocator(
@@ -2445,7 +3074,7 @@ suite('PromptFilesLocator', () => {
 			);
 
 			assertOutcome(
-				locator.getConfigBasedSourceFolders(PromptsType.prompt),
+				await locator.getConfigBasedSourceFolders(PromptsType.prompt),
 				[
 					'/Users/legomushroom/repos/vscode/.github/prompts',
 					'/Users/legomushroom/repos/prompts/.github/prompts',

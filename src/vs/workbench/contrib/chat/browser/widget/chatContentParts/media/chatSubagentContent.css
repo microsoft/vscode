@@ -1,0 +1,45 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Subagent-specific styles */
+.interactive-session .interactive-response .value .chat-thinking-fixed-mode.chat-subagent-part {
+	/* Collapsed + streaming: show only the last item with max-height */
+	&.chat-used-context-collapsed .chat-used-context-list.chat-thinking-collapsible.chat-thinking-streaming {
+		max-height: var(--chat-subagent-last-item-height, 200px);
+		overflow: hidden;
+		display: block;
+	}
+
+	/* Expanded: show all content, no max-height, no scrolling */
+	.chat-used-context-list.chat-thinking-collapsible {
+		max-height: none;
+		overflow: visible;
+	}
+}
+
+/* Subagent result collapsible section */
+.chat-subagent-result {
+	margin-top: 4px;
+	padding: 4px 8px;
+
+	.chat-used-context-label {
+		cursor: pointer;
+
+		.monaco-button {
+			color: var(--vscode-descriptionForeground);
+			font-size: var(--vscode-chat-font-size-body-s);
+		}
+	}
+
+	.chat-subagent-result-content {
+		padding: 4px 8px 4px 20px;
+		font-size: var(--vscode-chat-font-size-body-s);
+		color: var(--vscode-descriptionForeground);
+
+		p {
+			margin: 0;
+		}
+	}
+}

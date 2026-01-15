@@ -131,9 +131,8 @@
 
 .extension-editor > .header > .details > .subtitle {
 	padding-top: 6px;
-	white-space: nowrap;
-	height: 20px;
 	line-height: 20px;
+	flex-wrap: wrap;
 }
 
 .extension-editor > .header > .details > .subtitle .hide {
@@ -179,9 +178,6 @@
 
 .extension-editor > .header > .details > .description {
 	margin-top: 10px;
-	white-space: nowrap;
-	text-overflow: ellipsis;
-	overflow: hidden;
 }
 
 .extension-editor > .header > .details > .actions-status-container {
@@ -195,6 +191,10 @@
 
 .extension-editor > .header > .details > .actions-status-container > .monaco-action-bar {
 	text-align: initial;
+}
+
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container {
+	flex-wrap: wrap;
 }
 
 .extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item {

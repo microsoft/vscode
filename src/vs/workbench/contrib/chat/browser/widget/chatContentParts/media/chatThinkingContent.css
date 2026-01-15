@@ -46,6 +46,35 @@
 			.codicon:not(.chat-thinking-icon) {
 				display: none;
 			}
+
+			.chat-terminal-thinking-content {
+				overflow: hidden;
+				padding: 10px 10px 10px 2px;
+
+				.codicon:not(.codicon-check) {
+						display: inline-flex;
+				}
+			}
+
+			.chat-terminal-thinking-collapsible {
+				display: flex;
+				flex-direction: column;
+				width: 100%;
+				margin: 1px 0 0 4px;
+
+				.chat-used-context-list.chat-terminal-thinking-content {
+					border: none;
+					padding: 0;
+
+					.progress-container {
+						margin: 0;
+					}
+				}
+
+				.chat-terminal-thinking-content .rendered-markdown [data-code] {
+					margin-bottom: 0px;
+				}
+			}
 		}
 
 		.chat-thinking-item.markdown-content {
@@ -81,6 +110,10 @@
 					margin-bottom: 0px;
 				}
 			}
+		}
+
+		.chat-thinking-tool-wrapper .chat-terminal-thinking-content .chat-markdown-part.rendered-markdown {
+			padding: 0;
 		}
 
 		/* chain of thought lines */

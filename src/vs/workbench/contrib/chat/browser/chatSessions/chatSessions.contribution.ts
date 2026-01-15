@@ -373,7 +373,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	private async updateInProgressStatus(chatSessionType: string): Promise<void> {
 		try {
-			const items = await this.getChatSessionItems(chatSessionType, CancellationToken.None);
+			const results = await this.getChatSessionItems([chatSessionType], CancellationToken.None);
+			const items = results.flatMap(r => r.items);
 			const inProgress = items.filter(item => item.status && isSessionInProgressStatus(item.status));
 			this.reportInProgress(chatSessionType, inProgress.length);
 		} catch (error) {
@@ -716,14 +717,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return this._isContributionAvailable(contribution) ? contribution : undefined;
 	}
 
-	getAllChatSessionItemProviders(): IChatSessionItemProvider[] {
-		return [...this._itemsProviders.values()].filter(provider => {
-			// Check if the provider's corresponding contribution is available
-			const contribution = this._contributions.get(provider.chatSessionType)?.contribution;
-			return !contribution || this._isContributionAvailable(contribution);
-		});
-	}
-
 	async activateChatSessionItemProvider(chatViewType: string): Promise<IChatSessionItemProvider | undefined> {
 		await this._extensionService.whenInstalledExtensionsRegistered();
 		const resolvedType = this._resolveToPrimaryType(chatViewType);
@@ -761,32 +754,34 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return this._contentProviders.has(chatSessionResource.scheme);
 	}
 
-	async getAllChatSessionItems(token: CancellationToken): Promise<Array<{ readonly chatSessionType: string; readonly items: IChatSessionItem[] }>> {
-		return Promise.all(Array.from(this.getAllChatSessionContributions(), async contrib => {
-			return {
-				chatSessionType: contrib.type,
-				items: await this.getChatSessionItems(contrib.type, token)
-			};
-		}));
-	}
+	public async getChatSessionItems(providersToResolve: readonly string[] | undefined, token: CancellationToken): Promise<Array<{ readonly chatSessionType: string; readonly items: IChatSessionItem[] }>> {
+		const results: Array<{ readonly chatSessionType: string; readonly items: IChatSessionItem[] }> = [];
+		for (const contrib of this.getAllChatSessionContributions()) {
+			if (providersToResolve && !providersToResolve.includes(contrib.type)) {
+				continue; // skip: not considered for resolving
+			}
 
-	private async getChatSessionItems(chatSessionType: string, token: CancellationToken): Promise<IChatSessionItem[]> {
-		if (!(await this.activateChatSessionItemProvider(chatSessionType))) {
-			return [];
+			const provider = await this.activateChatSessionItemProvider(contrib.type);
+			if (!provider) {
+				// We requested this provider but it is not available
+				if (providersToResolve?.includes(contrib.type)) {
+					this._logService.trace(`[ChatSessionsService] No enabled provider found for chat session type ${contrib.type}`);
+				}
+				continue;
+			}
+
+			try {
+				const providerSessions = await raceCancellationError(provider.provideChatSessionItems(token), token);
+				this._logService.trace(`[ChatSessionsService] Resolved ${providerSessions.length} sessions for provider ${provider.chatSessionType}`);
+				results.push({ chatSessionType: provider.chatSessionType, items: providerSessions });
+			} catch (error) {
+				// Log error but continue with other providers
+				this._logService.error(`[ChatSessionsService] Failed to resolve sessions for provider ${provider.chatSessionType}`, error);
+				continue;
+			}
 		}
 
-		const resolvedType = this._resolveToPrimaryType(chatSessionType);
-		if (resolvedType) {
-			chatSessionType = resolvedType;
-		}
-
-		const provider = this._itemsProviders.get(chatSessionType);
-		if (provider?.provideChatSessionItems) {
-			const sessions = await provider.provideChatSessionItems(token);
-			return sessions;
-		}
-
-		return [];
+		return results;
 	}
 
 	public registerChatSessionItemProvider(provider: IChatSessionItemProvider): IDisposable {

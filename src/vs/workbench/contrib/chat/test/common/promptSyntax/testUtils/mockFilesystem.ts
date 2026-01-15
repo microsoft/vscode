@@ -167,15 +167,16 @@ export class MockFilesystem {
 	 */
 	private async ensureParentDirectories(dirUri: URI): Promise<void> {
 		if (!await this.fileService.exists(dirUri)) {
-			if (dirUri.path === '/') {
-				try {
-					await this.fileService.createFolder(dirUri);
-					this.createdFolders.push(dirUri);
-				} catch (error) {
-					throw new Error(`Failed to create directory '${dirUri.toString()}': ${error}.`);
-				}
-			} else {
+			// First ensure the parent directory exists (recursive call)
+			if (dirUri.path !== '/') {
 				await this.ensureParentDirectories(dirname(dirUri));
+			}
+			// Then create this directory
+			try {
+				await this.fileService.createFolder(dirUri);
+				this.createdFolders.push(dirUri);
+			} catch (error) {
+				throw new Error(`Failed to create directory '${dirUri.toString()}': ${error}.`);
 			}
 		}
 	}

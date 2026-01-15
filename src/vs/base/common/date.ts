@@ -24,6 +24,10 @@ const year = day * 365;
  * is less than 30 seconds.
  */
 export function fromNow(date: number | Date, appendAgoLabel?: boolean, useFullTimeWords?: boolean, disallowNow?: boolean): string {
+	if (typeof date === 'undefined') {
+		return localize('date.fromNow.unknown', 'unknown');
+	}
+
 	if (typeof date !== 'number') {
 		date = date.getTime();
 	}

@@ -93,7 +93,11 @@ declare module 'vscode' {
 		 */
 		readonly editedFileEvents?: ChatRequestEditedFileEvent[];
 
-		readonly isSubagent?: boolean;
+		/**
+		 * Unique ID for the subagent invocation, used to group tool calls from the same subagent run together.
+		 * Pass this to tool invocations when calling tools from within a subagent context.
+		 */
+		readonly subAgentInvocationId?: string;
 	}
 
 	export enum ChatRequestEditedFileEventKind {
@@ -234,9 +238,9 @@ declare module 'vscode' {
 		chatInteractionId?: string;
 		terminalCommand?: string;
 		/**
-		 * Lets us add some nicer UI to toolcalls that came from a sub-agent, but in the long run, this should probably just be rendered in a similar way to thinking text + tool call groups
+		 * Unique ID for the subagent invocation, used to group tool calls from the same subagent run together.
 		 */
-		fromSubAgent?: boolean;
+		subAgentInvocationId?: string;
 	}
 
 	export interface LanguageModelToolInvocationPrepareOptions<T> {

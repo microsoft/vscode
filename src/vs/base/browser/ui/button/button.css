@@ -16,6 +16,7 @@
 	border: 1px solid var(--vscode-button-border, transparent);
 	line-height: 16px;
 	font-size: 12px;
+	overflow-wrap: normal;
 }
 
 .monaco-text-button.small {
@@ -46,7 +47,9 @@
 .monaco-text-button.monaco-text-button-with-short-label {
 	flex-direction: row;
 	flex-wrap: wrap;
+	padding: 0 4px;
 	overflow: hidden;
+	height: 28px;
 }
 
 .monaco-text-button.monaco-text-button-with-short-label > .monaco-button-label {
@@ -66,6 +69,8 @@
 	align-items: center;
 	font-weight: normal;
 	font-style: inherit;
+	line-height: 18px;
+	padding: 4px 0;
 }
 
 .monaco-button-dropdown {

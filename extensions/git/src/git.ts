@@ -2958,13 +2958,10 @@ export class Repository {
 	}
 
 	private async getWorktreesFS(): Promise<Worktree[]> {
-		try {
-			// List all worktree folder names
-			const mainRepositoryPath = this.dotGit.commonPath ?? this.dotGit.path;
-			const worktreesPath = path.join(mainRepositoryPath, 'worktrees');
-			const dirents = await fs.readdir(worktreesPath, { withFileTypes: true });
-			const result: Worktree[] = [];
+		const result: Worktree[] = [];
+		const mainRepositoryPath = this.dotGit.commonPath ?? this.dotGit.path;
 
+		try {
 			if (!this.dotGit.isBare) {
 				// Add main worktree for a non-bare repository
 				const headPath = path.join(mainRepositoryPath, 'HEAD');
@@ -2980,6 +2977,10 @@ export class Repository {
 					main: true
 				} satisfies Worktree);
 			}
+
+			// List all worktree folder names
+			const worktreesPath = path.join(mainRepositoryPath, 'worktrees');
+			const dirents = await fs.readdir(worktreesPath, { withFileTypes: true });
 
 			for (const dirent of dirents) {
 				if (!dirent.isDirectory()) {
@@ -3016,7 +3017,7 @@ export class Repository {
 		}
 		catch (err) {
 			if (/ENOENT/.test(err.message) || /ENOTDIR/.test(err.message)) {
-				return [];
+				return result;
 			}
 
 			throw err;

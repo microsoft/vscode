@@ -25,6 +25,8 @@ import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { askForPromptFileName } from './pickers/askForPromptName.js';
 import { askForPromptSourceFolder } from './pickers/askForPromptSourceFolder.js';
 import { IChatModeService } from '../../common/chatModes.js';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
+import { SKILL_FILENAME } from '../../common/promptSyntax/config/promptFileLocations.js';
 
 
 class AbstractNewPromptFileAction extends Action2 {
@@ -165,14 +167,30 @@ function getDefaultContentSnippet(promptType: PromptsType, chatModeService: ICha
 				`\${2:Define what this custom agent accomplishes for the user, when to use it, and the edges it won't cross. Specify its ideal inputs/outputs, the tools it may call, and how it reports progress or asks for help.}`,
 			].join('\n');
 		default:
-			throw new Error(`Unknown prompt type: ${promptType}`);
+			throw new Error(`Unsupported prompt type: ${promptType}`);
 	}
+}
+
+/**
+ * Generates the content snippet for a skill file with the name pre-populated.
+ * Per agentskills.io/specification, the name field must match the parent directory name.
+ */
+function getSkillContentSnippet(skillName: string): string {
+	return [
+		`---`,
+		`name: ${skillName}`,
+		`description: '\${1:Describe what this skill does and when to use it. Include keywords that help agents identify relevant tasks.}'`,
+		`---`,
+		``,
+		`\${2:Provide detailed instructions for the agent. Include step-by-step guidance, examples, and edge cases.}`,
+	].join('\n');
 }
 
 
 export const NEW_PROMPT_COMMAND_ID = 'workbench.command.new.prompt';
 export const NEW_INSTRUCTIONS_COMMAND_ID = 'workbench.command.new.instructions';
 export const NEW_AGENT_COMMAND_ID = 'workbench.command.new.agent';
+export const NEW_SKILL_COMMAND_ID = 'workbench.command.new.skill';
 
 class NewPromptFileAction extends AbstractNewPromptFileAction {
 	constructor() {
@@ -189,6 +207,89 @@ class NewInstructionsFileAction extends AbstractNewPromptFileAction {
 class NewAgentFileAction extends AbstractNewPromptFileAction {
 	constructor() {
 		super(NEW_AGENT_COMMAND_ID, localize('commands.new.agent.local.title', "New Custom Agent..."), PromptsType.agent);
+	}
+}
+
+class NewSkillFileAction extends Action2 {
+	constructor() {
+		super({
+			id: NEW_SKILL_COMMAND_ID,
+			title: localize('commands.new.skill.local.title', "New Skill File..."),
+			f1: false,
+			precondition: ChatContextKeys.enabled,
+			category: CHAT_CATEGORY,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib
+			},
+			menu: {
+				id: MenuId.CommandPalette,
+				when: ChatContextKeys.enabled
+			}
+		});
+	}
+
+	public override async run(accessor: ServicesAccessor) {
+		const openerService = accessor.get(IOpenerService);
+		const editorService = accessor.get(IEditorService);
+		const fileService = accessor.get(IFileService);
+		const instaService = accessor.get(IInstantiationService);
+		const quickInputService = accessor.get(IQuickInputService);
+
+		const selectedFolder = await instaService.invokeFunction(askForPromptSourceFolder, PromptsType.skill);
+		if (!selectedFolder) {
+			return;
+		}
+
+		// Ask for skill name (will be the folder name)
+		// Per agentskills.io/specification: name must be 1-64 chars, lowercase alphanumeric + hyphens,
+		// no leading/trailing hyphens, no consecutive hyphens, must match folder name
+		const skillName = await quickInputService.input({
+			prompt: localize('commands.new.skill.name.prompt', "Enter a name for the skill (lowercase letters, numbers, and hyphens only)"),
+			placeHolder: localize('commands.new.skill.name.placeholder', "e.g., pdf-processing, data-analysis"),
+			validateInput: async (value) => {
+				if (!value || !value.trim()) {
+					return localize('commands.new.skill.name.required', "Skill name is required");
+				}
+				const name = value.trim();
+				if (name.length > 64) {
+					return localize('commands.new.skill.name.tooLong', "Skill name must be 64 characters or less");
+				}
+				// Per spec: lowercase alphanumeric and hyphens only
+				if (!/^[a-z0-9-]+$/.test(name)) {
+					return localize('commands.new.skill.name.invalidChars', "Skill name may only contain lowercase letters, numbers, and hyphens");
+				}
+				if (name.startsWith('-') || name.endsWith('-')) {
+					return localize('commands.new.skill.name.hyphenEdge', "Skill name must not start or end with a hyphen");
+				}
+				if (name.includes('--')) {
+					return localize('commands.new.skill.name.consecutiveHyphens', "Skill name must not contain consecutive hyphens");
+				}
+				return undefined;
+			}
+		});
+
+		if (!skillName) {
+			return;
+		}
+
+		const trimmedName = skillName.trim();
+
+		// Create the skill folder and SKILL.md file
+		const skillFolder = URI.joinPath(selectedFolder.uri, trimmedName);
+		await fileService.createFolder(skillFolder);
+
+		const skillFileUri = URI.joinPath(skillFolder, SKILL_FILENAME);
+		await fileService.createFile(skillFileUri);
+
+		await openerService.open(skillFileUri);
+
+		const editor = getCodeEditor(editorService.activeTextEditorControl);
+		if (editor && editor.hasModel() && isEqual(editor.getModel().uri, skillFileUri)) {
+			SnippetController2.get(editor)?.apply([{
+				range: editor.getModel().getFullModelRange(),
+				template: getSkillContentSnippet(trimmedName),
+			}]);
+		}
 	}
 }
 
@@ -237,5 +338,6 @@ export function registerNewPromptFileActions(): void {
 	registerAction2(NewPromptFileAction);
 	registerAction2(NewInstructionsFileAction);
 	registerAction2(NewAgentFileAction);
+	registerAction2(NewSkillFileAction);
 	registerAction2(NewUntitledPromptFileAction);
 }
