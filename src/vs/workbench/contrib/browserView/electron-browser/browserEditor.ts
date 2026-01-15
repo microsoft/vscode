@@ -6,7 +6,8 @@
 import './media/browser.css';
 import { localize } from '../../../../nls.js';
 import { $, addDisposableListener, disposableWindowInterval, EventType, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { RawContextKey, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -32,13 +33,21 @@ import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.j
 import { WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { IBrowserElementsService } from '../../../services/browserElements/browser/browserElementsService.js';
+import { IChatWidgetService } from '../../chat/browser/chat.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
+import { IChatRequestVariableEntry } from '../../chat/common/attachments/chatVariableEntries.js';
+import { IBrowserTargetLocator, getDisplayNameFromOuterHTML } from '../../../../platform/browserElements/common/browserElements.js';
 
 export const CONTEXT_BROWSER_CAN_GO_BACK = new RawContextKey<boolean>('browserCanGoBack', false, localize('browser.canGoBack', "Whether the browser can go back"));
 export const CONTEXT_BROWSER_CAN_GO_FORWARD = new RawContextKey<boolean>('browserCanGoForward', false, localize('browser.canGoForward', "Whether the browser can go forward"));
 export const CONTEXT_BROWSER_FOCUSED = new RawContextKey<boolean>('browserFocused', true, localize('browser.editorFocused', "Whether the browser editor is focused"));
 export const CONTEXT_BROWSER_STORAGE_SCOPE = new RawContextKey<string>('browserStorageScope', '', localize('browser.storageScope', "The storage scope of the current browser view"));
 export const CONTEXT_BROWSER_DEVTOOLS_OPEN = new RawContextKey<boolean>('browserDevToolsOpen', false, localize('browser.devToolsOpen', "Whether developer tools are open for the current browser view"));
+export const CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE = new RawContextKey<boolean>('browserElementSelectionActive', false, localize('browser.elementSelectionActive', "Whether element selection is currently active"));
 
 class BrowserNavigationBar extends Disposable {
 	private readonly _urlInput: HTMLInputElement;
@@ -93,7 +102,7 @@ class BrowserNavigationBar extends Disposable {
 			{
 				hoverDelegate,
 				highlightToggledItems: true,
-				toolbarOptions: { primaryGroup: 'actions' },
+				toolbarOptions: { primaryGroup: (group) => group.startsWith('actions'), useSeparatorsInPrimaryActions: true },
 				menuOptions: { shouldForwardArgs: true }
 			}
 		));
@@ -147,15 +156,19 @@ export class BrowserEditor extends EditorPane {
 
 	private _navigationBar!: BrowserNavigationBar;
 	private _browserContainer!: HTMLElement;
+	private _placeholderScreenshot!: HTMLElement;
 	private _errorContainer!: HTMLElement;
+	private _welcomeContainer!: HTMLElement;
 	private _canGoBackContext!: IContextKey<boolean>;
 	private _canGoForwardContext!: IContextKey<boolean>;
 	private _storageScopeContext!: IContextKey<string>;
 	private _devToolsOpenContext!: IContextKey<boolean>;
+	private _elementSelectionActiveContext!: IContextKey<boolean>;
 
 	private _model: IBrowserViewModel | undefined;
 	private readonly _inputDisposables = this._register(new DisposableStore());
 	private overlayManager: BrowserOverlayManager | undefined;
+	private _elementSelectionCts: CancellationTokenSource | undefined;
 
 	constructor(
 		group: IEditorGroup,
@@ -166,7 +179,10 @@ export class BrowserEditor extends EditorPane {
 		@ILogService private readonly logService: ILogService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IEditorService private readonly editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService,
+		@IBrowserElementsService private readonly browserElementsService: IBrowserElementsService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(BrowserEditor.ID, group, telemetryService, themeService, storageService);
 	}
@@ -183,6 +199,7 @@ export class BrowserEditor extends EditorPane {
 		this._canGoForwardContext = CONTEXT_BROWSER_CAN_GO_FORWARD.bindTo(contextKeyService);
 		this._storageScopeContext = CONTEXT_BROWSER_STORAGE_SCOPE.bindTo(contextKeyService);
 		this._devToolsOpenContext = CONTEXT_BROWSER_DEVTOOLS_OPEN.bindTo(contextKeyService);
+		this._elementSelectionActiveContext = CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE.bindTo(contextKeyService);
 
 		// Currently this is always true since it is scoped to the editor container
 		CONTEXT_BROWSER_FOCUSED.bindTo(contextKeyService);
@@ -204,10 +221,18 @@ export class BrowserEditor extends EditorPane {
 		this._browserContainer.tabIndex = 0; // make focusable
 		root.appendChild(this._browserContainer);
 
+		// Create placeholder screenshot (background placeholder when WebContentsView is hidden)
+		this._placeholderScreenshot = $('.browser-placeholder-screenshot');
+		this._browserContainer.appendChild(this._placeholderScreenshot);
+
 		// Create error container (hidden by default)
 		this._errorContainer = $('.browser-error-container');
 		this._errorContainer.style.display = 'none';
 		this._browserContainer.appendChild(this._errorContainer);
+
+		// Create welcome container (shown when no URL is loaded)
+		this._welcomeContainer = this.createWelcomeContainer();
+		this._browserContainer.appendChild(this._welcomeContainer);
 
 		this._register(addDisposableListener(this._browserContainer, EventType.FOCUS, (event) => {
 			// When the browser container gets focus, make sure the browser view also gets focused.
@@ -348,15 +373,24 @@ export class BrowserEditor extends EditorPane {
 	}
 
 	private updateVisibility(): void {
+		const hasUrl = !!this._model?.url;
+		const hasError = !!this._model?.error;
+
+		// Welcome container: shown when no URL is loaded
+		this._welcomeContainer.style.display = hasUrl ? 'none' : 'flex';
+
+		// Error container: shown when there's a load error
+		this._errorContainer.style.display = hasError ? 'flex' : 'none';
+
 		if (this._model) {
-			// Blur the background image if the view is hidden due to an overlay.
-			this._browserContainer.classList.toggle('blur', this._editorVisible && this._overlayVisible && !this._model?.error);
+			// Blur the background placeholder screenshot if the view is hidden due to an overlay.
+			this._placeholderScreenshot.classList.toggle('blur', this._editorVisible && this._overlayVisible && !hasError);
 			void this._model.setVisible(this.shouldShowView);
 		}
 	}
 
 	private get shouldShowView(): boolean {
-		return this._editorVisible && !this._overlayVisible && !this._model?.error;
+		return this._editorVisible && !this._overlayVisible && !this._model?.error && !!this._model?.url;
 	}
 
 	private checkOverlays(): void {
@@ -377,8 +411,7 @@ export class BrowserEditor extends EditorPane {
 
 		const error: IBrowserViewLoadError | undefined = this._model.error;
 		if (error) {
-			// Show error display
-			this._errorContainer.style.display = 'flex';
+			// Update error content
 
 			while (this._errorContainer.firstChild) {
 				this._errorContainer.removeChild(this._errorContainer.firstChild);
@@ -409,12 +442,14 @@ export class BrowserEditor extends EditorPane {
 
 			this.setBackgroundImage(undefined);
 		} else {
-			// Hide error display
-			this._errorContainer.style.display = 'none';
 			this.setBackgroundImage(this._model.screenshot);
 		}
 
 		this.updateVisibility();
+	}
+
+	getUrl(): string | undefined {
+		return this._model?.url;
 	}
 
 	async navigateToUrl(url: string): Promise<void> {
@@ -448,6 +483,99 @@ export class BrowserEditor extends EditorPane {
 	}
 
 	/**
+	 * Start element selection in the browser view, wait for a user selection, and add it to chat.
+	 */
+	async addElementToChat(): Promise<void> {
+		// If selection is already active, cancel it
+		if (this._elementSelectionCts) {
+			this._elementSelectionCts.dispose(true);
+			this._elementSelectionCts = undefined;
+			this._elementSelectionActiveContext.set(false);
+			return;
+		}
+
+		// Start new selection
+		const cts = new CancellationTokenSource();
+		this._elementSelectionCts = cts;
+		this._elementSelectionActiveContext.set(true);
+
+		try {
+			// Get the resource URI for this editor
+			const resourceUri = this.input?.resource;
+			if (!resourceUri) {
+				throw new Error('No resource URI found');
+			}
+
+			// Create a locator - for integrated browser, use the URI scheme to identify
+			// Browser view URIs have a special scheme we can match against
+			const locator: IBrowserTargetLocator = { browserViewId: BrowserViewUri.getId(this.input.resource) };
+
+			// Start debug session for integrated browser
+			await this.browserElementsService.startDebugSession(cts.token, locator);
+
+			// Get the browser container bounds
+			const { width, height } = this._browserContainer.getBoundingClientRect();
+
+			// Get element data from user selection
+			const elementData = await this.browserElementsService.getElementData({ x: 0, y: 0, width, height }, cts.token, locator);
+			if (!elementData) {
+				throw new Error('Element data not found');
+			}
+
+			const bounds = elementData.bounds;
+			const toAttach: IChatRequestVariableEntry[] = [];
+
+			// Prepare HTML/CSS context
+			const displayName = getDisplayNameFromOuterHTML(elementData.outerHTML);
+			const attachCss = this.configurationService.getValue<boolean>('chat.sendElementsToChat.attachCSS');
+			let value = (attachCss ? 'Attached HTML and CSS Context' : 'Attached HTML Context') + '\n\n' + elementData.outerHTML;
+			if (attachCss) {
+				value += '\n\n' + elementData.computedStyle;
+			}
+
+			toAttach.push({
+				id: 'element-' + Date.now(),
+				name: displayName,
+				fullName: displayName,
+				value: value,
+				kind: 'element',
+				icon: ThemeIcon.fromId(Codicon.layout.id),
+			});
+
+			// Attach screenshot if enabled
+			if (this.configurationService.getValue('chat.sendElementsToChat.attachImages') && this._model) {
+				const screenshotBuffer = await this._model.captureScreenshot({
+					quality: 90,
+					rect: bounds
+				});
+
+				toAttach.push({
+					id: 'element-screenshot-' + Date.now(),
+					name: 'Element Screenshot',
+					fullName: 'Element Screenshot',
+					kind: 'image',
+					value: screenshotBuffer.buffer
+				});
+			}
+
+			// Attach to chat widget
+			const widget = await this.chatWidgetService.revealWidget() ?? this.chatWidgetService.lastFocusedWidget;
+			widget?.attachmentModel?.addContext(...toAttach);
+
+		} catch (error) {
+			if (!cts.token.isCancellationRequested) {
+				this.logService.error('BrowserEditor.addElementToChat: Failed to select element', error);
+			}
+		} finally {
+			cts.dispose();
+			if (this._elementSelectionCts === cts) {
+				this._elementSelectionCts = undefined;
+				this._elementSelectionActiveContext.set(false);
+			}
+		}
+	}
+
+	/**
 	 * Update navigation state and context keys
 	 */
 	private updateNavigationState(event: IBrowserViewNavigationEvent): void {
@@ -457,14 +585,44 @@ export class BrowserEditor extends EditorPane {
 		// Update context keys for command enablement
 		this._canGoBackContext.set(event.canGoBack);
 		this._canGoForwardContext.set(event.canGoForward);
+
+		// Update visibility (welcome screen, error, browser view)
+		this.updateVisibility();
+	}
+
+	/**
+	 * Create the welcome container shown when no URL is loaded
+	 */
+	private createWelcomeContainer(): HTMLElement {
+		const container = $('.browser-welcome-container');
+		const content = $('.browser-welcome-content');
+
+		const iconContainer = $('.browser-welcome-icon');
+		iconContainer.appendChild(renderIcon(Codicon.globe));
+		content.appendChild(iconContainer);
+
+		const title = $('.browser-welcome-title');
+		title.textContent = localize('browser.welcomeTitle', "Browser");
+		content.appendChild(title);
+
+		const subtitle = $('.browser-welcome-subtitle');
+		subtitle.textContent = localize('browser.welcomeSubtitle', "Enter a URL above to get started.");
+		content.appendChild(subtitle);
+
+		const tip = $('.browser-welcome-tip');
+		tip.textContent = localize('browser.welcomeTip', "Tip: Use the Add Element to Chat feature to reference UI elements when asking Copilot for changes.");
+		content.appendChild(tip);
+
+		container.appendChild(content);
+		return container;
 	}
 
 	private setBackgroundImage(buffer: VSBuffer | undefined): void {
 		if (buffer) {
 			const dataUrl = `data:image/jpeg;base64,${encodeBase64(buffer)}`;
-			this._browserContainer.style.backgroundImage = `url('${dataUrl}')`;
+			this._placeholderScreenshot.style.backgroundImage = `url('${dataUrl}')`;
 		} else {
-			this._browserContainer.style.backgroundImage = '';
+			this._placeholderScreenshot.style.backgroundImage = '';
 		}
 	}
 
@@ -527,6 +685,12 @@ export class BrowserEditor extends EditorPane {
 	override clearInput(): void {
 		this._inputDisposables.clear();
 
+		// Cancel any active element selection
+		if (this._elementSelectionCts) {
+			this._elementSelectionCts.dispose(true);
+			this._elementSelectionCts = undefined;
+		}
+
 		void this._model?.setVisible(false);
 		this._model = undefined;
 
@@ -534,6 +698,7 @@ export class BrowserEditor extends EditorPane {
 		this._canGoForwardContext.reset();
 		this._storageScopeContext.reset();
 		this._devToolsOpenContext.reset();
+		this._elementSelectionActiveContext.reset();
 
 		this._navigationBar.clear();
 		this.setBackgroundImage(undefined);

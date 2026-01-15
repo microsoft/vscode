@@ -24,6 +24,7 @@
     "contribSourceControlTitleMenu",
     "contribViewsWelcome",
     "editSessionIdentityProvider",
+    "findFiles2",
     "quickDiffProvider",
     "quickPickSortByLabel",
     "scmActionButton",
@@ -3576,7 +3577,7 @@
             "type": "string"
           },
           "default": [
-            "**/node_modules{,/**}"
+            "**/node_modules/**"
           ],
           "scope": "resource",
           "markdownDescription": "%config.worktreeIncludeFiles%"

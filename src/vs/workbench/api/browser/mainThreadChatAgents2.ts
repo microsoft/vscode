@@ -36,6 +36,7 @@ import { ChatRequestParser } from '../../contrib/chat/common/requestParser/chatR
 import { IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatService, IChatTask, IChatTaskSerialized, IChatWarningMessage } from '../../contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../contrib/chat/common/constants.js';
+import { ILanguageModelToolsService } from '../../contrib/chat/common/tools/languageModelToolsService.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
@@ -123,6 +124,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IPromptsService private readonly _promptsService: IPromptsService,
 		@IChatPromptContentStore private readonly _chatPromptContentStore: IChatPromptContentStore,
+		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatAgents2);
@@ -279,6 +281,24 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 						: await chatSession.editingSession.stopExternalEdits(response, responsePartHandle);
 					chatProgressParts.push(...parts);
 				}
+				continue;
+			}
+
+			if (progress.kind === 'beginToolInvocation') {
+				// Begin a streaming tool invocation
+				this._languageModelToolsService.beginToolCall({
+					toolCallId: progress.toolCallId,
+					toolId: progress.toolName,
+					chatRequestId: requestId,
+					sessionResource: chatSession?.sessionResource,
+					subagentInvocationId: progress.subagentInvocationId
+				});
+				continue;
+			}
+
+			if (progress.kind === 'updateToolInvocation') {
+				// Update the streaming data for an existing tool invocation
+				this._languageModelToolsService.updateToolStream(progress.toolCallId, progress.streamData?.partialInput, CancellationToken.None);
 				continue;
 			}
 

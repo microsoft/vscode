@@ -24,7 +24,7 @@ import { createDecorator } from '../../../../../platform/instantiation/common/in
 import { IProgress } from '../../../../../platform/progress/common/progress.js';
 import { UserSelectedTools } from '../participants/chatAgents.js';
 import { IVariableReference } from '../chatModes.js';
-import { IChatExtensionsContent, IChatTodoListContent, IChatToolInputInvocationData, type IChatTerminalToolInvocationData } from '../chatService/chatService.js';
+import { IChatExtensionsContent, IChatSubagentToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, type IChatTerminalToolInvocationData } from '../chatService/chatService.js';
 import { ChatRequestToolReferenceEntry } from '../attachments/chatVariableEntries.js';
 import { LanguageModelPartAudience } from '../languageModels.js';
 import { PromptElementJSON, stringifyPromptElementJSON } from './promptTsxTypes.js';
@@ -133,10 +133,14 @@ export interface IToolInvocation {
 	chatRequestId?: string;
 	chatInteractionId?: string;
 	/**
+	 * Optional tool call ID from the chat stream, used to correlate with pending streaming tool calls.
+	 */
+	chatStreamToolCallId?: string;
+	/**
 	 * Lets us add some nicer UI to toolcalls that came from a sub-agent, but in the long run, this should probably just be rendered in a similar way to thinking text + tool call groups
 	 */
-	fromSubAgent?: boolean;
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent;
+	subAgentInvocationId?: string;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData;
 	modelId?: string;
 	userSelectedTools?: UserSelectedTools;
 }
@@ -286,18 +290,31 @@ export enum ToolInvocationPresentation {
 	HiddenAfterComplete = 'hiddenAfterComplete'
 }
 
+export interface IToolInvocationStreamContext {
+	toolCallId: string;
+	rawInput: unknown;
+	chatRequestId?: string;
+	chatSessionId?: string;
+	chatInteractionId?: string;
+}
+
+export interface IStreamedToolInvocation {
+	invocationMessage?: string | IMarkdownString;
+}
+
 export interface IPreparedToolInvocation {
 	invocationMessage?: string | IMarkdownString;
 	pastTenseMessage?: string | IMarkdownString;
 	originMessage?: string | IMarkdownString;
 	confirmationMessages?: IToolConfirmationMessages;
 	presentation?: ToolInvocationPresentation;
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData;
 }
 
 export interface IToolImpl {
 	invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult>;
 	prepareToolInvocation?(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined>;
+	handleToolStream?(context: IToolInvocationStreamContext, token: CancellationToken): Promise<IStreamedToolInvocation | undefined>;
 }
 
 export type IToolAndToolSetEnablementMap = ReadonlyMap<IToolData | ToolSet, boolean>;
@@ -354,6 +371,14 @@ export class ToolSet {
 }
 
 
+export interface IBeginToolCallOptions {
+	toolCallId: string;
+	toolId: string;
+	chatRequestId?: string;
+	sessionResource?: URI;
+	subagentInvocationId?: string;
+}
+
 export const ILanguageModelToolsService = createDecorator<ILanguageModelToolsService>('ILanguageModelToolsService');
 
 export type CountTokensCallback = (input: string, token: CancellationToken) => Promise<number>;
@@ -372,6 +397,20 @@ export interface ILanguageModelToolsService {
 	readonly toolsObservable: IObservable<readonly IToolData[]>;
 	getTool(id: string): IToolData | undefined;
 	getToolByName(name: string, includeDisabled?: boolean): IToolData | undefined;
+
+	/**
+	 * Begin a tool call in the streaming phase.
+	 * Creates a ChatToolInvocation in the Streaming state and appends it to the chat.
+	 * Returns the invocation so it can be looked up later when invokeTool is called.
+	 */
+	beginToolCall(options: IBeginToolCallOptions): IChatToolInvocation | undefined;
+
+	/**
+	 * Update the streaming state of a pending tool call.
+	 * Calls the tool's handleToolStream method to get a custom invocation message.
+	 */
+	updateToolStream(toolCallId: string, partialInput: unknown, token: CancellationToken): Promise<void>;
+
 	invokeTool(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
 	cancelToolCallsForRequest(requestId: string): void;
 	/** Flush any pending tool updates to the extension hosts. */

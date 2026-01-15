@@ -151,7 +151,6 @@ export interface IChatMarkdownContent {
 	kind: 'markdownContent';
 	content: IMarkdownString;
 	inlineReferences?: Record<string, IChatContentInlineReference>;
-	fromSubagent?: boolean;
 }
 
 export interface IChatTreeData {
@@ -176,6 +175,7 @@ export interface IChatMultiDiffData {
 	kind: 'multiDiffData';
 	collapsed?: boolean;
 	readOnly?: boolean;
+	toJSON(): IChatMultiDiffDataSerialized;
 }
 
 export interface IChatMultiDiffDataSerialized {
@@ -225,6 +225,7 @@ export interface IChatTask extends IChatTaskDto {
 	complete: (result: string | void) => void;
 	task: () => Promise<string | void>;
 	isSettled: () => boolean;
+	toJSON(): IChatTaskSerialized;
 }
 
 export interface IChatUndoStop {
@@ -341,6 +342,7 @@ export interface IChatElicitationRequest {
 	reject?: () => Promise<void>;
 	isHidden?: IObservable<boolean>;
 	hide?(): void;
+	toJSON(): IChatElicitationRequestSerialized;
 }
 
 export interface IChatElicitationRequestSerialized {
@@ -446,24 +448,26 @@ export type ConfirmedReason =
 
 export interface IChatToolInvocation {
 	readonly presentation: IPreparedToolInvocation['presentation'];
-	readonly toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent;
-	readonly confirmationMessages?: IToolConfirmationMessages;
+	readonly toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData;
 	readonly originMessage: string | IMarkdownString | undefined;
 	readonly invocationMessage: string | IMarkdownString;
 	readonly pastTenseMessage: string | IMarkdownString | undefined;
 	readonly source: ToolDataSource;
 	readonly toolId: string;
 	readonly toolCallId: string;
-	readonly parameters: unknown;
-	readonly fromSubAgent?: boolean;
+	readonly subAgentInvocationId?: string;
 	readonly state: IObservable<IChatToolInvocation.State>;
 	generatedTitle?: string;
 
 	kind: 'toolInvocation';
+
+	toJSON(): IChatToolInvocationSerialized;
 }
 
 export namespace IChatToolInvocation {
 	export const enum StateKind {
+		/** Tool call is streaming partial input from the LM */
+		Streaming,
 		WaitingForConfirmation,
 		Executing,
 		WaitingForPostApproval,
@@ -475,12 +479,26 @@ export namespace IChatToolInvocation {
 		type: StateKind;
 	}
 
-	interface IChatToolInvocationWaitingForConfirmationState extends IChatToolInvocationStateBase {
+	export interface IChatToolInvocationStreamingState extends IChatToolInvocationStateBase {
+		type: StateKind.Streaming;
+		/** Observable partial input from the LM stream */
+		readonly partialInput: IObservable<unknown>;
+		/** Custom invocation message from handleToolStream */
+		readonly streamingMessage: IObservable<string | IMarkdownString | undefined>;
+	}
+
+	/** Properties available after streaming is complete */
+	interface IChatToolInvocationPostStreamState {
+		readonly parameters: unknown;
+		readonly confirmationMessages?: IToolConfirmationMessages;
+	}
+
+	interface IChatToolInvocationWaitingForConfirmationState extends IChatToolInvocationStateBase, IChatToolInvocationPostStreamState {
 		type: StateKind.WaitingForConfirmation;
 		confirm(reason: ConfirmedReason): void;
 	}
 
-	interface IChatToolInvocationPostConfirmState {
+	interface IChatToolInvocationPostConfirmState extends IChatToolInvocationPostStreamState {
 		confirmed: ConfirmedReason;
 	}
 
@@ -505,12 +523,13 @@ export namespace IChatToolInvocation {
 		contentForModel: IToolResult['content'];
 	}
 
-	interface IChatToolInvocationCancelledState extends IChatToolInvocationStateBase {
+	interface IChatToolInvocationCancelledState extends IChatToolInvocationStateBase, IChatToolInvocationPostStreamState {
 		type: StateKind.Cancelled;
 		reason: ToolConfirmKind.Denied | ToolConfirmKind.Skipped;
 	}
 
 	export type State =
+		| IChatToolInvocationStreamingState
 		| IChatToolInvocationWaitingForConfirmationState
 		| IChatToolInvocationExecutingState
 		| IChatToolWaitingForPostApprovalState
@@ -526,7 +545,7 @@ export namespace IChatToolInvocation {
 		}
 
 		const state = invocation.state.read(reader);
-		if (state.type === StateKind.WaitingForConfirmation) {
+		if (state.type === StateKind.Streaming || state.type === StateKind.WaitingForConfirmation) {
 			return undefined; // don't know yet
 		}
 		if (state.type === StateKind.Cancelled) {
@@ -630,6 +649,47 @@ export namespace IChatToolInvocation {
 		const state = invocation.state.read(reader);
 		return state.type === StateKind.Completed || state.type === StateKind.Cancelled;
 	}
+
+	export function isStreaming(invocation: IChatToolInvocation | IChatToolInvocationSerialized, reader?: IReader): boolean {
+		if (invocation.kind === 'toolInvocationSerialized') {
+			return false;
+		}
+
+		const state = invocation.state.read(reader);
+		return state.type === StateKind.Streaming;
+	}
+
+	/**
+	 * Get parameters from invocation. Returns undefined during streaming state.
+	 */
+	export function getParameters(invocation: IChatToolInvocation | IChatToolInvocationSerialized, reader?: IReader): unknown | undefined {
+		if (invocation.kind === 'toolInvocationSerialized') {
+			return undefined; // serialized invocations don't store parameters
+		}
+
+		const state = invocation.state.read(reader);
+		if (state.type === StateKind.Streaming) {
+			return undefined;
+		}
+
+		return state.parameters;
+	}
+
+	/**
+	 * Get confirmation messages from invocation. Returns undefined during streaming state.
+	 */
+	export function getConfirmationMessages(invocation: IChatToolInvocation | IChatToolInvocationSerialized, reader?: IReader): IToolConfirmationMessages | undefined {
+		if (invocation.kind === 'toolInvocationSerialized') {
+			return undefined; // serialized invocations don't store confirmation messages
+		}
+
+		const state = invocation.state.read(reader);
+		if (state.type === StateKind.Streaming) {
+			return undefined;
+		}
+
+		return state.confirmationMessages;
+	}
 }
 
 
@@ -646,7 +706,7 @@ export interface IToolResultOutputDetailsSerialized {
  */
 export interface IChatToolInvocationSerialized {
 	presentation: IPreparedToolInvocation['presentation'];
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData;
 	invocationMessage: string | IMarkdownString;
 	originMessage: string | IMarkdownString | undefined;
 	pastTenseMessage: string | IMarkdownString | undefined;
@@ -657,7 +717,7 @@ export interface IChatToolInvocationSerialized {
 	toolCallId: string;
 	toolId: string;
 	source: ToolDataSource;
-	readonly fromSubAgent?: boolean;
+	readonly subAgentInvocationId?: string;
 	generatedTitle?: string;
 	kind: 'toolInvocationSerialized';
 }
@@ -676,6 +736,14 @@ export interface IChatPullRequestContent {
 	kind: 'pullRequest';
 }
 
+export interface IChatSubagentToolInvocationData {
+	kind: 'subagent';
+	description?: string;
+	agentName?: string;
+	prompt?: string;
+	result?: string;
+}
+
 export interface IChatTodoListContent {
 	kind: 'todoList';
 	sessionId: string;
@@ -690,6 +758,13 @@ export interface IChatTodoListContent {
 export interface IChatMcpServersStarting {
 	readonly kind: 'mcpServersStarting';
 	readonly state?: IObservable<IAutostartResult>; // not hydrated when serialized
+	didStartServerIds?: string[];
+	toJSON(): IChatMcpServersStartingSerialized;
+}
+
+export interface IChatMcpServersStartingSerialized {
+	readonly kind: 'mcpServersStarting';
+	readonly state?: undefined;
 	didStartServerIds?: string[];
 }
 
@@ -717,14 +792,9 @@ export class ChatMcpServersStarting implements IChatMcpServersStarting {
 		});
 	}
 
-	toJSON(): IChatMcpServersStarting {
+	toJSON(): IChatMcpServersStartingSerialized {
 		return { kind: 'mcpServersStarting', didStartServerIds: this.didStartServerIds };
 	}
-}
-
-export interface IChatPrepareToolInvocationPart {
-	readonly kind: 'prepareToolInvocation';
-	readonly toolName: string;
 }
 
 export type IChatProgress =
@@ -732,6 +802,7 @@ export type IChatProgress =
 	| IChatAgentMarkdownContentWithVulnerability
 	| IChatTreeData
 	| IChatMultiDiffData
+	| IChatMultiDiffDataSerialized
 	| IChatUsedContext
 	| IChatContentReference
 	| IChatContentInlineReference
@@ -752,12 +823,12 @@ export type IChatProgress =
 	| IChatExtensionsContent
 	| IChatPullRequestContent
 	| IChatUndoStop
-	| IChatPrepareToolInvocationPart
 	| IChatThinkingPart
 	| IChatTaskSerialized
 	| IChatElicitationRequest
 	| IChatElicitationRequestSerialized
-	| IChatMcpServersStarting;
+	| IChatMcpServersStarting
+	| IChatMcpServersStartingSerialized;
 
 export interface IChatFollowup {
 	kind: 'reply';
@@ -927,8 +998,24 @@ export interface IChatSessionStats {
 }
 
 export interface IChatSessionTiming {
-	startTime: number;
-	endTime?: number;
+	/**
+	 * Timestamp when the session was created in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
+	 */
+	created: number;
+
+	/**
+	 * Timestamp when the most recent request started in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
+	 *
+	 * Should be undefined if no requests have been made yet.
+	 */
+	lastRequestStarted: number | undefined;
+
+	/**
+	 * Timestamp when the most recent request completed in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
+	 *
+	 * Should be undefined if the most recent request is still in progress or if no requests have been made yet.
+	 */
+	lastRequestEnded: number | undefined;
 }
 
 export const enum ResponseModelState {
@@ -1020,6 +1107,8 @@ export interface IChatService {
 	transferredSessionResource: URI | undefined;
 
 	readonly onDidSubmitRequest: Event<{ readonly chatSessionResource: URI }>;
+
+	readonly onDidCreateModel: Event<IChatModel>;
 
 	/**
 	 * An observable containing all live chat models.

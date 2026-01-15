@@ -43,6 +43,7 @@
 
 .models-widget .models-search-and-button-container .section-title-actions .models-add-model-button {
 	white-space: nowrap;
+	padding: 4px 8px 4px 4px;
 }
 
 /** Table styling **/
@@ -135,7 +136,7 @@
 	opacity: 1;
 }
 
-.models-widget .models-table-container .monaco-list-row .monaco-table-tr .models-table-column.models-actions-column .actions-container {
+.models-widget .models-table-container .monaco-list-row .monaco-table-tr.models-model-row .models-table-column.models-actions-column .actions-container {
 	display: none;
 	align-items: center;
 	justify-content: center;
