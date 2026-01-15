@@ -39,18 +39,15 @@
 }
 
 /* Locked state styling - matches disabled action item styling */
-.monaco-action-bar .action-item.locked .chat-session-option-picker,
-.monaco-action-bar .action-item .chat-session-option-picker.locked {
+.monaco-action-bar .action-item.locked .chat-session-option-picker {
 	color: var(--vscode-disabledForeground);
 	cursor: default;
 }
 
-.monaco-action-bar .action-item.locked .chat-session-option-picker .codicon,
-.monaco-action-bar .action-item .chat-session-option-picker.locked .codicon {
+.monaco-action-bar .action-item.locked .chat-session-option-picker .codicon {
 	color: var(--vscode-disabledForeground);
 }
 
-.monaco-action-bar .action-item.locked,
-.monaco-action-bar .action-item .chat-session-option-picker.locked {
+.monaco-action-bar .action-item.locked {
 	pointer-events: none;
 }
