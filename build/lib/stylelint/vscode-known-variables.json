@@ -899,6 +899,7 @@
 		"--vscode-window-inactiveBorder"
 	],
 	"others": [
+		"--editor-font-size",
 		"--background-dark",
 		"--background-light",
 		"--chat-editing-last-edit-shift",
@@ -996,7 +997,8 @@
 		"--comment-thread-editor-font-weight",
 		"--comment-thread-state-color",
 		"--comment-thread-state-background-color",
-		"--inline-edit-border-radius"
+		"--inline-edit-border-radius",
+		"--chat-subagent-last-item-height"
 	],
 	"sizes": [
 		"--vscode-bodyFontSize",

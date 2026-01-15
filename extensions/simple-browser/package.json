@@ -51,6 +51,15 @@
             "default": true,
             "title": "Focus Lock Indicator Enabled",
             "description": "%configuration.focusLockIndicator.enabled.description%"
+          },
+          "simpleBrowser.useIntegratedBrowser": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%configuration.useIntegratedBrowser.description%",
+            "scope": "application",
+            "tags": [
+              "experimental"
+            ]
           }
         }
       }

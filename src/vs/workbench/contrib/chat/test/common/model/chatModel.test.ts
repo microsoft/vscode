@@ -642,11 +642,10 @@ suite('ChatResponseModel', () => {
 			assert.strictEqual(response.confirmationAdjustedTimestamp.get(), start);
 
 			// Add pending confirmation via tool invocation
-			const toolState = observableValue<any>('state', { type: 0 /* IChatToolInvocation.StateKind.WaitingForConfirmation */ });
+			const toolState = observableValue<any>('state', { type: 1 /* IChatToolInvocation.StateKind.WaitingForConfirmation */, confirmationMessages: { title: 'Please confirm' } });
 			const toolInvocation = {
 				kind: 'toolInvocation',
 				invocationMessage: 'calling tool',
-				confirmationMessages: { title: 'Please confirm' },
 				state: toolState
 			} as Partial<IChatToolInvocation> as IChatToolInvocation;
 
@@ -658,7 +657,7 @@ suite('ChatResponseModel', () => {
 			assert.strictEqual(response.confirmationAdjustedTimestamp.get(), start);
 
 			// Resolve confirmation
-			toolState.set({ type: 3 /* IChatToolInvocation.StateKind.Completed */ }, undefined);
+			toolState.set({ type: 4 /* IChatToolInvocation.StateKind.Completed */ }, undefined);
 
 			// Now adjusted timestamp should reflect the wait time
 			// The wait time was 2000ms.

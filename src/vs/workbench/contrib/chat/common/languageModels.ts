@@ -276,7 +276,7 @@ export interface ILanguageModelChatInfoOptions {
 
 export interface ILanguageModelsGroup {
 	readonly group?: ILanguageModelsProviderGroup;
-	readonly models: ILanguageModelChatMetadataAndIdentifier[];
+	readonly modelIdentifiers: string[];
 	readonly status?: {
 		readonly message: string;
 		readonly severity: Severity;
@@ -546,11 +546,11 @@ export class LanguageModelsService implements ILanguageModelsService {
 				const models = await this._resolveLanguageModels(provider, { silent });
 				if (models.length) {
 					allModels.push(...models);
-					languageModelsGroups.push({ models });
+					languageModelsGroups.push({ modelIdentifiers: models.map(m => m.identifier) });
 				}
 			} catch (error) {
 				languageModelsGroups.push({
-					models: [],
+					modelIdentifiers: [],
 					status: {
 						message: getErrorMessage(error),
 						severity: Severity.Error
@@ -570,12 +570,12 @@ export class LanguageModelsService implements ILanguageModelsService {
 					const models = await this._resolveLanguageModels(provider, { group: group.name, silent, configuration });
 					if (models.length) {
 						allModels.push(...models);
-						languageModelsGroups.push({ group, models });
+						languageModelsGroups.push({ group, modelIdentifiers: models.map(m => m.identifier) });
 					}
 				} catch (error) {
 					languageModelsGroups.push({
 						group,
-						models: [],
+						modelIdentifiers: [],
 						status: {
 							message: getErrorMessage(error),
 							severity: Severity.Error

@@ -8,15 +8,16 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IChatEditingSession } from '../../../common/editing/chatEditingService.js';
-import { IChatChangeEvent, IChatModel, IChatRequestModel, IChatRequestNeedsInputInfo, IExportableChatData, IInputModel, ISerializableChatData } from '../../../common/model/chatModel.js';
+import { IChatChangeEvent, IChatModel, IChatRequestModel, IChatRequestNeedsInputInfo, IExportableChatData, IExportableRepoData, IInputModel, ISerializableChatData } from '../../../common/model/chatModel.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
+import { IChatSessionTiming } from '../../../common/chatService/chatService.js';
 
 export class MockChatModel extends Disposable implements IChatModel {
 	readonly onDidDispose = this._register(new Emitter<void>()).event;
 	readonly onDidChange = this._register(new Emitter<IChatChangeEvent>()).event;
 	sessionId = '';
 	readonly timestamp = 0;
-	readonly timing = { startTime: 0 };
+	readonly timing: IChatSessionTiming = { created: Date.now(), lastRequestStarted: undefined, lastRequestEnded: undefined };
 	readonly initialLocation = ChatAgentLocation.Chat;
 	readonly title = '';
 	readonly hasCustomTitle = false;
@@ -38,6 +39,7 @@ export class MockChatModel extends Disposable implements IChatModel {
 		toJSON: () => undefined
 	};
 	readonly contributedChatSession = undefined;
+	repoData: IExportableRepoData | undefined = undefined;
 	isDisposed = false;
 	lastRequestObs: IObservable<IChatRequestModel | undefined>;
 
@@ -58,6 +60,7 @@ export class MockChatModel extends Disposable implements IChatModel {
 	startEditingSession(isGlobalEditingSession?: boolean, transferFromSession?: IChatEditingSession): void { }
 	getRequests(): IChatRequestModel[] { return []; }
 	setCheckpoint(requestId: string | undefined): void { }
+	setRepoData(data: IExportableRepoData | undefined): void { this.repoData = data; }
 	toExport(): IExportableChatData {
 		return {
 			initialLocation: this.initialLocation,
@@ -74,6 +77,7 @@ export class MockChatModel extends Disposable implements IChatModel {
 			initialLocation: this.initialLocation,
 			requests: [],
 			responderUsername: '',
+			repoData: this.repoData
 		};
 	}
 }
