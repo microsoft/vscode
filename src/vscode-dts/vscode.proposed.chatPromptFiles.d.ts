@@ -256,7 +256,7 @@ declare module 'vscode' {
 		 * @param provider The skill provider.
 		 * @returns A disposable that unregisters the provider when disposed.
 		 */
-		export function registerPromptFileProvider(
+		export function registerSkillProvider(
 			provider: SkillProvider
 		): Disposable;
 	}

@@ -1967,6 +1967,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			CustomAgentChatResource: extHostTypes.CustomAgentChatResource,
 			InstructionsChatResource: extHostTypes.InstructionsChatResource,
 			PromptFileChatResource: extHostTypes.PromptFileChatResource,
+			SkillChatResource: extHostTypes.SkillChatResource,
 		};
 	};
 }
