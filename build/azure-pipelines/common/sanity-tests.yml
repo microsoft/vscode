@@ -91,28 +91,32 @@ jobs:
               # Install Node.js and X11
               if command -v apt-get &> /dev/null; then
                 apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
-                  curl ca-certificates xvfb libgtk-3-0 libnss3 libgbm1 libasound2 xdg-utils sudo
+                  curl ca-certificates xvfb libgtk-3-0 libnss3 libgbm1 libasound2 xdg-utils sudo dbus dbus-x11
                 curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
                 apt-get install -y nodejs
               elif command -v dnf &> /dev/null; then
                 dnf install -y epel-release
-                dnf install -y nodejs gtk3 nss mesa-libgbm alsa-lib sudo
+                dnf install -y nodejs gtk3 nss mesa-libgbm alsa-lib sudo dbus dbus-x11
                 dnf install -y xorg-x11-server-Xvfb
                 dnf install -y xdg-utils
               elif command -v yum &> /dev/null; then
                 yum install -y epel-release
-                yum install -y nodejs gtk3 nss mesa-libgbm alsa-lib sudo
+                yum install -y nodejs gtk3 nss mesa-libgbm alsa-lib sudo dbus dbus-x11
                 yum install -y xorg-x11-server-Xvfb
                 yum install -y xdg-utils
               elif command -v zypper &> /dev/null; then
-                zypper install -y nodejs22 xorg-x11-server-Xvfb libgtk-3-0 mozilla-nss libgbm1 alsa xdg-utils sudo tar gzip
+                zypper install -y nodejs22 xorg-x11-server-Xvfb libgtk-3-0 mozilla-nss libgbm1 alsa xdg-utils sudo tar gzip dbus-1 dbus-1-x11
               elif command -v apk &> /dev/null; then
-                apk add --no-cache nodejs npm xvfb gtk+3.0 nss mesa-gbm sudo
+                apk add --no-cache nodejs npm xvfb gtk+3.0 nss mesa-gbm sudo dbus dbus-x11
               fi
 
               # Install Playwright Chrome browser
               cd /workspace/test/sanity
               ./node_modules/.bin/playwright install chrome
+
+              # Start D-Bus session for Electron
+              mkdir -p /run/dbus
+              dbus-daemon --system --fork
 
               # Run tests
               node out/index.js -c "$(BUILD_COMMIT)" -q "$(BUILD_QUALITY)" \

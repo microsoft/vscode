@@ -933,7 +933,7 @@ export class TestContext {
 	 * @returns The constructed web server URL.
 	 */
 	public getWebServerUrl(port: string, token?: string, folder?: string): URL {
-		const url = new URL(`http://localhost:${port}`);
+		const url = new URL(`http://127.0.0.1:${port}`);
 		if (token) {
 			url.searchParams.set('tkn', token);
 		}
