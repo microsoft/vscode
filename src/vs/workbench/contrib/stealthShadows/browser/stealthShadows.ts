@@ -21,14 +21,14 @@ export class StealthShadowsContribution extends Disposable implements IWorkbench
 		this.updateStealthShadows();
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('workbench.stealthShadows.enabled')) {
+			if (e.affectsConfiguration('workbench.depth')) {
 				this.updateStealthShadows();
 			}
 		}));
 	}
 
 	private updateStealthShadows(): void {
-		const enabled = this.configurationService.getValue<boolean>('workbench.stealthShadows.enabled') ?? false;
+		const enabled = this.configurationService.getValue<boolean>('workbench.depth') ?? false;
 		this.layoutService.mainContainer.classList.toggle('stealth-shadows-enabled', enabled);
 	}
 }
