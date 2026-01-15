@@ -23,8 +23,7 @@ import { IAction } from '../../../../../base/common/actions.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 
-const TOGGLE_CHAT_ACTION_ID = 'workbench.action.chat.toggle';
-const OPEN_CHAT_ACTION_ID = 'workbench.action.chat.open'; // Has the keybinding
+const OPEN_CHAT_ACTION_ID = 'workbench.action.chat.open';
 const QUICK_CHAT_ACTION_ID = 'workbench.action.quickchat.toggle';
 const QUICK_OPEN_ACTION_ID = 'workbench.action.quickOpenWithModes';
 
