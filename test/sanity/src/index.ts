@@ -52,4 +52,6 @@ mocha.addFile(fileURLToPath(new URL('./main.js', import.meta.url)));
 await mocha.loadFilesAsync();
 mocha.run(failures => {
 	process.exitCode = failures > 0 ? 1 : 0;
+	// Force exit to prevent hanging on open handles (background processes, timers, etc.)
+	setTimeout(() => process.exit(process.exitCode), 100);
 });
