@@ -62,7 +62,7 @@ function getDataToCopy(viewModel: IViewModel, modelSelections: Range[], emptySel
 	const filteredSelections = copyExcludesHiddenAreas
 		? filterSelectionsExcludingHiddenAreas(viewModel, modelSelections)
 		: modelSelections;
-	
+
 	const rawTextToCopy = viewModel.getPlainTextToCopy(filteredSelections, emptySelectionClipboard, isWindows);
 	const newLineCharacter = viewModel.model.getEOL();
 
@@ -98,7 +98,7 @@ function getDataToCopy(viewModel: IViewModel, modelSelections: Range[], emptySel
  */
 function filterSelectionsExcludingHiddenAreas(viewModel: IViewModel, selections: Range[]): Range[] {
 	const hiddenAreas = viewModel.getHiddenAreas();
-	
+
 	if (hiddenAreas.length === 0) {
 		return selections;
 	}
@@ -114,15 +114,6 @@ function filterSelectionsExcludingHiddenAreas(viewModel: IViewModel, selections:
 }
 
 /**
- * Checks if a line is hidden by any hidden area.
- */
-function isLineHidden(lineNumber: number, hiddenAreas: Range[]): boolean {
-	return hiddenAreas.some(h =>
-		lineNumber >= h.startLineNumber && lineNumber <= h.endLineNumber
-	);
-}
-
-/**
  * Splits a range into visible sub-ranges by excluding hidden areas.
  * Uses a line-by-line approach to identify continuous visible ranges.
  */
@@ -131,7 +122,7 @@ function splitRangeByHiddenAreas(viewModel: IViewModel, range: Range, hiddenArea
 	let visibleStart: number | null = null;
 
 	for (let line = range.startLineNumber; line <= range.endLineNumber; line++) {
-		const hidden = isLineHidden(line, hiddenAreas);
+		const hidden = hiddenAreas.some(h => line >= h.startLineNumber && line <= h.endLineNumber);
 
 		if (hidden) {
 			// End current visible range if any
