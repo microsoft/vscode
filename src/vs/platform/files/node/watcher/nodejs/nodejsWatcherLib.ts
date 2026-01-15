@@ -252,13 +252,6 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 					return;
 				}
 
-				// Avoid handling any further errors if the watcher has already
-				// failed. On Windows, deleting the watched path can trigger an
-				// endless error loop which would cause high CPU usage.
-				if (this.didFail) {
-					return;
-				}
-
 				this.error(`Failed to watch ${realPath} for changes using fs.watch() (${code}, ${signal})`);
 
 				this.notifyWatchFailed();
