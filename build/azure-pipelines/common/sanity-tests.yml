@@ -114,14 +114,22 @@ jobs:
 
                   apt-get install -y \
                     libgstreamer1.0-0 libgstreamer-plugins-base1.0-0 libgstreamer-gl1.0-0 \
-                    gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
+                    gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad \
                     libxslt1.1 libvpx7 libevent-2.1-7 libopus0 \
                     libwebpdemux2 libwebpmux3 libharfbuzz-icu0 \
                     libenchant-2-2 libsecret-1-0 libhyphen0 libgles2 || true
 
                   # Try to install optional packages that may not be available on all versions
-                  apt-get install -y libgtk-4-1 libgraphene-1.0-0 libwoff1 libavif15 \
-                    libmanette-0.2-0 gstreamer1.0-libav flite1-dev libx264-163 || true
+                  apt-get install -y libgtk-4-1 libgraphene-1.0-0 libwoff1 \
+                    libmanette-0.2-0 gstreamer1.0-libav || true
+
+                  # Install flite libraries
+                  apt-get install -y flite1-dev libflite1 || true
+
+                  # Install additional codecs and formats
+                  apt-get install -y libavif15 libavif13 || true
+                  apt-get install -y libx264-163 libx264-164 || true
+                  apt-get install -y libwoff2-1.0.2 || true
                 fi
 
               elif command -v dnf &> /dev/null; then
