@@ -17,12 +17,7 @@ import { IAgentSessionsService } from './agentSessionsService.js';
 import { isSessionInProgressStatus } from './agentSessionsModel.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../../base/common/actions.js';
-
-/**
- * Action ID for opening the session picker/history.
- * This opens a quick pick dialog showing all agent sessions.
- */
-const PICK_SESSION_ACTION_ID = 'workbench.action.chat.history';
+import { PickAgentSessionAction } from './agentSessionsActions.js';
 
 /**
  * Session Status Control View Item - renders a compact running session indicator in the command center.
@@ -113,7 +108,7 @@ export class AgentSessionStatusControlViewItem extends BaseActionViewItem {
 		this._dynamicDisposables.add(addDisposableListener(pill, EventType.CLICK, (e) => {
 			e.preventDefault();
 			e.stopPropagation();
-			this.commandService.executeCommand(PICK_SESSION_ACTION_ID);
+			this.commandService.executeCommand(PickAgentSessionAction.ID);
 		}));
 
 		// Keyboard handler
@@ -121,7 +116,7 @@ export class AgentSessionStatusControlViewItem extends BaseActionViewItem {
 			if (e.key === 'Enter' || e.key === ' ') {
 				e.preventDefault();
 				e.stopPropagation();
-				this.commandService.executeCommand(PICK_SESSION_ACTION_ID);
+				this.commandService.executeCommand(PickAgentSessionAction.ID);
 			}
 		}));
 	}

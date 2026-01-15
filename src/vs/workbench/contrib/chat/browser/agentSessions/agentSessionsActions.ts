@@ -123,9 +123,11 @@ export class SetAgentSessionsOrientationSideBySideAction extends Action2 {
 
 export class PickAgentSessionAction extends Action2 {
 
+	static readonly ID = 'workbench.action.chat.history';
+
 	constructor() {
 		super({
-			id: `workbench.action.chat.history`,
+			id: PickAgentSessionAction.ID,
 			title: localize2('agentSessions.open', "Open Agent Session..."),
 			menu: [
 				{

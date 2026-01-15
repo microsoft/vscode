@@ -181,7 +181,7 @@ Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess).registerQui
 	placeholder: localize('agentSessionsQuickAccessPlaceholder', "Search agent sessions by name"),
 	helpEntries: [{
 		description: localize('agentSessionsQuickAccessHelp', "Show All Agent Sessions"),
-		commandId: 'workbench.action.chat.history',
+		commandId: PickAgentSessionAction.ID,
 	}]
 });
 
@@ -227,7 +227,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 // Register a placeholder action to the session status submenu so it appears (required for submenus)
 MenuRegistry.appendMenuItem(MenuId.AgentSessionStatusMenu, {
 	command: {
-		id: 'workbench.action.chat.history',
+		id: PickAgentSessionAction.ID,
 		title: localize('viewSessions', "View Sessions"),
 	},
 	when: ContextKeyExpr.and(
