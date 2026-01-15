@@ -137,6 +137,16 @@ async function generateUnifiedDiff(
 
 		const originalLines = originalContent.split('\n');
 		const modifiedLines = modifiedContent.split('\n');
+
+		// Remove trailing empty element if file ends with newline
+		// (split('\n') on "line1\nline2\n" gives ["line1", "line2", ""])
+		if (originalLines.length > 0 && originalLines[originalLines.length - 1] === '') {
+			originalLines.pop();
+		}
+		if (modifiedLines.length > 0 && modifiedLines[modifiedLines.length - 1] === '') {
+			modifiedLines.pop();
+		}
+
 		const diffLines: string[] = [];
 		const aPath = changeType === 'added' ? '/dev/null' : `a/${relPath}`;
 		const bPath = changeType === 'deleted' ? '/dev/null' : `b/${relPath}`;
