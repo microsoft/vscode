@@ -39,7 +39,6 @@ export class TestContext {
 	private static readonly codesignExclude = /node_modules\/(@parcel\/watcher\/build\/Release\/watcher\.node|@vscode\/deviceid\/build\/Release\/windows\.node|@vscode\/ripgrep\/bin\/rg|@vscode\/spdlog\/build\/Release\/spdlog.node|kerberos\/build\/Release\/kerberos.node|@vscode\/native-watchdog\/build\/Release\/watchdog\.node|node-pty\/build\/Release\/(pty\.node|spawn-helper)|vsda\/build\/Release\/vsda\.node|native-watchdog\/build\/Release\/watchdog\.node)$/;
 
 	private readonly tempDirs = new Set<string>();
-	private _consoleOutputs: string[] = [];
 	private _osTempDir?: string;
 	private _capabilities?: Set<Capability>;
 
@@ -133,9 +132,6 @@ export class TestContext {
 
 		const self = this;
 		return test(name, async function () {
-			self._consoleOutputs = [];
-			(this.currentTest! as { consoleOutputs?: string[] }).consoleOutputs = self._consoleOutputs;
-
 			self.log(`Starting test: ${name}`);
 
 			const homeDir = os.homedir();
@@ -163,11 +159,16 @@ export class TestContext {
 	}
 
 	/**
+	 * The console outputs collected during the current test.
+	 */
+	public consoleOutputs: string[] = [];
+
+	/**
 	 * Logs a message with a timestamp.
 	 */
 	public log(message: string) {
 		const line = `[${new Date().toISOString()}] ${message}`;
-		this._consoleOutputs.push(line);
+		this.consoleOutputs.push(line);
 		if (this.options.verbose) {
 			console.log(line);
 		}
@@ -178,7 +179,7 @@ export class TestContext {
 	 */
 	public error(message: string): never {
 		const line = `[${new Date().toISOString()}] ERROR: ${message}`;
-		this._consoleOutputs.push(line);
+		this.consoleOutputs.push(line);
 		console.error(line);
 		throw new Error(message);
 	}

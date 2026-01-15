@@ -35,6 +35,11 @@ const context = new TestContext({
 	downloadOnly: !options['runtime-check'],
 });
 
+beforeEach(function () {
+	context.consoleOutputs = [];
+	(this.currentTest! as { consoleOutputs?: string[] }).consoleOutputs = context.consoleOutputs;
+});
+
 setupCliTests(context);
 setupDesktopTests(context);
 setupServerTests(context);
