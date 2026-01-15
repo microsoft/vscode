@@ -904,8 +904,7 @@ export class TestContext {
 	 * @returns The constructed web server URL.
 	 */
 	public getWebServerUrl(port: string, token?: string, folder?: string): URL {
-		const host = os.platform() === 'linux' ? '127.0.0.1' : 'localhost';
-		const url = new URL(`http://${host}:${port}`);
+		const url = new URL(`http://localhost:${port}`);
 		if (token) {
 			url.searchParams.set('tkn', token);
 		}

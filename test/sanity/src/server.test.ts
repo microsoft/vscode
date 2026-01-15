@@ -75,6 +75,7 @@ export function setup(context: TestContext) {
 		const args = [
 			'--accept-server-license-terms',
 			'--connection-token', context.getRandomToken(),
+			'--host', '0.0.0.0',
 			'--port', context.getRandomPort(),
 			'--server-data-dir', context.createTempDir(),
 			'--extensions-dir', context.createTempDir(),
