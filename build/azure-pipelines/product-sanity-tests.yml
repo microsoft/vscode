@@ -186,6 +186,23 @@ extends:
               container: redhat/ubi9:latest
               containerPlatform: linux/arm64
 
+          # CentOS Stream 9 tests
+          - template: build/azure-pipelines/common/sanity-tests.yml@self
+            parameters:
+              name: CentOS_Stream9_amd64
+              displayName: CentOS Stream 9 amd64 Sanity Tests
+              poolName: 1es-ubuntu-22.04-x64
+              container: quay.io/centos/centos:stream9
+              containerPlatform: linux/amd64
+
+          - template: build/azure-pipelines/common/sanity-tests.yml@self
+            parameters:
+              name: CentOS_Stream9_arm64
+              displayName: CentOS Stream 9 arm64 Sanity Tests
+              poolName: 1es-ubuntu-22.04-x64
+              container: quay.io/centos/centos:stream9
+              containerPlatform: linux/arm64
+
           # Fedora 40 tests
           - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
