@@ -13,14 +13,14 @@ import { ICompressedTreeNode } from '../../../../../base/browser/ui/tree/compres
 import { ICompressibleKeyboardNavigationLabelProvider, ICompressibleTreeRenderer } from '../../../../../base/browser/ui/tree/objectTree.js';
 import { ITreeNode, ITreeElementRenderDetails, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction } from '../../../../../base/browser/ui/tree/tree.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { AgentSessionSection, AgentSessionStatus, getAgentChangesSummary, hasValidDiff, IAgentSession, IAgentSessionSection, IAgentSessionsModel, isAgentSession, isAgentSessionSection, isAgentSessionsModel, isSessionInProgressStatus } from './agentSessionsModel.js';
+import { AgentSessionSection, AgentSessionStatus, getAgentChangesSummary, hasValidDiff, IAgentSession, IAgentSessionSection, IAgentSessionsModel, isAgentSession, isAgentSessionSection, isAgentSessionsModel, isLocalAgentSessionItem, isSessionInProgressStatus } from './agentSessionsModel.js';
 import { IconLabel } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { fromNow, getDurationString } from '../../../../../base/common/date.js';
 import { FuzzyScore, createMatches } from '../../../../../base/common/filters.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
-import { allowedChatMarkdownHtmlTags } from '../chatContentMarkdownRenderer.js';
+import { allowedChatMarkdownHtmlTags } from '../widget/chatContentMarkdownRenderer.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
 import { ListViewTargetSector } from '../../../../../base/browser/ui/list/listView.js';
@@ -34,7 +34,7 @@ import { IntervalTimer } from '../../../../../base/common/async.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { Event } from '../../../../../base/common/event.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
@@ -62,7 +62,10 @@ interface IAgentSessionItemTemplate {
 
 	readonly badge: HTMLElement;
 	readonly description: HTMLElement;
-	readonly status: HTMLElement;
+
+	readonly statusContainer: HTMLElement;
+	readonly statusProviderIcon: HTMLElement;
+	readonly statusTime: HTMLElement;
 
 	readonly contextKeyService: IContextKeyService;
 	readonly elementDisposable: DisposableStore;
@@ -112,7 +115,10 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 							]),
 						h('div.agent-session-badge@badge'),
 						h('div.agent-session-description@description'),
-						h('div.agent-session-status@status')
+						h('div.agent-session-status@statusContainer', [
+							h('span.agent-session-status-provider-icon@statusProviderIcon'),
+							h('span.agent-session-status-time@statusTime')
+						])
 					])
 				])
 			]
@@ -137,7 +143,9 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 			diffRemovedSpan: elements.removedSpan,
 			badge: elements.badge,
 			description: elements.description,
-			status: elements.status,
+			statusContainer: elements.statusContainer,
+			statusProviderIcon: elements.statusProviderIcon,
+			statusTime: elements.statusTime,
 			contextKeyService,
 			elementDisposable,
 			disposables
@@ -308,22 +316,30 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 	private renderStatus(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
 
-		const getStatus = (session: IAgentSession) => {
+		const getTimeLabel = (session: IAgentSession) => {
 			let timeLabel: string | undefined;
 			if (session.status === AgentSessionStatus.InProgress && session.timing.inProgressTime) {
 				timeLabel = this.toDuration(session.timing.inProgressTime, Date.now(), false);
 			}
 
 			if (!timeLabel) {
-				timeLabel = fromNow(session.timing.endTime || session.timing.startTime);
+				timeLabel = fromNow(session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created);
 			}
 
-			return `${session.providerLabel} • ${timeLabel}`;
+			return timeLabel;
 		};
 
-		template.status.textContent = getStatus(session.element);
+		// Provider icon (hide for local sessions)
+		if (!isLocalAgentSessionItem(session.element)) {
+			template.statusProviderIcon.className = `agent-session-status-provider-icon ${ThemeIcon.asClassName(session.element.icon)}`;
+		} else {
+			template.statusProviderIcon.className = 'agent-session-status-provider-icon hidden';
+		}
+
+		// Time label
+		template.statusTime.textContent = getTimeLabel(session.element);
 		const timer = template.elementDisposable.add(new IntervalTimer());
-		timer.cancelAndSet(() => template.status.textContent = getStatus(session.element), session.element.status === AgentSessionStatus.InProgress ? 1000 /* every second */ : 60 * 1000 /* every minute */);
+		timer.cancelAndSet(() => template.statusTime.textContent = getTimeLabel(session.element), session.element.status === AgentSessionStatus.InProgress ? 1000 /* every second */ : 60 * 1000 /* every minute */);
 	}
 
 	private renderHover(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
@@ -379,7 +395,8 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 				details.push(duration);
 			}
 		} else {
-			details.push(fromNow(session.timing.startTime, true, true));
+			const startTime = session.timing.lastRequestStarted ?? session.timing.created;
+			details.push(fromNow(startTime, true, true));
 		}
 
 		lines.push(details.join(' • '));
@@ -551,8 +568,16 @@ export class AgentSessionsAccessibilityProvider implements IListAccessibilityPro
 			return localize('agentSessionSectionAriaLabel', "{0} sessions section", element.label);
 		}
 
-		return localize('agentSessionItemAriaLabel', "{0} session {1} ({2}), created {3}", element.providerLabel, element.label, toStatusLabel(element.status), new Date(element.timing.startTime).toLocaleString());
+		return localize('agentSessionItemAriaLabel', "{0} session {1} ({2}), created {3}", element.providerLabel, element.label, toStatusLabel(element.status), new Date(element.timing.created).toLocaleString());
 	}
+}
+
+export interface IAgentSessionsFilterExcludes {
+	readonly providers: readonly string[];
+	readonly states: readonly AgentSessionStatus[];
+
+	readonly archived: boolean;
+	readonly read: boolean;
 }
 
 export interface IAgentSessionsFilter {
@@ -584,6 +609,11 @@ export interface IAgentSessionsFilter {
 	 * The logic to exclude sessions from the view.
 	 */
 	exclude(session: IAgentSession): boolean;
+
+	/**
+	 * Get the current filter excludes for display in the UI.
+	 */
+	getExcludes(): IAgentSessionsFilterExcludes;
 }
 
 export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsModel, AgentSessionListItem> {
@@ -702,7 +732,7 @@ export function groupAgentSessions(sessions: IAgentSession[]): Map<AgentSessionS
 		} else if (session.isArchived()) {
 			archivedSessions.push(session);
 		} else {
-			const sessionTime = session.timing.endTime || session.timing.startTime;
+			const sessionTime = session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created;
 			if (sessionTime >= startOfToday) {
 				todaySessions.push(session);
 			} else if (sessionTime >= startOfYesterday) {
@@ -721,7 +751,7 @@ export function groupAgentSessions(sessions: IAgentSession[]): Map<AgentSessionS
 		[AgentSessionSection.Yesterday, { section: AgentSessionSection.Yesterday, label: AgentSessionSectionLabels[AgentSessionSection.Yesterday], sessions: yesterdaySessions }],
 		[AgentSessionSection.Week, { section: AgentSessionSection.Week, label: AgentSessionSectionLabels[AgentSessionSection.Week], sessions: weekSessions }],
 		[AgentSessionSection.Older, { section: AgentSessionSection.Older, label: AgentSessionSectionLabels[AgentSessionSection.Older], sessions: olderSessions }],
-		[AgentSessionSection.Archived, { section: AgentSessionSection.Archived, label: AgentSessionSectionLabels[AgentSessionSection.Archived], sessions: archivedSessions }],
+		[AgentSessionSection.Archived, { section: AgentSessionSection.Archived, label: localize('agentSessions.archivedSectionWithCount', "Archived ({0})", archivedSessions.length), sessions: archivedSessions }],
 	]);
 }
 
@@ -797,7 +827,9 @@ export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 		}
 
 		//Sort by end or start time (most recent first)
-		return (sessionB.timing.endTime || sessionB.timing.startTime) - (sessionA.timing.endTime || sessionA.timing.startTime);
+		const timeA = sessionA.timing.lastRequestEnded ?? sessionA.timing.lastRequestStarted ?? sessionA.timing.created;
+		const timeB = sessionB.timing.lastRequestEnded ?? sessionB.timing.lastRequestStarted ?? sessionB.timing.created;
+		return timeB - timeA;
 	}
 }
 

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Stats, promises } from 'fs';
+import { Stats, constants, promises } from 'fs';
 import { Barrier, retry } from '../../../base/common/async.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
@@ -51,6 +51,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 				FileSystemProviderCapabilities.FileReadStream |
 				FileSystemProviderCapabilities.FileFolderCopy |
 				FileSystemProviderCapabilities.FileWriteUnlock |
+				FileSystemProviderCapabilities.FileAppend |
 				FileSystemProviderCapabilities.FileAtomicRead |
 				FileSystemProviderCapabilities.FileAtomicWrite |
 				FileSystemProviderCapabilities.FileAtomicDelete |
@@ -73,12 +74,24 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		try {
 			const { stat, symbolicLink } = await SymlinkSupport.stat(this.toFilePath(resource)); // cannot use fs.stat() here to support links properly
 
+			let permissions: FilePermission | undefined = undefined;
+			if ((stat.mode & 0o200) === 0) {
+				permissions = FilePermission.Locked;
+			}
+			if (
+				stat.mode & constants.S_IXUSR ||
+				stat.mode & constants.S_IXGRP ||
+				stat.mode & constants.S_IXOTH
+			) {
+				permissions = (permissions ?? 0) | FilePermission.Executable;
+			}
+
 			return {
 				type: this.toType(stat, symbolicLink),
 				ctime: stat.birthtime.getTime(), // intentionally not using ctime here, we want the creation time
 				mtime: stat.mtime.getTime(),
 				size: stat.size,
-				permissions: (stat.mode & 0o200) === 0 ? FilePermission.Locked : undefined
+				permissions
 			};
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
@@ -311,7 +324,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			}
 
 			// Open
-			handle = await this.open(resource, { create: true, unlock: opts.unlock }, disableWriteLock);
+			handle = await this.open(resource, { create: true, append: opts.append, unlock: opts.unlock }, disableWriteLock);
 
 			// Write content at once
 			await this.write(handle, 0, content, 0, content.byteLength);
@@ -363,8 +376,8 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 				}
 			}
 
-			// Windows gets special treatment (write only)
-			if (isWindows && isFileOpenForWriteOptions(opts)) {
+			// Windows gets special treatment (write only, but not for append)
+			if (isWindows && isFileOpenForWriteOptions(opts) && !opts.append) {
 				try {
 
 					// We try to use 'r+' for opening (which will fail if the file does not exist)
@@ -401,7 +414,8 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 					// We take `opts.create` as a hint that the file is opened for writing
 					// as such we use 'w' to truncate an existing or create the
 					// file otherwise. we do not allow reading.
-					'w' :
+					// If `opts.append` is true, use 'a' to append to the file.
+					(opts.append ? 'a' : 'w') :
 					// Otherwise we assume the file is opened for reading
 					// as such we use 'r' to neither truncate, nor create
 					// the file.

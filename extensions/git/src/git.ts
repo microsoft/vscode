@@ -29,6 +29,7 @@ export interface IDotGit {
 	readonly path: string;
 	readonly commonPath?: string;
 	readonly superProjectPath?: string;
+	readonly isBare: boolean;
 }
 
 export interface IFileStatus {
@@ -575,7 +576,12 @@ export class Git {
 			commonDotGitPath = path.normalize(commonDotGitPath);
 		}
 
+		const raw = await fs.readFile(path.join(commonDotGitPath ?? dotGitPath, 'config'), 'utf8');
+		const coreSections = GitConfigParser.parse(raw).find(s => s.name === 'core');
+		const isBare = coreSections?.properties['bare'] === 'true';
+
 		return {
+			isBare,
 			path: dotGitPath,
 			commonPath: commonDotGitPath !== dotGitPath ? commonDotGitPath : undefined,
 			superProjectPath: superProjectPath ? path.normalize(superProjectPath) : undefined
@@ -678,6 +684,7 @@ export class Git {
 
 		options.env = assign({}, process.env, this.env, options.env || {}, {
 			VSCODE_GIT_COMMAND: args[0],
+			LANGUAGE: 'en',
 			LC_ALL: 'en_US.UTF-8',
 			LANG: 'en_US.UTF-8',
 			GIT_PAGER: 'cat'
@@ -1140,10 +1147,21 @@ function parseGitChangesRaw(repositoryRoot: string, raw: string): DiffChange[] {
 		} else {
 			// Parse --numstat output
 			const [insertions, deletions, filePath] = segment.split('\t');
-			numStats.set(
-				path.isAbsolute(filePath)
-					? filePath
-					: path.join(repositoryRoot, filePath), {
+
+			let numstatPath: string;
+			if (filePath === '') {
+				// For renamed files, filePath is empty and the old/new paths
+				// are in the next two null-terminated segments. We skip the
+				// old path and use the new path for the stats key.
+				index++;
+
+				const renamePath = segments[index++];
+				numstatPath = path.isAbsolute(renamePath) ? renamePath : path.join(repositoryRoot, renamePath);
+			} else {
+				numstatPath = path.isAbsolute(filePath) ? filePath : path.join(repositoryRoot, filePath);
+			}
+
+			numStats.set(numstatPath, {
 				insertions: insertions === '-' ? 0 : parseInt(insertions),
 				deletions: deletions === '-' ? 0 : parseInt(deletions),
 			});
@@ -1771,6 +1789,17 @@ export class Repository {
 		return result.stdout.trim();
 	}
 
+	async diffBetweenPatch(ref: string, options: { path?: string }): Promise<string> {
+		const args = ['diff', ref, '--'];
+
+		if (options.path) {
+			args.push(this.sanitizeRelativePath(options.path));
+		}
+
+		const result = await this.exec(args);
+		return result.stdout;
+	}
+
 	async diffBetweenWithStats(ref: string, options: { path?: string; similarityThreshold?: number }): Promise<DiffChange[]> {
 		const args = ['diff', '--raw', '--numstat', '--diff-filter=ADMR', '-z',];
 
@@ -1924,7 +1953,15 @@ export class Repository {
 	async stage(path: string, data: Uint8Array): Promise<void> {
 		const relativePath = this.sanitizeRelativePath(path);
 		const child = this.stream(['hash-object', '--stdin', '-w', '--path', relativePath], { stdio: [null, null, null] });
-		child.stdin!.end(data);
+
+		if (!child.stdin) {
+			throw new GitError({
+				message: 'Failed to spawn git process',
+				exitCode: -1
+			});
+		}
+
+		child.stdin.end(data);
 
 		const { exitCode, stdout } = await exec(child);
 		const hash = stdout.toString('utf8');
@@ -2684,19 +2721,23 @@ export class Repository {
 
 				if (limit !== 0 && parser.status.length > limit) {
 					child.removeListener('close', onClose);
-					child.stdout!.removeListener('data', onStdoutData);
+					child.stdout?.removeListener('data', onStdoutData);
 					child.kill();
 
 					c({ status: parser.status.slice(0, limit), statusLength: parser.status.length, didHitLimit: true });
 				}
 			};
 
-			child.stdout!.setEncoding('utf8');
-			child.stdout!.on('data', onStdoutData);
+			if (child.stdout) {
+				child.stdout.setEncoding('utf8');
+				child.stdout.on('data', onStdoutData);
+			}
 
 			const stderrData: string[] = [];
-			child.stderr!.setEncoding('utf8');
-			child.stderr!.on('data', raw => stderrData.push(raw as string));
+			if (child.stderr) {
+				child.stderr.setEncoding('utf8');
+				child.stderr.on('data', raw => stderrData.push(raw as string));
+			}
 
 			child.on('error', cpErrorHandler(e));
 			child.on('close', onClose);
@@ -2917,11 +2958,29 @@ export class Repository {
 	}
 
 	private async getWorktreesFS(): Promise<Worktree[]> {
+		const result: Worktree[] = [];
+		const mainRepositoryPath = this.dotGit.commonPath ?? this.dotGit.path;
+
 		try {
+			if (!this.dotGit.isBare) {
+				// Add main worktree for a non-bare repository
+				const headPath = path.join(mainRepositoryPath, 'HEAD');
+				const headContent = (await fs.readFile(headPath, 'utf8')).trim();
+
+				const mainRepositoryWorktreeName = path.basename(path.dirname(mainRepositoryPath));
+
+				result.push({
+					name: mainRepositoryWorktreeName,
+					path: path.dirname(mainRepositoryPath),
+					ref: headContent.replace(/^ref: /, ''),
+					detached: !headContent.startsWith('ref: '),
+					main: true
+				} satisfies Worktree);
+			}
+
 			// List all worktree folder names
-			const worktreesPath = path.join(this.dotGit.commonPath ?? this.dotGit.path, 'worktrees');
+			const worktreesPath = path.join(mainRepositoryPath, 'worktrees');
 			const dirents = await fs.readdir(worktreesPath, { withFileTypes: true });
-			const result: Worktree[] = [];
 
 			for (const dirent of dirents) {
 				if (!dirent.isDirectory()) {
@@ -2942,7 +3001,8 @@ export class Repository {
 						// Remove 'ref: ' prefix
 						ref: headContent.replace(/^ref: /, ''),
 						// Detached if HEAD does not start with 'ref: '
-						detached: !headContent.startsWith('ref: ')
+						detached: !headContent.startsWith('ref: '),
+						main: false
 					});
 				} catch (err) {
 					if (/ENOENT/.test(err.message)) {
@@ -2957,7 +3017,7 @@ export class Repository {
 		}
 		catch (err) {
 			if (/ENOENT/.test(err.message) || /ENOTDIR/.test(err.message)) {
-				return [];
+				return result;
 			}
 
 			throw err;

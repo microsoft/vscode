@@ -877,7 +877,8 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		}
 
 		const repositories = this.openRepositories
-			.filter(r => !repositoryFilter || repositoryFilter.includes(r.repository.kind));
+			.filter(r => !r.repository.isHidden &&
+				(!repositoryFilter || repositoryFilter.includes(r.repository.kind)));
 
 		if (repositories.length === 0) {
 			throw new Error(l10n.t('There are no available repositories matching the filter'));

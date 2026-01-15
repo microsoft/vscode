@@ -487,7 +487,8 @@ export class TestTextFileService extends BrowserTextFileService {
 			value: await createTextBufferFactoryFromStream(content.value),
 			size: 10,
 			readonly: false,
-			locked: false
+			locked: false,
+			executable: false
 		};
 	}
 

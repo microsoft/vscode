@@ -262,22 +262,22 @@ export default tseslint.config(
 			'src/vs/workbench/browser/workbench.ts',
 			'src/vs/workbench/common/notifications.ts',
 			'src/vs/workbench/contrib/accessibility/browser/accessibleView.ts',
-			'src/vs/workbench/contrib/chat/browser/chatAttachmentResolveService.ts',
-			'src/vs/workbench/contrib/chat/browser/chatContentParts/chatAttachmentsContentPart.ts',
-			'src/vs/workbench/contrib/chat/browser/chatContentParts/chatConfirmationWidget.ts',
-			'src/vs/workbench/contrib/chat/browser/chatContentParts/chatElicitationContentPart.ts',
-			'src/vs/workbench/contrib/chat/browser/chatContentParts/chatReferencesContentPart.ts',
-			'src/vs/workbench/contrib/chat/browser/chatContentParts/chatTreeContentPart.ts',
-			'src/vs/workbench/contrib/chat/browser/chatContentParts/toolInvocationParts/abstractToolConfirmationSubPart.ts',
+			'src/vs/workbench/contrib/chat/browser/attachments/chatAttachmentResolveService.ts',
+			'src/vs/workbench/contrib/chat/browser/widget/chatContentParts/chatAttachmentsContentPart.ts',
+			'src/vs/workbench/contrib/chat/browser/widget/chatContentParts/chatConfirmationWidget.ts',
+			'src/vs/workbench/contrib/chat/browser/widget/chatContentParts/chatElicitationContentPart.ts',
+			'src/vs/workbench/contrib/chat/browser/widget/chatContentParts/chatReferencesContentPart.ts',
+			'src/vs/workbench/contrib/chat/browser/widget/chatContentParts/chatTreeContentPart.ts',
+			'src/vs/workbench/contrib/chat/browser/widget/chatContentParts/toolInvocationParts/abstractToolConfirmationSubPart.ts',
 			'src/vs/workbench/contrib/chat/browser/chatEditing/chatEditingSession.ts',
 			'src/vs/workbench/contrib/chat/browser/chatEditing/chatEditingSessionStorage.ts',
-			'src/vs/workbench/contrib/chat/browser/chatInlineAnchorWidget.ts',
-			'src/vs/workbench/contrib/chat/browser/chatResponseAccessibleView.ts',
-			'src/vs/workbench/contrib/chat/browser/contrib/chatInputCompletions.ts',
-			'src/vs/workbench/contrib/chat/common/chatModel.ts',
+			'src/vs/workbench/contrib/chat/browser/widget/chatContentParts/chatInlineAnchorWidget.ts',
+			'src/vs/workbench/contrib/chat/browser/accessibility/chatResponseAccessibleView.ts',
+			'src/vs/workbench/contrib/chat/browser/widget/input/editor/chatInputCompletions.ts',
+			'src/vs/workbench/contrib/chat/common/model/chatModel.ts',
 			'src/vs/workbench/contrib/chat/test/common/promptSyntax/testUtils/mockFilesystem.test.ts',
 			'src/vs/workbench/contrib/chat/test/common/promptSyntax/testUtils/mockFilesystem.ts',
-			'src/vs/workbench/contrib/chat/test/common/tools/manageTodoListTool.test.ts',
+			'src/vs/workbench/contrib/chat/test/common/tools/builtinTools/manageTodoListTool.test.ts',
 			'src/vs/workbench/contrib/debug/browser/debugAdapterManager.ts',
 			'src/vs/workbench/contrib/debug/browser/variablesView.ts',
 			'src/vs/workbench/contrib/debug/browser/watchExpressionsView.ts',
@@ -899,6 +899,7 @@ export default tseslint.config(
 					],
 					'verbs': [
 						'accept',
+						'archive',
 						'change',
 						'close',
 						'collapse',
@@ -1439,11 +1440,12 @@ export default tseslint.config(
 					// - electron-main
 					'when': 'hasNode',
 					'allow': [
-						'@vscode/watcher',
+						'@parcel/watcher',
 						'@vscode/sqlite3',
 						'@vscode/vscode-languagedetection',
 						'@vscode/ripgrep',
 						'@vscode/iconv-lite-umd',
+						'@vscode/native-watchdog',
 						'@vscode/policy-watcher',
 						'@vscode/proxy-agent',
 						'@vscode/spdlog',
@@ -1462,7 +1464,6 @@ export default tseslint.config(
 						'minimist',
 						'node:module',
 						'native-keymap',
-						'native-watchdog',
 						'net',
 						'node-pty',
 						'os',
@@ -1930,7 +1931,15 @@ export default tseslint.config(
 						'test/automation',
 						'test/smoke/**',
 						'@vscode/*',
+						'@parcel/*',
 						'@playwright/*',
+						'*' // node modules
+					]
+				},
+				{
+					'target': 'test/sanity/**',
+					'restrictions': [
+						'test/sanity/**',
 						'*' // node modules
 					]
 				},
@@ -1939,6 +1948,7 @@ export default tseslint.config(
 					'restrictions': [
 						'test/automation/**',
 						'@vscode/*',
+						'@parcel/*',
 						'playwright-core/**',
 						'@playwright/*',
 						'*' // node modules
@@ -1949,6 +1959,7 @@ export default tseslint.config(
 					'restrictions': [
 						'test/integration/**',
 						'@vscode/*',
+						'@parcel/*',
 						'@playwright/*',
 						'*' // node modules
 					]
@@ -1958,6 +1969,7 @@ export default tseslint.config(
 					'restrictions': [
 						'test/monaco/**',
 						'@vscode/*',
+						'@parcel/*',
 						'@playwright/*',
 						'*' // node modules
 					]
@@ -1968,6 +1980,7 @@ export default tseslint.config(
 						'test/automation',
 						'test/mcp/**',
 						'@vscode/*',
+						'@parcel/*',
 						'@playwright/*',
 						'@modelcontextprotocol/sdk/**/*',
 						'*' // node modules

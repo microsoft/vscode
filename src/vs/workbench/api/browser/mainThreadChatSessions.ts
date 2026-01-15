@@ -18,14 +18,14 @@ import { IDialogService } from '../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { hasValidDiff, IAgentSession } from '../../contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { ChatViewPaneTarget, IChatWidgetService, isIChatViewViewContext } from '../../contrib/chat/browser/chat.js';
-import { IChatEditorOptions } from '../../contrib/chat/browser/chatEditor.js';
-import { ChatEditorInput } from '../../contrib/chat/browser/chatEditorInput.js';
+import { IChatEditorOptions } from '../../contrib/chat/browser/widgetHosts/editor/chatEditor.js';
+import { ChatEditorInput } from '../../contrib/chat/browser/widgetHosts/editor/chatEditorInput.js';
 import { awaitStatsForSession } from '../../contrib/chat/common/chat.js';
-import { IChatAgentRequest } from '../../contrib/chat/common/chatAgents.js';
-import { IChatModel } from '../../contrib/chat/common/chatModel.js';
-import { IChatContentInlineReference, IChatProgress, IChatService, ResponseModelState } from '../../contrib/chat/common/chatService.js';
+import { IChatAgentRequest } from '../../contrib/chat/common/participants/chatAgents.js';
+import { IChatModel } from '../../contrib/chat/common/model/chatModel.js';
+import { IChatContentInlineReference, IChatProgress, IChatService, ResponseModelState } from '../../contrib/chat/common/chatService/chatService.js';
 import { ChatSessionStatus, IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionItem, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
-import { IChatRequestVariableEntry } from '../../contrib/chat/common/chatVariableEntries.js';
+import { IChatRequestVariableEntry } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../services/editor/common/editorService.js';
@@ -382,7 +382,6 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		));
 	}
 
-
 	$onDidChangeChatSessionItems(handle: number): void {
 		this._itemProvidersRegistrations.get(handle)?.onDidChangeItems.fire();
 	}
@@ -491,6 +490,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 					resource: uri,
 					iconPath: session.iconPath,
 					tooltip: session.tooltip ? this._reviveTooltip(session.tooltip) : undefined,
+					archived: session.archived,
 				} satisfies IChatSessionItem;
 			}));
 		} catch (error) {
@@ -650,7 +650,13 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 	private _refreshProviderOptions(handle: number, chatSessionScheme: string): void {
 		this._proxy.$provideChatSessionProviderOptions(handle, CancellationToken.None).then(options => {
 			if (options?.optionGroups && options.optionGroups.length) {
-				this._chatSessionsService.setOptionGroupsForSessionType(chatSessionScheme, handle, options.optionGroups);
+				const groupsWithCallbacks = options.optionGroups.map(group => ({
+					...group,
+					onSearch: group.searchable ? async (query: string, token: CancellationToken) => {
+						return await this._proxy.$invokeOptionGroupSearch(handle, group.id, query, token);
+					} : undefined,
+				}));
+				this._chatSessionsService.setOptionGroupsForSessionType(chatSessionScheme, handle, groupsWithCallbacks);
 			}
 		}).catch(err => this._logService.error('Error fetching chat session options', err));
 	}
