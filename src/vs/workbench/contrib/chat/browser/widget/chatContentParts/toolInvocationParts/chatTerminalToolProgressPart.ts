@@ -529,13 +529,13 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			};
 
 			// Use the extracted auto-expand logic
-			store.add(new TerminalToolAutoExpand({
+			const autoExpand = store.add(new TerminalToolAutoExpand({
 				commandDetection,
 				onWillData: terminalInstance.onWillData,
 				shouldAutoExpand: () => !this._outputView.isExpanded && !this._userToggledOutput && !this._store.isDisposed,
 				hasRealOutput,
-				toggleOutput: (expanded) => this._toggleOutput(expanded),
 			}));
+			store.add(autoExpand.onDidRequestExpand(() => this._toggleOutput(true)));
 
 			store.add(commandDetection.onCommandExecuted(() => {
 				this._addActions(terminalInstance, this._terminalData.terminalToolSessionId);

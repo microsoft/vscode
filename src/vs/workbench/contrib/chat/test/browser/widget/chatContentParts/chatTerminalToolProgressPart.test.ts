@@ -24,11 +24,6 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 	let userToggledOutput: boolean;
 	let hasRealOutputValue: boolean;
 
-	// Simulated toggle function
-	function toggleOutput(expanded: boolean): void {
-		isExpanded = expanded;
-	}
-
 	function shouldAutoExpand(): boolean {
 		return !isExpanded && !userToggledOutput;
 	}
@@ -45,12 +40,14 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 		} as Pick<ICommandDetectionCapability, 'onCommandExecuted' | 'onCommandFinished'> as ICommandDetectionCapability;
 
 		// Use the real TerminalToolAutoExpand class
-		store.add(new TerminalToolAutoExpand({
+		const autoExpand = store.add(new TerminalToolAutoExpand({
 			commandDetection: mockCommandDetection,
 			onWillData: onWillData.event,
 			shouldAutoExpand,
 			hasRealOutput,
-			toggleOutput,
+		}));
+		store.add(autoExpand.onDidRequestExpand(() => {
+			isExpanded = true;
 		}));
 	}
 
@@ -198,15 +195,24 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 
 	test('already expanded output prevents additional auto-expand', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		isExpanded = true;
-		setupAutoExpandLogic();
 
-		// Track if toggle was called
-		let toggleCalled = false;
-		const originalToggle = toggleOutput;
-		(globalThis as { toggleOutput?: typeof toggleOutput }).toggleOutput = (expanded: boolean) => {
-			toggleCalled = true;
-			originalToggle(expanded);
-		};
+		// Create a mock command detection capability
+		const mockCommandDetection = {
+			onCommandExecuted: onCommandExecuted.event,
+			onCommandFinished: onCommandFinished.event,
+		} as Pick<ICommandDetectionCapability, 'onCommandExecuted' | 'onCommandFinished'> as ICommandDetectionCapability;
+
+		// Track if event was fired
+		let eventFired = false;
+		const autoExpand = store.add(new TerminalToolAutoExpand({
+			commandDetection: mockCommandDetection,
+			onWillData: onWillData.event,
+			shouldAutoExpand: () => !isExpanded && !userToggledOutput,
+			hasRealOutput: () => hasRealOutputValue,
+		}));
+		store.add(autoExpand.onDidRequestExpand(() => {
+			eventFired = true;
+		}));
 
 		// Command executes
 		onCommandExecuted.fire(undefined);
@@ -217,7 +223,7 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 		// Wait past all timeouts (faked timers advance instantly)
 		await timeout(TerminalToolAutoExpandTimeout.NoData + 100);
 
-		assert.strictEqual(toggleCalled, false, 'Should NOT call toggle when already expanded');
+		assert.strictEqual(eventFired, false, 'Should NOT fire expand event when already expanded');
 		onCommandFinished.fire(undefined);
 	}));
 

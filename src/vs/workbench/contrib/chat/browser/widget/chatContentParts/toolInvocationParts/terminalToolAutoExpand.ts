@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../../base/common/lifecycle.js';
-import { Event } from '../../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import type { ICommandDetectionCapability } from '../../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { disposableTimeout } from '../../../../../../../base/common/async.js';
 
@@ -36,11 +36,6 @@ export interface ITerminalToolAutoExpandOptions {
 	 * Check if there is real output (not just shell integration sequences).
 	 */
 	hasRealOutput(): boolean;
-
-	/**
-	 * Toggle the output expanded state.
-	 */
-	toggleOutput(expanded: boolean): void;
 }
 
 /**
@@ -64,6 +59,9 @@ export class TerminalToolAutoExpand extends Disposable {
 	private _dataEventTimeout: IDisposable | undefined;
 	private _noDataTimeout: IDisposable | undefined;
 
+	private readonly _onDidRequestExpand = this._register(new Emitter<void>());
+	readonly onDidRequestExpand: Event<void> = this._onDidRequestExpand.event;
+
 	constructor(
 		private readonly _options: ITerminalToolAutoExpandOptions,
 	) {
@@ -82,7 +80,7 @@ export class TerminalToolAutoExpand extends Disposable {
 				this._noDataTimeout = disposableTimeout(() => {
 					this._noDataTimeout = undefined;
 					if (!this._receivedData && this._options.shouldAutoExpand() && this._options.hasRealOutput()) {
-						this._options.toggleOutput(true);
+						this._onDidRequestExpand.fire();
 					}
 				}, TerminalToolAutoExpandTimeout.NoData, store);
 			}
@@ -102,7 +100,7 @@ export class TerminalToolAutoExpand extends Disposable {
 				this._dataEventTimeout = disposableTimeout(() => {
 					this._dataEventTimeout = undefined;
 					if (!this._commandFinished && this._options.shouldAutoExpand() && this._options.hasRealOutput()) {
-						this._options.toggleOutput(true);
+						this._onDidRequestExpand.fire();
 					}
 				}, TerminalToolAutoExpandTimeout.DataEvent, store);
 			}
