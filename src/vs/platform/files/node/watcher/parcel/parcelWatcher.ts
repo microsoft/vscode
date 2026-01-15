@@ -314,13 +314,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 				// Store a snapshot of files to the snapshot file
 				await parcelWatcherLib.writeSnapshot(realPath, snapshotFile, { ignore: this.addPredefinedExcludes(request.excludes), backend: ParcelWatcher.PARCEL_WATCHER_BACKEND });
 			} catch (error) {
-				// Avoid handling any further errors if the watcher has already
-				// failed. Watchers will fail when the watched path has been
-				// deleted and continuing to process errors could cause high CPU
-				// usage due to the rapid error loop.
-				if (!watcher.failed) {
-					this.onUnexpectedError(error, request);
-				}
+				this.onUnexpectedError(error, request);
 			}
 
 			// Signal we are ready now when the first snapshot was written
@@ -377,13 +371,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 				// the state of parcel at this point and as such will try to restart
 				// up to our maximum of restarts.
 				if (error) {
-					// Avoid handling any further errors if the watcher has already
-					// failed. Watchers will fail when the watched path has been
-					// deleted and continuing to process errors could cause high CPU
-					// usage due to the rapid error loop.
-					if (!watcher.failed) {
-						this.onUnexpectedError(error, request);
-					}
+					this.onUnexpectedError(error, request);
 				}
 
 				// Handle & emit events
