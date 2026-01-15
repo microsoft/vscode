@@ -97,7 +97,7 @@ export function filterSelections(viewModel: IViewModel, selections: Range[], exc
 	const result: Range[] = [];
 
 	for (const selection of selections) {
-		const visibleRanges = Range.subtractRanges(selection, excludeRanges, (lineNumber) => viewModel.getLineMaxColumn(lineNumber));
+		const visibleRanges = Range.subtractRanges(selection, excludeRanges);
 		result.push(...visibleRanges);
 	}
 
