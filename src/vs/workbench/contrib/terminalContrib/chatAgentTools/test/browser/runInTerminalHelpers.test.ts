@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ok, strictEqual } from 'assert';
-import { generateAutoApproveActions, TRUNCATION_MESSAGE, dedupeRules, isPowerShell, sanitizeTerminalOutput, truncateOutputKeepingTail } from '../../browser/runInTerminalHelpers.js';
+import { generateAutoApproveActions, TRUNCATION_MESSAGE, dedupeRules, isPowerShell, sanitizeTerminalOutput, truncateOutputKeepingTail, extractCdPrefix } from '../../browser/runInTerminalHelpers.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
@@ -462,5 +462,36 @@ suite('generateAutoApproveActions', () => {
 		const actions = generateAutoApproveActions(commandLine, subCommands, autoApproveResult);
 		const subCommandAction = actions.find(action => action.label.includes('mvn -DskipIT test') && action.label.includes('Always Allow Command:'));
 		strictEqual(subCommandAction, undefined, 'Should not suggest approval for already approved commands');
+	});
+});
+
+suite('extractCdPrefix', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('Posix', () => {
+		function t(commandLine: string, expectedDir: string | undefined, expectedCommand: string | undefined) {
+			const result = extractCdPrefix(commandLine, 'bash', OperatingSystem.Linux);
+			strictEqual(result?.directory, expectedDir);
+			strictEqual(result?.command, expectedCommand);
+		}
+
+		test('should return undefined when no cd prefix', () => t('echo hello', undefined, undefined));
+		test('should return undefined when cd has no suffix', () => t('cd /some/path', undefined, undefined));
+		test('should extract cd prefix with && separator', () => t('cd /some/path && npm install', '/some/path', 'npm install'));
+		test('should extract quoted path', () => t('cd "/some/path" && npm install', '/some/path', 'npm install'));
+		test('should extract complex suffix', () => t('cd /path && npm install && npm test', '/path', 'npm install && npm test'));
+	});
+
+	suite('PowerShell', () => {
+		function t(commandLine: string, expectedDir: string | undefined, expectedCommand: string | undefined) {
+			const result = extractCdPrefix(commandLine, 'pwsh', OperatingSystem.Windows);
+			strictEqual(result?.directory, expectedDir);
+			strictEqual(result?.command, expectedCommand);
+		}
+
+		test('should extract cd with ; separator', () => t('cd C:\\path; npm test', 'C:\\path', 'npm test'));
+		test('should extract cd /d with && separator', () => t('cd /d C:\\path && echo hello', 'C:\\path', 'echo hello'));
+		test('should extract Set-Location', () => t('Set-Location C:\\path; npm test', 'C:\\path', 'npm test'));
+		test('should extract Set-Location -Path', () => t('Set-Location -Path C:\\path; npm test', 'C:\\path', 'npm test'));
 	});
 });
