@@ -93,10 +93,14 @@ function getDataToCopy(viewModel: IViewModel, modelSelections: Range[], emptySel
  * Subtracts excluded ranges from a source range, returning the visible parts.
  * This efficiently computes Range minus Range[].
  * 
- * @param viewModel The view model for getting line metadata
+ * @param viewModel The view model used to get line column bounds
  * @param range The source range to subtract from
  * @param excludeRanges Ranges to exclude from the source range
  * @returns Array of ranges representing the visible parts after exclusion
+ * 
+ * Performance: O(n + m*k) where n is the number of lines in the range,
+ * m is the number of exclude ranges, and k is the average number of exclude
+ * ranges that start at the same line (typically k is very small, close to 1).
  */
 function subtractRanges(viewModel: IViewModel, range: Range, excludeRanges: Range[]): Range[] {
 	if (excludeRanges.length === 0) {
@@ -122,6 +126,7 @@ function subtractRanges(viewModel: IViewModel, range: Range, excludeRanges: Rang
 		let checkIndex = excludeIndex;
 
 		// Check current and subsequent exclude ranges that could cover this line
+		// In practice, very few ranges start at the same line, so this inner loop is fast
 		while (checkIndex < sortedExcludes.length && sortedExcludes[checkIndex].startLineNumber <= line) {
 			const exclude = sortedExcludes[checkIndex];
 			if (line >= exclude.startLineNumber && line <= exclude.endLineNumber) {
