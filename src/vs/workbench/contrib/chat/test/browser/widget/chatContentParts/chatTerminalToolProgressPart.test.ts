@@ -8,6 +8,7 @@ import { Emitter } from '../../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { timeout } from '../../../../../../../base/common/async.js';
+import { TerminalToolAutoExpand, NO_DATA_TIMEOUT_MS, DATA_EVENT_TIMEOUT_MS } from '../../../../browser/widget/chatContentParts/toolInvocationParts/terminalToolAutoExpand.js';
 
 /**
  * These tests verify the auto-expand logic for terminal tool progress parts.
@@ -28,11 +29,7 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 	// State tracking
 	let isExpanded: boolean;
 	let userToggledOutput: boolean;
-	let commandFinished: boolean;
-	let receivedData: boolean;
 	let hasRealOutputValue: boolean;
-	let dataEventTimeout: ReturnType<typeof setTimeout> | undefined;
-	let noDataTimeout: ReturnType<typeof setTimeout> | undefined;
 
 	// Simulated toggle function
 	function toggleOutput(expanded: boolean): void {
@@ -47,64 +44,15 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 		return hasRealOutputValue;
 	}
 
-	function clearAutoExpandTimeouts(): void {
-		if (dataEventTimeout) {
-			clearTimeout(dataEventTimeout);
-			dataEventTimeout = undefined;
-		}
-		if (noDataTimeout) {
-			clearTimeout(noDataTimeout);
-			noDataTimeout = undefined;
-		}
-	}
-
 	function setupAutoExpandLogic(localStore: DisposableStore): void {
-		// Reset state
-		commandFinished = false;
-		receivedData = false;
-		dataEventTimeout = undefined;
-		noDataTimeout = undefined;
-
-		// Logic from _registerInstanceListener
-		localStore.add(onCommandExecuted.event(() => {
-			// Auto-expand for long-running commands:
-			// 1. Kick off 500ms timeout - if hit without any data events, expand only if there's real output
-			if (shouldAutoExpand() && !noDataTimeout) {
-				noDataTimeout = setTimeout(() => {
-					noDataTimeout = undefined;
-					if (!receivedData && shouldAutoExpand() && hasRealOutput()) {
-						toggleOutput(true);
-					}
-				}, 500);
-			}
-		}));
-
-		// 2. Wait for first data event - when hit, wait 50ms and expand if command not yet finished
-		// Also checks for real output since shell integration sequences trigger onWillData
-		localStore.add(onWillData.event(() => {
-			if (receivedData) {
-				return;
-			}
-			receivedData = true;
-			// Cancel the 500ms no-data timeout since we received data
-			if (noDataTimeout) {
-				clearTimeout(noDataTimeout);
-				noDataTimeout = undefined;
-			}
-			// Wait 50ms and expand if command hasn't finished yet and has real output
-			if (shouldAutoExpand() && !dataEventTimeout) {
-				dataEventTimeout = setTimeout(() => {
-					dataEventTimeout = undefined;
-					if (!commandFinished && shouldAutoExpand() && hasRealOutput()) {
-						toggleOutput(true);
-					}
-				}, 50);
-			}
-		}));
-
-		localStore.add(onCommandFinished.event(() => {
-			commandFinished = true;
-			clearAutoExpandTimeouts();
+		// Use the real TerminalToolAutoExpand class
+		localStore.add(new TerminalToolAutoExpand({
+			onCommandExecuted: onCommandExecuted.event,
+			onWillData: onWillData.event,
+			onCommandFinished: onCommandFinished.event,
+			shouldAutoExpand,
+			hasRealOutput,
+			toggleOutput,
 		}));
 	}
 
@@ -115,15 +63,7 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 
 		isExpanded = false;
 		userToggledOutput = false;
-		commandFinished = false;
-		receivedData = false;
 		hasRealOutputValue = false;
-		dataEventTimeout = undefined;
-		noDataTimeout = undefined;
-	});
-
-	teardown(() => {
-		clearAutoExpandTimeouts();
 	});
 
 	test('fast command without data should not auto-expand (finishes before 500ms)', async () => {
@@ -138,7 +78,7 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 		onCommandFinished.fire();
 
 		// Wait past the 500ms mark
-		await timeout(500);
+		await timeout(NO_DATA_TIMEOUT_MS);
 
 		assert.strictEqual(isExpanded, false, 'Should NOT expand for fast command without data');
 	});
@@ -175,7 +115,7 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 		onWillData.fire('output');
 
 		// Wait for 50ms timeout to trigger
-		await timeout(100);
+		await timeout(DATA_EVENT_TIMEOUT_MS + 50);
 
 		assert.strictEqual(isExpanded, true, 'Should expand when command still running 50ms after first data');
 
@@ -195,7 +135,7 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 		onWillData.fire('shell-sequence');
 
 		// Wait for 50ms timeout to trigger
-		await timeout(100);
+		await timeout(DATA_EVENT_TIMEOUT_MS + 50);
 
 		assert.strictEqual(isExpanded, false, 'Should NOT expand when data is shell sequences, not real output');
 
@@ -212,7 +152,7 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 		onCommandExecuted.fire();
 
 		// Wait for 500ms timeout
-		await timeout(600);
+		await timeout(NO_DATA_TIMEOUT_MS + 100);
 
 		assert.strictEqual(isExpanded, false, 'Should NOT expand when no real output even after 500ms');
 
@@ -229,7 +169,7 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 		onCommandExecuted.fire();
 
 		// Wait for 500ms timeout
-		await timeout(600);
+		await timeout(NO_DATA_TIMEOUT_MS + 100);
 
 		assert.strictEqual(isExpanded, true, 'Should expand when real output exists after 500ms');
 
@@ -266,7 +206,7 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 		onWillData.fire('output');
 
 		// Wait past all timeouts
-		await timeout(600);
+		await timeout(NO_DATA_TIMEOUT_MS + 100);
 
 		assert.strictEqual(isExpanded, false, 'Should NOT expand when user has manually toggled output');
 		onCommandFinished.fire();
@@ -292,7 +232,7 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 		onWillData.fire('output');
 
 		// Wait past all timeouts
-		await timeout(600);
+		await timeout(NO_DATA_TIMEOUT_MS + 100);
 
 		assert.strictEqual(toggleCalled, false, 'Should NOT call toggle when already expanded');
 		onCommandFinished.fire();
@@ -334,7 +274,7 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 		onWillData.fire('output 3');
 
 		// Wait for timeout
-		await timeout(100);
+		await timeout(DATA_EVENT_TIMEOUT_MS + 50);
 		assert.strictEqual(isExpanded, true, 'Should expand exactly once after first data');
 		onCommandFinished.fire();
 	});

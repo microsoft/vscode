@@ -16,6 +16,7 @@ import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatMarkdownContentPart, type IChatMarkdownContentPartOptions } from '../chatMarkdownContentPart.js';
 import { ChatProgressSubPart } from '../chatProgressContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
+import { TerminalToolAutoExpand } from './terminalToolAutoExpand.js';
 import '../media/chatTerminalToolProgressPart.css';
 import type { ICodeBlockRenderOptions } from '../codeBlockPart.js';
 import { Action, IAction } from '../../../../../../../base/common/actions.js';
@@ -508,28 +509,11 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			}
 
 			const store = new DisposableStore();
-			let commandFinished = false;
-			let dataEventTimeout: ReturnType<typeof setTimeout> | undefined;
-			let noDataTimeout: ReturnType<typeof setTimeout> | undefined;
-			let receivedData = false;
 
-			const clearAutoExpandTimeouts = () => {
-				if (dataEventTimeout) {
-					clearTimeout(dataEventTimeout);
-					dataEventTimeout = undefined;
-				}
-				if (noDataTimeout) {
-					clearTimeout(noDataTimeout);
-					noDataTimeout = undefined;
-				}
-			};
-
-			// Ensure timeouts are cleaned up when the store is disposed
-			store.add(toDisposable(() => clearAutoExpandTimeouts()));
-
-			const shouldAutoExpand = () => {
-				return !this._outputView.isExpanded && !this._userToggledOutput && !this._store.isDisposed;
-			};
+			const onCommandExecuted = new Emitter<void>();
+			const onCommandFinished = new Emitter<void>();
+			store.add(onCommandExecuted);
+			store.add(onCommandFinished);
 
 			const hasRealOutput = (): boolean => {
 				// Check for snapshot output
@@ -549,47 +533,23 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				return cursorLine > command.executedMarker.line;
 			};
 
-			store.add(commandDetection.onCommandExecuted(() => {
-				this._addActions(terminalInstance, this._terminalData.terminalToolSessionId);
-				// Auto-expand for long-running commands:
-				// 1. Kick off 500ms timeout - if hit without any data events, expand only if there's real output
-				if (shouldAutoExpand() && !noDataTimeout) {
-					noDataTimeout = setTimeout(() => {
-						noDataTimeout = undefined;
-						if (!receivedData && shouldAutoExpand() && hasRealOutput()) {
-							this._toggleOutput(true);
-						}
-					}, 500);
-				}
+			// Use the extracted auto-expand logic
+			store.add(new TerminalToolAutoExpand({
+				onCommandExecuted: onCommandExecuted.event,
+				onWillData: terminalInstance.onWillData,
+				onCommandFinished: onCommandFinished.event,
+				shouldAutoExpand: () => !this._outputView.isExpanded && !this._userToggledOutput && !this._store.isDisposed,
+				hasRealOutput,
+				toggleOutput: (expanded) => this._toggleOutput(expanded),
 			}));
 
-			// 2. Wait for first data event - when hit, wait 50ms and expand if command not yet finished
-			// This prevents flickering for fast commands like `ls` that finish quickly
-			store.add(terminalInstance.onWillData(() => {
-				if (receivedData) {
-					return;
-				}
-				receivedData = true;
-				// Cancel the 500ms no-data timeout since we received data
-				if (noDataTimeout) {
-					clearTimeout(noDataTimeout);
-					noDataTimeout = undefined;
-				}
-				// Wait 50ms and expand if command hasn't finished yet and has real output
-				// (shell integration sequences trigger onWillData but aren't real output)
-				if (shouldAutoExpand() && !dataEventTimeout) {
-					dataEventTimeout = setTimeout(() => {
-						dataEventTimeout = undefined;
-						if (!commandFinished && shouldAutoExpand() && hasRealOutput()) {
-							this._toggleOutput(true);
-						}
-					}, 50);
-				}
+			store.add(commandDetection.onCommandExecuted(() => {
+				this._addActions(terminalInstance, this._terminalData.terminalToolSessionId);
+				onCommandExecuted.fire();
 			}));
 
 			store.add(commandDetection.onCommandFinished(() => {
-				commandFinished = true;
-				clearAutoExpandTimeouts();
+				onCommandFinished.fire();
 				this._addActions(terminalInstance, this._terminalData.terminalToolSessionId);
 				const resolvedCommand = this._getResolvedCommand(terminalInstance);
 

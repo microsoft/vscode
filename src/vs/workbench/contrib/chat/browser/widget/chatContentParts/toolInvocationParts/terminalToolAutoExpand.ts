@@ -1,0 +1,132 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { Disposable, DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { Event } from '../../../../../../../base/common/event.js';
+
+/**
+ * The auto-expand algorithm for terminal tool progress parts.
+ *
+ * The algorithm is:
+ * 1. When command executes, kick off 500ms timeout - if hit without data events, expand only if there's real output
+ * 2. On first data event, wait 50ms and expand if command not yet finished
+ * 3. Fast commands (finishing quickly) should NOT auto-expand to prevent flickering
+ */
+export interface ITerminalToolAutoExpandOptions {
+	/**
+	 * Event fired when a command starts executing.
+	 */
+	readonly onCommandExecuted: Event<void>;
+
+	/**
+	 * Event fired when data is received from the terminal.
+	 */
+	readonly onWillData: Event<unknown>;
+
+	/**
+	 * Event fired when a command finishes executing.
+	 */
+	readonly onCommandFinished: Event<void>;
+
+	/**
+	 * Check if the output should auto-expand (e.g. not already expanded, user hasn't toggled).
+	 */
+	shouldAutoExpand(): boolean;
+
+	/**
+	 * Check if there is real output (not just shell integration sequences).
+	 */
+	hasRealOutput(): boolean;
+
+	/**
+	 * Toggle the output expanded state.
+	 */
+	toggleOutput(expanded: boolean): void;
+}
+
+/**
+ * Timeout in milliseconds to wait when no data events are received before checking for auto-expand.
+ */
+export const NO_DATA_TIMEOUT_MS = 500;
+
+/**
+ * Timeout in milliseconds to wait after first data event before checking for auto-expand.
+ * This prevents flickering for fast commands like `ls` that finish quickly.
+ */
+export const DATA_EVENT_TIMEOUT_MS = 50;
+
+export class TerminalToolAutoExpand extends Disposable {
+	private _commandFinished = false;
+	private _receivedData = false;
+	private _dataEventTimeout: ReturnType<typeof setTimeout> | undefined;
+	private _noDataTimeout: ReturnType<typeof setTimeout> | undefined;
+
+	constructor(
+		private readonly _options: ITerminalToolAutoExpandOptions,
+	) {
+		super();
+		this._setupListeners();
+	}
+
+	private _setupListeners(): void {
+		const store = this._register(new DisposableStore());
+
+		// Ensure timeouts are cleaned up when disposed
+		store.add(toDisposable(() => this._clearAutoExpandTimeouts()));
+
+		// Logic from _registerInstanceListener
+		store.add(this._options.onCommandExecuted(() => {
+			// Auto-expand for long-running commands:
+			// 1. Kick off 500ms timeout - if hit without any data events, expand only if there's real output
+			if (this._options.shouldAutoExpand() && !this._noDataTimeout) {
+				this._noDataTimeout = setTimeout(() => {
+					this._noDataTimeout = undefined;
+					if (!this._receivedData && this._options.shouldAutoExpand() && this._options.hasRealOutput()) {
+						this._options.toggleOutput(true);
+					}
+				}, NO_DATA_TIMEOUT_MS);
+			}
+		}));
+
+		// 2. Wait for first data event - when hit, wait 50ms and expand if command not yet finished
+		// Also checks for real output since shell integration sequences trigger onWillData
+		store.add(this._options.onWillData(() => {
+			if (this._receivedData) {
+				return;
+			}
+			this._receivedData = true;
+			// Cancel the 500ms no-data timeout since we received data
+			if (this._noDataTimeout) {
+				clearTimeout(this._noDataTimeout);
+				this._noDataTimeout = undefined;
+			}
+			// Wait 50ms and expand if command hasn't finished yet and has real output
+			if (this._options.shouldAutoExpand() && !this._dataEventTimeout) {
+				this._dataEventTimeout = setTimeout(() => {
+					this._dataEventTimeout = undefined;
+					if (!this._commandFinished && this._options.shouldAutoExpand() && this._options.hasRealOutput()) {
+						this._options.toggleOutput(true);
+					}
+				}, DATA_EVENT_TIMEOUT_MS);
+			}
+		}));
+
+		store.add(this._options.onCommandFinished(() => {
+			this._commandFinished = true;
+			this._clearAutoExpandTimeouts();
+		}));
+	}
+
+	private _clearAutoExpandTimeouts(): void {
+		if (this._dataEventTimeout) {
+			clearTimeout(this._dataEventTimeout);
+			this._dataEventTimeout = undefined;
+		}
+		if (this._noDataTimeout) {
+			clearTimeout(this._noDataTimeout);
+			this._noDataTimeout = undefined;
+		}
+	}
+}
