@@ -71,6 +71,22 @@ declare module 'vscode' {
 		constructor(resource: ChatResourceDescriptor);
 	}
 
+	/**
+	 * Represents a skill file resource (SKILL.md)
+	 */
+	export class SkillChatResource {
+		/**
+		 * The skill resource descriptor.
+		 */
+		readonly resource: ChatResourceDescriptor;
+
+		/**
+		 * Creates a new skill resource from the specified resource.
+		 * @param resource The chat resource descriptor.
+		 */
+		constructor(resource: ChatResourceDescriptor);
+	}
+
 	// #endregion
 
 	// #region Providers
@@ -170,6 +186,41 @@ declare module 'vscode' {
 
 	// #endregion
 
+	// #region SkillProvider
+
+	/**
+	 * Context for querying skills.
+	 */
+	export type SkillContext = object;
+
+	/**
+	 * A provider that supplies SKILL.md resources for agents.
+	 */
+	export interface SkillProvider {
+		/**
+		 * A human-readable label for this provider.
+		 */
+		readonly label: string;
+
+		/**
+		 * An optional event to signal that skills have changed.
+		 */
+		readonly onDidChangeSkills?: Event<void>;
+
+		/**
+		 * Provide the list of skills available.
+		 * @param context Context for the query.
+		 * @param token A cancellation token.
+		 * @returns An array of skill resources or a promise that resolves to such.
+		 */
+		provideSkills(
+			context: SkillContext,
+			token: CancellationToken
+		): ProviderResult<SkillChatResource[]>;
+	}
+
+	// #endregion
+
 	// #region Chat Provider Registration
 
 	export namespace chat {
@@ -198,6 +249,15 @@ declare module 'vscode' {
 		 */
 		export function registerPromptFileProvider(
 			provider: PromptFileProvider
+		): Disposable;
+
+		/**
+		 * Register a provider for skills.
+		 * @param provider The skill provider.
+		 * @returns A disposable that unregisters the provider when disposed.
+		 */
+		export function registerPromptFileProvider(
+			provider: SkillProvider
 		): Disposable;
 	}
 

@@ -417,7 +417,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 	private readonly _relatedFilesProviders = new Map<number, ExtHostRelatedFilesProvider>();
 
 	private static _contributionsProviderIdPool = 0;
-	private readonly _promptFileProviders = new Map<number, { extension: IExtensionDescription; provider: vscode.CustomAgentProvider | vscode.InstructionsProvider | vscode.PromptFileProvider }>();
+	private readonly _promptFileProviders = new Map<number, { extension: IExtensionDescription; provider: vscode.CustomAgentProvider | vscode.InstructionsProvider | vscode.PromptFileProvider | vscode.SkillProvider }>();
 
 	private readonly _sessionDisposables: DisposableResourceMap<DisposableStore> = this._register(new DisposableResourceMap());
 	private readonly _completionDisposables: DisposableMap<number, DisposableStore> = this._register(new DisposableMap());
@@ -499,9 +499,9 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 	/**
 	 * Internal method that handles all prompt file provider types.
-	 * Routes custom agents, instructions, and prompt files to the unified internal implementation.
+	 * Routes custom agents, instructions, prompt files, and skills to the unified internal implementation.
 	 */
-	registerPromptFileProvider(extension: IExtensionDescription, type: PromptsType, provider: vscode.CustomAgentProvider | vscode.InstructionsProvider | vscode.PromptFileProvider): vscode.Disposable {
+	registerPromptFileProvider(extension: IExtensionDescription, type: PromptsType, provider: vscode.CustomAgentProvider | vscode.InstructionsProvider | vscode.PromptFileProvider | vscode.SkillProvider): vscode.Disposable {
 		const handle = ExtHostChatAgents2._contributionsProviderIdPool++;
 		this._promptFileProviders.set(handle, { extension, provider });
 		this._proxy.$registerPromptFileProvider(handle, type, extension.identifier);
@@ -520,6 +520,9 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				break;
 			case PromptsType.prompt:
 				changeEvent = (provider as vscode.PromptFileProvider).onDidChangePromptFiles;
+				break;
+			case PromptsType.skill:
+				changeEvent = (provider as vscode.SkillProvider).onDidChangeSkills;
 				break;
 		}
 
@@ -566,7 +569,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				resources = await (provider as vscode.PromptFileProvider).providePromptFiles(context, token) ?? undefined;
 				break;
 			case PromptsType.skill:
-				throw new Error('Skills prompt file provider not implemented yet');
+				resources = await (provider as vscode.SkillProvider).provideSkills(context, token) ?? undefined;
 		}
 
 		// Convert ChatResourceDescriptor to IPromptFileResource format
