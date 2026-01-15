@@ -275,6 +275,10 @@ Agent Session Status Control - Compact running indicator
 	-webkit-app-region: no-drag;
 }
 
+.agent-session-status-container.hidden {
+	display: none;
+}
+
 .agent-session-status-pill {
 	display: flex;
 	align-items: center;

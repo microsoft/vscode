@@ -221,7 +221,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 		ChatContextKeys.hasActiveAgentSessions,
 		ContextKeyExpr.has(`config.${ChatConfiguration.AgentSessionProjectionEnabled}`).negate()
 	),
-	order: 10001 // to the left of the agents control
+	order: 10001 // positioned to the left of the agents control (10002), near the right side of command center
 });
 
 // Register a placeholder action to the session status submenu so it appears (required for submenus)

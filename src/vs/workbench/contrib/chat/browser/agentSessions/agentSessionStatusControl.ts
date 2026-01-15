@@ -18,6 +18,10 @@ import { isSessionInProgressStatus } from './agentSessionsModel.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../../base/common/actions.js';
 
+/**
+ * Action ID for opening the session picker/history.
+ * This opens a quick pick dialog showing all agent sessions.
+ */
 const PICK_SESSION_ACTION_ID = 'workbench.action.chat.history';
 
 /**
@@ -72,12 +76,12 @@ export class AgentSessionStatusControlViewItem extends BaseActionViewItem {
 		const activeCount = activeSessions.length;
 
 		if (activeCount === 0) {
-			// No active sessions - hide container
-			this._container.style.display = 'none';
+			// No active sessions - add hidden class
+			this._container.classList.add('hidden');
 			return;
 		}
 
-		this._container.style.display = '';
+		this._container.classList.remove('hidden');
 
 		// Create the indicator pill
 		const pill = $('div.agent-session-status-pill');
