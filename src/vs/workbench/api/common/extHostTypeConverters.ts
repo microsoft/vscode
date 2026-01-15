@@ -2833,7 +2833,7 @@ export namespace ChatToolInvocationPart {
 				: part.presentation === 'hiddenAfterComplete'
 					? ToolInvocationPresentation.HiddenAfterComplete
 					: undefined,
-			fromSubAgent: part.fromSubAgent
+			subAgentInvocationId: part.subAgentInvocationId
 		};
 	}
 
@@ -2882,7 +2882,7 @@ export namespace ChatToolInvocationPart {
 		if (part.toolSpecificData) {
 			toolInvocation.toolSpecificData = convertFromInternalToolSpecificData(part.toolSpecificData);
 		}
-		toolInvocation.fromSubAgent = part.fromSubAgent;
+		toolInvocation.subAgentInvocationId = part.subAgentInvocationId;
 
 		return toolInvocation;
 	}
@@ -3161,7 +3161,7 @@ export namespace ChatAgentRequest {
 			editedFileEvents: request.editedFileEvents,
 			modeInstructions: request.modeInstructions?.content,
 			modeInstructions2: ChatRequestModeInstructions.to(request.modeInstructions),
-			isSubagent: request.isSubagent,
+			subAgentInvocationId: request.subAgentInvocationId,
 		};
 
 		if (!isProposedApiEnabled(extension, 'chatParticipantPrivate')) {
@@ -3182,7 +3182,7 @@ export namespace ChatAgentRequest {
 			// eslint-disable-next-line local/code-no-any-casts
 			delete (requestWithAllProps as any).sessionId;
 			// eslint-disable-next-line local/code-no-any-casts
-			delete (requestWithAllProps as any).isSubagent;
+			delete (requestWithAllProps as any).subAgentInvocationId;
 		}
 
 		if (!isProposedApiEnabled(extension, 'chatParticipantAdditions')) {
@@ -3588,74 +3588,6 @@ export namespace LanguageModelToolResult {
 				return new types.LanguageModelPromptTsxPart(item.value);
 			}
 		}));
-	}
-
-	export function from(result: vscode.ExtendedLanguageModelToolResult, extension: IExtensionDescription): Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>> {
-		if (result.toolResultMessage) {
-			checkProposedApiEnabled(extension, 'chatParticipantPrivate');
-		}
-
-		const checkAudienceApi = (item: LanguageModelTextPart | LanguageModelDataPart) => {
-			if (item.audience) {
-				checkProposedApiEnabled(extension, 'languageModelToolResultAudience');
-			}
-		};
-
-		let hasBuffers = false;
-		const dto: Dto<IToolResult> = {
-			content: result.content.map(item => {
-				if (item instanceof types.LanguageModelTextPart) {
-					checkAudienceApi(item);
-					return {
-						kind: 'text',
-						value: item.value,
-						audience: item.audience
-					};
-				} else if (item instanceof types.LanguageModelPromptTsxPart) {
-					return {
-						kind: 'promptTsx',
-						value: item.value,
-					};
-				} else if (item instanceof types.LanguageModelDataPart) {
-					checkAudienceApi(item);
-					hasBuffers = true;
-					return {
-						kind: 'data',
-						value: {
-							mimeType: item.mimeType,
-							data: VSBuffer.wrap(item.data)
-						},
-						audience: item.audience
-					};
-				} else {
-					throw new Error('Unknown LanguageModelToolResult part type');
-				}
-			}),
-			toolResultMessage: MarkdownString.fromStrict(result.toolResultMessage),
-			toolResultDetails: result.toolResultDetails?.map(detail => URI.isUri(detail) ? detail : Location.from(detail as vscode.Location)),
-		};
-
-		return hasBuffers ? new SerializableObjectWithBuffers(dto) : dto;
-	}
-}
-
-export namespace LanguageModelToolResult2 {
-	export function to(result: IToolResult): vscode.LanguageModelToolResult2 {
-		const toolResult = new types.LanguageModelToolResult2(result.content.map(item => {
-			if (item.kind === 'text') {
-				return new types.LanguageModelTextPart(item.value, item.audience);
-			} else if (item.kind === 'data') {
-				return new types.LanguageModelDataPart(item.value.data.buffer, item.value.mimeType, item.audience);
-			} else {
-				return new types.LanguageModelPromptTsxPart(item.value);
-			}
-		}));
-
-		if (result.toolMetadata) {
-			(toolResult as vscode.ExtendedLanguageModelToolResult).toolMetadata = result.toolMetadata;
-		}
-
-		return toolResult;
 	}
 
 	export function from(result: vscode.ExtendedLanguageModelToolResult2, extension: IExtensionDescription): Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>> {

@@ -41,6 +41,10 @@ export class ChatToolProgressSubPart extends BaseChatToolInvocationSubPart {
 		if (isComplete && this.toolIsConfirmed && this.toolInvocation.pastTenseMessage) {
 			const key = this.getAnnouncementKey('complete');
 			const completionContent = this.toolInvocation.pastTenseMessage ?? this.toolInvocation.invocationMessage;
+			// Don't render anything if there's no meaningful content
+			if (!this.hasMeaningfulContent(completionContent)) {
+				return document.createElement('div');
+			}
 			const shouldAnnounce = this.toolInvocation.kind === 'toolInvocation' && this.hasMeaningfulContent(completionContent) ? this.computeShouldAnnounce(key) : false;
 			const part = this.renderProgressContent(completionContent, shouldAnnounce);
 			this._register(part);
@@ -52,6 +56,11 @@ export class ChatToolProgressSubPart extends BaseChatToolInvocationSubPart {
 				const progress = progressObservable?.read(reader);
 				const key = this.getAnnouncementKey('progress');
 				const progressContent = progress?.message ?? this.toolInvocation.invocationMessage;
+				// Don't render anything if there's no meaningful content
+				if (!this.hasMeaningfulContent(progressContent)) {
+					dom.clearNode(container);
+					return;
+				}
 				const shouldAnnounce = this.toolInvocation.kind === 'toolInvocation' && this.hasMeaningfulContent(progressContent) ? this.computeShouldAnnounce(key) : false;
 				const part = reader.store.add(this.renderProgressContent(progressContent, shouldAnnounce));
 				dom.reset(container, part.domNode);
