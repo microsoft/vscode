@@ -65,6 +65,12 @@ function getToolInvocationIcon(toolId: string): ThemeIcon {
 		return Codicon.pencil;
 	}
 
+	if (
+		lowerToolId.includes('terminal')
+	) {
+		return Codicon.terminal;
+	}
+
 	// default to generic tool icon
 	return Codicon.tools;
 }
