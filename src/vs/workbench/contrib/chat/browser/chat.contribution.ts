@@ -135,6 +135,7 @@ import { ChatWidgetService } from './widget/chatWidgetService.js';
 import { ILanguageModelsConfigurationService } from '../common/languageModelsConfiguration.js';
 import { ChatWindowNotifier } from './chatWindowNotifier.js';
 import { ChatRepoInfoContribution } from './chatRepoInfo.js';
+import { VALID_SKILL_PATH_PATTERN } from '../common/promptSyntax/utils/promptFilesLocator.js';
 
 const toolReferenceNameEnumValues: string[] = [];
 const toolReferenceNameEnumDescriptions: string[] = [];
@@ -737,6 +738,8 @@ configurationRegistry.registerConfiguration({
 			additionalProperties: { type: 'boolean' },
 			restricted: true,
 			tags: ['prompts', 'reusable prompts', 'prompt snippets', 'instructions'],
+			pattern: VALID_SKILL_PATH_PATTERN,
+			patternErrorMessage: nls.localize('chat.agentSkillsLocations.invalidPath', "Skill location paths must either be relative paths or start with '~' for user home directory."),
 			examples: [
 				{
 					[DEFAULT_SKILL_SOURCE_FOLDERS[0].path]: true,

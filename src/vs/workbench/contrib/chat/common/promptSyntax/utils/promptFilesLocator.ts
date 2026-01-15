@@ -642,7 +642,7 @@ function firstNonGlobParentAndPattern(location: URI): { parent: URI; filePattern
 
 
 /**
- * Validates if a path is allowed for skills configuration.
+ * Regex pattern string for validating skill paths.
  * Skills only support:
  * - Relative paths: someFolder, ./someFolder
  * - User home paths: ~/folder
@@ -651,11 +651,17 @@ function firstNonGlobParentAndPattern(location: URI): { parent: URI; filePattern
  * NOT supported:
  * - Absolute paths (portability issue)
  * - Glob patterns with * or ** (performance issue)
+ *
+ * The regex validates:
+ * - Not a Windows absolute path (e.g., C:\)
+ * - Not starting with / (Unix absolute path)
+ * - No glob pattern characters: * ? [ ] { }
+ */
+export const VALID_SKILL_PATH_PATTERN = '^(?![A-Za-z]:[\\\\/])(?![\\\\/])(?!.*[*?\\[\\]{}]).+$';
+
+/**
+ * Validates if a path is allowed for skills configuration.
  */
 export function isValidSkillPath(path: string): boolean {
-	// Regex validates:
-	// - Not a Windows absolute path (e.g., C:\)
-	// - Not starting with / (Unix absolute path)
-	// - No glob pattern characters: * ? [ ] { }
-	return /^(?![A-Za-z]:[\\/])(?![\\/])(?!.*[*?\[\]{}]).+$/.test(path);
+	return new RegExp(VALID_SKILL_PATH_PATTERN).test(path);
 }
