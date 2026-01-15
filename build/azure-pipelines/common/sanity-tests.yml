@@ -82,7 +82,8 @@ jobs:
               if command -v apt-get &> /dev/null; then
                 echo "Installing dependencies using apt-get (Ubuntu, Debian)"
                 apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
-                  curl ca-certificates xvfb x11-utils libgtk-3-0 libnss3 libgbm1 xdg-utils sudo dbus dbus-x11
+                  curl ca-certificates xvfb x11-utils libnss3 libgbm1 xdg-utils sudo dbus dbus-x11
+                apt-get install -y libgtk-3-0t64 || apt-get install -y libgtk-3-0
                 apt-get install -y libasound2t64 || apt-get install -y libasound2
                 curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
                 apt-get install -y nodejs
