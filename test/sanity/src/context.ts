@@ -29,7 +29,7 @@ interface ITargetMetadata {
 type Capability =
 	| 'linux' | 'darwin' | 'windows' | 'alpine'
 	| 'x64' | 'arm64' | 'arm32'
-	| 'deb' | 'rpm' | 'snap' | 'zypper';
+	| 'deb' | 'rpm' | 'snap';
 
 /**
  * Provides context and utilities for VS Code sanity tests.
@@ -39,7 +39,7 @@ export class TestContext {
 	private static readonly codesignExclude = /node_modules\/(@parcel\/watcher\/build\/Release\/watcher\.node|@vscode\/deviceid\/build\/Release\/windows\.node|@vscode\/ripgrep\/bin\/rg|@vscode\/spdlog\/build\/Release\/spdlog.node|kerberos\/build\/Release\/kerberos.node|@vscode\/native-watchdog\/build\/Release\/watchdog\.node|node-pty\/build\/Release\/(pty\.node|spawn-helper)|vsda\/build\/Release\/vsda\.node|native-watchdog\/build\/Release\/watchdog\.node)$/;
 
 	private readonly tempDirs = new Set<string>();
-	private _currentTest?: Mocha.Test & { consoleOutputs?: string[] };
+	private _consoleOutputs: string[] = [];
 	private _osTempDir?: string;
 	private _capabilities?: Set<Capability>;
 
@@ -47,18 +47,11 @@ export class TestContext {
 		quality: 'stable' | 'insider' | 'exploration';
 		commit: string;
 		verbose: boolean;
+		cleanup: boolean;
 		checkSigning: boolean;
 		headlessBrowser: boolean;
 		downloadOnly: boolean;
 	}) {
-	}
-
-	/**
-	 * Sets the current test for log capturing.
-	 */
-	public set currentTest(test: Mocha.Test) {
-		this._currentTest = test;
-		this._currentTest.consoleOutputs ||= [];
 	}
 
 	/**
@@ -102,9 +95,6 @@ export class TestContext {
 			if (fs.existsSync('/usr/bin/snap')) {
 				this._capabilities.add('snap');
 			}
-			if (fs.existsSync('/usr/bin/zypper')) {
-				this._capabilities.add('zypper');
-			}
 		}
 		return this._capabilities;
 	}
@@ -136,9 +126,28 @@ export class TestContext {
 	 * @param fn The test function.
 	 * @returns The Mocha test object or void if the test is skipped.
 	 */
-	public test(name: string, require: Capability[], fn: Mocha.Func): Mocha.Test | void {
+	public test(name: string, require: Capability[], fn: () => Promise<void>): Mocha.Test | void {
 		if (this.options.downloadOnly || !require.some(o => !this.capabilities.has(o))) {
-			return test(name, fn);
+			const self = this;
+			return test(name, async function () {
+				self._consoleOutputs = [];
+				(this.currentTest! as { consoleOutputs?: string[] }).consoleOutputs = self._consoleOutputs;
+				const homeDir = os.homedir();
+				process.chdir(homeDir);
+				self.log(`Changed working directory to: ${homeDir}`);
+				try {
+					await fn();
+				} catch (error) {
+					self.log(`Test failed with error: ${error instanceof Error ? error.message : String(error)}`);
+					throw error;
+				} finally {
+					process.chdir(homeDir);
+					self.log(`Changed working directory to: ${homeDir}`);
+					if (self.options.cleanup) {
+						self.cleanup();
+					}
+				}
+			});
 		}
 	}
 
@@ -147,7 +156,7 @@ export class TestContext {
 	 */
 	public log(message: string) {
 		const line = `[${new Date().toISOString()}] ${message}`;
-		this._currentTest?.consoleOutputs?.push(line);
+		this._consoleOutputs.push(line);
 		if (this.options.verbose) {
 			console.log(line);
 		}
@@ -158,7 +167,7 @@ export class TestContext {
 	 */
 	public error(message: string): never {
 		const line = `[${new Date().toISOString()}] ERROR: ${message}`;
-		this._currentTest?.consoleOutputs?.push(line);
+		this._consoleOutputs.push(line);
 		console.error(line);
 		throw new Error(message);
 	}
@@ -187,7 +196,6 @@ export class TestContext {
 	 * Cleans up all temporary directories created during the test run.
 	 */
 	public cleanup() {
-		process.chdir(os.homedir());
 		for (const dir of this.tempDirs) {
 			this.log(`Deleting temp directory: ${dir}`);
 			try {

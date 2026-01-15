@@ -29,23 +29,11 @@ const context = new TestContext({
 	quality: options.quality,
 	commit: options.commit,
 	verbose: options.verbose,
+	cleanup: options.cleanup,
 	checkSigning: options['signing-check'],
 	headlessBrowser: options.headless,
 	downloadOnly: !options['runtime-check'],
 });
-
-beforeEach(function () {
-	context.currentTest = this.currentTest!;
-	const cwd = context.createTempDir();
-	process.chdir(cwd);
-	context.log(`Changed working directory to: ${cwd}`);
-});
-
-if (options.cleanup) {
-	afterEach(() => {
-		context.cleanup();
-	});
-}
 
 setupCliTests(context);
 setupDesktopTests(context);
