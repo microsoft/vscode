@@ -58,7 +58,11 @@ declare module 'vscode' {
 		onDidChangeWorkspaceChatContext?: Event<void>;
 
 		/**
-		 * Provide a list of chat context items to be included as workspace context for all chat sessions.
+		 * TODO @API: should this be a separate provider interface?
+		 *
+		 * Provide a list of chat context items to be included as workspace context for all chat requests.
+		 * This should be used very sparingly to avoid providing useless context and to avoid using up the context window.
+		 * A good example use case is to provide information about which branch the user is working on in a source control context.
 		 *
 		 * @param token A cancellation token.
 		 */
