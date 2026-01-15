@@ -555,37 +555,33 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 		const provider = providerData.provider;
 		let resources: vscode.CustomAgentChatResource[] | vscode.InstructionsChatResource[] | vscode.PromptFileChatResource[] | undefined;
-		let fileExtension: string;
 		switch (type) {
 			case PromptsType.agent:
 				resources = await (provider as vscode.CustomAgentProvider).provideCustomAgents(context, token) ?? undefined;
-				fileExtension = '.agent.md';
 				break;
 			case PromptsType.instructions:
 				resources = await (provider as vscode.InstructionsProvider).provideInstructions(context, token) ?? undefined;
-				fileExtension = '.instructions.md';
 				break;
 			case PromptsType.prompt:
 				resources = await (provider as vscode.PromptFileProvider).providePromptFiles(context, token) ?? undefined;
-				fileExtension = '.prompt.md';
 				break;
 		}
 
 		// Convert ChatResourceDescriptor to IPromptFileResource format
-		return resources?.map(r => this.convertChatResourceDescriptorToPromptFileResource(r.resource, fileExtension));
+		return resources?.map(r => this.convertChatResourceDescriptorToPromptFileResource(r.resource, providerData.extension.identifier.value));
 	}
 
 	/**
 	 * Creates a virtual URI for a prompt file.
 	 */
-	createVirtualPromptUri(id: string, extension: string): URI {
+	createVirtualPromptUri(id: string, extensionId: string): URI {
 		return URI.from({
 			scheme: Schemas.vscodeChatPrompt,
-			path: `/${extension}/${id}`
+			path: `/${extensionId}/${id}`
 		});
 	}
 
-	convertChatResourceDescriptorToPromptFileResource(resource: vscode.ChatResourceDescriptor, extension: string): IPromptFileResource {
+	convertChatResourceDescriptorToPromptFileResource(resource: vscode.ChatResourceDescriptor, extensionId: string): IPromptFileResource {
 		if (URI.isUri(resource)) {
 			// Plain URI
 			return { uri: resource };
@@ -593,7 +589,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			// { id, content }
 			return {
 				content: resource.content,
-				uri: this.createVirtualPromptUri(resource.id, extension),
+				uri: this.createVirtualPromptUri(resource.id, extensionId),
 				isEditable: undefined
 			};
 		} else if ('uri' in resource && URI.isUri(resource.uri)) {

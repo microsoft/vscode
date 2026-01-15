@@ -508,8 +508,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			if (content !== undefined) {
 				return new PromptFileParser().parse(uri, content);
 			}
-			// Fallback: content not found in store
-			return new PromptFileParser().parse(uri, '');
+			throw new Error(`Content not found in store for virtual prompt URI: ${uri.toString()}`);
 		}
 
 		const fileContent = await this.fileService.readFile(uri);
