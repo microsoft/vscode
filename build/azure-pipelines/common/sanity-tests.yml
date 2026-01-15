@@ -145,9 +145,10 @@ jobs:
               mkdir -p /run/dbus
               dbus-daemon --system --fork
 
-              if command -v snapd &> /dev/null; then
+              # Start snapd daemon if snap is installed
+              if command -v snap &> /dev/null; then
                 echo "Starting snapd service"
-                snapd &
+                /usr/lib/snapd/snapd &
                 sleep 2
               fi
 
