@@ -11,11 +11,9 @@ import { ExtHostSecretState } from './extHostSecretState.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { Event } from '../../../base/common/event.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
-import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 
 export class ExtensionSecrets implements vscode.SecretStorage {
 
-	private readonly _extensionDescription: IExtensionDescription;
 	protected readonly _id: string;
 	readonly #secretState: ExtHostSecretState;
 
@@ -23,7 +21,6 @@ export class ExtensionSecrets implements vscode.SecretStorage {
 	readonly disposables = new DisposableStore();
 
 	constructor(extensionDescription: IExtensionDescription, secretState: ExtHostSecretState) {
-		this._extensionDescription = extensionDescription;
 		this._id = ExtensionIdentifier.toKey(extensionDescription.identifier);
 		this.#secretState = secretState;
 
@@ -51,7 +48,6 @@ export class ExtensionSecrets implements vscode.SecretStorage {
 	}
 
 	keys(): Promise<string[]> {
-		checkProposedApiEnabled(this._extensionDescription, 'secretStorageKeys');
 		return this.#secretState.keys(this._id) || [];
 	}
 }

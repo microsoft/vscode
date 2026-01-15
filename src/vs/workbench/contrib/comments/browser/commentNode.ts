@@ -10,7 +10,8 @@ import { ActionsOrientation, ActionBar } from '../../../../base/browser/ui/actio
 import { Action, IAction, Separator, ActionRunner } from '../../../../base/common/actions.js';
 import { Disposable, DisposableStore, IReference, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
-import { IMarkdownRenderResult, MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererExtraOptions, IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
+import { IRenderedMarkdown } from '../../../../base/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ICommentService } from './commentService.js';
 import { LayoutableEditor, MIN_EDITOR_HEIGHT, SimpleCommentEditor, calculateEditorHeight } from './simpleCommentEditor.js';
@@ -51,7 +52,7 @@ import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/
 import { Position } from '../../../../editor/common/core/position.js';
 
 class CommentsActionRunner extends ActionRunner {
-	protected override async runAction(action: IAction, context: any[]): Promise<void> {
+	protected override async runAction(action: IAction, context: unknown[]): Promise<void> {
 		await action.run(...context);
 	}
 }
@@ -60,7 +61,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	private _domNode: HTMLElement;
 	private _body: HTMLElement;
 	private _avatar: HTMLElement;
-	private readonly _md: MutableDisposable<IMarkdownRenderResult> = this._register(new MutableDisposable());
+	private readonly _md: MutableDisposable<IRenderedMarkdown> = this._register(new MutableDisposable());
 	private _plainText: HTMLElement | undefined;
 	private _clearTimeout: Timeout | null;
 
@@ -106,7 +107,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		private owner: string,
 		private resource: URI,
 		private parentThread: ICommentThreadWidget,
-		private markdownRenderer: MarkdownRenderer,
+		private readonly markdownRendererOptions: IMarkdownRendererExtraOptions,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ICommentService private commentService: ICommentService,
 		@INotificationService private notificationService: INotificationService,
@@ -116,6 +117,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		@IHoverService private hoverService: IHoverService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@ITextModelService private readonly textModelService: ITextModelService,
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 	) {
 		super();
 
@@ -209,7 +211,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			this._plainText = dom.append(this._body, dom.$('.comment-body-plainstring'));
 			this._plainText.innerText = body;
 		} else {
-			this._md.value = this.markdownRenderer.render(body);
+			this._md.value = this.markdownRendererService.render(body, this.markdownRendererOptions);
 			this._body.appendChild(this._md.value.element);
 		}
 	}
@@ -277,7 +279,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		return result;
 	}
 
-	private get commentNodeContext(): [any, MarshalledCommentThread] {
+	private get commentNodeContext(): [{ thread: languages.CommentThread<T>; commentUniqueId: number; $mid: MarshalledId.CommentNode }, MarshalledCommentThread] {
 		return [{
 			thread: this.commentThread,
 			commentUniqueId: this.comment.uniqueIdInThread,
@@ -411,6 +413,14 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this._reactionsActionBar.clear();
 		this._reactionActions.clear();
 
+		const hasReactionHandler = this.commentService.hasReactionHandler(this.owner);
+		const reactions = this.comment.commentReactions?.filter(reaction => !!reaction.count) || [];
+
+		// Only create the container if there are reactions to show or if there's a reaction handler
+		if (reactions.length === 0 && !hasReactionHandler) {
+			return;
+		}
+
 		this._reactionActionsContainer = dom.append(commentDetailsContainer, dom.$('div.comment-reactions'));
 		this._reactionsActionBar.value = new ActionBar(this._reactionActionsContainer, {
 			actionViewItemProvider: (action, options) => {
@@ -430,8 +440,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			}
 		});
 
-		const hasReactionHandler = this.commentService.hasReactionHandler(this.owner);
-		this.comment.commentReactions?.filter(reaction => !!reaction.count).map(reaction => {
+		reactions.map(reaction => {
 			const action = this._reactionActions.add(new ReactionAction(`reaction.${reaction.label}`, `${reaction.label}`, reaction.hasReacted && (reaction.canEdit || hasReactionHandler) ? 'active' : '', (reaction.canEdit || hasReactionHandler), async () => {
 				try {
 					await this.commentService.toggleReaction(this.owner, this.resource, this.commentThread, this.comment, reaction);

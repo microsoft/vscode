@@ -71,6 +71,16 @@ import { INotebookOutlineEntryFactory, NotebookOutlineEntryFactory } from '../..
 import { IOutlineService } from '../../../../services/outline/browser/outline.js';
 import { DefaultEndOfLine } from '../../../../../editor/common/model.js';
 import { ITextResourcePropertiesService } from '../../../../../editor/common/services/textResourceConfiguration.js';
+import { INotebookLoggingService } from '../../common/notebookLoggingService.js';
+
+class NullNotebookLoggingService implements INotebookLoggingService {
+	_serviceBrand: undefined;
+	info(category: string, output: string): void { }
+	warn(category: string, output: string): void { }
+	error(category: string, output: string): void { }
+	debug(category: string, output: string): void { }
+	trace(category: string, message: string): void { }
+}
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -82,7 +92,26 @@ export class TestCell extends NotebookCellTextModel {
 		outputs: IOutputDto[],
 		languageService: ILanguageService,
 	) {
-		super(CellUri.generate(URI.parse('test:///fake/notebook'), handle), handle, source, language, Mimes.text, cellKind, outputs, undefined, undefined, undefined, { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false, cellContentMetadata: {} }, languageService, DefaultEndOfLine.LF);
+		super(
+			CellUri.generate(URI.parse('test:///fake/notebook'), handle),
+			handle,
+			{
+				source,
+				language,
+				mime: Mimes.text,
+				cellKind,
+				outputs,
+				metadata: undefined,
+				internalMetadata: undefined,
+				collapseState: undefined
+			},
+			{ transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false, cellContentMetadata: {} },
+			languageService,
+			DefaultEndOfLine.LF,
+			undefined, // defaultCollapseConfig
+			undefined,  // languageDetectionService
+			new NullNotebookLoggingService()
+		);
 	}
 }
 
@@ -207,6 +236,7 @@ export function setupInstantiationService(disposables: Pick<DisposableStore, 'ad
 	instantiationService.stub(IOutlineService, new class extends mock<IOutlineService>() { override registerOutlineCreator() { return { dispose() { } }; } });
 	instantiationService.stub(INotebookCellOutlineDataSourceFactory, instantiationService.createInstance(NotebookCellOutlineDataSourceFactory));
 	instantiationService.stub(INotebookOutlineEntryFactory, instantiationService.createInstance(NotebookOutlineEntryFactory));
+	instantiationService.stub(INotebookLoggingService, new NullNotebookLoggingService());
 
 	instantiationService.stub(ILanguageDetectionService, new class MockLanguageDetectionService implements ILanguageDetectionService {
 		_serviceBrand: undefined;
@@ -283,6 +313,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 		override getViewIndexByModelIndex(index: number) { return listViewInfoAccessor.getViewIndex(viewModel.viewCells[index]); }
 		override getCellRangeFromViewRange(startIndex: number, endIndex: number) { return listViewInfoAccessor.getCellRangeFromViewRange(startIndex, endIndex); }
 		override revealCellRangeInView() { }
+		override async revealInView() { }
 		override setHiddenAreas(_ranges: ICellRange[]): boolean {
 			return cellList.setHiddenAreas(_ranges, true);
 		}

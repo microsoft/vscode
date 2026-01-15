@@ -256,7 +256,6 @@ export const referenceGeneratedDepsByArch = {
 		'libgcc_s.so.1()(64bit)',
 		'libgcc_s.so.1(GCC_3.0)(64bit)',
 		'libgcc_s.so.1(GCC_3.3)(64bit)',
-		'libgcc_s.so.1(GCC_4.0.0)(64bit)',
 		'libgcc_s.so.1(GCC_4.2.0)(64bit)',
 		'libgcc_s.so.1(GCC_4.5.0)(64bit)',
 		'libgio-2.0.so.0()(64bit)',

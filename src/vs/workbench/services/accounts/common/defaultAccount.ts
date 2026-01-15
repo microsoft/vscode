@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { IAuthenticationService } from '../../authentication/common/authentication.js';
+import { AuthenticationSession, AuthenticationSessionAccount, IAuthenticationExtensionsService, IAuthenticationService } from '../../authentication/common/authentication.js';
 import { asJson, IRequestService } from '../../../../platform/request/common/request.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
@@ -15,11 +14,19 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { localize } from '../../../../nls.js';
-import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { Barrier } from '../../../../base/common/async.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { Barrier, timeout } from '../../../../base/common/async.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
 import { IDefaultAccount } from '../../../../base/common/defaultAccount.js';
+import { isString } from '../../../../base/common/types.js';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
+import { isWeb } from '../../../../base/common/platform.js';
+import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { distinct } from '../../../../base/common/arrays.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IDefaultAccountConfig } from '../../../../base/common/product.js';
 
 export const DEFAULT_ACCOUNT_SIGN_IN_COMMAND = 'workbench.actions.accounts.signIn';
 
@@ -33,6 +40,7 @@ const CONTEXT_DEFAULT_ACCOUNT_STATE = new RawContextKey<string>('defaultAccountS
 
 interface IChatEntitlementsResponse {
 	readonly access_type_sku: string;
+	readonly copilot_plan: string;
 	readonly assigned_date: string;
 	readonly can_signup_for_limited: boolean;
 	readonly chat_enabled: boolean;
@@ -68,18 +76,6 @@ interface IMcpRegistryResponse {
 	readonly mcp_registries: ReadonlyArray<IMcpRegistryProvider>;
 }
 
-export const IDefaultAccountService = createDecorator<IDefaultAccountService>('defaultAccountService');
-
-export interface IDefaultAccountService {
-
-	readonly _serviceBrand: undefined;
-
-	readonly onDidChangeDefaultAccount: Event<IDefaultAccount | null>;
-
-	getDefaultAccount(): Promise<IDefaultAccount | null>;
-	setDefaultAccount(account: IDefaultAccount | null): void;
-}
-
 export class DefaultAccountService extends Disposable implements IDefaultAccountService {
 	declare _serviceBrand: undefined;
 
@@ -109,73 +105,98 @@ export class DefaultAccountService extends Disposable implements IDefaultAccount
 
 }
 
-export class NullDefaultAccountService extends Disposable implements IDefaultAccountService {
-
-	declare _serviceBrand: undefined;
-
-	readonly onDidChangeDefaultAccount = Event.None;
-
-	async getDefaultAccount(): Promise<IDefaultAccount | null> {
-		return null;
-	}
-
-	setDefaultAccount(account: IDefaultAccount | null): void {
-		// noop
-	}
-
-}
-
-export class DefaultAccountManagementContribution extends Disposable implements IWorkbenchContribution {
-
-	static ID = 'workbench.contributions.defaultAccountManagement';
+class DefaultAccountSetup extends Disposable {
 
 	private defaultAccount: IDefaultAccount | null = null;
 	private readonly accountStatusContext: IContextKey<string>;
 
 	constructor(
+		private readonly defaultAccountConfig: IDefaultAccountConfig,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
+		@IAuthenticationExtensionsService private readonly authenticationExtensionsService: IAuthenticationExtensionsService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IProductService private readonly productService: IProductService,
 		@IRequestService private readonly requestService: IRequestService,
 		@ILogService private readonly logService: ILogService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
 		this.accountStatusContext = CONTEXT_DEFAULT_ACCOUNT_STATE.bindTo(contextKeyService);
-		this.initialize();
 	}
 
-	private async initialize(): Promise<void> {
-		if (!this.productService.defaultAccount) {
-			return;
+	async setup(): Promise<void> {
+		this.logService.debug('[DefaultAccount] Starting initialization');
+		let defaultAccount: IDefaultAccount | null = null;
+		try {
+			defaultAccount = await this.fetchDefaultAccount();
+		} catch (error) {
+			this.logService.error('[DefaultAccount] Error during initialization', getErrorMessage(error));
 		}
 
-		const { authenticationProvider, tokenEntitlementUrl, chatEntitlementUrl, mcpRegistryDataUrl } = this.productService.defaultAccount;
-		await this.extensionService.whenInstalledExtensionsRegistered();
+		this.setDefaultAccount(defaultAccount);
+		this.logService.debug('[DefaultAccount] Initialization complete');
 
-		const declaredProvider = this.authenticationService.declaredProviders.find(provider => provider.id === authenticationProvider.id);
-		if (!declaredProvider) {
-			this.logService.info(`Default account authentication provider ${authenticationProvider} is not declared.`);
-			return;
-		}
+		type DefaultAccountStatusTelemetry = {
+			status: string;
+			initial: boolean;
+		};
+		type DefaultAccountStatusTelemetryClassification = {
+			owner: 'sandy081';
+			comment: 'Log default account availability status';
+			status: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Indicates whether default account is available or not.' };
+			initial: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Indicates whether this is the initial status report.' };
+		};
+		this.telemetryService.publicLog2<DefaultAccountStatusTelemetry, DefaultAccountStatusTelemetryClassification>('defaultaccount:status', { status: this.defaultAccount ? 'available' : 'unavailable', initial: true });
 
-		this.registerSignInAction(authenticationProvider.id, declaredProvider.label, authenticationProvider.enterpriseProviderId, authenticationProvider.enterpriseProviderConfig, authenticationProvider.scopes);
-		this.setDefaultAccount(await this.getDefaultAccountFromAuthenticatedSessions(authenticationProvider.id, authenticationProvider.enterpriseProviderId, authenticationProvider.enterpriseProviderConfig, authenticationProvider.scopes, tokenEntitlementUrl, chatEntitlementUrl, mcpRegistryDataUrl));
-
-		this._register(this.authenticationService.onDidChangeSessions(async e => {
-			if (e.providerId !== authenticationProvider.id && e.providerId !== authenticationProvider.enterpriseProviderId) {
-				return;
-			}
-
-			if (this.defaultAccount && e.event.removed?.some(session => session.id === this.defaultAccount?.sessionId)) {
-				this.setDefaultAccount(null);
-				return;
-			}
-			this.setDefaultAccount(await this.getDefaultAccountFromAuthenticatedSessions(authenticationProvider.id, authenticationProvider.enterpriseProviderId, authenticationProvider.enterpriseProviderConfig, authenticationProvider.scopes, tokenEntitlementUrl, chatEntitlementUrl, mcpRegistryDataUrl));
+		this._register(this.defaultAccountService.onDidChangeDefaultAccount(account => {
+			this.telemetryService.publicLog2<DefaultAccountStatusTelemetry, DefaultAccountStatusTelemetryClassification>('defaultaccount:status', { status: account ? 'available' : 'unavailable', initial: false });
 		}));
 
+		this._register(this.authenticationService.onDidChangeSessions(async e => {
+			if (e.providerId !== this.getDefaultAccountProviderId()) {
+				return;
+			}
+			if (this.defaultAccount && e.event.removed?.some(session => session.id === this.defaultAccount?.sessionId)) {
+				this.setDefaultAccount(null);
+			} else {
+				this.setDefaultAccount(await this.getDefaultAccountFromAuthenticatedSessions(e.providerId, this.defaultAccountConfig.authenticationProvider.scopes));
+			}
+		}));
+
+		this._register(this.authenticationExtensionsService.onDidChangeAccountPreference(async e => {
+			if (e.providerId !== this.getDefaultAccountProviderId()) {
+				return;
+			}
+			this.setDefaultAccount(await this.getDefaultAccountFromAuthenticatedSessions(e.providerId, this.defaultAccountConfig.authenticationProvider.scopes));
+		}));
+	}
+
+	private async fetchDefaultAccount(): Promise<IDefaultAccount | null> {
+		if (isWeb && !this.environmentService.remoteAuthority) {
+			this.logService.debug('[DefaultAccount] Running in web without remote, skipping initialization');
+			return null;
+		}
+
+		const defaultAccountProviderId = this.getDefaultAccountProviderId();
+		this.logService.debug('[DefaultAccount] Default account provider ID:', defaultAccountProviderId);
+		if (!defaultAccountProviderId) {
+			return null;
+		}
+
+		await this.extensionService.whenInstalledExtensionsRegistered();
+		this.logService.debug('[DefaultAccount] Installed extensions registered.');
+
+		const declaredProvider = this.authenticationService.declaredProviders.find(provider => provider.id === defaultAccountProviderId);
+		if (!declaredProvider) {
+			this.logService.info(`[DefaultAccount] Authentication provider is not declared.`, defaultAccountProviderId);
+			return null;
+		}
+
+		this.registerSignInAction(this.defaultAccountConfig.authenticationProvider.scopes[0]);
+		return await this.getDefaultAccountFromAuthenticatedSessions(defaultAccountProviderId, this.defaultAccountConfig.authenticationProvider.scopes);
 	}
 
 	private setDefaultAccount(account: IDefaultAccount | null): void {
@@ -183,8 +204,10 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 		this.defaultAccountService.setDefaultAccount(this.defaultAccount);
 		if (this.defaultAccount) {
 			this.accountStatusContext.set(DefaultAccountStatus.Available);
+			this.logService.debug('[DefaultAccount] Account status set to Available');
 		} else {
 			this.accountStatusContext.set(DefaultAccountStatus.Unavailable);
+			this.logService.debug('[DefaultAccount] Account status set to Unavailable');
 		}
 	}
 
@@ -196,45 +219,98 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 			const [key, value] = field.split('=');
 			result.set(key, value);
 		}
-		this.logService.trace(`DefaultAccount#extractFromToken: ${JSON.stringify(Object.fromEntries(result))}`);
+		this.logService.debug(`[DefaultAccount] extractFromToken: ${JSON.stringify(Object.fromEntries(result))}`);
 		return result;
 	}
 
-	private async getDefaultAccountFromAuthenticatedSessions(authProviderId: string, enterpriseAuthProviderId: string, enterpriseAuthProviderConfig: string, scopes: string[], tokenEntitlementUrl: string, chatEntitlementUrl: string, mcpRegistryDataUrl: string): Promise<IDefaultAccount | null> {
-		const id = this.configurationService.getValue(enterpriseAuthProviderConfig) === enterpriseAuthProviderId ? enterpriseAuthProviderId : authProviderId;
-		const sessions = await this.authenticationService.getSessions(id, undefined, undefined, true);
-		const session = sessions.find(s => this.scopesMatch(s.scopes, scopes));
+	private async getDefaultAccountFromAuthenticatedSessions(authProviderId: string, scopes: string[][]): Promise<IDefaultAccount | null> {
+		try {
+			this.logService.debug('[DefaultAccount] Getting Default Account from authenticated sessions for provider:', authProviderId);
+			const session = await this.findMatchingProviderSession(authProviderId, scopes);
 
-		if (!session) {
+			if (!session) {
+				this.logService.debug('[DefaultAccount] No matching session found for provider:', authProviderId);
+				return null;
+			}
+
+			const [chatEntitlements, tokenEntitlements] = await Promise.all([
+				this.getChatEntitlements(session.accessToken),
+				this.getTokenEntitlements(session.accessToken),
+			]);
+
+			const mcpRegistryProvider = tokenEntitlements.mcp ? await this.getMcpRegistryProvider(session.accessToken) : undefined;
+
+			const account = {
+				sessionId: session.id,
+				enterprise: this.isEnterpriseAuthenticationProvider(authProviderId) || session.account.label.includes('_'),
+				...chatEntitlements,
+				...tokenEntitlements,
+				mcpRegistryUrl: mcpRegistryProvider?.url,
+				mcpAccess: mcpRegistryProvider?.registry_access,
+			};
+			this.logService.debug('[DefaultAccount] Successfully created default account for provider:', authProviderId);
+			return account;
+		} catch (error) {
+			this.logService.error('[DefaultAccount] Failed to create default account for provider:', authProviderId, getErrorMessage(error));
 			return null;
 		}
+	}
 
-		const [chatEntitlements, tokenEntitlements] = await Promise.all([
-			this.getChatEntitlements(session.accessToken, chatEntitlementUrl),
-			this.getTokenEntitlements(session.accessToken, tokenEntitlementUrl),
-		]);
+	private async findMatchingProviderSession(authProviderId: string, allScopes: string[][]): Promise<AuthenticationSession | undefined> {
+		const sessions = await this.getSessions(authProviderId);
+		for (const session of sessions) {
+			this.logService.debug('[DefaultAccount] Checking session with scopes', session.scopes);
+			for (const scopes of allScopes) {
+				if (this.scopesMatch(session.scopes, scopes)) {
+					return session;
+				}
+			}
+		}
+		return undefined;
+	}
 
-		const mcpRegistryProvider = this.productService.quality !== 'stable' && tokenEntitlements.mcp && this.configurationService.getValue<boolean>('chat.mcp.enterprise.registry.enabled') === true ? await this.getMcpRegistryProvider(session.accessToken, mcpRegistryDataUrl) : undefined;
+	private async getSessions(authProviderId: string): Promise<readonly AuthenticationSession[]> {
+		for (let attempt = 1; attempt <= 3; attempt++) {
+			try {
+				let preferredAccount: AuthenticationSessionAccount | undefined;
+				let preferredAccountName: string | undefined;
+				for (const preferredExtension of this.defaultAccountConfig.preferredExtensions) {
+					preferredAccountName = this.authenticationExtensionsService.getAccountPreference(preferredExtension, authProviderId);
+					if (preferredAccountName) {
+						break;
+					}
+				}
+				for (const account of await this.authenticationService.getAccounts(authProviderId)) {
+					if (account.label === preferredAccountName) {
+						preferredAccount = account;
+						break;
+					}
+				}
 
-		return {
-			sessionId: session.id,
-			enterprise: id === enterpriseAuthProviderId || session.account.label.includes('_'),
-			...chatEntitlements,
-			...tokenEntitlements,
-			mcpRegistryUrl: mcpRegistryProvider?.url,
-			mcpAccess: mcpRegistryProvider?.registry_access,
-		};
+				return await this.authenticationService.getSessions(authProviderId, undefined, { account: preferredAccount }, true);
+			} catch (error) {
+				this.logService.warn(`[DefaultAccount] Attempt ${attempt} to get sessions failed:`, getErrorMessage(error));
+				if (attempt === 3) {
+					throw error;
+				}
+				await timeout(500);
+			}
+		}
+		throw new Error('Unable to get sessions after multiple attempts');
 	}
 
 	private scopesMatch(scopes: ReadonlyArray<string>, expectedScopes: string[]): boolean {
-		return scopes.length === expectedScopes.length && expectedScopes.every(scope => scopes.includes(scope));
+		return expectedScopes.every(scope => scopes.includes(scope));
 	}
 
-	private async getTokenEntitlements(accessToken: string, tokenEntitlementsUrl: string): Promise<Partial<IDefaultAccount>> {
+	private async getTokenEntitlements(accessToken: string): Promise<Partial<IDefaultAccount>> {
+		const tokenEntitlementsUrl = this.getTokenEntitlementUrl();
 		if (!tokenEntitlementsUrl) {
+			this.logService.debug('[DefaultAccount] No token entitlements URL found');
 			return {};
 		}
 
+		this.logService.debug('[DefaultAccount] Fetching token entitlements from:', tokenEntitlementsUrl);
 		try {
 			const chatContext = await this.requestService.request({
 				type: 'GET',
@@ -264,11 +340,14 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 		return {};
 	}
 
-	private async getChatEntitlements(accessToken: string, chatEntitlementsUrl: string): Promise<Partial<IChatEntitlementsResponse>> {
+	private async getChatEntitlements(accessToken: string): Promise<Partial<IChatEntitlementsResponse>> {
+		const chatEntitlementsUrl = this.getChatEntitlementUrl();
 		if (!chatEntitlementsUrl) {
+			this.logService.debug('[DefaultAccount] No chat entitlements URL found');
 			return {};
 		}
 
+		this.logService.debug('[DefaultAccount] Fetching chat entitlements from:', chatEntitlementsUrl);
 		try {
 			const context = await this.requestService.request({
 				type: 'GET',
@@ -290,8 +369,10 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 		return {};
 	}
 
-	private async getMcpRegistryProvider(accessToken: string, mcpRegistryDataUrl: string): Promise<IMcpRegistryProvider | undefined> {
+	private async getMcpRegistryProvider(accessToken: string): Promise<IMcpRegistryProvider | undefined> {
+		const mcpRegistryDataUrl = this.getMcpRegistryDataUrl();
 		if (!mcpRegistryDataUrl) {
+			this.logService.debug('[DefaultAccount] No MCP registry data URL found');
 			return undefined;
 		}
 
@@ -310,27 +391,124 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 				this.logService.debug('Fetched MCP registry providers', data.mcp_registries);
 				return data.mcp_registries[0];
 			}
-			this.logService.error('Failed to fetch MCP registry providers', 'No data returned');
+			this.logService.debug('Failed to fetch MCP registry providers', 'No data returned');
 		} catch (error) {
 			this.logService.error('Failed to fetch MCP registry providers', getErrorMessage(error));
 		}
 		return undefined;
 	}
 
-	private registerSignInAction(authProviderId: string, authProviderLabel: string, enterpriseAuthProviderId: string, enterpriseAuthProviderConfig: string, scopes: string[]): void {
+	private getChatEntitlementUrl(): string | undefined {
+		if (this.isEnterpriseAuthenticationProvider(this.getDefaultAccountProviderId())) {
+			try {
+				const enterpriseUrl = this.getEnterpriseUrl();
+				if (!enterpriseUrl) {
+					return undefined;
+				}
+				return `${enterpriseUrl.protocol}//api.${enterpriseUrl.hostname}${enterpriseUrl.port ? ':' + enterpriseUrl.port : ''}/copilot_internal/user`;
+			} catch (error) {
+				this.logService.error(error);
+			}
+		}
+
+		return this.defaultAccountConfig.chatEntitlementUrl;
+	}
+
+	private getTokenEntitlementUrl(): string | undefined {
+		if (this.isEnterpriseAuthenticationProvider(this.getDefaultAccountProviderId())) {
+			try {
+				const enterpriseUrl = this.getEnterpriseUrl();
+				if (!enterpriseUrl) {
+					return undefined;
+				}
+				return `${enterpriseUrl.protocol}//api.${enterpriseUrl.hostname}${enterpriseUrl.port ? ':' + enterpriseUrl.port : ''}/copilot_internal/v2/token`;
+			} catch (error) {
+				this.logService.error(error);
+			}
+		}
+
+		return this.defaultAccountConfig.tokenEntitlementUrl;
+	}
+
+	private getMcpRegistryDataUrl(): string | undefined {
+		if (this.isEnterpriseAuthenticationProvider(this.getDefaultAccountProviderId())) {
+			try {
+				const enterpriseUrl = this.getEnterpriseUrl();
+				if (!enterpriseUrl) {
+					return undefined;
+				}
+				return `${enterpriseUrl.protocol}//api.${enterpriseUrl.hostname}${enterpriseUrl.port ? ':' + enterpriseUrl.port : ''}/copilot/mcp_registry`;
+			} catch (error) {
+				this.logService.error(error);
+			}
+		}
+
+		return this.defaultAccountConfig.mcpRegistryDataUrl;
+	}
+
+	private getDefaultAccountProviderId(): string {
+		if (this.configurationService.getValue<string | undefined>(this.defaultAccountConfig.authenticationProvider.enterpriseProviderConfig) === this.defaultAccountConfig?.authenticationProvider.enterpriseProviderId) {
+			return this.defaultAccountConfig.authenticationProvider.enterpriseProviderId;
+		}
+		return this.defaultAccountConfig.authenticationProvider.id;
+	}
+
+	private isEnterpriseAuthenticationProvider(providerId: string): boolean {
+		return providerId === this.defaultAccountConfig.authenticationProvider.enterpriseProviderId;
+	}
+
+	private getEnterpriseUrl(): URL | undefined {
+		const value = this.configurationService.getValue(this.defaultAccountConfig.authenticationProvider.enterpriseProviderUriSetting);
+		if (!isString(value)) {
+			return undefined;
+		}
+		return new URL(value);
+	}
+
+	private registerSignInAction(defaultAccountScopes: string[]): void {
 		const that = this;
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: DEFAULT_ACCOUNT_SIGN_IN_COMMAND,
-					title: localize('sign in', "Sign in to {0}", authProviderLabel),
+					title: localize('sign in', "Sign in"),
 				});
 			}
-			run(): Promise<any> {
-				const id = that.configurationService.getValue(enterpriseAuthProviderConfig) === enterpriseAuthProviderId ? enterpriseAuthProviderId : authProviderId;
-				return that.authenticationService.createSession(id, scopes);
+			async run(accessor: ServicesAccessor, options?: { additionalScopes?: readonly string[];[key: string]: unknown }): Promise<void> {
+				const authProviderId = that.getDefaultAccountProviderId();
+				if (!authProviderId) {
+					throw new Error('No default account provider configured');
+				}
+				const { additionalScopes, ...sessionOptions } = options ?? {};
+				const scopes = additionalScopes ? distinct([...defaultAccountScopes, ...additionalScopes]) : defaultAccountScopes;
+				const session = await that.authenticationService.createSession(authProviderId, scopes, sessionOptions);
+				for (const preferredExtension of that.defaultAccountConfig.preferredExtensions) {
+					that.authenticationExtensionsService.updateAccountPreference(preferredExtension, authProviderId, session.account);
+				}
 			}
 		}));
 	}
 
 }
+
+class DefaultAccountSetupContribution extends Disposable implements IWorkbenchContribution {
+
+	static ID = 'workbench.contributions.defaultAccountSetup';
+
+	constructor(
+		@IProductService productService: IProductService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IDefaultAccountService defaultAccountService: IDefaultAccountService,
+		@ILogService logService: ILogService,
+	) {
+		super();
+		if (productService.defaultAccount) {
+			this._register(instantiationService.createInstance(DefaultAccountSetup, productService.defaultAccount)).setup();
+		} else {
+			defaultAccountService.setDefaultAccount(null);
+			logService.debug('[DefaultAccount] No default account configuration in product service, skipping initialization');
+		}
+	}
+}
+
+registerWorkbenchContribution2('workbench.contributions.defaultAccountManagement', DefaultAccountSetupContribution, WorkbenchPhase.AfterRestored);

@@ -22,7 +22,7 @@ import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget 
 import { ISerializedEditorGroupModel, isSerializedEditorGroupModel } from '../../../common/editor/editorGroupModel.js';
 import { EditorDropTarget } from './editorDropTarget.js';
 import { Color } from '../../../../base/common/color.js';
-import { CenteredViewLayout } from '../../../../base/browser/ui/centered/centeredViewLayout.js';
+import { CenteredViewLayout, CenteredViewState } from '../../../../base/browser/ui/centered/centeredViewLayout.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Parts, IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
 import { DeepPartial, assertType } from '../../../../base/common/types.js';
@@ -41,6 +41,11 @@ export interface IEditorPartUIState {
 	readonly serializedGrid: ISerializedGrid;
 	readonly activeGroup: GroupIdentifier;
 	readonly mostRecentActiveGroups: GroupIdentifier[];
+}
+
+interface IEditorPartMemento {
+	'editorpart.state'?: IEditorPartUIState;
+	'editorpart.centeredview'?: CenteredViewState;
 }
 
 class GridWidgetView<T extends IView> implements IView {
@@ -83,7 +88,7 @@ class GridWidgetView<T extends IView> implements IView {
 	}
 }
 
-export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
+export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart, IEditorGroupsView {
 
 	private static readonly EDITOR_PART_UI_STATE_STORAGE_KEY = 'editorpart.state';
 	private static readonly EDITOR_PART_CENTERED_VIEW_STORAGE_KEY = 'editorpart.centeredview';

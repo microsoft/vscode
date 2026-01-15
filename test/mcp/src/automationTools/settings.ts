@@ -37,12 +37,12 @@ export function applySettingsTools(server: McpServer, appService: ApplicationSer
 		'vscode_automation_settings_add_user_settings',
 		'Add multiple user settings at once',
 		{
-			settings: z.array(z.tuple([z.string(), z.string()])).describe('Array of [key, value] setting pairs')
+			settings: z.array(z.array(z.string()).length(2)).describe('Array of [key, value] setting pairs')
 		},
 		async (args) => {
 			const { settings } = args;
 			const app = await appService.getOrCreateApplication();
-			await app.workbench.settingsEditor.addUserSettings(settings);
+			await app.workbench.settingsEditor.addUserSettings(settings as [string, string][]);
 			return {
 				content: [{
 					type: 'text' as const,
@@ -97,24 +97,24 @@ export function applySettingsTools(server: McpServer, appService: ApplicationSer
 	// 	}
 	// );
 
-	// Playwright can probably figure this one out
-	// server.tool(
-	// 	'vscode_automation_settings_search_ui',
-	// 	'Search for settings in the settings UI',
-	// 	{
-	// 		query: z.string().describe('Search query for settings')
-	// 	},
-	// 	async (args) => {
-	// 		const { query } = args;
-	// 		await app.workbench.settingsEditor.searchSettingsUI(query);
-	// 		return {
-	// 			content: [{
-	// 				type: 'text' as const,
-	// 				text: `Searched settings UI for: "${query}"`
-	// 			}]
-	// 		};
-	// 	}
-	// );
+	tools.push(server.tool(
+		'vscode_automation_settings_search_ui',
+		'Search for settings in the settings UI',
+		{
+			query: z.string().describe('Search query for settings')
+		},
+		async (args) => {
+			const { query } = args;
+			const app = await appService.getOrCreateApplication();
+			await app.workbench.settingsEditor.searchSettingsUI(query);
+			return {
+				content: [{
+					type: 'text' as const,
+					text: `Searched settings UI for: "${query}"`
+				}]
+			};
+		}
+	));
 
 	return tools;
 }

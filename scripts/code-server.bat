@@ -12,10 +12,12 @@ set NODE_ENV=development
 set VSCODE_DEV=1
 
 :: Get electron, compile, built-in extensions
-if "%VSCODE_SKIP_PRELAUNCH%"=="" node build/lib/preLaunch.js
+if "%VSCODE_SKIP_PRELAUNCH%"=="" (
+	node build/lib/preLaunch.ts
+)
 
 :: Node executable
-FOR /F "tokens=*" %%g IN ('node build/lib/node.js') do (SET NODE=%%g)
+FOR /F "tokens=*" %%g IN ('node build/lib/node.ts') do (SET NODE=%%g)
 
 if not exist "%NODE%" (
 	:: Download nodejs executable for remote

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Artifact, requestAZDOAPI } from './publish';
-import { retry } from './retry';
+import { type Artifact, requestAZDOAPI } from './publish.ts';
+import { retry } from './retry.ts';
 
 async function getPipelineArtifacts(): Promise<Artifact[]> {
 	const result = await requestAZDOAPI<{ readonly value: Artifact[] }>('artifacts');
@@ -13,7 +13,7 @@ async function getPipelineArtifacts(): Promise<Artifact[]> {
 
 async function main([variableName, artifactName]: string[]): Promise<void> {
 	if (!variableName || !artifactName) {
-		throw new Error(`Usage: node checkForArtifact.js <variableName> <artifactName>`);
+		throw new Error(`Usage: node checkForArtifact.ts <variableName> <artifactName>`);
 	}
 
 	try {

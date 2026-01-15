@@ -24,7 +24,7 @@ import { VIEWPANE_FILTER_ACTION } from './parts/views/viewPane.js';
 import { IBoundarySashes } from '../../base/browser/ui/sash/sash.js';
 import { IBaseActionViewItemOptions } from '../../base/browser/ui/actionbar/actionViewItems.js';
 
-export abstract class PaneComposite extends Composite implements IPaneComposite {
+export abstract class PaneComposite<MementoType extends object = object> extends Composite<MementoType> implements IPaneComposite {
 
 	private viewPaneContainer?: ViewPaneContainer;
 

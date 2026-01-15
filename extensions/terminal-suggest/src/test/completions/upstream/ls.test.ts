@@ -51,7 +51,7 @@ const allOptions = [
 	'-w',
 	'-x',
 ];
-const expectedCompletions = [{ label: 'ls', description: (lsSpec as any).description }];
+const expectedCompletions = [{ label: 'ls', description: (lsSpec as Fig.Subcommand).description }];
 export const lsTestSuiteSpec: ISuiteSpec = {
 	name: 'ls',
 	completionSpecs: lsSpec,
@@ -84,8 +84,9 @@ export const lsTestSuiteSpec: ISuiteSpec = {
 
 		// Relative directories (changes cwd due to /)
 		{ input: 'ls child/|', expectedCompletions: allOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwdChild } },
-		{ input: 'ls ../|', expectedCompletions: allOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwdParent } },
-		{ input: 'ls ../sibling|', expectedCompletions: allOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwdParent } },
+		// Paths with .. are handled by the completion service to avoid double-navigation (no cwd resolution)
+		{ input: 'ls ../|', expectedCompletions: allOptions, expectedResourceRequests: { type: 'both' } },
+		{ input: 'ls ../sibling|', expectedCompletions: allOptions, expectedResourceRequests: { type: 'both' } },
 	]
 };
 

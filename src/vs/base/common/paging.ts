@@ -6,6 +6,7 @@
 import { range } from './arrays.js';
 import { CancellationToken, CancellationTokenSource } from './cancellation.js';
 import { CancellationError } from './errors.js';
+import { Event, Emitter } from './event.js';
 
 /**
  * A Pager is a stateless abstraction over a paged collection.
@@ -15,6 +16,16 @@ export interface IPager<T> {
 	total: number;
 	pageSize: number;
 	getPage(pageIndex: number, cancellationToken: CancellationToken): Promise<T[]>;
+}
+
+export interface IIterativePage<T> {
+	readonly items: T[];
+	readonly hasMore: boolean;
+}
+
+export interface IIterativePager<T> {
+	readonly firstPage: IIterativePage<T>;
+	getNextPage(cancellationToken: CancellationToken): Promise<IIterativePage<T>>;
 }
 
 export interface IPageIterator<T> {
@@ -46,7 +57,8 @@ function createPage<T>(elements?: T[]): IPage<T> {
  * A PagedModel is a stateful model over an abstracted paged collection.
  */
 export interface IPagedModel<T> {
-	length: number;
+	readonly length: number;
+	readonly onDidIncrementLength: Event<number>;
 	isResolved(index: number): boolean;
 	get(index: number): T;
 	resolve(index: number, cancellationToken: CancellationToken): Promise<T>;
@@ -69,6 +81,7 @@ export class PagedModel<T> implements IPagedModel<T> {
 	private pages: IPage<T>[] = [];
 
 	get length(): number { return this.pager.total; }
+	readonly onDidIncrementLength = Event.None;
 
 	constructor(arg: IPager<T> | T[]) {
 		this.pager = Array.isArray(arg) ? singlePagePager<T>(arg) : arg;
@@ -147,8 +160,9 @@ export class PagedModel<T> implements IPagedModel<T> {
 export class DelayedPagedModel<T> implements IPagedModel<T> {
 
 	get length(): number { return this.model.length; }
+	get onDidIncrementLength() { return this.model.onDidIncrementLength; }
 
-	constructor(private model: IPagedModel<T>, private timeout: number = 500) { }
+	constructor(private readonly model: IPagedModel<T>, private timeout: number = 500) { }
 
 	isResolved(index: number): boolean {
 		return this.model.isResolved(index);
@@ -244,9 +258,7 @@ export class PageIteratorPager<T> implements IPager<T> {
 			}
 			return this.cachedPages[pageIndex];
 		} finally {
-			if (this.pendingRequests.has(pageIndex)) {
-				this.pendingRequests.delete(pageIndex);
-			}
+			this.pendingRequests.delete(pageIndex);
 		}
 	}
 
@@ -262,6 +274,107 @@ export class PageIteratorPager<T> implements IPager<T> {
 		if (!this.currentIterator.hasNextPage) {
 			this.isComplete = true;
 		}
+	}
+}
+
+export class IterativePagedModel<T> implements IPagedModel<T> {
+
+	private items: T[] = [];
+	private _hasNextPage = true;
+	private readonly _onDidIncrementLength = new Emitter<number>();
+	private loadingPromise: Promise<void> | null = null;
+
+	private readonly pager: IIterativePager<T>;
+
+	constructor(pager: IIterativePager<T>) {
+		this.pager = pager;
+		this.items = [...pager.firstPage.items];
+		this._hasNextPage = pager.firstPage.hasMore;
+	}
+
+	get onDidIncrementLength(): Event<number> {
+		return this._onDidIncrementLength.event;
+	}
+
+	/**
+	 * Returns actual length + 1 if there are more pages (sentinel approach)
+	 */
+	get length(): number {
+		return this.items.length + (this._hasNextPage ? 1 : 0);
+	}
+
+	/**
+	 * Sentinel item is never resolved - it triggers loading
+	 */
+	isResolved(index: number): boolean {
+		if (index === this.items.length && this._hasNextPage) {
+			return false; // This will trigger resolve() call
+		}
+		return index < this.items.length;
+	}
+
+	get(index: number): T {
+		if (index < this.items.length) {
+			return this.items[index];
+		}
+		throw new Error('Item not resolved yet');
+	}
+
+	/**
+	 * When sentinel item is accessed, load next page
+	 */
+	async resolve(index: number, cancellationToken: CancellationToken): Promise<T> {
+		if (cancellationToken.isCancellationRequested) {
+			return Promise.reject(new CancellationError());
+		}
+
+		// If trying to resolve the sentinel item, load next page
+		if (index === this.items.length && this._hasNextPage) {
+			await this.loadNextPage(cancellationToken);
+		}
+
+		// After loading, the requested index should now be valid
+		if (index < this.items.length) {
+			return this.items[index];
+		}
+
+		throw new Error('Index out of bounds');
+	}
+
+	private async loadNextPage(cancellationToken: CancellationToken): Promise<void> {
+		if (!this._hasNextPage) {
+			return;
+		}
+
+		// If already loading, return the cached promise
+		if (this.loadingPromise) {
+			await this.loadingPromise;
+			return;
+		}
+
+		const pagePromise = this.pager.getNextPage(cancellationToken);
+
+		this.loadingPromise = pagePromise
+			.then(page => {
+				this.items.push(...page.items);
+				this._hasNextPage = page.hasMore;
+
+				// Clear the loading promise before firing the event
+				// so that event handlers can trigger loading the next page if needed
+				this.loadingPromise = null;
+
+				// Fire length update event
+				this._onDidIncrementLength.fire(this.length);
+			}, err => {
+				this.loadingPromise = null;
+				throw err;
+			});
+
+		await this.loadingPromise;
+	}
+
+	dispose(): void {
+		this._onDidIncrementLength.dispose();
 	}
 }
 

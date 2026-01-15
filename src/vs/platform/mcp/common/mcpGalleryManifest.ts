@@ -7,8 +7,17 @@ import { Event } from '../../../base/common/event.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export const enum McpGalleryResourceType {
-	McpQueryService = 'McpQueryService',
-	McpServerManifestUri = 'McpServerManifestUriTemplate',
+	McpServersQueryService = 'McpServersQueryService',
+	McpServerWebUri = 'McpServerWebUriTemplate',
+	McpServerVersionUri = 'McpServerVersionUriTemplate',
+	McpServerIdUri = 'McpServerIdUriTemplate',
+	McpServerLatestVersionUri = 'McpServerLatestVersionUriTemplate',
+	McpServerNamedResourceUri = 'McpServerNamedResourceUriTemplate',
+	PublisherUriTemplate = 'PublisherUriTemplate',
+	ContactSupportUri = 'ContactSupportUri',
+	PrivacyPolicyUri = 'PrivacyPolicyUri',
+	TermsOfServiceUri = 'TermsOfServiceUri',
+	ReportUri = 'ReportUri',
 }
 
 export type McpGalleryManifestResource = {
@@ -17,7 +26,7 @@ export type McpGalleryManifestResource = {
 };
 
 export interface IMcpGalleryManifest {
-	readonly version?: string;
+	readonly version: string;
 	readonly url: string;
 	readonly resources: readonly McpGalleryManifestResource[];
 }

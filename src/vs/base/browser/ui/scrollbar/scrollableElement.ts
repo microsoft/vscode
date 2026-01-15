@@ -495,7 +495,7 @@ export abstract class AbstractScrollableElement extends Widget {
 			// Check that we are scrolling towards a location which is valid
 			desiredScrollPosition = this._scrollable.validateScrollPosition(desiredScrollPosition);
 
-			if (this._options.inertialScroll && (deltaX || deltaY)) {
+			if (this._options.inertialScroll && (deltaX || deltaY) && !classifier.isPhysicalMouseWheel()) {
 				let startPeriodic = false;
 				// Only start periodic if it's not running
 				if (this._inertialSpeed.X === 0 && this._inertialSpeed.Y === 0) {

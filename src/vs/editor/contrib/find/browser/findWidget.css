@@ -24,7 +24,7 @@
 	background-color: var(--vscode-editorWidget-background);
 }
 
-.monaco-workbench.reduce-motion .monaco-editor .find-widget {
+.monaco-reduce-motion .monaco-editor .find-widget {
 	transition: transform 0ms linear;
 }
 
@@ -41,7 +41,7 @@
 	display: flex;
 }
 
-.monaco-editor .find-widget.visible  {
+.monaco-editor .find-widget.visible {
 	transform: translateY(0);
 }
 
@@ -101,7 +101,7 @@
 .monaco-editor .find-widget .monaco-findInput {
 	vertical-align: middle;
 	display: flex;
-	flex:1;
+	flex: 1;
 }
 
 .monaco-editor .find-widget .monaco-findInput .monaco-scrollable-element {
@@ -201,7 +201,7 @@
 
 /* REDUCED */
 .monaco-editor .find-widget.reduced-find-widget .matchesCount {
-	display:none;
+	display: none;
 }
 
 /* NARROW (SMALLER THAN REDUCED) */
@@ -219,7 +219,7 @@
 .monaco-editor .find-widget.collapsed-find-widget .button.replace,
 .monaco-editor .find-widget.collapsed-find-widget .button.replace-all,
 .monaco-editor .find-widget.collapsed-find-widget > .find-part .monaco-findInput .controls {
-	display:none;
+	display: none;
 }
 
 .monaco-editor .find-widget.no-results .matchesCount {

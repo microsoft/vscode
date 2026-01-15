@@ -9,13 +9,15 @@ import { ICodeEditorService } from '../../../../../editor/browser/services/codeE
 import { EditOperation } from '../../../../../editor/common/core/editOperation.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
-import { IToolAndToolSetEnablementMap, IToolData, ToolSet } from '../../common/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolAndToolSetEnablementMap } from '../../common/tools/languageModelToolsService.js';
+import { PromptHeaderAttributes } from '../../common/promptSyntax/promptFileParser.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 
 export class PromptFileRewriter {
 	constructor(
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
-		@IPromptsService private readonly _promptsService: IPromptsService
+		@IPromptsService private readonly _promptsService: IPromptsService,
+		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService
 	) {
 	}
 
@@ -26,58 +28,58 @@ export class PromptFileRewriter {
 		}
 		const model = editor.getModel();
 
-		const parser = this._promptsService.getSyntaxParserFor(model);
-		await parser.start(token).settled();
-		const { header } = parser;
-		if (header === undefined) {
+		const promptAST = this._promptsService.getParsedPromptFile(model);
+		if (!promptAST.header) {
 			return undefined;
 		}
 
-		const completed = await header.settled;
-		if (!completed || token.isCancellationRequested) {
+		const toolsAttr = promptAST.header.getAttribute(PromptHeaderAttributes.tools);
+		if (!toolsAttr) {
+			return undefined;
+		}
+
+		editor.setSelection(toolsAttr.range);
+		if (newTools === undefined) {
+			this.rewriteAttribute(model, '', toolsAttr.range);
+			return;
+		} else {
+			this.rewriteTools(model, newTools, toolsAttr.value.range);
+		}
+	}
+
+	public rewriteTools(model: ITextModel, newTools: IToolAndToolSetEnablementMap, range: Range): void {
+		const newToolNames = this._languageModelToolsService.toFullReferenceNames(newTools);
+		const newValue = `[${newToolNames.map(s => `'${s}'`).join(', ')}]`;
+		this.rewriteAttribute(model, newValue, range);
+	}
+
+	private rewriteAttribute(model: ITextModel, newValue: string, range: Range): void {
+		model.pushStackElement();
+		model.pushEditOperations(null, [EditOperation.replaceMove(range, newValue)], () => null);
+		model.pushStackElement();
+	}
+
+	public async openAndRewriteName(uri: URI, newName: string, token: CancellationToken): Promise<void> {
+		const editor = await this._codeEditorService.openCodeEditor({ resource: uri }, this._codeEditorService.getFocusedCodeEditor());
+		if (!editor || !editor.hasModel()) {
+			return;
+		}
+		const model = editor.getModel();
+
+		const promptAST = this._promptsService.getParsedPromptFile(model);
+		if (!promptAST.header) {
 			return;
 		}
 
-		if (('tools' in header.metadataUtility) === false) {
-			return undefined;
+		const nameAttr = promptAST.header.getAttribute(PromptHeaderAttributes.name);
+		if (!nameAttr) {
+			return;
 		}
-		const { tools } = header.metadataUtility;
-		if (tools === undefined) {
-			return undefined;
+		if (nameAttr.value.type === 'string' && nameAttr.value.value === newName) {
+			return;
 		}
-		editor.setSelection(tools.range);
-		this.rewriteTools(model, newTools, tools.range);
-	}
 
-
-	public rewriteTools(model: ITextModel, newTools: IToolAndToolSetEnablementMap | undefined, range: Range): void {
-		const newString = newTools === undefined ? '' : `tools: ${this.getNewValueString(newTools)}`;
-		model.pushStackElement();
-		model.pushEditOperations(null, [EditOperation.replaceMove(range, newString)], () => null);
-		model.pushStackElement();
-	}
-
-	public getNewValueString(tools: IToolAndToolSetEnablementMap): string {
-		const newToolNames: string[] = [];
-		const toolsCoveredBySets = new Set<IToolData>();
-		for (const [item, picked] of tools) {
-			if (picked && item instanceof ToolSet) {
-				for (const tool of item.getTools()) {
-					toolsCoveredBySets.add(tool);
-				}
-			}
-		}
-		for (const [item, picked] of tools) {
-			if (picked) {
-				if (item instanceof ToolSet) {
-					newToolNames.push(item.referenceName);
-				} else if (!toolsCoveredBySets.has(item)) {
-					newToolNames.push(item.toolReferenceName ?? item.displayName);
-				}
-			}
-		}
-		return `[${newToolNames.map(s => `'${s}'`).join(', ')}]`;
+		editor.setSelection(nameAttr.range);
+		this.rewriteAttribute(model, newName, nameAttr.value.range);
 	}
 }
-
-

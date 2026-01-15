@@ -704,7 +704,7 @@ function createNormalRenderedLine(domNode: FastDomNode<HTMLElement> | null, rend
 }
 
 export function getColumnOfNodeOffset(characterMapping: CharacterMapping, spanNode: HTMLElement, offset: number): number {
-	const spanNodeTextContentLength = spanNode.textContent!.length;
+	const spanNodeTextContentLength = spanNode.textContent.length;
 
 	let spanIndex = -1;
 	while (spanNode) {

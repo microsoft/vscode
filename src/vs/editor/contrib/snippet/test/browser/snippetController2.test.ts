@@ -565,7 +565,7 @@ suite('SnippetController2', function () {
 				{ range: new Range(1, 1, 1, 1), template: 'const ${1:new_const} = "bar";\n' }
 			]);
 
-			assert.strictEqual(model.getValue(), "const new_const = \"bar\";\nfoo(new_const)");
+			assert.strictEqual(model.getValue(), 'const new_const = "bar";\nfoo(new_const)');
 			assertContextKeys(contextKeys, true, false, true);
 			assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 7, 1, 16), new Selection(2, 5, 2, 14)]);
 
@@ -584,7 +584,7 @@ suite('SnippetController2', function () {
 				{ range: new Range(1, 1, 1, 1), template: 'const ${1:new_const}$0 = "bar";\n' }
 			]);
 
-			assert.strictEqual(model.getValue(), "const new_const = \"bar\";\nfoo(new_const)");
+			assert.strictEqual(model.getValue(), 'const new_const = "bar";\nfoo(new_const)');
 			assertContextKeys(contextKeys, true, false, true);
 			assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 7, 1, 16), new Selection(2, 5, 2, 14)]);
 
@@ -604,7 +604,7 @@ suite('SnippetController2', function () {
 				{ range: new Range(1, 1, 1, 1), template: '### ${2:Header}\n' }
 			]);
 
-			assert.strictEqual(model.getValue(), "### Header\nfoo\nbar");
+			assert.strictEqual(model.getValue(), '### Header\nfoo\nbar');
 			assert.deepStrictEqual(getContextState(), { inSnippet: true, hasPrev: false, hasNext: true });
 			assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 5, 1, 11)]);
 
@@ -695,7 +695,7 @@ suite('SnippetController2', function () {
 			}];
 			ctrl.apply(edits);
 
-			assert.strictEqual(model.getValue(), "fooAbazzBone\nfooCbazzDtwo");
+			assert.strictEqual(model.getValue(), 'fooAbazzBone\nfooCbazzDtwo');
 			assert.deepStrictEqual(getContextState(), { inSnippet: false, hasPrev: false, hasNext: false });
 			assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 5, 1, 5), new Selection(1, 10, 1, 10), new Selection(2, 5, 2, 5), new Selection(2, 10, 2, 10)]);
 		});

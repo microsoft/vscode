@@ -54,7 +54,8 @@
 }
 
 .monaco-editor .reference-zone-widget .ref-tree .referenceMatch .highlight {
-	background-color: var(--vscode-peekViewResult-matchHighlightBackground);
+	color: var(--vscode-peekViewResult-fileForeground) !important;
+	background-color: var(--vscode-peekViewResult-matchHighlightBackground) !important;
 }
 
 .monaco-editor .reference-zone-widget .preview .reference-decoration {

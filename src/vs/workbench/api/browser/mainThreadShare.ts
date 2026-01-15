@@ -41,12 +41,8 @@ export class MainThreadShare implements MainThreadShareShape {
 	}
 
 	$unregisterShareProvider(handle: number): void {
-		if (this.providers.has(handle)) {
-			this.providers.delete(handle);
-		}
-		if (this.providerDisposables.has(handle)) {
-			this.providerDisposables.delete(handle);
-		}
+		this.providers.delete(handle);
+		this.providerDisposables.delete(handle);
 	}
 
 	dispose(): void {

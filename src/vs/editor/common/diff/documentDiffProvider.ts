@@ -23,7 +23,7 @@ export interface IDocumentDiffProvider {
 	 * Is fired when settings of the diff algorithm change that could alter the result of the diffing computation.
 	 * Any user of this provider should recompute the diff when this event is fired.
 	 */
-	onDidChange: Event<void>;
+	readonly onDidChange: Event<void>;
 }
 
 /**

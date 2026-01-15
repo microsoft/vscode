@@ -308,7 +308,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 	}
 
 	protected getFileSystemSchema(options: { availableFileSystems?: readonly string[]; defaultUri?: URI }): string {
-		return options.availableFileSystems && options.availableFileSystems[0] || this.getSchemeFilterForWindow(options.defaultUri?.scheme);
+		return options.availableFileSystems?.[0] || this.getSchemeFilterForWindow(options.defaultUri?.scheme);
 	}
 
 	abstract pickFileFolderAndOpen(options: IPickAndOpenOptions): Promise<void>;

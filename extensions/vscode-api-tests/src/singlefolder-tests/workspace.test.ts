@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import { basename, join, posix } from 'path';
 import * as vscode from 'vscode';
 import { TestFS } from '../memfs';
-import { assertNoRpc, closeAllEditors, createRandomFile, delay, deleteFile, disposeAll, pathEquals, revertAllDirty, rndName, testFs, withLogDisabled } from '../utils';
+import { assertNoRpc, closeAllEditors, createRandomFile, delay, deleteFile, disposeAll, Mutable, pathEquals, revertAllDirty, rndName, testFs, withLogDisabled } from '../utils';
 
 suite('vscode API - workspace', () => {
 
@@ -41,12 +41,13 @@ suite('vscode API - workspace', () => {
 
 	test('textDocuments', () => {
 		assert.ok(Array.isArray(vscode.workspace.textDocuments));
-		assert.throws(() => (<any>vscode.workspace).textDocuments = null);
+		assert.throws(() => (vscode.workspace as Mutable<typeof vscode.workspace>).textDocuments = null as unknown as vscode.TextDocument[]);
 	});
 
 	test('rootPath', () => {
 		assert.ok(pathEquals(vscode.workspace.rootPath!, join(__dirname, '../../testWorkspace')));
-		assert.throws(() => (vscode.workspace as any).rootPath = 'farboo');
+
+		assert.throws(() => (vscode.workspace as Mutable<typeof vscode.workspace>).rootPath = 'farboo');
 	});
 
 	test('workspaceFile', () => {
@@ -458,7 +459,7 @@ suite('vscode API - workspace', () => {
 
 		const registration = vscode.workspace.registerTextDocumentContentProvider('foo', {
 			provideTextDocumentContent(_uri) {
-				return <any>123;
+				return 123 as unknown as string;
 			}
 		});
 		return vscode.workspace.openTextDocument(vscode.Uri.parse('foo://auth/path')).then(() => {
@@ -1148,12 +1149,12 @@ suite('vscode API - workspace', () => {
 			const we = new vscode.WorkspaceEdit();
 			we.insert(file, new vscode.Position(0, 5), '2');
 			we.renameFile(file, newFile);
-			await vscode.workspace.applyEdit(we);
+			assert.ok(await vscode.workspace.applyEdit(we));
 		}
 
 		// show the new document
 		{
-			const document = await vscode.workspace.openTextDocument(newFile);
+			const document = await vscode.workspace.openTextDocument(newFile); // FAILS here
 			await vscode.window.showTextDocument(document);
 			assert.strictEqual(document.getText(), 'hello2');
 			assert.strictEqual(document.isDirty, true);
@@ -1176,40 +1177,6 @@ suite('vscode API - workspace', () => {
 			assert.strictEqual(document.isDirty, true);
 		}
 
-	});
-
-	test.skip('issue #110141 - TextEdit.setEndOfLine applies an edit and invalidates redo stack even when no change is made', async () => {
-		const file = await createRandomFile('hello\nworld');
-
-		const document = await vscode.workspace.openTextDocument(file);
-		await vscode.window.showTextDocument(document);
-
-		// apply edit
-		{
-			const we = new vscode.WorkspaceEdit();
-			we.insert(file, new vscode.Position(0, 5), '2');
-			await vscode.workspace.applyEdit(we);
-		}
-
-		// check the document
-		{
-			assert.strictEqual(document.getText(), 'hello2\nworld');
-			assert.strictEqual(document.isDirty, true);
-		}
-
-		// apply no-op edit
-		{
-			const we = new vscode.WorkspaceEdit();
-			we.set(file, [vscode.TextEdit.setEndOfLine(vscode.EndOfLine.LF)]);
-			await vscode.workspace.applyEdit(we);
-		}
-
-		// undo
-		{
-			await vscode.commands.executeCommand('undo');
-			assert.strictEqual(document.getText(), 'hello\nworld');
-			assert.strictEqual(document.isDirty, false);
-		}
 	});
 
 	test('SnippetString in WorkspaceEdit', async function (): Promise<any> {

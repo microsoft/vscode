@@ -10,7 +10,8 @@ import { Event } from '../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 import * as platform from '../../../base/common/platform.js';
 import * as strings from '../../../base/common/strings.js';
-import { ConfigurationChangedEvent, EditorOption, EDITOR_FONT_DEFAULTS, filterValidationDecorations, filterFontDecorations } from '../config/editorOptions.js';
+import { ConfigurationChangedEvent, EditorOption, filterValidationDecorations, filterFontDecorations } from '../config/editorOptions.js';
+import { EDITOR_FONT_DEFAULTS } from '../config/fontInfo.js';
 import { CursorsController } from '../cursor/cursor.js';
 import { CursorConfiguration, CursorState, EditOperationType, IColumnSelectData, PartialCursorState } from '../cursorCommon.js';
 import { CursorChangeReason } from '../cursorEvents.js';
@@ -450,10 +451,10 @@ export class ViewModel extends Disposable implements IViewModel {
 
 				this.viewLayout.changeSpecialLineHeights((accessor: ILineHeightChangeAccessor) => {
 					for (const change of filteredChanges) {
-						const { decorationId, lineNumber, lineHeight } = change;
+						const { decorationId, lineNumber, lineHeightMultiplier } = change;
 						const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber)));
-						if (lineHeight !== null) {
-							accessor.insertOrChangeCustomLineHeight(decorationId, viewRange.startLineNumber, viewRange.endLineNumber, lineHeight);
+						if (lineHeightMultiplier !== null) {
+							accessor.insertOrChangeCustomLineHeight(decorationId, viewRange.startLineNumber, viewRange.endLineNumber, lineHeightMultiplier * this._configuration.options.get(EditorOption.lineHeight));
 						} else {
 							accessor.removeCustomLineHeight(decorationId);
 						}
@@ -689,6 +690,32 @@ export class ViewModel extends Disposable implements IViewModel {
 		return new Range(
 			startViewLineNumber, this.getLineMinColumn(startViewLineNumber),
 			endViewLineNumber, this.getLineMaxColumn(endViewLineNumber)
+		);
+	}
+
+	/**
+	 * Applies `cursorSurroundingLines` and `stickyScroll` padding to the given view range.
+	 */
+	public getViewRangeWithCursorPadding(viewRange: Range): Range {
+		const options = this._configuration.options;
+		const cursorSurroundingLines = options.get(EditorOption.cursorSurroundingLines);
+		const stickyScroll = options.get(EditorOption.stickyScroll);
+
+		let { startLineNumber, endLineNumber } = viewRange;
+		const padding = Math.min(
+			Math.max(cursorSurroundingLines, stickyScroll.enabled ? stickyScroll.maxLineCount : 0),
+			Math.floor((endLineNumber - startLineNumber + 1) / 2));
+
+		startLineNumber += padding;
+		endLineNumber -= Math.max(0, padding - 1);
+
+		if (padding === 0 || startLineNumber > endLineNumber) {
+			return viewRange;
+		}
+
+		return new Range(
+			startLineNumber, this.getLineMinColumn(startLineNumber),
+			endLineNumber, this.getLineMaxColumn(endLineNumber)
 		);
 	}
 
@@ -958,33 +985,20 @@ export class ViewModel extends Disposable implements IViewModel {
 			}
 		}
 
-		if (!hasNonEmptyRange) {
+		if (!hasNonEmptyRange && !emptySelectionClipboard) {
 			// all ranges are empty
-			if (!emptySelectionClipboard) {
-				return '';
-			}
-
-			const modelLineNumbers = modelRanges.map((r) => r.startLineNumber);
-
-			let result = '';
-			for (let i = 0; i < modelLineNumbers.length; i++) {
-				if (i > 0 && modelLineNumbers[i - 1] === modelLineNumbers[i]) {
-					continue;
-				}
-				result += this.model.getLineContent(modelLineNumbers[i]) + newLineCharacter;
-			}
-			return result;
+			return '';
 		}
 
 		if (hasEmptyRange && emptySelectionClipboard) {
-			// mixed empty selections and non-empty selections
+			// some (maybe all) empty selections
 			const result: string[] = [];
 			let prevModelLineNumber = 0;
 			for (const modelRange of modelRanges) {
 				const modelLineNumber = modelRange.startLineNumber;
 				if (modelRange.isEmpty()) {
 					if (modelLineNumber !== prevModelLineNumber) {
-						result.push(this.model.getLineContent(modelLineNumber));
+						result.push(this.model.getLineContent(modelLineNumber) + newLineCharacter);
 					}
 				} else {
 					result.push(this.model.getValueInRange(modelRange, forceCRLF ? EndOfLinePreference.CRLF : EndOfLinePreference.TextDefined));

@@ -74,46 +74,68 @@ const postProcessBranches =
 			const seen = new Set<string>();
 			return output
 				.split("\n")
-				.filter((line) => !line.trim().startsWith("HEAD"))
+				.filter((line) => line.trim() && !line.trim().startsWith("HEAD"))
 				.map((branch) => {
-					let name = branch.trim();
-					const parts = branch.match(/\S+/g);
-					if (parts && parts.length > 1) {
-						if (parts[0] === "*") {
-							// We are in a detached HEAD state
-							if (branch.includes("HEAD detached")) {
-								return null;
+					// Parse the format: branchName|author|hash|subject|timeAgo
+					const parts = branch.split("|");
+					if (parts.length < 5) {
+						// Fallback to old parsing if format doesn't match
+						let name = branch.trim();
+						const oldParts = branch.match(/\S+/g);
+						if (oldParts && oldParts.length > 1) {
+							if (oldParts[0] === "*") {
+								if (branch.includes("HEAD detached")) {
+									return null;
+								}
+								return {
+									name: branch.replaceAll("*", "").trim(),
+									description: "Current branch",
+									priority: 100,
+									icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.ScmBranch}`
+								};
+							} else if (oldParts[0] === "+") {
+								name = branch.replaceAll("+", "").trim();
 							}
-							// Current branch
-							return {
-								name: branch.replace("*", "").trim(),
-								description: "Current branch",
-								priority: 100,
-								icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.Branch}`
-							};
-						} else if (parts[0] === "+") {
-							// Branch checked out in another worktree.
-							name = branch.replace("+", "").trim();
 						}
+
+						let description = "Branch";
+
+						if (insertWithoutRemotes && name.startsWith("remotes/")) {
+							name = name.slice(name.indexOf("/", 8) + 1);
+							description = "Remote branch";
+						}
+
+						const space = name.indexOf(" ");
+						if (space !== -1) {
+							name = name.slice(0, space);
+						}
+
+						return {
+							name,
+							description,
+							icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.ScmBranch}`,
+							priority: 75,
+						};
 					}
 
-					let description = "Branch";
+					let name = parts[0].trim();
+					const author = parts[1].trim();
+					const hash = parts[2].trim();
+					const subject = parts[3].trim();
+					const timeAgo = parts[4].trim();
+
+					const description = `${timeAgo} • ${author} • ${hash} • ${subject}`;
+					const priority = 75;
 
 					if (insertWithoutRemotes && name.startsWith("remotes/")) {
 						name = name.slice(name.indexOf("/", 8) + 1);
-						description = "Remote branch";
-					}
-
-					const space = name.indexOf(" ");
-					if (space !== -1) {
-						name = name.slice(0, space);
 					}
 
 					return {
 						name,
 						description,
-						icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.Branch}`,
-						priority: 75,
+						icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.ScmBranch}`,
+						priority,
 					};
 				})
 				.filter((suggestion) => {
@@ -127,6 +149,15 @@ const postProcessBranches =
 					return true;
 				});
 		};
+
+// Common git for-each-ref arguments for branch queries with commit details
+const gitBranchForEachRefArgs = [
+	"git",
+	"--no-optional-locks",
+	"for-each-ref",
+	"--sort=-committerdate",
+	"--format=%(refname:short)|%(authorname)|%(objectname:short)|%(subject)|%(committerdate:relative)",
+] as const;
 
 export const gitGenerators = {
 	// Commit history
@@ -148,7 +179,7 @@ export const gitGenerators = {
 			return lines.map((line) => {
 				return {
 					name: line.substring(0, hashLength),
-					icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.Commit}`,
+					icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.ScmCommit}`,
 					description: line.substring(descriptionStart),
 				};
 			});
@@ -194,7 +225,7 @@ export const gitGenerators = {
 			return output.split("\n").map((line) => {
 				return {
 					name: line.substring(0, 7),
-					icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.Commit}`,
+					icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.ScmCommit}`,
 					description: line.substring(7),
 				};
 			});
@@ -217,7 +248,7 @@ export const gitGenerators = {
 					// account for conventional commit messages
 					name: file.split(":").slice(2).join(":"),
 					insertValue: file.split(":")[0],
-					icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.Stash}`,
+					icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.ScmStash}`,
 				};
 			});
 		},
@@ -252,26 +283,20 @@ export const gitGenerators = {
 	// All branches
 	remoteLocalBranches: {
 		script: [
-			"git",
-			"--no-optional-locks",
-			"branch",
-			"-a",
-			"--no-color",
-			"--sort=-committerdate",
+			...gitBranchForEachRefArgs,
+			"refs/heads/",
+			"refs/remotes/",
 		],
 		postProcess: postProcessBranches({ insertWithoutRemotes: true }),
-	} satisfies Fig.Generator,
+	},
 
 	localBranches: {
 		script: [
-			"git",
-			"--no-optional-locks",
-			"branch",
-			"--no-color",
-			"--sort=-committerdate",
+			...gitBranchForEachRefArgs,
+			"refs/heads/",
 		],
 		postProcess: postProcessBranches({ insertWithoutRemotes: true }),
-	} satisfies Fig.Generator,
+	},
 
 	// custom generator to display local branches by default or
 	// remote branches if '-r' flag is used. See branch -d for use
@@ -329,7 +354,7 @@ export const gitGenerators = {
 			return Object.keys(remoteURLs).map((remote) => {
 				return {
 					name: remote,
-					icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.Remote}`,
+					icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.ScmRemote}`,
 					description: "Remote",
 				};
 			});
@@ -347,7 +372,7 @@ export const gitGenerators = {
 		postProcess: function (output) {
 			return output.split("\n").map((tag) => ({
 				name: tag,
-				icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.Tag}`
+				icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.ScmTag}`
 			}));
 		},
 	} satisfies Fig.Generator,
@@ -6331,6 +6356,504 @@ const completionSpec: Fig.Spec = {
 						name: "pattern",
 					},
 				},
+				{
+					name: "--committer",
+					description: "Search for commits by a particular committer",
+					requiresSeparator: true,
+					args: {
+						name: "pattern",
+					},
+				},
+				{
+					name: "--graph",
+					description: "Draw a text-based graphical representation of the commit history",
+				},
+				{
+					name: "--all",
+					description: "Show all branches",
+				},
+				{
+					name: "--decorate",
+					description: "Show ref names of commits",
+				},
+				{
+					name: "--no-decorate",
+					description: "Do not show ref names of commits",
+				},
+				{
+					name: "--abbrev-commit",
+					description: "Show only the first few characters of the SHA-1 checksum",
+				},
+				{
+					name: ["-n", "--max-count"],
+					description: "Limit the number of commits to output",
+					requiresSeparator: true,
+					args: {
+						name: "number",
+					},
+				},
+				{
+					name: "--since",
+					description: "Show commits more recent than a specific date",
+					requiresSeparator: true,
+					args: {
+						name: "date",
+					},
+				},
+				{
+					name: "--after",
+					description: "Show commits more recent than a specific date",
+					requiresSeparator: true,
+					args: {
+						name: "date",
+					},
+				},
+				{
+					name: "--until",
+					description: "Show commits older than a specific date",
+					requiresSeparator: true,
+					args: {
+						name: "date",
+					},
+				},
+				{
+					name: "--before",
+					description: "Show commits older than a specific date",
+					requiresSeparator: true,
+					args: {
+						name: "date",
+					},
+				},
+				{
+					name: "--merges",
+					description: "Show only merge commits",
+				},
+				{
+					name: "--no-merges",
+					description: "Do not show merge commits",
+				},
+				{
+					name: "--first-parent",
+					description: "Follow only the first parent commit upon seeing a merge commit",
+				},
+				{
+					name: "--reverse",
+					description: "Output the commits in reverse order",
+				},
+				{
+					name: "--relative-date",
+					description: "Show dates relative to the current time",
+				},
+				{
+					name: "--date",
+					description: "Format dates (iso, rfc, short, relative, local, etc.)",
+					requiresSeparator: true,
+					args: {
+						name: "format",
+						suggestions: [
+							{ name: "relative", description: "Relative to current time" },
+							{ name: "local", description: "Local timezone" },
+							{ name: "iso", description: "ISO 8601 format" },
+							{ name: "iso8601", description: "ISO 8601 format" },
+							{ name: "iso-strict", description: "Strict ISO 8601 format" },
+							{ name: "rfc", description: "RFC 2822 format" },
+							{ name: "rfc2822", description: "RFC 2822 format" },
+							{ name: "short", description: "YYYY-MM-DD format" },
+							{ name: "raw", description: "Seconds since epoch + timezone" },
+							{ name: "human", description: "Human-readable format" },
+							{ name: "unix", description: "Unix timestamp (seconds since epoch)" },
+							{ name: "default", description: "Default ctime-like format" },
+							{ name: "format:", description: "Custom strftime format" },
+						],
+					},
+				},
+				{
+					name: "--pretty",
+					description: "Pretty-print the contents of the commit logs",
+					requiresSeparator: true,
+					args: {
+						name: "format",
+						suggestions: [
+							{ name: "oneline", description: "Show each commit as a single line" },
+							{ name: "short", description: "Show commit and author" },
+							{ name: "medium", description: "Show commit, author, and date (default)" },
+							{ name: "full", description: "Show commit, author, and committer" },
+							{ name: "fuller", description: "Show commit, author, committer, and dates" },
+							{ name: "reference", description: "Abbreviated hash with title and date" },
+							{ name: "email", description: "Format as email with headers" },
+							{ name: "mboxrd", description: "Email format with quoted From lines" },
+							{ name: "raw", description: "Show raw commit object" },
+							{ name: "format:", description: "Custom format string with placeholders" },
+							{ name: "tformat:", description: "Custom format with terminator semantics" },
+						],
+					},
+				},
+				{
+					name: "--format",
+					description: "Pretty-print the contents of the commit logs in a given format",
+					requiresSeparator: true,
+					args: {
+						name: "format",
+					},
+				},
+				{
+					name: "--name-only",
+					description: "Show only names of changed files",
+				},
+				{
+					name: "--name-status",
+					description: "Show names and status of changed files",
+				},
+				{
+					name: "--shortstat",
+					description: "Output only the last line of the --stat format",
+				},
+				{
+					name: "-S",
+					description: "Look for differences that change the number of occurrences of the specified string",
+					requiresSeparator: true,
+					args: {
+						name: "string",
+					},
+				},
+				{
+					name: "-G",
+					description: "Look for differences whose patch text contains added/removed lines that match <regex>",
+					requiresSeparator: true,
+					args: {
+						name: "regex",
+					},
+				},
+				{
+					name: "--no-walk",
+					description: "Only display the given commits, but do not traverse their ancestors",
+				},
+				{
+					name: "--cherry-pick",
+					description: "Omit any commit that introduces the same change as another commit",
+				},
+				{
+					name: ["-i", "--regexp-ignore-case"],
+					description: "Match patterns case-insensitively",
+				},
+				{
+					name: ["-E", "--extended-regexp"],
+					description: "Use extended regular expressions for patterns",
+				},
+				{
+					name: ["-F", "--fixed-strings"],
+					description: "Use fixed string matching instead of patterns",
+				},
+				{
+					name: ["-P", "--perl-regexp"],
+					description: "Use Perl-compatible regular expressions",
+				},
+				{
+					name: "--all-match",
+					description: "Match all --grep patterns instead of any",
+				},
+				{
+					name: "--invert-grep",
+					description: "Show commits that don't match the --grep pattern",
+				},
+				{
+					name: "--skip",
+					description: "Skip a number of commits before starting to show output",
+					requiresSeparator: true,
+					args: {
+						name: "number",
+					},
+				},
+				{
+					name: "--min-parents",
+					description: "Show only commits with at least this many parents",
+					requiresSeparator: true,
+					args: {
+						name: "number",
+					},
+				},
+				{
+					name: "--max-parents",
+					description: "Show only commits with at most this many parents",
+					requiresSeparator: true,
+					args: {
+						name: "number",
+					},
+				},
+				{
+					name: "--branches",
+					description: "Show commits from all branches",
+					args: {
+						name: "pattern",
+						isOptional: true,
+					},
+				},
+				{
+					name: "--tags",
+					description: "Show commits from all tags",
+					args: {
+						name: "pattern",
+						isOptional: true,
+					},
+				},
+				{
+					name: "--remotes",
+					description: "Show commits from all remote-tracking branches",
+					args: {
+						name: "pattern",
+						isOptional: true,
+					},
+				},
+				{
+					name: "--glob",
+					description: "Show commits from refs matching the given shell glob pattern",
+					requiresSeparator: true,
+					args: {
+						name: "pattern",
+					},
+				},
+				{
+					name: "--exclude",
+					description: "Exclude refs matching the given shell glob pattern",
+					requiresSeparator: true,
+					args: {
+						name: "pattern",
+					},
+				},
+				{
+					name: ["-g", "--walk-reflogs"],
+					description: "Walk reflog entries from most recent to oldest",
+				},
+				{
+					name: "--boundary",
+					description: "Output excluded boundary commits",
+				},
+				{
+					name: "--date-order",
+					description: "Show commits in date order",
+				},
+				{
+					name: "--author-date-order",
+					description: "Show commits in author date order",
+				},
+				{
+					name: "--topo-order",
+					description: "Show commits in topological order",
+				},
+				{
+					name: "--parents",
+					description: "Print parent commit hashes",
+				},
+				{
+					name: "--children",
+					description: "Print child commit hashes",
+				},
+				{
+					name: "--left-right",
+					description: "Mark commits with < or > for left or right side of symmetric difference",
+				},
+				{
+					name: "--cherry-mark",
+					description: "Mark equivalent commits with = and others with +",
+				},
+				{
+					name: "--left-only",
+					description: "Show only commits on the left side of a symmetric difference",
+				},
+				{
+					name: "--right-only",
+					description: "Show only commits on the right side of a symmetric difference",
+				},
+				{
+					name: "--cherry",
+					description: "Synonym for --right-only --cherry-mark --no-merges",
+				},
+				{
+					name: "--full-history",
+					description: "Show full commit history without simplification",
+				},
+				{
+					name: "--simplify-merges",
+					description: "Remove unnecessary merges from history",
+				},
+				{
+					name: "--ancestry-path",
+					description: "Only display commits between the specified range that are ancestors of the end commit",
+				},
+				{
+					name: "--numstat",
+					description: "Show number of added and deleted lines in decimal notation",
+				},
+				{
+					name: "--no-patch",
+					description: "Suppress diff output",
+				},
+				{
+					name: "--raw",
+					description: "Show output in raw format",
+				},
+				{
+					name: "-m",
+					description: "Show diffs for merge commits",
+				},
+				{
+					name: "-c",
+					description: "Show combined diff format for merge commits",
+				},
+				{
+					name: "--cc",
+					description: "Show condensed combined diff format for merge commits",
+				},
+				{
+					name: "--notes",
+					description: "Show notes attached to commits",
+					args: {
+						name: "ref",
+						isOptional: true,
+					},
+				},
+				{
+					name: "--no-notes",
+					description: "Do not show notes",
+				},
+				{
+					name: "--show-notes",
+					description: "Show notes (default when showing commit messages)",
+				},
+				{
+					name: "-L",
+					description: "Trace the evolution of a line range or function",
+					requiresSeparator: true,
+					args: {
+						name: "range:file",
+					},
+				},
+				{
+					name: "--no-abbrev-commit",
+					description: "Show full 40-byte hexadecimal commit object names",
+				},
+				{
+					name: "--encoding",
+					description: "Re-encode commit messages in the specified character encoding",
+					requiresSeparator: true,
+					args: {
+						name: "encoding",
+					},
+				},
+				{
+					name: "--no-commit-id",
+					description: "Suppress commit IDs in output",
+				},
+				{
+					name: "--diff-filter",
+					description: "Select only files that are Added (A), Copied (C), Deleted (D), Modified (M), Renamed (R), etc.",
+					requiresSeparator: true,
+					args: {
+						name: "filter",
+						suggestions: [
+							{ name: "A", description: "Added files" },
+							{ name: "C", description: "Copied files" },
+							{ name: "D", description: "Deleted files" },
+							{ name: "M", description: "Modified files" },
+							{ name: "R", description: "Renamed files" },
+							{ name: "T", description: "Type changed files" },
+							{ name: "U", description: "Unmerged files" },
+							{ name: "X", description: "Unknown files" },
+							{ name: "B", description: "Broken files" },
+						],
+					},
+				},
+				{
+					name: "--full-diff",
+					description: "Show full diff, not just for specified paths",
+				},
+				{
+					name: "--log-size",
+					description: "Include log size information",
+				},
+				{
+					name: ["-U", "--unified"],
+					description: "Generate diffs with <n> lines of context",
+					requiresSeparator: true,
+					args: {
+						name: "lines",
+					},
+				},
+				{
+					name: "--summary",
+					description: "Show a diffstat summary of created, renamed, and mode changes",
+				},
+				{
+					name: "--patch-with-stat",
+					description: "Synonym for -p --stat",
+				},
+				{
+					name: "--ignore-space-change",
+					description: "Ignore changes in whitespace",
+				},
+				{
+					name: "--ignore-all-space",
+					description: "Ignore all whitespace when comparing lines",
+				},
+				{
+					name: "--ignore-blank-lines",
+					description: "Ignore changes whose lines are all blank",
+				},
+				{
+					name: "--function-context",
+					description: "Show whole function as context",
+				},
+				{
+					name: "--ext-diff",
+					description: "Allow external diff helper to be executed",
+				},
+				{
+					name: "--no-ext-diff",
+					description: "Disallow external diff helper",
+				},
+				{
+					name: "--textconv",
+					description: "Allow external text conversion filters for binary files",
+				},
+				{
+					name: "--no-textconv",
+					description: "Disallow external text conversion filters",
+				},
+				{
+					name: "--color",
+					description: "Show colored diff",
+					args: {
+						name: "when",
+						isOptional: true,
+						suggestions: [
+							{ name: "always", description: "Always use colors" },
+							{ name: "never", description: "Never use colors" },
+							{ name: "auto", description: "Use colors when output is to a terminal" },
+						],
+					},
+				},
+				{
+					name: "--no-color",
+					description: "Turn off colored diff",
+				},
+				{
+					name: "--word-diff",
+					description: "Show word diff",
+					args: {
+						name: "mode",
+						isOptional: true,
+						suggestions: [
+							{ name: "color", description: "Highlight changed words using colors" },
+							{ name: "plain", description: "Show words with [-removed-] and {+added+}" },
+							{ name: "porcelain", description: "Use special line-based format" },
+							{ name: "none", description: "Disable word diff" },
+						],
+					},
+				},
+				{
+					name: "--color-words",
+					description: "Equivalent to --word-diff=color",
+				},
 			],
 			args: [
 				{
@@ -6450,7 +6973,7 @@ const completionSpec: Fig.Spec = {
 				},
 				{
 					name: ["rm", "remove"],
-					description: "Removes given remote [name]",
+					description: "Removes the given remote",
 					args: {
 						name: "remote",
 						generators: gitGenerators.remotes,
@@ -6459,7 +6982,7 @@ const completionSpec: Fig.Spec = {
 				},
 				{
 					name: "rename",
-					description: "Removes given remote [name]",
+					description: "Renames the given remote",
 					args: [
 						{
 							name: "old remote",
@@ -8117,7 +8640,7 @@ const completionSpec: Fig.Spec = {
 						{
 							name: "-",
 							description: "Switch to the last used branch",
-							icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.Branch}`
+							icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.ScmBranch}`
 						},
 						{
 							name: "--",
@@ -9283,7 +9806,7 @@ const completionSpec: Fig.Spec = {
 						{
 							name: "-",
 							description: "Switch to the last used branch",
-							icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.Branch}`
+							icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.ScmBranch}`
 						},
 					],
 				},

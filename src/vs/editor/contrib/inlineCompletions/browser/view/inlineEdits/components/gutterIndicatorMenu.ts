@@ -2,6 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 
 import { ChildNode, LiveElement, n } from '../../../../../../../base/browser/dom.js';
 import { ActionBar, IActionBarOptions } from '../../../../../../../base/browser/ui/actionbar/actionbar.js';
@@ -19,21 +23,20 @@ import { IContextKeyService } from '../../../../../../../platform/contextkey/com
 import { nativeHoverDelegate } from '../../../../../../../platform/hover/browser/hover.js';
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
 import { defaultKeybindingLabelStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
-import { asCssVariable, descriptionForeground, editorActionListForeground, editorHoverBorder, keybindingLabelBackground } from '../../../../../../../platform/theme/common/colorRegistry.js';
+import { asCssVariable, descriptionForeground, editorActionListForeground, editorHoverBorder } from '../../../../../../../platform/theme/common/colorRegistry.js';
 import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
-import { hideInlineCompletionId, inlineSuggestCommitId, toggleShowCollapsedId } from '../../../controller/commandIds.js';
-import { IInlineEditModel } from '../inlineEditsViewInterface.js';
+import { hideInlineCompletionId, inlineSuggestCommitAlternativeActionId, inlineSuggestCommitId, toggleShowCollapsedId } from '../../../controller/commandIds.js';
 import { FirstFnArg, } from '../utils/utils.js';
+import { InlineSuggestionGutterMenuData } from './gutterIndicatorView.js';
 
 export class GutterIndicatorMenuContent {
-
 	private readonly _inlineEditsShowCollapsed: IObservable<boolean>;
 
 	constructor(
-		private readonly _model: IInlineEditModel,
-		private readonly _close: (focusEditor: boolean) => void,
 		private readonly _editorObs: ObservableCodeEditor,
+		private readonly _data: InlineSuggestionGutterMenuData,
+		private readonly _close: (focusEditor: boolean) => void,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ICommandService private readonly _commandService: ICommandService,
@@ -62,13 +65,13 @@ export class GutterIndicatorMenuContent {
 			};
 		};
 
-		const title = header(this._model.displayName);
+		const title = header(this._data.displayName);
 
 		const gotoAndAccept = option(createOptionArgs({
 			id: 'gotoAndAccept',
 			title: `${localize('goto', "Go To")} / ${localize('accept', "Accept")}`,
 			icon: Codicon.check,
-			commandId: inlineSuggestCommitId
+			commandId: inlineSuggestCommitId,
 		}));
 
 		const reject = option(createOptionArgs({
@@ -78,13 +81,33 @@ export class GutterIndicatorMenuContent {
 			commandId: hideInlineCompletionId
 		}));
 
-		const extensionCommands = this._model.extensionCommands.map((c, idx) => option(createOptionArgs({
+		const alternativeCommand = this._data.alternativeAction ? option(createOptionArgs({
+			id: 'alternativeCommand',
+			title: this._data.alternativeAction.command.title,
+			icon: this._data.alternativeAction.icon,
+			commandId: inlineSuggestCommitAlternativeActionId,
+		})) : undefined;
+
+		const extensionCommands = this._data.extensionCommands.map((c, idx) => option(createOptionArgs({
 			id: c.command.id + '_' + idx,
 			title: c.command.title,
 			icon: c.icon ?? Codicon.symbolEvent,
 			commandId: c.command.id,
 			commandArgs: c.command.arguments
 		})));
+
+		const showModelEnabled = false;
+		const modelOptions = showModelEnabled ? this._data.modelInfo?.models.map((m: { id: string; name: string }) => option({
+			title: m.name,
+			icon: m.id === this._data.modelInfo?.currentModelId ? Codicon.check : Codicon.circle,
+			keybinding: constObservable(undefined),
+			isActive: activeElement.map(v => v === 'model_' + m.id),
+			onHoverChange: v => activeElement.set(v ? 'model_' + m.id : undefined, undefined),
+			onAction: () => {
+				this._close(true);
+				this._data.setModelId?.(m.id);
+			},
+		})) ?? [] : [];
 
 		const toggleCollapsedMode = this._inlineEditsShowCollapsed.map(showCollapsed => showCollapsed ?
 			option(createOptionArgs({
@@ -101,6 +124,13 @@ export class GutterIndicatorMenuContent {
 			}))
 		);
 
+		const snooze = option(createOptionArgs({
+			id: 'snooze',
+			title: localize('snooze', "Snooze"),
+			icon: Codicon.bellSlash,
+			commandId: 'editor.action.inlineSuggest.snooze'
+		}));
+
 		const settings = option(createOptionArgs({
 			id: 'settings',
 			title: localize('settings', "Settings"),
@@ -109,11 +139,11 @@ export class GutterIndicatorMenuContent {
 			commandArgs: ['@tag:nextEditSuggestions']
 		}));
 
-		const actions = this._model.action ? [this._model.action] : [];
+		const actions = this._data.action ? [this._data.action] : [];
 		const actionBarFooter = actions.length > 0 ? actionBar(
 			actions.map(action => ({
 				id: action.id,
-				label: action.title,
+				label: action.title + '...',
 				enabled: true,
 				run: () => this._commandService.executeCommand(action.id, ...(action.arguments ?? [])),
 				class: undefined,
@@ -125,11 +155,15 @@ export class GutterIndicatorMenuContent {
 		return hoverContent([
 			title,
 			gotoAndAccept,
+			alternativeCommand,
 			reject,
 			toggleCollapsedMode,
+			modelOptions.length ? separator() : undefined,
+			...modelOptions,
+			extensionCommands.length ? separator() : undefined,
+			snooze,
 			settings,
 
-			extensionCommands.length ? separator() : undefined,
 			...extensionCommands,
 
 			actionBarFooter ? separator() : undefined,
@@ -150,7 +184,7 @@ function hoverContent(content: ChildNode) {
 		class: 'content',
 		style: {
 			margin: 4,
-			minWidth: 150,
+			minWidth: 180,
 		}
 	}, content);
 }
@@ -160,10 +194,10 @@ function header(title: string | IObservable<string>) {
 		class: 'header',
 		style: {
 			color: asCssVariable(descriptionForeground),
-			fontSize: '12px',
+			fontSize: '13px',
 			fontWeight: '600',
-			padding: '0 10px',
-			lineHeight: 26,
+			padding: '0 4px',
+			lineHeight: 28,
 		}
 	}, [title]);
 }
@@ -205,7 +239,8 @@ function option(props: {
 					disableTitle: true,
 					...defaultKeybindingLabelStyles,
 					keybindingLabelShadow: undefined,
-					keybindingLabelBackground: asCssVariable(keybindingLabelBackground),
+					keybindingLabelForeground: asCssVariable(descriptionForeground),
+					keybindingLabelBackground: 'transparent',
 					keybindingLabelBorder: 'transparent',
 					keybindingLabelBottomBorder: undefined,
 				}));
@@ -222,7 +257,7 @@ function actionBar(actions: IAction[], options: IActionBarOptions) {
 	return derived({ name: 'inlineEdits.actionBar' }, (_reader) => n.div({
 		class: ['action-widget-action-bar'],
 		style: {
-			padding: '0 10px',
+			padding: '3px 24px',
 		}
 	}, [
 		n.div({
@@ -240,7 +275,7 @@ function separator() {
 		class: 'menu-separator',
 		style: {
 			color: asCssVariable(editorActionListForeground),
-			padding: '4px 0',
+			padding: '2px 0',
 		}
 	}, n.div({
 		style: {

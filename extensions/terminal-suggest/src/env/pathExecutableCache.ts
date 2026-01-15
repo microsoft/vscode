@@ -5,13 +5,11 @@
 
 import * as fs from 'fs/promises';
 import * as vscode from 'vscode';
-import { isExecutable } from '../helpers/executable';
+import { isExecutable, WindowsExecutableExtensionsCache } from '../helpers/executable';
 import { osIsWindows } from '../helpers/os';
 import type { ICompletionResource } from '../types';
 import { getFriendlyResourcePath } from '../helpers/uri';
 import { SettingsIds } from '../constants';
-import * as filesystem from 'fs';
-import * as path from 'path';
 import { TerminalShellType } from '../terminalSuggestMain';
 
 const isWindows = osIsWindows();
@@ -24,7 +22,7 @@ export interface IExecutablesInPath {
 export class PathExecutableCache implements vscode.Disposable {
 	private _disposables: vscode.Disposable[] = [];
 
-	private _cachedWindowsExeExtensions: { [key: string]: boolean | undefined } | undefined;
+	private readonly _windowsExecutableExtensionsCache: WindowsExecutableExtensionsCache | undefined;
 	private _cachedExes: Map<string, Set<ICompletionResource> | undefined> = new Map();
 
 	private _inProgressRequest: {
@@ -35,10 +33,10 @@ export class PathExecutableCache implements vscode.Disposable {
 
 	constructor() {
 		if (isWindows) {
-			this._cachedWindowsExeExtensions = vscode.workspace.getConfiguration(SettingsIds.SuggestPrefix).get(SettingsIds.CachedWindowsExecutableExtensionsSuffixOnly);
+			this._windowsExecutableExtensionsCache = new WindowsExecutableExtensionsCache(this._getConfiguredWindowsExecutableExtensions());
 			this._disposables.push(vscode.workspace.onDidChangeConfiguration(e => {
 				if (e.affectsConfiguration(SettingsIds.CachedWindowsExecutableExtensions)) {
-					this._cachedWindowsExeExtensions = vscode.workspace.getConfiguration(SettingsIds.SuggestPrefix).get(SettingsIds.CachedWindowsExecutableExtensionsSuffixOnly);
+					this._windowsExecutableExtensionsCache?.update(this._getConfiguredWindowsExecutableExtensions());
 					this._cachedExes.clear();
 				}
 			}));
@@ -161,6 +159,7 @@ export class PathExecutableCache implements vscode.Disposable {
 			const result = new Set<ICompletionResource>();
 			const fileResource = vscode.Uri.file(path);
 			const files = await vscode.workspace.fs.readDirectory(fileResource);
+			const windowsExecutableExtensions = this._windowsExecutableExtensionsCache?.getExtensions();
 			await Promise.all(
 				files.map(([file, fileType]) => (async () => {
 					let kind: vscode.TerminalCompletionItemKind | undefined;
@@ -177,7 +176,7 @@ export class PathExecutableCache implements vscode.Disposable {
 						if (lstat.isSymbolicLink()) {
 							try {
 								const symlinkRealPath = await fs.realpath(resource.fsPath);
-								const isExec = await isExecutable(symlinkRealPath, this._cachedWindowsExeExtensions);
+								const isExec = await isExecutable(symlinkRealPath, windowsExecutableExtensions);
 								if (!isExec) {
 									return;
 								}
@@ -199,7 +198,7 @@ export class PathExecutableCache implements vscode.Disposable {
 						return;
 					}
 
-					const isExec = kind === vscode.TerminalCompletionItemKind.Method || await isExecutable(formattedPath, this._cachedWindowsExeExtensions);
+					const isExec = kind === vscode.TerminalCompletionItemKind.Method || await isExecutable(resource.fsPath, windowsExecutableExtensions);
 					if (!isExec) {
 						return;
 					}
@@ -218,47 +217,9 @@ export class PathExecutableCache implements vscode.Disposable {
 			return undefined;
 		}
 	}
-}
 
-export async function watchPathDirectories(context: vscode.ExtensionContext, env: ITerminalEnvironment, pathExecutableCache: PathExecutableCache | undefined): Promise<void> {
-	const pathDirectories = new Set<string>();
-
-	const envPath = env.PATH;
-	if (envPath) {
-		envPath.split(path.delimiter).forEach(p => pathDirectories.add(p));
-	}
-
-	const activeWatchers = new Set<string>();
-
-	// Watch each directory
-	for (const dir of pathDirectories) {
-		try {
-			if (activeWatchers.has(dir)) {
-				// Skip if already watching or directory doesn't exist
-				continue;
-			}
-
-			const stat = await fs.stat(dir);
-			if (!stat.isDirectory()) {
-				continue;
-			}
-
-			const watcher = filesystem.watch(dir, { persistent: false }, () => {
-				if (pathExecutableCache) {
-					// Refresh cache when directory contents change
-					pathExecutableCache.refresh(dir);
-				}
-			});
-
-			activeWatchers.add(dir);
-
-			context.subscriptions.push(new vscode.Disposable(() => {
-				try {
-					watcher.close();
-					activeWatchers.delete(dir);
-				} catch { } { }
-			}));
-		} catch { }
+	private _getConfiguredWindowsExecutableExtensions(): { [key: string]: boolean | undefined } | undefined {
+		return vscode.workspace.getConfiguration(SettingsIds.SuggestPrefix).get(SettingsIds.CachedWindowsExecutableExtensionsSuffixOnly);
 	}
 }
 

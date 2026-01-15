@@ -141,7 +141,7 @@ const isSelectedEditorsMoveCopyArg = function (arg: SelectedEditorsMoveCopyArgum
 	return true;
 };
 
-function registerActiveEditorMoveCopyCommand(): void {
+function registerEditorMoveCopyCommand(): void {
 
 	const moveCopyJSONSchema: IJSONSchema = {
 		'type': 'object',
@@ -166,7 +166,7 @@ function registerActiveEditorMoveCopyCommand(): void {
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: EditorContextKeys.editorTextFocus,
 		primary: 0,
-		handler: (accessor, args) => moveCopySelectedEditors(true, args, accessor),
+		handler: (accessor, args) => moveCopySelectedEditors(true, args as SelectedEditorsMoveCopyArguments | undefined, accessor),
 		metadata: {
 			description: localize('editorCommand.activeEditorMove.description', "Move the active editor by tabs or groups"),
 			args: [
@@ -185,7 +185,7 @@ function registerActiveEditorMoveCopyCommand(): void {
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: EditorContextKeys.editorTextFocus,
 		primary: 0,
-		handler: (accessor, args) => moveCopySelectedEditors(false, args, accessor),
+		handler: (accessor, args) => moveCopySelectedEditors(false, args as SelectedEditorsMoveCopyArguments | undefined, accessor),
 		metadata: {
 			description: localize('editorCommand.activeEditorCopy.description', "Copy the active editor by groups"),
 			args: [
@@ -197,6 +197,20 @@ function registerActiveEditorMoveCopyCommand(): void {
 				}
 			]
 		}
+	});
+
+	[
+		{ id: MOVE_EDITOR_INTO_ABOVE_GROUP, to: 'up' as const },
+		{ id: MOVE_EDITOR_INTO_BELOW_GROUP, to: 'down' as const },
+		{ id: MOVE_EDITOR_INTO_LEFT_GROUP, to: 'left' as const },
+		{ id: MOVE_EDITOR_INTO_RIGHT_GROUP, to: 'right' as const }
+	].forEach(({ id, to }) => {
+		CommandsRegistry.registerCommand(id, function (accessor, ...args) {
+			const resolvedContext = resolveCommandsContext(args, accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IListService));
+			if (resolvedContext.groupedEditors.length) {
+				moveCopyEditorsToGroup(true, { to, by: 'group' }, resolvedContext.groupedEditors[0].group, resolvedContext.groupedEditors[0].editors, accessor);
+			}
+		});
 	});
 
 	function moveCopySelectedEditors(isMove: boolean, args: SelectedEditorsMoveCopyArguments = Object.create(null), accessor: ServicesAccessor): void {
@@ -214,7 +228,7 @@ function registerActiveEditorMoveCopyCommand(): void {
 					}
 					break;
 				case 'group':
-					return moveCopyActiveEditorToGroup(isMove, args, activeGroup, selectedEditors, accessor);
+					return moveCopyEditorsToGroup(isMove, args, activeGroup, selectedEditors, accessor);
 			}
 		}
 	}
@@ -259,7 +273,7 @@ function registerActiveEditorMoveCopyCommand(): void {
 		group.moveEditor(editor, group, { index });
 	}
 
-	function moveCopyActiveEditorToGroup(isMove: boolean, args: SelectedEditorsMoveCopyArguments, sourceGroup: IEditorGroup, editors: EditorInput[], accessor: ServicesAccessor): void {
+	function moveCopyEditorsToGroup(isMove: boolean, args: SelectedEditorsMoveCopyArguments, sourceGroup: IEditorGroup, editors: EditorInput[], accessor: ServicesAccessor): void {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const configurationService = accessor.get(IConfigurationService);
 
@@ -298,6 +312,10 @@ function registerActiveEditorMoveCopyCommand(): void {
 				break;
 			case 'previous':
 				targetGroup = editorGroupsService.findGroup({ location: GroupLocation.PREVIOUS }, sourceGroup);
+				if (!targetGroup) {
+					const oppositeDirection = preferredSideBySideGroupDirection(configurationService) === GroupDirection.RIGHT ? GroupDirection.LEFT : GroupDirection.UP;
+					targetGroup = editorGroupsService.addGroup(sourceGroup, oppositeDirection);
+				}
 				break;
 			case 'next':
 				targetGroup = editorGroupsService.findGroup({ location: GroupLocation.NEXT }, sourceGroup);
@@ -407,7 +425,8 @@ function registerOpenEditorAPICommands(): void {
 		];
 	}
 
-	// partial, renderer-side API command to open editor
+	// partial, renderer-side API command to open editor only supporting
+	// arguments that do not need to be converted from the extension host
 	// complements https://github.com/microsoft/vscode/blob/2b164efb0e6a5de3826bff62683eaeafe032284f/src/vs/workbench/api/common/extHostApiCommands.ts#L373
 	CommandsRegistry.registerCommand({
 		id: 'vscode.open',
@@ -465,7 +484,8 @@ function registerOpenEditorAPICommands(): void {
 		}
 	});
 
-	// partial, renderer-side API command to open diff editor
+	// partial, renderer-side API command to open diff editor only supporting
+	// arguments that do not need to be converted from the extension host
 	// complements https://github.com/microsoft/vscode/blob/2b164efb0e6a5de3826bff62683eaeafe032284f/src/vs/workbench/api/common/extHostApiCommands.ts#L397
 	CommandsRegistry.registerCommand({
 		id: 'vscode.diff',
@@ -518,7 +538,8 @@ function registerOpenEditorAPICommands(): void {
 		await editorService.openEditor({ resource: URI.from(resource, true), options: { pinned: true, ...optionsArg, override: id } }, columnToEditorGroup(editorGroupsService, configurationService, columnArg));
 	});
 
-	// partial, renderer-side API command to open diff editor
+	// partial, renderer-side API command to open diff editor only supporting
+	// arguments that do not need to be converted from the extension host
 	// complements https://github.com/microsoft/vscode/blob/2b164efb0e6a5de3826bff62683eaeafe032284f/src/vs/workbench/api/common/extHostApiCommands.ts#L397
 	CommandsRegistry.registerCommand({
 		id: 'vscode.changes',
@@ -592,10 +613,10 @@ interface OpenMultiFileDiffEditorOptions {
 }
 
 function registerOpenEditorAtIndexCommands(): void {
-	const openEditorAtIndex: ICommandHandler = (accessor: ServicesAccessor, editorIndex: number): void => {
+	const openEditorAtIndex: ICommandHandler = (accessor: ServicesAccessor, editorIndex: unknown): void => {
 		const editorService = accessor.get(IEditorService);
 		const activeEditorPane = editorService.activeEditorPane;
-		if (activeEditorPane) {
+		if (activeEditorPane && typeof editorIndex === 'number') {
 			const editor = activeEditorPane.group.getEditorByIndex(editorIndex);
 			if (editor) {
 				editorService.openEditor(editor);
@@ -723,6 +744,7 @@ export function splitEditor(editorGroupsService: IEditorGroupsService, direction
 	const newGroup = editorGroupsService.addGroup(group, direction);
 
 	for (const editorToCopy of editors) {
+
 		// Split editor (if it can be split)
 		if (editorToCopy && !editorToCopy.hasCapability(EditorInputCapabilities.Singleton)) {
 			group.copyEditor(editorToCopy, newGroup, { preserveFocus });
@@ -1273,7 +1295,7 @@ function registerOtherEditorCommands(): void {
 			const configurationService = accessor.get(IConfigurationService);
 
 			const currentSetting = configurationService.getValue('workbench.editor.enablePreview');
-			const newSetting = currentSetting === true ? false : true;
+			const newSetting = currentSetting !== true;
 			configurationService.updateValue('workbench.editor.enablePreview', newSetting);
 		}
 	});
@@ -1379,7 +1401,7 @@ function registerOtherEditorCommands(): void {
 }
 
 export function setup(): void {
-	registerActiveEditorMoveCopyCommand();
+	registerEditorMoveCopyCommand();
 	registerEditorGroupsLayoutCommands();
 	registerDiffEditorCommands();
 	registerOpenEditorAPICommands();

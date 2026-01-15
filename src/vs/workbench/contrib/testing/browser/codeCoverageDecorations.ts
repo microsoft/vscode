@@ -42,7 +42,7 @@ import { IQuickInputButton, IQuickInputService, QuickPickInput } from '../../../
 import { ActiveEditorContext } from '../../../common/contextkeys.js';
 import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 import { getTestingConfiguration, TestingConfigKeys } from '../common/configuration.js';
-import { TestCommandId } from '../common/constants.js';
+import { TestCommandId, Testing } from '../common/constants.js';
 import { FileCoverage } from '../common/testCoverage.js';
 import { ITestCoverageService } from '../common/testCoverageService.js';
 import { TestId } from '../common/testId.js';
@@ -58,8 +58,12 @@ const CLASS_MISS = 'coverage-deco-miss';
 const TOGGLE_INLINE_COMMAND_TEXT = localize('testing.toggleInlineCoverage', 'Toggle Inline');
 const TOGGLE_INLINE_COMMAND_ID = 'testing.toggleInlineCoverage';
 const BRANCH_MISS_INDICATOR_CHARS = 4;
+const GO_TO_NEXT_MISSED_LINE_TITLE = localize2('testing.goToNextMissedLine', "Go to Next Uncovered Line");
+const GO_TO_PREVIOUS_MISSED_LINE_TITLE = localize2('testing.goToPreviousMissedLine', "Go to Previous Uncovered Line");
 
 export class CodeCoverageDecorations extends Disposable implements IEditorContribution {
+	public static readonly ID = Testing.CoverageDecorationsContributionId;
+
 	private loadingCancellation?: CancellationTokenSource;
 	private readonly displayedStore = this._register(new DisposableStore());
 	private readonly hoveredStore = this._register(new DisposableStore());
@@ -247,6 +251,82 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 				}
 			});
 		}));
+	}
+
+	/**
+	 * Navigate to the next missed (uncovered) line from the current cursor position.
+	 * @returns true if navigation occurred, false if no missed line was found
+	 */
+	public goToNextMissedLine(): boolean {
+		return this.navigateToMissedLine(true);
+	}
+
+	/**
+	 * Navigate to the previous missed (uncovered) line from the current cursor position.
+	 * @returns true if navigation occurred, false if no missed line was found
+	 */
+	public goToPreviousMissedLine(): boolean {
+		return this.navigateToMissedLine(false);
+	}
+
+	private navigateToMissedLine(next: boolean): boolean {
+		const model = this.editor.getModel();
+		const position = this.editor.getPosition();
+		if (!model || !position || !this.details) {
+			return false;
+		}
+
+		const currentLine = position.lineNumber;
+		let closestBefore: { lineNumber: number; range: Range } | undefined;
+		let closestAfter: { lineNumber: number; range: Range } | undefined;
+		let firstMissed: { lineNumber: number; range: Range } | undefined;
+		let lastMissed: { lineNumber: number; range: Range } | undefined;
+
+		// Find the closest missed line before and after the current position
+		for (const [, { detail, options }] of this.decorationIds) {
+			// Check if this is a missed line (CLASS_MISS in lineNumberClassName)
+			if (options.lineNumberClassName?.includes(CLASS_MISS)) {
+				const range = detail.range;
+				if (range.isEmpty()) {
+					continue;
+				}
+
+				const lineNumber = range.startLineNumber;
+				const missedLine = { lineNumber, range };
+
+				// Track first and last missed lines for wrap-around
+				if (!firstMissed || lineNumber < firstMissed.lineNumber) {
+					firstMissed = missedLine;
+				}
+				if (!lastMissed || lineNumber > lastMissed.lineNumber) {
+					lastMissed = missedLine;
+				}
+
+				// Track closest before and after current line
+				if (lineNumber < currentLine) {
+					if (!closestBefore || lineNumber > closestBefore.lineNumber) {
+						closestBefore = missedLine;
+					}
+				} else if (lineNumber > currentLine) {
+					if (!closestAfter || lineNumber < closestAfter.lineNumber) {
+						closestAfter = missedLine;
+					}
+				}
+			}
+		}
+
+		// Determine target line based on direction
+		const targetLine = next
+			? (closestAfter || firstMissed)  // Next: closest after, or wrap to first
+			: (closestBefore || lastMissed);  // Previous: closest before, or wrap to last
+
+		if (targetLine) {
+			this.editor.setPosition(new Position(targetLine.lineNumber, 1));
+			this.editor.revealLineInCenter(targetLine.lineNumber);
+			return true;
+		}
+
+		return false;
 	}
 
 	private async apply(model: ITextModel, coverage: FileCoverage, testId: TestId | undefined, showInlineByDefault: boolean) {
@@ -556,11 +636,18 @@ class CoverageToolbarWidget extends Disposable implements IOverlayWidget {
 		this.actionBar = this._register(instaService.createInstance(ActionBar, this._domNode.toolbar, {
 			orientation: ActionsOrientation.HORIZONTAL,
 			actionViewItemProvider: (action, options) => {
-				const vm = new CodiconActionViewItem(undefined, action, options);
 				if (action instanceof ActionWithIcon) {
+					if (action.iconOnly) {
+						action.class = ThemeIcon.asClassName(action.icon);
+						return new ActionViewItem(undefined, action, { ...options, label: false, icon: true });
+					}
+
+					const vm = new CodiconActionViewItem(undefined, action, options);
 					vm.themeIcon = action.icon;
+					return vm;
 				}
-				return vm;
+
+				return undefined;
 			}
 		}));
 
@@ -592,7 +679,7 @@ class CoverageToolbarWidget extends Disposable implements IOverlayWidget {
 	public getPosition(): IOverlayWidgetPosition | null {
 		return {
 			preference: OverlayWidgetPositionPreference.TOP_CENTER,
-			stackOridinal: 9,
+			stackOrdinal: 9,
 		};
 	}
 
@@ -624,17 +711,34 @@ class CoverageToolbarWidget extends Disposable implements IOverlayWidget {
 		const toggleAction = new ActionWithIcon(
 			'toggleInline',
 			this.coverage.showInline.get()
-				? localize('testing.hideInlineCoverage', 'Hide Inline Coverage')
-				: localize('testing.showInlineCoverage', 'Show Inline Coverage'),
+				? localize('testing.hideInlineCoverage', 'Hide Inline')
+				: localize('testing.showInlineCoverage', 'Show Inline'),
 			testingCoverageReport,
 			undefined,
 			() => this.coverage.showInline.set(!this.coverage.showInline.get(), undefined),
 		);
 
-		const kb = this.keybindingService.lookupKeybinding(TOGGLE_INLINE_COMMAND_ID);
-		if (kb) {
-			toggleAction.tooltip = `${TOGGLE_INLINE_COMMAND_TEXT} (${kb.getLabel()})`;
-		}
+		toggleAction.tooltip = this.keybindingService.appendKeybinding(TOGGLE_INLINE_COMMAND_TEXT, TOGGLE_INLINE_COMMAND_ID);
+
+		const hasUncoveredStmt = current.coverage.statement.covered < current.coverage.statement.total;
+		// Navigation buttons for missed coverage lines
+		this.actionBar.push(new ActionWithIcon(
+			'goToPreviousMissed',
+			GO_TO_PREVIOUS_MISSED_LINE_TITLE.value,
+			Codicon.arrowUp,
+			hasUncoveredStmt,
+			() => this.commandService.executeCommand(TestCommandId.CoverageGoToPreviousMissedLine),
+			true,
+		));
+
+		this.actionBar.push(new ActionWithIcon(
+			'goToNextMissed',
+			GO_TO_NEXT_MISSED_LINE_TITLE.value,
+			Codicon.arrowDown,
+			hasUncoveredStmt,
+			() => this.commandService.executeCommand(TestCommandId.CoverageGoToNextMissedLine),
+			true,
+		));
 
 		this.actionBar.push(toggleAction);
 
@@ -751,7 +855,7 @@ registerAction2(class ToggleCoverageToolbar extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.CoverageToggleToolbar,
-			title: localize2('testing.toggleToolbarTitle', "Test Coverage Toolbar"),
+			title: localize2('testing.toggleToolbarTitle', "Show Test Coverage Toolbar"),
 			metadata: {
 				description: localize2('testing.toggleToolbarDesc', 'Toggle the sticky coverage bar in the editor.')
 			},
@@ -762,7 +866,7 @@ registerAction2(class ToggleCoverageToolbar extends Action2 {
 			menu: [
 				{ id: MenuId.CommandPalette, when: TestingContextKeys.isTestCoverageOpen },
 				{ id: MenuId.StickyScrollContext, when: TestingContextKeys.isTestCoverageOpen },
-				{ id: MenuId.EditorTitle, when: TestingContextKeys.hasCoverageInFile, group: 'coverage@1' },
+				{ id: MenuId.EditorTitle, when: TestingContextKeys.hasCoverageInFile, group: 'coverage', order: 1 },
 			]
 		});
 	}
@@ -904,8 +1008,78 @@ registerAction2(class ToggleCoverageInExplorer extends Action2 {
 	}
 });
 
+registerAction2(class GoToNextMissedCoverageLine extends Action2 {
+	constructor() {
+		super({
+			id: TestCommandId.CoverageGoToNextMissedLine,
+			title: GO_TO_NEXT_MISSED_LINE_TITLE,
+			metadata: {
+				description: localize2('testing.goToNextMissedLineDesc', 'Navigate to the next line that is not covered by tests.')
+			},
+			category: Categories.Test,
+			icon: Codicon.arrowDown,
+			precondition: TestingContextKeys.hasCoverageInFile,
+			keybinding: {
+				when: ActiveEditorContext,
+				weight: KeybindingWeight.EditorContrib,
+				primary: KeyMod.Alt | KeyCode.F9,
+			},
+			menu: [
+				{ id: MenuId.CommandPalette, when: TestingContextKeys.isTestCoverageOpen },
+				{ id: MenuId.EditorTitle, when: TestingContextKeys.hasCoverageInFile, group: 'coverage', order: 2 },
+			]
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const codeEditorService = accessor.get(ICodeEditorService);
+		const activeEditor = codeEditorService.getActiveCodeEditor();
+		if (!activeEditor) {
+			return;
+		}
+
+		const contribution = activeEditor.getContribution<CodeCoverageDecorations>(CodeCoverageDecorations.ID);
+		contribution?.goToNextMissedLine();
+	}
+});
+
+registerAction2(class GoToPreviousMissedCoverageLine extends Action2 {
+	constructor() {
+		super({
+			id: TestCommandId.CoverageGoToPreviousMissedLine,
+			title: GO_TO_PREVIOUS_MISSED_LINE_TITLE,
+			metadata: {
+				description: localize2('testing.goToPreviousMissedLineDesc', 'Navigate to the previous line that is not covered by tests.')
+			},
+			category: Categories.Test,
+			icon: Codicon.arrowUp,
+			precondition: TestingContextKeys.hasCoverageInFile,
+			keybinding: {
+				when: ActiveEditorContext,
+				weight: KeybindingWeight.EditorContrib,
+				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F9,
+			},
+			menu: [
+				{ id: MenuId.CommandPalette, when: TestingContextKeys.isTestCoverageOpen },
+				{ id: MenuId.EditorTitle, when: TestingContextKeys.hasCoverageInFile, group: 'coverage', order: 3 },
+			]
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const codeEditorService = accessor.get(ICodeEditorService);
+		const activeEditor = codeEditorService.getActiveCodeEditor();
+		if (!activeEditor) {
+			return;
+		}
+
+		const contribution = activeEditor.getContribution<CodeCoverageDecorations>(CodeCoverageDecorations.ID);
+		contribution?.goToPreviousMissedLine();
+	}
+});
+
 class ActionWithIcon extends Action {
-	constructor(id: string, title: string, public readonly icon: ThemeIcon, enabled: boolean | undefined, run: () => void) {
+	constructor(id: string, title: string, public readonly icon: ThemeIcon, enabled: boolean | undefined, run: () => void, public iconOnly = false) {
 		super(id, title, undefined, enabled, run);
 	}
 }

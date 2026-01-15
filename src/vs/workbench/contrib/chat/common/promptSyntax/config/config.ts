@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { PromptsType } from '../promptTypes.js';
-import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, getPromptFileDefaultLocation } from './promptFileLocations.js';
+import { getPromptFileDefaultLocations, IPromptSourceFolder, PromptFileSource } from './promptFileLocations.js';
+import { PromptsStorage } from '../service/promptsService.js';
 
 /**
  * Configuration helper for the `reusable prompts` feature.
- * @see {@link PromptsConfig.KEY}, {@link PromptsConfig.PROMPT_LOCATIONS_KEY}, {@link PromptsConfig.INSTRUCTIONS_LOCATION_KEY}, {@link PromptsConfig.MODE_LOCATION_KEY}, or {@link PromptsConfig.PROMPT_FILES_SUGGEST_KEY}.
+ * @see {@link PromptsConfig.PROMPT_LOCATIONS_KEY}, {@link PromptsConfig.INSTRUCTIONS_LOCATION_KEY}, {@link PromptsConfig.MODE_LOCATION_KEY}, or {@link PromptsConfig.PROMPT_FILES_SUGGEST_KEY}.
  *
  * ### Functions
  *
- * - {@link enabled} allows to check if the feature is enabled
  * - {@link getLocationsValue} allows to current read configuration value
  * - {@link promptSourceFolders} gets list of source folders for prompt files
  * - {@link getPromptFilesRecommendationsValue} gets prompt file recommendation configuration
@@ -46,12 +46,6 @@ import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, getPr
  */
 export namespace PromptsConfig {
 	/**
-	 * Configuration key for the `reusable prompts` feature
-	 * (also known as `prompt files`, `prompt instructions`, etc.).
-	 */
-	export const KEY = 'chat.promptFiles';
-
-	/**
 	 * Configuration key for the locations of reusable prompt files.
 	 */
 	export const PROMPT_LOCATIONS_KEY = 'chat.promptFilesLocations';
@@ -64,6 +58,11 @@ export namespace PromptsConfig {
 	 * Configuration key for the locations of mode files.
 	 */
 	export const MODE_LOCATION_KEY = 'chat.modeFilesLocations';
+
+	/**
+	 * Configuration key for the locations of skill folders.
+	 */
+	export const SKILLS_LOCATION_KEY = 'chat.agentSkillsLocations';
 
 	/**
 	 * Configuration key for prompt file suggestions.
@@ -81,23 +80,18 @@ export namespace PromptsConfig {
 	export const USE_AGENT_MD = 'chat.useAgentsMdFile';
 
 	/**
-	 * Checks if the feature is enabled.
-	 * @see {@link PromptsConfig.KEY}.
+	 * Configuration key for nested AGENTS.md files.
 	 */
-	export function enabled(configService: IConfigurationService): boolean {
-		const enabledValue = configService.getValue(PromptsConfig.KEY);
-
-		return asBoolean(enabledValue) ?? false;
-	}
+	export const USE_NESTED_AGENT_MD = 'chat.useNestedAgentsMdFiles';
 
 	/**
-	 * Context key expression for the `reusable prompts` feature `enabled` status.
+	 * Configuration key for agent skills usage.
 	 */
-	export const enabledCtx = ContextKeyExpr.equals(`config.${PromptsConfig.KEY}`, true);
+	export const USE_AGENT_SKILLS = 'chat.useAgentSkills';
 
 	/**
 	 * Get value of the `reusable prompt locations` configuration setting.
-	 * @see {@link PROMPT_LOCATIONS_CONFIG_KEY}, {@link INSTRUCTIONS_LOCATIONS_CONFIG_KEY}, {@link MODE_LOCATIONS_CONFIG_KEY}.
+	 * @see {@link PROMPT_LOCATIONS_CONFIG_KEY}, {@link INSTRUCTIONS_LOCATIONS_CONFIG_KEY}, {@link MODE_LOCATIONS_CONFIG_KEY}, {@link SKILLS_LOCATION_KEY}.
 	 */
 	export function getLocationsValue(configService: IConfigurationService, type: PromptsType): Record<string, boolean> | undefined {
 		const key = getPromptFileLocationsConfigKey(type);
@@ -131,29 +125,34 @@ export namespace PromptsConfig {
 
 	/**
 	 * Gets list of source folders for prompt files.
-	 * Defaults to {@link PROMPT_DEFAULT_SOURCE_FOLDER}, {@link INSTRUCTIONS_DEFAULT_SOURCE_FOLDER} or {@link MODE_DEFAULT_SOURCE_FOLDER}.
+	 * Defaults to {@link PROMPT_DEFAULT_SOURCE_FOLDER}, {@link INSTRUCTIONS_DEFAULT_SOURCE_FOLDER}, {@link MODE_DEFAULT_SOURCE_FOLDER} or {@link SKILLS_LOCATION_KEY}.
 	 */
-	export function promptSourceFolders(configService: IConfigurationService, type: PromptsType): string[] {
+	export function promptSourceFolders(configService: IConfigurationService, type: PromptsType): IPromptSourceFolder[] {
 		const value = getLocationsValue(configService, type);
-		const defaultSourceFolder = getPromptFileDefaultLocation(type);
+		const defaultSourceFolders = getPromptFileDefaultLocations(type);
 
 		// note! the `value &&` part handles the `undefined`, `null`, and `false` cases
 		if (value && (typeof value === 'object')) {
-			const paths: string[] = [];
+			const paths: IPromptSourceFolder[] = [];
+			const defaultFolderPathsSet = new Set(defaultSourceFolders.map(f => f.path));
 
-			// if the default source folder is not explicitly disabled, add it
-			if (value[defaultSourceFolder] !== false) {
-				paths.push(defaultSourceFolder);
+			// add default source folders that are not explicitly disabled
+			for (const defaultFolder of defaultSourceFolders) {
+				if (value[defaultFolder.path] !== false) {
+					paths.push(defaultFolder);
+				}
 			}
 
 			// copy all the enabled paths to the result list
 			for (const [path, enabledValue] of Object.entries(value)) {
-				// we already added the default source folder, so skip it
-				if ((enabledValue === false) || (path === defaultSourceFolder)) {
+				// we already added the default source folders, so skip them
+				if ((enabledValue === false) || defaultFolderPathsSet.has(path)) {
 					continue;
 				}
 
-				paths.push(path);
+				// determine location type in the general case
+				const storage = isTildePath(path) ? PromptsStorage.user : PromptsStorage.local;
+				paths.push({ path, source: storage === PromptsStorage.local ? PromptFileSource.ConfigPersonal : PromptFileSource.ConfigWorkspace, storage });
 			}
 
 			return paths;
@@ -165,54 +164,52 @@ export namespace PromptsConfig {
 
 	/**
 	 * Get value of the prompt file recommendations configuration setting.
+	 * @param configService Configuration service instance
+	 * @param resource Optional resource URI to get workspace folder-specific settings
 	 * @see {@link PROMPT_FILES_SUGGEST_KEY}.
 	 */
-	export function getPromptFilesRecommendationsValue(configService: IConfigurationService): Record<string, boolean | string> | undefined {
-		const configValue = configService.getValue(PromptsConfig.PROMPT_FILES_SUGGEST_KEY);
+	export function getPromptFilesRecommendationsValue(configService: IConfigurationService, resource?: URI): Record<string, boolean | string> | undefined {
+		// Get the merged configuration value (VS Code automatically merges all levels: default → user → workspace → folder)
+		const configValue = configService.getValue(PromptsConfig.PROMPT_FILES_SUGGEST_KEY, { resource });
 
-		if (configValue === undefined || configValue === null || Array.isArray(configValue)) {
+		if (!configValue || typeof configValue !== 'object' || Array.isArray(configValue)) {
 			return undefined;
 		}
 
-		// note! this would be also true for `null` and `array`,
-		// 		 but those cases are already handled above
-		if (typeof configValue === 'object') {
-			const suggestions: Record<string, boolean | string> = {};
+		const suggestions: Record<string, boolean | string> = {};
 
-			for (const [promptName, value] of Object.entries(configValue)) {
-				const cleanPromptName = promptName.trim();
+		for (const [promptName, value] of Object.entries(configValue)) {
+			const cleanPromptName = promptName.trim();
 
-				// Skip empty prompt names
-				if (!cleanPromptName) {
-					continue;
-				}
-
-				// Accept boolean values directly
-				if (typeof value === 'boolean') {
-					suggestions[cleanPromptName] = value;
-					continue;
-				}
-
-				// Accept string values as when clauses
-				if (typeof value === 'string') {
-					const cleanValue = value.trim();
-					if (cleanValue) {
-						suggestions[cleanPromptName] = cleanValue;
-					}
-					continue;
-				}
-
-				// Convert other truthy/falsy values to boolean
-				const booleanValue = asBoolean(value);
-				if (booleanValue !== undefined) {
-					suggestions[cleanPromptName] = booleanValue;
-				}
+			// Skip empty prompt names
+			if (!cleanPromptName) {
+				continue;
 			}
 
-			return suggestions;
+			// Accept boolean values directly
+			if (typeof value === 'boolean') {
+				suggestions[cleanPromptName] = value;
+				continue;
+			}
+
+			// Accept string values as when clauses
+			if (typeof value === 'string') {
+				const cleanValue = value.trim();
+				if (cleanValue) {
+					suggestions[cleanPromptName] = cleanValue;
+				}
+				continue;
+			}
+
+			// Convert other truthy/falsy values to boolean
+			const booleanValue = asBoolean(value);
+			if (booleanValue !== undefined) {
+				suggestions[cleanPromptName] = booleanValue;
+			}
 		}
 
-		return undefined;
+		// Return undefined if no valid suggestions were found
+		return Object.keys(suggestions).length > 0 ? suggestions : undefined;
 	}
 
 }
@@ -223,8 +220,10 @@ export function getPromptFileLocationsConfigKey(type: PromptsType): string {
 			return PromptsConfig.INSTRUCTIONS_LOCATION_KEY;
 		case PromptsType.prompt:
 			return PromptsConfig.PROMPT_LOCATIONS_KEY;
-		case PromptsType.mode:
+		case PromptsType.agent:
 			return PromptsConfig.MODE_LOCATION_KEY;
+		case PromptsType.skill:
+			return PromptsConfig.SKILLS_LOCATION_KEY;
 		default:
 			throw new Error('Unknown prompt type');
 	}
@@ -257,4 +256,15 @@ export function asBoolean(value: unknown): boolean | undefined {
 	}
 
 	return undefined;
+}
+
+/**
+ * Helper to check if a path starts with tilde (user home).
+ * Supports both Unix-style (`~/`) and Windows-style (`~\`) paths.
+ *
+ * @param path - path to check
+ * @returns `true` if the path starts with `~/` or `~\`
+ */
+export function isTildePath(path: string): boolean {
+	return path.startsWith('~/') || path.startsWith('~\\');
 }

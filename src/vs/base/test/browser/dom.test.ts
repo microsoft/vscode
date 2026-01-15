@@ -404,7 +404,7 @@ suite('dom', () => {
 
 	suite('SafeTriangle', () => {
 		const fakeElement = (left: number, right: number, top: number, bottom: number): HTMLElement => {
-			return { getBoundingClientRect: () => ({ left, right, top, bottom }) } as any;
+			return { getBoundingClientRect: () => ({ left, right, top, bottom }) } as HTMLElement;
 		};
 
 		test('works', () => {

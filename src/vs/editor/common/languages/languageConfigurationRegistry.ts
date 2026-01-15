@@ -35,7 +35,7 @@ export interface ICommentsConfiguration {
 export interface ILanguageConfigurationService {
 	readonly _serviceBrand: undefined;
 
-	onDidChange: Event<LanguageConfigurationServiceChangeEvent>;
+	readonly onDidChange: Event<LanguageConfigurationServiceChangeEvent>;
 
 	/**
 	 * @param priority Use a higher number for higher priority

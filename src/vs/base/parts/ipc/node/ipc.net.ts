@@ -22,12 +22,14 @@ export function upgradeToISocket(req: http.IncomingMessage, socket: Socket, {
 	debugLabel,
 	skipWebSocketFrames = false,
 	disableWebSocketCompression = false,
+	enableMessageSplitting = true,
 }: {
 	debugLabel: string;
 	skipWebSocketFrames?: boolean;
 	disableWebSocketCompression?: boolean;
+	enableMessageSplitting?: boolean;
 }): NodeSocket | WebSocketNodeSocket | undefined {
-	if (req.headers['upgrade'] === undefined || req.headers['upgrade'].toLowerCase() !== 'websocket') {
+	if (req.headers.upgrade === undefined || req.headers.upgrade.toLowerCase() !== 'websocket') {
 		socket.end('HTTP/1.1 400 Bad Request');
 		return;
 	}
@@ -78,7 +80,7 @@ export function upgradeToISocket(req: http.IncomingMessage, socket: Socket, {
 	if (skipWebSocketFrames) {
 		return new NodeSocket(socket, debugLabel);
 	} else {
-		return new WebSocketNodeSocket(new NodeSocket(socket, debugLabel), permessageDeflate, null, true);
+		return new WebSocketNodeSocket(new NodeSocket(socket, debugLabel), permessageDeflate, null, true, enableMessageSplitting);
 	}
 }
 
@@ -95,20 +97,20 @@ export class NodeSocket implements ISocket {
 
 	public readonly debugLabel: string;
 	public readonly socket: Socket;
-	private readonly _errorListener: (err: any) => void;
+	private readonly _errorListener: (err: NodeJS.ErrnoException) => void;
 	private readonly _closeListener: (hadError: boolean) => void;
 	private readonly _endListener: () => void;
 	private _canWrite = true;
 
-	public traceSocketEvent(type: SocketDiagnosticsEventType, data?: VSBuffer | Uint8Array | ArrayBuffer | ArrayBufferView | any): void {
+	public traceSocketEvent(type: SocketDiagnosticsEventType, data?: VSBuffer | Uint8Array | ArrayBuffer | ArrayBufferView | unknown): void {
 		SocketDiagnostics.traceSocketEvent(this.socket, this.debugLabel, type, data);
 	}
 
-	constructor(socket: Socket, debugLabel: string = '') {
+	constructor(socket: Socket, debugLabel = '') {
 		this.debugLabel = debugLabel;
 		this.socket = socket;
 		this.traceSocketEvent(SocketDiagnosticsEventType.Created, { type: 'NodeSocket' });
-		this._errorListener = (err: any) => {
+		this._errorListener = (err: NodeJS.ErrnoException) => {
 			this.traceSocketEvent(SocketDiagnosticsEventType.Error, { code: err?.code, message: err?.message });
 			if (err) {
 				if (err.code === 'EPIPE') {
@@ -198,7 +200,7 @@ export class NodeSocket implements ISocket {
 		// > accept and buffer chunk even if it has not been allowed to drain.
 		try {
 			this.traceSocketEvent(SocketDiagnosticsEventType.Write, buffer);
-			this.socket.write(buffer.buffer, (err: any) => {
+			this.socket.write(buffer.buffer, (err: NodeJS.ErrnoException | null | undefined) => {
 				if (err) {
 					if (err.code === 'EPIPE') {
 						// An EPIPE exception at the wrong time can lead to a renderer process crash
@@ -277,7 +279,7 @@ const enum ReadState {
 }
 
 interface ISocketTracer {
-	traceSocketEvent(type: SocketDiagnosticsEventType, data?: VSBuffer | Uint8Array | ArrayBuffer | ArrayBufferView | any): void;
+	traceSocketEvent(type: SocketDiagnosticsEventType, data?: VSBuffer | Uint8Array | ArrayBuffer | ArrayBufferView | unknown): void;
 }
 
 interface FrameOptions {
@@ -295,7 +297,8 @@ export class WebSocketNodeSocket extends Disposable implements ISocket, ISocketT
 	private readonly _incomingData: ChunkStream;
 	private readonly _onData = this._register(new Emitter<VSBuffer>());
 	private readonly _onClose = this._register(new Emitter<SocketCloseEvent>());
-	private _isEnded: boolean = false;
+	private readonly _maxSocketMessageLength: number;
+	private _isEnded = false;
 
 	private readonly _state = {
 		state: ReadState.PeekHeader,
@@ -315,7 +318,7 @@ export class WebSocketNodeSocket extends Disposable implements ISocket, ISocketT
 		return this._flowManager.recordedInflateBytes;
 	}
 
-	public traceSocketEvent(type: SocketDiagnosticsEventType, data?: VSBuffer | Uint8Array | ArrayBuffer | ArrayBufferView | any): void {
+	public traceSocketEvent(type: SocketDiagnosticsEventType, data?: VSBuffer | Uint8Array | ArrayBuffer | ArrayBufferView | unknown): void {
 		this.socket.traceSocketEvent(type, data);
 	}
 
@@ -331,9 +334,10 @@ export class WebSocketNodeSocket extends Disposable implements ISocket, ISocketT
 	 * @param inflateBytes "Seed" zlib inflate with these bytes.
 	 * @param recordInflateBytes Record all bytes sent to inflate
 	 */
-	constructor(socket: NodeSocket, permessageDeflate: boolean, inflateBytes: VSBuffer | null, recordInflateBytes: boolean) {
+	constructor(socket: NodeSocket, permessageDeflate: boolean, inflateBytes: VSBuffer | null, recordInflateBytes: boolean, enableMessageSplitting = true) {
 		super();
 		this.socket = socket;
+		this._maxSocketMessageLength = enableMessageSplitting ? Constants.MaxWebSocketMessageLength : Infinity;
 		this.traceSocketEvent(SocketDiagnosticsEventType.Created, { type: 'WebSocketNodeSocket', permessageDeflate, inflateBytesLength: inflateBytes?.byteLength || 0, recordInflateBytes });
 		this._flowManager = this._register(new WebSocketFlowManager(
 			this,
@@ -404,8 +408,8 @@ export class WebSocketNodeSocket extends Disposable implements ISocket, ISocketT
 
 		let start = 0;
 		while (start < buffer.byteLength) {
-			this._flowManager.writeMessage(buffer.slice(start, Math.min(start + Constants.MaxWebSocketMessageLength, buffer.byteLength)), { compressed: true, opcode: 0x02 /* Binary frame */ });
-			start += Constants.MaxWebSocketMessageLength;
+			this._flowManager.writeMessage(buffer.slice(start, Math.min(start + this._maxSocketMessageLength, buffer.byteLength)), { compressed: true, opcode: 0x02 /* Binary frame */ });
+			start += this._maxSocketMessageLength;
 		}
 	}
 
@@ -726,8 +730,8 @@ class ZlibInflateStream extends Disposable {
 	) {
 		super();
 		this._zlibInflate = createInflateRaw(options);
-		this._zlibInflate.on('error', (err) => {
-			this._tracer.traceSocketEvent(SocketDiagnosticsEventType.zlibInflateError, { message: err?.message, code: (<any>err)?.code });
+		this._zlibInflate.on('error', (err: Error) => {
+			this._tracer.traceSocketEvent(SocketDiagnosticsEventType.zlibInflateError, { message: err?.message, code: (err as NodeJS.ErrnoException)?.code });
 			this._onError.fire(err);
 		});
 		this._zlibInflate.on('data', (data: Buffer) => {
@@ -779,8 +783,8 @@ class ZlibDeflateStream extends Disposable {
 		this._zlibDeflate = createDeflateRaw({
 			windowBits: 15
 		});
-		this._zlibDeflate.on('error', (err) => {
-			this._tracer.traceSocketEvent(SocketDiagnosticsEventType.zlibDeflateError, { message: err?.message, code: (<any>err)?.code });
+		this._zlibDeflate.on('error', (err: Error) => {
+			this._tracer.traceSocketEvent(SocketDiagnosticsEventType.zlibDeflateError, { message: err?.message, code: (err as NodeJS.ErrnoException)?.code });
 			this._onError.fire(err);
 		});
 		this._zlibDeflate.on('data', (data: Buffer) => {
@@ -837,7 +841,7 @@ function unmask(buffer: VSBuffer, mask: number): void {
 
 // Read this before there's any chance it is overwritten
 // Related to https://github.com/microsoft/vscode/issues/30624
-export const XDG_RUNTIME_DIR = <string | undefined>process.env['XDG_RUNTIME_DIR'];
+export const XDG_RUNTIME_DIR = process.env['XDG_RUNTIME_DIR'];
 
 const safeIpcPathLengths: { [platform: number]: number } = {
 	[Platform.Linux]: 107,
@@ -930,28 +934,35 @@ export class Server extends IPCServer {
 
 export function serve(port: number): Promise<Server>;
 export function serve(namedPipe: string): Promise<Server>;
-export function serve(hook: any): Promise<Server> {
-	return new Promise<Server>((c, e) => {
+export function serve(hook: number | string): Promise<Server> {
+	return new Promise<Server>((resolve, reject) => {
 		const server = createServer();
 
-		server.on('error', e);
+		server.on('error', reject);
 		server.listen(hook, () => {
-			server.removeListener('error', e);
-			c(new Server(server));
+			server.removeListener('error', reject);
+			resolve(new Server(server));
 		});
 	});
 }
 
 export function connect(options: { host: string; port: number }, clientId: string): Promise<Client>;
-export function connect(port: number, clientId: string): Promise<Client>;
 export function connect(namedPipe: string, clientId: string): Promise<Client>;
-export function connect(hook: any, clientId: string): Promise<Client> {
-	return new Promise<Client>((c, e) => {
-		const socket = createConnection(hook, () => {
-			socket.removeListener('error', e);
-			c(Client.fromSocket(new NodeSocket(socket, `ipc-client${clientId}`), clientId));
-		});
+export function connect(hook: { host: string; port: number } | string, clientId: string): Promise<Client> {
+	return new Promise<Client>((resolve, reject) => {
+		let socket: Socket;
 
-		socket.once('error', e);
+		const callbackHandler = () => {
+			socket.removeListener('error', reject);
+			resolve(Client.fromSocket(new NodeSocket(socket, `ipc-client${clientId}`), clientId));
+		};
+
+		if (typeof hook === 'string') {
+			socket = createConnection(hook, callbackHandler);
+		} else {
+			socket = createConnection(hook, callbackHandler);
+		}
+
+		socket.once('error', reject);
 	});
 }

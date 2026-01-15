@@ -26,9 +26,9 @@ import { LineRangeMapping } from '../../../../editor/common/diff/rangeMapping.js
 import { IDiffEditorModel } from '../../../../editor/common/editorCommon.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
-import { IChatEditingService, ModifiedFileEntryState } from '../../chat/common/chatEditingService.js';
+import { IChatEditingService, ModifiedFileEntryState } from '../../chat/common/editing/chatEditingService.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { autorun, autorunWithStore } from '../../../../base/common/observable.js';
+import { autorun } from '../../../../base/common/observable.js';
 
 export const IQuickDiffModelService = createDecorator<IQuickDiffModelService>('IQuickDiffModelService');
 
@@ -106,7 +106,7 @@ export class QuickDiffModel extends Disposable {
 	private _quickDiffsPromise?: Promise<QuickDiff[]>;
 	private _diffDelayer = this._register(new ThrottledDelayer<void>(200));
 
-	private readonly _onDidChange = new Emitter<{ changes: QuickDiffChange[]; diff: ISplice<QuickDiffChange>[] }>();
+	private readonly _onDidChange = this._register(new Emitter<{ changes: QuickDiffChange[]; diff: ISplice<QuickDiffChange>[] }>());
 	readonly onDidChange: Event<{ changes: QuickDiffChange[]; diff: ISplice<QuickDiffChange>[] }> = this._onDidChange.event;
 
 	private _allChanges: QuickDiffChange[] = [];
@@ -159,9 +159,9 @@ export class QuickDiffModel extends Disposable {
 
 		this._register(this.quickDiffService.onDidChangeQuickDiffProviders(() => this.triggerDiff()));
 
-		this._register(autorunWithStore((r, store) => {
-			for (const session of this._chatEditingService.editingSessionsObs.read(r)) {
-				store.add(autorun(r => {
+		this._register(autorun(reader => {
+			for (const session of this._chatEditingService.editingSessionsObs.read(reader)) {
+				reader.store.add(autorun(r => {
 					for (const entry of session.entries.read(r)) {
 						entry.state.read(r); // signal
 					}
@@ -419,66 +419,48 @@ export class QuickDiffModel extends Disposable {
 	}
 
 	findNextClosestChange(lineNumber: number, inclusive = true, providerId?: string): number {
-		const visibleQuickDiffIds = this.quickDiffs
-			.filter(quickDiff => (!providerId || quickDiff.id === providerId) &&
-				this.quickDiffService.isQuickDiffProviderVisible(quickDiff.id))
-			.map(quickDiff => quickDiff.id);
+		const visibleQuickDiffIds = new Set(this.quickDiffs
+			.filter(quickDiff => this.quickDiffService.isQuickDiffProviderVisible(quickDiff.id))
+			.map(quickDiff => quickDiff.id));
 
-		if (!inclusive) {
-			// Next visible change
-			let nextChangeIndex = this.changes
-				.findIndex(change => visibleQuickDiffIds.includes(change.providerId) &&
-					change.change.modifiedStartLineNumber > lineNumber);
-
-			if (nextChangeIndex !== -1) {
-				return nextChangeIndex;
+		for (let i = 0; i < this.changes.length; i++) {
+			if (providerId && this.changes[i].providerId !== providerId) {
+				continue;
 			}
 
-			// First visible change
-			nextChangeIndex = this.changes
-				.findIndex(change => visibleQuickDiffIds.includes(change.providerId));
+			// Skip quick diffs that are not visible
+			if (!visibleQuickDiffIds.has(this.changes[i].providerId)) {
+				continue;
+			}
 
-			return nextChangeIndex !== -1 ? nextChangeIndex : 0;
+			const change = this.changes[i].change;
+
+			if (inclusive) {
+				if (getModifiedEndLineNumber(change) >= lineNumber) {
+					return i;
+				}
+			} else {
+				if (change.modifiedStartLineNumber > lineNumber) {
+					return i;
+				}
+			}
 		}
 
-		const primaryQuickDiffId = this.quickDiffs
-			.find(quickDiff => quickDiff.kind === 'primary')?.id;
-
-		const primaryInclusiveChangeIndex = this.changes
-			.findIndex(change => change.providerId === primaryQuickDiffId &&
-				change.change.modifiedStartLineNumber <= lineNumber &&
-				getModifiedEndLineNumber(change.change) >= lineNumber);
-
-		if (primaryInclusiveChangeIndex !== -1) {
-			return primaryInclusiveChangeIndex;
-		}
-
-		// Next visible change
-		let nextChangeIndex = this.changes
-			.findIndex(change => visibleQuickDiffIds.includes(change.providerId) &&
-				change.change.modifiedStartLineNumber <= lineNumber &&
-				getModifiedEndLineNumber(change.change) >= lineNumber);
-
-		if (nextChangeIndex !== -1) {
-			return nextChangeIndex;
-		}
-
-		// First visible change
-		nextChangeIndex = this.changes
-			.findIndex(change => visibleQuickDiffIds.includes(change.providerId));
-
-		return nextChangeIndex !== -1 ? nextChangeIndex : 0;
+		return 0;
 	}
 
 	findPreviousClosestChange(lineNumber: number, inclusive = true, providerId?: string): number {
+		const visibleQuickDiffIds = new Set(this.quickDiffs
+			.filter(quickDiff => this.quickDiffService.isQuickDiffProviderVisible(quickDiff.id))
+			.map(quickDiff => quickDiff.id));
+
 		for (let i = this.changes.length - 1; i >= 0; i--) {
 			if (providerId && this.changes[i].providerId !== providerId) {
 				continue;
 			}
 
 			// Skip quick diffs that are not visible
-			const quickDiff = this.quickDiffs.find(quickDiff => quickDiff.id === this.changes[i].providerId);
-			if (!quickDiff || !this.quickDiffService.isQuickDiffProviderVisible(quickDiff.id)) {
+			if (!visibleQuickDiffIds.has(this.changes[i].providerId)) {
 				continue;
 			}
 

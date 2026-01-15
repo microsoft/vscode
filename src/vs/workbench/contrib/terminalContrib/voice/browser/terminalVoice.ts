@@ -11,12 +11,14 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isNumber } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { SpeechTimeoutDefault } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { ISpeechService, AccessibilityVoiceSettingId, ISpeechToTextEvent, SpeechToTextStatus } from '../../../speech/common/speechService.js';
 import type { IMarker, IDecoration } from '@xterm/xterm';
 import { alert } from '../../../../../base/browser/ui/aria/aria.js';
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
+import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
 
 
 const symbolMap: { [key: string]: string } = {
@@ -56,6 +58,7 @@ export class TerminalVoiceSession extends Disposable {
 	private _ghostTextMarker: IMarker | undefined;
 	private static _instance: TerminalVoiceSession | undefined = undefined;
 	private _acceptTranscriptionScheduler: RunOnceScheduler | undefined;
+	private readonly _terminalDictationInProgress: IContextKey<boolean>;
 	static getInstance(instantiationService: IInstantiationService): TerminalVoiceSession {
 		if (!TerminalVoiceSession._instance) {
 			TerminalVoiceSession._instance = instantiationService.createInstance(TerminalVoiceSession);
@@ -69,11 +72,13 @@ export class TerminalVoiceSession extends Disposable {
 		@ISpeechService private readonly _speechService: ISpeechService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
 		this._register(this._terminalService.onDidChangeActiveInstance(() => this.stop()));
 		this._register(this._terminalService.onDidDisposeInstance(() => this.stop()));
 		this._disposables = this._register(new DisposableStore());
+		this._terminalDictationInProgress = TerminalContextKeys.terminalDictationInProgress.bindTo(contextKeyService);
 	}
 
 	async start(): Promise<void> {
@@ -96,6 +101,7 @@ export class TerminalVoiceSession extends Disposable {
 			}
 			switch (e.status) {
 				case SpeechToTextStatus.Started:
+					this._terminalDictationInProgress.set(true);
 					if (!this._decoration) {
 						this._createDecoration();
 					}
@@ -103,6 +109,7 @@ export class TerminalVoiceSession extends Disposable {
 				case SpeechToTextStatus.Recognizing: {
 					this._updateInput(e);
 					this._renderGhostText(e);
+					this._updateDecoration();
 					if (voiceTimeout > 0) {
 						this._acceptTranscriptionScheduler!.cancel();
 					}
@@ -110,9 +117,16 @@ export class TerminalVoiceSession extends Disposable {
 				}
 				case SpeechToTextStatus.Recognized:
 					this._updateInput(e);
-					if (voiceTimeout > 0) {
-						this._acceptTranscriptionScheduler!.schedule();
-					}
+					// Send text immediately like editor dictation
+					this._sendText();
+					// Clear ghost text and input for next recognition
+					this._ghostText?.dispose();
+					this._ghostText = undefined;
+					this._ghostTextMarker?.dispose();
+					this._ghostTextMarker = undefined;
+					// Update decoration position for next recognition
+					this._updateDecoration();
+					this._input = '';
 					break;
 				case SpeechToTextStatus.Stopped:
 					this.stop();
@@ -127,12 +141,15 @@ export class TerminalVoiceSession extends Disposable {
 			this._sendText();
 		}
 		this._ghostText = undefined;
+		this._decoration?.dispose();
 		this._decoration = undefined;
+		this._marker?.dispose();
 		this._marker = undefined;
 		this._ghostTextMarker = undefined;
 		this._cancellationTokenSource?.cancel();
 		this._disposables.clear();
 		this._input = '';
+		this._terminalDictationInProgress.reset();
 	}
 
 	private _sendText(): void {
@@ -157,23 +174,38 @@ export class TerminalVoiceSession extends Disposable {
 			return;
 		}
 		const onFirstLine = xterm.buffer.active.cursorY === 0;
+
+		// Calculate x position based on current cursor position and input length
+		const inputLength = this._input.length;
+		const xPosition = xterm.buffer.active.cursorX + inputLength;
+
 		this._marker = activeInstance.registerMarker(onFirstLine ? 0 : -1);
 		if (!this._marker) {
 			return;
 		}
-		this._disposables.add(this._marker);
 		this._decoration = xterm.registerDecoration({
 			marker: this._marker,
 			layer: 'top',
-			x: xterm.buffer.active.cursorX ?? 0,
+			x: xPosition,
 		});
-		if (this._decoration) {
-			this._disposables.add(this._decoration);
+		if (!this._decoration) {
+			this._marker.dispose();
+			this._marker = undefined;
+			return;
 		}
-		this._decoration?.onRender((e: HTMLElement) => {
+		this._decoration.onRender((e: HTMLElement) => {
 			e.classList.add(...ThemeIcon.asClassNameArray(Codicon.micFilled), 'terminal-voice', 'recording');
 			e.style.transform = onFirstLine ? 'translate(10px, -2px)' : 'translate(-6px, -5px)';
 		});
+	}
+
+	private _updateDecoration(): void {
+		// Dispose the old decoration and recreate it at the new position
+		this._decoration?.dispose();
+		this._marker?.dispose();
+		this._decoration = undefined;
+		this._marker = undefined;
+		this._createDecoration();
 	}
 
 	private _setInactive(): void {

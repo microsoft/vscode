@@ -16,8 +16,13 @@ export namespace _util {
 	export const DI_TARGET = '$di$target';
 	export const DI_DEPENDENCIES = '$di$dependencies';
 
-	export function getServiceDependencies(ctor: any): { id: ServiceIdentifier<any>; index: number }[] {
+	export function getServiceDependencies(ctor: DI_TARGET_OBJ): { id: ServiceIdentifier<any>; index: number }[] {
 		return ctor[DI_DEPENDENCIES] || [];
+	}
+
+	export interface DI_TARGET_OBJ extends Function {
+		[DI_TARGET]: Function;
+		[DI_DEPENDENCIES]: { id: ServiceIdentifier<any>; index: number }[];
 	}
 }
 
@@ -31,7 +36,6 @@ export interface IConstructorSignature<T, Args extends any[] = []> {
 
 export interface ServicesAccessor {
 	get<T>(id: ServiceIdentifier<T>): T;
-	getIfExists<T>(id: ServiceIdentifier<T>): T | undefined;
 }
 
 export const IInstantiationService = createDecorator<IInstantiationService>('instantiationService');
@@ -89,12 +93,13 @@ export interface ServiceIdentifier<T> {
 	type: T;
 }
 
-function storeServiceDependency(id: Function, target: Function, index: number): void {
-	if ((target as any)[_util.DI_TARGET] === target) {
-		(target as any)[_util.DI_DEPENDENCIES].push({ id, index });
+
+function storeServiceDependency(id: ServiceIdentifier<unknown>, target: Function, index: number): void {
+	if ((target as _util.DI_TARGET_OBJ)[_util.DI_TARGET] === target) {
+		(target as _util.DI_TARGET_OBJ)[_util.DI_DEPENDENCIES].push({ id, index });
 	} else {
-		(target as any)[_util.DI_DEPENDENCIES] = [{ id, index }];
-		(target as any)[_util.DI_TARGET] = target;
+		(target as _util.DI_TARGET_OBJ)[_util.DI_DEPENDENCIES] = [{ id, index }];
+		(target as _util.DI_TARGET_OBJ)[_util.DI_TARGET] = target;
 	}
 }
 
@@ -107,12 +112,12 @@ export function createDecorator<T>(serviceId: string): ServiceIdentifier<T> {
 		return _util.serviceIds.get(serviceId)!;
 	}
 
-	const id = <any>function (target: Function, key: string, index: number) {
+	const id = function (target: Function, key: string, index: number) {
 		if (arguments.length !== 3) {
 			throw new Error('@IServiceName-decorator can only be used to decorate a parameter');
 		}
 		storeServiceDependency(id, target, index);
-	};
+	} as ServiceIdentifier<T>;
 
 	id.toString = () => serviceId;
 

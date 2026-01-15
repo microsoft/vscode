@@ -2479,4 +2479,3 @@ const parser = _Parser.parse;
 const lexer = _Lexer.lex;
 
 export { _Hooks as Hooks, _Lexer as Lexer, Marked, _Parser as Parser, _Renderer as Renderer, _TextRenderer as TextRenderer, _Tokenizer as Tokenizer, _defaults as defaults, _getDefaults as getDefaults, lexer, marked, options, parse, parseInline, parser, setOptions, use, walkTokens };
-//# sourceMappingURL=marked.esm.js.map

@@ -1,0 +1,69 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-usage-widget .quota-item {
+	margin-bottom: 12px;
+}
+
+.chat-usage-widget .quota-item-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 4px;
+}
+
+.chat-usage-widget .quota-item-label {
+	color: var(--vscode-foreground);
+}
+
+.chat-usage-widget .quota-item-value {
+	color: var(--vscode-descriptionForeground);
+}
+
+/* Progress bar - matching chat status implementation */
+.chat-usage-widget .quota-item .quota-bar {
+	width: 100%;
+	height: 4px;
+	background-color: var(--vscode-gauge-background);
+	border-radius: 4px;
+	border: 1px solid var(--vscode-gauge-border);
+	margin: 4px 0;
+}
+
+.chat-usage-widget .quota-item .quota-bar .quota-bit {
+	height: 100%;
+	background-color: var(--vscode-gauge-foreground);
+	border-radius: 4px;
+	transition: width 0.3s ease;
+}
+
+.chat-usage-widget .quota-item.warning .quota-bar {
+	background-color: var(--vscode-gauge-warningBackground);
+}
+
+.chat-usage-widget .quota-item.warning .quota-bar .quota-bit {
+	background-color: var(--vscode-gauge-warningForeground);
+}
+
+.chat-usage-widget .quota-item.error .quota-bar {
+	background-color: var(--vscode-gauge-errorBackground);
+}
+
+.chat-usage-widget .quota-item.error .quota-bar .quota-bit {
+	background-color: var(--vscode-gauge-errorForeground);
+}
+
+.chat-usage-widget .overage-message {
+	font-size: 13px;
+	color: var(--vscode-foreground);
+	margin-top: 12px;
+	margin-bottom: 8px;
+}
+
+.chat-usage-widget .allowance-resets {
+	font-size: 13px;
+	color: var(--vscode-foreground);
+	margin-top: 12px;
+}

@@ -148,11 +148,12 @@ export class SharedProcess extends Disposable {
 		this.utilityProcess = this._register(new UtilityProcess(this.logService, NullTelemetryService, this.lifecycleMainService));
 
 		// Install a log listener for very early shared process warnings and errors
-		this.utilityProcessLogListener = this.utilityProcess.onMessage((e: any) => {
-			if (typeof e.warning === 'string') {
-				this.logService.warn(e.warning);
-			} else if (typeof e.error === 'string') {
-				this.logService.error(e.error);
+		this.utilityProcessLogListener = this.utilityProcess.onMessage(e => {
+			const logValue = e as { warning?: unknown; error?: unknown };
+			if (typeof logValue.warning === 'string') {
+				this.logService.warn(logValue.warning);
+			} else if (typeof logValue.error === 'string') {
+				this.logService.error(logValue.error);
 			}
 		});
 

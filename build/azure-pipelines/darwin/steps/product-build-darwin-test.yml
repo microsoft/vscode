@@ -1,0 +1,130 @@
+parameters:
+  - name: VSCODE_RUN_ELECTRON_TESTS
+    type: boolean
+  - name: VSCODE_RUN_BROWSER_TESTS
+    type: boolean
+  - name: VSCODE_RUN_REMOTE_TESTS
+    type: boolean
+
+steps:
+  - script: npm exec -- npm-run-all2 -lp "electron $(VSCODE_ARCH)" "playwright-install"
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    displayName: Download Electron and Playwright
+    retryCountOnTaskFailure: 3
+
+  - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
+    - script: ./scripts/test.sh --build --tfs "Unit Tests"
+      displayName: 🧪 Run unit tests (Electron)
+      timeoutInMinutes: 15
+    - script: npm run test-node -- --build
+      displayName: 🧪 Run unit tests (node.js)
+      timeoutInMinutes: 15
+
+  - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
+    - script: npm run test-browser-no-install -- --build --browser webkit --tfs "Browser Unit Tests"
+      env:
+        DEBUG: "*browser*"
+      displayName: 🧪 Run unit tests (Browser, Webkit)
+      timeoutInMinutes: 30
+
+  - script: |
+      set -e
+      npm run gulp \
+        compile-extension:configuration-editing \
+        compile-extension:css-language-features-server \
+        compile-extension:emmet \
+        compile-extension:git \
+        compile-extension:github-authentication \
+        compile-extension:html-language-features-server \
+        compile-extension:ipynb \
+        compile-extension:notebook-renderers \
+        compile-extension:json-language-features-server \
+        compile-extension:markdown-language-features \
+        compile-extension-media \
+        compile-extension:microsoft-authentication \
+        compile-extension:typescript-language-features \
+        compile-extension:vscode-api-tests \
+        compile-extension:vscode-colorize-tests \
+        compile-extension:vscode-colorize-perf-tests \
+        compile-extension:vscode-test-resolver
+    displayName: Build integration tests
+
+  - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
+    - script: |
+        # Figure out the full absolute path of the product we just built
+        # including the remote server and configure the integration tests
+        # to run with these builds instead of running out of sources.
+        set -e
+        APP_ROOT="$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)"
+        APP_NAME="`ls $APP_ROOT | head -n 1`"
+        INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME/Contents/MacOS/Electron" \
+        ./scripts/test-integration.sh --build --tfs "Integration Tests"
+      env:
+        VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)
+      displayName: 🧪 Run integration tests (Electron)
+      timeoutInMinutes: 20
+
+  - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
+    - script: ./scripts/test-web-integration.sh --browser webkit
+      env:
+        VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)-web
+      displayName: 🧪 Run integration tests (Browser, Webkit)
+      timeoutInMinutes: 20
+
+  - ${{ if eq(parameters.VSCODE_RUN_REMOTE_TESTS, true) }}:
+    - script: |
+        set -e
+        APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
+        APP_NAME="`ls $APP_ROOT | head -n 1`"
+        INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME/Contents/MacOS/Electron" \
+        ./scripts/test-remote-integration.sh
+      env:
+        VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)
+      displayName: 🧪 Run integration tests (Remote)
+      timeoutInMinutes: 20
+
+  - script: ps -ef
+    displayName: Diagnostics before smoke test run
+    continueOnError: true
+    condition: succeededOrFailed()
+
+  - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
+    - script: |
+        set -e
+        APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
+        APP_NAME="`ls $APP_ROOT | head -n 1`"
+        npm run smoketest-no-compile -- --tracing --build "$APP_ROOT/$APP_NAME"
+      timeoutInMinutes: 20
+      displayName: 🧪 Run smoke tests (Electron)
+
+  - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
+    - script: npm run smoketest-no-compile -- --web --tracing --headless
+      env:
+        VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)-web
+      timeoutInMinutes: 20
+      displayName: 🧪 Run smoke tests (Browser, Chromium)
+
+  - ${{ if eq(parameters.VSCODE_RUN_REMOTE_TESTS, true) }}:
+    - script: |
+        set -e
+        npm run gulp compile-extension:vscode-test-resolver
+        APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
+        APP_NAME="`ls $APP_ROOT | head -n 1`"
+        npm run smoketest-no-compile -- --tracing --remote --build "$APP_ROOT/$APP_NAME"
+      env:
+        VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)
+      timeoutInMinutes: 20
+      displayName: 🧪 Run smoke tests (Remote)
+
+  - script: ps -ef
+    displayName: Diagnostics after smoke test run
+    continueOnError: true
+    condition: succeededOrFailed()
+
+  - task: PublishTestResults@2
+    displayName: Publish Tests Results
+    inputs:
+      testResultsFiles: "*-results.xml"
+      searchFolder: "$(Build.ArtifactStagingDirectory)/test-results"
+    condition: succeededOrFailed()

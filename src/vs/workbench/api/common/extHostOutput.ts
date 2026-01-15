@@ -9,7 +9,7 @@ import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
-import { AbstractMessageLogger, ILogger, ILoggerService, ILogService, log, LogLevel, parseLogLevel } from '../../../platform/log/common/log.js';
+import { AbstractMessageLogger, ILogger, ILoggerService, ILogService, log, LogLevel } from '../../../platform/log/common/log.js';
 import { OutputChannelUpdateMode } from '../../services/output/common/output.js';
 import { IExtHostConsumerFileSystem } from './extHostFileSystemConsumer.js';
 import { IExtHostInitDataService } from './extHostInitDataService.js';
@@ -20,6 +20,7 @@ import { isString } from '../../../base/common/types.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../../platform/files/common/files.js';
 import { Emitter } from '../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../base/common/map.js';
 
 class ExtHostOutputChannel extends AbstractMessageLogger implements vscode.LogOutputChannel {
 
@@ -103,7 +104,8 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 
 	private readonly outputsLocation: URI;
 	private outputDirectoryPromise: Thenable<URI> | undefined;
-	private readonly extensionLogDirectoryPromise = new Map<string, Thenable<URI>>();
+	private readonly extensionLogDirectoryCreationPromise = new ResourceMap<Thenable<void>>();
+	private readonly logOutputChannels = new ResourceMap<vscode.OutputChannel>();
 	private namePool: number = 1;
 
 	private readonly channels = new Map<string, ExtHostLogOutputChannel | ExtHostOutputChannel>();
@@ -138,23 +140,41 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 		if (isString(languageId) && !languageId.trim()) {
 			throw new Error('illegal argument `languageId`. must not be empty');
 		}
-		let logLevel: LogLevel | undefined;
-		const logLevelValue = this.initData.environment.extensionLogLevel?.find(([identifier]) => ExtensionIdentifier.equals(extension.identifier, identifier))?.[1];
-		if (logLevelValue) {
-			logLevel = parseLogLevel(logLevelValue);
-		}
+
 		const channelDisposables = new DisposableStore();
-		const extHostOutputChannel = log
-			? this.doCreateLogOutputChannel(name, logLevel, extension, channelDisposables)
-			: this.doCreateOutputChannel(name, languageId, extension, channelDisposables);
-		extHostOutputChannel.then(channel => {
+		let extHostOutputChannelPromise;
+		let logLevel = this.initData.environment.extensionLogLevel?.find(([identifier]) => ExtensionIdentifier.equals(extension.identifier, identifier))?.[1];
+		let logFile: URI | undefined;
+		if (log) {
+			const extensionLogDirectory = this.extHostFileSystemInfo.extUri.joinPath(this.initData.logsLocation, extension.identifier.value);
+			logFile = this.extHostFileSystemInfo.extUri.joinPath(extensionLogDirectory, `${name.replace(/[\\/:\*\?"<>\|]/g, '')}.log`);
+			const existingOutputChannel = this.logOutputChannels.get(logFile);
+			if (existingOutputChannel) {
+				return existingOutputChannel;
+			}
+			logLevel = this.loggerService.getLogLevel(logFile) ?? logLevel;
+			extHostOutputChannelPromise = this.doCreateLogOutputChannel(name, logFile, logLevel, extension, channelDisposables);
+		} else {
+			extHostOutputChannelPromise = this.doCreateOutputChannel(name, languageId, extension, channelDisposables);
+		}
+
+		extHostOutputChannelPromise.then(channel => {
 			this.channels.set(channel.id, channel);
 			channel.visible = channel.id === this.visibleChannelId;
-			channelDisposables.add(toDisposable(() => this.channels.delete(channel.id)));
+			channelDisposables.add(toDisposable(() => {
+				this.channels.delete(channel.id);
+				if (logFile) {
+					this.logOutputChannels.delete(logFile);
+				}
+			}));
 		});
-		return log
-			? this.createExtHostLogOutputChannel(name, logLevel ?? this.logService.getLevel(), <Promise<ExtHostOutputChannel>>extHostOutputChannel, channelDisposables)
-			: this.createExtHostOutputChannel(name, <Promise<ExtHostOutputChannel>>extHostOutputChannel, channelDisposables);
+
+		if (logFile) {
+			const logOutputChannel = this.createExtHostLogOutputChannel(name, logLevel ?? this.logService.getLevel(), <Promise<ExtHostOutputChannel>>extHostOutputChannelPromise, channelDisposables);
+			this.logOutputChannels.set(logFile, logOutputChannel);
+			return logOutputChannel;
+		}
+		return this.createExtHostOutputChannel(name, <Promise<ExtHostOutputChannel>>extHostOutputChannelPromise, channelDisposables);
 	}
 
 	private async doCreateOutputChannel(name: string, languageId: string | undefined, extension: IExtensionDescription, channelDisposables: DisposableStore): Promise<ExtHostOutputChannel> {
@@ -169,21 +189,19 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 		return new ExtHostOutputChannel(id, name, logger, this.proxy, extension);
 	}
 
-	private async doCreateLogOutputChannel(name: string, logLevel: LogLevel | undefined, extension: IExtensionDescription, channelDisposables: DisposableStore): Promise<ExtHostLogOutputChannel> {
-		const extensionLogDir = await this.createExtensionLogDirectory(extension);
-		const fileName = name.replace(/[\\/:\*\?"<>\|]/g, '');
-		const file = this.extHostFileSystemInfo.extUri.joinPath(extensionLogDir, `${fileName}.log`);
-		const id = `${extension.identifier.value}.${fileName}`;
+	private async doCreateLogOutputChannel(name: string, file: URI, logLevel: LogLevel | undefined, extension: IExtensionDescription, channelDisposables: DisposableStore): Promise<ExtHostLogOutputChannel> {
+		await this.createExtensionLogDirectory(file);
+		const id = `${extension.identifier.value}.${this.extHostFileSystemInfo.extUri.basename(file)}`;
 		const logger = channelDisposables.add(this.loggerService.createLogger(file, { id, name, logLevel, extensionId: extension.identifier.value }));
 		channelDisposables.add(toDisposable(() => this.loggerService.deregisterLogger(file)));
 		return new ExtHostLogOutputChannel(id, name, logger, this.proxy, extension);
 	}
 
-	private createExtensionLogDirectory(extension: IExtensionDescription): Thenable<URI> {
-		let extensionLogDirectoryPromise = this.extensionLogDirectoryPromise.get(extension.identifier.value);
+	private createExtensionLogDirectory(file: URI): Thenable<void> {
+		const extensionLogDirectory = this.extHostFileSystemInfo.extUri.dirname(file);
+		let extensionLogDirectoryPromise = this.extensionLogDirectoryCreationPromise.get(extensionLogDirectory);
 		if (!extensionLogDirectoryPromise) {
-			const extensionLogDirectory = this.extHostFileSystemInfo.extUri.joinPath(this.initData.logsLocation, extension.identifier.value);
-			this.extensionLogDirectoryPromise.set(extension.identifier.value, extensionLogDirectoryPromise = (async () => {
+			this.extensionLogDirectoryCreationPromise.set(extensionLogDirectory, extensionLogDirectoryPromise = (async () => {
 				try {
 					await this.extHostFileSystem.value.createDirectory(extensionLogDirectory);
 				} catch (err) {
@@ -191,7 +209,6 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 						throw err;
 					}
 				}
-				return extensionLogDirectory;
 			})());
 		}
 		return extensionLogDirectoryPromise;
@@ -257,23 +274,23 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 			...this.createExtHostOutputChannel(name, channelPromise, channelDisposables),
 			get logLevel() { return logLevel; },
 			onDidChangeLogLevel: onDidChangeLogLevel.event,
-			trace(value: string, ...args: any[]): void {
+			trace(value: string, ...args: unknown[]): void {
 				validate();
 				channelPromise.then(channel => channel.trace(value, ...args));
 			},
-			debug(value: string, ...args: any[]): void {
+			debug(value: string, ...args: unknown[]): void {
 				validate();
 				channelPromise.then(channel => channel.debug(value, ...args));
 			},
-			info(value: string, ...args: any[]): void {
+			info(value: string, ...args: unknown[]): void {
 				validate();
 				channelPromise.then(channel => channel.info(value, ...args));
 			},
-			warn(value: string, ...args: any[]): void {
+			warn(value: string, ...args: unknown[]): void {
 				validate();
 				channelPromise.then(channel => channel.warn(value, ...args));
 			},
-			error(value: Error | string, ...args: any[]): void {
+			error(value: Error | string, ...args: unknown[]): void {
 				validate();
 				channelPromise.then(channel => channel.error(value, ...args));
 			}

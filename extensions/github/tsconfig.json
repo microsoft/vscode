@@ -5,7 +5,6 @@
 		"moduleResolution": "NodeNext",
 		"outDir": "./out",
 		"skipLibCheck": true,
-		"allowSyntheticDefaultImports": false,
 		"typeRoots": [
 			"./node_modules/@types"
 		]

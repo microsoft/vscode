@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
-import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import { IJSONSchema, TypeFromJsonSchema } from '../../../../base/common/jsonSchema.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
@@ -24,7 +24,7 @@ function contextKeyForSupportedActions(kind: HierarchicalKind) {
 		new RegExp('(\\s|^)' + escapeRegExpCharacters(kind.value) + '\\b'));
 }
 
-const argsSchema: IJSONSchema = {
+const argsSchema = {
 	type: 'object',
 	defaultSnippets: [{ body: { kind: '' } }],
 	properties: {
@@ -49,7 +49,7 @@ const argsSchema: IJSONSchema = {
 			description: nls.localize('args.schema.preferred', "Controls if only preferred code actions should be returned."),
 		}
 	}
-};
+} as const satisfies IJSONSchema;
 
 function triggerCodeActionsForEditorSelection(
 	editor: ICodeEditor,
@@ -97,7 +97,7 @@ export class CodeActionCommand extends EditorCommand {
 		});
 	}
 
-	public runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, userArgs: any) {
+	public runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, userArgs?: TypeFromJsonSchema<typeof argsSchema>): void {
 		const args = CodeActionCommandArgs.fromUser(userArgs, {
 			kind: HierarchicalKind.Empty,
 			apply: CodeActionAutoApply.IfSingle,
@@ -149,7 +149,7 @@ export class RefactorAction extends EditorAction {
 		});
 	}
 
-	public run(_accessor: ServicesAccessor, editor: ICodeEditor, userArgs: any): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor, userArgs?: TypeFromJsonSchema<typeof argsSchema>): void {
 		const args = CodeActionCommandArgs.fromUser(userArgs, {
 			kind: CodeActionKind.Refactor,
 			apply: CodeActionAutoApply.Never
@@ -191,7 +191,7 @@ export class SourceAction extends EditorAction {
 		});
 	}
 
-	public run(_accessor: ServicesAccessor, editor: ICodeEditor, userArgs: any): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor, userArgs?: TypeFromJsonSchema<typeof argsSchema>): void {
 		const args = CodeActionCommandArgs.fromUser(userArgs, {
 			kind: CodeActionKind.Source,
 			apply: CodeActionAutoApply.Never

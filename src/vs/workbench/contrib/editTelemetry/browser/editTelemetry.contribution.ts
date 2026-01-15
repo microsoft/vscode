@@ -13,6 +13,7 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IAiEditTelemetryService } from './telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { AiEditTelemetryServiceImpl } from './telemetry/aiEditTelemetry/aiEditTelemetryServiceImpl.js';
+import { IRandomService, RandomService } from './randomService.js';
 
 registerWorkbenchContribution2('EditTelemetryContribution', EditTelemetryContribution, WorkbenchPhase.AfterRestored);
 
@@ -63,3 +64,4 @@ configurationRegistry.registerConfiguration({
 });
 
 registerSingleton(IAiEditTelemetryService, AiEditTelemetryServiceImpl, InstantiationType.Delayed);
+registerSingleton(IRandomService, RandomService, InstantiationType.Delayed);

@@ -3,15 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IExperimentationFilterProvider } from 'tas-client-umd';
+import type { IExperimentationFilterProvider } from 'tas-client';
 import { IExtensionService } from '../../extensions/common/extensions.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-// eslint-disable-next-line local/code-import-patterns
-import { IChatEntitlementService } from '../../../contrib/chat/common/chatEntitlementService.js';
+import { IChatEntitlementService } from '../../chat/common/chatEntitlementService.js';
 
 export enum ExtensionsFilter {
 
@@ -102,7 +101,7 @@ export class CopilotAssignmentFilterProvider extends Disposable implements IExpe
 
 			copilotExtensionVersion = copilotExtension?.version;
 			copilotChatExtensionVersion = copilotChatExtension?.version;
-			copilotCompletionsVersion = (copilotChatExtension as any)?.completionsCoreVersion;
+			copilotCompletionsVersion = (copilotChatExtension as typeof copilotChatExtension & { completionsCoreVersion?: string })?.completionsCoreVersion;
 		} catch (error) {
 			this._logService.error('Failed to update extension version assignments', error);
 		}
@@ -128,7 +127,7 @@ export class CopilotAssignmentFilterProvider extends Disposable implements IExpe
 	private updateCopilotEntitlementInfo() {
 		const newSku = this._chatEntitlementService.sku;
 		const newIsGitHubInternal = this._chatEntitlementService.organisations?.includes('github');
-		const newIsMicrosoftInternal = this._chatEntitlementService.organisations?.includes('microsoft');
+		const newIsMicrosoftInternal = this._chatEntitlementService.organisations?.includes('microsoft') || this._chatEntitlementService.organisations?.includes('ms-copilot') || this._chatEntitlementService.organisations?.includes('MicrosoftCopilot');
 		const newInternalOrg = newIsGitHubInternal ? 'github' : newIsMicrosoftInternal ? 'microsoft' : undefined;
 
 		if (this.copilotSku === newSku && this.copilotInternalOrg === newInternalOrg) {
@@ -176,8 +175,8 @@ export class CopilotAssignmentFilterProvider extends Disposable implements IExpe
 		}
 	}
 
-	getFilters(): Map<string, any> {
-		const filters: Map<string, any> = new Map<string, any>();
+	getFilters(): Map<string, string | null> {
+		const filters = new Map<string, string | null>();
 		const filterValues = Object.values(ExtensionsFilter);
 		for (const value of filterValues) {
 			filters.set(value, this.getFilterValue(value));

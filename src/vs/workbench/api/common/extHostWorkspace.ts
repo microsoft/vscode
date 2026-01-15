@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { delta as arrayDelta, mapArrayOrNot } from '../../../base/common/arrays.js';
-import { AsyncIterableObject, Barrier } from '../../../base/common/async.js';
+import { AsyncIterableProducer, Barrier } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { AsyncEmitter, Emitter, Event } from '../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
@@ -552,7 +552,20 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			token).then(data => Array.isArray(data) ? data.map(d => URI.revive(d)) : [])
 		) ?? []);
 
-		return result.flat();
+		const flatResult = result.flat();
+
+		// Dedupe entries in a flat array
+		const extUri = new ExtUri(uri => ignorePathCasing(uri, this._extHostFileSystemInfo));
+		const uriMap = new Map<string, vscode.Uri>();
+
+		for (const uri of flatResult) {
+			const key = extUri.getComparisonKey(uri);
+			if (!uriMap.has(key)) {
+				uriMap.set(key, uri);
+			}
+		}
+
+		return Array.from(uriMap.values());
 	}
 
 	findTextInFiles2(query: vscode.TextSearchQuery2, options: vscode.FindTextInFilesOptions2 | undefined, extensionId: ExtensionIdentifier, token: vscode.CancellationToken = CancellationToken.None): vscode.FindTextInFilesResponse {
@@ -574,7 +587,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 				options: {
 
 					ignoreSymlinks: typeof options.followSymlinks === 'boolean' ? !options.followSymlinks : undefined,
-					disregardIgnoreFiles: typeof options.useIgnoreFiles === 'boolean' ? !options.useIgnoreFiles : undefined,
+					disregardIgnoreFiles: typeof options.useIgnoreFiles?.local === 'boolean' ? !options.useIgnoreFiles?.local : undefined,
 					disregardGlobalIgnoreFiles: typeof options.useIgnoreFiles?.global === 'boolean' ? !options.useIgnoreFiles?.global : undefined,
 					disregardParentIgnoreFiles: typeof options.useIgnoreFiles?.parent === 'boolean' ? !options.useIgnoreFiles?.parent : undefined,
 					disregardExcludeSettings: options.useExcludeSettings !== undefined && options.useExcludeSettings === ExcludeSettingOptions.None,
@@ -607,7 +620,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			(result, uri) => progressEmitter.fire({ result, uri }),
 			token
 		);
-		const asyncIterable = new AsyncIterableObject<vscode.TextSearchResult2>(async emitter => {
+		const asyncIterable = new AsyncIterableProducer<vscode.TextSearchResult2>(async emitter => {
 			disposables.add(progressEmitter.event(e => {
 				const result = e.result;
 				const uri = e.uri;

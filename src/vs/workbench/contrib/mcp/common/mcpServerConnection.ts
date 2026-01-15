@@ -12,6 +12,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILogger, log, LogLevel } from '../../../../platform/log/common/log.js';
 import { IMcpHostDelegate, IMcpMessageTransport } from './mcpRegistryTypes.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
+import { McpTaskManager } from './mcpTaskManager.js';
 import { IMcpClientMethods, IMcpServerConnection, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch } from './mcpTypes.js';
 
 export class McpServerConnection extends Disposable implements IMcpServerConnection {
@@ -28,6 +29,8 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 		private readonly _delegate: IMcpHostDelegate,
 		public readonly launchDefinition: McpServerLaunch,
 		private readonly _logger: ILogger,
+		private readonly _errorOnUserInteraction: boolean | undefined,
+		private readonly _taskManager: McpTaskManager,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
@@ -45,7 +48,7 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 		this._logger.info(localize('mcpServer.starting', 'Starting server {0}', this.definition.label));
 
 		try {
-			const launch = this._delegate.start(this._collection, this.definition, this.launchDefinition);
+			const launch = this._delegate.start(this._collection, this.definition, this.launchDefinition, { errorOnUserInteraction: this._errorOnUserInteraction });
 			this._launch.value = this.adoptLaunch(launch, methods);
 			return this._waitForState(McpConnectionState.Kind.Running, McpConnectionState.Kind.Error);
 		} catch (e) {
@@ -77,10 +80,11 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 			if (state.state === McpConnectionState.Kind.Running && !didStart) {
 				didStart = true;
 				McpServerRequestHandler.create(this._instantiationService, {
+					...methods,
 					launch,
 					logger: this._logger,
 					requestLogLevel: this.definition.devMode ? LogLevel.Info : LogLevel.Debug,
-					...methods,
+					taskManager: this._taskManager,
 				}, cts.token).then(
 					handler => {
 						if (!store.isDisposed) {
@@ -90,7 +94,7 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 						}
 					},
 					err => {
-						if (!store.isDisposed) {
+						if (!store.isDisposed && McpConnectionState.isRunning(this._state.read(undefined))) {
 							let message = err.message;
 							if (err instanceof CancellationError) {
 								message = 'Server exited before responding to `initialize` request.';

@@ -22,7 +22,7 @@ import { IResourceEditorInput } from '../../../../../platform/editor/common/edit
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { Memento, MementoObject } from '../../../../common/memento.js';
+import { Memento } from '../../../../common/memento.js';
 import { INotebookEditorContribution, notebookPreloadExtensionPoint, notebookRendererExtensionPoint, notebooksExtensionPoint } from '../notebookExtensionPoint.js';
 import { INotebookEditorOptions } from '../notebookBrowser.js';
 import { NotebookDiffEditorInput } from '../../common/notebookDiffEditorInput.js';
@@ -50,12 +50,16 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { ICellRange } from '../../common/notebookRange.js';
 
+interface NotebookProviderInfoStoreMemento {
+	editors: NotebookProviderInfo[];
+}
+
 export class NotebookProviderInfoStore extends Disposable {
 
 	private static readonly CUSTOM_EDITORS_STORAGE_ID = 'notebookEditors';
 	private static readonly CUSTOM_EDITORS_ENTRY_ID = 'editors';
 
-	private readonly _memento: Memento;
+	private readonly _memento: Memento<NotebookProviderInfoStoreMemento>;
 	private _handled: boolean = false;
 
 	private readonly _contributedEditors = new Map<string, NotebookProviderInfo>();
@@ -411,10 +415,14 @@ export class NotebookProviderInfoStore extends Disposable {
 	}
 }
 
+interface NotebookOutputRendererInfoStoreMemento {
+	[notebookType: string]: { [mimeType: string]: string } | undefined;
+}
+
 export class NotebookOutputRendererInfoStore {
 	private readonly contributedRenderers = new Map</* rendererId */ string, NotebookOutputRendererInfo>();
-	private readonly preferredMimetypeMemento: Memento;
-	private readonly preferredMimetype = new Lazy<{ [notebookType: string]: { [mimeType: string]: /* rendererId */ string } }>(
+	private readonly preferredMimetypeMemento: Memento<NotebookOutputRendererInfoStoreMemento>;
+	private readonly preferredMimetype = new Lazy<NotebookOutputRendererInfoStoreMemento>(
 		() => this.preferredMimetypeMemento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE));
 
 	constructor(
@@ -517,12 +525,16 @@ class ModelData implements IDisposable, INotebookDocument {
 	}
 }
 
+interface NotebookServiceMemento {
+	[viewType: string]: string | undefined;
+}
+
 export class NotebookService extends Disposable implements INotebookService {
 
 	declare readonly _serviceBrand: undefined;
 	private static _storageNotebookViewTypeProvider = 'notebook.viewTypeProvider';
-	private readonly _memento: Memento;
-	private readonly _viewTypeCache: MementoObject;
+	private readonly _memento: Memento<NotebookServiceMemento>;
+	private readonly _viewTypeCache: NotebookServiceMemento;
 
 	private readonly _notebookProviders;
 	private _notebookProviderInfoStore: NotebookProviderInfoStore | undefined;
@@ -558,7 +570,7 @@ export class NotebookService extends Disposable implements INotebookService {
 	readonly onWillRemoveViewType;
 
 	private readonly _onDidChangeEditorTypes;
-	onDidChangeEditorTypes: Event<void>;
+	readonly onDidChangeEditorTypes: Event<void>;
 
 	private _cutItems: NotebookCellTextModel[] | undefined;
 	private _lastClipboardIsCopy: boolean;

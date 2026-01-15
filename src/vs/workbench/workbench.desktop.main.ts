@@ -155,6 +155,9 @@ import './contrib/externalTerminal/electron-browser/externalTerminal.contributio
 // Webview
 import './contrib/webview/electron-browser/webview.contribution.js';
 
+// Browser
+import './contrib/browserView/electron-browser/browserView.contribution.js';
+
 // Splash
 import './contrib/splash/electron-browser/splash.contribution.js';
 
@@ -181,6 +184,9 @@ import './contrib/emergencyAlert/electron-browser/emergencyAlert.contribution.js
 
 // MCP
 import './contrib/mcp/electron-browser/mcp.contribution.js';
+
+// Policy Export
+import './contrib/policyExport/electron-browser/policyExport.contribution.js';
 
 //#endregion
 

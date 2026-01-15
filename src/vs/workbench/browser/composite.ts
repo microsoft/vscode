@@ -31,7 +31,7 @@ import { IBaseActionViewItemOptions } from '../../base/browser/ui/actionbar/acti
  * layout(), focus(), dispose(). During use of the workbench, a composite will often receive a setVisible,
  * layout and focus call, but only one create and dispose call.
  */
-export abstract class Composite extends Component implements IComposite {
+export abstract class Composite<MementoType extends object = object> extends Component<MementoType> implements IComposite {
 
 	private readonly _onTitleAreaUpdate = this._register(new Emitter<void>());
 	readonly onTitleAreaUpdate = this._onTitleAreaUpdate.event;

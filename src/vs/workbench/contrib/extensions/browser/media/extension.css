@@ -28,7 +28,8 @@
 
 .extension-list-item > .icon-container .extension-badge {
 	position: absolute;
-	bottom: 5px;
+	bottom: 10px;
+	left: -8px;
 }
 
 .extension-list-item > .icon-container .extension-badge.extension-icon-badge {
@@ -91,17 +92,17 @@
 }
 
 .extension-list-item > .details > .header-container > .header .extension-kind-indicator {
-	font-size: 80%;
+	font-size: 11px;
 	margin-left: 4px;
 }
 
 .extension-list-item > .details > .header-container > .header > .install-count:not(:empty) {
-	font-size: 80%;
+	font-size: 11px;
 	margin: 0 6px;
 }
 
 .extension-list-item > .details > .header-container > .header > .activation-status:not(:empty) {
-	font-size: 80%;
+	font-size: 11px;
 	margin-left: 2px;
 }
 
@@ -111,8 +112,7 @@
 }
 
 .extension-list-item > .details > .header-container > .header .codicon {
-	font-size: 120%;
-	margin-right: 3px;
+	margin-right: 2px;
 	-webkit-mask: inherit;
 }
 

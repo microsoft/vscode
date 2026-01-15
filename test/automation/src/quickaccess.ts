@@ -7,7 +7,6 @@ import { Editors } from './editors';
 import { Code } from './code';
 import { QuickInput } from './quickinput';
 import { basename, isAbsolute } from 'path';
-import { Quality } from './application';
 
 enum QuickAccessKind {
 	Files = 1,
@@ -23,11 +22,7 @@ export class QuickAccess {
 
 		// make sure the file quick access is not "polluted"
 		// with entries from the editor history when opening
-		if (this.code.quality !== Quality.Stable) {
-			await this.runCommand('workbench.action.clearEditorHistoryWithoutConfirm');
-		} else {
-			await this.runCommand('workbench.action.clearEditorHistory');
-		}
+		await this.runCommand('workbench.action.clearEditorHistoryWithoutConfirm');
 
 		const PollingStrategy = {
 			Stop: true,
@@ -132,8 +127,7 @@ export class QuickAccess {
 		await this.quickInput.selectQuickInputElement(0);
 
 		// wait for editor being focused
-		await this.editors.waitForActiveTab(fileName);
-		await this.editors.selectTab(fileName);
+		await this.editors.waitForEditorFocus(fileName);
 	}
 
 	private async openQuickAccessWithRetry(kind: QuickAccessKind, value?: string): Promise<void> {
@@ -247,5 +241,23 @@ export class QuickAccess {
 				continue;
 			}
 		}
+	}
+
+	async getVisibleCommandNames(searchValue: string): Promise<string[]> {
+
+		// open commands picker
+		await this.openQuickAccessWithRetry(QuickAccessKind.Commands, `>${searchValue}`);
+
+		// wait for quick input elements to be available
+		let commandNames: string[] = [];
+		await this.quickInput.waitForQuickInputElements(elementNames => {
+			commandNames = elementNames;
+			return true;
+		});
+
+		// close the quick input
+		await this.quickInput.closeQuickInput();
+
+		return commandNames;
 	}
 }

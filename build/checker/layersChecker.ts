@@ -6,7 +6,7 @@
 import ts from 'typescript';
 import { readFileSync, existsSync } from 'fs';
 import { resolve, dirname, join } from 'path';
-import { match } from 'minimatch';
+import minimatch from 'minimatch';
 
 //
 // #############################################################################################
@@ -88,7 +88,7 @@ const RULES: IRule[] = [
 	}
 ];
 
-const TS_CONFIG_PATH = join(__dirname, '../../', 'src', 'tsconfig.json');
+const TS_CONFIG_PATH = join(import.meta.dirname, '../../', 'src', 'tsconfig.json');
 
 interface IRule {
 	target: string;
@@ -151,7 +151,7 @@ const program = createProgram(TS_CONFIG_PATH);
 
 for (const sourceFile of program.getSourceFiles()) {
 	for (const rule of RULES) {
-		if (match([sourceFile.fileName], rule.target).length > 0) {
+		if (minimatch.match([sourceFile.fileName], rule.target).length > 0) {
 			if (!rule.skip) {
 				checkFile(program, sourceFile, rule);
 			}

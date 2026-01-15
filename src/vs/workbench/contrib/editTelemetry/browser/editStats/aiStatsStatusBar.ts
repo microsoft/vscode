@@ -21,7 +21,7 @@ import type { AiStatsFeature } from './aiStatsFeature.js';
 import './media.css';
 
 export class AiStatsStatusBar extends Disposable {
-	public static readonly hot = createHotClass(AiStatsStatusBar);
+	public static readonly hot = createHotClass(this);
 
 	constructor(
 		private readonly _aiStatsFeature: AiStatsFeature,
@@ -77,6 +77,8 @@ export class AiStatsStatusBar extends Disposable {
 				display: 'flex',
 				alignItems: 'center',
 				justifyContent: 'center',
+				marginLeft: '3px',
+				marginRight: '3px',
 			}
 		}, [
 			n.div(

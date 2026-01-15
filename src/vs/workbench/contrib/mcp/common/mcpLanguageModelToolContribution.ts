@@ -8,24 +8,28 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../base/common/lazy.js';
-import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { equals } from '../../../../base/common/objects.js';
-import { autorun, autorunSelfDisposable } from '../../../../base/common/observable.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { basename } from '../../../../base/common/resources.js';
+import { isDefined, Mutable } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IImageResizeService } from '../../../../platform/imageResize/common/imageResizeService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { mcpAppsEnabledConfig } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { ChatResponseResource, getAttachableImageExtension } from '../../chat/common/chatModel.js';
-import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultInputOutputDetails, ToolDataSource, ToolProgress, ToolSet } from '../../chat/common/languageModelToolsService.js';
+import { ChatResponseResource, getAttachableImageExtension } from '../../chat/common/model/chatModel.js';
+import { LanguageModelPartAudience } from '../../chat/common/languageModels.js';
+import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolConfirmationMessages, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultInputOutputDetails, ToolDataSource, ToolProgress, ToolSet } from '../../chat/common/tools/languageModelToolsService.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
-import { IMcpServer, IMcpService, IMcpTool, LazyCollectionState, McpResourceURI, McpServerCacheState } from './mcpTypes.js';
+import { IMcpServer, IMcpService, IMcpTool, IMcpToolResourceLinkContents, McpResourceURI, McpToolResourceLinkMimeType, McpToolVisibility } from './mcpTypes.js';
 import { mcpServerToSourceData } from './mcpTypesUtils.js';
+import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 
 interface ISyncedToolData {
 	toolData: IToolData;
@@ -41,35 +45,38 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 		@IMcpService mcpService: IMcpService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IMcpRegistry private readonly _mcpRegistry: IMcpRegistry,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 	) {
 		super();
 
-		// 1. Auto-discover extensions with new MCP servers
-		const lazyCollectionState = mcpService.lazyCollectionState.map(s => s.state);
-		this._register(autorun(reader => {
-			if (lazyCollectionState.read(reader) === LazyCollectionState.HasUnknown) {
-				mcpService.activateCollections();
-			}
-		}));
+		type Rec = { source?: ToolDataSource } & IDisposable;
 
-		// 2. Keep tools in sync with the tools service.
-		const previous = this._register(new DisposableMap<IMcpServer, DisposableStore>());
+		// Keep tools in sync with the tools service.
+		const previous = this._register(new DisposableMap<IMcpServer, Rec>());
 		this._register(autorun(reader => {
 			const servers = mcpService.servers.read(reader);
 
 			const toDelete = new Set(previous.keys());
 			for (const server of servers) {
-				if (previous.has(server)) {
+				const previousRec = previous.get(server);
+				if (previousRec) {
 					toDelete.delete(server);
-					continue;
+					if (!previousRec.source || equals(previousRec.source, mcpServerToSourceData(server, reader))) {
+						continue; // same definition, no need to update
+					}
+
+					previousRec.dispose();
 				}
 
 				const store = new DisposableStore();
+				const rec: Rec = { dispose: () => store.dispose() };
 				const toolSet = new Lazy(() => {
-					const source = mcpServerToSourceData(server);
+					const source = rec.source = mcpServerToSourceData(server);
+					const referenceName = server.definition.label.toLowerCase().replace(/\s+/g, '-'); // see issue https://github.com/microsoft/vscode/issues/278152
 					const toolSet = store.add(this._toolsService.createToolSet(
 						source,
-						server.definition.id, server.definition.label,
+						server.definition.id,
+						referenceName,
 						{
 							icon: Codicon.mcp,
 							description: localize('mcp.toolset', "{0}: All Tools", server.definition.label)
@@ -80,7 +87,7 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 				});
 
 				this._syncTools(server, toolSet, store);
-				previous.set(server, store);
+				previous.set(server, rec);
 			}
 
 			for (const key of toDelete) {
@@ -95,25 +102,6 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 		const collectionObservable = this._mcpRegistry.collections.map(collections =>
 			collections.find(c => c.id === server.collection.id));
 
-		// If the server is extension-provided and was marked outdated automatically start it
-		store.add(autorunSelfDisposable(reader => {
-			const collection = collectionObservable.read(reader);
-			if (!collection) {
-				return;
-			}
-
-			if (!(collection.source instanceof ExtensionIdentifier)) {
-				reader.dispose();
-				return;
-			}
-
-			const cacheState = server.cacheState.read(reader);
-			if (cacheState === McpServerCacheState.Unknown || cacheState === McpServerCacheState.Outdated) {
-				reader.dispose();
-				server.start();
-			}
-		}));
-
 		store.add(autorun(reader => {
 			const toDelete = new Set(tools.keys());
 
@@ -125,13 +113,30 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 				store.add(collectionData.value.toolSet.addTool(toolData));
 			};
 
+			// Don't bother cleaning up tools internally during shutdown. This just costs time for no benefit.
+			if (this.lifecycleService.willShutdown) {
+				return;
+			}
+
 			const collection = collectionObservable.read(reader);
+			if (!collection) {
+				tools.forEach(t => t.store.dispose());
+				tools.clear();
+				return;
+			}
+
 			for (const tool of server.tools.read(reader)) {
+				// Skip app-only tools - they should not be registered with the language model tools service
+				if (!(tool.visibility & McpToolVisibility.Model)) {
+					continue;
+				}
+
 				const existing = tools.get(tool.id);
+				const icons = tool.icons.getUrl(22);
 				const toolData: IToolData = {
 					id: tool.id,
 					source: collectionData.value.source,
-					icon: Codicon.tools,
+					icon: icons || Codicon.tools,
 					// duplicative: https://github.com/modelcontextprotocol/modelcontextprotocol/pull/813
 					displayName: tool.definition.annotations?.title || tool.definition.title || tool.definition.name,
 					toolReferenceName: tool.referenceName,
@@ -140,6 +145,8 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 					inputSchema: tool.definition.inputSchema,
 					canBeReferencedInPrompt: true,
 					alwaysDisplayInputOutput: true,
+					canRequestPreApproval: !tool.definition.annotations?.readOnlyHint,
+					canRequestPostApproval: !!tool.definition.annotations?.openWorldHint,
 					runsInWorkspace: collection?.scope === StorageScope.WORKSPACE || !!collection?.remoteAuthority,
 					tags: ['mcp'],
 				};
@@ -171,6 +178,10 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 			for (const fn of toRegister) {
 				fn();
 			}
+
+			// Important: flush tool updates when the server is fully registered so that
+			// any consuming (e.g. autostarting) requests have the tools available immediately.
+			this._toolsService.flushToolUpdates();
 		}));
 
 		store.add(toDisposable(() => {
@@ -185,6 +196,7 @@ class McpToolImplementation implements IToolImpl {
 	constructor(
 		private readonly _tool: IMcpTool,
 		private readonly _server: IMcpServer,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IProductService private readonly _productService: IProductService,
 		@IFileService private readonly _fileService: IFileService,
 		@IImageResizeService private readonly _imageResizeService: IImageResizeService,
@@ -200,23 +212,35 @@ class McpToolImplementation implements IToolImpl {
 			this._productService.nameShort
 		);
 
-		const needsConfirmation = !tool.definition.annotations?.readOnlyHint;
 		// duplicative: https://github.com/modelcontextprotocol/modelcontextprotocol/pull/813
 		const title = tool.definition.annotations?.title || tool.definition.title || ('`' + tool.definition.name + '`');
 
+		const confirm: IToolConfirmationMessages = {};
+		if (!tool.definition.annotations?.readOnlyHint) {
+			confirm.title = new MarkdownString(localize('msg.title', "Run {0}", title));
+			confirm.message = new MarkdownString(tool.definition.description, { supportThemeIcons: true });
+			confirm.disclaimer = mcpToolWarning;
+			confirm.allowAutoConfirm = true;
+		}
+		if (tool.definition.annotations?.openWorldHint) {
+			confirm.confirmResults = true;
+		}
+
+		const mcpUiEnabled = this._configurationService.getValue<boolean>(mcpAppsEnabledConfig);
+
 		return {
-			confirmationMessages: needsConfirmation ? {
-				title: new MarkdownString(localize('msg.title', "Run {0}", title)),
-				message: new MarkdownString(tool.definition.description, { supportThemeIcons: true }),
-				disclaimer: mcpToolWarning,
-				allowAutoConfirm: true,
-			} : undefined,
+			confirmationMessages: confirm,
 			invocationMessage: new MarkdownString(localize('msg.run', "Running {0}", title)),
 			pastTenseMessage: new MarkdownString(localize('msg.ran', "Ran {0} ", title)),
 			originMessage: localize('msg.subtitle', "{0} (MCP Server)", server.definition.label),
 			toolSpecificData: {
 				kind: 'input',
-				rawInput: context.parameters
+				rawInput: context.parameters,
+				mcpAppData: mcpUiEnabled && tool.uiResourceUri ? {
+					resourceUri: tool.uiResourceUri,
+					serverDefinitionId: server.definition.id,
+					collectionId: server.collection.id,
+				} : undefined,
 			}
 		};
 	}
@@ -227,16 +251,26 @@ class McpToolImplementation implements IToolImpl {
 			content: []
 		};
 
-		const callResult = await this._tool.callWithProgress(invocation.parameters as Record<string, any>, progress, { chatRequestId: invocation.chatRequestId, chatSessionId: invocation.context?.sessionId }, token);
-		const details: IToolResultInputOutputDetails = {
+		const callResult = await this._tool.callWithProgress(invocation.parameters as Record<string, unknown>, progress, { chatRequestId: invocation.chatRequestId, chatSessionId: invocation.context?.sessionId }, token);
+		const details: Mutable<IToolResultInputOutputDetails> = {
 			input: JSON.stringify(invocation.parameters, undefined, 2),
 			output: [],
 			isError: callResult.isError === true,
 		};
 
 		for (const item of callResult.content) {
-			const audience = item.annotations?.audience || ['assistant'];
-			if (audience.includes('user')) {
+			const audience = item.annotations?.audience?.map(a => {
+				if (a === 'assistant') {
+					return LanguageModelPartAudience.Assistant;
+				} else if (a === 'user') {
+					return LanguageModelPartAudience.User;
+				} else {
+					return undefined;
+				}
+			}).filter(isDefined);
+
+			// Explicit user parts get pushed to progress to show in the status UI
+			if (audience?.includes(LanguageModelPartAudience.User)) {
 				if (item.type === 'text') {
 					progress.report({ message: item.text });
 				}
@@ -244,7 +278,7 @@ class McpToolImplementation implements IToolImpl {
 
 			// Rewrite image resources to images so they are inlined nicely
 			const addAsInlineData = async (mimeType: string, value: string, uri?: URI): Promise<VSBuffer | void> => {
-				details.output.push({ type: 'embed', mimeType, value, uri });
+				details.output.push({ type: 'embed', mimeType, value, uri, audience });
 				if (isForModel) {
 					let finalData: VSBuffer;
 					try {
@@ -253,11 +287,23 @@ class McpToolImplementation implements IToolImpl {
 					} catch {
 						finalData = decodeBase64(value);
 					}
-					result.content.push({ kind: 'data', value: { mimeType, data: finalData } });
+					result.content.push({ kind: 'data', value: { mimeType, data: finalData }, audience });
 				}
 			};
 
-			const isForModel = audience.includes('assistant');
+			const addAsLinkedResource = (uri: URI, mimeType?: string) => {
+				const json: IMcpToolResourceLinkContents = { uri, underlyingMimeType: mimeType };
+				result.content.push({
+					kind: 'data',
+					audience,
+					value: {
+						mimeType: McpToolResourceLinkMimeType,
+						data: VSBuffer.fromString(JSON.stringify(json)),
+					},
+				});
+			};
+
+			const isForModel = !audience || audience.includes(LanguageModelPartAudience.Assistant);
 			if (item.type === 'text') {
 				details.output.push({ type: 'embed', isText: true, value: item.text });
 				// structured content 'represents the result of the tool call', so take
@@ -265,6 +311,7 @@ class McpToolImplementation implements IToolImpl {
 				if (isForModel && !callResult.structuredContent) {
 					result.content.push({
 						kind: 'text',
+						audience,
 						value: item.text
 					});
 				}
@@ -276,6 +323,7 @@ class McpToolImplementation implements IToolImpl {
 				details.output.push({
 					type: 'ref',
 					uri,
+					audience,
 					mimeType: item.mimeType,
 				});
 
@@ -283,16 +331,14 @@ class McpToolImplementation implements IToolImpl {
 					if (item.mimeType && getAttachableImageExtension(item.mimeType)) {
 						result.content.push({
 							kind: 'data',
+							audience,
 							value: {
 								mimeType: item.mimeType,
 								data: await this._fileService.readFile(uri).then(f => f.value).catch(() => VSBuffer.alloc(0)),
 							}
 						});
 					} else {
-						result.content.push({
-							kind: 'text',
-							value: `The tool returns a resource which can be read from the URI ${uri}\n`,
-						});
+						addAsLinkedResource(uri, item.mimeType);
 					}
 				}
 			} else if (item.type === 'resource') {
@@ -306,24 +352,26 @@ class McpToolImplementation implements IToolImpl {
 						isText: 'text' in item.resource,
 						mimeType: item.resource.mimeType,
 						value: 'blob' in item.resource ? item.resource.blob : item.resource.text,
+						audience,
 						asResource: true,
 					});
 
 					if (isForModel) {
-						const permalink = invocation.chatRequestId && invocation.context && ChatResponseResource.createUri(invocation.context.sessionId, invocation.chatRequestId, invocation.callId, result.content.length, basename(uri));
-
-						result.content.push({
-							kind: 'text',
-							value: 'text' in item.resource ? item.resource.text : `The tool returns a resource which can be read from the URI ${permalink || uri}\n`,
-						});
+						const permalink = invocation.context && ChatResponseResource.createUri(invocation.context.sessionResource, invocation.callId, result.content.length, basename(uri));
+						addAsLinkedResource(permalink || uri, item.resource.mimeType);
 					}
 				}
 			}
 		}
 
 		if (callResult.structuredContent) {
-			details.output.push({ type: 'embed', isText: true, value: JSON.stringify(callResult.structuredContent, null, 2) });
-			result.content.push({ kind: 'text', value: JSON.stringify(callResult.structuredContent) });
+			details.output.push({ type: 'embed', isText: true, value: JSON.stringify(callResult.structuredContent, null, 2), audience: [LanguageModelPartAudience.Assistant] });
+			result.content.push({ kind: 'text', value: JSON.stringify(callResult.structuredContent), audience: [LanguageModelPartAudience.Assistant] });
+		}
+
+		// Add raw MCP output for MCP App UI rendering if this tool has UI
+		if (this._tool.uiResourceUri) {
+			details.mcpOutput = callResult;
 		}
 
 		result.toolResultDetails = details;

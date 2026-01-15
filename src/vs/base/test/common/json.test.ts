@@ -49,6 +49,7 @@ function assertTree(input: string, expected: any, expectedErrors: number[] = [],
 		if (node.children) {
 			for (const child of node.children) {
 				assert.strictEqual(node, child.parent);
+				// eslint-disable-next-line local/code-no-any-casts
 				delete (<any>child).parent; // delete to avoid recursion in deep equal
 				checkParent(child);
 			}

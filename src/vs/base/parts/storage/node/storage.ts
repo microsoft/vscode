@@ -118,7 +118,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 			}
 
 			// DELETE
-			if (toDelete && toDelete.size) {
+			if (toDelete?.size) {
 				const keysChunks: (string[])[] = [];
 				keysChunks.push([]); // seed with initial empty chunk
 
@@ -245,7 +245,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 		const connection = await this.whenConnected;
 		const row = await this.get(connection, full ? 'PRAGMA integrity_check' : 'PRAGMA quick_check');
 
-		const integrity = full ? (row as any)['integrity_check'] : (row as any)['quick_check'];
+		const integrity = full ? (row as { integrity_check: string }).integrity_check : (row as { quick_check: string }).quick_check;
 
 		if (connection.isErroneous) {
 			return `${integrity} (last error: ${connection.lastError})`;
@@ -258,7 +258,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 		return integrity;
 	}
 
-	private async connect(path: string, retryOnBusy: boolean = true): Promise<IDatabaseConnection> {
+	private async connect(path: string, retryOnBusy = true): Promise<IDatabaseConnection> {
 		this.logger.trace(`[storage ${this.name}] open(${path}, retryOnBusy: ${retryOnBusy})`);
 
 		try {
@@ -291,7 +291,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 				await fs.promises.unlink(path);
 				try {
 					await Promises.rename(this.toBackupPath(path), path, false /* no retry */);
-				} catch (error) {
+				} catch {
 					// ignore
 				}
 

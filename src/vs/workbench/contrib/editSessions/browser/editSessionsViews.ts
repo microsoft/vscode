@@ -23,6 +23,7 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { joinPath } from '../../../../base/common/resources.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { basename } from '../../../../base/common/path.js';
+import { createCommandUri } from '../../../../base/common/htmlContent.js';
 
 const EDIT_SESSIONS_COUNT_KEY = 'editSessionsCount';
 const EDIT_SESSIONS_COUNT_CONTEXT_KEY = new RawContextKey<number>(EDIT_SESSIONS_COUNT_KEY, 0);
@@ -62,7 +63,7 @@ export class EditSessionsDataViews extends Disposable {
 			content: localize(
 				'noStoredChanges',
 				'You have no stored changes in the cloud to display.\n{0}',
-				`[${localize('storeWorkingChangesTitle', 'Store Working Changes')}](command:workbench.editSessions.actions.store)`,
+				`[${localize('storeWorkingChangesTitle', 'Store Working Changes')}](${createCommandUri('workbench.editSessions.actions.store')})`,
 			),
 			when: ContextKeyExpr.equals(EDIT_SESSIONS_COUNT_KEY, 0),
 			order: 1

@@ -66,6 +66,13 @@ export class ArcTracker {
 			insertedLineCounts: insertedLineCount,
 		};
 	}
+
+	public getValues(): unknown {
+		return {
+			arc: this.getAcceptedRestrainedCharactersCount(),
+			...this.getLineCountInfo(),
+		};
+	}
 }
 
 export class IsTrackedEditData implements IEditData<IsTrackedEditData> {

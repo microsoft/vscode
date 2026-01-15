@@ -68,12 +68,12 @@ export interface IWordRange {
  * @internal
  */
 export class EditorWorker implements IDisposable, IWorkerTextModelSyncChannelServer, IWebWorkerServerRequestHandler {
-	_requestHandlerBrand: any;
+	_requestHandlerBrand: void = undefined;
 
 	private readonly _workerTextModelSyncServer = new WorkerTextModelSyncServer();
 
 	constructor(
-		private readonly _foreignModule: any | null = null
+		private readonly _foreignModule: unknown | null = null
 	) { }
 
 	dispose(): void {
@@ -513,13 +513,13 @@ export class EditorWorker implements IDisposable, IWorkerTextModelSyncChannelSer
 	// ---- BEGIN foreign module support --------------------------------------------------------------------------
 
 	// foreign method request
-	public $fmr(method: string, args: any[]): Promise<any> {
-		if (!this._foreignModule || typeof this._foreignModule[method] !== 'function') {
+	public $fmr(method: string, args: unknown[]): Promise<unknown> {
+		if (!this._foreignModule || typeof (this._foreignModule as Record<string, unknown>)[method] !== 'function') {
 			return Promise.reject(new Error('Missing requestHandler or method: ' + method));
 		}
 
 		try {
-			return Promise.resolve(this._foreignModule[method].apply(this._foreignModule, args));
+			return Promise.resolve((this._foreignModule as Record<string, Function>)[method].apply(this._foreignModule, args));
 		} catch (e) {
 			return Promise.reject(e);
 		}

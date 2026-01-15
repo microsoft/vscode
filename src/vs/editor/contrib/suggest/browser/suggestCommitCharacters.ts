@@ -20,7 +20,7 @@ export class CommitCharacterController {
 		readonly item: ISelectedSuggestion;
 	};
 
-	constructor(editor: ICodeEditor, widget: SuggestWidget, model: SuggestModel, accept: (selected: ISelectedSuggestion) => any) {
+	constructor(editor: ICodeEditor, widget: SuggestWidget, model: SuggestModel, accept: (selected: ISelectedSuggestion) => unknown) {
 
 		this._disposables.add(model.onDidSuggest(e => {
 			if (e.completionModel.items.length === 0) {

@@ -631,6 +631,7 @@ class DOMFocusController<T> implements IDisposable {
 			return;
 		}
 
+		// eslint-disable-next-line no-restricted-syntax
 		const tabIndexElement = focusedDomElement.querySelector('[tabIndex]');
 
 		if (!tabIndexElement || !(isHTMLElement(tabIndexElement)) || tabIndexElement.tabIndex === -1) {
@@ -859,7 +860,7 @@ export interface IListAccessibilityProvider<T> extends IListViewAccessibilityPro
 	getWidgetAriaLabel(): string | IObservable<string>;
 	getWidgetRole?(): AriaRole;
 	getAriaLevel?(element: T): number | undefined;
-	onDidChangeActiveDescendant?: Event<void>;
+	readonly onDidChangeActiveDescendant?: Event<void>;
 	getActiveDescendantId?(element: T): string | undefined;
 }
 
@@ -954,7 +955,7 @@ export class DefaultStyleController implements IStyleController {
 			content.push(`
 				.monaco-drag-image${suffix},
 				.monaco-list${suffix}:focus .monaco-list-row.focused,
-				.monaco-workbench.context-menu-visible .monaco-list${suffix}.last-focused .monaco-list-row.focused { outline: 1px solid ${styles.listFocusOutline}; outline-offset: -1px; }
+				.context-menu-visible .monaco-list${suffix}.last-focused .monaco-list-row.focused { outline: 1px solid ${styles.listFocusOutline}; outline-offset: -1px; }
 			`);
 		}
 
@@ -1002,13 +1003,13 @@ export class DefaultStyleController implements IStyleController {
 			content.push(`
 				.monaco-table > .monaco-split-view2,
 				.monaco-table > .monaco-split-view2 .monaco-sash.vertical::before,
-				.monaco-workbench:not(.reduce-motion) .monaco-table:hover > .monaco-split-view2,
-				.monaco-workbench:not(.reduce-motion) .monaco-table:hover > .monaco-split-view2 .monaco-sash.vertical::before {
+				.monaco-enable-motion .monaco-table:hover > .monaco-split-view2,
+				.monaco-enable-motion .monaco-table:hover > .monaco-split-view2 .monaco-sash.vertical::before {
 					border-color: ${styles.tableColumnsBorder};
 				}
 
-				.monaco-workbench:not(.reduce-motion) .monaco-table > .monaco-split-view2,
-				.monaco-workbench:not(.reduce-motion) .monaco-table > .monaco-split-view2 .monaco-sash.vertical::before {
+				.monaco-enable-motion .monaco-table > .monaco-split-view2,
+				.monaco-enable-motion .monaco-table > .monaco-split-view2 .monaco-sash.vertical::before {
 					border-color: transparent;
 				}
 			`);

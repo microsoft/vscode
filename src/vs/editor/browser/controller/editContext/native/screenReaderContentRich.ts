@@ -33,7 +33,7 @@ export class RichScreenReaderContent extends Disposable implements IScreenReader
 	private _accessibilityPageSize: number = 1;
 	private _ignoreSelectionChangeTime: number = 0;
 
-	private _state: RichScreenReaderState = new RichScreenReaderState([]);
+	private _state: RichScreenReaderState = RichScreenReaderState.NULL;
 	private _strategy: RichPagedScreenReaderStrategy = new RichPagedScreenReaderStrategy();
 
 	private _renderedLines: Map<number, RichRenderedScreenReaderLine> = new Map();
@@ -66,7 +66,7 @@ export class RichScreenReaderContent extends Disposable implements IScreenReader
 				this._setSelectionOnScreenReaderContent(this._context, this._renderedLines, primarySelection);
 			}
 		} else {
-			this._state = new RichScreenReaderState([]);
+			this._state = RichScreenReaderState.NULL;
 			this._setIgnoreSelectionChangeTime('setValue');
 			this._domNode.domNode.textContent = '';
 		}
@@ -341,18 +341,32 @@ class LineInterval {
 
 class RichScreenReaderState {
 
-	constructor(public readonly intervals: LineInterval[]) { }
+	public readonly value: string;
 
-	equals(other: RichScreenReaderState): boolean {
-		if (this.intervals.length !== other.intervals.length) {
-			return false;
-		}
-		for (let i = 0; i < this.intervals.length; i++) {
-			if (this.intervals[i].startLine !== other.intervals[i].startLine || this.intervals[i].endLine !== other.intervals[i].endLine) {
-				return false;
+	constructor(model: ISimpleModel, public readonly intervals: LineInterval[]) {
+		let value = '';
+		for (const interval of intervals) {
+			for (let lineNumber = interval.startLine; lineNumber <= interval.endLine; lineNumber++) {
+				value += model.getLineContent(lineNumber) + '\n';
 			}
 		}
-		return true;
+		this.value = value;
+	}
+
+	equals(other: RichScreenReaderState): boolean {
+		return this.value === other.value;
+	}
+
+	static get NULL(): RichScreenReaderState {
+		const nullModel: ISimpleModel = {
+			getLineContent: () => '',
+			getLineCount: () => 1,
+			getLineMaxColumn: () => 1,
+			getValueInRange: () => '',
+			getValueLengthInRange: () => 0,
+			modifyPosition: (position, offset) => position
+		};
+		return new RichScreenReaderState(nullModel, []);
 	}
 }
 
@@ -380,6 +394,6 @@ class RichPagedScreenReaderStrategy implements IPagedScreenReaderStrategy<RichSc
 		if (selectionStartPage + 1 < selectionEndPage) {
 			lineIntervals.push({ startLine: selectionEndPageRange.startLine, endLine: selectionEndPageRange.endLine });
 		}
-		return new RichScreenReaderState(lineIntervals);
+		return new RichScreenReaderState(context, lineIntervals);
 	}
 }
