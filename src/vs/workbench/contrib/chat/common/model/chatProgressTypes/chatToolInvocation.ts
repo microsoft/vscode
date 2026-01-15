@@ -6,7 +6,6 @@
 import { encodeBase64 } from '../../../../../../base/common/buffer.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
-import { localize } from '../../../../../../nls.js';
 import { ConfirmedReason, IChatExtensionsContent, IChatSubagentToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatTerminalToolInvocationData } from '../../chatService/chatService.js';
 import { IPreparedToolInvocation, isToolResultOutputDetails, IToolConfirmationMessages, IToolData, IToolProgressStep, IToolResult, ToolDataSource } from '../../tools/languageModelToolsService.js';
 
@@ -63,9 +62,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		isStreaming: boolean = false,
 		chatRequestId?: string
 	) {
-		const defaultMessage = localize('toolInvocationMessage', "Using {0}", `"${toolData.displayName}"`);
-		const invocationMessage = preparedInvocation?.invocationMessage ?? defaultMessage;
-		this.invocationMessage = invocationMessage;
+		this.invocationMessage = preparedInvocation?.invocationMessage ?? '';
 		this.pastTenseMessage = preparedInvocation?.pastTenseMessage;
 		this.originMessage = preparedInvocation?.originMessage;
 		this.confirmationMessages = preparedInvocation?.confirmationMessages;

@@ -565,6 +565,8 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			case PromptsType.prompt:
 				resources = await (provider as vscode.PromptFileProvider).providePromptFiles(context, token) ?? undefined;
 				break;
+			case PromptsType.skill:
+				throw new Error('Skills prompt file provider not implemented yet');
 		}
 
 		// Convert ChatResourceDescriptor to IPromptFileResource format

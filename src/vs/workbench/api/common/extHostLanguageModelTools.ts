@@ -315,7 +315,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 
 	registerTool(extension: IExtensionDescription, id: string, tool: vscode.LanguageModelTool<any>): IDisposable {
 		this._registeredTools.set(id, { extension, tool });
-		this._proxy.$registerTool(id);
+		this._proxy.$registerTool(id, typeof tool.handleToolStream === 'function');
 
 		return toDisposable(() => {
 			this._registeredTools.delete(id);
