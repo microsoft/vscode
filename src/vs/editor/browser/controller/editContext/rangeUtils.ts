@@ -45,7 +45,7 @@ export function subtractRanges(range: Range, excludeRanges: Range[], viewModel: 
 		if (hidden) {
 			// End current visible range if any
 			if (visibleStart !== null) {
-				const startCol = visibleStart === range.startLineNumber ? range.startColumn : viewModel.getLineMinColumn(visibleStart);
+				const startCol = visibleStart === range.startLineNumber ? range.startColumn : 1;
 				const endLine = line - 1;
 				const endCol = endLine === range.endLineNumber ? range.endColumn : viewModel.getLineMaxColumn(endLine);
 				result.push(new Range(visibleStart, startCol, endLine, endCol));
@@ -61,7 +61,7 @@ export function subtractRanges(range: Range, excludeRanges: Range[], viewModel: 
 
 	// Add any remaining visible range
 	if (visibleStart !== null) {
-		const startCol = visibleStart === range.startLineNumber ? range.startColumn : viewModel.getLineMinColumn(visibleStart);
+		const startCol = visibleStart === range.startLineNumber ? range.startColumn : 1;
 		result.push(new Range(visibleStart, startCol, range.endLineNumber, range.endColumn));
 	}
 
