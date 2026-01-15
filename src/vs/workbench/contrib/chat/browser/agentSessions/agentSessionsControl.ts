@@ -125,7 +125,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			new AgentSessionsListDelegate(),
 			new AgentSessionsCompressionDelegate(),
 			[
-				this.instantiationService.createInstance(AgentSessionRenderer, this.options),
+				this._register(this.instantiationService.createInstance(AgentSessionRenderer, this.options)),
 				this.instantiationService.createInstance(AgentSessionSectionRenderer),
 			],
 			new AgentSessionsDataSource(this.options.filter, sorter),
