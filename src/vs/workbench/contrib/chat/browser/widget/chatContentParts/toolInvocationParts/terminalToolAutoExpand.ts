@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { Event } from '../../../../../../../base/common/event.js';
 import type { ICommandDetectionCapability } from '../../../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { disposableTimeout } from '../../../../../../../base/common/async.js';
 
 /**
  * The auto-expand algorithm for terminal tool progress parts.
@@ -56,8 +57,8 @@ export const DATA_EVENT_TIMEOUT_MS = 50;
 export class TerminalToolAutoExpand extends Disposable {
 	private _commandFinished = false;
 	private _receivedData = false;
-	private _dataEventTimeout: ReturnType<typeof setTimeout> | undefined;
-	private _noDataTimeout: ReturnType<typeof setTimeout> | undefined;
+	private _dataEventTimeout: IDisposable | undefined;
+	private _noDataTimeout: IDisposable | undefined;
 
 	constructor(
 		private readonly _options: ITerminalToolAutoExpandOptions,
@@ -69,21 +70,17 @@ export class TerminalToolAutoExpand extends Disposable {
 	private _setupListeners(): void {
 		const store = this._register(new DisposableStore());
 
-		// Ensure timeouts are cleaned up when disposed
-		store.add(toDisposable(() => this._clearAutoExpandTimeouts()));
-
 		const commandDetection = this._options.commandDetection;
 
 		store.add(commandDetection.onCommandExecuted(() => {
 			// Auto-expand for long-running commands:
-			// 1. Kick off 500ms timeout - if hit without any data events, expand only if there's real output
 			if (this._options.shouldAutoExpand() && !this._noDataTimeout) {
-				this._noDataTimeout = setTimeout(() => {
+				this._noDataTimeout = disposableTimeout(() => {
 					this._noDataTimeout = undefined;
 					if (!this._receivedData && this._options.shouldAutoExpand() && this._options.hasRealOutput()) {
 						this._options.toggleOutput(true);
 					}
-				}, NO_DATA_TIMEOUT_MS);
+				}, NO_DATA_TIMEOUT_MS, store);
 			}
 		}));
 
@@ -95,18 +92,16 @@ export class TerminalToolAutoExpand extends Disposable {
 			}
 			this._receivedData = true;
 			// Cancel the 500ms no-data timeout since we received data
-			if (this._noDataTimeout) {
-				clearTimeout(this._noDataTimeout);
-				this._noDataTimeout = undefined;
-			}
+			this._noDataTimeout?.dispose();
+			this._noDataTimeout = undefined;
 			// Wait 50ms and expand if command hasn't finished yet and has real output
 			if (this._options.shouldAutoExpand() && !this._dataEventTimeout) {
-				this._dataEventTimeout = setTimeout(() => {
+				this._dataEventTimeout = disposableTimeout(() => {
 					this._dataEventTimeout = undefined;
 					if (!this._commandFinished && this._options.shouldAutoExpand() && this._options.hasRealOutput()) {
 						this._options.toggleOutput(true);
 					}
-				}, DATA_EVENT_TIMEOUT_MS);
+				}, DATA_EVENT_TIMEOUT_MS, store);
 			}
 		}));
 
@@ -117,13 +112,9 @@ export class TerminalToolAutoExpand extends Disposable {
 	}
 
 	private _clearAutoExpandTimeouts(): void {
-		if (this._dataEventTimeout) {
-			clearTimeout(this._dataEventTimeout);
-			this._dataEventTimeout = undefined;
-		}
-		if (this._noDataTimeout) {
-			clearTimeout(this._noDataTimeout);
-			this._noDataTimeout = undefined;
-		}
+		this._dataEventTimeout?.dispose();
+		this._dataEventTimeout = undefined;
+		this._noDataTimeout?.dispose();
+		this._noDataTimeout = undefined;
 	}
 }
