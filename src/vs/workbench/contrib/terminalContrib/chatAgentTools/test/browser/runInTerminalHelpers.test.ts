@@ -480,6 +480,10 @@ suite('extractCdPrefix', () => {
 		test('should extract cd prefix with && separator', () => t('cd /some/path && npm install', '/some/path', 'npm install'));
 		test('should extract quoted path', () => t('cd "/some/path" && npm install', '/some/path', 'npm install'));
 		test('should extract complex suffix', () => t('cd /path && npm install && npm test', '/path', 'npm install && npm test'));
+
+		suite('unsupported patterns', () => {
+			test('should return undefined for path with escaped space', () => t('cd /some/path\ with\ spaces && npm install', undefined, undefined));
+		});
 	});
 
 	suite('PowerShell', () => {
@@ -493,5 +497,9 @@ suite('extractCdPrefix', () => {
 		test('should extract cd /d with && separator', () => t('cd /d C:\\path && echo hello', 'C:\\path', 'echo hello'));
 		test('should extract Set-Location', () => t('Set-Location C:\\path; npm test', 'C:\\path', 'npm test'));
 		test('should extract Set-Location -Path', () => t('Set-Location -Path C:\\path; npm test', 'C:\\path', 'npm test'));
+
+		suite('unsupported patterns', () => {
+			test('should return undefined for quoted path with spaces', () => t('cd "C:\\path with spaces"; npm test', undefined, undefined));
+		});
 	});
 });
