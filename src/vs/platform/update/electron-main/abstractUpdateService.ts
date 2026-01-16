@@ -143,7 +143,25 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			return;
 		}
 
+		// Check if connection is metered before automatic updates
+		// Explicit updates (user-initiated) bypass this check
+		if (!explicit) {
+			const isMetered = await this.isConnectionMetered();
+			if (isMetered) {
+				this.logService.info('update#checkForUpdates - postponing update check due to metered connection');
+				// Postpone the update check by 30 minutes
+				this.scheduleCheckForUpdates(30 * 60 * 1000);
+				return;
+			}
+		}
+
 		this.doCheckForUpdates(explicit);
+	}
+
+	protected async isConnectionMetered(): Promise<boolean> {
+		// Default implementation returns false
+		// Platform-specific implementations can override this
+		return false;
 	}
 
 	async downloadUpdate(): Promise<void> {

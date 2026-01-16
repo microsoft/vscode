@@ -13,6 +13,7 @@ import { IProductService } from '../../product/common/productService.js';
 import { asJson, IRequestService } from '../../request/common/request.js';
 import { AvailableForDownload, IUpdate, State, UpdateType } from '../common/update.js';
 import { AbstractUpdateService, createUpdateURL } from './abstractUpdateService.js';
+import { isMeteredConnection } from './updateNetworkHelper.js';
 
 export class LinuxUpdateService extends AbstractUpdateService {
 
@@ -67,5 +68,9 @@ export class LinuxUpdateService extends AbstractUpdateService {
 		}
 
 		this.setState(State.Idle(UpdateType.Archive));
+	}
+
+	protected override async isConnectionMetered(): Promise<boolean> {
+		return isMeteredConnection();
 	}
 }

@@ -17,6 +17,7 @@ import { IRequestService } from '../../request/common/request.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IUpdate, State, StateType, UpdateType } from '../common/update.js';
 import { AbstractUpdateService, createUpdateURL, UpdateErrorClassification } from './abstractUpdateService.js';
+import { isMeteredConnection } from './updateNetworkHelper.js';
 
 export class DarwinUpdateService extends AbstractUpdateService implements IRelaunchHandler {
 
@@ -139,6 +140,10 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 	protected override doQuitAndInstall(): void {
 		this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
 		electron.autoUpdater.quitAndInstall();
+	}
+
+	protected override async isConnectionMetered(): Promise<boolean> {
+		return isMeteredConnection();
 	}
 
 	dispose(): void {
