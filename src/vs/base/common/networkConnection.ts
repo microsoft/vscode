@@ -9,7 +9,7 @@ interface NetworkInformation {
 	effectiveType?: 'slow-2g' | '2g' | '3g' | '4g';
 }
 
-interface NavigatorWithConnection extends Navigator {
+interface NavigatorWithConnection {
 	connection?: NetworkInformation;
 }
 
@@ -20,7 +20,7 @@ interface NavigatorWithConnection extends Navigator {
  */
 export function isMeteredConnection(): boolean {
 	if (typeof navigator !== 'undefined') {
-		const nav = navigator as NavigatorWithConnection;
+		const nav = navigator as unknown as NavigatorWithConnection;
 		const connection = nav.connection;
 		if (connection) {
 			// Check if saveData is enabled (user explicitly requested data saving)
