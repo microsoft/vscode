@@ -121,7 +121,7 @@ jobs:
                   curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
                   apt-get install -y nodejs
                 else
-                  # For arm32, download official Node.js binary (NodeSource doesn't support armv7)
+                  # For arm32, download official Node.js binary (NodeSource does not support armv7)
                   curl -fsSL https://nodejs.org/dist/v22.13.0/node-v22.13.0-linux-armv7l.tar.xz | tar -xJ -C /usr/local --strip-components=1
                 fi
 
