@@ -456,7 +456,7 @@ class AutoSync extends Disposable {
 
 		// Check for metered connection before syncing
 		const respectMetered = this.configurationService.getValue('update.respectMeteredConnections');
-		if (respectMetered !== false && await isMeteredConnection()) {
+		if (respectMetered && await isMeteredConnection()) {
 			this.logService.info('[AutoSync] Skipping sync on metered connection');
 			return;
 		}

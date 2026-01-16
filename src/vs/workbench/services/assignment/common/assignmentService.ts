@@ -280,7 +280,7 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 
 		// Check for metered connection before initial fetch
 		const respectMetered = this.configurationService.getValue('update.respectMeteredConnections');
-		if (respectMetered !== false && await isMeteredConnection()) {
+		if (respectMetered && await isMeteredConnection()) {
 			// Set flag but don't wait for initial fetch
 			this.networkInitialized = true;
 		} else {
@@ -299,7 +299,7 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 
 		// Check for metered connection before refetching
 		const respectMetered = this.configurationService.getValue('update.respectMeteredConnections');
-		if (respectMetered !== false && await isMeteredConnection()) {
+		if (respectMetered && await isMeteredConnection()) {
 			return; // Skip refetch on metered connection
 		}
 
