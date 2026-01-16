@@ -43,12 +43,12 @@
 .monaco-workbench .part.statusbar { box-shadow: 0 0 6px rgba(0, 0, 0, 0.08); z-index: 55; position: relative; }
 
 /* Quick Input (Command Palette) */
-.monaco-workbench .quick-input-widget { box-shadow: 0 0 20px rgba(0, 0, 0, 0.15) !important; border: none !important; border-radius: 12px; overflow: hidden; background: rgba(252, 252, 253, 0.2) !important; backdrop-filter: blur(20px) saturate(100%); -webkit-backdrop-filter: blur(40px) saturate(180%); }
+.monaco-workbench .quick-input-widget { box-shadow: 0 0 20px rgba(0, 0, 0, 0.15) !important; border: none !important; border-radius: 12px; overflow: hidden; background: rgba(252, 252, 253, 0.5) !important; backdrop-filter: blur(20px) saturate(100%); -webkit-backdrop-filter: blur(40px) saturate(180%); }
 .monaco-workbench.vs-dark .quick-input-widget,
 .monaco-workbench.hc-black .quick-input-widget { background: rgba(10, 10, 11, 0.85) !important; backdrop-filter: blur(40px) saturate(180%); -webkit-backdrop-filter: blur(40px) saturate(180%); box-shadow: 0 0 20px rgba(0, 0, 0, 0.15) !important; }
 .monaco-workbench .quick-input-widget .monaco-list-rows { background-color: transparent !important; }
 .monaco-workbench .quick-input-widget,
-.monaco-workbench .quick-input-widget *,
+/* .monaco-workbench .quick-input-widget *, */
 .monaco-workbench .quick-input-widget .quick-input-header,
 .monaco-workbench .quick-input-widget .quick-input-list,
 .monaco-workbench .quick-input-widget .quick-input-titlebar,
@@ -57,13 +57,16 @@
 .monaco-workbench .quick-input-widget .quick-input-filter,
 .monaco-workbench .quick-input-widget .quick-input-action,
 .monaco-workbench .quick-input-widget .quick-input-message,
-.monaco-workbench .quick-input-widget .monaco-inputbox,
+/* .monaco-workbench .quick-input-widget .monaco-inputbox, */
 .monaco-workbench .quick-input-widget .monaco-list,
 .monaco-workbench .quick-input-widget .monaco-list-row { border: none !important; border-color: transparent !important; outline: none !important; }
 .monaco-workbench .quick-input-widget .monaco-inputbox { box-shadow: none !important; background: transparent !important; }
 .monaco-workbench .quick-input-widget .quick-input-filter .monaco-inputbox { background: rgba(249, 250, 251, 0.4) !important; border-radius: 6px; }
 .monaco-workbench.vs-dark .quick-input-widget .quick-input-filter .monaco-inputbox,
 .monaco-workbench.hc-black .quick-input-widget .quick-input-filter .monaco-inputbox { background: rgba(20, 20, 22, 0.6) !important; }
+
+.monaco-workbench .quick-input-widget .monaco-list.list_id_6:not(.drop-target):not(.dragging) .monaco-list-row:hover:not(.selected):not(.focused) { background-color: color-mix(in srgb, var(--vscode-list-hoverBackground) 40%, transparent); }
+
 
 /* Chat Widget */
 .monaco-workbench .interactive-session .chat-input-container { box-shadow: 0 0 6px rgba(0, 0, 0, 0.1); border-radius: 6px; }
