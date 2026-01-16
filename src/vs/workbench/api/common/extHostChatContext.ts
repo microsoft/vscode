@@ -7,7 +7,7 @@ import type * as vscode from 'vscode';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { ExtHostChatContextShape, MainContext, MainThreadChatContextShape } from './extHost.protocol.js';
-import { DocumentSelector } from './extHostTypeConverters.js';
+import { DocumentSelector, MarkdownString } from './extHostTypeConverters.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import { IChatContextItem } from '../../contrib/chat/common/contextContrib/chatContext.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
@@ -48,6 +48,7 @@ export class ExtHostChatContext extends Disposable implements ExtHostChatContext
 				icon: item.icon,
 				label: item.label,
 				modelDescription: item.modelDescription,
+				tooltip: item.tooltip ? MarkdownString.from(item.tooltip) : undefined,
 				value: item.value,
 				command: item.command ? { id: item.command.command } : undefined
 			});
@@ -88,17 +89,19 @@ export class ExtHostChatContext extends Disposable implements ExtHostChatContext
 		}
 		const itemHandle = this._addTrackedItem(handle, result);
 
-		const item: IChatContextItem | undefined = {
+		const item: IChatContextItem = {
 			handle: itemHandle,
 			icon: result.icon,
 			label: result.label,
 			modelDescription: result.modelDescription,
+			tooltip: result.tooltip ? MarkdownString.from(result.tooltip) : undefined,
 			value: options.withValue ? result.value : undefined,
 			command: result.command ? { id: result.command.command } : undefined
 		};
 		if (options.withValue && !item.value && provider.resolveChatContext) {
 			const resolved = await provider.resolveChatContext(result, token);
 			item.value = resolved?.value;
+			item.tooltip = resolved?.tooltip ? MarkdownString.from(resolved.tooltip) : item.tooltip;
 		}
 
 		return item;
@@ -112,6 +115,7 @@ export class ExtHostChatContext extends Disposable implements ExtHostChatContext
 				icon: extResult.icon,
 				label: extResult.label,
 				modelDescription: extResult.modelDescription,
+				tooltip: extResult.tooltip ? MarkdownString.from(extResult.tooltip) : undefined,
 				value: extResult.value,
 				command: extResult.command ? { id: extResult.command.command } : undefined
 			};
@@ -176,6 +180,7 @@ export class ExtHostChatContext extends Disposable implements ExtHostChatContext
 					icon: item.icon,
 					label: item.label,
 					modelDescription: item.modelDescription,
+					tooltip: item.tooltip ? MarkdownString.from(item.tooltip) : undefined,
 					value: item.value,
 					handle: itemHandle,
 					command: item.command ? { id: item.command.command } : undefined
