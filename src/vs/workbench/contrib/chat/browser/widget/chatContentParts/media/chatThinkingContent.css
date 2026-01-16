@@ -160,7 +160,7 @@
 			}
 
 			/* the default book icon has a pixel of space at the bottom */
-			> .chat-thinking-icon codicon.codicon-book {
+			> .chat-thinking-icon .codicon.codicon-book {
 				top: 10px;
 			}
 
