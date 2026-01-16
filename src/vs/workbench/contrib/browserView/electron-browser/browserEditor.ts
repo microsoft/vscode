@@ -692,7 +692,7 @@ export class BrowserEditor extends EditorPane {
 	}
 
 	/**
-	 * Async version of layout that waits for the layout to complete.
+	 * Async version of layout() that waits for the layout to complete.
 	 */
 	private async layoutAsync(): Promise<void> {
 		if (this._model) {
