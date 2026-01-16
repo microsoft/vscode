@@ -40,7 +40,7 @@ import { IExtensionHostManager } from '../../common/extensionHostManagers.js';
 import { ExtensionManifestPropertiesService, IExtensionManifestPropertiesService } from '../../common/extensionManifestPropertiesService.js';
 import { ExtensionRunningLocation } from '../../common/extensionRunningLocation.js';
 import { ExtensionRunningLocationTracker } from '../../common/extensionRunningLocationTracker.js';
-import { IExtensionHost, IExtensionService } from '../../common/extensions.js';
+import { ActivationKind, IExtensionHost, IExtensionService, IWillActivateEvent } from '../../common/extensions.js';
 import { ExtensionsProposedApi } from '../../common/extensionsProposedApi.js';
 import { ILifecycleService } from '../../../lifecycle/common/lifecycle.js';
 import { IRemoteAgentService } from '../../../remote/common/remoteAgentService.js';
@@ -189,16 +189,20 @@ suite('ExtensionService', () => {
 
 		private _extHostId = 0;
 		public readonly order: string[] = [];
+		public readonly activationEvents: { event: string; activationKind: ActivationKind; kind: ExtensionHostKind }[] = [];
 		protected _pickExtensionHostKind(extensionId: ExtensionIdentifier, extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isInstalledRemotely: boolean, preference: ExtensionRunningPreference): ExtensionHostKind | null {
 			throw new Error('Method not implemented.');
 		}
 		protected override _doCreateExtensionHostManager(extensionHost: IExtensionHost, initialActivationEvents: string[]): IExtensionHostManager {
 			const order = this.order;
+			const activationEvents = this.activationEvents;
 			const extensionHostId = ++this._extHostId;
+			const extHostKind = extensionHost.runningLocation.kind;
 			order.push(`create ${extensionHostId}`);
 			return new class extends mock<IExtensionHostManager>() {
 				override onDidExit = Event.None;
 				override onDidChangeResponsiveState = Event.None;
+				override kind = extHostKind;
 				override disconnect() {
 					return Promise.resolve();
 				}
@@ -211,10 +215,17 @@ suite('ExtensionService', () => {
 				override representsRunningLocation(runningLocation: ExtensionRunningLocation): boolean {
 					return extensionHost.runningLocation.equals(runningLocation);
 				}
+				override activateByEvent(event: string, activationKind: ActivationKind): Promise<void> {
+					activationEvents.push({ event, activationKind, kind: extHostKind });
+					return Promise.resolve();
+				}
+				override ready(): Promise<void> {
+					return Promise.resolve();
+				}
 			};
 		}
-		protected _resolveExtensions(): AsyncIterable<ResolvedExtensions> {
-			throw new Error('Method not implemented.');
+		protected async *_resolveExtensions(): AsyncIterable<ResolvedExtensions> {
+			// Return empty iterable - no extensions to resolve in tests
 		}
 		protected _scanSingleExtension(extension: IExtension): Promise<IExtensionDescription | null> {
 			throw new Error('Method not implemented.');
@@ -299,5 +310,57 @@ suite('ExtensionService', () => {
 
 		await extService.stopExtensionHosts('foo');
 		assert.deepStrictEqual(extService.order, (['create 1', 'create 2', 'create 3']));
+	});
+
+	test('onWillActivateByEvent includes activationKind for Normal activation', async () => {
+		await extService.startExtensionHosts();
+
+		const events: IWillActivateEvent[] = [];
+		disposables.add(extService.onWillActivateByEvent(e => events.push(e)));
+
+		await extService.activateByEvent('onTest', ActivationKind.Normal);
+
+		assert.strictEqual(events.length, 1);
+		assert.strictEqual(events[0].event, 'onTest');
+		assert.strictEqual(events[0].activationKind, ActivationKind.Normal);
+	});
+
+	test('onWillActivateByEvent includes activationKind for Immediate activation', async () => {
+		await extService.startExtensionHosts();
+
+		const events: IWillActivateEvent[] = [];
+		disposables.add(extService.onWillActivateByEvent(e => events.push(e)));
+
+		await extService.activateByEvent('onTest', ActivationKind.Immediate);
+
+		assert.strictEqual(events.length, 1);
+		assert.strictEqual(events[0].event, 'onTest');
+		assert.strictEqual(events[0].activationKind, ActivationKind.Immediate);
+	});
+
+	test('Immediate activation only activates local extension hosts', async () => {
+		await extService.startExtensionHosts();
+		extService.activationEvents.length = 0; // Clear any initial activations
+
+		await extService.activateByEvent('onTest', ActivationKind.Immediate);
+
+		// Should only activate on local hosts (LocalProcess and LocalWebWorker), not Remote
+		const activatedKinds = extService.activationEvents.map(e => e.kind);
+		assert.ok(activatedKinds.includes(ExtensionHostKind.LocalProcess), 'Should activate on LocalProcess');
+		assert.ok(activatedKinds.includes(ExtensionHostKind.LocalWebWorker), 'Should activate on LocalWebWorker');
+		assert.ok(!activatedKinds.includes(ExtensionHostKind.Remote), 'Should NOT activate on Remote');
+	});
+
+	test('Normal activation activates all extension hosts', async () => {
+		await extService.startExtensionHosts();
+		extService.activationEvents.length = 0; // Clear any initial activations
+
+		await extService.activateByEvent('onTest', ActivationKind.Normal);
+
+		// Should activate on all hosts
+		const activatedKinds = extService.activationEvents.map(e => e.kind);
+		assert.ok(activatedKinds.includes(ExtensionHostKind.LocalProcess), 'Should activate on LocalProcess');
+		assert.ok(activatedKinds.includes(ExtensionHostKind.LocalWebWorker), 'Should activate on LocalWebWorker');
+		assert.ok(activatedKinds.includes(ExtensionHostKind.Remote), 'Should activate on Remote');
 	});
 });
