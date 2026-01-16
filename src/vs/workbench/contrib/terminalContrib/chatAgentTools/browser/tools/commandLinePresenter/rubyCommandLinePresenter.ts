@@ -63,8 +63,13 @@ export function extractRubyCommand(commandLine: string, shell: string, os: Opera
 	const singleQuoteMatch = commandLine.match(/^ruby\s+-e\s+'(?<code>.+)'$/s);
 	if (singleQuoteMatch?.groups?.code) {
 		const rubyCode = singleQuoteMatch.groups.code.trim();
+		
 		// Return undefined if the trimmed code is empty
-		return rubyCode || undefined;
+		if (!rubyCode) {
+			return undefined;
+		}
+		
+		return rubyCode;
 	}
 
 	return undefined;
