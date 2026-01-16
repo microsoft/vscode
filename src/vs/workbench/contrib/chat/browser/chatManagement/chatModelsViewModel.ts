@@ -497,13 +497,17 @@ export class ChatModelsViewModel extends Disposable {
 						}
 					});
 				}
-				for (const model of group.models) {
-					if (vendor.vendor === 'copilot' && model.metadata.id === 'auto') {
+				for (const identifier of group.modelIdentifiers) {
+					const metadata = this.languageModelsService.lookupLanguageModel(identifier);
+					if (!metadata) {
+						continue;
+					}
+					if (vendor.vendor === 'copilot' && metadata.id === 'auto') {
 						continue;
 					}
 					models.push({
-						identifier: model.identifier,
-						metadata: model.metadata,
+						identifier,
+						metadata,
 						provider,
 					});
 				}
