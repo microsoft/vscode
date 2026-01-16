@@ -17,6 +17,7 @@ import { LanguageModelToolsService } from '../../../../browser/tools/languageMod
 import { ChatAgentLocation, ChatConfiguration } from '../../../../common/constants.js';
 import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../../../common/tools/languageModelToolsService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../common/languageModels.js';
+import { IChatModeService } from '../../../../common/chatModes.js';
 import { PromptHeaderAutocompletion } from '../../../../common/promptSyntax/languageProviders/promptHeaderAutocompletion.js';
 import { ICustomAgent, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { createTextModel } from '../../../../../../../editor/test/common/testTextModel.js';
@@ -65,21 +66,13 @@ suite('PromptHeaderAutocompletion', () => {
 		});
 
 		const customAgent: ICustomAgent = {
-
 			name: 'agent1',
 			description: 'Agent file 1.',
-			handOffs: [{ agent: 'Edit', label: 'Do it', prompt: 'Do it now' }],
 			agentInstructions: {
 				content: '',
 				toolReferences: [],
 				metadata: undefined
 			},
-			model: undefined,
-			argumentHint: undefined,
-			tools: undefined,
-			target: undefined,
-			infer: undefined,
-			agents: undefined,
 			uri: URI.parse('myFs://.github/agents/agent1.agent.md'),
 			source: { storage: PromptsStorage.local }
 		};
@@ -94,14 +87,25 @@ suite('PromptHeaderAutocompletion', () => {
 			}
 		});
 
+		instaService.stub(IChatModeService, {
+			getModes() {
+				return { builtin: [], custom: [] };
+			}
+		});
+
 		completionProvider = instaService.createInstance(PromptHeaderAutocompletion);
 	});
 
-	async function getCompletions(content: string, line: number, column: number, promptType: PromptsType) {
+	async function getCompletions(content: string, promptType: PromptsType) {
 		const languageId = getLanguageIdForPromptsType(promptType);
 		const uri = URI.parse('test:///test' + getPromptFileExtension(promptType));
 		const model = disposables.add(createTextModel(content, languageId, undefined, uri));
-		const position = new Position(line, column);
+		// get the completion location fro  the '|' marker
+		const lineColumnMarkerRange = model.findNextMatch('|', new Position(1, 1), false, false, '', false)?.range;
+		assert.ok(lineColumnMarkerRange, 'No completion marker found in test content');
+		model.applyEdits([{ range: lineColumnMarkerRange, text: '' }]);
+
+		const position = lineColumnMarkerRange.getStartPosition();
 		const context: CompletionContext = { triggerKind: CompletionTriggerKind.Invoke };
 		const result = await completionProvider.provideCompletionItems(model, position, context, CancellationToken.None);
 		if (!result || !result.suggestions) {
@@ -117,57 +121,132 @@ suite('PromptHeaderAutocompletion', () => {
 		});
 	}
 
+	const sortByLabel = (a: { label: string }, b: { label: string }) => a.label.localeCompare(b.label);
+
 	suite('agent header completions', () => {
 		test('complete model attribute name', async () => {
 			const content = [
 				'---',
 				'description: "Test"',
-				'',
+				'|',
 				'---',
 			].join('\n');
 
-			const actual = await getCompletions(content, 3, 1, PromptsType.agent);
-			const modelCompletion = actual.find(c => c.label === 'model');
-			assert.ok(modelCompletion, 'model attribute should be in completions');
-			assert.ok(modelCompletion.result.includes('model:'), 'should contain model attribute');
+			const actual = await getCompletions(content, PromptsType.agent);
+
+			assert.deepStrictEqual(actual.sort(sortByLabel), [
+				{ label: 'agents', result: 'agents: ${0:["*"]}' },
+				{ label: 'argument-hint', result: 'argument-hint: $0' },
+				{ label: 'handoffs', result: 'handoffs: $0' },
+				{ label: 'infer', result: 'infer: ${0:true}' },
+				{ label: 'model', result: 'model: ${0:MAE 4 (olama)}' },
+				{ label: 'name', result: 'name: $0' },
+				{ label: 'target', result: 'target: ${0:vscode}' },
+				{ label: 'tools', result: 'tools: ${0:[]}' },
+			].sort(sortByLabel));
 		});
 
 		test('complete model attribute value', async () => {
 			const content = [
 				'---',
 				'description: "Test"',
-				'model: ',
+				'model: |',
 				'---',
 			].join('\n');
 
-			const actual = await getCompletions(content, 3, 8, PromptsType.agent);
-
-			// Should include models suitable for agent mode
-			const mae4Completion = actual.find(c => c.label === 'MAE 4 (olama)');
-			assert.ok(mae4Completion, 'MAE 4 model should be in completions');
-
-			const mae41Completion = actual.find(c => c.label === 'MAE 4.1 (copilot)');
-			assert.ok(mae41Completion, 'MAE 4.1 model should be in completions');
-
-			// Should NOT include models not suitable for agent mode
-			const gpt4Completion = actual.find(c => c.label === 'GPT 4 (openai)');
-			assert.strictEqual(gpt4Completion, undefined, 'GPT 4 should not be in completions (not suitable for agent mode)');
+			const actual = await getCompletions(content, PromptsType.agent);
+			// GPT 4 is excluded because it has agentMode: false
+			assert.deepStrictEqual(actual.sort(sortByLabel), [
+				{ label: 'MAE 4 (olama)', result: 'model: MAE 4 (olama)' },
+				{ label: 'MAE 4.1 (copilot)', result: 'model: MAE 4.1 (copilot)' },
+			].sort(sortByLabel));
 		});
 
 		test('complete model attribute value with partial input', async () => {
 			const content = [
 				'---',
 				'description: "Test"',
-				'model: MA',
+				'model: MA|',
 				'---',
 			].join('\n');
 
-			const actual = await getCompletions(content, 3, 10, PromptsType.agent);
+			const actual = await getCompletions(content, PromptsType.agent);
+			// GPT 4 is excluded because it has agentMode: false
+			assert.deepStrictEqual(actual, [
+				{ label: 'MAE 4 (olama)', result: 'model: MAE 4 (olama)' },
+				{ label: 'MAE 4.1 (copilot)', result: 'model: MAE 4.1 (copilot)' },
+			]);
+		});
 
-			// Should still provide completions after colon
-			assert.ok(actual.length > 0, 'should have completions');
-			const mae4Completion = actual.find(c => c.label === 'MAE 4 (olama)');
-			assert.ok(mae4Completion, 'MAE 4 model should be in completions');
+		test('complete tool names inside tools array', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'tools: [|]',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+			assert.deepStrictEqual(actual.sort(sortByLabel), [
+				{ label: 'agent', result: `tools: ['agent']` },
+				{ label: 'execute', result: `tools: ['execute']` },
+				{ label: 'read', result: `tools: ['read']` },
+				{ label: 'tool1', result: `tools: ['tool1']` },
+				{ label: 'tool2', result: `tools: ['tool2']` },
+				{ label: 'vscode', result: `tools: ['vscode']` },
+			].sort(sortByLabel));
+		});
+
+		test('complete tool names inside tools array with existing entries', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				`tools: ['read', |]`,
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+			assert.deepStrictEqual(actual.sort(sortByLabel), [
+				{ label: 'agent', result: `tools: ['read', 'agent']` },
+				{ label: 'execute', result: `tools: ['read', 'execute']` },
+				{ label: 'read', result: `tools: ['read', 'read']` },
+				{ label: 'tool1', result: `tools: ['read', 'tool1']` },
+				{ label: 'tool2', result: `tools: ['read', 'tool2']` },
+				{ label: 'vscode', result: `tools: ['read', 'vscode']` },
+			].sort(sortByLabel));
+		});
+
+		test('complete tool names inside tools array with existing entries 2', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				`tools: ['read', 'exe|cute']`,
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+			assert.deepStrictEqual(actual.sort(sortByLabel), [
+				{ label: 'agent', result: `tools: ['read', 'agent']` },
+				{ label: 'execute', result: `tools: ['read', 'execute']` },
+				{ label: 'read', result: `tools: ['read', 'read']` },
+				{ label: 'tool1', result: `tools: ['read', 'tool1']` },
+				{ label: 'tool2', result: `tools: ['read', 'tool2']` },
+				{ label: 'vscode', result: `tools: ['read', 'vscode']` },
+			].sort(sortByLabel));
+		});
+
+		test('complete agents inside agents array', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'agents: [|]',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+			assert.deepStrictEqual(actual.sort(sortByLabel), [
+				{ label: 'agent1', result: `agents: ['agent1']` },
+			].sort(sortByLabel));
 		});
 	});
 
@@ -176,32 +255,34 @@ suite('PromptHeaderAutocompletion', () => {
 			const content = [
 				'---',
 				'description: "Test"',
-				'',
+				'|',
 				'---',
 			].join('\n');
 
-			const actual = await getCompletions(content, 3, 1, PromptsType.prompt);
-			const modelCompletion = actual.find(c => c.label === 'model');
-			assert.ok(modelCompletion, 'model attribute should be in completions');
-			assert.ok(modelCompletion.result.includes('model:'), 'should contain model attribute');
+			const actual = await getCompletions(content, PromptsType.prompt);
+			assert.deepStrictEqual(actual.sort(sortByLabel), [
+				{ label: 'agent', result: 'agent: $0' },
+				{ label: 'argument-hint', result: 'argument-hint: $0' },
+				{ label: 'model', result: 'model: ${0:MAE 4 (olama)}' },
+				{ label: 'name', result: 'name: $0' },
+				{ label: 'tools', result: 'tools: ${0:[]}' },
+			].sort(sortByLabel));
 		});
 
 		test('complete model attribute value in prompt', async () => {
 			const content = [
 				'---',
 				'description: "Test"',
-				'model: ',
+				'model: |',
 				'---',
 			].join('\n');
 
-			const actual = await getCompletions(content, 3, 8, PromptsType.prompt);
-
-			// For prompts, all user-selectable models should be available
-			const mae4Completion = actual.find(c => c.label === 'MAE 4 (olama)');
-			assert.ok(mae4Completion, 'MAE 4 model should be in completions');
-
-			const gpt4Completion = actual.find(c => c.label === 'GPT 4 (openai)');
-			assert.ok(gpt4Completion, 'GPT 4 should be in completions for prompts');
+			const actual = await getCompletions(content, PromptsType.prompt);
+			assert.deepStrictEqual(actual.sort(sortByLabel), [
+				{ label: 'MAE 4 (olama)', result: 'model: MAE 4 (olama)' },
+				{ label: 'MAE 4.1 (copilot)', result: 'model: MAE 4.1 (copilot)' },
+				{ label: 'GPT 4 (openai)', result: 'model: GPT 4 (openai)' },
+			].sort(sortByLabel));
 		});
 	});
 });
