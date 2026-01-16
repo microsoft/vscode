@@ -40,6 +40,11 @@ export function extractRubyCommand(commandLine: string, shell: string, os: Opera
 	if (doubleQuoteMatch?.groups?.code) {
 		let rubyCode = doubleQuoteMatch.groups.code.trim();
 
+		// Return undefined if the trimmed code is empty
+		if (!rubyCode) {
+			return undefined;
+		}
+
 		// Unescape quotes based on shell type
 		if (isPowerShell(shell, os)) {
 			// PowerShell uses backtick-quote (`") to escape quotes inside double-quoted strings
@@ -57,7 +62,14 @@ export function extractRubyCommand(commandLine: string, shell: string, os: Opera
 	// Single quotes in PowerShell are also literal
 	const singleQuoteMatch = commandLine.match(/^ruby\s+-e\s+'(?<code>.+)'$/s);
 	if (singleQuoteMatch?.groups?.code) {
-		return singleQuoteMatch.groups.code.trim();
+		const rubyCode = singleQuoteMatch.groups.code.trim();
+		
+		// Return undefined if the trimmed code is empty
+		if (!rubyCode) {
+			return undefined;
+		}
+		
+		return rubyCode;
 	}
 
 	return undefined;
