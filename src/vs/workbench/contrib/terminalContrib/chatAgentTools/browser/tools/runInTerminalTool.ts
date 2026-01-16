@@ -529,28 +529,36 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			};
 
 			confirmationTitle = args.isBackground
-				? localize('runInTerminal.background.inDirectory', "Run `{0}` command in `{1}`? (background terminal)", shellType, directoryLabel)
-				: localize('runInTerminal.inDirectory', "Run `{0}` command in `{1}`?", shellType, directoryLabel);
+				? localize('runInTerminal.background.inDirectory', "Run `{0}` command in background within `{1}`?", shellType, directoryLabel)
+				: localize('runInTerminal.inDirectory', "Run `{0}` command within `{1}`?", shellType, directoryLabel);
 		} else {
 			toolSpecificData.confirmation = {
 				commandLine: commandToDisplay,
 			};
 			confirmationTitle = args.isBackground
-				? localize('runInTerminal.background', "Run `{0}` command? (background terminal)", shellType)
+				? localize('runInTerminal.background', "Run `{0}` command in background?", shellType)
 				: localize('runInTerminal', "Run `{0}` command?", shellType);
 		}
 
 		// Check for presentation overrides (e.g., Python -c command extraction)
+		// Use the command after cd prefix extraction if available, since that's what's displayed in the editor
+		const commandForPresenter = extractedCd?.command ?? commandToDisplay;
 		for (const presenter of this._commandLinePresenters) {
-			const presenterResult = presenter.present({ commandLine: commandToDisplay, shell, os });
+			const presenterResult = presenter.present({ commandLine: commandForPresenter, shell, os });
 			if (presenterResult) {
 				toolSpecificData.presentationOverrides = {
 					commandLine: presenterResult.commandLine,
 					language: presenterResult.language,
 				};
-				confirmationTitle = args.isBackground
-					? localize('runInTerminal.presentationOverride.background', "Run `{0}` command in `{1}`? (background terminal)", presenterResult.languageDisplayName, shellType)
-					: localize('runInTerminal.presentationOverride', "Run `{0}` command in `{1}`?", presenterResult.languageDisplayName, shellType);
+				if (extractedCd && toolSpecificData.confirmation?.cwdLabel) {
+					confirmationTitle = args.isBackground
+						? localize('runInTerminal.presentationOverride.background.inDirectory', "Run `{0}` command in `{1}` in background within `{2}`?", presenterResult.languageDisplayName, shellType, toolSpecificData.confirmation.cwdLabel)
+						: localize('runInTerminal.presentationOverride.inDirectory', "Run `{0}` command in `{1}` within `{2}`?", presenterResult.languageDisplayName, shellType, toolSpecificData.confirmation.cwdLabel);
+				} else {
+					confirmationTitle = args.isBackground
+						? localize('runInTerminal.presentationOverride.background', "Run `{0}` command in `{1}` in background?", presenterResult.languageDisplayName, shellType)
+						: localize('runInTerminal.presentationOverride', "Run `{0}` command in `{1}`?", presenterResult.languageDisplayName, shellType);
+				}
 				break;
 			}
 		}
