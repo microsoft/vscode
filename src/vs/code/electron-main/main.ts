@@ -136,7 +136,9 @@ class CodeMain {
 
 				// Create logs folder now that we are the primary instance
 				// (https://github.com/microsoft/vscode/issues/250334)
-				await promises.mkdir(environmentMainService.logsHome.with({ scheme: Schemas.file }).fsPath, { recursive: true });
+				await promises.mkdir(environmentMainService.logsHome.with({ scheme: Schemas.file }).fsPath, { recursive: true }).catch(err => {
+					logService.error(`app#startup(): Error creating logs folder: ${err.stack}`);
+				});
 
 				// Delay creation of spdlog for perf reasons (https://github.com/microsoft/vscode/issues/72906)
 				bufferLogger.logger = loggerService.createLogger('main', { name: localize('mainLog', "Main") });
@@ -273,7 +275,8 @@ class CodeMain {
 
 			// Environment service (paths)
 			// Note: logsHome is not created here to avoid creating empty log folders
-			// for secondary instances. It is created later after claimInstance succeeds.
+			// for secondary instances. It is created after claimInstance() succeeds,
+			// just before the main logger is created.
 			Promise.all<string | undefined>([
 				this.allowWindowsUNCPath(environmentMainService.extensionsPath), // enable extension paths on UNC drives...
 				environmentMainService.codeCachePath,							 // ...other user-data-derived paths should already be enlisted from `main.js`
