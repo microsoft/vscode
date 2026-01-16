@@ -1563,6 +1563,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatPromptFiles');
 				return extHostChatAgents2.registerPromptFileProvider(extension, PromptsType.prompt, provider);
 			},
+			registerSkillProvider(provider: vscode.SkillProvider): vscode.Disposable {
+				checkProposedApiEnabled(extension, 'chatPromptFiles');
+				return extHostChatAgents2.registerPromptFileProvider(extension, PromptsType.skill, provider);
+			},
 		};
 
 		// namespace: lm
@@ -1968,6 +1972,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			CustomAgentChatResource: extHostTypes.CustomAgentChatResource,
 			InstructionsChatResource: extHostTypes.InstructionsChatResource,
 			PromptFileChatResource: extHostTypes.PromptFileChatResource,
+			SkillChatResource: extHostTypes.SkillChatResource,
 		};
 	};
 }

@@ -9,12 +9,10 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewNewPageRequest, BrowserViewStorageScope, IBrowserViewCaptureScreenshotOptions } from '../common/browserView.js';
 import { EVENT_KEY_CODE_MAP, KeyCode, KeyMod, SCAN_CODE_STR_TO_EVENT_KEY_CODE } from '../../../base/common/keyCodes.js';
-import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { IBaseWindow, ICodeWindow } from '../../window/electron-main/window.js';
 import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-main/auxiliaryWindows.js';
 import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
-import { ILogService } from '../../log/common/log.js';
 import { isMacintosh } from '../../../base/common/platform.js';
 
 /** Key combinations that are used in system-level shortcuts. */
@@ -74,10 +72,8 @@ export class BrowserView extends Disposable {
 	constructor(
 		viewSession: Electron.Session,
 		private readonly storageScope: BrowserViewStorageScope,
-		@IThemeMainService private readonly themeMainService: IThemeMainService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService,
-		@ILogService private readonly logService: ILogService
+		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService
 	) {
 		super();
 
@@ -111,9 +107,6 @@ export class BrowserView extends Disposable {
 		});
 
 		this.setupEventListeners();
-
-		// Create and register plugins for this web contents
-		this._register(new ThemePlugin(this._view, this.themeMainService, this.logService));
 	}
 
 	private setupEventListeners(): void {
@@ -517,61 +510,5 @@ export class BrowserView extends Disposable {
 		}
 
 		return this.auxiliaryWindowsMainService.getWindowByWebContents(contents);
-	}
-}
-
-export class ThemePlugin extends Disposable {
-	private readonly _webContents: Electron.WebContents;
-	private _injectedCSSKey?: string;
-
-	constructor(
-		private readonly _view: Electron.WebContentsView,
-		private readonly themeMainService: IThemeMainService,
-		private readonly logService: ILogService
-	) {
-		super();
-		this._webContents = _view.webContents;
-
-		// Set view background to match editor background
-		this.applyBackgroundColor();
-
-		// Apply theme when page loads
-		this._webContents.on('did-finish-load', () => this.applyTheme());
-
-		// Update theme when VS Code theme changes
-		this._register(this.themeMainService.onDidChangeColorScheme(() => {
-			this.applyBackgroundColor();
-			this.applyTheme();
-		}));
-	}
-
-	private applyBackgroundColor(): void {
-		const backgroundColor = this.themeMainService.getBackgroundColor();
-		this._view.setBackgroundColor(backgroundColor);
-	}
-
-	private async applyTheme(): Promise<void> {
-		if (this._webContents.isDestroyed()) {
-			return;
-		}
-
-		const colorScheme = this.themeMainService.getColorScheme().dark ? 'dark' : 'light';
-
-		try {
-			// Remove previous theme CSS if it exists
-			if (this._injectedCSSKey) {
-				await this._webContents.removeInsertedCSS(this._injectedCSSKey);
-			}
-
-			// Insert new theme CSS
-			this._injectedCSSKey = await this._webContents.insertCSS(`
-				/* VS Code theme override */
-				:root {
-					color-scheme: ${colorScheme};
-				}
-			`);
-		} catch (error) {
-			this.logService.error('ThemePlugin: Failed to inject CSS', error);
-		}
 	}
 }
