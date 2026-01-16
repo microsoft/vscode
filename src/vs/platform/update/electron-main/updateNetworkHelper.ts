@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BrowserWindow } from 'electron';
-import { isMeteredConnectionCode } from '../../../base/common/networkConnection.js';
 
 /**
- * Checks if the network connection is metered by executing JavaScript
+ * Checks if the network connection is metered by invoking an IPC handler
  * in the first available renderer process.
  * @returns Promise<boolean> - true if connection is metered, false otherwise
  */
@@ -27,8 +26,16 @@ export async function isMeteredConnection(): Promise<boolean> {
 	}
 
 	try {
-		// Execute the network check in the renderer process
-		const result = await window.webContents.executeJavaScript(isMeteredConnectionCode);
+		// Query the renderer process via IPC
+		const result = await window.webContents.executeJavaScript(`
+			(function() {
+				if (typeof window !== 'undefined' && window.vscodeWindowId !== undefined) {
+					// Use the IPC channel to query network status
+					return require('electron').ipcRenderer.invoke('vscode:isMeteredConnection');
+				}
+				return false;
+			})()
+		`);
 		return result === true;
 	} catch (error) {
 		// If execution fails (e.g., window is not ready), default to false

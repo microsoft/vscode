@@ -526,6 +526,33 @@ export class CodeApplication extends Disposable {
 			}
 		});
 
+		validatedIpcMain.handle('vscode:isMeteredConnection', async (event) => {
+			// Execute the network check in the renderer context where navigator.connection is available
+			try {
+				const result = await event.sender.executeJavaScript(`
+					(function() {
+						if (typeof navigator !== 'undefined' && navigator.connection) {
+							const connection = navigator.connection;
+							if (connection.saveData === true) {
+								return true;
+							}
+							if (connection.metered === true) {
+								return true;
+							}
+							const effectiveType = connection.effectiveType;
+							if (effectiveType === 'slow-2g' || effectiveType === '2g' || effectiveType === '3g') {
+								return true;
+							}
+						}
+						return false;
+					})()
+				`);
+				return result === true;
+			} catch (error) {
+				return false;
+			}
+		});
+
 		//#endregion
 	}
 
