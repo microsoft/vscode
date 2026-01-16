@@ -66,6 +66,9 @@ export class AgentStatusWidget extends BaseActionViewItem {
 	/** Cached render state to avoid unnecessary DOM rebuilds */
 	private _lastRenderState: string | undefined;
 
+	/** Reusable menu for CommandCenterCenter items (e.g., debug toolbar) */
+	private readonly _commandCenterMenu;
+
 	constructor(
 		action: IAction,
 		options: IBaseActionViewItemOptions | undefined,
@@ -87,7 +90,7 @@ export class AgentStatusWidget extends BaseActionViewItem {
 		super(undefined, action, options);
 
 		// Create menu for CommandCenterCenter to get items like debug toolbar
-		const commandCenterMenu = this._register(this.menuService.createMenu(MenuId.CommandCenterCenter, this.contextKeyService));
+		this._commandCenterMenu = this._register(this.menuService.createMenu(MenuId.CommandCenterCenter, this.contextKeyService));
 
 		// Re-render when control mode or session info changes
 		this._register(this.agentStatusService.onDidChangeMode(() => {
@@ -116,7 +119,7 @@ export class AgentStatusWidget extends BaseActionViewItem {
 		}));
 
 		// Re-render when command center menu changes (e.g., debug toolbar visibility)
-		this._register(commandCenterMenu.onDidChange(() => {
+		this._register(this._commandCenterMenu.onDidChange(() => {
 			this._lastRenderState = undefined; // Force re-render
 			this._render();
 		}));
@@ -372,7 +375,7 @@ export class AgentStatusWidget extends BaseActionViewItem {
 	// #region Reusable Components
 
 	/**
-	 * Render command center toolbar items (like debug toolbar) that are registered to CommandCenterCenter.
+	 * Render command center toolbar items (like debug toolbar) that are registered to CommandCenter
 	 * Filters out the quick open action since we provide our own search UI.
 	 * Adds a dot separator after the toolbar if content was rendered.
 	 */
@@ -382,11 +385,8 @@ export class AgentStatusWidget extends BaseActionViewItem {
 		}
 
 		// Get menu actions from CommandCenterCenter (e.g., debug toolbar)
-		const menu = this.menuService.createMenu(MenuId.CommandCenterCenter, this.contextKeyService);
-		disposables.add(menu);
-
 		const allActions: IAction[] = [];
-		for (const [, actions] of menu.getActions({ shouldForwardArgs: true })) {
+		for (const [, actions] of this._commandCenterMenu.getActions({ shouldForwardArgs: true })) {
 			for (const action of actions) {
 				// Filter out the quick open action - we provide our own search UI
 				if (action.id === AgentStatusWidget._quickOpenCommandId) {
