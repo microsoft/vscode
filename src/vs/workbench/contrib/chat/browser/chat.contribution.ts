@@ -262,6 +262,16 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.renderRelatedFiles', "Controls whether related files should be rendered in the chat input."),
 			default: false
 		},
+		[ChatConfiguration.InlineReferencesStyle]: {
+			type: 'string',
+			enum: ['box', 'link'],
+			enumDescriptions: [
+				nls.localize('chat.inlineReferences.style.box', "Display file and symbol references as boxed widgets with icons."),
+				nls.localize('chat.inlineReferences.style.link', "Display file and symbol references as simple blue links without icons.")
+			],
+			description: nls.localize('chat.inlineReferences.style', "Controls how file and symbol references are displayed in chat messages."),
+			default: 'box'
+		},
 		'chat.notifyWindowOnConfirmation': {
 			type: 'boolean',
 			description: nls.localize('chat.notifyWindowOnConfirmation', "Controls whether a chat session should present the user with an OS notification when a confirmation is needed while the window is not in focus. This includes a window badge as well as notification toast."),
