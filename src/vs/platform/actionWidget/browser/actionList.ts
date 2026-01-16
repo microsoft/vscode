@@ -358,8 +358,7 @@ export class ActionList<T> extends Disposable {
 		} else {
 			// For finding width dynamically (not using resize observer)
 			const itemWidths: number[] = this._allMenuItems.map((_, index): number => {
-				// eslint-disable-next-line no-restricted-syntax
-				const element = this.domNode.ownerDocument.getElementById(this._list.getElementID(index));
+				const element = this._getRowElement(index);
 				if (element) {
 					element.style.width = 'auto';
 					const width = element.getBoundingClientRect().width;
@@ -433,14 +432,20 @@ export class ActionList<T> extends Disposable {
 		this._showHoverForElement(element, focusIndex);
 	}
 
+	private _getRowElement(index: number): HTMLElement | null {
+		// eslint-disable-next-line no-restricted-syntax
+		return this.domNode.ownerDocument.getElementById(this._list.getElementID(index));
+	}
+
 	private _showHoverForElement(element: IActionListItem<T>, index: number): void {
 		// Hide any existing hover when moving to a different item
 		this._hoverService.hideHover();
 
 		// Show hover if the element has hover content or actions
 		if ((element.hover?.content || element.hover?.actions) && this.focusCondition(element)) {
-			// eslint-disable-next-line no-restricted-syntax
-			const rowElement = this.domNode.ownerDocument.getElementById(this._list.getElementID(index));
+			// The List widget separates data models from DOM elements, so we need to
+			// look up the actual DOM node to use as the hover target.
+			const rowElement = this._getRowElement(index);
 			if (rowElement) {
 				const markdown = element.hover.content ? new MarkdownString(element.hover.content) : undefined;
 				this._hoverService.showInstantHover({
