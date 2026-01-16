@@ -12,7 +12,6 @@ import { ipcRenderer } from '../../../../base/parts/sandbox/electron-browser/glo
 import { localize } from '../../../../nls.js';
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -27,9 +26,10 @@ import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/c
 import { ACTION_ID_NEW_CHAT, CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../browser/actions/chatActions.js';
 import { IChatWidgetService } from '../browser/chat.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
-import { ChatConfiguration, ChatModeKind } from '../common/constants.js';
+import { ChatModeKind } from '../common/constants.js';
 import { IChatService } from '../common/chatService/chatService.js';
 import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js';
+import { registerChatExportZipAction } from './actions/chatExportZip.js';
 import { HoldToVoiceChatInChatViewAction, InlineVoiceChatAction, KeywordActivationContribution, QuickVoiceChatAction, ReadChatResponseAloud, StartVoiceChatAction, StopListeningAction, StopListeningAndSubmitAction, StopReadAloud, StopReadChatItemAloud, VoiceChatInChatViewAction } from './actions/voiceChatActions.js';
 import { NativeBuiltinToolsContribution } from './builtInTools/tools.js';
 
@@ -98,14 +98,9 @@ class ChatSuspendThrottlingHandler extends Disposable {
 
 	constructor(
 		@INativeHostService nativeHostService: INativeHostService,
-		@IChatService chatService: IChatService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IChatService chatService: IChatService
 	) {
 		super();
-
-		if (!configurationService.getValue<boolean>(ChatConfiguration.SuspendThrottling)) {
-			return;
-		}
 
 		this._register(autorun(reader => {
 			const running = chatService.requestInProgressObs.read(reader);
@@ -200,6 +195,7 @@ registerAction2(StopReadChatItemAloud);
 registerAction2(StopReadAloud);
 
 registerChatDeveloperActions();
+registerChatExportZipAction();
 
 registerWorkbenchContribution2(KeywordActivationContribution.ID, KeywordActivationContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(NativeBuiltinToolsContribution.ID, NativeBuiltinToolsContribution, WorkbenchPhase.AfterRestored);

@@ -9,11 +9,26 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localChatSessionType } from '../../common/chatSessionsService.js';
 import { foreground, listActiveSelectionForeground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
 
 export enum AgentSessionProviders {
 	Local = localChatSessionType,
 	Background = 'copilotcli',
 	Cloud = 'copilot-cloud-agent',
+	ClaudeCode = 'claude-code',
+}
+
+export function getAgentSessionProvider(sessionResource: URI | string): AgentSessionProviders | undefined {
+	const type = URI.isUri(sessionResource) ? getChatSessionType(sessionResource) : sessionResource;
+	switch (type) {
+		case AgentSessionProviders.Local:
+		case AgentSessionProviders.Background:
+		case AgentSessionProviders.Cloud:
+		case AgentSessionProviders.ClaudeCode:
+			return type;
+		default:
+			return undefined;
+	}
 }
 
 export function getAgentSessionProviderName(provider: AgentSessionProviders): string {
@@ -24,6 +39,8 @@ export function getAgentSessionProviderName(provider: AgentSessionProviders): st
 			return localize('chat.session.providerLabel.background', "Background");
 		case AgentSessionProviders.Cloud:
 			return localize('chat.session.providerLabel.cloud', "Cloud");
+		case AgentSessionProviders.ClaudeCode:
+			return localize('chat.session.providerLabel.claude', "Claude");
 	}
 }
 
@@ -35,6 +52,8 @@ export function getAgentSessionProviderIcon(provider: AgentSessionProviders): Th
 			return Codicon.worktree;
 		case AgentSessionProviders.Cloud:
 			return Codicon.cloud;
+		case AgentSessionProviders.ClaudeCode:
+			return Codicon.code;
 	}
 }
 
@@ -52,6 +71,7 @@ export interface IAgentSessionsControl {
 	refresh(): void;
 	openFind(): void;
 	reveal(sessionResource: URI): void;
+	setGridMarginOffset(offset: number): void;
 }
 
 export const agentSessionReadIndicatorForeground = registerColor(

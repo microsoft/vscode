@@ -49,12 +49,6 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 			for (const annotation of fontChanges.changes.annotations) {
 
 				const startPosition = this.textModel.getPositionAt(annotation.range.start);
-				const endPosition = this.textModel.getPositionAt(annotation.range.endExclusive);
-
-				if (startPosition.lineNumber !== endPosition.lineNumber) {
-					// The token should be always on a single line
-					continue;
-				}
 				const lineNumber = startPosition.lineNumber;
 
 				let fontTokenAnnotation: IAnnotationUpdate<IFontTokenAnnotation>;
@@ -75,8 +69,8 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 					};
 					TokenizationFontDecorationProvider.DECORATION_COUNT++;
 
-					if (annotation.annotation.lineHeight) {
-						affectedLineHeights.add(new LineHeightChangingDecoration(0, decorationId, lineNumber, annotation.annotation.lineHeight));
+					if (annotation.annotation.lineHeightMultiplier) {
+						affectedLineHeights.add(new LineHeightChangingDecoration(0, decorationId, lineNumber, annotation.annotation.lineHeightMultiplier));
 					}
 					affectedLineFonts.add(new LineFontChangingDecoration(0, decorationId, lineNumber));
 
@@ -135,8 +129,8 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 			const annotationEndPosition = this.textModel.getPositionAt(annotation.range.endExclusive);
 			const range = Range.fromPositions(annotationStartPosition, annotationEndPosition);
 			const anno = annotation.annotation;
-			const className = classNameForFontTokenDecorations(anno.fontToken.fontFamily ?? '', anno.fontToken.fontSize ?? '');
-			const affectsFont = !!(anno.fontToken.fontFamily || anno.fontToken.fontSize);
+			const className = classNameForFontTokenDecorations(anno.fontToken.fontFamily ?? '', anno.fontToken.fontSizeMultiplier ?? 0);
+			const affectsFont = !!(anno.fontToken.fontFamily || anno.fontToken.fontSizeMultiplier);
 			const id = anno.decorationId;
 			decorations.push({
 				id: id,

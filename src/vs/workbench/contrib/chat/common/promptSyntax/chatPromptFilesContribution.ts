@@ -3,14 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { DisposableMap } from '../../../../../base/common/lifecycle.js';
+import { joinPath, isEqualOrParent } from '../../../../../base/common/resources.js';
+import { UriComponents } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import * as extensionsRegistry from '../../../../services/extensions/common/extensionsRegistry.js';
-import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
-import { joinPath, isEqualOrParent } from '../../../../../base/common/resources.js';
-import { IPromptsService } from './service/promptsService.js';
+import { IPromptsService, PromptsStorage } from './service/promptsService.js';
 import { PromptsType } from './promptTypes.js';
-import { DisposableMap } from '../../../../../base/common/lifecycle.js';
 
 interface IRawChatFileContribution {
 	readonly path: string;
@@ -18,7 +21,7 @@ interface IRawChatFileContribution {
 	readonly description?: string;
 }
 
-type ChatContributionPoint = 'chatPromptFiles' | 'chatInstructions' | 'chatAgents';
+type ChatContributionPoint = 'chatPromptFiles' | 'chatInstructions' | 'chatAgents' | 'chatSkills';
 
 function registerChatFilesExtensionPoint(point: ChatContributionPoint) {
 	return extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawChatFileContribution[]>({
@@ -59,12 +62,14 @@ function registerChatFilesExtensionPoint(point: ChatContributionPoint) {
 const epPrompt = registerChatFilesExtensionPoint('chatPromptFiles');
 const epInstructions = registerChatFilesExtensionPoint('chatInstructions');
 const epAgents = registerChatFilesExtensionPoint('chatAgents');
+const epSkills = registerChatFilesExtensionPoint('chatSkills');
 
 function pointToType(contributionPoint: ChatContributionPoint): PromptsType {
 	switch (contributionPoint) {
 		case 'chatPromptFiles': return PromptsType.prompt;
 		case 'chatInstructions': return PromptsType.instructions;
 		case 'chatAgents': return PromptsType.agent;
+		case 'chatSkills': return PromptsType.skill;
 	}
 }
 
@@ -83,6 +88,7 @@ export class ChatPromptFilesExtensionPointHandler implements IWorkbenchContribut
 		this.handle(epPrompt, 'chatPromptFiles');
 		this.handle(epInstructions, 'chatInstructions');
 		this.handle(epAgents, 'chatAgents');
+		this.handle(epSkills, 'chatSkills');
 	}
 
 	private handle(extensionPoint: extensionsRegistry.IExtensionPoint<IRawChatFileContribution[]>, contributionPoint: ChatContributionPoint) {
@@ -117,3 +123,36 @@ export class ChatPromptFilesExtensionPointHandler implements IWorkbenchContribut
 		});
 	}
 }
+
+/**
+ * Result type for the extension prompt file provider command.
+ */
+export interface IExtensionPromptFileResult {
+	readonly uri: UriComponents;
+	readonly type: PromptsType;
+}
+
+/**
+ * Register the command to list all extension-contributed prompt files.
+ */
+CommandsRegistry.registerCommand('_listExtensionPromptFiles', async (accessor): Promise<IExtensionPromptFileResult[]> => {
+	const promptsService = accessor.get(IPromptsService);
+
+	// Get extension prompt files for all prompt types in parallel
+	const [agents, instructions, prompts, skills] = await Promise.all([
+		promptsService.listPromptFiles(PromptsType.agent, CancellationToken.None),
+		promptsService.listPromptFiles(PromptsType.instructions, CancellationToken.None),
+		promptsService.listPromptFiles(PromptsType.prompt, CancellationToken.None),
+		promptsService.listPromptFiles(PromptsType.skill, CancellationToken.None),
+	]);
+
+	// Combine all files and collect extension-contributed ones
+	const result: IExtensionPromptFileResult[] = [];
+	for (const file of [...agents, ...instructions, ...prompts, ...skills]) {
+		if (file.storage === PromptsStorage.extension) {
+			result.push({ uri: file.uri.toJSON(), type: file.type });
+		}
+	}
+
+	return result;
+});
