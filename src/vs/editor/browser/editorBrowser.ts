@@ -1203,6 +1203,8 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 */
 	getOffsetForColumn(lineNumber: number, column: number): number;
 
+	getWidthOfLine(lineNumber: number): number;
+
 	/**
 	 * Force an editor render now.
 	 */

@@ -117,9 +117,16 @@ export class TerminalVoiceSession extends Disposable {
 				}
 				case SpeechToTextStatus.Recognized:
 					this._updateInput(e);
-					if (voiceTimeout > 0) {
-						this._acceptTranscriptionScheduler!.schedule();
-					}
+					// Send text immediately like editor dictation
+					this._sendText();
+					// Clear ghost text and input for next recognition
+					this._ghostText?.dispose();
+					this._ghostText = undefined;
+					this._ghostTextMarker?.dispose();
+					this._ghostTextMarker = undefined;
+					// Update decoration position for next recognition
+					this._updateDecoration();
+					this._input = '';
 					break;
 				case SpeechToTextStatus.Stopped:
 					this.stop();

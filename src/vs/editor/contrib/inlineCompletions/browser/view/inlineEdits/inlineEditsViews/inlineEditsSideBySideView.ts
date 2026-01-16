@@ -3,14 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { $, getWindow, n } from '../../../../../../../base/browser/dom.js';
-import { IMouseEvent, StandardMouseEvent } from '../../../../../../../base/browser/mouseEvent.js';
 import { Color } from '../../../../../../../base/common/color.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { IObservable, IReader, autorun, constObservable, derived, derivedObservableWithCache, observableFromEvent } from '../../../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
-import { editorBackground } from '../../../../../../../platform/theme/common/colorRegistry.js';
-import { asCssVariable, asCssVariableWithDefault } from '../../../../../../../platform/theme/common/colorUtils.js';
+import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
 import { ICodeEditor } from '../../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
@@ -22,10 +20,11 @@ import { Range } from '../../../../../../common/core/range.js';
 import { ITextModel } from '../../../../../../common/model.js';
 import { StickyScrollController } from '../../../../../stickyScroll/browser/stickyScrollController.js';
 import { InlineCompletionContextKeys } from '../../../controller/inlineCompletionContextKeys.js';
-import { IInlineEditsView, InlineEditTabAction } from '../inlineEditsViewInterface.js';
+import { IInlineEditsView, InlineEditClickEvent, InlineEditTabAction } from '../inlineEditsViewInterface.js';
 import { InlineEditWithChanges } from '../inlineEditWithChanges.js';
-import { getEditorBlendedColor, getModifiedBorderColor, getOriginalBorderColor, modifiedBackgroundColor, originalBackgroundColor } from '../theme.js';
+import { getEditorBackgroundColor, getEditorBlendedColor, getModifiedBorderColor, getOriginalBorderColor, INLINE_EDITS_BORDER_RADIUS, modifiedBackgroundColor, originalBackgroundColor } from '../theme.js';
 import { PathBuilder, getContentRenderWidth, getOffsetForPos, mapOutFalsy, maxContentWidthInRange, observeEditorBoundingClientRect } from '../utils/utils.js';
+import { InlineCompletionEditorType } from '../../../model/provideInlineCompletions.js';
 
 const HORIZONTAL_PADDING = 0;
 const VERTICAL_PADDING = 0;
@@ -34,7 +33,7 @@ const ENABLE_OVERFLOW = false;
 const BORDER_WIDTH = 1;
 const WIDGET_SEPARATOR_WIDTH = 1;
 const WIDGET_SEPARATOR_DIFF_EDITOR_WIDTH = 3;
-const BORDER_RADIUS = 4;
+const BORDER_RADIUS = INLINE_EDITS_BORDER_RADIUS;
 const ORIGINAL_END_PADDING = 20;
 const MODIFIED_END_PADDING = 12;
 
@@ -58,8 +57,8 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 
 	private readonly _editorObs;
 
-	private readonly _onDidClick;
-	readonly onDidClick;
+	private readonly _onDidClick = this._register(new Emitter<InlineEditClickEvent>());
+	readonly onDidClick = this._onDidClick.event;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -67,7 +66,7 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 		private readonly _previewTextModel: ITextModel,
 		private readonly _uiState: IObservable<{
 			newTextLineCount: number;
-			isInDiffEditor: boolean;
+			editorType: InlineCompletionEditorType;
 		} | undefined>,
 		private readonly _tabAction: IObservable<InlineEditTabAction>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -75,11 +74,9 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 	) {
 		super();
 		this._editorObs = observableCodeEditor(this._editor);
-		this._onDidClick = this._register(new Emitter<IMouseEvent>());
-		this.onDidClick = this._onDidClick.event;
 		this._display = derived(this, reader => !!this._uiState.read(reader) ? 'block' : 'none');
 		this.previewRef = n.ref<HTMLDivElement>();
-		const separatorWidthObs = this._uiState.map(s => s?.isInDiffEditor ? WIDGET_SEPARATOR_DIFF_EDITOR_WIDTH : WIDGET_SEPARATOR_WIDTH);
+		const separatorWidthObs = this._uiState.map(s => s?.editorType === InlineCompletionEditorType.DiffEditor ? WIDGET_SEPARATOR_DIFF_EDITOR_WIDTH : WIDGET_SEPARATOR_WIDTH);
 		this._editorContainer = n.div({
 			class: ['editorContainer'],
 			style: { position: 'absolute', overflow: 'hidden', cursor: 'pointer' },
@@ -87,7 +84,7 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 				e.preventDefault(); // This prevents that the editor loses focus
 			},
 			onclick: (e) => {
-				this._onDidClick.fire(new StandardMouseEvent(getWindow(e), e));
+				this._onDidClick.fire(InlineEditClickEvent.create(e));
 			}
 		}, [
 			n.div({ class: 'preview', style: { pointerEvents: 'none' }, ref: this.previewRef }),
@@ -351,6 +348,9 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 		this._originalBackgroundColor = observableFromEvent(this, this._themeService.onDidColorThemeChange, () => {
 			return this._themeService.getColorTheme().getColor(originalBackgroundColor) ?? Color.transparent;
 		});
+		this._editorBackgroundColor = this._uiState.map(s => {
+			return getEditorBackgroundColor(s?.editorType ?? InlineCompletionEditorType.TextEditor);
+		});
 		this._backgroundSvg = n.svg({
 			transform: 'translate(-0.5 -0.5)',
 			style: { overflow: 'visible', pointerEvents: 'none', position: 'absolute' },
@@ -375,7 +375,7 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 						.build();
 				}),
 				style: {
-					fill: asCssVariableWithDefault(editorBackground, 'transparent'),
+					fill: this._editorBackgroundColor,
 				}
 			}),
 		]).keepUpdated(this._store);
@@ -385,9 +385,11 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 			const layoutInfoObs = mapOutFalsy(this._previewEditorLayoutInfo).read(reader);
 			if (!layoutInfoObs) { return undefined; }
 
+			const editorBackground = this._editorBackgroundColor.read(reader);
+
 			const separatorWidth = separatorWidthObs.read(reader);
 			const borderStyling = getOriginalBorderColor(this._tabAction).map(bc => `${BORDER_WIDTH}px solid ${asCssVariable(bc)}`);
-			const borderStylingSeparator = `${BORDER_WIDTH + separatorWidth}px solid ${asCssVariable(editorBackground)}`;
+			const borderStylingSeparator = `${BORDER_WIDTH + separatorWidth}px solid ${editorBackground}`;
 
 			const hasBorderLeft = layoutInfoObs.read(reader).codeScrollLeft !== 0;
 			const isModifiedLower = layoutInfoObs.map(layoutInfo => layoutInfo.codeRect.bottom < layoutInfo.editRect.bottom);
@@ -457,7 +459,7 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 							borderTop: borderStyling,
 							borderRight: borderStyling,
 							borderRadius: `0 100% 0 0`,
-							backgroundColor: asCssVariable(editorBackground)
+							backgroundColor: editorBackground
 						}
 					})
 				]),
@@ -465,7 +467,7 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 					class: 'originalOverlaySideBySideHider',
 					style: {
 						...overlayHider.toStyles(),
-						backgroundColor: asCssVariable(editorBackground),
+						backgroundColor: editorBackground,
 					}
 				}),
 			];
@@ -477,11 +479,12 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 			if (!layoutInfoObs) { return undefined; }
 
 			const isModifiedLower = layoutInfoObs.map(layoutInfo => layoutInfo.codeRect.bottom < layoutInfo.editRect.bottom);
+			const editorBackground = this._editorBackgroundColor.read(reader);
 
 			const separatorWidth = separatorWidthObs.read(reader);
 			const borderRadius = isModifiedLower.map(isLower => `0 ${BORDER_RADIUS}px ${BORDER_RADIUS}px ${isLower ? BORDER_RADIUS : 0}px`);
 			const borderStyling = getEditorBlendedColor(getModifiedBorderColor(this._tabAction), this._themeService).map(c => `1px solid ${c.toString()}`);
-			const borderStylingSeparator = `${BORDER_WIDTH + separatorWidth}px solid ${asCssVariable(editorBackground)}`;
+			const borderStylingSeparator = `${BORDER_WIDTH + separatorWidth}px solid ${editorBackground}`;
 
 			const overlayRect = layoutInfoObs.map(layoutInfo => layoutInfo.editRect.withMargin(0, BORDER_WIDTH));
 			const separatorRect = overlayRect.map(overlayRect => overlayRect.withMargin(separatorWidth, separatorWidth, separatorWidth, 0));
@@ -616,6 +619,8 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 	private readonly _shouldOverflow;
 
 	private readonly _originalBackgroundColor;
+
+	private readonly _editorBackgroundColor;
 
 	private readonly _backgroundSvg;
 

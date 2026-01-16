@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import '../../services/markerDecorations.js';
+import '../../services/contribution.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { IKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
@@ -286,6 +286,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._configuration = this._register(this._createConfiguration(codeEditorWidgetOptions.isSimpleWidget || false,
 			codeEditorWidgetOptions.contextMenuId ?? (codeEditorWidgetOptions.isSimpleWidget ? MenuId.SimpleEditorContext : MenuId.EditorContext),
 			options, accessibilityService));
+		this._domElement.style?.setProperty('--editor-font-size', this._configuration.options.get(EditorOption.fontSize) + 'px');
 		this._register(this._configuration.onDidChange((e) => {
 			this._onDidChangeConfiguration.fire(e);
 
@@ -293,6 +294,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			if (e.hasChanged(EditorOption.layoutInfo)) {
 				const layoutInfo = options.get(EditorOption.layoutInfo);
 				this._onDidLayoutChange.fire(layoutInfo);
+			}
+			if (e.hasChanged(EditorOption.fontSize)) {
+				this._domElement.style.setProperty('--editor-font-size', options.get(EditorOption.fontSize) + 'px');
 			}
 		}));
 
@@ -1671,6 +1675,13 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			return -1;
 		}
 		return this._modelData.view.getOffsetForColumn(lineNumber, column);
+	}
+
+	public getWidthOfLine(lineNumber: number): number {
+		if (!this._modelData || !this._modelData.hasRealView) {
+			return -1;
+		}
+		return this._modelData.view.getLineWidth(lineNumber);
 	}
 
 	public render(forceRedraw: boolean = false): void {

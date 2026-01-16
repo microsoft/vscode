@@ -32,6 +32,7 @@ import { CursorChangeReason } from '../../../../common/cursorEvents.js';
 import { ILanguageFeatureDebounceService } from '../../../../common/services/languageFeatureDebounce.js';
 import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
 import { FIND_IDS } from '../../../find/browser/findModel.js';
+import { NextMarkerAction, NextMarkerInFilesAction, PrevMarkerAction, PrevMarkerInFilesAction } from '../../../gotoError/browser/gotoError.js';
 import { InsertLineAfterAction, InsertLineBeforeAction } from '../../../linesOperations/browser/linesOperations.js';
 import { InlineSuggestionHintsContentWidget } from '../hintsWidget/inlineCompletionsHintsWidget.js';
 import { TextModelChangeRecorder } from '../model/changeRecorder.js';
@@ -224,6 +225,10 @@ export class InlineCompletionsController extends Disposable {
 			InsertLineAfterAction.ID,
 			InsertLineBeforeAction.ID,
 			FIND_IDS.NextMatchFindAction,
+			NextMarkerAction.ID,
+			PrevMarkerAction.ID,
+			NextMarkerInFilesAction.ID,
+			PrevMarkerInFilesAction.ID,
 			...TriggerInlineEditCommandsRegistry.getRegisteredCommands(),
 		]);
 		this._register(this._commandService.onDidExecuteCommand((e) => {
@@ -368,6 +373,12 @@ export class InlineCompletionsController extends Disposable {
 			const model = this.model.read(reader);
 			const state = model?.inlineCompletionState.read(reader);
 			return state?.primaryGhostText && state?.inlineSuggestion ? state.inlineSuggestion.source.inlineSuggestions.suppressSuggestions : undefined;
+		}));
+		this._register(contextKeySvcObs.bind(InlineCompletionContextKeys.inlineSuggestionAlternativeActionVisible, reader => {
+			const model = this.model.read(reader);
+			const state = model?.inlineEditState.read(reader);
+			const action = state?.inlineSuggestion.action;
+			return action && action.kind === 'edit' && action.alternativeAction !== undefined;
 		}));
 		this._register(contextKeySvcObs.bind(InlineCompletionContextKeys.inlineSuggestionVisible, reader => {
 			const model = this.model.read(reader);

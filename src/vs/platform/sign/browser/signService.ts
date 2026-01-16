@@ -11,7 +11,7 @@ import { IProductService } from '../../product/common/productService.js';
 import { AbstractSignService, IVsdaValidator } from '../common/abstractSignService.js';
 import { ISignService } from '../common/sign.js';
 
-declare module vsdaWeb {
+declare namespace vsdaWeb {
 	export function sign(salted_message: string): string;
 
 	// eslint-disable-next-line @typescript-eslint/naming-convention

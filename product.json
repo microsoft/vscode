@@ -86,6 +86,7 @@
 	"defaultChatAgent": {
 		"extensionId": "GitHub.copilot",
 		"chatExtensionId": "GitHub.copilot-chat",
+		"chatExtensionOutputId": "GitHub.copilot-chat.GitHub Copilot Chat.log",
 		"documentationUrl": "https://aka.ms/github-copilot-overview",
 		"termsStatementUrl": "https://aka.ms/github-copilot-terms-statement",
 		"privacyStatementUrl": "https://aka.ms/github-copilot-privacy-statement",
@@ -117,16 +118,16 @@
 		"providerUriSetting": "github-enterprise.uri",
 		"providerScopes": [
 			[
-				"user:email"
-			],
-			[
-				"read:user"
-			],
-			[
 				"read:user",
 				"user:email",
 				"repo",
 				"workflow"
+			],
+			[
+				"user:email"
+			],
+			[
+				"read:user"
 			]
 		],
 		"entitlementUrl": "https://api.github.com/copilot_internal/user",
@@ -142,5 +143,13 @@
 		"completionsAdvancedSetting": "github.copilot.advanced",
 		"completionsEnablementSetting": "github.copilot.enable",
 		"nextEditSuggestionsSetting": "github.copilot.nextEditSuggestions.enabled"
+	},
+	"trustedExtensionAuthAccess": {
+		"github": [
+			"GitHub.copilot-chat"
+		],
+		"github-enterprise": [
+			"GitHub.copilot-chat"
+		]
 	}
 }

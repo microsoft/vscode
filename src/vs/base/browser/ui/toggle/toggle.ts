@@ -6,11 +6,14 @@
 import { IAction } from '../../../common/actions.js';
 import { Codicon } from '../../../common/codicons.js';
 import { Emitter, Event } from '../../../common/event.js';
+import { IMarkdownString, isMarkdownString } from '../../../common/htmlContent.js';
+import { getCodiconAriaLabel, stripIcons } from '../../../common/iconLabels.js';
 import { KeyCode } from '../../../common/keyCodes.js';
 import { ThemeIcon } from '../../../common/themables.js';
-import { $, addDisposableListener, EventType, isActiveElement } from '../../dom.js';
+import { $, addDisposableListener, EventType, isActiveElement, isHTMLElement } from '../../dom.js';
 import { IKeyboardEvent } from '../../keyboardEvent.js';
 import { BaseActionViewItem, IActionViewItemOptions } from '../actionbar/actionViewItems.js';
+import { IActionViewItemProvider } from '../actionbar/actionbar.js';
 import { HoverStyle, IHoverLifecycleOptions } from '../hover/hover.js';
 import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
 import { Widget } from '../widget.js';
@@ -19,7 +22,7 @@ import './toggle.css';
 export interface IToggleOpts extends IToggleStyles {
 	readonly actionClassName?: string;
 	readonly icon?: ThemeIcon;
-	readonly title: string;
+	readonly title: string | IMarkdownString | HTMLElement;
 	readonly isChecked: boolean;
 	readonly notFocusable?: boolean;
 	readonly hoverLifecycleOptions?: IHoverLifecycleOptions;
@@ -125,7 +128,7 @@ export class Toggle extends Widget {
 	get onKeyDown(): Event<IKeyboardEvent> { return this._onKeyDown.event; }
 
 	private readonly _opts: IToggleOpts;
-	private _title: string;
+	private _title: string | IMarkdownString | HTMLElement;
 	private _icon: ThemeIcon | undefined;
 	readonly domNode: HTMLElement;
 
@@ -152,7 +155,7 @@ export class Toggle extends Widget {
 
 		this.domNode = document.createElement('div');
 		this._register(getBaseLayerHoverDelegate().setupDelayedHover(this.domNode, () => ({
-			content: this._title,
+			content: !isMarkdownString(this._title) && !isHTMLElement(this._title) ? stripIcons(this._title) : this._title,
 			style: HoverStyle.Pointer,
 		}), this._opts.hoverLifecycleOptions));
 		this.domNode.classList.add(...classes);
@@ -245,9 +248,12 @@ export class Toggle extends Widget {
 		this.domNode.classList.add('disabled');
 	}
 
-	setTitle(newTitle: string): void {
+	setTitle(newTitle: string | IMarkdownString | HTMLElement): void {
 		this._title = newTitle;
-		this.domNode.setAttribute('aria-label', newTitle);
+
+		const ariaLabel = typeof newTitle === 'string' ? newTitle : isMarkdownString(newTitle) ? newTitle.value : newTitle.textContent;
+
+		this.domNode.setAttribute('aria-label', getCodiconAriaLabel(ariaLabel));
 	}
 
 	set visible(visible: boolean) {
@@ -495,4 +501,22 @@ export class CheckboxActionViewItem extends BaseActionViewItem {
 		this.toggle.domNode.tabIndex = focusable ? 0 : -1;
 	}
 
+}
+
+/**
+ * Creates an action view item provider that renders toggles for actions with a checked state
+ * and falls back to default button rendering for regular actions.
+ *
+ * @param toggleStyles - Optional styles to apply to toggle items
+ * @returns An IActionViewItemProvider that can be used with ActionBar
+ */
+export function createToggleActionViewItemProvider(toggleStyles?: IToggleStyles): IActionViewItemProvider {
+	return (action: IAction, options: IActionViewItemOptions) => {
+		// Only render as a toggle if the action has a checked property
+		if (action.checked !== undefined) {
+			return new ToggleActionViewItem(null, action, { ...options, toggleStyles });
+		}
+		// Return undefined to fall back to default button rendering
+		return undefined;
+	};
 }

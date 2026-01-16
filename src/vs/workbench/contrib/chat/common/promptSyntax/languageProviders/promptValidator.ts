@@ -14,7 +14,7 @@ import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../../p
 import { IChatMode, IChatModeService } from '../../chatModes.js';
 import { ChatModeKind } from '../../constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
-import { ILanguageModelToolsService } from '../../languageModelToolsService.js';
+import { ILanguageModelToolsService, SpecedToolAliases } from '../../tools/languageModelToolsService.js';
 import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
 import { GithubPromptHeaderAttributes, IArrayValue, IHeaderAttribute, IStringValue, ParsedPromptFile, PromptHeaderAttributes, Target } from '../promptFileParser.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -43,6 +43,7 @@ export class PromptValidator {
 		this.validateHeader(promptAST, promptType, report);
 		await this.validateBody(promptAST, promptType, report);
 		await this.validateFileName(promptAST, promptType, report);
+		await this.validateSkillFolderName(promptAST, promptType, report);
 	}
 
 	private async validateFileName(promptAST: ParsedPromptFile, promptType: PromptsType, report: (markers: IMarkerData) => void): Promise<void> {
@@ -52,6 +53,36 @@ export class PromptValidator {
 				report(toMarker(localize('promptValidator.chatModesRenamedToAgents', "Chat modes have been renamed to agents. Please move this file to {0}", location.toString()), new Range(1, 1, 1, 4), MarkerSeverity.Warning));
 			} else {
 				report(toMarker(localize('promptValidator.chatModesRenamedToAgentsNoMove', "Chat modes have been renamed to agents. Please move the file to {0}", AGENTS_SOURCE_FOLDER), new Range(1, 1, 1, 4), MarkerSeverity.Warning));
+			}
+		}
+	}
+
+	private async validateSkillFolderName(promptAST: ParsedPromptFile, promptType: PromptsType, report: (markers: IMarkerData) => void): Promise<void> {
+		if (promptType !== PromptsType.skill) {
+			return;
+		}
+
+		const nameAttribute = promptAST.header?.attributes.find(attr => attr.key === PromptHeaderAttributes.name);
+		if (!nameAttribute || nameAttribute.value.type !== 'string') {
+			return;
+		}
+
+		const skillName = nameAttribute.value.value.trim();
+		if (!skillName) {
+			return;
+		}
+
+		// Extract folder name from path (e.g., .github/skills/my-skill/SKILL.md -> my-skill)
+		const pathParts = promptAST.uri.path.split('/');
+		const skillIndex = pathParts.findIndex(part => part === 'SKILL.md');
+		if (skillIndex > 0) {
+			const folderName = pathParts[skillIndex - 1];
+			if (folderName && skillName !== folderName) {
+				report(toMarker(
+					localize('promptValidator.skillNameFolderMismatch', "The skill name '{0}' should match the folder name '{1}'.", skillName, folderName),
+					nameAttribute.value.range,
+					MarkerSeverity.Warning
+				));
 			}
 		}
 	}
@@ -159,6 +190,10 @@ export class PromptValidator {
 				break;
 			}
 
+			case PromptsType.skill:
+				// Skill-specific validations (currently none beyond name/description)
+				break;
+
 		}
 	}
 
@@ -185,6 +220,9 @@ export class PromptValidator {
 						break;
 					case PromptsType.instructions:
 						report(toMarker(localize('promptValidator.unknownAttribute.instructions', "Attribute '{0}' is not supported in instructions files. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Warning));
+						break;
+					case PromptsType.skill:
+						report(toMarker(localize('promptValidator.unknownAttribute.skill', "Attribute '{0}' is not supported in skill files. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Warning));
 						break;
 				}
 			}
@@ -499,13 +537,15 @@ export class PromptValidator {
 const allAttributeNames = {
 	[PromptsType.prompt]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.mode, PromptHeaderAttributes.agent, PromptHeaderAttributes.argumentHint],
 	[PromptsType.instructions]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.applyTo, PromptHeaderAttributes.excludeAgent],
-	[PromptsType.agent]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.advancedOptions, PromptHeaderAttributes.handOffs, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.target, PromptHeaderAttributes.infer]
+	[PromptsType.agent]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.advancedOptions, PromptHeaderAttributes.handOffs, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.target, PromptHeaderAttributes.infer],
+	[PromptsType.skill]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.license, PromptHeaderAttributes.compatibility, PromptHeaderAttributes.metadata],
 };
-const githubCopilotAgentAttributeNames = [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.tools, PromptHeaderAttributes.target, GithubPromptHeaderAttributes.mcpServers];
+const githubCopilotAgentAttributeNames = [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.tools, PromptHeaderAttributes.target, GithubPromptHeaderAttributes.mcpServers, PromptHeaderAttributes.infer];
 const recommendedAttributeNames = {
 	[PromptsType.prompt]: allAttributeNames[PromptsType.prompt].filter(name => !isNonRecommendedAttribute(name)),
 	[PromptsType.instructions]: allAttributeNames[PromptsType.instructions].filter(name => !isNonRecommendedAttribute(name)),
-	[PromptsType.agent]: allAttributeNames[PromptsType.agent].filter(name => !isNonRecommendedAttribute(name))
+	[PromptsType.agent]: allAttributeNames[PromptsType.agent].filter(name => !isNonRecommendedAttribute(name)),
+	[PromptsType.skill]: allAttributeNames[PromptsType.skill].filter(name => !isNonRecommendedAttribute(name)),
 };
 
 export function getValidAttributeNames(promptType: PromptsType, includeNonRecommended: boolean, isGitHubTarget: boolean): string[] {
@@ -520,12 +560,10 @@ export function isNonRecommendedAttribute(attributeName: string): boolean {
 }
 
 // The list of tools known to be used by GitHub Copilot custom agents
-export const knownGithubCopilotTools: Record<string, string> = {
-	'shell': localize('githubCopilotTools.shell', 'Execute shell commands'),
-	'edit': localize('githubCopilotTools.edit', 'Edit files'),
-	'search': localize('githubCopilotTools.search', 'Search in files'),
-	'custom-agent': localize('githubCopilotTools.customAgent', 'Call custom agents')
-};
+export const knownGithubCopilotTools = [
+	SpecedToolAliases.execute, SpecedToolAliases.read, SpecedToolAliases.edit, SpecedToolAliases.search, SpecedToolAliases.agent,
+];
+
 export function isGithubTarget(promptType: PromptsType, target: string | undefined): boolean {
 	return promptType === PromptsType.agent && target === Target.GitHubCopilot;
 }

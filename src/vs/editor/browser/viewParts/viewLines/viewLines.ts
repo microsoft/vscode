@@ -671,6 +671,10 @@ export class ViewLines extends ViewPart implements IViewLines {
 	// --- width
 
 	private _ensureMaxLineWidth(lineWidth: number): void {
+		// When GPU rendering is enabled, ViewLinesGpu handles max line width tracking
+		if (this._viewLineOptions.useGpu) {
+			return;
+		}
 		const iLineWidth = Math.ceil(lineWidth);
 		if (this._maxLineWidth < iLineWidth) {
 			this._maxLineWidth = iLineWidth;

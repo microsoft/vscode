@@ -138,6 +138,11 @@ export interface TextSearchProviderFolderOptions {
 	excludes: GlobPattern[];
 
 	/**
+	 * Whether to ignore case for glob patterns.
+	 */
+	ignoreGlobCase?: boolean;
+
+	/**
 	 * Whether symlinks should be followed while searching.
 	 * For more info, see the setting description for `search.followSymlinks`.
 	 */

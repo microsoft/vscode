@@ -163,7 +163,7 @@
             "localization": {
                 "description": {
                     "key": "chat.agent.enabled.description",
-                    "value": "Enable agent mode for chat. When this is enabled, agent mode can be activated via the dropdown in the view."
+                    "value": "When enabled, agent mode can be activated from chat and tools in agentic contexts with side effects can be used."
                 }
             },
             "type": "boolean",

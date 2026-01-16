@@ -23,14 +23,14 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
-import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolDataSource, ToolProgress } from '../../common/languageModelToolsService.js';
-import { IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../common/chatAgents.js';
+import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolDataSource, ToolProgress } from '../../common/tools/languageModelToolsService.js';
+import { IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../common/participants/chatAgents.js';
 import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementRequests, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
-import { ChatModel, ChatRequestModel, IChatRequestModel, IChatRequestVariableData } from '../../common/chatModel.js';
+import { ChatModel, ChatRequestModel, IChatRequestModel, IChatRequestVariableData } from '../../common/model/chatModel.js';
 import { ChatMode } from '../../common/chatModes.js';
-import { ChatRequestAgentPart, ChatRequestToolPart } from '../../common/chatParserTypes.js';
-import { IChatProgress, IChatService } from '../../common/chatService.js';
-import { IChatRequestToolEntry } from '../../common/chatVariableEntries.js';
+import { ChatRequestAgentPart, ChatRequestToolPart } from '../../common/requestParser/chatParserTypes.js';
+import { IChatProgress, IChatService } from '../../common/chatService/chatService.js';
+import { IChatRequestToolEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { ILanguageModelsService } from '../../common/languageModels.js';
 import { CHAT_OPEN_ACTION_ID, CHAT_SETUP_ACTION_ID } from '../actions/chatActions.js';
@@ -48,11 +48,16 @@ import { IMarker, IMarkerService, MarkerSeverity } from '../../../../../platform
 import { ChatSetupController } from './chatSetupController.js';
 import { ChatSetupAnonymous, ChatSetupStep, IChatSetupResult } from './chatSetup.js';
 import { ChatSetup } from './chatSetupRunner.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { IOutputService } from '../../../../services/output/common/output.js';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { IWorkbenchIssueService } from '../../../issue/common/issue.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
 	chatExtensionId: product.defaultChatAgent?.chatExtensionId ?? '',
 	provider: product.defaultChatAgent?.provider ?? { default: { id: '', name: '' }, enterprise: { id: '', name: '' }, apple: { id: '', name: '' }, google: { id: '', name: '' } },
+	outputChannelId: product.defaultChatAgent?.chatExtensionOutputId ?? '',
 };
 
 const ToolsAgentContextKey = ContextKeyExpr.and(
@@ -162,6 +167,8 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 	private static readonly SETUP_NEEDED_MESSAGE = new MarkdownString(localize('settingUpCopilotNeeded', "You need to set up GitHub Copilot and be signed in to use Chat."));
 	private static readonly TRUST_NEEDED_MESSAGE = new MarkdownString(localize('trustNeeded', "You need to trust this workspace to use Chat."));
 
+	private static CHAT_REPORT_ISSUE_WITH_OUTPUT_ID = 'workbench.action.chat.reportIssueWithOutput';
+
 	private readonly _onUnresolvableError = this._register(new Emitter<void>());
 	readonly onUnresolvableError = this._onUnresolvableError.event;
 
@@ -180,6 +187,53 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 	) {
 		super();
+
+		this.registerCommands();
+	}
+
+	private registerCommands(): void {
+		this._register(CommandsRegistry.registerCommand(SetupAgent.CHAT_REPORT_ISSUE_WITH_OUTPUT_ID, async accessor => {
+			const outputService = accessor.get(IOutputService);
+			const textModelService = accessor.get(ITextModelService);
+			const issueService = accessor.get(IWorkbenchIssueService);
+			const logService = accessor.get(ILogService);
+
+			let outputData = '';
+			let channelName = '';
+
+			let channel = outputService.getChannel(defaultChat.outputChannelId);
+			if (channel) {
+				channelName = defaultChat.outputChannelId;
+			} else {
+				logService.warn(`[chat setup] Output channel '${defaultChat.outputChannelId}' not found, falling back to Window output channel`);
+				channel = outputService.getChannel('rendererLog');
+				channelName = 'Window';
+			}
+
+			if (channel) {
+				try {
+					const model = await textModelService.createModelReference(channel.uri);
+					try {
+						const rawOutput = model.object.textEditorModel.getValue();
+						outputData = `<details>\n<summary>GitHub Copilot Chat Output (${channelName})</summary>\n\n\`\`\`\n${rawOutput}\n\`\`\`\n</details>`;
+						logService.info(`[chat setup] Retrieved ${rawOutput.length} characters from ${channelName} output channel`);
+					} finally {
+						model.dispose();
+					}
+				} catch (error) {
+					logService.error(`[chat setup] Failed to retrieve output channel content: ${error}`);
+				}
+			} else {
+				logService.warn(`[chat setup] No output channel available`);
+			}
+
+			await issueService.openReporter({
+				extensionId: defaultChat.chatExtensionId,
+				issueTitle: 'Chat took too long to get ready',
+				issueBody: 'Chat took too long to get ready',
+				data: outputData || localize('chatOutputChannelUnavailable', "GitHub Copilot Chat output channel not available. Please ensure the GitHub Copilot Chat extension is active and try again. If the issue persists, you can manually include relevant information from the Output panel (View > Output > GitHub Copilot Chat).")
+			});
+		}));
 	}
 
 	async invoke(request: IChatAgentRequest, progress: (parts: IChatProgress[]) => void): Promise<IChatAgentResult> {
@@ -232,6 +286,8 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 		try {
 			await this.doForwardRequestToChat(requestModel, progress, chatService, languageModelsService, chatAgentService, chatWidgetService, languageModelToolsService);
 		} catch (error) {
+			this.logService.error('[chat setup] Failed to forward request to chat', error);
+
 			progress({
 				kind: 'warning',
 				content: new MarkdownString(localize('copilotUnavailableWarning', "Failed to get a response. Please try again."))
@@ -262,10 +318,12 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 		// Chat. Waiting for the registration of the agent is not
 		// enough, we also need a language/tools model to be available.
 
+		let agentActivated = false;
 		let agentReady = false;
 		let languageModelReady = false;
 		let toolsModelReady = false;
 
+		const whenAgentActivated = this.whenAgentActivated(chatService).then(() => agentActivated = true);
 		const whenAgentReady = this.whenAgentReady(chatAgentService, modeInfo?.kind)?.then(() => agentReady = true);
 		const whenLanguageModelReady = this.whenLanguageModelReady(languageModelsService, requestModel.modelId)?.then(() => languageModelReady = true);
 		const whenToolsModelReady = this.whenToolsModelReady(languageModelToolsService, requestModel)?.then(() => toolsModelReady = true);
@@ -281,8 +339,12 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 			try {
 				const ready = await Promise.race([
 					timeout(this.environmentService.remoteAuthority ? 60000 /* increase for remote scenarios */ : 20000).then(() => 'timedout'),
-					this.whenDefaultAgentActivated(chatService),
-					Promise.allSettled([whenLanguageModelReady, whenAgentReady, whenToolsModelReady])
+					Promise.allSettled([
+						whenAgentActivated,
+						whenAgentReady,
+						whenLanguageModelReady,
+						whenToolsModelReady
+					])
 				]);
 
 				if (ready === 'timedout') {
@@ -294,14 +356,50 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 					}
 
 					this.logService.warn(warningMessage, {
-						agentReady: whenAgentReady ? agentReady : undefined,
-						languageModelReady: whenLanguageModelReady ? languageModelReady : undefined,
-						toolsModelReady: whenToolsModelReady ? toolsModelReady : undefined
+						agentActivated,
+						agentReady,
+						languageModelReady,
+						toolsModelReady
+					});
+
+					type ChatSetupTimeoutClassification = {
+						owner: 'chrmarti';
+						comment: 'Provides insight into chat setup timeouts.';
+						agentActivated: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the agent was activated.' };
+						agentReady: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the agent was ready.' };
+						languageModelReady: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the language model was ready.' };
+						toolsModelReady: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the tools model was ready.' };
+						isRemote: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether this is a remote scenario.' };
+						isAnonymous: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether anonymous access is enabled.' };
+					};
+					type ChatSetupTimeoutEvent = {
+						agentActivated: boolean;
+						agentReady: boolean;
+						languageModelReady: boolean;
+						toolsModelReady: boolean;
+						isRemote: boolean;
+						isAnonymous: boolean;
+					};
+					this.telemetryService.publicLog2<ChatSetupTimeoutEvent, ChatSetupTimeoutClassification>('chatSetup.timeout', {
+						agentActivated,
+						agentReady,
+						languageModelReady,
+						toolsModelReady,
+						isRemote: !!this.environmentService.remoteAuthority,
+						isAnonymous: this.chatEntitlementService.anonymous
 					});
 
 					progress({
 						kind: 'warning',
 						content: new MarkdownString(warningMessage)
+					});
+
+					progress({
+						kind: 'command',
+						command: {
+							id: SetupAgent.CHAT_REPORT_ISSUE_WITH_OUTPUT_ID,
+							title: localize('reportChatIssue', "Report Issue"),
+						}
 					});
 
 					// This means Chat is unhealthy and we cannot retry the
@@ -329,7 +427,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 
 			for (const id of languageModelsService.getLanguageModelIds()) {
 				const model = languageModelsService.lookupLanguageModel(id);
-				if (model?.isDefault) {
+				if (model?.isDefaultForLocation[ChatAgentLocation.Chat]) {
 					return true;
 				}
 			}
@@ -380,7 +478,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 		}));
 	}
 
-	private async whenDefaultAgentActivated(chatService: IChatService): Promise<void> {
+	private async whenAgentActivated(chatService: IChatService): Promise<void> {
 		try {
 			await chatService.activateDefaultAgent(this.location);
 		} catch (error) {
@@ -720,8 +818,9 @@ export class AICodeActionsHelper {
 			title: localize('explain', "Explain"),
 			arguments: [
 				{
-					query: `@workspace /explain ${markers.map(marker => marker.message).join(', ')}`
-				} satisfies { query: string }
+					query: `@workspace /explain ${markers.map(marker => marker.message).join(', ')}`,
+					isPartialQuery: true
+				} satisfies { query: string; isPartialQuery: boolean }
 			]
 		};
 	}
@@ -733,11 +832,10 @@ export class AICodeActionsHelper {
 			arguments: [
 				{
 					message: `/fix ${markers.map(marker => marker.message).join(', ')}`,
-					autoSend: true,
 					initialSelection: this.rangeToSelection(range),
 					initialRange: range,
 					position: range.getStartPosition()
-				} satisfies { message: string; autoSend: boolean; initialSelection: ISelection; initialRange: IRange; position: IPosition }
+				} satisfies { message: string; initialSelection: ISelection; initialRange: IRange; position: IPosition }
 			]
 		};
 	}

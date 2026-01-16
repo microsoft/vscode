@@ -29,6 +29,7 @@ import { RepositoryPicker, SCMViewService } from './scmViewService.js';
 import { SCMRepositoriesViewPane } from './scmRepositoriesViewPane.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Context as SuggestContext } from '../../../../editor/contrib/suggest/browser/suggest.js';
+import { InlineCompletionContextKeys } from '../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionContextKeys.js';
 import { MANAGE_TRUST_COMMAND_ID, WorkspaceTrustContext } from '../../workspace/common/workspace.js';
 import { IQuickDiffService } from '../common/quickDiff.js';
 import { QuickDiffService } from '../common/quickDiffService.js';
@@ -41,12 +42,12 @@ import { SCMHistoryViewPane } from './scmHistoryViewPane.js';
 import { QuickDiffModelService, IQuickDiffModelService } from './quickDiffModel.js';
 import { QuickDiffEditorController } from './quickDiffWidget.js';
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
-import { RemoteNameContext } from '../../../common/contextkeys.js';
+import { RemoteNameContext, ResourceContextKey } from '../../../common/contextkeys.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { SCMAccessibilityHelp } from './scmAccessibilityHelp.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { SCMHistoryItemContextContribution } from './scmHistoryChatContext.js';
-import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
+import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../../chat/browser/actions/chatActions.js';
 import product from '../../../../platform/product/common/product.js';
 
@@ -460,9 +461,27 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'scm.clearValidation',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeyExpr.and(
+		ContextKeyExpr.has('scmRepository'),
+		ContextKeys.SCMInputHasValidationMessage),
+	primary: KeyCode.Escape,
+	handler: async (accessor) => {
+		const scmViewService = accessor.get(ISCMViewService);
+		scmViewService.activeRepository.get()?.repository.input.clearValidation();
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'scm.clearInput',
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(ContextKeyExpr.has('scmRepository'), SuggestContext.Visible.toNegated(), EditorContextKeys.hasNonEmptySelection.toNegated()),
+	when: ContextKeyExpr.and(
+		ContextKeyExpr.has('scmRepository'),
+		SuggestContext.Visible.toNegated(),
+		InlineCompletionContextKeys.inlineSuggestionVisible.toNegated(),
+		ContextKeys.SCMInputHasValidationMessage.toNegated(),
+		EditorContextKeys.hasNonEmptySelection.toNegated()),
 	primary: KeyCode.Escape,
 	handler: async (accessor) => {
 		const scmService = accessor.get(ISCMService);
@@ -684,6 +703,7 @@ registerAction2(class extends Action2 {
 					ChatContextKeys.Setup.hidden.negate(),
 					ChatContextKeys.Setup.disabled.negate(),
 					ChatContextKeys.Setup.installed.negate(),
+					ContextKeyExpr.in(ResourceContextKey.Resource.key, 'git.mergeChanges'),
 					ContextKeyExpr.equals('git.activeResourceHasMergeConflicts', true)
 				)
 			}

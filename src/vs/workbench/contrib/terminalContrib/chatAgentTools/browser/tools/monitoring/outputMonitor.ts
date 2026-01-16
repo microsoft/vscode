@@ -9,26 +9,26 @@ import { timeout, type MaybePromise } from '../../../../../../../base/common/asy
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
-import { Disposable, type IDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable, type IDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { isObject, isString } from '../../../../../../../base/common/types.js';
 import { localize } from '../../../../../../../nls.js';
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
 import { IChatWidgetService } from '../../../../../chat/browser/chat.js';
-import { ChatElicitationRequestPart } from '../../../../../chat/browser/chatElicitationRequestPart.js';
-import { ChatModel } from '../../../../../chat/common/chatModel.js';
-import { ElicitationState, IChatService } from '../../../../../chat/common/chatService.js';
+import { ChatElicitationRequestPart } from '../../../../../chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
+import { ChatModel } from '../../../../../chat/common/model/chatModel.js';
+import { ElicitationState, IChatService } from '../../../../../chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../../chat/common/constants.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../../../../chat/common/languageModels.js';
-import { IToolInvocationContext } from '../../../../../chat/common/languageModelToolsService.js';
+import { IToolInvocationContext } from '../../../../../chat/common/tools/languageModelToolsService.js';
 import { ITaskService } from '../../../../../tasks/common/taskService.js';
 import { ILinkLocation } from '../../taskHelpers.js';
 import { IConfirmationPrompt, IExecution, IPollingResult, OutputMonitorState, PollingConsts } from './types.js';
 import { getTextResponseFromStream } from './utils.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TerminalChatAgentToolsSettingId } from '../../../common/terminalChatAgentToolsConfiguration.js';
-import { ILogService } from '../../../../../../../platform/log/common/log.js';
 import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
-import { LocalChatSessionUri } from '../../../../../chat/common/chatUri.js';
+import { LocalChatSessionUri } from '../../../../../chat/common/model/chatUri.js';
+import { ITerminalLogService } from '../../../../../../../platform/terminal/common/terminal.js';
 
 export interface IOutputMonitor extends Disposable {
 	readonly pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
@@ -61,6 +61,13 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	private _pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
 	get pollingResult(): IPollingResult & { pollDurationMs: number } | undefined { return this._pollingResult; }
 
+	/**
+	 * Flag to track if user has inputted since idle was detected.
+	 * This is used to skip showing prompts if the user already provided input.
+	 */
+	private _userInputtedSinceIdleDetected = false;
+	private readonly _userInputListener = this._register(new MutableDisposable<IDisposable>());
+
 	private readonly _outputMonitorTelemetryCounters: IOutputMonitorTelemetryCounters = {
 		inputToolManualAcceptCount: 0,
 		inputToolManualRejectCount: 0,
@@ -87,7 +94,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		@IChatService private readonly _chatService: IChatService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ILogService private readonly _logService: ILogService,
+		@ITerminalLogService private readonly _logService: ITerminalLogService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 	) {
 		super();
@@ -121,6 +128,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 						const shouldContinuePolling = await this._handleTimeoutState(command, invocationContext, extended, token);
 						if (shouldContinuePolling) {
 							extended = true;
+							this._state = OutputMonitorState.PollingForIdle;
 							continue;
 						} else {
 							this._promptPart?.hide();
@@ -159,17 +167,51 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				pollDurationMs: Date.now() - pollStartTime,
 				resources
 			};
-			this._promptPart?.hide();
+			// Clean up idle input listener if still active
+			this._userInputListener.clear();
+			const promptPart = this._promptPart;
 			this._promptPart = undefined;
+			if (promptPart) {
+				try {
+					promptPart.hide();
+				} catch (err) {
+					this._logService.error('OutputMonitor: Failed to hide prompt', err);
+				}
+			}
 			this._onDidFinishCommand.fire();
 		}
 	}
 
 
 	private async _handleIdleState(token: CancellationToken): Promise<{ resources?: ILinkLocation[]; modelOutputEvalResponse?: string; shouldContinuePollling: boolean; output?: string }> {
+		const output = this._execution.getOutput(this._lastPromptMarker);
+
+		if (detectsNonInteractiveHelpPattern(output)) {
+			return { shouldContinuePollling: false, output };
+		}
+
+		// Check if user already inputted since idle was detected (before we even got here)
+		if (this._userInputtedSinceIdleDetected) {
+			this._cleanupIdleInputListener();
+			return { shouldContinuePollling: true };
+		}
+
 		const confirmationPrompt = await this._determineUserInputOptions(this._execution, token);
 
+		// Check again after the async LLM call - user may have inputted while we were analyzing
+		if (this._userInputtedSinceIdleDetected) {
+			this._cleanupIdleInputListener();
+			return { shouldContinuePollling: true };
+		}
+
 		if (confirmationPrompt?.detectedRequestForFreeFormInput) {
+			// Check again right before showing prompt
+			if (this._userInputtedSinceIdleDetected) {
+				this._cleanupIdleInputListener();
+				return { shouldContinuePollling: true };
+			}
+			// Clean up the input listener now - the prompt will set up its own
+			this._cleanupIdleInputListener();
 			this._outputMonitorTelemetryCounters.inputToolFreeFormInputShownCount++;
 			const receivedTerminalInput = await this._requestFreeFormTerminalInput(token, this._execution, confirmationPrompt);
 			if (receivedTerminalInput) {
@@ -187,8 +229,16 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			const suggestedOptionResult = await this._selectAndHandleOption(confirmationPrompt, token);
 			if (suggestedOptionResult?.sentToTerminal) {
 				// Continue polling as we sent the input
+				this._cleanupIdleInputListener();
 				return { shouldContinuePollling: true };
 			}
+			// Check again after LLM call - user may have inputted while we were selecting option
+			if (this._userInputtedSinceIdleDetected) {
+				this._cleanupIdleInputListener();
+				return { shouldContinuePollling: true };
+			}
+			// Clean up the input listener now - the prompt will set up its own
+			this._cleanupIdleInputListener();
 			const confirmed = await this._confirmRunInTerminal(token, suggestedOptionResult?.suggestedOption ?? confirmationPrompt.options[0], this._execution, confirmationPrompt);
 			if (confirmed) {
 				// Continue polling as we sent the input
@@ -200,67 +250,25 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			}
 		}
 
+		// Clean up input listener before custom poll/error assessment
+		this._cleanupIdleInputListener();
+
 		// Let custom poller override if provided
 		const custom = await this._pollFn?.(this._execution, token, this._taskService);
 		const resources = custom?.resources;
 		const modelOutputEvalResponse = await this._assessOutputForErrors(this._execution.getOutput(), token);
-		return { resources, modelOutputEvalResponse, shouldContinuePollling: false, output: custom?.output };
+		return { resources, modelOutputEvalResponse, shouldContinuePollling: false, output: custom?.output ?? output };
 	}
 
-	private async _handleTimeoutState(command: string, invocationContext: IToolInvocationContext | undefined, extended: boolean, token: CancellationToken): Promise<boolean> {
-		let continuePollingPart: ChatElicitationRequestPart | undefined;
-		if (extended) {
+	private async _handleTimeoutState(_command: string, _invocationContext: IToolInvocationContext | undefined, _extended: boolean, _token: CancellationToken): Promise<boolean> {
+		// Stop after extended polling (2 minutes) without notifying user
+		if (_extended) {
+			this._logService.info('OutputMonitor: Extended polling timeout reached after 2 minutes');
 			this._state = OutputMonitorState.Cancelled;
 			return false;
 		}
-		extended = true;
-
-		const { promise: p, part } = await this._promptForMorePolling(command, token, invocationContext);
-		let continuePollingDecisionP: Promise<boolean> | undefined = p;
-		continuePollingPart = part;
-
-		// Start another polling pass and race it against the user's decision
-		const nextPollP = this._waitForIdle(this._execution, extended, token)
-			.catch((): IPollingResult => ({
-				state: OutputMonitorState.Cancelled,
-				output: this._execution.getOutput(),
-				modelOutputEvalResponse: 'Cancelled'
-			}));
-
-		const race = await Promise.race([
-			continuePollingDecisionP.then(v => ({ kind: 'decision' as const, v })),
-			nextPollP.then(r => ({ kind: 'poll' as const, r }))
-		]);
-
-		if (race.kind === 'decision') {
-			try { continuePollingPart?.hide(); } catch { /* noop */ }
-			continuePollingPart = undefined;
-
-			// User explicitly declined to keep waiting, so finish with the timed-out result
-			if (race.v === false) {
-				this._state = OutputMonitorState.Cancelled;
-				return false;
-			}
-
-			// User accepted; keep polling (the loop iterates again).
-			// Clear the decision so we don't race on a resolved promise.
-			continuePollingDecisionP = undefined;
-			return true;
-		} else {
-			// A background poll completed while waiting for a decision
-			const r = race.r;
-
-			if (r === OutputMonitorState.Idle || r === OutputMonitorState.Cancelled || r === OutputMonitorState.Timeout) {
-				try { continuePollingPart?.hide(); } catch { /* noop */ }
-				continuePollingPart = undefined;
-				continuePollingDecisionP = undefined;
-
-				return false;
-			}
-
-			// Still timing out; loop and race again with the same prompt.
-			return true;
-		}
+		// Continue polling with exponential backoff
+		return true;
 	}
 
 	/**
@@ -291,9 +299,17 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				waited += waitTime;
 				currentInterval = Math.min(currentInterval * 2, maxInterval);
 				const currentOutput = execution.getOutput();
+
+				if (detectsNonInteractiveHelpPattern(currentOutput)) {
+					this._state = OutputMonitorState.Idle;
+					this._setupIdleInputListener();
+					return this._state;
+				}
+
 				const promptResult = detectsInputRequiredPattern(currentOutput);
 				if (promptResult) {
 					this._state = OutputMonitorState.Idle;
+					this._setupIdleInputListener();
 					return this._state;
 				}
 
@@ -309,6 +325,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				this._logService.trace(`OutputMonitor: waitForIdle check: waited=${waited}ms, recentlyIdle=${recentlyIdle}, isActive=${isActive}`);
 				if (recentlyIdle && isActive !== true) {
 					this._state = OutputMonitorState.Idle;
+					this._setupIdleInputListener();
 					return this._state;
 				}
 			}
@@ -323,26 +340,26 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		return OutputMonitorState.Timeout;
 	}
 
-	private async _promptForMorePolling(command: string, token: CancellationToken, context: IToolInvocationContext | undefined): Promise<{ promise: Promise<boolean>; part?: ChatElicitationRequestPart }> {
-		if (token.isCancellationRequested || this._state === OutputMonitorState.Cancelled) {
-			return { promise: Promise.resolve(false) };
-		}
-		const result = this._createElicitationPart<boolean>(
-			token,
-			context?.sessionId,
-			new MarkdownString(localize('poll.terminal.waiting', "Continue waiting for `{0}`?", command)),
-			new MarkdownString(localize('poll.terminal.polling', "This will continue to poll for output to determine when the terminal becomes idle for up to 2 minutes.")),
-			'',
-			localize('poll.terminal.accept', 'Yes'),
-			localize('poll.terminal.reject', 'No'),
-			async () => true,
-			async () => { this._state = OutputMonitorState.Cancelled; return false; }
-		);
+	/**
+	 * Sets up a listener for user input that triggers immediately when idle is detected.
+	 * This ensures we catch any input that happens between idle detection and prompt creation.
+	 */
+	private _setupIdleInputListener(): void {
+		this._userInputtedSinceIdleDetected = false;
 
-		return { promise: result.promise.then(p => p ?? false), part: result.part };
+		// Set up new listener (MutableDisposable auto-disposes previous)
+		this._userInputListener.value = this._execution.instance.onDidInputData(() => {
+			this._userInputtedSinceIdleDetected = true;
+		});
 	}
 
-
+	/**
+	 * Cleans up the idle input listener and resets the flag.
+	 */
+	private _cleanupIdleInputListener(): void {
+		this._userInputtedSinceIdleDetected = false;
+		this._userInputListener.clear();
+	}
 
 	private async _assessOutputForErrors(buffer: string, token: CancellationToken): Promise<string | undefined> {
 		const model = await this._getLanguageModel();
@@ -376,8 +393,13 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			return undefined;
 		}
 		const lastLines = execution.getOutput(this._lastPromptMarker).trimEnd().split('\n').slice(-15).join('\n');
+
+		if (detectsNonInteractiveHelpPattern(lastLines)) {
+			return undefined;
+		}
+
 		const promptText =
-			`Analyze the following terminal output. If it contains a prompt requesting user input (such as a confirmation, selection, or yes/no question) and that prompt has NOT already been answered, extract the prompt text. The prompt may ask to choose from a set. If so, extract the possible options as a JSON object with keys 'prompt', 'options' (an array of strings or an object with option to description mappings), and 'freeFormInput': false. If no options are provided, and free form input is requested, for example: Password:, return the word freeFormInput. For example, if the options are "[Y] Yes  [A] Yes to All  [N] No  [L] No to All  [C] Cancel", the option to description mappings would be {"Y": "Yes", "A": "Yes to All", "N": "No", "L": "No to All", "C": "Cancel"}. If there is no such prompt, return null. If the option is ambiguous, return null.
+			`Analyze the following terminal output. If it contains a prompt requesting user input (such as a confirmation, selection, or yes/no question) that appears at the VERY END of the output and has NOT already been answered (i.e., there is no user response or subsequent output after the prompt), extract the prompt text. IMPORTANT: Only detect prompts that are at the end of the output with no content following them - if there is any output after the prompt, the prompt has already been answered and you should return null. The prompt may ask to choose from a set. If so, extract the possible options as a JSON object with keys 'prompt', 'options' (an array of strings or an object with option to description mappings), and 'freeFormInput': false. If no options are provided, and free form input is requested, for example: Password:, return the word freeFormInput. For example, if the options are "[Y] Yes  [A] Yes to All  [N] No  [L] No to All  [C] Cancel", the option to description mappings would be {"Y": "Yes", "A": "Yes to All", "N": "No", "L": "No to All", "C": "Cancel"}. If there is no such prompt, return null. If the option is ambiguous, return null.
 			Examples:
 			1. Output: "Do you want to overwrite? (y/n)"
 				Response: {"prompt": "Do you want to overwrite?", "options": ["y", "n"], "freeFormInput": false}
@@ -398,15 +420,19 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				Response: {"prompt": "Continue", "options": ["y", "N"], "freeFormInput": false}
 
 			7. Output: "Press any key to close the terminal."
-				Response: {"prompt": "Press any key to continue...", "options": ["a"], "freeFormInput": false}
+				Response: null
 
 			8. Output: "Terminal will be reused by tasks, press any key to close it."
-				Response: {"prompt": "Terminal will be reused by tasks, press any key to close it.", "options": ["a"], "freeFormInput": false}
+				Response: null
 
 			9. Output: "Password:"
 				Response: {"prompt": "Password:", "freeFormInput": true, "options": []}
 			10. Output: "press ctrl-c to detach, ctrl-d to kill"
 				Response: null
+			11. Output: "Continue (y/n)? y"
+				Response: null (the prompt was already answered with 'y')
+			12. Output: "Do you want to proceed? (yes/no)\nyes\nProceeding with operation..."
+				Response: null (the prompt was already answered and there is subsequent output)
 
 			Alternatively, the prompt may request free form input, for example:
 			1. Output: "Enter your username:"
@@ -493,7 +519,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		}
 		const parsed = suggestedOption.replace(/['"`]/g, '').trim();
 		const index = confirmationPrompt.options.indexOf(parsed);
-		const validOption = confirmationPrompt.options.find(opt => parsed === 'any key' || parsed === opt.replace(/['"`]/g, '').trim());
+		const validOption = confirmationPrompt.options.find(opt => parsed === opt.replace(/['"`]/g, '').trim());
 		if (!validOption || index === -1) {
 			return;
 		}
@@ -570,9 +596,9 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	}
 
 	private async _confirmRunInTerminal(token: CancellationToken, suggestedOption: SuggestedOption, execution: IExecution, confirmationPrompt: IConfirmationPrompt): Promise<string | boolean | undefined> {
-		let suggestedOptionValue = isString(suggestedOption) ? suggestedOption : suggestedOption.option;
+		const suggestedOptionValue = isString(suggestedOption) ? suggestedOption : suggestedOption.option;
 		if (suggestedOptionValue === 'any key') {
-			suggestedOptionValue = 'a';
+			return;
 		}
 		const focusTerminalSelection = Symbol('focusTerminalSelection');
 		let inputDataDisposable: IDisposable = Disposable.None;
@@ -684,7 +710,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		}
 		let part!: ChatElicitationRequestPart;
 		const promise = new Promise<T | undefined>(resolve => {
-			const thePart = part = this._register(new ChatElicitationRequestPart(
+			const thePart = part = new ChatElicitationRequestPart(
 				title,
 				detail,
 				subtitle,
@@ -717,7 +743,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				undefined, // source
 				moreActions,
 				() => this._outputMonitorTelemetryCounters.inputToolManualShownCount++
-			));
+			);
 
 			chatModel.acceptResponseProgress(request, thePart);
 			this._promptPart = thePart;
@@ -770,7 +796,7 @@ export function detectsInputRequiredPattern(cursorLine: string): boolean {
 	return [
 		// PowerShell-style multi-option line (supports [?] Help and optional default suffix) ending
 		// in whitespace
-		/\s*(?:\[[^\]]\]\s+[^\[]+\s*)+(?:\(default is\s+"[^"]+"\):)?\s+$/,
+		/\s*(?:\[[^\]]\]\s+[^\[\s][^\[]*\s*)+(?:\(default is\s+"[^"]+"\):)?\s+$/,
 		// Bracketed/parenthesized yes/no pairs at end of line: (y/n), [Y/n], (yes/no), [no/yes]
 		/(?:\(|\[)\s*(?:y(?:es)?\s*\/\s*n(?:o)?|n(?:o)?\s*\/\s*y(?:es)?)\s*(?:\]|\))\s+$/i,
 		// Same as above but allows a preceding '?' or ':' and optional wrappers e.g.
@@ -788,5 +814,19 @@ export function detectsInputRequiredPattern(cursorLine: string): boolean {
 		/\?\s*(?:\([a-z\s]+\))?$/i,
 		// "Press a key" or "Press any key"
 		/press a(?:ny)? key/i,
+	].some(e => e.test(cursorLine));
+}
+
+export function detectsNonInteractiveHelpPattern(cursorLine: string): boolean {
+	return [
+		/press [h?]\s*(?:\+\s*enter)?\s*to (?:show|open|display|get|see)\s*(?:available )?(?:help|commands|options)/i,
+		/press h\s*(?:or\s*\?)?\s*(?:\+\s*enter)?\s*for (?:help|commands|options)/i,
+		/press \?\s*(?:\+\s*enter)?\s*(?:to|for)?\s*(?:help|commands|options|list)/i,
+		/type\s*[h?]\s*(?:\+\s*enter)?\s*(?:for|to see|to show)\s*(?:help|commands|options)/i,
+		/hit\s*[h?]\s*(?:\+\s*enter)?\s*(?:for|to see|to show)\s*(?:help|commands|options)/i,
+		/press o\s*(?:\+\s*enter)?\s*(?:to|for)?\s*(?:open|launch)(?:\s*(?:the )?(?:app|application|browser)|\s+in\s+(?:the\s+)?browser)?/i,
+		/press r\s*(?:\+\s*enter)?\s*(?:to|for)?\s*(?:restart|reload|refresh)(?:\s*(?:the )?(?:server|dev server|service))?/i,
+		/press q\s*(?:\+\s*enter)?\s*(?:to|for)?\s*(?:quit|exit|stop)(?:\s*(?:the )?(?:server|app|process))?/i,
+		/press u\s*(?:\+\s*enter)?\s*(?:to|for)?\s*(?:show|print|display)\s*(?:the )?(?:server )?urls?/i
 	].some(e => e.test(cursorLine));
 }

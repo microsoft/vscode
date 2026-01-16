@@ -16,41 +16,38 @@ import { IHandOff, ParsedPromptFile } from '../promptFileParser.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 
 /**
- * Target environment for custom agents.
+ * Activation events for prompt file providers.
  */
-export enum CustomAgentTarget {
-	GitHubCopilot = 'github-copilot',
-	VSCode = 'vscode',
-}
+export const CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT = 'onCustomAgentProvider';
+export const INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT = 'onInstructionsProvider';
+export const PROMPT_FILE_PROVIDER_ACTIVATION_EVENT = 'onPromptFileProvider';
+export const SKILL_PROVIDER_ACTIVATION_EVENT = 'onSkillProvider';
 
 /**
- * Options for querying custom agents.
+ * Context for querying prompt files.
  */
-export interface ICustomAgentQueryOptions {
-	/**
-	 * Filter agents by target environment.
-	 */
-	readonly target?: CustomAgentTarget;
-}
+export interface IPromptFileContext { }
 
 /**
- * Represents a custom agent resource from an external provider.
+ * Represents a prompt file resource from an external provider.
  */
-export interface IExternalCustomAgent {
-	/**
-	 * The unique identifier/name of the custom agent resource.
-	 */
-	readonly name: string;
-
-	/**
-	 * A description of what the custom agent resource does.
-	 */
-	readonly description: string;
-
+export interface IPromptFileResource {
 	/**
 	 * The URI to the agent or prompt resource file.
 	 */
 	readonly uri: URI;
+
+	/**
+	 * Indicates whether the custom agent resource is editable. Defaults to false.
+	 */
+	readonly isEditable?: boolean;
+
+	/**
+	 * The inline content for virtual prompt files. This property is only used
+	 * during IPC transfer from extension host to main thread - the content is
+	 * immediately registered with the ChatPromptContentStore and not passed further.
+	 */
+	readonly content?: string;
 }
 
 /**
@@ -111,9 +108,9 @@ export interface IPromptPathBase {
 export interface IExtensionPromptPath extends IPromptPathBase {
 	readonly storage: PromptsStorage.extension;
 	readonly extension: IExtensionDescription;
-	readonly name: string;
-	readonly description: string;
 	readonly source: ExtensionAgentSourceType;
+	readonly name?: string;
+	readonly description?: string;
 }
 export interface ILocalPromptPath extends IPromptPathBase {
 	readonly storage: PromptsStorage.local;
@@ -201,9 +198,9 @@ export interface IChatPromptSlashCommand {
 	readonly parsedPromptFile: ParsedPromptFile;
 }
 
-export interface IClaudeSkill {
+export interface IAgentSkill {
 	readonly uri: URI;
-	readonly type: 'personal' | 'project';
+	readonly storage: PromptsStorage;
 	readonly name: string;
 	readonly description: string | undefined;
 }
@@ -233,7 +230,7 @@ export interface IPromptsService extends IDisposable {
 	/**
 	 * Get a list of prompt source folders based on the provided prompt type.
 	 */
-	getSourceFolders(type: PromptsType): readonly IPromptPath[];
+	getSourceFolders(type: PromptsType): Promise<readonly IPromptPath[]>;
 
 	/**
 	 * Validates if the provided command name is a valid prompt slash command.
@@ -281,7 +278,7 @@ export interface IPromptsService extends IDisposable {
 	 * Internal: register a contributed file. Returns a disposable that removes the contribution.
 	 * Not intended for extension authors; used by contribution point handler.
 	 */
-	registerContributedFile(type: PromptsType, name: string, description: string, uri: URI, extension: IExtensionDescription): IDisposable;
+	registerContributedFile(type: PromptsType, uri: URI, extension: IExtensionDescription, name: string | undefined, description: string | undefined): IDisposable;
 
 
 	getPromptLocationLabel(promptPath: IPromptPath): string;
@@ -319,19 +316,19 @@ export interface IPromptsService extends IDisposable {
 	setDisabledPromptFiles(type: PromptsType, uris: ResourceSet): void;
 
 	/**
-	 * Registers a CustomAgentsProvider that can provide custom agents for repositories.
-	 * This is part of the proposed API and requires the chatParticipantPrivate proposal.
+	 * Registers a prompt file provider that can provide prompt files for repositories.
 	 * @param extension The extension registering the provider.
+	 * @param type The type of contribution.
 	 * @param provider The provider implementation with optional change event.
 	 * @returns A disposable that unregisters the provider when disposed.
 	 */
-	registerCustomAgentsProvider(extension: IExtensionDescription, provider: {
-		onDidChangeCustomAgents?: Event<void>;
-		provideCustomAgents: (options: ICustomAgentQueryOptions, token: CancellationToken) => Promise<IExternalCustomAgent[] | undefined>;
+	registerPromptFileProvider(extension: IExtensionDescription, type: PromptsType, provider: {
+		onDidChangePromptFiles?: Event<void>;
+		providePromptFiles: (context: IPromptFileContext, token: CancellationToken) => Promise<IPromptFileResource[] | undefined>;
 	}): IDisposable;
 
 	/**
-	 * Gets list of claude skills files.
+	 * Gets list of agent skills files.
 	 */
-	findClaudeSkills(token: CancellationToken): Promise<IClaudeSkill[] | undefined>;
+	findAgentSkills(token: CancellationToken): Promise<IAgentSkill[] | undefined>;
 }

@@ -16,8 +16,8 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariableEntry, toPromptFileVariableEntry, toPromptTextVariableEntry, PromptFileVariableKind, IPromptTextVariableEntry, ChatRequestToolReferenceEntry, toToolVariableEntry } from '../chatVariableEntries.js';
-import { ILanguageModelToolsService, IToolAndToolSetEnablementMap, IToolData, VSCodeToolReference } from '../languageModelToolsService.js';
+import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariableEntry, toPromptFileVariableEntry, toPromptTextVariableEntry, PromptFileVariableKind, IPromptTextVariableEntry, ChatRequestToolReferenceEntry, toToolVariableEntry } from '../attachments/chatVariableEntries.js';
+import { ILanguageModelToolsService, IToolAndToolSetEnablementMap, IToolData, VSCodeToolReference } from '../tools/languageModelToolsService.js';
 import { PromptsConfig } from './config/config.js';
 import { isPromptOrInstructionsFile } from './config/promptFileLocations.js';
 import { PromptsType } from './promptTypes.js';
@@ -258,11 +258,11 @@ export class ComputeAutomaticInstructions {
 			const agentsMdPromise = searchNestedAgentMd ? this._promptsService.findAgentMDsInWorkspace(token) : Promise.resolve([]);
 
 			entries.push('<instructions>');
-			entries.push('Here is a list of instruction files that contain rules for modifying or creating new code.');
-			entries.push('These files are important for ensuring that the code is modified or created correctly.');
+			entries.push('Here is a list of instruction files that contain rules for working with this codebase.');
+			entries.push('These files are important for understanding the codebase structure, conventions, and best practices.');
 			entries.push('Please make sure to follow the rules specified in these files when working with the codebase.');
 			entries.push(`If the file is not already available as attachment, use the ${readTool.variable} tool to acquire it.`);
-			entries.push('Make sure to acquire the instructions before making any changes to the code.');
+			entries.push('Make sure to acquire the instructions before working with the codebase.');
 			let hasContent = false;
 			for (const { uri } of instructionFiles) {
 				const parsedFile = await this._parseInstructionsFile(uri, token);
@@ -277,6 +277,8 @@ export class ComputeAutomaticInstructions {
 						if (applyTo) {
 							entries.push(`<applyTo>${applyTo}</applyTo>`);
 						}
+					} else {
+						entries.push(`<file>${getFilePath(uri)}</file>`);
 					}
 					entries.push('</instruction>');
 					hasContent = true;
@@ -302,13 +304,13 @@ export class ComputeAutomaticInstructions {
 				entries.push('</instructions>', '', ''); // add trailing newline
 			}
 
-			const claudeSkills = await this._promptsService.findClaudeSkills(token);
-			if (claudeSkills && claudeSkills.length > 0) {
+			const agentSkills = await this._promptsService.findAgentSkills(token);
+			if (agentSkills && agentSkills.length > 0) {
 				entries.push('<skills>');
 				entries.push('Here is a list of skills that contain domain specific knowledge on a variety of topics.');
 				entries.push('Each skill comes with a description of the topic and a file path that contains the detailed instructions.');
 				entries.push(`When a user asks you to perform a task that falls within the domain of a skill, use the ${readTool.variable} tool to acquire the full instructions from the file URI.`);
-				for (const skill of claudeSkills) {
+				for (const skill of agentSkills) {
 					entries.push('<skill>');
 					entries.push(`<name>${skill.name}</name>`);
 					if (skill.description) {

@@ -43,6 +43,11 @@ declare module 'vscode' {
 		 * The value of the context item. Can be omitted when returned from one of the `provide` methods if the provider supports `resolveChatContext`.
 		 */
 		value?: string;
+		/**
+		 * An optional command that is executed when the context item is clicked.
+		 * The original context item will be passed as the first argument to the command.
+		 */
+		command?: Command;
 	}
 
 	export interface ChatContextProvider<T extends ChatContextItem = ChatContextItem> {
@@ -53,7 +58,11 @@ declare module 'vscode' {
 		onDidChangeWorkspaceChatContext?: Event<void>;
 
 		/**
-		 * Provide a list of chat context items to be included as workspace context for all chat sessions.
+		 * TODO @API: should this be a separate provider interface?
+		 *
+		 * Provide a list of chat context items to be included as workspace context for all chat requests.
+		 * This should be used very sparingly to avoid providing useless context and to avoid using up the context window.
+		 * A good example use case is to provide information about which branch the user is working on in a source control context.
 		 *
 		 * @param token A cancellation token.
 		 */
@@ -72,6 +81,8 @@ declare module 'vscode' {
 		 * Given a particular resource, provide a chat context item for it. This is used for implicit context (see the settings `chat.implicitContext.enabled` and `chat.implicitContext.suggestedContext`).
 		 * Chat context items can be provided without a `value`, as the `value` can be resolved later using `resolveChatContext`.
 		 * `resolveChatContext` is only called for items that do not have a `value`.
+		 *
+		 * Currently only called when the resource is a webview.
 		 *
 		 * @param options Options include the resource for which to provide context.
 		 * @param token A cancellation token.

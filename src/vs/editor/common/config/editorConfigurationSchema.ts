@@ -64,15 +64,17 @@ const editorConfiguration: IConfigurationNode = {
 			description: nls.localize('largeFileOptimizations', "Special handling for large files to disable certain memory intensive features.")
 		},
 		'editor.wordBasedSuggestions': {
-			enum: ['off', 'currentDocument', 'matchingDocuments', 'allDocuments'],
+			enum: ['off', 'offWithInlineSuggestions', 'currentDocument', 'matchingDocuments', 'allDocuments'],
 			default: 'matchingDocuments',
 			enumDescriptions: [
 				nls.localize('wordBasedSuggestions.off', 'Turn off Word Based Suggestions.'),
+				nls.localize('wordBasedSuggestions.offWithInlineSuggestions', 'Turn off Word Based Suggestions when Inline Suggestions are present.'),
 				nls.localize('wordBasedSuggestions.currentDocument', 'Only suggest words from the active document.'),
 				nls.localize('wordBasedSuggestions.matchingDocuments', 'Suggest words from all open documents of the same language.'),
-				nls.localize('wordBasedSuggestions.allDocuments', 'Suggest words from all open documents.')
+				nls.localize('wordBasedSuggestions.allDocuments', 'Suggest words from all open documents.'),
 			],
-			description: nls.localize('wordBasedSuggestions', "Controls whether completions should be computed based on words in the document and from which documents they are computed.")
+			description: nls.localize('wordBasedSuggestions', "Controls whether completions should be computed based on words in the document and from which documents they are computed."),
+			experiment: { mode: 'auto' },
 		},
 		'editor.semanticHighlighting.enabled': {
 			enum: [true, false, 'configuredByTheme'],

@@ -16,7 +16,7 @@ import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../.
 import { AllowedMcpServer } from '../../../../services/authentication/browser/authenticationMcpAccessService.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { IAuthenticationQueryService, IAccountQuery } from '../../../../services/authentication/common/authenticationQuery.js';
-import { ChatContextKeys } from '../../../chat/common/chatContextKeys.js';
+import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { IMcpService } from '../../../mcp/common/mcpTypes.js';
 
 export class ManageTrustedMcpServersForAccountAction extends Action2 {
@@ -173,6 +173,7 @@ class ManageTrustedMcpServersForAccountActionImpl {
 		quickPick.canSelectMany = true;
 		quickPick.customButton = true;
 		quickPick.customLabel = localize('manageTrustedMcpServers.cancel', 'Cancel');
+		quickPick.customButtonSecondary = true;
 		quickPick.title = localize('manageTrustedMcpServers', "Manage Trusted MCP Servers");
 		quickPick.placeholder = localize('manageMcpServers', "Choose which MCP servers can access this account");
 

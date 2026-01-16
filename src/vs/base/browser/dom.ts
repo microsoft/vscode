@@ -18,7 +18,7 @@ import { URI } from '../common/uri.js';
 import { hash } from '../common/hash.js';
 import { CodeWindow, ensureCodeWindow, mainWindow } from './window.js';
 import { isPointWithinTriangle } from '../common/numbers.js';
-import { IObservable, derived, derivedOpts, IReader, observableValue } from '../common/observable.js';
+import { IObservable, derived, derivedOpts, IReader, observableValue, isObservable } from '../common/observable.js';
 
 export interface IRegisteredCodeWindow {
 	readonly window: CodeWindow;
@@ -1388,10 +1388,6 @@ export function hide(...elements: HTMLElement[]): void {
 	}
 }
 
-export function isVisible(element: HTMLElement): boolean {
-	return element.style.display !== 'none';
-}
-
 function findParentWithAttribute(node: Node | null, attribute: string): HTMLElement | null {
 	while (node && node.nodeType === node.ELEMENT_NODE) {
 		if (isHTMLElement(node) && node.hasAttribute(attribute)) {
@@ -2632,9 +2628,6 @@ function setOrRemoveAttribute(element: HTMLOrSVGElement, key: string, value: unk
 	}
 }
 
-function isObservable<T>(obj: unknown): obj is IObservable<T> {
-	return !!obj && (<IObservable<T>>obj).read !== undefined && (<IObservable<T>>obj).reportChanges !== undefined;
-}
 type ElementAttributeKeys<T> = Partial<{
 	[K in keyof T]: T[K] extends Function ? never : T[K] extends object ? ElementAttributeKeys<T[K]> : Value<number | T[K] | undefined | null>;
 }>;

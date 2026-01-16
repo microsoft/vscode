@@ -8,7 +8,6 @@ import { isObject, isString } from '../../../../../base/common/types.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ProductQualityContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -18,7 +17,7 @@ import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer } from '../
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { CONTEXT_MODELS_EDITOR, CONTEXT_MODELS_SEARCH_FOCUS, MANAGE_CHAT_COMMAND_ID } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { ChatManagementEditor, ModelsManagementEditor } from './chatManagementEditor.js';
@@ -107,7 +106,7 @@ registerAction2(class extends Action2 {
 			id: MANAGE_CHAT_COMMAND_ID,
 			title: localize2('openAiManagement', "Manage Language Models"),
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(ProductQualityContext.notEqualsTo('stable'), ChatContextKeys.enabled, ContextKeyExpr.or(
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(
 				ChatContextKeys.Entitlement.planFree,
 				ChatContextKeys.Entitlement.planPro,
 				ChatContextKeys.Entitlement.planProPlus,

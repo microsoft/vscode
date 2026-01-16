@@ -47,6 +47,7 @@ export class EditTelemetryReportInlineEditArcSender extends Disposable {
 					extensionVersion: string;
 					opportunityId: string;
 					languageId: string;
+					correlationId: string | undefined;
 					didBranchChange: number;
 					timeDelayMs: number;
 
@@ -64,6 +65,7 @@ export class EditTelemetryReportInlineEditArcSender extends Disposable {
 					extensionVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version of the extension.' };
 					opportunityId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Unique identifier for an opportunity to show an inline suggestion.' };
 					languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language id of the document.' };
+					correlationId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The correlation id of the inline suggestion.' };
 
 					didBranchChange: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Indicates if the branch changed in the meantime. If the branch changed (value is 1); this event should probably be ignored.' };
 					timeDelayMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The time delay between the user accepting the edit and measuring the survival rate.' };
@@ -79,6 +81,7 @@ export class EditTelemetryReportInlineEditArcSender extends Disposable {
 					extensionVersion: data.$extensionVersion ?? '',
 					opportunityId: data.$$requestUuid ?? 'unknown',
 					languageId: data.$$languageId,
+					correlationId: data.$$correlationId,
 					didBranchChange: res.didBranchChange ? 1 : 0,
 					timeDelayMs: res.timeDelayMs,
 
