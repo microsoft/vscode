@@ -5,6 +5,10 @@
 
 import { BrowserWindow } from 'electron';
 
+/**
+ * Checks if the current network connection is metered (e.g., mobile data, tethered connection, or data saver enabled).
+ * @returns A promise that resolves to true if the connection is metered, false otherwise.
+ */
 export async function isMeteredConnection(): Promise<boolean> {
 	try {
 		for (const window of BrowserWindow.getAllWindows()) {

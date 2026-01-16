@@ -157,10 +157,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 
 	protected async isConnectionMetered(): Promise<boolean> {
 		const respectMeteredConnections = this.configurationService.getValue<boolean>('update.respectMeteredConnections');
-		if (!respectMeteredConnections) {
-			return false;
-		}
-		return false;
+		return respectMeteredConnections && await isMeteredConnection();
 	}
 
 	async downloadUpdate(): Promise<void> {
