@@ -147,10 +147,10 @@ export class ModelPickerActionItem extends ChatInputPickerActionViewItem {
 		delegate: IModelPickerDelegate,
 		pickerOptions: IChatInputPickerOptions,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@ICommandService commandService: ICommandService,
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
-		@IKeybindingService keybindingService: IKeybindingService,
+		@IKeybindingService protected readonly keybindingService: IKeybindingService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IProductService productService: IProductService,
 	) {
@@ -179,18 +179,16 @@ export class ModelPickerActionItem extends ChatInputPickerActionViewItem {
 	}
 
 	protected override getTooltip(): string {
-		const baseTooltip = super.getTooltip();
 		const pickModelLabel = localize('chat.modelPicker.label', "Pick Model");
-		// Combine pick model label with keybinding if present
-		return baseTooltip ? `${pickModelLabel} ${baseTooltip}` : pickModelLabel;
+		// Append keybinding to the label
+		return this.keybindingService.appendKeybinding(pickModelLabel, this.action.id, this.contextKeyService);
 	}
 
 	protected override getHoverContents(): IManagedHoverContent | undefined {
-		const baseLabel = super.getTooltip(); // Get base tooltip with keybinding
 		const pickModelLabel = localize('chat.modelPicker.label', "Pick Model");
-		const label = baseLabel ? `${pickModelLabel} ${baseLabel}` : pickModelLabel;
+		const baseLabel = this.keybindingService.appendKeybinding(pickModelLabel, this.action.id, this.contextKeyService);
 		const { statusIcon, tooltip } = this.currentModel?.metadata || {};
-		return statusIcon && tooltip ? `${label} • ${tooltip}` : label;
+		return statusIcon && tooltip ? `${baseLabel} • ${tooltip}` : baseLabel;
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
