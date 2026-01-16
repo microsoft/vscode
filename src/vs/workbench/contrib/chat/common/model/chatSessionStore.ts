@@ -496,7 +496,11 @@ export class ChatSessionStore extends Disposable {
 				rawData = (await this.fileService.readFile(logStorageLocation)).value;
 				fromLocation = logStorageLocation;
 			} catch (e) {
-				this.reportError('sessionReadFile', `Error reading log chat session file ${sessionId}`, e);
+				// Only report error if file exists but couldn't be read - not finding a file is expected
+				// when the session was deleted (e.g., empty sessions are deleted on dispose)
+				if (toFileOperationResult(e) !== FileOperationResult.FILE_NOT_FOUND) {
+					this.reportError('sessionReadFile', `Error reading log chat session file ${sessionId}`, e);
+				}
 			}
 		}
 
@@ -505,7 +509,11 @@ export class ChatSessionStore extends Disposable {
 				rawData = (await this.fileService.readFile(flatStorageLocation)).value;
 				fromLocation = flatStorageLocation;
 			} catch (e) {
-				this.reportError('sessionReadFile', `Error reading flat chat session file ${sessionId}`, e);
+				// Only report error if file exists but couldn't be read - not finding a file is expected
+				// when the session was deleted (e.g., empty sessions are deleted on dispose)
+				if (toFileOperationResult(e) !== FileOperationResult.FILE_NOT_FOUND) {
+					this.reportError('sessionReadFile', `Error reading flat chat session file ${sessionId}`, e);
+				}
 
 				if (toFileOperationResult(e) === FileOperationResult.FILE_NOT_FOUND && this.previousEmptyWindowStorageRoot) {
 					rawData = await this.readSessionFromPreviousLocation(sessionId);
@@ -557,7 +565,11 @@ export class ChatSessionStore extends Disposable {
 				rawData = (await this.fileService.readFile(storageLocation2)).value;
 				this.logService.info(`ChatSessionStore: Read chat session ${sessionId} from previous location`);
 			} catch (e) {
-				this.reportError('sessionReadFile', `Error reading chat session file ${sessionId} from previous location`, e);
+				// Only report error if file exists but couldn't be read - not finding a file is expected
+				// when the session was deleted (e.g., empty sessions are deleted on dispose)
+				if (toFileOperationResult(e) !== FileOperationResult.FILE_NOT_FOUND) {
+					this.reportError('sessionReadFile', `Error reading chat session file ${sessionId} from previous location`, e);
+				}
 				return undefined;
 			}
 		}
