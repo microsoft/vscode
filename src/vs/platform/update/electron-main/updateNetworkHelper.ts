@@ -26,19 +26,11 @@ export async function isMeteredConnection(): Promise<boolean> {
 	}
 
 	try {
-		// Query the renderer process via IPC
-		const result = await window.webContents.executeJavaScript(`
-			(function() {
-				if (typeof window !== 'undefined' && window.vscodeWindowId !== undefined) {
-					// Use the IPC channel to query network status
-					return require('electron').ipcRenderer.invoke('vscode:isMeteredConnection');
-				}
-				return false;
-			})()
-		`);
+		// Query the renderer process via IPC channel
+		const result = await window.webContents.ipc.invoke('vscode:isMeteredConnection');
 		return result === true;
 	} catch (error) {
-		// If execution fails (e.g., window is not ready), default to false
+		// If query fails (e.g., window is not ready), default to false
 		return false;
 	}
 }
