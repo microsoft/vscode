@@ -13,7 +13,7 @@ import { ICompressedTreeNode } from '../../../../../base/browser/ui/tree/compres
 import { ICompressibleKeyboardNavigationLabelProvider, ICompressibleTreeRenderer } from '../../../../../base/browser/ui/tree/objectTree.js';
 import { ITreeNode, ITreeElementRenderDetails, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction } from '../../../../../base/browser/ui/tree/tree.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { AgentSessionSection, AgentSessionStatus, getAgentChangesSummary, hasValidDiff, IAgentSession, IAgentSessionSection, IAgentSessionsModel, isAgentSession, isAgentSessionSection, isAgentSessionsModel, isLocalAgentSessionItem, isSessionInProgressStatus } from './agentSessionsModel.js';
+import { AgentSessionSection, AgentSessionStatus, getAgentChangesSummary, hasValidDiff, IAgentSession, IAgentSessionSection, IAgentSessionsModel, isAgentSession, isAgentSessionSection, isAgentSessionsModel, isSessionInProgressStatus } from './agentSessionsModel.js';
 import { IconLabel } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -329,12 +329,8 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 			return timeLabel;
 		};
 
-		// Provider icon (hide for local sessions)
-		if (!isLocalAgentSessionItem(session.element)) {
-			template.statusProviderIcon.className = `agent-session-status-provider-icon ${ThemeIcon.asClassName(session.element.icon)}`;
-		} else {
-			template.statusProviderIcon.className = 'agent-session-status-provider-icon hidden';
-		}
+		// Provider icon
+		template.statusProviderIcon.className = `agent-session-status-provider-icon ${ThemeIcon.asClassName(session.element.icon)}`;
 
 		// Time label
 		template.statusTime.textContent = getTimeLabel(session.element);
