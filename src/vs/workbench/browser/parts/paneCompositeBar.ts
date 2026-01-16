@@ -449,8 +449,8 @@ export class PaneCompositeBar extends Disposable {
 		if (!this.hasExtensionsRegistered && !(this.part === Parts.SIDEBAR_PART && this.environmentService.remoteAuthority && isNative)) {
 			cachedViewContainer = cachedViewContainer || this.cachedViewContainers.find(({ id }) => id === viewContainerId);
 
-			// Show builtin ViewContainer if not registered yet
-			if (!viewContainer && cachedViewContainer?.isBuiltin && cachedViewContainer?.visible) {
+			// Show builtin ViewContainer if not registered yet or if registered but not yet active (views not loaded)
+			if (cachedViewContainer?.isBuiltin && cachedViewContainer?.visible) {
 				return false;
 			}
 
