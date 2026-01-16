@@ -9,10 +9,12 @@ import { mkdir, readFile, unlink } from 'fs/promises';
 import { tmpdir } from 'os';
 import { app } from 'electron';
 import { timeout } from '../../../base/common/async.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { memoize } from '../../../base/common/decorators.js';
 import { hash } from '../../../base/common/hash.js';
 import * as path from '../../../base/common/path.js';
+import { transform } from '../../../base/common/stream.js';
 import { URI } from '../../../base/common/uri.js';
 import { checksum } from '../../../base/node/crypto.js';
 import * as pfs from '../../../base/node/pfs.js';
@@ -187,7 +189,8 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 					return Promise.resolve(null);
 				}
 
-				this.setState(State.Downloading());
+				const startTime = Date.now();
+				this.setState(State.Downloading(0, undefined, startTime));
 
 				return this.cleanup(update.version).then(() => {
 					return this.getUpdatePackagePath(update.version).then(updatePackagePath => {
@@ -199,7 +202,34 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 							const downloadPath = `${updatePackagePath}.tmp`;
 
 							return this.requestService.request({ url: update.url }, CancellationToken.None)
-								.then(context => this.fileService.writeFile(URI.file(downloadPath), context.stream))
+								.then(context => {
+									// Get total size from Content-Length header
+									const contentLengthHeader = context.res.headers['content-length'];
+									const contentLength = typeof contentLengthHeader === 'string' ? contentLengthHeader : undefined;
+									const totalBytes = contentLength ? parseInt(contentLength, 10) : undefined;
+
+									// Track downloaded bytes and update state periodically
+									let downloadedBytes = 0;
+									let lastUpdateTime = startTime;
+									const progressStream = transform<VSBuffer, VSBuffer>(
+										context.stream,
+										{
+											data: data => {
+												downloadedBytes += data.byteLength;
+												// Update state at most every 500ms to avoid too many updates
+												const now = Date.now();
+												if (now - lastUpdateTime >= 500) {
+													this.setState(State.Downloading(downloadedBytes, totalBytes, startTime));
+													lastUpdateTime = now;
+												}
+												return data;
+											}
+										},
+										chunks => VSBuffer.concat(chunks)
+									);
+
+									return this.fileService.writeFile(URI.file(downloadPath), progressStream);
+								})
 								.then(update.sha256hash ? () => checksum(downloadPath, update.sha256hash) : () => undefined)
 								.then(() => pfs.Promises.rename(downloadPath, updatePackagePath, false /* no retry */))
 								.then(() => updatePackagePath);
