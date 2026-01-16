@@ -569,7 +569,7 @@ class AbstractResponse implements IResponse {
 		if (isComplete) {
 			const resultDetails = IChatToolInvocation.resultDetails(toolInvocation);
 			if (resultDetails && 'input' in resultDetails) {
-				const resultPrefix = toolInvocation.kind === 'toolInvocationSerialized' || IChatToolInvocation.isComplete(toolInvocation) ? 'Completed' : 'Errored';
+				const resultPrefix = resultDetails.isError ? 'Errored' : 'Completed';
 				text += `\n${resultPrefix} with input: ${resultDetails.input}`;
 			}
 		}

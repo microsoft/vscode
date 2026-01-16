@@ -105,13 +105,8 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 
 				const state = toolInvocation.state.get();
 
-				// Skip completed tool invocations that should be hidden after completion
-				// Also skip completed tool invocations in general since they're already included via response.toString()
+				// Skip completed tool invocations since they're already included via response.toString()
 				if (IChatToolInvocation.isComplete(toolInvocation)) {
-					if (toolInvocation.presentation === ToolInvocationPresentation.HiddenAfterComplete) {
-						continue;
-					}
-					// Skip completed tool invocations since they're already included via response.toString()
 					continue;
 				}
 
