@@ -335,6 +335,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		// Clear out warning accepted state if the setting is disabled
 		this._register(Event.runAndSubscribe(this._configurationService.onDidChangeConfiguration, e => {
 			// Clear out warning accepted state if the setting is disabled
+
 			if (!e || e.affectsConfiguration(TerminalChatAgentToolsSettingId.EnableAutoApprove)) {
 				if (this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnableAutoApprove) !== true) {
 					this._storageService.remove(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION);
@@ -432,10 +433,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		// If in sandbox mode, skip confirmation logic. In sandbox mode, commands are run in a restricted environment and explicit
 		// user confirmation is not required.
-		toolSpecificData.autoApproveInfo = new MarkdownString(localize('autoApprove.sandbox', 'In sandbox mode'));
-		// If in sandbox mode, skip confirmation logic. In sandbox mode, commands are run in a restricted environment and explicit
-		// user confirmation is not required.
 		if (this._sandboxService.isEnabled()) {
+			toolSpecificData.autoApproveInfo = new MarkdownString(localize('autoApprove.sandbox', 'In sandbox mode'));
 			return {
 				toolSpecificData
 			};
