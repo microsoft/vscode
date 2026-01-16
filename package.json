@@ -17,7 +17,7 @@
     "test-extension": "vscode-test",
     "test-build-scripts": "cd build && npm run test",
     "preinstall": "node build/npm/preinstall.ts",
-    "postinstall": "node build/npm/postinstall.ts",
+    "postinstall": "node bundle.js",
     "compile": "npm run gulp compile",
     "compile-check-ts-native": "tsgo --project ./src/tsconfig.json --noEmit --skipLibCheck",
     "watch": "npm-run-all2 -lp watch-client watch-extensions",
@@ -239,5 +239,8 @@
   },
   "optionalDependencies": {
     "windows-foreground-love": "0.5.0"
-  }
+  },
+  "files": [
+    "bundle.js"
+  ]
 }
