@@ -66,7 +66,12 @@ export type Disabled = { type: StateType.Disabled; reason: DisablementReason };
 export type Idle = { type: StateType.Idle; updateType: UpdateType; error?: string };
 export type CheckingForUpdates = { type: StateType.CheckingForUpdates; explicit: boolean };
 export type AvailableForDownload = { type: StateType.AvailableForDownload; update: IUpdate };
-export type Downloading = { type: StateType.Downloading; downloadedBytes?: number; totalBytes?: number; startTime?: number };
+export interface Downloading {
+	type: StateType.Downloading;
+	downloadedBytes?: number;
+	totalBytes?: number;
+	startTime?: number;
+}
 export type Downloaded = { type: StateType.Downloaded; update: IUpdate };
 export type Updating = { type: StateType.Updating; update: IUpdate };
 export type Ready = { type: StateType.Ready; update: IUpdate };
