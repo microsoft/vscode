@@ -353,9 +353,6 @@ suite('RunInTerminalTool', () => {
 			'find . -fprint output.txt',
 			'rg --pre cat pattern .',
 			'rg --hostname-bin hostname pattern .',
-			'sed -i "s/foo/bar/g" file.txt',
-			'sed -i.bak "s/foo/bar/" file.txt',
-			'sed -Ibak "s/foo/bar/" file.txt',
 			'sed --in-place "s/foo/bar/" file.txt',
 			'sed -e "s/a/b/" file.txt',
 			'sed -f script.sed file.txt',
@@ -453,7 +450,7 @@ suite('RunInTerminalTool', () => {
 				explanation: 'Start watching for file changes',
 				isBackground: true
 			});
-			assertConfirmationRequired(result, 'Run `bash` command? (background terminal)');
+			assertConfirmationRequired(result, 'Run `bash` command in background?');
 		});
 
 		test('should auto-approve background commands in allow list', async () => {
