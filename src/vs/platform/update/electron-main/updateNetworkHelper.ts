@@ -16,13 +16,13 @@ export async function isMeteredConnection(): Promise<boolean> {
 			if (!window.isDestroyed() && window.webContents) {
 				return new Promise<boolean>((resolve) => {
 					const timeout = setTimeout(() => resolve(false), 1000);
-					
+
 					const listener = (_event: Electron.IpcMainEvent, isMetered: boolean) => {
 						clearTimeout(timeout);
 						validatedIpcMain.removeListener('vscode:meteredConnectionResult', listener);
 						resolve(isMetered);
 					};
-					
+
 					validatedIpcMain.on('vscode:meteredConnectionResult', listener);
 					window.webContents.send('vscode:checkMeteredConnection');
 				});
