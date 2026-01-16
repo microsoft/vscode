@@ -65,6 +65,7 @@
 				.chat-used-context-list.chat-terminal-thinking-content {
 					border: none;
 					padding: 0;
+					margin-bottom: 2px;
 
 					.progress-container {
 						margin: 0;
@@ -78,7 +79,7 @@
 		}
 
 		.chat-thinking-item.markdown-content {
-			padding: 5px 12px 6px 24px;
+			padding: 6px 12px 6px 24px;
 			position: relative;
 			font-size: var(--vscode-chat-font-size-body-s);
 
@@ -156,6 +157,11 @@
 				line-height: 12px;
 				text-align: center;
 				color: var(--vscode-descriptionForeground);
+			}
+
+			/* the default book icon has a pixel of space at the bottom */
+			> .chat-thinking-icon codicon.codicon-book {
+				top: 10px;
 			}
 
 		}

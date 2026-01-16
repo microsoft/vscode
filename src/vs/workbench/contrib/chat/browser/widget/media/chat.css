@@ -2197,6 +2197,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-used-context-label .monaco-button {
 	padding: 2px 6px 2px 2px;
+	font-size: var(--vscode-chat-font-size-body-m);
 }
 
 .interactive-session .chat-file-changes-label .monaco-button:hover {
