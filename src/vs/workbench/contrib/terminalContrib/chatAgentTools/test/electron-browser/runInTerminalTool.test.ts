@@ -729,7 +729,7 @@ suite('RunInTerminalTool', () => {
 			const result = await executeToolTest({
 				command: 'foo | head -20',
 				explanation: 'Run foo command and show first 20 lines',
-				goal: 'Run foo command and show fi'
+				goal: 'Run foo command and show first 20 lines'
 			});
 
 			assertConfirmationRequired(result, 'Run `bash` command?');
@@ -756,7 +756,7 @@ suite('RunInTerminalTool', () => {
 			const result = await executeToolTest({
 				command: 'foo | head -20',
 				explanation: 'Run foo command and show first 20 lines',
-				goal: 'Run foo command and show fi'
+				goal: 'Run foo command and show first 20 lines'
 			});
 
 			assertAutoApproved(result);
@@ -1285,7 +1285,7 @@ suite('RunInTerminalTool', () => {
 				parameters: {
 					command: 'rm dangerous-file.txt',
 					explanation: 'Remove a file',
-				goal: 'Remove a file',
+					goal: 'Remove a file',
 					isBackground: false
 				} as IRunInTerminalInputParams,
 				chatSessionResource: sessionResource
