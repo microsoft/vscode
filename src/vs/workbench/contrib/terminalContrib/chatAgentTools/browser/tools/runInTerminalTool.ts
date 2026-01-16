@@ -41,6 +41,7 @@ import { extractCdPrefix, isFish, isPowerShell, isWindowsPowerShell, isZsh } fro
 import type { ICommandLinePresenter } from './commandLinePresenter/commandLinePresenter.js';
 import { NodeCommandLinePresenter } from './commandLinePresenter/nodeCommandLinePresenter.js';
 import { PythonCommandLinePresenter } from './commandLinePresenter/pythonCommandLinePresenter.js';
+import { RubyCommandLinePresenter } from './commandLinePresenter/rubyCommandLinePresenter.js';
 import { RunInTerminalToolTelemetry } from '../runInTerminalToolTelemetry.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from '../toolTerminalCreator.js';
 import { TreeSitterCommandParser, TreeSitterCommandParserLanguage } from '../treeSitterCommandParser.js';
@@ -337,6 +338,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		this._commandLinePresenters = [
 			new NodeCommandLinePresenter(),
 			new PythonCommandLinePresenter(),
+			new RubyCommandLinePresenter(),
 		];
 
 		// Clear out warning accepted state if the setting is disabled
