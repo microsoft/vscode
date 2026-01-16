@@ -167,7 +167,7 @@ export class ExtHostChatContext extends Disposable implements ExtHostChatContext
 		if (!provider.onDidChangeWorkspaceChatContext || !provider.provideWorkspaceChatContext) {
 			return;
 		}
-		disposables.add(provider.onDidChangeWorkspaceChatContext(async () => {
+		const provideWorkspaceContext = async () => {
 			const workspaceContexts = await provider.provideWorkspaceChatContext!(CancellationToken.None);
 			const resolvedContexts: IChatContextItem[] = [];
 			for (const item of workspaceContexts ?? []) {
@@ -183,9 +183,12 @@ export class ExtHostChatContext extends Disposable implements ExtHostChatContext
 				const resolved = await this._doResolve(provider, contextItem, item, CancellationToken.None);
 				resolvedContexts.push(resolved);
 			}
+			return this._proxy.$updateWorkspaceContextItems(handle, resolvedContexts);
+		};
 
-			this._proxy.$updateWorkspaceContextItems(handle, resolvedContexts);
-		}));
+		disposables.add(provider.onDidChangeWorkspaceChatContext(async () => provideWorkspaceContext()));
+		// kick off initial workspace context fetch
+		provideWorkspaceContext();
 	}
 
 	private _getProvider(handle: number): vscode.ChatContextProvider {

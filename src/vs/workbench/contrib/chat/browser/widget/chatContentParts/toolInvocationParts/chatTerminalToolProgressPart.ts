@@ -283,12 +283,15 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			getResolvedCommand: () => this._getResolvedCommand()
 		}));
 
+		// Use presentationOverrides for display if available (e.g., extracted Python code with syntax highlighting)
+		const displayCommand = terminalData.presentationOverrides?.commandLine ?? command;
+		const displayLanguage = terminalData.presentationOverrides?.language ?? terminalData.language;
 		const titlePart = this._register(_instantiationService.createInstance(
 			ChatQueryTitlePart,
 			elements.commandBlock,
 			new MarkdownString([
-				`\`\`\`${terminalData.language}`,
-				`${command.replaceAll('```', '\\`\\`\\`')}`,
+				`\`\`\`${displayLanguage}`,
+				`${displayCommand.replaceAll('```', '\\`\\`\\`')}`,
 				`\`\`\``
 			].join('\n'), { supportThemeIcons: true }),
 			undefined,
