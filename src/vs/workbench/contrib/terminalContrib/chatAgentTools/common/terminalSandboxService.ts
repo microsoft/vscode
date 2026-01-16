@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isNative, OperatingSystem, OS } from '../../../../base/common/platform.js';
-import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { ITerminalSandboxSettings } from '../../../../platform/terminal/common/terminal.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { dirname, join } from '../../../../base/common/path.js';
-import { FileAccess } from '../../../../base/common/network.js';
-import { URI } from '../../../../base/common/uri.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
-import { VSBuffer } from '../../../../base/common/buffer.js';
-import { joinPath } from '../../../../base/common/resources.js';
-import { generateUuid } from '../../../../base/common/uuid.js';
-import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
-import { TerminalContribSettingId } from '../terminalContribExports.js';
-import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { FileAccess } from '../../../../../base/common/network.js';
+import { dirname, join } from '../../../../../base/common/path.js';
+import { isNative, OperatingSystem, OS } from '../../../../../base/common/platform.js';
+import { joinPath } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { ITerminalSandboxSettings } from './terminalSandbox.js';
+import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
+import { TerminalChatAgentToolsSettingId } from './terminalChatAgentToolsConfiguration.js';
 
 export const ITerminalSandboxService = createDecorator<ITerminalSandboxService>('terminalSandboxService');
 
@@ -39,7 +39,6 @@ export class TerminalSandboxService implements ITerminalSandboxService {
 	private _sandboxSettingsId: string | undefined;
 	private _os: OperatingSystem = OS;
 
-
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IFileService private readonly _fileService: IFileService,
@@ -58,7 +57,7 @@ export class TerminalSandboxService implements ITerminalSandboxService {
 		if (this._os === OperatingSystem.Windows) {
 			return false;
 		}
-		return this._configurationService.getValue<boolean>(TerminalContribSettingId.TerminalSandboxEnabled);
+		return this._configurationService.getValue<boolean>(TerminalChatAgentToolsSettingId.TerminalSandboxEnabled);
 	}
 
 	public wrapCommand(command: string): string {
@@ -90,12 +89,12 @@ export class TerminalSandboxService implements ITerminalSandboxService {
 			this._initTempDir();
 		}
 		if (this._tempDir) {
-			const networkSetting = this._configurationService.getValue<ITerminalSandboxSettings['network']>(TerminalContribSettingId.TerminalSandboxNetwork) ?? {};
+			const networkSetting = this._configurationService.getValue<ITerminalSandboxSettings['network']>(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork) ?? {};
 			const linuxFileSystemSetting = this._os === OperatingSystem.Linux
-				? this._configurationService.getValue<ITerminalSandboxSettings['filesystem']>(TerminalContribSettingId.TerminalSandboxLinuxFileSystem) ?? {}
+				? this._configurationService.getValue<ITerminalSandboxSettings['filesystem']>(TerminalChatAgentToolsSettingId.TerminalSandboxLinuxFileSystem) ?? {}
 				: {};
 			const macFileSystemSetting = this._os === OperatingSystem.Macintosh
-				? this._configurationService.getValue<ITerminalSandboxSettings['filesystem']>(TerminalContribSettingId.TerminalSandboxMacFileSystem) ?? {}
+				? this._configurationService.getValue<ITerminalSandboxSettings['filesystem']>(TerminalChatAgentToolsSettingId.TerminalSandboxMacFileSystem) ?? {}
 				: {};
 			const configFileUri = joinPath(this._tempDir, `vscode-sandbox-settings-${this._sandboxSettingsId}.json`);
 			const sandboxSettings = {

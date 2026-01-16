@@ -45,7 +45,7 @@ import { CommandLineAutoApproveAnalyzer } from './commandLineAnalyzer/commandLin
 import { CommandLineFileWriteAnalyzer } from './commandLineAnalyzer/commandLineFileWriteAnalyzer.js';
 import { OutputMonitor } from './monitoring/outputMonitor.js';
 import { IPollingResult, OutputMonitorState } from './monitoring/types.js';
-import { ITerminalSandboxService } from '../../../../terminal/common/terminalSandboxService.js';
+import { ITerminalSandboxService } from '../../common/terminalSandboxService.js';
 import { chatSessionResourceToId, LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import type { ICommandLineRewriter } from './commandLineRewriter/commandLineRewriter.js';

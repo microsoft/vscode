@@ -19,22 +19,6 @@ import type { IAction } from '../../../base/common/actions.js';
 import type { IDisposable } from '../../../base/common/lifecycle.js';
 import type { SingleOrMany } from '../../../base/common/types.js';
 
-/**
- * Local type definition for sandbox runtime configuration to avoid importing external package
- * in the common layer. The actual type should match @anthropic-ai/sandbox-runtime.
- */
-export interface ITerminalSandboxRuntimeConfig {
-	network?: {
-		allowedDomains?: string[];
-		deniedDomains?: string[];
-	};
-	filesystem?: {
-		denyRead?: string[];
-		allowWrite?: string[];
-		denyWrite?: string[];
-	};
-}
-
 export const enum TerminalSettingPrefix {
 	AutomationProfile = 'terminal.integrated.automationProfile.',
 	DefaultProfile = 'terminal.integrated.defaultProfile.',
@@ -689,11 +673,6 @@ export interface IShellLaunchConfig {
 	shellIntegrationNonce?: string;
 }
 
-export interface ITerminalSandboxSettings extends ITerminalSandboxRuntimeConfig {
-	enabled?: boolean;
-}
-
-
 export interface ITerminalTabAction {
 	id: string;
 	label: string;
@@ -751,7 +730,6 @@ export interface ITerminalProcessOptions {
 	environmentVariableCollections: ISerializableEnvironmentVariableCollections | undefined;
 	workspaceFolder: IWorkspaceFolder | undefined;
 	isScreenReaderOptimized: boolean;
-	sandboxSettings?: ITerminalSandboxRuntimeConfig;
 }
 
 export interface ITerminalEnvironment {
@@ -943,8 +921,6 @@ export interface ITerminalProfile {
 	overrideName?: boolean;
 	color?: string;
 	icon?: ThemeIcon | URI | { light: URI; dark: URI };
-	sandboxed?: boolean;
-	sandboxSettings?: ITerminalSandboxRuntimeConfig;
 }
 
 export interface ITerminalDimensionsOverride extends Readonly<ITerminalDimensions> {

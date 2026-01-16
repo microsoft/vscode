@@ -30,7 +30,7 @@ import { CreateAndRunTaskTool, CreateAndRunTaskToolData } from './tools/task/cre
 import { GetTaskOutputTool, GetTaskOutputToolData } from './tools/task/getTaskOutputTool.js';
 import { RunTaskTool, RunTaskToolData } from './tools/task/runTaskTool.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
-import { ITerminalSandboxService, TerminalSandboxService } from '../../../terminal/common/terminalSandboxService.js';
+import { ITerminalSandboxService, TerminalSandboxService } from '../common/terminalSandboxService.js';
 
 // #region Services
 
