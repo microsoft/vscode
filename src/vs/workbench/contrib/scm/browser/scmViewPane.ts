@@ -1391,16 +1391,15 @@ class CollapseAllAction extends ViewAction<SCMViewPane> {
 			return;
 		}
 
-		let repository: ISCMRepository | undefined;
 		if (isSCMRepository(context)) {
-			repository = context;
+			view.collapseAllResources(context);
 		} else {
+			// Context is ISCMResourceGroup
 			const scmViewService = accessor.get(ISCMViewService);
-			repository = scmViewService.visibleRepositories.find(r => r.provider === context.provider);
-		}
-
-		if (repository) {
-			view.collapseAllResources(repository);
+			const repository = scmViewService.visibleRepositories.find(r => r.provider === context.provider);
+			if (repository) {
+				view.collapseAllResources(repository, context);
+			}
 		}
 	}
 }
@@ -2892,8 +2891,9 @@ export class SCMViewPane extends ViewPane {
 		}
 	}
 
-	collapseAllResources(repository: ISCMRepository): void {
-		for (const group of repository.provider.groups) {
+	collapseAllResources(repository: ISCMRepository, resourceGroup?: ISCMResourceGroup): void {
+		const groups = resourceGroup ? [resourceGroup] : repository.provider.groups;
+		for (const group of groups) {
 			if (this.tree.hasNode(group)) {
 				for (const { element } of this.tree.getNode(group).children) {
 					if (!isSCMViewService(element)) {
