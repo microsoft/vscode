@@ -21,7 +21,6 @@ import { defaultListStyles } from '../../theme/browser/defaultStyles.js';
 import { asCssVariable } from '../../theme/common/colorRegistry.js';
 import { ILayoutService } from '../../layout/browser/layoutService.js';
 import { IHoverService } from '../../hover/browser/hover.js';
-import { HoverPosition } from '../../../base/browser/ui/hover/hoverWidget.js';
 import { IHoverPositionOptions } from '../../../base/browser/ui/hover/hover.js';
 
 export interface IActionListHoverOptions {
