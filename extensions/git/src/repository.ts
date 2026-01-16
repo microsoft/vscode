@@ -23,7 +23,7 @@ import { IPushErrorHandlerRegistry } from './pushError';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { StatusBarCommands } from './statusbar';
 import { toGitUri } from './uri';
-import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isCopilotWorktree, isDescendant, isLinuxSnap, isRemote, isWindows, Limiter, onceEvent, pathEquals, relativePath } from './util';
+import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, getMinimalCopyPaths, IDisposable, isCopilotWorktree, isDescendant, isLinuxSnap, isRemote, isWindows, Limiter, onceEvent, pathEquals, relativePath } from './util';
 import { IFileWatcher, watch } from './watch';
 import { ISourceControlHistoryItemDetailsProviderRegistry } from './historyItemDetailsProvider';
 import { GitArtifactProvider } from './artifactProvider';
@@ -1917,7 +1917,13 @@ export class Repository implements Disposable {
 			gitIgnoredFiles.delete(uri.fsPath);
 		}
 
-		return gitIgnoredFiles;
+		// Find minimal set of paths (top-most folders that include all
+		// files + individual files) to copy. The goal is to reduce the
+		// number of copy operations needed.
+		const allFilePaths = new Set(allFiles.map(uri => uri.fsPath));
+		const minimalPaths = getMinimalCopyPaths(this.root, allFilePaths, gitIgnoredFiles);
+
+		return minimalPaths;
 	}
 
 	private async _copyWorktreeIncludeFiles(worktreePath: string): Promise<void> {
@@ -1939,7 +1945,7 @@ export class Repository implements Disposable {
 					await fsPromises.cp(sourceFile, targetFile, {
 						force: true,
 						mode: fs.constants.COPYFILE_FICLONE,
-						recursive: false,
+						recursive: true,
 						verbatimSymlinks: true
 					});
 				})
@@ -1947,7 +1953,7 @@ export class Repository implements Disposable {
 
 			// Log any failed operations
 			const failedOperations = results.filter(r => r.status === 'rejected');
-			this.logger.info(`[Repository][_copyWorktreeIncludeFiles] Copied ${files.length - failedOperations.length} files to worktree. Failed to copy ${failedOperations.length} files. [${Date.now() - startTime}ms]`);
+			this.logger.info(`[Repository][_copyWorktreeIncludeFiles] Copied ${files.length - failedOperations.length}/${files.length} folder(s)/file(s) to worktree. [${Date.now() - startTime}ms]`);
 
 			if (failedOperations.length > 0) {
 				window.showWarningMessage(l10n.t('Failed to copy {0} files to the worktree.', failedOperations.length));
