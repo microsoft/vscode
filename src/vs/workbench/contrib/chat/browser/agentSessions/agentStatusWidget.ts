@@ -257,7 +257,9 @@ export class AgentStatusWidget extends BaseActionViewItem {
 		sendIcon.classList.add('hidden');
 		pill.appendChild(sendIcon);
 
-		// Hover behavior - swap icon and label (only when showing default state)
+		// Hover behavior - swap icon and label (only when showing default state).
+		// When progressText is defined (e.g. sessions need attention), keep the attention/progress
+		// message visible and do not replace it with the generic placeholder on hover.
 		if (!progressText) {
 			disposables.add(addDisposableListener(pill, EventType.MOUSE_ENTER, () => {
 				reset(leftIcon, renderIcon(Codicon.searchSparkle));
