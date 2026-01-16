@@ -34,6 +34,8 @@ import { IMenuService, MenuId } from '../../../../../platform/actions/common/act
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { HiddenItemStrategy, WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { createActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { FocusAgentSessionsAction } from './agentSessionsActions.js';
 
 // Action triggered when clicking the main pill - change this to modify the primary action
 const ACTION_ID = 'workbench.action.quickchat.toggle';
@@ -80,6 +82,7 @@ export class AgentStatusWidget extends BaseActionViewItem {
 		@IEditorService private readonly editorService: IEditorService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super(undefined, action, options);
 
@@ -468,7 +471,7 @@ export class AgentStatusWidget extends BaseActionViewItem {
 	/**
 	 * Render the status badge showing in-progress and/or unread session counts.
 	 * Shows split UI with both indicators when both types exist.
-	 * Always renders for smooth fade transitions - uses visibility classes.
+	 * When no notifications, shows a chat sparkle icon.
 	 */
 	private _renderStatusBadge(disposables: DisposableStore, activeSessions: IAgentSession[], unreadSessions: IAgentSession[]): void {
 		if (!this._container) {
@@ -480,14 +483,19 @@ export class AgentStatusWidget extends BaseActionViewItem {
 		const hasContent = hasActiveSessions || hasUnreadSessions;
 
 		const badge = $('div.agent-status-badge');
+		this._container.appendChild(badge);
+
+		// When no notifications, hide the badge
 		if (!hasContent) {
 			badge.classList.add('empty');
+			return;
 		}
-		this._container.appendChild(badge);
 
 		// Unread section (blue dot + count)
 		if (hasUnreadSessions) {
 			const unreadSection = $('span.agent-status-badge-section.unread');
+			unreadSection.setAttribute('role', 'button');
+			unreadSection.tabIndex = 0;
 			const unreadIcon = $('span.agent-status-icon');
 			reset(unreadIcon, renderIcon(Codicon.circleFilled));
 			unreadSection.appendChild(unreadIcon);
@@ -495,11 +503,27 @@ export class AgentStatusWidget extends BaseActionViewItem {
 			unreadCount.textContent = String(unreadSessions.length);
 			unreadSection.appendChild(unreadCount);
 			badge.appendChild(unreadSection);
+
+			// Click handler - filter to unread sessions
+			disposables.add(addDisposableListener(unreadSection, EventType.CLICK, (e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				this._openSessionsWithFilter('unread');
+			}));
+			disposables.add(addDisposableListener(unreadSection, EventType.KEY_DOWN, (e) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault();
+					e.stopPropagation();
+					this._openSessionsWithFilter('unread');
+				}
+			}));
 		}
 
 		// In-progress section (session-in-progress icon + count)
 		if (hasActiveSessions) {
 			const activeSection = $('span.agent-status-badge-section.active');
+			activeSection.setAttribute('role', 'button');
+			activeSection.tabIndex = 0;
 			const runningIcon = $('span.agent-status-icon');
 			reset(runningIcon, renderIcon(Codicon.sessionInProgress));
 			activeSection.appendChild(runningIcon);
@@ -507,6 +531,20 @@ export class AgentStatusWidget extends BaseActionViewItem {
 			runningCount.textContent = String(activeSessions.length);
 			activeSection.appendChild(runningCount);
 			badge.appendChild(activeSection);
+
+			// Click handler - filter to in-progress sessions
+			disposables.add(addDisposableListener(activeSection, EventType.CLICK, (e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				this._openSessionsWithFilter('inProgress');
+			}));
+			disposables.add(addDisposableListener(activeSection, EventType.KEY_DOWN, (e) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault();
+					e.stopPropagation();
+					this._openSessionsWithFilter('inProgress');
+				}
+			}));
 		}
 
 		// Setup hover with combined tooltip
@@ -525,6 +563,76 @@ export class AgentStatusWidget extends BaseActionViewItem {
 			}
 			return parts.join(', ');
 		}));
+	}
+
+	/**
+	 * Opens the agent sessions view with a specific filter applied, or clears filter if already applied.
+	 * @param filterType 'unread' to show only unread sessions, 'inProgress' to show only in-progress sessions
+	 */
+	private _openSessionsWithFilter(filterType: 'unread' | 'inProgress'): void {
+		const FILTER_STORAGE_KEY = 'agentSessions.filterExcludes.agentsessionsviewerfiltersubmenu';
+
+		// Check current filter to see if we should toggle off
+		const currentFilterStr = this.storageService.get(FILTER_STORAGE_KEY, StorageScope.PROFILE);
+		let currentFilter: { providers: string[]; states: AgentSessionStatus[]; archived: boolean; read: boolean } | undefined;
+		if (currentFilterStr) {
+			try {
+				currentFilter = JSON.parse(currentFilterStr);
+			} catch {
+				// Ignore parse errors
+			}
+		}
+
+		// Determine if the current filter matches what we're clicking
+		const isCurrentlyFilteredToUnread = currentFilter?.read === true && currentFilter.states.length === 0;
+		const isCurrentlyFilteredToInProgress = currentFilter?.states?.length === 2 && currentFilter.read === false;
+
+		// Build filter excludes based on filter type
+		let excludes: { providers: string[]; states: AgentSessionStatus[]; archived: boolean; read: boolean };
+
+		if (filterType === 'unread') {
+			if (isCurrentlyFilteredToUnread) {
+				// Toggle off - clear all filters
+				excludes = {
+					providers: [],
+					states: [],
+					archived: true,
+					read: false
+				};
+			} else {
+				// Exclude read sessions to show only unread
+				excludes = {
+					providers: [],
+					states: [],
+					archived: true,
+					read: true // exclude read sessions
+				};
+			}
+		} else {
+			if (isCurrentlyFilteredToInProgress) {
+				// Toggle off - clear all filters
+				excludes = {
+					providers: [],
+					states: [],
+					archived: true,
+					read: false
+				};
+			} else {
+				// Exclude Completed and Failed to show InProgress and NeedsInput
+				excludes = {
+					providers: [],
+					states: [AgentSessionStatus.Completed, AgentSessionStatus.Failed],
+					archived: true,
+					read: false
+				};
+			}
+		}
+
+		// Store the filter
+		this.storageService.store(FILTER_STORAGE_KEY, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+
+		// Open the sessions view
+		this.commandService.executeCommand(FocusAgentSessionsAction.id);
 	}
 
 	/**
