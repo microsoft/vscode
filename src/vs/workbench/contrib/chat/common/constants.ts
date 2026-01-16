@@ -10,6 +10,7 @@ import { RawContextKey } from '../../../../platform/contextkey/common/contextkey
 
 export enum ChatConfiguration {
 	AgentEnabled = 'chat.agent.enabled',
+	AgentStatusEnabled = 'chat.agentsControl.enabled',
 	AgentSessionProjectionEnabled = 'chat.agentSessionProjection.enabled',
 	Edits2Enabled = 'chat.edits2.enabled',
 	ExtensionToolsEnabled = 'chat.extensionTools.enabled',
@@ -28,6 +29,7 @@ export enum ChatConfiguration {
 	TodosShowWidget = 'chat.tools.todos.showWidget',
 	NotifyWindowOnResponseReceived = 'chat.notifyWindowOnResponseReceived',
 	ChatViewSessionsEnabled = 'chat.viewSessions.enabled',
+	ChatViewSessionsShowRecentOnly = 'chat.viewSessions.showRecentOnly',
 	ChatViewSessionsOrientation = 'chat.viewSessions.orientation',
 	ChatViewTitleEnabled = 'chat.viewTitle.enabled',
 	SubagentToolCustomAgents = 'chat.customAgentInSubagent.enabled',

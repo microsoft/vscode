@@ -674,6 +674,14 @@ async function getSessionMetadata(session: ChatModel | ISerializableChatData): P
 			lastRequestEnded: lastMessageDate,
 		};
 
+	let lastResponseState = session instanceof ChatModel ?
+		(session.lastRequest?.response?.state ?? ResponseModelState.Complete) :
+		ResponseModelState.Complete;
+
+	if (lastResponseState === ResponseModelState.Pending || lastResponseState === ResponseModelState.NeedsInput) {
+		lastResponseState = ResponseModelState.Cancelled;
+	}
+
 	return {
 		sessionId: session.sessionId,
 		title: title || localize('newChat', "New Chat"),
@@ -684,9 +692,7 @@ async function getSessionMetadata(session: ChatModel | ISerializableChatData): P
 		isEmpty: session instanceof ChatModel ? session.getRequests().length === 0 : session.requests.length === 0,
 		stats,
 		isExternal: session instanceof ChatModel && !LocalChatSessionUri.parseLocalSessionId(session.sessionResource),
-		lastResponseState: session instanceof ChatModel ?
-			(session.lastRequest?.response?.state ?? ResponseModelState.Complete) :
-			ResponseModelState.Complete
+		lastResponseState,
 	};
 }
 

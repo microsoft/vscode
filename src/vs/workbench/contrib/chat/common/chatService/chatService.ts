@@ -372,6 +372,32 @@ export interface IChatTerminalToolInvocationData {
 		userEdited?: string;
 		toolEdited?: string;
 	};
+	/** The working directory URI for the terminal */
+	cwd?: UriComponents;
+	/**
+	 * Pre-computed confirmation display data (localization must happen at source).
+	 * Contains the command line to show in confirmation (potentially without cd prefix)
+	 * and the formatted cwd label if a cd prefix was extracted.
+	 */
+	confirmation?: {
+		/** The command line to display in the confirmation editor */
+		commandLine: string;
+		/** The formatted cwd label to show in title (if cd was extracted) */
+		cwdLabel?: string;
+		/** The cd prefix to prepend back when user edits */
+		cdPrefix?: string;
+	};
+	/**
+	 * Overrides to apply to the presentation of the tool call only, but not actually change the
+	 * command that gets run. For example, python -c "print('hello')" can be presented as just
+	 * the Python code with Python syntax highlighting.
+	 */
+	presentationOverrides?: {
+		/** The command line to display in the UI */
+		commandLine: string;
+		/** The language for syntax highlighting */
+		language: string;
+	};
 	/** Message for model recommending the use of an alternative tool */
 	alternativeRecommendation?: string;
 	language: string;

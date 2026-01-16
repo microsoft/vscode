@@ -27,6 +27,27 @@ import { IChatEditorOptions } from './widgetHosts/editor/chatEditor.js';
 import { ChatInputPart } from './widget/input/chatInputPart.js';
 import { ChatWidget, IChatWidgetContrib } from './widget/chatWidget.js';
 import { ICodeBlockActionContext } from './widget/chatContentParts/codeBlockPart.js';
+import { AgentSessionProviders } from './agentSessions/agentSessions.js';
+
+/**
+ * Delegate interface for the session target picker.
+ * Allows consumers to get and optionally set the active session provider.
+ */
+export interface ISessionTypePickerDelegate {
+	getActiveSessionProvider(): AgentSessionProviders | undefined;
+	/**
+	 * Optional setter for the active session provider.
+	 * When provided, the picker will call this instead of executing the openNewChatSessionInPlace command.
+	 * This allows the welcome view to maintain independent state from the main chat panel.
+	 */
+	setActiveSessionProvider?(provider: AgentSessionProviders): void;
+	/**
+	 * Optional event that fires when the active session provider changes.
+	 * When provided, listeners (like chatInputPart) can react to session type changes
+	 * and update pickers accordingly.
+	 */
+	onDidChangeActiveSessionProvider?: Event<AgentSessionProviders>;
+}
 
 export const IChatWidgetService = createDecorator<IChatWidgetService>('chatWidgetService');
 
@@ -183,6 +204,13 @@ export interface IChatWidgetViewOptions {
 	supportsChangingModes?: boolean;
 	dndContainer?: HTMLElement;
 	defaultMode?: IChatMode;
+	/**
+	 * Optional delegate for the session target picker.
+	 * When provided, allows the widget to maintain independent state for the selected session type.
+	 * This is useful for contexts like the welcome view where target selection should not
+	 * immediately open a new session.
+	 */
+	sessionTypePickerDelegate?: ISessionTypePickerDelegate;
 }
 
 export interface IChatViewViewContext {
@@ -276,6 +304,7 @@ export interface IChatWidget {
 	clear(): Promise<void>;
 	getViewState(): IChatModelInputState | undefined;
 	lockToCodingAgent(name: string, displayName: string, agentId?: string): void;
+	unlockFromCodingAgent(): void;
 	handleDelegationExitIfNeeded(sourceAgent: Pick<IChatAgentData, 'id' | 'name'> | undefined, targetAgent: IChatAgentData | undefined): Promise<void>;
 
 	delegateScrollFromMouseWheelEvent(event: IMouseWheelEvent): void;

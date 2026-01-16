@@ -362,6 +362,33 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 						toolsModelReady
 					});
 
+					type ChatSetupTimeoutClassification = {
+						owner: 'chrmarti';
+						comment: 'Provides insight into chat setup timeouts.';
+						agentActivated: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the agent was activated.' };
+						agentReady: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the agent was ready.' };
+						languageModelReady: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the language model was ready.' };
+						toolsModelReady: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the tools model was ready.' };
+						isRemote: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether this is a remote scenario.' };
+						isAnonymous: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether anonymous access is enabled.' };
+					};
+					type ChatSetupTimeoutEvent = {
+						agentActivated: boolean;
+						agentReady: boolean;
+						languageModelReady: boolean;
+						toolsModelReady: boolean;
+						isRemote: boolean;
+						isAnonymous: boolean;
+					};
+					this.telemetryService.publicLog2<ChatSetupTimeoutEvent, ChatSetupTimeoutClassification>('chatSetup.timeout', {
+						agentActivated,
+						agentReady,
+						languageModelReady,
+						toolsModelReady,
+						isRemote: !!this.environmentService.remoteAuthority,
+						isAnonymous: this.chatEntitlementService.anonymous
+					});
+
 					progress({
 						kind: 'warning',
 						content: new MarkdownString(warningMessage)

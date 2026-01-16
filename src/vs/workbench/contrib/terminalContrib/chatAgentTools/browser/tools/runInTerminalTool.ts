@@ -12,13 +12,14 @@ import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
-import { basename } from '../../../../../../base/common/path.js';
+import { basename, posix, win32 } from '../../../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../../../base/common/platform.js';
 import { count } from '../../../../../../base/common/strings.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService, type ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService, ITerminalProfile } from '../../../../../../platform/terminal/common/terminal.js';
@@ -36,7 +37,9 @@ import type { ITerminalExecuteStrategy } from '../executeStrategy/executeStrateg
 import { NoneExecuteStrategy } from '../executeStrategy/noneExecuteStrategy.js';
 import { RichExecuteStrategy } from '../executeStrategy/richExecuteStrategy.js';
 import { getOutput } from '../outputHelpers.js';
-import { isFish, isPowerShell, isWindowsPowerShell, isZsh } from '../runInTerminalHelpers.js';
+import { extractCdPrefix, isFish, isPowerShell, isWindowsPowerShell, isZsh } from '../runInTerminalHelpers.js';
+import type { ICommandLinePresenter } from './commandLinePresenter/commandLinePresenter.js';
+import { PythonCommandLinePresenter } from './commandLinePresenter/pythonCommandLinePresenter.js';
 import { RunInTerminalToolTelemetry } from '../runInTerminalToolTelemetry.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from '../toolTerminalCreator.js';
 import { TreeSitterCommandParser, TreeSitterCommandParserLanguage } from '../treeSitterCommandParser.js';
@@ -280,6 +283,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	private readonly _commandLineRewriters: ICommandLineRewriter[];
 	private readonly _commandLineAnalyzers: ICommandLineAnalyzer[];
+	private readonly _commandLinePresenters: ICommandLinePresenter[];
 
 	protected readonly _sessionTerminalAssociations = new ResourceMap<IToolTerminal>();
 
@@ -300,6 +304,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IHistoryService private readonly _historyService: IHistoryService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ILabelService private readonly _labelService: ILabelService,
 		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IStorageService private readonly _storageService: IStorageService,
@@ -327,6 +332,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		this._commandLineAnalyzers = [
 			this._register(this._instantiationService.createInstance(CommandLineFileWriteAnalyzer, this._treeSitterCommandParser, (message, args) => this._logService.info(`RunInTerminalTool#CommandLineFileWriteAnalyzer: ${message}`, args))),
 			this._register(this._instantiationService.createInstance(CommandLineAutoApproveAnalyzer, this._treeSitterCommandParser, this._telemetry, (message, args) => this._logService.info(`RunInTerminalTool#CommandLineAutoApproveAnalyzer: ${message}`, args))),
+		];
+		this._commandLinePresenters = [
+			new PythonCommandLinePresenter(),
 		];
 
 		// Clear out warning accepted state if the setting is disabled
@@ -402,6 +410,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				original: args.command,
 				toolEdited: rewrittenCommand === args.command ? undefined : rewrittenCommand
 			},
+			cwd,
 			language,
 		};
 
@@ -498,10 +507,64 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			toolSpecificData.autoApproveInfo = commandLineAnalyzerResults.find(e => e.autoApproveInfo)?.autoApproveInfo;
 		}
 
+		// Extract cd prefix for display - show directory in title, command suffix in editor
+		const commandToDisplay = (toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original).trimStart();
+		const extractedCd = extractCdPrefix(commandToDisplay, shell, os);
+		let confirmationTitle: string;
+		if (extractedCd && cwd) {
+			// Construct the full directory path using the cwd's scheme/authority
+			const isAbsolutePath = os === OperatingSystem.Windows
+				? win32.isAbsolute(extractedCd.directory)
+				: posix.isAbsolute(extractedCd.directory);
+			const directoryUri = isAbsolutePath
+				? URI.from({ scheme: cwd.scheme, authority: cwd.authority, path: extractedCd.directory })
+				: URI.joinPath(cwd, extractedCd.directory);
+			const directoryLabel = this._labelService.getUriLabel(directoryUri);
+			const cdPrefix = commandToDisplay.substring(0, commandToDisplay.length - extractedCd.command.length);
+
+			toolSpecificData.confirmation = {
+				commandLine: extractedCd.command,
+				cwdLabel: directoryLabel,
+				cdPrefix,
+			};
+
+			confirmationTitle = args.isBackground
+				? localize('runInTerminal.background.inDirectory', "Run `{0}` command in background within `{1}`?", shellType, directoryLabel)
+				: localize('runInTerminal.inDirectory', "Run `{0}` command within `{1}`?", shellType, directoryLabel);
+		} else {
+			toolSpecificData.confirmation = {
+				commandLine: commandToDisplay,
+			};
+			confirmationTitle = args.isBackground
+				? localize('runInTerminal.background', "Run `{0}` command in background?", shellType)
+				: localize('runInTerminal', "Run `{0}` command?", shellType);
+		}
+
+		// Check for presentation overrides (e.g., Python -c command extraction)
+		// Use the command after cd prefix extraction if available, since that's what's displayed in the editor
+		const commandForPresenter = extractedCd?.command ?? commandToDisplay;
+		for (const presenter of this._commandLinePresenters) {
+			const presenterResult = presenter.present({ commandLine: commandForPresenter, shell, os });
+			if (presenterResult) {
+				toolSpecificData.presentationOverrides = {
+					commandLine: presenterResult.commandLine,
+					language: presenterResult.language,
+				};
+				if (extractedCd && toolSpecificData.confirmation?.cwdLabel) {
+					confirmationTitle = args.isBackground
+						? localize('runInTerminal.presentationOverride.background.inDirectory', "Run `{0}` command in `{1}` in background within `{2}`?", presenterResult.languageDisplayName, shellType, toolSpecificData.confirmation.cwdLabel)
+						: localize('runInTerminal.presentationOverride.inDirectory', "Run `{0}` command in `{1}` within `{2}`?", presenterResult.languageDisplayName, shellType, toolSpecificData.confirmation.cwdLabel);
+				} else {
+					confirmationTitle = args.isBackground
+						? localize('runInTerminal.presentationOverride.background', "Run `{0}` command in `{1}` in background?", presenterResult.languageDisplayName, shellType)
+						: localize('runInTerminal.presentationOverride', "Run `{0}` command in `{1}`?", presenterResult.languageDisplayName, shellType);
+				}
+				break;
+			}
+		}
+
 		const confirmationMessages = isFinalAutoApproved ? undefined : {
-			title: args.isBackground
-				? localize('runInTerminal.background', "Run `{0}` command? (background terminal)", shellType)
-				: localize('runInTerminal', "Run `{0}` command?", shellType),
+			title: confirmationTitle,
 			message: new MarkdownString(args.explanation),
 			disclaimer,
 			terminalCustomActions: customActions,

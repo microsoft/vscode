@@ -198,6 +198,12 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('chat.commandCenter.enabled', "Controls whether the command center shows a menu for actions to control chat (requires {0}).", '`#window.commandCenter#`'),
 			default: true
 		},
+		[ChatConfiguration.AgentStatusEnabled]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.agentsControl.enabled', "Controls whether the Agent Status is shown in the title bar command center, replacing the search box with quick access to chat sessions."),
+			default: false,
+			tags: ['experimental']
+		},
 		[ChatConfiguration.AgentSessionProjectionEnabled]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.agentSessionProjection.enabled', "Controls whether Agent Session Projection mode is enabled for reviewing agent sessions in a focused workspace."),
@@ -385,6 +391,11 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true,
 			description: nls.localize('chat.viewSessions.enabled', "Show chat agent sessions when chat is empty or to the side when chat view is wide enough."),
+		},
+		[ChatConfiguration.ChatViewSessionsShowRecentOnly]: {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('chat.viewSessions.showRecentOnly', "When enabled, only show recent sessions in the stacked sessions view. When disabled, show all sessions."),
 		},
 		[ChatConfiguration.ChatViewSessionsOrientation]: {
 			type: 'string',
