@@ -70,7 +70,7 @@ export interface IBrowserViewWorkbenchService {
 	 * Register a browser editor input. When a duplicate editor with the same ID is registered,
 	 * the previous one will be disposed to prevent syncing issues.
 	 */
-	registerEditorInput(input: { id: string; onWillDispose: Event<void>; dispose(): void }): void;
+	registerEditorInput(input: any): void;
 }
 
 
