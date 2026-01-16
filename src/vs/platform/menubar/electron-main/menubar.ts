@@ -650,9 +650,8 @@ export class Menubar extends Disposable {
 			case StateType.Downloading: {
 				const state = this.updateService.state;
 				let label: string;
-				if (state.type === StateType.Downloading && state.downloadedBytes !== undefined && state.totalBytes !== undefined && state.startTime !== undefined) {
-					const elapsedMs = Date.now() - state.startTime;
-					const timeRemaining = computeDownloadTimeRemaining(state.downloadedBytes, state.totalBytes, elapsedMs);
+				if (state.type === StateType.Downloading) {
+					const timeRemaining = computeDownloadTimeRemaining(state);
 					if (timeRemaining !== undefined && timeRemaining > 0) {
 						label = nls.localize('miDownloadingUpdateWithProgress', "Downloading Update ({0}s remaining)...", timeRemaining);
 					} else {

@@ -8,7 +8,7 @@ import { existsSync, unlinkSync } from 'fs';
 import { mkdir, readFile, unlink } from 'fs/promises';
 import { tmpdir } from 'os';
 import { app } from 'electron';
-import { timeout } from '../../../base/common/async.js';
+import { Delayer, timeout } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { memoize } from '../../../base/common/decorators.js';
@@ -208,27 +208,25 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 									const contentLength = typeof contentLengthHeader === 'string' ? contentLengthHeader : undefined;
 									const totalBytes = contentLength ? parseInt(contentLength, 10) : undefined;
 
-									// Track downloaded bytes and update state periodically
+									// Track downloaded bytes and update state periodically using Delayer
 									let downloadedBytes = 0;
-									let lastUpdateTime = startTime;
+									const progressDelayer = new Delayer<void>(500);
 									const progressStream = transform<VSBuffer, VSBuffer>(
 										context.stream,
 										{
 											data: data => {
 												downloadedBytes += data.byteLength;
-												// Update state at most every 500ms to avoid too many updates
-												const now = Date.now();
-												if (now - lastUpdateTime >= 500) {
+												progressDelayer.trigger(() => {
 													this.setState(State.Downloading(downloadedBytes, totalBytes, startTime));
-													lastUpdateTime = now;
-												}
+												});
 												return data;
 											}
 										},
 										chunks => VSBuffer.concat(chunks)
 									);
 
-									return this.fileService.writeFile(URI.file(downloadPath), progressStream);
+									return this.fileService.writeFile(URI.file(downloadPath), progressStream)
+										.finally(() => progressDelayer.dispose());
 								})
 								.then(update.sha256hash ? () => checksum(downloadPath, update.sha256hash) : () => undefined)
 								.then(() => pfs.Promises.rename(downloadPath, updatePackagePath, false /* no retry */))

@@ -118,11 +118,15 @@ export interface IUpdateService {
  * Computes an estimate of remaining download time in seconds.
  * Returns undefined if not enough data is available.
  *
- * @param downloadedBytes The number of bytes downloaded so far.
- * @param totalBytes The total number of bytes to download.
- * @param elapsedMs The elapsed time in milliseconds since the download started.
+ * @param state The download state containing progress information.
  */
-export function computeDownloadTimeRemaining(downloadedBytes: number, totalBytes: number, elapsedMs: number): number | undefined {
+export function computeDownloadTimeRemaining(state: Downloading): number | undefined {
+	const { downloadedBytes, totalBytes, startTime } = state;
+	if (downloadedBytes === undefined || totalBytes === undefined || startTime === undefined) {
+		return undefined;
+	}
+
+	const elapsedMs = Date.now() - startTime;
 	if (downloadedBytes <= 0 || totalBytes <= 0 || elapsedMs <= 0) {
 		return undefined;
 	}

@@ -12,7 +12,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { IUpdateService, State as UpdateState, StateType, IUpdate, DisablementReason, computeDownloadTimeRemaining } from '../../../../platform/update/common/update.js';
+import { IUpdateService, State as UpdateState, StateType, IUpdate, DisablementReason, computeDownloadTimeRemaining, Downloading } from '../../../../platform/update/common/update.js';
 import { INotificationService, NotificationPriority, Severity } from '../../../../platform/notification/common/notification.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../services/environment/browser/environmentService.js';
@@ -277,7 +277,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 
 		// Update downloading menu item with progress
 		if (state.type === StateType.Downloading) {
-			this.updateDownloadingMenuItem(state.downloadedBytes, state.totalBytes, state.startTime);
+			this.updateDownloadingMenuItem(state);
 		} else {
 			this.downloadingMenuItemDisposable.clear();
 		}
@@ -406,22 +406,11 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		);
 	}
 
-	private updateDownloadingMenuItem(downloadedBytes?: number, totalBytes?: number, startTime?: number): void {
-		this.downloadingMenuItemDisposable.clear();
-
-		// Compute time remaining if we have progress info
-		let title: string;
-		if (downloadedBytes !== undefined && totalBytes !== undefined && startTime !== undefined) {
-			const elapsedMs = Date.now() - startTime;
-			const timeRemaining = computeDownloadTimeRemaining(downloadedBytes, totalBytes, elapsedMs);
-			if (timeRemaining !== undefined && timeRemaining > 0) {
-				title = nls.localize('DownloadingUpdateWithProgress', "Downloading Update ({0}s remaining)...", timeRemaining);
-			} else {
-				title = nls.localize('DownloadingUpdate', "Downloading Update...");
-			}
-		} else {
-			title = nls.localize('DownloadingUpdate', "Downloading Update...");
-		}
+	private updateDownloadingMenuItem(state: Downloading): void {
+		const timeRemaining = computeDownloadTimeRemaining(state);
+		const title = timeRemaining !== undefined && timeRemaining > 0
+			? nls.localize('DownloadingUpdateWithProgress', "Downloading Update ({0}s remaining)...", timeRemaining)
+			: nls.localize('DownloadingUpdate', "Downloading Update...");
 
 		this.downloadingMenuItemDisposable.value = MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 			group: '7_update',
