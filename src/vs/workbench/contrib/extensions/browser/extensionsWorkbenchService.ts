@@ -1900,7 +1900,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		// Check if connection is metered before automatic update checks
 		if (!reason?.includes('manual') && isMeteredConnection()) {
 			this.logService.info('[Extensions]: Postponing update check due to metered connection');
-			// Don't schedule a new check - the existing recursive check will retry
 			return;
 		}
 		
@@ -2132,7 +2131,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		// Check if connection is metered before auto-updating extensions
 		if (isMeteredConnection()) {
 			this.logService.info('[Extensions]: Postponing auto-update due to metered connection');
-			// Don't schedule a new update - the next update check cycle will retry
 			return;
 		}
 		
