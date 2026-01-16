@@ -7,19 +7,20 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestCommandService } from '../../../../../editor/test/browser/editorTestServices.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IURLService } from '../../../../../platform/url/common/url.js';
 import { DEFAULT_EDITOR_ASSOCIATION, IEditorPane } from '../../../../common/editor.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IJSONEditingService } from '../../../configuration/common/jsonEditing.js';
 import { TestJSONEditingService } from '../../../configuration/test/common/testServices.js';
+import { IEditorGroupsService } from '../../../editor/common/editorGroupsService.js';
+import { IRemoteAgentService } from '../../../remote/common/remoteAgentService.js';
 import { PreferencesService } from '../../browser/preferencesService.js';
 import { IPreferencesService, ISettingsEditorOptions } from '../../common/preferences.js';
-import { IRemoteAgentService } from '../../../remote/common/remoteAgentService.js';
-import { TestRemoteAgentService, ITestInstantiationService, workbenchInstantiationService, TestEditorGroupView, TestEditorGroupsService } from '../../../../test/browser/workbenchTestServices.js';
-import { IEditorGroupsService } from '../../../editor/common/editorGroupsService.js';
+import { ITestInstantiationService, TestEditorGroupsService, TestEditorGroupView, TestRemoteAgentService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
-import { SettingsEditor2Input } from '../../common/preferencesEditorInput.js';
 
 suite('PreferencesService', () => {
 	let testInstantiationService: ITestInstantiationService;
@@ -31,8 +32,7 @@ suite('PreferencesService', () => {
 		testInstantiationService = workbenchInstantiationService({}, disposables);
 
 		class TestOpenEditorGroupView extends TestEditorGroupView {
-			lastOpenEditorOptions: any;
-			override openEditor(_editor: SettingsEditor2Input, options?: IEditorOptions): Promise<IEditorPane> {
+			override openEditor(_editor: EditorInput, options?: IEditorOptions): Promise<IEditorPane> {
 				lastOpenEditorOptions = options;
 				_editor.dispose();
 				return Promise.resolve(undefined!);
@@ -44,7 +44,7 @@ suite('PreferencesService', () => {
 		testInstantiationService.stub(IJSONEditingService, TestJSONEditingService);
 		testInstantiationService.stub(IRemoteAgentService, TestRemoteAgentService);
 		testInstantiationService.stub(ICommandService, TestCommandService);
-		testInstantiationService.stub(IURLService, { registerHandler: () => { } });
+		testInstantiationService.stub(IURLService, { registerHandler: () => ({ dispose: () => { } }) });
 
 		// PreferencesService creates a PreferencesEditorInput which depends on IPreferencesService, add the real one, not a stub
 		const collection = new ServiceCollection();
@@ -58,5 +58,70 @@ suite('PreferencesService', () => {
 		assert.strictEqual(options.focusSearch, true);
 		assert.strictEqual(options.override, DEFAULT_EDITOR_ASSOCIATION.id);
 		assert.strictEqual(options.query, 'test query');
+	});
+
+	suite('openUserSettings with workbench.settings.editor set to json', () => {
+		let jsonTestObject: PreferencesService;
+
+		setup(() => {
+			const configService = new TestConfigurationService({
+				'workbench.settings.editor': 'json'
+			});
+
+			const jsonTestInstantiationService = workbenchInstantiationService({
+				configurationService: () => configService
+			}, disposables);
+
+			class TestOpenEditorGroupViewForJson extends TestEditorGroupView {
+				override openEditor(_editor: EditorInput, options?: IEditorOptions): Promise<IEditorPane> {
+					lastOpenEditorOptions = options;
+					_editor.dispose();
+					return Promise.resolve(undefined!);
+				}
+			}
+
+			const testEditorGroupService = new TestEditorGroupsService([new TestOpenEditorGroupViewForJson(0)]);
+			jsonTestInstantiationService.stub(IEditorGroupsService, testEditorGroupService);
+			jsonTestInstantiationService.stub(IJSONEditingService, TestJSONEditingService);
+			jsonTestInstantiationService.stub(IRemoteAgentService, TestRemoteAgentService);
+			jsonTestInstantiationService.stub(ICommandService, TestCommandService);
+			jsonTestInstantiationService.stub(IURLService, { registerHandler: () => ({ dispose: () => { } }) });
+
+			const collection = new ServiceCollection();
+			collection.set(IPreferencesService, new SyncDescriptor(PreferencesService));
+			const instantiationService = disposables.add(jsonTestInstantiationService.createChild(collection));
+			jsonTestObject = disposables.add(instantiationService.createInstance(PreferencesService));
+		});
+
+		test('query that looks like a setting key should be converted to revealSetting', async () => {
+			await jsonTestObject.openUserSettings({ query: 'editor.fontSize' });
+			const options = lastOpenEditorOptions as ISettingsEditorOptions;
+			assert.deepStrictEqual(options.revealSetting, { key: 'editor.fontSize' });
+			assert.strictEqual(options.query, undefined);
+		});
+
+		test('query with @ symbol should not be converted to revealSetting', async () => {
+			await jsonTestObject.openUserSettings({ query: '@feature:chat' });
+			const options = lastOpenEditorOptions as ISettingsEditorOptions;
+			assert.strictEqual(options.revealSetting, undefined);
+			assert.strictEqual(options.query, '@feature:chat');
+		});
+
+		test('query with spaces should not be converted to revealSetting', async () => {
+			await jsonTestObject.openUserSettings({ query: 'editor fontSize' });
+			const options = lastOpenEditorOptions as ISettingsEditorOptions;
+			assert.strictEqual(options.revealSetting, undefined);
+			assert.strictEqual(options.query, 'editor fontSize');
+		});
+
+		test('existing revealSetting should not be overridden by query', async () => {
+			await jsonTestObject.openUserSettings({
+				query: 'editor.fontSize',
+				revealSetting: { key: 'editor.tabSize', edit: true }
+			});
+			const options = lastOpenEditorOptions as ISettingsEditorOptions;
+			assert.deepStrictEqual(options.revealSetting, { key: 'editor.tabSize', edit: true });
+			assert.strictEqual(options.query, 'editor.fontSize');
+		});
 	});
 });
