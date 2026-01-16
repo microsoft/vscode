@@ -28,6 +28,7 @@ import { distinct } from '../../../../base/common/arrays.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { equals } from '../../../../base/common/objects.js';
 import { IDefaultChatAgent } from '../../../../base/common/product.js';
+import { IRequestContext } from '../../../../base/parts/request/common/request.js';
 
 interface IDefaultAccountConfig {
 	readonly preferredExtensions: string[];
@@ -259,6 +260,24 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 			this.logService.debug('[DefaultAccount] Account preference changed for default account provider, updating default account');
 			this.updateDefaultAccount();
 		}));
+
+		this._register(this.authenticationService.onDidRegisterAuthenticationProvider(e => {
+			const defaultAccountProvider = this.getDefaultAccountAuthenticationProvider();
+			if (e.id !== defaultAccountProvider.id) {
+				return;
+			}
+			this.logService.debug('[DefaultAccount] Default account provider registered, updating default account');
+			this.updateDefaultAccount();
+		}));
+
+		this._register(this.authenticationService.onDidUnregisterAuthenticationProvider(e => {
+			const defaultAccountProvider = this.getDefaultAccountAuthenticationProvider();
+			if (e.id !== defaultAccountProvider.id) {
+				return;
+			}
+			this.logService.debug('[DefaultAccount] Default account provider unregistered, updating default account');
+			this.updateDefaultAccount();
+		}));
 	}
 
 	async refresh(): Promise<IDefaultAccount | null> {
@@ -330,24 +349,24 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 	private async getDefaultAccountFromAuthenticatedSessions(authenticationProvider: IDefaultAccountAuthenticationProvider, scopes: string[][]): Promise<IDefaultAccount | null> {
 		try {
 			this.logService.debug('[DefaultAccount] Getting Default Account from authenticated sessions for provider:', authenticationProvider.id);
-			const session = await this.findMatchingProviderSession(authenticationProvider.id, scopes);
+			const sessions = await this.findMatchingProviderSession(authenticationProvider.id, scopes);
 
-			if (!session) {
+			if (!sessions) {
 				this.logService.debug('[DefaultAccount] No matching session found for provider:', authenticationProvider.id);
 				return null;
 			}
 
 			const [chatEntitlements, policyData] = await Promise.all([
-				this.getChatEntitlements(session.accessToken),
-				this.getTokenEntitlements(session.accessToken),
+				this.getEntitlements(sessions),
+				this.getTokenEntitlements(sessions),
 			]);
 
-			const mcpRegistryProvider = policyData.mcp ? await this.getMcpRegistryProvider(session.accessToken) : undefined;
+			const mcpRegistryProvider = policyData.mcp ? await this.getMcpRegistryProvider(sessions) : undefined;
 
 			const account: IDefaultAccount = {
 				authenticationProvider,
-				sessionId: session.id,
-				enterprise: authenticationProvider.enterprise || session.account.label.includes('_'),
+				sessionId: sessions[0].id,
+				enterprise: authenticationProvider.enterprise || sessions[0].account.label.includes('_'),
 				entitlementsData: chatEntitlements,
 				policyData: {
 					chat_agent_enabled: policyData.chat_agent_enabled,
@@ -365,17 +384,18 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		}
 	}
 
-	private async findMatchingProviderSession(authProviderId: string, allScopes: string[][]): Promise<AuthenticationSession | undefined> {
+	private async findMatchingProviderSession(authProviderId: string, allScopes: string[][]): Promise<AuthenticationSession[] | undefined> {
 		const sessions = await this.getSessions(authProviderId);
+		const matchingSessions = [];
 		for (const session of sessions) {
 			this.logService.debug('[DefaultAccount] Checking session with scopes', session.scopes);
 			for (const scopes of allScopes) {
 				if (this.scopesMatch(session.scopes, scopes)) {
-					return session;
+					matchingSessions.push(session);
 				}
 			}
 		}
-		return undefined;
+		return matchingSessions.length > 0 ? matchingSessions : undefined;
 	}
 
 	private async getSessions(authProviderId: string): Promise<readonly AuthenticationSession[]> {
@@ -412,7 +432,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		return expectedScopes.every(scope => scopes.includes(scope));
 	}
 
-	private async getTokenEntitlements(accessToken: string): Promise<{ mcp?: boolean; chat_preview_features_enabled?: boolean; chat_agent_enabled?: boolean }> {
+	private async getTokenEntitlements(sessions: AuthenticationSession[]): Promise<{ mcp?: boolean; chat_preview_features_enabled?: boolean; chat_agent_enabled?: boolean }> {
 		const tokenEntitlementsUrl = this.getTokenEntitlementUrl();
 		if (!tokenEntitlementsUrl) {
 			this.logService.debug('[DefaultAccount] No token entitlements URL found');
@@ -420,17 +440,12 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		}
 
 		this.logService.debug('[DefaultAccount] Fetching token entitlements from:', tokenEntitlementsUrl);
+		const response = await this.request(tokenEntitlementsUrl, 'GET', undefined, sessions, CancellationToken.None);
+		if (!response) {
+			return {};
+		}
 		try {
-			const chatContext = await this.requestService.request({
-				type: 'GET',
-				url: tokenEntitlementsUrl,
-				disableCache: true,
-				headers: {
-					'Authorization': `Bearer ${accessToken}`
-				}
-			}, CancellationToken.None);
-
-			const chatData = await asJson<ITokenEntitlementsResponse>(chatContext);
+			const chatData = await asJson<ITokenEntitlementsResponse>(response);
 			if (chatData) {
 				const tokenMap = this.extractFromToken(chatData.token);
 				return {
@@ -449,25 +464,21 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		return {};
 	}
 
-	private async getChatEntitlements(accessToken: string): Promise<IEntitlementsData | undefined> {
-		const chatEntitlementsUrl = this.getChatEntitlementUrl();
-		if (!chatEntitlementsUrl) {
+	private async getEntitlements(sessions: AuthenticationSession[]): Promise<IEntitlementsData | undefined> {
+		const entitlementUrl = this.getEntitlementUrl();
+		if (!entitlementUrl) {
 			this.logService.debug('[DefaultAccount] No chat entitlements URL found');
 			return undefined;
 		}
 
-		this.logService.debug('[DefaultAccount] Fetching chat entitlements from:', chatEntitlementsUrl);
-		try {
-			const context = await this.requestService.request({
-				type: 'GET',
-				url: chatEntitlementsUrl,
-				disableCache: true,
-				headers: {
-					'Authorization': `Bearer ${accessToken}`
-				}
-			}, CancellationToken.None);
+		this.logService.debug('[DefaultAccount] Fetching entitlements from:', entitlementUrl);
+		const response = await this.request(entitlementUrl, 'GET', undefined, sessions, CancellationToken.None);
+		if (!response) {
+			return undefined;
+		}
 
-			const data = await asJson<IEntitlementsData>(context);
+		try {
+			const data = await asJson<IEntitlementsData>(response);
 			if (data) {
 				return data;
 			}
@@ -478,24 +489,21 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		return undefined;
 	}
 
-	private async getMcpRegistryProvider(accessToken: string): Promise<IMcpRegistryProvider | undefined> {
+	private async getMcpRegistryProvider(sessions: AuthenticationSession[]): Promise<IMcpRegistryProvider | undefined> {
 		const mcpRegistryDataUrl = this.getMcpRegistryDataUrl();
 		if (!mcpRegistryDataUrl) {
 			this.logService.debug('[DefaultAccount] No MCP registry data URL found');
 			return undefined;
 		}
 
-		try {
-			const context = await this.requestService.request({
-				type: 'GET',
-				url: mcpRegistryDataUrl,
-				disableCache: true,
-				headers: {
-					'Authorization': `Bearer ${accessToken}`
-				}
-			}, CancellationToken.None);
+		this.logService.debug('[DefaultAccount] Fetching MCP registry data from:', mcpRegistryDataUrl);
+		const response = await this.request(mcpRegistryDataUrl, 'GET', undefined, sessions, CancellationToken.None);
+		if (!response) {
+			return undefined;
+		}
 
-			const data = await asJson<IMcpRegistryResponse>(context);
+		try {
+			const data = await asJson<IMcpRegistryResponse>(response);
 			if (data) {
 				this.logService.debug('Fetched MCP registry providers', data.mcp_registries);
 				return data.mcp_registries[0];
@@ -507,7 +515,55 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		return undefined;
 	}
 
-	private getChatEntitlementUrl(): string | undefined {
+	private async request(url: string, type: 'GET', body: undefined, sessions: AuthenticationSession[], token: CancellationToken): Promise<IRequestContext | undefined>;
+	private async request(url: string, type: 'POST', body: object, sessions: AuthenticationSession[], token: CancellationToken): Promise<IRequestContext | undefined>;
+	private async request(url: string, type: 'GET' | 'POST', body: object | undefined, sessions: AuthenticationSession[], token: CancellationToken): Promise<IRequestContext | undefined> {
+		let lastResponse: IRequestContext | undefined;
+
+		for (const session of sessions) {
+			if (token.isCancellationRequested) {
+				return lastResponse;
+			}
+
+			try {
+				const response = await this.requestService.request({
+					type,
+					url,
+					data: type === 'POST' ? JSON.stringify(body) : undefined,
+					disableCache: true,
+					headers: {
+						'Authorization': `Bearer ${session.accessToken}`
+					}
+				}, token);
+
+				const status = response.res.statusCode;
+				if (status && status !== 200) {
+					lastResponse = response;
+					continue; // try next session
+				}
+
+				return response;
+			} catch (error) {
+				if (!token.isCancellationRequested) {
+					this.logService.error(`[chat entitlement] request: error ${error}`);
+				}
+			}
+		}
+
+		if (!lastResponse) {
+			this.logService.trace('[DefaultAccount]: No response received for request', url);
+			return undefined;
+		}
+
+		if (lastResponse.res.statusCode && lastResponse.res.statusCode !== 200) {
+			this.logService.trace(`[DefaultAccount]: unexpected status code ${lastResponse.res.statusCode} for request`, url);
+			return undefined;
+		}
+
+		return lastResponse;
+	}
+
+	private getEntitlementUrl(): string | undefined {
 		if (this.getDefaultAccountAuthenticationProvider().enterprise) {
 			try {
 				const enterpriseUrl = this.getEnterpriseUrl();
