@@ -77,7 +77,7 @@ export class ChatSuggestNextWidget extends Disposable {
 		// Filter handoffs: if a model is specified, only show if that model exists and is usable
 		const visibleHandoffs = handoffs.filter(handoff => {
 			if (handoff.model) {
-				// Direct lookup by model identifier (e.g., "cerebras/zai-glm-4.7")
+				// Direct lookup by model identifier
 				let metadata = this.languageModelsService.lookupLanguageModel(handoff.model);
 
 				// Fallback: if not found by ID, search by model name
