@@ -192,6 +192,13 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			//   manual approval.
 			grep: true,
 
+			// tee
+			// - Reads from stdin and writes to both stdout and files
+			// - File writes are handled separately by the file write analyzer
+			// - The command itself is safe (just copies data), file write safety is determined
+			//   by the destination path
+			tee: true,
+
 			// #endregion
 
 			// #region Safe sub-commands
