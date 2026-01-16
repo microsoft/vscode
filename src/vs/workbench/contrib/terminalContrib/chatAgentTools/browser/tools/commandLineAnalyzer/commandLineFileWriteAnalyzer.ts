@@ -52,11 +52,11 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 		const capturedFileWrites = (await this._treeSitterCommandParser.getFileWrites(options.treeSitterLanguage, options.commandLine))
 			.map(this._mapNullDevice.bind(this, options));
 
-		// Get file writes from sed in-place editing
-		const sedInPlaceFiles = (await this._treeSitterCommandParser.getSedInPlaceFiles(options.treeSitterLanguage, options.commandLine))
+		// Get file writes from command-specific parsers (e.g., sed -i in-place editing)
+		const commandFileWrites = (await this._treeSitterCommandParser.getCommandFileWrites(options.treeSitterLanguage, options.commandLine))
 			.map(this._mapNullDevice.bind(this, options));
 
-		const allCapturedFileWrites = [...capturedFileWrites, ...sedInPlaceFiles];
+		const allCapturedFileWrites = [...capturedFileWrites, ...commandFileWrites];
 
 		if (allCapturedFileWrites.length) {
 			const cwd = options.cwd;
