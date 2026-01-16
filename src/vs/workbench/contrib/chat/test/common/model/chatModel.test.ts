@@ -461,7 +461,7 @@ suite('Response', () => {
 			invocationMessage: '   ', // whitespace only
 			pastTenseMessage: undefined,
 			originMessage: undefined,
-			presentation: undefined,
+			presentation: undefined, // No presentation means tool is visible by default (not Hidden or HiddenAfterComplete)
 			toolId: 'test.empty.tool',
 			toolCallId: 'test-call-id-3',
 			source: ToolDataSource.Internal,
@@ -483,13 +483,13 @@ suite('Response', () => {
 		const response = store.add(new Response([]));
 		response.updateContent({ content: new MarkdownString('Some content'), kind: 'markdownContent' });
 
-		// Create a mock visible tool invocation
+		// Create a mock visible tool invocation (no presentation set means visible by default)
 		const visibleTool: IChatToolInvocationSerialized = {
 			kind: 'toolInvocationSerialized',
 			invocationMessage: 'Visible tool message',
 			pastTenseMessage: 'Tool completed successfully',
 			originMessage: undefined,
-			presentation: undefined, // No presentation = visible
+			presentation: undefined, // No presentation means tool is visible by default (not Hidden or HiddenAfterComplete)
 			toolId: 'test.visible.tool',
 			toolCallId: 'test-call-id-4',
 			source: ToolDataSource.Internal,

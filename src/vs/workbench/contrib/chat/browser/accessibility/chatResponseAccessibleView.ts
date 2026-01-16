@@ -77,6 +77,9 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 	}
 
 	private _getContent(item: ChatTreeItem): string {
+		// NOTE: response.toString() already includes completed/serialized tool invocations via getToolInvocationText()
+		// which filters out hidden tools and tools with empty messages. This method only adds content for
+		// interactive states (WaitingForConfirmation, WaitingForPostApproval) that are not in the string representation.
 		let responseContent = isResponseVM(item) ? item.response.toString() : '';
 		if (!responseContent && 'errorDetails' in item && item.errorDetails) {
 			responseContent = item.errorDetails.message;
@@ -96,6 +99,9 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 					responseContent += message;
 				}
 			});
+
+			// Only process tool invocations that are in interactive states (not completed).
+			// Completed tool invocations are already included via response.toString() above.
 			const toolInvocations = item.response.value.filter(item => item.kind === 'toolInvocation');
 			for (const toolInvocation of toolInvocations) {
 				// Skip hidden tool invocations
