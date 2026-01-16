@@ -149,7 +149,6 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			const isMetered = await this.isConnectionMetered();
 			if (isMetered) {
 				this.logService.info('update#checkForUpdates - postponing update check due to metered connection');
-				// Postpone the update check by 30 minutes
 				this.scheduleCheckForUpdates(30 * 60 * 1000);
 				return;
 			}
@@ -159,8 +158,6 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	}
 
 	protected async isConnectionMetered(): Promise<boolean> {
-		// Default implementation returns false
-		// Platform-specific implementations can override this
 		return false;
 	}
 
