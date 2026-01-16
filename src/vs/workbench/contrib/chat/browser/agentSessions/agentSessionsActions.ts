@@ -301,12 +301,12 @@ export class MarkAgentSessionSectionReadAction extends Action2 {
 		super({
 			id: 'agentSessionSection.markRead',
 			title: localize2('markSectionRead', "Mark All as Read"),
-			menu: {
+			menu: [{
 				id: MenuId.AgentSessionSectionContext,
 				group: '1_edit',
 				order: 1,
 				when: ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Archived),
-			}
+			}]
 		});
 	}
 
