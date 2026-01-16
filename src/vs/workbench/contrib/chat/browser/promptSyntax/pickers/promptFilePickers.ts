@@ -16,7 +16,7 @@ import { IDialogService } from '../../../../../../platform/dialogs/common/dialog
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { getCleanPromptName } from '../../../common/promptSyntax/config/promptFileLocations.js';
 import { PromptsType, INSTRUCTIONS_DOCUMENTATION_URL, AGENT_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL, SKILL_DOCUMENTATION_URL } from '../../../common/promptSyntax/promptTypes.js';
-import { NEW_PROMPT_COMMAND_ID, NEW_INSTRUCTIONS_COMMAND_ID, NEW_AGENT_COMMAND_ID } from '../newPromptFileActions.js';
+import { NEW_PROMPT_COMMAND_ID, NEW_INSTRUCTIONS_COMMAND_ID, NEW_AGENT_COMMAND_ID, NEW_SKILL_COMMAND_ID } from '../newPromptFileActions.js';
 import { IKeyMods, IQuickInputButton, IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { askForPromptFileName } from './askForPromptName.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -182,6 +182,21 @@ const NEW_AGENT_FILE_OPTION: IPromptPickerQuickPickItem = {
 	alwaysShow: true,
 	buttons: [newHelpButton(PromptsType.agent)],
 	commandId: NEW_AGENT_COMMAND_ID,
+};
+
+/**
+ * A quick pick item that starts the 'New Skill' command.
+ */
+const NEW_SKILL_FILE_OPTION: IPromptPickerQuickPickItem = {
+	type: 'item',
+	label: `$(plus) ${localize(
+		'commands.new-skill.select-dialog.label',
+		'New skill...',
+	)}`,
+	pickable: false,
+	alwaysShow: true,
+	buttons: [newHelpButton(PromptsType.skill)],
+	commandId: NEW_SKILL_COMMAND_ID,
 };
 
 /**
@@ -419,6 +434,8 @@ export class PromptFilePickers {
 				return [NEW_INSTRUCTIONS_FILE_OPTION, UPDATE_INSTRUCTIONS_OPTION];
 			case PromptsType.agent:
 				return [NEW_AGENT_FILE_OPTION];
+			case PromptsType.skill:
+				return [NEW_SKILL_FILE_OPTION];
 			default:
 				throw new Error(`Unknown prompt type '${type}'.`);
 		}

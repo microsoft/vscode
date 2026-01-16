@@ -194,6 +194,12 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('chat.commandCenter.enabled', "Controls whether the command center shows a menu for actions to control chat (requires {0}).", '`#window.commandCenter#`'),
 			default: true
 		},
+		[ChatConfiguration.AgentStatusEnabled]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.agentsControl.enabled', "Controls whether the Agent Status is shown in the title bar command center, replacing the search box with quick access to chat sessions."),
+			default: true,
+			tags: ['experimental']
+		},
 		[ChatConfiguration.AgentSessionProjectionEnabled]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.agentSessionProjection.enabled', "Controls whether Agent Session Projection mode is enabled for reviewing agent sessions in a focused workspace."),
@@ -836,6 +842,12 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.agent.thinking.collapsedTools.always', "Tool calls are always collapsed, even without thinking."),
 			],
 			markdownDescription: nls.localize('chat.agent.thinking.collapsedTools', "Controls how tool calls are displayed in relation to thinking sections."),
+			tags: ['experimental'],
+		},
+		[ChatConfiguration.TerminalToolsInThinking]: {
+			type: 'boolean',
+			default: true,
+			markdownDescription: nls.localize('chat.agent.thinking.terminalTools', "When enabled, terminal tool calls are displayed inside the thinking dropdown with a simplified view."),
 			tags: ['experimental'],
 		},
 		'chat.disableAIFeatures': {

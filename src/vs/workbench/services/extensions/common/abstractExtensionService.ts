@@ -87,6 +87,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	private readonly _installedExtensionsReady = new Barrier();
 	private readonly _extensionStatus = new ExtensionIdentifierMap<ExtensionStatus>();
 	private readonly _allRequestedActivateEvents = new Set<string>();
+	private readonly _pendingRemoteActivationEvents = new Set<string>();
 	private readonly _runningLocations: ExtensionRunningLocationTracker;
 	private readonly _remoteCrashTracker = new ExtensionHostCrashTracker();
 
@@ -401,20 +402,17 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	}
 
 	private async _activateAddedExtensionIfNeeded(extensionDescription: IExtensionDescription): Promise<void> {
-		let shouldActivate = false;
 		let shouldActivateReason: string | null = null;
 		let hasWorkspaceContains = false;
 		const activationEvents = this._activationEventReader.readActivationEvents(extensionDescription);
 		for (const activationEvent of activationEvents) {
 			if (this._allRequestedActivateEvents.has(activationEvent)) {
 				// This activation event was fired before the extension was added
-				shouldActivate = true;
 				shouldActivateReason = activationEvent;
 				break;
 			}
 
 			if (activationEvent === '*') {
-				shouldActivate = true;
 				shouldActivateReason = activationEvent;
 				break;
 			}
@@ -424,17 +422,12 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			}
 
 			if (activationEvent === 'onStartupFinished') {
-				shouldActivate = true;
 				shouldActivateReason = activationEvent;
 				break;
 			}
 		}
 
-		if (shouldActivate) {
-			await Promise.all(
-				this._extensionHostManagers.map(extHostManager => extHostManager.activate(extensionDescription.identifier, { startup: false, extensionId: extensionDescription.identifier, activationEvent: shouldActivateReason! }))
-			).then(() => { });
-		} else if (hasWorkspaceContains) {
+		if (!shouldActivateReason && hasWorkspaceContains) {
 			const workspace = await this._contextService.getCompleteWorkspace();
 			const forceUsingSearch = !!this._environmentService.remoteAuthority;
 			const host: IWorkspaceContainsActivationHost = {
@@ -446,13 +439,15 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			};
 
 			const result = await checkActivateWorkspaceContainsExtension(host, extensionDescription);
-			if (!result) {
-				return;
+			if (result) {
+				shouldActivateReason = result.activationEvent;
 			}
+		}
 
+		if (shouldActivateReason) {
 			await Promise.all(
-				this._extensionHostManagers.map(extHostManager => extHostManager.activate(extensionDescription.identifier, { startup: false, extensionId: extensionDescription.identifier, activationEvent: result.activationEvent }))
-			).then(() => { });
+				this._extensionHostManagers.map(extHostManager => extHostManager.activate(extensionDescription.identifier, { startup: false, extensionId: extensionDescription.identifier, activationEvent: shouldActivateReason }))
+			);
 		}
 	}
 
@@ -481,7 +476,41 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 		this._releaseBarrier();
 		perf.mark('code/didLoadExtensions');
+
+		// Activate deferred remote events now that remote hosts are starting
+		// This is done after the barrier is released to avoid blocking initialization
+		this._activateDeferredRemoteEvents();
+
 		await this._handleExtensionTests();
+	}
+
+	private async _activateDeferredRemoteEvents(): Promise<void> {
+		if (this._pendingRemoteActivationEvents.size === 0) {
+			return;
+		}
+
+		const remoteExtensionHosts = this._getExtensionHostManagers(ExtensionHostKind.Remote);
+		if (remoteExtensionHosts.length === 0) {
+			this._pendingRemoteActivationEvents.clear();
+			return;
+		}
+
+		// Wait for remote extension hosts to be ready
+		await Promise.all(remoteExtensionHosts.map(extHost => extHost.ready()));
+
+		// Replay deferred activation events on remote hosts
+		for (const activationEvent of this._pendingRemoteActivationEvents) {
+			const result = Promise.all(
+				remoteExtensionHosts.map(extHostManager => extHostManager.activateByEvent(activationEvent, ActivationKind.Normal))
+			).then(() => { });
+			this._onWillActivateByEvent.fire({
+				event: activationEvent,
+				activation: result,
+				activationKind: ActivationKind.Normal
+			});
+		}
+
+		this._pendingRemoteActivationEvents.clear();
 	}
 
 	private async _resolveAndProcessExtensions(lock: ExtensionDescriptionRegistryLock,): Promise<void> {
@@ -707,7 +736,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	//#region Stopping / Starting / Restarting
 
-	public stopExtensionHosts(reason: string, auto?: boolean): Promise<boolean> {
+	public async stopExtensionHosts(reason: string, auto?: boolean): Promise<boolean> {
+		await this._initializeIfNeeded();
 		return this._doStopExtensionHostsWithVeto(reason, auto);
 	}
 
@@ -991,12 +1021,25 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	}
 
 	private _activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void> {
+		let managers: IExtensionHostManager[];
+		if (activationKind === ActivationKind.Immediate) {
+			// For immediate activation, only activate on local extension hosts
+			// and defer remote activation until the remote host is ready
+			managers = this._extensionHostManagers.filter(
+				extHostManager => extHostManager.kind === ExtensionHostKind.LocalProcess || extHostManager.kind === ExtensionHostKind.LocalWebWorker
+			);
+			this._pendingRemoteActivationEvents.add(activationEvent);
+		} else {
+			managers = [...this._extensionHostManagers];
+		}
+
 		const result = Promise.all(
-			this._extensionHostManagers.map(extHostManager => extHostManager.activateByEvent(activationEvent, activationKind))
+			managers.map(extHostManager => extHostManager.activateByEvent(activationEvent, activationKind))
 		).then(() => { });
 		this._onWillActivateByEvent.fire({
 			event: activationEvent,
-			activation: result
+			activation: result,
+			activationKind
 		});
 		return result;
 	}
