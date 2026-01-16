@@ -25,13 +25,7 @@ export class OneDataSystemWebAppender extends AbstractOneDataSystemAppender {
 	}
 
 	protected override async shouldRespectMeteredConnection(): Promise<boolean> {
-		if (!this.configurationService) {
-			return false;
-		}
-		const respectMetered = this.configurationService.getValue('update.respectMeteredConnections');
-		if (respectMetered === false) {
-			return false;
-		}
-		return isMeteredConnection();
+		const respectMetered = this.configurationService?.getValue('update.respectMeteredConnections') !== false;
+		return respectMetered && isMeteredConnection();
 	}
 }
