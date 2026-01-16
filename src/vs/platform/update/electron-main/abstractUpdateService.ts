@@ -24,6 +24,12 @@ export type UpdateErrorClassification = {
 	comment: 'This is used to know how often VS Code updates have failed.';
 };
 
+/**
+ * Interval for checking for newer updates while in Downloaded/Ready state.
+ * Used to detect when a newer update becomes available while waiting to apply.
+ */
+export const UPDATE_RECHECK_INTERVAL = 30 * 60 * 1000; // 30 minutes
+
 export abstract class AbstractUpdateService implements IUpdateService {
 
 	declare readonly _serviceBrand: undefined;

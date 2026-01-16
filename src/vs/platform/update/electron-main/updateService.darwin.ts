@@ -17,7 +17,7 @@ import { asJson, IRequestService } from '../../request/common/request.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IUpdate, State, StateType, UpdateType } from '../common/update.js';
-import { AbstractUpdateService, createUpdateURL, UpdateErrorClassification } from './abstractUpdateService.js';
+import { AbstractUpdateService, createUpdateURL, UPDATE_RECHECK_INTERVAL, UpdateErrorClassification } from './abstractUpdateService.js';
 
 export class DarwinUpdateService extends AbstractUpdateService implements IRelaunchHandler {
 
@@ -180,7 +180,7 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 	private scheduleReadyUpdateCheck(): void {
 		this.cancelReadyUpdateCheck();
 
-		// Check every 30 minutes if there's a newer update
+		// Check periodically if there's a newer update
 		this.readyUpdateCheckHandle = setTimeout(async () => {
 			if (this.state.type !== StateType.Ready || !this.downloadedUpdate) {
 				return;
@@ -209,7 +209,7 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 				// Same version, schedule another check
 				this.scheduleReadyUpdateCheck();
 			}
-		}, 30 * 60 * 1000 /* 30 minutes */);
+		}, UPDATE_RECHECK_INTERVAL);
 	}
 
 	private cancelReadyUpdateCheck(): void {

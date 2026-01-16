@@ -26,7 +26,7 @@ import { IProductService } from '../../product/common/productService.js';
 import { asJson, IRequestService } from '../../request/common/request.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AvailableForDownload, DisablementReason, IUpdate, State, StateType, UpdateType } from '../common/update.js';
-import { AbstractUpdateService, createUpdateURL, UpdateErrorClassification } from './abstractUpdateService.js';
+import { AbstractUpdateService, createUpdateURL, UPDATE_RECHECK_INTERVAL, UpdateErrorClassification } from './abstractUpdateService.js';
 
 async function pollUntil(fn: () => boolean, millis = 1000): Promise<void> {
 	while (!fn()) {
@@ -314,7 +314,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 	private scheduleDownloadedUpdateCheck(): void {
 		this.cancelDownloadedUpdateCheck();
 
-		// Check every 30 minutes if there's a newer update
+		// Check periodically if there's a newer update
 		this.downloadedUpdateCheckHandle = setTimeout(async () => {
 			if (this.state.type !== StateType.Downloaded) {
 				return;
@@ -345,7 +345,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 				// Same version, schedule another check
 				this.scheduleDownloadedUpdateCheck();
 			}
-		}, 30 * 60 * 1000 /* 30 minutes */);
+		}, UPDATE_RECHECK_INTERVAL);
 	}
 
 	private cancelDownloadedUpdateCheck(): void {
