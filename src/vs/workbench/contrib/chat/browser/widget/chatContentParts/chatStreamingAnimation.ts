@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
-import { safeIntl } from '../../../../../../base/common/date.js';
-import { GraphemeIterator } from '../../../../../../base/common/strings.js';
 import { IChatResponseViewModel } from '../../../common/model/chatViewModel.js';
 import './media/chatStreamingAnimation.css';
 
@@ -128,29 +126,6 @@ function shouldSkipElement(element: HTMLElement): boolean {
 	return !!element.closest(STREAMING_ANIMATION_CONFIG.skipSelector);
 }
 
-/**
- * Iterates over graphemes (user-perceived characters) in a string.
- * Handles emoji, combining characters, etc.
- */
-function* iterateGraphemes(str: string): IterableIterator<string> {
-	const segmenter = safeIntl.Segmenter(undefined, { granularity: 'grapheme' });
-	if (segmenter.value) {
-		for (const { segment } of segmenter.value.segment(str)) {
-			yield segment;
-		}
-		return;
-	}
-
-	// Fallback for environments without Intl.Segmenter
-	const iterator = new GraphemeIterator(str);
-	let offset = 0;
-	while (!iterator.eol()) {
-		const length = iterator.nextGraphemeLength();
-		yield str.substring(offset, offset + length);
-		offset += length;
-	}
-}
-
 interface TokenizationResult {
 	/** Newly created token elements that need animation */
 	newTokens: HTMLElement[];
@@ -204,23 +179,23 @@ function tokenizeChatMarkdownDomForStreaming(root: HTMLElement, element: IChatRe
 
 			const fragment = document.createDocumentFragment();
 
-			for (const grapheme of iterateGraphemes(text)) {
+			for (const char of text) {
 				const isNew = currentCharPosition >= previouslyAnimatedLength;
 
 				// Whitespace and old content: add as raw text (no wrapper needed)
-				if (grapheme.trim().length === 0 || !isNew) {
-					fragment.appendChild(document.createTextNode(grapheme));
-					currentCharPosition += grapheme.length;
+				if (char.trim().length === 0 || !isNew) {
+					fragment.appendChild(document.createTextNode(char));
+					currentCharPosition += char.length;
 					continue;
 				}
 
 				// New content: wrap in animating span
 				const span = document.createElement('span');
 				span.classList.add('token', STREAMING_ANIMATION_CONFIG.tokenClass, STREAMING_ANIMATION_CONFIG.animatingClass);
-				span.textContent = grapheme;
+				span.textContent = char;
 				fragment.appendChild(span);
 				newTokens.push(span);
-				currentCharPosition += grapheme.length;
+				currentCharPosition += char.length;
 			}
 
 			const parent = node.parentNode;
