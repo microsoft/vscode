@@ -315,36 +315,42 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		this.cancelDownloadedUpdateCheck();
 
 		// Check periodically if there's a newer update
-		this.downloadedUpdateCheckHandle = setTimeout(async () => {
-			if (this.state.type !== StateType.Downloaded) {
-				return;
-			}
+		this.downloadedUpdateCheckHandle = setTimeout(() => {
+			(async () => {
+				if (this.state.type !== StateType.Downloaded) {
+					return;
+				}
 
-			this.logService.info('update#scheduleDownloadedUpdateCheck - checking for newer update');
+				this.logService.info('update#scheduleDownloadedUpdateCheck - checking for newer update');
 
-			const latestUpdate = await this.getLatestAvailableUpdate();
-			if (!latestUpdate) {
-				// No newer update or error, schedule another check
+				const latestUpdate = await this.getLatestAvailableUpdate();
+				if (!latestUpdate) {
+					// No newer update or error, schedule another check
+					this.scheduleDownloadedUpdateCheck();
+					return;
+				}
+
+				// Compare versions - if the latest is different from downloaded, restart the download
+				const currentDownloadedVersion = this.state.update.version;
+				if (latestUpdate.version !== currentDownloadedVersion) {
+					this.logService.info(`update#scheduleDownloadedUpdateCheck - newer update available: ${latestUpdate.version} (downloaded: ${currentDownloadedVersion})`);
+
+					// Clean up the old downloaded update and restart the update process
+					await this.cleanup();
+					this.availableUpdate = undefined;
+					this.setState(State.Idle(getUpdateType()));
+
+					// Trigger a new update check
+					this.doCheckForUpdates(false);
+				} else {
+					// Same version, schedule another check
+					this.scheduleDownloadedUpdateCheck();
+				}
+			})().catch(err => {
+				this.logService.error('update#scheduleDownloadedUpdateCheck - error checking for updates', err);
+				// Schedule another check even on error
 				this.scheduleDownloadedUpdateCheck();
-				return;
-			}
-
-			// Compare versions - if the latest is different from downloaded, restart the download
-			const currentDownloadedVersion = this.state.update.version;
-			if (latestUpdate.version !== currentDownloadedVersion) {
-				this.logService.info(`update#scheduleDownloadedUpdateCheck - newer update available: ${latestUpdate.version} (downloaded: ${currentDownloadedVersion})`);
-
-				// Clean up the old downloaded update and restart the update process
-				await this.cleanup();
-				this.availableUpdate = undefined;
-				this.setState(State.Idle(getUpdateType()));
-
-				// Trigger a new update check
-				this.doCheckForUpdates(false);
-			} else {
-				// Same version, schedule another check
-				this.scheduleDownloadedUpdateCheck();
-			}
+			});
 		}, UPDATE_RECHECK_INTERVAL);
 	}
 

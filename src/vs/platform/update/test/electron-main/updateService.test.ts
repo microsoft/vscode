@@ -217,7 +217,7 @@ suite('AbstractUpdateService', () => {
 		disposables.add(service);
 
 		// When mode is 'none', isLatestVersion returns false per the code logic
-		// (see abstractUpdateService.ts line 206-208: if mode === 'none' return false)
+		// (see isLatestVersion method: if mode === 'none' return false)
 		const result = await service.isLatestVersion();
 		assert.strictEqual(result, false);
 	});

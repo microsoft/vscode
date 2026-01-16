@@ -181,34 +181,40 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 		this.cancelReadyUpdateCheck();
 
 		// Check periodically if there's a newer update
-		this.readyUpdateCheckHandle = setTimeout(async () => {
-			if (this.state.type !== StateType.Ready || !this.downloadedUpdate) {
-				return;
-			}
+		this.readyUpdateCheckHandle = setTimeout(() => {
+			(async () => {
+				if (this.state.type !== StateType.Ready || !this.downloadedUpdate) {
+					return;
+				}
 
-			this.logService.info('update#scheduleReadyUpdateCheck - checking for newer update');
+				this.logService.info('update#scheduleReadyUpdateCheck - checking for newer update');
 
-			const latestUpdate = await this.getLatestAvailableUpdate();
-			if (!latestUpdate) {
-				// No newer update or error, schedule another check
+				const latestUpdate = await this.getLatestAvailableUpdate();
+				if (!latestUpdate) {
+					// No newer update or error, schedule another check
+					this.scheduleReadyUpdateCheck();
+					return;
+				}
+
+				// Compare versions - if the latest is different from downloaded, restart the update process
+				if (latestUpdate.version !== this.downloadedUpdate.version) {
+					this.logService.info(`update#scheduleReadyUpdateCheck - newer update available: ${latestUpdate.version} (downloaded: ${this.downloadedUpdate.version})`);
+
+					// Restart the update process to get the newer version
+					this.downloadedUpdate = undefined;
+					this.setState(State.Idle(UpdateType.Archive));
+
+					// Trigger a new update check
+					this.doCheckForUpdates(false);
+				} else {
+					// Same version, schedule another check
+					this.scheduleReadyUpdateCheck();
+				}
+			})().catch(err => {
+				this.logService.error('update#scheduleReadyUpdateCheck - error checking for updates', err);
+				// Schedule another check even on error
 				this.scheduleReadyUpdateCheck();
-				return;
-			}
-
-			// Compare versions - if the latest is different from downloaded, restart the update process
-			if (latestUpdate.version !== this.downloadedUpdate.version) {
-				this.logService.info(`update#scheduleReadyUpdateCheck - newer update available: ${latestUpdate.version} (downloaded: ${this.downloadedUpdate.version})`);
-
-				// Restart the update process to get the newer version
-				this.downloadedUpdate = undefined;
-				this.setState(State.Idle(UpdateType.Archive));
-
-				// Trigger a new update check
-				this.doCheckForUpdates(false);
-			} else {
-				// Same version, schedule another check
-				this.scheduleReadyUpdateCheck();
-			}
+			});
 		}, UPDATE_RECHECK_INTERVAL);
 	}
 
