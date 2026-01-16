@@ -313,4 +313,10 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		this.sessionsList.setFocus([session]);
 		this.sessionsList.setSelection([session]);
 	}
+
+	setGridMarginOffset(offset: number): void {
+		if (this.sessionsContainer) {
+			this.sessionsContainer.style.marginBottom = `-${offset}px`;
+		}
+	}
 }

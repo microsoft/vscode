@@ -115,7 +115,7 @@
 
 .agentSessionsWelcome-suggestedPrompt {
 	padding: 8px 16px;
-	border: 1px solid var(--vscode-button-secondaryBorder, var(--vscode-contrastBorder, transparent));
+	border: 1px solid var(--vscode-button-border, var(--vscode-contrastBorder, transparent));
 	border-radius: 20px;
 	background-color: var(--vscode-button-secondaryBackground);
 	color: var(--vscode-button-secondaryForeground);
@@ -193,9 +193,9 @@
 	transform: translateX(100%) translateY(-156px);
 }
 
-/* Clip the extra space caused by transforms - uses CSS variable set by JS */
+/* Clip the extra space caused by transforms - margin set directly by JS */
 .agentSessionsWelcome-sessionsGrid .agent-sessions-viewer .monaco-scrollable-element {
-	margin-bottom: var(--sessions-grid-margin-offset, 0px);
+	/* margin-bottom is set programmatically in layoutSessionsControl() */
 }
 
 /* Style individual session items in the welcome page */
