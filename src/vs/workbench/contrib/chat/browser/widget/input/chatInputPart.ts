@@ -84,7 +84,7 @@ import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from 
 import { IChatModelInputState, IChatRequestModeInfo, IInputModel } from '../../../common/model/chatModel.js';
 import { ChatMode, IChatMode, IChatModeService } from '../../../common/chatModes.js';
 import { IChatFollowup, IChatService, IChatSessionContext } from '../../../common/chatService/chatService.js';
-import { IChatSessionProviderOptionItem, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
+import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isStringImplicitContextValue, isStringVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { IChatResponseViewModel } from '../../../common/model/chatViewModel.js';
@@ -519,6 +519,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// Listen for session type changes from the welcome page delegate
 		if (this.options.sessionTypePickerDelegate?.onDidChangeActiveSessionProvider) {
 			this._register(this.options.sessionTypePickerDelegate.onDidChangeActiveSessionProvider(async (newSessionType) => {
+				this.computeVisibleOptionGroups();
 				this.agentSessionTypeKey.set(newSessionType);
 				this.updateWidgetLockStateFromSessionType(newSessionType);
 				this.refreshChatSessionPickers();
@@ -754,58 +755,18 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private createChatSessionPickerWidgets(action: MenuItemAction): (ChatSessionPickerActionItem | SearchableOptionPickerActionItem)[] {
 		this._lastSessionPickerAction = action;
 
-		// Helper to resolve chat session context
-		const resolveChatSessionContext = () => {
-			const sessionResource = this._widget?.viewModel?.model.sessionResource;
-			if (!sessionResource) {
-				return undefined;
-			}
-			return this.chatService.getChatSessionFromInternalUri(sessionResource);
-		};
-
-		// Get all option groups for the current session type
-		const ctx = resolveChatSessionContext();
-		const effectiveSessionType = this.getEffectiveSessionType(ctx, this.options.sessionTypePickerDelegate);
-		const usingDelegateSessionType = effectiveSessionType !== ctx?.chatSessionType;
-		const optionGroups = effectiveSessionType ? this.chatSessionsService.getOptionGroupsForSessionType(effectiveSessionType) : undefined;
-		if (!optionGroups || optionGroups.length === 0) {
+		const result = this.computeVisibleOptionGroups();
+		if (!result) {
 			return [];
 		}
 
+		const { visibleGroupIds, optionGroups, effectiveSessionType } = result;
 		// Clear existing widgets
 		this.disposeSessionPickerWidgets();
 
-		// Init option group context keys
-		for (const optionGroup of optionGroups) {
-			if (!ctx) {
-				continue;
-			}
-			const currentOption = this.chatSessionsService.getSessionOption(ctx.chatSessionResource, optionGroup.id);
-			if (currentOption) {
-				const optionId = typeof currentOption === 'string' ? currentOption : currentOption.id;
-				this.updateOptionContextKey(optionGroup.id, optionId);
-			}
-		}
-
 		const widgets: (ChatSessionPickerActionItem | SearchableOptionPickerActionItem)[] = [];
 		for (const optionGroup of optionGroups) {
-			// For delegate session types, we don't require ctx or session values
-			if (!usingDelegateSessionType && !ctx) {
-				continue;
-			}
-
-			const hasSessionValue = ctx ? this.chatSessionsService.getSessionOption(ctx.chatSessionResource, optionGroup.id) : undefined;
-			const hasItems = optionGroup.items.length > 0;
-			// For delegate session types, only check if items exist; otherwise check session value or items
-			if (!usingDelegateSessionType && !hasSessionValue && !hasItems) {
-				// This session does not have a value to contribute for this option group
-				continue;
-			}
-			if (usingDelegateSessionType && !hasItems) {
-				continue;
-			}
-
-			if (!this.evaluateOptionGroupVisibility(optionGroup)) {
+			if (!visibleGroupIds.has(optionGroup.id)) {
 				continue;
 			}
 
@@ -821,11 +782,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					this.updateOptionContextKey(optionGroup.id, option.id);
 					this.getOrCreateOptionEmitter(optionGroup.id).fire(option);
 
-					// Only notify session options change if we have an actual session (not delegate-only)
-					const ctx = resolveChatSessionContext();
-					if (ctx && !usingDelegateSessionType) {
+					// Notify session if we have one (not in welcome view before session creation)
+					const sessionResource = this._widget?.viewModel?.model.sessionResource;
+					const currentCtx = sessionResource ? this.chatService.getChatSessionFromInternalUri(sessionResource) : undefined;
+					if (currentCtx) {
 						this.chatSessionsService.notifySessionOptionsChange(
-							ctx.chatSessionResource,
+							currentCtx.chatSessionResource,
 							[{ optionId: optionGroup.id, value: option }]
 						).catch(err => this.logService.error(`Failed to notify extension of ${optionGroup.id} change:`, err));
 					}
@@ -834,10 +796,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					this.refreshChatSessionPickers();
 				},
 				getOptionGroup: () => {
-					// Use the effective session type (delegate's type takes precedence)
-					// effectiveSessionType is guaranteed to be defined here since we've already
-					// validated optionGroups exist at this point
-					const groups = effectiveSessionType ? this.chatSessionsService.getOptionGroupsForSessionType(effectiveSessionType) : undefined;
+					const groups = this.chatSessionsService.getOptionGroupsForSessionType(effectiveSessionType);
 					return groups?.find(g => g.id === optionGroup.id);
 				}
 			};
@@ -1396,84 +1355,118 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	/**
-	 * Refresh all registered option groups for the current chat session.
-	 * Fires events for each option group with their current selection.
+	 * Computes which option groups should be visible for the current session.
+	 *
+	 * A picker should show if and only if:
+	 * 1. We can determine a session type (from session context OR delegate)
+	 * 2. That session type has option groups registered
+	 * 3. At least one option group has items AND passes its `when` clause
+	 *
+	 * This method also updates the `chatSessionHasOptions` context key, which controls
+	 * whether the picker action is shown in the toolbar via its `when` clause.
+	 *
+	 * @returns The result containing visible group IDs and related context, or undefined
+	 *          if there are no visible option groups
 	 */
-	private refreshChatSessionPickers(): void {
-		const sessionResource = this._widget?.viewModel?.model.sessionResource;
-		const hideAll = () => {
+	private computeVisibleOptionGroups(): {
+		visibleGroupIds: Set<string>;
+		optionGroups: IChatSessionProviderOptionGroup[];
+		ctx: IChatSessionContext | undefined;
+		effectiveSessionType: string;
+	} | undefined {
+		const setNoOptions = () => {
 			this.chatSessionHasOptions.set(false);
-			this.chatSessionOptionsValid.set(true); // No options means nothing to validate
-			this.hideAllSessionPickerWidgets();
+			this.chatSessionOptionsValid.set(true);
 		};
 
-		if (!sessionResource) {
-			return hideAll();
-		}
-		const ctx = this.chatService.getChatSessionFromInternalUri(sessionResource);
-		if (!ctx) {
-			return hideAll();
+		// Step 1: Determine the session type
+		// - Panel/Editor: Use actual session's type (ctx available)
+		// - Welcome view: Use delegate's type (ctx may not exist yet)
+		const sessionResource = this._widget?.viewModel?.model.sessionResource;
+		const ctx = sessionResource ? this.chatService.getChatSessionFromInternalUri(sessionResource) : undefined;
+		const delegateSessionType = this.options.sessionTypePickerDelegate?.getActiveSessionProvider?.();
+		const effectiveSessionType = delegateSessionType ?? ctx?.chatSessionType;
+
+		if (!effectiveSessionType) {
+			setNoOptions();
+			return undefined;
 		}
 
-		const effectiveSessionType = this.getEffectiveSessionType(ctx, this.options.sessionTypePickerDelegate);
-		const usingDelegateSessionType = effectiveSessionType !== ctx.chatSessionType;
+		// Step 2: Get option groups for this session type
 		const optionGroups = this.chatSessionsService.getOptionGroupsForSessionType(effectiveSessionType);
 		if (!optionGroups || optionGroups.length === 0) {
-			return hideAll();
+			setNoOptions();
+			return undefined;
 		}
 
-		// For delegate-provided session types, we don't require the actual session to have options
-		// because the actual session might be local while the delegate selects a different type
-		if (!usingDelegateSessionType && !this.chatSessionsService.hasAnySessionOptions(ctx.chatSessionResource)) {
-			return hideAll();
-		}
-
-		// First update all context keys with current values (before evaluating visibility)
-		for (const optionGroup of optionGroups) {
-			const currentOption = this.chatSessionsService.getSessionOption(ctx.chatSessionResource, optionGroup.id);
-			if (currentOption) {
-				const optionId = typeof currentOption === 'string' ? currentOption : currentOption.id;
-				this.updateOptionContextKey(optionGroup.id, optionId);
-			} else {
-				this.logService.trace(`[ChatInputPart] No session option set for group '${optionGroup.id}'`);
+		// Update context keys with current option values before evaluating `when` clauses.
+		// This ensures interdependent `when` expressions work correctly.
+		if (ctx) {
+			for (const optionGroup of optionGroups) {
+				const currentOption = this.chatSessionsService.getSessionOption(ctx.chatSessionResource, optionGroup.id);
+				if (currentOption) {
+					const optionId = typeof currentOption === 'string' ? currentOption : currentOption.id;
+					this.updateOptionContextKey(optionGroup.id, optionId);
+				}
 			}
 		}
 
-		// Compute which option groups should be visible based on when expressions
+		// Step 3: Filter to visible groups (has items AND passes `when` clause)
 		const visibleGroupIds = new Set<string>();
 		for (const optionGroup of optionGroups) {
-			if (!this.chatSessionsService.getSessionOption(ctx.chatSessionResource, optionGroup.id)) {
-				continue;
-			}
-			if (this.evaluateOptionGroupVisibility(optionGroup)) {
+			const hasItems = optionGroup.items.length > 0;
+			const passesWhenClause = this.evaluateOptionGroupVisibility(optionGroup);
+
+			if (hasItems && passesWhenClause) {
 				visibleGroupIds.add(optionGroup.id);
 			}
 		}
 
-		// Only show the picker if there are visible option groups
 		if (visibleGroupIds.size === 0) {
-			return hideAll();
+			setNoOptions();
+			return undefined;
 		}
 
-		// Validate that all selected options exist in their respective option group items
+		// Validate selected options exist in their respective groups
 		let allOptionsValid = true;
-		for (const optionGroup of optionGroups) {
-			const currentOption = this.chatSessionsService.getSessionOption(ctx.chatSessionResource, optionGroup.id);
-			if (currentOption) {
-				const currentOptionId = typeof currentOption === 'string' ? currentOption : currentOption.id;
-				const isValidOption = optionGroup.items.some(item => item.id === currentOptionId);
-				if (!isValidOption) {
-					this.logService.trace(`[ChatInputPart] Selected option '${currentOptionId}' is not valid for group '${optionGroup.id}'`);
-					allOptionsValid = false;
+		if (ctx) {
+			for (const groupId of visibleGroupIds) {
+				const optionGroup = optionGroups.find(g => g.id === groupId);
+				const currentOption = this.chatSessionsService.getSessionOption(ctx.chatSessionResource, groupId);
+				if (optionGroup && currentOption) {
+					const currentOptionId = typeof currentOption === 'string' ? currentOption : currentOption.id;
+					if (!optionGroup.items.some(item => item.id === currentOptionId)) {
+						allOptionsValid = false;
+						break;
+					}
 				}
 			}
 		}
-		this.chatSessionOptionsValid.set(allOptionsValid);
 
 		this.chatSessionHasOptions.set(true);
+		this.chatSessionOptionsValid.set(allOptionsValid);
 
+		return { visibleGroupIds, optionGroups, ctx, effectiveSessionType };
+	}
+
+	/**
+	 * Refresh all registered option groups for the current chat session.
+	 * Fires events for each option group with their current selection.
+	 */
+	private refreshChatSessionPickers(): void {
+		// Use the shared helper to compute visibility and update context keys
+		const result = this.computeVisibleOptionGroups();
+
+		if (!result) {
+			// No visible options - helper already updated context keys
+			this.hideAllSessionPickerWidgets();
+			return;
+		}
+
+		const { visibleGroupIds, optionGroups, ctx } = result;
+
+		// Check if widgets need recreation (different set of visible groups)
 		const currentWidgetGroupIds = new Set(this.chatSessionPickerWidgets.keys());
-
 		const needsRecreation =
 			currentWidgetGroupIds.size !== visibleGroupIds.size ||
 			!Array.from(visibleGroupIds).every(id => currentWidgetGroupIds.has(id));
@@ -1492,20 +1485,24 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.chatSessionPickerContainer.style.display = '';
 		}
 
-		for (const [optionGroupId] of this.chatSessionPickerWidgets.entries()) {
-			const currentOption = this.chatSessionsService.getSessionOption(ctx.chatSessionResource, optionGroupId);
-			if (currentOption) {
-				const optionGroup = optionGroups.find(g => g.id === optionGroupId);
-				if (optionGroup) {
-					const currentOptionId = typeof currentOption === 'string' ? currentOption : currentOption.id;
-					const item = optionGroup.items.find(m => m.id === currentOptionId);
-					if (item) {
-						// If currentOption is an object (not a string ID), it represents a complete option item and should be used directly.
-						// Otherwise, if it's a string ID, look up the corresponding item and use that.
-						if (typeof currentOption === 'string') {
-							this.getOrCreateOptionEmitter(optionGroupId).fire(item);
-						} else {
-							this.getOrCreateOptionEmitter(optionGroupId).fire(currentOption);
+		// Fire option change events for existing widgets to sync their state
+		// (only if we have a session context - in welcome view, options aren't persisted yet)
+		if (ctx) {
+			for (const [optionGroupId] of this.chatSessionPickerWidgets.entries()) {
+				const currentOption = this.chatSessionsService.getSessionOption(ctx.chatSessionResource, optionGroupId);
+				if (currentOption) {
+					const optionGroup = optionGroups.find(g => g.id === optionGroupId);
+					if (optionGroup) {
+						const currentOptionId = typeof currentOption === 'string' ? currentOption : currentOption.id;
+						const item = optionGroup.items.find((m: IChatSessionProviderOptionItem) => m.id === currentOptionId);
+						if (item) {
+							// If currentOption is an object (not a string ID), it represents a complete option item and should be used directly.
+							// Otherwise, if it's a string ID, look up the corresponding item and use that.
+							if (typeof currentOption === 'string') {
+								this.getOrCreateOptionEmitter(optionGroupId).fire(item);
+							} else {
+								this.getOrCreateOptionEmitter(optionGroupId).fire(currentOption);
+							}
 						}
 					}
 				}
@@ -1630,6 +1627,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	render(container: HTMLElement, initialValue: string, widget: IChatWidget) {
 		this._widget = widget;
+		this.computeVisibleOptionGroups();
 
 		this._register(widget.onDidChangeViewModel(() => {
 			// Update agentSessionType when view model changes
