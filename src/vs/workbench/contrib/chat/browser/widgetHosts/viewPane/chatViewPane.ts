@@ -650,6 +650,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				sessionsControl.reveal(sessionResource);
 			}
 		}));
+
+		// When showing sessions stacked, adjust the height of the sessions list to make room for chat input
+		this._register(chatWidget.onDidChangeContentHeight(() => {
+			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked && this.lastDimensions) {
+				this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
+			}
+		}));
 	}
 
 	private setupContextMenu(parent: HTMLElement): void {
@@ -795,7 +802,22 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	//#region Layout
 
+	private layoutingBody = false;
+
 	protected override layoutBody(height: number, width: number): void {
+		if (this.layoutingBody) {
+			return; // prevent re-entrancy
+		}
+
+		this.layoutingBody = true;
+		try {
+			this.doLayoutBody(height, width);
+		} finally {
+			this.layoutingBody = false;
+		}
+	}
+
+	private doLayoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 
 		this.lastDimensions = { height, width };
@@ -906,7 +928,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		let availableSessionsHeight = height - this.sessionsTitleContainer.offsetHeight - this.sessionsLinkContainer.offsetHeight;
 		if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
-			availableSessionsHeight -= ChatViewPane.MIN_CHAT_WIDGET_HEIGHT; // always reserve some space for chat input
+			availableSessionsHeight -= Math.max(ChatViewPane.MIN_CHAT_WIDGET_HEIGHT, this._widget?.input?.contentHeight ?? 0);
 		}
 
 		// Show as sidebar
