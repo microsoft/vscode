@@ -8,13 +8,13 @@ parameters:
   - name: os
     type: string
     default: linux
-  - name: args
-    type: string
-    default: ""
   - name: container
     type: string
     default: ""
   - name: containerPlatform
+    type: string
+    default: ""
+  - name: args
     type: string
     default: ""
 
@@ -26,8 +26,8 @@ jobs:
       os: ${{ parameters.os }}
     timeoutInMinutes: 30
     variables:
-      SANITY_TEST_LOGS: $(Build.SourcesDirectory)/.build/sanity-test-logs
-      LOG_FILE: $(SANITY_TEST_LOGS)/results.xml
+      TEST_DIR: ./test/sanity
+      LOG_FILE: $(Build.SourcesDirectory)/.build/sanity-test-logs/results.xml
     steps:
       - template: ./checkout.yml@self
 
@@ -48,24 +48,25 @@ jobs:
         displayName: Authenticate with NPM Registry
 
       - script: npm ci
-        workingDirectory: ./test/sanity
-        displayName: Install Dependencies
+        workingDirectory: $(TEST_DIR)
+        displayName: Install NPM Dependencies
 
+      # Native host: Install Playwright browser
       - ${{ if eq(parameters.os, 'windows') }}:
           script: ./node_modules/.bin/playwright install --with-deps chromium
         ${{ elseif eq(parameters.os, 'macos') }}:
           script: ./node_modules/.bin/playwright install --with-deps webkit
         ${{ else }}:
           script: ./node_modules/.bin/playwright install --with-deps firefox
-        workingDirectory: ./test/sanity
+        workingDirectory: $(TEST_DIR)
         displayName: Install Playwright Browser
         condition: eq('${{ parameters.container }}', '')
 
       - script: npm run compile
-        workingDirectory: ./test/sanity
+        workingDirectory: $(TEST_DIR)
         displayName: Compile Sanity Tests
 
-      # Setup X11 for native Linux hosts (needed for Electron tests)
+      # Native Linux host: Setup X11
       - bash: |
           set -e
           sudo apt-get update
@@ -74,29 +75,24 @@ jobs:
           echo "Start Xvfb on display :99"
           sudo Xvfb :99 -screen 0 1280x960x24 -ac +extension GLX +render -noreset &
           echo "##vso[task.setvariable variable=DISPLAY]:99"
-          sleep 2
 
           echo "Start D-Bus daemon"
           sudo mkdir -p /var/run/dbus
-          sudo dbus-daemon --system --fork || true
+          sudo dbus-daemon --system --fork
 
-          echo "Start snapd service for snap package tests"
-          sudo systemctl start snapd.socket || true
-          sudo systemctl start snapd.service || true
-          sleep 2
-
-          echo "Install Playwright browser"
-          /workspace/test/sanity/node_modules/.bin/playwright install --with-deps firefox
+          echo "Start snapd service for Snap package tests"
+          sudo systemctl start snapd.socket
+          sudo systemctl start snapd.service
         displayName: Setup X11 Display
         condition: and(eq('${{ parameters.container }}', ''), eq('${{ parameters.os }}', 'linux'))
 
-      # Host-based test execution (Windows, macOS, Linux)
+      # Native host: Run Sanity Tests
       - script: node out/index.js -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -v ${{ parameters.args }}
-        workingDirectory: ./test/sanity
+        workingDirectory: $(TEST_DIR)
         displayName: Run Sanity Tests
         condition: eq('${{ parameters.container }}', '')
 
-      # Container-based test execution (Linux)
+      # Container host: Run Sanity Tests
       - bash: |
           docker run --privileged --rm tonistiigi/binfmt --uninstall '*'
           docker run --pull always --privileged --rm tonistiigi/binfmt --install all
@@ -125,8 +121,8 @@ jobs:
                   curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
                   apt-get install -y nodejs
                 else
-                  # For arm32, use system nodejs (may be older)
-                  apt-get install -y nodejs npm
+                  # For arm32, download official Node.js binary (NodeSource doesn't support armv7)
+                  curl -fsSL https://nodejs.org/dist/v22.13.0/node-v22.13.0-linux-armv7l.tar.xz | tar -xJ -C /usr/local --strip-components=1
                 fi
 
                 # Install webkit dependencies for ARM platforms

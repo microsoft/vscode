@@ -105,7 +105,7 @@ export class UITest {
 		await page.keyboard.type('Hello, World!');
 
 		await this.runCommand(page, 'File: Save');
-		await page.waitForTimeout(1000);
+		await page.waitForLoadState('networkidle');
 	}
 
 	/**
@@ -123,6 +123,7 @@ export class UITest {
 	 */
 	private async installExtension(page: Page) {
 		await this.runCommand(page, 'View: Show Extensions');
+		await page.waitForLoadState('networkidle');
 
 		this.context.log('Typing extension name to search for');
 		await page.getByText('Search Extensions in Marketplace').focus();
@@ -131,6 +132,7 @@ export class UITest {
 		this.context.log('Clicking Install on the first extension in the list');
 		await page.locator('.extension-list-item').getByText(/^GitHub Pull Requests$/).waitFor();
 		await page.locator('.extension-action:not(.disabled)', { hasText: /Install/ }).first().click();
+		await page.waitForLoadState('networkidle');
 
 		this.context.log('Waiting for extension to be installed');
 		await page.locator('.extension-action:not(.disabled)', { hasText: /Uninstall/ }).waitFor();
