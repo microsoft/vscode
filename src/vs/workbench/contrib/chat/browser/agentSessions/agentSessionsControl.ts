@@ -210,13 +210,13 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		EventHelper.stop(browserEvent, true);
 
 		if (isAgentSessionSection(element)) {
-			this.showAgentSessionsSectionContextMenu(element, anchor);
+			this.showAgentSessionSectionContextMenu(element, anchor);
 		} else {
 			this.showAgentSessionContextMenu(element, anchor);
 		}
 	}
 
-	private async showAgentSessionsSectionContextMenu(section: IAgentSessionSection, anchor: HTMLElement | IMouseEvent): Promise<void> {
+	private async showAgentSessionSectionContextMenu(section: IAgentSessionSection, anchor: HTMLElement | IMouseEvent): Promise<void> {
 		const contextOverlay: Array<[string, boolean | string]> = [];
 		contextOverlay.push([ChatContextKeys.agentSessionSection.key, section.section]);
 
