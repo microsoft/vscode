@@ -665,13 +665,22 @@ async function getSessionMetadata(session: ChatModel | ISerializableChatData): P
 		session.lastMessageDate :
 		session.requests.at(-1)?.timestamp ?? session.creationDate;
 
-	const timing = session instanceof ChatModel ?
+	const timing: IChatSessionTiming = session instanceof ChatModel ?
 		session.timing :
 		// session is only ISerializableChatData in the old pre-fs storage data migration scenario
 		{
-			startTime: session.creationDate,
-			endTime: lastMessageDate
+			created: session.creationDate,
+			lastRequestStarted: session.requests.at(-1)?.timestamp,
+			lastRequestEnded: lastMessageDate,
 		};
+
+	let lastResponseState = session instanceof ChatModel ?
+		(session.lastRequest?.response?.state ?? ResponseModelState.Complete) :
+		ResponseModelState.Complete;
+
+	if (lastResponseState === ResponseModelState.Pending || lastResponseState === ResponseModelState.NeedsInput) {
+		lastResponseState = ResponseModelState.Cancelled;
+	}
 
 	return {
 		sessionId: session.sessionId,
@@ -683,9 +692,7 @@ async function getSessionMetadata(session: ChatModel | ISerializableChatData): P
 		isEmpty: session instanceof ChatModel ? session.getRequests().length === 0 : session.requests.length === 0,
 		stats,
 		isExternal: session instanceof ChatModel && !LocalChatSessionUri.parseLocalSessionId(session.sessionResource),
-		lastResponseState: session instanceof ChatModel ?
-			(session.lastRequest?.response?.state ?? ResponseModelState.Complete) :
-			ResponseModelState.Complete
+		lastResponseState,
 	};
 }
 

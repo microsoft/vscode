@@ -10,6 +10,7 @@ import { RawContextKey } from '../../../../platform/contextkey/common/contextkey
 
 export enum ChatConfiguration {
 	AgentEnabled = 'chat.agent.enabled',
+	AgentStatusEnabled = 'chat.agentsControl.enabled',
 	AgentSessionProjectionEnabled = 'chat.agentSessionProjection.enabled',
 	Edits2Enabled = 'chat.edits2.enabled',
 	ExtensionToolsEnabled = 'chat.extensionTools.enabled',
@@ -23,12 +24,12 @@ export enum ChatConfiguration {
 	CheckpointsEnabled = 'chat.checkpoints.enabled',
 	ThinkingStyle = 'chat.agent.thinkingStyle',
 	ThinkingGenerateTitles = 'chat.agent.thinking.generateTitles',
+	TerminalToolsInThinking = 'chat.agent.thinking.terminalTools',
 	TodosShowWidget = 'chat.tools.todos.showWidget',
 	NotifyWindowOnResponseReceived = 'chat.notifyWindowOnResponseReceived',
 	ChatViewSessionsEnabled = 'chat.viewSessions.enabled',
 	ChatViewSessionsOrientation = 'chat.viewSessions.orientation',
 	ChatViewTitleEnabled = 'chat.viewTitle.enabled',
-	ChatViewWelcomeEnabled = 'chat.viewWelcome.enabled',
 	SubagentToolCustomAgents = 'chat.customAgentInSubagent.enabled',
 	ShowCodeBlockProgressAnimation = 'chat.agent.codeBlockProgress',
 	RestoreLastPanelSession = 'chat.restoreLastPanelSession',

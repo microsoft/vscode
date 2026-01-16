@@ -107,6 +107,8 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 						if (toolInvocation.toolSpecificData?.kind === 'terminal') {
 							const terminalData = migrateLegacyTerminalToolSpecificData(toolInvocation.toolSpecificData);
 							input = terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
+						} else if (toolInvocation.toolSpecificData?.kind === 'subagent') {
+							input = toolInvocation.toolSpecificData.description ?? '';
 						} else {
 							input = toolInvocation.toolSpecificData?.kind === 'extensions'
 								? JSON.stringify(toolInvocation.toolSpecificData.extensions)
