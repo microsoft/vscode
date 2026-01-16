@@ -18,6 +18,7 @@ import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatMarkdownContentPart, type IChatMarkdownContentPartOptions } from '../chatMarkdownContentPart.js';
 import { ChatProgressSubPart } from '../chatProgressContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
+import { TerminalToolAutoExpand } from './terminalToolAutoExpand.js';
 import { ChatCollapsibleContentPart } from '../chatCollapsibleContentPart.js';
 import { IChatRendererContent } from '../../../../common/model/chatViewModel.js';
 import '../media/chatTerminalToolProgressPart.css';
@@ -217,7 +218,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private readonly _isSerializedInvocation: boolean;
 	private _terminalInstance: ITerminalInstance | undefined;
 	private readonly _decoration: TerminalCommandDecoration;
-	private _autoExpandTimeout: ReturnType<typeof setTimeout> | undefined;
 	private _userToggledOutput: boolean = false;
 	private _isInThinkingContainer: boolean = false;
 	private _thinkingCollapsibleWrapper: ChatTerminalThinkingCollapsibleWrapper | undefined;
@@ -559,29 +559,38 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			}
 
 			const store = new DisposableStore();
+
+			const hasRealOutput = (): boolean => {
+				// Check for snapshot output
+				if (this._terminalData.terminalCommandOutput?.text?.trim()) {
+					return true;
+				}
+				// Check for live output (cursor moved past executed marker)
+				const command = this._getResolvedCommand(terminalInstance);
+				if (!command?.executedMarker || terminalInstance.isDisposed) {
+					return false;
+				}
+				const buffer = terminalInstance.xterm?.raw.buffer.active;
+				if (!buffer) {
+					return false;
+				}
+				const cursorLine = buffer.baseY + buffer.cursorY;
+				return cursorLine > command.executedMarker.line;
+			};
+
+			// Use the extracted auto-expand logic
+			const autoExpand = store.add(new TerminalToolAutoExpand({
+				commandDetection,
+				onWillData: terminalInstance.onWillData,
+				shouldAutoExpand: () => !this._outputView.isExpanded && !this._userToggledOutput && !this._store.isDisposed,
+				hasRealOutput,
+			}));
+			store.add(autoExpand.onDidRequestExpand(() => this._toggleOutput(true)));
+
 			store.add(commandDetection.onCommandExecuted(() => {
 				this._addActions(terminalInstance, this._terminalData.terminalToolSessionId);
-				// Auto-expand if there's output, checking periodically for up to 1 second
-				if (!this._outputView.isExpanded && !this._userToggledOutput && !this._autoExpandTimeout) {
-					let attempts = 0;
-					const maxAttempts = 5;
-					const checkForOutput = () => {
-						this._autoExpandTimeout = undefined;
-						if (this._store.isDisposed || this._outputView.isExpanded || this._userToggledOutput) {
-							return;
-						}
-						if (this._hasOutput(terminalInstance)) {
-							this._toggleOutput(true);
-							return;
-						}
-						attempts++;
-						if (attempts < maxAttempts) {
-							this._autoExpandTimeout = setTimeout(checkForOutput, 200);
-						}
-					};
-					this._autoExpandTimeout = setTimeout(checkForOutput, 200);
-				}
 			}));
+
 			store.add(commandDetection.onCommandFinished(() => {
 				this._addActions(terminalInstance, this._terminalData.terminalToolSessionId);
 				const resolvedCommand = this._getResolvedCommand(terminalInstance);
@@ -690,10 +699,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	}
 
 	private _handleDispose(): void {
-		if (this._autoExpandTimeout) {
-			clearTimeout(this._autoExpandTimeout);
-			this._autoExpandTimeout = undefined;
-		}
 		this._terminalOutputContextKey.reset();
 		this._terminalChatService.clearFocusedProgressPart(this);
 	}
@@ -745,24 +750,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			await this._toggleOutput(false);
 		}
 		this._focusChatInput();
-	}
-
-	private _hasOutput(terminalInstance: ITerminalInstance): boolean {
-		// Check for snapshot
-		if (this._terminalData.terminalCommandOutput?.text?.trim()) {
-			return true;
-		}
-		// Check for live output (cursor moved past executed marker)
-		const command = this._getResolvedCommand(terminalInstance);
-		if (!command?.executedMarker || terminalInstance.isDisposed) {
-			return false;
-		}
-		const buffer = terminalInstance.xterm?.raw.buffer.active;
-		if (!buffer) {
-			return false;
-		}
-		const cursorLine = buffer.baseY + buffer.cursorY;
-		return cursorLine > command.executedMarker.line;
 	}
 
 	private _resolveCommand(instance: ITerminalInstance): ITerminalCommand | undefined {
