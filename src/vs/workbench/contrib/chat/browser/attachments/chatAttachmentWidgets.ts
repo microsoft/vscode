@@ -615,14 +615,6 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 			appearance: { showPointer: true },
 		});
 	}
-
-	public updateTooltip(tooltip: IMarkdownString | undefined): void {
-		if (tooltip) {
-			this._setupTooltipHover(tooltip);
-		} else {
-			this._tooltipHover.clear();
-		}
-	}
 }
 
 export class PromptFileAttachmentWidget extends AbstractChatAttachmentWidget {

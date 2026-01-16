@@ -7,7 +7,6 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
-import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
@@ -137,13 +136,11 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 			title = this.renderResource(this.attachment.value, label);
 		}
 
-		if (markdownTooltip) {
+		if (markdownTooltip || title) {
 			this.renderDisposables.add(this.hoverService.setupDelayedHover(this.domNode, {
-				content: markdownTooltip,
+				content: markdownTooltip! ?? title!,
 				appearance: { showPointer: true },
 			}));
-		} else if (title) {
-			this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this.domNode, title));
 		}
 
 		// Context menu
