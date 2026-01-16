@@ -8,7 +8,6 @@ import { Emitter } from '../../../base/common/event.js';
 import { assertReturnsDefined } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
-import { IDisposable } from '../../../base/common/lifecycle.js';
 import { IEditorTabDto, IEditorTabGroupDto, IExtHostEditorTabsShape, MainContext, MainThreadEditorTabsShape, TabInputKind, TabModelOperationKind, TabOperation } from './extHost.protocol.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import * as typeConverters from './extHostTypeConverters.js';
@@ -175,7 +174,6 @@ class ExtHostEditorTabGroup {
 	}
 
 	acceptGroupDtoUpdate(dto: IEditorTabGroupDto) {
-		const oldTabIds = new Set(this._tabs.map(tab => tab.tabId));
 		const newTabIds = new Set(dto.tabs.map(tab => tab.id));
 
 		// Dispose of tabs that are no longer present
