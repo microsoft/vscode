@@ -399,7 +399,7 @@ export class ChatListWidget extends Disposable {
 			supportIcons: true,
 		}));
 		this._scrollDownButton.element.classList.add('chat-scroll-down');
-		this._scrollDownButton.label = `$(${Codicon.arrowDown.id}) ${localize('scrollDown', "Scroll down")}`;
+		this._scrollDownButton.label = `$(${Codicon.chevronDown.id})`;
 		this._scrollDownButton.element.style.display = 'none'; // Hidden by default
 
 		this._register(this._scrollDownButton.onDidClick(() => {
