@@ -197,7 +197,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.AgentStatusEnabled]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.agentsControl.enabled', "Controls whether the Agent Status is shown in the title bar command center, replacing the search box with quick access to chat sessions."),
-			default: true,
+			default: false,
 			tags: ['experimental']
 		},
 		[ChatConfiguration.AgentSessionProjectionEnabled]: {
