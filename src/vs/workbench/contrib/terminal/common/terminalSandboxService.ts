@@ -15,13 +15,13 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
-import { TerminalContribSettingId } from '../../terminal/terminalContribExports.js';
+import { IEnvironmentService, INativeEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { TerminalContribSettingId } from '../terminalContribExports.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 
-export const IChatSandboxService = createDecorator<IChatSandboxService>('sandboxService');
+export const ITerminalSandboxService = createDecorator<ITerminalSandboxService>('terminalSandboxService');
 
-export interface IChatSandboxService {
+export interface ITerminalSandboxService {
 	readonly _serviceBrand: undefined;
 	isEnabled(): boolean;
 	wrapCommand(command: string): string;
@@ -30,7 +30,7 @@ export interface IChatSandboxService {
 	setNeedsForceUpdateConfigFile(): void;
 }
 
-export class ChatSandboxService implements IChatSandboxService {
+export class TerminalSandboxService implements ITerminalSandboxService {
 	readonly _serviceBrand: undefined;
 	private _srtPath: string;
 	private _sandboxConfigPath: string | undefined;
@@ -43,7 +43,7 @@ export class ChatSandboxService implements IChatSandboxService {
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IFileService private readonly _fileService: IFileService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@IEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@ILogService private readonly _logService: ILogService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 	) {
@@ -58,12 +58,7 @@ export class ChatSandboxService implements IChatSandboxService {
 		if (this._os === OperatingSystem.Windows) {
 			return false;
 		}
-		const enabledSetting = this._configurationService.getValue<boolean>(TerminalContribSettingId.TerminalSandboxEnabled);
-		const isEnabled = enabledSetting === true;
-		if (!isEnabled) {
-			return false;
-		}
-		return true;
+		return this._configurationService.getValue<boolean>(TerminalContribSettingId.TerminalSandboxEnabled);
 	}
 
 	public wrapCommand(command: string): string {
@@ -124,17 +119,12 @@ export class ChatSandboxService implements IChatSandboxService {
 	private _initTempDir(): void {
 		if (this.isEnabled() && isNative) {
 			this._needsForceUpdateConfigFile = true;
-			const tmpDir = (this._environmentService as IEnvironmentService & { tmpDir: URI }).tmpDir;
-			if (!tmpDir) {
-				this._logService.warn('ChatSandboxService: Cannot create sandbox settings file because no tmpDir is available in this environment');
+			const environmentService = this._environmentService;
+			this._tempDir = environmentService.tmpDir;
+			if (!this._tempDir) {
+				this._logService.warn('TerminalSandboxService: Cannot create sandbox settings file because no tmpDir is available in this environment');
 				return;
 			}
-			this._tempDir = tmpDir;
-			this._fileService.exists(this._tempDir).then(exists => {
-				if (!exists) {
-					this._logService.warn(`ChatSandboxService: tmp directory is not present at ${this._tempDir}`);
-				}
-			});
 		}
 	}
 }
