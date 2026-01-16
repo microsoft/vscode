@@ -135,7 +135,7 @@ jobs:
           node-version-file: .nvmrc
 
       - name: Download compilation artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v4.1.3
         with:
           name: compilation
 
@@ -237,7 +237,7 @@ jobs:
           node-version-file: .nvmrc
 
       - name: Download compilation artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v4.1.3
         with:
           name: compilation
 
@@ -318,7 +318,7 @@ jobs:
           node-version-file: .nvmrc
 
       - name: Download compilation artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v4.1.3
         with:
           name: compilation
 
