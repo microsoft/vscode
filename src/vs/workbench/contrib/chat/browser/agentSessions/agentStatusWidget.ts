@@ -482,6 +482,9 @@ export class AgentStatusWidget extends BaseActionViewItem {
 		const hasUnreadSessions = unreadSessions.length > 0;
 		const hasContent = hasActiveSessions || hasUnreadSessions;
 
+		// Auto-clear filter if the filtered category becomes empty
+		this._clearFilterIfCategoryEmpty(hasUnreadSessions, hasActiveSessions);
+
 		const badge = $('div.agent-status-badge');
 		this._container.appendChild(badge);
 
@@ -563,6 +566,46 @@ export class AgentStatusWidget extends BaseActionViewItem {
 			}
 			return parts.join(', ');
 		}));
+	}
+
+	/**
+	 * Clear the filter if the currently filtered category becomes empty.
+	 * For example, if filtered to "unread" but no unread sessions exist, clear the filter.
+	 */
+	private _clearFilterIfCategoryEmpty(hasUnreadSessions: boolean, hasActiveSessions: boolean): void {
+		const FILTER_STORAGE_KEY = 'agentSessions.filterExcludes.agentsessionsviewerfiltersubmenu';
+
+		const currentFilterStr = this.storageService.get(FILTER_STORAGE_KEY, StorageScope.PROFILE);
+		if (!currentFilterStr) {
+			return;
+		}
+
+		let currentFilter: { providers: string[]; states: AgentSessionStatus[]; archived: boolean; read: boolean } | undefined;
+		try {
+			currentFilter = JSON.parse(currentFilterStr);
+		} catch {
+			return;
+		}
+
+		if (!currentFilter) {
+			return;
+		}
+
+		// Detect if filtered to unread (read=true excludes read sessions, leaving only unread)
+		const isFilteredToUnread = currentFilter.read === true && currentFilter.states.length === 0;
+		// Detect if filtered to in-progress (2 excluded states = Completed + Failed)
+		const isFilteredToInProgress = currentFilter.states?.length === 2 && currentFilter.read === false;
+
+		// Clear filter if filtered category is now empty
+		if ((isFilteredToUnread && !hasUnreadSessions) || (isFilteredToInProgress && !hasActiveSessions)) {
+			const clearedFilter = {
+				providers: [],
+				states: [],
+				archived: true,
+				read: false
+			};
+			this.storageService.store(FILTER_STORAGE_KEY, JSON.stringify(clearedFilter), StorageScope.PROFILE, StorageTarget.USER);
+		}
 	}
 
 	/**
