@@ -229,7 +229,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				message: args.prompt,
 				variables: { variables: variableSet.asArray() },
 				location: ChatAgentLocation.Chat,
-				subAgentInvocationId: invocation.chatStreamToolCallId,
+				subAgentInvocationId: invocation.callId,
 				userSelectedModelId: modeModelId,
 				userSelectedTools: modeTools,
 				modeInstructions,

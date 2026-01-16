@@ -104,7 +104,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		node.tabIndex = 0;
 
 		// Hide initially until there are tool calls
-		node.style.display = 'none';
+		this.wrapper.style.display = 'none';
 
 		if (this._collapseButton && !this.element.isComplete) {
 			this._collapseButton.icon = ThemeIcon.modify(Codicon.loading, 'spin');
@@ -293,8 +293,8 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		dom.append(this.wrapper, this.resultContainer);
 
 		// Show the container if it was hidden
-		if (this.domNode.style.display === 'none') {
-			this.domNode.style.display = '';
+		if (this.wrapper.style.display === 'none') {
+			this.wrapper.style.display = '';
 		}
 
 		this._onDidChangeHeight.fire();
@@ -308,7 +308,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		// Show the container when first tool item is added
 		if (!this.hasToolItems) {
 			this.hasToolItems = true;
-			this.domNode.style.display = '';
+			this.wrapper.style.display = '';
 		}
 
 		// Wrap with icon like thinking parts do, but skip icon for tools needing confirmation
