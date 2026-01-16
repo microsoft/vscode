@@ -1939,8 +1939,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.setPanelPosition(Position.BOTTOM);
 		}
 
-		// Unmaximize whenever panel alignment changes to avoid unsupported combinations
-		if (this.isPanelMaximized()) {
+		// Leave maximised state to reflect alignment change
+		if (this.isPanelMaximized() && this.getPanelAlignment() !== alignment) {
 			this.toggleMaximizedPanel();
 		}
 
@@ -2306,6 +2306,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const panelPart = this.getPart(Parts.PANEL_PART);
 		const oldPositionValue = positionToString(this.getPanelPosition());
 		const newPositionValue = positionToString(position);
+
+		// Leave maximised state to reflect position change
+		if (oldPositionValue !== newPositionValue && this.isPanelMaximized()) {
+			this.toggleMaximizedPanel();
+		}
 
 		// Adjust CSS
 		const panelContainer = assertReturnsDefined(panelPart.getContainer());
