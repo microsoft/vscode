@@ -232,7 +232,7 @@ export class PromptHeader {
 		return undefined;
 	}
 
-	public get handOffs(): IHandOff[] | undefined { //skip
+	public get handOffs(): IHandOff[] | undefined {
 		const handoffsAttribute = this._parsedHeader.attributes.find(attr => attr.key === PromptHeaderAttributes.handOffs);
 		if (!handoffsAttribute) {
 			return undefined;
