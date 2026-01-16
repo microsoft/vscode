@@ -778,13 +778,17 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	 * Clears the current session without creating a new one.
 	 * This is used when navigating back to the sessions list view.
 	 * The current session is saved (if non-empty) and the view shows the sessions list.
+	 *
+	 * Note: This method uses `showModel(undefined, false)` where the second parameter
+	 * `startNewSession=false` prevents creating a new session. This is the key difference
+	 * from the `clear()` method which uses `showModel(undefined)` (defaulting to `startNewSession=true`).
 	 */
 	async clearSession(): Promise<void> {
 		// Grab the widget's latest view state because it will be loaded back into the widget
 		this.updateViewState();
 		// Clear the persisted session ID so we don't restore this session on next open
 		this.viewState.sessionId = undefined;
-		// Clear the model without creating a new session
+		// Clear the model without creating a new session (startNewSession=false)
 		await this.showModel(undefined, false);
 		// Update the toolbar context
 		this.updateActions();

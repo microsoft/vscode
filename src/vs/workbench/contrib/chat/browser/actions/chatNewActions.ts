@@ -238,8 +238,10 @@ export function registerNewChatActions() {
 			// own session management (handled via clearChatEditor). The editor doesn't
 			// have a sessions list to "go back" to.
 			if (isIChatViewViewContext(widget.viewContext)) {
-				const view = await viewsService.openView(ChatViewId) as ChatViewPane;
-				await view.clearSession();
+				const view = await viewsService.openView(ChatViewId) as ChatViewPane | undefined;
+				if (view) {
+					await view.clearSession();
+				}
 			} else {
 				await widget.clear();
 			}
