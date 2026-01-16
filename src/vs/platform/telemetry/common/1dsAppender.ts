@@ -147,7 +147,7 @@ export abstract class AbstractOneDataSystemAppender implements ITelemetryAppende
 	async flush(): Promise<void> {
 		if (this._aiCoreOrKey) {
 			// Check for metered connection before flushing telemetry
-			if (await this.shouldRespectMeteredConnection()) {
+			if (await this.isConnectionMetered()) {
 				return Promise.resolve(undefined);
 			}
 
@@ -163,7 +163,7 @@ export abstract class AbstractOneDataSystemAppender implements ITelemetryAppende
 		return Promise.resolve(undefined);
 	}
 
-	protected async shouldRespectMeteredConnection(): Promise<boolean> {
+	protected async isConnectionMetered(): Promise<boolean> {
 		// To be overridden in workbench implementation
 		return false;
 	}
