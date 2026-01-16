@@ -301,6 +301,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (viewModel) {
 			this.viewModelDisposables.add(viewModel);
 			this.logService.debug('ChatWidget#setViewModel: have viewModel');
+
+			// If switching to a model with a request in progress, play progress sound
+			if (viewModel.model.requestInProgress.get()) {
+				this.chatAccessibilityService.acceptRequest(viewModel.sessionResource, true);
+			}
 		} else {
 			this.logService.debug('ChatWidget#setViewModel: no viewModel');
 		}
@@ -488,13 +493,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this._editingSession.set(undefined, undefined);
 				this.renderChatEditingSessionState();
 			}));
-			r.store.add(this.onDidChangeParsedInput(() => {
-				this.renderChatEditingSessionState();
-			}));
 			r.store.add(this.inputEditor.onDidChangeModelContent(() => {
 				if (this.getInput() === '') {
 					this.refreshParsedInput();
-					this.renderChatEditingSessionState();
 				}
 			}));
 			this.renderChatEditingSessionState();
@@ -754,8 +755,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (!this.viewModel) {
 			return;
 		}
+
+		const previous = this.parsedChatRequest;
 		this.parsedChatRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(this.viewModel.sessionResource, this.getInput(), this.location, { selectedAgent: this._lastSelectedAgent, mode: this.input.currentModeKind });
-		this._onDidChangeParsedInput.fire();
+		if (!previous || !IParsedChatRequest.equals(previous, this.parsedChatRequest)) {
+			this._onDidChangeParsedInput.fire();
+		}
 	}
 
 	getSibling(item: ChatTreeItem, type: 'next' | 'previous'): ChatTreeItem | undefined {
@@ -837,8 +842,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 							(isResponseVM(element) ? `_${element.contentReferences.length}` : '') +
 							// Re-render if element becomes hidden due to undo/redo
 							`_${element.shouldBeRemovedOnSend ? `${element.shouldBeRemovedOnSend.afterUndoStop || '1'}` : '0'}` +
-							// Re-render if element becomes enabled/disabled due to checkpointing
-							`_${element.shouldBeBlocked ? '1' : '0'}` +
 							// Re-render if we have an element currently being edited
 							`_${this.viewModel?.editing ? '1' : '0'}` +
 							// Re-render if we have an element currently being checkpointed
@@ -1206,10 +1209,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 		this.input.renderChatEditingSessionState(this._editingSession.get() ?? null);
-
-		if (this.bodyDimension) {
-			this.layout(this.bodyDimension.height, this.bodyDimension.width);
-		}
 	}
 
 	private async renderFollowups(): Promise<void> {
@@ -1623,7 +1622,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			for (let i = requests.length - 1; i >= 0; i -= 1) {
 				const request = requests[i];
 				if (request.id === currentElement.id) {
-					request.shouldBeBlocked = false; // unblocking just this request.
+					request.setShouldBeBlocked(false); // unblocking just this request.
 					request.attachedContext?.forEach(addToContext);
 					currentElement.variables.forEach(addToContext);
 				}
@@ -1852,7 +1851,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			supportsChangingModes: this.viewOptions.supportsChangingModes,
 			dndContainer: this.viewOptions.dndContainer,
 			widgetViewKindTag: this.getWidgetViewKindTag(),
-			defaultMode: this.viewOptions.defaultMode
+			defaultMode: this.viewOptions.defaultMode,
+			sessionTypePickerDelegate: this.viewOptions.sessionTypePickerDelegate
 		};
 
 		if (this.viewModel?.editing) {
@@ -2040,10 +2040,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.scrollToEnd();
 			}
 		})));
-		this.viewModelDisposables.add(autorun(reader => {
-			this._editingSession.read(reader); // re-render when the session changes
-			this.renderChatEditingSessionState();
-		}));
 		this.viewModelDisposables.add(this.viewModel.onDidDisposeModel(() => {
 			// Ensure that view state is saved here, because we will load it again when a new model is assigned
 			if (this.viewModel?.editing) {

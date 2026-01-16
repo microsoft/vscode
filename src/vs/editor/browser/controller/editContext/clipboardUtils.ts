@@ -83,42 +83,6 @@ function getDataToCopy(viewModel: IViewModel, modelSelections: Range[], emptySel
 	return dataToCopy;
 }
 
-export interface IPasteData {
-	text: string;
-	pasteOnNewLine: boolean;
-	multicursorText: string[] | null;
-	mode: string | null;
-}
-
-export function computePasteData(e: ClipboardEvent, context: ViewContext, logService: ILogService): IPasteData | undefined {
-	e.preventDefault();
-	if (!e.clipboardData) {
-		return;
-	}
-	let [text, metadata] = ClipboardEventUtils.getTextData(e.clipboardData);
-	logService.trace('computePasteData with id : ', metadata?.id, ' with text.length: ', text.length);
-	if (!text) {
-		return;
-	}
-	PasteOptions.electronBugWorkaroundPasteEventHasFired = true;
-	logService.trace('(computePasteData) PasteOptions.electronBugWorkaroundPasteEventHasFired : ', PasteOptions.electronBugWorkaroundPasteEventHasFired);
-	metadata = metadata || InMemoryClipboardMetadataManager.INSTANCE.get(text);
-	return getPasteDataFromMetadata(text, metadata, context);
-}
-
-export function getPasteDataFromMetadata(text: string, metadata: ClipboardStoredMetadata | null, context: ViewContext): IPasteData {
-	let pasteOnNewLine = false;
-	let multicursorText: string[] | null = null;
-	let mode: string | null = null;
-	if (metadata) {
-		const options = context.configuration.options;
-		const emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
-		pasteOnNewLine = emptySelectionClipboard && !!metadata.isFromEmptySelection;
-		multicursorText = typeof metadata.multicursorText !== 'undefined' ? metadata.multicursorText : null;
-		mode = metadata.mode;
-	}
-	return { text, pasteOnNewLine, multicursorText, mode };
-}
 /**
  * Every time we write to the clipboard, we record a bit of extra metadata here.
  * Every time we read from the cipboard, if the text matches our last written text,
@@ -166,11 +130,6 @@ export interface ClipboardStoredMetadata {
 export const CopyOptions = {
 	forceCopyWithSyntaxHighlighting: false,
 	electronBugWorkaroundCopyEventHasFired: false
-};
-
-export const PasteOptions = {
-	electronBugWorkaroundPasteEventHasFired: false,
-	electronBugWorkaroundPasteEventLock: false
 };
 
 interface InMemoryClipboardMetadata {

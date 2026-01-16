@@ -21,6 +21,7 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IExtensionService } from '../../../../../services/extensions/common/extensions.js';
 import { TestExtensionService, TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
+import { CellUri } from '../../../../notebook/common/notebookCommon.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatModel, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, Response } from '../../../common/model/chatModel.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
@@ -49,12 +50,11 @@ suite('ChatModel', () => {
 			initialLocation: ChatAgentLocation.Chat,
 			requests: [],
 			responderUsername: 'bot',
-			responderAvatarIconUri: undefined
 		};
 
 		const model = testDisposables.add(instantiationService.createInstance(
 			ChatModel,
-			exportedData,
+			{ value: exportedData, serializer: undefined! },
 			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
 		));
 
@@ -69,24 +69,21 @@ suite('ChatModel', () => {
 			version: 3,
 			sessionId: 'existing-session',
 			creationDate: now - 1000,
-			lastMessageDate: now,
 			customTitle: 'My Chat',
 			initialLocation: ChatAgentLocation.Chat,
 			requests: [],
 			responderUsername: 'bot',
-			responderAvatarIconUri: undefined
 		};
 
 		const model = testDisposables.add(instantiationService.createInstance(
 			ChatModel,
-			serializableData,
+			{ value: serializableData, serializer: undefined! },
 			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
 		));
 
 		assert.strictEqual(model.isImported, false);
 		assert.strictEqual(model.sessionId, 'existing-session');
 		assert.strictEqual(model.timestamp, now - 1000);
-		assert.strictEqual(model.lastMessageDate, now);
 		assert.strictEqual(model.customTitle, 'My Chat');
 	});
 
@@ -98,7 +95,7 @@ suite('ChatModel', () => {
 
 		const model = testDisposables.add(instantiationService.createInstance(
 			ChatModel,
-			invalidData,
+			{ value: invalidData, serializer: undefined! },
 			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
 		));
 
@@ -201,7 +198,7 @@ suite('Response', () => {
 
 	});
 
-	test('consolidated edit summary', async () => {
+	test('consolidated edit summary', () => {
 		const response = store.add(new Response([]));
 		response.updateContent({ content: new MarkdownString('Some content before edits'), kind: 'markdownContent' });
 		response.updateContent({ kind: 'textEditGroup', uri: URI.parse('file:///file1.ts'), edits: [], state: undefined, done: true });
@@ -217,7 +214,7 @@ suite('Response', () => {
 		assert.ok(responseString.endsWith('Made changes.'), 'Should end with "Made changes."');
 	});
 
-	test('no edit summary when no edits', async () => {
+	test('no edit summary when no edits', () => {
 		const response = store.add(new Response([]));
 		response.updateContent({ content: new MarkdownString('Some content'), kind: 'markdownContent' });
 		response.updateContent({ content: new MarkdownString('More content'), kind: 'markdownContent' });
@@ -228,7 +225,7 @@ suite('Response', () => {
 		assert.strictEqual(responseString, 'Some contentMore content');
 	});
 
-	test('consolidated edit summary with clear operation', async () => {
+	test('consolidated edit summary with clear operation', () => {
 		const response = store.add(new Response([]));
 		response.updateContent({ content: new MarkdownString('Initial content'), kind: 'markdownContent' });
 		response.updateContent({ kind: 'textEditGroup', uri: URI.parse('file:///file1.ts'), edits: [], state: undefined, done: true });
@@ -244,6 +241,162 @@ suite('Response', () => {
 		assert.ok(!responseString.includes('Initial content'), 'Should not include content before clear');
 		assert.ok(responseString.endsWith('Made changes.'), 'Should end with "Made changes."');
 	});
+
+	test('textEdit merges edits for same URI when not done', () => {
+		const response = store.add(new Response([]));
+		const uri = URI.parse('file:///file1.ts');
+
+		response.updateContent({
+			kind: 'textEdit',
+			uri,
+			edits: [{ range: new Range(1, 1, 1, 1), text: 'edit1' }],
+			done: false,
+			isExternalEdit: true
+		});
+
+		response.updateContent({
+			kind: 'textEdit',
+			uri,
+			edits: [{ range: new Range(2, 1, 2, 1), text: 'edit2' }],
+			done: true
+		});
+
+		const textEditGroups = response.value.filter(p => p.kind === 'textEditGroup');
+		assert.strictEqual(textEditGroups.length, 1, 'Should have exactly one textEditGroup');
+		assert.strictEqual(textEditGroups[0].edits.length, 2, 'Should have two edit batches merged');
+		assert.strictEqual(textEditGroups[0].done, true, 'Should be marked as done after final edit');
+		assert.strictEqual(textEditGroups[0].isExternalEdit, true, 'Should preserve isExternalEdit flag from first edit');
+	});
+
+	test('textEdit does not merge edits when previous is done', () => {
+		const response = store.add(new Response([]));
+		const uri = URI.parse('file:///file1.ts');
+
+		response.updateContent({
+			kind: 'textEdit',
+			uri,
+			edits: [{ range: new Range(1, 1, 1, 1), text: 'edit1' }],
+			done: true
+		});
+
+		response.updateContent({
+			kind: 'textEdit',
+			uri,
+			edits: [{ range: new Range(2, 1, 2, 1), text: 'edit2' }],
+			done: true
+		});
+
+		const textEditGroups = response.value.filter(p => p.kind === 'textEditGroup');
+		assert.strictEqual(textEditGroups.length, 2, 'Should have two separate textEditGroups');
+	});
+
+	test('textEdit does not merge edits for different URIs', () => {
+		const response = store.add(new Response([]));
+
+		response.updateContent({
+			kind: 'textEdit',
+			uri: URI.parse('file:///file1.ts'),
+			edits: [{ range: new Range(1, 1, 1, 1), text: 'edit1' }],
+			done: false
+		});
+
+		response.updateContent({
+			kind: 'textEdit',
+			uri: URI.parse('file:///file2.ts'),
+			edits: [{ range: new Range(1, 1, 1, 1), text: 'edit2' }],
+			done: true
+		});
+
+		const textEditGroups = response.value.filter(p => p.kind === 'textEditGroup');
+		assert.strictEqual(textEditGroups.length, 2, 'Should have two separate textEditGroups for different URIs');
+	});
+
+	test('notebookEdit merges edits for same notebook URI when not done', () => {
+		const response = store.add(new Response([]));
+		const notebookUri = URI.parse('file:///notebook.ipynb');
+
+		response.updateContent({
+			kind: 'notebookEdit',
+			uri: notebookUri,
+			edits: [{ editType: 1 /* CellEditType.Replace */, index: 0, count: 0, cells: [] }],
+			done: false,
+			isExternalEdit: true
+		});
+
+		response.updateContent({
+			kind: 'notebookEdit',
+			uri: notebookUri,
+			edits: [{ editType: 1 /* CellEditType.Replace */, index: 1, count: 0, cells: [] }],
+			done: true
+		});
+
+		const notebookEditGroups = response.value.filter(p => p.kind === 'notebookEditGroup');
+		assert.strictEqual(notebookEditGroups.length, 1, 'Should have exactly one notebookEditGroup');
+		assert.strictEqual(notebookEditGroups[0].edits.length, 2, 'Should have two edit batches merged');
+		assert.strictEqual(notebookEditGroups[0].done, true, 'Should be marked as done after final edit');
+		assert.strictEqual(notebookEditGroups[0].isExternalEdit, true, 'Should preserve isExternalEdit flag from first edit');
+	});
+
+	test('notebookEdit does not merge edits when previous is done', () => {
+		const response = store.add(new Response([]));
+		const notebookUri = URI.parse('file:///notebook.ipynb');
+
+		response.updateContent({
+			kind: 'notebookEdit',
+			uri: notebookUri,
+			edits: [{ editType: 1 /* CellEditType.Replace */, index: 0, count: 0, cells: [] }],
+			done: true
+		});
+
+		response.updateContent({
+			kind: 'notebookEdit',
+			uri: notebookUri,
+			edits: [{ editType: 1 /* CellEditType.Replace */, index: 1, count: 0, cells: [] }],
+			done: true
+		});
+
+		const notebookEditGroups = response.value.filter(p => p.kind === 'notebookEditGroup');
+		assert.strictEqual(notebookEditGroups.length, 2, 'Should have two separate notebookEditGroups');
+	});
+
+	test('notebookEdit does not merge edits for different notebook URIs', () => {
+		const response = store.add(new Response([]));
+
+		response.updateContent({
+			kind: 'notebookEdit',
+			uri: URI.parse('file:///notebook1.ipynb'),
+			edits: [{ editType: 1 /* CellEditType.Replace */, index: 0, count: 0, cells: [] }],
+			done: false
+		});
+
+		response.updateContent({
+			kind: 'notebookEdit',
+			uri: URI.parse('file:///notebook2.ipynb'),
+			edits: [{ editType: 1 /* CellEditType.Replace */, index: 0, count: 0, cells: [] }],
+			done: true
+		});
+
+		const notebookEditGroups = response.value.filter(p => p.kind === 'notebookEditGroup');
+		assert.strictEqual(notebookEditGroups.length, 2, 'Should have two separate notebookEditGroups for different URIs');
+	});
+
+	test('textEdit to notebook cell creates notebookEditGroup', () => {
+		const response = store.add(new Response([]));
+		const notebookUri = URI.parse('file:///notebook.ipynb');
+		const cellUri = CellUri.generate(notebookUri, 1);
+
+		response.updateContent({
+			kind: 'textEdit',
+			uri: cellUri,
+			edits: [{ range: new Range(1, 1, 1, 1), text: 'edit1' }],
+			done: true
+		});
+
+		const textEditGroups = response.value.filter(p => p.kind === 'textEditGroup');
+		const notebookEditGroups = response.value.filter(p => p.kind === 'notebookEditGroup');
+		assert.strictEqual(textEditGroups.length, 0, 'Should not have textEditGroup for cell edits');
+		assert.strictEqual(notebookEditGroups.length, 1, 'Should have notebookEditGroup for cell edits');
+	});
 });
 
 suite('normalizeSerializableChatData', () => {
@@ -254,14 +407,12 @@ suite('normalizeSerializableChatData', () => {
 			creationDate: Date.now(),
 			initialLocation: undefined,
 			requests: [],
-			responderAvatarIconUri: undefined,
 			responderUsername: 'bot',
 			sessionId: 'session1',
 		};
 
 		const newData = normalizeSerializableChatData(v1Data);
 		assert.strictEqual(newData.creationDate, v1Data.creationDate);
-		assert.strictEqual(newData.lastMessageDate, v1Data.creationDate);
 		assert.strictEqual(newData.version, 3);
 	});
 
@@ -269,10 +420,8 @@ suite('normalizeSerializableChatData', () => {
 		const v2Data: ISerializableChatData2 = {
 			version: 2,
 			creationDate: 100,
-			lastMessageDate: Date.now(),
 			initialLocation: undefined,
 			requests: [],
-			responderAvatarIconUri: undefined,
 			responderUsername: 'bot',
 			sessionId: 'session1',
 			computedTitle: 'computed title'
@@ -281,7 +430,6 @@ suite('normalizeSerializableChatData', () => {
 		const newData = normalizeSerializableChatData(v2Data);
 		assert.strictEqual(newData.version, 3);
 		assert.strictEqual(newData.creationDate, v2Data.creationDate);
-		assert.strictEqual(newData.lastMessageDate, v2Data.lastMessageDate);
 		assert.strictEqual(newData.customTitle, v2Data.computedTitle);
 	});
 
@@ -293,14 +441,12 @@ suite('normalizeSerializableChatData', () => {
 
 			initialLocation: undefined,
 			requests: [],
-			responderAvatarIconUri: undefined,
 			responderUsername: 'bot',
 		};
 
 		const newData = normalizeSerializableChatData(v1Data);
 		assert.strictEqual(newData.version, 3);
 		assert.ok(newData.creationDate > 0);
-		assert.ok(newData.lastMessageDate > 0);
 		assert.ok(newData.sessionId);
 	});
 
@@ -308,12 +454,10 @@ suite('normalizeSerializableChatData', () => {
 		const v3Data: ISerializableChatData3 = {
 			// Test case where old data was wrongly normalized and these fields were missing
 			creationDate: undefined!,
-			lastMessageDate: undefined!,
 
 			version: 3,
 			initialLocation: undefined,
 			requests: [],
-			responderAvatarIconUri: undefined,
 			responderUsername: 'bot',
 			sessionId: 'session1',
 			customTitle: 'computed title'
@@ -322,7 +466,6 @@ suite('normalizeSerializableChatData', () => {
 		const newData = normalizeSerializableChatData(v3Data);
 		assert.strictEqual(newData.version, 3);
 		assert.ok(newData.creationDate > 0);
-		assert.ok(newData.lastMessageDate > 0);
 		assert.ok(newData.sessionId);
 	});
 });
@@ -335,7 +478,6 @@ suite('isExportableSessionData', () => {
 			initialLocation: ChatAgentLocation.Chat,
 			requests: [],
 			responderUsername: 'bot',
-			responderAvatarIconUri: undefined
 		};
 
 		assert.strictEqual(isExportableSessionData(validData), true);
@@ -345,7 +487,6 @@ suite('isExportableSessionData', () => {
 		const invalidData = {
 			initialLocation: ChatAgentLocation.Chat,
 			responderUsername: 'bot',
-			responderAvatarIconUri: undefined
 		};
 
 		assert.strictEqual(isExportableSessionData(invalidData), false);
@@ -356,7 +497,6 @@ suite('isExportableSessionData', () => {
 			initialLocation: ChatAgentLocation.Chat,
 			requests: 'not-an-array',
 			responderUsername: 'bot',
-			responderAvatarIconUri: undefined
 		};
 
 		assert.strictEqual(isExportableSessionData(invalidData), false);
@@ -366,7 +506,6 @@ suite('isExportableSessionData', () => {
 		const invalidData = {
 			initialLocation: ChatAgentLocation.Chat,
 			requests: [],
-			responderAvatarIconUri: undefined
 		};
 
 		assert.strictEqual(isExportableSessionData(invalidData), false);
@@ -377,7 +516,6 @@ suite('isExportableSessionData', () => {
 			initialLocation: ChatAgentLocation.Chat,
 			requests: [],
 			responderUsername: 123,
-			responderAvatarIconUri: undefined
 		};
 
 		assert.strictEqual(isExportableSessionData(invalidData), false);
@@ -400,12 +538,10 @@ suite('isSerializableSessionData', () => {
 			version: 3,
 			sessionId: 'session1',
 			creationDate: Date.now(),
-			lastMessageDate: Date.now(),
 			customTitle: undefined,
 			initialLocation: ChatAgentLocation.Chat,
 			requests: [],
 			responderUsername: 'bot',
-			responderAvatarIconUri: undefined
 		};
 
 		assert.strictEqual(isSerializableSessionData(validData), true);
@@ -416,7 +552,6 @@ suite('isSerializableSessionData', () => {
 			version: 3,
 			sessionId: 'session1',
 			creationDate: Date.now(),
-			lastMessageDate: Date.now(),
 			customTitle: undefined,
 			initialLocation: ChatAgentLocation.Chat,
 			requests: [{
@@ -427,7 +562,6 @@ suite('isSerializableSessionData', () => {
 				usedContext: { documents: [], kind: 'usedContext' }
 			}],
 			responderUsername: 'bot',
-			responderAvatarIconUri: undefined
 		};
 
 		assert.strictEqual(isSerializableSessionData(validData), true);
@@ -437,12 +571,10 @@ suite('isSerializableSessionData', () => {
 		const invalidData = {
 			version: 3,
 			creationDate: Date.now(),
-			lastMessageDate: Date.now(),
 			customTitle: undefined,
 			initialLocation: ChatAgentLocation.Chat,
 			requests: [],
 			responderUsername: 'bot',
-			responderAvatarIconUri: undefined
 		};
 
 		assert.strictEqual(isSerializableSessionData(invalidData), false);
@@ -452,12 +584,10 @@ suite('isSerializableSessionData', () => {
 		const invalidData = {
 			version: 3,
 			sessionId: 'session1',
-			lastMessageDate: Date.now(),
 			customTitle: undefined,
 			initialLocation: ChatAgentLocation.Chat,
 			requests: [],
 			responderUsername: 'bot',
-			responderAvatarIconUri: undefined
 		};
 
 		assert.strictEqual(isSerializableSessionData(invalidData), false);
@@ -468,12 +598,10 @@ suite('isSerializableSessionData', () => {
 			version: 3,
 			sessionId: 'session1',
 			creationDate: Date.now(),
-			lastMessageDate: Date.now(),
 			customTitle: undefined,
 			initialLocation: ChatAgentLocation.Chat,
 			requests: 'not-an-array',
 			responderUsername: 'bot',
-			responderAvatarIconUri: undefined
 		};
 
 		assert.strictEqual(isSerializableSessionData(invalidData), false);
@@ -514,11 +642,10 @@ suite('ChatResponseModel', () => {
 			assert.strictEqual(response.confirmationAdjustedTimestamp.get(), start);
 
 			// Add pending confirmation via tool invocation
-			const toolState = observableValue<any>('state', { type: 0 /* IChatToolInvocation.StateKind.WaitingForConfirmation */ });
+			const toolState = observableValue<any>('state', { type: 1 /* IChatToolInvocation.StateKind.WaitingForConfirmation */, confirmationMessages: { title: 'Please confirm' } });
 			const toolInvocation = {
 				kind: 'toolInvocation',
 				invocationMessage: 'calling tool',
-				confirmationMessages: { title: 'Please confirm' },
 				state: toolState
 			} as Partial<IChatToolInvocation> as IChatToolInvocation;
 
@@ -530,7 +657,7 @@ suite('ChatResponseModel', () => {
 			assert.strictEqual(response.confirmationAdjustedTimestamp.get(), start);
 
 			// Resolve confirmation
-			toolState.set({ type: 3 /* IChatToolInvocation.StateKind.Completed */ }, undefined);
+			toolState.set({ type: 4 /* IChatToolInvocation.StateKind.Completed */ }, undefined);
 
 			// Now adjusted timestamp should reflect the wait time
 			// The wait time was 2000ms.

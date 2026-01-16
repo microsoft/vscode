@@ -236,12 +236,27 @@ export class ChatUrlFetchingConfirmationContribution implements ILanguageModelTo
 	private async _approvePattern(pattern: string, approveRequest: boolean, approveResponse: boolean): Promise<void> {
 		const approvedUrls = { ...this._getApprovedUrls() };
 
+		// Merge with existing settings for this pattern
+		const existingSettings = approvedUrls[pattern];
+		let existingRequest = false;
+		let existingResponse = false;
+		if (typeof existingSettings === 'boolean') {
+			existingRequest = existingSettings;
+			existingResponse = existingSettings;
+		} else if (existingSettings) {
+			existingRequest = existingSettings.approveRequest ?? false;
+			existingResponse = existingSettings.approveResponse ?? false;
+		}
+
+		const mergedRequest = approveRequest || existingRequest;
+		const mergedResponse = approveResponse || existingResponse;
+
 		// Create the approval settings
 		let value: boolean | IUrlApprovalSettings;
-		if (approveRequest === approveResponse) {
-			value = approveRequest;
+		if (mergedRequest === mergedResponse) {
+			value = mergedRequest;
 		} else {
-			value = { approveRequest, approveResponse };
+			value = { approveRequest: mergedRequest, approveResponse: mergedResponse };
 		}
 
 		approvedUrls[pattern] = value;

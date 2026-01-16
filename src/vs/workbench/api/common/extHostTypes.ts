@@ -3340,17 +3340,6 @@ export class ChatResponseNotebookEditPart implements vscode.ChatResponseNotebook
 	}
 }
 
-export class ChatPrepareToolInvocationPart {
-	toolName: string;
-	/**
-	 * @param toolName The name of the tool being prepared for invocation.
-	 */
-	constructor(toolName: string) {
-		this.toolName = toolName;
-	}
-}
-
-
 export interface ChatTerminalToolInvocationData2 {
 	commandLine: {
 		original: string;
@@ -3370,7 +3359,7 @@ export class ChatToolInvocationPart {
 	isConfirmed?: boolean;
 	isComplete?: boolean;
 	toolSpecificData?: ChatTerminalToolInvocationData2;
-	fromSubAgent?: boolean;
+	subAgentInvocationId?: string;
 	presentation?: 'hidden' | 'hiddenAfterComplete' | undefined;
 
 	constructor(toolName: string,
@@ -3894,5 +3883,23 @@ export class McpHttpServerDefinition implements vscode.McpHttpServerDefinition {
 		public metadata?: vscode.McpServerMetadata,
 		public authentication?: { providerId: string; scopes: string[] },
 	) { }
+}
+//#endregion
+
+//#region Chat Prompt Files
+
+@es5ClassCompat
+export class CustomAgentChatResource implements vscode.CustomAgentChatResource {
+	constructor(public readonly resource: vscode.ChatResourceDescriptor) { }
+}
+
+@es5ClassCompat
+export class InstructionsChatResource implements vscode.InstructionsChatResource {
+	constructor(public readonly resource: vscode.ChatResourceDescriptor) { }
+}
+
+@es5ClassCompat
+export class PromptFileChatResource implements vscode.PromptFileChatResource {
+	constructor(public readonly resource: vscode.ChatResourceDescriptor) { }
 }
 //#endregion
