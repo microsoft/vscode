@@ -1896,13 +1896,13 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (!this.galleryService.isEnabled()) {
 			return;
 		}
-		
+
 		// Check if connection is metered before automatic update checks
 		if (!reason?.includes('manual') && isMeteredConnection()) {
 			this.logService.info('[Extensions]: Postponing update check due to metered connection');
 			return;
 		}
-		
+
 		const extensions: Extensions[] = [];
 		if (this.localExtensions) {
 			extensions.push(this.localExtensions);
@@ -2133,7 +2133,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			this.logService.info('[Extensions]: Postponing auto-update due to metered connection');
 			return;
 		}
-		
+
 		const toUpdate: IExtension[] = [];
 		const disabledAutoUpdate = [];
 		const consentRequired = [];
