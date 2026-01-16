@@ -367,8 +367,8 @@ export class BrowserEditor extends EditorPane {
 		this.updateErrorDisplay();
 
 		// Watch for container size changes to handle window moves/resizes.
-		// This is especially important when copying to a new window on a different monitor
-		// where the initial bounds may be incorrect until the window finishes layout.
+		// This is especially important when copying or moving to a new window on a different
+		// monitor where the initial bounds may be incorrect until the window finishes layout.
 		let hasInitializedView = false;
 		const resizeObserver = new ResizeObserver(async () => {
 			if (this._model) {
