@@ -137,7 +137,7 @@ suite('CommandLineFileWriteAnalyzer', () => {
 		suite('sed in-place editing', () => {
 			// Basic -i flag variants (inside workspace)
 			test('sed -i inside workspace - allow', () => t('sed -i \'s/foo/bar/\' file.txt', 'outsideWorkspace', true, 1));
-			test('sed -I inside workspace - allow', () => t('sed -I \'s/foo/bar/\' file.txt', 'outsideWorkspace', true, 1));
+			test('sed -I (uppercase) inside workspace - allow', () => t('sed -I \'s/foo/bar/\' file.txt', 'outsideWorkspace', true, 1));
 			test('sed --in-place inside workspace - allow', () => t('sed --in-place \'s/foo/bar/\' file.txt', 'outsideWorkspace', true, 1));
 
 			// Backup suffix variants (inside workspace)
