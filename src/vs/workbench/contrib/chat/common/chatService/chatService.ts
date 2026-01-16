@@ -372,6 +372,32 @@ export interface IChatTerminalToolInvocationData {
 		userEdited?: string;
 		toolEdited?: string;
 	};
+	/** The working directory URI for the terminal */
+	cwd?: UriComponents;
+	/**
+	 * Pre-computed confirmation display data (localization must happen at source).
+	 * Contains the command line to show in confirmation (potentially without cd prefix)
+	 * and the formatted cwd label if a cd prefix was extracted.
+	 */
+	confirmation?: {
+		/** The command line to display in the confirmation editor */
+		commandLine: string;
+		/** The formatted cwd label to show in title (if cd was extracted) */
+		cwdLabel?: string;
+		/** The cd prefix to prepend back when user edits */
+		cdPrefix?: string;
+	};
+	/**
+	 * Overrides to apply to the presentation of the tool call only, but not actually change the
+	 * command that gets run. For example, python -c "print('hello')" can be presented as just
+	 * the Python code with Python syntax highlighting.
+	 */
+	presentationOverrides?: {
+		/** The command line to display in the UI */
+		commandLine: string;
+		/** The language for syntax highlighting */
+		language: string;
+	};
 	/** Message for model recommending the use of an alternative tool */
 	alternativeRecommendation?: string;
 	language: string;
@@ -997,7 +1023,7 @@ export interface IChatSessionStats {
 	removed: number;
 }
 
-export interface IChatSessionTiming {
+export type IChatSessionTiming = {
 	/**
 	 * Timestamp when the session was created in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
 	 */
@@ -1016,6 +1042,22 @@ export interface IChatSessionTiming {
 	 * Should be undefined if the most recent request is still in progress or if no requests have been made yet.
 	 */
 	lastRequestEnded: number | undefined;
+};
+
+interface ILegacyChatSessionTiming {
+	startTime: number;
+	endTime?: number;
+}
+
+export function convertLegacyChatSessionTiming(timing: IChatSessionTiming | ILegacyChatSessionTiming): IChatSessionTiming {
+	if (hasKey(timing, { created: true })) {
+		return timing;
+	}
+	return {
+		created: timing.startTime,
+		lastRequestStarted: timing.startTime,
+		lastRequestEnded: timing.endTime,
+	};
 }
 
 export const enum ResponseModelState {
@@ -1030,7 +1072,8 @@ export interface IChatDetail {
 	sessionResource: URI;
 	title: string;
 	lastMessageDate: number;
-	timing: IChatSessionTiming;
+	// Also support old timing format for backwards compatibility with persisted data
+	timing: IChatSessionTiming | ILegacyChatSessionTiming;
 	isActive: boolean;
 	stats?: IChatSessionStats;
 	lastResponseState: ResponseModelState;

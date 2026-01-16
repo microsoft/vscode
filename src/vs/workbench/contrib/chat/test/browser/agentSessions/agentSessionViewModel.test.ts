@@ -1645,6 +1645,178 @@ suite('Agent Sessions', () => {
 				assert.strictEqual(session.isRead(), true);
 			});
 		});
+
+		test('should treat archived sessions as read', async () => {
+			return runWithFakedTimers({}, async () => {
+				// Session with timing after the READ_STATE_INITIAL_DATE (December 8, 2025)
+				// which would normally be unread
+				const newSessionTiming: IChatSessionItem['timing'] = {
+					created: Date.UTC(2025, 11 /* December */, 10),
+					lastRequestStarted: Date.UTC(2025, 11 /* December */, 10),
+					lastRequestEnded: Date.UTC(2025, 11 /* December */, 11),
+				};
+
+				const provider: IChatSessionItemProvider = {
+					chatSessionType: 'test-type',
+					onDidChangeChatSessionItems: Event.None,
+					provideChatSessionItems: async () => [
+						{
+							resource: URI.parse('test://new-session'),
+							label: 'New Session',
+							timing: newSessionTiming,
+						}
+					]
+				};
+
+				mockChatSessionsService.registerChatSessionItemProvider(provider);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				// Session after the initial date should be unread by default
+				assert.strictEqual(session.isRead(), false);
+				assert.strictEqual(session.isArchived(), false);
+
+				// Archive the session
+				session.setArchived(true);
+
+				// Archived sessions should always be considered read
+				assert.strictEqual(session.isArchived(), true);
+				assert.strictEqual(session.isRead(), true);
+			});
+		});
+
+		test('should mark session as read when archiving', async () => {
+			return runWithFakedTimers({}, async () => {
+				// Session with timing after the READ_STATE_INITIAL_DATE (December 8, 2025)
+				const newSessionTiming: IChatSessionItem['timing'] = {
+					created: Date.UTC(2025, 11 /* December */, 10),
+					lastRequestStarted: Date.UTC(2025, 11 /* December */, 10),
+					lastRequestEnded: Date.UTC(2025, 11 /* December */, 11),
+				};
+
+				const provider: IChatSessionItemProvider = {
+					chatSessionType: 'test-type',
+					onDidChangeChatSessionItems: Event.None,
+					provideChatSessionItems: async () => [
+						{
+							resource: URI.parse('test://new-session'),
+							label: 'New Session',
+							timing: newSessionTiming,
+						}
+					]
+				};
+
+				mockChatSessionsService.registerChatSessionItemProvider(provider);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				assert.strictEqual(session.isRead(), false);
+
+				// Archive the session
+				session.setArchived(true);
+
+				// Should be read after archiving (archived sessions are always read)
+				assert.strictEqual(session.isRead(), true);
+
+				// Unarchive the session
+				session.setArchived(false);
+
+				// After unarchiving, the read state depends on the stored read date vs session timing.
+				// When archiving marked the session as read, the read date was set to the test's
+				// faked Date.now() which may be earlier than the session's lastRequestEnded,
+				// so the session may appear unread again based on the time comparison.
+				assert.strictEqual(session.isArchived(), false);
+			});
+		});
+
+		test('should fire onDidChangeSessions when archiving an unread session', async () => {
+			return runWithFakedTimers({}, async () => {
+				// Session with timing after the READ_STATE_INITIAL_DATE
+				const newSessionTiming: IChatSessionItem['timing'] = {
+					created: Date.UTC(2025, 11 /* December */, 10),
+					lastRequestStarted: Date.UTC(2025, 11 /* December */, 10),
+					lastRequestEnded: Date.UTC(2025, 11 /* December */, 11),
+				};
+
+				const provider: IChatSessionItemProvider = {
+					chatSessionType: 'test-type',
+					onDidChangeChatSessionItems: Event.None,
+					provideChatSessionItems: async () => [
+						{
+							resource: URI.parse('test://new-session'),
+							label: 'New Session',
+							timing: newSessionTiming,
+						}
+					]
+				};
+
+				mockChatSessionsService.registerChatSessionItemProvider(provider);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				assert.strictEqual(session.isRead(), false);
+
+				let changeEventCount = 0;
+				disposables.add(viewModel.onDidChangeSessions(() => {
+					changeEventCount++;
+				}));
+
+				// Archive the session (which also marks as read)
+				session.setArchived(true);
+
+				// Fires twice: once for setting read state, once for setting archived state
+				assert.strictEqual(changeEventCount, 2);
+			});
+		});
+
+		test('should not fire onDidChangeSessions when archiving an already read session', async () => {
+			return runWithFakedTimers({}, async () => {
+				// Session with timing before the READ_STATE_INITIAL_DATE (already read)
+				const oldSessionTiming: IChatSessionItem['timing'] = {
+					created: Date.UTC(2025, 10 /* November */, 1),
+					lastRequestStarted: Date.UTC(2025, 10 /* November */, 1),
+					lastRequestEnded: Date.UTC(2025, 10 /* November */, 2),
+				};
+
+				const provider: IChatSessionItemProvider = {
+					chatSessionType: 'test-type',
+					onDidChangeChatSessionItems: Event.None,
+					provideChatSessionItems: async () => [
+						{
+							resource: URI.parse('test://old-session'),
+							label: 'Old Session',
+							timing: oldSessionTiming,
+						}
+					]
+				};
+
+				mockChatSessionsService.registerChatSessionItemProvider(provider);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				// Session before the initial date should be read
+				assert.strictEqual(session.isRead(), true);
+
+				let changeEventCount = 0;
+				disposables.add(viewModel.onDidChangeSessions(() => {
+					changeEventCount++;
+				}));
+
+				// Archive the session
+				session.setArchived(true);
+
+				// Should fire once (for archived state change only, not for read since already read)
+				assert.strictEqual(changeEventCount, 1);
+			});
+		});
 	});
 
 	suite('AgentSessionsViewModel - State Tracking', () => {

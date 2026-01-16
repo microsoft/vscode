@@ -52,7 +52,6 @@ interface IToolEntry {
 }
 
 interface ITrackedCall {
-	invocation?: ChatToolInvocation;
 	store: IDisposable;
 }
 
@@ -169,7 +168,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			'read',
 			SpecedToolAliases.read,
 			{
-				icon: ThemeIcon.fromId(Codicon.eye.id),
+				icon: ThemeIcon.fromId(Codicon.book.id),
 				description: localize('copilot.toolSet.read.description', 'Read files in your workspace'),
 			}
 		));
@@ -385,19 +384,23 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				preparedInvocation = await this.prepareToolInvocation(tool, dto, token);
 				prepareTimeWatch.stop();
 
+				const autoConfirmed = await this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace, tool.data.source, dto.parameters);
+
+
+				// Important: a tool invocation that will be autoconfirmed should never
+				// be in the chat response in the `NeedsConfirmation` state, even briefly,
+				// as that triggers notifications and causes issues in eval.
 				if (hadPendingInvocation && toolInvocation) {
 					// Transition from streaming to executing/waiting state
-					toolInvocation.transitionFromStreaming(preparedInvocation, dto.parameters);
+					toolInvocation.transitionFromStreaming(preparedInvocation, dto.parameters, autoConfirmed);
 				} else {
 					// Create a new tool invocation (no streaming phase)
 					toolInvocation = new ChatToolInvocation(preparedInvocation, tool.data, dto.callId, dto.subAgentInvocationId, dto.parameters);
-					this._chatService.appendProgress(request, toolInvocation);
-				}
+					if (autoConfirmed) {
+						IChatToolInvocation.confirmWith(toolInvocation, autoConfirmed);
+					}
 
-				trackedCall.invocation = toolInvocation;
-				const autoConfirmed = await this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace, tool.data.source, dto.parameters);
-				if (autoConfirmed) {
-					IChatToolInvocation.confirmWith(toolInvocation, autoConfirmed);
+					this._chatService.appendProgress(request, toolInvocation);
 				}
 
 				dto.toolSpecificData = toolInvocation?.toolSpecificData;
@@ -582,6 +585,12 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		// then fall back to looking up by toolReferenceName
 		const toolEntry = this._tools.get(options.toolId);
 		if (!toolEntry) {
+			return undefined;
+		}
+
+		// Don't create a streaming invocation for tools that don't implement handleToolStream.
+		// These tools will have their invocation created directly in invokeToolInternal.
+		if (!toolEntry.impl?.handleToolStream) {
 			return undefined;
 		}
 

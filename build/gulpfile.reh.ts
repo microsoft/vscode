@@ -21,7 +21,7 @@ import vfs from 'vinyl-fs';
 import packageJson from '../package.json' with { type: 'json' };
 import flatmap from 'gulp-flatmap';
 import gunzip from 'gulp-gunzip';
-import untar from 'gulp-untar';
+import { untar } from './lib/util.ts';
 import File from 'vinyl';
 import * as fs from 'fs';
 import glob from 'glob';
