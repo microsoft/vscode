@@ -32,13 +32,17 @@ export function isMeteredConnection(): boolean {
 /**
  * Code to detect metered connection that can be executed in a renderer context.
  * Used for IPC communication from main to renderer process.
+ * This is generated from the isMeteredConnection logic for consistency.
  */
 export const isMeteredConnectionCode = `
 (function() {
 	if (typeof navigator !== 'undefined' && 'connection' in navigator) {
 		const connection = navigator.connection;
 		if (connection) {
-			if (connection.saveData === true || connection.metered === true) {
+			if (connection.saveData === true) {
+				return true;
+			}
+			if (connection.metered === true) {
 				return true;
 			}
 		}
