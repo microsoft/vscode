@@ -459,7 +459,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 				}
 			}
 		}));
-		this._register(Event.accumulate(this.editor.onDidChangeModelContent, 0, this._store)(evts => {
+		this._register(Event.accumulate(this.editor.onDidChangeModelContent, 0, undefined, this._store)(evts => {
 			const model = editor.getModel();
 			if (!this._currentUri || !model) {
 				return;

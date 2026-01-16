@@ -3,17 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Toggle } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { isMacintosh, OperatingSystem } from '../../../../../base/common/platform.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ITextModelContentProvider, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputButton, IQuickInputButtonWithToggle, IQuickInputService, IQuickPickItem, IQuickPickSeparator, QuickInputButtonLocation } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ITerminalCommand, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { collapseTildePath } from '../../../../../platform/terminal/common/terminalEnvironment.js';
-import { asCssVariable, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import { commandHistoryFuzzySearchIcon, commandHistoryOpenFileIcon, commandHistoryOutputIcon, commandHistoryRemoveIcon } from '../../../terminal/browser/terminalIcons.js';
@@ -252,17 +250,12 @@ export async function showRunRecentQuickPick(
 		return;
 	}
 	const disposables = new DisposableStore();
-	const fuzzySearchToggle = disposables.add(new Toggle({
-		title: 'Fuzzy search',
-		icon: commandHistoryFuzzySearchIcon,
-		isChecked: filterMode === 'fuzzy',
-		inputActiveOptionBorder: asCssVariable(inputActiveOptionBorder),
-		inputActiveOptionForeground: asCssVariable(inputActiveOptionForeground),
-		inputActiveOptionBackground: asCssVariable(inputActiveOptionBackground)
-	}));
-	disposables.add(fuzzySearchToggle.onChange(() => {
-		instantiationService.invokeFunction(showRunRecentQuickPick, instance, terminalInRunCommandPicker, type, fuzzySearchToggle.checked ? 'fuzzy' : 'contiguous', quickPick.value);
-	}));
+	const fuzzySearchButton: IQuickInputButtonWithToggle = {
+		iconClass: ThemeIcon.asClassName(commandHistoryFuzzySearchIcon),
+		tooltip: localize('fuzzySearch', "Fuzzy search"),
+		toggle: { checked: filterMode === 'fuzzy' },
+		location: QuickInputButtonLocation.Input
+	};
 	const outputProvider = disposables.add(instantiationService.createInstance(TerminalOutputProvider));
 	const quickPick = disposables.add(quickInputService.createQuickPick<Item | IQuickPickItem & { rawLabel: string }>({ useSeparators: true }));
 	const originalItems = items;
@@ -270,7 +263,12 @@ export async function showRunRecentQuickPick(
 	quickPick.sortByLabel = false;
 	quickPick.placeholder = placeholder;
 	quickPick.matchOnLabelMode = filterMode || 'contiguous';
-	quickPick.toggles = [fuzzySearchToggle];
+	quickPick.buttons = [fuzzySearchButton];
+	disposables.add(quickPick.onDidTriggerButton((button) => {
+		if (button === fuzzySearchButton) {
+			instantiationService.invokeFunction(showRunRecentQuickPick, instance, terminalInRunCommandPicker, type, fuzzySearchButton.toggle.checked ? 'fuzzy' : 'contiguous', quickPick.value);
+		}
+	}));
 	disposables.add(quickPick.onDidTriggerItemButton(async e => {
 		if (e.button === removeFromCommandHistoryButton) {
 			if (type === 'command') {

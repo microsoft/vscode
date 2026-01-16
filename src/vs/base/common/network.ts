@@ -90,6 +90,9 @@ export namespace Schemas {
 	/** Scheme used for local chat session content */
 	export const vscodeLocalChatSession = 'vscode-chat-session';
 
+	/** Scheme used for virtual chat prompt files with embedded content */
+	export const vscodeChatPrompt = 'vscode-chat-prompt';
+
 	/**
 	 * Scheme used internally for webviews that aren't linked to a resource (i.e. not custom editors)
 	 */
@@ -99,6 +102,11 @@ export namespace Schemas {
 	 * Scheme used for loading the wrapper html and script in webviews.
 	 */
 	export const vscodeWebview = 'vscode-webview';
+
+	/**
+	 * Scheme used for integrated browser tabs using WebContentsView.
+	 */
+	export const vscodeBrowser = 'vscode-browser';
 
 	/**
 	 * Scheme used for extension pages

@@ -8,6 +8,7 @@ import { IRange, Range } from './core/range.js';
 import { Selection } from './core/selection.js';
 import { IModelDecoration, InjectedTextOptions } from './model.js';
 import { IModelContentChange } from './model/mirrorTextModel.js';
+import { AnnotationsUpdate } from './model/tokens/annotations.js';
 import { TextModelEditSource } from './textModelEditSource.js';
 
 /**
@@ -150,6 +151,63 @@ export interface IModelTokensChangedEvent {
 	}[];
 }
 
+/**
+ * @internal
+ */
+export interface IFontTokenOption {
+	/**
+	 * Font family of the token.
+	 */
+	readonly fontFamily?: string;
+	/**
+	 * Font size of the token.
+	 */
+	readonly fontSizeMultiplier?: number;
+	/**
+	 * Line height of the token.
+	 */
+	readonly lineHeightMultiplier?: number;
+}
+
+/**
+ * An event describing a token font change event
+ * @internal
+ */
+export interface IModelFontTokensChangedEvent {
+	changes: FontTokensUpdate;
+}
+
+/**
+ * @internal
+ */
+export type FontTokensUpdate = AnnotationsUpdate<IFontTokenOption | undefined>;
+
+/**
+ * @internal
+ */
+export function serializeFontTokenOptions(): (options: IFontTokenOption) => IFontTokenOption {
+	return (annotation: IFontTokenOption) => {
+		return {
+			fontFamily: annotation.fontFamily ?? '',
+			fontSizeMultiplier: annotation.fontSizeMultiplier ?? 0,
+			lineHeightMultiplier: annotation.lineHeightMultiplier ?? 0
+		};
+	};
+}
+
+/**
+ * @internal
+ */
+export function deserializeFontTokenOptions(): (options: IFontTokenOption) => IFontTokenOption {
+	return (annotation: IFontTokenOption) => {
+		return {
+			fontFamily: annotation.fontFamily ? String(annotation.fontFamily) : undefined,
+			fontSizeMultiplier: annotation.fontSizeMultiplier ? Number(annotation.fontSizeMultiplier) : undefined,
+			lineHeightMultiplier: annotation.lineHeightMultiplier ? Number(annotation.lineHeightMultiplier) : undefined
+		};
+	};
+}
+
 export interface IModelOptionsChangedEvent {
 	readonly tabSize: boolean;
 	readonly indentSize: boolean;
@@ -290,13 +348,13 @@ export class ModelLineHeightChanged {
 	/**
 	 * The line height on the line.
 	 */
-	public readonly lineHeight: number | null;
+	public readonly lineHeightMultiplier: number | null;
 
-	constructor(ownerId: number, decorationId: string, lineNumber: number, lineHeight: number | null) {
+	constructor(ownerId: number, decorationId: string, lineNumber: number, lineHeightMultiplier: number | null) {
 		this.ownerId = ownerId;
 		this.decorationId = decorationId;
 		this.lineNumber = lineNumber;
-		this.lineHeight = lineHeight;
+		this.lineHeightMultiplier = lineHeightMultiplier;
 	}
 }
 

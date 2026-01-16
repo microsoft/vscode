@@ -5,21 +5,30 @@
 
 import { localize } from '../../../../../nls.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localChatSessionType } from '../../common/chatSessionsService.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
-import { LEGACY_AGENT_SESSIONS_VIEW_ID } from '../../common/constants.js';
-import { ChatViewId } from '../chat.js';
-
-export const AGENT_SESSIONS_VIEW_CONTAINER_ID = 'workbench.viewContainer.agentSessions';
-export const AGENT_SESSIONS_VIEW_ID = 'workbench.view.agentSessions';
+import { foreground, listActiveSelectionForeground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
 
 export enum AgentSessionProviders {
 	Local = localChatSessionType,
 	Background = 'copilotcli',
 	Cloud = 'copilot-cloud-agent',
+	ClaudeCode = 'claude-code',
+}
+
+export function getAgentSessionProvider(sessionResource: URI | string): AgentSessionProviders | undefined {
+	const type = URI.isUri(sessionResource) ? getChatSessionType(sessionResource) : sessionResource;
+	switch (type) {
+		case AgentSessionProviders.Local:
+		case AgentSessionProviders.Background:
+		case AgentSessionProviders.Cloud:
+		case AgentSessionProviders.ClaudeCode:
+			return type;
+		default:
+			return undefined;
+	}
 }
 
 export function getAgentSessionProviderName(provider: AgentSessionProviders): string {
@@ -30,6 +39,8 @@ export function getAgentSessionProviderName(provider: AgentSessionProviders): st
 			return localize('chat.session.providerLabel.background', "Background");
 		case AgentSessionProviders.Cloud:
 			return localize('chat.session.providerLabel.cloud', "Cloud");
+		case AgentSessionProviders.ClaudeCode:
+			return localize('chat.session.providerLabel.claude', "Claude");
 	}
 }
 
@@ -38,23 +49,11 @@ export function getAgentSessionProviderIcon(provider: AgentSessionProviders): Th
 		case AgentSessionProviders.Local:
 			return Codicon.vm;
 		case AgentSessionProviders.Background:
-			return Codicon.collection;
+			return Codicon.worktree;
 		case AgentSessionProviders.Cloud:
 			return Codicon.cloud;
-	}
-}
-
-export function openAgentSessionsView(accessor: ServicesAccessor): void {
-	const viewService = accessor.get(IViewsService);
-	const configurationService = accessor.get(IConfigurationService);
-
-	const viewLocation = configurationService.getValue('chat.agentSessionsViewLocation');
-	if (viewLocation === 'single-view') {
-		viewService.openView(AGENT_SESSIONS_VIEW_ID, true);
-	} else if (viewLocation === 'view') {
-		viewService.openViewContainer(LEGACY_AGENT_SESSIONS_VIEW_ID, true);
-	} else {
-		viewService.openView(ChatViewId, true);
+		case AgentSessionProviders.ClaudeCode:
+			return Codicon.code;
 	}
 }
 
@@ -67,3 +66,31 @@ export enum AgentSessionsViewerPosition {
 	Left = 1,
 	Right,
 }
+
+export interface IAgentSessionsControl {
+	refresh(): void;
+	openFind(): void;
+	reveal(sessionResource: URI): void;
+	setGridMarginOffset(offset: number): void;
+}
+
+export const agentSessionReadIndicatorForeground = registerColor(
+	'agentSessionReadIndicator.foreground',
+	{ dark: transparent(foreground, 0.15), light: transparent(foreground, 0.15), hcDark: null, hcLight: null },
+	localize('agentSessionReadIndicatorForeground', "Foreground color for the read indicator in an agent session.")
+);
+
+export const agentSessionSelectedBadgeBorder = registerColor(
+	'agentSessionSelectedBadge.border',
+	{ dark: transparent(listActiveSelectionForeground, 0.3), light: transparent(listActiveSelectionForeground, 0.3), hcDark: foreground, hcLight: foreground },
+	localize('agentSessionSelectedBadgeBorder', "Border color for the badges in selected agent session items.")
+);
+
+export const agentSessionSelectedUnfocusedBadgeBorder = registerColor(
+	'agentSessionSelectedUnfocusedBadge.border',
+	{ dark: transparent(foreground, 0.3), light: transparent(foreground, 0.3), hcDark: foreground, hcLight: foreground },
+	localize('agentSessionSelectedUnfocusedBadgeBorder', "Border color for the badges in selected agent session items when the view is unfocused.")
+);
+
+export const AGENT_SESSION_RENAME_ACTION_ID = 'agentSession.rename';
+export const AGENT_SESSION_DELETE_ACTION_ID = 'agentSession.delete';

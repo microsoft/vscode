@@ -603,7 +603,7 @@ suite('toISCMHistoryItemViewModelArray', () => {
 	 * 	* e(f)
 	 * 	* f(g)
 	*/
-	test.skip('graph with incoming/outgoing changes (remote ref first)', () => {
+	test('graph with incoming/outgoing changes (remote ref first)', () => {
 		const models = [
 			toSCMHistoryItem('a', ['b'], [{ id: 'origin/main', name: 'origin/main' }]),
 			toSCMHistoryItem('b', ['e']),
@@ -645,51 +645,55 @@ suite('toISCMHistoryItemViewModelArray', () => {
 		assert.strictEqual(viewModels[1].inputSwimlanes[0].color, historyItemRemoteRefColor);
 
 		assert.strictEqual(viewModels[1].outputSwimlanes.length, 1);
-		assert.strictEqual(viewModels[1].outputSwimlanes[0].id, SCMIncomingHistoryItemId);
+		assert.strictEqual(viewModels[1].outputSwimlanes[0].id, 'e');
 		assert.strictEqual(viewModels[1].outputSwimlanes[0].color, historyItemRemoteRefColor);
 
-		// incoming changes node
-		assert.strictEqual(viewModels[2].kind, 'incoming-changes');
+		// outgoing changes node
+		assert.strictEqual(viewModels[2].kind, 'outgoing-changes');
 		assert.strictEqual(viewModels[2].inputSwimlanes.length, 1);
-		assert.strictEqual(viewModels[2].inputSwimlanes[0].id, SCMIncomingHistoryItemId);
+		assert.strictEqual(viewModels[2].inputSwimlanes[0].id, 'e');
 		assert.strictEqual(viewModels[2].inputSwimlanes[0].color, historyItemRemoteRefColor);
 
-		assert.strictEqual(viewModels[2].outputSwimlanes.length, 1);
+		assert.strictEqual(viewModels[2].outputSwimlanes.length, 2);
 		assert.strictEqual(viewModels[2].outputSwimlanes[0].id, 'e');
 		assert.strictEqual(viewModels[2].outputSwimlanes[0].color, historyItemRemoteRefColor);
+		assert.strictEqual(viewModels[2].outputSwimlanes[1].id, 'c');
+		assert.strictEqual(viewModels[2].outputSwimlanes[1].color, historyItemRefColor);
 
-		// outgoing changes node
-		assert.strictEqual(viewModels[3].kind, 'outgoing-changes');
-		assert.strictEqual(viewModels[3].inputSwimlanes.length, 1);
+		// node c
+		assert.strictEqual(viewModels[3].kind, 'HEAD');
+		assert.strictEqual(viewModels[3].inputSwimlanes.length, 2);
 		assert.strictEqual(viewModels[3].inputSwimlanes[0].id, 'e');
 		assert.strictEqual(viewModels[3].inputSwimlanes[0].color, historyItemRemoteRefColor);
+		assert.strictEqual(viewModels[3].inputSwimlanes[1].id, 'c');
+		assert.strictEqual(viewModels[3].inputSwimlanes[1].color, historyItemRefColor);
 
 		assert.strictEqual(viewModels[3].outputSwimlanes.length, 2);
 		assert.strictEqual(viewModels[3].outputSwimlanes[0].id, 'e');
 		assert.strictEqual(viewModels[3].outputSwimlanes[0].color, historyItemRemoteRefColor);
-		assert.strictEqual(viewModels[3].outputSwimlanes[1].id, 'c');
+		assert.strictEqual(viewModels[3].outputSwimlanes[1].id, 'd');
 		assert.strictEqual(viewModels[3].outputSwimlanes[1].color, historyItemRefColor);
 
-		// node c
-		assert.strictEqual(viewModels[4].kind, 'HEAD');
+		// node d
+		assert.strictEqual(viewModels[4].kind, 'node');
 		assert.strictEqual(viewModels[4].inputSwimlanes.length, 2);
-		assert.strictEqual(viewModels[4].inputSwimlanes[0].id, 'e');
+		assert.strictEqual(viewModels[4].inputSwimlanes[0].id, SCMIncomingHistoryItemId);
 		assert.strictEqual(viewModels[4].inputSwimlanes[0].color, historyItemRemoteRefColor);
-		assert.strictEqual(viewModels[4].inputSwimlanes[1].id, 'c');
+		assert.strictEqual(viewModels[4].inputSwimlanes[1].id, 'd');
 		assert.strictEqual(viewModels[4].inputSwimlanes[1].color, historyItemRefColor);
 
 		assert.strictEqual(viewModels[4].outputSwimlanes.length, 2);
-		assert.strictEqual(viewModels[4].outputSwimlanes[0].id, 'e');
+		assert.strictEqual(viewModels[4].outputSwimlanes[0].id, SCMIncomingHistoryItemId);
 		assert.strictEqual(viewModels[4].outputSwimlanes[0].color, historyItemRemoteRefColor);
-		assert.strictEqual(viewModels[4].outputSwimlanes[1].id, 'd');
+		assert.strictEqual(viewModels[4].outputSwimlanes[1].id, 'e');
 		assert.strictEqual(viewModels[4].outputSwimlanes[1].color, historyItemRefColor);
 
-		// node d
-		assert.strictEqual(viewModels[5].kind, 'node');
+		// incoming changes node
+		assert.strictEqual(viewModels[5].kind, 'incoming-changes');
 		assert.strictEqual(viewModels[5].inputSwimlanes.length, 2);
-		assert.strictEqual(viewModels[5].inputSwimlanes[0].id, 'e');
+		assert.strictEqual(viewModels[5].inputSwimlanes[0].id, SCMIncomingHistoryItemId);
 		assert.strictEqual(viewModels[5].inputSwimlanes[0].color, historyItemRemoteRefColor);
-		assert.strictEqual(viewModels[5].inputSwimlanes[1].id, 'd');
+		assert.strictEqual(viewModels[5].inputSwimlanes[1].id, 'e');
 		assert.strictEqual(viewModels[5].inputSwimlanes[1].color, historyItemRefColor);
 
 		assert.strictEqual(viewModels[5].outputSwimlanes.length, 2);

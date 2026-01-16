@@ -2597,6 +2597,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	get onMouseClick(): Event<ITreeMouseEvent<T>> { return Event.map(this.view.onMouseClick, asTreeMouseEvent); }
 	get onMouseDblClick(): Event<ITreeMouseEvent<T>> { return Event.filter(Event.map(this.view.onMouseDblClick, asTreeMouseEvent), e => e.target !== TreeMouseEventTarget.Filter); }
+	get onMouseMiddleClick(): Event<ITreeMouseEvent<T>> { return Event.filter(Event.map(this.view.onMouseMiddleClick, asTreeMouseEvent), e => e.target !== TreeMouseEventTarget.Filter); }
 	get onMouseOver(): Event<ITreeMouseEvent<T>> { return Event.map(this.view.onMouseOver, asTreeMouseEvent); }
 	get onMouseOut(): Event<ITreeMouseEvent<T>> { return Event.map(this.view.onMouseOut, asTreeMouseEvent); }
 	get onContextMenu(): Event<ITreeContextMenuEvent<T>> { return Event.any(Event.filter(Event.map(this.view.onContextMenu, asTreeContextMenuEvent), e => !e.isStickyScroll), this.stickyScrollController?.onContextMenu ?? Event.None); }

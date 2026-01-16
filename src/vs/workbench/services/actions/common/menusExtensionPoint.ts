@@ -438,6 +438,12 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'contribMergeEditorMenus'
 	},
 	{
+		key: 'multiDiffEditor/content',
+		id: MenuId.MultiDiffEditorContent,
+		description: localize('menus.multiDiffEditorContent', "A prominent button overlaying the multi diff editor"),
+		proposed: 'contribEditorContentMenu'
+	},
+	{
 		key: 'multiDiffEditor/resource/title',
 		id: MenuId.MultiDiffEditorFileToolbar,
 		description: localize('menus.multiDiffEditorResource', "The resource toolbar in the multi diff editor"),
@@ -466,6 +472,12 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.chatTextEditor', "The Chat submenu in the text editor context menu."),
 		supportsSubmenus: false,
 		proposed: 'chatParticipantPrivate'
+	},
+	{
+		key: 'chat/input/editing/sessionToolbar',
+		id: MenuId.ChatEditingSessionChangesToolbar,
+		description: localize('menus.chatEditingSessionChangesToolbar', "The Chat Editing widget toolbar menu for session changes."),
+		proposed: 'chatSessionsProvider'
 	},
 	{
 		// TODO: rename this to something like: `chatSessions/item/inline`

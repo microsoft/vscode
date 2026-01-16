@@ -15,7 +15,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { Dto } from '../../../../services/extensions/common/proxyIdentifier.js';
-import { ISnapshotEntry, ModifiedFileEntryState, WorkingSetDisplayMetadata } from '../../common/chatEditingService.js';
+import { ISnapshotEntry, ModifiedFileEntryState, WorkingSetDisplayMetadata } from '../../common/editing/chatEditingService.js';
 import { getKeyForChatSessionResource, IChatEditingTimelineState } from './chatEditingOperations.js';
 
 const STORAGE_CONTENTS_FOLDER = 'contents';

@@ -591,7 +591,7 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 	}
 
 	private async searchInWorkspace(patternLowercase: string, root: ExplorerItem, rootIndex: number, isFuzzyMatch: boolean, token: CancellationToken): Promise<{ explorerRoot: ExplorerItem; files: URI[]; directories: URI[]; hitMaxResults: boolean }> {
-		const segmentMatchPattern = caseInsensitiveGlobPattern(isFuzzyMatch ? fuzzyMatchingGlobPattern(patternLowercase) : continousMatchingGlobPattern(patternLowercase));
+		const segmentMatchPattern = isFuzzyMatch ? fuzzyMatchingGlobPattern(patternLowercase) : continousMatchingGlobPattern(patternLowercase);
 
 		const searchExcludePattern = getExcludes(this.configurationService.getValue<ISearchConfiguration>({ resource: root.resource })) || {};
 		const searchOptions: IFileQuery = {
@@ -603,6 +603,7 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 			shouldGlobMatchFilePattern: true,
 			cacheKey: `explorerfindprovider:${root.name}:${rootIndex}:${this.sessionId}`,
 			excludePattern: searchExcludePattern,
+			ignoreGlobCase: true,
 		};
 
 		let fileResults: ISearchComplete | undefined;
@@ -652,7 +653,7 @@ function getMatchingDirectoriesFromFiles(resources: URI[], root: ExplorerItem, s
 	for (const dirResource of uniqueDirectories) {
 		const stats = dirResource.path.split('/');
 		const dirStat = stats[stats.length - 1];
-		if (!dirStat || !glob.match(segmentMatchPattern, dirStat)) {
+		if (!dirStat || !glob.match(segmentMatchPattern, dirStat, { ignoreCase: true })) {
 			continue;
 		}
 
@@ -696,19 +697,6 @@ function continousMatchingGlobPattern(pattern: string): string {
 		return '*';
 	}
 	return '*' + pattern + '*';
-}
-
-function caseInsensitiveGlobPattern(pattern: string): string {
-	let caseInsensitiveFilePattern = '';
-	for (let i = 0; i < pattern.length; i++) {
-		const char = pattern[i];
-		if (/[a-zA-Z]/.test(char)) {
-			caseInsensitiveFilePattern += `[${char.toLowerCase()}${char.toUpperCase()}]`;
-		} else {
-			caseInsensitiveFilePattern += char;
-		}
-	}
-	return caseInsensitiveFilePattern;
 }
 
 export interface ICompressedNavigationController {
@@ -890,13 +878,16 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		const templateDisposables = new DisposableStore();
 		const label = templateDisposables.add(this.labels.create(container, { supportHighlights: true }));
 		templateDisposables.add(label.onDidRender(() => {
-			try {
-				if (templateData.currentContext) {
-					this.updateWidth(templateData.currentContext);
+			// schedule this on the next animation frame to avoid rendering reentry
+			DOM.scheduleAtNextAnimationFrame(DOM.getWindow(templateData.container), () => {
+				try {
+					if (templateData.currentContext) {
+						this.updateWidth(templateData.currentContext);
+					}
+				} catch (e) {
+					// noop since the element might no longer be in the tree, no update of width necessary
 				}
-			} catch (e) {
-				// noop since the element might no longer be in the tree, no update of width necessary
-			}
+			});
 		}));
 
 		const contribs = explorerFileContribRegistry.create(this.instantiationService, container, templateDisposables);

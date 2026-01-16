@@ -1145,7 +1145,7 @@ suite('Editor Contrib - Line Comment in mixed modes', () => {
 						(ColorId.DefaultForeground << MetadataConsts.FOREGROUND_OFFSET)
 						| (encodedLanguageId << MetadataConsts.LANGUAGEID_OFFSET)
 					);
-					return new EncodedTokenizationResult(tokens, state);
+					return new EncodedTokenizationResult(tokens, [], state);
 				}
 			}));
 		}

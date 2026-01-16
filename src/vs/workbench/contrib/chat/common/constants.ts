@@ -10,8 +10,11 @@ import { RawContextKey } from '../../../../platform/contextkey/common/contextkey
 
 export enum ChatConfiguration {
 	AgentEnabled = 'chat.agent.enabled',
+	AgentStatusEnabled = 'chat.agentsControl.enabled',
+	AgentSessionProjectionEnabled = 'chat.agentSessionProjection.enabled',
 	Edits2Enabled = 'chat.edits2.enabled',
 	ExtensionToolsEnabled = 'chat.extensionTools.enabled',
+	RepoInfoEnabled = 'chat.repoInfo.enabled',
 	EditRequests = 'chat.editRequests',
 	GlobalAutoApprove = 'chat.tools.global.autoApprove',
 	AutoApproveEdits = 'chat.tools.edits.autoApprove',
@@ -19,15 +22,14 @@ export enum ChatConfiguration {
 	EligibleForAutoApproval = 'chat.tools.eligibleForAutoApproval',
 	EnableMath = 'chat.math.enabled',
 	CheckpointsEnabled = 'chat.checkpoints.enabled',
-	AgentSessionsViewLocation = 'chat.agentSessionsViewLocation',
 	ThinkingStyle = 'chat.agent.thinkingStyle',
 	ThinkingGenerateTitles = 'chat.agent.thinking.generateTitles',
+	TerminalToolsInThinking = 'chat.agent.thinking.terminalTools',
 	TodosShowWidget = 'chat.tools.todos.showWidget',
-	ShowAgentSessionsViewDescription = 'chat.showAgentSessionsViewDescription',
 	NotifyWindowOnResponseReceived = 'chat.notifyWindowOnResponseReceived',
-	ChatViewRecentSessionsEnabled = 'chat.recentSessions.enabled',
+	ChatViewSessionsEnabled = 'chat.viewSessions.enabled',
+	ChatViewSessionsOrientation = 'chat.viewSessions.orientation',
 	ChatViewTitleEnabled = 'chat.viewTitle.enabled',
-	ChatViewWelcomeEnabled = 'chat.viewWelcome.enabled',
 	SubagentToolCustomAgents = 'chat.customAgentInSubagent.enabled',
 	ShowCodeBlockProgressAnimation = 'chat.agent.codeBlockProgress',
 	RestoreLastPanelSession = 'chat.restoreLastPanelSession',
@@ -132,8 +134,6 @@ export function isSupportedChatFileScheme(accessor: ServicesAccessor, scheme: st
 	return true;
 }
 
-/** @deprecated */
-export const LEGACY_AGENT_SESSIONS_VIEW_ID = 'workbench.view.chat.sessions'; // TODO@bpasero clear once settled
 export const MANAGE_CHAT_COMMAND_ID = 'workbench.action.chat.manage';
 export const ChatEditorTitleMaxLength = 30;
 

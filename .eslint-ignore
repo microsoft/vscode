@@ -33,7 +33,6 @@
 **/src/typings/**/*.d.ts
 **/src/vs/*/**/*.d.ts
 **/src/vs/base/test/common/filters.perf.data.js
-**/src/vs/loader.js
 **/test/unit/assert.js
 **/test/automation/out/**
 **/typings/**
