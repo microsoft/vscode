@@ -288,7 +288,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	protected readonly _osBackend: Promise<OperatingSystem>;
 
 	private static readonly _backgroundExecutions = new Map<string, BackgroundTerminalExecution>();
-
 	public static getBackgroundOutput(id: string): string {
 		const backgroundExecution = RunInTerminalTool._backgroundExecutions.get(id);
 		if (!backgroundExecution) {
@@ -334,8 +333,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		// Clear out warning accepted state if the setting is disabled
 		this._register(Event.runAndSubscribe(this._configurationService.onDidChangeConfiguration, e => {
-			// Clear out warning accepted state if the setting is disabled
-
 			if (!e || e.affectsConfiguration(TerminalChatAgentToolsSettingId.EnableAutoApprove)) {
 				if (this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnableAutoApprove) !== true) {
 					this._storageService.remove(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION);
