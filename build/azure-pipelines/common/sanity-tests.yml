@@ -161,6 +161,7 @@ jobs:
                 zypper install -y \
                   alsa \
                   dbus-1 \
+                  dbus-1-daemon \
                   dbus-1-x11 \
                   gzip \
                   libgbm1 \
@@ -197,9 +198,9 @@ jobs:
               mkdir -p /run/dbus
               dbus-daemon --system --fork
 
-              echo "Install Playwright browser"
-              cd /workspace/test/sanity
-              ./node_modules/.bin/playwright install --with-deps firefox
+              # echo "Install Playwright browser"
+              # cd /workspace/test/sanity
+              # ./node_modules/.bin/playwright install --with-deps firefox
 
               echo "Running sanity tests"
               node ./out/index.js -c "$(BUILD_COMMIT)" -q "$(BUILD_QUALITY)" -t "/workspace/.build/sanity-test-logs/results.xml" -v
