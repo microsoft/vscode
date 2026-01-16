@@ -43,6 +43,7 @@ export class PromptValidator {
 		this.validateHeader(promptAST, promptType, report);
 		await this.validateBody(promptAST, promptType, report);
 		await this.validateFileName(promptAST, promptType, report);
+		await this.validateSkillFolderName(promptAST, promptType, report);
 	}
 
 	private async validateFileName(promptAST: ParsedPromptFile, promptType: PromptsType, report: (markers: IMarkerData) => void): Promise<void> {
@@ -52,6 +53,36 @@ export class PromptValidator {
 				report(toMarker(localize('promptValidator.chatModesRenamedToAgents', "Chat modes have been renamed to agents. Please move this file to {0}", location.toString()), new Range(1, 1, 1, 4), MarkerSeverity.Warning));
 			} else {
 				report(toMarker(localize('promptValidator.chatModesRenamedToAgentsNoMove', "Chat modes have been renamed to agents. Please move the file to {0}", AGENTS_SOURCE_FOLDER), new Range(1, 1, 1, 4), MarkerSeverity.Warning));
+			}
+		}
+	}
+
+	private async validateSkillFolderName(promptAST: ParsedPromptFile, promptType: PromptsType, report: (markers: IMarkerData) => void): Promise<void> {
+		if (promptType !== PromptsType.skill) {
+			return;
+		}
+
+		const nameAttribute = promptAST.header?.attributes.find(attr => attr.key === PromptHeaderAttributes.name);
+		if (!nameAttribute || nameAttribute.value.type !== 'string') {
+			return;
+		}
+
+		const skillName = nameAttribute.value.value.trim();
+		if (!skillName) {
+			return;
+		}
+
+		// Extract folder name from path (e.g., .github/skills/my-skill/SKILL.md -> my-skill)
+		const pathParts = promptAST.uri.path.split('/');
+		const skillIndex = pathParts.findIndex(part => part === 'SKILL.md');
+		if (skillIndex > 0) {
+			const folderName = pathParts[skillIndex - 1];
+			if (folderName && skillName !== folderName) {
+				report(toMarker(
+					localize('promptValidator.skillNameFolderMismatch', "The skill name '{0}' should match the folder name '{1}'.", skillName, folderName),
+					nameAttribute.value.range,
+					MarkerSeverity.Warning
+				));
 			}
 		}
 	}
@@ -159,6 +190,10 @@ export class PromptValidator {
 				break;
 			}
 
+			case PromptsType.skill:
+				// Skill-specific validations (currently none beyond name/description)
+				break;
+
 		}
 	}
 
@@ -185,6 +220,9 @@ export class PromptValidator {
 						break;
 					case PromptsType.instructions:
 						report(toMarker(localize('promptValidator.unknownAttribute.instructions', "Attribute '{0}' is not supported in instructions files. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Warning));
+						break;
+					case PromptsType.skill:
+						report(toMarker(localize('promptValidator.unknownAttribute.skill', "Attribute '{0}' is not supported in skill files. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Warning));
 						break;
 				}
 			}
@@ -500,7 +538,7 @@ const allAttributeNames = {
 	[PromptsType.prompt]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.mode, PromptHeaderAttributes.agent, PromptHeaderAttributes.argumentHint],
 	[PromptsType.instructions]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.applyTo, PromptHeaderAttributes.excludeAgent],
 	[PromptsType.agent]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.advancedOptions, PromptHeaderAttributes.handOffs, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.target, PromptHeaderAttributes.infer],
-	[PromptsType.skill]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description],
+	[PromptsType.skill]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.license, PromptHeaderAttributes.compatibility, PromptHeaderAttributes.metadata],
 };
 const githubCopilotAgentAttributeNames = [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.tools, PromptHeaderAttributes.target, GithubPromptHeaderAttributes.mcpServers, PromptHeaderAttributes.infer];
 const recommendedAttributeNames = {

@@ -179,7 +179,6 @@ export interface IChatSessionsService {
 
 	registerChatSessionItemProvider(provider: IChatSessionItemProvider): IDisposable;
 	activateChatSessionItemProvider(chatSessionType: string): Promise<IChatSessionItemProvider | undefined>;
-	getAllChatSessionItemProviders(): IChatSessionItemProvider[];
 
 	getAllChatSessionContributions(): IChatSessionsExtensionPoint[];
 	getIconForSessionType(chatSessionType: string): ThemeIcon | URI | undefined;
@@ -189,8 +188,9 @@ export interface IChatSessionsService {
 
 	/**
 	 * Get the list of chat session items grouped by session type.
+	 * @param providerTypeFilter If specified, only returns items from the given providers. If undefined, returns items from all providers.
 	 */
-	getAllChatSessionItems(token: CancellationToken): Promise<Array<{ readonly chatSessionType: string; readonly items: IChatSessionItem[] }>>;
+	getChatSessionItems(providerTypeFilter: readonly string[] | undefined, token: CancellationToken): Promise<Array<{ readonly chatSessionType: string; readonly items: IChatSessionItem[] }>>;
 
 	reportInProgress(chatSessionType: string, count: number): void;
 	getInProgress(): { displayName: string; count: number }[];
