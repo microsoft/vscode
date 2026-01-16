@@ -226,7 +226,10 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 									);
 
 									return this.fileService.writeFile(URI.file(downloadPath), progressStream)
-										.finally(() => progressDelayer.dispose());
+										.then(
+											() => { progressDelayer.dispose(); },
+											err => { progressDelayer.dispose(); throw err; }
+										);
 								})
 								.then(update.sha256hash ? () => checksum(downloadPath, update.sha256hash) : () => undefined)
 								.then(() => pfs.Promises.rename(downloadPath, updatePackagePath, false /* no retry */))
