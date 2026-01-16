@@ -10,19 +10,44 @@ async function main() {
 	const arch = e('VSCODE_ARCH');
 	const esrpCliDLLPath = e('EsrpCliDllPath');
 	const pipelineWorkspace = e('PIPELINE_WORKSPACE');
+	const buildSourcesDirectory = e('BUILD_SOURCESDIRECTORY');
 
-	const folder = `${pipelineWorkspace}/vscode_client_darwin_${arch}_archive`;
-	const glob = `VSCode-darwin-${arch}.zip`;
+	const clientFolder = `${pipelineWorkspace}/vscode_client_darwin_${arch}_archive`;
+	const clientGlob = `VSCode-darwin-${arch}.zip`;
 
-	// Codesign
-	printBanner('Codesign');
-	const codeSignTask = spawnCodesignProcess(esrpCliDLLPath, 'sign-darwin', folder, glob);
-	await streamProcessOutputAndCheckResult('Codesign', codeSignTask);
+	const serverFolder = `${buildSourcesDirectory}/.build/darwin/server`;
+	const serverGlob = `vscode-server-darwin-${arch}.zip`;
+	const webGlob = `vscode-server-darwin-${arch}-web.zip`;
 
-	// Notarize
-	printBanner('Notarize');
-	const notarizeTask = spawnCodesignProcess(esrpCliDLLPath, 'notarize-darwin', folder, glob);
-	await streamProcessOutputAndCheckResult('Notarize', notarizeTask);
+	// Start codesign processes in parallel
+	const codeSignClientTask = spawnCodesignProcess(esrpCliDLLPath, 'sign-darwin', clientFolder, clientGlob);
+	const codeSignServerTask = spawnCodesignProcess(esrpCliDLLPath, 'sign-darwin', serverFolder, serverGlob);
+	const codeSignWebTask = spawnCodesignProcess(esrpCliDLLPath, 'sign-darwin', serverFolder, webGlob);
+
+	// Await codesign results
+	printBanner('Codesign client');
+	await streamProcessOutputAndCheckResult('Codesign client', codeSignClientTask);
+
+	printBanner('Codesign server');
+	await streamProcessOutputAndCheckResult('Codesign server', codeSignServerTask);
+
+	printBanner('Codesign web');
+	await streamProcessOutputAndCheckResult('Codesign web', codeSignWebTask);
+
+	// Start notarize processes in parallel (after codesigning is complete)
+	const notarizeClientTask = spawnCodesignProcess(esrpCliDLLPath, 'notarize-darwin', clientFolder, clientGlob);
+	const notarizeServerTask = spawnCodesignProcess(esrpCliDLLPath, 'notarize-darwin', serverFolder, serverGlob);
+	const notarizeWebTask = spawnCodesignProcess(esrpCliDLLPath, 'notarize-darwin', serverFolder, webGlob);
+
+	// Await notarize results
+	printBanner('Notarize client');
+	await streamProcessOutputAndCheckResult('Notarize client', notarizeClientTask);
+
+	printBanner('Notarize server');
+	await streamProcessOutputAndCheckResult('Notarize server', notarizeServerTask);
+
+	printBanner('Notarize web');
+	await streamProcessOutputAndCheckResult('Notarize web', notarizeWebTask);
 }
 
 main().then(() => {

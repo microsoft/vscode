@@ -261,6 +261,7 @@ steps:
       env:
         EsrpCliDllPath: $(EsrpCliDllPath)
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+        BUILD_SOURCESDIRECTORY: $(Build.SourcesDirectory)
       displayName: ✍️ Codesign & Notarize
 
   - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
