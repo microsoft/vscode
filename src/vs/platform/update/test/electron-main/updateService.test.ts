@@ -160,6 +160,11 @@ suite('AbstractUpdateService', () => {
 	});
 
 	test('isLatestVersion returns true when server returns 204', async () => {
+		// Use 'manual' mode to avoid triggering scheduled checks
+		configurationService = new TestConfigurationService({
+			'update.mode': 'manual'
+		});
+
 		const service = new TestableUpdateService(
 			lifecycleMainService,
 			configurationService,
@@ -179,6 +184,11 @@ suite('AbstractUpdateService', () => {
 	});
 
 	test('isLatestVersion returns false when server returns update info', async () => {
+		// Use 'manual' mode to avoid triggering scheduled checks
+		configurationService = new TestConfigurationService({
+			'update.mode': 'manual'
+		});
+
 		const service = new TestableUpdateService(
 			lifecycleMainService,
 			configurationService,
@@ -223,6 +233,11 @@ suite('AbstractUpdateService', () => {
 	});
 
 	test('checkForUpdates only triggers when in Idle state', async () => {
+		// Use 'manual' mode to avoid triggering scheduled checks
+		configurationService = new TestConfigurationService({
+			'update.mode': 'manual'
+		});
+
 		const service = new TestableUpdateService(
 			lifecycleMainService,
 			configurationService,
@@ -255,6 +270,11 @@ suite('AbstractUpdateService', () => {
 	});
 
 	test('state changes are emitted via onStateChange', async () => {
+		// Use 'manual' mode to avoid triggering scheduled checks
+		configurationService = new TestConfigurationService({
+			'update.mode': 'manual'
+		});
+
 		const service = new TestableUpdateService(
 			lifecycleMainService,
 			configurationService,
