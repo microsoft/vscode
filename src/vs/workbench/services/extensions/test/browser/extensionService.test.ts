@@ -185,6 +185,8 @@ suite('ExtensionService', () => {
 				remoteAuthorityResolverService,
 				new TestDialogService()
 			);
+
+			this._initializeIfNeeded();
 		}
 
 		private _extHostId = 0;
@@ -280,19 +282,16 @@ suite('ExtensionService', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('issue #152204: Remote extension host not disposed after closing vscode client', async () => {
-		await extService.startExtensionHosts();
 		await extService.stopExtensionHosts('foo');
 		assert.deepStrictEqual(extService.order, (['create 1', 'create 2', 'create 3', 'dispose 3', 'dispose 2', 'dispose 1']));
 	});
 
 	test('Extension host disposed when awaited', async () => {
-		await extService.startExtensionHosts();
 		await extService.stopExtensionHosts('foo');
 		assert.deepStrictEqual(extService.order, (['create 1', 'create 2', 'create 3', 'dispose 3', 'dispose 2', 'dispose 1']));
 	});
 
 	test('Extension host not disposed when vetoed (sync)', async () => {
-		await extService.startExtensionHosts();
 
 		disposables.add(extService.onWillStop(e => e.veto(true, 'test 1')));
 		disposables.add(extService.onWillStop(e => e.veto(false, 'test 2')));
@@ -302,7 +301,6 @@ suite('ExtensionService', () => {
 	});
 
 	test('Extension host not disposed when vetoed (async)', async () => {
-		await extService.startExtensionHosts();
 
 		disposables.add(extService.onWillStop(e => e.veto(false, 'test 1')));
 		disposables.add(extService.onWillStop(e => e.veto(Promise.resolve(true), 'test 2')));
@@ -313,7 +311,6 @@ suite('ExtensionService', () => {
 	});
 
 	test('onWillActivateByEvent includes activationKind for Normal activation', async () => {
-		await extService.startExtensionHosts();
 
 		const events: IWillActivateEvent[] = [];
 		disposables.add(extService.onWillActivateByEvent(e => events.push(e)));
@@ -326,7 +323,6 @@ suite('ExtensionService', () => {
 	});
 
 	test('onWillActivateByEvent includes activationKind for Immediate activation', async () => {
-		await extService.startExtensionHosts();
 
 		const events: IWillActivateEvent[] = [];
 		disposables.add(extService.onWillActivateByEvent(e => events.push(e)));
@@ -339,7 +335,6 @@ suite('ExtensionService', () => {
 	});
 
 	test('Immediate activation only activates local extension hosts', async () => {
-		await extService.startExtensionHosts();
 		extService.activationEvents.length = 0; // Clear any initial activations
 
 		await extService.activateByEvent('onTest', ActivationKind.Immediate);
@@ -352,7 +347,6 @@ suite('ExtensionService', () => {
 	});
 
 	test('Normal activation activates all extension hosts', async () => {
-		await extService.startExtensionHosts();
 		extService.activationEvents.length = 0; // Clear any initial activations
 
 		await extService.activateByEvent('onTest', ActivationKind.Normal);

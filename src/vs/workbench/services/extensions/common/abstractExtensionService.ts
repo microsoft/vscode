@@ -736,7 +736,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	//#region Stopping / Starting / Restarting
 
-	public stopExtensionHosts(reason: string, auto?: boolean): Promise<boolean> {
+	public async stopExtensionHosts(reason: string, auto?: boolean): Promise<boolean> {
+		await this._initializeIfNeeded();
 		return this._doStopExtensionHostsWithVeto(reason, auto);
 	}
 
