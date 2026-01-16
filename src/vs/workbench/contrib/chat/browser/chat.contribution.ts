@@ -196,7 +196,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.AgentStatusEnabled]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.agentsControl.enabled', "Controls whether the Agent Status is shown in the title bar command center, replacing the search box with quick access to chat sessions."),
-			default: true,
+			default: false,
 			tags: ['experimental']
 		},
 		[ChatConfiguration.AgentSessionProjectionEnabled]: {
@@ -386,6 +386,11 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true,
 			description: nls.localize('chat.viewSessions.enabled', "Show chat agent sessions when chat is empty or to the side when chat view is wide enough."),
+		},
+		[ChatConfiguration.ChatViewSessionsShowRecentOnly]: {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('chat.viewSessions.showRecentOnly', "When enabled, only show recent sessions in the stacked sessions view. When disabled, show all sessions."),
 		},
 		[ChatConfiguration.ChatViewSessionsOrientation]: {
 			type: 'string',
