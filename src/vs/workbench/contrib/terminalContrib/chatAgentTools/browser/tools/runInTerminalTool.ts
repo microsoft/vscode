@@ -702,7 +702,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			let timeoutPromise: CancelablePromise<void> | undefined;
 			const executeCancellation = store.add(new CancellationTokenSource(token));
 
-
 			// Set up timeout if provided and the setting is enabled
 			if (args.timeout !== undefined && args.timeout > 0) {
 				const shouldEnforceTimeout = this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnforceTimeoutFromModel) === true;
