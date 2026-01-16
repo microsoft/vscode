@@ -106,9 +106,7 @@ export class AutoFetcher {
 			}
 
 			const respectMetered = workspace.getConfiguration('update').get<boolean>('respectMeteredConnections', true);
-			const isMetered = respectMetered && await env.isMeteredConnection();
-
-			if (isMetered) {
+			if (respectMetered && await env.isMeteredConnection()) {
 				continue;
 			}
 
