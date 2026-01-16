@@ -476,11 +476,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			isMeteredConnection(): Thenable<boolean> {
 				checkProposedApiEnabled(extension, 'meteredConnection');
-				// Import dynamically to avoid circular dependencies
-				return Promise.resolve().then(async () => {
-					const { isMeteredConnection } = await import('../../../base/common/networkConnection.js');
-					return isMeteredConnection();
-				});
+				const { isMeteredConnection } = require('../../../base/common/networkConnection');
+				return Promise.resolve(isMeteredConnection());
 			}
 		};
 		if (!initData.environment.extensionTestsLocationURI) {

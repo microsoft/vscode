@@ -25,6 +25,7 @@
     "contribViewsWelcome",
     "editSessionIdentityProvider",
     "findFiles2",
+    "meteredConnection",
     "quickDiffProvider",
     "quickPickSortByLabel",
     "scmActionButton",
