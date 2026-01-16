@@ -78,6 +78,15 @@
 		}
 	}
 
+	.agent-sessions-new-button-container {
+		padding: 8px 12px;
+
+		.monaco-button {
+			width: 100%;
+			padding: 4px 8px;
+		}
+	}
+
 	.agent-sessions-link-container {
 		padding: 8px 0;
 		font-size: 12px;
