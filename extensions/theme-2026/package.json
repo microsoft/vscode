@@ -8,23 +8,31 @@
 	"engines": {
 		"vscode": "^1.85.0"
 	},
+    "enabledApiProposals": [
+      "css"
+  ],
 	"categories": [
 		"Themes"
 	],
 	"contributes": {
 		"themes": [
 			{
-				"id": "2026-light",
+				"id": "2026-light-experimental",
 				"label": "2026 Light",
 				"uiTheme": "vs",
 				"path": "./themes/2026-light.json"
 			},
 			{
-				"id": "2026-dark",
+				"id": "2026-dark-experimental",
 				"label": "2026 Dark",
 				"uiTheme": "vs-dark",
 				"path": "./themes/2026-dark.json"
 			}
-		]
+		],
+    "css": [
+      {
+        "path": "./themes/styles.css"
+      }
+    ]
 	}
 }
