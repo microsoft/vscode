@@ -1,0 +1,360 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.agentSessionsWelcome {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	background-color: var(--vscode-welcomePage-background);
+	overflow: hidden;
+}
+
+.agentSessionsWelcome-scrollable {
+	height: 100%;
+}
+
+.agentSessionsWelcome-content {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	padding: 40px 40px 80px;
+	max-width: 900px;
+	margin: 0 auto;
+	width: 100%;
+	box-sizing: border-box;
+}
+
+/* Header */
+.agentSessionsWelcome-header {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	margin-bottom: 24px;
+	width: 100%;
+}
+
+.agentSessionsWelcome-header h1.product-name {
+	font-size: 32px;
+	font-weight: 400;
+	margin: 0 0 12px 0;
+	color: var(--vscode-foreground);
+}
+
+.agentSessionsWelcome-startEntries {
+	display: flex;
+	gap: 16px;
+	flex-wrap: wrap;
+	justify-content: center;
+}
+
+.agentSessionsWelcome-startEntry {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 8px;
+	border: none;
+	border-radius: 4px;
+	background-color: transparent;
+	color: var(--vscode-foreground);
+	font-size: 13px;
+	cursor: pointer;
+}
+
+.agentSessionsWelcome-startEntry:hover {
+	color: var(--vscode-textLink-foreground);
+}
+
+.agentSessionsWelcome-startEntry .codicon {
+	color: var(--vscode-descriptionForeground);
+}
+
+/* Chat widget section */
+.agentSessionsWelcome-chatSection {
+	width: 100%;
+	max-width: 800px;
+	margin-bottom: 24px;
+}
+
+/* Hide the chat tree/list - we only want the input */
+.agentSessionsWelcome-chatWidget .interactive-list {
+	display: none !important;
+}
+
+/* Hide the welcome message containers */
+.agentSessionsWelcome-chatWidget .chat-welcome-view,
+.agentSessionsWelcome-chatWidget .chat-welcome-view-container {
+	display: none !important;
+}
+
+/* Constrain the chat container height - let it size to content */
+.agentSessionsWelcome-chatWidget .interactive-session {
+	height: auto !important;
+}
+
+/* Input part styling - match chat panel */
+.agentSessionsWelcome-chatWidget .interactive-input-part {
+	margin: 0;
+	padding: 16px 0;
+}
+
+/* Suggested prompts */
+.agentSessionsWelcome-sessionsSection {
+	width: 100%;
+	max-width: 800px;
+	margin-bottom: 24px;
+}
+
+.agentSessionsWelcome-suggestedPrompts {
+	display: flex;
+	gap: 12px;
+	justify-content: center;
+	flex-wrap: wrap;
+}
+
+.agentSessionsWelcome-suggestedPrompt {
+	padding: 8px 16px;
+	border: 1px solid var(--vscode-button-border, var(--vscode-contrastBorder, transparent));
+	border-radius: 20px;
+	background-color: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	font-size: 13px;
+	cursor: pointer;
+	transition: background-color 0.1s;
+}
+
+.agentSessionsWelcome-suggestedPrompt:hover {
+	background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+/* Sessions grid */
+.agentSessionsWelcome-sessionsGrid {
+	margin-bottom: 12px;
+	width: 100%;
+	overflow: hidden;
+}
+
+/* Style the agent sessions control within welcome page - 2 column layout */
+.agentSessionsWelcome-sessionsGrid .agent-sessions-viewer {
+	height: auto;
+	min-height: 0;
+}
+
+.agentSessionsWelcome-sessionsGrid .agent-sessions-viewer .monaco-list {
+	background: transparent !important;
+}
+
+.agentSessionsWelcome-sessionsGrid .agent-sessions-viewer .monaco-list-rows {
+	background: transparent !important;
+}
+
+/* Hide scrollbars in welcome page sessions list */
+.agentSessionsWelcome-sessionsGrid .agent-sessions-viewer .monaco-scrollable-element > .scrollbar {
+	display: none !important;
+}
+
+/* 2-column grid layout using CSS transforms on virtualized list */
+.agentSessionsWelcome-sessionsGrid .monaco-list-row {
+	width: 50% !important;
+}
+
+/*
+ * Transform items into 2-column layout:
+ * - Items 0,1 form visual row 1 (top: 0)
+ * - Items 2,3 form visual row 2 (top: 52)
+ * - Items 4,5 form visual row 3 (top: 104)
+ * Left column (even): items stay in place or move up
+ * Right column (odd): items move right and up
+ */
+
+/* Item 1 (index 1): move to right column of row 1 */
+.agentSessionsWelcome-sessionsGrid .monaco-list-row:nth-child(2) {
+	transform: translateX(100%) translateY(-52px);
+}
+
+/* Item 2 (index 2): move up to row 2 left column */
+.agentSessionsWelcome-sessionsGrid .monaco-list-row:nth-child(3) {
+	transform: translateY(-52px);
+}
+
+/* Item 3 (index 3): move to right column of row 2 */
+.agentSessionsWelcome-sessionsGrid .monaco-list-row:nth-child(4) {
+	transform: translateX(100%) translateY(-104px);
+}
+
+/* Item 4 (index 4): move up to row 3 left column */
+.agentSessionsWelcome-sessionsGrid .monaco-list-row:nth-child(5) {
+	transform: translateY(-104px);
+}
+
+/* Item 5 (index 5): move to right column of row 3 */
+.agentSessionsWelcome-sessionsGrid .monaco-list-row:nth-child(6) {
+	transform: translateX(100%) translateY(-156px);
+}
+
+/* Clip the extra space caused by transforms - margin set directly by JS */
+.agentSessionsWelcome-sessionsGrid .agent-sessions-viewer .monaco-scrollable-element {
+	/* margin-bottom is set programmatically in layoutSessionsControl() */
+}
+
+/* Style individual session items in the welcome page */
+.agentSessionsWelcome-sessionsGrid .agent-session-item {
+	border-radius: 4px;
+}
+
+.agentSessionsWelcome-sessionsGrid .agent-session-item:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+/* Hide toolbar on items in welcome page for cleaner look */
+.agentSessionsWelcome-sessionsGrid .agent-session-title-toolbar {
+	display: none !important;
+}
+
+.agentSessionsWelcome-openSessionsButton {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	width: 100%;
+	padding: 8px 16px;
+	border: none;
+	border-radius: 4px;
+	background-color: transparent;
+	color: var(--vscode-foreground);
+	font-size: 13px;
+	cursor: pointer;
+}
+
+.agentSessionsWelcome-openSessionsButton:hover {
+	color: var(--vscode-textLink-foreground);
+}
+
+/* Walkthroughs section */
+.agentSessionsWelcome-walkthroughsSection {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	width: 100%;
+	max-width: 800px;
+	margin-bottom: 32px;
+}
+
+.agentSessionsWelcome-walkthroughCard {
+	display: flex;
+	align-items: center;
+	padding: 16px;
+	border: 1px solid var(--vscode-welcomePage-tileBorder, var(--vscode-contrastBorder, transparent));
+	border-radius: 8px;
+	background-color: var(--vscode-welcomePage-tileBackground);
+	cursor: pointer;
+	transition: background-color 0.1s;
+	gap: 16px;
+}
+
+.agentSessionsWelcome-walkthroughCard:hover {
+	background-color: var(--vscode-welcomePage-tileHoverBackground);
+}
+
+.agentSessionsWelcome-walkthroughCard-icon {
+	flex-shrink: 0;
+	width: 40px;
+	height: 40px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.agentSessionsWelcome-walkthroughCard-icon .codicon {
+	font-size: 28px;
+	color: var(--vscode-welcomePage-progress-foreground, var(--vscode-foreground));
+}
+
+.agentSessionsWelcome-walkthroughCard-content {
+	flex: 1;
+	min-width: 0;
+}
+
+.agentSessionsWelcome-walkthroughCard-title {
+	font-size: 14px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+	margin-bottom: 4px;
+}
+
+.agentSessionsWelcome-walkthroughCard-description {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.agentSessionsWelcome-walkthroughCard-nav {
+	display: flex;
+	gap: 4px;
+}
+
+.agentSessionsWelcome-walkthroughCard-nav .nav-button {
+	width: 24px;
+	height: 24px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border: none;
+	border-radius: 4px;
+	background-color: transparent;
+	color: var(--vscode-descriptionForeground);
+	cursor: pointer;
+}
+
+.agentSessionsWelcome-walkthroughCard-nav .nav-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+/* Footer */
+.agentSessionsWelcome-footer {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 12px;
+	width: 100%;
+	max-width: 800px;
+	margin-top: 16px;
+}
+
+.agentSessionsWelcome-footerLink {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 16px;
+	border: none;
+	border-radius: 4px;
+	background-color: transparent;
+	color: var(--vscode-foreground);
+	font-size: 13px;
+	cursor: pointer;
+}
+
+.agentSessionsWelcome-footerLink:hover {
+	color: var(--vscode-textLink-foreground);
+}
+
+.agentSessionsWelcome-footerLink .codicon {
+	color: var(--vscode-descriptionForeground);
+}
+
+.agentSessionsWelcome-showOnStartup {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.agentSessionsWelcome-showOnStartup label {
+	cursor: pointer;
+}
+
+.agentSessionsWelcome-checkbox {
+	width: 16px;
+	height: 16px;
+}
