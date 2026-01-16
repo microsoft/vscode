@@ -109,8 +109,16 @@ jobs:
               set -e
 
               if command -v apt-get &> /dev/null; then
-
                 echo "Installing dependencies using apt-get (Ubuntu, Debian)"
+
+                echo "Installing Node.js 22"
+                if [ "$(arch)" = "x86_64" ] || [ "$(arch)" = "aarch64" ]; then
+                  curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+                  apt-get install -y nodejs
+                else
+                  curl -fsSL https://nodejs.org/dist/v22.13.0/node-v22.13.0-linux-armv7l.tar.xz | tar -xJ -C /usr/local --strip-components=1
+                fi
+
                 apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
                   ca-certificates \
                   curl \
@@ -127,23 +135,14 @@ jobs:
                 apt-get install -y libgtk-3-0t64 || apt-get install -y libgtk-3-0
                 apt-get install -y libasound2t64 || apt-get install -y libasound2
 
-                # Install Node.js 22 from NodeSource (only supports amd64 and arm64)
-                if [ "$(arch)" = "x86_64" ] || [ "$(arch)" = "aarch64" ]; then
-                  curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
-                  apt-get install -y nodejs
-                else
-                  # For arm32, download official Node.js binary (NodeSource does not support armv7)
-                  curl -fsSL https://nodejs.org/dist/v22.13.0/node-v22.13.0-linux-armv7l.tar.xz | tar -xJ -C /usr/local --strip-components=1
-                fi
-
               elif command -v dnf &> /dev/null; then
+                echo "Installing dependencies using dnf (CentOS, Fedora, RHEL)"
 
-                echo "Installing dependencies using dnf (Fedora, RHEL, CentOS)"
-                dnf install -y epel-release 2>/dev/null || true
-
-                # Install Node.js 22 from NodeSource
+                echo "Installing Node.js 22"
                 curl -fsSL https://rpm.nodesource.com/setup_22.x | bash -
                 dnf install -y nodejs
+
+                dnf install -y epel-release 2>/dev/null || true
 
                 dnf install -y \
                   gtk3 \
@@ -160,7 +159,6 @@ jobs:
                 dnf install -y xdg-utils || true
 
               elif command -v zypper &> /dev/null; then
-
                 echo "Installing dependencies using zypper (openSUSE)"
                 zypper install -y \
                   alsa \
@@ -178,7 +176,6 @@ jobs:
                   xorg-x11-server-Xvfb
 
               elif command -v apk &> /dev/null; then
-
                 echo "Installing dependencies using apk (Alpine)"
                 apk add --no-cache \
                   dbus \
@@ -197,7 +194,6 @@ jobs:
               echo "Starting Xvfb on display :99"
               Xvfb :99 -screen 0 1280x960x24 -ac +extension GLX +render -noreset &
               export DISPLAY=:99
-              sleep 2
 
               echo "Starting D-Bus session for Electron"
               mkdir -p /run/dbus
