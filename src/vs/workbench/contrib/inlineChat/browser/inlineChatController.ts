@@ -51,7 +51,7 @@ import { INotebookEditorService } from '../../notebook/browser/services/notebook
 import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../notebook/common/notebookService.js';
 import { CTX_INLINE_CHAT_VISIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';
-import { InlineChatSelectionGutterIndicator } from './inlineChatSelectionGutterIndicator.js';
+import { InlineChatSelectionIndicator } from './inlineChatSelectionGutterIndicator.js';
 import { IInlineChatSession2, IInlineChatSessionService } from './inlineChatSessionService.js';
 import { EditorBasedInlineChatWidget } from './inlineChatWidget.js';
 import { InlineChatZoneWidget } from './inlineChatZoneWidget.js';
@@ -111,7 +111,7 @@ export class InlineChatController implements IEditorContribution {
 	private readonly _isActiveController = observableValue(this, false);
 	private readonly _showGutterMenu: IObservable<boolean>;
 	private readonly _zone: Lazy<InlineChatZoneWidget>;
-	private readonly _gutterIndicator: InlineChatSelectionGutterIndicator;
+	private readonly _gutterIndicator: InlineChatSelectionIndicator;
 
 	private readonly _currentSession: IObservable<IInlineChatSession2 | undefined>;
 
@@ -143,7 +143,7 @@ export class InlineChatController implements IEditorContribution {
 		const notebookAgentConfig = observableConfigValue(InlineChatConfigKeys.notebookAgent, false, this._configurationService);
 		this._showGutterMenu = observableConfigValue(InlineChatConfigKeys.ShowGutterMenu, false, this._configurationService);
 
-		this._gutterIndicator = this._store.add(this._instaService.createInstance(InlineChatSelectionGutterIndicator, this._editor));
+		this._gutterIndicator = this._store.add(this._instaService.createInstance(InlineChatSelectionIndicator, this._editor));
 
 		this._zone = new Lazy<InlineChatZoneWidget>(() => {
 
@@ -442,17 +442,13 @@ export class InlineChatController implements IEditorContribution {
 		if (!arg?.message && this._configurationService.getValue<boolean>(InlineChatConfigKeys.ShowGutterMenu)) {
 			const position = this._editor.getPosition();
 			const editorDomNode = this._editor.getDomNode();
-			if (position && editorDomNode) {
-				const scrolledPosition = this._editor.getScrolledVisiblePosition(position);
-				if (scrolledPosition) {
-					const editorRect = editorDomNode.getBoundingClientRect();
-					const x = editorRect.left + scrolledPosition.left;
-					const y = editorRect.top + scrolledPosition.top;
-					// Show menu - action runs directly when user submits input
-					await this._gutterIndicator.showMenuAt(x, y, scrolledPosition.height);
-					return true;
-				}
-			}
+			const scrolledPosition = this._editor.getScrolledVisiblePosition(position);
+			const editorRect = editorDomNode.getBoundingClientRect();
+			const x = editorRect.left + scrolledPosition.left;
+			const y = editorRect.top + scrolledPosition.top;
+			// show menu and RETURN because the menu is re-entrant
+			await this._gutterIndicator.showMenuAt(x, y, scrolledPosition.height);
+			return true;
 		}
 
 		this._isActiveController.set(true, undefined);

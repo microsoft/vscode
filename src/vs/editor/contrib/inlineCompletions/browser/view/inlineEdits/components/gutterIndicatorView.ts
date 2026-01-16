@@ -472,19 +472,16 @@ export class InlineEditsGutterIndicator extends Disposable {
 			throw new BugIndicatingError('Gutter indicator data not available');
 		}
 		const disposableStore = new DisposableStore();
-
-		const closeCallback = (focusEditor: boolean) => {
-			if (focusEditor) {
-				this._editorObs.editor.focus();
-			}
-			h?.dispose();
-		};
-
 		const content = disposableStore.add(this._instantiationService.createInstance(
 			GutterIndicatorMenuContent,
 			this._editorObs,
 			data.gutterMenuData,
-			closeCallback,
+			(focusEditor) => {
+				if (focusEditor) {
+					this._editorObs.editor.focus();
+				}
+				h?.dispose();
+			},
 		).toDisposableLiveElement());
 
 		const focusTracker = disposableStore.add(trackFocus(content.element)); // TODO@benibenj should this be removed?

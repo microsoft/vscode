@@ -31,7 +31,7 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { HoverService } from '../../../../platform/hover/browser/hoverService.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { localize } from '../../../../nls.js';
-import { IMenuService, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { ACTION_START, InlineChatConfigKeys } from '../common/inlineChat.js';
 import { ContextMenuHandler } from '../../../../platform/contextview/browser/contextMenuHandler.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
@@ -45,45 +45,6 @@ import { PlaceholderTextContribution } from '../../../../editor/contrib/placehol
 import { AnchorPosition, IAnchor } from '../../../../base/browser/ui/contextview/contextview.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { InlineChatRunOptions } from './inlineChatController.js';
-
-// Register menu items for the selection gutter overlay
-MenuRegistry.appendMenuItems([
-	// Group 2: Explain and Add Selection to Chat
-	{
-		id: MenuId.ChatEditorInlineGutter,
-		item: {
-			command: {
-				id: 'chat.internal.explain',
-				title: localize('explain', "Explain"),
-			},
-			group: '2_context',
-			order: 1,
-		}
-	},
-	{
-		id: MenuId.ChatEditorInlineGutter,
-		item: {
-			command: {
-				id: 'workbench.action.chat.attachSelection',
-				title: localize('addSelectionToChat', "Add Selection to Chat"),
-			},
-			group: '2_context',
-			order: 2,
-		}
-	},
-	// Group 3: Debug
-	{
-		id: MenuId.ChatEditorInlineGutter,
-		item: {
-			command: {
-				id: 'editor.debug.action.toggleBreakpoint',
-				title: localize('toggleBreakpoint', "Toggle Breakpoint"),
-			},
-			group: '3_debug',
-			order: 1,
-		}
-	},
-]);
 
 
 class InlineChatInputActionViewItem extends BaseActionViewItem {
@@ -189,9 +150,9 @@ class InlineChatInputActionViewItem extends BaseActionViewItem {
 	}
 }
 
-export class InlineChatSelectionGutterIndicator extends Disposable {
+export class InlineChatSelectionIndicator extends Disposable {
 
-	private readonly _gutterIndicator: SelectionGutterIndicator;
+	private readonly _gutterIndicator: InlineChatGutterIndicator;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -267,7 +228,7 @@ export class InlineChatSelectionGutterIndicator extends Disposable {
 
 		// Instantiate the gutter indicator
 		this._gutterIndicator = this._store.add(this._instantiationService.createInstance(
-			SelectionGutterIndicator,
+			InlineChatGutterIndicator,
 			editorObs,
 			data,
 			constObservable(InlineEditTabAction.Jump), // tabAction - not used with custom styles
@@ -296,7 +257,7 @@ export class InlineChatSelectionGutterIndicator extends Disposable {
 /**
  * Custom gutter indicator for selection that shows a context menu.
  */
-class SelectionGutterIndicator extends InlineEditsGutterIndicator {
+class InlineChatGutterIndicator extends InlineEditsGutterIndicator {
 
 	private readonly _myInstantiationService: IInstantiationService;
 	private readonly _contextMenuHandler: ContextMenuHandler;
@@ -369,6 +330,7 @@ class SelectionGutterIndicator extends InlineEditsGutterIndicator {
 				onWillRun: Event.None,
 				dispose: () => { },
 				run: async (action: IAction, context?: unknown) => {
+					this._contextViewService.hideContextView();
 					this._suppressGutter.set(true, undefined);
 					return action.run(context);
 				}

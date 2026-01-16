@@ -22,7 +22,7 @@ import { NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_EDITOR_FOCUSED } from '../../../no
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, IChatEditingService, IChatEditingSession, IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState, parseChatMultiDiffUri } from '../../common/editing/chatEditingService.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
-import { ctxCursorInChangeRange, ctxHasEditorModification, ctxHasRequestInProgress, ctxIsCurrentlyBeingModified, ctxReviewModeEnabled } from './chatEditingEditorContextKeys.js';
+import { ctxCursorInChangeRange, ctxHasEditorModification, ctxHasRequestInProgress, ctxIsCurrentlyBeingModified, ctxIsGlobalEditingSession, ctxReviewModeEnabled } from './chatEditingEditorContextKeys.js';
 
 
 abstract class ChatEditingEditorAction extends Action2 {
@@ -186,7 +186,7 @@ abstract class KeepOrUndoAction extends ChatEditingEditorAction {
 				id: MenuId.ChatEditingEditorContent,
 				group: 'a_resolve',
 				order: _keep ? 0 : 1,
-				when: ContextKeyExpr.and(!_keep ? ctxReviewModeEnabled : undefined, ctxHasRequestInProgress.negate())
+				when: ContextKeyExpr.and(!_keep ? ctxReviewModeEnabled : undefined, ContextKeyExpr.or(ctxIsGlobalEditingSession, ctxHasRequestInProgress.negate()))
 			}
 		});
 	}
@@ -350,7 +350,7 @@ export class ReviewChangesAction extends ChatEditingEditorAction {
 				id: MenuId.ChatEditingEditorContent,
 				group: 'a_resolve',
 				order: 3,
-				when: ContextKeyExpr.and(ctxReviewModeEnabled.negate(), ctxIsCurrentlyBeingModified.negate()),
+				when: ContextKeyExpr.and(ctxReviewModeEnabled.negate(), ctxIsCurrentlyBeingModified.negate(), ContextKeyExpr.or(ctxIsGlobalEditingSession, ctxHasRequestInProgress.negate())),
 			}]
 		});
 	}
