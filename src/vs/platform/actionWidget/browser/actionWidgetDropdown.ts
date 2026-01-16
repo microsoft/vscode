@@ -6,7 +6,7 @@
 import { IActionWidgetService } from './actionWidget.js';
 import { IAction } from '../../../base/common/actions.js';
 import { BaseDropdown, IActionProvider, IBaseDropdownOptions } from '../../../base/browser/ui/dropdown/dropdown.js';
-import { ActionListItemKind, IActionListDelegate, IActionListItem } from './actionList.js';
+import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListHoverOptions } from './actionList.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { getActiveElement, isHTMLElement } from '../../../base/browser/dom.js';
@@ -36,6 +36,9 @@ export interface IActionWidgetDropdownOptions extends IBaseDropdownOptions {
 
 	// Function that returns the anchor element for the dropdown
 	getAnchor?: () => HTMLElement;
+
+	/** When set, tooltips will be rendered using the custom workbench hover instead of title attribute */
+	customHover?: IActionListHoverOptions;
 }
 
 /**
@@ -170,6 +173,7 @@ export class ActionWidgetDropdown extends BaseDropdown {
 		this.actionWidgetService.show<IActionWidgetDropdownAction>(
 			this._options.label ?? '',
 			false,
+			this._options.customHover,
 			actionWidgetItems,
 			actionWidgetDelegate,
 			this._options.getAnchor?.() ?? this.element,

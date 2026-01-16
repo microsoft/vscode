@@ -30,6 +30,7 @@ import { ExtensionAgentSourceType, PromptsStorage } from '../../../common/prompt
 import { getOpenChatActionIdForMode } from '../../actions/chatActions.js';
 import { IToggleChatModeArgs, ToggleAgentModeActionId } from '../../actions/chatExecuteActions.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
+import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidget.js';
 
 export interface IModePickerDelegate {
 	readonly currentMode: IObservable<IChatMode>;
@@ -131,7 +132,8 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 			actionBarActionProvider: {
 				getActions: () => this.getModePickerActionBarActions()
 			},
-			showItemKeybindings: true
+			showItemKeybindings: true,
+			customHover: { position: { hoverPosition: HoverPosition.LEFT } },
 		};
 
 		super(action, modePickerActionWidgetOptions, pickerOptions, actionWidgetService, keybindingService, contextKeyService);

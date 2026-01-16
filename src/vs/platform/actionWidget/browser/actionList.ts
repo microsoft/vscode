@@ -9,16 +9,24 @@ import { IListAccessibilityProvider, List } from '../../../base/browser/ui/list/
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { OS } from '../../../base/common/platform.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import './actionWidget.css';
 import { localize } from '../../../nls.js';
 import { IContextViewService } from '../../contextview/browser/contextView.js';
 import { IKeybindingService } from '../../keybinding/common/keybinding.js';
+import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { defaultListStyles } from '../../theme/browser/defaultStyles.js';
 import { asCssVariable } from '../../theme/common/colorRegistry.js';
 import { ILayoutService } from '../../layout/browser/layoutService.js';
+import { IHoverService } from '../../hover/browser/hover.js';
+import { HoverPosition } from '../../../base/browser/ui/hover/hoverWidget.js';
+import { IHoverPositionOptions } from '../../../base/browser/ui/hover/hover.js';
+
+export interface IActionListHoverOptions {
+	position?: IHoverPositionOptions;
+}
 
 export const acceptSelectedActionCommand = 'acceptSelectedCodeAction';
 export const previewSelectedActionCommand = 'previewSelectedCodeAction';
@@ -49,6 +57,7 @@ interface IActionMenuTemplateData {
 	readonly text: HTMLElement;
 	readonly description?: HTMLElement;
 	readonly keybinding: KeybindingLabel;
+	readonly elementDisposables: DisposableStore;
 }
 
 export const enum ActionListItemKind {
@@ -117,7 +126,9 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 
 	constructor(
 		private readonly _supportsPreview: boolean,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService
+		private readonly _customHover: IActionListHoverOptions | undefined,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IHoverService private readonly _hoverService: IHoverService,
 	) { }
 
 	renderTemplate(container: HTMLElement): IActionMenuTemplateData {
@@ -136,11 +147,14 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		container.append(description);
 
 		const keybinding = new KeybindingLabel(container, OS);
+		const elementDisposables = new DisposableStore();
 
-		return { container, icon, text, description, keybinding };
+		return { container, icon, text, description, keybinding, elementDisposables };
 	}
 
 	renderElement(element: IActionListItem<T>, _index: number, data: IActionMenuTemplateData): void {
+		data.elementDisposables.clear();
+
 		if (element.group?.icon) {
 			data.icon.className = ThemeIcon.asClassName(element.group.icon);
 			if (element.group.icon.color) {
@@ -175,23 +189,36 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		const actionTitle = this._keybindingService.lookupKeybinding(acceptSelectedActionCommand)?.getLabel();
 		const previewTitle = this._keybindingService.lookupKeybinding(previewSelectedActionCommand)?.getLabel();
 		data.container.classList.toggle('option-disabled', element.disabled);
+
+		let tooltipText = '';
 		if (element.tooltip) {
-			data.container.title = element.tooltip;
+			tooltipText = element.tooltip;
 		} else if (element.disabled) {
-			data.container.title = element.label;
+			tooltipText = element.label;
 		} else if (actionTitle && previewTitle) {
 			if (this._supportsPreview && element.canPreview) {
-				data.container.title = localize({ key: 'label-preview', comment: ['placeholders are keybindings, e.g "F2 to Apply, Shift+F2 to Preview"'] }, "{0} to Apply, {1} to Preview", actionTitle, previewTitle);
+				tooltipText = localize({ key: 'label-preview', comment: ['placeholders are keybindings, e.g "F2 to Apply, Shift+F2 to Preview"'] }, "{0} to Apply, {1} to Preview", actionTitle, previewTitle);
 			} else {
-				data.container.title = localize({ key: 'label', comment: ['placeholder is a keybinding, e.g "F2 to Apply"'] }, "{0} to Apply", actionTitle);
+				tooltipText = localize({ key: 'label', comment: ['placeholder is a keybinding, e.g "F2 to Apply"'] }, "{0} to Apply", actionTitle);
 			}
-		} else {
+		}
+
+		// Use hover service if enabled
+		if (this._customHover && tooltipText) {
+			data.elementDisposables.add(this._hoverService.setupDelayedHover(
+				data.container,
+				{ content: tooltipText, position: this._customHover.position ?? { hoverPosition: HoverPosition.LEFT }, appearance: { showPointer: true } },
+				{ groupId: 'actionList' }
+			));
 			data.container.title = '';
+		} else {
+			data.container.title = tooltipText;
 		}
 	}
 
 	disposeTemplate(templateData: IActionMenuTemplateData): void {
 		templateData.keybinding.dispose();
+		templateData.elementDisposables.dispose();
 	}
 }
 
@@ -228,12 +255,13 @@ export class ActionList<T> extends Disposable {
 	constructor(
 		user: string,
 		preview: boolean,
+		customHover: IActionListHoverOptions | undefined,
 		items: readonly IActionListItem<T>[],
 		private readonly _delegate: IActionListDelegate<T>,
 		accessibilityProvider: Partial<IListAccessibilityProvider<IActionListItem<T>>> | undefined,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ILayoutService private readonly _layoutService: ILayoutService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 		this.domNode = document.createElement('div');
@@ -254,7 +282,7 @@ export class ActionList<T> extends Disposable {
 
 
 		this._list = this._register(new List(user, this.domNode, virtualDelegate, [
-			new ActionItemRenderer<IActionListItem<T>>(preview, this._keybindingService),
+			this._instantiationService.createInstance(ActionItemRenderer<IActionListItem<T>>, preview, customHover),
 			new HeaderRenderer(),
 			new SeparatorRenderer(),
 		], {

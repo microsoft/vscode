@@ -57,6 +57,19 @@ export function getAgentSessionProviderIcon(provider: AgentSessionProviders): Th
 	}
 }
 
+export function getAgentSessionProviderDescription(provider: AgentSessionProviders): string {
+	switch (provider) {
+		case AgentSessionProviders.Local:
+			return localize('chat.session.providerDescription.local', "Run in your local workspace.");
+		case AgentSessionProviders.Background:
+			return localize('chat.session.providerDescription.background', "Runs locally on a copy of the workspace. Changes won't appear until you apply them. Uses GitHub Copilot CLI and runs in a git worktree.");
+		case AgentSessionProviders.Cloud:
+			return localize('chat.session.providerDescription.cloud', "Runs on a remote device in the cloud. Changes won't appear in the active workspace until you check them out. Will create a public pull request in your repository.");
+		case AgentSessionProviders.ClaudeCode:
+			return localize('chat.session.providerDescription.claude', "Run in your local workspace using Anthropic's Claude SDK.");
+	}
+}
+
 export enum AgentSessionsViewerOrientation {
 	Stacked = 1,
 	SideBySide,

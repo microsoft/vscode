@@ -17,9 +17,10 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
-import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../agentSessions/agentSessions.js';
+import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderDescription, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../agentSessions/agentSessions.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ISessionTypePickerDelegate } from '../../chat.js';
+import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidget.js';
 
 interface ISessionTypeItem {
 	type: AgentSessionProviders;
@@ -97,6 +98,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 			actionBarActions,
 			actionBarActionProvider: undefined,
 			showItemKeybindings: true,
+			customHover: { position: { hoverPosition: HoverPosition.LEFT } },
 		};
 
 		super(action, sessionTargetPickerOptions, pickerOptions, actionWidgetService, keybindingService, contextKeyService);
@@ -111,7 +113,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		const localSessionItem = {
 			type: AgentSessionProviders.Local,
 			label: getAgentSessionProviderName(AgentSessionProviders.Local),
-			description: localize('chat.sessionTarget.local.description', "Local chat session"),
+			description: getAgentSessionProviderDescription(AgentSessionProviders.Local),
 			commandId: `workbench.action.chat.openNewChatSessionInPlace.${AgentSessionProviders.Local}`,
 		};
 
@@ -124,10 +126,11 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 				continue;
 			}
 
+			const description = getAgentSessionProviderDescription(agentSessionType);
 			agentSessionItems.push({
 				type: agentSessionType,
 				label: getAgentSessionProviderName(agentSessionType),
-				description: contribution.description,
+				description: description,
 				commandId: `workbench.action.chat.openNewChatSessionInPlace.${contribution.type}`,
 			});
 		}
