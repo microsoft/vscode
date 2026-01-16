@@ -55,7 +55,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			}
 		},
 		[InlineChatConfigKeys.PersistModelChoice]: {
-			description: localize('persistModelChoice', "Whether inline chat remembers the last selected model."),
+			description: localize('persistModelChoice', "Whether to persist the selected language model choice across inline chat sessions. The default is not to persist and to use the vendor's default model for inline chat because that yields the best experience."),
 			default: false,
 			type: 'boolean',
 			experiment: {

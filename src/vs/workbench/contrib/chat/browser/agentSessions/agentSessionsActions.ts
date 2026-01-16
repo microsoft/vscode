@@ -29,7 +29,7 @@ import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { AgentSessionsPicker } from './agentSessionsPicker.js';
-import { ActiveEditorContext } from '../../../../common/contextkeys.js';
+import { ActiveEditorContext, AuxiliaryBarMaximizedContext } from '../../../../common/contextkeys.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
@@ -69,7 +69,6 @@ MenuRegistry.appendMenuItem(MenuId.ChatWelcomeContext, {
 	when: ChatContextKeys.inChatEditor.negate()
 });
 
-
 export class SetAgentSessionsOrientationStackedAction extends Action2 {
 
 	constructor() {
@@ -77,7 +76,10 @@ export class SetAgentSessionsOrientationStackedAction extends Action2 {
 			id: 'workbench.action.chat.setAgentSessionsOrientationStacked',
 			title: localize2('chat.sessionsOrientation.stacked', "Stacked"),
 			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsOrientation}`, 'stacked'),
-			precondition: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
+			precondition: ContextKeyExpr.and(
+				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
+				AuxiliaryBarMaximizedContext.negate()
+			),
 			menu: {
 				id: agentSessionsOrientationSubmenu,
 				group: 'navigation',
@@ -100,7 +102,10 @@ export class SetAgentSessionsOrientationSideBySideAction extends Action2 {
 			id: 'workbench.action.chat.setAgentSessionsOrientationSideBySide',
 			title: localize2('chat.sessionsOrientation.sideBySide', "Side by Side"),
 			toggled: ContextKeyExpr.notEquals(`config.${ChatConfiguration.ChatViewSessionsOrientation}`, 'stacked'),
-			precondition: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
+			precondition: ContextKeyExpr.and(
+				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
+				AuxiliaryBarMaximizedContext.negate()
+			),
 			menu: {
 				id: agentSessionsOrientationSubmenu,
 				group: 'navigation',
@@ -206,12 +211,17 @@ export class ArchiveAgentSessionSectionAction extends Action2 {
 			id: 'agentSessionSection.archive',
 			title: localize2('archiveSection', "Archive All"),
 			icon: Codicon.archive,
-			menu: {
+			menu: [{
 				id: MenuId.AgentSessionSectionToolbar,
 				group: 'navigation',
 				order: 1,
 				when: ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Archived),
-			}
+			}, {
+				id: MenuId.AgentSessionSectionContext,
+				group: '1_edit',
+				order: 2,
+				when: ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Archived),
+			}]
 		});
 	}
 
@@ -247,12 +257,17 @@ export class UnarchiveAgentSessionSectionAction extends Action2 {
 			id: 'agentSessionSection.unarchive',
 			title: localize2('unarchiveSection', "Unarchive All"),
 			icon: Codicon.unarchive,
-			menu: {
+			menu: [{
 				id: MenuId.AgentSessionSectionToolbar,
 				group: 'navigation',
 				order: 1,
 				when: ChatContextKeys.agentSessionSection.isEqualTo(AgentSessionSection.Archived),
-			}
+			}, {
+				id: MenuId.AgentSessionSectionContext,
+				group: '1_edit',
+				order: 2,
+				when: ChatContextKeys.agentSessionSection.isEqualTo(AgentSessionSection.Archived),
+			}]
 		});
 	}
 
@@ -276,6 +291,32 @@ export class UnarchiveAgentSessionSectionAction extends Action2 {
 
 		for (const session of context.sessions) {
 			session.setArchived(false);
+		}
+	}
+}
+
+export class MarkAgentSessionSectionReadAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'agentSessionSection.markRead',
+			title: localize2('markSectionRead', "Mark All as Read"),
+			menu: [{
+				id: MenuId.AgentSessionSectionContext,
+				group: '1_edit',
+				order: 1,
+				when: ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Archived),
+			}]
+		});
+	}
+
+	async run(accessor: ServicesAccessor, context?: IAgentSessionSection): Promise<void> {
+		if (!context || !isAgentSessionSection(context)) {
+			return;
+		}
+
+		for (const session of context.sessions) {
+			session.setRead(true);
 		}
 	}
 }
@@ -826,6 +867,7 @@ export class ShowAgentSessionsSidebar extends UpdateChatViewWidthAction {
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.enabled,
 				ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
+				AuxiliaryBarMaximizedContext.negate()
 			),
 			f1: true,
 			category: CHAT_CATEGORY,
@@ -849,6 +891,7 @@ export class HideAgentSessionsSidebar extends UpdateChatViewWidthAction {
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.enabled,
 				ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.SideBySide),
+				AuxiliaryBarMaximizedContext.negate()
 			),
 			f1: true,
 			category: CHAT_CATEGORY,
@@ -869,7 +912,10 @@ export class ToggleAgentSessionsSidebar extends Action2 {
 		super({
 			id: ToggleAgentSessionsSidebar.ID,
 			title: ToggleAgentSessionsSidebar.TITLE,
-			precondition: ChatContextKeys.enabled,
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.enabled,
+				AuxiliaryBarMaximizedContext.negate()
+			),
 			f1: true,
 			category: CHAT_CATEGORY,
 		});

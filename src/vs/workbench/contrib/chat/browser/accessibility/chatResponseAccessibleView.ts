@@ -99,14 +99,16 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 			const toolInvocations = item.response.value.filter(item => item.kind === 'toolInvocation');
 			for (const toolInvocation of toolInvocations) {
 				const state = toolInvocation.state.get();
-				if (toolInvocation.confirmationMessages?.title && state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
-					const title = typeof toolInvocation.confirmationMessages.title === 'string' ? toolInvocation.confirmationMessages.title : toolInvocation.confirmationMessages.title.value;
-					const message = typeof toolInvocation.confirmationMessages.message === 'string' ? toolInvocation.confirmationMessages.message : stripIcons(renderAsPlaintext(toolInvocation.confirmationMessages.message!));
+				if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation && state.confirmationMessages?.title) {
+					const title = typeof state.confirmationMessages.title === 'string' ? state.confirmationMessages.title : state.confirmationMessages.title.value;
+					const message = typeof state.confirmationMessages.message === 'string' ? state.confirmationMessages.message : stripIcons(renderAsPlaintext(state.confirmationMessages.message!));
 					let input = '';
 					if (toolInvocation.toolSpecificData) {
 						if (toolInvocation.toolSpecificData?.kind === 'terminal') {
 							const terminalData = migrateLegacyTerminalToolSpecificData(toolInvocation.toolSpecificData);
 							input = terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
+						} else if (toolInvocation.toolSpecificData?.kind === 'subagent') {
+							input = toolInvocation.toolSpecificData.description ?? '';
 						} else {
 							input = toolInvocation.toolSpecificData?.kind === 'extensions'
 								? JSON.stringify(toolInvocation.toolSpecificData.extensions)

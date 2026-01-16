@@ -755,8 +755,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (!this.viewModel) {
 			return;
 		}
+
+		const previous = this.parsedChatRequest;
 		this.parsedChatRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(this.viewModel.sessionResource, this.getInput(), this.location, { selectedAgent: this._lastSelectedAgent, mode: this.input.currentModeKind });
-		this._onDidChangeParsedInput.fire();
+		if (!previous || !IParsedChatRequest.equals(previous, this.parsedChatRequest)) {
+			this._onDidChangeParsedInput.fire();
+		}
 	}
 
 	getSibling(item: ChatTreeItem, type: 'next' | 'previous'): ChatTreeItem | undefined {
@@ -1847,7 +1851,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			supportsChangingModes: this.viewOptions.supportsChangingModes,
 			dndContainer: this.viewOptions.dndContainer,
 			widgetViewKindTag: this.getWidgetViewKindTag(),
-			defaultMode: this.viewOptions.defaultMode
+			defaultMode: this.viewOptions.defaultMode,
+			sessionTypePickerDelegate: this.viewOptions.sessionTypePickerDelegate
 		};
 
 		if (this.viewModel?.editing) {
