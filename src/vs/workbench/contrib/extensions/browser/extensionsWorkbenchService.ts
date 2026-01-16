@@ -74,7 +74,7 @@ import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlCon
 import { ExtensionGalleryResourceType, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { fromNow } from '../../../../base/common/date.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
-import { isMeteredConnection, METERED_CONNECTION_POSTPONE_TIME } from '../../../../base/common/networkConnection.js';
+import { isMeteredConnection } from '../../../../base/common/networkConnection.js';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -1900,7 +1900,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		// Check if connection is metered before automatic update checks
 		if (!reason?.includes('manual') && isMeteredConnection()) {
 			this.logService.info('[Extensions]: Postponing update check due to metered connection');
-			setTimeout(() => this.checkForUpdates(reason, onlyBuiltin), METERED_CONNECTION_POSTPONE_TIME);
+			// Don't schedule a new check - the existing recursive check will retry
 			return;
 		}
 		
@@ -2132,7 +2132,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		// Check if connection is metered before auto-updating extensions
 		if (isMeteredConnection()) {
 			this.logService.info('[Extensions]: Postponing auto-update due to metered connection');
-			setTimeout(() => this.eventuallyAutoUpdateExtensions(), METERED_CONNECTION_POSTPONE_TIME);
+			// Don't schedule a new update - the next update check cycle will retry
 			return;
 		}
 		

@@ -7,7 +7,6 @@ import { spawn } from 'child_process';
 import { realpath, watch } from 'fs';
 import { timeout } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { METERED_CONNECTION_POSTPONE_TIME } from '../../../base/common/networkConnection.js';
 import * as path from '../../../base/common/path.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMainService.js';

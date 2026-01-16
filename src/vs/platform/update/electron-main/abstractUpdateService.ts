@@ -6,7 +6,6 @@
 import { timeout } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { METERED_CONNECTION_POSTPONE_TIME } from '../../../base/common/networkConnection.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { ILifecycleMainService, LifecycleMainPhase } from '../../lifecycle/electron-main/lifecycleMainService.js';
