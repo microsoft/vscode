@@ -192,10 +192,11 @@ jobs:
               dbus-daemon --system --fork
 
               echo "Install Playwright browser"
-              /workspace/test/sanity/node_modules/.bin/playwright install --with-deps firefox
+              cd /workspace/test/sanity
+              ./node_modules/.bin/playwright install --with-deps firefox
 
               echo "Running sanity tests"
-              node out/index.js -c "$(BUILD_COMMIT)" -q "$(BUILD_QUALITY)" -t "/workspace/.build/sanity-test-logs/results.xml" -v
+              node ./out/index.js -c "$(BUILD_COMMIT)" -q "$(BUILD_QUALITY)" -t "/workspace/.build/sanity-test-logs/results.xml" -v
             '
         displayName: Run Sanity Tests in Container
         condition: ne('${{ parameters.container }}', '')
