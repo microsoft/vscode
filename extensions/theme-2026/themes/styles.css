@@ -128,6 +128,12 @@
 /* Input Boxes */
 .monaco-workbench .monaco-inputbox { box-shadow: 0 0 4px rgba(0, 0, 0, 0.08); border: none; border-radius: 6px; }
 
+.monaco-inputbox .monaco-action-bar .action-item .codicon,
+.monaco-workbench .search-container .input-box,
+.monaco-custom-toggle {
+    color: var(--vscode-icon-foreground) !important;
+}
+
 /* Buttons */
 .monaco-workbench .monaco-button { box-shadow: 0 0 2px rgba(0, 0, 0, 0.06); }
 .monaco-workbench .monaco-button:hover { box-shadow: 0 0 4px rgba(0, 0, 0, 0.08); }
