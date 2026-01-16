@@ -11,8 +11,8 @@ import { IEnvironmentMainService } from '../../environment/electron-main/environ
 import { ILifecycleMainService, LifecycleMainPhase } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
-import { IRequestService } from '../../request/common/request.js';
-import { AvailableForDownload, DisablementReason, IUpdateService, State, StateType, UpdateType } from '../common/update.js';
+import { asJson, IRequestService } from '../../request/common/request.js';
+import { AvailableForDownload, DisablementReason, IUpdate, IUpdateService, State, StateType, UpdateType } from '../common/update.js';
 
 export function createUpdateURL(platform: string, quality: string, productService: IProductService): string {
 	return `${productService.updateUrl}/api/update/${platform}/${quality}/${productService.commit}`;
@@ -223,6 +223,33 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			this.logService.error('update#isLatestVersion(): failed to check for updates');
 			this.logService.error(error);
 			return undefined;
+		}
+	}
+
+	/**
+	 * Gets the latest available update from the update server.
+	 * Returns null if no update is available or on error.
+	 */
+	protected async getLatestAvailableUpdate(): Promise<IUpdate | null> {
+		if (!this.url) {
+			return null;
+		}
+
+		try {
+			const context = await this.requestService.request({ url: this.url }, CancellationToken.None);
+			// 204 means no update available
+			if (context.res.statusCode === 204) {
+				return null;
+			}
+			const update = await asJson<IUpdate>(context);
+			if (!update || !update.version || !update.productVersion) {
+				return null;
+			}
+			return update;
+		} catch (error) {
+			this.logService.error('update#getLatestAvailableUpdate(): failed to check for updates');
+			this.logService.error(error);
+			return null;
 		}
 	}
 

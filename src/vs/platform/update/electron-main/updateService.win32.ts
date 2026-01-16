@@ -281,33 +281,6 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 	}
 
 	/**
-	 * Gets the latest available update from the update server.
-	 * Returns null if no update is available or on error.
-	 */
-	private async getLatestAvailableUpdate(): Promise<IUpdate | null> {
-		if (!this.url) {
-			return null;
-		}
-
-		try {
-			const context = await this.requestService.request({ url: this.url }, CancellationToken.None);
-			// 204 means no update available
-			if (context.res.statusCode === 204) {
-				return null;
-			}
-			const update = await asJson<IUpdate>(context);
-			if (!update || !update.url || !update.version || !update.productVersion) {
-				return null;
-			}
-			return update;
-		} catch (error) {
-			this.logService.error('update#getLatestAvailableUpdate(): failed to check for updates');
-			this.logService.error(error);
-			return null;
-		}
-	}
-
-	/**
 	 * Schedules periodic checks for new updates while in the Downloaded state.
 	 * If a newer update is available, it restarts the download process.
 	 */

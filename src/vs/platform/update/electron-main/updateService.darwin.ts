@@ -13,8 +13,7 @@ import { IEnvironmentMainService } from '../../environment/electron-main/environ
 import { ILifecycleMainService, IRelaunchHandler, IRelaunchOptions } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
-import { asJson, IRequestService } from '../../request/common/request.js';
-import { CancellationToken } from '../../../base/common/cancellation.js';
+import { IRequestService } from '../../request/common/request.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IUpdate, State, StateType, UpdateType } from '../common/update.js';
 import { AbstractUpdateService, createUpdateURL, UPDATE_RECHECK_INTERVAL, UpdateErrorClassification } from './abstractUpdateService.js';
@@ -144,33 +143,6 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 		}
 
 		this.setState(State.Idle(UpdateType.Archive));
-	}
-
-	/**
-	 * Gets the latest available update from the update server.
-	 * Returns null if no update is available or on error.
-	 */
-	private async getLatestAvailableUpdate(): Promise<IUpdate | null> {
-		if (!this.url) {
-			return null;
-		}
-
-		try {
-			const context = await this.requestService.request({ url: this.url }, CancellationToken.None);
-			// 204 means no update available
-			if (context.res.statusCode === 204) {
-				return null;
-			}
-			const update = await asJson<IUpdate>(context);
-			if (!update || !update.version || !update.productVersion) {
-				return null;
-			}
-			return update;
-		} catch (error) {
-			this.logService.error('update#getLatestAvailableUpdate(): failed to check for updates');
-			this.logService.error(error);
-			return null;
-		}
 	}
 
 	/**
