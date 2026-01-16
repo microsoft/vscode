@@ -851,6 +851,13 @@ class DiffHunkWidget implements IOverlayWidget, IModifiedFileEntryChangeHunk {
 		}
 		return this._diffInfo.keep(this._change);
 	}
+
+	getModifiedLineRange(): { startLineNumber: number; endLineNumberExclusive: number } | undefined {
+		return {
+			startLineNumber: this._change.modified.startLineNumber,
+			endLineNumberExclusive: this._change.modified.endLineNumberExclusive
+		};
+	}
 }
 
 

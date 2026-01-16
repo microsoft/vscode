@@ -118,6 +118,9 @@ export class OverlayToolbarDecorator extends Disposable {
 								await change.undo(singleChange);
 							}
 							return true;
+						},
+						getModifiedLineRange() {
+							return undefined; // Not applicable for notebook cell overlays
 						}
 					} satisfies IModifiedFileEntryChangeHunk,
 				},
