@@ -3,14 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+interface NetworkInformation {
+	saveData?: boolean;
+	metered?: boolean;
+	effectiveType?: 'slow-2g' | '2g' | '3g' | '4g';
+}
+
+interface NavigatorWithConnection extends Navigator {
+	connection?: NetworkInformation;
+}
+
 /**
  * Checks if the current network connection is metered.
  * Uses the Network Information API when available.
  * @returns true if the connection is metered, false otherwise
  */
 export function isMeteredConnection(): boolean {
-	if (typeof navigator !== 'undefined' && 'connection' in navigator) {
-		const connection = (navigator as any).connection;
+	if (typeof navigator !== 'undefined') {
+		const nav = navigator as NavigatorWithConnection;
+		const connection = nav.connection;
 		if (connection) {
 			// Check if saveData is enabled (user explicitly requested data saving)
 			if (connection.saveData === true) {
