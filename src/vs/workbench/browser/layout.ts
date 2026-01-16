@@ -1939,11 +1939,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.setPanelPosition(Position.BOTTOM);
 		}
 
-		// Leave maximised state to reflect alignment change
-		if (this.isPanelMaximized() && this.getPanelAlignment() !== alignment) {
-			this.toggleMaximizedPanel();
-		}
-
 		this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_ALIGNMENT, alignment);
 
 		this.adjustPartPositions(this.getSideBarPosition(), alignment, this.getPanelPosition());
@@ -2110,11 +2105,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return true;
 	}
 
+	private inMaximizedPanelTransition = false;
+
 	isPanelMaximized(): boolean {
 		return !this.isVisible(Parts.EDITOR_PART, mainWindow) && !this.isAuxiliaryBarMaximized();
 	}
-
-	private inMaximizedPanelTransition = false;
 
 	toggleMaximizedPanel(): void {
 		const size = this.workbenchGrid.getViewSize(this.panelPartView);
@@ -2306,11 +2301,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const panelPart = this.getPart(Parts.PANEL_PART);
 		const oldPositionValue = positionToString(this.getPanelPosition());
 		const newPositionValue = positionToString(position);
-
-		// Leave maximised state to reflect position change
-		if (oldPositionValue !== newPositionValue && this.isPanelMaximized()) {
-			this.toggleMaximizedPanel();
-		}
 
 		// Adjust CSS
 		const panelContainer = assertReturnsDefined(panelPart.getContainer());
