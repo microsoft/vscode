@@ -62,7 +62,6 @@ registerAction2(SetAgentSessionsOrientationSideBySideAction);
 // Agent Session Projection
 registerAction2(EnterAgentSessionProjectionAction);
 registerAction2(ExitAgentSessionProjectionAction);
-// registerAction2(OpenInChatPanelAction); // TODO@joshspicer https://github.com/microsoft/vscode/issues/288082
 registerAction2(ToggleAgentStatusAction);
 registerAction2(ToggleAgentSessionProjectionAction);
 
