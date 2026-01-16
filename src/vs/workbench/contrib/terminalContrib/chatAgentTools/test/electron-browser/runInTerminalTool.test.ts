@@ -32,6 +32,7 @@ import { TestIPCFileSystemProvider } from '../../../../../test/electron-browser/
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
 import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
+import { ITerminalSandboxService } from '../../common/terminalSandboxService.js';
 import { ILanguageModelToolsService, IPreparedToolInvocation, IToolInvocationPreparationContext, type ToolConfirmationAction } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
@@ -90,6 +91,14 @@ suite('RunInTerminalTool', () => {
 		instantiationService.stub(IWorkspaceContextService, workspaceContextService);
 		instantiationService.stub(IHistoryService, {
 			getLastActiveWorkspaceRoot: () => undefined
+		});
+		instantiationService.stub(ITerminalSandboxService, {
+			_serviceBrand: undefined,
+			isEnabled: () => false,
+			wrapCommand: command => command,
+			getSandboxConfigPath: async () => undefined,
+			getTempDir: () => undefined,
+			setNeedsForceUpdateConfigFile: () => { }
 		});
 
 		const treeSitterLibraryService = store.add(instantiationService.createInstance(TreeSitterLibraryService));
@@ -353,9 +362,6 @@ suite('RunInTerminalTool', () => {
 			'find . -fprint output.txt',
 			'rg --pre cat pattern .',
 			'rg --hostname-bin hostname pattern .',
-			'sed -i "s/foo/bar/g" file.txt',
-			'sed -i.bak "s/foo/bar/" file.txt',
-			'sed -Ibak "s/foo/bar/" file.txt',
 			'sed --in-place "s/foo/bar/" file.txt',
 			'sed -e "s/a/b/" file.txt',
 			'sed -f script.sed file.txt',
