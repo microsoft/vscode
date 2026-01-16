@@ -12,8 +12,7 @@ export async function isMeteredConnection(): Promise<boolean> {
 				return await window.webContents.ipc.invoke('vscode:isMeteredConnection');
 			}
 		}
-	} catch (error) {
+	} finally {
 		return false;
 	}
-	return false;
 }
