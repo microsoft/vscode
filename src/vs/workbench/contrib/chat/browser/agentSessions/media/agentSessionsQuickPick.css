@@ -1,0 +1,287 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Main container */
+.agent-sessions-quick-pick {
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+	min-width: 500px;
+	padding: 8px 0;
+}
+
+/* Input row */
+.agent-sessions-quick-pick-input-row {
+	display: flex;
+	align-items: center;
+	padding: 4px 12px;
+	gap: 8px;
+}
+
+.agent-sessions-quick-pick-input-container {
+	flex: 1;
+}
+
+.agent-sessions-quick-pick-input-container .monaco-inputbox {
+	border: 1px solid var(--vscode-input-border);
+	border-radius: 4px;
+	background-color: var(--vscode-input-background);
+}
+
+.agent-sessions-quick-pick-input-container .monaco-inputbox.focused {
+	border-color: var(--vscode-focusBorder);
+}
+
+.agent-sessions-quick-pick-input-actions {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.agent-sessions-quick-pick-action-button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+	border: none;
+	background: transparent;
+	color: var(--vscode-foreground);
+	border-radius: 4px;
+	cursor: pointer;
+	opacity: 0.8;
+}
+
+.agent-sessions-quick-pick-action-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	opacity: 1;
+}
+
+.agent-sessions-quick-pick-action-button.send-button {
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	opacity: 1;
+}
+
+.agent-sessions-quick-pick-action-button.send-button:hover {
+	background-color: var(--vscode-button-hoverBackground);
+}
+
+/* Dropdown row */
+.agent-sessions-quick-pick-dropdown-row {
+	display: flex;
+	align-items: center;
+	padding: 4px 12px;
+	gap: 8px;
+}
+
+.agent-sessions-quick-pick-dropdown {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 4px 8px;
+	border-radius: 4px;
+	cursor: pointer;
+	color: var(--vscode-foreground);
+	font-size: 12px;
+}
+
+.agent-sessions-quick-pick-dropdown:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.agent-sessions-quick-pick-dropdown-label {
+	white-space: nowrap;
+}
+
+.agent-sessions-quick-pick-dropdown .dropdown-chevron {
+	font-size: 10px;
+	opacity: 0.7;
+}
+
+.agent-sessions-quick-pick-dropdown-spacer {
+	flex: 1;
+}
+
+/* Separator */
+.agent-sessions-quick-pick-separator {
+	height: 1px;
+	background-color: var(--vscode-widget-border);
+	margin: 8px 12px;
+}
+
+/* Header */
+.agent-sessions-quick-pick-header {
+	padding: 8px 12px 4px;
+	font-size: 11px;
+	font-weight: 600;
+	color: var(--vscode-descriptionForeground);
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+}
+
+/* Session list */
+.agent-sessions-quick-pick-list {
+	display: flex;
+	flex-direction: column;
+	max-height: 300px;
+	overflow-y: auto;
+}
+
+/* Session item */
+.agent-sessions-quick-pick-item {
+	display: flex;
+	align-items: center;
+	padding: 8px 12px;
+	gap: 10px;
+	cursor: pointer;
+	outline: none;
+}
+
+.agent-sessions-quick-pick-item:hover,
+.agent-sessions-quick-pick-item:focus {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.agent-sessions-quick-pick-item.selected {
+	background-color: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground);
+}
+
+/* Status icon */
+.agent-sessions-quick-pick-item-status {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	height: 16px;
+	flex-shrink: 0;
+}
+
+.agent-sessions-quick-pick-item-status .needs-attention {
+	color: var(--vscode-progressBar-background);
+}
+
+.agent-sessions-quick-pick-item-status .in-progress {
+	color: var(--vscode-progressBar-background);
+}
+
+.agent-sessions-quick-pick-item-status .unread {
+	color: var(--vscode-progressBar-background);
+	font-size: 8px;
+}
+
+.agent-sessions-quick-pick-item-status .read {
+	color: var(--vscode-descriptionForeground);
+	font-size: 8px;
+	opacity: 0.5;
+}
+
+/* Item content */
+.agent-sessions-quick-pick-item-content {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+}
+
+.agent-sessions-quick-pick-item-title {
+	font-size: 13px;
+	color: var(--vscode-foreground);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* Item metadata */
+.agent-sessions-quick-pick-item-metadata {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex-shrink: 0;
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.agent-sessions-quick-pick-item-provider {
+	white-space: nowrap;
+}
+
+.agent-sessions-quick-pick-item-separator {
+	opacity: 0.5;
+}
+
+.agent-sessions-quick-pick-item-time {
+	white-space: nowrap;
+}
+
+/* Diff badge */
+.agent-sessions-quick-pick-diff-badge {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 2px 6px;
+	border-radius: 4px;
+	background-color: var(--vscode-badge-background);
+	font-size: 11px;
+}
+
+.agent-sessions-quick-pick-diff-badge .diff-files {
+	color: var(--vscode-foreground);
+}
+
+.agent-sessions-quick-pick-diff-badge .diff-additions {
+	color: var(--vscode-gitDecoration-addedResourceForeground);
+}
+
+.agent-sessions-quick-pick-diff-badge .diff-deletions {
+	color: var(--vscode-gitDecoration-deletedResourceForeground);
+}
+
+/* PR badge */
+.agent-sessions-quick-pick-pr-badge {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 2px 6px;
+	border-radius: 4px;
+	background-color: var(--vscode-badge-background);
+	font-size: 11px;
+	cursor: pointer;
+}
+
+.agent-sessions-quick-pick-pr-badge:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.agent-sessions-quick-pick-pr-badge .codicon {
+	font-size: 12px;
+	color: var(--vscode-progressBar-background);
+}
+
+.agent-sessions-quick-pick-pr-badge .pr-number {
+	color: var(--vscode-progressBar-background);
+}
+
+/* Empty state */
+.agent-sessions-quick-pick-empty {
+	padding: 16px 12px;
+	text-align: center;
+	color: var(--vscode-descriptionForeground);
+	font-style: italic;
+}
+
+/* Show more */
+.agent-sessions-quick-pick-show-more {
+	display: flex;
+	justify-content: center;
+	padding: 8px 12px;
+	border-top: 1px solid var(--vscode-widget-border);
+	margin-top: 4px;
+}
+
+.agent-sessions-quick-pick-show-more .monaco-button {
+	padding: 4px 12px;
+	font-size: 12px;
+}

@@ -30,6 +30,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { openSession } from './agentSessionsOpener.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IAgentSessionsQuickPickService } from './agentSessionsQuickPick.js';
 
 // Action triggered when clicking the main pill - change this to modify the primary action
 const ACTION_ID = 'workbench.action.quickchat.toggle';
@@ -72,6 +73,7 @@ export class AgentStatusWidget extends BaseActionViewItem {
 		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IAgentSessionsQuickPickService private readonly agentSessionsQuickPickService: IAgentSessionsQuickPickService,
 	) {
 		super(undefined, action, options);
 
@@ -495,7 +497,7 @@ export class AgentStatusWidget extends BaseActionViewItem {
 		if (this._displayedSession) {
 			this.instantiationService.invokeFunction(openSession, this._displayedSession);
 		} else {
-			this.commandService.executeCommand(ACTION_ID);
+			this.agentSessionsQuickPickService.toggle();
 		}
 	}
 
