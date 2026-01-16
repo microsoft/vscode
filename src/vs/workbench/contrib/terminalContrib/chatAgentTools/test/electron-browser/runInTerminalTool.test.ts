@@ -430,6 +430,19 @@ suite('RunInTerminalTool', () => {
 			assertConfirmationRequired(result, 'Run `bash` command?');
 		});
 
+		test('should include explanation as subtitle in confirmation messages', async () => {
+			setAutoApprove({
+				ls: true
+			});
+
+			const result = await executeToolTest({
+				command: 'rm file.txt',
+				explanation: 'Remove a file'
+			});
+			assertConfirmationRequired(result, 'Run `bash` command?');
+			strictEqual(result?.confirmationMessages?.subtitle, 'Remove a file', 'Subtitle should match the explanation');
+		});
+
 		test('should require confirmation for commands in deny list even if in allow list', async () => {
 			setAutoApprove({
 				rm: false,

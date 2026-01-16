@@ -536,6 +536,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		const confirmationMessages = isFinalAutoApproved ? undefined : {
 			title: confirmationTitle,
+			subtitle: args.explanation,
 			message: new MarkdownString(args.explanation),
 			disclaimer,
 			terminalCustomActions: customActions,
