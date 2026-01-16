@@ -2459,7 +2459,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 			let baseLabel = entries.length === 1 ? localize('chatEditingSession.oneFile.1', '1 file changed') : localize('chatEditingSession.manyFiles.1', '{0} files changed', entries.length);
 			let shouldShowEditingSession = added > 0 || removed > 0;
-			let topLevelIsSessionMenu = false;
+			let topLevelIsSessionMenu = sessionResource && getChatSessionType(sessionResource) !== localChatSessionType;
 
 			if (added === 0 && removed === 0) {
 				const sessionValue = sessionFileChanges.read(reader) || [];
