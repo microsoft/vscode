@@ -233,12 +233,14 @@ export function registerNewChatActions() {
 
 			await editingSession?.stop();
 
-			// For the sidebar, clear the session and go back to the sessions list
+			// For the sidebar, clear the session and go back to the sessions list.
+			// For the editor, widget.clear() is used instead because editors have their
+			// own session management (handled via clearChatEditor). The editor doesn't
+			// have a sessions list to "go back" to.
 			if (isIChatViewViewContext(widget.viewContext)) {
 				const view = await viewsService.openView(ChatViewId) as ChatViewPane;
 				await view.clearSession();
 			} else {
-				// For the editor, widget.clear() already handles the clearing
 				await widget.clear();
 			}
 

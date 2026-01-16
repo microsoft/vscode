@@ -739,6 +739,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	private async clear(): Promise<void> {
+		// Clears the current session and starts a new one.
+		// This is used by the "New Chat" functionality.
+		// Note: This is different from clearSession() which clears without creating a new session.
 
 		// Grab the widget's latest view state because it will be loaded back into the widget
 		this.updateViewState();
