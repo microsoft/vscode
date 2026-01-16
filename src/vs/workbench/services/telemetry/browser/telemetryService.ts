@@ -82,7 +82,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 					};
 					appenders.push(remoteTelemetryProvider);
 				} else {
-					appenders.push(new OneDataSystemWebAppender(isInternal, 'monacoworkbench', null, productService.aiConfig?.ariaKey));
+					appenders.push(new OneDataSystemWebAppender(isInternal, 'monacoworkbench', null, productService.aiConfig?.ariaKey, configurationService));
 				}
 			}
 			appenders.push(new TelemetryLogAppender('', false, loggerService, environmentService, productService));

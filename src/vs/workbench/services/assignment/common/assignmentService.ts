@@ -24,6 +24,7 @@ import { CopilotAssignmentFilterProvider } from './assignmentFilters.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { experimentsEnabled } from '../../telemetry/common/workbenchTelemetryUtils.js';
+import { isMeteredConnection } from '../../../../base/common/networkConnection.js';
 
 export interface IAssignmentFilter {
 	exclude(assignment: string): boolean;
@@ -276,9 +277,17 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 		});
 
 		await tasClient.initializePromise;
-		tasClient.initialFetch.then(() => {
+
+		// Check for metered connection before initial fetch
+		const respectMetered = this.configurationService.getValue('update.respectMeteredConnections');
+		if (respectMetered !== false && await isMeteredConnection()) {
+			// Set flag but don't wait for initial fetch
 			this.networkInitialized = true;
-		});
+		} else {
+			tasClient.initialFetch.then(() => {
+				this.networkInitialized = true;
+			});
+		}
 
 		return tasClient;
 	}
@@ -286,6 +295,12 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 	private async refetchAssignments(): Promise<void> {
 		if (!this.tasClient) {
 			return; // Setup has not started, assignments will use latest filters
+		}
+
+		// Check for metered connection before refetching
+		const respectMetered = this.configurationService.getValue('update.respectMeteredConnections');
+		if (respectMetered !== false && await isMeteredConnection()) {
+			return; // Skip refetch on metered connection
 		}
 
 		// Await the client to be setup and the initial fetch to complete

@@ -14,12 +14,14 @@ import { isWeb } from '../../../base/common/platform.js';
 import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IUserDataSyncTask, IUserDataAutoSyncService, IUserDataManifest, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, UserDataAutoSyncError, UserDataSyncError, UserDataSyncErrorCode, SyncOptions } from './userDataSync.js';
 import { IUserDataSyncAccountService } from './userDataSyncAccount.js';
 import { IUserDataSyncMachinesService } from './userDataSyncMachines.js';
+import { isMeteredConnection } from '../../../base/common/networkConnection.js';
 
 const disableMachineEventuallyKey = 'sync.disableMachineEventually';
 const sessionIdKey = 'sync.sessionId';
@@ -75,6 +77,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IUserDataSyncMachinesService private readonly userDataSyncMachinesService: IUserDataSyncMachinesService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 		this.syncTriggerDelayer = this._register(new ThrottledDelayer<void>(this.getSyncTriggerDelayTime()));
@@ -121,7 +124,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 		const { enabled, message } = this.isAutoSyncEnabled();
 		if (enabled) {
 			if (this.autoSync.value === undefined) {
-				this.autoSync.value = new AutoSync(this.lastSyncUrl, 1000 * 60 * 5 /* 5 miutes */, this.userDataSyncStoreManagementService, this.userDataSyncStoreService, this.userDataSyncService, this.userDataSyncMachinesService, this.logService, this.telemetryService, this.storageService);
+				this.autoSync.value = new AutoSync(this.lastSyncUrl, 1000 * 60 * 5 /* 5 miutes */, this.userDataSyncStoreManagementService, this.userDataSyncStoreService, this.userDataSyncService, this.userDataSyncMachinesService, this.logService, this.telemetryService, this.storageService, this.configurationService);
 				this.autoSync.value.register(this.autoSync.value.onDidStartSync(() => this.lastSyncTriggerTime = new Date().getTime()));
 				this.autoSync.value.register(this.autoSync.value.onDidFinishSync(e => this.onDidFinishSync(e)));
 				if (this.startAutoSync()) {
@@ -387,6 +390,7 @@ class AutoSync extends Disposable {
 		private readonly logService: IUserDataSyncLogService,
 		private readonly telemetryService: ITelemetryService,
 		private readonly storageService: IStorageService,
+		private readonly configurationService: IConfigurationService,
 	) {
 		super();
 	}
@@ -449,6 +453,14 @@ class AutoSync extends Disposable {
 
 	private async doSync(reason: string, disableCache: boolean, token: CancellationToken): Promise<void> {
 		this.logService.info(`[AutoSync] Triggered by ${reason}`);
+
+		// Check for metered connection before syncing
+		const respectMetered = this.configurationService.getValue('update.respectMeteredConnections');
+		if (respectMetered !== false && await isMeteredConnection()) {
+			this.logService.info('[AutoSync] Skipping sync on metered connection');
+			return;
+		}
+
 		this._onDidStartSync.fire();
 
 		let error: Error | undefined;

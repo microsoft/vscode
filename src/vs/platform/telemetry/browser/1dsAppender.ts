@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AbstractOneDataSystemAppender, IAppInsightsCore } from '../common/1dsAppender.js';
+import { isMeteredConnection } from '../../../base/common/networkConnection.js';
 
 
 export class OneDataSystemWebAppender extends AbstractOneDataSystemAppender {
@@ -12,6 +13,7 @@ export class OneDataSystemWebAppender extends AbstractOneDataSystemAppender {
 		eventPrefix: string,
 		defaultData: { [key: string]: unknown } | null,
 		iKeyOrClientFactory: string | (() => IAppInsightsCore), // allow factory function for testing
+		private readonly configurationService?: { getValue(key: string): unknown }
 	) {
 		super(isInternalTelemetry, eventPrefix, defaultData, iKeyOrClientFactory);
 
@@ -20,5 +22,16 @@ export class OneDataSystemWebAppender extends AbstractOneDataSystemAppender {
 		fetch(this.endPointHealthUrl, { method: 'GET' }).catch(err => {
 			this._aiCoreOrKey = undefined;
 		});
+	}
+
+	protected override async shouldRespectMeteredConnection(): Promise<boolean> {
+		if (!this.configurationService) {
+			return false;
+		}
+		const respectMetered = this.configurationService.getValue('update.respectMeteredConnections');
+		if (respectMetered === false) {
+			return false;
+		}
+		return isMeteredConnection();
 	}
 }
