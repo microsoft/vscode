@@ -13,6 +13,7 @@ import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IRequestService } from '../../request/common/request.js';
 import { AvailableForDownload, DisablementReason, IUpdateService, State, StateType, UpdateType } from '../common/update.js';
+import { isMeteredConnection } from './updateNetworkHelper.js';
 
 export function createUpdateURL(platform: string, quality: string, productService: IProductService): string {
 	return `${productService.updateUrl}/api/update/${platform}/${quality}/${productService.commit}`;
