@@ -28,6 +28,8 @@ export type ICommandApprovalResult = 'approved' | 'denied' | 'noMatch';
 const neverMatchRegex = /(?!.*)/;
 const transientEnvVarRegex = /^[A-Z_][A-Z0-9_]*=/i;
 
+const noResourceCacheKey = '<no-resource>';
+
 interface ICachedRules {
 	denyListRules: IAutoApproveRule[];
 	allowListRules: IAutoApproveRule[];
@@ -58,7 +60,7 @@ export class CommandLineAutoApprover extends Disposable {
 	}
 
 	private _getRulesForResource(resource: URI | undefined): ICachedRules {
-		const cacheKey = resource?.toString() ?? '';
+		const cacheKey = resource?.toString() ?? noResourceCacheKey;
 		const cached = this._cachedRulesPerFolder.get(cacheKey);
 		if (cached) {
 			return cached;
