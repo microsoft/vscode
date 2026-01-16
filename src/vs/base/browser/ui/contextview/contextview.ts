@@ -126,7 +126,7 @@ export function layout(viewportSize: number, viewSize: number, anchor: ILayoutAn
 			return layoutBeforeAnchorBoundary - viewSize; // happy case, lay it out before the anchor
 		}
 
-		if (viewSize <= viewportSize - layoutAfterAnchorBoundary) {
+		if (viewSize <= viewportSize - layoutAfterAnchorBoundary && layoutBeforeAnchorBoundary < viewSize / 2) {
 			return layoutAfterAnchorBoundary; // ok case, lay it out after the anchor
 		}
 
