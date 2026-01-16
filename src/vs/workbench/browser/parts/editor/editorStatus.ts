@@ -1238,7 +1238,7 @@ export class ChangeLanguageAction extends Action2 {
 		}
 
 		if (pick === galleryAction) {
-			galleryAction.run();
+			await galleryAction.run();
 			galleryAction.dispose();
 			return;
 		}
