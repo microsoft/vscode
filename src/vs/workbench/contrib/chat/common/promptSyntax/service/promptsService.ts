@@ -41,6 +41,13 @@ export interface IPromptFileResource {
 	 * Indicates whether the custom agent resource is editable. Defaults to false.
 	 */
 	readonly isEditable?: boolean;
+
+	/**
+	 * The inline content for virtual prompt files. This property is only used
+	 * during IPC transfer from extension host to main thread - the content is
+	 * immediately registered with the ChatPromptContentStore and not passed further.
+	 */
+	readonly content?: string;
 }
 
 /**
@@ -193,7 +200,7 @@ export interface IChatPromptSlashCommand {
 
 export interface IAgentSkill {
 	readonly uri: URI;
-	readonly type: 'personal' | 'project' | 'config' | 'extension';
+	readonly storage: PromptsStorage;
 	readonly name: string;
 	readonly description: string | undefined;
 }

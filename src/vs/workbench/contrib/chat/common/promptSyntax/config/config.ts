@@ -6,7 +6,8 @@
 import type { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { PromptsType } from '../promptTypes.js';
-import { getPromptFileDefaultLocations, IPromptSourceFolder } from './promptFileLocations.js';
+import { getPromptFileDefaultLocations, IPromptSourceFolder, PromptFileSource } from './promptFileLocations.js';
+import { PromptsStorage } from '../service/promptsService.js';
 
 /**
  * Configuration helper for the `reusable prompts` feature.
@@ -149,8 +150,9 @@ export namespace PromptsConfig {
 					continue;
 				}
 
-				// user-configured paths are treated as workspace locations with custom type
-				paths.push({ path, type: 'custom', location: 'config' });
+				// determine location type in the general case
+				const storage = isTildePath(path) ? PromptsStorage.user : PromptsStorage.local;
+				paths.push({ path, source: storage === PromptsStorage.local ? PromptFileSource.ConfigPersonal : PromptFileSource.ConfigWorkspace, storage });
 			}
 
 			return paths;
@@ -254,4 +256,15 @@ export function asBoolean(value: unknown): boolean | undefined {
 	}
 
 	return undefined;
+}
+
+/**
+ * Helper to check if a path starts with tilde (user home).
+ * Supports both Unix-style (`~/`) and Windows-style (`~\`) paths.
+ *
+ * @param path - path to check
+ * @returns `true` if the path starts with `~/` or `~\`
+ */
+export function isTildePath(path: string): boolean {
+	return path.startsWith('~/') || path.startsWith('~\\');
 }

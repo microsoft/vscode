@@ -20,10 +20,10 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { Schemas } from '../../../../base/common/network.js';
 import { IBrowserViewWorkbenchService } from '../common/browserView.js';
 import { BrowserViewWorkbenchService } from './browserViewWorkbenchService.js';
+import { BrowserViewStorageScope } from '../../../../platform/browserView/common/browserView.js';
 
 // Register actions
 import './browserViewActions.js';
-import { BrowserViewStorageScope } from '../../../../platform/browserView/common/browserView.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(

@@ -27,7 +27,7 @@ class ManageSkillsAction extends Action2 {
 		super({
 			id: CONFIGURE_SKILLS_ACTION_ID,
 			title: localize2('configure-skills', "Configure Skills..."),
-			shortTitle: localize2('configure-skills.short', "Chat Skills"),
+			shortTitle: localize2('configure-skills.short', "Skills"),
 			icon: Codicon.lightbulb,
 			f1: true,
 			precondition: ChatContextKeys.enabled,

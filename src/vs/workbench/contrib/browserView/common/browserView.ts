@@ -216,6 +216,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		this._storageScope = state.storageScope;
 
 		// Set up state synchronization
+
 		this._register(this.onDidNavigate(e => {
 			// Clear favicon on navigation to a different host
 			if (URL.parse(e.url)?.host !== URL.parse(this._url)?.host) {
@@ -279,7 +280,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 	async captureScreenshot(options?: IBrowserViewCaptureScreenshotOptions): Promise<VSBuffer> {
 		const result = await this.browserViewService.captureScreenshot(this.id, options);
-		// Encode to data URL for display in UI
+		// Store full-page screenshots for display in UI as placeholders
 		if (!options?.rect) {
 			this._screenshot = result;
 		}

@@ -61,7 +61,7 @@ export namespace McpApps {
  * ⚠️ Do not edit within `namespace` manually except to update schema versions ⚠️
  */
 export namespace McpApps {
-	/*
+	/**
 	 * Current protocol version supported by this SDK.
 	 *
 	 * The SDK automatically handles version negotiation during initialization.
@@ -262,12 +262,9 @@ export namespace McpApps {
 			/** @description Optional override for the inner iframe's sandbox attribute. */
 			sandbox?: string;
 			/** @description CSP configuration from resource metadata. */
-			csp?: {
-				/** @description Origins for network requests (fetch/XHR/WebSocket). */
-				connectDomains?: string[];
-				/** @description Origins for static resources (scripts, images, styles, fonts). */
-				resourceDomains?: string[];
-			};
+			csp?: McpUiResourceCsp;
+			/** @description Sandbox permissions from resource metadata. */
+			permissions?: McpUiResourcePermissions;
 		};
 	}
 
@@ -356,7 +353,7 @@ export namespace McpApps {
 		/** @description Metadata of the tool call that instantiated this App. */
 		toolInfo?: {
 			/** @description JSON-RPC id of the tools/call request. */
-			id: RequestId;
+			id?: RequestId;
 			/** @description Tool definition including name, inputSchema, etc. */
 			tool: Tool;
 		};
@@ -471,6 +468,13 @@ export namespace McpApps {
 		};
 		/** @description Host accepts log messages. */
 		logging?: {};
+		/** @description Sandbox configuration applied by the host. */
+		sandbox?: {
+			/** @description Permissions granted by the host (camera, microphone, geolocation). */
+			permissions?: McpUiResourcePermissions;
+			/** @description CSP domains approved by the host. */
+			csp?: McpUiResourceCsp;
+		};
 	}
 
 	/**
@@ -540,6 +544,26 @@ export namespace McpApps {
 		connectDomains?: string[];
 		/** @description Origins for static resources (scripts, images, styles, fonts). */
 		resourceDomains?: string[];
+		/** @description Origins for nested iframes (frame-src directive). */
+		frameDomains?: string[];
+		/** @description Allowed base URIs for the document (base-uri directive). */
+		baseUriDomains?: string[];
+	}
+
+	/**
+	 * @description Sandbox permissions requested by the UI resource.
+	 * Hosts MAY honor these by setting appropriate iframe `allow` attributes.
+	 * Apps SHOULD NOT assume permissions are granted; use JS feature detection as fallback.
+	 */
+	export interface McpUiResourcePermissions {
+		/** @description Request camera access (Permission Policy `camera` feature). */
+		camera?: {};
+		/** @description Request microphone access (Permission Policy `microphone` feature). */
+		microphone?: {};
+		/** @description Request geolocation access (Permission Policy `geolocation` feature). */
+		geolocation?: {};
+		/** @description Request clipboard write access (Permission Policy `clipboard-write` feature). */
+		clipboardWrite?: {};
 	}
 
 	/**
@@ -548,6 +572,8 @@ export namespace McpApps {
 	export interface McpUiResourceMeta {
 		/** @description Content Security Policy configuration. */
 		csp?: McpUiResourceCsp;
+		/** @description Sandbox permissions requested by the UI. */
+		permissions?: McpUiResourcePermissions;
 		/** @description Dedicated origin for widget sandbox. */
 		domain?: string;
 		/** @description Visual boundary preference - true if UI prefers a visible border. */
@@ -592,12 +618,12 @@ export namespace McpApps {
 	 */
 	export interface McpUiToolMeta {
 		/**
-		 * URI of the UI resource to display for this tool.
+		 * URI of the UI resource to display for this tool, if any.
 		 * This is converted to `_meta["ui/resourceUri"]`.
 		 *
 		 * @example "ui://weather/widget.html"
 		 */
-		resourceUri: string;
+		resourceUri?: string;
 		/**
 		 * @description Who can access this tool. Default: ["model", "app"]
 		 * - "model": Tool visible to and callable by the agent
@@ -605,4 +631,47 @@ export namespace McpApps {
 		 */
 		visibility?: McpUiToolVisibility[];
 	}
+
+	/**
+	 * Method string constants for MCP Apps protocol messages.
+	 *
+	 * These constants provide a type-safe way to check message methods without
+	 * accessing internal Zod schema properties. External libraries should use
+	 * these constants instead of accessing `schema.shape.method._def.values[0]`.
+	 *
+	 * @example
+	 * ```typescript
+	 * import { SANDBOX_PROXY_READY_METHOD } from '@modelcontextprotocol/ext-apps';
+	 *
+	 * if (event.data.method === SANDBOX_PROXY_READY_METHOD) {
+	 *   // Handle sandbox proxy ready notification
+	 * }
+	 * ```
+	 */
+	export const OPEN_LINK_METHOD: McpUiOpenLinkRequest["method"] = "ui/open-link";
+	export const MESSAGE_METHOD: McpUiMessageRequest["method"] = "ui/message";
+	export const SANDBOX_PROXY_READY_METHOD: McpUiSandboxProxyReadyNotification["method"] =
+		"ui/notifications/sandbox-proxy-ready";
+	export const SANDBOX_RESOURCE_READY_METHOD: McpUiSandboxResourceReadyNotification["method"] =
+		"ui/notifications/sandbox-resource-ready";
+	export const SIZE_CHANGED_METHOD: McpUiSizeChangedNotification["method"] =
+		"ui/notifications/size-changed";
+	export const TOOL_INPUT_METHOD: McpUiToolInputNotification["method"] =
+		"ui/notifications/tool-input";
+	export const TOOL_INPUT_PARTIAL_METHOD: McpUiToolInputPartialNotification["method"] =
+		"ui/notifications/tool-input-partial";
+	export const TOOL_RESULT_METHOD: McpUiToolResultNotification["method"] =
+		"ui/notifications/tool-result";
+	export const TOOL_CANCELLED_METHOD: McpUiToolCancelledNotification["method"] =
+		"ui/notifications/tool-cancelled";
+	export const HOST_CONTEXT_CHANGED_METHOD: McpUiHostContextChangedNotification["method"] =
+		"ui/notifications/host-context-changed";
+	export const RESOURCE_TEARDOWN_METHOD: McpUiResourceTeardownRequest["method"] =
+		"ui/resource-teardown";
+	export const INITIALIZE_METHOD: McpUiInitializeRequest["method"] =
+		"ui/initialize";
+	export const INITIALIZED_METHOD: McpUiInitializedNotification["method"] =
+		"ui/notifications/initialized";
+	export const REQUEST_DISPLAY_MODE_METHOD: McpUiRequestDisplayModeRequest["method"] =
+		"ui/request-display-mode";
 }
