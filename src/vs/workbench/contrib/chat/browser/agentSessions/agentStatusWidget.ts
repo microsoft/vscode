@@ -19,7 +19,7 @@ import { ExitAgentSessionProjectionAction } from './agentSessionProjectionAction
 import { IAgentSessionsService } from './agentSessionsService.js';
 import { AgentSessionStatus, IAgentSession, isSessionInProgressStatus } from './agentSessionsModel.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { IAction } from '../../../../../base/common/actions.js';
+import { IAction, SubmenuAction } from '../../../../../base/common/actions.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../../services/environment/browser/environmentService.js';
@@ -30,6 +30,10 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { openSession } from './agentSessionsOpener.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { HiddenItemStrategy, WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
+import { createActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 
 // Action triggered when clicking the main pill - change this to modify the primary action
 const ACTION_ID = 'workbench.action.quickchat.toggle';
@@ -48,6 +52,8 @@ const TITLE_DIRTY = '\u25cf ';
  * The command center search box and navigation controls remain visible alongside this control.
  */
 export class AgentStatusWidget extends BaseActionViewItem {
+
+	private static readonly _quickOpenCommandId = 'workbench.action.quickOpenWithModes';
 
 	private _container: HTMLElement | undefined;
 	private readonly _dynamicDisposables = this._register(new DisposableStore());
@@ -72,8 +78,13 @@ export class AgentStatusWidget extends BaseActionViewItem {
 		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super(undefined, action, options);
+
+		// Create menu for CommandCenterCenter to get items like debug toolbar
+		const commandCenterMenu = this._register(this.menuService.createMenu(MenuId.CommandCenterCenter, this.contextKeyService));
 
 		// Re-render when control mode or session info changes
 		this._register(this.agentStatusService.onDidChangeMode(() => {
@@ -99,6 +110,12 @@ export class AgentStatusWidget extends BaseActionViewItem {
 			if (newPartOptions.showTabs !== oldPartOptions.showTabs) {
 				this._render();
 			}
+		}));
+
+		// Re-render when command center menu changes (e.g., debug toolbar visibility)
+		this._register(commandCenterMenu.onDidChange(() => {
+			this._lastRenderState = undefined; // Force re-render
+			this._render();
 		}));
 	}
 
@@ -210,6 +227,9 @@ export class AgentStatusWidget extends BaseActionViewItem {
 
 		const { activeSessions, unreadSessions, attentionNeededSessions, hasAttentionNeeded } = this._getSessionStats();
 
+		// Render command center items (like debug toolbar) FIRST - to the left
+		this._renderCommandCenterToolbar(disposables);
+
 		// Create pill
 		const pill = $('div.agent-status-pill.chat-input-mode');
 		if (hasAttentionNeeded) {
@@ -315,6 +335,9 @@ export class AgentStatusWidget extends BaseActionViewItem {
 
 		const { activeSessions, unreadSessions } = this._getSessionStats();
 
+		// Render command center items (like debug toolbar) FIRST - to the left
+		this._renderCommandCenterToolbar(disposables);
+
 		const pill = $('div.agent-status-pill.session-mode');
 		this._container.appendChild(pill);
 
@@ -344,6 +367,62 @@ export class AgentStatusWidget extends BaseActionViewItem {
 	// #endregion
 
 	// #region Reusable Components
+
+	/**
+	 * Render command center toolbar items (like debug toolbar) that are registered to CommandCenterCenter.
+	 * Filters out the quick open action since we provide our own search UI.
+	 * Adds a dot separator after the toolbar if content was rendered.
+	 */
+	private _renderCommandCenterToolbar(disposables: DisposableStore): void {
+		if (!this._container) {
+			return;
+		}
+
+		// Get menu actions from CommandCenterCenter (e.g., debug toolbar)
+		const menu = this.menuService.createMenu(MenuId.CommandCenterCenter, this.contextKeyService);
+		disposables.add(menu);
+
+		const allActions: IAction[] = [];
+		for (const [, actions] of menu.getActions({ shouldForwardArgs: true })) {
+			for (const action of actions) {
+				// Filter out the quick open action - we provide our own search UI
+				if (action.id === AgentStatusWidget._quickOpenCommandId) {
+					continue;
+				}
+				// For submenus (like debug toolbar), add the submenu actions
+				if (action instanceof SubmenuAction) {
+					allActions.push(...action.actions);
+				} else {
+					allActions.push(action);
+				}
+			}
+		}
+
+		// Only render toolbar if there are actions
+		if (allActions.length === 0) {
+			return;
+		}
+
+		const hoverDelegate = getDefaultHoverDelegate('mouse');
+		const toolbarContainer = $('div.agent-status-command-center-toolbar');
+		this._container.appendChild(toolbarContainer);
+
+		const toolbar = this.instantiationService.createInstance(WorkbenchToolBar, toolbarContainer, {
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			telemetrySource: 'agentStatusCommandCenter',
+			actionViewItemProvider: (action, options) => {
+				return createActionViewItem(this.instantiationService, action, { ...options, hoverDelegate });
+			}
+		});
+		disposables.add(toolbar);
+
+		toolbar.setActions(allActions);
+
+		// Add dot separator after the toolbar (matching command center style)
+		const separator = renderIcon(Codicon.circleSmallFilled);
+		separator.classList.add('agent-status-separator');
+		this._container.appendChild(separator);
+	}
 
 	/**
 	 * Render the search button. If parent is provided, appends to parent; otherwise appends to container.
