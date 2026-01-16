@@ -212,7 +212,7 @@ suite('AbstractUpdateService', () => {
 		assert.strictEqual(result, false);
 	});
 
-	test('isLatestVersion returns false when update mode is none', async () => {
+	test('isLatestVersion returns undefined when update mode is none', async () => {
 		configurationService = new TestConfigurationService({
 			'update.mode': 'none'
 		});
@@ -226,10 +226,10 @@ suite('AbstractUpdateService', () => {
 		);
 		disposables.add(service);
 
-		// When mode is 'none', isLatestVersion returns false per the code logic
-		// (see isLatestVersion method: if mode === 'none' return false)
+		// When mode is 'none', the service URL is never set, so isLatestVersion returns undefined
+		// because we can't determine the latest version without making a server request
 		const result = await service.isLatestVersion();
-		assert.strictEqual(result, false);
+		assert.strictEqual(result, undefined);
 	});
 
 	test('checkForUpdates only triggers when in Idle state', async () => {
