@@ -109,10 +109,6 @@ export class AutoFetcher {
 			const isMetered = respectMetered && await env.isMeteredConnection();
 
 			if (isMetered) {
-				const period = workspace.getConfiguration('git', Uri.file(this.repository.root)).get<number>('autofetchPeriod', 180) * 1000;
-				const timeout = new Promise(c => setTimeout(c, period));
-				const whenDisabled = eventToPromise(filterEvent(this.onDidChange, enabled => !enabled));
-				await Promise.race([timeout, whenDisabled]);
 				continue;
 			}
 

@@ -48,6 +48,7 @@ import { createExtHostComments } from './extHostComments.js';
 import { ExtHostConfigProvider, IExtHostConfiguration } from './extHostConfiguration.js';
 import { ExtHostCustomEditors } from './extHostCustomEditors.js';
 import { IExtHostDataChannels } from './extHostDataChannels.js';
+import { isMeteredConnection } from '../../../base/common/networkConnection.js';
 import { IExtHostDebugService } from './extHostDebugService.js';
 import { IExtHostDecorations } from './extHostDecorations.js';
 import { ExtHostDiagnostics } from './extHostDiagnostics.js';
@@ -476,7 +477,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			isMeteredConnection(): Thenable<boolean> {
 				checkProposedApiEnabled(extension, 'meteredConnection');
-				const { isMeteredConnection } = require('../../../base/common/networkConnection');
 				return Promise.resolve(isMeteredConnection());
 			}
 		};
