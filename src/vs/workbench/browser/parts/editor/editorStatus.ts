@@ -1232,6 +1232,7 @@ export class ChangeLanguageAction extends Action2 {
 		}
 
 		const pick = typeof languageMode === 'string' ? { label: languageMode } : await quickInputService.pick(picks, { placeHolder: localize('pickLanguage', "Select Language Mode"), matchOnDescription: true });
+		galleryAction?.dispose();
 		if (!pick) {
 			return;
 		}
