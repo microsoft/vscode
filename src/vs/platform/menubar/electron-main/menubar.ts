@@ -649,7 +649,8 @@ export class Menubar extends Disposable {
 
 			case StateType.Downloading: {
 				const state = this.updateService.state;
-				return [new MenuItem({ label: state.type === StateType.Downloading ? formatDownloadingUpdateLabel(state) : nls.localize('miDownloadingUpdate', "Downloading Update..."), enabled: false })];
+				const label = state.type === StateType.Downloading ? formatDownloadingUpdateLabel(state) : nls.localize('miDownloadingUpdate', "Downloading Update...");
+				return [new MenuItem({ label, enabled: false })];
 			}
 
 			case StateType.Downloaded:
