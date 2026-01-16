@@ -27,7 +27,7 @@ import { ChatViewId, IChatWidgetService, isIChatViewViewContext } from '../chat.
 import { EditingSessionAction, getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
-import { ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION, CHAT_CATEGORY, handleCurrentEditingSession } from './chatActions.js';
+import { ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION, ACTION_ID_GO_BACK, CHAT_CATEGORY, handleCurrentEditingSession } from './chatActions.js';
 import { clearChatEditor } from './chatClear.js';
 import { AgentSessionsViewerOrientation } from '../agentSessions/agentSessions.js';
 import { IAgentSessionProjectionService } from '../agentSessions/agentSessionProjectionService.js';
@@ -186,15 +186,68 @@ export function registerNewChatActions() {
 	});
 	CommandsRegistry.registerCommandAlias(ACTION_ID_NEW_EDIT_SESSION, ACTION_ID_NEW_CHAT);
 
-	MenuRegistry.appendMenuItem(MenuId.ChatViewSessionTitleNavigationToolbar, {
-		command: {
-			id: ACTION_ID_NEW_CHAT,
-			title: localize2('chat.goBack', "Go Back"),
-			icon: Codicon.arrowLeft,
-		},
-		when: ChatContextKeys.agentSessionsViewerOrientation.notEqualsTo(AgentSessionsViewerOrientation.SideBySide), // when sessions show side by side, no need for a back button
-		group: 'navigation',
-		order: 1
+	registerAction2(class GoBackChatAction extends Action2 {
+		constructor() {
+			super({
+				id: ACTION_ID_GO_BACK,
+				title: localize2('chat.goBack', "Go Back"),
+				category: CHAT_CATEGORY,
+				icon: Codicon.arrowLeft,
+				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat)),
+				f1: false,
+				menu: [
+					{
+						id: MenuId.ChatViewSessionTitleNavigationToolbar,
+						when: ChatContextKeys.agentSessionsViewerOrientation.notEqualsTo(AgentSessionsViewerOrientation.SideBySide),
+						group: 'navigation',
+						order: 1
+					}
+				]
+			});
+		}
+
+		async run(accessor: ServicesAccessor, ...args: unknown[]) {
+			const accessibilityService = accessor.get(IAccessibilityService);
+			const projectionService = accessor.get(IAgentSessionProjectionService);
+
+			// Exit projection mode if active (back button behavior)
+			if (projectionService.isActive) {
+				await projectionService.exitProjection();
+				return;
+			}
+
+			const viewsService = accessor.get(IViewsService);
+			const dialogService = accessor.get(IDialogService);
+
+			// Context from toolbar or lastFocusedWidget
+			const context = getEditingSessionContext(accessor, args);
+			const { editingSession, chatWidget: widget } = context ?? {};
+			if (!widget) {
+				return;
+			}
+
+			const model = widget.viewModel?.model;
+			if (model && !(await handleCurrentEditingSession(model, undefined, dialogService))) {
+				return;
+			}
+
+			await editingSession?.stop();
+
+			// For the sidebar, clear the session and go back to the sessions list
+			if (isIChatViewViewContext(widget.viewContext)) {
+				const view = await viewsService.openView(ChatViewId) as ChatViewPane;
+				await view.clearSession();
+			} else {
+				// For the editor, widget.clear() already handles the clearing
+				await widget.clear();
+			}
+
+			widget.attachmentModel.clear(true);
+			widget.input.relatedFiles?.clear();
+			widget.focusInput();
+
+			accessibilityService.alert(localize('goBackToSessions', "Back to sessions"));
+		}
 	});
 
 	registerAction2(class UndoChatEditInteractionAction extends EditingSessionAction {
