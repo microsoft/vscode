@@ -122,7 +122,7 @@ class ContextKeyGroup {
 			this._ctxIsGlobalEditingSession.set(session.isGlobalEditingSession);
 			this._ctxReviewModeEnabled.set(entry ? entry.reviewMode.read(r) : false);
 			this._ctxHasRequestInProgress.set(chatModel?.requestInProgress.read(r) ?? false);
-			this._ctxIsCurrentlyBeingModified.set(!!entry?.isCurrentlyBeingModifiedBy.read(r));
+			this._ctxIsCurrentlyBeingModified.set(session.entries.read(r).length === 0 || !!entry?.isCurrentlyBeingModifiedBy.read(r));
 
 			// number of requests
 			const requestCount = chatModel

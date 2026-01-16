@@ -25,7 +25,9 @@ import { ServiceCollection } from '../../../../../platform/instantiation/common/
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
 import { IInlineChatSessionService } from '../../../inlineChat/browser/inlineChatSessionService.js';
+import { InlineChatConfigKeys } from '../../../inlineChat/common/inlineChat.js';
 import { isEqual } from '../../../../../base/common/resources.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ObservableEditorSession } from './chatEditingEditorContextKeys.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -314,7 +316,8 @@ class ChatEditingOverlayController {
 		@IInstantiationService instaService: IInstantiationService,
 		@IChatService chatService: IChatService,
 		@IChatEditingService chatEditingService: IChatEditingService,
-		@IInlineChatSessionService inlineChatService: IInlineChatSessionService
+		@IInlineChatSessionService inlineChatService: IInlineChatSessionService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 
 		this._domNode.classList.add('chat-editing-editor-overlay');
@@ -387,8 +390,8 @@ class ChatEditingOverlayController {
 
 			const { session, entry } = data;
 
-			if (!session.isGlobalEditingSession) {
-				// inline chat - no chat overlay unless hideOnRequest is on
+			if (!session.isGlobalEditingSession && !configurationService.getValue<boolean>(InlineChatConfigKeys.ShowGutterMenu)) {
+				// inline chat with zone UI - no need for chat overlay
 				hide();
 				return;
 			}

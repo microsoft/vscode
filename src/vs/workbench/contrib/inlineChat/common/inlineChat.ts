@@ -21,6 +21,7 @@ export const enum InlineChatConfigKeys {
 	EnableV2 = 'inlineChat.enableV2',
 	notebookAgent = 'inlineChat.notebookAgent',
 	PersistModelChoice = 'inlineChat.persistModelChoice',
+	ShowGutterMenu = 'inlineChat.showGutterMenu',
 }
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
@@ -61,6 +62,12 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			experiment: {
 				mode: 'auto'
 			}
+		},
+		[InlineChatConfigKeys.ShowGutterMenu]: {
+			description: localize('showGutterMenu', "Controls whether a gutter indicator is shown when text is selected to quickly access inline chat."),
+			default: false,
+			type: 'boolean',
+			tags: ['experimental']
 		}
 	}
 });
