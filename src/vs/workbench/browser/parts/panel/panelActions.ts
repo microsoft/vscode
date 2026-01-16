@@ -293,9 +293,8 @@ registerAction2(class extends Action2 {
 
 		if (!layoutService.isVisible(Parts.PANEL_PART)) {
 			layoutService.setPartHidden(false, Parts.PANEL_PART);
-			// If the panel is not already maximized, maximize it
 			if (!layoutService.isPanelMaximized()) {
-				layoutService.toggleMaximizedPanel();
+				layoutService.toggleMaximizedPanel(); // If the panel is not already maximized, maximize it
 			}
 		}
 		else {
