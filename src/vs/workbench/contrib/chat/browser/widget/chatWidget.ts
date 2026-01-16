@@ -2623,9 +2623,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 */
 	private async _autoAttachInstructions({ attachedContext }: IChatRequestInputOptions): Promise<void> {
 		this.logService.debug(`ChatWidget#_autoAttachInstructions: prompt files are always enabled`);
-		const enabledTools = this.input.currentModeKind === ChatModeKind.Agent ? this.input.selectedToolsModel.entriesMap.get() : undefined;
-
-		const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, enabledTools);
+		const enabledTools = this.input.currentModeKind === ChatModeKind.Agent ? this.input.selectedToolsModel.userSelectedTools.get() : undefined;
+		const enabledSubAgents = this.input.currentModeKind === ChatModeKind.Agent ? this.input.currentModeObs.get().agents?.get() : undefined;
+		const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, enabledTools, enabledSubAgents);
 		await computer.collect(attachedContext, CancellationToken.None);
 	}
 

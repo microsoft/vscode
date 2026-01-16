@@ -16,7 +16,7 @@ import { ChatModeKind } from '../../constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
 import { ILanguageModelToolsService, SpecedToolAliases } from '../../tools/languageModelToolsService.js';
 import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
-import { GithubPromptHeaderAttributes, IArrayValue, IHeaderAttribute, IStringValue, ParsedPromptFile, PromptHeaderAttributes, Target } from '../promptFileParser.js';
+import { GithubPromptHeaderAttributes, IArrayValue, IHeaderAttribute, IStringValue, ParsedPromptFile, PromptHeader, PromptHeaderAttributes, Target } from '../promptFileParser.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
@@ -155,7 +155,7 @@ export class PromptValidator {
 				if (!isGitHubTarget) {
 					this.validateModel(attributes, ChatModeKind.Agent, report);
 					this.validateHandoffs(attributes, report);
-					this.validateAgentsAttribute(attributes, report);
+					this.validateAgentsAttribute(attributes, header, report);
 				}
 				break;
 			}
@@ -496,15 +496,7 @@ export class PromptValidator {
 		}
 	}
 
-	private hasToolInHeader(attributes: IHeaderAttribute[], toolName: string): boolean {
-		const toolsAttribute = attributes.find(attr => attr.key === PromptHeaderAttributes.tools);
-		if (!toolsAttribute || toolsAttribute.value.type !== 'array') {
-			return false;
-		}
-		return toolsAttribute.value.items.some(item => item.type === 'string' && item.value === toolName);
-	}
-
-	private validateAgentsAttribute(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): undefined {
+	private validateAgentsAttribute(attributes: IHeaderAttribute[], header: PromptHeader, report: (markers: IMarkerData) => void): undefined {
 		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.agents);
 		if (!attribute) {
 			return;
@@ -525,9 +517,10 @@ export class PromptValidator {
 		}
 
 		// If not wildcard and not empty, check that 'agent' tool is available
-		if (agentNames.length > 0 && !(agentNames.length === 1 && agentNames[0] === '*')) {
-			if (!this.hasToolInHeader(attributes, SpecedToolAliases.agent)) {
-				report(toMarker(localize('promptValidator.agentsRequiresAgentTool', "When 'agents' is specified, the 'agent' tool must be included in the 'tools' attribute."), attribute.range, MarkerSeverity.Warning));
+		if (agentNames.length > 0) {
+			const tools = header.tools;
+			if (tools && !tools.includes(SpecedToolAliases.agent)) {
+				report(toMarker(localize('promptValidator.agentsRequiresAgentTool', "When 'agents' and 'tools' are specified, the 'agent' tool must be included in the 'tools' attribute."), attribute.value.range, MarkerSeverity.Warning));
 			}
 		}
 	}

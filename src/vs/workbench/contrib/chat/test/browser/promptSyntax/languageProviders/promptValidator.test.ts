@@ -832,7 +832,7 @@ suite('PromptValidator', () => {
 			assert.deepStrictEqual(markers.map(m => m.message), [`Each agent name in the 'agents' attribute must be a string.`]);
 		});
 
-		test('agents attribute with non-empty value requires agent tool', async () => {
+		test('agents attribute with non-empty value requires agent tool 1', async () => {
 			const content = [
 				'---',
 				'description: "Test"',
@@ -840,10 +840,22 @@ suite('PromptValidator', () => {
 				'---',
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
-			assert.deepStrictEqual(markers.map(m => m.message), [`When 'agents' is specified, the 'agent' tool must be included in the 'tools' attribute.`]);
+			assert.deepStrictEqual(markers.map(m => m.message), [], `No warnings about agents attribute when no tools are specified`);
 		});
 
-		test('agents attribute with agent tool does not warn about agents', async () => {
+		test('agents attribute with non-empty value requires agent tool 2', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				`agents: ['Planning', 'Research']`,
+				`tools: ['shell']`,
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(markers.map(m => m.message), [`When 'agents' and 'tools' are specified, the 'agent' tool must be included in the 'tools' attribute.`]);
+		});
+
+		test('agents attribute with non-empty value requires agent tool 3', async () => {
 			const content = [
 				'---',
 				'description: "Test"',
@@ -855,15 +867,16 @@ suite('PromptValidator', () => {
 			assert.deepStrictEqual(markers.map(m => m.message), [], `No warnings about agents attribute when agent tool is in header`);
 		});
 
-		test('agents attribute with wildcard does not require agent tool', async () => {
+		test('agents attribute with non-empty value requires agent tool 4', async () => {
 			const content = [
 				'---',
 				'description: "Test"',
 				`agents: ['*']`,
+				`tools: ['shell']`,
 				'---',
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
-			assert.deepStrictEqual(markers, [], 'Wildcard should not require agent tool');
+			assert.deepStrictEqual(markers.map(m => m.message), [`When 'agents' and 'tools' are specified, the 'agent' tool must be included in the 'tools' attribute.`]);
 		});
 
 		test('agents attribute with empty array does not require agent tool', async () => {
