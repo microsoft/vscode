@@ -250,7 +250,7 @@ export interface IChatMode {
 	readonly id: string;
 	readonly name: IObservable<string>;
 	readonly label: IObservable<string>;
-	readonly icon: IObservable<ThemeIcon>;
+	readonly icon: IObservable<ThemeIcon | undefined>;
 	readonly description: IObservable<string | undefined>;
 	readonly isBuiltin: boolean;
 	readonly kind: ChatModeKind;
@@ -320,8 +320,8 @@ export class CustomChatMode implements IChatMode {
 		return this._descriptionObservable;
 	}
 
-	get icon(): IObservable<ThemeIcon> {
-		return constObservable(Codicon.tasklist);
+	get icon(): IObservable<ThemeIcon | undefined> {
+		return constObservable(undefined);
 	}
 
 	public get isBuiltin(): boolean {
