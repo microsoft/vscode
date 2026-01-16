@@ -438,6 +438,10 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	}
 
 	private setArchived(session: IInternalAgentSessionData, archived: boolean): void {
+		if (archived) {
+			this.setRead(session, true); // mark as read when archiving
+		}
+
 		if (archived === this.isArchived(session)) {
 			return; // no change
 		}
@@ -449,6 +453,10 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	}
 
 	private isRead(session: IInternalAgentSessionData): boolean {
+		if (this.isArchived(session)) {
+			return true; // archived sessions are always read
+		}
+
 		const readDate = this.sessionStates.get(session.resource)?.read;
 
 		return (readDate ?? AgentSessionsModel.READ_STATE_INITIAL_DATE) >= (session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created);
@@ -492,7 +500,7 @@ interface ISerializedAgentSession {
 		readonly created: number;
 		readonly lastRequestStarted?: number;
 		readonly lastRequestEnded?: number;
-		// Old format for backward compatibility when reading
+		// Old format for backward compatibility when reading (TODO@bpasero remove eventually)
 		readonly startTime?: number;
 		readonly endTime?: number;
 	};
@@ -571,7 +579,7 @@ class AgentSessionsCache {
 				archived: session.archived,
 
 				timing: {
-					// Support loading both new and old cache formats
+					// Support loading both new and old cache formats (TODO@bpasero remove old format support after some time)
 					created: session.timing.created ?? session.timing.startTime ?? 0,
 					lastRequestStarted: session.timing.lastRequestStarted ?? session.timing.startTime,
 					lastRequestEnded: session.timing.lastRequestEnded ?? session.timing.endTime,
