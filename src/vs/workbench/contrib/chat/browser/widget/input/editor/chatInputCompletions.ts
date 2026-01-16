@@ -54,6 +54,7 @@ import { IChatSlashCommandService } from '../../../../common/participants/chatSl
 import { IChatRequestVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { IDynamicVariable } from '../../../../common/attachments/chatVariables.js';
 import { ChatAgentLocation, ChatModeKind, isSupportedChatFileScheme } from '../../../../common/constants.js';
+import { IChatSessionsService } from '../../../../common/chatSessionsService.js';
 import { ToolSet } from '../../../../common/tools/languageModelToolsService.js';
 import { IPromptsService } from '../../../../common/promptSyntax/service/promptsService.js';
 import { ChatSubmitAction, IChatExecuteActionContext } from '../../../actions/chatExecuteActions.js';
@@ -272,6 +273,7 @@ class AgentCompletions extends Disposable {
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IChatAgentNameService private readonly chatAgentNameService: IChatAgentNameService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super();
 
@@ -376,8 +378,8 @@ class AgentCompletions extends Disposable {
 								return;
 							}
 
-							// Don't show slash commands for dynamic agents (chatSessions participants) in the global menu
-							if (agent.isDynamic) {
+							// Don't show slash commands for chatSessions contributions in the global menu
+							if (this.chatSessionsService.getChatSessionContribution(agent.id)) {
 								return;
 							}
 
@@ -444,8 +446,8 @@ class AgentCompletions extends Disposable {
 							return;
 						}
 
-						// Don't show slash commands for dynamic agents (chatSessions participants) in the global menu
-						if (agent.isDynamic) {
+						// Don't show slash commands for chatSessions contributions in the global menu
+						if (this.chatSessionsService.getChatSessionContribution(agent.id)) {
 							return;
 						}
 
