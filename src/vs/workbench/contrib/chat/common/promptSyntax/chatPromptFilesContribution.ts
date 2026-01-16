@@ -139,15 +139,16 @@ CommandsRegistry.registerCommand('_listExtensionPromptFiles', async (accessor): 
 	const promptsService = accessor.get(IPromptsService);
 
 	// Get extension prompt files for all prompt types in parallel
-	const [agents, instructions, prompts] = await Promise.all([
+	const [agents, instructions, prompts, skills] = await Promise.all([
 		promptsService.listPromptFiles(PromptsType.agent, CancellationToken.None),
 		promptsService.listPromptFiles(PromptsType.instructions, CancellationToken.None),
 		promptsService.listPromptFiles(PromptsType.prompt, CancellationToken.None),
+		promptsService.listPromptFiles(PromptsType.skill, CancellationToken.None),
 	]);
 
 	// Combine all files and collect extension-contributed ones
 	const result: IExtensionPromptFileResult[] = [];
-	for (const file of [...agents, ...instructions, ...prompts]) {
+	for (const file of [...agents, ...instructions, ...prompts, ...skills]) {
 		if (file.storage === PromptsStorage.extension) {
 			result.push({ uri: file.uri.toJSON(), type: file.type });
 		}
