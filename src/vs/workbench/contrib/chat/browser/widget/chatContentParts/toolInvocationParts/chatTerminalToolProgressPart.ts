@@ -1006,7 +1006,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 			return true;
 		}
 		await liveTerminalInstance.xtermReadyPromise;
-		if (liveTerminalInstance.isDisposed || !liveTerminalInstance.xterm) {
+		if (this._store.isDisposed || liveTerminalInstance.isDisposed || !liveTerminalInstance.xterm) {
 			this._disposeLiveMirror();
 			return false;
 		}
@@ -1038,6 +1038,9 @@ class ChatTerminalToolOutputSection extends Disposable {
 	private async _renderSnapshotOutput(snapshot: NonNullable<IChatTerminalToolInvocationData['terminalCommandOutput']>): Promise<void> {
 		if (this._snapshotMirror) {
 			this._layoutOutput(snapshot.lineCount ?? 0, this._lastRenderedMaxColumnWidth);
+			return;
+		}
+		if (this._store.isDisposed) {
 			return;
 		}
 		dom.clearNode(this._terminalContainer);
