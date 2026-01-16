@@ -647,11 +647,8 @@ export class Menubar extends Disposable {
 					}
 				})];
 
-			case StateType.Downloading: {
-				const state = this.updateService.state;
-				const label = state.type === StateType.Downloading ? formatDownloadingUpdateLabel(state) : nls.localize('miDownloadingUpdate', "Downloading Update...");
-				return [new MenuItem({ label, enabled: false })];
-			}
+			case StateType.Downloading:
+				return [new MenuItem({ label: formatDownloadingUpdateLabel(state), enabled: false })];
 
 			case StateType.Downloaded:
 				return isMacintosh ? [] : [new MenuItem({
