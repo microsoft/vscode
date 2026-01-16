@@ -850,7 +850,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 	}
 
-
 	private _handleTerminalVisibility(toolTerminal: IToolTerminal, chatSessionResource: URI) {
 		const chatSessionOpenInWidget = !!this._chatWidgetService.getWidgetBySessionResource(chatSessionResource);
 		if (this._configurationService.getValue(TerminalChatAgentToolsSettingId.OutputLocation) === 'terminal' && chatSessionOpenInWidget) {
@@ -866,7 +865,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const profile = await this._profileFetcher.getCopilotProfile();
 		const os = await this._osBackend;
 		const toolTerminal = await this._terminalToolCreator.createTerminal(profile, os, token);
-
 		this._terminalChatService.registerTerminalInstanceWithToolSession(terminalToolSessionId, toolTerminal.instance);
 		this._terminalChatService.registerTerminalInstanceWithChatSession(chatSessionResource, toolTerminal.instance);
 		this._registerInputListener(toolTerminal);
