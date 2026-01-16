@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ok, strictEqual } from 'assert';
-import { generateAutoApproveActions, TRUNCATION_MESSAGE, dedupeRules, isPowerShell, sanitizeTerminalOutput, truncateOutputKeepingTail, extractCdPrefix } from '../../browser/runInTerminalHelpers.js';
+import { generateAutoApproveActions, TRUNCATION_MESSAGE, dedupeRules, isPowerShell, sanitizeTerminalOutput, truncateOutputKeepingTail, extractCdPrefix, extractPythonCommand } from '../../browser/runInTerminalHelpers.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
@@ -500,6 +500,115 @@ suite('extractCdPrefix', () => {
 
 		suite('unsupported patterns', () => {
 			test('should return undefined for quoted path with spaces', () => t('cd "C:\\path with spaces"; npm test', undefined, undefined));
+		});
+	});
+});
+
+suite('extractPythonCommand', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('basic extraction', () => {
+		test('should extract simple python -c command with double quotes', () => {
+			const result = extractPythonCommand('python -c "print(\'hello\')"', 'bash', OperatingSystem.Linux);
+			strictEqual(result, `print('hello')`);
+		});
+
+		test('should extract python3 -c command', () => {
+			const result = extractPythonCommand('python3 -c "print(\'hello\')"', 'bash', OperatingSystem.Linux);
+			strictEqual(result, `print('hello')`);
+		});
+
+		test('should return undefined for non-python commands', () => {
+			const result = extractPythonCommand('echo hello', 'bash', OperatingSystem.Linux);
+			strictEqual(result, undefined);
+		});
+
+		test('should return undefined for python without -c flag', () => {
+			const result = extractPythonCommand('python script.py', 'bash', OperatingSystem.Linux);
+			strictEqual(result, undefined);
+		});
+
+		test('should extract python -c with single quotes', () => {
+			const result = extractPythonCommand(`python -c 'print("hello")'`, 'bash', OperatingSystem.Linux);
+			strictEqual(result, 'print("hello")');
+		});
+
+		test('should extract python3 -c with single quotes', () => {
+			const result = extractPythonCommand(`python3 -c 'x = 1; print(x)'`, 'bash', OperatingSystem.Linux);
+			strictEqual(result, 'x = 1; print(x)');
+		});
+	});
+
+	suite('quote unescaping - Bash', () => {
+		test('should unescape backslash-escaped quotes in bash', () => {
+			const result = extractPythonCommand('python -c "print(\\"hello\\")"', 'bash', OperatingSystem.Linux);
+			strictEqual(result, 'print("hello")');
+		});
+
+		test('should handle multiple escaped quotes', () => {
+			const result = extractPythonCommand('python -c "x = \\\"hello\\\"; print(x)"', 'bash', OperatingSystem.Linux);
+			strictEqual(result, 'x = "hello"; print(x)');
+		});
+	});
+
+	suite('single quotes - literal content', () => {
+		test('should preserve content literally in single quotes (no unescaping)', () => {
+			// Single quotes in bash are literal - backslashes are not escape sequences
+			const result = extractPythonCommand(`python -c 'print(\\"hello\\")'`, 'bash', OperatingSystem.Linux);
+			strictEqual(result, 'print(\\"hello\\")');
+		});
+
+		test('should handle single quotes in PowerShell', () => {
+			const result = extractPythonCommand(`python -c 'print("hello")'`, 'pwsh', OperatingSystem.Windows);
+			strictEqual(result, 'print("hello")');
+		});
+
+		test('should extract multiline code in single quotes', () => {
+			const code = `python -c 'for i in range(3):\n    print(i)'`;
+			const result = extractPythonCommand(code, 'bash', OperatingSystem.Linux);
+			strictEqual(result, `for i in range(3):\n    print(i)`);
+		});
+	});
+
+	suite('quote unescaping - PowerShell', () => {
+		test('should unescape backtick-escaped quotes in PowerShell', () => {
+			const result = extractPythonCommand('python -c "print(`"hello`")"', 'pwsh', OperatingSystem.Windows);
+			strictEqual(result, 'print("hello")');
+		});
+
+		test('should handle multiple backtick-escaped quotes', () => {
+			const result = extractPythonCommand('python -c "x = `"hello`"; print(x)"', 'pwsh', OperatingSystem.Windows);
+			strictEqual(result, 'x = "hello"; print(x)');
+		});
+
+		test('should not unescape backslash quotes in PowerShell', () => {
+			const result = extractPythonCommand('python -c "print(\\"hello\\")"', 'pwsh', OperatingSystem.Windows);
+			strictEqual(result, 'print(\\"hello\\")');
+		});
+	});
+
+	suite('multiline code', () => {
+		test('should extract multiline python code', () => {
+			const code = `python -c "for i in range(3):\n    print(i)"`;
+			const result = extractPythonCommand(code, 'bash', OperatingSystem.Linux);
+			strictEqual(result, `for i in range(3):\n    print(i)`);
+		});
+	});
+
+	suite('edge cases', () => {
+		test('should handle code with trailing whitespace trimmed', () => {
+			const result = extractPythonCommand('python -c "  print(1)  "', 'bash', OperatingSystem.Linux);
+			strictEqual(result, 'print(1)');
+		});
+
+		test('should return undefined for empty code', () => {
+			const result = extractPythonCommand('python -c ""', 'bash', OperatingSystem.Linux);
+			strictEqual(result, undefined);
+		});
+
+		test('should return undefined when quotes are unmatched', () => {
+			const result = extractPythonCommand('python -c "print(1)', 'bash', OperatingSystem.Linux);
+			strictEqual(result, undefined);
 		});
 	});
 });

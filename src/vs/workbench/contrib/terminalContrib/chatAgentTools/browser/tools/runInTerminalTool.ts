@@ -37,7 +37,7 @@ import type { ITerminalExecuteStrategy } from '../executeStrategy/executeStrateg
 import { NoneExecuteStrategy } from '../executeStrategy/noneExecuteStrategy.js';
 import { RichExecuteStrategy } from '../executeStrategy/richExecuteStrategy.js';
 import { getOutput } from '../outputHelpers.js';
-import { extractCdPrefix, isFish, isPowerShell, isWindowsPowerShell, isZsh } from '../runInTerminalHelpers.js';
+import { extractCdPrefix, extractPythonCommand, isFish, isPowerShell, isWindowsPowerShell, isZsh } from '../runInTerminalHelpers.js';
 import { RunInTerminalToolTelemetry } from '../runInTerminalToolTelemetry.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from '../toolTerminalCreator.js';
 import { TreeSitterCommandParser, TreeSitterCommandParserLanguage } from '../treeSitterCommandParser.js';
@@ -532,6 +532,18 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			confirmationTitle = args.isBackground
 				? localize('runInTerminal.background', "Run `{0}` command? (background terminal)", shellType)
 				: localize('runInTerminal', "Run `{0}` command?", shellType);
+		}
+
+		// Check for Python -c command and extract the Python code for presentation
+		const extractedPython = extractPythonCommand(commandToDisplay, shell, os);
+		if (extractedPython) {
+			toolSpecificData.presentationOverrides = {
+				commandLine: extractedPython,
+				language: 'python',
+			};
+			confirmationTitle = args.isBackground
+				? localize('runInTerminal.python.background', "Run `Python` command in `{0}`? (background terminal)", shellType)
+				: localize('runInTerminal.python', "Run `Python` command in `{0}`?", shellType);
 		}
 
 		const confirmationMessages = isFinalAutoApproved ? undefined : {
