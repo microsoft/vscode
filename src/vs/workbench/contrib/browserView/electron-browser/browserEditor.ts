@@ -29,7 +29,7 @@ import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js
 import { BrowserOverlayManager } from './overlayManager.js';
 import { getZoomFactor, onDidChangeZoomLevel } from '../../../../base/browser/browser.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
@@ -365,27 +365,25 @@ export class BrowserEditor extends EditorPane {
 		));
 
 		this.updateErrorDisplay();
+		this.layout();
+		await this._model.setVisible(this.shouldShowView);
 
+		// Sometimes the element has not been inserted into the DOM yet.
 		// Watch for container size changes to handle window moves/resizes.
 		// This is especially important when copying or moving to a new window on a different
 		// monitor where the initial bounds may be incorrect until the window finishes layout.
-		let hasInitializedView = false;
+		// For some reason, the workbench's normal layout() calls do not cover this case.
 		const resizeObserver = new ResizeObserver(async () => {
 			if (this._model) {
 				const containerRect = this._browserContainer.getBoundingClientRect();
 				// Only proceed if we have valid bounds
 				if (containerRect.width > 0 && containerRect.height > 0) {
-					await this.layoutAsync();
-					// On first valid resize, ensure the view is visible
-					if (!hasInitializedView) {
-						hasInitializedView = true;
-						await this._model.setVisible(true);
-					}
+					this.layout();
 				}
 			}
 		});
 		resizeObserver.observe(this._browserContainer);
-		this._inputDisposables.add({ dispose: () => resizeObserver.disconnect() });
+		this._inputDisposables.add(toDisposable(() => resizeObserver.disconnect()));
 	}
 
 	protected override setEditorVisible(visible: boolean): void {
@@ -688,18 +686,11 @@ export class BrowserEditor extends EditorPane {
 	}
 
 	override layout(): void {
-		void this.layoutAsync();
-	}
-
-	/**
-	 * Async version of layout() that waits for the layout to complete.
-	 */
-	private async layoutAsync(): Promise<void> {
 		if (this._model) {
 			this.checkOverlays();
 
 			const containerRect = this._browserContainer.getBoundingClientRect();
-			await this._model.layout({
+			void this._model.layout({
 				windowId: this.group.windowId,
 				x: containerRect.left,
 				y: containerRect.top,
