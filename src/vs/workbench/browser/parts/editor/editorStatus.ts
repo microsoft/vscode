@@ -1198,11 +1198,11 @@ export class ChangeLanguageAction extends Action2 {
 				}
 
 				return {
+					id: languageId,
 					label: languageName,
 					meta: extensions,
 					iconClasses: getIconClassesForLanguageId(languageId),
-					description,
-					id: languageId
+					description
 				};
 			});
 
@@ -1281,7 +1281,7 @@ export class ChangeLanguageAction extends Action2 {
 						}
 					}
 				} else {
-					languageSelection = languageService.createById(pick.id!);
+					languageSelection = languageService.createById(pick.id);
 
 					if (resource) {
 						// fire and forget to not slow things down
