@@ -18,6 +18,10 @@ parameters:
     type: string
     default: ""
 
+variables:
+  - name: browserType
+    value: ${[ if eq(parameters.os, 'windows') ]}chromium${[ else if eq(parameters.os, 'macos') ]}webkit${[ else ]}firefox${[ end ]}
+
 jobs:
   - job: ${{ parameters.name }}
     displayName: ${{ parameters.displayName }}
@@ -53,6 +57,10 @@ jobs:
         workingDirectory: ./test/sanity
         displayName: Install Dependencies
 
+      - script: ./node_modules/.bin/playwright install --with-deps ${{ variables.browserType }}
+        workingDirectory: ./test/sanity
+        displayName: Install Playwright Browser
+
       - script: npm run compile
         workingDirectory: ./test/sanity
         displayName: Compile Sanity Tests
@@ -78,9 +86,7 @@ jobs:
           sleep 2
 
           echo "Install Playwright browser"
-          cd /workspace/test/sanity/node_modules/.bin
-          playwright install-deps firefox
-          playwright install firefox
+          /workspace/test/sanity/node_modules/.bin/playwright install --with-deps firefox
         displayName: Setup X11 Display
         condition: and(eq('${{ parameters.container }}', ''), eq('${{ parameters.os }}', 'linux'))
 
@@ -186,9 +192,7 @@ jobs:
               dbus-daemon --system --fork
 
               echo "Install Playwright browser"
-              cd /workspace/test/sanity
-              ./node_modules/.bin/playwright install-deps firefox
-              ./node_modules/.bin/playwright install firefox
+              /workspace/test/sanity/node_modules/.bin/playwright install --with-deps firefox
 
               echo "Running sanity tests"
               node out/index.js -c "$(BUILD_COMMIT)" -q "$(BUILD_QUALITY)" -t "/workspace/.build/sanity-test-logs/results.xml" -v

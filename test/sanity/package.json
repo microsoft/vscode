@@ -5,7 +5,6 @@
   "type": "module",
   "main": "./out/index.js",
   "scripts": {
-    "postinstall": "playwright install --with-deps chromium webkit",
     "compile": "tsc",
     "start": "node ./out/index.js"
   },

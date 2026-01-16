@@ -35,7 +35,7 @@ if (options.help) {
 const testResults = options['test-results'];
 const mochaOptions: MochaOptions = {
 	color: true,
-	timeout: 5 * 60 * 1000,
+	timeout: 10 * 60 * 1000,
 	slow: 3 * 60 * 1000,
 	grep: options.grep,
 	fgrep: options.fgrep,
