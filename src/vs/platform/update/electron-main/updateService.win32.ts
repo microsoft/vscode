@@ -318,6 +318,10 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 	}
 
 	protected override async isConnectionMetered(): Promise<boolean> {
+		const respectMeteredConnections = this.configurationService.getValue<boolean>('update.respectMeteredConnections');
+		if (!respectMeteredConnections) {
+			return false;
+		}
 		return isMeteredConnection();
 	}
 

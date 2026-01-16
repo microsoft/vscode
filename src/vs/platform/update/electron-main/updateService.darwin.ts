@@ -143,6 +143,10 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 	}
 
 	protected override async isConnectionMetered(): Promise<boolean> {
+		const respectMeteredConnections = this.configurationService.getValue<boolean>('update.respectMeteredConnections');
+		if (!respectMeteredConnections) {
+			return false;
+		}
 		return isMeteredConnection();
 	}
 

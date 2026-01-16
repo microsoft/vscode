@@ -8,6 +8,7 @@ import { realpath, watch } from 'fs';
 import { timeout } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import * as path from '../../../base/common/path.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
@@ -35,6 +36,7 @@ abstract class AbstractUpdateService implements IUpdateService {
 
 	constructor(
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
+		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
 		@ILogService protected logService: ILogService,
 	) {
@@ -78,6 +80,10 @@ abstract class AbstractUpdateService implements IUpdateService {
 	}
 
 	protected async isConnectionMetered(): Promise<boolean> {
+		const respectMeteredConnections = this.configurationService.getValue<boolean>('update.respectMeteredConnections');
+		if (!respectMeteredConnections) {
+			return false;
+		}
 		return isMeteredConnection();
 	}
 
@@ -155,10 +161,11 @@ export class SnapUpdateService extends AbstractUpdateService {
 		private snap: string,
 		private snapRevision: string,
 		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
 		@ILogService logService: ILogService,
 	) {
-		super(lifecycleMainService, environmentMainService, logService);
+		super(lifecycleMainService, configurationService, environmentMainService, logService);
 
 		const watcher = watch(path.dirname(this.snap));
 		const onChange = Event.fromNodeEventEmitter(watcher, 'change', (_, fileName: string) => fileName);

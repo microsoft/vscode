@@ -473,6 +473,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			getDataChannel<T>(channelId: string): vscode.DataChannel<T> {
 				checkProposedApiEnabled(extension, 'dataChannels');
 				return extHostDataChannels.createDataChannel(extension, channelId);
+			},
+			isMeteredConnection(): Thenable<boolean> {
+				checkProposedApiEnabled(extension, 'meteredConnection');
+				// Import dynamically to avoid circular dependencies
+				return Promise.resolve().then(async () => {
+					const { isMeteredConnection } = await import('../../../base/common/networkConnection.js');
+					return isMeteredConnection();
+				});
 			}
 		};
 		if (!initData.environment.extensionTestsLocationURI) {
