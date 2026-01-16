@@ -3992,9 +3992,7 @@ export class CommandCenter {
 	}
 
 	private async _push(repository: Repository, pushOptions: PushOptions) {
-		const updateConfig = workspace.getConfiguration('update');
-		const respectMetered = updateConfig.get<boolean>('respectMeteredConnections', true);
-		if (respectMetered && await env.isMeteredConnection()) {
+		if (workspace.getConfiguration('update').get<boolean>('respectMeteredConnections', true) && await env.isMeteredConnection()) {
 			return;
 		}
 
@@ -4246,9 +4244,7 @@ export class CommandCenter {
 	}
 
 	private async _sync(repository: Repository, rebase: boolean): Promise<void> {
-		const updateConfig = workspace.getConfiguration('update');
-		const respectMetered = updateConfig.get<boolean>('respectMeteredConnections', true);
-		if (respectMetered && await env.isMeteredConnection()) {
+		if (workspace.getConfiguration('update').get<boolean>('respectMeteredConnections', true) && await env.isMeteredConnection()) {
 			return;
 		}
 
