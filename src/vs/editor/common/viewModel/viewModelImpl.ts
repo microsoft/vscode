@@ -768,6 +768,10 @@ export class ViewModel extends Disposable implements IViewModel {
 	 * Gives a hint that a lot of requests are about to come in for these line numbers.
 	 */
 	public setViewport(startLineNumber: number, endLineNumber: number, centeredLineNumber: number): void {
+		if (this._lines.getViewLineCount() === 0) {
+			// No visible lines to set viewport on
+			return;
+		}
 		this._viewportStart.update(this, startLineNumber);
 	}
 
