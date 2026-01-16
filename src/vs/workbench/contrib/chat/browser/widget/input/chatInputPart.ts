@@ -84,7 +84,7 @@ import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from 
 import { IChatModelInputState, IChatRequestModeInfo, IInputModel } from '../../../common/model/chatModel.js';
 import { ChatMode, IChatMode, IChatModeService } from '../../../common/chatModes.js';
 import { IChatFollowup, IChatService, IChatSessionContext } from '../../../common/chatService/chatService.js';
-import { IChatSessionFileChange, IChatSessionProviderOptionItem, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
+import { IChatSessionProviderOptionItem, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isStringImplicitContextValue, isStringVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { IChatResponseViewModel } from '../../../common/model/chatViewModel.js';
@@ -2302,6 +2302,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		const modifiedEntries = derivedOpts<IModifiedFileEntry[]>({ equalsFn: arraysEqual }, r => {
+			// Background chat sessions render the working set based on the session files, and not the editing session
+			const sessionResource = chatEditingSession?.chatSessionResource ?? this._widget?.viewModel?.model.sessionResource;
+			if (sessionResource && getChatSessionType(sessionResource) !== localChatSessionType) {
+				return [];
+			}
+
 			return chatEditingSession?.entries.read(r).filter(entry => entry.state.read(r) === ModifiedFileEntryState.Modified) || [];
 		});
 
@@ -2368,29 +2374,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}))
 		);
 
-		const shouldRender = derived(reader => {
-			const sessionFilesLength = sessionFiles.read(reader).length;
-			const editSessionEntriesLength = editSessionEntries.read(reader).length;
-
-			const sessionResource = chatEditingSession?.chatSessionResource ?? this._widget?.viewModel?.model.sessionResource;
-			if (sessionResource && getChatSessionType(sessionResource) === localChatSessionType) {
-				return sessionFilesLength > 0 || editSessionEntriesLength > 0;
-			}
-
-			// For background sessions, only render the
-			// working set when there are session files
-			return sessionFilesLength > 0;
-		});
+		const shouldRender = derived(reader =>
+			editSessionEntries.read(reader).length > 0 || sessionFiles.read(reader).length > 0);
 
 		this._renderingChatEdits.value = autorun(reader => {
 			if (this.options.renderWorkingSet && shouldRender.read(reader)) {
 				this.renderChatEditingSessionWithEntries(
 					reader.store,
 					chatEditingSession,
-					modifiedEntries,
-					sessionFileChanges,
 					editSessionEntries,
-					sessionFiles,
+					sessionFiles
 				);
 			} else {
 				dom.clearNode(this.chatEditingSessionWidgetContainer);
@@ -2404,10 +2397,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private renderChatEditingSessionWithEntries(
 		store: DisposableStore,
 		chatEditingSession: IChatEditingSession | null,
-		modifiedEntries: IObservable<IModifiedFileEntry[]>,
-		sessionFileChanges: IObservable<readonly IChatSessionFileChange[] | undefined>,
-		editSessionEntries: IObservable<IChatCollapsibleListItem[]>,
-		sessionEntries: IObservable<IChatCollapsibleListItem[]>,
+		editSessionEntriesObs: IObservable<readonly IChatCollapsibleListItem[]>,
+		sessionEntriesObs: IObservable<readonly IChatCollapsibleListItem[]>
 	) {
 		// Summary of number of files changed
 		// eslint-disable-next-line no-restricted-syntax
@@ -2432,7 +2423,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			scopedContextKeyService.createKey(ChatContextKeys.agentSessionType.key, getChatSessionType(sessionResource));
 		}
 
-		this._chatEditsActionsDisposables.add(bindContextKey(ChatContextKeys.hasAgentSessionChanges, scopedContextKeyService, r => !!sessionEntries.read(r)?.length));
+		this._chatEditsActionsDisposables.add(bindContextKey(ChatContextKeys.hasAgentSessionChanges, scopedContextKeyService, r => !!sessionEntriesObs.read(r)?.length));
 
 		const scopedInstantiationService = this._chatEditsActionsDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
 
@@ -2447,38 +2438,36 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 
 		const topLevelStats = derived(reader => {
-			let added = 0;
-			let removed = 0;
-			const entries = modifiedEntries.read(reader);
-			for (const entry of entries) {
-				if (entry.linesAdded && entry.linesRemoved) {
-					added += entry.linesAdded.read(reader);
-					removed += entry.linesRemoved.read(reader);
+			const entries = editSessionEntriesObs.read(reader);
+			const sessionEntries = sessionEntriesObs.read(reader);
+
+			let added = 0, removed = 0;
+
+			if (entries.length > 0) {
+				for (const entry of entries) {
+					if (entry.kind === 'reference' && entry.options?.diffMeta) {
+						added += entry.options.diffMeta.added;
+						removed += entry.options.diffMeta.removed;
+					}
+				}
+			} else {
+				for (const entry of sessionEntries) {
+					if (entry.kind === 'reference' && entry.options?.diffMeta) {
+						added += entry.options.diffMeta.added;
+						removed += entry.options.diffMeta.removed;
+					}
 				}
 			}
 
-			let baseLabel = entries.length === 1 ? localize('chatEditingSession.oneFile.1', '1 file changed') : localize('chatEditingSession.manyFiles.1', '{0} files changed', entries.length);
-			let shouldShowEditingSession = added > 0 || removed > 0;
-			let topLevelIsSessionMenu = sessionResource && getChatSessionType(sessionResource) !== localChatSessionType;
+			const files = entries.length > 0 ? entries.length : sessionEntries.length;
+			const topLevelIsSessionMenu = entries.length === 0 && sessionEntries.length > 0;
+			const shouldShowEditingSession = entries.length > 0 || sessionEntries.length > 0;
 
-			if (added === 0 && removed === 0) {
-				const sessionValue = sessionFileChanges.read(reader) || [];
-				for (const entry of sessionValue) {
-					added += entry.insertions;
-					removed += entry.deletions;
-				}
-
-				shouldShowEditingSession = sessionValue.length > 0;
-				baseLabel = sessionValue.length === 1 ? localize('chatEditingSession.oneFile.2', '1 file ready to merge') : localize('chatEditingSession.manyFiles.2', '{0} files ready to merge', sessionValue.length);
-				topLevelIsSessionMenu = true;
-			}
-
-			button.label = baseLabel;
-
-			return { added, removed, shouldShowEditingSession, baseLabel, topLevelIsSessionMenu };
+			return { files, added, removed, shouldShowEditingSession, topLevelIsSessionMenu };
 		});
 
 		const topLevelIsSessionMenu = topLevelStats.map(t => t.topLevelIsSessionMenu);
+
 		store.add(autorun(reader => {
 			const isSessionMenu = topLevelIsSessionMenu.read(reader);
 			reader.store.add(scopedInstantiationService.createInstance(MenuWorkbenchButtonBar, actionsContainer, isSessionMenu ? MenuId.ChatEditingSessionChangesToolbar : MenuId.ChatEditingWidgetToolbar, {
@@ -2500,12 +2489,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 
 		store.add(autorun(reader => {
-			const { added, removed, shouldShowEditingSession, baseLabel } = topLevelStats.read(reader);
+			const { files, added, removed, shouldShowEditingSession } = topLevelStats.read(reader);
 
-			button.label = baseLabel;
+			const buttonLabel = files === 1
+				? localize('chatEditingSession.oneFile', '1 file changed')
+				: localize('chatEditingSession.manyFiles', '{0} files changed', files);
+
+			button.label = buttonLabel;
+			button.element.setAttribute('aria-label', localize('chatEditingSession.ariaLabelWithCounts', '{0}, {1} lines added, {2} lines removed', buttonLabel, added, removed));
+
 			this._workingSetLinesAddedSpan.value.textContent = `+${added}`;
 			this._workingSetLinesRemovedSpan.value.textContent = `-${removed}`;
-			button.element.setAttribute('aria-label', localize('chatEditingSession.ariaLabelWithCounts', '{0}, {1} lines added, {2} lines removed', baseLabel, added, removed));
 
 			dom.setVisibility(shouldShowEditingSession, this.chatEditingSessionWidgetContainer);
 			if (!shouldShowEditingSession) {
@@ -2585,24 +2579,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		store.add(autorun(reader => {
-			const editEntries = editSessionEntries.read(reader);
-			const sessionFileEntries = sessionEntries.read(reader) ?? [];
+			const editEntries = editSessionEntriesObs.read(reader);
+			const sessionFileEntries = sessionEntriesObs.read(reader);
 
-			// Combine entries with an optional divider
-			const allEntries: IChatCollapsibleListItem[] = [...editEntries];
-			if (sessionFileEntries.length > 0) {
-				if (editEntries.length > 0) {
-					// Add divider between edit session entries and session file entries
-					allEntries.push({
-						kind: 'divider',
-						label: localize('chatEditingSession.allChanges', 'Worktree Changes'),
-						menuId: MenuId.ChatEditingSessionChangesToolbar,
-						menuArg: sessionResource,
-						scopedInstantiationService,
-					});
-				}
-				allEntries.push(...sessionFileEntries);
-			}
+			// Combine edit session entries with session file changes. At the moment, we
+			// we can combine these two arrays since local chat sessions use edit session
+			// entries, while background chat sessions use session file changes.
+			const allEntries = editEntries.concat(sessionFileEntries);
 
 			const maxItemsShown = 6;
 			const itemsShown = Math.min(allEntries.length, maxItemsShown);

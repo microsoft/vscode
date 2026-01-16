@@ -77,22 +77,6 @@
 			background-color: var(--vscode-inputOption-activeBackground);
 		}
 	}
-
-	.agent-sessions-link-container {
-		padding: 8px 0;
-		font-size: 12px;
-		text-align: center;
-	}
-
-	.agent-sessions-link-container a {
-		color: var(--vscode-descriptionForeground);
-	}
-
-	.agent-sessions-link-container a:hover,
-	.agent-sessions-link-container a:active {
-		text-decoration: none;
-		color: var(--vscode-textLink-foreground);
-	}
 }
 
 /* Sessions control: stacked */
@@ -120,11 +104,6 @@
 		.agent-sessions-container {
 			border-left: 1px solid var(--vscode-panel-border);
 		}
-	}
-
-	.agent-sessions-link-container {
-		/* hide link to show more when side by side */
-		display: none;
 	}
 }
 

@@ -36,6 +36,9 @@ export interface IModePickerDelegate {
 	readonly sessionResource: () => URI | undefined;
 }
 
+// TODO: there should be an icon contributed for built-in modes
+const builtinDefaultIcon = Codicon.tasklist;
+
 export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 	constructor(
 		action: MenuItemAction,
@@ -49,7 +52,7 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 		@IChatModeService chatModeService: IChatModeService,
 		@IMenuService private readonly menuService: IMenuService,
 		@ICommandService commandService: ICommandService,
-		@IProductService productService: IProductService
+		@IProductService private readonly _productService: IProductService
 	) {
 		// Category definitions
 		const builtInCategory = { label: localize('built-in', "Built-In"), order: 0 };
@@ -95,7 +98,7 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 			return {
 				...makeAction(mode, currentMode),
 				tooltip: mode.description.get() ?? chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip,
-				icon: mode.icon.get(),
+				icon: mode.icon.get() ?? (isModeConsideredBuiltIn(mode, this._productService) ? builtinDefaultIcon : undefined),
 				category: agentModeDisabledViaPolicy ? policyDisabledCategory : customCategory
 			};
 		};
@@ -108,8 +111,7 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 				const otherBuiltinModes = modes.builtin.filter(mode => mode.id !== ChatMode.Agent.id);
 				const customModes = groupBy(
 					modes.custom,
-					mode => mode.source?.storage === PromptsStorage.extension && mode.source.extensionId.value === productService.defaultChatAgent?.chatExtensionId && mode.source.type === ExtensionAgentSourceType.contribution ?
-						'builtin' : 'custom');
+					mode => isModeConsideredBuiltIn(mode, this._productService) ? 'builtin' : 'custom');
 
 				const customBuiltinModeActions = customModes.builtin?.map(mode => {
 					const action = makeActionFromCustomMode(mode, currentMode);
@@ -156,13 +158,21 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
 		this.setAriaLabelAttributes(element);
 
-		const isDefault = this.delegate.currentMode.get().id === ChatMode.Agent.id;
-		const state = this.delegate.currentMode.get().label.get();
-		const icon = this.delegate.currentMode.get().icon.get();
+		const currentMode = this.delegate.currentMode.get();
+		const isDefault = currentMode.id === ChatMode.Agent.id;
+		const state = currentMode.label.get();
+		let icon = currentMode.icon.get();
+
+		// Every built-in mode should have an icon. // TODO: this should be provided by the mode itself
+		if (!icon && isModeConsideredBuiltIn(currentMode, this._productService)) {
+			icon = builtinDefaultIcon;
+		}
 
 		const labelElements = [];
-		labelElements.push(...renderLabelWithIcons(`$(${icon.id})`));
-		if (!isDefault) {
+		if (icon) {
+			labelElements.push(...renderLabelWithIcons(`$(${icon.id})`));
+		}
+		if (!isDefault || !icon) {
 			labelElements.push(dom.$('span.chat-input-picker-label', undefined, state));
 		}
 		labelElements.push(...renderLabelWithIcons(`$(chevron-down)`));
@@ -170,4 +180,11 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 		dom.reset(element, ...labelElements);
 		return null;
 	}
+}
+
+function isModeConsideredBuiltIn(mode: IChatMode, productService: IProductService): boolean {
+	if (mode.isBuiltin) {
+		return true;
+	}
+	return mode.source?.storage === PromptsStorage.extension && mode.source.extensionId.value === productService.defaultChatAgent?.chatExtensionId && mode.source.type === ExtensionAgentSourceType.contribution;
 }

@@ -50,7 +50,6 @@ import { ChatWidget } from '../../widget/chatWidget.js';
 import { ChatViewWelcomeController, IViewWelcomeDelegate } from '../../viewsWelcome/chatViewWelcomeController.js';
 import { IWorkbenchLayoutService, LayoutSettings, Position } from '../../../../../services/layout/browser/layoutService.js';
 import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from '../../agentSessions/agentSessions.js';
-import { Link } from '../../../../../../platform/opener/browser/link.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { ChatViewId } from '../../chat.js';
 import { disposableTimeout } from '../../../../../../base/common/async.js';
@@ -63,7 +62,6 @@ import { IChatEntitlementService } from '../../../../../services/chat/common/cha
 interface IChatViewPaneState extends Partial<IChatModelInputState> {
 	sessionId?: string;
 
-	sessionsViewerLimited?: boolean;
 	sessionsSidebarWidth?: number;
 }
 
@@ -123,7 +121,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		) {
 			this.viewState.sessionId = undefined; // clear persisted session on fresh start
 		}
-		this.sessionsViewerLimited = this.viewState.sessionsViewerLimited ?? true;
+		this.sessionsViewerLimited = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsShowRecentOnly) ?? false;
+		this.sessionsViewerVisible = false; // will be updated from layout code
 		this.sessionsViewerSidebarWidth = Math.max(ChatViewPane.SESSIONS_SIDEBAR_MIN_WIDTH, this.viewState.sessionsSidebarWidth ?? ChatViewPane.SESSIONS_SIDEBAR_DEFAULT_WIDTH);
 
 		// Contextkeys
@@ -133,22 +132,18 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.sessionsViewerPositionContext = ChatContextKeys.agentSessionsViewerPosition.bindTo(contextKeyService);
 		this.sessionsViewerVisibilityContext = ChatContextKeys.agentSessionsViewerVisible.bindTo(contextKeyService);
 
-		this.updateContextKeys(false);
+		this.updateContextKeys();
 
 		this.registerListeners();
 	}
 
-	private updateContextKeys(fromEvent: boolean): void {
+	private updateContextKeys(): void {
 		const { position, location } = this.getViewPositionAndLocation();
 
 		this.sessionsViewerLimitedContext.set(this.sessionsViewerLimited);
 		this.chatViewLocationContext.set(location ?? ViewContainerLocation.AuxiliaryBar);
 		this.sessionsViewerOrientationContext.set(this.sessionsViewerOrientation);
 		this.sessionsViewerPositionContext.set(position === Position.RIGHT ? AgentSessionsViewerPosition.Right : AgentSessionsViewerPosition.Left);
-
-		if (fromEvent && this.lastDimensions) {
-			this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
-		}
 	}
 
 	private getViewPositionAndLocation(): { position: Position; location: ViewContainerLocation } {
@@ -192,8 +187,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.viewPaneContainer?.classList.toggle('chat-view-position-left', position === Position.LEFT);
 		this.viewPaneContainer?.classList.toggle('chat-view-position-right', position === Position.RIGHT);
 
-		if (fromEvent && this.lastDimensions) {
-			this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
+		if (fromEvent) {
+			this.relayout();
 		}
 	}
 
@@ -208,7 +203,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this.layoutService.onDidChangePanelPosition,
 			Event.filter(this.viewDescriptorService.onDidChangeContainerLocation, e => e.viewContainer === this.viewDescriptorService.getViewContainerByViewId(this.id))
 		)(() => {
-			this.updateContextKeys(false);
+			this.updateContextKeys();
 			this.updateViewPaneClasses(true /* layout here */);
 		}));
 
@@ -216,6 +211,22 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => {
 			return e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION);
 		})(() => this.updateViewPaneClasses(true)));
+
+		// Sessions viewer limited setting changes
+		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => {
+			return e.affectsConfiguration(ChatConfiguration.ChatViewSessionsShowRecentOnly);
+		})(() => {
+			const oldSessionsViewerLimited = this.sessionsViewerLimited;
+			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
+				this.sessionsViewerLimited = false; // side by side always shows all
+			} else {
+				this.sessionsViewerLimited = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsShowRecentOnly) ?? false;
+			}
+
+			if (oldSessionsViewerLimited !== this.sessionsViewerLimited) {
+				this.notifySessionsControlLimitedChanged(true /* layout */, true /* update */);
+			}
+		}));
 
 		// Entitlement changes
 		this._register(this.chatEntitlementService.onDidChangeSentiment(() => {
@@ -308,10 +319,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private sessionsTitle: HTMLElement | undefined;
 	private sessionsControlContainer: HTMLElement | undefined;
 	private sessionsControl: AgentSessionsControl | undefined;
-	private sessionsLinkContainer: HTMLElement | undefined;
-	private sessionsLink: Link | undefined;
 	private sessionsCount = 0;
 	private sessionsViewerLimited: boolean;
+	private sessionsViewerVisible: boolean;
 	private sessionsViewerOrientation = AgentSessionsViewerOrientation.Stacked;
 	private sessionsViewerOrientationConfiguration: 'stacked' | 'sideBySide' = 'sideBySide';
 	private sessionsViewerOrientationContext: IContextKey<AgentSessionsViewerOrientation>;
@@ -403,22 +413,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		sessionsToolbar.context = sessionsControl;
 
-		// Link to Sessions View
-		this.sessionsLinkContainer = append(sessionsContainer, $('.agent-sessions-link-container'));
-		this.sessionsLink = this._register(this.instantiationService.createInstance(Link, this.sessionsLinkContainer, {
-			label: this.sessionsViewerLimited ? localize('showAllSessions', "Show More") : localize('showRecentSessions', "Show Less"),
-			href: '',
-		}, {
-			opener: () => {
-				this.sessionsViewerLimited = !this.sessionsViewerLimited;
-				this.viewState.sessionsViewerLimited = this.sessionsViewerLimited;
-
-				this.notifySessionsControlLimitedChanged(true /* layout */, true /* update */);
-
-				sessionsControl.focus();
-			}
-		}));
-
 		// Deal with orientation configuration
 		this._register(Event.runAndSubscribe(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.ChatViewSessionsOrientation)), e => {
 			const newSessionsViewerOrientationConfiguration = this.configurationService.getValue<'stacked' | 'sideBySide' | unknown>(ChatConfiguration.ChatViewSessionsOrientation);
@@ -455,8 +449,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this.configurationService.updateValue(ChatConfiguration.ChatViewSessionsOrientation, validatedOrientation);
 		}
 
-		if (options.layout && this.lastDimensions) {
-			this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
+		if (options.layout) {
+			this.relayout();
 		}
 	}
 
@@ -465,17 +459,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		this.updateSessionsControlTitle();
 
-		if (this.sessionsLink) {
-			this.sessionsLink.link = {
-				label: this.sessionsViewerLimited ? localize('showAllSessions', "Show More") : localize('showRecentSessions', "Show Less"),
-				href: ''
-			};
-		}
-
 		const updatePromise = triggerUpdate ? this.sessionsControl?.update() : undefined;
 
-		if (triggerLayout && this.lastDimensions) {
-			this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
+		if (triggerLayout) {
+			this.relayout();
 		}
 
 		return updatePromise ?? Promise.resolve();
@@ -488,9 +475,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const { changed: visibilityChanged, visible } = this.updateSessionsControlVisibility();
 
 		if (visibilityChanged || (countChanged && visible)) {
-			if (this.lastDimensions) {
-				this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
-			}
+			this.relayout();
 		}
 	}
 
@@ -532,6 +517,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		const sessionsContainerVisible = this.sessionsContainer.style.display !== 'none';
 		setVisibility(newSessionsContainerVisible, this.sessionsContainer);
+		this.sessionsViewerVisible = newSessionsContainerVisible;
 		this.sessionsViewerVisibilityContext.set(newSessionsContainerVisible);
 
 		return {
@@ -614,9 +600,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		));
 
 		this._register(this.titleControl.onDidChangeHeight(() => {
-			if (this.lastDimensions) {
-				this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
-			}
+			this.relayout();
 		}));
 	}
 
@@ -648,6 +632,18 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const sessionResource = chatWidget.viewModel?.sessionResource;
 			if (sessionResource) {
 				sessionsControl.reveal(sessionResource);
+			}
+		}));
+
+		// When showing sessions stacked, adjust the height of the sessions list to make room for chat input
+		let lastChatInputHeight: number | undefined;
+		this._register(chatWidget.input.onDidChangeHeight(() => {
+			if (this.sessionsViewerVisible && this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
+				const chatInputHeight = this._widget?.input?.contentHeight;
+				if (chatInputHeight && chatInputHeight !== lastChatInputHeight) { // ensure we only layout on actual height changes
+					lastChatInputHeight = chatInputHeight;
+					this.relayout();
+				}
 			}
 		}));
 	}
@@ -795,7 +791,28 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	//#region Layout
 
+	private layoutingBody = false;
+
+	private relayout(): void {
+		if (this.lastDimensions) {
+			this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
+		}
+	}
+
 	protected override layoutBody(height: number, width: number): void {
+		if (this.layoutingBody) {
+			return; // prevent re-entrancy
+		}
+
+		this.layoutingBody = true;
+		try {
+			this.doLayoutBody(height, width);
+		} finally {
+			this.layoutingBody = false;
+		}
+	}
+
+	private doLayoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 
 		this.lastDimensions = { height, width };
@@ -822,7 +839,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		let heightReduction = 0;
 		let widthReduction = 0;
 
-		if (!this.sessionsContainer || !this.sessionsControlContainer || !this.sessionsControl || !this.viewPaneContainer || !this.sessionsTitleContainer || !this.sessionsLinkContainer || !this.sessionsTitle || !this.sessionsLink) {
+		if (!this.sessionsContainer || !this.sessionsControlContainer || !this.sessionsControl || !this.viewPaneContainer || !this.sessionsTitleContainer || !this.sessionsTitle) {
 			return { heightReduction, widthReduction };
 		}
 
@@ -866,7 +883,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
 				this.sessionsViewerLimited = false; // side by side always shows all
 			} else {
-				this.sessionsViewerLimited = this.viewState.sessionsViewerLimited ?? true;
+				this.sessionsViewerLimited = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsShowRecentOnly) ?? false;
 			}
 
 			let updatePromise: Promise<void>;
@@ -904,9 +921,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			return { heightReduction: 0, widthReduction: 0 };
 		}
 
-		let availableSessionsHeight = height - this.sessionsTitleContainer.offsetHeight - this.sessionsLinkContainer.offsetHeight;
+		let availableSessionsHeight = height - this.sessionsTitleContainer.offsetHeight;
 		if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
-			availableSessionsHeight -= ChatViewPane.MIN_CHAT_WIDGET_HEIGHT; // always reserve some space for chat input
+			availableSessionsHeight -= Math.max(ChatViewPane.MIN_CHAT_WIDGET_HEIGHT, this._widget?.input?.contentHeight ?? 0);
 		}
 
 		// Show as sidebar
@@ -996,9 +1013,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this.sessionsViewerSidebarWidth = ChatViewPane.SESSIONS_SIDEBAR_DEFAULT_WIDTH;
 			this.viewState.sessionsSidebarWidth = this.sessionsViewerSidebarWidth;
 
-			if (this.lastDimensions) {
-				this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
-			}
+			this.relayout();
 		}));
 	}
 
