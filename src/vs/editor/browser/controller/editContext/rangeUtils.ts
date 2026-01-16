@@ -6,65 +6,43 @@
 import { Range } from '../../../common/core/range.js';
 import { IViewModel } from '../../../common/viewModel.js';
 
-/**
- * Subtracts excluded ranges from a source range, returning the visible parts.
- * This efficiently computes Range minus Range[].
- *
- * @param range The source range to subtract from
- * @param excludeRanges Ranges to exclude from the source range
- * @param viewModel The view model used to get line column bounds
- * @returns Array of ranges representing the visible parts after exclusion
- */
-export function subtractRanges(range: Range, excludeRanges: Range[], viewModel: IViewModel,): Range[] {
+export function subtractRanges(range: Range, excludeRanges: Range[], viewModel: IViewModel): Range[] {
 	if (excludeRanges.length === 0) {
-		return [range];
+		return [Range.lift(range)];
 	}
 
-	// Sort exclude ranges by start line for efficient processing
-	const sortedExcludes = excludeRanges
+	const visibleRanges: Range[] = [];
+	let currentStart = Range.getStartPosition(range);
+	const searchEnd = Range.getEndPosition(range);
+
+	// Sort hidden areas by start position once, filtering to only intersecting ranges
+	const sortedHidden = excludeRanges
 		.filter(hidden => Range.areIntersecting(range, hidden))
 		.sort((a, b) => Range.compareRangesUsingStarts(a, b));
 
-	const result: Range[] = [];
-	let visibleStart: number | null = null;
-	let excludeIndex = 0;
+	for (const hidden of sortedHidden) {
+		const hiddenStart = Range.getStartPosition(hidden);
+		const hiddenEnd = Range.getEndPosition(hidden);
 
-	for (let line = range.startLineNumber; line <= range.endLineNumber; line++) {
-		// Advance excludeIndex past any exclude ranges that end before the current line
-		while (excludeIndex < sortedExcludes.length && sortedExcludes[excludeIndex].endLineNumber < line) {
-			excludeIndex++;
+		// Add visible range before this hidden area
+		if (currentStart.isBefore(hiddenStart)) {
+			const visibleRange = Range.fromPositions(currentStart, hiddenStart);
+			if (!visibleRange.isEmpty()) {
+				visibleRanges.push(visibleRange);
+			}
 		}
 
-		// Check if this line is hidden by the current exclude range
-		// Since excludeRanges are sorted and we've advanced past ended ones,
-		// we only need to check if the current exclude covers this line
-		const hidden = excludeIndex < sortedExcludes.length &&
-			line >= sortedExcludes[excludeIndex].startLineNumber &&
-			line <= sortedExcludes[excludeIndex].endLineNumber;
-
-		if (hidden) {
-			// End current visible range if any
-			if (visibleStart !== null) {
-				const startCol = visibleStart === range.startLineNumber ? range.startColumn : 1;
-				const endLine = line - 1;
-				const endCol = endLine === range.endLineNumber ? range.endColumn : viewModel.getLineMaxColumn(endLine);
-				result.push(new Range(visibleStart, startCol, endLine, endCol));
-				visibleStart = null;
-			}
-		} else {
-			// Start or continue visible range
-			if (visibleStart === null) {
-				visibleStart = line;
-			}
+		// Move current start to after the hidden area (if hidden end is after current start)
+		if (currentStart.isBefore(hiddenEnd) || currentStart.equals(hiddenEnd)) {
+			currentStart = hiddenEnd;
 		}
 	}
 
-	// Add any remaining visible range
-	if (visibleStart !== null) {
-		const startCol = visibleStart === range.startLineNumber ? range.startColumn : 1;
-		result.push(new Range(visibleStart, startCol, range.endLineNumber, range.endColumn));
+	// Add remaining visible range after all hidden areas
+	if (currentStart.isBefore(searchEnd)) {
+		const visibleRange = Range.fromPositions(currentStart, searchEnd);
+		visibleRanges.push(visibleRange);
 	}
 
-	return result;
+	return visibleRanges;
 }
-

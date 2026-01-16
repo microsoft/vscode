@@ -91,18 +91,16 @@ function getDataToCopy(viewModel: IViewModel, modelSelections: Range[], emptySel
 }
 
 function filterSelections(selections: Range[], viewModel: IViewModel): Range[] {
-	const excludeRanges = viewModel.getHiddenAreas();
+	const excludeRanges = viewModel.getHiddenAreas().map(h => new Range(h.startLineNumber, h.startColumn, h.endLineNumber, viewModel.model.getLineMaxColumn(h.endLineNumber)));
 	if (excludeRanges.length === 0) {
 		return selections;
 	}
 
 	const result: Range[] = [];
-
 	for (const selection of selections) {
 		const visibleRanges = subtractRanges(selection, excludeRanges, viewModel);
 		result.push(...visibleRanges);
 	}
-
 	return result;
 }
 
