@@ -3905,6 +3905,6 @@ export class PromptFileChatResource implements vscode.PromptFileChatResource {
 
 @es5ClassCompat
 export class SkillChatResource implements vscode.SkillChatResource {
-	constructor(public readonly resource: vscode.ChatResourceDescriptor) { }
+	constructor(public readonly resource: vscode.ChatResourceUriDescriptor) { }
 }
 //#endregion

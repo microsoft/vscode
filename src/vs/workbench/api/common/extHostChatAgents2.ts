@@ -557,7 +557,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		}
 
 		const provider = providerData.provider;
-		let resources: vscode.CustomAgentChatResource[] | vscode.InstructionsChatResource[] | vscode.PromptFileChatResource[] | undefined;
+		let resources: vscode.CustomAgentChatResource[] | vscode.InstructionsChatResource[] | vscode.PromptFileChatResource[] | vscode.SkillChatResource[] | undefined;
 		switch (type) {
 			case PromptsType.agent:
 				resources = await (provider as vscode.CustomAgentProvider).provideCustomAgents(context, token) ?? undefined;
@@ -587,7 +587,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		});
 	}
 
-	convertChatResourceDescriptorToPromptFileResource(resource: vscode.ChatResourceDescriptor, extensionId: string): IPromptFileResource {
+	convertChatResourceDescriptorToPromptFileResource(resource: vscode.ChatResourceDescriptor | vscode.ChatResourceUriDescriptor, extensionId: string): IPromptFileResource {
 		if (URI.isUri(resource)) {
 			// Plain URI
 			return { uri: resource };
