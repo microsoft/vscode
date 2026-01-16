@@ -148,7 +148,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 				this._terminal?.focus();
 			},
 		};
-		this._actionWidgetService.show('quickFixWidget', false, toActionWidgetItems(actionSet.validActions, true), delegate, this._currentRenderContext.anchor, this._currentRenderContext.parentElement);
+		this._actionWidgetService.show('quickFixWidget', false, toActionWidgetItems(actionSet.validActions, true), delegate, this._currentRenderContext.anchor, this._currentRenderContext.parentElement, undefined);
 	}
 
 	registerCommandSelector(selector: ITerminalCommandSelector): void {

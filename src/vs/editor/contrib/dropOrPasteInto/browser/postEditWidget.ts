@@ -143,7 +143,7 @@ class PostEditWidget<T extends DocumentPasteEdit | DocumentDropEdit> extends Dis
 					return this.onSelectNewEdit(i);
 				}
 			},
-		}, anchor, this.editor.getDomNode() ?? undefined, this.additionalActions);
+		}, anchor, this.editor.getDomNode() ?? undefined, undefined, this.additionalActions);
 	}
 }
 

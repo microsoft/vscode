@@ -353,6 +353,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 			delegate,
 			anchor,
 			editorDom,
+			undefined,
 			this._getActionBarActions(actions, at, options));
 	}
 

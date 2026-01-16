@@ -173,11 +173,11 @@ export class ActionWidgetDropdown extends BaseDropdown {
 		this.actionWidgetService.show<IActionWidgetDropdownAction>(
 			this._options.label ?? '',
 			false,
-			this._options.customHover,
 			actionWidgetItems,
 			actionWidgetDelegate,
 			this._options.getAnchor?.() ?? this.element,
 			undefined,
+			this._options.customHover,
 			actionBarActions,
 			accessibilityProvider
 		);
