@@ -15,7 +15,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { IEnvironmentService, INativeEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { TerminalContribSettingId } from '../terminalContribExports.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 
@@ -43,7 +43,7 @@ export class TerminalSandboxService implements ITerminalSandboxService {
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IFileService private readonly _fileService: IFileService,
-		@IEnvironmentService private readonly _environmentService: INativeEnvironmentService,
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@ILogService private readonly _logService: ILogService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 	) {
@@ -119,7 +119,7 @@ export class TerminalSandboxService implements ITerminalSandboxService {
 	private _initTempDir(): void {
 		if (this.isEnabled() && isNative) {
 			this._needsForceUpdateConfigFile = true;
-			const environmentService = this._environmentService;
+			const environmentService = this._environmentService as IEnvironmentService & { tmpDir?: URI };
 			this._tempDir = environmentService.tmpDir;
 			if (!this._tempDir) {
 				this._logService.warn('TerminalSandboxService: Cannot create sandbox settings file because no tmpDir is available in this environment');
