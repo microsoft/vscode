@@ -463,15 +463,13 @@ export class ActionList<T> extends Disposable {
 	private async onListHover(e: IListMouseEvent<IActionListItem<T>>) {
 		const element = e.element;
 
-		if (element) {
-			if (element.item && this.focusCondition(element)) {
-				if (this._delegate.onHover && !element.disabled && element.kind === ActionListItemKind.Action) {
-					const result = await this._delegate.onHover(element.item, this.cts.token);
-					element.canPreview = result ? result.canPreview : undefined;
-				}
-				if (e.index) {
-					this._list.splice(e.index, 1, [element]);
-				}
+		if (element && element.item && this.focusCondition(element)) {
+			if (this._delegate.onHover && !element.disabled && element.kind === ActionListItemKind.Action) {
+				const result = await this._delegate.onHover(element.item, this.cts.token);
+				element.canPreview = result ? result.canPreview : undefined;
+			}
+			if (e.index) {
+				this._list.splice(e.index, 1, [element]);
 			}
 
 			this._list.setFocus(typeof e.index === 'number' ? [e.index] : []);
