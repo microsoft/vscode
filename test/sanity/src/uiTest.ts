@@ -123,6 +123,7 @@ export class UITest {
 	 */
 	private async installExtension(page: Page) {
 		await this.runCommand(page, 'View: Show Extensions');
+		await page.waitForTimeout(500);
 		await page.waitForLoadState('networkidle');
 
 		this.context.log('Typing extension name to search for');
