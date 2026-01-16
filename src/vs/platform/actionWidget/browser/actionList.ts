@@ -207,7 +207,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		if (this._customHover && tooltipText) {
 			data.elementDisposables.add(this._hoverService.setupDelayedHover(
 				data.container,
-				{ content: tooltipText, position: this._customHover.position ?? { hoverPosition: HoverPosition.LEFT }, appearance: { showPointer: true } },
+				{ content: tooltipText, position: this._customHover.position, appearance: { showPointer: true } },
 				{ groupId: 'actionList' }
 			));
 			data.container.title = '';
