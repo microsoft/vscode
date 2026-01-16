@@ -297,10 +297,9 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 			return; // Setup has not started, assignments will use latest filters
 		}
 
-		// Check for metered connection before refetching
 		const respectMetered = this.configurationService.getValue<boolean>('update.respectMeteredConnections');
 		if (respectMetered && await isMeteredConnection()) {
-			return; // Skip refetch on metered connection
+			return;
 		}
 
 		// Await the client to be setup and the initial fetch to complete
