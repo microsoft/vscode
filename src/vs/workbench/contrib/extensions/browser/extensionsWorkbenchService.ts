@@ -1898,8 +1898,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		// Check if connection is metered before automatic update checks
-		const respectMeteredConnections = this.configurationService.getValue<boolean>('update.respectMeteredConnections');
-		if (!reason?.includes('manual') && respectMeteredConnections && isMeteredConnection()) {
+		const respectMetered = this.configurationService.getValue<boolean>('update.respectMeteredConnections');
+		if (!reason?.includes('manual') && respectMetered && isMeteredConnection()) {
 			this.logService.info('[Extensions]: Postponing update check due to metered connection');
 			return;
 		}
@@ -2130,8 +2130,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	private async autoUpdateExtensions(): Promise<void> {
 		// Check if connection is metered before auto-updating extensions
-		const respectMeteredConnections = this.configurationService.getValue<boolean>('update.respectMeteredConnections');
-		if (respectMeteredConnections && isMeteredConnection()) {
+		const respectMetered = this.configurationService.getValue<boolean>('update.respectMeteredConnections');
+		if (respectMetered && isMeteredConnection()) {
 			this.logService.info('[Extensions]: Postponing auto-update due to metered connection');
 			return;
 		}
