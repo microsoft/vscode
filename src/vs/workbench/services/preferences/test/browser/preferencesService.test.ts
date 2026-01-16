@@ -100,18 +100,18 @@ suite('PreferencesService', () => {
 			assert.strictEqual(options.query, undefined);
 		});
 
-		test('query with @ symbol should not be converted to revealSetting', async () => {
-			await jsonTestObject.openUserSettings({ query: '@feature:chat' });
+		test('query with @id: prefix should extract the setting key', async () => {
+			await jsonTestObject.openUserSettings({ query: '@id:editor.fontSize' });
 			const options = lastOpenEditorOptions as ISettingsEditorOptions;
-			assert.strictEqual(options.revealSetting, undefined);
-			assert.strictEqual(options.query, '@feature:chat');
+			assert.deepStrictEqual(options.revealSetting, { key: 'editor.fontSize' });
+			assert.strictEqual(options.query, undefined);
 		});
 
-		test('query with spaces should not be converted to revealSetting', async () => {
-			await jsonTestObject.openUserSettings({ query: 'editor fontSize' });
+		test('query with any format should be used as revealSetting key', async () => {
+			await jsonTestObject.openUserSettings({ query: '@feature:chat' });
 			const options = lastOpenEditorOptions as ISettingsEditorOptions;
-			assert.strictEqual(options.revealSetting, undefined);
-			assert.strictEqual(options.query, 'editor fontSize');
+			assert.deepStrictEqual(options.revealSetting, { key: '@feature:chat' });
+			assert.strictEqual(options.query, undefined);
 		});
 
 		test('existing revealSetting should not be overridden by query', async () => {

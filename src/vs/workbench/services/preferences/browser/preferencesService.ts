@@ -248,16 +248,15 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			jsonEditor: options.jsonEditor ?? this.shouldOpenJsonByDefault()
 		};
 
-		// When opening JSON editor with a query that looks like a setting key,
-		// convert it to revealSetting so the setting is revealed in the JSON file
+		// When opening JSON editor with a query, convert it to revealSetting
+		// so the setting is revealed in the JSON file
 		if (options.jsonEditor && options.query && !options.revealSetting) {
 			const query = options.query.trim();
-			// Check if query looks like a setting key (alphanumeric, dots, underscores, hyphens)
-			// and not a search query (containing @, spaces, or other special characters)
-			if (/^[\w.-]+$/.test(query)) {
-				options.revealSetting = { key: query };
-				options.query = undefined;
-			}
+			// First check for @id:setting.key format
+			const idMatch = query.match(/^@id:(.+)$/);
+			const settingKey = idMatch ? idMatch[1] : query;
+			options.revealSetting = { key: settingKey };
+			options.query = undefined;
 		}
 
 		return options.jsonEditor ?

@@ -1,0 +1,5 @@
+npm error Missing script: "build"
+npm error
+npm error To see a list of scripts, run:
+npm error   npm run
+npm error A complete log of this run can be found in: /home/runner/.npm/_logs/2026-01-16T18_22_06_306Z-debug-0.log
