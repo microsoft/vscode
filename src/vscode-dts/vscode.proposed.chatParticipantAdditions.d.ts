@@ -511,6 +511,21 @@ declare module 'vscode' {
 
 	export type ChatExtendedRequestHandler = (request: ChatRequest, context: ChatContext, response: ChatResponseStream, token: CancellationToken) => ProviderResult<ChatResult | void>;
 
+	/**
+	 * Token usage information for a chat request.
+	 */
+	export interface ChatResultUsage {
+		/**
+		 * The number of prompt tokens used in this request.
+		 */
+		readonly promptTokens: number;
+
+		/**
+		 * The number of completion tokens generated in this response.
+		 */
+		readonly completionTokens: number;
+	}
+
 	export interface ChatResult {
 		nextQuestion?: {
 			prompt: string;
@@ -521,6 +536,12 @@ declare module 'vscode' {
 		 * An optional detail string that will be rendered at the end of the response in certain UI contexts.
 		 */
 		details?: string;
+
+		/**
+		 * Token usage information for this request, if available.
+		 * This is typically provided by the underlying language model.
+		 */
+		readonly usage?: ChatResultUsage;
 	}
 
 	export namespace chat {
