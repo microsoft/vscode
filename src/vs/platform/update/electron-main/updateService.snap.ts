@@ -72,7 +72,7 @@ abstract class AbstractUpdateService implements IUpdateService {
 			const isMetered = await this.isConnectionMetered();
 			if (isMetered) {
 				this.logService.info('update#checkForUpdates - postponing update check due to metered connection');
-				this.scheduleCheckForUpdates(METERED_CONNECTION_POSTPONE_TIME);
+				// Don't schedule a new check - the existing recursive check will retry
 				return;
 			}
 		}
