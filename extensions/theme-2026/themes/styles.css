@@ -5,11 +5,6 @@
 
 /* Stealth Shadows - shadow-based depth for UI elements, controlled by workbench.stealthShadows.enabled */
 
-/* styles.css */
-.monaco-workbench {
-  --my-custom-color: blue;
-}
-
 /* Activity Bar */
 .monaco-workbench .part.activitybar { box-shadow: 0 0 6px rgba(0, 0, 0, 0.08); z-index: 50; position: relative; }
 .monaco-workbench.activitybar-right .part.activitybar { box-shadow: 0 0 6px rgba(0, 0, 0, 0.08); }
