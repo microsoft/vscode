@@ -57,14 +57,14 @@ jobs:
           sbomPackageVersion: $(Build.SourceVersion)
         - output: pipelineArtifact
           targetPath: $(Build.ArtifactStagingDirectory)/out/vscode_server_darwin_$(VSCODE_ARCH)_archive/vscode-server-darwin-$(VSCODE_ARCH).zip
-          artifactName: vscode_server_darwin_$(VSCODE_ARCH)_archive-unsigned
+          artifactName: vscode_server_darwin_$(VSCODE_ARCH)_archive
           displayName: Publish server archive
           sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH)
           sbomPackageName: "VS Code macOS $(VSCODE_ARCH) Server"
           sbomPackageVersion: $(Build.SourceVersion)
         - output: pipelineArtifact
           targetPath: $(Build.ArtifactStagingDirectory)/out/vscode_web_darwin_$(VSCODE_ARCH)_archive/vscode-server-darwin-$(VSCODE_ARCH)-web.zip
-          artifactName: vscode_web_darwin_$(VSCODE_ARCH)_archive-unsigned
+          artifactName: vscode_web_darwin_$(VSCODE_ARCH)_archive
           displayName: Publish web server archive
           sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH)-web
           sbomPackageName: "VS Code macOS $(VSCODE_ARCH) Web"
