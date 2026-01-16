@@ -1,5 +1,12 @@
 name: Code OSS Fast Build
 
+# This workflow builds Code OSS for win32-x64, darwin-arm64, and linux-x64 as quickly as possible.
+# It is manually triggered and leverages caching for node_modules and built-in extensions.
+# The workflow runs in three stages:
+# 1. Compile: Compiles the source code and creates a compilation artifact
+# 2. Platform builds: Builds for each platform in parallel using the compilation artifact
+# 3. Upload: Uploads the build artifacts for each platform
+
 on:
   workflow_dispatch:
 
