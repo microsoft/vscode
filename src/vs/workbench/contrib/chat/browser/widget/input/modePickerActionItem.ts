@@ -113,16 +113,19 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 					modes.custom,
 					mode => isModeConsideredBuiltIn(mode, this._productService) ? 'builtin' : 'custom');
 
-				const customBuiltinModeActions = customModes.builtin?.map(mode => {
+				const customBuiltinModeActions = (customModes.builtin?.map(mode => {
 					const action = makeActionFromCustomMode(mode, currentMode);
 					action.category = agentModeDisabledViaPolicy ? policyDisabledCategory : builtInCategory;
 					return action;
-				}) ?? [];
+				}) ?? []).sort((a, b) => a.label.localeCompare(b.label));
+
+				const customModeActions = (customModes.custom?.map(mode => makeActionFromCustomMode(mode, currentMode)) ?? []).sort((a, b) => a.label.localeCompare(b.label));
 
 				const orderedModes = coalesce([
 					agentMode && makeAction(agentMode, currentMode),
 					...otherBuiltinModes.map(mode => mode && makeAction(mode, currentMode)),
-					...customBuiltinModeActions, ...customModes.custom?.map(mode => makeActionFromCustomMode(mode, currentMode)) ?? []
+					...customBuiltinModeActions,
+					...customModeActions
 				]);
 				return orderedModes;
 			}
