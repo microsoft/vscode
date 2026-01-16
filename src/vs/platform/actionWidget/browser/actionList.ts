@@ -9,7 +9,7 @@ import { IListAccessibilityProvider, List } from '../../../base/browser/ui/list/
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { OS } from '../../../base/common/platform.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import './actionWidget.css';
@@ -320,6 +320,9 @@ export class ActionList<T> extends Disposable {
 		this._register(this._list.onMouseOver(e => this.onListHover(e)));
 		this._register(this._list.onDidChangeFocus(() => this.onFocus()));
 		this._register(this._list.onDidChangeSelection(e => this.onListSelection(e)));
+
+		// Ensure hover is hidden when ActionList is disposed
+		this._register(toDisposable(() => this._hoverService.hideHover()));
 
 		this._allMenuItems = items;
 		this._list.splice(0, this._list.length, this._allMenuItems);
