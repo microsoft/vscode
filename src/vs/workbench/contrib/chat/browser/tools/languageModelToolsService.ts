@@ -169,7 +169,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			'read',
 			SpecedToolAliases.read,
 			{
-				icon: ThemeIcon.fromId(Codicon.eye.id),
+				icon: ThemeIcon.fromId(Codicon.book.id),
 				description: localize('copilot.toolSet.read.description', 'Read files in your workspace'),
 			}
 		));

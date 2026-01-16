@@ -71,7 +71,7 @@ export class SearchableOptionPickerActionItem extends ChatSessionPickerActionIte
 				icon: optionItem.icon,
 				checked: isCurrent,
 				class: undefined,
-				description: undefined,
+				description: optionItem.description,
 				tooltip: optionItem.description ?? optionItem.name,
 				label: optionItem.name,
 				run: () => {

@@ -91,7 +91,7 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 				icon: optionItem.icon,
 				checked: isCurrent,
 				class: undefined,
-				description: undefined,
+				description: optionItem.description,
 				tooltip: optionItem.description ?? optionItem.name,
 				label: optionItem.name,
 				run: () => {
@@ -111,7 +111,7 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 			icon: option.icon,
 			checked: true,
 			class: undefined,
-			description: undefined,
+			description: option.description,
 			tooltip: option.description ?? option.name,
 			label: option.name,
 			run: () => { }

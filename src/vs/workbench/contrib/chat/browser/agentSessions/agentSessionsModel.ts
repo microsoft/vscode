@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { coalesce } from '../../../../../base/common/arrays.js';
 import { ThrottledDelayer } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -18,12 +19,11 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { ChatSessionStatus as AgentSessionStatus, IChatSessionFileChange, IChatSessionItem, IChatSessionsExtensionPoint, IChatSessionsService, isSessionInProgressStatus } from '../../common/chatSessionsService.js';
-import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from './agentSessions.js';
+import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName } from './agentSessions.js';
 
 //#region Interfaces, Types
 
-export { ChatSessionStatus as AgentSessionStatus } from '../../common/chatSessionsService.js';
-export { isSessionInProgressStatus } from '../../common/chatSessionsService.js';
+export { ChatSessionStatus as AgentSessionStatus, isSessionInProgressStatus } from '../../common/chatSessionsService.js';
 
 export interface IAgentSessionsModel {
 
@@ -278,23 +278,19 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			mapSessionContributionToType.set(contribution.type, contribution);
 		}
 
+		const providerFilter = providersToResolve.includes(undefined)
+			? undefined
+			: coalesce(providersToResolve);
+
+		const providerResults = await this.chatSessionsService.getChatSessionItems(providerFilter, token);
+
 		const resolvedProviders = new Set<string>();
 		const sessions = new ResourceMap<IInternalAgentSession>();
-		for (const provider of this.chatSessionsService.getAllChatSessionItemProviders()) {
-			if (!providersToResolve.includes(undefined) && !providersToResolve.includes(provider.chatSessionType)) {
-				continue; // skip: not considered for resolving
-			}
 
-			let providerSessions: IChatSessionItem[];
-			try {
-				providerSessions = await provider.provideChatSessionItems(token);
-				this.logService.trace(`[agent sessions] Resolved ${providerSessions.length} agent sessions for provider ${provider.chatSessionType}`);
-			} catch (error) {
-				this.logService.error(`Failed to resolve sessions for provider ${provider.chatSessionType}`, error);
-				continue; // skip: failed to resolve sessions for provider
-			}
+		for (const { chatSessionType, items: providerSessions } of providerResults) {
+			this.logService.trace(`[agent sessions] Resolved ${providerSessions.length} agent sessions for provider ${chatSessionType}`);
 
-			resolvedProviders.add(provider.chatSessionType);
+			resolvedProviders.add(chatSessionType);
 
 			if (token.isCancellationRequested) {
 				return;
@@ -305,23 +301,13 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 				// Icon + Label
 				let icon: ThemeIcon;
 				let providerLabel: string;
-				switch ((provider.chatSessionType)) {
-					case AgentSessionProviders.Local:
-						providerLabel = getAgentSessionProviderName(AgentSessionProviders.Local);
-						icon = getAgentSessionProviderIcon(AgentSessionProviders.Local);
-						break;
-					case AgentSessionProviders.Background:
-						providerLabel = getAgentSessionProviderName(AgentSessionProviders.Background);
-						icon = getAgentSessionProviderIcon(AgentSessionProviders.Background);
-						break;
-					case AgentSessionProviders.Cloud:
-						providerLabel = getAgentSessionProviderName(AgentSessionProviders.Cloud);
-						icon = getAgentSessionProviderIcon(AgentSessionProviders.Cloud);
-						break;
-					default: {
-						providerLabel = mapSessionContributionToType.get(provider.chatSessionType)?.name ?? provider.chatSessionType;
-						icon = session.iconPath ?? Codicon.terminal;
-					}
+				const agentSessionProvider = getAgentSessionProvider(chatSessionType);
+				if (agentSessionProvider !== undefined) {
+					providerLabel = getAgentSessionProviderName(agentSessionProvider);
+					icon = getAgentSessionProviderIcon(agentSessionProvider);
+				} else {
+					providerLabel = mapSessionContributionToType.get(chatSessionType)?.name ?? chatSessionType;
+					icon = session.iconPath ?? Codicon.terminal;
 				}
 
 				// State + Timings
@@ -381,7 +367,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 				}
 
 				sessions.set(session.resource, this.toAgentSession({
-					providerType: provider.chatSessionType,
+					providerType: chatSessionType,
 					providerLabel,
 					resource: session.resource,
 					label: session.label,
