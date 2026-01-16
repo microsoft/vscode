@@ -697,25 +697,53 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
-	public switchModelByIdOrName(idOrName: string): boolean {
-		// First try direct lookup by ID (more efficient)
-		const metadata = this.languageModelsService.lookupLanguageModel(idOrName);
-		if (metadata) {
-			this.setCurrentLanguageModel({ identifier: idOrName, metadata });
-			return true;
-		}
+	/**
+	 * Check if a model can be switched to by ID or name without actually switching.
+	 * Uses the same lookup logic as switchModelByIdOrName.
+	 */
+	public canSwitchToModel(idOrName: string): boolean {
+		return this.findModelByIdOrName(idOrName) !== undefined;
+	}
 
-		// Fall back to searching by qualified name or model name
-		const models = this.getModels();
-		const model = models.find(m =>
-			ILanguageModelChatMetadata.matchesQualifiedName(idOrName, m.metadata) ||
-			m.metadata.name === idOrName
-		);
+	public switchModelByIdOrName(idOrName: string): boolean {
+		const model = this.findModelByIdOrName(idOrName);
 		if (model) {
 			this.setCurrentLanguageModel(model);
 			return true;
 		}
 		return false;
+	}
+
+	/**
+	 * Find a model by ID, qualified name, or model name.
+	 * Returns undefined if no matching model is found in the available models.
+	 */
+	private findModelByIdOrName(idOrName: string): ILanguageModelChatMetadataAndIdentifier | undefined {
+		// First try direct lookup by ID, but only if the model is in our filtered list
+		const metadata = this.languageModelsService.lookupLanguageModel(idOrName);
+		if (metadata) {
+			const candidate = { identifier: idOrName, metadata };
+			// Verify the model is available (passes all filters)
+			if (this.isModelAvailable(candidate)) {
+				return candidate;
+			}
+		}
+
+		// Fall back to searching by qualified name or model name in available models
+		const models = this.getModels();
+		return models.find(m =>
+			ILanguageModelChatMetadata.matchesQualifiedName(idOrName, m.metadata) ||
+			m.metadata.name === idOrName
+		);
+	}
+
+	/**
+	 * Check if a model is available (passes all filters: isUserSelectable, modelSupportedForDefaultAgent, modelSupportedForInlineChat).
+	 */
+	private isModelAvailable(model: ILanguageModelChatMetadataAndIdentifier): boolean {
+		return !!model.metadata?.isUserSelectable &&
+			this.modelSupportedForDefaultAgent(model) &&
+			this.modelSupportedForInlineChat(model);
 	}
 
 	public switchToNextModel(): void {

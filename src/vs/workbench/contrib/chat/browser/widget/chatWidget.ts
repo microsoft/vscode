@@ -1171,7 +1171,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (shouldShow) {
 			// Log telemetry only when widget transitions from hidden to visible
 			const wasHidden = this.chatSuggestNextWidget.domNode.style.display === 'none';
-			this.chatSuggestNextWidget.render(currentMode);
+			this.chatSuggestNextWidget.render(currentMode, (model) => this.input.canSwitchToModel(model));
 
 			if (wasHidden) {
 				this.telemetryService.publicLog2<ChatHandoffWidgetShownEvent, ChatHandoffWidgetShownClassification>('chat.handoffWidgetShown', {

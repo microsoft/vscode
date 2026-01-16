@@ -66,7 +66,13 @@ export class ChatSuggestNextWidget extends Disposable {
 		return container;
 	}
 
-	public render(mode: IChatMode): void {
+	/**
+	 * Render the widget with the given mode's handoffs.
+	 * @param mode The current chat mode containing handoffs to display.
+	 * @param isModelAvailable Optional callback to check if a model is available for switching.
+	 *        If provided, handoffs with models that aren't available will be filtered out.
+	 */
+	public render(mode: IChatMode, isModelAvailable?: (model: string) => boolean): void {
 		const handoffs = mode.handOffs?.get();
 
 		if (!handoffs || handoffs.length === 0) {
@@ -74,25 +80,15 @@ export class ChatSuggestNextWidget extends Disposable {
 			return;
 		}
 
-		// Filter handoffs: if a model is specified, only show if that model exists and is usable
+		// Filter handoffs: if a model is specified, only show if that model is available
 		const visibleHandoffs = handoffs.filter(handoff => {
 			if (handoff.model) {
-				// Direct lookup by model identifier
-				let metadata = this.languageModelsService.lookupLanguageModel(handoff.model);
-
-				// Fallback: if not found by ID, search by model name
-				if (!metadata) {
-					for (const modelId of this.languageModelsService.getLanguageModelIds()) {
-						const candidateMetadata = this.languageModelsService.lookupLanguageModel(modelId);
-						if (candidateMetadata?.name === handoff.model) {
-							metadata = candidateMetadata;
-							break;
-						}
-					}
+				// Use the callback if provided, otherwise fall back to basic existence check
+				if (isModelAvailable) {
+					return isModelAvailable(handoff.model);
 				}
-
-				// Model must exist and be user selectable (configured and in picker)
-				return metadata !== undefined && metadata.isUserSelectable === true;
+				// Fallback: basic existence check (less accurate but works when callback not provided)
+				return this.languageModelsService.lookupLanguageModel(handoff.model) !== undefined;
 			}
 			return true;
 		});
