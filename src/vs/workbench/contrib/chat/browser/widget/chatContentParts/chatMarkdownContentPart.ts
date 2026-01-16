@@ -62,6 +62,7 @@ import { IDisposableReference } from './chatCollections.js';
 import { EditorPool } from './chatContentCodePools.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { ChatExtensionsContentPart } from './chatExtensionsContentPart.js';
+import { applyStreamingAnimation } from './chatStreamingAnimation.js';
 import './media/chatMarkdownPart.css';
 
 const $ = dom.$;
@@ -144,6 +145,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		}
 
 		const enableMath = configurationService.getValue<boolean>(ChatConfiguration.EnableMath);
+		const enableStreamingTokenAnimation = configurationService.getValue<boolean>(ChatConfiguration.StreamingTokenAnimation);
 
 		const doRenderMarkdown = () => {
 			if (this._store.isDisposed) {
@@ -316,6 +318,11 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				markedExtensions,
 				...markdownRenderOptions,
 			}, this.domNode));
+
+			// Apply streaming animation if enabled and this is an active response
+			if (isResponseVM(element)) {
+				applyStreamingAnimation(this.domNode, element, enableStreamingTokenAnimation);
+			}
 
 			// Ideally this would happen earlier, but we need to parse the markdown.
 			if (isResponseVM(element) && !element.model.codeBlockInfos && element.model.isComplete) {

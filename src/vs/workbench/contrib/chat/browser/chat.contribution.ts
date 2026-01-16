@@ -162,6 +162,11 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.fontFamily', "Controls the font family in chat messages."),
 			default: 'default'
 		},
+		'chat.streamingTokenAnimation': {
+			type: 'boolean',
+			description: nls.localize('chat.streamingTokenAnimation', "Controls whether streamed chat responses animate new text as it appears."),
+			default: true
+		},
 		'chat.editor.fontSize': {
 			type: 'number',
 			description: nls.localize('interactiveSession.editor.fontSize', "Controls the font size in pixels in chat codeblocks."),
