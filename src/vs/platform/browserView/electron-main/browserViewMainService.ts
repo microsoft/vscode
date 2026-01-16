@@ -16,7 +16,7 @@ import { generateUuid } from '../../../base/common/uuid.js';
 export const IBrowserViewMainService = createDecorator<IBrowserViewMainService>('browserViewMainService');
 
 export interface IBrowserViewMainService extends IBrowserViewService {
-	// Additional electron-specific methods can be added here if needed in the future
+	tryGetBrowserView(id: string): BrowserView | undefined;
 }
 
 // Same as webviews
@@ -94,6 +94,10 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		this.browserViews.set(id, view);
 
 		return view.getState();
+	}
+
+	tryGetBrowserView(id: string): BrowserView | undefined {
+		return this.browserViews.get(id);
 	}
 
 	/**

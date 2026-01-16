@@ -65,17 +65,17 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 		const taskDefinition = getTaskDefinition(args.id);
 		const task = await getTaskForTool(args.id, taskDefinition, args.workspaceFolder, this._configurationService, this._tasksService, true);
 		if (!task) {
-			return { invocationMessage: new MarkdownString(localize('copilotChat.taskNotFound', 'Task not found: `{0}`', args.id)) };
+			return { invocationMessage: new MarkdownString(localize('copilotChat.taskNotFound', 'Task not found: \`{0}\`', args.id)) };
 		}
 		const taskLabel = task._label;
 		const activeTasks = await this._tasksService.getActiveTasks();
 		if (activeTasks.includes(task)) {
-			return { invocationMessage: new MarkdownString(localize('copilotChat.taskAlreadyRunning', 'The task `{0}` is already running.', taskLabel)) };
+			return { invocationMessage: new MarkdownString(localize('copilotChat.taskAlreadyRunning', 'The task \`{0}\` is already running.', taskLabel)) };
 		}
 
 		return {
-			invocationMessage: new MarkdownString(localize('copilotChat.checkingTerminalOutput', 'Checking output for task `{0}`', taskLabel)),
-			pastTenseMessage: new MarkdownString(localize('copilotChat.checkedTerminalOutput', 'Checked output for task `{0}`', taskLabel)),
+			invocationMessage: new MarkdownString(localize('copilotChat.checkingTerminalOutput', 'Checking output for task \`{0}\`', taskLabel)),
+			pastTenseMessage: new MarkdownString(localize('copilotChat.checkedTerminalOutput', 'Checked output for task \`{0}\`', taskLabel)),
 		};
 	}
 
@@ -84,7 +84,7 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 		const taskDefinition = getTaskDefinition(args.id);
 		const task = await getTaskForTool(args.id, taskDefinition, args.workspaceFolder, this._configurationService, this._tasksService, true);
 		if (!task) {
-			return { content: [{ kind: 'text', value: `Task not found: ${args.id}` }], toolResultMessage: new MarkdownString(localize('copilotChat.taskNotFound', 'Task not found: `{0}`', args.id)) };
+			return { content: [{ kind: 'text', value: `Task not found: ${args.id}` }], toolResultMessage: new MarkdownString(localize('copilotChat.taskNotFound', 'Task not found: \`{0}\`', args.id)) };
 		}
 
 		const dependencyTasks = await resolveDependencyTasks(task, args.workspaceFolder, this._configurationService, this._tasksService);
@@ -92,7 +92,7 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 		const taskLabel = task._label;
 		const terminals = resources?.map(resource => this._terminalService.instances.find(t => t.resource.path === resource?.path && t.resource.scheme === resource.scheme)).filter(t => !!t);
 		if (!terminals || terminals.length === 0) {
-			return { content: [{ kind: 'text', value: `Terminal not found for task ${taskLabel}` }], toolResultMessage: new MarkdownString(localize('copilotChat.terminalNotFound', 'Terminal not found for task `{0}`', taskLabel)) };
+			return { content: [{ kind: 'text', value: `Terminal not found for task ${taskLabel}` }], toolResultMessage: new MarkdownString(localize('copilotChat.terminalNotFound', 'Terminal not found for task \`{0}\`', taskLabel)) };
 		}
 		const store = new DisposableStore();
 		const terminalResults = await collectTerminalResults(

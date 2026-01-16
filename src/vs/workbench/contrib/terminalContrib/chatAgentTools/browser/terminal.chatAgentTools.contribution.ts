@@ -49,6 +49,22 @@ class ShellIntegrationTimeoutMigrationContribution extends Disposable implements
 }
 registerWorkbenchContribution2(ShellIntegrationTimeoutMigrationContribution.ID, ShellIntegrationTimeoutMigrationContribution, WorkbenchPhase.Eventually);
 
+class OutputLocationMigrationContribution extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'terminal.outputLocationMigration';
+
+	constructor(
+		@IConfigurationService configurationService: IConfigurationService,
+	) {
+		super();
+		// Migrate legacy 'none' value to 'chat'
+		const currentValue = configurationService.getValue<unknown>(TerminalChatAgentToolsSettingId.OutputLocation);
+		if (currentValue === 'none') {
+			configurationService.updateValue(TerminalChatAgentToolsSettingId.OutputLocation, 'chat');
+		}
+	}
+}
+registerWorkbenchContribution2(OutputLocationMigrationContribution.ID, OutputLocationMigrationContribution, WorkbenchPhase.Eventually);
+
 class ChatAgentToolsContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'terminal.chatAgentTools';

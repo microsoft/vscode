@@ -11,11 +11,11 @@ import picomatch from 'picomatch';
 import { CancellationError, CancellationToken, CancellationTokenSource, Command, commands, Disposable, Event, EventEmitter, ExcludeSettingOptions, FileDecoration, FileType, l10n, LogLevel, LogOutputChannel, Memento, ProgressLocation, ProgressOptions, QuickDiffProvider, RelativePattern, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, TabInputNotebookDiff, TabInputTextDiff, TabInputTextMultiDiff, ThemeColor, ThemeIcon, Uri, window, workspace, WorkspaceEdit } from 'vscode';
 import { ActionButton } from './actionButton';
 import { ApiRepository } from './api/api1';
-import { Branch, BranchQuery, Change, CommitOptions, DiffChange, FetchOptions, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status } from './api/git';
+import { Branch, BranchQuery, Change, CommitOptions, DiffChange, FetchOptions, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefType, Remote, RepositoryKind, Status } from './api/git';
 import { AutoFetcher } from './autofetch';
 import { GitBranchProtectionProvider, IBranchProtectionProviderRegistry } from './branchProtection';
 import { debounce, memoize, sequentialize, throttle } from './decorators';
-import { Repository as BaseRepository, BlameInformation, Commit, CommitShortStat, GitError, LogFileOptions, LsTreeElement, PullOptions, RefQuery, Stash, Submodule, Worktree } from './git';
+import { Repository as BaseRepository, BlameInformation, Commit, CommitShortStat, GitError, IDotGit, LogFileOptions, LsTreeElement, PullOptions, RefQuery, Stash, Submodule, Worktree } from './git';
 import { GitHistoryProvider } from './historyProvider';
 import { Operation, OperationKind, OperationManager, OperationResult } from './operation';
 import { CommitCommandsCenter, IPostCommitCommandsProviderRegistry } from './postCommitCommands';
@@ -866,11 +866,11 @@ export class Repository implements Disposable {
 		return this.repository.rootRealPath;
 	}
 
-	get dotGit(): { path: string; commonPath?: string } {
+	get dotGit(): IDotGit {
 		return this.repository.dotGit;
 	}
 
-	get kind(): 'repository' | 'submodule' | 'worktree' {
+	get kind(): RepositoryKind {
 		return this.repository.kind;
 	}
 
@@ -1928,36 +1928,26 @@ export class Repository implements Disposable {
 
 		try {
 			// Copy files
-			let copiedFiles = 0;
-			const results = await window.withProgress({
-				location: ProgressLocation.Notification,
-				title: l10n.t('Copying additional files to the worktree'),
-				cancellable: false
-			}, async (progress) => {
-				const limiter = new Limiter<void>(10);
-				const files = Array.from(ignoredFiles);
+			const startTime = Date.now();
+			const limiter = new Limiter<void>(15);
+			const files = Array.from(ignoredFiles);
 
-				return Promise.allSettled(files.map(sourceFile =>
-					limiter.queue(async () => {
-						const targetFile = path.join(worktreePath, relativePath(this.root, sourceFile));
-						await fsPromises.mkdir(path.dirname(targetFile), { recursive: true });
-						await fsPromises.cp(sourceFile, targetFile, {
-							force: true,
-							recursive: false,
-							verbatimSymlinks: true
-						});
-
-						copiedFiles++;
-						progress.report({
-							increment: 100 / ignoredFiles.size,
-							message: l10n.t('({0}/{1})', copiedFiles, ignoredFiles.size)
-						});
-					})
-				));
-			});
+			const results = await Promise.allSettled(files.map(sourceFile =>
+				limiter.queue(async () => {
+					const targetFile = path.join(worktreePath, relativePath(this.root, sourceFile));
+					await fsPromises.mkdir(path.dirname(targetFile), { recursive: true });
+					await fsPromises.cp(sourceFile, targetFile, {
+						force: true,
+						mode: fs.constants.COPYFILE_FICLONE,
+						recursive: false,
+						verbatimSymlinks: true
+					});
+				})
+			));
 
 			// Log any failed operations
 			const failedOperations = results.filter(r => r.status === 'rejected');
+			this.logger.info(`[Repository][_copyWorktreeIncludeFiles] Copied ${files.length - failedOperations.length} files to worktree. Failed to copy ${failedOperations.length} files. [${Date.now() - startTime}ms]`);
 
 			if (failedOperations.length > 0) {
 				window.showWarningMessage(l10n.t('Failed to copy {0} files to the worktree.', failedOperations.length));

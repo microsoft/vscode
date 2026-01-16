@@ -95,18 +95,18 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 	) {
 		super(toolInvocation);
 
-		// Tag for sub-agent styling
-		if (toolInvocation.fromSubAgent) {
-			context.container.classList.add('from-sub-agent');
-		}
-
-		if (!toolInvocation.confirmationMessages?.title) {
+		const state = toolInvocation.state.get();
+		if (state.type !== IChatToolInvocation.StateKind.WaitingForConfirmation || !state.confirmationMessages?.title) {
 			throw new Error('Confirmation messages are missing');
 		}
 
 		terminalData = migrateLegacyTerminalToolSpecificData(terminalData);
 
-		const { title, message, disclaimer, terminalCustomActions } = toolInvocation.confirmationMessages;
+		const { title, message, disclaimer, terminalCustomActions } = state.confirmationMessages;
+
+		// Use pre-computed confirmation data from runInTerminalTool (cd prefix extraction happens there for localization)
+		const initialContent = terminalData.confirmation?.commandLine ?? (terminalData.commandLine.toolEdited ?? terminalData.commandLine.original).trimStart();
+		const cdPrefix = terminalData.confirmation?.cdPrefix ?? '';
 
 		const autoApproveEnabled = this.configurationService.getValue(TerminalContribSettingId.EnableAutoApprove) === true;
 		const autoApproveWarningAccepted = this.storageService.getBoolean(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION, false);
@@ -149,7 +149,6 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			}
 		};
 		const languageId = this.languageService.getLanguageIdByLanguageName(terminalData.language ?? 'sh') ?? 'shellscript';
-		const initialContent = (terminalData.commandLine.toolEdited ?? terminalData.commandLine.original).trimStart();
 		const model = this._register(this.modelService.createModel(
 			initialContent,
 			this.languageService.createById(languageId),
@@ -185,7 +184,12 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		this._register(model.onDidChangeContent(e => {
 			const currentValue = model.getValue();
 			// Only set userEdited if the content actually differs from the initial value
-			terminalData.commandLine.userEdited = currentValue !== initialContent ? currentValue : undefined;
+			// Prepend cd prefix back if it was extracted for display
+			if (currentValue !== initialContent) {
+				terminalData.commandLine.userEdited = cdPrefix + currentValue;
+			} else {
+				terminalData.commandLine.userEdited = undefined;
+			}
 		}));
 		const elements = h('.chat-confirmation-message-terminal', [
 			h('.chat-confirmation-message-terminal-editor@editor'),

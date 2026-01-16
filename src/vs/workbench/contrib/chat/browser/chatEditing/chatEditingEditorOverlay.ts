@@ -239,6 +239,7 @@ class ChatEditorOverlayWidget extends Disposable {
 							super.render(container);
 
 							if (action.id === AcceptAction.ID) {
+								this.element?.classList.add('primary');
 
 								const listener = this._store.add(new MutableDisposable());
 

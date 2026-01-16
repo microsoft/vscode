@@ -28,6 +28,7 @@ import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 import { ChatToolOutputSubPart } from './chatToolOutputPart.js';
 import { ChatToolPostExecuteConfirmationPart } from './chatToolPostExecuteConfirmationPart.js';
 import { ChatToolProgressSubPart } from './chatToolProgressPart.js';
+import { ChatToolStreamingSubPart } from './chatToolStreamingSubPart.js';
 
 export class ChatToolInvocationPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -67,9 +68,6 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		super();
 
 		this.domNode = dom.$('.chat-tool-invocation-part');
-		if (toolInvocation.fromSubAgent) {
-			this.domNode.classList.add('from-sub-agent');
-		}
 		if (toolInvocation.presentation === 'hidden') {
 			return;
 		}
@@ -147,6 +145,12 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				return this.instantiationService.createInstance(ExtensionsInstallConfirmationWidgetSubPart, this.toolInvocation, this.context);
 			}
 			const state = this.toolInvocation.state.get();
+
+			// Handle streaming state - show streaming progress
+			if (state.type === IChatToolInvocation.StateKind.Streaming) {
+				return this.instantiationService.createInstance(ChatToolStreamingSubPart, this.toolInvocation, this.context, this.renderer);
+			}
+
 			if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
 				if (this.toolInvocation.toolSpecificData?.kind === 'terminal') {
 					return this.instantiationService.createInstance(ChatTerminalToolConfirmationSubPart, this.toolInvocation, this.toolInvocation.toolSpecificData, this.context, this.renderer, this.editorPool, this.currentWidthDelegate, this.codeBlockModelCollection, this.codeBlockStartIndex);
