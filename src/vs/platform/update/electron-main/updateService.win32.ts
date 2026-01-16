@@ -53,6 +53,7 @@ function getUpdateType(): UpdateType {
 export class Win32UpdateService extends AbstractUpdateService implements IRelaunchHandler {
 
 	private availableUpdate: IAvailableUpdate | undefined;
+	private downloadedUpdateCheckHandle: ReturnType<typeof setTimeout> | undefined;
 
 	@memoize
 	get cachePath(): Promise<string> {
@@ -169,6 +170,9 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			return;
 		}
 
+		// Cancel any pending downloaded update checks
+		this.cancelDownloadedUpdateCheck();
+
 		const url = explicit ? this.url : `${this.url}?bg=true`;
 		this.setState(State.CheckingForUpdates(explicit));
 
@@ -191,9 +195,20 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 				return this.cleanup(update.version).then(() => {
 					return this.getUpdatePackagePath(update.version).then(updatePackagePath => {
-						return pfs.Promises.exists(updatePackagePath).then(exists => {
+						return pfs.Promises.exists(updatePackagePath).then(async exists => {
 							if (exists) {
-								return Promise.resolve(updatePackagePath);
+								// Before using the cached package, verify it's still the latest version
+								const latestUpdate = await this.getLatestAvailableUpdate();
+								if (latestUpdate && latestUpdate.version !== update.version) {
+									// A newer update is available, restart the check with the new version
+									this.logService.info(`update#doCheckForUpdates - newer update available: ${latestUpdate.version} (cached: ${update.version})`);
+									await this.cleanup();
+									this.setState(State.Idle(updateType));
+									// Schedule a new check without blocking
+									setTimeout(() => this.doCheckForUpdates(explicit), 0);
+									return null;
+								}
+								return updatePackagePath;
 							}
 
 							const downloadPath = `${updatePackagePath}.tmp`;
@@ -205,6 +220,10 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 								.then(() => updatePackagePath);
 						});
 					}).then(packagePath => {
+						if (packagePath === null) {
+							// Restarting check for newer update
+							return;
+						}
 						this.availableUpdate = { packagePath };
 						this.setState(State.Downloaded(update));
 
@@ -212,6 +231,9 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 						if (fastUpdatesEnabled) {
 							if (this.productService.target === 'user') {
 								this.doApplyUpdate();
+							} else {
+								// For system installs with fast updates, schedule periodic checks
+								this.scheduleDownloadedUpdateCheck();
 							}
 						} else {
 							this.setState(State.Ready(update));
@@ -258,6 +280,81 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		await Promise.all(promises);
 	}
 
+	/**
+	 * Gets the latest available update from the update server.
+	 * Returns null if no update is available or on error.
+	 */
+	private async getLatestAvailableUpdate(): Promise<IUpdate | null> {
+		if (!this.url) {
+			return null;
+		}
+
+		try {
+			const context = await this.requestService.request({ url: this.url }, CancellationToken.None);
+			// 204 means no update available
+			if (context.res.statusCode === 204) {
+				return null;
+			}
+			const update = await asJson<IUpdate>(context);
+			if (!update || !update.url || !update.version || !update.productVersion) {
+				return null;
+			}
+			return update;
+		} catch (error) {
+			this.logService.error('update#getLatestAvailableUpdate(): failed to check for updates');
+			this.logService.error(error);
+			return null;
+		}
+	}
+
+	/**
+	 * Schedules periodic checks for new updates while in the Downloaded state.
+	 * If a newer update is available, it restarts the download process.
+	 */
+	private scheduleDownloadedUpdateCheck(): void {
+		this.cancelDownloadedUpdateCheck();
+
+		// Check every 30 minutes if there's a newer update
+		this.downloadedUpdateCheckHandle = setTimeout(async () => {
+			if (this.state.type !== StateType.Downloaded) {
+				return;
+			}
+
+			this.logService.info('update#scheduleDownloadedUpdateCheck - checking for newer update');
+
+			const latestUpdate = await this.getLatestAvailableUpdate();
+			if (!latestUpdate) {
+				// No newer update or error, schedule another check
+				this.scheduleDownloadedUpdateCheck();
+				return;
+			}
+
+			// Compare versions - if the latest is different from downloaded, restart the download
+			const currentDownloadedVersion = this.state.update.version;
+			if (latestUpdate.version !== currentDownloadedVersion) {
+				this.logService.info(`update#scheduleDownloadedUpdateCheck - newer update available: ${latestUpdate.version} (downloaded: ${currentDownloadedVersion})`);
+
+				// Clean up the old downloaded update and restart the update process
+				await this.cleanup();
+				this.availableUpdate = undefined;
+				this.setState(State.Idle(getUpdateType()));
+
+				// Trigger a new update check
+				this.doCheckForUpdates(false);
+			} else {
+				// Same version, schedule another check
+				this.scheduleDownloadedUpdateCheck();
+			}
+		}, 30 * 60 * 1000 /* 30 minutes */);
+	}
+
+	private cancelDownloadedUpdateCheck(): void {
+		if (this.downloadedUpdateCheckHandle) {
+			clearTimeout(this.downloadedUpdateCheckHandle);
+			this.downloadedUpdateCheckHandle = undefined;
+		}
+	}
+
 	protected override async doApplyUpdate(): Promise<void> {
 		if (this.state.type !== StateType.Downloaded) {
 			return Promise.resolve(undefined);
@@ -265,6 +362,23 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 		if (!this.availableUpdate) {
 			return Promise.resolve(undefined);
+		}
+
+		// Cancel any pending downloaded update checks
+		this.cancelDownloadedUpdateCheck();
+
+		// Before applying the update, check if there's a newer version available
+		const currentUpdate = this.state.update;
+		const latestUpdate = await this.getLatestAvailableUpdate();
+		if (latestUpdate && latestUpdate.version !== currentUpdate.version) {
+			this.logService.info(`update#doApplyUpdate - newer update available: ${latestUpdate.version} (downloaded: ${currentUpdate.version})`);
+			// A newer update is available, restart the update process
+			await this.cleanup();
+			this.availableUpdate = undefined;
+			this.setState(State.Idle(getUpdateType()));
+			// Trigger a new update check
+			this.doCheckForUpdates(false);
+			return;
 		}
 
 		const update = this.state.update;

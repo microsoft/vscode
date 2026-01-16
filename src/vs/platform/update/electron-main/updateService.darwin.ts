@@ -13,7 +13,8 @@ import { IEnvironmentMainService } from '../../environment/electron-main/environ
 import { ILifecycleMainService, IRelaunchHandler, IRelaunchOptions } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
-import { IRequestService } from '../../request/common/request.js';
+import { asJson, IRequestService } from '../../request/common/request.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IUpdate, State, StateType, UpdateType } from '../common/update.js';
 import { AbstractUpdateService, createUpdateURL, UpdateErrorClassification } from './abstractUpdateService.js';
@@ -21,6 +22,8 @@ import { AbstractUpdateService, createUpdateURL, UpdateErrorClassification } fro
 export class DarwinUpdateService extends AbstractUpdateService implements IRelaunchHandler {
 
 	private readonly disposables = new DisposableStore();
+	private downloadedUpdate: IUpdate | undefined;
+	private readyUpdateCheckHandle: ReturnType<typeof setTimeout> | undefined;
 
 	@memoize private get onRawError(): Event<string> { return Event.fromNodeEventEmitter(electron.autoUpdater, 'error', (_, message) => message); }
 	@memoize private get onRawUpdateNotAvailable(): Event<void> { return Event.fromNodeEventEmitter<void>(electron.autoUpdater, 'update-not-available'); }
@@ -96,6 +99,9 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 			return;
 		}
 
+		// Cancel any pending ready update checks
+		this.cancelReadyUpdateCheck();
+
 		this.setState(State.CheckingForUpdates(explicit));
 
 		const url = explicit ? this.url : `${this.url}?bg=true`;
@@ -116,6 +122,7 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 			return;
 		}
 
+		this.downloadedUpdate = update;
 		this.setState(State.Downloaded(update));
 
 		type UpdateDownloadedClassification = {
@@ -126,6 +133,9 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 		this.telemetryService.publicLog2<{ newVersion: String }, UpdateDownloadedClassification>('update:downloaded', { newVersion: update.version });
 
 		this.setState(State.Ready(update));
+
+		// Schedule periodic checks for newer updates while in Ready state
+		this.scheduleReadyUpdateCheck();
 	}
 
 	private onUpdateNotAvailable(): void {
@@ -136,12 +146,87 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 		this.setState(State.Idle(UpdateType.Archive));
 	}
 
+	/**
+	 * Gets the latest available update from the update server.
+	 * Returns null if no update is available or on error.
+	 */
+	private async getLatestAvailableUpdate(): Promise<IUpdate | null> {
+		if (!this.url) {
+			return null;
+		}
+
+		try {
+			const context = await this.requestService.request({ url: this.url }, CancellationToken.None);
+			// 204 means no update available
+			if (context.res.statusCode === 204) {
+				return null;
+			}
+			const update = await asJson<IUpdate>(context);
+			if (!update || !update.version || !update.productVersion) {
+				return null;
+			}
+			return update;
+		} catch (error) {
+			this.logService.error('update#getLatestAvailableUpdate(): failed to check for updates');
+			this.logService.error(error);
+			return null;
+		}
+	}
+
+	/**
+	 * Schedules periodic checks for new updates while in the Ready state.
+	 * If a newer update is available, it restarts the update process.
+	 */
+	private scheduleReadyUpdateCheck(): void {
+		this.cancelReadyUpdateCheck();
+
+		// Check every 30 minutes if there's a newer update
+		this.readyUpdateCheckHandle = setTimeout(async () => {
+			if (this.state.type !== StateType.Ready || !this.downloadedUpdate) {
+				return;
+			}
+
+			this.logService.info('update#scheduleReadyUpdateCheck - checking for newer update');
+
+			const latestUpdate = await this.getLatestAvailableUpdate();
+			if (!latestUpdate) {
+				// No newer update or error, schedule another check
+				this.scheduleReadyUpdateCheck();
+				return;
+			}
+
+			// Compare versions - if the latest is different from downloaded, restart the update process
+			if (latestUpdate.version !== this.downloadedUpdate.version) {
+				this.logService.info(`update#scheduleReadyUpdateCheck - newer update available: ${latestUpdate.version} (downloaded: ${this.downloadedUpdate.version})`);
+
+				// Restart the update process to get the newer version
+				this.downloadedUpdate = undefined;
+				this.setState(State.Idle(UpdateType.Archive));
+
+				// Trigger a new update check
+				this.doCheckForUpdates(false);
+			} else {
+				// Same version, schedule another check
+				this.scheduleReadyUpdateCheck();
+			}
+		}, 30 * 60 * 1000 /* 30 minutes */);
+	}
+
+	private cancelReadyUpdateCheck(): void {
+		if (this.readyUpdateCheckHandle) {
+			clearTimeout(this.readyUpdateCheckHandle);
+			this.readyUpdateCheckHandle = undefined;
+		}
+	}
+
 	protected override doQuitAndInstall(): void {
+		this.cancelReadyUpdateCheck();
 		this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
 		electron.autoUpdater.quitAndInstall();
 	}
 
 	dispose(): void {
+		this.cancelReadyUpdateCheck();
 		this.disposables.dispose();
 	}
 }
