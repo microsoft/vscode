@@ -2302,6 +2302,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		const modifiedEntries = derivedOpts<IModifiedFileEntry[]>({ equalsFn: arraysEqual }, r => {
+			// Background chat sessions render the working set based on the session files, and not the editing session
+			const sessionResource = chatEditingSession?.chatSessionResource ?? this._widget?.viewModel?.model.sessionResource;
+			if (sessionResource && getChatSessionType(sessionResource) !== localChatSessionType) {
+				return [];
+			}
+
 			return chatEditingSession?.entries.read(r).filter(entry => entry.state.read(r) === ModifiedFileEntryState.Modified) || [];
 		});
 
@@ -2368,19 +2374,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}))
 		);
 
-		const shouldRender = derived(reader => {
-			const sessionFilesLength = sessionFiles.read(reader).length;
-			const editSessionEntriesLength = editSessionEntries.read(reader).length;
-
-			const sessionResource = chatEditingSession?.chatSessionResource ?? this._widget?.viewModel?.model.sessionResource;
-			if (sessionResource && getChatSessionType(sessionResource) === localChatSessionType) {
-				return sessionFilesLength > 0 || editSessionEntriesLength > 0;
-			}
-
-			// For background sessions, only render the
-			// working set when there are session files
-			return sessionFilesLength > 0;
-		});
+		const shouldRender = derived(reader =>
+			editSessionEntries.read(reader).length > 0 || sessionFiles.read(reader).length > 0);
 
 		this._renderingChatEdits.value = autorun(reader => {
 			if (this.options.renderWorkingSet && shouldRender.read(reader)) {
@@ -2588,21 +2583,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const editEntries = editSessionEntries.read(reader);
 			const sessionFileEntries = sessionEntries.read(reader) ?? [];
 
-			// Combine entries with an optional divider
-			const allEntries: IChatCollapsibleListItem[] = [...editEntries];
-			if (sessionFileEntries.length > 0) {
-				if (editEntries.length > 0) {
-					// Add divider between edit session entries and session file entries
-					allEntries.push({
-						kind: 'divider',
-						label: localize('chatEditingSession.allChanges', 'Worktree Changes'),
-						menuId: MenuId.ChatEditingSessionChangesToolbar,
-						menuArg: sessionResource,
-						scopedInstantiationService,
-					});
-				}
-				allEntries.push(...sessionFileEntries);
-			}
+			// Combine edit session entries with session file changes. At the moment, we
+			// we can combine these two arrays since local chat sessions use edit session
+			// entries, while background chat sessions use session file changes.
+			const allEntries = editEntries.concat(sessionFileEntries);
 
 			const maxItemsShown = 6;
 			const itemsShown = Math.min(allEntries.length, maxItemsShown);
