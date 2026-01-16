@@ -166,6 +166,12 @@ export function isAgentSessionSection(obj: unknown): obj is IAgentSessionSection
 export interface IMarshalledAgentSessionContext {
 	readonly $mid: MarshalledId.AgentSessionContext;
 	readonly session: IAgentSession;
+	/**
+	 * The sessions to operate on. If multiple sessions are selected,
+	 * this will contain all selected sessions. Otherwise, it will
+	 * contain only the clicked session.
+	 */
+	readonly sessions: IAgentSession[];
 }
 
 export function isMarshalledAgentSessionContext(thing: unknown): thing is IMarshalledAgentSessionContext {

@@ -135,7 +135,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				dnd: this.instantiationService.createInstance(AgentSessionsDragAndDrop),
 				identityProvider: new AgentSessionsIdentityProvider(),
 				horizontalScrolling: false,
-				multipleSelectionSupport: false,
+				multipleSelectionSupport: true,
 				findWidgetEnabled: true,
 				defaultFindMode: TreeFindMode.Filter,
 				keyboardNavigationLabelProvider: new AgentSessionsKeyboardNavigationLabelProvider(),
@@ -241,11 +241,15 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 		const menu = this.menuService.createMenu(MenuId.AgentSessionsContext, this.contextKeyService.createOverlay(contextOverlay));
 
-		const marshalledSession: IMarshalledAgentSessionContext = { session, $mid: MarshalledId.AgentSessionContext };
+		// Get selection for multi-select operations
+		const selection = this.sessionsList?.getSelection().filter(isAgentSession) ?? [];
+		const sessions = selection.length > 1 && selection.includes(session) ? selection : [session];
+
+		const marshalledContext: IMarshalledAgentSessionContext = { session, sessions, $mid: MarshalledId.AgentSessionContext };
 		this.contextMenuService.showContextMenu({
-			getActions: () => Separator.join(...menu.getActions({ arg: marshalledSession, shouldForwardArgs: true }).map(([, actions]) => actions)),
+			getActions: () => Separator.join(...menu.getActions({ arg: marshalledContext, shouldForwardArgs: true }).map(([, actions]) => actions)),
 			getAnchor: () => anchor,
-			getActionsContext: () => marshalledSession,
+			getActionsContext: () => marshalledContext,
 		});
 
 		menu.dispose();

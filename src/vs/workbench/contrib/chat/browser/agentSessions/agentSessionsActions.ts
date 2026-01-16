@@ -390,24 +390,29 @@ abstract class BaseAgentSessionAction extends Action2 {
 		const agentSessionsService = accessor.get(IAgentSessionsService);
 		const viewsService = accessor.get(IViewsService);
 
-		let session: IAgentSession | undefined;
+		let sessions: IAgentSession[] = [];
 		if (isMarshalledAgentSessionContext(context)) {
-			session = agentSessionsService.getSession(context.session.resource);
-		} else {
-			session = context;
+			// Use the sessions array if available (multi-select), otherwise fall back to single session
+			const contextSessions = context.sessions ?? [context.session];
+			sessions = contextSessions.map(s => agentSessionsService.getSession(s.resource)).filter((s): s is IAgentSession => !!s);
+		} else if (context) {
+			sessions = [context];
 		}
 
-		if (!session) {
+		if (sessions.length === 0) {
 			const chatView = viewsService.getActiveViewWithId<ChatViewPane>(ChatViewId);
-			session = chatView?.getFocusedSessions().at(0);
+			const focused = chatView?.getFocusedSessions().at(0);
+			if (focused) {
+				sessions = [focused];
+			}
 		}
 
-		if (session) {
-			await this.runWithSession(session, accessor);
+		if (sessions.length > 0) {
+			await this.runWithSessions(sessions, accessor);
 		}
 	}
 
-	abstract runWithSession(session: IAgentSession, accessor: ServicesAccessor): Promise<void> | void;
+	abstract runWithSessions(sessions: IAgentSession[], accessor: ServicesAccessor): Promise<void> | void;
 }
 
 export class MarkAgentSessionUnreadAction extends BaseAgentSessionAction {
@@ -428,8 +433,10 @@ export class MarkAgentSessionUnreadAction extends BaseAgentSessionAction {
 		});
 	}
 
-	runWithSession(session: IAgentSession): void {
-		session.setRead(false);
+	runWithSessions(sessions: IAgentSession[]): void {
+		for (const session of sessions) {
+			session.setRead(false);
+		}
 	}
 }
 
@@ -451,8 +458,10 @@ export class MarkAgentSessionReadAction extends BaseAgentSessionAction {
 		});
 	}
 
-	runWithSession(session: IAgentSession): void {
-		session.setRead(true);
+	runWithSessions(sessions: IAgentSession[]): void {
+		for (const session of sessions) {
+			session.setRead(true);
+		}
 	}
 }
 
@@ -486,20 +495,23 @@ export class ArchiveAgentSessionAction extends BaseAgentSessionAction {
 		});
 	}
 
-	async runWithSession(session: IAgentSession, accessor: ServicesAccessor): Promise<void> {
+	async runWithSessions(sessions: IAgentSession[], accessor: ServicesAccessor): Promise<void> {
 		const chatService = accessor.get(IChatService);
-		const chatModel = chatService.getSession(session.resource);
 		const dialogService = accessor.get(IDialogService);
 
-		if (chatModel && !await showClearEditingSessionConfirmation(chatModel, dialogService, {
-			isArchiveAction: true,
-			titleOverride: localize('archiveSession', "Archive chat with pending edits?"),
-			messageOverride: localize('archiveSessionDescription', "You have pending changes in this chat session.")
-		})) {
-			return;
-		}
+		for (const session of sessions) {
+			const chatModel = chatService.getSession(session.resource);
 
-		session.setArchived(true);
+			if (chatModel && !await showClearEditingSessionConfirmation(chatModel, dialogService, {
+				isArchiveAction: true,
+				titleOverride: localize('archiveSession', "Archive chat with pending edits?"),
+				messageOverride: localize('archiveSessionDescription', "You have pending changes in this chat session.")
+			})) {
+				continue;
+			}
+
+			session.setArchived(true);
+		}
 	}
 }
 
@@ -535,8 +547,10 @@ export class UnarchiveAgentSessionAction extends BaseAgentSessionAction {
 		});
 	}
 
-	runWithSession(session: IAgentSession): void {
-		session.setArchived(false);
+	runWithSessions(sessions: IAgentSession[]): void {
+		for (const session of sessions) {
+			session.setArchived(false);
+		}
 	}
 }
 
@@ -566,7 +580,12 @@ export class RenameAgentSessionAction extends BaseAgentSessionAction {
 		});
 	}
 
-	async runWithSession(session: IAgentSession, accessor: ServicesAccessor): Promise<void> {
+	async runWithSessions(sessions: IAgentSession[], accessor: ServicesAccessor): Promise<void> {
+		const session = sessions[0];
+		if (!session) {
+			return;
+		}
+
 		const quickInputService = accessor.get(IQuickInputService);
 		const chatService = accessor.get(IChatService);
 
@@ -592,7 +611,12 @@ export class DeleteAgentSessionAction extends BaseAgentSessionAction {
 		});
 	}
 
-	async runWithSession(session: IAgentSession, accessor: ServicesAccessor): Promise<void> {
+	async runWithSessions(sessions: IAgentSession[], accessor: ServicesAccessor): Promise<void> {
+		const session = sessions[0];
+		if (!session) {
+			return;
+		}
+
 		const chatService = accessor.get(IChatService);
 		const dialogService = accessor.get(IDialogService);
 		const widgetService = accessor.get(IChatWidgetService);
@@ -660,7 +684,12 @@ export class DeleteAllLocalSessionsAction extends Action2 {
 
 abstract class BaseOpenAgentSessionAction extends BaseAgentSessionAction {
 
-	async runWithSession(session: IAgentSession, accessor: ServicesAccessor): Promise<void> {
+	async runWithSessions(sessions: IAgentSession[], accessor: ServicesAccessor): Promise<void> {
+		const session = sessions[0];
+		if (!session) {
+			return;
+		}
+
 		const chatWidgetService = accessor.get(IChatWidgetService);
 
 		const uri = session.resource;
