@@ -450,7 +450,7 @@ suite('RunInTerminalTool', () => {
 				explanation: 'Start watching for file changes',
 				isBackground: true
 			});
-			assertConfirmationRequired(result, 'Run `bash` command? (background terminal)');
+			assertConfirmationRequired(result, 'Run `bash` command in background?');
 		});
 
 		test('should auto-approve background commands in allow list', async () => {

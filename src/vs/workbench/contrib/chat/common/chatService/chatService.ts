@@ -387,6 +387,17 @@ export interface IChatTerminalToolInvocationData {
 		/** The cd prefix to prepend back when user edits */
 		cdPrefix?: string;
 	};
+	/**
+	 * Overrides to apply to the presentation of the tool call only, but not actually change the
+	 * command that gets run. For example, python -c "print('hello')" can be presented as just
+	 * the Python code with Python syntax highlighting.
+	 */
+	presentationOverrides?: {
+		/** The command line to display in the UI */
+		commandLine: string;
+		/** The language for syntax highlighting */
+		language: string;
+	};
 	/** Message for model recommending the use of an alternative tool */
 	alternativeRecommendation?: string;
 	language: string;
