@@ -756,6 +756,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	public async getChatSessionItems(providersToResolve: readonly string[] | undefined, token: CancellationToken): Promise<Array<{ readonly chatSessionType: string; readonly items: IChatSessionItem[] }>> {
 		const results: Array<{ readonly chatSessionType: string; readonly items: IChatSessionItem[] }> = [];
+		const resolvedProviderTypes = new Set<string>();
+
+		// First, iterate over extension point contributions
 		for (const contrib of this.getAllChatSessionContributions()) {
 			if (providersToResolve && !providersToResolve.includes(contrib.type)) {
 				continue; // skip: not considered for resolving
@@ -774,9 +777,30 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				const providerSessions = await raceCancellationError(provider.provideChatSessionItems(token), token);
 				this._logService.trace(`[ChatSessionsService] Resolved ${providerSessions.length} sessions for provider ${provider.chatSessionType}`);
 				results.push({ chatSessionType: provider.chatSessionType, items: providerSessions });
+				resolvedProviderTypes.add(provider.chatSessionType);
 			} catch (error) {
 				// Log error but continue with other providers
 				this._logService.error(`[ChatSessionsService] Failed to resolve sessions for provider ${provider.chatSessionType}`, error);
+				continue;
+			}
+		}
+
+		// Also include registered items providers that don't have corresponding contributions
+		// (e.g., the local session provider which is built-in and not an extension contribution)
+		for (const [chatSessionType, provider] of this._itemsProviders) {
+			if (resolvedProviderTypes.has(chatSessionType)) {
+				continue; // already resolved via contribution
+			}
+			if (providersToResolve && !providersToResolve.includes(chatSessionType)) {
+				continue; // skip: not considered for resolving
+			}
+
+			try {
+				const providerSessions = await raceCancellationError(provider.provideChatSessionItems(token), token);
+				this._logService.trace(`[ChatSessionsService] Resolved ${providerSessions.length} sessions for built-in provider ${chatSessionType}`);
+				results.push({ chatSessionType, items: providerSessions });
+			} catch (error) {
+				this._logService.error(`[ChatSessionsService] Failed to resolve sessions for built-in provider ${chatSessionType}`, error);
 				continue;
 			}
 		}
@@ -1134,7 +1158,11 @@ async function openChatSession(accessor: ServicesAccessor, openOptions: NewChatS
 		switch (openOptions.position) {
 			case ChatSessionPosition.Sidebar: {
 				const view = await viewsService.openView(ChatViewId) as ChatViewPane;
-				await view.loadSession(resource);
+				if (openOptions.type === AgentSessionProviders.Local) {
+					await view.widget.clear();
+				} else {
+					await view.loadSession(resource);
+				}
 				view.focus();
 				break;
 			}

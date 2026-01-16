@@ -21,7 +21,7 @@ interface IRawChatFileContribution {
 	readonly description?: string;
 }
 
-type ChatContributionPoint = 'chatPromptFiles' | 'chatInstructions' | 'chatAgents';
+type ChatContributionPoint = 'chatPromptFiles' | 'chatInstructions' | 'chatAgents' | 'chatSkills';
 
 function registerChatFilesExtensionPoint(point: ChatContributionPoint) {
 	return extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawChatFileContribution[]>({
@@ -62,12 +62,14 @@ function registerChatFilesExtensionPoint(point: ChatContributionPoint) {
 const epPrompt = registerChatFilesExtensionPoint('chatPromptFiles');
 const epInstructions = registerChatFilesExtensionPoint('chatInstructions');
 const epAgents = registerChatFilesExtensionPoint('chatAgents');
+const epSkills = registerChatFilesExtensionPoint('chatSkills');
 
 function pointToType(contributionPoint: ChatContributionPoint): PromptsType {
 	switch (contributionPoint) {
 		case 'chatPromptFiles': return PromptsType.prompt;
 		case 'chatInstructions': return PromptsType.instructions;
 		case 'chatAgents': return PromptsType.agent;
+		case 'chatSkills': return PromptsType.skill;
 	}
 }
 
@@ -86,6 +88,7 @@ export class ChatPromptFilesExtensionPointHandler implements IWorkbenchContribut
 		this.handle(epPrompt, 'chatPromptFiles');
 		this.handle(epInstructions, 'chatInstructions');
 		this.handle(epAgents, 'chatAgents');
+		this.handle(epSkills, 'chatSkills');
 	}
 
 	private handle(extensionPoint: extensionsRegistry.IExtensionPoint<IRawChatFileContribution[]>, contributionPoint: ChatContributionPoint) {
@@ -136,15 +139,16 @@ CommandsRegistry.registerCommand('_listExtensionPromptFiles', async (accessor): 
 	const promptsService = accessor.get(IPromptsService);
 
 	// Get extension prompt files for all prompt types in parallel
-	const [agents, instructions, prompts] = await Promise.all([
+	const [agents, instructions, prompts, skills] = await Promise.all([
 		promptsService.listPromptFiles(PromptsType.agent, CancellationToken.None),
 		promptsService.listPromptFiles(PromptsType.instructions, CancellationToken.None),
 		promptsService.listPromptFiles(PromptsType.prompt, CancellationToken.None),
+		promptsService.listPromptFiles(PromptsType.skill, CancellationToken.None),
 	]);
 
 	// Combine all files and collect extension-contributed ones
 	const result: IExtensionPromptFileResult[] = [];
-	for (const file of [...agents, ...instructions, ...prompts]) {
+	for (const file of [...agents, ...instructions, ...prompts, ...skills]) {
 		if (file.storage === PromptsStorage.extension) {
 			result.push({ uri: file.uri.toJSON(), type: file.type });
 		}

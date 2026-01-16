@@ -196,7 +196,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.AgentStatusEnabled]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.agentsControl.enabled', "Controls whether the Agent Status is shown in the title bar command center, replacing the search box with quick access to chat sessions."),
-			default: true,
+			default: false,
 			tags: ['experimental']
 		},
 		[ChatConfiguration.AgentSessionProjectionEnabled]: {
@@ -347,12 +347,6 @@ configurationRegistry.registerConfiguration({
 				},
 			}
 		},
-		[ChatConfiguration.SuspendThrottling]: { // TODO@deepak1556 remove this once https://github.com/microsoft/vscode/issues/263554 is resolved.
-			type: 'boolean',
-			description: nls.localize('chat.suspendThrottling', "Controls whether background throttling is suspended when a chat request is in progress, allowing the chat session to continue even when the window is not in focus."),
-			default: true,
-			tags: ['preview']
-		},
 		'chat.sendElementsToChat.enabled': {
 			default: true,
 			description: nls.localize('chat.sendElementsToChat.enabled', "Controls whether elements can be sent to chat from the Simple Browser."),
@@ -386,6 +380,11 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true,
 			description: nls.localize('chat.viewSessions.enabled', "Show chat agent sessions when chat is empty or to the side when chat view is wide enough."),
+		},
+		[ChatConfiguration.ChatViewSessionsShowRecentOnly]: {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('chat.viewSessions.showRecentOnly', "When enabled, only show recent sessions in the stacked sessions view. When disabled, show all sessions."),
 		},
 		[ChatConfiguration.ChatViewSessionsOrientation]: {
 			type: 'string',

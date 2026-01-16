@@ -17,7 +17,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ExitAgentSessionProjectionAction } from './agentSessionProjectionActions.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
-import { isSessionInProgressStatus } from './agentSessionsModel.js';
+import { AgentSessionStatus, IAgentSession, isSessionInProgressStatus } from './agentSessionsModel.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../../base/common/actions.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
@@ -27,10 +27,13 @@ import { IEditorGroupsService } from '../../../../services/editor/common/editorG
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { Verbosity } from '../../../../common/editor.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
+import { openSession } from './agentSessionsOpener.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 
-const OPEN_CHAT_ACTION_ID = 'workbench.action.chat.open';
-const QUICK_CHAT_ACTION_ID = 'workbench.action.quickchat.toggle';
-const QUICK_OPEN_ACTION_ID = 'workbench.action.quickOpenWithModes';
+// Action triggered when clicking the main pill - change this to modify the primary action
+const ACTION_ID = 'workbench.action.quickchat.toggle';
+const SEARCH_BUTTON_ACITON_ID = 'workbench.action.quickOpenWithModes';
 
 const NLS_EXTENSION_HOST = localize('devExtensionWindowTitlePrefix', "[Extension Development Host]");
 const TITLE_DIRTY = '\u25cf ';
@@ -49,9 +52,16 @@ export class AgentStatusWidget extends BaseActionViewItem {
 	private _container: HTMLElement | undefined;
 	private readonly _dynamicDisposables = this._register(new DisposableStore());
 
+	/** The currently displayed in-progress session (if any) - clicking pill opens this */
+	private _displayedSession: IAgentSession | undefined;
+
+	/** Cached render state to avoid unnecessary DOM rebuilds */
+	private _lastRenderState: string | undefined;
+
 	constructor(
 		action: IAction,
 		options: IBaseActionViewItemOptions | undefined,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IAgentStatusService private readonly agentStatusService: IAgentStatusService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@ICommandService private readonly commandService: ICommandService,
@@ -106,6 +116,45 @@ export class AgentStatusWidget extends BaseActionViewItem {
 			return;
 		}
 
+		// Compute current render state to avoid unnecessary DOM rebuilds
+		const mode = this.agentStatusService.mode;
+		const sessionInfo = this.agentStatusService.sessionInfo;
+		const { activeSessions, unreadSessions, attentionNeededSessions } = this._getSessionStats();
+
+		// Get attention session info for state computation
+		const attentionSession = attentionNeededSessions.length > 0
+			? [...attentionNeededSessions].sort((a, b) => {
+				const timeA = a.timing.lastRequestStarted ?? a.timing.created;
+				const timeB = b.timing.lastRequestStarted ?? b.timing.created;
+				return timeB - timeA;
+			})[0]
+			: undefined;
+
+		const attentionText = attentionSession?.description
+			? (typeof attentionSession.description === 'string'
+				? attentionSession.description
+				: renderAsPlaintext(attentionSession.description))
+			: attentionSession?.label;
+
+		const label = this._getLabel();
+
+		// Build state key for comparison
+		const stateKey = JSON.stringify({
+			mode,
+			sessionTitle: sessionInfo?.title,
+			activeCount: activeSessions.length,
+			unreadCount: unreadSessions.length,
+			attentionCount: attentionNeededSessions.length,
+			attentionText,
+			label,
+		});
+
+		// Skip re-render if state hasn't changed
+		if (this._lastRenderState === stateKey) {
+			return;
+		}
+		this._lastRenderState = stateKey;
+
 		// Clear existing content
 		reset(this._container);
 
@@ -121,82 +170,129 @@ export class AgentStatusWidget extends BaseActionViewItem {
 		}
 	}
 
+	// #region Session Statistics
+
+	/**
+	 * Get computed session statistics for rendering.
+	 */
+	private _getSessionStats(): {
+		activeSessions: IAgentSession[];
+		unreadSessions: IAgentSession[];
+		attentionNeededSessions: IAgentSession[];
+		hasActiveSessions: boolean;
+		hasUnreadSessions: boolean;
+		hasAttentionNeeded: boolean;
+	} {
+		const sessions = this.agentSessionsService.model.sessions;
+		const activeSessions = sessions.filter(s => isSessionInProgressStatus(s.status));
+		const unreadSessions = sessions.filter(s => !s.isRead());
+		// Sessions that need user attention (approval/confirmation/input)
+		const attentionNeededSessions = sessions.filter(s => s.status === AgentSessionStatus.NeedsInput);
+
+		return {
+			activeSessions,
+			unreadSessions,
+			attentionNeededSessions,
+			hasActiveSessions: activeSessions.length > 0,
+			hasUnreadSessions: unreadSessions.length > 0,
+			hasAttentionNeeded: attentionNeededSessions.length > 0,
+		};
+	}
+
+	// #endregion
+
+	// #region Mode Renderers
+
 	private _renderChatInputMode(disposables: DisposableStore): void {
 		if (!this._container) {
 			return;
 		}
 
-		// Get agent session statistics
-		const sessions = this.agentSessionsService.model.sessions;
-		const activeSessions = sessions.filter(s => isSessionInProgressStatus(s.status));
-		const unreadSessions = sessions.filter(s => !s.isRead());
-		const hasActiveSessions = activeSessions.length > 0;
-		const hasUnreadSessions = unreadSessions.length > 0;
+		const { activeSessions, unreadSessions, attentionNeededSessions, hasAttentionNeeded } = this._getSessionStats();
 
-		// Create pill - add 'has-active' class when sessions are in progress
+		// Create pill
 		const pill = $('div.agent-status-pill.chat-input-mode');
-		if (hasActiveSessions) {
-			pill.classList.add('has-active');
-		} else if (hasUnreadSessions) {
-			pill.classList.add('has-unread');
+		if (hasAttentionNeeded) {
+			pill.classList.add('needs-attention');
 		}
 		pill.setAttribute('role', 'button');
 		pill.setAttribute('aria-label', localize('openQuickChat', "Open Quick Chat"));
 		pill.tabIndex = 0;
 		this._container.appendChild(pill);
 
-		// Left side indicator (status)
-		const leftIndicator = $('span.agent-status-indicator');
-		if (hasActiveSessions) {
-			// Running indicator when there are active sessions
-			const runningIcon = $('span.agent-status-icon');
-			reset(runningIcon, renderIcon(Codicon.sessionInProgress));
-			leftIndicator.appendChild(runningIcon);
-			const runningCount = $('span.agent-status-text');
-			runningCount.textContent = String(activeSessions.length);
-			leftIndicator.appendChild(runningCount);
-		} else if (hasUnreadSessions) {
-			// Unread indicator when there are unread sessions
-			const unreadIcon = $('span.agent-status-icon');
-			reset(unreadIcon, renderIcon(Codicon.circleFilled));
-			leftIndicator.appendChild(unreadIcon);
-			const unreadCount = $('span.agent-status-text');
-			unreadCount.textContent = String(unreadSessions.length);
-			leftIndicator.appendChild(unreadCount);
+		// Left icon container (sparkle by default, report+count when attention needed, search on hover)
+		const leftIcon = $('span.agent-status-left-icon');
+		if (hasAttentionNeeded) {
+			// Show report icon + count when sessions need attention
+			const reportIcon = renderIcon(Codicon.report);
+			const countSpan = $('span.agent-status-attention-count');
+			countSpan.textContent = String(attentionNeededSessions.length);
+			reset(leftIcon, reportIcon, countSpan);
+			leftIcon.classList.add('has-attention');
 		} else {
-			// Keyboard shortcut when idle (show open chat keybinding)
-			const kb = this.keybindingService.lookupKeybinding(OPEN_CHAT_ACTION_ID)?.getLabel();
-			if (kb) {
-				const kbLabel = $('span.agent-status-keybinding');
-				kbLabel.textContent = kb;
-				leftIndicator.appendChild(kbLabel);
-			}
+			reset(leftIcon, renderIcon(Codicon.searchSparkle));
 		}
-		pill.appendChild(leftIndicator);
+		pill.appendChild(leftIcon);
 
-		// Show label (matching command center behavior - includes prefix/suffix decorations)
+		// Label (workspace name by default, placeholder on hover)
+		// Show attention progress or default label
 		const label = $('span.agent-status-label');
-		label.textContent = this._getLabel();
+		const { session: attentionSession, progress: progressText } = this._getSessionNeedingAttention(attentionNeededSessions);
+		this._displayedSession = attentionSession;
+
+		const defaultLabel = progressText ?? this._getLabel();
+
+		if (progressText) {
+			label.classList.add('has-progress');
+		}
+
+		const hoverLabel = localize('askAnythingPlaceholder', "Ask anything or describe what to build next");
+
+		label.textContent = defaultLabel;
 		pill.appendChild(label);
 
-		// Send icon (right side)
+		// Send icon (hidden by default, shown on hover - only when not showing attention message)
 		const sendIcon = $('span.agent-status-send');
 		reset(sendIcon, renderIcon(Codicon.send));
+		sendIcon.classList.add('hidden');
 		pill.appendChild(sendIcon);
 
-		// Setup hover with keyboard shortcut
-		const hoverDelegate = getDefaultHoverDelegate('mouse');
-		const kbForTooltip = this.keybindingService.lookupKeybinding(QUICK_CHAT_ACTION_ID)?.getLabel();
-		const tooltip = kbForTooltip
-			? localize('askTooltip', "Open Quick Chat ({0})", kbForTooltip)
-			: localize('askTooltip2', "Open Quick Chat");
-		disposables.add(this.hoverService.setupManagedHover(hoverDelegate, pill, tooltip));
+		// Hover behavior - swap icon and label (only when showing default state).
+		// When progressText is defined (e.g. sessions need attention), keep the attention/progress
+		// message visible and do not replace it with the generic placeholder on hover.
+		if (!progressText) {
+			disposables.add(addDisposableListener(pill, EventType.MOUSE_ENTER, () => {
+				reset(leftIcon, renderIcon(Codicon.searchSparkle));
+				leftIcon.classList.remove('has-attention');
+				label.textContent = hoverLabel;
+				label.classList.remove('has-progress');
+				sendIcon.classList.remove('hidden');
+			}));
 
-		// Click handler - open quick chat
+			disposables.add(addDisposableListener(pill, EventType.MOUSE_LEAVE, () => {
+				reset(leftIcon, renderIcon(Codicon.searchSparkle));
+				label.textContent = defaultLabel;
+				sendIcon.classList.add('hidden');
+			}));
+		}
+
+		// Setup hover tooltip
+		const hoverDelegate = getDefaultHoverDelegate('mouse');
+		disposables.add(this.hoverService.setupManagedHover(hoverDelegate, pill, () => {
+			if (this._displayedSession) {
+				return localize('openSessionTooltip', "Open session: {0}", this._displayedSession.label);
+			}
+			const kbForTooltip = this.keybindingService.lookupKeybinding(ACTION_ID)?.getLabel();
+			return kbForTooltip
+				? localize('askTooltip', "Open Quick Chat ({0})", kbForTooltip)
+				: localize('askTooltip2', "Open Quick Chat");
+		}));
+
+		// Click handler - open displayed session if showing progress, otherwise open quick chat
 		disposables.add(addDisposableListener(pill, EventType.CLICK, (e) => {
 			e.preventDefault();
 			e.stopPropagation();
-			this.commandService.executeCommand(QUICK_CHAT_ACTION_ID);
+			this._handlePillClick();
 		}));
 
 		// Keyboard handler
@@ -204,12 +300,12 @@ export class AgentStatusWidget extends BaseActionViewItem {
 			if (e.key === 'Enter' || e.key === ' ') {
 				e.preventDefault();
 				e.stopPropagation();
-				this.commandService.executeCommand(QUICK_CHAT_ACTION_ID);
+				this._handlePillClick();
 			}
 		}));
 
-		// Search button (right of pill)
-		this._renderSearchButton(disposables);
+		// Status badge (separate rectangle on right) - always rendered for smooth transitions
+		this._renderStatusBadge(disposables, activeSessions, unreadSessions);
 	}
 
 	private _renderSessionMode(disposables: DisposableStore): void {
@@ -217,32 +313,157 @@ export class AgentStatusWidget extends BaseActionViewItem {
 			return;
 		}
 
+		const { activeSessions, unreadSessions } = this._getSessionStats();
+
 		const pill = $('div.agent-status-pill.session-mode');
 		this._container.appendChild(pill);
 
-		// Session title (left/center)
+		// Search button (left side, inside pill)
+		this._renderSearchButton(disposables, pill);
+
+		// Session title (center)
 		const titleLabel = $('span.agent-status-title');
 		const sessionInfo = this.agentStatusService.sessionInfo;
 		titleLabel.textContent = sessionInfo?.title ?? localize('agentSessionProjection', "Agent Session Projection");
 		pill.appendChild(titleLabel);
 
-		// Escape button (right side) - serves as both keybinding hint and close button
-		const escButton = $('span.agent-status-esc-button');
-		escButton.textContent = 'Esc';
-		escButton.setAttribute('role', 'button');
-		escButton.setAttribute('aria-label', localize('exitAgentSessionProjection', "Exit Agent Session Projection"));
-		escButton.tabIndex = 0;
-		pill.appendChild(escButton);
+		// Escape button (right side)
+		this._renderEscapeButton(disposables, pill);
 
-		// Setup hovers
+		// Setup pill hover
 		const hoverDelegate = getDefaultHoverDelegate('mouse');
-		disposables.add(this.hoverService.setupManagedHover(hoverDelegate, escButton, localize('exitAgentSessionProjectionTooltip', "Exit Agent Session Projection (Escape)")));
 		disposables.add(this.hoverService.setupManagedHover(hoverDelegate, pill, () => {
 			const sessionInfo = this.agentStatusService.sessionInfo;
 			return sessionInfo ? localize('agentSessionProjectionTooltip', "Agent Session Projection: {0}", sessionInfo.title) : localize('agentSessionProjection', "Agent Session Projection");
 		}));
 
-		// Esc button click handler
+		// Status badge (separate rectangle on right) - always rendered for smooth transitions
+		this._renderStatusBadge(disposables, activeSessions, unreadSessions);
+	}
+
+	// #endregion
+
+	// #region Reusable Components
+
+	/**
+	 * Render the search button. If parent is provided, appends to parent; otherwise appends to container.
+	 */
+	private _renderSearchButton(disposables: DisposableStore, parent?: HTMLElement): void {
+		const container = parent ?? this._container;
+		if (!container) {
+			return;
+		}
+
+		const searchButton = $('span.agent-status-search');
+		reset(searchButton, renderIcon(Codicon.searchSparkle));
+		searchButton.setAttribute('role', 'button');
+		searchButton.setAttribute('aria-label', localize('openQuickOpen', "Open Quick Open"));
+		searchButton.tabIndex = 0;
+		container.appendChild(searchButton);
+
+		// Setup hover
+		const hoverDelegate = getDefaultHoverDelegate('mouse');
+		const searchKb = this.keybindingService.lookupKeybinding(SEARCH_BUTTON_ACITON_ID)?.getLabel();
+		const searchTooltip = searchKb
+			? localize('openQuickOpenTooltip', "Go to File ({0})", searchKb)
+			: localize('openQuickOpenTooltip2', "Go to File");
+		disposables.add(this.hoverService.setupManagedHover(hoverDelegate, searchButton, searchTooltip));
+
+		// Click handler
+		disposables.add(addDisposableListener(searchButton, EventType.CLICK, (e) => {
+			e.preventDefault();
+			e.stopPropagation();
+			this.commandService.executeCommand(SEARCH_BUTTON_ACITON_ID);
+		}));
+
+		// Keyboard handler
+		disposables.add(addDisposableListener(searchButton, EventType.KEY_DOWN, (e) => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
+				e.stopPropagation();
+				this.commandService.executeCommand(SEARCH_BUTTON_ACITON_ID);
+			}
+		}));
+	}
+
+	/**
+	 * Render the status badge showing in-progress and/or unread session counts.
+	 * Shows split UI with both indicators when both types exist.
+	 * Always renders for smooth fade transitions - uses visibility classes.
+	 */
+	private _renderStatusBadge(disposables: DisposableStore, activeSessions: IAgentSession[], unreadSessions: IAgentSession[]): void {
+		if (!this._container) {
+			return;
+		}
+
+		const hasActiveSessions = activeSessions.length > 0;
+		const hasUnreadSessions = unreadSessions.length > 0;
+		const hasContent = hasActiveSessions || hasUnreadSessions;
+
+		const badge = $('div.agent-status-badge');
+		if (!hasContent) {
+			badge.classList.add('empty');
+		}
+		this._container.appendChild(badge);
+
+		// Unread section (blue dot + count)
+		if (hasUnreadSessions) {
+			const unreadSection = $('span.agent-status-badge-section.unread');
+			const unreadIcon = $('span.agent-status-icon');
+			reset(unreadIcon, renderIcon(Codicon.circleFilled));
+			unreadSection.appendChild(unreadIcon);
+			const unreadCount = $('span.agent-status-text');
+			unreadCount.textContent = String(unreadSessions.length);
+			unreadSection.appendChild(unreadCount);
+			badge.appendChild(unreadSection);
+		}
+
+		// In-progress section (session-in-progress icon + count)
+		if (hasActiveSessions) {
+			const activeSection = $('span.agent-status-badge-section.active');
+			const runningIcon = $('span.agent-status-icon');
+			reset(runningIcon, renderIcon(Codicon.sessionInProgress));
+			activeSection.appendChild(runningIcon);
+			const runningCount = $('span.agent-status-text');
+			runningCount.textContent = String(activeSessions.length);
+			activeSection.appendChild(runningCount);
+			badge.appendChild(activeSection);
+		}
+
+		// Setup hover with combined tooltip
+		const hoverDelegate = getDefaultHoverDelegate('mouse');
+		disposables.add(this.hoverService.setupManagedHover(hoverDelegate, badge, () => {
+			const parts: string[] = [];
+			if (hasUnreadSessions) {
+				parts.push(unreadSessions.length === 1
+					? localize('unreadSessionsTooltip1', "{0} unread session", unreadSessions.length)
+					: localize('unreadSessionsTooltip', "{0} unread sessions", unreadSessions.length));
+			}
+			if (hasActiveSessions) {
+				parts.push(activeSessions.length === 1
+					? localize('activeSessionsTooltip1', "{0} session in progress", activeSessions.length)
+					: localize('activeSessionsTooltip', "{0} sessions in progress", activeSessions.length));
+			}
+			return parts.join(', ');
+		}));
+	}
+
+	/**
+	 * Render the escape button for exiting session projection mode.
+	 */
+	private _renderEscapeButton(disposables: DisposableStore, parent: HTMLElement): void {
+		const escButton = $('span.agent-status-esc-button');
+		escButton.textContent = 'Esc';
+		escButton.setAttribute('role', 'button');
+		escButton.setAttribute('aria-label', localize('exitAgentSessionProjection', "Exit Agent Session Projection"));
+		escButton.tabIndex = 0;
+		parent.appendChild(escButton);
+
+		// Setup hover
+		const hoverDelegate = getDefaultHoverDelegate('mouse');
+		disposables.add(this.hoverService.setupManagedHover(hoverDelegate, escButton, localize('exitAgentSessionProjectionTooltip', "Exit Agent Session Projection (Escape)")));
+
+		// Click handler
 		disposables.add(addDisposableListener(escButton, EventType.MOUSE_DOWN, (e) => {
 			e.preventDefault();
 			e.stopPropagation();
@@ -255,7 +476,7 @@ export class AgentStatusWidget extends BaseActionViewItem {
 			this.commandService.executeCommand(ExitAgentSessionProjectionAction.ID);
 		}));
 
-		// Esc button keyboard handler
+		// Keyboard handler
 		disposables.add(addDisposableListener(escButton, EventType.KEY_DOWN, (e) => {
 			if (e.key === 'Enter' || e.key === ' ') {
 				e.preventDefault();
@@ -263,47 +484,59 @@ export class AgentStatusWidget extends BaseActionViewItem {
 				this.commandService.executeCommand(ExitAgentSessionProjectionAction.ID);
 			}
 		}));
-
-		// Search button (right of pill)
-		this._renderSearchButton(disposables);
 	}
 
-	private _renderSearchButton(disposables: DisposableStore): void {
-		if (!this._container) {
-			return;
+	// #endregion
+
+	// #region Click Handlers
+
+	/**
+	 * Handle pill click - opens the displayed session if showing progress, otherwise executes default action
+	 */
+	private _handlePillClick(): void {
+		if (this._displayedSession) {
+			this.instantiationService.invokeFunction(openSession, this._displayedSession);
+		} else {
+			this.commandService.executeCommand(ACTION_ID);
+		}
+	}
+
+	// #endregion
+
+	// #region Session Helpers
+
+	/**
+	 * Get the session most urgently needing user attention (approval/confirmation/input).
+	 * Returns undefined if no sessions need attention.
+	 */
+	private _getSessionNeedingAttention(attentionNeededSessions: IAgentSession[]): { session: IAgentSession | undefined; progress: string | undefined } {
+		if (attentionNeededSessions.length === 0) {
+			return { session: undefined, progress: undefined };
 		}
 
-		const searchButton = $('span.agent-status-search');
-		reset(searchButton, renderIcon(Codicon.search));
-		searchButton.setAttribute('role', 'button');
-		searchButton.setAttribute('aria-label', localize('openQuickOpen', "Open Quick Open"));
-		searchButton.tabIndex = 0;
-		this._container.appendChild(searchButton);
+		// Sort by most recently started request
+		const sorted = [...attentionNeededSessions].sort((a, b) => {
+			const timeA = a.timing.lastRequestStarted ?? a.timing.created;
+			const timeB = b.timing.lastRequestStarted ?? b.timing.created;
+			return timeB - timeA;
+		});
 
-		// Setup hover
-		const hoverDelegate = getDefaultHoverDelegate('mouse');
-		const searchKb = this.keybindingService.lookupKeybinding(QUICK_OPEN_ACTION_ID)?.getLabel();
-		const searchTooltip = searchKb
-			? localize('openQuickOpenTooltip', "Go to File ({0})", searchKb)
-			: localize('openQuickOpenTooltip2', "Go to File");
-		disposables.add(this.hoverService.setupManagedHover(hoverDelegate, searchButton, searchTooltip));
+		const mostRecent = sorted[0];
+		if (!mostRecent.description) {
+			return { session: mostRecent, progress: mostRecent.label };
+		}
 
-		// Click handler
-		disposables.add(addDisposableListener(searchButton, EventType.CLICK, (e) => {
-			e.preventDefault();
-			e.stopPropagation();
-			this.commandService.executeCommand(QUICK_OPEN_ACTION_ID);
-		}));
+		// Convert markdown to plain text if needed
+		const progress = typeof mostRecent.description === 'string'
+			? mostRecent.description
+			: renderAsPlaintext(mostRecent.description);
 
-		// Keyboard handler
-		disposables.add(addDisposableListener(searchButton, EventType.KEY_DOWN, (e) => {
-			if (e.key === 'Enter' || e.key === ' ') {
-				e.preventDefault();
-				e.stopPropagation();
-				this.commandService.executeCommand(QUICK_OPEN_ACTION_ID);
-			}
-		}));
+		return { session: mostRecent, progress };
 	}
+
+	// #endregion
+
+	// #region Label Helpers
 
 	/**
 	 * Compute the label to display, matching the command center behavior.
@@ -358,4 +591,6 @@ export class AgentStatusWidget extends BaseActionViewItem {
 
 		return { prefix, suffix };
 	}
+
+	// #endregion
 }

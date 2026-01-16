@@ -71,6 +71,7 @@ export interface IAgentSessionsControl {
 	refresh(): void;
 	openFind(): void;
 	reveal(sessionResource: URI): void;
+	setGridMarginOffset(offset: number): void;
 }
 
 export const agentSessionReadIndicatorForeground = registerColor(

@@ -19,10 +19,7 @@ import { IOpenerService } from '../../../../../../platform/opener/common/opener.
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../agentSessions/agentSessions.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
-
-export interface ISessionTypePickerDelegate {
-	getActiveSessionProvider(): AgentSessionProviders | undefined;
-}
+import { ISessionTypePickerDelegate } from '../../chat.js';
 
 interface ISessionTypeItem {
 	type: AgentSessionProviders;
@@ -65,7 +62,11 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 						icon: getAgentSessionProviderIcon(sessionTypeItem.type),
 						enabled: true,
 						run: async () => {
-							this.commandService.executeCommand(sessionTypeItem.commandId, this.chatSessionPosition);
+							if (this.delegate.setActiveSessionProvider) {
+								this.delegate.setActiveSessionProvider(sessionTypeItem.type);
+							} else {
+								this.commandService.executeCommand(sessionTypeItem.commandId, this.chatSessionPosition);
+							}
 							if (this.element) {
 								this.renderLabel(this.element);
 							}
