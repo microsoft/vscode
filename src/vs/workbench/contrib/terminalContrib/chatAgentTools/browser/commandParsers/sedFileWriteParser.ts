@@ -149,9 +149,20 @@ export class SedFileWriteParser implements ICommandFileWriteParser {
 				if ((flags.endsWith('i') || flags.endsWith('I')) && i + 1 < tokens.length) {
 					const nextToken = tokens[i + 1];
 					// macOS/BSD style: -i '' or -i "" (empty string backup suffix)
-					if (nextToken === '\'\'' || nextToken === '""' || (nextToken.startsWith('\'') && nextToken.endsWith('\'')) || (nextToken.startsWith('"') && nextToken.endsWith('"'))) {
+					// Only treat it as a backup suffix if it's empty or looks like a backup
+					// extension (starts with '.' and is short). Don't match sed scripts like 's/foo/bar/'.
+					if (nextToken === '\'\'' || nextToken === '""') {
 						i += 2;
 						continue;
+					}
+					// Check for quoted backup suffixes like '.bak' or ".backup"
+					if ((nextToken.startsWith('\'') && nextToken.endsWith('\'')) || (nextToken.startsWith('"') && nextToken.endsWith('"'))) {
+						const unquoted = nextToken.slice(1, -1);
+						// Backup suffixes typically start with '.' and are short extensions
+						if (unquoted.startsWith('.') && unquoted.length <= 10 && !unquoted.includes('/')) {
+							i += 2;
+							continue;
+						}
 					}
 				}
 
