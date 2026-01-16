@@ -6,6 +6,7 @@
 import { timeout } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
+import { METERED_CONNECTION_POSTPONE_TIME } from '../../../base/common/networkConnection.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { ILifecycleMainService, LifecycleMainPhase } from '../../lifecycle/electron-main/lifecycleMainService.js';
@@ -149,7 +150,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			const isMetered = await this.isConnectionMetered();
 			if (isMetered) {
 				this.logService.info('update#checkForUpdates - postponing update check due to metered connection');
-				this.scheduleCheckForUpdates(30 * 60 * 1000);
+				this.scheduleCheckForUpdates(METERED_CONNECTION_POSTPONE_TIME);
 				return;
 			}
 		}

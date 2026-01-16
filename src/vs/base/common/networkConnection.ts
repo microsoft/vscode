@@ -4,6 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
+ * Time to postpone update checks when on a metered connection (30 minutes in milliseconds)
+ */
+export const METERED_CONNECTION_POSTPONE_TIME = 30 * 60 * 1000;
+
+/**
  * Checks if the current network connection is metered.
  * Uses the Network Information API when available.
  * @returns true if the connection is metered, false otherwise

@@ -7,6 +7,7 @@ import { spawn } from 'child_process';
 import { realpath, watch } from 'fs';
 import { timeout } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
+import { METERED_CONNECTION_POSTPONE_TIME } from '../../../base/common/networkConnection.js';
 import * as path from '../../../base/common/path.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMainService.js';
@@ -71,7 +72,7 @@ abstract class AbstractUpdateService implements IUpdateService {
 			const isMetered = await this.isConnectionMetered();
 			if (isMetered) {
 				this.logService.info('update#checkForUpdates - postponing update check due to metered connection');
-				this.scheduleCheckForUpdates(30 * 60 * 1000);
+				this.scheduleCheckForUpdates(METERED_CONNECTION_POSTPONE_TIME);
 				return;
 			}
 		}
