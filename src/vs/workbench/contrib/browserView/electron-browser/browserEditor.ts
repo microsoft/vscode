@@ -688,25 +688,11 @@ export class BrowserEditor extends EditorPane {
 	}
 
 	override layout(): void {
-		if (this._model) {
-			this.checkOverlays();
-
-			const containerRect = this._browserContainer.getBoundingClientRect();
-			void this._model.layout({
-				windowId: this.group.windowId,
-				x: containerRect.left,
-				y: containerRect.top,
-				width: containerRect.width,
-				height: containerRect.height,
-				zoomFactor: getZoomFactor(this.window)
-			});
-		}
+		void this.layoutAsync();
 	}
 
 	/**
 	 * Async version of layout that waits for the layout to complete.
-	 * This is needed when we need to ensure the view is attached to the window
-	 * before performing other operations like setVisible.
 	 */
 	private async layoutAsync(): Promise<void> {
 		if (this._model) {
