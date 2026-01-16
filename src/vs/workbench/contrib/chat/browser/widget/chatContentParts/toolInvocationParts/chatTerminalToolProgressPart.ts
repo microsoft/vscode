@@ -474,7 +474,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			const focusAction = this._instantiationService.createInstance(FocusChatInstanceAction, terminalInstance, resolvedCommand, this._terminalCommandUri, this._storedCommandId, isTerminalHidden);
 			this._focusAction.value = focusAction;
 			actionBar.push(focusAction, { icon: true, label: false, index: 0 });
-			
+
 			// Add "Continue in Background" button for non-background (foreground) terminals that are still executing
 			if (!isTerminalHidden && terminalToolSessionId && !resolvedCommand) {
 				const continueAction = new ContinueInBackgroundAction(terminalToolSessionId);
