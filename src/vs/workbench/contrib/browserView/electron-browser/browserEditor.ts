@@ -5,7 +5,7 @@
 
 import './media/browser.css';
 import { localize } from '../../../../nls.js';
-import { $, addDisposableListener, disposableWindowInterval, EventType, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, disposableWindowInterval, EventType } from '../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { RawContextKey, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -365,11 +365,27 @@ export class BrowserEditor extends EditorPane {
 		));
 
 		this.updateErrorDisplay();
-		this.layout();
-		await this._model.setVisible(this.shouldShowView);
 
-		// Sometimes the element has not been inserted into the DOM yet. Ensure layout after next animation frame.
-		scheduleAtNextAnimationFrame(this.window, () => this.layout());
+		// Watch for container size changes to handle window moves/resizes.
+		// This is especially important when copying to a new window on a different monitor
+		// where the initial bounds may be incorrect until the window finishes layout.
+		let hasInitializedView = false;
+		const resizeObserver = new ResizeObserver(async () => {
+			if (this._model) {
+				const containerRect = this._browserContainer.getBoundingClientRect();
+				// Only proceed if we have valid bounds
+				if (containerRect.width > 0 && containerRect.height > 0) {
+					await this.layoutAsync();
+					// On first valid resize, ensure the view is visible
+					if (!hasInitializedView) {
+						hasInitializedView = true;
+						await this._model.setVisible(true);
+					}
+				}
+			}
+		});
+		resizeObserver.observe(this._browserContainer);
+		this._inputDisposables.add({ dispose: () => resizeObserver.disconnect() });
 	}
 
 	protected override setEditorVisible(visible: boolean): void {
@@ -677,6 +693,27 @@ export class BrowserEditor extends EditorPane {
 
 			const containerRect = this._browserContainer.getBoundingClientRect();
 			void this._model.layout({
+				windowId: this.group.windowId,
+				x: containerRect.left,
+				y: containerRect.top,
+				width: containerRect.width,
+				height: containerRect.height,
+				zoomFactor: getZoomFactor(this.window)
+			});
+		}
+	}
+
+	/**
+	 * Async version of layout that waits for the layout to complete.
+	 * This is needed when we need to ensure the view is attached to the window
+	 * before performing other operations like setVisible.
+	 */
+	private async layoutAsync(): Promise<void> {
+		if (this._model) {
+			this.checkOverlays();
+
+			const containerRect = this._browserContainer.getBoundingClientRect();
+			await this._model.layout({
 				windowId: this.group.windowId,
 				x: containerRect.left,
 				y: containerRect.top,
