@@ -6,18 +6,20 @@
 // version: 1
 
 declare module 'vscode' {
-
 	// #region Resource Classes
+
+	/**
+	 * Describes a chat resource URI with optional editability.
+	 */
+	export type ChatResourceUriDescriptor =
+		| Uri
+		| { uri: Uri; isEditable?: boolean };
 
 	/**
 	 * Describes a chat resource file.
 	 */
 	export type ChatResourceDescriptor =
-		| Uri
-		| {
-			uri: Uri;
-			isEditable?: boolean;
-		}
+		| ChatResourceUriDescriptor
 		| {
 			id: string;
 			content: string;
@@ -78,13 +80,14 @@ declare module 'vscode' {
 		/**
 		 * The skill resource descriptor.
 		 */
-		readonly resource: ChatResourceDescriptor;
+		readonly resource: ChatResourceUriDescriptor;
 
 		/**
-		 * Creates a new skill resource from the specified resource.
+		 * Creates a new skill resource from the specified resource URI pointing to SKILL.md.
+		 * The parent folder name needs to match the name of the skill in the frontmatter.
 		 * @param resource The chat resource descriptor.
 		 */
-		constructor(resource: ChatResourceDescriptor);
+		constructor(resource: ChatResourceUriDescriptor);
 	}
 
 	// #endregion
@@ -256,9 +259,7 @@ declare module 'vscode' {
 		 * @param provider The skill provider.
 		 * @returns A disposable that unregisters the provider when disposed.
 		 */
-		export function registerSkillProvider(
-			provider: SkillProvider
-		): Disposable;
+		export function registerSkillProvider(provider: SkillProvider): Disposable;
 	}
 
 	// #endregion
