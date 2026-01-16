@@ -108,7 +108,7 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 			return;
 		}
 
-		this.setState(State.Downloading);
+		this.setState(State.Downloading());
 	}
 
 	private onUpdateDownloaded(update: IUpdate): void {

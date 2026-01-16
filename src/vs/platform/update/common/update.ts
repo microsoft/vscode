@@ -66,7 +66,7 @@ export type Disabled = { type: StateType.Disabled; reason: DisablementReason };
 export type Idle = { type: StateType.Idle; updateType: UpdateType; error?: string };
 export type CheckingForUpdates = { type: StateType.CheckingForUpdates; explicit: boolean };
 export type AvailableForDownload = { type: StateType.AvailableForDownload; update: IUpdate };
-export type Downloading = { type: StateType.Downloading };
+export type Downloading = { type: StateType.Downloading; downloadedBytes?: number; totalBytes?: number; startTime?: number };
 export type Downloaded = { type: StateType.Downloaded; update: IUpdate };
 export type Updating = { type: StateType.Updating; update: IUpdate };
 export type Ready = { type: StateType.Ready; update: IUpdate };
@@ -79,7 +79,7 @@ export const State = {
 	Idle: (updateType: UpdateType, error?: string): Idle => ({ type: StateType.Idle, updateType, error }),
 	CheckingForUpdates: (explicit: boolean): CheckingForUpdates => ({ type: StateType.CheckingForUpdates, explicit }),
 	AvailableForDownload: (update: IUpdate): AvailableForDownload => ({ type: StateType.AvailableForDownload, update }),
-	Downloading: upcast<Downloading>({ type: StateType.Downloading }),
+	Downloading: (downloadedBytes?: number, totalBytes?: number, startTime?: number): Downloading => ({ type: StateType.Downloading, downloadedBytes, totalBytes, startTime }),
 	Downloaded: (update: IUpdate): Downloaded => ({ type: StateType.Downloaded, update }),
 	Updating: (update: IUpdate): Updating => ({ type: StateType.Updating, update }),
 	Ready: (update: IUpdate): Ready => ({ type: StateType.Ready, update }),
@@ -107,4 +107,31 @@ export interface IUpdateService {
 
 	isLatestVersion(): Promise<boolean | undefined>;
 	_applySpecificUpdate(packagePath: string): Promise<void>;
+}
+
+/**
+ * Computes an estimate of remaining download time in seconds.
+ * Returns undefined if not enough data is available.
+ *
+ * @param downloadedBytes The number of bytes downloaded so far.
+ * @param totalBytes The total number of bytes to download.
+ * @param elapsedMs The elapsed time in milliseconds since the download started.
+ */
+export function computeDownloadTimeRemaining(downloadedBytes: number, totalBytes: number, elapsedMs: number): number | undefined {
+	if (downloadedBytes <= 0 || totalBytes <= 0 || elapsedMs <= 0) {
+		return undefined;
+	}
+
+	const remainingBytes = totalBytes - downloadedBytes;
+	if (remainingBytes <= 0) {
+		return 0;
+	}
+
+	const bytesPerMs = downloadedBytes / elapsedMs;
+	if (bytesPerMs <= 0) {
+		return undefined;
+	}
+
+	const remainingMs = remainingBytes / bytesPerMs;
+	return Math.ceil(remainingMs / 1000);
 }
