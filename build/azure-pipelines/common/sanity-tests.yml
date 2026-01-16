@@ -18,10 +18,6 @@ parameters:
     type: string
     default: ""
 
-variables:
-  - name: browserType
-    value: ${[ if eq(parameters.os, 'windows') ]}chromium${[ else if eq(parameters.os, 'macos') ]}webkit${[ else ]}firefox${[ end ]}
-
 jobs:
   - job: ${{ parameters.name }}
     displayName: ${{ parameters.displayName }}
@@ -32,6 +28,7 @@ jobs:
     variables:
       SANITY_TEST_LOGS: $(Build.SourcesDirectory)/.build/sanity-test-logs
       LOG_FILE: $(SANITY_TEST_LOGS)/results.xml
+      BROWSER_TYPE: ${[ if eq(parameters.os, 'windows') ]}chromium${[ else if eq(parameters.os, 'macos') ]}webkit${[ else ]}firefox${[ end ]}
     steps:
       - template: ./checkout.yml@self
 
@@ -57,7 +54,7 @@ jobs:
         workingDirectory: ./test/sanity
         displayName: Install Dependencies
 
-      - script: ./node_modules/.bin/playwright install --with-deps ${{ variables.browserType }}
+      - script: ./node_modules/.bin/playwright install --with-deps $(BROWSER_TYPE)
         workingDirectory: ./test/sanity
         displayName: Install Playwright Browser
 
