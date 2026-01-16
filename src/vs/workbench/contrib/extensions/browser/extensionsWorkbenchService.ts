@@ -74,6 +74,7 @@ import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlCon
 import { ExtensionGalleryResourceType, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { fromNow } from '../../../../base/common/date.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { isMeteredConnection } from '../../../../base/common/networkConnection.js';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -1895,6 +1896,15 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (!this.galleryService.isEnabled()) {
 			return;
 		}
+		
+		// Check if connection is metered before automatic update checks
+		if (!reason?.includes('manual') && isMeteredConnection()) {
+			this.logService.info('[Extensions]: Postponing update check due to metered connection');
+			// Postpone the update check by 30 minutes
+			setTimeout(() => this.checkForUpdates(reason, onlyBuiltin), 30 * 60 * 1000);
+			return;
+		}
+		
 		const extensions: Extensions[] = [];
 		if (this.localExtensions) {
 			extensions.push(this.localExtensions);
@@ -2120,6 +2130,14 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private async autoUpdateExtensions(): Promise<void> {
+		// Check if connection is metered before auto-updating extensions
+		if (isMeteredConnection()) {
+			this.logService.info('[Extensions]: Postponing auto-update due to metered connection');
+			// Postpone the auto-update by 30 minutes
+			setTimeout(() => this.eventuallyAutoUpdateExtensions(), 30 * 60 * 1000);
+			return;
+		}
+		
 		const toUpdate: IExtension[] = [];
 		const disabledAutoUpdate = [];
 		const consentRequired = [];
