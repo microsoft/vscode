@@ -208,8 +208,8 @@ export class BrowserEditorInput extends EditorInput {
 	}
 
 	/**
-	 * Creates a copy of this browser editor input with a new unique ID.
-	 * This is used when copying the editor to a new window, creating an independent browser view.
+	 * Creates a copy of this browser editor input with a new unique ID, creating an independent browser view with no linked state.
+	 * This is used during Copy into New Window.
 	 */
 	override copy(): EditorInput {
 		const currentUrl = this._model?.url ?? this._initialData.url;
