@@ -1288,6 +1288,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return false;
 		}
 
+		// don't pin Mermaid tools since it has rendered output
+		const isMermaidTool = (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.toolId.includes('mermaid');
+		if (isMermaidTool) {
+			return false;
+		}
+
 		// Don't pin subagent tools to thinking parts - they have their own grouping
 		const isSubagentTool = (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && (part.subAgentInvocationId || part.toolId === RunSubagentTool.Id);
 		if (isSubagentTool) {
