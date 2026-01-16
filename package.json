@@ -1,9 +1,9 @@
 {
   "name": "code-oss-dev",
   "version": "1.109.0",
-  "distro": "b90415e4e25274537a83463c7af88fca7e9528a7",
+  "distro": "f44449f84806363760ce8bb8dbe85cd8207498ff",
   "author": {
-    "name": "justin corportion"
+    "name": "Microsoft Corporation"
   },
   "license": "MIT",
   "main": "./out/main.js",
@@ -73,7 +73,6 @@
     "update-build-ts-version": "npm install -D typescript@next && npm install -D @typescript/native-preview && (cd build && npm run typecheck)"
   },
   "dependencies": {
-    "@anthropic-ai/sandbox-runtime": "0.0.23",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
     "@parcel/watcher": "^2.5.4",
@@ -92,16 +91,16 @@
     "@vscode/windows-mutex": "^0.5.0",
     "@vscode/windows-process-tree": "^0.6.0",
     "@vscode/windows-registry": "^1.1.0",
-    "@xterm/addon-clipboard": "^0.3.0-beta.102",
-    "@xterm/addon-image": "^0.10.0-beta.102",
-    "@xterm/addon-ligatures": "^0.11.0-beta.102",
-    "@xterm/addon-progress": "^0.3.0-beta.102",
-    "@xterm/addon-search": "^0.17.0-beta.102",
-    "@xterm/addon-serialize": "^0.15.0-beta.102",
-    "@xterm/addon-unicode11": "^0.10.0-beta.102",
-    "@xterm/addon-webgl": "^0.20.0-beta.101",
-    "@xterm/headless": "^6.1.0-beta.102",
-    "@xterm/xterm": "^6.1.0-beta.102",
+    "@xterm/addon-clipboard": "^0.3.0-beta.101",
+    "@xterm/addon-image": "^0.10.0-beta.101",
+    "@xterm/addon-ligatures": "^0.11.0-beta.101",
+    "@xterm/addon-progress": "^0.3.0-beta.101",
+    "@xterm/addon-search": "^0.17.0-beta.101",
+    "@xterm/addon-serialize": "^0.15.0-beta.101",
+    "@xterm/addon-unicode11": "^0.10.0-beta.101",
+    "@xterm/addon-webgl": "^0.20.0-beta.100",
+    "@xterm/headless": "^6.1.0-beta.101",
+    "@xterm/xterm": "^6.1.0-beta.101",
     "http-proxy-agent": "^7.0.0",
     "https-proxy-agent": "^7.0.2",
     "jschardet": "3.1.4",
