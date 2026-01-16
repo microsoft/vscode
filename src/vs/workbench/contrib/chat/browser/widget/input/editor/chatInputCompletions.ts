@@ -376,6 +376,11 @@ class AgentCompletions extends Disposable {
 								return;
 							}
 
+							// Don't show slash commands for dynamic agents (chatSessions participants) in the global menu
+							if (agent.isDynamic) {
+								return;
+							}
+
 							const { label: agentLabel, isDupe } = this.getAgentCompletionDetails(agent);
 							const label = `${agentLabel} ${chatSubcommandLeader}${c.name}`;
 							const item: CompletionItem = {
@@ -436,6 +441,11 @@ class AgentCompletions extends Disposable {
 				return {
 					suggestions: coalesce(agents.flatMap(agent => agent.slashCommands.map((c, i) => {
 						if (agent.isDefault && this.chatAgentService.getDefaultAgent(widget.location, widget.input.currentModeKind)?.id !== agent.id) {
+							return;
+						}
+
+						// Don't show slash commands for dynamic agents (chatSessions participants) in the global menu
+						if (agent.isDynamic) {
 							return;
 						}
 
