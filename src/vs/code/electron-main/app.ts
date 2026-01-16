@@ -536,7 +536,7 @@ export class CodeApplication extends Disposable {
 					if (replyEvent.sender === event.sender) {
 						clearTimeout(timeout);
 						validatedIpcMain.removeListener('vscode:meteredConnectionResult', listener);
-						resolve(isMetered === true);
+						resolve(isMetered);
 					}
 				};
 
