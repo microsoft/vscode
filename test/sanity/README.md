@@ -18,12 +18,17 @@ Use -g or -f command-line options to filter tests to match the host platform.
 
 | Option | Alias | Description |
 |--------|-------|-------------|
-| `--commit <commit>` | `-c` | The commit SHA to test (required) |
-| `--quality <quality>` | `-q` | The quality to test (required, "stable", "insider" or "exploration") |
-| `--no-cleanup` | | Do not cleanup downloaded files after each test |
-| `--grep <pattern>` | `-g` | Only run tests matching the given regex pattern |
-| `--fgrep <string>` | `-f` | Only run tests containing the given string |
-| `--help` | `-h` | Show help message |
+|`--commit <commit>`|`-c`|The commit to test (required)|
+|`--quality <quality>`|`-q`|The quality to test (required, "stable", "insider" or "exploration")|
+|`--no-cleanup`||Do not cleanup downloaded files after each test|
+|`--no-signing-check`||Skip Authenticode and codesign signature checks|
+|`--no-headless`||Run tests with a visible UI (desktop tests only)|
+|`--no-runtime-check`||Enable all tests regardless of platform and skip executable runs|
+|`--grep <pattern>`|`-g`|Only run tests matching the given <pattern>|
+|`--fgrep <string>`|`-f`|Only run tests containing the given <string>|
+|`--test-results <path>`|`-t`|Output test results in JUnit format to the specified path|
+|`--verbose`|`-v`|Enable verbose logging|
+|`--help`|`-h`|Show this help message|
 
 ### Example
 

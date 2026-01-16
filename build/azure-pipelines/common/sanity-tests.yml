@@ -28,42 +28,47 @@ jobs:
     variables:
       SANITY_TEST_LOGS: $(Build.SourcesDirectory)/.build/sanity-test-logs
       LOG_FILE: $(SANITY_TEST_LOGS)/results.xml
-      BROWSER_TYPE: ${[ if eq(parameters.os, 'windows') ]}chromium${[ else if eq(parameters.os, 'macos') ]}webkit${[ else ]}firefox${[ end ]}
     steps:
       - template: ./checkout.yml@self
 
-      - task: NodeTool@0
+      - displayName: Install Node.js
+        task: NodeTool@0
         inputs:
           versionSource: fromFile
           versionFilePath: .nvmrc
-        displayName: Install Node.js
 
-      - bash: |
+      - displayName: Configure NPM Registry
+        bash: |
           npm config set registry "$(NPM_REGISTRY)"
           echo "##vso[task.setvariable variable=NPMRC_PATH]$(npm config get userconfig)"
-        condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
-        displayName: Configure NPM Registry
 
-      - task: npmAuthenticate@0
+      - displayName: Authenticate with NPM Registry
+        task: npmAuthenticate@0
         inputs:
           workingFile: $(NPMRC_PATH)
-        condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
-        displayName: Authenticate with NPM Registry
 
-      - script: npm ci
+      - displayName: Install Dependencies
         workingDirectory: ./test/sanity
-        displayName: Install Dependencies
+        script: npm ci
 
-      - script: ./node_modules/.bin/playwright install --with-deps $(BROWSER_TYPE)
+      - displayName: Install Playwright Browser
+        condition: eq('${{ parameters.container }}', '')
         workingDirectory: ./test/sanity
-        displayName: Install Playwright Browser
+        ${{ if eq(parameters.os, 'windows') }}:
+          - script: ./node_modules/.bin/playwright install --with-deps chromium
+        ${{ elseif eq(parameters.os, 'macos') }}:
+          - script: ./node_modules/.bin/playwright install --with-deps webkit
+        ${{ else }}:
+          - script: ./node_modules/.bin/playwright install --with-deps firefox
 
-      - script: npm run compile
+      - displayName: Compile Sanity Tests
         workingDirectory: ./test/sanity
-        displayName: Compile Sanity Tests
+        script: npm run compile
 
       # Setup X11 for native Linux hosts (needed for Electron tests)
-      - bash: |
+      - displayName: Setup X11 Display
+        condition: and(eq('${{ parameters.container }}', ''), eq('${{ parameters.os }}', 'linux'))
+        bash: |
           set -e
           sudo apt-get update
           sudo apt-get install -y xvfb x11-utils dbus dbus-x11 snapd
@@ -84,23 +89,23 @@ jobs:
 
           echo "Install Playwright browser"
           /workspace/test/sanity/node_modules/.bin/playwright install --with-deps firefox
-        displayName: Setup X11 Display
-        condition: and(eq('${{ parameters.container }}', ''), eq('${{ parameters.os }}', 'linux'))
 
       # Host-based test execution (Windows, macOS, Linux)
-      - script: node out/index.js -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -v ${{ parameters.args }}
-        workingDirectory: ./test/sanity
-        displayName: Run Sanity Tests
+      - displayName: Run Sanity Tests
         condition: eq('${{ parameters.container }}', '')
+        workingDirectory: ./test/sanity
+        script: node out/index.js -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -v ${{ parameters.args }}
 
       # Container-based test execution (Linux)
-      - bash: |
+      - displayName: Setup QEMU for Multi-Architecture Support
+        condition: and(ne('${{ parameters.container }}', ''), contains('${{ parameters.containerPlatform }}', 'arm'))
+        bash: |
           docker run --privileged --rm tonistiigi/binfmt --uninstall '*'
           docker run --pull always --privileged --rm tonistiigi/binfmt --install all
-        displayName: Setup QEMU for Multi-Architecture Support
-        condition: and(ne('${{ parameters.container }}', ''), contains('${{ parameters.containerPlatform }}', 'arm'))
 
-      - bash: |
+      - displayName: Run Sanity Tests in Container
+        condition: ne('${{ parameters.container }}', '')
+        bash: |
           set -e
           docker run --rm --platform ${{ parameters.containerPlatform }} \
             -v "$(Build.SourcesDirectory):/workspace" \
@@ -194,13 +199,11 @@ jobs:
               echo "Running sanity tests"
               node out/index.js -c "$(BUILD_COMMIT)" -q "$(BUILD_QUALITY)" -t "/workspace/.build/sanity-test-logs/results.xml" -v
             '
-        displayName: Run Sanity Tests in Container
-        condition: ne('${{ parameters.container }}', '')
 
-      - task: PublishTestResults@2
+      - displayName: Publish Test Results
+        condition: succeededOrFailed()
+        task: PublishTestResults@2
         inputs:
           testResultsFormat: JUnit
           testResultsFiles: $(LOG_FILE)
           testRunTitle: ${{ parameters.displayName }}
-        condition: succeededOrFailed()
-        displayName: Publish Test Results
