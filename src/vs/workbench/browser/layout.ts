@@ -1939,6 +1939,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.setPanelPosition(Position.BOTTOM);
 		}
 
+		// Unmaximize whenever panel alignment changes to avoid unsupported combinations
+		if (this.isPanelMaximized()) {
+			this.toggleMaximizedPanel();
+		}
+
 		this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_ALIGNMENT, alignment);
 
 		this.adjustPartPositions(this.getSideBarPosition(), alignment, this.getPanelPosition());
