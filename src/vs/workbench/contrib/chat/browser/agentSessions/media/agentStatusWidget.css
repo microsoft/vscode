@@ -321,11 +321,18 @@ Agent Status Widget - Titlebar control
 	gap: 4px;
 	padding: 0 8px;
 	height: 100%;
+	position: relative;
 }
 
 /* Separator between sections */
-.agent-status-badge-section + .agent-status-badge-section {
-	border-left: 1px solid color-mix(in srgb, var(--vscode-progressBar-background) 40%, transparent);
+.agent-status-badge-section + .agent-status-badge-section::before {
+	content: '';
+	position: absolute;
+	left: 0;
+	top: 4px;
+	bottom: 4px;
+	width: 1px;
+	background-color: color-mix(in srgb, var(--vscode-progressBar-background) 40%, transparent);
 }
 
 /* Unread section styling */
