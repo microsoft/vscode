@@ -479,12 +479,14 @@ export class ChatSessionPrimaryPickerAction extends Action2 {
 				order: 4,
 				group: 'navigation',
 				when:
-					ContextKeyExpr.or(
+					ContextKeyExpr.and(
 						ChatContextKeys.chatSessionHasModels,
-						ChatContextKeys.lockedToCodingAgent,
-						ContextKeyExpr.and(
-							ChatContextKeys.inAgentSessionsWelcome,
-							ChatContextKeys.chatSessionType.notEqualsTo('local')
+						ContextKeyExpr.or(
+							ChatContextKeys.lockedToCodingAgent,
+							ContextKeyExpr.and(
+								ChatContextKeys.inAgentSessionsWelcome,
+								ChatContextKeys.chatSessionType.notEqualsTo('local')
+							)
 						)
 					)
 			}
