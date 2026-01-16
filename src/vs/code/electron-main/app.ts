@@ -530,9 +530,7 @@ export class CodeApplication extends Disposable {
 			// Request network check from renderer via IPC
 			// The renderer has access to navigator.connection API
 			return new Promise<boolean>((resolve) => {
-				const timeout = setTimeout(() => {
-					resolve(false); // Default to false if no response
-				}, 1000);
+				const timeout = setTimeout(() => resolve(false), 1000); // Default to false if no response
 
 				const listener = (replyEvent: Electron.IpcMainEvent, isMetered: boolean) => {
 					if (replyEvent.sender === event.sender) {
