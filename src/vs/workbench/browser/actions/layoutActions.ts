@@ -312,7 +312,8 @@ export class ToggleSidebarVisibilityAction extends Action2 {
 				{
 					id: MenuId.MenubarAppearanceMenu,
 					group: '2_workbench_layout',
-					order: 1
+					order: 1,
+					when: InEditorZenModeContext.negate()
 				}
 			]
 		});
@@ -408,7 +409,8 @@ export class ToggleStatusbarVisibilityAction extends Action2 {
 			menu: [{
 				id: MenuId.MenubarAppearanceMenu,
 				group: '2_workbench_layout',
-				order: 3
+				order: 3,
+				when: InEditorZenModeContext.negate()
 			}]
 		});
 	}
