@@ -332,7 +332,7 @@ export class RenameSymbolProcessor extends Disposable {
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
 		@IBulkEditService bulkEditService: IBulkEditService,
-		@IRenameSymbolTrackerService renameSymbolTrackerService: IRenameSymbolTrackerService,
+		@IRenameSymbolTrackerService private readonly _renameSymbolTrackerService: IRenameSymbolTrackerService,
 	) {
 		super();
 		this._register(CommandsRegistry.registerCommand(renameSymbolCommandId, async (_: ServicesAccessor, source: TextModelEditSource, renameRunnable: RenameSymbolRunnable | undefined) => {
@@ -352,7 +352,6 @@ export class RenameSymbolProcessor extends Disposable {
 				}
 			}
 		}));
-		console.log('RenameSymbolProcessor initialized', renameSymbolTrackerService);
 	}
 
 	public async proposeRenameRefactoring(textModel: ITextModel, suggestItem: InlineSuggestionItem, context: InlineCompletionContextWithoutUuid): Promise<InlineSuggestionItem> {
@@ -375,6 +374,11 @@ export class RenameSymbolProcessor extends Disposable {
 		}
 
 		const { oldName, newName, position, edits: renameEdits } = edits.renames;
+
+		const trackedWord = this._renameSymbolTrackerService.trackedWord.get();
+		if (trackedWord !== undefined && trackedWord.model === textModel && trackedWord.originalWord === oldName && trackedWord.currentWord === newName) {
+			console.log('Skipping rename since the tracked word matches the rename');
+		}
 
 		// Check asynchronously if a rename is possible
 		let timedOut = false;
