@@ -178,15 +178,17 @@ export class ModelPickerActionItem extends ChatInputPickerActionViewItem {
 		}));
 	}
 
-	protected override getTooltip(): string {
+	private getPickModelLabelWithKeybinding(): string {
 		const pickModelLabel = localize('chat.modelPicker.label', "Pick Model");
-		// Append keybinding to the label
 		return this.keybindingService.appendKeybinding(pickModelLabel, this.action.id, this.contextKeyService);
 	}
 
+	protected override getTooltip(): string {
+		return this.getPickModelLabelWithKeybinding();
+	}
+
 	protected override getHoverContents(): IManagedHoverContent | undefined {
-		const pickModelLabel = localize('chat.modelPicker.label', "Pick Model");
-		const baseLabel = this.keybindingService.appendKeybinding(pickModelLabel, this.action.id, this.contextKeyService);
+		const baseLabel = this.getPickModelLabelWithKeybinding();
 		const { statusIcon, tooltip } = this.currentModel?.metadata || {};
 		return statusIcon && tooltip ? `${baseLabel} • ${tooltip}` : baseLabel;
 	}
