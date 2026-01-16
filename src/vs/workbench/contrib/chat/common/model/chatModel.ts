@@ -35,6 +35,7 @@ import { IChatEditingService, IChatEditingSession, ModifiedFileEntryState } from
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../languageModels.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, UserSelectedTools, reviveSerializedAgent } from '../participants/chatAgents.js';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from '../requestParser/chatParserTypes.js';
+import { ToolInvocationPresentation } from '../tools/languageModelToolsService.js';
 import { LocalChatSessionUri } from './chatUri.js';
 import { ObjectMutationLog } from './objectMutationLog.js';
 
@@ -446,10 +447,14 @@ class AbstractResponse implements IResponse {
 					// Ignore
 					continue;
 				case 'toolInvocation':
-				case 'toolInvocationSerialized':
-					// Include tool invocations in the copy text
-					segment = this.getToolInvocationText(part);
+				case 'toolInvocationSerialized': {
+					// Skip hidden tool invocations
+					const toolText = this.getToolInvocationText(part);
+					if (toolText) {
+						segment = toolText;
+					}
 					break;
+				}
 				case 'inlineReference':
 					segment = { text: this.inlineRefToRepr(part) };
 					break;
@@ -480,6 +485,10 @@ class AbstractResponse implements IResponse {
 					// Ignore any unknown/obsolete parts, but assert that all are handled:
 					softAssertNever(part);
 					continue;
+			}
+
+			if (!segment) {
+				continue;
 			}
 
 			if (segment.isBlock) {
@@ -515,7 +524,18 @@ class AbstractResponse implements IResponse {
 			: this.uriToRepr(part.inlineReference);
 	}
 
-	private getToolInvocationText(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): { text: string; isBlock?: boolean } {
+	private getToolInvocationText(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): { text: string; isBlock?: boolean } | undefined {
+		// Skip tool invocations that are hidden
+		if (toolInvocation.presentation === ToolInvocationPresentation.Hidden) {
+			return undefined;
+		}
+
+		// Skip completed tool invocations that should be hidden after completion
+		const isComplete = toolInvocation.kind === 'toolInvocationSerialized' || (toolInvocation.kind === 'toolInvocation' && IChatToolInvocation.isComplete(toolInvocation));
+		if (toolInvocation.presentation === ToolInvocationPresentation.HiddenAfterComplete && isComplete) {
+			return undefined;
+		}
+
 		// Extract the message and input details
 		let message = '';
 		let input = '';
@@ -546,12 +566,17 @@ class AbstractResponse implements IResponse {
 		}
 
 		// For completed tool invocations, also include the result details if available
-		if (toolInvocation.kind === 'toolInvocationSerialized' || (toolInvocation.kind === 'toolInvocation' && IChatToolInvocation.isComplete(toolInvocation))) {
+		if (isComplete) {
 			const resultDetails = IChatToolInvocation.resultDetails(toolInvocation);
 			if (resultDetails && 'input' in resultDetails) {
 				const resultPrefix = toolInvocation.kind === 'toolInvocationSerialized' || IChatToolInvocation.isComplete(toolInvocation) ? 'Completed' : 'Errored';
 				text += `\n${resultPrefix} with input: ${resultDetails.input}`;
 			}
+		}
+
+		// Skip tool invocations without meaningful content
+		if (!text.trim()) {
+			return undefined;
 		}
 
 		return { text, isBlock: true };

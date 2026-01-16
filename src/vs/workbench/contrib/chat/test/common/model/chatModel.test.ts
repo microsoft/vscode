@@ -25,9 +25,10 @@ import { CellUri } from '../../../../notebook/common/notebookCommon.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatModel, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, Response } from '../../../common/model/chatModel.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
-import { IChatService, IChatToolInvocation } from '../../../common/chatService/chatService.js';
+import { IChatService, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
 import { MockChatService } from '../chatService/mockChatService.js';
+import { ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 
 suite('ChatModel', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -396,6 +397,112 @@ suite('Response', () => {
 		const notebookEditGroups = response.value.filter(p => p.kind === 'notebookEditGroup');
 		assert.strictEqual(textEditGroups.length, 0, 'Should not have textEditGroup for cell edits');
 		assert.strictEqual(notebookEditGroups.length, 1, 'Should have notebookEditGroup for cell edits');
+	});
+
+	test('hidden tool invocation should be excluded from string representation', () => {
+		const response = store.add(new Response([]));
+		response.updateContent({ content: new MarkdownString('Some content'), kind: 'markdownContent' });
+
+		// Create a mock hidden tool invocation
+		const hiddenTool: IChatToolInvocationSerialized = {
+			kind: 'toolInvocationSerialized',
+			invocationMessage: 'Hidden tool message',
+			pastTenseMessage: undefined,
+			originMessage: undefined,
+			presentation: ToolInvocationPresentation.Hidden,
+			toolId: 'test.hidden.tool',
+			toolCallId: 'test-call-id',
+			source: ToolDataSource.Internal,
+			isConfirmed: true,
+			isComplete: true,
+		};
+
+		response.updateContent(hiddenTool);
+
+		// Should not include hidden tool invocation in string representation
+		const responseString = response.toString();
+		assert.ok(!responseString.includes('Hidden tool message'), 'Should not include hidden tool invocation');
+		assert.ok(responseString.includes('Some content'), 'Should include markdown content');
+	});
+
+	test('hiddenAfterComplete tool invocation should be excluded when complete', () => {
+		const response = store.add(new Response([]));
+		response.updateContent({ content: new MarkdownString('Some content'), kind: 'markdownContent' });
+
+		// Create a mock tool invocation with HiddenAfterComplete presentation
+		const completedTool: IChatToolInvocationSerialized = {
+			kind: 'toolInvocationSerialized',
+			invocationMessage: 'Completed tool message',
+			pastTenseMessage: undefined,
+			originMessage: undefined,
+			presentation: ToolInvocationPresentation.HiddenAfterComplete,
+			toolId: 'test.hidden.after.complete',
+			toolCallId: 'test-call-id-2',
+			source: ToolDataSource.Internal,
+			isConfirmed: true,
+			isComplete: true,
+		};
+
+		response.updateContent(completedTool);
+
+		// Should not include completed tool invocation with HiddenAfterComplete presentation
+		const responseString = response.toString();
+		assert.ok(!responseString.includes('Completed tool message'), 'Should not include completed HiddenAfterComplete tool');
+		assert.ok(responseString.includes('Some content'), 'Should include markdown content');
+	});
+
+	test('tool invocation with empty message should be excluded', () => {
+		const response = store.add(new Response([]));
+		response.updateContent({ content: new MarkdownString('Some content'), kind: 'markdownContent' });
+
+		// Create a mock tool invocation with empty message
+		const emptyTool: IChatToolInvocationSerialized = {
+			kind: 'toolInvocationSerialized',
+			invocationMessage: '   ', // whitespace only
+			pastTenseMessage: undefined,
+			originMessage: undefined,
+			presentation: undefined,
+			toolId: 'test.empty.tool',
+			toolCallId: 'test-call-id-3',
+			source: ToolDataSource.Internal,
+			isConfirmed: true,
+			isComplete: true,
+		};
+
+		response.updateContent(emptyTool);
+
+		// Should not include tool invocation with empty message
+		const responseString = response.toString();
+		// The response should only contain the markdown content
+		assert.ok(responseString.includes('Some content'), 'Should include markdown content');
+		// Check that no extra content from the empty tool was added
+		assert.strictEqual(responseString.trim(), 'Some content', 'Should only contain markdown content, not empty tool');
+	});
+
+	test('visible tool invocation should be included in string representation', () => {
+		const response = store.add(new Response([]));
+		response.updateContent({ content: new MarkdownString('Some content'), kind: 'markdownContent' });
+
+		// Create a mock visible tool invocation
+		const visibleTool: IChatToolInvocationSerialized = {
+			kind: 'toolInvocationSerialized',
+			invocationMessage: 'Visible tool message',
+			pastTenseMessage: 'Tool completed successfully',
+			originMessage: undefined,
+			presentation: undefined, // No presentation = visible
+			toolId: 'test.visible.tool',
+			toolCallId: 'test-call-id-4',
+			source: ToolDataSource.Internal,
+			isConfirmed: true,
+			isComplete: true,
+		};
+
+		response.updateContent(visibleTool);
+
+		// Should include visible tool invocation in string representation
+		const responseString = response.toString();
+		assert.ok(responseString.includes('Tool completed successfully'), 'Should include visible tool invocation');
+		assert.ok(responseString.includes('Some content'), 'Should include markdown content');
 	});
 });
 

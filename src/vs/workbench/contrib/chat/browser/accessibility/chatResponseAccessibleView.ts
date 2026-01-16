@@ -17,7 +17,7 @@ import { migrateLegacyTerminalToolSpecificData } from '../../common/chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatToolInvocation } from '../../common/chatService/chatService.js';
 import { isResponseVM } from '../../common/model/chatViewModel.js';
-import { isToolResultInputOutputDetails, isToolResultOutputDetails, toolContentToA11yString } from '../../common/tools/languageModelToolsService.js';
+import { isToolResultInputOutputDetails, isToolResultOutputDetails, toolContentToA11yString, ToolInvocationPresentation } from '../../common/tools/languageModelToolsService.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
 
 export class ChatResponseAccessibleView implements IAccessibleViewImplementation {
@@ -98,7 +98,23 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 			});
 			const toolInvocations = item.response.value.filter(item => item.kind === 'toolInvocation');
 			for (const toolInvocation of toolInvocations) {
+				// Skip hidden tool invocations
+				if (toolInvocation.presentation === ToolInvocationPresentation.Hidden) {
+					continue;
+				}
+
 				const state = toolInvocation.state.get();
+
+				// Skip completed tool invocations that should be hidden after completion
+				// Also skip completed tool invocations in general since they're already included via response.toString()
+				if (IChatToolInvocation.isComplete(toolInvocation)) {
+					if (toolInvocation.presentation === ToolInvocationPresentation.HiddenAfterComplete) {
+						continue;
+					}
+					// Skip completed tool invocations since they're already included via response.toString()
+					continue;
+				}
+
 				if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation && state.confirmationMessages?.title) {
 					const title = typeof state.confirmationMessages.title === 'string' ? state.confirmationMessages.title : state.confirmationMessages.title.value;
 					const message = typeof state.confirmationMessages.message === 'string' ? state.confirmationMessages.message : stripIcons(renderAsPlaintext(state.confirmationMessages.message!));
@@ -131,23 +147,11 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 							? undefined
 							: toolContentToA11yString(state.contentForModel);
 					responseContent += localize('toolPostApprovalA11yView', "Approve results of {0}? Result: ", toolInvocation.toolId) + (postApprovalDetails ?? '') + '\n';
-				} else {
-					const resultDetails = IChatToolInvocation.resultDetails(toolInvocation);
-					if (resultDetails && 'input' in resultDetails) {
-						responseContent += '\n' + (resultDetails.isError ? 'Errored ' : 'Completed ');
-						responseContent += `${`${typeof toolInvocation.invocationMessage === 'string' ? toolInvocation.invocationMessage : stripIcons(renderAsPlaintext(toolInvocation.invocationMessage))} with input: ${resultDetails.input}`}\n`;
-					}
 				}
 			}
 
-			const pastConfirmations = item.response.value.filter(item => item.kind === 'toolInvocationSerialized');
-			for (const pastConfirmation of pastConfirmations) {
-				if (pastConfirmation.isComplete && pastConfirmation.resultDetails && 'input' in pastConfirmation.resultDetails) {
-					if (pastConfirmation.pastTenseMessage) {
-						responseContent += `\n${`${typeof pastConfirmation.pastTenseMessage === 'string' ? pastConfirmation.pastTenseMessage : stripIcons(renderAsPlaintext(pastConfirmation.pastTenseMessage))} with input: ${pastConfirmation.resultDetails.input}`}\n`;
-					}
-				}
-			}
+			// Note: Completed/serialized tool invocations are already included via response.toString()
+			// so we don't need to process them again here
 		}
 		const plainText = renderAsPlaintext(new MarkdownString(responseContent), { includeCodeBlocksFences: true });
 		return this._normalizeWhitespace(plainText);
