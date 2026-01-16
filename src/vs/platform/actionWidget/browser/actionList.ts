@@ -35,7 +35,7 @@ export interface IActionListDelegate<T> {
 }
 
 /**
- * Optional hover hover configuration shown when focusing/hovering over an action list item.
+ * Optional hover configuration shown when focusing/hovering over an action list item.
  */
 export interface IActionListItemHover {
 	/**
@@ -56,7 +56,7 @@ export interface IActionListItem<T> {
 	readonly label?: string;
 	readonly description?: string;
 	/**
-	 * Optional hover hover configuration shown when focusing/hovering over the item.
+	 * Optional hover configuration shown when focusing/hovering over the item.
 	 */
 	readonly hover?: IActionListItemHover;
 	readonly keybinding?: ResolvedKeybinding;
