@@ -6,7 +6,8 @@
 import type { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { PromptsType } from '../promptTypes.js';
-import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, getPromptFileDefaultLocation } from './promptFileLocations.js';
+import { getPromptFileDefaultLocations, IPromptSourceFolder, PromptFileSource } from './promptFileLocations.js';
+import { PromptsStorage } from '../service/promptsService.js';
 
 /**
  * Configuration helper for the `reusable prompts` feature.
@@ -59,6 +60,11 @@ export namespace PromptsConfig {
 	export const MODE_LOCATION_KEY = 'chat.modeFilesLocations';
 
 	/**
+	 * Configuration key for the locations of skill folders.
+	 */
+	export const SKILLS_LOCATION_KEY = 'chat.agentSkillsLocations';
+
+	/**
 	 * Configuration key for prompt file suggestions.
 	 */
 	export const PROMPT_FILES_SUGGEST_KEY = 'chat.promptFilesRecommendations';
@@ -85,7 +91,7 @@ export namespace PromptsConfig {
 
 	/**
 	 * Get value of the `reusable prompt locations` configuration setting.
-	 * @see {@link PROMPT_LOCATIONS_CONFIG_KEY}, {@link INSTRUCTIONS_LOCATIONS_CONFIG_KEY}, {@link MODE_LOCATIONS_CONFIG_KEY}.
+	 * @see {@link PROMPT_LOCATIONS_CONFIG_KEY}, {@link INSTRUCTIONS_LOCATIONS_CONFIG_KEY}, {@link MODE_LOCATIONS_CONFIG_KEY}, {@link SKILLS_LOCATION_KEY}.
 	 */
 	export function getLocationsValue(configService: IConfigurationService, type: PromptsType): Record<string, boolean> | undefined {
 		const key = getPromptFileLocationsConfigKey(type);
@@ -119,29 +125,34 @@ export namespace PromptsConfig {
 
 	/**
 	 * Gets list of source folders for prompt files.
-	 * Defaults to {@link PROMPT_DEFAULT_SOURCE_FOLDER}, {@link INSTRUCTIONS_DEFAULT_SOURCE_FOLDER} or {@link MODE_DEFAULT_SOURCE_FOLDER}.
+	 * Defaults to {@link PROMPT_DEFAULT_SOURCE_FOLDER}, {@link INSTRUCTIONS_DEFAULT_SOURCE_FOLDER}, {@link MODE_DEFAULT_SOURCE_FOLDER} or {@link SKILLS_LOCATION_KEY}.
 	 */
-	export function promptSourceFolders(configService: IConfigurationService, type: PromptsType): string[] {
+	export function promptSourceFolders(configService: IConfigurationService, type: PromptsType): IPromptSourceFolder[] {
 		const value = getLocationsValue(configService, type);
-		const defaultSourceFolder = getPromptFileDefaultLocation(type);
+		const defaultSourceFolders = getPromptFileDefaultLocations(type);
 
 		// note! the `value &&` part handles the `undefined`, `null`, and `false` cases
 		if (value && (typeof value === 'object')) {
-			const paths: string[] = [];
+			const paths: IPromptSourceFolder[] = [];
+			const defaultFolderPathsSet = new Set(defaultSourceFolders.map(f => f.path));
 
-			// if the default source folder is not explicitly disabled, add it
-			if (value[defaultSourceFolder] !== false) {
-				paths.push(defaultSourceFolder);
+			// add default source folders that are not explicitly disabled
+			for (const defaultFolder of defaultSourceFolders) {
+				if (value[defaultFolder.path] !== false) {
+					paths.push(defaultFolder);
+				}
 			}
 
 			// copy all the enabled paths to the result list
 			for (const [path, enabledValue] of Object.entries(value)) {
-				// we already added the default source folder, so skip it
-				if ((enabledValue === false) || (path === defaultSourceFolder)) {
+				// we already added the default source folders, so skip them
+				if ((enabledValue === false) || defaultFolderPathsSet.has(path)) {
 					continue;
 				}
 
-				paths.push(path);
+				// determine location type in the general case
+				const storage = isTildePath(path) ? PromptsStorage.user : PromptsStorage.local;
+				paths.push({ path, source: storage === PromptsStorage.local ? PromptFileSource.ConfigPersonal : PromptFileSource.ConfigWorkspace, storage });
 			}
 
 			return paths;
@@ -211,6 +222,8 @@ export function getPromptFileLocationsConfigKey(type: PromptsType): string {
 			return PromptsConfig.PROMPT_LOCATIONS_KEY;
 		case PromptsType.agent:
 			return PromptsConfig.MODE_LOCATION_KEY;
+		case PromptsType.skill:
+			return PromptsConfig.SKILLS_LOCATION_KEY;
 		default:
 			throw new Error('Unknown prompt type');
 	}
@@ -243,4 +256,15 @@ export function asBoolean(value: unknown): boolean | undefined {
 	}
 
 	return undefined;
+}
+
+/**
+ * Helper to check if a path starts with tilde (user home).
+ * Supports both Unix-style (`~/`) and Windows-style (`~\`) paths.
+ *
+ * @param path - path to check
+ * @returns `true` if the path starts with `~/` or `~\`
+ */
+export function isTildePath(path: string): boolean {
+	return path.startsWith('~/') || path.startsWith('~\\');
 }

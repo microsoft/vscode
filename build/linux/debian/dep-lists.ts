@@ -33,6 +33,7 @@ export const referenceGeneratedDepsByArch = {
 		'libc6 (>= 2.2.5)',
 		'libc6 (>= 2.25)',
 		'libc6 (>= 2.28)',
+		'libc6 (>= 2.4)',
 		'libcairo2 (>= 1.6.0)',
 		'libcurl3-gnutls | libcurl3-nss | libcurl4 | libcurl3',
 		'libdbus-1-3 (>= 1.9.14)',
