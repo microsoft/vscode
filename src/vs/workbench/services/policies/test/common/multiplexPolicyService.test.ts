@@ -49,10 +49,6 @@ class DefaultAccountProvider implements IDefaultAccountProvider {
 	async refresh(): Promise<IDefaultAccount | null> {
 		return this.defaultAccount;
 	}
-
-	isEnterpriseAuthenticationProvider(provider: IDefaultAccountAuthenticationProvider): boolean {
-		return false;
-	}
 }
 
 suite('MultiplexPolicyService', () => {
@@ -143,8 +139,6 @@ suite('MultiplexPolicyService', () => {
 	});
 
 	async function clear() {
-		// Reset
-		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider({ ...BASE_DEFAULT_ACCOUNT }));
 		await fileService.writeFile(policyFile,
 			VSBuffer.fromString(
 				JSON.stringify({})
@@ -190,6 +184,7 @@ suite('MultiplexPolicyService', () => {
 
 		const defaultAccount = { ...BASE_DEFAULT_ACCOUNT };
 		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(defaultAccount));
+		await defaultAccountService.refresh();
 
 		await fileService.writeFile(policyFile,
 			VSBuffer.fromString(
@@ -229,8 +224,9 @@ suite('MultiplexPolicyService', () => {
 	test('policy from default account only', async () => {
 		await clear();
 
-		const defaultAccount = { ...BASE_DEFAULT_ACCOUNT, chat_preview_features_enabled: false };
+		const defaultAccount = { ...BASE_DEFAULT_ACCOUNT, policyData: { chat_preview_features_enabled: false } };
 		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(defaultAccount));
+		await defaultAccountService.refresh();
 
 		await fileService.writeFile(policyFile,
 			VSBuffer.fromString(
@@ -269,8 +265,9 @@ suite('MultiplexPolicyService', () => {
 	test('policy from file and default account', async () => {
 		await clear();
 
-		const defaultAccount = { ...BASE_DEFAULT_ACCOUNT, chat_preview_features_enabled: false };
+		const defaultAccount = { ...BASE_DEFAULT_ACCOUNT, policyData: { chat_preview_features_enabled: false } };
 		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(defaultAccount));
+		await defaultAccountService.refresh();
 
 		await fileService.writeFile(policyFile,
 			VSBuffer.fromString(

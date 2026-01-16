@@ -42,10 +42,6 @@ class DefaultAccountProvider implements IDefaultAccountProvider {
 	async refresh(): Promise<IDefaultAccount | null> {
 		return this.defaultAccount;
 	}
-
-	isEnterpriseAuthenticationProvider(provider: IDefaultAccountAuthenticationProvider): boolean {
-		return false;
-	}
 }
 
 suite('AccountPolicyService', () => {
@@ -129,6 +125,7 @@ suite('AccountPolicyService', () => {
 
 	async function assertDefaultBehavior(defaultAccount: IDefaultAccount) {
 		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(defaultAccount));
+		await defaultAccountService.refresh();
 
 		await policyConfiguration.initialize();
 
@@ -163,13 +160,14 @@ suite('AccountPolicyService', () => {
 	});
 
 	test('should initialize with default account and preview features enabled', async () => {
-		const defaultAccount = { ...BASE_DEFAULT_ACCOUNT, chat_preview_features_enabled: true };
+		const defaultAccount = { ...BASE_DEFAULT_ACCOUNT, policyData: { chat_preview_features_enabled: true } };
 		await assertDefaultBehavior(defaultAccount);
 	});
 
 	test('should initialize with default account and preview features disabled', async () => {
-		const defaultAccount = { ...BASE_DEFAULT_ACCOUNT, chat_preview_features_enabled: false };
+		const defaultAccount = { ...BASE_DEFAULT_ACCOUNT, policyData: { chat_preview_features_enabled: false } };
 		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(defaultAccount));
+		await defaultAccountService.refresh();
 
 		await policyConfiguration.initialize();
 		const actualConfigurationModel = policyConfiguration.configurationModel;
