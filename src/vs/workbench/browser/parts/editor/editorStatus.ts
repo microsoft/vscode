@@ -1232,15 +1232,19 @@ export class ChangeLanguageAction extends Action2 {
 		}
 
 		const pick = typeof languageMode === 'string' ? { label: languageMode } : await quickInputService.pick(picks, { placeHolder: localize('pickLanguage', "Select Language Mode"), matchOnDescription: true });
-		galleryAction?.dispose();
 		if (!pick) {
+			galleryAction?.dispose();
 			return;
 		}
 
 		if (pick === galleryAction) {
 			galleryAction.run();
+			galleryAction.dispose();
 			return;
 		}
+
+		// Dispose the galleryAction if it wasn't selected
+		galleryAction?.dispose();
 
 		// User decided to permanently configure associations, return right after
 		if (pick === configureLanguageAssociations) {
