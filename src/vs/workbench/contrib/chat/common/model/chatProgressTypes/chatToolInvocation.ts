@@ -61,7 +61,8 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		subAgentInvocationId: string | undefined,
 		parameters: unknown,
 		isStreaming: boolean = false,
-		chatRequestId?: string
+		chatRequestId?: string,
+		autoConfirmed?: ConfirmedReason
 	) {
 		// For streaming invocations, use a default message until handleToolStream provides one
 		const defaultStreamingMessage = isStreaming ? localize('toolInvocationMessage', "Using \"{0}\"", toolData.displayName) : '';
@@ -84,10 +85,11 @@ export class ChatToolInvocation implements IChatToolInvocation {
 				partialInput: this._partialInput,
 				streamingMessage: this._streamingMessage,
 			});
-		} else if (!this.confirmationMessages?.title) {
+		} else if (!this.confirmationMessages?.title || autoConfirmed) {
+			// No confirmation needed, or auto-confirmed - go directly to Executing state
 			this._state = observableValue(this, {
 				type: IChatToolInvocation.StateKind.Executing,
-				confirmed: { type: ToolConfirmKind.ConfirmationNotNeeded, reason: this.confirmationMessages?.confirmationNotNeededReason },
+				confirmed: autoConfirmed ?? { type: ToolConfirmKind.ConfirmationNotNeeded, reason: this.confirmationMessages?.confirmationNotNeededReason },
 				progress: this._progress,
 				parameters: this.parameters,
 				confirmationMessages: this.confirmationMessages,
@@ -143,8 +145,11 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	/**
 	 * Transition from streaming state to prepared/executing state.
 	 * Called when the full tool call is ready.
+	 * @param preparedInvocation The prepared invocation data
+	 * @param parameters The tool parameters
+	 * @param autoConfirmed If provided, the tool was auto-confirmed and should skip WaitingForConfirmation state
 	 */
-	public transitionFromStreaming(preparedInvocation: IPreparedToolInvocation | undefined, parameters: unknown): void {
+	public transitionFromStreaming(preparedInvocation: IPreparedToolInvocation | undefined, parameters: unknown, autoConfirmed?: ConfirmedReason): void {
 		const currentState = this._state.get();
 		if (currentState.type !== IChatToolInvocation.StateKind.Streaming) {
 			return; // Only transition from streaming state
@@ -169,10 +174,11 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		}
 
 		// Transition to the appropriate state
-		if (!this.confirmationMessages?.title) {
+		if (!this.confirmationMessages?.title || autoConfirmed) {
+			// No confirmation needed, or auto-confirmed - go directly to Executing state
 			this._state.set({
 				type: IChatToolInvocation.StateKind.Executing,
-				confirmed: { type: ToolConfirmKind.ConfirmationNotNeeded, reason: this.confirmationMessages?.confirmationNotNeededReason },
+				confirmed: autoConfirmed ?? { type: ToolConfirmKind.ConfirmationNotNeeded, reason: this.confirmationMessages?.confirmationNotNeededReason },
 				progress: this._progress,
 				parameters: this.parameters,
 				confirmationMessages: this.confirmationMessages,
