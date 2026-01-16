@@ -34,6 +34,20 @@ export interface IActionListDelegate<T> {
 	onFocus?(action: T | undefined): void;
 }
 
+/**
+ * Optional flyout hover configuration shown when focusing/hovering over an action list item.
+ */
+export interface IActionListItemHover {
+	/**
+	 * Content to display in the flyout.
+	 */
+	readonly content?: string;
+	/**
+	 * Actions to show in the flyout.
+	 */
+	readonly actions?: IHoverAction[];
+}
+
 export interface IActionListItem<T> {
 	readonly item?: T;
 	readonly kind: ActionListItemKind;
@@ -42,13 +56,9 @@ export interface IActionListItem<T> {
 	readonly label?: string;
 	readonly description?: string;
 	/**
-	 * Optional hover content to show in a flyout when hovering over the item.
+	 * Optional flyout hover configuration shown when focusing/hovering over the item.
 	 */
-	readonly hoverContent?: string;
-	/**
-	 * Optional actions to show in the flyout hover.
-	 */
-	readonly hoverActions?: IHoverAction[];
+	readonly hover?: IActionListItemHover;
 	readonly keybinding?: ResolvedKeybinding;
 	canPreview?: boolean | undefined;
 	readonly hideIcon?: boolean;
@@ -238,7 +248,6 @@ export class ActionList<T> extends Disposable {
 	private readonly cts = this._register(new CancellationTokenSource());
 
 	private _currentFlyoutIndex: number | undefined;
-	private _flyoutTimeout: IDisposable | undefined;
 
 	constructor(
 		user: string,
@@ -429,25 +438,21 @@ export class ActionList<T> extends Disposable {
 			return;
 		}
 
-		// Clear any pending flyout timeout
-		this._flyoutTimeout?.dispose();
-		this._flyoutTimeout = undefined;
-
 		// Hide any existing flyout hover when moving to a different item
 		this._hoverService.hideHover();
 		this._currentFlyoutIndex = undefined;
 
 		// Show flyout hover if the element has hover content or actions
-		if ((element.hoverContent || element.hoverActions) && this.focusCondition(element)) {
+		if ((element.hover?.content || element.hover?.actions) && this.focusCondition(element)) {
 			// eslint-disable-next-line no-restricted-syntax
 			const rowElement = this.domNode.ownerDocument.getElementById(this._list.getElementID(index));
 			if (rowElement) {
 				this._currentFlyoutIndex = index;
-				const markdown = element.hoverContent ? new MarkdownString(element.hoverContent) : undefined;
+				const markdown = element.hover.content ? new MarkdownString(element.hover.content) : undefined;
 				this._hoverService.showInstantHover({
 					content: markdown ?? '',
 					target: rowElement,
-					actions: element.hoverActions,
+					actions: element.hover.actions,
 					additionalClasses: ['action-widget-flyout'],
 					position: {
 						hoverPosition: HoverPosition.LEFT,

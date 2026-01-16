@@ -60,7 +60,7 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, te
 					class: undefined,
 					tooltip: localize('chat.modelPicker.auto', "Auto"),
 					label: localize('chat.modelPicker.auto', "Auto"),
-					hoverContent: localize('chat.modelPicker.auto.description', "Automatically selects the best model for your task based on context and complexity."),
+					hover: { content: localize('chat.modelPicker.auto.description', "Automatically selects the best model for your task based on context and complexity.") },
 					run: () => { }
 				} satisfies IActionWidgetDropdownAction];
 			}
@@ -83,8 +83,7 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, te
 					class: undefined,
 					description: model.metadata.detail,
 					tooltip: model.metadata.tooltip ?? model.metadata.name,
-					hoverContent: description,
-					hoverActions,
+					hover: { content: description, actions: hoverActions },
 					label: model.metadata.name,
 					run: () => {
 						const previousModel = delegate.getCurrentModel();
