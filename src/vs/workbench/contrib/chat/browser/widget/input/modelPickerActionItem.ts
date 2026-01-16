@@ -24,7 +24,7 @@ import { MANAGE_CHAT_COMMAND_ID } from '../../../common/constants.js';
 import { TelemetryTrustedValue } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IHoverAction, IManagedHoverContent } from '../../../../../../base/browser/ui/hover/hover.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
-import { getModelDescription } from './modelDescriptions.js';
+import { getModelDescription } from '../../languageModelDescriptions.js';
 
 export interface IModelPickerDelegate {
 	readonly onDidChangeModel: Event<ILanguageModelChatMetadataAndIdentifier>;
