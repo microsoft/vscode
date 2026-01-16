@@ -28,8 +28,16 @@ export type ICommandApprovalResult = 'approved' | 'denied' | 'noMatch';
 const neverMatchRegex = /(?!.*)/;
 const transientEnvVarRegex = /^[A-Z_][A-Z0-9_]*=/i;
 
+interface ICachedRules {
+	denyListRules: IAutoApproveRule[];
+	allowListRules: IAutoApproveRule[];
+	allowListCommandLineRules: IAutoApproveRule[];
+	denyListCommandLineRules: IAutoApproveRule[];
+}
+
 export class CommandLineAutoApprover extends Disposable {
 	private readonly _npmScriptAutoApprover: NpmScriptAutoApprover;
+	private readonly _cachedRulesPerFolder: Map<string, ICachedRules> = new Map();
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -38,14 +46,24 @@ export class CommandLineAutoApprover extends Disposable {
 	) {
 		super();
 		this._npmScriptAutoApprover = this._register(instantiationService.createInstance(NpmScriptAutoApprover));
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (
+				e.affectsConfiguration(TerminalChatAgentToolsSettingId.AutoApprove) ||
+				e.affectsConfiguration(TerminalChatAgentToolsSettingId.IgnoreDefaultAutoApproveRules) ||
+				e.affectsConfiguration(TerminalChatAgentToolsSettingId.DeprecatedAutoApproveCompatible)
+			) {
+				this._cachedRulesPerFolder.clear();
+			}
+		}));
 	}
 
-	private _getRulesForResource(resource: URI | undefined): {
-		denyListRules: IAutoApproveRule[];
-		allowListRules: IAutoApproveRule[];
-		allowListCommandLineRules: IAutoApproveRule[];
-		denyListCommandLineRules: IAutoApproveRule[];
-	} {
+	private _getRulesForResource(resource: URI | undefined): ICachedRules {
+		const cacheKey = resource?.toString() ?? '';
+		const cached = this._cachedRulesPerFolder.get(cacheKey);
+		if (cached) {
+			return cached;
+		}
+
 		let configValue = this._configurationService.getValue(TerminalChatAgentToolsSettingId.AutoApprove, { resource });
 		const configInspectValue = this._configurationService.inspect(TerminalChatAgentToolsSettingId.AutoApprove, { resource });
 		const deprecatedValue = this._configurationService.getValue(TerminalChatAgentToolsSettingId.DeprecatedAutoApproveCompatible, { resource });
@@ -56,7 +74,9 @@ export class CommandLineAutoApprover extends Disposable {
 			};
 		}
 
-		return this._mapAutoApproveConfigToRules(configValue, configInspectValue, resource);
+		const rules = this._mapAutoApproveConfigToRules(configValue, configInspectValue, resource);
+		this._cachedRulesPerFolder.set(cacheKey, rules);
+		return rules;
 	}
 
 	async isCommandAutoApproved(command: string, shell: string, os: OperatingSystem, cwd: URI | undefined, chatSessionResource?: URI): Promise<ICommandApprovalResultWithReason> {
