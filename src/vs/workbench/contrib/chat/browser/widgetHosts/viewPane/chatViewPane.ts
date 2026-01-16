@@ -647,9 +647,14 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}));
 
 		// When showing sessions stacked, adjust the height of the sessions list to make room for chat input
+		let lastChatInputHeight: number | undefined;
 		this._register(chatWidget.input.onDidChangeHeight(() => {
 			if (this.sessionsViewerVisible && this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
-				this.relayout();
+				const chatInputHeight = this._widget?.input?.contentHeight;
+				if (chatInputHeight && chatInputHeight !== lastChatInputHeight) { // ensure we only layout on actual height changes
+					lastChatInputHeight = chatInputHeight;
+					this.relayout();
+				}
 			}
 		}));
 	}
