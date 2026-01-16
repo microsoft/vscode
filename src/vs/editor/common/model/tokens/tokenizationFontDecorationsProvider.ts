@@ -49,12 +49,6 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 			for (const annotation of fontChanges.changes.annotations) {
 
 				const startPosition = this.textModel.getPositionAt(annotation.range.start);
-				const endPosition = this.textModel.getPositionAt(annotation.range.endExclusive);
-
-				if (startPosition.lineNumber !== endPosition.lineNumber) {
-					// The token should be always on a single line
-					continue;
-				}
 				const lineNumber = startPosition.lineNumber;
 
 				let fontTokenAnnotation: IAnnotationUpdate<IFontTokenAnnotation>;
