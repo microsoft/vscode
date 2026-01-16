@@ -65,12 +65,6 @@ export interface IBrowserViewWorkbenchService {
 	 * Clear all storage data for the current workspace browser session
 	 */
 	clearWorkspaceStorage(): Promise<void>;
-
-	/**
-	 * Register a browser editor input. When a duplicate editor with the same ID is registered,
-	 * the previous one will be disposed to prevent syncing issues.
-	 */
-	registerEditorInput(input: any): void;
 }
 
 
