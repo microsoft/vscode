@@ -112,7 +112,18 @@ jobs:
 
                 echo "Installing dependencies using apt-get (Ubuntu, Debian)"
                 apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
-                  curl ca-certificates xvfb x11-utils libnss3 libgbm1 xdg-utils sudo dbus dbus-x11
+                  ca-certificates \
+                  curl \
+                  dbus \
+                  dbus-x11 \
+                  libgbm1 \
+                  libnss3 \
+                  sudo \
+                  x11-utils \
+                  xdg-utils \
+                  xvfb \
+                  xz-utils
+
                 apt-get install -y libgtk-3-0t64 || apt-get install -y libgtk-3-0
                 apt-get install -y libasound2t64 || apt-get install -y libasound2
 
@@ -125,32 +136,6 @@ jobs:
                   curl -fsSL https://nodejs.org/dist/v22.13.0/node-v22.13.0-linux-armv7l.tar.xz | tar -xJ -C /usr/local --strip-components=1
                 fi
 
-                # Install webkit dependencies for ARM platforms
-                if [ "$(arch)" = "aarch64" ] || [ "$(arch)" = "armv7l" ] || [ "$(arch)" = "arm" ]; then
-                  echo "Installing webkit dependencies for ARM"
-
-                  apt-get install -y \
-                    libgstreamer1.0-0 libgstreamer-plugins-base1.0-0 libgstreamer-gl1.0-0 \
-                    gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad \
-                    libxslt1.1 libvpx7 libevent-2.1-7 libopus0 \
-                    libwebpdemux2 libwebpmux3 libharfbuzz-icu0 \
-                    libenchant-2-2 libsecret-1-0 libhyphen0 libgles2 || true
-
-                  # Try to install optional packages that may not be available on all versions
-                  apt-get install -y libgtk-4-1 libgraphene-1.0-0 libwoff1 \
-                    libmanette-0.2-0 gstreamer1.0-libav || true
-
-                  # Install flite libraries
-                  apt-get install -y flite1-dev libflite1 || true
-
-                  # Install additional codecs and formats
-                  apt-get install -y libavif15 libavif13 || true
-                  apt-get install -y libx264-163 libx264-164 || true
-                  apt-get install -y libwoff2-1.0.2 || true
-
-                  # From error: apt-get install libavif13
-                fi
-
               elif command -v dnf &> /dev/null; then
 
                 echo "Installing dependencies using dnf (Fedora, RHEL, CentOS)"
@@ -160,7 +145,15 @@ jobs:
                 curl -fsSL https://rpm.nodesource.com/setup_22.x | bash -
                 dnf install -y nodejs
 
-                dnf install -y gtk3 nss mesa-libgbm alsa-lib sudo dbus dbus-daemon
+                dnf install -y \
+                  gtk3 \
+                  nss \
+                  mesa-libgbm \
+                  alsa-lib \
+                  sudo \
+                  dbus \
+                  dbus-daemon
+
                 dnf install -y dbus-x11 || true
                 dnf install -y xorg-x11-server-Xvfb || true
                 dnf install -y xorg-x11-utils || true
@@ -169,12 +162,35 @@ jobs:
               elif command -v zypper &> /dev/null; then
 
                 echo "Installing dependencies using zypper (openSUSE)"
-                zypper install -y nodejs22 xorg-x11-server-Xvfb xorg-x11 libgtk-3-0 mozilla-nss libgbm1 alsa xdg-utils sudo tar gzip dbus-1 dbus-1-x11
+                zypper install -y \
+                  alsa \
+                  dbus-1 \
+                  dbus-1-x11 \
+                  gzip \
+                  libgbm1 \
+                  libgtk-3-0 \
+                  mozilla-nss \
+                  nodejs22 \
+                  sudo \
+                  tar \
+                  xdg-utils \
+                  xorg-x11 \
+                  xorg-x11-server-Xvfb
 
               elif command -v apk &> /dev/null; then
 
                 echo "Installing dependencies using apk (Alpine)"
-                apk add --no-cache nodejs npm xvfb xdpyinfo gtk+3.0 nss mesa-gbm sudo dbus dbus-x11
+                apk add --no-cache \
+                  dbus \
+                  dbus-x11 \
+                  gtk+3.0 \
+                  mesa-gbm \
+                  nodejs \
+                  npm \
+                  nss \
+                  sudo \
+                  xdpyinfo \
+                  xvfb
 
               fi
 
