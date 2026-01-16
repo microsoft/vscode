@@ -906,7 +906,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		let availableSessionsHeight = height - this.sessionsTitleContainer.offsetHeight - this.sessionsLinkContainer.offsetHeight;
 		if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
-			availableSessionsHeight -= ChatViewPane.MIN_CHAT_WIDGET_HEIGHT; // always reserve some space for chat input
+			// Reserve space for the chat input. Use the actual input height if available,
+			// otherwise fall back to the minimum height. This ensures the sessions list
+			// grows until the chat input but doesn't cause it to shrink.
+			const chatInputHeight = this._widget?.input?.inputPartHeight ?? 0;
+			const titleControlHeight = this.titleControl?.getHeight() ?? 0;
+			const reservedChatHeight = Math.max(ChatViewPane.MIN_CHAT_WIDGET_HEIGHT, chatInputHeight + titleControlHeight);
+			availableSessionsHeight -= reservedChatHeight;
 		}
 
 		// Show as sidebar
