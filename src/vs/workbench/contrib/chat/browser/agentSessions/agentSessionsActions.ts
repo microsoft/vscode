@@ -219,7 +219,7 @@ export class ArchiveAgentSessionSectionAction extends Action2 {
 			}, {
 				id: MenuId.AgentSessionSectionContext,
 				group: '1_edit',
-				order: 1,
+				order: 2,
 				when: ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Archived),
 			}]
 		});
@@ -265,7 +265,7 @@ export class UnarchiveAgentSessionSectionAction extends Action2 {
 			}, {
 				id: MenuId.AgentSessionSectionContext,
 				group: '1_edit',
-				order: 1,
+				order: 2,
 				when: ChatContextKeys.agentSessionSection.isEqualTo(AgentSessionSection.Archived),
 			}]
 		});
@@ -304,7 +304,7 @@ export class MarkAgentSessionSectionReadAction extends Action2 {
 			menu: {
 				id: MenuId.AgentSessionSectionContext,
 				group: '1_edit',
-				order: 2,
+				order: 1,
 				when: ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Archived),
 			}
 		});

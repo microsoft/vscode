@@ -219,6 +219,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 	private async showAgentSessionsSectionContextMenu(section: IAgentSessionSection, anchor: HTMLElement | IMouseEvent): Promise<void> {
 		const contextOverlay: Array<[string, boolean | string]> = [];
 		contextOverlay.push([ChatContextKeys.agentSessionSection.key, section.section]);
+
 		const menu = this.menuService.createMenu(MenuId.AgentSessionSectionContext, this.contextKeyService.createOverlay(contextOverlay));
 
 		this.contextMenuService.showContextMenu({
@@ -237,6 +238,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		contextOverlay.push([ChatContextKeys.isArchivedAgentSession.key, session.isArchived()]);
 		contextOverlay.push([ChatContextKeys.isReadAgentSession.key, session.isRead()]);
 		contextOverlay.push([ChatContextKeys.agentSessionType.key, session.providerType]);
+
 		const menu = this.menuService.createMenu(MenuId.AgentSessionsContext, this.contextKeyService.createOverlay(contextOverlay));
 
 		const marshalledSession: IMarshalledAgentSessionContext = { session, $mid: MarshalledId.AgentSessionContext };
