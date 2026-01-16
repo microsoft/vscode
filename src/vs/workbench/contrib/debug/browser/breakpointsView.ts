@@ -545,11 +545,6 @@ export class BreakpointsView extends ViewPane {
 					collapsed: this.collapsedState.has(folderItem.getId()),
 					children
 				});
-
-				// Mark as initialized (expanded by default on first render)
-				if (!this.collapsedState.has(`_init_${folderItem.getId()}`)) {
-					this.collapsedState.add(`_init_${folderItem.getId()}`);
-				}
 			}
 		} else {
 			// Flat mode - just add all source breakpoints
