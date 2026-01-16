@@ -865,6 +865,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				extensionAPI: number;
 				skippedDuplicateName: number;
 				skippedMissingName: number;
+				skippedMissingDescription: number;
 				skippedNameMismatch: number;
 				skippedParseFailed: number;
 			};
@@ -881,6 +882,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				extensionAPI: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of extension API provided skills.' };
 				skippedDuplicateName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of skills skipped due to duplicate names.' };
 				skippedMissingName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of skills skipped due to missing name attribute.' };
+				skippedMissingDescription: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of skills skipped due to missing description attribute.' };
 				skippedNameMismatch: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of skills skipped due to name not matching folder name.' };
 				skippedParseFailed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of skills skipped due to parse failures.' };
 				owner: 'pwang347';
@@ -899,6 +901,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				extensionAPI: skillTypes.get(PromptFileSource.ExtensionAPI) ?? 0,
 				skippedDuplicateName,
 				skippedMissingName,
+				skippedMissingDescription,
 				skippedNameMismatch,
 				skippedParseFailed
 			});
