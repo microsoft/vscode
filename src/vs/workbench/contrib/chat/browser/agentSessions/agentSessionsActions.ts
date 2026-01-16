@@ -405,7 +405,6 @@ export class ArchiveAgentSessionAction extends BaseAgentSessionAction {
 		}
 
 		session.setArchived(true);
-		session.setRead(true);
 	}
 }
 
