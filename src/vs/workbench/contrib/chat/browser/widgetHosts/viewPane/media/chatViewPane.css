@@ -110,6 +110,11 @@
 	.agent-sessions-container {
 		border-bottom: 1px solid var(--vscode-panel-border);
 	}
+
+	.agent-sessions-new-button-container {
+		/* hide new session button when stacked */
+		display: none;
+	}
 }
 
 /* Sessions control: side by side */
