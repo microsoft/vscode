@@ -149,10 +149,10 @@ export function registerNewChatActions() {
 			await editingSession?.stop();
 
 			// Create a new session with the same type as the current session
-			if (isIChatViewViewContext(widget.viewContext)) {
+			const currentResource = widget.viewModel?.model.sessionResource;
+			const sessionType = currentResource ? getChatSessionType(currentResource) : localChatSessionType;
+			if (isIChatViewViewContext(widget.viewContext) && sessionType !== localChatSessionType) {
 				// For the sidebar, we need to explicitly load a session with the same type
-				const currentResource = widget.viewModel?.model.sessionResource;
-				const sessionType = currentResource ? getChatSessionType(currentResource) : localChatSessionType;
 				const newResource = getResourceForNewChatSession(sessionType);
 				const view = await viewsService.openView(ChatViewId) as ChatViewPane;
 				await view.loadSession(newResource);
