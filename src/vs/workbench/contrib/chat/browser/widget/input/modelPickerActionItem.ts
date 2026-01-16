@@ -184,6 +184,12 @@ export class ModelPickerActionItem extends ChatInputPickerActionViewItem {
 		return statusIcon && tooltip ? `${label} • ${tooltip}` : label;
 	}
 
+	protected override setAriaLabelAttributes(element: HTMLElement): void {
+		super.setAriaLabelAttributes(element);
+		const modelName = this.currentModel?.metadata.name ?? localize('chat.modelPicker.auto', "Auto");
+		element.ariaLabel = localize('chat.modelPicker.ariaLabel', "Pick Model, {0}", modelName);
+	}
+
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
 		const { name, statusIcon } = this.currentModel?.metadata || {};
 		const domChildren = [];
