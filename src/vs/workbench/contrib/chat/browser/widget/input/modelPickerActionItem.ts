@@ -71,7 +71,6 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, te
 					label: localize('chat.modelPicker.showMore', "Show More"),
 					commandId: MANAGE_CHAT_COMMAND_ID,
 					run: (target) => {
-						console.log('[ModelPicker] Show More clicked, target:', target);
 						commandService.executeCommand(MANAGE_CHAT_COMMAND_ID, { query: model.metadata.name });
 					}
 				}];
