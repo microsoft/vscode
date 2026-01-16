@@ -37,7 +37,9 @@ import type { ITerminalExecuteStrategy } from '../executeStrategy/executeStrateg
 import { NoneExecuteStrategy } from '../executeStrategy/noneExecuteStrategy.js';
 import { RichExecuteStrategy } from '../executeStrategy/richExecuteStrategy.js';
 import { getOutput } from '../outputHelpers.js';
-import { extractCdPrefix, extractPythonCommand, isFish, isPowerShell, isWindowsPowerShell, isZsh } from '../runInTerminalHelpers.js';
+import { extractCdPrefix, isFish, isPowerShell, isWindowsPowerShell, isZsh } from '../runInTerminalHelpers.js';
+import type { ICommandLinePresenter } from './commandLinePresenter/commandLinePresenter.js';
+import { PythonCommandLinePresenter } from './commandLinePresenter/pythonCommandLinePresenter.js';
 import { RunInTerminalToolTelemetry } from '../runInTerminalToolTelemetry.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from '../toolTerminalCreator.js';
 import { TreeSitterCommandParser, TreeSitterCommandParserLanguage } from '../treeSitterCommandParser.js';
@@ -281,6 +283,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	private readonly _commandLineRewriters: ICommandLineRewriter[];
 	private readonly _commandLineAnalyzers: ICommandLineAnalyzer[];
+	private readonly _commandLinePresenters: ICommandLinePresenter[];
 
 	protected readonly _sessionTerminalAssociations = new ResourceMap<IToolTerminal>();
 
@@ -329,6 +332,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		this._commandLineAnalyzers = [
 			this._register(this._instantiationService.createInstance(CommandLineFileWriteAnalyzer, this._treeSitterCommandParser, (message, args) => this._logService.info(`RunInTerminalTool#CommandLineFileWriteAnalyzer: ${message}`, args))),
 			this._register(this._instantiationService.createInstance(CommandLineAutoApproveAnalyzer, this._treeSitterCommandParser, this._telemetry, (message, args) => this._logService.info(`RunInTerminalTool#CommandLineAutoApproveAnalyzer: ${message}`, args))),
+		];
+		this._commandLinePresenters = [
+			new PythonCommandLinePresenter(),
 		];
 
 		// Clear out warning accepted state if the setting is disabled
@@ -534,16 +540,19 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				: localize('runInTerminal', "Run `{0}` command?", shellType);
 		}
 
-		// Check for Python -c command and extract the Python code for presentation
-		const extractedPython = extractPythonCommand(commandToDisplay, shell, os);
-		if (extractedPython) {
-			toolSpecificData.presentationOverrides = {
-				commandLine: extractedPython,
-				language: 'python',
-			};
-			confirmationTitle = args.isBackground
-				? localize('runInTerminal.python.background', "Run `Python` command in `{0}`? (background terminal)", shellType)
-				: localize('runInTerminal.python', "Run `Python` command in `{0}`?", shellType);
+		// Check for presentation overrides (e.g., Python -c command extraction)
+		for (const presenter of this._commandLinePresenters) {
+			const presenterResult = presenter.present({ commandLine: commandToDisplay, shell, os });
+			if (presenterResult) {
+				toolSpecificData.presentationOverrides = {
+					commandLine: presenterResult.commandLine,
+					language: presenterResult.language,
+				};
+				confirmationTitle = args.isBackground
+					? localize('runInTerminal.presentationOverride.background', "Run `{0}` command in `{1}`? (background terminal)", presenterResult.languageDisplayName, shellType)
+					: localize('runInTerminal.presentationOverride', "Run `{0}` command in `{1}`?", presenterResult.languageDisplayName, shellType);
+				break;
+			}
 		}
 
 		const confirmationMessages = isFinalAutoApproved ? undefined : {
