@@ -12,7 +12,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { IUpdateService, State as UpdateState, StateType, IUpdate, DisablementReason, computeDownloadTimeRemaining, Downloading } from '../../../../platform/update/common/update.js';
+import { IUpdateService, State as UpdateState, StateType, IUpdate, DisablementReason, formatDownloadingUpdateLabel, Downloading } from '../../../../platform/update/common/update.js';
 import { INotificationService, NotificationPriority, Severity } from '../../../../platform/notification/common/notification.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../services/environment/browser/environmentService.js';
@@ -407,16 +407,11 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 	}
 
 	private updateDownloadingMenuItem(state: Downloading): void {
-		const timeRemaining = computeDownloadTimeRemaining(state);
-		const title = timeRemaining !== undefined && timeRemaining > 0
-			? nls.localize('DownloadingUpdateWithProgress', "Downloading Update ({0}s remaining)...", timeRemaining)
-			: nls.localize('DownloadingUpdate', "Downloading Update...");
-
 		this.downloadingMenuItemDisposable.value = MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 			group: '7_update',
 			command: {
 				id: 'update.downloading',
-				title,
+				title: formatDownloadingUpdateLabel(state),
 				precondition: ContextKeyExpr.false()
 			},
 			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloading)

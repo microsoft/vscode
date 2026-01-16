@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
+import { localize } from '../../../nls.js';
 import { upcast } from '../../../base/common/types.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
@@ -66,12 +67,7 @@ export type Disabled = { type: StateType.Disabled; reason: DisablementReason };
 export type Idle = { type: StateType.Idle; updateType: UpdateType; error?: string };
 export type CheckingForUpdates = { type: StateType.CheckingForUpdates; explicit: boolean };
 export type AvailableForDownload = { type: StateType.AvailableForDownload; update: IUpdate };
-export interface Downloading {
-	type: StateType.Downloading;
-	downloadedBytes?: number;
-	totalBytes?: number;
-	startTime?: number;
-}
+export type Downloading = { type: StateType.Downloading; downloadedBytes?: number; totalBytes?: number; startTime?: number };
 export type Downloaded = { type: StateType.Downloaded; update: IUpdate };
 export type Updating = { type: StateType.Updating; update: IUpdate };
 export type Ready = { type: StateType.Ready; update: IUpdate };
@@ -143,4 +139,17 @@ export function computeDownloadTimeRemaining(state: Downloading): number | undef
 
 	const remainingMs = remainingBytes / bytesPerMs;
 	return Math.ceil(remainingMs / 1000);
+}
+
+/**
+ * Formats the download progress label with time remaining if available.
+ *
+ * @param state The download state containing progress information.
+ * @returns A localized string like "Downloading Update (10s remaining)..." or "Downloading Update..."
+ */
+export function formatDownloadingUpdateLabel(state: Downloading): string {
+	const timeRemaining = computeDownloadTimeRemaining(state);
+	return timeRemaining !== undefined && timeRemaining > 0
+		? localize('downloadingUpdateWithProgress', "Downloading Update ({0}s remaining)...", timeRemaining)
+		: localize('downloadingUpdate', "Downloading Update...");
 }

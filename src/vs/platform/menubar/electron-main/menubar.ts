@@ -21,7 +21,7 @@ import { INativeHostMainService } from '../../native/electron-main/nativeHostMai
 import { IProductService } from '../../product/common/productService.js';
 import { IStateService } from '../../state/node/state.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { IUpdateService, StateType, computeDownloadTimeRemaining } from '../../update/common/update.js';
+import { IUpdateService, StateType, formatDownloadingUpdateLabel } from '../../update/common/update.js';
 import { INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, IWindowOpenable, hasNativeMenu } from '../../window/common/window.js';
 import { IWindowsCountChangedEvent, IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
 import { IWorkspacesHistoryMainService } from '../../workspaces/electron-main/workspacesHistoryMainService.js';
@@ -649,17 +649,9 @@ export class Menubar extends Disposable {
 
 			case StateType.Downloading: {
 				const state = this.updateService.state;
-				let label: string;
-				if (state.type === StateType.Downloading) {
-					const timeRemaining = computeDownloadTimeRemaining(state);
-					if (timeRemaining !== undefined && timeRemaining > 0) {
-						label = nls.localize('miDownloadingUpdateWithProgress', "Downloading Update ({0}s remaining)...", timeRemaining);
-					} else {
-						label = nls.localize('miDownloadingUpdate', "Downloading Update...");
-					}
-				} else {
-					label = nls.localize('miDownloadingUpdate', "Downloading Update...");
-				}
+				const label = state.type === StateType.Downloading
+					? formatDownloadingUpdateLabel(state)
+					: nls.localize('miDownloadingUpdate', "Downloading Update...");
 				return [new MenuItem({ label, enabled: false })];
 			}
 
