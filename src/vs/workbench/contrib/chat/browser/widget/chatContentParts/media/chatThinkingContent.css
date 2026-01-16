@@ -79,7 +79,7 @@
 		}
 
 		.chat-thinking-item.markdown-content {
-			padding: 6px 12px 6px 24px;
+			padding: 5px 12px 6px 24px;
 			position: relative;
 			font-size: var(--vscode-chat-font-size-body-s);
 
