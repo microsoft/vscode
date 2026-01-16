@@ -127,8 +127,6 @@
 
 /* Input Boxes */
 .monaco-workbench .monaco-inputbox { box-shadow: 0 0 4px rgba(0, 0, 0, 0.08); border: none; border-radius: 6px; }
-.monaco-workbench .monaco-inputbox.synthetic-focus,
-.monaco-workbench .monaco-inputbox:focus-within { box-shadow: 0 0 6px rgba(0, 0, 0, 0.10), 0 0 0 2px var(--vscode-focusBorder); }
 
 /* Buttons */
 .monaco-workbench .monaco-button { box-shadow: 0 0 2px rgba(0, 0, 0, 0.06); }
