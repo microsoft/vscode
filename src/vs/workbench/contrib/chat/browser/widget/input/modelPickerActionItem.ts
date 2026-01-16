@@ -22,8 +22,9 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { MANAGE_CHAT_COMMAND_ID } from '../../../common/constants.js';
 import { TelemetryTrustedValue } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
-import { IManagedHoverContent } from '../../../../../../base/browser/ui/hover/hover.js';
+import { IHoverAction, IManagedHoverContent } from '../../../../../../base/browser/ui/hover/hover.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
+import { getModelDescription } from './modelDescriptions.js';
 
 export interface IModelPickerDelegate {
 	readonly onDidChangeModel: Event<ILanguageModelChatMetadataAndIdentifier>;
@@ -45,7 +46,7 @@ type ChatModelChangeEvent = {
 };
 
 
-function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, telemetryService: ITelemetryService): IActionWidgetDropdownActionProvider {
+function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, telemetryService: ITelemetryService, commandService: ICommandService): IActionWidgetDropdownActionProvider {
 	return {
 		getActions: () => {
 			const models = delegate.getModels();
@@ -59,10 +60,20 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, te
 					class: undefined,
 					tooltip: localize('chat.modelPicker.auto', "Auto"),
 					label: localize('chat.modelPicker.auto', "Auto"),
+					hoverContent: localize('chat.modelPicker.auto.description', "Automatically selects the best model for your task based on context and complexity."),
 					run: () => { }
 				} satisfies IActionWidgetDropdownAction];
 			}
 			return models.map(model => {
+				const description = getModelDescription(model);
+				const hoverActions: IHoverAction[] = [{
+					label: localize('chat.modelPicker.showMore', "Show More"),
+					commandId: MANAGE_CHAT_COMMAND_ID,
+					run: (target) => {
+						console.log('[ModelPicker] Show More clicked, target:', target);
+						commandService.executeCommand(MANAGE_CHAT_COMMAND_ID, { query: model.metadata.name });
+					}
+				}];
 				return {
 					id: model.metadata.id,
 					enabled: true,
@@ -72,6 +83,8 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, te
 					class: undefined,
 					description: model.metadata.detail,
 					tooltip: model.metadata.tooltip ?? model.metadata.name,
+					hoverContent: description,
+					hoverActions,
 					label: model.metadata.name,
 					run: () => {
 						const previousModel = delegate.getCurrentModel();
@@ -162,7 +175,7 @@ export class ModelPickerActionItem extends ChatInputPickerActionViewItem {
 		};
 
 		const modelPickerActionWidgetOptions: Omit<IActionWidgetDropdownOptions, 'label' | 'labelRenderer'> = {
-			actionProvider: modelDelegateToWidgetActionsProvider(delegate, telemetryService),
+			actionProvider: modelDelegateToWidgetActionsProvider(delegate, telemetryService, commandService),
 			actionBarActionProvider: getModelPickerActionBarActionProvider(commandService, chatEntitlementService, productService),
 		};
 

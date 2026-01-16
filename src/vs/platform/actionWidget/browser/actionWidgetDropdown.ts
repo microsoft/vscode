@@ -12,11 +12,21 @@ import { Codicon } from '../../../base/common/codicons.js';
 import { getActiveElement, isHTMLElement } from '../../../base/browser/dom.js';
 import { IKeybindingService } from '../../keybinding/common/keybinding.js';
 import { IListAccessibilityProvider } from '../../../base/browser/ui/list/listWidget.js';
+import { IHoverAction } from '../../../base/browser/ui/hover/hover.js';
 
 export interface IActionWidgetDropdownAction extends IAction {
 	category?: { label: string; order: number; showHeader?: boolean };
 	icon?: ThemeIcon;
 	description?: string;
+	/**
+	 * Optional hover content to show in a flyout when hovering over the action.
+	 * Can be a markdown string or a plain string.
+	 */
+	hoverContent?: string;
+	/**
+	 * Optional actions to show in the flyout hover.
+	 */
+	hoverActions?: IHoverAction[];
 }
 
 // TODO @lramos15 - Should we just make IActionProvider templated?
@@ -103,6 +113,8 @@ export class ActionWidgetDropdown extends BaseDropdown {
 					item: action,
 					tooltip: action.tooltip,
 					description: action.description,
+					hoverContent: action.hoverContent,
+					hoverActions: action.hoverActions,
 					kind: ActionListItemKind.Action,
 					canPreview: false,
 					group: { title: '', icon: action.icon ?? ThemeIcon.fromId(action.checked ? Codicon.check.id : Codicon.blank.id) },

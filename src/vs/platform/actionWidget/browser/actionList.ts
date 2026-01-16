@@ -9,7 +9,7 @@ import { IListAccessibilityProvider, List } from '../../../base/browser/ui/list/
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 import { OS } from '../../../base/common/platform.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import './actionWidget.css';
@@ -19,6 +19,10 @@ import { IKeybindingService } from '../../keybinding/common/keybinding.js';
 import { defaultListStyles } from '../../theme/browser/defaultStyles.js';
 import { asCssVariable } from '../../theme/common/colorRegistry.js';
 import { ILayoutService } from '../../layout/browser/layoutService.js';
+import { IHoverService } from '../../hover/browser/hover.js';
+import { MarkdownString } from '../../../base/common/htmlContent.js';
+import { HoverPosition } from '../../../base/browser/ui/hover/hoverWidget.js';
+import { IHoverAction } from '../../../base/browser/ui/hover/hover.js';
 
 export const acceptSelectedActionCommand = 'acceptSelectedCodeAction';
 export const previewSelectedActionCommand = 'previewSelectedCodeAction';
@@ -37,6 +41,14 @@ export interface IActionListItem<T> {
 	readonly disabled?: boolean;
 	readonly label?: string;
 	readonly description?: string;
+	/**
+	 * Optional hover content to show in a flyout when hovering over the item.
+	 */
+	readonly hoverContent?: string;
+	/**
+	 * Optional actions to show in the flyout hover.
+	 */
+	readonly hoverActions?: IHoverAction[];
 	readonly keybinding?: ResolvedKeybinding;
 	canPreview?: boolean | undefined;
 	readonly hideIcon?: boolean;
@@ -225,6 +237,9 @@ export class ActionList<T> extends Disposable {
 
 	private readonly cts = this._register(new CancellationTokenSource());
 
+	private _currentFlyoutIndex: number | undefined;
+	private _flyoutTimeout: IDisposable | undefined;
+
 	constructor(
 		user: string,
 		preview: boolean,
@@ -234,6 +249,7 @@ export class ActionList<T> extends Disposable {
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ILayoutService private readonly _layoutService: ILayoutService,
+		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super();
 		this.domNode = document.createElement('div');
@@ -313,6 +329,7 @@ export class ActionList<T> extends Disposable {
 	hide(didCancel?: boolean): void {
 		this._delegate.onHide(didCancel);
 		this.cts.cancel();
+		this._hoverService.hideHover();
 		this._contextViewService.hideContextView();
 	}
 
@@ -401,21 +418,65 @@ export class ActionList<T> extends Disposable {
 		const focusIndex = focused[0];
 		const element = this._list.element(focusIndex);
 		this._delegate.onFocus?.(element.item);
+
+		// Show flyout on focus change
+		this._showFlyoutForElement(element, focusIndex);
+	}
+
+	private _showFlyoutForElement(element: IActionListItem<T>, index: number): void {
+		// Skip if we're already showing flyout for this item
+		if (this._currentFlyoutIndex === index) {
+			return;
+		}
+
+		// Clear any pending flyout timeout
+		this._flyoutTimeout?.dispose();
+		this._flyoutTimeout = undefined;
+
+		// Hide any existing flyout hover when moving to a different item
+		this._hoverService.hideHover();
+		this._currentFlyoutIndex = undefined;
+
+		// Show flyout hover if the element has hover content or actions
+		if ((element.hoverContent || element.hoverActions) && this.focusCondition(element)) {
+			// eslint-disable-next-line no-restricted-syntax
+			const rowElement = this.domNode.ownerDocument.getElementById(this._list.getElementID(index));
+			if (rowElement) {
+				this._currentFlyoutIndex = index;
+				const markdown = element.hoverContent ? new MarkdownString(element.hoverContent) : undefined;
+				this._hoverService.showInstantHover({
+					content: markdown ?? '',
+					target: rowElement,
+					actions: element.hoverActions,
+					additionalClasses: ['action-widget-flyout'],
+					position: {
+						hoverPosition: HoverPosition.LEFT,
+						forcePosition: false,
+					},
+					appearance: {
+						showPointer: false,
+					},
+				});
+			}
+		}
 	}
 
 	private async onListHover(e: IListMouseEvent<IActionListItem<T>>) {
 		const element = e.element;
-		if (element && element.item && this.focusCondition(element)) {
-			if (this._delegate.onHover && !element.disabled && element.kind === ActionListItemKind.Action) {
-				const result = await this._delegate.onHover(element.item, this.cts.token);
-				element.canPreview = result ? result.canPreview : undefined;
-			}
-			if (e.index) {
-				this._list.splice(e.index, 1, [element]);
-			}
-		}
 
-		this._list.setFocus(typeof e.index === 'number' ? [e.index] : []);
+		if (element) {
+			if (element.item && this.focusCondition(element)) {
+				if (this._delegate.onHover && !element.disabled && element.kind === ActionListItemKind.Action) {
+					const result = await this._delegate.onHover(element.item, this.cts.token);
+					element.canPreview = result ? result.canPreview : undefined;
+				}
+				if (e.index) {
+					this._list.splice(e.index, 1, [element]);
+				}
+			}
+
+			this._list.setFocus(typeof e.index === 'number' ? [e.index] : []);
+		}
 	}
 
 	private onListClick(e: IListMouseEvent<IActionListItem<T>>): void {

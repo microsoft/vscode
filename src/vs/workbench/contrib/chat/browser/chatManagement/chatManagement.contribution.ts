@@ -117,8 +117,17 @@ registerAction2(class extends Action2 {
 	}
 	async run(accessor: ServicesAccessor, args: string | IOpenManageCopilotEditorActionOptions) {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const editorService = accessor.get(IEditorService);
 		args = sanitizeOpenManageCopilotEditorArgs(args);
-		return editorGroupsService.activeGroup.openEditor(new ModelsManagementEditorInput(), { pinned: true });
+		await editorGroupsService.activeGroup.openEditor(new ModelsManagementEditorInput(), { pinned: true });
+
+		// If a query was provided, search for it in the models widget
+		if (args.query) {
+			const activeEditorPane = editorService.activeEditorPane;
+			if (activeEditorPane instanceof ModelsManagementEditor) {
+				activeEditorPane.search(args.query);
+			}
+		}
 	}
 });
 
