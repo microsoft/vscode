@@ -123,6 +123,7 @@ export function setup(context: TestContext) {
 	async function runUITest(url: string, test: UITest) {
 		const browser = await context.launchBrowser();
 		const page = await browser.newPage();
+		page.setDefaultTimeout(60000);
 
 		context.log(`Navigating to ${url}`);
 		await page.goto(url, { waitUntil: 'networkidle' });

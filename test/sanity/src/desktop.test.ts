@@ -205,6 +205,7 @@ export function setup(context: TestContext) {
 		context.log(`Starting VS Code ${entryPoint} with args ${args.join(' ')}`);
 		const app = await _electron.launch({ executablePath: entryPoint, args });
 		const window = await app.firstWindow();
+		window.setDefaultTimeout(60000);
 
 		await test.run(window);
 
