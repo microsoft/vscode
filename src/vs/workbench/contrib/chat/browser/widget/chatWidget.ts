@@ -228,8 +228,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private recentlyRestoredCheckpoint: boolean = false;
 
-	private settingChangeCounter = 0;
-
 	private welcomeMessageContainer!: HTMLElement;
 	private readonly welcomePart: MutableDisposable<ChatViewWelcomePart> = this._register(new MutableDisposable());
 
@@ -440,11 +438,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._register(this.configurationService.onDidChangeConfiguration((e) => {
 			if (e.affectsConfiguration('chat.renderRelatedFiles')) {
 				this.input.renderChatRelatedFiles();
-			}
-
-			if (e.affectsConfiguration(ChatConfiguration.EditRequests) || e.affectsConfiguration(ChatConfiguration.CheckpointsEnabled)) {
-				this.settingChangeCounter++;
-				this.onDidChangeItems();
 			}
 		}));
 
@@ -777,7 +770,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			// Update list widget state and refresh
 			this.listWidget.setVisibleChangeCount(this.visibleChangeCount);
-			this.listWidget.setSettingChangeCounter(this.settingChangeCounter);
 			this.listWidget.refresh();
 
 			if (!skipDynamicLayout && this._dynamicMessageLayoutData) {
@@ -1803,7 +1795,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._codeBlockModelCollection.clear();
 
 		this.container.setAttribute('data-session-id', model.sessionId);
-		this.viewModel = this.instantiationService.createInstance(ChatViewModel, model, this._codeBlockModelCollection);
+		this.viewModel = this.instantiationService.createInstance(ChatViewModel, model, this._codeBlockModelCollection, undefined);
 
 		// Pass input model reference to input part for state syncing
 		this.inputPart.setInputModel(model.inputModel, model.getRequests().length === 0);

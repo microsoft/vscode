@@ -26,7 +26,7 @@ import { ChatAccessibilityProvider } from '../accessibility/chatAccessibilityPro
 import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions } from '../chat.js';
 import { katexContainerClassName } from '../../../markdown/common/markedKatexExtension.js';
 import { CodeBlockModelCollection } from '../../common/widget/codeBlockModelCollection.js';
-import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { IChatRequestModeInfo } from '../../common/model/chatModel.js';
@@ -34,6 +34,7 @@ import { IChatFollowup, IChatSendRequestOptions, IChatService } from '../../comm
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatListDelegate, ChatListItemRenderer, IChatListItemTemplate, IChatRendererDelegate } from './chatListRenderer.js';
 import { CodeBlockPart } from './chatContentParts/codeBlockPart.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
 export interface IChatListWidgetStyles {
 	listForeground?: string;
@@ -258,6 +259,7 @@ export class ChatListWidget extends Disposable {
 		@IChatService private readonly chatService: IChatService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@ILogService private readonly logService: ILogService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -440,6 +442,13 @@ export class ChatListWidget extends Disposable {
 		this._register(this._tree.onContextMenu(e => {
 			this.handleContextMenu(e);
 		}));
+
+		this._register(this.configurationService.onDidChangeConfiguration((e) => {
+			if (e.affectsConfiguration(ChatConfiguration.EditRequests) || e.affectsConfiguration(ChatConfiguration.CheckpointsEnabled)) {
+				this._settingChangeCounter++;
+				this.refresh();
+			}
+		}));
 	}
 
 	//#region Internal event handlers
@@ -573,13 +582,6 @@ export class ChatListWidget extends Disposable {
 	 */
 	get scrollLock(): boolean {
 		return this._scrollLock;
-	}
-
-	/**
-	 * Set the setting change counter (forces refresh).
-	 */
-	setSettingChangeCounter(value: number): void {
-		this._settingChangeCounter = value;
 	}
 
 	/**

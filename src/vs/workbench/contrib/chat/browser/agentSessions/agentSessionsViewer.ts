@@ -354,9 +354,15 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 	}
 
 	private buildHoverContent(session: IAgentSession): IDelayedHoverOptions {
-		const widget = this._sessionHover.value = this.instantiationService.createInstance(AgentSessionHoverWidget, session);
+		// note: hover service use mouseover which triggers again if the mouse moves
+		// within the element. Only recreate the hover widget if the session changed.
+		if (this._sessionHover.value?.session.resource.toString() !== session.resource.toString()) {
+			this._sessionHover.value = this.instantiationService.createInstance(AgentSessionHoverWidget, session);
+		}
 
+		const widget = this._sessionHover.value;
 		return {
+			id: 'agent.session.hover.' + session.resource.toString(),
 			content: widget.domNode,
 			style: HoverStyle.Pointer,
 			onDidShow: () => {
