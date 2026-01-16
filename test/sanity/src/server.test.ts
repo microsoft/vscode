@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { spawn } from 'child_process';
-import os from 'os';
 import { TestContext } from './context.js';
 
 export function setup(context: TestContext) {
@@ -82,7 +81,8 @@ export function setup(context: TestContext) {
 		];
 
 		context.log(`Starting server ${entryPoint} with args ${args.join(' ')}`);
-		const server = spawn(entryPoint, args, { shell: true, detached: os.platform() !== 'win32' });
+		const detached = !context.capabilities.has('windows');
+		const server = spawn(entryPoint, args, { shell: true, detached });
 
 		let testError: Error | undefined;
 

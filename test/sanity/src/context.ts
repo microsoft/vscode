@@ -29,7 +29,8 @@ interface ITargetMetadata {
 type Capability =
 	| 'linux' | 'darwin' | 'windows' | 'alpine'
 	| 'x64' | 'arm64' | 'arm32'
-	| 'deb' | 'rpm' | 'snap';
+	| 'deb' | 'rpm' | 'snap'
+	| 'browser';
 
 /**
  * Provides context and utilities for VS Code sanity tests.
@@ -63,11 +64,11 @@ export class TestContext {
 				this._capabilities.add('alpine');
 			} else {
 				switch (os.platform()) {
-					case 'linux':
-						this._capabilities.add('linux');
-						break;
 					case 'darwin':
 						this._capabilities.add('darwin');
+						break;
+					case 'linux':
+						this._capabilities.add('linux');
 						break;
 					case 'win32':
 						this._capabilities.add('windows');
@@ -75,14 +76,14 @@ export class TestContext {
 				}
 			}
 			switch (os.arch()) {
-				case 'x64':
-					this._capabilities.add('x64');
+				case 'arm':
+					this._capabilities.add('arm32');
 					break;
 				case 'arm64':
 					this._capabilities.add('arm64');
 					break;
-				case 'arm':
-					this._capabilities.add('arm32');
+				case 'x64':
+					this._capabilities.add('x64');
 					break;
 			}
 			if (fs.existsSync('/usr/bin/dpkg')) {
@@ -94,6 +95,23 @@ export class TestContext {
 			if (fs.existsSync('/usr/bin/snap')) {
 				this._capabilities.add('snap');
 			}
+			try {
+				let browserPath: string | undefined;
+				switch (os.platform()) {
+					case 'darwin':
+						browserPath = webkit.executablePath();
+						break;
+					case 'linux':
+						browserPath = firefox.executablePath();
+						break;
+					case 'win32':
+						browserPath = chromium.executablePath();
+						break;
+				}
+				if (browserPath && fs.existsSync(browserPath)) {
+					this._capabilities.add('browser');
+				}
+			} catch { }
 		}
 		return this._capabilities;
 	}

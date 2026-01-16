@@ -10,7 +10,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const options = minimist(process.argv.slice(2), {
-	string: ['fgrep', 'grep', 'test-results'],
+	string: ['fgrep', 'grep', 'test-results', 'timeout'],
 	boolean: ['help'],
 	alias: { fgrep: 'f', grep: 'g', help: 'h', 'test-results': 't' },
 });
@@ -27,6 +27,7 @@ if (options.help) {
 	console.info('  --grep, -g <pattern>            Only run tests matching the given <pattern>');
 	console.info('  --fgrep, -f <string>            Only run tests containing the given <string>');
 	console.info('  --test-results, -t <path>       Output test results in JUnit format to the specified path');
+	console.info('  --timeout <sec>                 Set the test-case timeout in seconds (default: 600 seconds)');
 	console.info('  --verbose, -v                   Enable verbose logging');
 	console.info('  --help, -h                      Show this help message');
 	process.exit(0);
@@ -35,7 +36,7 @@ if (options.help) {
 const testResults = options['test-results'];
 const mochaOptions: MochaOptions = {
 	color: true,
-	timeout: 10 * 60 * 1000,
+	timeout: (options.timeout ?? 600) * 1000,
 	slow: 3 * 60 * 1000,
 	grep: options.grep,
 	fgrep: options.fgrep,

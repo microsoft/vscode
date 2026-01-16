@@ -4,63 +4,62 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { spawn } from 'child_process';
-import os from 'os';
 import { TestContext } from './context.js';
 import { UITest } from './uiTest.js';
 
 export function setup(context: TestContext) {
-	context.test('server-web-alpine-arm64', ['alpine', 'arm64'], async () => {
+	context.test('server-web-alpine-arm64', ['alpine', 'arm64', 'browser'], async () => {
 		const dir = await context.downloadAndUnpack('server-alpine-arm64-web');
 		const entryPoint = context.getServerEntryPoint(dir);
 		await testServer(entryPoint);
 	});
 
-	context.test('server-web-alpine-x64', ['alpine', 'x64'], async () => {
+	context.test('server-web-alpine-x64', ['alpine', 'x64', 'browser'], async () => {
 		const dir = await context.downloadAndUnpack('server-linux-alpine-web');
 		const entryPoint = context.getServerEntryPoint(dir);
 		await testServer(entryPoint);
 	});
 
-	context.test('server-web-darwin-arm64', ['darwin', 'arm64'], async () => {
+	context.test('server-web-darwin-arm64', ['darwin', 'arm64', 'browser'], async () => {
 		const dir = await context.downloadAndUnpack('server-darwin-arm64-web');
 		context.validateAllCodesignSignatures(dir);
 		const entryPoint = context.getServerEntryPoint(dir);
 		await testServer(entryPoint);
 	});
 
-	context.test('server-web-darwin-x64', ['darwin', 'x64'], async () => {
+	context.test('server-web-darwin-x64', ['darwin', 'x64', 'browser'], async () => {
 		const dir = await context.downloadAndUnpack('server-darwin-web');
 		context.validateAllCodesignSignatures(dir);
 		const entryPoint = context.getServerEntryPoint(dir);
 		await testServer(entryPoint);
 	});
 
-	context.test('server-web-linux-arm64', ['linux', 'arm64'], async () => {
+	context.test('server-web-linux-arm64', ['linux', 'arm64', 'browser'], async () => {
 		const dir = await context.downloadAndUnpack('server-linux-arm64-web');
 		const entryPoint = context.getServerEntryPoint(dir);
 		await testServer(entryPoint);
 	});
 
-	context.test('server-web-linux-armhf', ['linux', 'arm32'], async () => {
+	context.test('server-web-linux-armhf', ['linux', 'arm32', 'browser'], async () => {
 		const dir = await context.downloadAndUnpack('server-linux-armhf-web');
 		const entryPoint = context.getServerEntryPoint(dir);
 		await testServer(entryPoint);
 	});
 
-	context.test('server-web-linux-x64', ['linux', 'x64'], async () => {
+	context.test('server-web-linux-x64', ['linux', 'x64', 'browser'], async () => {
 		const dir = await context.downloadAndUnpack('server-linux-x64-web');
 		const entryPoint = context.getServerEntryPoint(dir);
 		await testServer(entryPoint);
 	});
 
-	context.test('server-web-win32-arm64', ['windows', 'arm64'], async () => {
+	context.test('server-web-win32-arm64', ['windows', 'arm64', 'browser'], async () => {
 		const dir = await context.downloadAndUnpack('server-win32-arm64-web');
 		context.validateAllAuthenticodeSignatures(dir);
 		const entryPoint = context.getServerEntryPoint(dir);
 		await testServer(entryPoint);
 	});
 
-	context.test('server-web-win32-x64', ['windows', 'x64'], async () => {
+	context.test('server-web-win32-x64', ['windows', 'x64', 'browser'], async () => {
 		const dir = await context.downloadAndUnpack('server-win32-x64-web');
 		context.validateAllAuthenticodeSignatures(dir);
 		const entryPoint = context.getServerEntryPoint(dir);
@@ -84,7 +83,8 @@ export function setup(context: TestContext) {
 		];
 
 		context.log(`Starting server ${entryPoint} with args ${args.join(' ')}`);
-		const server = spawn(entryPoint, args, { shell: true, detached: os.platform() !== 'win32' });
+		const detached = !context.capabilities.has('windows');
+		const server = spawn(entryPoint, args, { shell: true, detached });
 
 		let testError: Error | undefined;
 

@@ -27,6 +27,7 @@ Use -g or -f command-line options to filter tests to match the host platform.
 |`--grep <pattern>`|`-g`|Only run tests matching the given <pattern>|
 |`--fgrep <string>`|`-f`|Only run tests containing the given <string>|
 |`--test-results <path>`|`-t`|Output test results in JUnit format to the specified path|
+|`--timeout <sec>`||Set the test-case timeout in seconds (default: 600 seconds)|
 |`--verbose`|`-v`|Enable verbose logging|
 |`--help`|`-h`|Show this help message|
 
