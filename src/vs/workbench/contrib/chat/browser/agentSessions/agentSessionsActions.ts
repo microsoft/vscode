@@ -33,6 +33,7 @@ import { ActiveEditorContext, AuxiliaryBarMaximizedContext } from '../../../../c
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { coalesce } from '../../../../../base/common/arrays.js';
 
 //#region Chat View
 
@@ -383,9 +384,7 @@ abstract class BaseAgentSessionAction extends Action2 {
 
 		let sessions: IAgentSession[] = [];
 		if (isMarshalledAgentSessionContext(context)) {
-			// Use the sessions array if available (multi-select), otherwise fall back to single session
-			const contextSessions = context.sessions ?? [context.session];
-			sessions = contextSessions.map(s => agentSessionsService.getSession(s.resource)).filter((s): s is IAgentSession => !!s);
+			sessions = coalesce((context.sessions ?? [context.session]).map(session => agentSessionsService.getSession(session.resource)));
 		} else if (context) {
 			sessions = [context];
 		}
@@ -551,6 +550,7 @@ export class RenameAgentSessionAction extends BaseAgentSessionAction {
 		super({
 			id: AGENT_SESSION_RENAME_ACTION_ID,
 			title: localize2('rename', "Rename..."),
+			precondition: ChatContextKeys.hasMultipleAgentSessionsSelected.negate(),
 			keybinding: {
 				primary: KeyCode.F2,
 				mac: {
@@ -572,7 +572,7 @@ export class RenameAgentSessionAction extends BaseAgentSessionAction {
 	}
 
 	async runWithSessions(sessions: IAgentSession[], accessor: ServicesAccessor): Promise<void> {
-		const session = sessions[0];
+		const session = sessions.at(0);
 		if (!session) {
 			return;
 		}
@@ -603,8 +603,7 @@ export class DeleteAgentSessionAction extends BaseAgentSessionAction {
 	}
 
 	async runWithSessions(sessions: IAgentSession[], accessor: ServicesAccessor): Promise<void> {
-		const session = sessions[0];
-		if (!session) {
+		if (sessions.length === 0) {
 			return;
 		}
 
@@ -613,7 +612,9 @@ export class DeleteAgentSessionAction extends BaseAgentSessionAction {
 		const widgetService = accessor.get(IChatWidgetService);
 
 		const confirmed = await dialogService.confirm({
-			message: localize('deleteSession.confirm', "Are you sure you want to delete this chat session?"),
+			message: sessions.length === 1
+				? localize('deleteSession.confirm', "Are you sure you want to delete this chat session?")
+				: localize('deleteSessions.confirm', "Are you sure you want to delete {0} chat sessions?", sessions.length),
 			detail: localize('deleteSession.detail', "This action cannot be undone."),
 			primaryButton: localize('deleteSession.delete', "Delete")
 		});
@@ -622,11 +623,14 @@ export class DeleteAgentSessionAction extends BaseAgentSessionAction {
 			return;
 		}
 
-		// Clear chat widget
-		await widgetService.getWidgetBySessionResource(session.resource)?.clear();
+		for (const session of sessions) {
 
-		// Remove from storage
-		await chatService.removeHistoryEntry(session.resource);
+			// Clear chat widget
+			await widgetService.getWidgetBySessionResource(session.resource)?.clear();
+
+			// Remove from storage
+			await chatService.removeHistoryEntry(session.resource);
+		}
 	}
 }
 
@@ -676,19 +680,17 @@ export class DeleteAllLocalSessionsAction extends Action2 {
 abstract class BaseOpenAgentSessionAction extends BaseAgentSessionAction {
 
 	async runWithSessions(sessions: IAgentSession[], accessor: ServicesAccessor): Promise<void> {
-		const session = sessions[0];
-		if (!session) {
-			return;
-		}
-
 		const chatWidgetService = accessor.get(IChatWidgetService);
 
-		const uri = session.resource;
+		const targetGroup = this.getTargetGroup();
+		for (const session of sessions) {
+			const uri = session.resource;
 
-		await chatWidgetService.openSession(uri, this.getTargetGroup(), {
-			...this.getOptions(),
-			pinned: true
-		});
+			await chatWidgetService.openSession(uri, targetGroup, {
+				...this.getOptions(),
+				pinned: true
+			});
+		}
 	}
 
 	protected abstract getTargetGroup(): PreferredGroup;
