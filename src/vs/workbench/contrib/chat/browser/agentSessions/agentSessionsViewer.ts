@@ -3,43 +3,44 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
+import './media/agentsessionsviewer.css';
 import { h } from '../../../../../base/browser/dom.js';
-import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
-import { HoverStyle, IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
-import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
-import { IconLabel } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
+import { localize } from '../../../../../nls.js';
 import { IIdentityProvider, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
-import { ListViewTargetSector } from '../../../../../base/browser/ui/list/listView.js';
 import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
 import { ITreeCompressionDelegate } from '../../../../../base/browser/ui/tree/asyncDataTree.js';
 import { ICompressedTreeNode } from '../../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
 import { ICompressibleKeyboardNavigationLabelProvider, ICompressibleTreeRenderer } from '../../../../../base/browser/ui/tree/objectTree.js';
-import { IAsyncDataSource, ITreeDragAndDrop, ITreeDragOverReaction, ITreeElementRenderDetails, ITreeNode, ITreeSorter } from '../../../../../base/browser/ui/tree/tree.js';
-import { coalesce } from '../../../../../base/common/arrays.js';
-import { IntervalTimer } from '../../../../../base/common/async.js';
+import { ITreeNode, ITreeElementRenderDetails, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction } from '../../../../../base/browser/ui/tree/tree.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { AgentSessionSection, AgentSessionStatus, getAgentChangesSummary, hasValidDiff, IAgentSession, IAgentSessionSection, IAgentSessionsModel, isAgentSession, isAgentSessionSection, isAgentSessionsModel, isSessionInProgressStatus } from './agentSessionsModel.js';
+import { IconLabel } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { fromNow, getDurationString } from '../../../../../base/common/date.js';
-import { Event } from '../../../../../base/common/event.js';
-import { createMatches, FuzzyScore } from '../../../../../base/common/filters.js';
-import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { localize } from '../../../../../nls.js';
+import { FuzzyScore, createMatches } from '../../../../../base/common/filters.js';
+import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { allowedChatMarkdownHtmlTags } from '../widget/chatContentMarkdownRenderer.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
+import { ListViewTargetSector } from '../../../../../base/browser/ui/list/listView.js';
+import { coalesce } from '../../../../../base/common/arrays.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { fillEditorsDragData } from '../../../../browser/dnd.js';
+import { HoverStyle, IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
+import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IntervalTimer } from '../../../../../base/common/async.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
-import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
-import { IProductService } from '../../../../../platform/product/common/productService.js';
-import { fillEditorsDragData } from '../../../../browser/dnd.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { allowedChatMarkdownHtmlTags } from '../widget/chatContentMarkdownRenderer.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { Event } from '../../../../../base/common/event.js';
+import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
+import { MarkdownString, IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { AgentSessionHoverWidget } from './agentSessionHoverWidget.js';
-import { AgentSessionSection, AgentSessionStatus, getAgentChangesSummary, hasValidDiff, IAgentSession, IAgentSessionSection, IAgentSessionsModel, isAgentSession, isAgentSessionSection, isAgentSessionsModel, isSessionInProgressStatus } from './agentSessionsModel.js';
-import './media/agentsessionsviewer.css';
+
 
 export type AgentSessionListItem = IAgentSession | IAgentSessionSection;
 

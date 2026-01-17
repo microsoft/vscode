@@ -74,7 +74,7 @@
 	opacity: 0;
 	animation: agentSessionHoverFadeIn 0.2s ease-out forwards;
 
-	.interactive-session     .interactive-item-container {
+	.interactive-session .interactive-item-container {
 		padding: 0;
 	}
 }
