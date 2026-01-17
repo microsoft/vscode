@@ -360,6 +360,19 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		// Title
 		lines.push(`**${session.label}**`);
 
+		lines.push('more');
+		lines.push('more');
+		lines.push('more');
+		lines.push('more');
+		lines.push('more');
+		lines.push('more');
+		lines.push('more');
+		lines.push('more');
+		lines.push('more');
+		lines.push('more');
+		lines.push('more');
+		lines.push('more');
+
 		// Tooltip (from provider)
 		if (session.tooltip) {
 			const tooltip = typeof session.tooltip === 'string' ? session.tooltip : session.tooltip.value;
