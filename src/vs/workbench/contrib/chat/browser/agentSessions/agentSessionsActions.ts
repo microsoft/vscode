@@ -516,7 +516,9 @@ export class ArchiveAgentSessionAction extends BaseAgentSessionAction {
 						run: async () => {
 							// Accept edits for all sessions with pending edits, then archive
 							for (const { session, chatModel } of sessionsWithPendingEdits) {
-								await chatModel!.editingSession!.accept();
+								if (chatModel?.editingSession) {
+									await chatModel.editingSession.accept();
+								}
 								session.setArchived(true);
 							}
 							return true;
@@ -527,7 +529,9 @@ export class ArchiveAgentSessionAction extends BaseAgentSessionAction {
 						run: async () => {
 							// Reject edits for all sessions with pending edits, then archive
 							for (const { session, chatModel } of sessionsWithPendingEdits) {
-								await chatModel!.editingSession!.reject();
+								if (chatModel?.editingSession) {
+									await chatModel.editingSession.reject();
+								}
 								session.setArchived(true);
 							}
 							return true;
