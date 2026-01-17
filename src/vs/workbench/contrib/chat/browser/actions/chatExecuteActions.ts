@@ -440,7 +440,7 @@ export class OpenSessionTargetPickerAction extends Action2 {
 			tooltip: localize('setSessionTarget', "Set Session Target"),
 			category: CHAT_CATEGORY,
 			f1: false,
-			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.hasCanDelegateProviders, ChatContextKeys.chatSessionIsEmpty),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.hasCanDelegateProviders, ContextKeyExpr.or(ChatContextKeys.chatSessionIsEmpty, ChatContextKeys.inAgentSessionsWelcome)),
 			menu: [
 				{
 					id: MenuId.ChatInput,
@@ -479,12 +479,14 @@ export class ChatSessionPrimaryPickerAction extends Action2 {
 				order: 4,
 				group: 'navigation',
 				when:
-					ContextKeyExpr.or(
+					ContextKeyExpr.and(
 						ChatContextKeys.chatSessionHasModels,
-						ChatContextKeys.lockedToCodingAgent,
-						ContextKeyExpr.and(
-							ChatContextKeys.inAgentSessionsWelcome,
-							ChatContextKeys.chatSessionType.notEqualsTo('local')
+						ContextKeyExpr.or(
+							ChatContextKeys.lockedToCodingAgent,
+							ContextKeyExpr.and(
+								ChatContextKeys.inAgentSessionsWelcome,
+								ChatContextKeys.chatSessionType.notEqualsTo('local')
+							)
 						)
 					)
 			}

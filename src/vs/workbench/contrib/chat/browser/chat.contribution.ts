@@ -195,7 +195,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.AgentStatusEnabled]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.agentsControl.enabled', "Controls whether the Agent Status is shown in the title bar command center, replacing the search box with quick access to chat sessions."),
+			markdownDescription: nls.localize('chat.agentsControl.enabled', "Controls whether the Agent Status is shown in the title bar command center, replacing the search box with quick access to chat sessions. Enabling this setting will automatically enable {0}.", '`#window.commandCenter#`'),
 			default: false,
 			tags: ['experimental']
 		},
@@ -261,6 +261,16 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.renderRelatedFiles', "Controls whether related files should be rendered in the chat input."),
 			default: false
+		},
+		[ChatConfiguration.InlineReferencesStyle]: {
+			type: 'string',
+			enum: ['box', 'link'],
+			enumDescriptions: [
+				nls.localize('chat.inlineReferences.style.box', "Display file and symbol references as boxed widgets with icons."),
+				nls.localize('chat.inlineReferences.style.link', "Display file and symbol references as simple blue links without icons.")
+			],
+			description: nls.localize('chat.inlineReferences.style', "Controls how file and symbol references are displayed in chat messages."),
+			default: 'box'
 		},
 		'chat.notifyWindowOnConfirmation': {
 			type: 'boolean',
@@ -346,12 +356,6 @@ configurationRegistry.registerConfiguration({
 					}
 				},
 			}
-		},
-		[ChatConfiguration.SuspendThrottling]: { // TODO@deepak1556 remove this once https://github.com/microsoft/vscode/issues/263554 is resolved.
-			type: 'boolean',
-			description: nls.localize('chat.suspendThrottling', "Controls whether background throttling is suspended when a chat request is in progress, allowing the chat session to continue even when the window is not in focus."),
-			default: true,
-			tags: ['preview']
 		},
 		'chat.sendElementsToChat.enabled': {
 			default: true,
