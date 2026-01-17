@@ -30,7 +30,7 @@
 		overflow: hidden;
 
 		.chat-tool-invocation-part {
-			padding: 3px 12px 4px 18px;
+			padding: 4px 12px 4px 18px;
 			position: relative;
 
 			.chat-used-context {
@@ -79,7 +79,7 @@
 		}
 
 		.chat-thinking-item.markdown-content {
-			padding: 5px 12px 6px 24px;
+			padding: 6px 12px 6px 24px;
 			position: relative;
 			font-size: var(--vscode-chat-font-size-body-s);
 

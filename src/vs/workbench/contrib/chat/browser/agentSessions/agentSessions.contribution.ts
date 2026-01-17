@@ -28,6 +28,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { AuxiliaryBarMaximizedContext } from '../../../../common/contextkeys.js';
+import { LayoutSettings } from '../../../../services/layout/browser/layoutService.js';
 
 //#region Actions and Menus
 
@@ -61,7 +62,6 @@ registerAction2(SetAgentSessionsOrientationSideBySideAction);
 // Agent Session Projection
 registerAction2(EnterAgentSessionProjectionAction);
 registerAction2(ExitAgentSessionProjectionAction);
-// registerAction2(OpenInChatPanelAction); // TODO@joshspicer https://github.com/microsoft/vscode/issues/288082
 registerAction2(ToggleAgentStatusAction);
 registerAction2(ToggleAgentSessionProjectionAction);
 
@@ -240,9 +240,15 @@ class AgentStatusRendering extends Disposable implements IWorkbenchContribution 
 		}, undefined));
 
 		// Add/remove CSS class on workbench based on setting
+		// Also force enable command center when agent status is enabled
 		const updateClass = () => {
 			const enabled = configurationService.getValue<boolean>(ChatConfiguration.AgentStatusEnabled) === true;
 			mainWindow.document.body.classList.toggle('agent-status-enabled', enabled);
+
+			// Force enable command center when agent status is enabled
+			if (enabled && configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER) !== true) {
+				configurationService.updateValue(LayoutSettings.COMMAND_CENTER, true);
+			}
 		};
 		updateClass();
 		this._register(configurationService.onDidChangeConfiguration(e => {
