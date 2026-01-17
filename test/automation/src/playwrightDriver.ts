@@ -66,7 +66,7 @@ export class PlaywrightDriver {
 	constructor(
 		private readonly application: playwright.Browser | playwright.ElectronApplication,
 		private readonly context: playwright.BrowserContext,
-		private readonly page: playwright.Page,
+		private _currentPage: playwright.Page,
 		private readonly serverProcess: ChildProcess | undefined,
 		private readonly whenLoaded: Promise<unknown>,
 		private readonly options: LaunchOptions
@@ -78,7 +78,165 @@ export class PlaywrightDriver {
 	}
 
 	get currentPage(): playwright.Page {
-		return this.page;
+		return this._currentPage;
+	}
+
+	/**
+	 * Get all open windows/pages.
+	 * For Electron apps, returns all Electron windows.
+	 * For browser contexts, returns all pages.
+	 */
+	getAllWindows(): playwright.Page[] {
+		if ('windows' in this.application) {
+			return (this.application as playwright.ElectronApplication).windows();
+		}
+		return this.context.pages();
+	}
+
+	/**
+	 * Switch to a different window by index or URL pattern.
+	 * @param indexOrUrl - Window index (0-based) or a string to match against the URL
+	 * @returns The switched-to page, or undefined if not found
+	 */
+	switchToWindow(indexOrUrl: number | string): playwright.Page | undefined {
+		const windows = this.getAllWindows();
+		if (typeof indexOrUrl === 'number') {
+			if (indexOrUrl >= 0 && indexOrUrl < windows.length) {
+				this._currentPage = windows[indexOrUrl];
+				return this._currentPage;
+			}
+		} else {
+			const found = windows.find(w => w.url().includes(indexOrUrl));
+			if (found) {
+				this._currentPage = found;
+				return this._currentPage;
+			}
+		}
+		return undefined;
+	}
+
+	/**
+	 * Get a human-readable name for the current window based on its URL.
+	 */
+	getWindowName(): string {
+		const url = this._currentPage.url();
+		if (url.includes('agent.html')) {
+			return 'Agent Window';
+		}
+		if (url.includes('workbench')) {
+			return 'Main Workbench';
+		}
+		return 'Window';
+	}
+
+	/**
+	 * Get information about all windows.
+	 */
+	getWindowsInfo(): { index: number; url: string; title: string; isCurrent: boolean }[] {
+		const windows = this.getAllWindows();
+		return windows.map((page, index) => ({
+			index,
+			url: page.url(),
+			title: this.getWindowNameForUrl(page.url()),
+			isCurrent: page === this._currentPage
+		}));
+	}
+
+	private getWindowNameForUrl(url: string): string {
+		if (url.includes('agent.html')) {
+			return 'Agent Window';
+		}
+		if (url.includes('workbench')) {
+			return 'Main Workbench';
+		}
+		return 'Window';
+	}
+
+	/**
+	 * Take a screenshot of the current window.
+	 * @param fullPage - Whether to capture the full scrollable page
+	 * @returns Screenshot as a Buffer
+	 */
+	async screenshotBuffer(fullPage: boolean = false): Promise<Buffer> {
+		return await this._currentPage.screenshot({
+			type: 'png',
+			fullPage
+		});
+	}
+
+	/**
+	 * Get the accessibility snapshot of the current window.
+	 */
+	async getAccessibilitySnapshot(): Promise<playwright.Accessibility['snapshot'] extends () => Promise<infer T> ? T : never> {
+		return await this._currentPage.accessibility.snapshot();
+	}
+
+	/**
+	 * Click on an element using CSS selector with options.
+	 */
+	async clickSelector(selector: string, options?: { button?: 'left' | 'right' | 'middle'; clickCount?: number }): Promise<void> {
+		await this._currentPage.click(selector, {
+			button: options?.button ?? 'left',
+			clickCount: options?.clickCount ?? 1
+		});
+	}
+
+	/**
+	 * Type text into an element.
+	 * @param selector - CSS selector for the element
+	 * @param text - Text to type
+	 * @param slowly - Whether to type character by character (triggers key events)
+	 */
+	async typeText(selector: string, text: string, slowly: boolean = false): Promise<void> {
+		if (slowly) {
+			await this._currentPage.type(selector, text, { delay: 50 });
+		} else {
+			await this._currentPage.fill(selector, text);
+		}
+	}
+
+	/**
+	 * Evaluate a JavaScript expression in the current window.
+	 */
+	async evaluateExpression<T = unknown>(expression: string): Promise<T> {
+		return await this._currentPage.evaluate(expression) as T;
+	}
+
+	/**
+	 * Get information about elements matching a selector.
+	 */
+	async getLocatorInfo(selector: string, action?: 'count' | 'textContent' | 'innerHTML' | 'boundingBox' | 'isVisible'): Promise<
+		number | string[] | { x: number; y: number; width: number; height: number } | null | boolean | { count: number; firstVisible: boolean }
+	> {
+		const locator = this._currentPage.locator(selector);
+
+		switch (action) {
+			case 'count':
+				return await locator.count();
+			case 'textContent':
+				return await locator.allTextContents();
+			case 'innerHTML':
+				return await locator.allInnerTexts();
+			case 'boundingBox':
+				return await locator.first().boundingBox();
+			case 'isVisible':
+				return await locator.first().isVisible();
+			default:
+				return {
+					count: await locator.count(),
+					firstVisible: await locator.first().isVisible().catch(() => false)
+				};
+		}
+	}
+
+	/**
+	 * Wait for an element to reach a specific state.
+	 */
+	async waitForElement(selector: string, options?: { state?: 'attached' | 'detached' | 'visible' | 'hidden'; timeout?: number }): Promise<void> {
+		await this._currentPage.waitForSelector(selector, {
+			state: options?.state ?? 'visible',
+			timeout: options?.timeout ?? 30000
+		});
 	}
 
 	async startTracing(name?: string): Promise<void> {
@@ -130,7 +288,7 @@ export class PlaywrightDriver {
 			return;
 		}
 
-		this._cdpSession = await this.page.context().newCDPSession(this.page);
+		this._cdpSession = await this._currentPage.context().newCDPSession(this._currentPage);
 	}
 
 	async collectGarbage() {
@@ -204,14 +362,14 @@ export class PlaywrightDriver {
 			const nameSuffix = name ? `-${name.replace(/\s+/g, '-')}` : '';
 			const persistPath = join(this.options.logsPath, `playwright-screenshot-${PlaywrightDriver.screenShotCounter++}${nameSuffix}.png`);
 
-			await measureAndLog(() => this.page.screenshot({ path: persistPath, type: 'png' }), 'takeScreenshot', this.options.logger);
+			await measureAndLog(() => this._currentPage.screenshot({ path: persistPath, type: 'png' }), 'takeScreenshot', this.options.logger);
 		} catch (error) {
 			// Ignore
 		}
 	}
 
 	async reload() {
-		await this.page.reload();
+		await this._currentPage.reload();
 	}
 
 	async close() {
@@ -267,7 +425,7 @@ export class PlaywrightDriver {
 			}
 
 			if (keybinding.startsWith('Alt') || keybinding.startsWith('Control') || keybinding.startsWith('Backspace')) {
-				await this.page.keyboard.press(keybinding);
+				await this._currentPage.keyboard.press(keybinding);
 				return;
 			}
 
@@ -277,11 +435,11 @@ export class PlaywrightDriver {
 				if (keys[i] in PlaywrightDriver.vscodeToPlaywrightKey) {
 					keys[i] = PlaywrightDriver.vscodeToPlaywrightKey[keys[i]];
 				}
-				await this.page.keyboard.down(keys[i]);
+				await this._currentPage.keyboard.down(keys[i]);
 				keysDown.push(keys[i]);
 			}
 			while (keysDown.length > 0) {
-				await this.page.keyboard.up(keysDown.pop()!);
+				await this._currentPage.keyboard.up(keysDown.pop()!);
 			}
 		}
 
@@ -290,43 +448,43 @@ export class PlaywrightDriver {
 
 	async click(selector: string, xoffset?: number | undefined, yoffset?: number | undefined) {
 		const { x, y } = await this.getElementXY(selector, xoffset, yoffset);
-		await this.page.mouse.click(x + (xoffset ? xoffset : 0), y + (yoffset ? yoffset : 0));
+		await this._currentPage.mouse.click(x + (xoffset ? xoffset : 0), y + (yoffset ? yoffset : 0));
 	}
 
 	async setValue(selector: string, text: string) {
-		return this.page.evaluate(([driver, selector, text]) => driver.setValue(selector, text), [await this.getDriverHandle(), selector, text] as const);
+		return this._currentPage.evaluate(([driver, selector, text]) => driver.setValue(selector, text), [await this.getDriverHandle(), selector, text] as const);
 	}
 
 	async getTitle() {
-		return this.page.title();
+		return this._currentPage.title();
 	}
 
 	async isActiveElement(selector: string) {
-		return this.page.evaluate(([driver, selector]) => driver.isActiveElement(selector), [await this.getDriverHandle(), selector] as const);
+		return this._currentPage.evaluate(([driver, selector]) => driver.isActiveElement(selector), [await this.getDriverHandle(), selector] as const);
 	}
 
 	async getElements(selector: string, recursive: boolean = false) {
-		return this.page.evaluate(([driver, selector, recursive]) => driver.getElements(selector, recursive), [await this.getDriverHandle(), selector, recursive] as const);
+		return this._currentPage.evaluate(([driver, selector, recursive]) => driver.getElements(selector, recursive), [await this.getDriverHandle(), selector, recursive] as const);
 	}
 
 	async getElementXY(selector: string, xoffset?: number, yoffset?: number) {
-		return this.page.evaluate(([driver, selector, xoffset, yoffset]) => driver.getElementXY(selector, xoffset, yoffset), [await this.getDriverHandle(), selector, xoffset, yoffset] as const);
+		return this._currentPage.evaluate(([driver, selector, xoffset, yoffset]) => driver.getElementXY(selector, xoffset, yoffset), [await this.getDriverHandle(), selector, xoffset, yoffset] as const);
 	}
 
 	async typeInEditor(selector: string, text: string) {
-		return this.page.evaluate(([driver, selector, text]) => driver.typeInEditor(selector, text), [await this.getDriverHandle(), selector, text] as const);
+		return this._currentPage.evaluate(([driver, selector, text]) => driver.typeInEditor(selector, text), [await this.getDriverHandle(), selector, text] as const);
 	}
 
 	async getEditorSelection(selector: string) {
-		return this.page.evaluate(([driver, selector]) => driver.getEditorSelection(selector), [await this.getDriverHandle(), selector] as const);
+		return this._currentPage.evaluate(([driver, selector]) => driver.getEditorSelection(selector), [await this.getDriverHandle(), selector] as const);
 	}
 
 	async getTerminalBuffer(selector: string) {
-		return this.page.evaluate(([driver, selector]) => driver.getTerminalBuffer(selector), [await this.getDriverHandle(), selector] as const);
+		return this._currentPage.evaluate(([driver, selector]) => driver.getTerminalBuffer(selector), [await this.getDriverHandle(), selector] as const);
 	}
 
 	async writeInTerminal(selector: string, text: string) {
-		return this.page.evaluate(([driver, selector, text]) => driver.writeInTerminal(selector, text), [await this.getDriverHandle(), selector, text] as const);
+		return this._currentPage.evaluate(([driver, selector, text]) => driver.writeInTerminal(selector, text), [await this.getDriverHandle(), selector, text] as const);
 	}
 
 	async getLocaleInfo() {
@@ -338,11 +496,11 @@ export class PlaywrightDriver {
 	}
 
 	async getLogs() {
-		return this.page.evaluate(([driver]) => driver.getLogs(), [await this.getDriverHandle()] as const);
+		return this._currentPage.evaluate(([driver]) => driver.getLogs(), [await this.getDriverHandle()] as const);
 	}
 
 	private async evaluateWithDriver<T>(pageFunction: PageFunction<IWindowDriver[], T>) {
-		return this.page.evaluate(pageFunction, [await this.getDriverHandle()]);
+		return this._currentPage.evaluate(pageFunction, [await this.getDriverHandle()]);
 	}
 
 	wait(ms: number): Promise<void> {
@@ -354,7 +512,7 @@ export class PlaywrightDriver {
 	}
 
 	private async getDriverHandle(): Promise<playwright.JSHandle<IWindowDriver>> {
-		return this.page.evaluateHandle('window.driver');
+		return this._currentPage.evaluateHandle('window.driver');
 	}
 
 	async isAlive(): Promise<boolean> {
@@ -374,7 +532,7 @@ export class PlaywrightDriver {
 	 */
 	async runAccessibilityScan(options?: AccessibilityScanOptions): Promise<AxeResults> {
 		// Inject axe-core into the page if not already present
-		await this.page.evaluate(axeSource);
+		await this._currentPage.evaluate(axeSource);
 
 		// Build axe-core run options
 		const runOptions: RunOptions = {
@@ -407,7 +565,7 @@ export class PlaywrightDriver {
 
 		// Run axe-core analysis
 		const results = await measureAndLog(
-			() => this.page.evaluate(
+			() => this._currentPage.evaluate(
 				([ctx, opts]) => {
 					// @ts-expect-error axe is injected globally
 					return window.axe.run(ctx, opts);
