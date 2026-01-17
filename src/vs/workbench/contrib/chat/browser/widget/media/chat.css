@@ -2146,7 +2146,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	width: fit-content;
 	border: none;
 	border-radius: 4px;
-	gap: 4px;
+	/* Match gap with progress-container to prevent horizontal shift during state transition */
+	gap: 7px;
 	text-align: initial;
 	justify-content: initial;
 }
@@ -2163,6 +2164,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-used-context-label .monaco-button {
 	padding: 2px 6px 2px 2px;
 	font-size: var(--vscode-chat-font-size-body-m);
+	/* Explicit line-height to match progress-step and prevent visual jump during state transition */
+	line-height: 18px;
 }
 
 .interactive-session .chat-file-changes-label .monaco-button:hover {
@@ -2189,6 +2192,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-used-context-label .monaco-button .codicon {
 	font-size: var(--vscode-chat-font-size-body-s);
 	color: var(--vscode-icon-foreground) !important;
+	/* Remove margin to prevent horizontal shift - gap property on button provides spacing */
+	margin: 0;
 }
 
 .interactive-item-container .progress-container {
@@ -2225,6 +2230,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			color: var(--vscode-descriptionForeground);
 			font-size: var(--vscode-chat-font-size-body-s);
 			margin: 0;
+			/* Match line-height with monaco-button to prevent vertical shift during state transition */
+			line-height: 18px;
 
 			code {
 				font-size: var(--vscode-chat-font-size-body-xs);
