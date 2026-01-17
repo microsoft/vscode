@@ -16,7 +16,7 @@ import { IEditorGroupsService, IEditorWorkingSet } from '../../../../services/ed
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { IAgentSession } from './agentSessionsModel.js';
+import { IAgentSession, isSessionInProgressStatus } from './agentSessionsModel.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../chat.js';
 import { AgentSessionProviders } from './agentSessions.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
@@ -203,6 +203,19 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 		// Check if this session's provider type supports agent session projection
 		if (!AGENT_SESSION_PROJECTION_ENABLED_PROVIDERS.has(session.providerType)) {
 			this.logService.trace(`[AgentSessionProjection] Provider type '${session.providerType}' does not support agent session projection`);
+			return;
+		}
+
+		// Do not enter projection mode if the session is still running/in progress
+		if (isSessionInProgressStatus(session.status)) {
+			this.logService.trace(`[AgentSessionProjection] Session is in progress (status: ${session.status}), opening chat without projection mode`);
+			// Fall through to open the chat panel without entering projection mode
+			session.setRead(true);
+			await this.chatSessionsService.activateChatSessionItemProvider(session.providerType);
+			await this.chatWidgetService.openSession(session.resource, ChatViewPaneTarget, {
+				title: { preferred: session.label },
+				revealIfOpened: true
+			});
 			return;
 		}
 
