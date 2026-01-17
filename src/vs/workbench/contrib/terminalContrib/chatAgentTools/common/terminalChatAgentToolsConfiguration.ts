@@ -328,7 +328,8 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			//   detection if necessary
 			sed: true,
 			'/^sed\\b.*(-[a-zA-Z]*(e|f)[a-zA-Z]*|--expression|--file)\\b/': false,
-			'/^sed\\b.*(\/e|\/w|;W)/': false,
+			'/^sed\\b.*s\\/.*\\/.*\\/[ew]/': false,
+			'/^sed\\b.*;W/': false,
 
 			// sort
 			// - `-o`: Output redirection can write files (`sort -o /etc/something file`) which are

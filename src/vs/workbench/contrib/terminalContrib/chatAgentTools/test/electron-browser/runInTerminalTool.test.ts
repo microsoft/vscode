@@ -260,6 +260,7 @@ suite('RunInTerminalTool', () => {
 			'rg -i --color=never "TODO" src/',
 			'sed "s/foo/bar/g"',
 			'sed -n "1,10p" file.txt',
+			'sed -n \'45,80p\' /foo/bar/Example.java',
 			'sort file.txt',
 			'tree directory',
 
