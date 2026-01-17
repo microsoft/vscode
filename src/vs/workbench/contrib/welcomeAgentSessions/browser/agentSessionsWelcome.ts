@@ -222,6 +222,11 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		this.chatWidget.render(chatWidgetContainer);
 		this.chatWidget.setVisible(true);
 
+		// Schedule initial layout at next animation frame to ensure proper input sizing
+		this.contentDisposables.add(scheduleAtNextAnimationFrame(getWindow(chatWidgetContainer), () => {
+			this.layoutChatWidget();
+		}));
+
 		// Start a chat session so the widget has a viewModel
 		// This is necessary for actions like mode switching to work properly
 		this.chatModelRef = this.chatService.startSession(ChatAgentLocation.Chat);
@@ -381,18 +386,24 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		this.container.style.height = `${dimension.height}px`;
 		this.container.style.width = `${dimension.width}px`;
 
-		// Layout chat widget with height for input area
-		if (this.chatWidget) {
-			const chatWidth = Math.min(800, dimension.width - 80);
-			// Use a reasonable height for the input part - the CSS will hide the list area
-			const inputHeight = 150;
-			this.chatWidget.layout(inputHeight, chatWidth);
-		}
+		// Layout chat widget
+		this.layoutChatWidget();
 
 		// Layout sessions control
 		this.layoutSessionsControl();
 
 		this.scrollableElement?.scanDomNode();
+	}
+
+	private layoutChatWidget(): void {
+		if (!this.chatWidget || !this.lastDimension) {
+			return;
+		}
+
+		const chatWidth = Math.min(800, this.lastDimension.width - 80);
+		// Use a reasonable height for the input part - the CSS will hide the list area
+		const inputHeight = 150;
+		this.chatWidget.layout(inputHeight, chatWidth);
 	}
 
 	private layoutSessionsControl(): void {
