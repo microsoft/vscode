@@ -371,7 +371,7 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 
 		if (platform === 'win32') {
 			result = es.merge(result,
-				gulp.src('resources/server/bin/remote-cli/code.cmd', { base: '.' })
+				gulp.src('resources/server/bin/remote-cli/code.bat', { base: '.' })
 					.pipe(replace('@@VERSION@@', version))
 					.pipe(replace('@@COMMIT@@', commit || ''))
 					.pipe(replace('@@APPNAME@@', product.applicationName))

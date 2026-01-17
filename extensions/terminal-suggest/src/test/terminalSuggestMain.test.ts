@@ -62,14 +62,14 @@ if (osIsWindows()) {
 		completionSpecs: [codeCompletionSpec],
 		availableCommands: [
 			'code.bat',
-			'code.cmd',
+			'code.bat',
 			'code.exe',
 			'code.anything',
 		],
 		testSpecs: [
 			{ input: 'code |', expectedCompletions: codeSpecOptionsAndSubcommands, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 			{ input: 'code.bat |', expectedCompletions: codeSpecOptionsAndSubcommands, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
-			{ input: 'code.cmd |', expectedCompletions: codeSpecOptionsAndSubcommands, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+			{ input: 'code.bat |', expectedCompletions: codeSpecOptionsAndSubcommands, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 			{ input: 'code.exe |', expectedCompletions: codeSpecOptionsAndSubcommands, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 			{ input: 'code.anything |', expectedCompletions: codeSpecOptionsAndSubcommands, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 		]
