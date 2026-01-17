@@ -330,6 +330,7 @@ export class ChatRequestModel implements IChatRequestModel {
 	}
 
 	public set variableData(v: IChatRequestVariableData) {
+		this._version++;
 		this._variableData = v;
 	}
 
