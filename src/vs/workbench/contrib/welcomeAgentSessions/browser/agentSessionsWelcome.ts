@@ -297,7 +297,12 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		// "Open Agent Sessions" link
 		const openButton = append(container, $('button.agentSessionsWelcome-openSessionsButton'));
 		openButton.textContent = localize('openAgentSessions', "Open Agent Sessions");
-		openButton.onclick = () => this.commandService.executeCommand('workbench.action.chat.open');
+		openButton.onclick = () => {
+			this.commandService.executeCommand('workbench.action.chat.open');
+			if (!this.layoutService.isAuxiliaryBarMaximized()) {
+				this.layoutService.toggleMaximizedAuxiliaryBar();
+			}
+		};
 	}
 
 	private buildWalkthroughs(container: HTMLElement): void {
