@@ -7,6 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { OneDataSystemWebAppender } from '../../browser/1dsAppender.js';
 import { IAppInsightsCore } from '../../common/1dsAppender.js';
+import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 
 class AppInsightsCoreMock implements IAppInsightsCore {
 	pluginVersionString: string = 'Test Runner';
@@ -37,7 +38,8 @@ suite('AIAdapter', () => {
 
 	setup(() => {
 		appInsightsMock = new AppInsightsCoreMock();
-		adapter = new OneDataSystemWebAppender(false, prefix, undefined!, () => appInsightsMock);
+		const configService = new TestConfigurationService();
+		adapter = new OneDataSystemWebAppender(false, prefix, undefined!, () => appInsightsMock, configService);
 	});
 
 
@@ -49,7 +51,8 @@ suite('AIAdapter', () => {
 	});
 
 	test('addional data', () => {
-		adapter = new OneDataSystemWebAppender(false, prefix, { first: '1st', second: 2, third: true }, () => appInsightsMock);
+		const configService = new TestConfigurationService();
+		adapter = new OneDataSystemWebAppender(false, prefix, { first: '1st', second: 2, third: true }, () => appInsightsMock, configService);
 		adapter.log('testEvent');
 
 		assert.strictEqual(appInsightsMock.events.length, 1);
