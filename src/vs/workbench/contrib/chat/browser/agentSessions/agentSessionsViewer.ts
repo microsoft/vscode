@@ -13,7 +13,7 @@ import { ICompressedTreeNode } from '../../../../../base/browser/ui/tree/compres
 import { ICompressibleKeyboardNavigationLabelProvider, ICompressibleTreeRenderer } from '../../../../../base/browser/ui/tree/objectTree.js';
 import { ITreeNode, ITreeElementRenderDetails, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction } from '../../../../../base/browser/ui/tree/tree.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { AgentSessionSection, AgentSessionStatus, getAgentChangesSummary, hasValidDiff, IAgentSession, IAgentSessionSection, IAgentSessionsModel, isAgentSession, isAgentSessionSection, isAgentSessionsModel, isLocalAgentSessionItem, isSessionInProgressStatus } from './agentSessionsModel.js';
+import { AgentSessionSection, AgentSessionStatus, getAgentChangesSummary, hasValidDiff, IAgentSession, IAgentSessionSection, IAgentSessionsModel, isAgentSession, isAgentSessionSection, isAgentSessionsModel, isSessionInProgressStatus } from './agentSessionsModel.js';
 import { IconLabel } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -323,18 +323,14 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 			}
 
 			if (!timeLabel) {
-				timeLabel = fromNow(session.timing.endTime || session.timing.startTime);
+				timeLabel = fromNow(session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created);
 			}
 
 			return timeLabel;
 		};
 
-		// Provider icon (hide for local sessions)
-		if (!isLocalAgentSessionItem(session.element)) {
-			template.statusProviderIcon.className = `agent-session-status-provider-icon ${ThemeIcon.asClassName(session.element.icon)}`;
-		} else {
-			template.statusProviderIcon.className = 'agent-session-status-provider-icon hidden';
-		}
+		// Provider icon
+		template.statusProviderIcon.className = `agent-session-status-provider-icon ${ThemeIcon.asClassName(session.element.icon)}`;
 
 		// Time label
 		template.statusTime.textContent = getTimeLabel(session.element);
@@ -395,7 +391,8 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 				details.push(duration);
 			}
 		} else {
-			details.push(fromNow(session.timing.startTime, true, true));
+			const startTime = session.timing.lastRequestStarted ?? session.timing.created;
+			details.push(fromNow(startTime, true, true));
 		}
 
 		lines.push(details.join(' • '));
@@ -567,7 +564,7 @@ export class AgentSessionsAccessibilityProvider implements IListAccessibilityPro
 			return localize('agentSessionSectionAriaLabel', "{0} sessions section", element.label);
 		}
 
-		return localize('agentSessionItemAriaLabel', "{0} session {1} ({2}), created {3}", element.providerLabel, element.label, toStatusLabel(element.status), new Date(element.timing.startTime).toLocaleString());
+		return localize('agentSessionItemAriaLabel', "{0} session {1} ({2}), created {3}", element.providerLabel, element.label, toStatusLabel(element.status), new Date(element.timing.created).toLocaleString());
 	}
 }
 
@@ -731,7 +728,7 @@ export function groupAgentSessions(sessions: IAgentSession[]): Map<AgentSessionS
 		} else if (session.isArchived()) {
 			archivedSessions.push(session);
 		} else {
-			const sessionTime = session.timing.endTime || session.timing.startTime;
+			const sessionTime = session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created;
 			if (sessionTime >= startOfToday) {
 				todaySessions.push(session);
 			} else if (sessionTime >= startOfYesterday) {
@@ -826,7 +823,9 @@ export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 		}
 
 		//Sort by end or start time (most recent first)
-		return (sessionB.timing.endTime || sessionB.timing.startTime) - (sessionA.timing.endTime || sessionA.timing.startTime);
+		const timeA = sessionA.timing.lastRequestEnded ?? sessionA.timing.lastRequestStarted ?? sessionA.timing.created;
+		const timeB = sessionB.timing.lastRequestEnded ?? sessionB.timing.lastRequestStarted ?? sessionB.timing.created;
+		return timeB - timeA;
 	}
 }
 

@@ -4,7 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CosmosClient } from '@azure/cosmos';
+import path from 'path';
+import fs from 'fs';
 import { retry } from './retry.ts';
+import { type IExtensionManifest, parseApiProposalsFromSource, checkExtensionCompatibility } from './versionCompatibility.ts';
+
+const root = path.dirname(path.dirname(path.dirname(import.meta.dirname)));
 
 function getEnv(name: string): string {
 	const result = process.env[name];
@@ -14,6 +19,80 @@ function getEnv(name: string): string {
 	}
 
 	return result;
+}
+
+async function fetchLatestExtensionManifest(extensionId: string): Promise<IExtensionManifest> {
+	// Use the vscode-unpkg service to get the latest extension package.json
+	const [publisher, name] = extensionId.split('.');
+
+	// First, get the latest version from the gallery endpoint
+	const galleryUrl = `https://main.vscode-unpkg.net/_gallery/${publisher}/${name}/latest`;
+	const galleryResponse = await fetch(galleryUrl, {
+		headers: { 'User-Agent': 'VSCode Build' }
+	});
+
+	if (!galleryResponse.ok) {
+		throw new Error(`Failed to fetch latest version for ${extensionId}: ${galleryResponse.status} ${galleryResponse.statusText}`);
+	}
+
+	const galleryData = await galleryResponse.json() as { versions: { version: string }[] };
+	const version = galleryData.versions[0].version;
+
+	// Now fetch the package.json using the actual version
+	const url = `https://${publisher}.vscode-unpkg.net/${publisher}/${name}/${version}/extension/package.json`;
+
+	const response = await fetch(url, {
+		headers: { 'User-Agent': 'VSCode Build' }
+	});
+
+	if (!response.ok) {
+		throw new Error(`Failed to fetch extension ${extensionId} from unpkg: ${response.status} ${response.statusText}`);
+	}
+
+	return await response.json() as IExtensionManifest;
+}
+
+async function checkCopilotChatCompatibility(): Promise<void> {
+	const extensionId = 'github.copilot-chat';
+
+	console.log(`Checking compatibility of ${extensionId}...`);
+
+	// Get product version from package.json
+	const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+	const productVersion = packageJson.version;
+
+	console.log(`Product version: ${productVersion}`);
+
+	// Get API proposals from the generated file
+	const apiProposalsPath = path.join(root, 'src/vs/platform/extensions/common/extensionsApiProposals.ts');
+	const apiProposalsContent = fs.readFileSync(apiProposalsPath, 'utf8');
+	const allApiProposals = parseApiProposalsFromSource(apiProposalsContent);
+
+	const proposalCount = Object.keys(allApiProposals).length;
+	if (proposalCount === 0) {
+		throw new Error('Failed to load API proposals from source');
+	}
+
+	console.log(`Loaded ${proposalCount} API proposals from source`);
+
+	// Fetch the latest extension manifest
+	const manifest = await retry(() => fetchLatestExtensionManifest(extensionId));
+
+	console.log(`Extension ${extensionId}@${manifest.version}:`);
+	console.log(`  engines.vscode: ${manifest.engines.vscode}`);
+	console.log(`  enabledApiProposals:\n    ${manifest.enabledApiProposals?.join('\n    ') || 'none'}`);
+
+	// Check compatibility
+	const result = checkExtensionCompatibility(productVersion, allApiProposals, manifest);
+	if (!result.compatible) {
+		throw new Error(`Compatibility check failed:\n  ${result.errors.join('\n  ')}`);
+	}
+
+	console.log(`  ✓ Engine version compatible`);
+	if (manifest.enabledApiProposals?.length) {
+		console.log(`  ✓ API proposals compatible`);
+	}
+	console.log(`✓ ${extensionId} is compatible with this build`);
 }
 
 interface Config {
@@ -43,6 +122,12 @@ async function getConfig(client: CosmosClient, quality: string): Promise<Config>
 async function main(force: boolean): Promise<void> {
 	const commit = getEnv('BUILD_SOURCEVERSION');
 	const quality = getEnv('VSCODE_QUALITY');
+
+	// Check Copilot Chat compatibility before releasing insider builds
+	if (quality === 'insider') {
+		await checkCopilotChatCompatibility();
+	}
+
 	const { cosmosDBAccessToken } = JSON.parse(getEnv('PUBLISH_AUTH_TOKENS'));
 	const client = new CosmosClient({ endpoint: process.env['AZURE_DOCUMENTDB_ENDPOINT']!, tokenProvider: () => Promise.resolve(`type=aad&ver=1.0&sig=${cosmosDBAccessToken.token}`) });
 

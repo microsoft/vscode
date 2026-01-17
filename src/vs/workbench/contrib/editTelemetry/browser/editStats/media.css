@@ -33,6 +33,39 @@
 		margin-bottom: 5px;
 	}
 
+	/* Chart toggle buttons */
+	.chart-view-toggle {
+		display: flex;
+		gap: 2px;
+	}
+
+	.chart-toggle-button {
+		padding: 2px 6px;
+		border-radius: 3px;
+		cursor: pointer;
+		opacity: 0.6;
+		transition: opacity 0.15s, background-color 0.15s;
+	}
+
+	.chart-toggle-button:hover {
+		opacity: 1;
+		background-color: var(--vscode-toolbar-hoverBackground);
+	}
+
+	.chart-toggle-button.active {
+		opacity: 1;
+		background-color: var(--vscode-toolbar-activeBackground);
+	}
+
+	/* Chart container */
+	.ai-stats-chart-container {
+		margin-top: 4px;
+	}
+
+	.ai-stats-chart-container svg {
+		overflow: visible;
+	}
+
 	/* Setup for New User */
 
 	.setup .chat-feature-container {

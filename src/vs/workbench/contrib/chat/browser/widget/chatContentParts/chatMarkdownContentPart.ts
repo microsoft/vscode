@@ -278,7 +278,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 						return ref.object.element;
 					} else {
 						const requestId = isRequestVM(element) ? element.id : element.requestId;
-						const ref = this.renderCodeBlockPill(element.sessionResource, requestId, inUndoStop, codeBlockInfo.codemapperUri, this.markdown.fromSubagent);
+						const ref = this.renderCodeBlockPill(element.sessionResource, requestId, inUndoStop, codeBlockInfo.codemapperUri);
 						if (isResponseVM(codeBlockInfo.element)) {
 							// TODO@joyceerhl: remove this code when we change the codeblockUri API to make the URI available synchronously
 							this.codeBlockModelCollection.update(codeBlockInfo.element.sessionResource, codeBlockInfo.element, codeBlockInfo.codeBlockIndex, { text, languageId: codeBlockInfo.languageId, isComplete: isCodeBlockComplete }).then((e) => {
@@ -382,10 +382,10 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		}
 	}
 
-	private renderCodeBlockPill(sessionResource: URI, requestId: string, inUndoStop: string | undefined, codemapperUri: URI | undefined, fromSubagent?: boolean): IDisposableReference<CollapsedCodeBlock> {
+	private renderCodeBlockPill(sessionResource: URI, requestId: string, inUndoStop: string | undefined, codemapperUri: URI | undefined): IDisposableReference<CollapsedCodeBlock> {
 		const codeBlock = this.instantiationService.createInstance(CollapsedCodeBlock, sessionResource, requestId, inUndoStop);
 		if (codemapperUri) {
-			codeBlock.render(codemapperUri, fromSubagent);
+			codeBlock.render(codemapperUri);
 		}
 		return {
 			object: codeBlock,
@@ -551,9 +551,7 @@ export class CollapsedCodeBlock extends Disposable {
 	 * @param uri URI of the file on-disk being changed
 	 * @param isStreaming Whether the edit has completed (at the time of this being rendered)
 	 */
-	render(uri: URI, fromSubagent?: boolean): void {
-		this.pillElement.classList.toggle('from-sub-agent', !!fromSubagent);
-
+	render(uri: URI): void {
 		this.progressStore.clear();
 
 		this._uri = uri;
