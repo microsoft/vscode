@@ -234,6 +234,21 @@ class TerminalInitialHintWidget extends Disposable {
 		}));
 	}
 
+	/**
+	 * Creates wrapped hint elements with click listeners for responsive hint layouts.
+	 * Returns a before link and an after prose span containing a link.
+	 */
+	private _createWrappedHintElements(text: string, keybindingLabel: string, clickHandler: () => void): { before: HTMLAnchorElement; after: HTMLSpanElement } {
+		const [beforeText, afterText] = text.split(keybindingLabel);
+		const before = $('a', undefined, beforeText) as HTMLAnchorElement;
+		this._toDispose.add(dom.addDisposableListener(before, dom.EventType.CLICK, clickHandler));
+		const after = $('span.terminal-initial-hint-prose', undefined) as HTMLSpanElement;
+		const afterLink = $('a', undefined, afterText);
+		this._toDispose.add(dom.addDisposableListener(afterLink, dom.EventType.CLICK, clickHandler));
+		after.appendChild(afterLink);
+		return { before, after };
+	}
+
 	private _getHintInlineChat() {
 		const ariaLabelParts: string[] = [];
 
@@ -282,13 +297,7 @@ class TerminalInitialHintWidget extends Disposable {
 				if (terminalAgents?.length) {
 					const actionPart = localize('emptyHintText', 'Open chat {0}. ', keybindingHintLabel);
 
-					const [beforeText, afterText] = actionPart.split(keybindingHintLabel);
-					const before = $('a', undefined, beforeText);
-					this._toDispose.add(dom.addDisposableListener(before, dom.EventType.CLICK, handleClick));
-					const after = $('span.terminal-initial-hint-prose', undefined);
-					const afterLink = $('a', undefined, afterText);
-					this._toDispose.add(dom.addDisposableListener(afterLink, dom.EventType.CLICK, handleClick));
-					after.appendChild(afterLink);
+					const { before, after } = this._createWrappedHintElements(actionPart, keybindingHintLabel, handleClick);
 
 					hintElement.appendChild(before);
 
@@ -330,13 +339,7 @@ class TerminalInitialHintWidget extends Disposable {
 				this._commandService.executeCommand(TerminalSuggestCommandId.TriggerSuggest);
 			};
 
-			const [suggestBeforeText, suggestAfterText] = suggestActionPart.split(suggestKeybindingLabel);
-			const suggestBefore = $('a', undefined, suggestBeforeText);
-			this._toDispose.add(dom.addDisposableListener(suggestBefore, dom.EventType.CLICK, handleSuggestClick));
-			const suggestAfter = $('span.terminal-initial-hint-prose', undefined);
-			const suggestAfterLink = $('a', undefined, suggestAfterText);
-			this._toDispose.add(dom.addDisposableListener(suggestAfterLink, dom.EventType.CLICK, handleSuggestClick));
-			suggestAfter.appendChild(suggestAfterLink);
+			const { before: suggestBefore, after: suggestAfter } = this._createWrappedHintElements(suggestActionPart, suggestKeybindingLabel, handleSuggestClick);
 
 			hintElement.appendChild(suggestBefore);
 
@@ -348,6 +351,7 @@ class TerminalInitialHintWidget extends Disposable {
 			this._toDispose.add(dom.addDisposableListener(suggestLabel.element, dom.EventType.CLICK, handleSuggestClick));
 
 			hintElement.appendChild(suggestAfter);
+			// Layout-only separator; visibility and spacing are controlled via CSS (including responsive breakpoints).
 			hintElement.appendChild($('span.terminal-initial-hint-separator'));
 
 			ariaLabelParts.push(suggestActionPart);
@@ -368,7 +372,7 @@ class TerminalInitialHintWidget extends Disposable {
 		const typeToDismissRendered = renderFormattedText(typeToDismiss, { actionHandler: dontShowHintHandler });
 		typeToDismissRendered.classList.add('detail', 'terminal-initial-hint-prose');
 
-		const proseBefore = $('span.terminal-initial-hint-prose', undefined, ' Start typing to dismiss or ');
+		const proseBefore = $('span.terminal-initial-hint-prose', undefined, localize('hintTextDismissProse', " Start typing to dismiss or "));
 		hintElement.appendChild(proseBefore);
 		hintElement.appendChild(typeToDismissRendered);
 
