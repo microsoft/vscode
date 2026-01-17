@@ -15,6 +15,8 @@ import through from 'through';
 import sm from 'source-map';
 import { pathToFileURL } from 'url';
 import ternaryStream from 'ternary-stream';
+import type { Transform } from 'stream';
+import * as tar from 'tar';
 
 const root = path.dirname(path.dirname(import.meta.dirname));
 
@@ -428,4 +430,40 @@ export class VinylStat implements fs.Stats {
 	isSymbolicLink(): boolean { return false; }
 	isFIFO(): boolean { return false; }
 	isSocket(): boolean { return false; }
+}
+
+export function untar(): Transform {
+	return es.through(function (this: through.ThroughStream, f: VinylFile) {
+		if (!f.contents || !Buffer.isBuffer(f.contents)) {
+			this.emit('error', new Error('Expected file with Buffer contents'));
+			return;
+		}
+
+		const self = this;
+		const parser = new tar.Parser();
+
+		parser.on('entry', (entry: tar.ReadEntry) => {
+			if (entry.type === 'File') {
+				const chunks: Buffer[] = [];
+				entry.on('data', (chunk: Buffer) => chunks.push(chunk));
+				entry.on('end', () => {
+					const file = new VinylFile({
+						path: entry.path,
+						contents: Buffer.concat(chunks),
+						stat: new VinylStat({
+							mode: entry.mode,
+							mtime: entry.mtime,
+							size: entry.size
+						})
+					});
+					self.emit('data', file);
+				});
+			} else {
+				entry.resume();
+			}
+		});
+
+		parser.on('error', (err: Error) => self.emit('error', err));
+		parser.end(f.contents);
+	}) as Transform;
 }

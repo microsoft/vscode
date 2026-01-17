@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { FileAccess } from '../../../../../base/common/network.js';
 import { dirname, join } from '../../../../../base/common/path.js';
 import { isNative, OperatingSystem, OS } from '../../../../../base/common/platform.js';
@@ -31,7 +30,7 @@ export interface ITerminalSandboxService {
 	setNeedsForceUpdateConfigFile(): void;
 }
 
-export class TerminalSandboxService extends Disposable implements ITerminalSandboxService {
+export class TerminalSandboxService implements ITerminalSandboxService {
 	readonly _serviceBrand: undefined;
 	private _srtPath: string;
 	private _sandboxConfigPath: string | undefined;
@@ -47,7 +46,6 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		@ILogService private readonly _logService: ILogService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 	) {
-		super();
 		const appRoot = dirname(FileAccess.asFileUri('').fsPath);
 		this._srtPath = join(appRoot, 'node_modules', '.bin', 'srt');
 		this._sandboxSettingsId = generateUuid();

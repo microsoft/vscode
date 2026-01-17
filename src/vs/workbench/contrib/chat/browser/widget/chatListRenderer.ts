@@ -1288,22 +1288,37 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return false;
 		}
 
+		// don't pin Mermaid tools since it has rendered output
+		const isMermaidTool = (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.toolId.includes('mermaid');
+		if (isMermaidTool) {
+			return false;
+		}
+
 		// Don't pin subagent tools to thinking parts - they have their own grouping
 		const isSubagentTool = (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && (part.subAgentInvocationId || part.toolId === RunSubagentTool.Id);
 		if (isSubagentTool) {
 			return false;
 		}
 
-		// Don't pin terminal tools
+		// only pin terminal tools based on settings
 		const isTerminalTool = (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.toolSpecificData?.kind === 'terminal';
 		const isContributedTerminalToolInvocation = element
 			&& (element.sessionResource.scheme !== Schemas.vscodeChatInput && element.sessionResource.scheme !== Schemas.vscodeLocalChatSession) // contributed sessions
 			&& part.kind === 'toolInvocationSerialized' && part.toolSpecificData?.kind === 'terminal'; // contributed serialized terminal tool invocations data
 		if (isTerminalTool && !isContributedTerminalToolInvocation) {
-			return false;
+			// don't pin terminals with confirmation
+			if (part.kind === 'toolInvocation' && IChatToolInvocation.getConfirmationMessages(part)) {
+				return false;
+			}
+			const terminalToolsInThinking = this.configService.getValue<boolean>(ChatConfiguration.TerminalToolsInThinking);
+			return !!terminalToolsInThinking;
 		}
 
 		if (part.kind === 'toolInvocation') {
+			// pin when streaming since we don't know if we have confirmation yet or not
+			if (IChatToolInvocation.isStreaming(part)) {
+				return true;
+			}
 			return !IChatToolInvocation.getConfirmationMessages(part);
 		}
 
@@ -1682,6 +1697,27 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				if (lastThinking && part?.domNode && toolInvocation.presentation !== 'hidden') {
 					lastThinking.appendItem(part?.domNode, toolInvocation.toolId, toolInvocation, templateData.value);
 					lastThinking.addDisposable(part);
+
+					// watch for streaming -> confirmation transition to finalize thinking
+					if (toolInvocation.kind === 'toolInvocation' && IChatToolInvocation.isStreaming(toolInvocation)) {
+						let wasStreaming = true;
+						part.addDisposable(autorun(reader => {
+							const state = toolInvocation.state.read(reader);
+							if (wasStreaming && state.type !== IChatToolInvocation.StateKind.Streaming) {
+								wasStreaming = false;
+								if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+									if (part.domNode) {
+										const wrapper = part.domNode.parentElement;
+										if (wrapper?.classList.contains('chat-thinking-tool-wrapper')) {
+											wrapper.remove();
+										}
+										templateData.value.appendChild(part.domNode);
+									}
+									this.finalizeCurrentThinkingPart(context, templateData);
+								}
+							}
+						}));
+					}
 				}
 			} else {
 				this.finalizeCurrentThinkingPart(context, templateData);

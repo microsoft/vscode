@@ -11,28 +11,20 @@ import { ACTIVE_GROUP, SIDE_GROUP } from '../../../../services/editor/common/edi
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { IFocusViewService } from './focusViewService.js';
+import { IAgentSessionProjectionService } from './agentSessionProjectionService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../../common/constants.js';
 
-export async function openSession(accessor: ServicesAccessor, session: IAgentSession, openOptions?: { sideBySide?: boolean; editorOptions?: IEditorOptions }): Promise<void> {
+export async function openSession(accessor: ServicesAccessor, session: IAgentSession, openOptions?: { sideBySide?: boolean; editorOptions?: IEditorOptions; expanded?: boolean }): Promise<void> {
 	const configurationService = accessor.get(IConfigurationService);
-	const focusViewService = accessor.get(IFocusViewService);
+	const projectionService = accessor.get(IAgentSessionProjectionService);
 
 	session.setRead(true); // mark as read when opened
 
-	// Local chat sessions (chat history) should always open in the chat widget
-	if (isLocalAgentSessionItem(session)) {
-		await openSessionInChatWidget(accessor, session, openOptions);
-		return;
-	}
-
-	// Check if Agent Session Projection is enabled for agent sessions
 	const agentSessionProjectionEnabled = configurationService.getValue<boolean>(ChatConfiguration.AgentSessionProjectionEnabled) === true;
-
 	if (agentSessionProjectionEnabled) {
 		// Enter Agent Session Projection mode for the session
-		await focusViewService.enterFocusView(session);
+		await projectionService.enterProjection(session);
 	} else {
 		// Fall back to opening in chat widget when Agent Session Projection is disabled
 		await openSessionInChatWidget(accessor, session, openOptions);
@@ -43,7 +35,7 @@ export async function openSession(accessor: ServicesAccessor, session: IAgentSes
  * Opens a session in the traditional chat widget (side panel or editor).
  * Use this when you explicitly want to open in the chat widget rather than agent session projection mode.
  */
-export async function openSessionInChatWidget(accessor: ServicesAccessor, session: IAgentSession, openOptions?: { sideBySide?: boolean; editorOptions?: IEditorOptions }): Promise<void> {
+export async function openSessionInChatWidget(accessor: ServicesAccessor, session: IAgentSession, openOptions?: { sideBySide?: boolean; editorOptions?: IEditorOptions; expanded?: boolean }): Promise<void> {
 	const chatSessionsService = accessor.get(IChatSessionsService);
 	const chatWidgetService = accessor.get(IChatWidgetService);
 
@@ -59,7 +51,8 @@ export async function openSessionInChatWidget(accessor: ServicesAccessor, sessio
 	let options: IChatEditorOptions = {
 		...sessionOptions,
 		...openOptions?.editorOptions,
-		revealIfOpened: true // always try to reveal if already opened
+		revealIfOpened: true, // always try to reveal if already opened
+		expanded: openOptions?.expanded
 	};
 
 	await chatSessionsService.activateChatSessionItemProvider(session.providerType); // ensure provider is activated before trying to open
