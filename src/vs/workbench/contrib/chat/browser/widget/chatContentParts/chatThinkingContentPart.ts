@@ -545,7 +545,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.appendedItemCount++;
 
 		// If expanded or has been expanded once, render immediately
-		if (this.isExpanded() || this.hasExpandedOnce) {
+		if (this.isExpanded() || this.hasExpandedOnce || this.fixedScrollingMode) {
 			const result = factory();
 			this.appendItemToDOM(result.domNode, toolInvocationId, toolInvocationOrMarkdown, originalParent);
 			if (result.disposable) {
