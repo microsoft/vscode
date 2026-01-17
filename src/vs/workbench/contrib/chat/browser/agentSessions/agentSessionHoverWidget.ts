@@ -30,7 +30,7 @@ const CHAT_HOVER_WIDTH = 500;
 
 export class AgentSessionHoverWidget extends Disposable {
 
-	public readonly domNode: HTMLElement;
+	readonly domNode: HTMLElement;
 	private modelRef?: Promise<IChatModel | undefined>;
 	private readonly contentElement: HTMLElement;
 	private readonly loadingElement: HTMLElement;
@@ -45,6 +45,7 @@ export class AgentSessionHoverWidget extends Disposable {
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super();
+
 		this.domNode = dom.$('.agent-session-hover.interactive-session');
 		this.domNode.style.width = `${CHAT_HOVER_WIDTH}px`;
 		this.domNode.style.height = `${HEADER_HEIGHT + CHAT_LIST_HEIGHT}px`;
@@ -65,7 +66,7 @@ export class AgentSessionHoverWidget extends Disposable {
 		this.renderScheduler = this._register(new RunOnceScheduler(() => this.render(), 200));
 	}
 
-	public onRendered() {
+	onRendered() {
 		this.modelRef ??= this.loadModel();
 
 		if (!this.hasRendered) {

@@ -41,7 +41,6 @@ import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.
 import { MarkdownString, IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { AgentSessionHoverWidget } from './agentSessionHoverWidget.js';
 
-
 export type AgentSessionListItem = IAgentSession | IAgentSessionSection;
 
 //#region Agent Session Renderer
@@ -84,7 +83,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 
 	readonly templateId = AgentSessionRenderer.TEMPLATE_ID;
 
-	private readonly _sessionHover = this._register(new MutableDisposable<AgentSessionHoverWidget>());
+	private readonly sessionHover = this._register(new MutableDisposable<AgentSessionHoverWidget>());
 
 	constructor(
 		private readonly options: IAgentSessionRendererOptions,
@@ -351,20 +350,18 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 	}
 
 	private buildHoverContent(session: IAgentSession): IDelayedHoverOptions {
-		// note: hover service use mouseover which triggers again if the mouse moves
-		// within the element. Only recreate the hover widget if the session changed.
-		if (this._sessionHover.value?.session.resource.toString() !== session.resource.toString()) {
-			this._sessionHover.value = this.instantiationService.createInstance(AgentSessionHoverWidget, session);
+		if (this.sessionHover.value?.session.resource.toString() !== session.resource.toString()) {
+			// note: hover service use mouseover which triggers again if the mouse moves
+			// within the element. Only recreate the hover widget if the session changed.
+			this.sessionHover.value = this.instantiationService.createInstance(AgentSessionHoverWidget, session);
 		}
 
-		const widget = this._sessionHover.value;
+		const widget = this.sessionHover.value;
 		return {
-			id: 'agent.session.hover.' + session.resource.toString(),
+			id: `agent.session.hover.${session.resource.toString()}`,
 			content: widget.domNode,
 			style: HoverStyle.Pointer,
-			onDidShow: () => {
-				widget.onRendered();
-			},
+			onDidShow: () => widget.onRendered(),
 			position: {
 				hoverPosition: this.options.getHoverPosition()
 			}
