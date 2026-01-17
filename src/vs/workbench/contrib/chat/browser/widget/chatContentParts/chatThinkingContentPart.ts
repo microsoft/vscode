@@ -112,7 +112,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private extractedTitles: string[] = [];
 	private toolInvocationCount: number = 0;
 	private appendedItemCount: number = 0;
-	private streamingCompleted: boolean = false;
 	private isActive: boolean = true;
 	private toolInvocations: (IChatToolInvocation | IChatToolInvocationSerialized)[] = [];
 	private singleItemInfo: { element: HTMLElement; originalParent: HTMLElement; originalNextSibling: Node | null } | undefined;
@@ -123,6 +122,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		content: IChatThinkingPart,
 		context: IChatContentPartRenderContext,
 		private readonly chatContentMarkdownRenderer: IMarkdownRenderer,
+		private streamingCompleted: boolean,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
@@ -225,7 +225,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	// @TODO: @justschen Convert to template for each setting?
 	protected override initContent(): HTMLElement {
 		this.wrapper = $('.chat-used-context-list.chat-thinking-collapsible');
-		this.wrapper.classList.add('chat-thinking-streaming');
+		if (!this.streamingCompleted) {
+			this.wrapper.classList.add('chat-thinking-streaming');
+		}
+
 		if (this.currentThinkingValue) {
 			this.textContainer = $('.chat-thinking-item.markdown-content');
 			this.wrapper.appendChild(this.textContainer);
@@ -545,7 +548,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.appendedItemCount++;
 
 		// If expanded or has been expanded once, render immediately
-		if (this.isExpanded() || this.hasExpandedOnce || this.fixedScrollingMode) {
+		if (this.isExpanded() || this.hasExpandedOnce || (this.fixedScrollingMode && !this.streamingCompleted)) {
 			const result = factory();
 			this.appendItemToDOM(result.domNode, toolInvocationId, toolInvocationOrMarkdown, originalParent);
 			if (result.disposable) {

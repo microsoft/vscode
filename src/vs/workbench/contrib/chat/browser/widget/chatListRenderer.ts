@@ -96,6 +96,7 @@ import { ChatEditorOptions } from './chatOptions.js';
 import { ChatCodeBlockContentProvider, CodeBlockPart } from './chatContentParts/codeBlockPart.js';
 import { autorun, observableValue } from '../../../../../base/common/observable.js';
 import { RunSubagentTool } from '../../common/tools/builtinTools/runSubagentTool.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 
 const $ = dom.$;
 
@@ -189,6 +190,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	protected readonly _onDidChangeItemHeight = this._register(new Emitter<IItemHeightChangeParams>());
 	readonly onDidChangeItemHeight: Event<IItemHeightChangeParams> = this._onDidChangeItemHeight.event;
+
+	private readonly _onDidUpdateViewModel = this._register(new Emitter<void>());
 
 	private readonly _editorPool: EditorPool;
 	private readonly _toolEditorPool: EditorPool;
@@ -302,6 +305,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.codeBlocksByResponseId.clear();
 		this.fileTreesByResponseId.clear();
 		this.focusedFileTreesByResponseId.clear();
+		this._onDidUpdateViewModel.fire();
 	}
 
 	getCodeBlockInfoForEditor(uri: URI): IChatCodeBlockInfo | undefined {
@@ -505,6 +509,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}));
 		const template: IChatListItemTemplate = { header, avatarContainer, requestHover, username, detail, value, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar, footerToolbar, footerDetailsContainer, disabledOverlay, checkpointToolbar, checkpointRestoreToolbar, checkpointContainer, checkpointRestoreContainer };
+
+		templateDisposables.add(this._onDidUpdateViewModel.event(() => {
+			if (!template.currentElement || !this.viewModel?.sessionResource || !isEqual(template.currentElement.sessionResource, this.viewModel.sessionResource)) {
+				this.clearRenderedParts(template);
+			}
+		}));
 
 		templateDisposables.add(dom.addDisposableListener(disabledOverlay, dom.EventType.CLICK, e => {
 			if (!this.viewModel?.editing) {
@@ -1552,7 +1562,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return this.renderNoContent(other => other.kind === content.kind && other.id === content.id);
 	}
 
-	private renderNoContent(equals: (otherContent: IChatRendererContent) => boolean): IChatContentPart {
+	private renderNoContent(equals: (other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem) => boolean): IChatContentPart {
 		return {
 			dispose: () => { },
 			domNode: undefined,
@@ -1660,27 +1670,28 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const codeBlockStartIndex = context.codeBlockStartIndex;
 
 		// Factory that creates the tool invocation part with all necessary setup
+		let lazilyCreatedPart: ChatToolInvocationPart | undefined = undefined;
 		const createToolPart = (): { domNode: HTMLElement; disposable: ChatToolInvocationPart } => {
-			const part = this.instantiationService.createInstance(ChatToolInvocationPart, toolInvocation, context, this.chatContentMarkdownRenderer, this._contentReferencesListPool, this._toolEditorPool, () => this._currentLayoutWidth.get(), this._toolInvocationCodeBlockCollection, this._announcedToolProgressKeys, codeBlockStartIndex);
-			part.addDisposable(part.onDidChangeHeight(() => {
+			lazilyCreatedPart = this.instantiationService.createInstance(ChatToolInvocationPart, toolInvocation, context, this.chatContentMarkdownRenderer, this._contentReferencesListPool, this._toolEditorPool, () => this._currentLayoutWidth.get(), this._toolInvocationCodeBlockCollection, this._announcedToolProgressKeys, codeBlockStartIndex);
+			lazilyCreatedPart.addDisposable(lazilyCreatedPart.onDidChangeHeight(() => {
 				this.updateItemHeight(templateData);
 			}));
-			this.handleRenderedCodeblocks(context.element, part, codeBlockStartIndex);
+			this.handleRenderedCodeblocks(context.element, lazilyCreatedPart, codeBlockStartIndex);
 
 			// watch for streaming -> confirmation transition to finalize thinking
 			if (toolInvocation.kind === 'toolInvocation' && IChatToolInvocation.isStreaming(toolInvocation)) {
 				let wasStreaming = true;
-				part.addDisposable(autorun(reader => {
+				lazilyCreatedPart.addDisposable(autorun(reader => {
 					const state = toolInvocation.state.read(reader);
 					if (wasStreaming && state.type !== IChatToolInvocation.StateKind.Streaming) {
 						wasStreaming = false;
 						if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
-							if (part.domNode) {
-								const wrapper = part.domNode.parentElement;
+							if (lazilyCreatedPart!.domNode) {
+								const wrapper = lazilyCreatedPart!.domNode.parentElement;
 								if (wrapper?.classList.contains('chat-thinking-tool-wrapper')) {
 									wrapper.remove();
 								}
-								templateData.value.appendChild(part.domNode);
+								templateData.value.appendChild(lazilyCreatedPart!.domNode);
 							}
 							this.finalizeCurrentThinkingPart(context, templateData);
 						}
@@ -1688,7 +1699,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				}));
 			}
 
-			return { domNode: part.domNode, disposable: part };
+			return { domNode: lazilyCreatedPart.domNode, disposable: lazilyCreatedPart };
 		};
 
 		// handling for when we want to put tool invocations inside a thinking part
@@ -1717,7 +1728,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				if (lastThinking && toolInvocation.presentation !== 'hidden') {
 					// Append using factory - thinking part decides whether to render lazily
 					lastThinking.appendItem(createToolPart, toolInvocation.toolId, toolInvocation, templateData.value);
-					return this.renderNoContent(other => toolInvocation.kind === other.kind);
+					return this.renderNoContent((other, followingContent, element) => lazilyCreatedPart ?
+						lazilyCreatedPart.hasSameContent(other, followingContent, element) :
+						toolInvocation.kind === other.kind);
 				}
 			} else {
 				this.finalizeCurrentThinkingPart(context, templateData);
@@ -1932,7 +1945,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						lastThinkingPart.setupThinkingContainer({ ...content, value: item });
 					} else {
 						const itemContent = { ...content, value: item };
-						const itemPart = templateData.instantiationService.createInstance(ChatThinkingContentPart, itemContent, context, this.chatContentMarkdownRenderer);
+						const itemPart = templateData.instantiationService.createInstance(ChatThinkingContentPart, itemContent, context, this.chatContentMarkdownRenderer, context.element.isComplete);
 						itemPart.addDisposable(itemPart.onDidChangeHeight(() => this.updateItemHeight(templateData)));
 						lastPart = itemPart;
 					}
@@ -1946,7 +1959,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				lastActiveThinking.setupThinkingContainer(content);
 				return lastActiveThinking;
 			} else {
-				const part = templateData.instantiationService.createInstance(ChatThinkingContentPart, content, context, this.chatContentMarkdownRenderer);
+				const part = templateData.instantiationService.createInstance(ChatThinkingContentPart, content, context, this.chatContentMarkdownRenderer, context.element.isComplete);
 				part.addDisposable(part.onDidChangeHeight(() => this.updateItemHeight(templateData)));
 				return part;
 			}

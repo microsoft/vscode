@@ -2008,6 +2008,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// Pass input model reference to input part for state syncing
 		this.inputPart.setInputModel(model.inputModel, model.getRequests().length === 0);
+		this.renderer.updateViewModel(this.viewModel);
 
 		if (this._lockedAgent) {
 			let placeholder = this.chatSessionsService.getInputPlaceholderForSessionType(this._lockedAgent.id);
@@ -2086,7 +2087,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.scrollToEnd();
 		}
 
-		this.renderer.updateViewModel(this.viewModel);
 		this.updateChatInputContext();
 		this.input.renderChatTodoListWidget(this.viewModel.sessionResource);
 	}
