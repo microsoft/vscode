@@ -163,6 +163,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			cd: true,
 			echo: true,
 			ls: true,
+			dir: true,
 			pwd: true,
 			cat: true,
 			head: true,
