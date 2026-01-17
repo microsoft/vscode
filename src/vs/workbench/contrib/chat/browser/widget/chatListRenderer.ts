@@ -198,6 +198,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private _currentLayoutWidth = observableValue(this, 0);
 	private _isVisible = true;
+	private _elementBeingRendered: ChatTreeItem | undefined;
 	private _onDidChangeVisibility = this._register(new Emitter<boolean>());
 
 	/**
@@ -525,7 +526,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	renderElement(node: ITreeNode<ChatTreeItem, FuzzyScore>, index: number, templateData: IChatListItemTemplate): void {
-		this.renderChatTreeItem(node.element, index, templateData);
+		this._elementBeingRendered = node.element;
+		try {
+			this.renderChatTreeItem(node.element, index, templateData);
+		} finally {
+			this._elementBeingRendered = undefined;
+		}
 	}
 
 	private clearRenderedParts(templateData: IChatListItemTemplate): void {
@@ -536,7 +542,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 	}
 
-	renderChatTreeItem(element: ChatTreeItem, index: number, templateData: IChatListItemTemplate): void {
+	private renderChatTreeItem(element: ChatTreeItem, index: number, templateData: IChatListItemTemplate): void {
 		if (templateData.currentElement && templateData.currentElement.id !== element.id) {
 			this.traceLayout('renderChatTreeItem', `Rendering a different element into the template, index=${index}`);
 			this.clearRenderedParts(templateData);
@@ -948,7 +954,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private updateItemHeight(templateData: IChatListItemTemplate): void {
-		if (!templateData.currentElement) {
+		if (!templateData.currentElement || templateData.currentElement === this._elementBeingRendered) {
 			return;
 		}
 
