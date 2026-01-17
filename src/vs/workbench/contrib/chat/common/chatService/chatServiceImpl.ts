@@ -228,7 +228,7 @@ export class ChatService extends Disposable implements IChatService {
 		if (!LocalChatSessionUri.parseLocalSessionId(session.sessionResource)) {
 			return false;
 		}
-		return session.initialLocation === ChatAgentLocation.Chat && !session.isImported;
+		return session.initialLocation === ChatAgentLocation.Chat /* && !session.isImported */;
 	}
 
 	notifyUserAction(action: IChatUserActionEvent): void {
