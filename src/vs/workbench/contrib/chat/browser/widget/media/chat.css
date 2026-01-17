@@ -2239,6 +2239,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-item-container .chat-command-button {
 	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
 	margin-bottom: 16px;
 }
 
