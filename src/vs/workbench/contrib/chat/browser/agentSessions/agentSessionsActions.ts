@@ -489,65 +489,31 @@ export class ArchiveAgentSessionAction extends BaseAgentSessionAction {
 		const chatService = accessor.get(IChatService);
 		const dialogService = accessor.get(IDialogService);
 
-		// Collect sessions that have pending edits and need confirmation
-		const sessionsWithPendingEdits: { session: IAgentSession; chatModel: ReturnType<IChatService['getSession']> }[] = [];
-		const sessionsWithoutPendingEdits: IAgentSession[] = [];
-
+		// Count sessions with pending changes
+		let sessionsWithPendingChangesCount = 0;
 		for (const session of sessions) {
 			const chatModel = chatService.getSession(session.resource);
 			if (chatModel && shouldShowClearEditingSessionConfirmation(chatModel, { isArchiveAction: true })) {
-				sessionsWithPendingEdits.push({ session, chatModel });
-			} else {
-				sessionsWithoutPendingEdits.push(session);
+				sessionsWithPendingChangesCount++;
 			}
 		}
 
-		// If there are sessions with pending edits, show a single consolidated confirmation
-		if (sessionsWithPendingEdits.length > 0) {
-			const sessionCount = sessionsWithPendingEdits.length;
-			const { result } = await dialogService.prompt({
-				title: localize('archiveSessionsWithEdits', "Archive {0} chat sessions with pending edits?", sessionCount),
-				message: localize('archiveSessionsWithEditsDescription', "{0} chat sessions have pending changes. Do you want to keep the pending edits?", sessionCount),
-				type: 'info',
-				cancelButton: true,
-				buttons: [
-					{
-						label: localize('keepEditsAndArchive', "Keep & Archive"),
-						run: async () => {
-							// Accept edits for all sessions with pending edits, then archive
-							for (const { session, chatModel } of sessionsWithPendingEdits) {
-								if (chatModel?.editingSession) {
-									await chatModel.editingSession.accept();
-								}
-								session.setArchived(true);
-							}
-							return true;
-						}
-					},
-					{
-						label: localize('undoEditsAndArchive', "Undo & Archive"),
-						run: async () => {
-							// Reject edits for all sessions with pending edits, then archive
-							for (const { session, chatModel } of sessionsWithPendingEdits) {
-								if (chatModel?.editingSession) {
-									await chatModel.editingSession.reject();
-								}
-								session.setArchived(true);
-							}
-							return true;
-						}
-					}
-				],
+		// If there are sessions with pending changes, ask for confirmation once
+		if (sessionsWithPendingChangesCount > 0) {
+			const confirmed = await dialogService.confirm({
+				message: sessionsWithPendingChangesCount === 1
+					? localize('archiveSessionWithPendingEdits', "One session has pending edits. Are you sure you want to archive?")
+					: localize('archiveSessionsWithPendingEdits', "{0} sessions have pending edits. Are you sure you want to archive?", sessionsWithPendingChangesCount),
+				primaryButton: localize('archiveSession.archive', "Archive")
 			});
 
-			// If user cancelled, don't archive any sessions
-			if (!result) {
+			if (!confirmed.confirmed) {
 				return;
 			}
 		}
 
-		// Archive sessions without pending edits
-		for (const session of sessionsWithoutPendingEdits) {
+		// Archive all sessions
+		for (const session of sessions) {
 			session.setArchived(true);
 		}
 	}
