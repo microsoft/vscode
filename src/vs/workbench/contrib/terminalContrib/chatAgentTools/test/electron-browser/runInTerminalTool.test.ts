@@ -201,6 +201,7 @@ suite('RunInTerminalTool', () => {
 			'echo "abc"',
 			'echo \'abc\'',
 			'ls -la',
+			'dir',
 			'pwd',
 			'cat file.txt',
 			'head -n 10 file.txt',
