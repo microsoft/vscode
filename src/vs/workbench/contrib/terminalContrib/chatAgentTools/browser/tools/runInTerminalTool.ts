@@ -225,7 +225,7 @@ export async function createRunInTerminalToolData(
 				},
 				goal: {
 					type: 'string',
-					description: 'A short description of the goal or purpose of the command. This will be shown as a subtitle in the confirmation dialog (e.g., "Install dependencies", "Start development server").'
+					description: 'A short description of the goal or purpose of the command (e.g., "Install dependencies", "Start development server").'
 				},
 				isBackground: {
 					type: 'boolean',
@@ -593,8 +593,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		const confirmationMessages = isFinalAutoApproved ? undefined : {
 			title: confirmationTitle,
-			subtitle: args.goal,
-			message: new MarkdownString(args.explanation),
+			message: new MarkdownString(localize('runInTerminal.confirmationMessage', "Explanation: {0}\n\nGoal: {1}", args.explanation, args.goal)),
 			disclaimer,
 			terminalCustomActions: customActions,
 		};

@@ -210,7 +210,6 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			this.context,
 			{
 				title,
-				subtitle: state.confirmationMessages.subtitle,
 				icon: Codicon.terminal,
 				message: elements.root,
 				buttons: this._createButtons(moreActions)

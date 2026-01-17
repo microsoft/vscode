@@ -449,7 +449,6 @@ suite('RunInTerminalTool', () => {
 				goal: 'Remove a file'
 			});
 			assertConfirmationRequired(result, 'Run `bash` command?');
-			strictEqual(result?.confirmationMessages?.subtitle, 'Remove a file', 'Subtitle should match the goal');
 		});
 
 		test('should require confirmation for commands in deny list even if in allow list', async () => {
