@@ -282,11 +282,13 @@ class TerminalInitialHintWidget extends Disposable {
 				if (terminalAgents?.length) {
 					const actionPart = localize('emptyHintText', 'Open chat {0}. ', keybindingHintLabel);
 
-					const [before, after] = actionPart.split(keybindingHintLabel).map((fragment) => {
-						const hintPart = $('a', undefined, fragment);
-						this._toDispose.add(dom.addDisposableListener(hintPart, dom.EventType.CLICK, handleClick));
-						return hintPart;
-					});
+					const [beforeText, afterText] = actionPart.split(keybindingHintLabel);
+					const before = $('a', undefined, beforeText);
+					this._toDispose.add(dom.addDisposableListener(before, dom.EventType.CLICK, handleClick));
+					const after = $('span.terminal-initial-hint-prose', undefined);
+					const afterLink = $('a', undefined, afterText);
+					this._toDispose.add(dom.addDisposableListener(afterLink, dom.EventType.CLICK, handleClick));
+					after.appendChild(afterLink);
 
 					hintElement.appendChild(before);
 
@@ -299,6 +301,7 @@ class TerminalInitialHintWidget extends Disposable {
 					this._toDispose.add(dom.addDisposableListener(label.element, dom.EventType.CLICK, handleClick));
 
 					hintElement.appendChild(after);
+					hintElement.appendChild($('span.terminal-initial-hint-separator'));
 
 					ariaLabelParts.push(actionPart);
 				}
@@ -327,11 +330,13 @@ class TerminalInitialHintWidget extends Disposable {
 				this._commandService.executeCommand(TerminalSuggestCommandId.TriggerSuggest);
 			};
 
-			const [suggestBefore, suggestAfter] = suggestActionPart.split(suggestKeybindingLabel).map((fragment) => {
-				const hintPart = $('a', undefined, fragment);
-				this._toDispose.add(dom.addDisposableListener(hintPart, dom.EventType.CLICK, handleSuggestClick));
-				return hintPart;
-			});
+			const [suggestBeforeText, suggestAfterText] = suggestActionPart.split(suggestKeybindingLabel);
+			const suggestBefore = $('a', undefined, suggestBeforeText);
+			this._toDispose.add(dom.addDisposableListener(suggestBefore, dom.EventType.CLICK, handleSuggestClick));
+			const suggestAfter = $('span.terminal-initial-hint-prose', undefined);
+			const suggestAfterLink = $('a', undefined, suggestAfterText);
+			this._toDispose.add(dom.addDisposableListener(suggestAfterLink, dom.EventType.CLICK, handleSuggestClick));
+			suggestAfter.appendChild(suggestAfterLink);
 
 			hintElement.appendChild(suggestBefore);
 
@@ -343,6 +348,7 @@ class TerminalInitialHintWidget extends Disposable {
 			this._toDispose.add(dom.addDisposableListener(suggestLabel.element, dom.EventType.CLICK, handleSuggestClick));
 
 			hintElement.appendChild(suggestAfter);
+			hintElement.appendChild($('span.terminal-initial-hint-separator'));
 
 			ariaLabelParts.push(suggestActionPart);
 		}
@@ -352,15 +358,30 @@ class TerminalInitialHintWidget extends Disposable {
 			return undefined;
 		}
 
+		// Dismiss hint - normal mode version
 		const typeToDismiss = localize({
 			key: 'hintTextDismiss',
 			comment: [
 				'Preserve double-square brackets and their order',
 			]
-		}, ' Start typing to dismiss or [[don\'t show]] this again.');
+		}, '[[don\'t show]] this again.');
 		const typeToDismissRendered = renderFormattedText(typeToDismiss, { actionHandler: dontShowHintHandler });
-		typeToDismissRendered.classList.add('detail');
+		typeToDismissRendered.classList.add('detail', 'terminal-initial-hint-prose');
+
+		const proseBefore = $('span.terminal-initial-hint-prose', undefined, ' Start typing to dismiss or ');
+		hintElement.appendChild(proseBefore);
 		hintElement.appendChild(typeToDismissRendered);
+
+		// Dismiss hint - compact mode version
+		const typeToDismissCompact = localize({
+			key: 'hintTextDismissCompact',
+			comment: [
+				'Preserve double-square brackets and their order',
+			]
+		}, '[[Don\'t show this again]]');
+		const typeToDismissCompactRendered = renderFormattedText(typeToDismissCompact, { actionHandler: dontShowHintHandler });
+		typeToDismissCompactRendered.classList.add('detail', 'terminal-initial-hint-compact');
+		hintElement.appendChild(typeToDismissCompactRendered);
 		ariaLabelParts.push(localize('hintTextDismissAriaLabel', 'Start typing to dismiss or don\'t show this again.'));
 
 		return { ariaLabel: ariaLabelParts.join(' '), hintHandler, hintElement };
