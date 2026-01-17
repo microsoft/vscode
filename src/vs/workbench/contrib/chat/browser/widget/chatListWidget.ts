@@ -19,7 +19,6 @@ import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listSe
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { asCssVariable, buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground } from '../../../../../platform/theme/common/colorRegistry.js';
-import { localize } from '../../../../../nls.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ChatAccessibilityProvider } from '../accessibility/chatAccessibilityProvider.js';
