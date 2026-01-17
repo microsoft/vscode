@@ -309,7 +309,7 @@ export class ComputeAutomaticInstructions {
 				entries.push('<skills>');
 				entries.push('Here is a list of skills that contain domain specific knowledge on a variety of topics.');
 				entries.push('Each skill comes with a description of the topic and a file path that contains the detailed instructions.');
-				entries.push(`When a user asks you to perform a task that falls within the domain of a skill, use the ${readTool.variable} tool to acquire the full instructions from the file URI.`);
+				entries.push(`When a user asks you to perform a task that falls within the domain of a skill, use the ${readTool.variable} tool to acquire the full instructions from the file URI. Make sure to read all of the SKILL.md file.`);
 				for (const skill of agentSkills) {
 					entries.push('<skill>');
 					entries.push(`<name>${skill.name}</name>`);
