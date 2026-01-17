@@ -111,15 +111,14 @@ function getSharedStyleSheet(): HTMLStyleElement {
 	return _sharedStyleSheet;
 }
 
-function getDynamicStyleSheetRules(style: HTMLStyleElement) {
-	if (style?.sheet?.rules) {
-		return style.sheet.rules; // Chrome, IE
+function getDynamicStyleSheetRules(style: HTMLStyleElement): CSSRuleList {
+	if (style.sheet) {
+		return style.sheet.cssRules;
 	}
-	if (style?.sheet?.cssRules) {
-		return style.sheet.cssRules; // FF
-	}
-	return [];
+	return { length: 0 } as CSSRuleList;
 }
+
+
 
 export function createCSSRule(selector: string, cssText: string, style = getSharedStyleSheet()): void {
 	if (!style || !cssText) {
