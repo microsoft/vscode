@@ -19,7 +19,7 @@ import { getPartByLocation } from '../../../../services/views/browser/viewsServi
 import { IWorkbenchLayoutService, Position } from '../../../../services/layout/browser/layoutService.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ChatEditorInput, showClearEditingSessionConfirmation } from '../widgetHosts/editor/chatEditorInput.js';
+import { ChatEditorInput, shouldShowClearEditingSessionConfirmation } from '../widgetHosts/editor/chatEditorInput.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../../common/constants.js';
@@ -489,17 +489,61 @@ export class ArchiveAgentSessionAction extends BaseAgentSessionAction {
 		const chatService = accessor.get(IChatService);
 		const dialogService = accessor.get(IDialogService);
 
+		// Collect sessions that have pending edits and need confirmation
+		const sessionsWithPendingEdits: { session: IAgentSession; chatModel: ReturnType<IChatService['getSession']> }[] = [];
+		const sessionsWithoutPendingEdits: IAgentSession[] = [];
+
 		for (const session of sessions) {
 			const chatModel = chatService.getSession(session.resource);
-
-			if (chatModel && !await showClearEditingSessionConfirmation(chatModel, dialogService, {
-				isArchiveAction: true,
-				titleOverride: localize('archiveSession', "Archive chat with pending edits?"),
-				messageOverride: localize('archiveSessionDescription', "You have pending changes in this chat session.")
-			})) {
-				continue;
+			if (chatModel && shouldShowClearEditingSessionConfirmation(chatModel, { isArchiveAction: true })) {
+				sessionsWithPendingEdits.push({ session, chatModel });
+			} else {
+				sessionsWithoutPendingEdits.push(session);
 			}
+		}
 
+		// If there are sessions with pending edits, show a single consolidated confirmation
+		if (sessionsWithPendingEdits.length > 0) {
+			const sessionCount = sessionsWithPendingEdits.length;
+			const { result } = await dialogService.prompt({
+				title: localize('archiveSessionsWithEdits', "Archive {0} chat sessions with pending edits?", sessionCount),
+				message: localize('archiveSessionsWithEditsDescription', "{0} chat sessions have pending changes. Do you want to keep the pending edits?", sessionCount),
+				type: 'info',
+				cancelButton: true,
+				buttons: [
+					{
+						label: localize('keepEditsAndArchive', "Keep & Archive"),
+						run: async () => {
+							// Accept edits for all sessions with pending edits, then archive
+							for (const { session, chatModel } of sessionsWithPendingEdits) {
+								await chatModel!.editingSession!.accept();
+								session.setArchived(true);
+							}
+							return true;
+						}
+					},
+					{
+						label: localize('undoEditsAndArchive', "Undo & Archive"),
+						run: async () => {
+							// Reject edits for all sessions with pending edits, then archive
+							for (const { session, chatModel } of sessionsWithPendingEdits) {
+								await chatModel!.editingSession!.reject();
+								session.setArchived(true);
+							}
+							return true;
+						}
+					}
+				],
+			});
+
+			// If user cancelled, don't archive any sessions
+			if (!result) {
+				return;
+			}
+		}
+
+		// Archive sessions without pending edits
+		for (const session of sessionsWithoutPendingEdits) {
 			session.setArchived(true);
 		}
 	}
