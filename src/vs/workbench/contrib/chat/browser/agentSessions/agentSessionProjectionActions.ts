@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize, localize2 } from '../../../../../nls.js';
-import { Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { Action2 } from '../../../../../platform/actions/common/actions.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
@@ -15,7 +15,6 @@ import { IAgentSessionProjectionService } from './agentSessionProjectionService.
 import { IAgentSession, isMarshalledAgentSessionContext, IMarshalledAgentSessionContext } from './agentSessionsModel.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
-import { openSessionInChatWidget } from './agentSessionsOpener.js';
 import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js';
 import { IsCompactTitleBarContext } from '../../../../common/contextkeys.js';
 
@@ -85,45 +84,6 @@ export class ExitAgentSessionProjectionAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const projectionService = accessor.get(IAgentSessionProjectionService);
 		await projectionService.exitProjection();
-	}
-}
-
-//#endregion
-
-//#region Open in Chat Panel
-
-export class OpenInChatPanelAction extends Action2 {
-	static readonly ID = 'agentSession.openInChatPanel';
-
-	constructor() {
-		super({
-			id: OpenInChatPanelAction.ID,
-			title: localize2('openInChatPanel', "Open in Chat Panel"),
-			category: CHAT_CATEGORY,
-			precondition: ChatContextKeys.enabled,
-			menu: [{
-				id: MenuId.AgentSessionsContext,
-				group: '1_open',
-				order: 1,
-			}]
-		});
-	}
-
-	override async run(accessor: ServicesAccessor, context?: IAgentSession | IMarshalledAgentSessionContext): Promise<void> {
-		const agentSessionsService = accessor.get(IAgentSessionsService);
-
-		let session: IAgentSession | undefined;
-		if (context) {
-			if (isMarshalledAgentSessionContext(context)) {
-				session = agentSessionsService.getSession(context.session.resource);
-			} else {
-				session = context;
-			}
-		}
-
-		if (session) {
-			await openSessionInChatWidget(accessor, session);
-		}
 	}
 }
 

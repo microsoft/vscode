@@ -142,7 +142,11 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 		}
 	}
 
-	private async _openSessionFiles(session: IAgentSession): Promise<void> {
+	/**
+	 * Open the session's files in a multi-diff editor.
+	 * @returns true if any files were opened, false if nothing to display
+	 */
+	private async _openSessionFiles(session: IAgentSession): Promise<boolean> {
 		// Clear editors first
 		await this.editorGroupsService.applyWorkingSet('empty', { preserveFocus: true });
 
@@ -178,11 +182,14 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 				const sessionKey = session.resource.toString();
 				const newWorkingSet = this.editorGroupsService.saveWorkingSet(`agent-session-projection-${sessionKey}`);
 				this._sessionWorkingSets.set(sessionKey, newWorkingSet);
+				return true;
 			} else {
 				this.logService.trace(`[AgentSessionProjection] No files with diffs to display (all changes missing originalUri)`);
+				return false;
 			}
 		} else {
 			this.logService.trace(`[AgentSessionProjection] Session has no changes to display`);
+			return false;
 		}
 	}
 
@@ -222,24 +229,45 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 				this._sessionWorkingSets.set(previousSessionKey, previousWorkingSet);
 			}
 
-			// Always open session files to ensure they're displayed
-			await this._openSessionFiles(session);
-
-			// Set active state
-			const wasActive = this._isActive;
-			this._isActive = true;
-			this._activeSession = session;
-			this._inProjectionModeContextKey.set(true);
-			this.layoutService.mainContainer.classList.add('agent-session-projection-active');
-
-			// Update the agent status to show session mode
-			this.agentStatusService.enterSessionMode(session.resource.toString(), session.label);
-
-			if (!wasActive) {
-				this._onDidChangeProjectionMode.fire(true);
+			// For local sessions, changes are shown via chatEditing.viewChanges, not _openSessionFiles
+			// For other providers, try to open session files from session.changes
+			let filesOpened = false;
+			if (session.providerType === AgentSessionProviders.Local) {
+				// Local sessions use editing session for changes - we already verified hasUndecidedChanges above
+				// Clear editors to prepare for the changes view
+				await this.editorGroupsService.applyWorkingSet('empty', { preserveFocus: true });
+				filesOpened = true;
+			} else {
+				// Try to open session files - only continue with projection if files were displayed
+				filesOpened = await this._openSessionFiles(session);
 			}
-			// Always fire session change event (for title updates when switching sessions)
-			this._onDidChangeActiveSession.fire(session);
+
+			if (!filesOpened) {
+				this.logService.trace('[AgentSessionProjection] No files to display, opening chat without projection mode');
+				// Restore the working set we just saved if this was our first attempt
+				if (!this._isActive && this._preProjectionWorkingSet) {
+					await this.editorGroupsService.applyWorkingSet(this._preProjectionWorkingSet);
+					this.editorGroupsService.deleteWorkingSet(this._preProjectionWorkingSet);
+					this._preProjectionWorkingSet = undefined;
+				}
+				// Fall through to just open the chat panel
+			} else {
+				// Set active state
+				const wasActive = this._isActive;
+				this._isActive = true;
+				this._activeSession = session;
+				this._inProjectionModeContextKey.set(true);
+				this.layoutService.mainContainer.classList.add('agent-session-projection-active');
+
+				// Update the agent status to show session mode
+				this.agentStatusService.enterSessionMode(session.resource.toString(), session.label);
+
+				if (!wasActive) {
+					this._onDidChangeProjectionMode.fire(true);
+				}
+				// Always fire session change event (for title updates when switching sessions)
+				this._onDidChangeActiveSession.fire(session);
+			}
 		}
 
 		// Open the session in the chat panel (always, even without changes)

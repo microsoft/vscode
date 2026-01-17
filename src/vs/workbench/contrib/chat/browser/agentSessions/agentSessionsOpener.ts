@@ -15,7 +15,7 @@ import { IAgentSessionProjectionService } from './agentSessionProjectionService.
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../../common/constants.js';
 
-export async function openSession(accessor: ServicesAccessor, session: IAgentSession, openOptions?: { sideBySide?: boolean; editorOptions?: IEditorOptions }): Promise<void> {
+export async function openSession(accessor: ServicesAccessor, session: IAgentSession, openOptions?: { sideBySide?: boolean; editorOptions?: IEditorOptions; expanded?: boolean }): Promise<void> {
 	const configurationService = accessor.get(IConfigurationService);
 	const projectionService = accessor.get(IAgentSessionProjectionService);
 
@@ -35,7 +35,7 @@ export async function openSession(accessor: ServicesAccessor, session: IAgentSes
  * Opens a session in the traditional chat widget (side panel or editor).
  * Use this when you explicitly want to open in the chat widget rather than agent session projection mode.
  */
-export async function openSessionInChatWidget(accessor: ServicesAccessor, session: IAgentSession, openOptions?: { sideBySide?: boolean; editorOptions?: IEditorOptions }): Promise<void> {
+export async function openSessionInChatWidget(accessor: ServicesAccessor, session: IAgentSession, openOptions?: { sideBySide?: boolean; editorOptions?: IEditorOptions; expanded?: boolean }): Promise<void> {
 	const chatSessionsService = accessor.get(IChatSessionsService);
 	const chatWidgetService = accessor.get(IChatWidgetService);
 
@@ -51,7 +51,8 @@ export async function openSessionInChatWidget(accessor: ServicesAccessor, sessio
 	let options: IChatEditorOptions = {
 		...sessionOptions,
 		...openOptions?.editorOptions,
-		revealIfOpened: true // always try to reveal if already opened
+		revealIfOpened: true, // always try to reveal if already opened
+		expanded: openOptions?.expanded
 	};
 
 	await chatSessionsService.activateChatSessionItemProvider(session.providerType); // ensure provider is activated before trying to open

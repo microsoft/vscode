@@ -346,6 +346,9 @@ export class PromptBody {
 				// Match markdown links: [text](link)
 				const linkMatch = line.matchAll(/\[(.*?)\]\((.+?)\)/g);
 				for (const match of linkMatch) {
+					if (match.index > 0 && line[match.index - 1] === '!') {
+						continue; // skip image links
+					}
 					const linkEndOffset = match.index + match[0].length - 1; // before the parenthesis
 					const linkStartOffset = match.index + match[0].length - match[2].length - 1;
 					const range = new Range(i + 1, linkStartOffset + 1, i + 1, linkEndOffset + 1);

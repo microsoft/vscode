@@ -271,6 +271,22 @@ Agent Status Widget - Titlebar control
 	outline-offset: -1px;
 }
 
+/* Command center toolbar (debug toolbar, etc.) */
+.agent-status-command-center-toolbar {
+	display: flex;
+	align-items: center;
+	-webkit-app-region: no-drag;
+}
+
+/* Separator dot between command center toolbar and agent status pill */
+.agent-status-separator {
+	padding: 0 8px;
+	height: 100%;
+	opacity: 0.5;
+	display: flex;
+	align-items: center;
+}
+
 /* Status badge (separate rectangle on right of pill) */
 .agent-status-badge {
 	display: flex;
@@ -283,19 +299,11 @@ Agent Status Widget - Titlebar control
 	border: 1px solid color-mix(in srgb, var(--vscode-progressBar-background) 50%, transparent);
 	flex-shrink: 0;
 	-webkit-app-region: no-drag;
-	transition: opacity 0.2s ease-in-out, background-color 0.2s ease-in-out, border-color 0.2s ease-in-out;
-	opacity: 1;
-	/* Reserve minimum width to prevent layout shift */
-	min-width: 50px;
-	justify-content: center;
 }
 
-/* Empty badge - invisible but reserves space to prevent layout shift */
+/* Empty badge - completely hidden */
 .agent-status-badge.empty {
-	opacity: 0;
-	pointer-events: none;
-	background-color: transparent;
-	border-color: transparent;
+	display: none;
 }
 
 /* Badge section (for split UI) */
@@ -305,11 +313,18 @@ Agent Status Widget - Titlebar control
 	gap: 4px;
 	padding: 0 8px;
 	height: 100%;
+	position: relative;
 }
 
 /* Separator between sections */
-.agent-status-badge-section + .agent-status-badge-section {
-	border-left: 1px solid color-mix(in srgb, var(--vscode-progressBar-background) 40%, transparent);
+.agent-status-badge-section + .agent-status-badge-section::before {
+	content: '';
+	position: absolute;
+	left: 0;
+	top: 4px;
+	bottom: 4px;
+	width: 1px;
+	background-color: color-mix(in srgb, var(--vscode-progressBar-background) 40%, transparent);
 }
 
 /* Unread section styling */
