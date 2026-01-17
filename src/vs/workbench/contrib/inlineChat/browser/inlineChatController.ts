@@ -104,6 +104,8 @@ export class InlineChatController implements IEditorContribution {
 		return editor.getContribution<InlineChatController>(InlineChatController.ID) ?? undefined;
 	}
 
+	private static _selectVendorDefaultLanguageModel: boolean = true;
+
 	private readonly _store = new DisposableStore();
 	private readonly _isActiveController = observableValue(this, false);
 	private readonly _zone: Lazy<InlineChatZoneWidget>;
@@ -125,7 +127,7 @@ export class InlineChatController implements IEditorContribution {
 		@IInlineChatSessionService private readonly _inlineChatSessionService: IInlineChatSessionService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ISharedWebContentExtractorService private readonly _webContentExtractorService: ISharedWebContentExtractorService,
 		@IFileService private readonly _fileService: IFileService,
 		@IChatAttachmentResolveService private readonly _chatAttachmentResolveService: IChatAttachmentResolveService,
@@ -135,7 +137,7 @@ export class InlineChatController implements IEditorContribution {
 	) {
 
 		const ctxInlineChatVisible = CTX_INLINE_CHAT_VISIBLE.bindTo(contextKeyService);
-		const notebookAgentConfig = observableConfigValue(InlineChatConfigKeys.notebookAgent, false, configurationService);
+		const notebookAgentConfig = observableConfigValue(InlineChatConfigKeys.notebookAgent, false, this._configurationService);
 
 		this._zone = new Lazy<InlineChatZoneWidget>(() => {
 
@@ -199,6 +201,8 @@ export class InlineChatController implements IEditorContribution {
 				{ editor: this._editor, notebookEditor },
 				() => Promise.resolve(),
 			);
+
+			this._store.add(result);
 
 			result.domNode.classList.add('inline-chat-2');
 
@@ -426,6 +430,26 @@ export class InlineChatController implements IEditorContribution {
 		this._isActiveController.set(true, undefined);
 
 		const session = this._inlineChatSessionService.createSession(this._editor);
+		const store = new DisposableStore();
+
+		// fallback to the default model of the selected vendor unless an explicit selection was made for the session
+		// or unless the user has chosen to persist their model choice
+		const persistModelChoice = this._configurationService.getValue<boolean>(InlineChatConfigKeys.PersistModelChoice);
+		const model = this._zone.value.widget.chatWidget.input.selectedLanguageModel;
+		if (!persistModelChoice && InlineChatController._selectVendorDefaultLanguageModel && model && !model.metadata.isDefaultForLocation[session.chatModel.initialLocation]) {
+			const ids = await this._languageModelService.selectLanguageModels({ vendor: model.metadata.vendor });
+			for (const identifier of ids) {
+				const candidate = this._languageModelService.lookupLanguageModel(identifier);
+				if (candidate?.isDefaultForLocation[session.chatModel.initialLocation]) {
+					this._zone.value.widget.chatWidget.input.setCurrentLanguageModel({ metadata: candidate, identifier });
+					break;
+				}
+			}
+		}
+
+		store.add(this._zone.value.widget.chatWidget.input.onDidChangeCurrentLanguageModel(newModel => {
+			InlineChatController._selectVendorDefaultLanguageModel = Boolean(newModel.metadata.isDefaultForLocation[session.chatModel.initialLocation]);
+		}));
 
 		// ADD diagnostics
 		const entries: IChatRequestVariableEntry[] = [];
@@ -460,7 +484,7 @@ export class InlineChatController implements IEditorContribution {
 				delete arg.attachments;
 			}
 			if (arg.modelSelector) {
-				const id = (await this._languageModelService.selectLanguageModels(arg.modelSelector, false)).sort().at(0);
+				const id = (await this._languageModelService.selectLanguageModels(arg.modelSelector)).sort().at(0);
 				if (!id) {
 					throw new Error(`No language models found matching selector: ${JSON.stringify(arg.modelSelector)}.`);
 				}
@@ -478,20 +502,25 @@ export class InlineChatController implements IEditorContribution {
 			}
 		}
 
-		if (!arg?.resolveOnResponse) {
-			// DEFAULT: wait for the session to be accepted or rejected
-			await Event.toPromise(session.editingSession.onDidDispose);
-			const rejected = session.editingSession.getEntry(uri)?.state.get() === ModifiedFileEntryState.Rejected;
-			return !rejected;
+		try {
+			if (!arg?.resolveOnResponse) {
+				// DEFAULT: wait for the session to be accepted or rejected
+				await Event.toPromise(session.editingSession.onDidDispose);
+				const rejected = session.editingSession.getEntry(uri)?.state.get() === ModifiedFileEntryState.Rejected;
+				return !rejected;
 
-		} else {
-			// resolveOnResponse: ONLY wait for the file to be modified
-			const modifiedObs = derived(r => {
-				const entry = session.editingSession.readEntry(uri, r);
-				return entry?.state.read(r) === ModifiedFileEntryState.Modified && !entry?.isCurrentlyBeingModifiedBy.read(r);
-			});
-			await waitForState(modifiedObs, state => state === true);
-			return true;
+			} else {
+				// resolveOnResponse: ONLY wait for the file to be modified
+				const modifiedObs = derived(r => {
+					const entry = session.editingSession.readEntry(uri, r);
+					return entry?.state.read(r) === ModifiedFileEntryState.Modified && !entry?.isCurrentlyBeingModifiedBy.read(r);
+				});
+				await waitForState(modifiedObs, state => state === true);
+				return true;
+			}
+
+		} finally {
+			store.dispose();
 		}
 	}
 

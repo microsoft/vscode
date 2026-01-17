@@ -62,6 +62,9 @@ export class ChatMcpAppModel extends Disposable {
 	/** Whether ui/initialize has been called and capabilities announced */
 	private _announcedCapabilities = false;
 
+	/** Latest CSP used for the frame */
+	private _latestCsp: McpApps.McpUiResourceCsp | undefined = undefined;
+
 	/** Current height of the webview */
 	private _height: number = 300;
 
@@ -216,6 +219,7 @@ export class ChatMcpAppModel extends Disposable {
 
 			// Reset the state
 			this._announcedCapabilities = false;
+			this._latestCsp = resourceContent.csp;
 
 			// Set the HTML content
 			this._webview.setHtml(htmlWithCsp);
@@ -251,15 +255,15 @@ export class ChatMcpAppModel extends Disposable {
 
 		const cspContent = `
 			default-src 'none';
-			script-src 'self' 'unsafe-inline';
-			style-src 'self' 'unsafe-inline';
+			script-src 'self' 'unsafe-inline' ${cleanDomains(csp?.resourceDomains)};
+			style-src 'self' 'unsafe-inline' ${cleanDomains(csp?.resourceDomains)};
 			connect-src 'self' ${cleanDomains(csp?.connectDomains)};
 			img-src 'self' data: ${cleanDomains(csp?.resourceDomains)};
 			font-src 'self' ${cleanDomains(csp?.resourceDomains)};
 			media-src 'self' data: ${cleanDomains(csp?.resourceDomains)};
-			frame-src 'none';
+			frame-src ${cleanDomains(csp?.frameDomains) || `'none'`};
 			object-src 'none';
-			base-uri 'self';
+			base-uri ${cleanDomains(csp?.baseUriDomains) || `'self'`};
 		`;
 
 		const cspTag = `<meta http-equiv="Content-Security-Policy" content="${cspContent}">`;
@@ -283,10 +287,19 @@ export class ChatMcpAppModel extends Disposable {
 
 				const wrappedFns = new WeakMap();
 
+				let patchedPostMessage = (message, transfer) => api.postMessage(message, transfer);
 				const wrap = target => new Proxy(target, {
+					set: (obj, prop, value) => {
+						if (prop === 'postMessage') {
+							patchedPostMessage = (message, transfer) => value.call(target, message, transfer);
+						} else {
+							obj[prop] = value;
+						}
+						return true;
+					},
 					get: (obj, prop) => {
 						if (prop === 'postMessage') {
-							return (message, transfer) => api.postMessage(message, transfer);
+							return patchedPostMessage;
 						}
 						return obj[prop];
 					},
@@ -459,6 +472,10 @@ export class ChatMcpAppModel extends Disposable {
 				serverTools: { listChanged: true },
 				serverResources: { listChanged: true },
 				logging: {},
+				sandbox: {
+					csp: this._latestCsp,
+					permissions: { clipboardWrite: true },
+				},
 			},
 			hostContext: this.hostContext.get(),
 		} satisfies Required<McpApps.McpUiInitializeResult>;

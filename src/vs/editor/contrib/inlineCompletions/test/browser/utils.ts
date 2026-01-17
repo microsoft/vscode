@@ -9,7 +9,7 @@ import { Disposable, DisposableStore } from '../../../../../base/common/lifecycl
 import { CoreEditingCommands, CoreNavigationCommands } from '../../../../browser/coreCommands.js';
 import { Position } from '../../../../common/core/position.js';
 import { ITextModel } from '../../../../common/model.js';
-import { InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider } from '../../../../common/languages.js';
+import { IInlineCompletionChangeHint, InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider } from '../../../../common/languages.js';
 import { ITestCodeEditor, TestCodeEditorInstantiationOptions, withAsyncTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 import { InlineCompletionsModel } from '../../browser/model/inlineCompletionsModel.js';
 import { autorun, derived } from '../../../../../base/common/observable.js';
@@ -27,7 +27,7 @@ import { PositionOffsetTransformer } from '../../../../common/core/text/position
 import { InlineSuggestionsView } from '../../browser/view/inlineSuggestionsView.js';
 import { IBulkEditService } from '../../../../browser/services/bulkEditService.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 
 export class MockInlineCompletionsProvider implements InlineCompletionsProvider {
 	private returnValue: InlineCompletion[] = [];
@@ -35,6 +35,9 @@ export class MockInlineCompletionsProvider implements InlineCompletionsProvider 
 
 	private callHistory = new Array<unknown>();
 	private calledTwiceIn50Ms = false;
+
+	private readonly _onDidChangeEmitter = new Emitter<IInlineCompletionChangeHint | void>();
+	public readonly onDidChangeInlineCompletions: Event<IInlineCompletionChangeHint | void> = this._onDidChangeEmitter.event;
 
 	constructor(
 		public readonly enableForwardStability = false,
@@ -62,6 +65,13 @@ export class MockInlineCompletionsProvider implements InlineCompletionsProvider 
 		}
 	}
 
+	/**
+	 * Fire an onDidChange event with an optional change hint.
+	 */
+	public fireOnDidChange(changeHint?: IInlineCompletionChangeHint): void {
+		this._onDidChangeEmitter.fire(changeHint);
+	}
+
 	private lastTimeMs: number | undefined = undefined;
 
 	async provideInlineCompletions(model: ITextModel, position: Position, context: InlineCompletionContext, token: CancellationToken): Promise<InlineCompletions> {
@@ -74,7 +84,8 @@ export class MockInlineCompletionsProvider implements InlineCompletionsProvider 
 		this.callHistory.push({
 			position: position.toString(),
 			triggerKind: context.triggerKind,
-			text: model.getValue()
+			text: model.getValue(),
+			...(context.changeHint !== undefined ? { changeHint: context.changeHint } : {}),
 		});
 		const result = new Array<InlineCompletion>();
 		for (const v of this.returnValue) {

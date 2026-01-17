@@ -279,7 +279,7 @@ export class BreakpointsView extends ViewPane {
 			}
 		}));
 
-		// Track collapsed state and update size (items are collapsed by default)
+		// Track collapsed state and update size (items are expanded by default)
 		this._register(this.tree.onDidChangeCollapseState(e => {
 			const element = e.node.element;
 			if (element instanceof BreakpointsFolderItem) {
@@ -542,15 +542,9 @@ export class BreakpointsView extends ViewPane {
 				result.push({
 					element: folderItem,
 					incompressible: false,
-					collapsed: this.collapsedState.has(folderItem.getId()) || !this.collapsedState.has(`_init_${folderItem.getId()}`),
+					collapsed: this.collapsedState.has(folderItem.getId()),
 					children
 				});
-
-				// Mark as initialized (will be collapsed by default on first render)
-				if (!this.collapsedState.has(`_init_${folderItem.getId()}`)) {
-					this.collapsedState.add(`_init_${folderItem.getId()}`);
-					this.collapsedState.add(folderItem.getId());
-				}
 			}
 		} else {
 			// Flat mode - just add all source breakpoints

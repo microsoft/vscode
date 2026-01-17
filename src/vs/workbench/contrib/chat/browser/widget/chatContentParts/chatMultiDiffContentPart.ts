@@ -29,7 +29,7 @@ import { MultiDiffEditorInput } from '../../../../multiDiffEditor/browser/multiD
 import { MultiDiffEditorItem } from '../../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
-import { IChatMultiDiffData, IChatMultiDiffInnerData } from '../../../common/chatService/chatService.js';
+import { IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatMultiDiffInnerData } from '../../../common/chatService/chatService.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
@@ -57,7 +57,7 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 	private readonly diffData: IObservable<IChatMultiDiffInnerData>;
 
 	constructor(
-		private readonly content: IChatMultiDiffData,
+		private readonly content: IChatMultiDiffData | IChatMultiDiffDataSerialized,
 		private readonly _element: ChatTreeItem,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,

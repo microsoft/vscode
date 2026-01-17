@@ -95,18 +95,22 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 	) {
 		super(toolInvocation);
 
-		// Tag for sub-agent styling
-		if (toolInvocation.fromSubAgent) {
-			context.container.classList.add('from-sub-agent');
-		}
-
-		if (!toolInvocation.confirmationMessages?.title) {
+		const state = toolInvocation.state.get();
+		if (state.type !== IChatToolInvocation.StateKind.WaitingForConfirmation || !state.confirmationMessages?.title) {
 			throw new Error('Confirmation messages are missing');
 		}
 
 		terminalData = migrateLegacyTerminalToolSpecificData(terminalData);
 
-		const { title, message, disclaimer, terminalCustomActions } = toolInvocation.confirmationMessages;
+		const { title, message, disclaimer, terminalCustomActions } = state.confirmationMessages;
+
+		// Use pre-computed confirmation data from runInTerminalTool (cd prefix extraction happens there for localization)
+		// Use presentationOverrides for display if available (e.g., extracted Python code)
+		const initialContent = terminalData.presentationOverrides?.commandLine ?? terminalData.confirmation?.commandLine ?? (terminalData.commandLine.toolEdited ?? terminalData.commandLine.original).trimStart();
+		const cdPrefix = terminalData.confirmation?.cdPrefix ?? '';
+		// When presentationOverrides is set, the editor should be read-only since the displayed content
+		// differs from the actual command (e.g., extracted Python code vs full python -c command)
+		const isReadOnly = !!terminalData.presentationOverrides;
 
 		const autoApproveEnabled = this.configurationService.getValue(TerminalContribSettingId.EnableAutoApprove) === true;
 		const autoApproveWarningAccepted = this.storageService.getBoolean(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION, false);
@@ -143,13 +147,12 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			verticalPadding: 5,
 			editorOptions: {
 				wordWrap: 'on',
-				readOnly: false,
+				readOnly: isReadOnly,
 				tabFocusMode: true,
 				ariaLabel: typeof title === 'string' ? title : title.value
 			}
 		};
-		const languageId = this.languageService.getLanguageIdByLanguageName(terminalData.language ?? 'sh') ?? 'shellscript';
-		const initialContent = (terminalData.commandLine.toolEdited ?? terminalData.commandLine.original).trimStart();
+		const languageId = this.languageService.getLanguageIdByLanguageName(terminalData.presentationOverrides?.language ?? terminalData.language ?? 'sh') ?? 'shellscript';
 		const model = this._register(this.modelService.createModel(
 			initialContent,
 			this.languageService.createById(languageId),
@@ -185,7 +188,12 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		this._register(model.onDidChangeContent(e => {
 			const currentValue = model.getValue();
 			// Only set userEdited if the content actually differs from the initial value
-			terminalData.commandLine.userEdited = currentValue !== initialContent ? currentValue : undefined;
+			// Prepend cd prefix back if it was extracted for display
+			if (currentValue !== initialContent) {
+				terminalData.commandLine.userEdited = cdPrefix + currentValue;
+			} else {
+				terminalData.commandLine.userEdited = undefined;
+			}
 		}));
 		const elements = h('.chat-confirmation-message-terminal', [
 			h('.chat-confirmation-message-terminal-editor@editor'),
@@ -269,9 +277,9 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 						const userRules = newRules.filter(r => r.scope === 'user');
 
 						// Handle session-scoped rules (temporary, in-memory only)
-						const chatSessionId = this.context.element.sessionId;
+						const chatSessionResource = this.context.element.sessionResource;
 						for (const rule of sessionRules) {
-							this.terminalChatService.addSessionAutoApproveRule(chatSessionId, rule.key, rule.value);
+							this.terminalChatService.addSessionAutoApproveRule(chatSessionResource, rule.key, rule.value);
 						}
 
 						// Handle workspace-scoped rules
@@ -360,9 +368,9 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 						break;
 					}
 					case 'sessionApproval': {
-						const sessionId = this.context.element.sessionId;
-						this.terminalChatService.setChatSessionAutoApproval(sessionId, true);
-						const disableUri = createCommandUri(TerminalContribCommandId.DisableSessionAutoApproval, sessionId);
+						const sessionResource = this.context.element.sessionResource;
+						this.terminalChatService.setChatSessionAutoApproval(sessionResource, true);
+						const disableUri = createCommandUri(TerminalContribCommandId.DisableSessionAutoApproval, sessionResource);
 						const mdTrustSettings = {
 							isTrusted: {
 								enabledCommands: [TerminalContribCommandId.DisableSessionAutoApproval]
