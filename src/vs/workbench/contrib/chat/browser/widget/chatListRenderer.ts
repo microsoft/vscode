@@ -1289,7 +1289,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		// don't pin Mermaid tools since it has rendered output
-		const isMermaidTool = (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.toolId.includes('mermaid');
+		const isMermaidTool = (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.toolId.toLowerCase().includes('mermaid');
 		if (isMermaidTool) {
 			return false;
 		}
@@ -1315,6 +1315,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		if (part.kind === 'toolInvocation') {
+			// pin when streaming since we don't know if we have confirmation yet or not
+			if (IChatToolInvocation.isStreaming(part)) {
+				return true;
+			}
 			return !IChatToolInvocation.getConfirmationMessages(part);
 		}
 
@@ -1693,6 +1697,27 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				if (lastThinking && part?.domNode && toolInvocation.presentation !== 'hidden') {
 					lastThinking.appendItem(part?.domNode, toolInvocation.toolId, toolInvocation, templateData.value);
 					lastThinking.addDisposable(part);
+
+					// watch for streaming -> confirmation transition to finalize thinking
+					if (toolInvocation.kind === 'toolInvocation' && IChatToolInvocation.isStreaming(toolInvocation)) {
+						let wasStreaming = true;
+						part.addDisposable(autorun(reader => {
+							const state = toolInvocation.state.read(reader);
+							if (wasStreaming && state.type !== IChatToolInvocation.StateKind.Streaming) {
+								wasStreaming = false;
+								if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+									if (part.domNode) {
+										const wrapper = part.domNode.parentElement;
+										if (wrapper?.classList.contains('chat-thinking-tool-wrapper')) {
+											wrapper.remove();
+										}
+										templateData.value.appendChild(part.domNode);
+									}
+									this.finalizeCurrentThinkingPart(context, templateData);
+								}
+							}
+						}));
+					}
 				}
 			} else {
 				this.finalizeCurrentThinkingPart(context, templateData);

@@ -30,7 +30,7 @@ import { ChatModel, ISerializableChatData, ISerializableChatDataIn, ISerializabl
 import { ChatSessionOperationLog } from './chatSessionOperationLog.js';
 import { LocalChatSessionUri } from './chatUri.js';
 
-const maxPersistedSessions = 25;
+const maxPersistedSessions = 50;
 
 const ChatIndexStorageKey = 'chat.ChatSessionStore.index';
 const ChatTransferIndexStorageKey = 'ChatSessionStore.transferIndex';
