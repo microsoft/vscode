@@ -141,10 +141,13 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 	private maximizedWindowState: IWindowState | undefined;
 
-	// Tracks whether the window was maximized at some point.
-	// This is used to restore the maximized state when the window is minimized,
-	// because isMaximized() returns false when the window is minimized.
-	// This state is set when the window is maximized and cleared when unmaximized.
+	/**
+	 * Tracks whether the window was maximized at some point.
+	 * This is used to restore the maximized state when the window is minimized,
+	 * because `isMaximized()` returns `false` when the window is minimized.
+	 * This state is set when the window is maximized and cleared when unmaximized.
+	 * Only used on Windows and Linux (not macOS).
+	 */
 	protected wasMaximized: boolean = false;
 
 	protected _win: electron.BrowserWindow | null = null;
