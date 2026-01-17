@@ -97,7 +97,7 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 	}
 
 	xtermOpen(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
-		// Don't show is the terminal was launched by an extension or a feature like debug
+		// Don't show if the terminal was launched by an extension or a feature like debug
 		if (hasKey(this._ctx.instance, { shellLaunchConfig: true }) && (this._ctx.instance.shellLaunchConfig.isExtensionOwnedTerminal || this._ctx.instance.shellLaunchConfig.isFeatureTerminal || this._ctx.instance.shellLaunchConfig.hideFromUser)) {
 			return;
 		}
