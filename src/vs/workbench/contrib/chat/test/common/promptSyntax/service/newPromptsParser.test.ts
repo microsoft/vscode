@@ -22,7 +22,7 @@ suite('NewPromptsParser', () => {
 			/* 04 */`tools: ['tool1', 'tool2']`,
 			/* 05 */'---',
 			/* 06 */'This is an agent test.',
-			/* 07 */'Here is a #tool:tool1 variable (and one with closing parenthesis after: #tool:tool-2) and a #file:./reference1.md as well as a [reference](./reference2.md).',
+			/* 07 */'Here is a #tool:tool1 variable (and one with closing parenthesis after: #tool:tool-2) and a #file:./reference1.md as well as a [reference](./reference2.md) and an image ![image](./image.png).',
 		].join('\n');
 		const result = new PromptFileParser().parse(uri, content);
 		assert.deepEqual(result.uri, uri);
@@ -42,7 +42,7 @@ suite('NewPromptsParser', () => {
 		]);
 		assert.deepEqual(result.body.range, { startLineNumber: 6, startColumn: 1, endLineNumber: 8, endColumn: 1 });
 		assert.equal(result.body.offset, 75);
-		assert.equal(result.body.getContent(), 'This is an agent test.\nHere is a #tool:tool1 variable (and one with closing parenthesis after: #tool:tool-2) and a #file:./reference1.md as well as a [reference](./reference2.md).');
+		assert.equal(result.body.getContent(), 'This is an agent test.\nHere is a #tool:tool1 variable (and one with closing parenthesis after: #tool:tool-2) and a #file:./reference1.md as well as a [reference](./reference2.md) and an image ![image](./image.png).');
 
 		assert.deepEqual(result.body.fileReferences, [
 			{ range: new Range(7, 99, 7, 114), content: './reference1.md', isMarkdownLink: false },

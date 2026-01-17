@@ -52,7 +52,6 @@ interface IToolEntry {
 }
 
 interface ITrackedCall {
-	invocation?: ChatToolInvocation;
 	store: IDisposable;
 }
 
@@ -385,19 +384,23 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				preparedInvocation = await this.prepareToolInvocation(tool, dto, token);
 				prepareTimeWatch.stop();
 
+				const autoConfirmed = await this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace, tool.data.source, dto.parameters);
+
+
+				// Important: a tool invocation that will be autoconfirmed should never
+				// be in the chat response in the `NeedsConfirmation` state, even briefly,
+				// as that triggers notifications and causes issues in eval.
 				if (hadPendingInvocation && toolInvocation) {
 					// Transition from streaming to executing/waiting state
-					toolInvocation.transitionFromStreaming(preparedInvocation, dto.parameters);
+					toolInvocation.transitionFromStreaming(preparedInvocation, dto.parameters, autoConfirmed);
 				} else {
 					// Create a new tool invocation (no streaming phase)
 					toolInvocation = new ChatToolInvocation(preparedInvocation, tool.data, dto.callId, dto.subAgentInvocationId, dto.parameters);
-					this._chatService.appendProgress(request, toolInvocation);
-				}
+					if (autoConfirmed) {
+						IChatToolInvocation.confirmWith(toolInvocation, autoConfirmed);
+					}
 
-				trackedCall.invocation = toolInvocation;
-				const autoConfirmed = await this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace, tool.data.source, dto.parameters);
-				if (autoConfirmed) {
-					IChatToolInvocation.confirmWith(toolInvocation, autoConfirmed);
+					this._chatService.appendProgress(request, toolInvocation);
 				}
 
 				dto.toolSpecificData = toolInvocation?.toolSpecificData;

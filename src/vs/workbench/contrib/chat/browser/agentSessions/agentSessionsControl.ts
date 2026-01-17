@@ -37,19 +37,27 @@ import { IMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 export interface IAgentSessionsControlOptions extends IAgentSessionsSorterOptions {
 	readonly overrideStyles: IStyleOverride<IListStyles>;
 	readonly filter: IAgentSessionsFilter;
+	readonly source: AgentSessionsControlSource;
 
 	getHoverPosition(): HoverPosition;
 	trackActiveEditorSession(): boolean;
 }
 
+export const enum AgentSessionsControlSource {
+	ChatViewPane = 'chatViewPane',
+	WelcomeView = 'welcomeView'
+}
+
 type AgentSessionOpenedClassification = {
 	owner: 'bpasero';
 	providerType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider type of the opened agent session.' };
+	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source of the opened agent session.' };
 	comment: 'Event fired when a agent session is opened from the agent sessions control.';
 };
 
 type AgentSessionOpenedEvent = {
 	providerType: string;
+	source: AgentSessionsControlSource;
 };
 
 export class AgentSessionsControl extends Disposable implements IAgentSessionsControl {
@@ -196,10 +204,11 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		}
 
 		this.telemetryService.publicLog2<AgentSessionOpenedEvent, AgentSessionOpenedClassification>('agentSessionOpened', {
-			providerType: element.providerType
+			providerType: element.providerType,
+			source: this.options.source
 		});
 
-		await this.instantiationService.invokeFunction(openSession, element, e);
+		await this.instantiationService.invokeFunction(openSession, element, { ...e, expanded: this.options.source === AgentSessionsControlSource.WelcomeView });
 	}
 
 	private async showContextMenu({ element, anchor, browserEvent }: ITreeContextMenuEvent<AgentSessionListItem>): Promise<void> {
