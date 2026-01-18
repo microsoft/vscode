@@ -6,7 +6,7 @@
 import './media/agentstatuswidget.css';
 import { $, addDisposableListener, EventType, reset } from '../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { localize } from '../../../../../nls.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -29,12 +29,18 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { openSession } from './agentSessionsOpener.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IMenuService, MenuId, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { HiddenItemStrategy, WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { createActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { FocusAgentSessionsAction } from './agentSessionsActions.js';
+import { IWorkbenchContribution } from '../../../../common/contributions.js';
+import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ChatConfiguration } from '../../common/constants.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { LayoutSettings } from '../../../../services/layout/browser/layoutService.js';
 
 // Action triggered when clicking the main pill - change this to modify the primary action
 const ACTION_ID = 'workbench.action.quickchat.toggle';
@@ -822,4 +828,48 @@ export class AgentStatusWidget extends BaseActionViewItem {
 	}
 
 	// #endregion
+}
+
+/**
+ * Provides custom rendering for the agent status in the command center.
+ * Uses IActionViewItemService to render a custom AgentStatusWidget
+ * for the AgentsControlMenu submenu.
+ * Also adds a CSS class to the workbench when agent status is enabled.
+ */
+export class AgentStatusRendering extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.agentStatus.rendering';
+
+	constructor(
+		@IActionViewItemService actionViewItemService: IActionViewItemService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IConfigurationService configurationService: IConfigurationService
+	) {
+		super();
+
+		this._register(actionViewItemService.register(MenuId.CommandCenter, MenuId.AgentsControlMenu, (action, options) => {
+			if (!(action instanceof SubmenuItemAction)) {
+				return undefined;
+			}
+			return instantiationService.createInstance(AgentStatusWidget, action, options);
+		}, undefined));
+
+		// Add/remove CSS class on workbench based on setting
+		// Also force enable command center when agent status is enabled
+		const updateClass = () => {
+			const enabled = configurationService.getValue<boolean>(ChatConfiguration.AgentStatusEnabled) === true;
+			mainWindow.document.body.classList.toggle('agent-status-enabled', enabled);
+
+			// Force enable command center when agent status is enabled
+			if (enabled && configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER) !== true) {
+				configurationService.updateValue(LayoutSettings.COMMAND_CENTER, true);
+			}
+		};
+		updateClass();
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.AgentStatusEnabled)) {
+				updateClass();
+			}
+		}));
+	}
 }

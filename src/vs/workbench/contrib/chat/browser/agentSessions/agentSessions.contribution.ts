@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../../nls.js';
-import { mainWindow } from '../../../../../base/browser/window.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { registerSingleton, InstantiationType } from '../../../../../platform/instantiation/common/extensions.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -15,20 +13,16 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from './agentSessions.js';
 import { IAgentSessionsService, AgentSessionsService } from './agentSessionsService.js';
 import { LocalAgentsSessionsProvider } from './localAgentSessionsProvider.js';
-import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
-import { ISubmenuItem, MenuId, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
+import { ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ArchiveAgentSessionAction, ArchiveAgentSessionSectionAction, UnarchiveAgentSessionSectionAction, UnarchiveAgentSessionAction, OpenAgentSessionInEditorGroupAction, OpenAgentSessionInNewEditorGroupAction, OpenAgentSessionInNewWindowAction, ShowAgentSessionsSidebar, HideAgentSessionsSidebar, ToggleAgentSessionsSidebar, RefreshAgentSessionsViewerAction, FindAgentSessionInViewerAction, MarkAgentSessionUnreadAction, MarkAgentSessionReadAction, MarkAgentSessionSectionReadAction, FocusAgentSessionsAction, SetAgentSessionsOrientationStackedAction, SetAgentSessionsOrientationSideBySideAction, ShowAllAgentSessionsAction, ShowRecentAgentSessionsAction, HideAgentSessionsAction, PickAgentSessionAction, ArchiveAllAgentSessionsAction, RenameAgentSessionAction, DeleteAgentSessionAction, DeleteAllLocalSessionsAction } from './agentSessionsActions.js';
 import { AgentSessionsQuickAccessProvider, AGENT_SESSIONS_QUICK_ACCESS_PREFIX } from './agentSessionsQuickAccess.js';
 import { IAgentSessionProjectionService, AgentSessionProjectionService } from './agentSessionProjectionService.js';
 import { EnterAgentSessionProjectionAction, ExitAgentSessionProjectionAction, ToggleAgentStatusAction, ToggleAgentSessionProjectionAction } from './agentSessionProjectionActions.js';
 import { IAgentStatusService, AgentStatusService } from './agentStatusService.js';
-import { AgentStatusWidget } from './agentStatusWidget.js';
-import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { AgentStatusRendering } from './agentStatusWidget.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { AuxiliaryBarMaximizedContext } from '../../../../common/contextkeys.js';
-import { LayoutSettings } from '../../../../services/layout/browser/layoutService.js';
 
 //#region Actions and Menus
 
@@ -193,6 +187,8 @@ Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess).registerQui
 //#region Workbench Contributions
 
 registerWorkbenchContribution2(LocalAgentsSessionsProvider.ID, LocalAgentsSessionsProvider, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(AgentStatusRendering.ID, AgentStatusRendering, WorkbenchPhase.AfterRestored);
+
 registerSingleton(IAgentSessionsService, AgentSessionsService, InstantiationType.Delayed);
 registerSingleton(IAgentStatusService, AgentStatusService, InstantiationType.Delayed);
 registerSingleton(IAgentSessionProjectionService, AgentSessionProjectionService, InstantiationType.Delayed);
@@ -214,52 +210,5 @@ MenuRegistry.appendMenuItem(MenuId.AgentsControlMenu, {
 	},
 	when: ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`),
 });
-
-/**
- * Provides custom rendering for the agent status in the command center.
- * Uses IActionViewItemService to render a custom AgentStatusWidget
- * for the AgentsControlMenu submenu.
- * Also adds a CSS class to the workbench when agent status is enabled.
- */
-class AgentStatusRendering extends Disposable implements IWorkbenchContribution {
-
-	static readonly ID = 'workbench.contrib.agentStatus.rendering';
-
-	constructor(
-		@IActionViewItemService actionViewItemService: IActionViewItemService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService configurationService: IConfigurationService
-	) {
-		super();
-
-		this._register(actionViewItemService.register(MenuId.CommandCenter, MenuId.AgentsControlMenu, (action, options) => {
-			if (!(action instanceof SubmenuItemAction)) {
-				return undefined;
-			}
-			return instantiationService.createInstance(AgentStatusWidget, action, options);
-		}, undefined));
-
-		// Add/remove CSS class on workbench based on setting
-		// Also force enable command center when agent status is enabled
-		const updateClass = () => {
-			const enabled = configurationService.getValue<boolean>(ChatConfiguration.AgentStatusEnabled) === true;
-			mainWindow.document.body.classList.toggle('agent-status-enabled', enabled);
-
-			// Force enable command center when agent status is enabled
-			if (enabled && configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER) !== true) {
-				configurationService.updateValue(LayoutSettings.COMMAND_CENTER, true);
-			}
-		};
-		updateClass();
-		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.AgentStatusEnabled)) {
-				updateClass();
-			}
-		}));
-	}
-}
-
-// Register the workbench contribution that provides custom rendering for the agent status
-registerWorkbenchContribution2(AgentStatusRendering.ID, AgentStatusRendering, WorkbenchPhase.AfterRestored);
 
 //#endregion
