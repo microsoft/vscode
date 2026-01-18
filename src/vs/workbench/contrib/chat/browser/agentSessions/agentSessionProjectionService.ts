@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/agentSessionProjection.css';
-
+import './media/agentsessionprojection.css';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
