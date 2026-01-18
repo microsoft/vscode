@@ -167,7 +167,8 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 	private static readonly SETUP_NEEDED_MESSAGE = new MarkdownString(localize('settingUpCopilotNeeded', "You need to set up GitHub Copilot and be signed in to use Chat."));
 	private static readonly TRUST_NEEDED_MESSAGE = new MarkdownString(localize('trustNeeded', "You need to trust this workspace to use Chat."));
 
-	private static CHAT_REPORT_ISSUE_WITH_OUTPUT_ID = 'workbench.action.chat.reportIssueWithOutput';
+	private static readonly CHAT_RETRY_COMMAND_ID = 'workbench.action.chat.retrySetup';
+	private static readonly CHAT_REPORT_ISSUE_WITH_OUTPUT_COMMAND_ID = 'workbench.action.chat.reportIssueWithOutput';
 
 	private readonly _onUnresolvableError = this._register(new Emitter<void>());
 	readonly onUnresolvableError = this._onUnresolvableError.event;
@@ -191,7 +192,9 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 	}
 
 	private registerCommands(): void {
-		this._register(CommandsRegistry.registerCommand(SetupAgent.CHAT_REPORT_ISSUE_WITH_OUTPUT_ID, async accessor => {
+
+		// Report issue with output command
+		this._register(CommandsRegistry.registerCommand(SetupAgent.CHAT_REPORT_ISSUE_WITH_OUTPUT_COMMAND_ID, async accessor => {
 			const outputService = accessor.get(IOutputService);
 			const textModelService = accessor.get(ITextModelService);
 			const issueService = accessor.get(IWorkbenchIssueService);
@@ -232,6 +235,22 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 				issueBody: 'Chat took too long to get ready',
 				data: outputData || localize('chatOutputChannelUnavailable', "GitHub Copilot Chat output channel not available. Please ensure the GitHub Copilot Chat extension is active and try again. If the issue persists, you can manually include relevant information from the Output panel (View > Output > GitHub Copilot Chat).")
 			});
+		}));
+
+		// Retry chat command
+		this._register(CommandsRegistry.registerCommand(SetupAgent.CHAT_RETRY_COMMAND_ID, async (accessor, sessionResource: URI) => {
+			const chatService = accessor.get(IChatService);
+			const chatWidgetService = accessor.get(IChatWidgetService);
+
+			const widget = chatWidgetService.getWidgetBySessionResource(sessionResource);
+			const lastRequest = widget?.viewModel?.model.getRequests().at(-1);
+			if (lastRequest) {
+				await chatService.resendRequest(lastRequest, {
+					...widget?.getModeRequestOptions(),
+					modeInfo: widget?.input.currentModeInfo,
+					userSelectedModelId: widget?.input.currentLanguageModel
+				});
+			}
 		}));
 	}
 
@@ -362,6 +381,33 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 						toolsModelReady
 					});
 
+					type ChatSetupTimeoutClassification = {
+						owner: 'chrmarti';
+						comment: 'Provides insight into chat setup timeouts.';
+						agentActivated: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the agent was activated.' };
+						agentReady: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the agent was ready.' };
+						languageModelReady: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the language model was ready.' };
+						toolsModelReady: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the tools model was ready.' };
+						isRemote: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether this is a remote scenario.' };
+						isAnonymous: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether anonymous access is enabled.' };
+					};
+					type ChatSetupTimeoutEvent = {
+						agentActivated: boolean;
+						agentReady: boolean;
+						languageModelReady: boolean;
+						toolsModelReady: boolean;
+						isRemote: boolean;
+						isAnonymous: boolean;
+					};
+					this.telemetryService.publicLog2<ChatSetupTimeoutEvent, ChatSetupTimeoutClassification>('chatSetup.timeout', {
+						agentActivated,
+						agentReady,
+						languageModelReady,
+						toolsModelReady,
+						isRemote: !!this.environmentService.remoteAuthority,
+						isAnonymous: this.chatEntitlementService.anonymous
+					});
+
 					progress({
 						kind: 'warning',
 						content: new MarkdownString(warningMessage)
@@ -370,9 +416,14 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 					progress({
 						kind: 'command',
 						command: {
-							id: SetupAgent.CHAT_REPORT_ISSUE_WITH_OUTPUT_ID,
+							id: SetupAgent.CHAT_RETRY_COMMAND_ID,
+							title: localize('retryChat', "Retry"),
+							arguments: [requestModel.session.sessionResource]
+						},
+						additionalCommands: [{
+							id: SetupAgent.CHAT_REPORT_ISSUE_WITH_OUTPUT_COMMAND_ID,
 							title: localize('reportChatIssue', "Report Issue"),
-						}
+						}]
 					});
 
 					// This means Chat is unhealthy and we cannot retry the

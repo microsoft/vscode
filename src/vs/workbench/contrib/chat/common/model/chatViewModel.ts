@@ -5,7 +5,6 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { hash } from '../../../../../base/common/hash.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, dispose } from '../../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../../base/common/observable.js';
@@ -342,21 +341,16 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	}
 }
 
-const variablesHash = new WeakMap<readonly IChatRequestVariableEntry[], number>();
-
 export class ChatRequestViewModel implements IChatRequestViewModel {
 	get id() {
 		return this._model.id;
 	}
 
+	/**
+	 * An ID that changes when the request should be re-rendered.
+	 */
 	get dataId() {
-		let varsHash = variablesHash.get(this.variables);
-		if (typeof varsHash !== 'number') {
-			varsHash = hash(this.variables);
-			variablesHash.set(this.variables, varsHash);
-		}
-
-		return `${this.id}_${this.isComplete ? '1' : '0'}_${varsHash}`;
+		return `${this.id}_${this._model.version + (this._model.response?.isComplete ? 1 : 0)}`;
 	}
 
 	/** @deprecated */

@@ -27,7 +27,6 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { IVariableReference } from '../../chatModes.js';
 import { PromptsConfig } from '../config/config.js';
-import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { getCleanPromptName, IResolvedPromptFile, PromptFileSource } from '../config/promptFileLocations.js';
 import { PROMPT_LANGUAGE_ID, PromptsType, getPromptsTypeForLanguageId } from '../promptTypes.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
@@ -36,6 +35,37 @@ import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent
 import { Delayer } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { IChatPromptContentStore } from '../chatPromptContentStore.js';
+
+/**
+ * Error thrown when a skill file is missing the required name attribute.
+ */
+export class SkillMissingNameError extends Error {
+	constructor(public readonly uri: URI) {
+		super('Skill file must have a name attribute');
+	}
+}
+
+/**
+ * Error thrown when a skill file is missing the required description attribute.
+ */
+export class SkillMissingDescriptionError extends Error {
+	constructor(public readonly uri: URI) {
+		super('Skill file must have a description attribute');
+	}
+}
+
+/**
+ * Error thrown when a skill's name does not match its parent folder name.
+ */
+export class SkillNameMismatchError extends Error {
+	constructor(
+		public readonly uri: URI,
+		public readonly skillName: string,
+		public readonly folderName: string
+	) {
+		super(`Skill name must match folder name: expected "${folderName}" but got "${skillName}"`);
+	}
+}
 
 /**
  * Provides prompt services.
@@ -98,7 +128,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 		@IFilesConfigurationService private readonly filesConfigService: IFilesConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IChatPromptContentStore private readonly chatPromptContentStore: IChatPromptContentStore
 	) {
@@ -537,6 +566,19 @@ export class PromptsService extends Disposable implements IPromptsService {
 			return Disposable.None;
 		}
 		const entryPromise = (async () => {
+			// For skills, validate that the file follows the required structure
+			if (type === PromptsType.skill) {
+				try {
+					const validated = await this.validateAndSanitizeSkillFile(uri, CancellationToken.None);
+					name = validated.name;
+					description = validated.description;
+				} catch (e) {
+					const msg = e instanceof Error ? e.message : String(e);
+					this.logger.error(`[registerContributedFile] Extension '${extension.identifier.value}' failed to validate skill file: ${uri}`, msg);
+					throw e;
+				}
+			}
+
 			try {
 				await this.filesConfigService.updateReadonly(uri, true);
 			} catch (e) {
@@ -647,6 +689,40 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return text.replace(/<[^>]+>/g, '');
 	}
 
+	/**
+	 * Validates and sanitizes a skill file. Throws an error if validation fails.
+	 * @returns The sanitized name and description
+	 */
+	private async validateAndSanitizeSkillFile(uri: URI, token: CancellationToken): Promise<{ name: string; description: string | undefined }> {
+		const parsedFile = await this.parseNew(uri, token);
+		const name = parsedFile.header?.name;
+
+		if (!name) {
+			this.logger.error(`[validateAndSanitizeSkillFile] Agent skill file missing name attribute: ${uri}`);
+			throw new SkillMissingNameError(uri);
+		}
+
+		const description = parsedFile.header?.description;
+		if (!description) {
+			this.logger.error(`[validateAndSanitizeSkillFile] Agent skill file missing description attribute: ${uri}`);
+			throw new SkillMissingDescriptionError(uri);
+		}
+
+		// Sanitize the name first (remove XML tags and truncate)
+		const sanitizedName = this.truncateAgentSkillName(name, uri);
+
+		// Validate that the sanitized name matches the parent folder name (per agentskills.io specification)
+		const skillFolderUri = dirname(uri);
+		const folderName = basename(skillFolderUri);
+		if (sanitizedName !== folderName) {
+			this.logger.error(`[validateAndSanitizeSkillFile] Agent skill name "${sanitizedName}" does not match folder name "${folderName}": ${uri}`);
+			throw new SkillNameMismatchError(uri, sanitizedName, folderName);
+		}
+
+		const sanitizedDescription = this.truncateAgentSkillDescription(parsedFile.header?.description, uri);
+		return { name: sanitizedName, description: sanitizedDescription };
+	}
+
 	private truncateAgentSkillName(name: string, uri: URI): string {
 		const MAX_NAME_LENGTH = 64;
 		const sanitized = this.sanitizeAgentSkillText(name);
@@ -685,6 +761,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			const seenNames = new Set<string>();
 			const skillTypes = new Map<string, number>();
 			let skippedMissingName = 0;
+			let skippedMissingDescription = 0;
 			let skippedDuplicateName = 0;
 			let skippedParseFailed = 0;
 			let skippedNameMismatch = 0;
@@ -725,8 +802,17 @@ export class PromptsService extends Disposable implements IPromptsService {
 					// Track skill type
 					skillTypes.set(source, (skillTypes.get(source) || 0) + 1);
 				} catch (e) {
-					skippedParseFailed++;
-					this.logger.error(`[findAgentSkills] Failed to parse Agent skill file: ${uri}`, e instanceof Error ? e.message : String(e));
+					if (e instanceof SkillMissingNameError) {
+						skippedMissingName++;
+					} else if (e instanceof SkillMissingDescriptionError) {
+						skippedMissingDescription++;
+					} else if (e instanceof SkillNameMismatchError) {
+						skippedNameMismatch++;
+					} else {
+						skippedParseFailed++;
+					}
+					const msg = e instanceof Error ? e.message : String(e);
+					this.logger.error(`[findAgentSkills] Failed to validate Agent skill file: ${uri}`, msg);
 				}
 			};
 
@@ -777,6 +863,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				extensionAPI: number;
 				skippedDuplicateName: number;
 				skippedMissingName: number;
+				skippedMissingDescription: number;
 				skippedNameMismatch: number;
 				skippedParseFailed: number;
 			};
@@ -793,6 +880,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				extensionAPI: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of extension API provided skills.' };
 				skippedDuplicateName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of skills skipped due to duplicate names.' };
 				skippedMissingName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of skills skipped due to missing name attribute.' };
+				skippedMissingDescription: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of skills skipped due to missing description attribute.' };
 				skippedNameMismatch: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of skills skipped due to name not matching folder name.' };
 				skippedParseFailed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of skills skipped due to parse failures.' };
 				owner: 'pwang347';
@@ -811,6 +899,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				extensionAPI: skillTypes.get(PromptFileSource.ExtensionAPI) ?? 0,
 				skippedDuplicateName,
 				skippedMissingName,
+				skippedMissingDescription,
 				skippedNameMismatch,
 				skippedParseFailed
 			});

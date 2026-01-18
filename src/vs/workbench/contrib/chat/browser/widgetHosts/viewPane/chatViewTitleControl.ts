@@ -4,13 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatViewTitleControl.css';
-import { addDisposableListener, EventType, h, hide, show } from '../../../../../../base/browser/dom.js';
+import { addDisposableListener, EventType, h } from '../../../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
 import { Gesture, EventType as TouchEventType } from '../../../../../../base/browser/touch.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
-import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { localize } from '../../../../../../nls.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
@@ -20,7 +19,6 @@ import { IInstantiationService, ServicesAccessor } from '../../../../../../platf
 import { IChatViewTitleActionContext } from '../../../common/actions/chatActions.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
 import { ChatConfiguration } from '../../../common/constants.js';
-import { AgentSessionProviders, getAgentSessionProviderIcon } from '../../agentSessions/agentSessions.js';
 import { ActionViewItem, IActionViewItemOptions } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { AgentSessionsPicker } from '../../agentSessions/agentSessionsPicker.js';
@@ -101,7 +99,6 @@ export class ChatViewTitleControl extends Disposable {
 	private render(parent: HTMLElement): void {
 		const elements = h('div.chat-view-title-container', [
 			h('div.chat-view-title-navigation-toolbar@navigationToolbar'),
-			h('span.chat-view-title-icon@icon'),
 			h('div.chat-view-title-actions-toolbar@actionsToolbar'),
 		]);
 
@@ -110,7 +107,7 @@ export class ChatViewTitleControl extends Disposable {
 			actionViewItemProvider: (action: IAction) => {
 				if (action.id === ChatViewTitleControl.PICK_AGENT_SESSION_ACTION_ID) {
 					this.titleLabel.value = new ChatViewTitleLabel(action);
-					this.titleLabel.value.updateTitle(this.title ?? ChatViewTitleControl.DEFAULT_TITLE, this.getIcon());
+					this.titleLabel.value.updateTitle(this.title ?? ChatViewTitleControl.DEFAULT_TITLE);
 
 					return this.titleLabel.value;
 				}
@@ -177,7 +174,7 @@ export class ChatViewTitleControl extends Disposable {
 		}
 
 		this.titleContainer.classList.toggle('visible', this.shouldRender());
-		this.titleLabel.value?.updateTitle(title, this.getIcon());
+		this.titleLabel.value?.updateTitle(title);
 
 		const currentHeight = this.getHeight();
 		if (currentHeight !== this.lastKnownHeight) {
@@ -185,17 +182,6 @@ export class ChatViewTitleControl extends Disposable {
 
 			this._onDidChangeHeight.fire();
 		}
-	}
-
-	private getIcon(): ThemeIcon | undefined {
-		const sessionType = this.model?.contributedChatSession?.chatSessionType;
-		switch (sessionType) {
-			case AgentSessionProviders.Background:
-			case AgentSessionProviders.Cloud:
-				return getAgentSessionProviderIcon(sessionType);
-		}
-
-		return undefined;
 	}
 
 	private shouldRender(): boolean {
@@ -222,10 +208,8 @@ export class ChatViewTitleControl extends Disposable {
 class ChatViewTitleLabel extends ActionViewItem {
 
 	private title: string | undefined;
-	private icon: ThemeIcon | undefined;
 
 	private titleLabel: HTMLSpanElement | undefined = undefined;
-	private titleIcon: HTMLSpanElement | undefined = undefined;
 
 	constructor(action: IAction, options?: IActionViewItemOptions) {
 		super(null, action, { ...options, icon: false, label: true });
@@ -237,19 +221,15 @@ class ChatViewTitleLabel extends ActionViewItem {
 		container.classList.add('chat-view-title-action-item');
 		this.label?.classList.add('chat-view-title-label-container');
 
-		this.titleIcon = this.label?.appendChild(h('span').root);
 		this.titleLabel = this.label?.appendChild(h('span.chat-view-title-label').root);
 
 		this.updateLabel();
-		this.updateIcon();
 	}
 
-	updateTitle(title: string, icon: ThemeIcon | undefined): void {
+	updateTitle(title: string): void {
 		this.title = title;
-		this.icon = icon;
 
 		this.updateLabel();
-		this.updateIcon();
 	}
 
 	protected override updateLabel(): void {
@@ -261,20 +241,6 @@ class ChatViewTitleLabel extends ActionViewItem {
 			this.titleLabel.textContent = this.title;
 		} else {
 			this.titleLabel.textContent = '';
-		}
-	}
-
-	private updateIcon(): void {
-		if (!this.titleIcon) {
-			return;
-		}
-
-		if (this.icon) {
-			this.titleIcon.className = ThemeIcon.asClassName(this.icon);
-			show(this.titleIcon);
-		} else {
-			this.titleIcon.className = '';
-			hide(this.titleIcon);
 		}
 	}
 }

@@ -52,7 +52,7 @@ export function getAttachableImageExtension(mimeType: string): string | undefine
 }
 
 export interface IChatRequestVariableData {
-	variables: IChatRequestVariableEntry[];
+	variables: readonly IChatRequestVariableEntry[];
 }
 
 export namespace IChatRequestVariableData {
@@ -64,6 +64,7 @@ export namespace IChatRequestVariableData {
 export interface IChatRequestModel {
 	readonly id: string;
 	readonly timestamp: number;
+	readonly version: number;
 	readonly modeInfo?: IChatRequestModeInfo;
 	readonly session: IChatModel;
 	readonly message: IParsedChatRequest;
@@ -329,6 +330,7 @@ export class ChatRequestModel implements IChatRequestModel {
 	}
 
 	public set variableData(v: IChatRequestVariableData) {
+		this._version++;
 		this._variableData = v;
 	}
 
@@ -346,6 +348,11 @@ export class ChatRequestModel implements IChatRequestModel {
 
 	public get editedFileEvents(): IChatAgentEditedFileEvent[] | undefined {
 		return this._editedFileEvents;
+	}
+
+	private _version = 0;
+	public get version(): number {
+		return this._version;
 	}
 
 	constructor(params: IChatRequestModelParameters) {

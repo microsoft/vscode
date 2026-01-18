@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { coalesce } from '../../../../../base/common/arrays.js';
 import { ThrottledDelayer } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -22,8 +23,7 @@ import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProvider
 
 //#region Interfaces, Types
 
-export { ChatSessionStatus as AgentSessionStatus } from '../../common/chatSessionsService.js';
-export { isSessionInProgressStatus } from '../../common/chatSessionsService.js';
+export { ChatSessionStatus as AgentSessionStatus, isSessionInProgressStatus } from '../../common/chatSessionsService.js';
 
 export interface IAgentSessionsModel {
 
@@ -165,7 +165,9 @@ export function isAgentSessionSection(obj: unknown): obj is IAgentSessionSection
 
 export interface IMarshalledAgentSessionContext {
 	readonly $mid: MarshalledId.AgentSessionContext;
+
 	readonly session: IAgentSession;
+	readonly sessions: IAgentSession[]; // support for multi-selection
 }
 
 export function isMarshalledAgentSessionContext(thing: unknown): thing is IMarshalledAgentSessionContext {
@@ -278,23 +280,19 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			mapSessionContributionToType.set(contribution.type, contribution);
 		}
 
+		const providerFilter = providersToResolve.includes(undefined)
+			? undefined
+			: coalesce(providersToResolve);
+
+		const providerResults = await this.chatSessionsService.getChatSessionItems(providerFilter, token);
+
 		const resolvedProviders = new Set<string>();
 		const sessions = new ResourceMap<IInternalAgentSession>();
-		for (const provider of this.chatSessionsService.getAllChatSessionItemProviders()) {
-			if (!providersToResolve.includes(undefined) && !providersToResolve.includes(provider.chatSessionType)) {
-				continue; // skip: not considered for resolving
-			}
 
-			let providerSessions: IChatSessionItem[];
-			try {
-				providerSessions = await provider.provideChatSessionItems(token);
-				this.logService.trace(`[agent sessions] Resolved ${providerSessions.length} agent sessions for provider ${provider.chatSessionType}`);
-			} catch (error) {
-				this.logService.error(`Failed to resolve sessions for provider ${provider.chatSessionType}`, error);
-				continue; // skip: failed to resolve sessions for provider
-			}
+		for (const { chatSessionType, items: providerSessions } of providerResults) {
+			this.logService.trace(`[agent sessions] Resolved ${providerSessions.length} agent sessions for provider ${chatSessionType}`);
 
-			resolvedProviders.add(provider.chatSessionType);
+			resolvedProviders.add(chatSessionType);
 
 			if (token.isCancellationRequested) {
 				return;
@@ -305,12 +303,12 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 				// Icon + Label
 				let icon: ThemeIcon;
 				let providerLabel: string;
-				const agentSessionProvider = getAgentSessionProvider(provider.chatSessionType);
+				const agentSessionProvider = getAgentSessionProvider(chatSessionType);
 				if (agentSessionProvider !== undefined) {
 					providerLabel = getAgentSessionProviderName(agentSessionProvider);
 					icon = getAgentSessionProviderIcon(agentSessionProvider);
 				} else {
-					providerLabel = mapSessionContributionToType.get(provider.chatSessionType)?.name ?? provider.chatSessionType;
+					providerLabel = mapSessionContributionToType.get(chatSessionType)?.name ?? chatSessionType;
 					icon = session.iconPath ?? Codicon.terminal;
 				}
 
@@ -371,10 +369,10 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 				}
 
 				sessions.set(session.resource, this.toAgentSession({
-					providerType: provider.chatSessionType,
+					providerType: chatSessionType,
 					providerLabel,
 					resource: session.resource,
-					label: session.label,
+					label: session.label.split('\n')[0], // protect against weird multi-line labels that break our layout
 					description: session.description,
 					icon,
 					badge: session.badge,
@@ -442,6 +440,10 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	}
 
 	private setArchived(session: IInternalAgentSessionData, archived: boolean): void {
+		if (archived) {
+			this.setRead(session, true); // mark as read when archiving
+		}
+
 		if (archived === this.isArchived(session)) {
 			return; // no change
 		}
@@ -453,6 +455,10 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	}
 
 	private isRead(session: IInternalAgentSessionData): boolean {
+		if (this.isArchived(session)) {
+			return true; // archived sessions are always read
+		}
+
 		const readDate = this.sessionStates.get(session.resource)?.read;
 
 		return (readDate ?? AgentSessionsModel.READ_STATE_INITIAL_DATE) >= (session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created);
@@ -496,7 +502,7 @@ interface ISerializedAgentSession {
 		readonly created: number;
 		readonly lastRequestStarted?: number;
 		readonly lastRequestEnded?: number;
-		// Old format for backward compatibility when reading
+		// Old format for backward compatibility when reading (TODO@bpasero remove eventually)
 		readonly startTime?: number;
 		readonly endTime?: number;
 	};
@@ -575,7 +581,7 @@ class AgentSessionsCache {
 				archived: session.archived,
 
 				timing: {
-					// Support loading both new and old cache formats
+					// Support loading both new and old cache formats (TODO@bpasero remove old format support after some time)
 					created: session.timing.created ?? session.timing.startTime ?? 0,
 					lastRequestStarted: session.timing.lastRequestStarted ?? session.timing.startTime,
 					lastRequestEnded: session.timing.lastRequestEnded ?? session.timing.endTime,
