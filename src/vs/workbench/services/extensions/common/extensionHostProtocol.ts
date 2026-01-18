@@ -67,6 +67,7 @@ export interface IEnvironment {
 	appLanguage: string;
 	isExtensionTelemetryLoggingOnly: boolean;
 	appUriScheme: string;
+	isPortable?: boolean;
 	extensionDevelopmentLocationURI?: URI[];
 	extensionTestsLocationURI?: URI;
 	globalStorageHome: URI;

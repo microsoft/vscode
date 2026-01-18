@@ -15,11 +15,18 @@
 			<div class="icon-container">
 				<img src="code-icon.svg" class="vscode-icon">
 			</div>
-			<h1 class="title">Launching <span class="app-name"></span></h1>
+			<h1 class="title">
+				<span class="title-action-launch">Launching</span>
+				<span class="title-action-success">Signed in to</span>
+				<span class="app-name"></span>
+			</h1>
 			<div class="message">
 				<div class="success-message">
 					<p class="subtitle">You will be redirected in a few moments.</p>
 					<p class="detail">If nothing happens, <a href="#" id="fallback-link">open this link in your browser</a>.</p>
+				</div>
+				<div class="success-no-redirect-message">
+					<p class="subtitle">You are signed in now and can close this page.</p>
 				</div>
 				<div class="error-message">
 					<p class="subtitle">An error occurred while signing in:</p>
@@ -43,9 +50,13 @@
 
 		const error = urlParams.get('error');
 		const redirectUri = urlParams.get('redirect_uri');
+		const success = urlParams.get('success');
 		if (error) {
 			document.querySelector('.error-message > .detail').textContent = error;
 			document.querySelector('body').classList.add('error');
+		} else if (success) {
+			// Portable mode: authentication succeeded, no redirect needed
+			document.querySelector('body').classList.add('success-no-redirect');
 		} else if (redirectUri) {
 			// Wrap the redirect URI so that the browser remembers who triggered the redirect
 			const wrappedRedirectUri = `https://vscode.dev/redirect?url=${encodeURIComponent(redirectUri)}`;

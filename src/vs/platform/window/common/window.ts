@@ -428,6 +428,7 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	machineId: string;
 	sqmId: string;
 	devDeviceId: string;
+	isPortable: boolean;
 
 	execPath: string;
 	backupPath?: string;
