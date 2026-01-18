@@ -167,6 +167,18 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 	}
 
 	/**
+	 * Opens a session in the chat panel without entering projection mode.
+	 */
+	private async _openSessionInChatPanel(session: IAgentSession): Promise<void> {
+		session.setRead(true);
+		await this.chatSessionsService.activateChatSessionItemProvider(session.providerType);
+		await this.chatWidgetService.openSession(session.resource, ChatViewPaneTarget, {
+			title: { preferred: session.label },
+			revealIfOpened: true
+		});
+	}
+
+	/**
 	 * Open the session's files in a multi-diff editor.
 	 * @returns true if any files were opened, false if nothing to display
 	 */
@@ -234,13 +246,7 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 		// The user should only be in projection mode when reviewing completed code
 		if (isSessionInProgressStatus(session.status)) {
 			this.logService.trace('[AgentSessionProjection] Session is in progress, opening chat without projection mode');
-			// Fall through to just open the chat panel
-			session.setRead(true);
-			await this.chatSessionsService.activateChatSessionItemProvider(session.providerType);
-			await this.chatWidgetService.openSession(session.resource, ChatViewPaneTarget, {
-				title: { preferred: session.label },
-				revealIfOpened: true
-			});
+			await this._openSessionInChatPanel(session);
 			return;
 		}
 
@@ -309,12 +315,7 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 		}
 
 		// Open the session in the chat panel (always, even without changes)
-		session.setRead(true);
-		await this.chatSessionsService.activateChatSessionItemProvider(session.providerType);
-		await this.chatWidgetService.openSession(session.resource, ChatViewPaneTarget, {
-			title: { preferred: session.label },
-			revealIfOpened: true
-		});
+		await this._openSessionInChatPanel(session);
 
 		// For local sessions with changes, also pop open the edit session's changes view
 		// Must be after openSession so the editing session context is available
