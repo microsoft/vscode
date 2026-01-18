@@ -236,7 +236,7 @@ export class InlineAnchorWidget extends Disposable {
 			}
 		}
 
-		const resourceContextKey = this._register(new StaticResourceContextKey(contextKeyService, fileService, languageService, modelService));
+		const resourceContextKey = new StaticResourceContextKey(contextKeyService, fileService, languageService, modelService);
 		resourceContextKey.set(location.uri);
 		this._chatResourceContext.set(location.uri.toString());
 
