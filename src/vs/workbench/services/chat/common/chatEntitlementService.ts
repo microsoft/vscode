@@ -31,8 +31,6 @@ import { Mutable } from '../../../../base/common/types.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { DEFAULT_ACCOUNT_SIGN_IN_COMMAND } from '../../accounts/common/defaultAccount.js';
 import { IDefaultAccount, IEntitlementsData } from '../../../../base/common/defaultAccount.js';
 
 export namespace ChatEntitlementContextKeys {
@@ -556,7 +554,6 @@ export class ChatEntitlementRequests extends Disposable {
 		@IDialogService private readonly dialogService: IDialogService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@ICommandService private readonly commandService: ICommandService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 	) {
@@ -628,7 +625,7 @@ export class ChatEntitlementRequests extends Disposable {
 		const entitlementsData = defaultAccount.entitlementsData;
 		if (!entitlementsData) {
 			this.logService.trace('[chat entitlement]: no entitlements data available on default account');
-			return undefined;
+			return { entitlement: entitlementsData === null ? ChatEntitlement.Unknown : ChatEntitlement.Unresolved };
 		}
 
 		let entitlement: ChatEntitlement;
@@ -910,13 +907,11 @@ export class ChatEntitlementRequests extends Disposable {
 	}
 
 	async signIn(options?: { useSocialProvider?: string; additionalScopes?: readonly string[] }): Promise<{ defaultAccount?: IDefaultAccount; entitlements?: IEntitlements }> {
-		await this.commandService.executeCommand(DEFAULT_ACCOUNT_SIGN_IN_COMMAND, {
+		const defaultAccount = await this.defaultAccountService.signIn({
 			additionalScopes: options?.additionalScopes,
 			extraAuthorizeParameters: { get_started_with: 'copilot-vscode' },
 			provider: options?.useSocialProvider
 		});
-
-		const defaultAccount = await this.defaultAccountService.getDefaultAccount();
 		if (!defaultAccount) {
 			return {};
 		}

@@ -12,8 +12,6 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { localize } from '../../../../nls.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { Barrier, ThrottledDelayer, timeout } from '../../../../base/common/async.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -25,10 +23,10 @@ import { isWeb } from '../../../../base/common/platform.js';
 import { IDefaultAccountProvider, IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { distinct } from '../../../../base/common/arrays.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { equals } from '../../../../base/common/objects.js';
 import { IDefaultChatAgent } from '../../../../base/common/product.js';
 import { IRequestContext } from '../../../../base/parts/request/common/request.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 
 interface IDefaultAccountConfig {
 	readonly preferredExtensions: string[];
@@ -162,6 +160,11 @@ export class DefaultAccountService extends Disposable implements IDefaultAccount
 		return this.defaultAccount;
 	}
 
+	async signIn(options?: { additionalScopes?: readonly string[];[key: string]: unknown }): Promise<IDefaultAccount | null> {
+		await this.initBarrier.wait();
+		return this.defaultAccountProvider?.signIn(options) ?? null;
+	}
+
 	private setDefaultAccount(account: IDefaultAccount | null): void {
 		if (equals(this.defaultAccount, account)) {
 			return;
@@ -215,7 +218,6 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 				this.telemetryService.publicLog2<DefaultAccountStatusTelemetry, DefaultAccountStatusTelemetryClassification>('defaultaccount:status', { status: this.defaultAccount ? 'available' : 'unavailable', initial: true });
 				this.initialized = true;
 			});
-		this.registerSignInAction(this.defaultAccountConfig.authenticationProvider.scopes[0]);
 	}
 
 	private async init(): Promise<void> {
@@ -356,7 +358,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 				return null;
 			}
 
-			const [chatEntitlements, policyData] = await Promise.all([
+			const [entitlementsData, policyData] = await Promise.all([
 				this.getEntitlements(sessions),
 				this.getTokenEntitlements(sessions),
 			]);
@@ -367,7 +369,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 				authenticationProvider,
 				sessionId: sessions[0].id,
 				enterprise: authenticationProvider.enterprise || sessions[0].account.label.includes('_'),
-				entitlementsData: chatEntitlements,
+				entitlementsData,
 				policyData: {
 					chat_agent_enabled: policyData.chat_agent_enabled,
 					chat_preview_features_enabled: policyData.chat_preview_features_enabled,
@@ -464,7 +466,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		return {};
 	}
 
-	private async getEntitlements(sessions: AuthenticationSession[]): Promise<IEntitlementsData | undefined> {
+	private async getEntitlements(sessions: AuthenticationSession[]): Promise<IEntitlementsData | undefined | null> {
 		const entitlementUrl = this.getEntitlementUrl();
 		if (!entitlementUrl) {
 			this.logService.debug('[DefaultAccount] No chat entitlements URL found');
@@ -477,14 +479,22 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 			return undefined;
 		}
 
+		if (response.res.statusCode && response.res.statusCode !== 200) {
+			this.logService.trace(`[DefaultAccount] unexpected status code ${response.res.statusCode} while fetching entitlements`);
+			return (
+				response.res.statusCode === 401 || 	// oauth token being unavailable (expired/revoked)
+				response.res.statusCode === 404		// missing scopes/permissions, service pretends the endpoint doesn't exist
+			) ? null : undefined;
+		}
+
 		try {
 			const data = await asJson<IEntitlementsData>(response);
 			if (data) {
 				return data;
 			}
-			this.logService.error('Failed to fetch entitlements', 'No data returned');
+			this.logService.error('[DefaultAccount] Failed to fetch entitlements', 'No data returned');
 		} catch (error) {
-			this.logService.error('Failed to fetch entitlements', getErrorMessage(error));
+			this.logService.error('[DefaultAccount] Failed to fetch entitlements', getErrorMessage(error));
 		}
 		return undefined;
 	}
@@ -632,29 +642,20 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		return new URL(value);
 	}
 
-	private registerSignInAction(defaultAccountScopes: string[]): void {
-		const that = this;
-		this._register(registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: DEFAULT_ACCOUNT_SIGN_IN_COMMAND,
-					title: localize('sign in', "Sign in"),
-				});
-			}
-			async run(accessor: ServicesAccessor, options?: { additionalScopes?: readonly string[];[key: string]: unknown }): Promise<void> {
-				const authProvider = that.getDefaultAccountAuthenticationProvider();
-				if (!authProvider) {
-					throw new Error('No default account provider configured');
-				}
-				const { additionalScopes, ...sessionOptions } = options ?? {};
-				const scopes = additionalScopes ? distinct([...defaultAccountScopes, ...additionalScopes]) : defaultAccountScopes;
-				const session = await that.authenticationService.createSession(authProvider.id, scopes, sessionOptions);
-				for (const preferredExtension of that.defaultAccountConfig.preferredExtensions) {
-					that.authenticationExtensionsService.updateAccountPreference(preferredExtension, authProvider.id, session.account);
-				}
-				await that.updateDefaultAccount();
-			}
-		}));
+	async signIn(options?: { additionalScopes?: readonly string[];[key: string]: unknown }): Promise<IDefaultAccount | null> {
+		const authProvider = this.getDefaultAccountAuthenticationProvider();
+		if (!authProvider) {
+			throw new Error('No default account provider configured');
+		}
+		const { additionalScopes, ...sessionOptions } = options ?? {};
+		const defaultAccountScopes = this.defaultAccountConfig.authenticationProvider.scopes[0];
+		const scopes = additionalScopes ? distinct([...defaultAccountScopes, ...additionalScopes]) : defaultAccountScopes;
+		const session = await this.authenticationService.createSession(authProvider.id, scopes, sessionOptions);
+		for (const preferredExtension of this.defaultAccountConfig.preferredExtensions) {
+			this.authenticationExtensionsService.updateAccountPreference(preferredExtension, authProvider.id, session.account);
+		}
+		await this.updateDefaultAccount();
+		return this.defaultAccount;
 	}
 
 }

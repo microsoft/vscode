@@ -12,6 +12,7 @@ export interface IDefaultAccountProvider {
 	readonly onDidChangeDefaultAccount: Event<IDefaultAccount | null>;
 	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider;
 	refresh(): Promise<IDefaultAccount | null>;
+	signIn(options?: { additionalScopes?: readonly string[];[key: string]: unknown }): Promise<IDefaultAccount | null>;
 }
 
 export const IDefaultAccountService = createDecorator<IDefaultAccountService>('defaultAccountService');
@@ -23,4 +24,5 @@ export interface IDefaultAccountService {
 	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider;
 	setDefaultAccountProvider(provider: IDefaultAccountProvider): void;
 	refresh(): Promise<IDefaultAccount | null>;
+	signIn(options?: { additionalScopes?: readonly string[];[key: string]: unknown }): Promise<IDefaultAccount | null>;
 }
