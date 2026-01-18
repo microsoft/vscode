@@ -454,12 +454,6 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 
 		// Wrap with icon like thinking parts do, but skip icon for tools needing confirmation
 		const itemWrapper = $('.chat-thinking-tool-wrapper');
-		let needsConfirmation = false;
-		if (toolInvocation.kind === 'toolInvocation' && toolInvocation.state) {
-			const state = toolInvocation.state.get();
-			needsConfirmation = state.type === IChatToolInvocation.StateKind.WaitingForConfirmation || state.type === IChatToolInvocation.StateKind.WaitingForPostApproval;
-		}
-
 		const icon = getToolInvocationIcon(toolInvocation.toolId);
 		const iconElement = createThinkingIcon(icon);
 		itemWrapper.appendChild(iconElement);
