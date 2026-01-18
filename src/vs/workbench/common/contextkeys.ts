@@ -176,6 +176,11 @@ export function getVisbileViewContextKey(viewId: string): string { return `view.
 //#region < --- Resources --- >
 
 abstract class AbstractResourceContextKey {
+
+	// NOTE: DO NOT CHANGE THE DEFAULT VALUE TO ANYTHING BUT
+	// UNDEFINED! IT IS IMPORTANT THAT DEFAULTS ARE INHERITED
+	// FROM THE PARENT CONTEXT AND ONLY UNDEFINED DOES THIS
+
 	static readonly Scheme = new RawContextKey<string>('resourceScheme', undefined, { type: 'string', description: localize('resourceScheme', "The scheme of the resource") });
 	static readonly Filename = new RawContextKey<string>('resourceFilename', undefined, { type: 'string', description: localize('resourceFilename', "The file name of the resource") });
 	static readonly Dirname = new RawContextKey<string>('resourceDirname', undefined, { type: 'string', description: localize('resourceDirname', "The folder name the resource is contained in") });
@@ -185,8 +190,6 @@ abstract class AbstractResourceContextKey {
 	static readonly Extension = new RawContextKey<string>('resourceExtname', undefined, { type: 'string', description: localize('resourceExtname', "The extension name of the resource") });
 	static readonly HasResource = new RawContextKey<boolean>('resourceSet', undefined, { type: 'boolean', description: localize('resourceSet', "Whether a resource is present or not") });
 	static readonly IsFileSystemResource = new RawContextKey<boolean>('isFileSystemResource', undefined, { type: 'boolean', description: localize('isFileSystemResource', "Whether the resource is backed by a file system provider") });
-
-	protected readonly _disposables = new DisposableStore();
 
 	protected _value: URI | undefined;
 	protected readonly _resourceKey: IContextKey<string | null>;
@@ -214,10 +217,6 @@ abstract class AbstractResourceContextKey {
 		this._extensionKey = AbstractResourceContextKey.Extension.bindTo(this._contextKeyService);
 		this._hasResource = AbstractResourceContextKey.HasResource.bindTo(this._contextKeyService);
 		this._isFileSystemResource = AbstractResourceContextKey.IsFileSystemResource.bindTo(this._contextKeyService);
-	}
-
-	dispose(): void {
-		this._disposables.dispose();
 	}
 
 	protected _setLangId(): void {
@@ -277,6 +276,9 @@ abstract class AbstractResourceContextKey {
 }
 
 export class ResourceContextKey extends AbstractResourceContextKey {
+
+	private readonly _disposables = new DisposableStore();
+
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IFileService fileService: IFileService,
@@ -299,11 +301,17 @@ export class ResourceContextKey extends AbstractResourceContextKey {
 			}
 		}));
 	}
+
+	dispose(): void {
+		this._disposables.dispose();
+	}
 }
 
-export class StaticResourceContextKey extends AbstractResourceContextKey {
-	// No event listeners
-}
+/**
+ * This is a version of ResourceContextKey that is not disposable and has no listeners for model change events.
+ * It will configure itself for the state/presence of a model only when created and not update.
+ */
+export class StaticResourceContextKey extends AbstractResourceContextKey { }
 
 
 //#endregion
