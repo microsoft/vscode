@@ -16,7 +16,7 @@ import { IEditorGroupsService, IEditorWorkingSet } from '../../../../services/ed
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { IAgentSession } from './agentSessionsModel.js';
+import { IAgentSession, isSessionInProgressStatus } from './agentSessionsModel.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../chat.js';
 import { AgentSessionProviders } from './agentSessions.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
@@ -25,6 +25,7 @@ import { IWorkbenchLayoutService } from '../../../../services/layout/browser/lay
 import { ACTION_ID_NEW_CHAT } from '../actions/chatActions.js';
 import { IChatEditingService, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { IAgentStatusService } from './agentStatusService.js';
+import { IAgentSessionsService } from './agentSessionsService.js';
 
 //#region Configuration
 
@@ -114,6 +115,7 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 		@ICommandService private readonly commandService: ICommandService,
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
 		@IAgentStatusService private readonly agentStatusService: IAgentStatusService,
+		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 	) {
 		super();
 
@@ -121,6 +123,9 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 
 		// Listen for editor close events to exit projection mode when all editors are closed
 		this._register(this.editorService.onDidCloseEditor(() => this._checkForEmptyEditors()));
+
+		// Listen for session changes to exit projection mode if active session becomes in progress
+		this._register(this.agentSessionsService.model.onDidChangeSessions(() => this._checkForInProgressSession()));
 	}
 
 	private _isEnabled(): boolean {
@@ -138,6 +143,25 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 
 		if (!hasVisibleEditors) {
 			this.logService.trace('[AgentSessionProjection] All editors closed, exiting projection mode');
+			this.exitProjection();
+		}
+	}
+
+	private _checkForInProgressSession(): void {
+		// Only check if we're in projection mode
+		if (!this._isActive || !this._activeSession) {
+			return;
+		}
+
+		// Get the updated session from the model
+		const updatedSession = this.agentSessionsService.getSession(this._activeSession.resource);
+		if (!updatedSession) {
+			return;
+		}
+
+		// If the session is now in progress, exit projection mode
+		if (isSessionInProgressStatus(updatedSession.status)) {
+			this.logService.trace('[AgentSessionProjection] Active session transitioned to in-progress, exiting projection mode');
 			this.exitProjection();
 		}
 	}
@@ -203,6 +227,20 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 		// Check if this session's provider type supports agent session projection
 		if (!AGENT_SESSION_PROJECTION_ENABLED_PROVIDERS.has(session.providerType)) {
 			this.logService.trace(`[AgentSessionProjection] Provider type '${session.providerType}' does not support agent session projection`);
+			return;
+		}
+
+		// Never enter projection mode for sessions that are in progress
+		// The user should only be in projection mode when reviewing completed code
+		if (isSessionInProgressStatus(session.status)) {
+			this.logService.trace('[AgentSessionProjection] Session is in progress, opening chat without projection mode');
+			// Fall through to just open the chat panel
+			session.setRead(true);
+			await this.chatSessionsService.activateChatSessionItemProvider(session.providerType);
+			await this.chatWidgetService.openSession(session.resource, ChatViewPaneTarget, {
+				title: { preferred: session.label },
+				revealIfOpened: true
+			});
 			return;
 		}
 
