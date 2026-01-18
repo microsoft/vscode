@@ -1923,6 +1923,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}));
 		this._register(autorun(reader => {
 			this.input.inputPartHeight.read(reader);
+			if (!this.renderer) {
+				// This is set up before the list/renderer are created
+				return;
+			}
 
 			const editedRequest = this.renderer.getTemplateDataForRequestId(this.viewModel?.editing?.id);
 			if (isRequestVM(editedRequest?.currentElement) && this.viewModel?.editing) {
