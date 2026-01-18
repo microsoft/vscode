@@ -48,11 +48,16 @@ import { IMarker, IMarkerService, MarkerSeverity } from '../../../../../platform
 import { ChatSetupController } from './chatSetupController.js';
 import { ChatSetupAnonymous, ChatSetupStep, IChatSetupResult } from './chatSetup.js';
 import { ChatSetup } from './chatSetupRunner.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { IOutputService } from '../../../../services/output/common/output.js';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { IWorkbenchIssueService } from '../../../issue/common/issue.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
 	chatExtensionId: product.defaultChatAgent?.chatExtensionId ?? '',
 	provider: product.defaultChatAgent?.provider ?? { default: { id: '', name: '' }, enterprise: { id: '', name: '' }, apple: { id: '', name: '' }, google: { id: '', name: '' } },
+	outputChannelId: product.defaultChatAgent?.chatExtensionOutputId ?? '',
 };
 
 const ToolsAgentContextKey = ContextKeyExpr.and(
@@ -162,6 +167,9 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 	private static readonly SETUP_NEEDED_MESSAGE = new MarkdownString(localize('settingUpCopilotNeeded', "You need to set up GitHub Copilot and be signed in to use Chat."));
 	private static readonly TRUST_NEEDED_MESSAGE = new MarkdownString(localize('trustNeeded', "You need to trust this workspace to use Chat."));
 
+	private static readonly CHAT_RETRY_COMMAND_ID = 'workbench.action.chat.retrySetup';
+	private static readonly CHAT_REPORT_ISSUE_WITH_OUTPUT_COMMAND_ID = 'workbench.action.chat.reportIssueWithOutput';
+
 	private readonly _onUnresolvableError = this._register(new Emitter<void>());
 	readonly onUnresolvableError = this._onUnresolvableError.event;
 
@@ -180,6 +188,71 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 	) {
 		super();
+
+		this.registerCommands();
+	}
+
+	private registerCommands(): void {
+
+		// Report issue with output command
+		this._register(CommandsRegistry.registerCommand(SetupAgent.CHAT_REPORT_ISSUE_WITH_OUTPUT_COMMAND_ID, async accessor => {
+			const outputService = accessor.get(IOutputService);
+			const textModelService = accessor.get(ITextModelService);
+			const issueService = accessor.get(IWorkbenchIssueService);
+			const logService = accessor.get(ILogService);
+
+			let outputData = '';
+			let channelName = '';
+
+			let channel = outputService.getChannel(defaultChat.outputChannelId);
+			if (channel) {
+				channelName = defaultChat.outputChannelId;
+			} else {
+				logService.warn(`[chat setup] Output channel '${defaultChat.outputChannelId}' not found, falling back to Window output channel`);
+				channel = outputService.getChannel('rendererLog');
+				channelName = 'Window';
+			}
+
+			if (channel) {
+				try {
+					const model = await textModelService.createModelReference(channel.uri);
+					try {
+						const rawOutput = model.object.textEditorModel.getValue();
+						outputData = `<details>\n<summary>GitHub Copilot Chat Output (${channelName})</summary>\n\n\`\`\`\n${rawOutput}\n\`\`\`\n</details>`;
+						logService.info(`[chat setup] Retrieved ${rawOutput.length} characters from ${channelName} output channel`);
+					} finally {
+						model.dispose();
+					}
+				} catch (error) {
+					logService.error(`[chat setup] Failed to retrieve output channel content: ${error}`);
+				}
+			} else {
+				logService.warn(`[chat setup] No output channel available`);
+			}
+
+			await issueService.openReporter({
+				extensionId: defaultChat.chatExtensionId,
+				issueTitle: 'Chat took too long to get ready',
+				issueBody: 'Chat took too long to get ready',
+				data: outputData || localize('chatOutputChannelUnavailable', "GitHub Copilot Chat output channel not available. Please ensure the GitHub Copilot Chat extension is active and try again. If the issue persists, you can manually include relevant information from the Output panel (View > Output > GitHub Copilot Chat).")
+			});
+		}));
+
+		// Retry chat command
+		this._register(CommandsRegistry.registerCommand(SetupAgent.CHAT_RETRY_COMMAND_ID, async (accessor, sessionResource: URI) => {
+			const chatService = accessor.get(IChatService);
+			const chatWidgetService = accessor.get(IChatWidgetService);
+
+			const widget = chatWidgetService.getWidgetBySessionResource(sessionResource);
+			const lastRequest = widget?.viewModel?.model.getRequests().at(-1);
+			if (lastRequest) {
+				await chatService.resendRequest(lastRequest, {
+					...widget?.getModeRequestOptions(),
+					modeInfo: widget?.input.currentModeInfo,
+					userSelectedModelId: widget?.input.currentLanguageModel
+				});
+			}
+		}));
 	}
 
 	async invoke(request: IChatAgentRequest, progress: (parts: IChatProgress[]) => void): Promise<IChatAgentResult> {
@@ -308,9 +381,49 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 						toolsModelReady
 					});
 
+					type ChatSetupTimeoutClassification = {
+						owner: 'chrmarti';
+						comment: 'Provides insight into chat setup timeouts.';
+						agentActivated: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the agent was activated.' };
+						agentReady: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the agent was ready.' };
+						languageModelReady: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the language model was ready.' };
+						toolsModelReady: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the tools model was ready.' };
+						isRemote: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether this is a remote scenario.' };
+						isAnonymous: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether anonymous access is enabled.' };
+					};
+					type ChatSetupTimeoutEvent = {
+						agentActivated: boolean;
+						agentReady: boolean;
+						languageModelReady: boolean;
+						toolsModelReady: boolean;
+						isRemote: boolean;
+						isAnonymous: boolean;
+					};
+					this.telemetryService.publicLog2<ChatSetupTimeoutEvent, ChatSetupTimeoutClassification>('chatSetup.timeout', {
+						agentActivated,
+						agentReady,
+						languageModelReady,
+						toolsModelReady,
+						isRemote: !!this.environmentService.remoteAuthority,
+						isAnonymous: this.chatEntitlementService.anonymous
+					});
+
 					progress({
 						kind: 'warning',
 						content: new MarkdownString(warningMessage)
+					});
+
+					progress({
+						kind: 'command',
+						command: {
+							id: SetupAgent.CHAT_RETRY_COMMAND_ID,
+							title: localize('retryChat', "Retry"),
+							arguments: [requestModel.session.sessionResource]
+						},
+						additionalCommands: [{
+							id: SetupAgent.CHAT_REPORT_ISSUE_WITH_OUTPUT_COMMAND_ID,
+							title: localize('reportChatIssue', "Report Issue"),
+						}]
 					});
 
 					// This means Chat is unhealthy and we cannot retry the
@@ -338,7 +451,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 
 			for (const id of languageModelsService.getLanguageModelIds()) {
 				const model = languageModelsService.lookupLanguageModel(id);
-				if (model?.isDefault) {
+				if (model?.isDefaultForLocation[ChatAgentLocation.Chat]) {
 					return true;
 				}
 			}

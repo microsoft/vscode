@@ -18,7 +18,7 @@ import { Position } from '../../../../common/core/position.js';
 import { Selection } from '../../../../common/core/selection.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { ensureClipboardGetsEditorSelection, computePasteData, InMemoryClipboardMetadataManager, IPasteData, getPasteDataFromMetadata } from '../clipboardUtils.js';
+import { ClipboardEventUtils, ClipboardStoredMetadata, ensureClipboardGetsEditorSelection, InMemoryClipboardMetadataManager } from '../clipboardUtils.js';
 import { _debugComposition, ITextAreaWrapper, ITypeData, TextAreaState } from './textAreaEditContextState.js';
 import { ViewContext } from '../../../../common/viewModel/viewContext.js';
 
@@ -28,6 +28,12 @@ export namespace TextAreaSyntethicEvents {
 
 export interface ICompositionData {
 	data: string;
+}
+
+
+export interface IPasteData {
+	text: string;
+	metadata: ClipboardStoredMetadata | null;
 }
 
 export interface ITextAreaInputHost {
@@ -338,12 +344,11 @@ export class TextAreaInput extends Disposable {
 				|| typeInput.positionDelta !== 0
 			) {
 				// https://w3c.github.io/input-events/#interface-InputEvent-Attributes
-				if (this._host.context && e.inputType === 'insertFromPaste') {
-					this._onPaste.fire(getPasteDataFromMetadata(
-						typeInput.text,
-						InMemoryClipboardMetadataManager.INSTANCE.get(typeInput.text),
-						this._host.context
-					));
+				if (e.inputType === 'insertFromPaste') {
+					this._onPaste.fire({
+						text: typeInput.text,
+						metadata: InMemoryClipboardMetadataManager.INSTANCE.get(typeInput.text)
+					});
 				} else {
 					this._onType.fire(typeInput);
 				}
@@ -376,15 +381,27 @@ export class TextAreaInput extends Disposable {
 			// Pretend here we touched the text area, as the `paste` event will most likely
 			// result in a `selectionchange` event which we want to ignore
 			this._textArea.setIgnoreSelectionChangeTime('received paste event');
-			if (!this._host.context) {
+
+			e.preventDefault();
+
+			if (!e.clipboardData) {
 				return;
 			}
-			const pasteData = computePasteData(e, this._host.context, this._logService);
-			if (!pasteData) {
+
+			let [text, metadata] = ClipboardEventUtils.getTextData(e.clipboardData);
+			this._logService.trace(`TextAreaInput#onPaste with id : `, metadata?.id, ' with text.length: ', text.length);
+			if (!text) {
 				return;
 			}
+
+			// try the in-memory store
+			metadata = metadata || InMemoryClipboardMetadataManager.INSTANCE.get(text);
+
 			this._logService.trace(`TextAreaInput#onPaste (before onPaste)`);
-			this._onPaste.fire(pasteData);
+			this._onPaste.fire({
+				text: text,
+				metadata: metadata
+			});
 		}));
 
 		this._register(this._textArea.onFocus(() => {

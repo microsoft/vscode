@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { coalesce } from '../../../../../base/common/arrays.js';
 import { ThrottledDelayer } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -18,12 +19,11 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { ChatSessionStatus as AgentSessionStatus, IChatSessionFileChange, IChatSessionItem, IChatSessionsExtensionPoint, IChatSessionsService, isSessionInProgressStatus } from '../../common/chatSessionsService.js';
-import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from './agentSessions.js';
+import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName } from './agentSessions.js';
 
 //#region Interfaces, Types
 
-export { ChatSessionStatus as AgentSessionStatus } from '../../common/chatSessionsService.js';
-export { isSessionInProgressStatus } from '../../common/chatSessionsService.js';
+export { ChatSessionStatus as AgentSessionStatus, isSessionInProgressStatus } from '../../common/chatSessionsService.js';
 
 export interface IAgentSessionsModel {
 
@@ -157,7 +157,7 @@ export interface IAgentSessionSection {
 	readonly sessions: IAgentSession[];
 }
 
-export function isAgentSessionSection(obj: IAgentSessionsModel | IAgentSession | IAgentSessionSection): obj is IAgentSessionSection {
+export function isAgentSessionSection(obj: unknown): obj is IAgentSessionSection {
 	const candidate = obj as IAgentSessionSection;
 
 	return typeof candidate.section === 'string' && Array.isArray(candidate.sessions);
@@ -165,7 +165,9 @@ export function isAgentSessionSection(obj: IAgentSessionsModel | IAgentSession |
 
 export interface IMarshalledAgentSessionContext {
 	readonly $mid: MarshalledId.AgentSessionContext;
+
 	readonly session: IAgentSession;
+	readonly sessions: IAgentSession[]; // support for multi-selection
 }
 
 export function isMarshalledAgentSessionContext(thing: unknown): thing is IMarshalledAgentSessionContext {
@@ -193,7 +195,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	private _sessions: ResourceMap<IInternalAgentSession>;
 	get sessions(): IAgentSession[] { return Array.from(this._sessions.values()); }
 
-	private readonly resolver = this._register(new ThrottledDelayer<void>(100));
+	private readonly resolver = this._register(new ThrottledDelayer<void>(300));
 	private readonly providersToResolve = new Set<string | undefined>();
 
 	private readonly mapSessionToState = new ResourceMap<{
@@ -271,27 +273,26 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		const providersToResolve = Array.from(this.providersToResolve);
 		this.providersToResolve.clear();
 
+		this.logService.trace(`[agent sessions] Resolving agent sessions for providers: ${providersToResolve.map(p => p ?? 'all').join(', ')}`);
+
 		const mapSessionContributionToType = new Map<string, IChatSessionsExtensionPoint>();
 		for (const contribution of this.chatSessionsService.getAllChatSessionContributions()) {
 			mapSessionContributionToType.set(contribution.type, contribution);
 		}
 
+		const providerFilter = providersToResolve.includes(undefined)
+			? undefined
+			: coalesce(providersToResolve);
+
+		const providerResults = await this.chatSessionsService.getChatSessionItems(providerFilter, token);
+
 		const resolvedProviders = new Set<string>();
 		const sessions = new ResourceMap<IInternalAgentSession>();
-		for (const provider of this.chatSessionsService.getAllChatSessionItemProviders()) {
-			if (!providersToResolve.includes(undefined) && !providersToResolve.includes(provider.chatSessionType)) {
-				continue; // skip: not considered for resolving
-			}
 
-			let providerSessions: IChatSessionItem[];
-			try {
-				providerSessions = await provider.provideChatSessionItems(token);
-			} catch (error) {
-				this.logService.error(`Failed to resolve sessions for provider ${provider.chatSessionType}`, error);
-				continue; // skip: failed to resolve sessions for provider
-			}
+		for (const { chatSessionType, items: providerSessions } of providerResults) {
+			this.logService.trace(`[agent sessions] Resolved ${providerSessions.length} agent sessions for provider ${chatSessionType}`);
 
-			resolvedProviders.add(provider.chatSessionType);
+			resolvedProviders.add(chatSessionType);
 
 			if (token.isCancellationRequested) {
 				return;
@@ -302,23 +303,13 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 				// Icon + Label
 				let icon: ThemeIcon;
 				let providerLabel: string;
-				switch ((provider.chatSessionType)) {
-					case AgentSessionProviders.Local:
-						providerLabel = getAgentSessionProviderName(AgentSessionProviders.Local);
-						icon = getAgentSessionProviderIcon(AgentSessionProviders.Local);
-						break;
-					case AgentSessionProviders.Background:
-						providerLabel = getAgentSessionProviderName(AgentSessionProviders.Background);
-						icon = getAgentSessionProviderIcon(AgentSessionProviders.Background);
-						break;
-					case AgentSessionProviders.Cloud:
-						providerLabel = getAgentSessionProviderName(AgentSessionProviders.Cloud);
-						icon = getAgentSessionProviderIcon(AgentSessionProviders.Cloud);
-						break;
-					default: {
-						providerLabel = mapSessionContributionToType.get(provider.chatSessionType)?.name ?? provider.chatSessionType;
-						icon = session.iconPath ?? Codicon.terminal;
-					}
+				const agentSessionProvider = getAgentSessionProvider(chatSessionType);
+				if (agentSessionProvider !== undefined) {
+					providerLabel = getAgentSessionProviderName(agentSessionProvider);
+					icon = getAgentSessionProviderIcon(agentSessionProvider);
+				} else {
+					providerLabel = mapSessionContributionToType.get(chatSessionType)?.name ?? chatSessionType;
+					icon = session.iconPath ?? Codicon.terminal;
 				}
 
 				// State + Timings
@@ -356,34 +347,45 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 					? { files: changes.files, insertions: changes.insertions, deletions: changes.deletions }
 					: changes;
 
-				// Times: it is important to always provide a start and end time to track
+				// Times: it is important to always provide timing information to track
 				// unread/read state for example.
 				// If somehow the provider does not provide any, fallback to last known
-				let startTime = session.timing.startTime;
-				let endTime = session.timing.endTime;
-				if (!startTime || !endTime) {
+				let created = session.timing.created;
+				let lastRequestStarted = session.timing.lastRequestStarted;
+				let lastRequestEnded = session.timing.lastRequestEnded;
+				if (!created || !lastRequestEnded) {
 					const existing = this._sessions.get(session.resource);
-					if (!startTime && existing?.timing.startTime) {
-						startTime = existing.timing.startTime;
+					if (!created && existing?.timing.created) {
+						created = existing.timing.created;
 					}
 
-					if (!endTime && existing?.timing.endTime) {
-						endTime = existing.timing.endTime;
+					if (!lastRequestEnded && existing?.timing.lastRequestEnded) {
+						lastRequestEnded = existing.timing.lastRequestEnded;
+					}
+
+					if (!lastRequestStarted && existing?.timing.lastRequestStarted) {
+						lastRequestStarted = existing.timing.lastRequestStarted;
 					}
 				}
 
 				sessions.set(session.resource, this.toAgentSession({
-					providerType: provider.chatSessionType,
+					providerType: chatSessionType,
 					providerLabel,
 					resource: session.resource,
-					label: session.label,
+					label: session.label.split('\n')[0], // protect against weird multi-line labels that break our layout
 					description: session.description,
 					icon,
 					badge: session.badge,
 					tooltip: session.tooltip,
 					status,
 					archived: session.archived,
-					timing: { startTime, endTime, inProgressTime, finishedOrFailedTime },
+					timing: {
+						created,
+						lastRequestStarted,
+						lastRequestEnded,
+						inProgressTime,
+						finishedOrFailedTime
+					},
 					changes: normalizedChanges,
 				}));
 			}
@@ -396,6 +398,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		}
 
 		this._sessions = sessions;
+		this.logService.trace(`[agent sessions] Total resolved agent sessions:`, Array.from(this._sessions.values()));
 
 		for (const [resource] of this.mapSessionToState) {
 			if (!sessions.has(resource)) {
@@ -437,6 +440,10 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	}
 
 	private setArchived(session: IInternalAgentSessionData, archived: boolean): void {
+		if (archived) {
+			this.setRead(session, true); // mark as read when archiving
+		}
+
 		if (archived === this.isArchived(session)) {
 			return; // no change
 		}
@@ -448,9 +455,13 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	}
 
 	private isRead(session: IInternalAgentSessionData): boolean {
+		if (this.isArchived(session)) {
+			return true; // archived sessions are always read
+		}
+
 		const readDate = this.sessionStates.get(session.resource)?.read;
 
-		return (readDate ?? AgentSessionsModel.READ_STATE_INITIAL_DATE) >= (session.timing.endTime ?? session.timing.startTime);
+		return (readDate ?? AgentSessionsModel.READ_STATE_INITIAL_DATE) >= (session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created);
 	}
 
 	private setRead(session: IInternalAgentSessionData, read: boolean): void {
@@ -469,7 +480,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 
 //#region Sessions Cache
 
-interface ISerializedAgentSession extends Omit<IAgentSessionData, 'iconPath' | 'resource' | 'icon'> {
+interface ISerializedAgentSession {
 
 	readonly providerType: string;
 	readonly providerLabel: string;
@@ -488,7 +499,11 @@ interface ISerializedAgentSession extends Omit<IAgentSessionData, 'iconPath' | '
 	readonly archived: boolean | undefined;
 
 	readonly timing: {
-		readonly startTime: number;
+		readonly created: number;
+		readonly lastRequestStarted?: number;
+		readonly lastRequestEnded?: number;
+		// Old format for backward compatibility when reading (TODO@bpasero remove eventually)
+		readonly startTime?: number;
 		readonly endTime?: number;
 	};
 
@@ -531,8 +546,9 @@ class AgentSessionsCache {
 			archived: session.archived,
 
 			timing: {
-				startTime: session.timing.startTime,
-				endTime: session.timing.endTime,
+				created: session.timing.created,
+				lastRequestStarted: session.timing.lastRequestStarted,
+				lastRequestEnded: session.timing.lastRequestEnded,
 			},
 
 			changes: session.changes,
@@ -549,7 +565,7 @@ class AgentSessionsCache {
 
 		try {
 			const cached = JSON.parse(sessionsCache) as ISerializedAgentSession[];
-			return cached.map(session => ({
+			return cached.map((session): IInternalAgentSessionData => ({
 				providerType: session.providerType,
 				providerLabel: session.providerLabel,
 
@@ -565,8 +581,10 @@ class AgentSessionsCache {
 				archived: session.archived,
 
 				timing: {
-					startTime: session.timing.startTime,
-					endTime: session.timing.endTime,
+					// Support loading both new and old cache formats (TODO@bpasero remove old format support after some time)
+					created: session.timing.created ?? session.timing.startTime ?? 0,
+					lastRequestStarted: session.timing.lastRequestStarted ?? session.timing.startTime,
+					lastRequestEnded: session.timing.lastRequestEnded ?? session.timing.endTime,
 				},
 
 				changes: Array.isArray(session.changes) ? session.changes.map((change: IChatSessionFileChange) => ({

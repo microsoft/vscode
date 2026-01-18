@@ -46,6 +46,7 @@ import { ChatTreeItem, IChatWidgetService } from '../../chat.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { IDisposableReference, ResourcePool } from './chatCollections.js';
 import { IChatContentPartRenderContext } from './chatContentParts.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 
 const $ = dom.$;
 
@@ -56,15 +57,7 @@ export interface IChatReferenceListItem extends IChatContentReference {
 	excluded?: boolean;
 }
 
-export interface IChatListDividerItem {
-	kind: 'divider';
-	label: string;
-	menuId?: MenuId;
-	menuArg?: unknown;
-	scopedInstantiationService?: IInstantiationService;
-}
-
-export type IChatCollapsibleListItem = IChatReferenceListItem | IChatWarningMessage | IChatListDividerItem;
+export type IChatCollapsibleListItem = IChatReferenceListItem | IChatWarningMessage;
 
 export class ChatCollapsibleListContentPart extends ChatCollapsibleContentPart {
 
@@ -73,14 +66,17 @@ export class ChatCollapsibleListContentPart extends ChatCollapsibleContentPart {
 		labelOverride: IMarkdownString | string | undefined,
 		context: IChatContentPartRenderContext,
 		private readonly contentReferencesListPool: CollapsibleListPool,
+		hoverMessage: IMarkdownString | undefined,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IHoverService hoverService: IHoverService,
 	) {
 		super(labelOverride ?? (data.length > 1 ?
 			localize('usedReferencesPlural', "Used {0} references", data.length) :
-			localize('usedReferencesSingular', "Used {0} reference", 1)), context);
+			localize('usedReferencesSingular', "Used {0} reference", 1)), context, hoverMessage,
+			hoverService);
 	}
 
 	protected override initContent(): HTMLElement {
@@ -163,22 +159,23 @@ export class ChatUsedReferencesListContentPart extends ChatCollapsibleListConten
 		@IMenuService menuService: IMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
+		@IHoverService hoverService: IHoverService,
 	) {
-		super(data, labelOverride, context, contentReferencesListPool, openerService, menuService, instantiationService, contextMenuService);
+		super(data, labelOverride, context, contentReferencesListPool, undefined, openerService, menuService, instantiationService, contextMenuService, hoverService);
 		if (data.length === 0) {
 			dom.hide(this.domNode);
 		}
 	}
 
 	protected override isExpanded(): boolean {
-		const element = this.context.element as IChatResponseViewModel;
+		const element = this.element as IChatResponseViewModel;
 		return element.usedReferencesExpanded ?? !!(
 			this.options.expandedWhenEmptyResponse && element.response.value.length === 0
 		);
 	}
 
 	protected override setExpanded(value: boolean): void {
-		const element = this.context.element as IChatResponseViewModel;
+		const element = this.element as IChatResponseViewModel;
 		element.usedReferencesExpanded = !this.isExpanded();
 	}
 }
@@ -213,7 +210,7 @@ export class CollapsibleListPool extends Disposable {
 			'ChatListRenderer',
 			container,
 			new CollapsibleListDelegate(),
-			[this.instantiationService.createInstance(CollapsibleListRenderer, resourceLabels, this.menuId), this.instantiationService.createInstance(DividerRenderer)],
+			[this.instantiationService.createInstance(CollapsibleListRenderer, resourceLabels, this.menuId)],
 			{
 				...this.listOptions,
 				alwaysConsumeMouseWheel: false,
@@ -221,9 +218,6 @@ export class CollapsibleListPool extends Disposable {
 					getAriaLabel: (element: IChatCollapsibleListItem) => {
 						if (element.kind === 'warning') {
 							return element.content.value;
-						}
-						if (element.kind === 'divider') {
-							return element.label;
 						}
 						const reference = element.reference;
 						if (typeof reference === 'string') {
@@ -289,9 +283,6 @@ class CollapsibleListDelegate implements IListVirtualDelegate<IChatCollapsibleLi
 	}
 
 	getTemplateId(element: IChatCollapsibleListItem): string {
-		if (element.kind === 'divider') {
-			return DividerRenderer.TEMPLATE_ID;
-		}
 		return CollapsibleListRenderer.TEMPLATE_ID;
 	}
 }
@@ -359,11 +350,6 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 	renderElement(data: IChatCollapsibleListItem, index: number, templateData: ICollapsibleListTemplate): void {
 		if (data.kind === 'warning') {
 			templateData.label.setResource({ name: data.content.value }, { icon: Codicon.warning });
-			return;
-		}
-
-		if (data.kind === 'divider') {
-			// Dividers are handled by DividerRenderer
 			return;
 		}
 
@@ -461,54 +447,6 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 	}
 }
 
-interface IDividerTemplate {
-	readonly container: HTMLElement;
-	readonly label: HTMLElement;
-	readonly line: HTMLElement;
-	readonly toolbarContainer: HTMLElement;
-	readonly templateDisposables: DisposableStore;
-	readonly elementDisposables: DisposableStore;
-	toolbar: MenuWorkbenchToolBar | undefined;
-}
-
-class DividerRenderer implements IListRenderer<IChatListDividerItem, IDividerTemplate> {
-	static TEMPLATE_ID = 'chatListDividerRenderer';
-	readonly templateId: string = DividerRenderer.TEMPLATE_ID;
-
-	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-	) { }
-
-	renderTemplate(container: HTMLElement): IDividerTemplate {
-		const templateDisposables = new DisposableStore();
-		const elementDisposables = templateDisposables.add(new DisposableStore());
-		container.classList.add('chat-list-divider');
-		const label = dom.append(container, dom.$('span.chat-list-divider-label'));
-		const line = dom.append(container, dom.$('div.chat-list-divider-line'));
-		const toolbarContainer = dom.append(container, dom.$('.chat-list-divider-toolbar'));
-
-		return { container, label, line, toolbarContainer, templateDisposables, elementDisposables, toolbar: undefined };
-	}
-
-	renderElement(data: IChatListDividerItem, index: number, templateData: IDividerTemplate): void {
-		templateData.label.textContent = data.label;
-
-		// Clear element-specific disposables from previous render
-		templateData.elementDisposables.clear();
-		templateData.toolbar = undefined;
-		dom.clearNode(templateData.toolbarContainer);
-
-		if (data.menuId) {
-			const instantiationService = data.scopedInstantiationService || this.instantiationService;
-			templateData.toolbar = templateData.elementDisposables.add(instantiationService.createInstance(MenuWorkbenchToolBar, templateData.toolbarContainer, data.menuId, { menuOptions: { arg: data.menuArg } }));
-		}
-	}
-
-	disposeTemplate(templateData: IDividerTemplate): void {
-		templateData.templateDisposables.dispose();
-	}
-}
-
 function getResourceLabelForGithubUri(uri: URI): IResourceLabelProps {
 	const repoPath = uri.path.split('/').slice(1, 3).join('/');
 	const filePath = uri.path.split('/').slice(5);
@@ -553,7 +491,7 @@ function getLineRangeFromGithubUri(uri: URI): IRange | undefined {
 }
 
 function getResourceForElement(element: IChatCollapsibleListItem): URI | null {
-	if (element.kind === 'warning' || element.kind === 'divider') {
+	if (element.kind === 'warning') {
 		return null;
 	}
 	const { reference } = element;

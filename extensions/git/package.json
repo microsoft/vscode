@@ -24,8 +24,8 @@
     "contribSourceControlTitleMenu",
     "contribViewsWelcome",
     "editSessionIdentityProvider",
+    "findFiles2",
     "quickDiffProvider",
-    "quickInputButtonLocation",
     "quickPickSortByLabel",
     "scmActionButton",
     "scmArtifactProvider",
@@ -319,6 +319,13 @@
         "title": "%command.rename%",
         "category": "Git",
         "icon": "$(discard)",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.delete",
+        "title": "%command.delete%",
+        "category": "Git",
+        "icon": "$(trash)",
         "enablement": "!operationInProgress"
       },
       {
@@ -1296,6 +1303,10 @@
         {
           "command": "git.rename",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && resourceScheme == file && scmActiveResourceRepository"
+        },
+        {
+          "command": "git.delete",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && resourceScheme == file"
         },
         {
           "command": "git.commit",
@@ -3303,6 +3314,11 @@
           "description": "%config.confirmSync%",
           "default": true
         },
+        "git.confirmCommittedDelete": {
+          "type": "boolean",
+          "description": "%config.confirmCommittedDelete%",
+          "default": true
+        },
         "git.countBadge": {
           "type": "string",
           "enum": [
@@ -3570,6 +3586,17 @@
           "scope": "resource",
           "default": 50,
           "description": "%config.detectWorktreesLimit%"
+        },
+        "git.worktreeIncludeFiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "**/node_modules/**"
+          ],
+          "scope": "resource",
+          "markdownDescription": "%config.worktreeIncludeFiles%"
         },
         "git.alwaysShowStagedChangesResourceGroup": {
           "type": "boolean",

@@ -36,8 +36,9 @@ suite('AgentSessionsDataSource', () => {
 			label: `Session ${overrides.id ?? 'default'}`,
 			icon: Codicon.terminal,
 			timing: {
-				startTime: overrides.startTime ?? now,
-				endTime: overrides.endTime ?? now,
+				created: overrides.startTime ?? now,
+				lastRequestEnded: undefined,
+				lastRequestStarted: undefined,
 			},
 			isArchived: () => overrides.isArchived ?? false,
 			setArchived: () => { },
@@ -65,6 +66,7 @@ suite('AgentSessionsDataSource', () => {
 			onDidChange: Event.None,
 			groupResults: () => options.groupResults,
 			exclude: options.exclude ?? (() => false),
+			getExcludes: () => ({ providers: [], states: [], archived: false, read: false })
 		};
 	}
 
@@ -72,8 +74,8 @@ suite('AgentSessionsDataSource', () => {
 		return {
 			compare: (a, b) => {
 				// Sort by end time, most recent first
-				const aTime = a.timing.endTime || a.timing.startTime;
-				const bTime = b.timing.endTime || b.timing.startTime;
+				const aTime = a.timing.lastRequestEnded ?? a.timing.lastRequestStarted ?? a.timing.created;
+				const bTime = b.timing.lastRequestEnded ?? b.timing.lastRequestStarted ?? b.timing.created;
 				return bTime - aTime;
 			}
 		};

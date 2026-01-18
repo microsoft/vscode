@@ -190,7 +190,7 @@ class MarkerNavigationAction extends EditorAction {
 }
 
 export class NextMarkerAction extends MarkerNavigationAction {
-	static ID: string = 'editor.action.marker.next';
+	static readonly ID = 'editor.action.marker.next';
 	static LABEL = nls.localize2('markerAction.next.label', "Go to Next Problem (Error, Warning, Info)");
 	constructor() {
 		super(true, false, {
@@ -213,8 +213,8 @@ export class NextMarkerAction extends MarkerNavigationAction {
 	}
 }
 
-class PrevMarkerAction extends MarkerNavigationAction {
-	static ID: string = 'editor.action.marker.prev';
+export class PrevMarkerAction extends MarkerNavigationAction {
+	static readonly ID = 'editor.action.marker.prev';
 	static LABEL = nls.localize2('markerAction.previous.label', "Go to Previous Problem (Error, Warning, Info)");
 	constructor() {
 		super(false, false, {
@@ -237,10 +237,11 @@ class PrevMarkerAction extends MarkerNavigationAction {
 	}
 }
 
-class NextMarkerInFilesAction extends MarkerNavigationAction {
+export class NextMarkerInFilesAction extends MarkerNavigationAction {
+	static readonly ID = 'editor.action.marker.nextInFiles';
 	constructor() {
 		super(true, true, {
-			id: 'editor.action.marker.nextInFiles',
+			id: NextMarkerInFilesAction.ID,
 			label: nls.localize2('markerAction.nextInFiles.label', "Go to Next Problem in Files (Error, Warning, Info)"),
 			precondition: undefined,
 			kbOpts: {
@@ -258,10 +259,11 @@ class NextMarkerInFilesAction extends MarkerNavigationAction {
 	}
 }
 
-class PrevMarkerInFilesAction extends MarkerNavigationAction {
+export class PrevMarkerInFilesAction extends MarkerNavigationAction {
+	static readonly ID = 'editor.action.marker.prevInFiles';
 	constructor() {
 		super(false, true, {
-			id: 'editor.action.marker.prevInFiles',
+			id: PrevMarkerInFilesAction.ID,
 			label: nls.localize2('markerAction.previousInFiles.label', "Go to Previous Problem in Files (Error, Warning, Info)"),
 			precondition: undefined,
 			kbOpts: {

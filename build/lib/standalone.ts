@@ -120,7 +120,6 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 		copyFile(file);
 	});
 
-	copyFile('vs/loader.js');
 	copyFile('typings/css.d.ts');
 	copyFile('../node_modules/@vscode/tree-sitter-wasm/wasm/web-tree-sitter.d.ts', '@vscode/tree-sitter-wasm.d.ts');
 }
