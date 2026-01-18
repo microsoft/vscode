@@ -729,11 +729,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
-	private scrollToEnd() {
+	private lastNewRequestTime = 0;
+	private scrollToEnd(scrollForNewRequest?: boolean) {
 		if (this.lastItem) {
 			const offset = Math.max(this.lastItem.currentRenderedHeight ?? 0, 1e6);
 			if (this.tree.hasElement(this.lastItem)) {
-				this.tree.reveal(this.lastItem, offset);
+				if (scrollForNewRequest) {
+					this.lastNewRequestTime = Date.now();
+				}
+
+				this.tree.reveal(this.lastItem, offset, (scrollForNewRequest || Date.now() - this.lastNewRequestTime < 400) ? 400 : undefined);
 			}
 		}
 	}
@@ -1218,9 +1223,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.input.renderFollowups(undefined, undefined);
 		}
 
-		if (this.bodyDimension) {
-			this.layout(this.bodyDimension.height, this.bodyDimension.width);
-		}
+		// if (this.bodyDimension) {
+		// 	this.layout(this.bodyDimension.height, this.bodyDimension.width);
+		// }
 	}
 
 	private renderChatSuggestNextWidget(): void {
@@ -1583,7 +1588,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._register(this.tree.onDidScroll(() => {
 			this._onDidScroll.fire();
 
-			const isScrolledDown = this.tree.scrollTop >= this.tree.scrollHeight - this.tree.renderHeight - 2;
+			const isScrolledDown = this.tree.targetScrollTop >= this.tree.scrollHeight - this.tree.renderHeight - 2;
 			this.container.classList.toggle('show-scroll-down', !isScrolledDown && !this.scrollLock);
 		}));
 	}
@@ -1812,7 +1817,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (!lastResponseIsRendering || this.scrollLock) {
 				// Due to rounding, the scrollTop + renderHeight will not exactly match the scrollHeight.
 				// Consider the tree to be scrolled all the way down if it is within 2px of the bottom.
-				const lastElementWasVisible = this.tree.scrollTop + this.tree.renderHeight >= this.previousTreeScrollHeight - 2;
+				// Use targetScrollTop to check the animation target position, so we continue auto-scrolling
+				// even when a scroll animation is in progress.
+				const lastElementWasVisible = this.tree.targetScrollTop + this.tree.renderHeight >= this.previousTreeScrollHeight - 2;
 				if (lastElementWasVisible) {
 					this.scrollAnimationFrameDisposable.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(this.listContainer), () => {
 						// Can't set scrollTop during this event listener, the list might overwrite the change
@@ -2045,7 +2052,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			this.onDidChangeItems();
 			if (events?.some(e => e?.kind === 'addRequest') && this.visible) {
-				this.scrollToEnd();
+				this.scrollToEnd(true);
 			}
 		})));
 		this.viewModelDisposables.add(this.viewModel.onDidDisposeModel(() => {
@@ -2458,7 +2465,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const inputHeight = this.inputPart.inputPartHeight.get();
 		const chatSuggestNextWidgetHeight = this.chatSuggestNextWidget.height;
-		const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight - 2;
+		const lastElementVisible = this.tree.targetScrollTop + this.tree.renderHeight >= this.tree.scrollHeight - 2;
 		const lastItem = this.viewModel?.getItems().at(-1);
 
 		const contentHeight = Math.max(0, height - inputHeight - chatSuggestNextWidgetHeight);

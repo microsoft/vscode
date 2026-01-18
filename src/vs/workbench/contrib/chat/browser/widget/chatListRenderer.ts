@@ -778,7 +778,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const diff = this.diff(templateData.renderedParts ?? [], content, element);
 		this.renderChatContentDiff(diff, content, element, index, templateData);
 
-		this.updateItemHeightOnRender(element, templateData);
+		// this.updateItemHeightOnRender(element, templateData);
 	}
 
 	private shouldShowWorkingProgress(element: IChatResponseViewModel, partsToRender: IChatRendererContent[], templateData: IChatListItemTemplate): boolean {
