@@ -287,10 +287,11 @@ declare module 'vscode' {
 
 		/**
 		 * Options configured for this session as key-value pairs.
-		 * Keys correspond to option group IDs (e.g., 'models', 'subagents').
+		 * Keys correspond to option group IDs (e.g., 'agent', 'models', 'subagents').
 		 * Values can be either:
 		 * - A string (the option item ID) for backwards compatibility
 		 * - A ChatSessionProviderOptionItem object to include metadata like locked state
+		 * The key 'agent' is reserved for the agent option when using the built-in Agent picker.
 		 * TODO: Strongly type the keys
 		 */
 		readonly options?: Record<string, string | ChatSessionProviderOptionItem> & { agent?: string | ChatSessionProviderOptionItem };

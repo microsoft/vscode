@@ -1364,7 +1364,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	} | undefined {
 		const setNoOptions = () => {
 			this.chatSessionHasOptions.set(false);
-			this.chatSessionOptionsValid.set(true); // No options means nothing to validate
+			this.chatSessionOptionsValid.set(true);
 		};
 
 		const sessionResource = this._widget?.viewModel?.model.sessionResource;

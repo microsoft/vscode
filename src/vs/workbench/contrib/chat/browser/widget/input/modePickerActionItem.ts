@@ -122,7 +122,10 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 			getActions: () => {
 				const modes = chatModeService.getModes();
 				const currentMode = delegate.currentMode.get();
-				const filteredCustomModes = modes.custom.filter(mode => isUserDefinedCustomAgent(mode) && (!mode.target?.get() || mode.target?.get() === customAgentTarget));
+				const filteredCustomModes = modes.custom.filter(mode => {
+					const target = mode.target?.get();
+					return isUserDefinedCustomAgent(mode) && (!target || target === customAgentTarget);
+				});
 
 				// Always include the default "Agent" option first
 				const checked = currentMode.isBuiltin;
