@@ -165,7 +165,9 @@ export function isAgentSessionSection(obj: unknown): obj is IAgentSessionSection
 
 export interface IMarshalledAgentSessionContext {
 	readonly $mid: MarshalledId.AgentSessionContext;
+
 	readonly session: IAgentSession;
+	readonly sessions: IAgentSession[]; // support for multi-selection
 }
 
 export function isMarshalledAgentSessionContext(thing: unknown): thing is IMarshalledAgentSessionContext {
@@ -370,7 +372,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 					providerType: chatSessionType,
 					providerLabel,
 					resource: session.resource,
-					label: session.label,
+					label: session.label.split('\n')[0], // protect against weird multi-line labels that break our layout
 					description: session.description,
 					icon,
 					badge: session.badge,

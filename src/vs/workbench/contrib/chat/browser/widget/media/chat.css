@@ -1020,14 +1020,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button.secondary.monaco-text-button.codicon {
 	cursor: pointer;
-	padding: 3px;
+	padding: 2px;
 	border-radius: 4px;
 	display: inline-flex;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button.secondary.monaco-text-button {
 	background-color: var(--vscode-button-secondaryBackground);
-	border: 1px solid var(--vscode-button-border);
 	color: var(--vscode-button-secondaryForeground);
 }
 
@@ -1566,7 +1565,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .interactive-input-part {
 	margin: 0px 16px;
-	padding: 4px 0 12px 0px;
+	padding: 4px 0 8px 0px;
 	display: flex;
 	flex-direction: column;
 	gap: 4px;
@@ -2239,6 +2238,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-item-container .chat-command-button {
 	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
 	margin-bottom: 16px;
 }
 
