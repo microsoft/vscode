@@ -70,7 +70,6 @@ suite('LoopbackAuthServer (portable mode)', () => {
 	let port: number;
 
 	setup(async () => {
-		// skipRedirect = true for portable mode
 		server = new LoopbackAuthServer(__dirname, 'http://localhost:8080', 'https://code.visualstudio.com', true);
 		port = await server.start();
 	});
@@ -79,7 +78,7 @@ suite('LoopbackAuthServer (portable mode)', () => {
 		await server.stop();
 	});
 
-	test('should redirect to success page without redirect_uri on /callback in portable mode', async () => {
+	test('should redirect to success page without redirect_uri on /callback', async () => {
 		server.state = 'valid-state';
 		const response = await fetch(
 			`http://localhost:${port}/callback?code=valid-code&state=${server.state}&nonce=${server.nonce}`,
