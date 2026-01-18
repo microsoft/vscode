@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
-import { $ } from '../../../../../../base/browser/dom.js';
+import { $, AnimationFrameScheduler } from '../../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { rcut } from '../../../../../../base/common/strings.js';
@@ -20,7 +20,6 @@ import { ChatCollapsibleMarkdownContentPart } from './chatCollapsibleMarkdownCon
 import { IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import { IRunSubagentToolInputParams, RunSubagentTool } from '../../../common/tools/builtinTools/runSubagentTool.js';
 import { autorun } from '../../../../../../base/common/observable.js';
-import { RunOnceScheduler } from '../../../../../../base/common/async.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { createThinkingIcon, getToolInvocationIcon } from './chatThinkingContentPart.js';
 import { CollapsibleListPool } from './chatReferencesContentPart.js';
@@ -52,7 +51,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 	private promptContainer: HTMLElement | undefined;
 	private resultContainer: HTMLElement | undefined;
 	private lastItemWrapper: HTMLElement | undefined;
-	private readonly layoutScheduler: RunOnceScheduler;
+	private readonly layoutScheduler: AnimationFrameScheduler;
 	private description: string;
 	private agentName: string | undefined;
 	private prompt: string | undefined;
@@ -158,7 +157,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		this.setExpanded(false);
 
 		// Scheduler for coalescing layout operations
-		this.layoutScheduler = this._register(new RunOnceScheduler(() => this.performLayout(), 0));
+		this.layoutScheduler = this._register(new AnimationFrameScheduler(this.domNode, () => this.performLayout()));
 
 		// Render the prompt section at the start if available (must be after wrapper is initialized)
 		this.renderPromptSection();
@@ -225,7 +224,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		this._register(collapsiblePart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
 		// Wrap in a container for chain of thought line styling
-		this.promptContainer = $('.chat-thinking-tool-wrapper');
+		this.promptContainer = $('.chat-thinking-tool-wrapper.chat-subagent-section');
 		const promptIcon = createThinkingIcon(Codicon.comment);
 		this.promptContainer.appendChild(promptIcon);
 		this.promptContainer.appendChild(collapsiblePart.domNode);
@@ -364,7 +363,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		this._register(collapsiblePart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
 		// Wrap in a container for chain of thought line styling
-		this.resultContainer = $('.chat-thinking-tool-wrapper');
+		this.resultContainer = $('.chat-thinking-tool-wrapper.chat-subagent-section');
 		const resultIcon = createThinkingIcon(Codicon.check);
 		this.resultContainer.appendChild(resultIcon);
 		this.resultContainer.appendChild(collapsiblePart.domNode);
@@ -427,6 +426,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 
 		this._register(part);
 		this._register(part.onDidChangeHeight(() => {
+			this.layoutScheduler.schedule();
 			this._onDidChangeHeight.fire();
 		}));
 
@@ -460,11 +460,9 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 			needsConfirmation = state.type === IChatToolInvocation.StateKind.WaitingForConfirmation || state.type === IChatToolInvocation.StateKind.WaitingForPostApproval;
 		}
 
-		if (!needsConfirmation) {
-			const icon = getToolInvocationIcon(toolInvocation.toolId);
-			const iconElement = createThinkingIcon(icon);
-			itemWrapper.appendChild(iconElement);
-		}
+		const icon = getToolInvocationIcon(toolInvocation.toolId);
+		const iconElement = createThinkingIcon(icon);
+		itemWrapper.appendChild(iconElement);
 		itemWrapper.appendChild(content);
 
 		// Insert before result container if it exists, otherwise append
@@ -519,8 +517,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 	private performLayout(): void {
 		// Measure last item height once after layout, set CSS variable for collapsed max-height
 		if (this.lastItemWrapper) {
-			const itemHeight = this.lastItemWrapper.offsetHeight;
-			const height = itemHeight + 4;
+			const height = this.lastItemWrapper.offsetHeight;
 			if (height > 0) {
 				this.wrapper.style.setProperty('--chat-subagent-last-item-height', `${height}px`);
 			}

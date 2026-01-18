@@ -5,6 +5,7 @@
 
 /* Subagent-specific styles */
 .interactive-session .interactive-response .value .chat-thinking-fixed-mode.chat-subagent-part {
+
 	/* Collapsed + streaming: show only the last item with max-height */
 	&.chat-used-context-collapsed .chat-used-context-list.chat-thinking-collapsible.chat-thinking-streaming {
 		max-height: var(--chat-subagent-last-item-height, 200px);
@@ -18,15 +19,22 @@
 		overflow: visible;
 	}
 
-	/* Prompt and result styling within thinking tool wrapper */
+	/* Prompt and result section styling */
+	.chat-subagent-section {
+		padding: 4px 12px 4px 18px;
+
+		.chat-used-context {
+			margin-bottom: 0px;
+			margin-left: 2px;
+			padding-left: 2px;
+		}
+	}
+
 	.chat-thinking-tool-wrapper {
+
 		/* Hide the collapsible button's icon since we use the thinking icon */
 		.codicon:not(.chat-thinking-icon) {
 			display: none;
-		}
-
-		.chat-used-context {
-			padding-left: 20px;
 		}
 
 		.chat-collapsible-markdown-content {

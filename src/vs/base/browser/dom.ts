@@ -11,7 +11,7 @@ import { AbstractIdleValue, IntervalTimer, TimeoutTimer, _runWhenIdle, IdleDeadl
 import { BugIndicatingError, onUnexpectedError } from '../common/errors.js';
 import * as event from '../common/event.js';
 import { KeyCode } from '../common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../common/lifecycle.js';
 import { RemoteAuthorities } from '../common/network.js';
 import * as platform from '../common/platform.js';
 import { URI } from '../common/uri.js';
@@ -411,6 +411,57 @@ export function measure(targetWindow: Window, callback: () => void): IDisposable
 
 export function modify(targetWindow: Window, callback: () => void): IDisposable {
 	return scheduleAtNextAnimationFrame(targetWindow, callback, -10000 /* must be late */);
+}
+
+/**
+ * A scheduler that coalesces multiple `schedule()` calls into a single callback
+ * at the next animation frame. Similar to `RunOnceScheduler` but uses animation frames
+ * instead of timeouts.
+ */
+export class AnimationFrameScheduler implements IDisposable {
+
+	private readonly runner: () => void;
+	private readonly node: Node;
+	private readonly pendingRunner = new MutableDisposable<IDisposable>();
+
+	constructor(node: Node, runner: () => void) {
+		this.node = node;
+		this.runner = runner;
+	}
+
+	dispose(): void {
+		this.pendingRunner.dispose();
+	}
+
+	/**
+	 * Cancel the currently scheduled runner (if any).
+	 */
+	cancel(): void {
+		this.pendingRunner.clear();
+	}
+
+	/**
+	 * Schedule the runner to execute at the next animation frame.
+	 * If already scheduled, this is a no-op (the existing schedule is kept).
+	 * If currently in an animation frame, the runner will execute immediately.
+	 */
+	schedule(): void {
+		if (this.pendingRunner.value) {
+			return; // Already scheduled
+		}
+
+		this.pendingRunner.value = runAtThisOrScheduleAtNextAnimationFrame(getWindow(this.node), () => {
+			this.pendingRunner.clear();
+			this.runner();
+		});
+	}
+
+	/**
+	 * Returns true if a runner is scheduled.
+	 */
+	isScheduled(): boolean {
+		return this.pendingRunner.value !== undefined;
+	}
 }
 
 /**
