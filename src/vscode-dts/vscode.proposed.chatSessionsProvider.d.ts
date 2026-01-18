@@ -293,7 +293,7 @@ declare module 'vscode' {
 		 * - A ChatSessionProviderOptionItem object to include metadata like locked state
 		 * TODO: Strongly type the keys
 		 */
-		readonly options?: Record<string, string | ChatSessionProviderOptionItem>;
+		readonly options?: Record<string, string | ChatSessionProviderOptionItem> & { agent?: string | ChatSessionProviderOptionItem };
 
 		/**
 		 * Callback invoked by the editor for a currently running response. This allows the session to push items for the
@@ -335,6 +335,8 @@ declare module 'vscode' {
 			 * The new value assigned to the option. When `undefined`, the option is cleared.
 			 */
 			readonly value: string | ChatSessionProviderOptionItem;
+		} & {
+			readonly agent?: string | ChatSessionProviderOptionItem;
 		}>;
 	}
 

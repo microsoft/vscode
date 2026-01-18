@@ -197,6 +197,10 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 					description: localize('chatSessionsExtPoint.canDelegate', 'Whether delegation is supported. Default is false. Note that enabling this is experimental and may not be respected at all times.'),
 					type: 'boolean',
 					default: false
+				},
+				customAgentTarget: {
+					description: localize('chatSessionsExtPoint.customAgentTarget', 'When set, the chat session will show a filtered mode picker with only custom agents that have a matching target property. This enables the standard agent/mode dropdown with filtered custom agents.'),
+					type: 'string'
 				}
 			},
 			required: ['type', 'name', 'displayName', 'description'],
@@ -1088,6 +1092,15 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	public getCapabilitiesForSessionType(chatSessionType: string): IChatAgentAttachmentCapabilities | undefined {
 		const contribution = this._contributions.get(chatSessionType)?.contribution;
 		return contribution?.capabilities;
+	}
+
+	/**
+	 * Get the customAgentTarget for a specific session type.
+	 * When set, the mode picker should show filtered custom agents matching this target.
+	 */
+	public getCustomAgentTargetForSessionType(chatSessionType: string): string | undefined {
+		const contribution = this._contributions.get(chatSessionType)?.contribution;
+		return contribution?.customAgentTarget;
 	}
 
 	public getContentProviderSchemes(): string[] {

@@ -72,6 +72,13 @@ export interface IChatSessionsExtensionPoint {
 	readonly capabilities?: IChatAgentAttachmentCapabilities;
 	readonly commands?: IChatSessionCommandContribution[];
 	readonly canDelegate?: boolean;
+	/**
+	 * When set, the chat session will show a filtered mode picker with only custom agents
+	 * that have a matching `target` property. This enables contributed chat sessions
+	 * to reuse the standard agent/mode dropdown with filtered custom agents.
+	 * Example: 'github' for background agents.
+	 */
+	readonly customAgentTarget?: string;
 }
 
 export interface IChatSessionItem {
@@ -116,6 +123,11 @@ export type IChatSessionHistoryItem = {
  */
 export const localChatSessionType = 'local';
 
+/**
+ * The option ID used for selecting the agent in chat sessions.
+ */
+export const AgentOptionId = 'agent';
+
 export interface IChatSession extends IDisposable {
 	readonly onWillDispose: Event<void>;
 
@@ -127,7 +139,7 @@ export interface IChatSession extends IDisposable {
 	 * Session options as key-value pairs. Keys correspond to option group IDs (e.g., 'models', 'subagents')
 	 * and values are either the selected option item IDs (string) or full option items (for locked state).
 	 */
-	readonly options?: Record<string, string | IChatSessionProviderOptionItem>;
+	readonly options?: Record<string, string | IChatSessionProviderOptionItem> & { [AgentOptionId]?: string | IChatSessionProviderOptionItem };
 
 	readonly progressObs?: IObservable<IChatProgress[]>;
 	readonly isCompleteObs?: IObservable<boolean>;
@@ -221,6 +233,13 @@ export interface IChatSessionsService {
 	 * Get the capabilities for a specific session type
 	 */
 	getCapabilitiesForSessionType(chatSessionType: string): IChatAgentAttachmentCapabilities | undefined;
+
+	/**
+	 * Get the customAgentTarget for a specific session type.
+	 * When set, the mode picker should show filtered custom agents matching this target.
+	 */
+	getCustomAgentTargetForSessionType(chatSessionType: string): string | undefined;
+
 	onDidChangeOptionGroups: Event<string>;
 
 	getOptionGroupsForSessionType(chatSessionType: string): IChatSessionProviderOptionGroup[] | undefined;
