@@ -1217,10 +1217,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		} else {
 			this.input.renderFollowups(undefined, undefined);
 		}
-
-		if (this.bodyDimension) {
-			this.layout(this.bodyDimension.height, this.bodyDimension.width);
-		}
 	}
 
 	private renderChatSuggestNextWidget(): void {
