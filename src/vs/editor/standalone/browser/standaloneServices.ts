@@ -1129,6 +1129,10 @@ class StandaloneDefaultAccountService implements IDefaultAccountService {
 	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider {
 		return { id: 'default', name: 'Default', enterprise: false };
 	}
+
+	async signIn(): Promise<IDefaultAccount | null> {
+		return null;
+	}
 }
 
 export interface IEditorOverrideServices {

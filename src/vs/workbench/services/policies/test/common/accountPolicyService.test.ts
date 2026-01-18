@@ -42,6 +42,10 @@ class DefaultAccountProvider implements IDefaultAccountProvider {
 	async refresh(): Promise<IDefaultAccount | null> {
 		return this.defaultAccount;
 	}
+
+	async signIn(): Promise<IDefaultAccount | null> {
+		return null;
+	}
 }
 
 suite('AccountPolicyService', () => {

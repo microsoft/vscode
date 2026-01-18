@@ -270,6 +270,7 @@ export async function withAsyncTestCodeEditorAndInlineCompletionsModel<T>(
 					setDefaultAccountProvider: () => { },
 					getDefaultAccountAuthenticationProvider: () => { return { id: 'mockProvider', name: 'Mock Provider', enterprise: false }; },
 					refresh: async () => { return null; },
+					signIn: async () => { return null; },
 				});
 
 				const d = languageFeaturesService.inlineCompletionsProvider.register({ pattern: '**' }, options.provider);
