@@ -1383,7 +1383,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				const isDefaultAgent = agentId === ChatMode.Agent.id;
 				const needsUpdate = isDefaultAgent
 					? currentMode.id !== ChatMode.Agent.id
-					: currentMode.label.get() !== agentId;
+					: currentMode.label.get() !== agentId; // Extensions use Label (name) as identifier for custom agents.
 
 				if (needsUpdate) {
 					this.setChatMode(agentId);

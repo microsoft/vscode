@@ -128,7 +128,7 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 				});
 
 				// Always include the default "Agent" option first
-				const checked = currentMode.isBuiltin;
+				const checked = currentMode.id === ChatMode.Agent.id;
 				const defaultAction = { ...makeAction(ChatMode.Agent, ChatMode.Agent), checked };
 
 				// Add filtered custom modes
