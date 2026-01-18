@@ -125,6 +125,8 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 		this._register(this.editorService.onDidCloseEditor(() => this._checkForEmptyEditors()));
 
 		// Listen for session changes to exit projection mode if active session becomes in progress
+		// Note: onDidChangeSessions fires for any session change, but _checkForInProgressSession()
+		// has early exit guards and only checks when projection mode is active, making this efficient
 		this._register(this.agentSessionsService.model.onDidChangeSessions(() => this._checkForInProgressSession()));
 	}
 
