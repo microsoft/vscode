@@ -17,29 +17,17 @@
 		max-height: none;
 		overflow: visible;
 	}
-}
 
-/* Subagent result collapsible section */
-.chat-subagent-result {
-	margin-top: 4px;
-	padding: 4px 8px;
+	/* Prompt and result wrapper styling */
+	.chat-subagent-prompt-wrapper,
+	.chat-subagent-result-wrapper {
+		.chat-collapsible-markdown-content {
+			margin-left: 20px;
 
-	.chat-used-context-label {
-		cursor: pointer;
-
-		.monaco-button {
-			color: var(--vscode-descriptionForeground);
-			font-size: var(--vscode-chat-font-size-body-s);
-		}
-	}
-
-	.chat-subagent-result-content {
-		padding: 4px 8px 4px 20px;
-		font-size: var(--vscode-chat-font-size-body-s);
-		color: var(--vscode-descriptionForeground);
-
-		p {
-			margin: 0;
+			.rendered-markdown {
+				font-size: var(--vscode-chat-font-size-body-s);
+				line-height: 1.5em;
+			}
 		}
 	}
 }
