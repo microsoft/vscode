@@ -214,7 +214,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 			? (titleRemainder + (restOfLines ? '\n' + restOfLines : ''))
 			: (restOfLines || this.prompt);
 
-		// Create collapsible prompt part with comment icon
+		// Create collapsible prompt part
 		const collapsiblePart = this._register(this.instantiationService.createInstance(
 			ChatCollapsibleMarkdownContentPart,
 			title,
@@ -222,11 +222,12 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 			this.context,
 			this.chatContentMarkdownRenderer
 		));
-		collapsiblePart.icon = Codicon.comment;
 		this._register(collapsiblePart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
 		// Wrap in a container for chain of thought line styling
-		this.promptContainer = $('.chat-subagent-prompt-wrapper');
+		this.promptContainer = $('.chat-thinking-tool-wrapper');
+		const promptIcon = createThinkingIcon(Codicon.comment);
+		this.promptContainer.appendChild(promptIcon);
 		this.promptContainer.appendChild(collapsiblePart.domNode);
 
 		// Insert at the beginning of the wrapper
@@ -363,7 +364,9 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		this._register(collapsiblePart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
 		// Wrap in a container for chain of thought line styling
-		this.resultContainer = $('.chat-subagent-result-wrapper');
+		this.resultContainer = $('.chat-thinking-tool-wrapper');
+		const resultIcon = createThinkingIcon(Codicon.check);
+		this.resultContainer.appendChild(resultIcon);
 		this.resultContainer.appendChild(collapsiblePart.domNode);
 		dom.append(this.wrapper, this.resultContainer);
 
