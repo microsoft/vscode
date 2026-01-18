@@ -139,7 +139,7 @@ export interface IChatSession extends IDisposable {
 	 * Session options as key-value pairs. Keys correspond to option group IDs (e.g., 'models', 'subagents')
 	 * and values are either the selected option item IDs (string) or full option items (for locked state).
 	 */
-	readonly options?: Record<string, string | IChatSessionProviderOptionItem> & { [AgentOptionId]?: string | IChatSessionProviderOptionItem };
+	readonly options?: Record<string, string | IChatSessionProviderOptionItem>;
 
 	readonly progressObs?: IObservable<IChatProgress[]>;
 	readonly isCompleteObs?: IObservable<boolean>;
