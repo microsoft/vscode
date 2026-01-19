@@ -268,14 +268,7 @@ class InlineChatGutterMenuWidget extends Disposable implements IOverlayWidget {
 
 		// Track focus - hide when focus leaves
 		const focusTracker = this._store.add(dom.trackFocus(this._domNode));
-		this._store.add(focusTracker.onDidBlur(() => {
-			// Small delay to allow focus to move within the widget
-			setTimeout(() => {
-				if (!this._domNode.contains(dom.getActiveElement())) {
-					this._hide();
-				}
-			}, 0);
-		}));
+		this._store.add(focusTracker.onDidBlur(() => this._hide()));
 
 		// Handle action bar cancel (Escape key)
 		this._store.add(this._actionBar.onDidCancel(() => this._hide()));
