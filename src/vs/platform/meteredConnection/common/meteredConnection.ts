@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from '../../../base/common/event.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export const IMeteredConnectionService = createDecorator<IMeteredConnectionService>('meteredConnectionService');
@@ -61,6 +63,53 @@ export function getIsConnectionMetered() {
 		return true;
 	}
 
-	const effectiveType = connection.effectiveType;
-	return effectiveType === '2g' || effectiveType === 'slow-2g';
+	//const effectiveType = connection.effectiveType;
+	return true; // effectiveType === '2g' || effectiveType === 'slow-2g';
+}
+
+/**
+ * Abstract base class for metered connection services.
+ */
+export class AbstractMeteredConnectionService extends Disposable implements IMeteredConnectionService {
+
+	declare readonly _serviceBrand: undefined;
+
+	private readonly _onDidChangeIsConnectionMetered = this._register(new Emitter<boolean>());
+	public readonly onDidChangeIsConnectionMetered = this._onDidChangeIsConnectionMetered.event;
+
+	private _isConnectionMetered = false;
+	private _respectMeteredConnections: boolean;
+
+	constructor(private readonly configurationService: IConfigurationService) {
+		super();
+
+		this._respectMeteredConnections = this.configurationService.getValue<boolean>(METERED_CONNECTION_SETTING_KEY);
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(METERED_CONNECTION_SETTING_KEY)) {
+				const value = this.configurationService.getValue<boolean>(METERED_CONNECTION_SETTING_KEY);
+				if (this._respectMeteredConnections !== value) {
+					const oldValue = this.isConnectionMetered;
+					this._respectMeteredConnections = value;
+					if (oldValue !== this.isConnectionMetered) {
+						this._onDidChangeIsConnectionMetered.fire(this.isConnectionMetered);
+					}
+				}
+			}
+		}));
+	}
+
+	public get isConnectionMetered(): boolean {
+		return this._respectMeteredConnections && this._isConnectionMetered;
+	}
+
+	public setIsConnectionMetered(isMetered: boolean): void {
+		if (this._isConnectionMetered !== isMetered) {
+			const oldValue = this.isConnectionMetered;
+			this._isConnectionMetered = isMetered;
+			if (oldValue !== this.isConnectionMetered) {
+				this._onDidChangeIsConnectionMetered.fire(this.isConnectionMetered);
+			}
+		}
+	}
 }

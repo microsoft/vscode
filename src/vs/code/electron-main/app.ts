@@ -530,7 +530,7 @@ export class CodeApplication extends Disposable {
 		});
 
 		validatedIpcMain.on(METERED_CONNECTION_CHANGED_CHANNEL, (_event, isMetered: boolean) => {
-			this.meteredConnectionMainService?.updateIsConnectionMetered(isMetered);
+			this.meteredConnectionMainService?.setIsConnectionMetered(isMetered);
 		});
 
 		//#endregion
