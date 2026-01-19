@@ -31,6 +31,7 @@ import { IChatModelReference, IChatProgress, IChatService } from '../../common/c
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatWidgetService, IQuickChatOpenOptions, IQuickChatService } from '../chat.js';
 import { ChatWidget } from '../widget/chatWidget.js';
+import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 
 export class QuickChatService extends Disposable implements IQuickChatService {
 	readonly _serviceBrand: undefined;
@@ -170,6 +171,7 @@ class QuickChat extends Disposable {
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
+		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 	) {
 		super();
 	}
@@ -314,6 +316,23 @@ class QuickChat extends Disposable {
 		this._register(this.sash.onDidReset(() => {
 			this.widget.isDynamicChatTreeItemLayoutEnabled = true;
 			this.widget.layoutDynamicChatTreeItemMode();
+		}));
+
+		// Mark session as read when a request completes while quick chat is visible
+		let wasInProgress = false;
+		this._register(autorun(reader => {
+			const model = this.modelRef?.object;
+			const inProgress = model?.requestInProgress.read(reader) ?? false;
+
+			// When request transitions from in-progress to completed while visible
+			if (wasInProgress && !inProgress && this.widget.visible) {
+				const sessionResource = this.sessionResource;
+				if (sessionResource) {
+					this.agentSessionsService.model.getSession(sessionResource)?.setRead(true);
+				}
+			}
+
+			wasInProgress = inProgress;
 		}));
 	}
 
