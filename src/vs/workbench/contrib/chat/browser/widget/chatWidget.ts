@@ -2087,6 +2087,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}
 				// Only show if response wasn't canceled
 				this.renderChatSuggestNextWidget();
+
+				// Mark session as read when a request completes while widget is visible
+				if (this.visible) {
+					const sessionResource = this.viewModel?.sessionResource;
+					if (sessionResource) {
+						this.agentSessionsService.model.getSession(sessionResource)?.setRead(true);
+					}
+				}
 			}
 		}));
 

@@ -9,7 +9,7 @@ import { disposableTimeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, autorunDelta, derived } from '../../../../../base/common/observable.js';
+import { autorun } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Selection } from '../../../../../editor/common/core/selection.js';
 import { localize } from '../../../../../nls.js';
@@ -31,7 +31,6 @@ import { IChatModelReference, IChatProgress, IChatService } from '../../common/c
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatWidgetService, IQuickChatOpenOptions, IQuickChatService } from '../chat.js';
 import { ChatWidget } from '../widget/chatWidget.js';
-import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 
 export class QuickChatService extends Disposable implements IQuickChatService {
 	readonly _serviceBrand: undefined;
@@ -171,7 +170,6 @@ class QuickChat extends Disposable {
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
-		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 	) {
 		super();
 	}
@@ -316,20 +314,6 @@ class QuickChat extends Disposable {
 		this._register(this.sash.onDidReset(() => {
 			this.widget.isDynamicChatTreeItemLayoutEnabled = true;
 			this.widget.layoutDynamicChatTreeItemMode();
-		}));
-
-		// Mark session as read when a request completes while quick chat is visible
-		const requestInProgressObs = derived(this, reader => {
-			return this.modelRef?.object?.requestInProgress.read(reader) ?? false;
-		});
-		this._register(autorunDelta(requestInProgressObs, ({ lastValue, newValue }) => {
-			// When request transitions from in-progress to completed while visible
-			if (lastValue && !newValue && this.widget.visible) {
-				const sessionResource = this.sessionResource;
-				if (sessionResource) {
-					this.agentSessionsService.model.getSession(sessionResource)?.setRead(true);
-				}
-			}
 		}));
 	}
 
