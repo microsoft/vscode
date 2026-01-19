@@ -100,7 +100,7 @@ suite('PromptHeaderAutocompletion', () => {
 		const languageId = getLanguageIdForPromptsType(promptType);
 		const uri = URI.parse('test:///test' + getPromptFileExtension(promptType));
 		const model = disposables.add(createTextModel(content, languageId, undefined, uri));
-		// get the completion location fro  the '|' marker
+		// get the completion location from  the '|' marker
 		const lineColumnMarkerRange = model.findNextMatch('|', new Position(1, 1), false, false, '', false)?.range;
 		assert.ok(lineColumnMarkerRange, 'No completion marker found in test content');
 		model.applyEdits([{ range: lineColumnMarkerRange, text: '' }]);
