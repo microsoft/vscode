@@ -5,6 +5,7 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
+import { Range } from '../../../../../editor/common/core/range.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, IAction2Options, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -22,6 +23,7 @@ import { NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_EDITOR_FOCUSED } from '../../../no
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, IChatEditingService, IChatEditingSession, IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState, parseChatMultiDiffUri } from '../../common/editing/chatEditingService.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
+import { IChatWidgetService } from '../chat.js';
 import { ctxCursorInChangeRange, ctxHasEditorModification, ctxIsCurrentlyBeingModified, ctxIsGlobalEditingSession, ctxReviewModeEnabled } from './chatEditingEditorContextKeys.js';
 
 
@@ -319,6 +321,40 @@ class ToggleDiffAction extends ChatEditingEditorAction {
 	}
 }
 
+class AddHunkToChatAction extends ChatEditingEditorAction {
+	constructor() {
+		super({
+			id: 'chatEditor.action.addHunkToChat',
+			title: localize2('addHunkToChat', 'Add to Chat'),
+			icon: Codicon.attach,
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ctxHasEditorModification, ctxIsCurrentlyBeingModified.negate()),
+			menu: {
+				id: MenuId.ChatEditingEditorHunk,
+				order: 20
+			}
+		});
+	}
+
+	override async runChatEditingCommand(accessor: ServicesAccessor, _session: IChatEditingSession, entry: IModifiedFileEntry, _integration: IModifiedFileEntryEditorIntegration, ...args: unknown[]): Promise<void> {
+		const chatWidgetService = accessor.get(IChatWidgetService);
+
+		const hunk = args[0] as IModifiedFileEntryChangeHunk | undefined;
+		const lineRange = hunk?.getModifiedLineRange();
+		if (!lineRange) {
+			return;
+		}
+
+		const widget = chatWidgetService.lastFocusedWidget ?? await chatWidgetService.revealWidget();
+		if (!widget) {
+			return;
+		}
+
+		const range = new Range(lineRange.startLineNumber, 1, lineRange.endLineNumberExclusive, 1);
+		widget.attachmentModel.addFile(entry.modifiedURI, range);
+		widget.focusInput();
+	}
+}
+
 class ToggleAccessibleDiffViewAction extends ChatEditingEditorAction {
 	constructor() {
 		super({
@@ -447,6 +483,7 @@ export function registerChatEditorActions() {
 	registerAction2(AcceptHunkAction);
 	registerAction2(RejectHunkAction);
 	registerAction2(ToggleDiffAction);
+	registerAction2(AddHunkToChatAction);
 	registerAction2(ToggleAccessibleDiffViewAction);
 
 	registerAction2(class extends MultiDiffAcceptDiscardAction { constructor() { super(true); } });

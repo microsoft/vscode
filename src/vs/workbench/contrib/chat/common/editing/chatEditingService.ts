@@ -316,6 +316,10 @@ export const enum ModifiedFileEntryState {
 export interface IModifiedFileEntryChangeHunk {
 	accept(): Promise<boolean>;
 	reject(): Promise<boolean>;
+	/**
+	 * Get the modified line range of this hunk
+	 */
+	getModifiedLineRange(): { startLineNumber: number; endLineNumberExclusive: number } | undefined;
 }
 
 export interface IModifiedFileEntryEditorIntegration extends IDisposable {

@@ -371,6 +371,9 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 						accessibilitySignalService.playSignal(AccessibilitySignal.editsUndone, { allowManyInParallel: true });
 						return Promise.resolve(true);
 					},
+					getModifiedLineRange() {
+						return undefined; // Not applicable for notebook cell deletions
+					},
 				} satisfies IModifiedFileEntryChangeHunk;
 			}
 		}));
