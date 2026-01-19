@@ -20,6 +20,7 @@ import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ISessionTypePickerDelegate } from '../../chat.js';
+import { IActionProvider } from '../../../../../../base/browser/ui/dropdown/dropdown.js';
 
 export interface ISessionTypeItem {
 	type: AgentSessionProviders;
@@ -27,6 +28,9 @@ export interface ISessionTypeItem {
 	description: string;
 	commandId: string;
 }
+
+const firstPartyCategory = { label: localize('chat.sessionTarget.category.agent', "Agent Types"), order: 1 };
+const otherCategory = { label: localize('chat.sessionTarget.category.other', "Other"), order: 2 };
 
 /**
  * Action view item for selecting a session target in the chat interface.
@@ -41,20 +45,18 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		protected readonly delegate: ISessionTypePickerDelegate,
 		pickerOptions: IChatInputPickerOptions,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
-		@IKeybindingService keybindingService: IKeybindingService,
+		@IKeybindingService protected readonly keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatSessionsService protected readonly chatSessionsService: IChatSessionsService,
-		@ICommandService private readonly commandService: ICommandService,
-		@IOpenerService openerService: IOpenerService,
+		@ICommandService protected readonly commandService: ICommandService,
+		@IOpenerService protected readonly openerService: IOpenerService,
 	) {
-		const firstPartyCategory = { label: localize('chat.sessionTarget.category.agent', "Agent Types"), order: 1 };
-		const otherCategory = { label: localize('chat.sessionTarget.category.other', "Other"), order: 2 };
 
 		const actionProvider: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
 				const currentType = this._getSelectedSessionType();
 
-				const actions: IActionWidgetDropdownAction[] = [];
+				const actions: IActionWidgetDropdownAction[] = [...this._getAdditionalActions()];
 				for (const sessionTypeItem of this._sessionTypeItems) {
 					actions.push({
 						...action,
@@ -64,7 +66,8 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 						checked: currentType === sessionTypeItem.type,
 						icon: getAgentSessionProviderIcon(sessionTypeItem.type),
 						enabled: this._isSessionTypeEnabled(sessionTypeItem.type),
-						category: isFirstPartyAgentSessionProvider(sessionTypeItem.type) ? firstPartyCategory : otherCategory,
+						category: this._getSessionCategory(sessionTypeItem),
+						description: this._getSessionDescription(sessionTypeItem),
 						run: async () => {
 							this._run(sessionTypeItem);
 						},
@@ -75,24 +78,15 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 			}
 		};
 
-		const actionBarActions: IAction[] = [];
-
-		const learnMoreUrl = 'https://code.visualstudio.com/docs/copilot/agents/overview';
-		actionBarActions.push({
-			id: 'workbench.action.chat.agentOverview.learnMore',
-			label: localize('chat.learnMoreAgentTypes', "Learn about agent types..."),
-			tooltip: learnMoreUrl,
-			class: undefined,
-			enabled: true,
-			run: async () => {
-				await openerService.open(URI.parse(learnMoreUrl));
+		const actionBarActionProvider: IActionProvider = {
+			getActions: () => {
+				return [this._getLearnMore()];
 			}
-		});
+		};
 
 		const sessionTargetPickerOptions: Omit<IActionWidgetDropdownOptions, 'label' | 'labelRenderer'> = {
 			actionProvider,
-			actionBarActions,
-			actionBarActionProvider: undefined,
+			actionBarActionProvider,
 			showItemKeybindings: true,
 		};
 
@@ -119,6 +113,24 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 
 	protected _getSelectedSessionType(): AgentSessionProviders | undefined {
 		return this.delegate.getActiveSessionProvider();
+	}
+
+	protected _getAdditionalActions(): IActionWidgetDropdownAction[] {
+		return [];
+	}
+
+	protected _getLearnMore(): IAction {
+		const learnMoreUrl = 'https://code.visualstudio.com/docs/copilot/agents/overview';
+		return {
+			id: 'workbench.action.chat.agentOverview.learnMore',
+			label: localize('chat.learnMoreAgentTypes', "Learn about agent types..."),
+			tooltip: learnMoreUrl,
+			class: undefined,
+			enabled: true,
+			run: async () => {
+				await this.openerService.open(URI.parse(learnMoreUrl));
+			}
+		};
 	}
 
 	private _updateAgentSessionItems(): void {
@@ -150,6 +162,14 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 
 	protected _isSessionTypeEnabled(type: AgentSessionProviders): boolean {
 		return true;
+	}
+
+	protected _getSessionCategory(sessionTypeItem: ISessionTypeItem) {
+		return isFirstPartyAgentSessionProvider(sessionTypeItem.type) ? firstPartyCategory : otherCategory;
+	}
+
+	protected _getSessionDescription(sessionTypeItem: ISessionTypeItem): string | undefined {
+		return undefined;
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
