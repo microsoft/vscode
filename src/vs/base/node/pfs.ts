@@ -154,7 +154,9 @@ async function safeReaddirWithFileTypes(path: string): Promise<IDirent[]> {
 			isDirectory = lstat.isDirectory();
 			isSymbolicLink = lstat.isSymbolicLink();
 		} catch (error) {
-			console.warn('[node.js fs] unexpected error from lstat after readdir: ', error);
+			if (error.code !== 'ENOENT') {
+				console.warn('[node.js fs] unexpected error from lstat after readdir: ', error);
+			}
 		}
 
 		result.push({
