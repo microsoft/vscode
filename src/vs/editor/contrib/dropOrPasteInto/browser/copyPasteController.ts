@@ -24,7 +24,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
-import { ClipboardEventUtils, IClipboardCopyEvent, IClipboardPasteEvent, InMemoryClipboardMetadataManager } from '../../../browser/controller/editContext/clipboardUtils.js';
+import { ClipboardEventUtils, IClipboardCopyEvent, IClipboardPasteEvent, InMemoryClipboardMetadataManager, IWritableClipboardData } from '../../../browser/controller/editContext/clipboardUtils.js';
 import { toExternalVSDataTransfer } from '../../../browser/dataTransfer.js';
 import { ICodeEditor, PastePayload } from '../../../browser/editorBrowser.js';
 import { IBulkEditService } from '../../../browser/services/bulkEditService.js';
@@ -170,7 +170,6 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 	}
 
 	private handleCopy(e: IClipboardCopyEvent) {
-		const clipboardData = e.browserEvent?.clipboardData;
 		this._logService.trace('CopyPasteController#handleCopy');
 		if (!this._editor.hasTextFocus()) {
 			return;
@@ -181,7 +180,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		// This means the resources clipboard is not properly updated when copying from the editor.
 		this._clipboardService.clearInternalState?.();
 
-		if (!clipboardData || !this.isPasteAsEnabled()) {
+		if (!this.isPasteAsEnabled()) {
 			return;
 		}
 
@@ -216,7 +215,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			.ordered(model)
 			.filter(x => !!x.prepareDocumentPaste);
 		if (!providers.length) {
-			this.setCopyMetadata(clipboardData, { defaultPastePayload });
+			this.setCopyMetadata(e.clipboardData, { defaultPastePayload });
 			return;
 		}
 
@@ -225,7 +224,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 		// Save off a handle pointing to data that VS Code maintains.
 		const handle = generateUuid();
-		this.setCopyMetadata(clipboardData, {
+		this.setCopyMetadata(e.clipboardData, {
 			id: handle,
 			providerCopyMimeTypes,
 			defaultPastePayload
@@ -547,9 +546,9 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		}, () => p);
 	}
 
-	private setCopyMetadata(dataTransfer: DataTransfer, metadata: CopyMetadata) {
+	private setCopyMetadata(clipboardData: IWritableClipboardData, metadata: CopyMetadata) {
 		this._logService.trace('CopyPasteController#setCopyMetadata new id : ', metadata.id);
-		dataTransfer.setData(vscodeClipboardMime, JSON.stringify(metadata));
+		clipboardData.setData(vscodeClipboardMime, JSON.stringify(metadata));
 	}
 
 	private fetchCopyMetadata(clipboardData: DataTransfer): CopyMetadata | undefined {

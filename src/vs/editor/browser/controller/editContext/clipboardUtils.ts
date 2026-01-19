@@ -231,12 +231,6 @@ export interface IClipboardCopyEvent {
 	readonly clipboardData: IWritableClipboardData;
 
 	/**
-	 * The underlying DOM event, if available.
-	 * @deprecated Use clipboardData instead. This is provided for backward compatibility.
-	 */
-	readonly browserEvent: ClipboardEvent | undefined;
-
-	/**
 	 * Signal that the event has been handled and default processing should be skipped.
 	 */
 	setHandled(): void;
@@ -318,7 +312,6 @@ export function createClipboardCopyEvent(e: ClipboardEvent, isCut: boolean): ICl
 			getData: () => '',
 			setData: () => { },
 		},
-		browserEvent: e,
 		setHandled: () => {
 			handled = true;
 			e.preventDefault();
