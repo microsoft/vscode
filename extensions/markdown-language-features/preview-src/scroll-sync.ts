@@ -56,9 +56,6 @@ const getCodeLineElements = (() => {
 					continue;
 				}
 
-
-
-
 				if (element.tagName === 'CODE' && element.parentElement && element.parentElement.tagName === 'PRE') {
 					// Fenced code blocks are a special case since the `code-line` can only be marked on
 					// the `<code>` element and not the parent `<pre>` element.
@@ -253,7 +250,6 @@ export function scrollToRevealSourceLine(line: number, documentVersion: number, 
 		scrollTo = window.scrollY + previousTop + (rect.height * progressInElement);
 	}
 
-
 	window.scroll(window.scrollX, Math.max(1, scrollTo));
 }
 
@@ -324,4 +320,3 @@ function* getParentsWithTagName<T extends HTMLElement>(element: HTMLElement, tag
 		}
 	}
 }
-
