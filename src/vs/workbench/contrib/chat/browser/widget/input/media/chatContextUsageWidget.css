@@ -146,3 +146,18 @@
 .chat-context-usage-action-link:hover {
 	text-decoration: underline;
 }
+
+.chat-context-usage-hover-separator {
+	height: 1px;
+	background-color: var(--vscode-menu-separatorBackground); /* Use menu separator color */
+	margin: 4px 0;
+	width: 100%;
+	opacity: 0.5;
+}
+
+.chat-context-usage-hover-title {
+	font-weight: 600;
+	margin-top: 4px;
+	margin-bottom: 4px;
+	color: var(--vscode-descriptionForeground);
+}

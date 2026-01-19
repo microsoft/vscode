@@ -29,12 +29,13 @@ export class ChatContextUsageWidget extends Disposable {
 
 	// Stats
 	private _totalTokenCount = 0;
+	private _systemTokenCount = 0;
 	private _promptsTokenCount = 0;
 	private _filesTokenCount = 0;
 	private _imagesTokenCount = 0;
 	private _selectionTokenCount = 0;
 	private _toolsTokenCount = 0;
-	private _otherTokenCount = 0;
+	private _workspaceTokenCount = 0;
 
 	private _maxTokenCount = 4096; // Default fallback
 	private _usagePercent = 0;
@@ -173,7 +174,7 @@ export class ChatContextUsageWidget extends Disposable {
 			let i = 0;
 			let s = 0;
 			let t = 0;
-			let o = 0;
+			let w = 0;
 
 			// Prompts: User message
 			const messageText = typeof request.message === 'string' ? request.message : request.message.text;
@@ -191,7 +192,7 @@ export class ChatContextUsageWidget extends Disposable {
 					} else if (variable.kind === 'implicit' && variable.isSelection) {
 						s += defaultEstimate;
 					} else {
-						o += defaultEstimate;
+						w += defaultEstimate;
 					}
 				}
 			}
@@ -208,15 +209,23 @@ export class ChatContextUsageWidget extends Disposable {
 				}
 			}
 
-			return { p, f, i, s, t, o };
+			return { p, f, i, s, t, w };
 		}));
+
+
+		const lastRequest = requests[requests.length - 1];
+		if (lastRequest.modeInfo?.modeInstructions) {
+			this._systemTokenCount = await countTokens(lastRequest.modeInfo.modeInstructions.content);
+		} else {
+			this._systemTokenCount = 0;
+		}
 
 		this._promptsTokenCount = 0;
 		this._filesTokenCount = 0;
 		this._imagesTokenCount = 0;
 		this._selectionTokenCount = 0;
 		this._toolsTokenCount = 0;
-		this._otherTokenCount = 0;
+		this._workspaceTokenCount = 0;
 
 		for (const count of requestCounts) {
 			this._promptsTokenCount += count.p;
@@ -224,10 +233,10 @@ export class ChatContextUsageWidget extends Disposable {
 			this._imagesTokenCount += count.i;
 			this._selectionTokenCount += count.s;
 			this._toolsTokenCount += count.t;
-			this._otherTokenCount += count.o;
+			this._workspaceTokenCount += count.w;
 		}
 
-		this._totalTokenCount = Math.round(this._promptsTokenCount + this._filesTokenCount + this._imagesTokenCount + this._selectionTokenCount + this._toolsTokenCount + this._otherTokenCount);
+		this._totalTokenCount = Math.round(this._systemTokenCount + this._promptsTokenCount + this._filesTokenCount + this._imagesTokenCount + this._selectionTokenCount + this._toolsTokenCount + this._workspaceTokenCount);
 		this._usagePercent = Math.min(100, (this._totalTokenCount / this._maxTokenCount) * 100);
 
 		this._updateRing();
@@ -276,12 +285,13 @@ export class ChatContextUsageWidget extends Disposable {
 			}
 		};
 
-		updateItem('prompts', this._promptsTokenCount);
-		updateItem('files', this._filesTokenCount);
+		updateItem('system', this._systemTokenCount);
+		updateItem('messages', this._promptsTokenCount);
+		updateItem('attachedFiles', this._filesTokenCount);
 		updateItem('images', this._imagesTokenCount);
 		updateItem('selection', this._selectionTokenCount);
-		updateItem('tools', this._toolsTokenCount);
-		updateItem('other', this._otherTokenCount);
+		updateItem('systemTools', this._toolsTokenCount);
+		updateItem('workspace', this._workspaceTokenCount);
 	}
 
 	private _getHoverDomNode(): HTMLElement {
@@ -329,12 +339,33 @@ export class ChatContextUsageWidget extends Disposable {
 			this._hoverItemValues.set(key, valueSpan);
 		};
 
-		addItem('prompts', localize('prompts', "Prompts"), Math.round(this._promptsTokenCount));
-		addItem('files', localize('files', "Files"), Math.round(this._filesTokenCount));
+		const addTitle = (label: string) => {
+			dom.append(list, $('.chat-context-usage-hover-title', undefined, label));
+		};
+
+		const addSeparator = () => {
+			dom.append(list, $('.chat-context-usage-hover-separator'));
+		};
+
+		// Group 1: System
+		addTitle(localize('systemGroup', "System"));
+		addItem('system', localize('system', "System prompt"), Math.round(this._systemTokenCount));
+		addItem('systemTools', localize('systemTools', "System tools"), Math.round(this._toolsTokenCount));
+
+		addSeparator();
+
+		// Group 2: Messages
+		addTitle(localize('messagesGroup', "Conversation"));
+		addItem('messages', localize('messages', "Messages"), Math.round(this._promptsTokenCount));
+
+		addSeparator();
+
+		// Group 3: Data / Context
+		addTitle(localize('dataGroup', "Context"));
+		addItem('attachedFiles', localize('attachedFiles', "Attached files"), Math.round(this._filesTokenCount));
 		addItem('images', localize('images', "Images"), Math.round(this._imagesTokenCount));
 		addItem('selection', localize('selection', "Selection"), Math.round(this._selectionTokenCount));
-		addItem('tools', localize('tools', "Tools"), Math.round(this._toolsTokenCount));
-		addItem('other', localize('other', "Other"), Math.round(this._otherTokenCount));
+		addItem('workspace', localize('workspace', "Workspace"), Math.round(this._workspaceTokenCount));
 
 		if (this._usagePercent > 75) {
 			const warning = dom.append(container, $('.chat-context-usage-warning'));
