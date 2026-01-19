@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, clearNode, hide } from '../../../../../../base/browser/dom.js';
+import { $, addDisposableListener, clearNode, hide } from '../../../../../../base/browser/dom.js';
 import { alert } from '../../../../../../base/browser/ui/aria/aria.js';
 import { IChatMarkdownContent, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import { IChatContentPartRenderContext, IChatContentPart } from './chatContentParts.js';
@@ -117,6 +117,8 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private singleItemInfo: { element: HTMLElement; originalParent: HTMLElement; originalNextSibling: Node | null } | undefined;
 	private lazyItems: ILazyItem[] = [];
 	private hasExpandedOnce: boolean = false;
+	private isMouseOver: boolean = false;
+	private collapseRequestedWhileHovering: boolean = false;
 
 	constructor(
 		content: IChatThinkingPart,
@@ -162,6 +164,18 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		const node = this.domNode;
 		node.classList.add('chat-thinking-box');
 		node.tabIndex = 0;
+
+		// Track mouse hover state to prevent auto-collapse when user is reading
+		this._register(addDisposableListener(node, 'mouseenter', () => {
+			this.isMouseOver = true;
+		}));
+		this._register(addDisposableListener(node, 'mouseleave', () => {
+			this.isMouseOver = false;
+			if (this.collapseRequestedWhileHovering) {
+				this.collapseRequestedWhileHovering = false;
+				this.setExpanded(false);
+			}
+		}));
 
 		if (this.fixedScrollingMode) {
 			node.classList.add('chat-thinking-fixed-mode');
@@ -320,6 +334,11 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	public collapseContent(): void {
+		// Defer collapse if user is reading (mouse is over the widget)
+		if (this.isMouseOver) {
+			this.collapseRequestedWhileHovering = true;
+			return;
+		}
 		this.setExpanded(false);
 	}
 
