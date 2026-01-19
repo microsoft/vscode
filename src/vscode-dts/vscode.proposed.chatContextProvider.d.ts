@@ -40,6 +40,10 @@ declare module 'vscode' {
 		 */
 		modelDescription?: string;
 		/**
+		 * An optional tooltip to show when hovering over the context item in the UI.
+		 */
+		tooltip?: MarkdownString;
+		/**
 		 * The value of the context item. Can be omitted when returned from one of the `provide` methods if the provider supports `resolveChatContext`.
 		 */
 		value?: string;

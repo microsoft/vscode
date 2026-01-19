@@ -349,7 +349,7 @@ export class BrowserMain extends Disposable {
 		this._register(RemoteFileSystemProviderClient.register(remoteAgentService, fileService, logService));
 
 		// Default Account
-		const defaultAccountService = this._register(new DefaultAccountService());
+		const defaultAccountService = this._register(new DefaultAccountService(productService));
 		serviceCollection.set(IDefaultAccountService, defaultAccountService);
 
 		// Policies

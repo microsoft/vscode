@@ -1279,8 +1279,8 @@ export function isSuggestionInViewport(editor: ICodeEditor, suggestion: InlineSu
 }
 
 function skuFromAccount(account: IDefaultAccount | null): InlineSuggestSku | undefined {
-	if (account?.access_type_sku && account?.copilot_plan) {
-		return { type: account.access_type_sku, plan: account.copilot_plan };
+	if (account?.entitlementsData?.access_type_sku && account?.entitlementsData?.copilot_plan) {
+		return { type: account.entitlementsData.access_type_sku, plan: account.entitlementsData.copilot_plan };
 	}
 	return undefined;
 }
