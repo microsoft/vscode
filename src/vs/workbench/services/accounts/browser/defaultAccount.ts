@@ -13,7 +13,8 @@ import { IExtensionService } from '../../extensions/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
-import { Barrier, ThrottledDelayer, timeout } from '../../../../base/common/async.js';
+import { Barrier, RunOnceScheduler, ThrottledDelayer, timeout } from '../../../../base/common/async.js';
+import { IHostService } from '../../host/browser/host.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
 import { IDefaultAccount, IDefaultAccountAuthenticationProvider, IEntitlementsData, IPolicyData } from '../../../../base/common/defaultAccount.js';
@@ -58,8 +59,8 @@ const enum DefaultAccountStatus {
 }
 
 const CONTEXT_DEFAULT_ACCOUNT_STATE = new RawContextKey<string>('defaultAccountStatus', DefaultAccountStatus.Uninitialized);
-
 const CACHED_POLICY_DATA_KEY = 'defaultAccount.cachedPolicyData';
+const ACCOUNT_DATA_POLL_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
 
 interface ITokenEntitlementsResponse {
 	token: string;
@@ -201,6 +202,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 	private initialized = false;
 	private readonly initPromise: Promise<void>;
 	private readonly updateThrottler = this._register(new ThrottledDelayer(100));
+	private readonly accountDataPollScheduler = this._register(new RunOnceScheduler(() => this.updateDefaultAccount(), ACCOUNT_DATA_POLL_INTERVAL_MS));
 
 	constructor(
 		private readonly defaultAccountConfig: IDefaultAccountConfig,
@@ -214,6 +216,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IHostService private readonly hostService: IHostService,
 	) {
 		super();
 		this.accountStatusContext = CONTEXT_DEFAULT_ACCOUNT_STATE.bindTo(contextKeyService);
@@ -284,6 +287,15 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 			this.logService.debug('[DefaultAccount] Default account provider unregistered, updating default account');
 			this.updateDefaultAccount();
 		}));
+
+		this._register(this.hostService.onDidChangeFocus(focused => {
+			if (focused && this._defaultAccount) {
+				// Update default account when window gets focused
+				this.accountDataPollScheduler.cancel();
+				this.logService.debug('[DefaultAccount] Window focused, updating default account');
+				this.updateDefaultAccount();
+			}
+		}));
 	}
 
 	async refresh(): Promise<IDefaultAccount | null> {
@@ -305,6 +317,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		try {
 			const defaultAccount = await this.fetchDefaultAccount();
 			this.setDefaultAccount(defaultAccount);
+			this.scheduleAccountDataPoll();
 		} catch (error) {
 			this.logService.error('[DefaultAccount] Error while updating default account', getErrorMessage(error));
 		}
@@ -320,7 +333,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 			return null;
 		}
 
-		return await this.getDefaultAccountFromAuthenticatedSessions(defaultAccountProvider, this.defaultAccountConfig.authenticationProvider.scopes);
+		return await this.getDefaultAccountForAuthenticationProvider(defaultAccountProvider);
 	}
 
 	private setDefaultAccount(account: IDefaultAccount | null): void {
@@ -335,9 +348,17 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 			this.accountStatusContext.set(DefaultAccountStatus.Available);
 			this.logService.debug('[DefaultAccount] Account status set to Available');
 		} else {
+			this.accountDataPollScheduler.cancel();
 			this.accountStatusContext.set(DefaultAccountStatus.Unavailable);
 			this.logService.debug('[DefaultAccount] Account status set to Unavailable');
 		}
+	}
+
+	private scheduleAccountDataPoll(): void {
+		if (!this._defaultAccount) {
+			return;
+		}
+		this.accountDataPollScheduler.schedule(ACCOUNT_DATA_POLL_INTERVAL_MS);
 	}
 
 	private extractFromToken(token: string): Map<string, string> {
@@ -352,16 +373,25 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		return result;
 	}
 
-	private async getDefaultAccountFromAuthenticatedSessions(authenticationProvider: IDefaultAccountAuthenticationProvider, scopes: string[][]): Promise<IDefaultAccount | null> {
+	private async getDefaultAccountForAuthenticationProvider(authenticationProvider: IDefaultAccountAuthenticationProvider): Promise<IDefaultAccount | null> {
 		try {
 			this.logService.debug('[DefaultAccount] Getting Default Account from authenticated sessions for provider:', authenticationProvider.id);
-			const sessions = await this.findMatchingProviderSession(authenticationProvider.id, scopes);
+			const sessions = await this.findMatchingProviderSession(authenticationProvider.id, this.defaultAccountConfig.authenticationProvider.scopes);
 
 			if (!sessions?.length) {
 				this.logService.debug('[DefaultAccount] No matching session found for provider:', authenticationProvider.id);
 				return null;
 			}
 
+			return this.getDefaultAccountFromAuthenticatedSessions(authenticationProvider, sessions);
+		} catch (error) {
+			this.logService.error('[DefaultAccount] Failed to get default account for provider:', authenticationProvider.id, getErrorMessage(error));
+			return null;
+		}
+	}
+
+	private async getDefaultAccountFromAuthenticatedSessions(authenticationProvider: IDefaultAccountAuthenticationProvider, sessions: AuthenticationSession[]): Promise<IDefaultAccount | null> {
+		try {
 			const accountId = sessions[0].account.id;
 			const [entitlementsData, tokenEntitlementsData] = await Promise.all([
 				this.getEntitlements(sessions),

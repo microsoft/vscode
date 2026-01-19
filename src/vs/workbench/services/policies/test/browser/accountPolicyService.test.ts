@@ -7,7 +7,7 @@ import assert from 'assert';
 import { Event } from '../../../../../base/common/event.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IDefaultAccountProvider, IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { DefaultAccountService } from '../../../accounts/common/defaultAccount.js';
+import { DefaultAccountService } from '../../../accounts/browser/defaultAccount.js';
 import { AccountPolicyService } from '../../common/accountPolicyService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
