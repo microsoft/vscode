@@ -266,7 +266,7 @@ function logCopyCommand(editor: ICodeEditor) {
 	if (editContextEnabled) {
 		const nativeEditContext = NativeEditContextRegistry.get(editor.getId());
 		if (nativeEditContext) {
-			nativeEditContext.onWillCopy();
+			nativeEditContext.handleWillCopy();
 		}
 	}
 }
@@ -290,7 +290,7 @@ if (PasteAction) {
 			if (editContextEnabled) {
 				const nativeEditContext = NativeEditContextRegistry.get(focusedEditor.getId());
 				if (nativeEditContext) {
-					nativeEditContext.onWillPaste();
+					nativeEditContext.handleWillPaste();
 				}
 			}
 

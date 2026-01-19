@@ -16,7 +16,7 @@ import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent, ViewDecorat
 import { ViewContext } from '../../../../common/viewModel/viewContext.js';
 import { RestrictedRenderingContext, RenderingContext, HorizontalPosition } from '../../../view/renderingContext.js';
 import { ViewController } from '../../../view/viewController.js';
-import { ClipboardEventUtils, ensureClipboardGetsEditorSelection, InMemoryClipboardMetadataManager } from '../clipboardUtils.js';
+import { ClipboardEventUtils, createClipboardCopyEvent, createClipboardPasteEvent, ensureClipboardGetsEditorSelection, InMemoryClipboardMetadataManager } from '../clipboardUtils.js';
 import { AbstractEditContext } from '../editContext.js';
 import { editContextAddDisposableListener, FocusTracker, ITypeData } from './nativeEditContextUtils.js';
 import { ScreenReaderSupport } from './screenReaderSupport.js';
@@ -114,10 +114,20 @@ export class NativeEditContext extends AbstractEditContext {
 
 		this._register(addDisposableListener(this.domNode.domNode, 'copy', (e) => {
 			this.logService.trace('NativeEditContext#copy');
+			const copyEvent = createClipboardCopyEvent(e, /* isCut */ false);
+			this._onWillCopy.fire(copyEvent);
+			if (copyEvent.isHandled) {
+				return;
+			}
 			ensureClipboardGetsEditorSelection(e, this._context, this.logService, isFirefox);
 		}));
 		this._register(addDisposableListener(this.domNode.domNode, 'cut', (e) => {
 			this.logService.trace('NativeEditContext#cut');
+			const cutEvent = createClipboardCopyEvent(e, /* isCut */ true);
+			this._onWillCut.fire(cutEvent);
+			if (cutEvent.isHandled) {
+				return;
+			}
 			// Pretend here we touched the text area, as the `cut` event will most likely
 			// result in a `selectionchange` event which we want to ignore
 			this._screenReaderSupport.onWillCut();
@@ -141,6 +151,12 @@ export class NativeEditContext extends AbstractEditContext {
 		}));
 		this._register(addDisposableListener(this.domNode.domNode, 'paste', (e) => {
 			this.logService.trace('NativeEditContext#paste');
+			const pasteEvent = createClipboardPasteEvent(e);
+			this._onWillPaste.fire(pasteEvent);
+			if (pasteEvent.isHandled) {
+				e.preventDefault();
+				return;
+			}
 			e.preventDefault();
 			if (!e.clipboardData) {
 				return;
@@ -313,17 +329,17 @@ export class NativeEditContext extends AbstractEditContext {
 		return true;
 	}
 
-	public onWillPaste(): void {
-		this.logService.trace('NativeEditContext#onWillPaste');
-		this._onWillPaste();
+	public handleWillPaste(): void {
+		this.logService.trace('NativeEditContext#handleWillPaste');
+		this._prepareScreenReaderForPaste();
 	}
 
-	private _onWillPaste(): void {
+	private _prepareScreenReaderForPaste(): void {
 		this._screenReaderSupport.onWillPaste();
 	}
 
-	public onWillCopy(): void {
-		this.logService.trace('NativeEditContext#onWillCopy');
+	public handleWillCopy(): void {
+		this.logService.trace('NativeEditContext#handleWillCopy');
 		this.logService.trace('NativeEditContext#isFocused : ', this.domNode.domNode === getActiveElement());
 	}
 

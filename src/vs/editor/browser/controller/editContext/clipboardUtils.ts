@@ -169,3 +169,185 @@ export const ClipboardEventUtils = {
 		clipboardData.setData('vscode-editor-data', JSON.stringify(metadata));
 	}
 };
+
+/**
+ * Abstracted clipboard data that does not directly expose DOM ClipboardEvent/DataTransfer.
+ * This allows editor contributions to work with clipboard data without DOM dependencies.
+ */
+export interface IClipboardData {
+	/**
+	 * The text content from the clipboard.
+	 */
+	readonly text: string;
+
+	/**
+	 * The HTML content from the clipboard, if available.
+	 */
+	readonly html: string | undefined;
+
+	/**
+	 * VS Code editor metadata associated with this clipboard data.
+	 */
+	readonly metadata: ClipboardStoredMetadata | null;
+
+	/**
+	 * All MIME types present in the clipboard.
+	 */
+	readonly types: readonly string[];
+
+	/**
+	 * Files from the clipboard (for paste operations).
+	 */
+	readonly files: readonly File[];
+
+	/**
+	 * Get data for a specific MIME type.
+	 */
+	getData(type: string): string;
+}
+
+/**
+ * Writable clipboard data for copy/cut operations.
+ */
+export interface IWritableClipboardData extends IClipboardData {
+	/**
+	 * Set data for a specific MIME type.
+	 */
+	setData(type: string, value: string): void;
+}
+
+/**
+ * Event data for clipboard copy/cut events.
+ */
+export interface IClipboardCopyEvent {
+	/**
+	 * Whether this is a cut operation.
+	 */
+	readonly isCut: boolean;
+
+	/**
+	 * The clipboard data to write to.
+	 */
+	readonly clipboardData: IWritableClipboardData;
+
+	/**
+	 * The underlying DOM event, if available.
+	 * @deprecated Use clipboardData instead. This is provided for backward compatibility.
+	 */
+	readonly browserEvent: ClipboardEvent | undefined;
+
+	/**
+	 * Signal that the event has been handled and default processing should be skipped.
+	 */
+	setHandled(): void;
+
+	/**
+	 * Whether the event has been marked as handled.
+	 */
+	readonly isHandled: boolean;
+}
+
+/**
+ * Event data for clipboard paste events.
+ */
+export interface IClipboardPasteEvent {
+	/**
+	 * The clipboard data being pasted.
+	 */
+	readonly clipboardData: IClipboardData;
+
+	/**
+	 * The underlying DOM event, if available.
+	 * @deprecated Use clipboardData instead. This is provided for backward compatibility.
+	 */
+	readonly browserEvent: ClipboardEvent | undefined;
+
+	/**
+	 * Signal that the event has been handled and default processing should be skipped.
+	 */
+	setHandled(): void;
+
+	/**
+	 * Whether the event has been marked as handled.
+	 */
+	readonly isHandled: boolean;
+}
+
+/**
+ * Creates an IClipboardData from a DOM DataTransfer.
+ */
+export function createClipboardData(dataTransfer: DataTransfer): IClipboardData {
+	const [text, metadata] = ClipboardEventUtils.getTextData(dataTransfer);
+	const html = dataTransfer.getData('text/html') || undefined;
+	const files: File[] = Array.prototype.slice.call(dataTransfer.files, 0);
+
+	return {
+		text,
+		html,
+		metadata,
+		types: Array.from(dataTransfer.types),
+		files,
+		getData: (type: string) => dataTransfer.getData(type),
+	};
+}
+
+/**
+ * Creates an IWritableClipboardData from a DOM DataTransfer.
+ */
+export function createWritableClipboardData(dataTransfer: DataTransfer): IWritableClipboardData {
+	const base = createClipboardData(dataTransfer);
+	return {
+		...base,
+		setData: (type: string, value: string) => dataTransfer.setData(type, value),
+	};
+}
+
+/**
+ * Creates an IClipboardCopyEvent from a DOM ClipboardEvent.
+ */
+export function createClipboardCopyEvent(e: ClipboardEvent, isCut: boolean): IClipboardCopyEvent {
+	let handled = false;
+	return {
+		isCut,
+		clipboardData: e.clipboardData ? createWritableClipboardData(e.clipboardData) : {
+			text: '',
+			html: undefined,
+			metadata: null,
+			types: [],
+			files: [],
+			getData: () => '',
+			setData: () => { },
+		},
+		browserEvent: e,
+		setHandled: () => {
+			handled = true;
+			e.preventDefault();
+			e.stopImmediatePropagation();
+		},
+		get isHandled() { return handled; },
+	};
+}
+
+/**
+ * Creates an IClipboardPasteEvent from a DOM ClipboardEvent.
+ */
+export function createClipboardPasteEvent(e: ClipboardEvent): IClipboardPasteEvent {
+	let handled = false;
+	return {
+		clipboardData: e.clipboardData ? createClipboardData(e.clipboardData) : {
+			text: '',
+			html: undefined,
+			metadata: null,
+			types: [],
+			files: [],
+			getData: () => '',
+		},
+		browserEvent: e,
+		setHandled: () => {
+			handled = true;
+			e.preventDefault();
+			e.stopImmediatePropagation();
+		},
+		get isHandled() { return handled; },
+	};
+}
