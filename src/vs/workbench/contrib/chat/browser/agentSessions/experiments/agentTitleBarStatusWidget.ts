@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/agentstatuswidget.css';
+import './media/agenttitlebarstatuswidget.css';
 import { $, addDisposableListener, EventType, reset } from '../../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
@@ -11,7 +11,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { localize } from '../../../../../../nls.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { AgentStatusMode, IAgentStatusService } from './agentStatusService.js';
+import { AgentStatusMode, IAgentTitleBarStatusService } from './agentTitleBarStatusService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ExitAgentSessionProjectionAction } from './agentSessionProjectionActions.js';
@@ -58,7 +58,7 @@ const TITLE_DIRTY = '\u25cf ';
  *
  * The command center search box and navigation controls remain visible alongside this control.
  */
-export class AgentStatusWidget extends BaseActionViewItem {
+export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 
 	private static readonly _quickOpenCommandId = 'workbench.action.quickOpenWithModes';
 
@@ -78,7 +78,7 @@ export class AgentStatusWidget extends BaseActionViewItem {
 		action: IAction,
 		options: IBaseActionViewItemOptions | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IAgentStatusService private readonly agentStatusService: IAgentStatusService,
+		@IAgentTitleBarStatusService private readonly agentTitleBarStatusService: IAgentTitleBarStatusService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
@@ -98,11 +98,11 @@ export class AgentStatusWidget extends BaseActionViewItem {
 		this._commandCenterMenu = this._register(this.menuService.createMenu(MenuId.CommandCenterCenter, this.contextKeyService));
 
 		// Re-render when control mode or session info changes
-		this._register(this.agentStatusService.onDidChangeMode(() => {
+		this._register(this.agentTitleBarStatusService.onDidChangeMode(() => {
 			this._render();
 		}));
 
-		this._register(this.agentStatusService.onDidChangeSessionInfo(() => {
+		this._register(this.agentTitleBarStatusService.onDidChangeSessionInfo(() => {
 			this._render();
 		}));
 
@@ -145,8 +145,8 @@ export class AgentStatusWidget extends BaseActionViewItem {
 		}
 
 		// Compute current render state to avoid unnecessary DOM rebuilds
-		const mode = this.agentStatusService.mode;
-		const sessionInfo = this.agentStatusService.sessionInfo;
+		const mode = this.agentTitleBarStatusService.mode;
+		const sessionInfo = this.agentTitleBarStatusService.sessionInfo;
 		const { activeSessions, unreadSessions, attentionNeededSessions } = this._getSessionStats();
 
 		// Get attention session info for state computation
@@ -189,7 +189,7 @@ export class AgentStatusWidget extends BaseActionViewItem {
 		// Clear previous disposables for dynamic content
 		this._dynamicDisposables.clear();
 
-		if (this.agentStatusService.mode === AgentStatusMode.Session) {
+		if (this.agentTitleBarStatusService.mode === AgentStatusMode.Session) {
 			// Agent Session Projection mode - show session title + close button
 			this._renderSessionMode(this._dynamicDisposables);
 		} else {
@@ -357,7 +357,7 @@ export class AgentStatusWidget extends BaseActionViewItem {
 
 		// Session title (center)
 		const titleLabel = $('span.agent-status-title');
-		const sessionInfo = this.agentStatusService.sessionInfo;
+		const sessionInfo = this.agentTitleBarStatusService.sessionInfo;
 		titleLabel.textContent = sessionInfo?.title ?? localize('agentSessionProjection', "Agent Session Projection");
 		pill.appendChild(titleLabel);
 
@@ -367,7 +367,7 @@ export class AgentStatusWidget extends BaseActionViewItem {
 		// Setup pill hover
 		const hoverDelegate = getDefaultHoverDelegate('mouse');
 		disposables.add(this.hoverService.setupManagedHover(hoverDelegate, pill, () => {
-			const sessionInfo = this.agentStatusService.sessionInfo;
+			const sessionInfo = this.agentTitleBarStatusService.sessionInfo;
 			return sessionInfo ? localize('agentSessionProjectionTooltip', "Agent Session Projection: {0}", sessionInfo.title) : localize('agentSessionProjection', "Agent Session Projection");
 		}));
 
@@ -394,7 +394,7 @@ export class AgentStatusWidget extends BaseActionViewItem {
 		for (const [, actions] of this._commandCenterMenu.getActions({ shouldForwardArgs: true })) {
 			for (const action of actions) {
 				// Filter out the quick open action - we provide our own search UI
-				if (action.id === AgentStatusWidget._quickOpenCommandId) {
+				if (action.id === AgentTitleBarStatusWidget._quickOpenCommandId) {
 					continue;
 				}
 				// For submenus (like debug toolbar), add the submenu actions
@@ -836,7 +836,7 @@ export class AgentStatusWidget extends BaseActionViewItem {
  * for the AgentsControlMenu submenu.
  * Also adds a CSS class to the workbench when agent status is enabled.
  */
-export class AgentStatusRendering extends Disposable implements IWorkbenchContribution {
+export class AgentTitleBarStatusRendering extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.agentStatus.rendering';
 
@@ -851,7 +851,7 @@ export class AgentStatusRendering extends Disposable implements IWorkbenchContri
 			if (!(action instanceof SubmenuItemAction)) {
 				return undefined;
 			}
-			return instantiationService.createInstance(AgentStatusWidget, action, options);
+			return instantiationService.createInstance(AgentTitleBarStatusWidget, action, options);
 		}, undefined));
 
 		// Add/remove CSS class on workbench based on setting

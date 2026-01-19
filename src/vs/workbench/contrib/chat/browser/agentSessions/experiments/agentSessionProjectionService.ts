@@ -21,7 +21,7 @@ import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
 import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
 import { IChatEditingService, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
-import { IAgentStatusService } from './agentStatusService.js';
+import { IAgentTitleBarStatusService } from './agentTitleBarStatusService.js';
 import { ISessionOpenerParticipant, ISessionOpenOptions, sessionOpenerRegistry } from '../agentSessionsOpener.js';
 import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensions.js';
 import { inAgentSessionProjection } from './agentSessionProjection.js';
@@ -114,7 +114,7 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
-		@IAgentStatusService private readonly agentStatusService: IAgentStatusService,
+		@IAgentTitleBarStatusService private readonly agentTitleBarStatusService: IAgentTitleBarStatusService,
 	) {
 		super();
 
@@ -281,7 +281,7 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 				this.layoutService.mainContainer.classList.add('agent-session-projection-active');
 
 				// Update the agent status to show session mode
-				this.agentStatusService.enterSessionMode(session.resource.toString(), session.label);
+				this.agentTitleBarStatusService.enterSessionMode(session.resource.toString(), session.label);
 
 				if (!wasActive) {
 					this._onDidChangeProjectionMode.fire(true);
@@ -337,7 +337,7 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 		this.layoutService.mainContainer.classList.remove('agent-session-projection-active');
 
 		// Update the agent status to exit session mode
-		this.agentStatusService.exitSessionMode();
+		this.agentTitleBarStatusService.exitSessionMode();
 
 		this._onDidChangeProjectionMode.fire(false);
 		this._onDidChangeActiveSession.fire(undefined);

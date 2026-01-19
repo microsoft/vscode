@@ -8,8 +8,8 @@ import { MenuId, MenuRegistry, registerAction2 } from '../../../../../../platfor
 import { IAgentSessionProjectionService, AgentSessionProjectionService } from './agentSessionProjectionService.js';
 import { EnterAgentSessionProjectionAction, ExitAgentSessionProjectionAction, ToggleAgentStatusAction, ToggleAgentSessionProjectionAction } from './agentSessionProjectionActions.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
-import { AgentStatusRendering } from './agentStatusWidget.js';
-import { AgentStatusService, IAgentStatusService } from './agentStatusService.js';
+import { AgentTitleBarStatusRendering } from './agentTitleBarStatusWidget.js';
+import { AgentTitleBarStatusService, IAgentTitleBarStatusService } from './agentTitleBarStatusService.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { localize } from '../../../../../../nls.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -23,9 +23,9 @@ registerAction2(ToggleAgentStatusAction);
 registerAction2(ToggleAgentSessionProjectionAction);
 
 registerSingleton(IAgentSessionProjectionService, AgentSessionProjectionService, InstantiationType.Delayed);
-registerSingleton(IAgentStatusService, AgentStatusService, InstantiationType.Delayed);
+registerSingleton(IAgentTitleBarStatusService, AgentTitleBarStatusService, InstantiationType.Delayed);
 
-registerWorkbenchContribution2(AgentStatusRendering.ID, AgentStatusRendering, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(AgentTitleBarStatusRendering.ID, AgentTitleBarStatusRendering, WorkbenchPhase.AfterRestored);
 
 // Register Agent Status as a menu item in the command center (alongside the search box, not replacing it)
 MenuRegistry.appendMenuItem(MenuId.CommandCenter, {

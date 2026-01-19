@@ -25,7 +25,7 @@ export interface IAgentStatusSessionInfo {
 
 //#region Agent Status Service Interface
 
-export interface IAgentStatusService {
+export interface IAgentTitleBarStatusService {
 	readonly _serviceBrand: undefined;
 
 	/**
@@ -66,13 +66,13 @@ export interface IAgentStatusService {
 	updateSessionTitle(title: string): void;
 }
 
-export const IAgentStatusService = createDecorator<IAgentStatusService>('agentStatusService');
+export const IAgentTitleBarStatusService = createDecorator<IAgentTitleBarStatusService>('agentTitleBarStatusService');
 
 //#endregion
 
 //#region Agent Status Service Implementation
 
-export class AgentStatusService extends Disposable implements IAgentStatusService {
+export class AgentTitleBarStatusService extends Disposable implements IAgentTitleBarStatusService {
 
 	declare readonly _serviceBrand: undefined;
 
