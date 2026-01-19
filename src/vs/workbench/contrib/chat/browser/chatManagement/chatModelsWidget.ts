@@ -1171,10 +1171,11 @@ export class ChatModelsWidget extends Disposable {
 			const configurableVendors = this.languageModelsService.getVendors().filter(vendor => vendor.managementCommand || vendor.configuration);
 
 			const entitlement = this.chatEntitlementService.entitlement;
-			const supportsAddingModels = entitlement !== ChatEntitlement.Unknown
-				&& entitlement !== ChatEntitlement.Available
-				&& entitlement !== ChatEntitlement.Business
-				&& entitlement !== ChatEntitlement.Enterprise;
+			const supportsAddingModels = this.chatEntitlementService.isInternal
+				|| (entitlement !== ChatEntitlement.Unknown
+					&& entitlement !== ChatEntitlement.Available
+					&& entitlement !== ChatEntitlement.Business
+					&& entitlement !== ChatEntitlement.Enterprise);
 			this.addButton.enabled = supportsAddingModels && configurableVendors.length > 0;
 
 			this.dropdownActions = configurableVendors.map(vendor => toAction({
