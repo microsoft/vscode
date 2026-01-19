@@ -77,6 +77,10 @@ export class PlaywrightDriver {
 		return this.context;
 	}
 
+	private get page(): playwright.Page {
+		return this._currentPage;
+	}
+
 	get currentPage(): playwright.Page {
 		return this._currentPage;
 	}
@@ -120,10 +124,10 @@ export class PlaywrightDriver {
 	 */
 	getWindowsInfo(): { index: number; url: string; isCurrent: boolean }[] {
 		const windows = this.getAllWindows();
-		return windows.map((page, index) => ({
+		return windows.map((p, index) => ({
 			index,
-			url: page.url(),
-			isCurrent: page === this._currentPage
+			url: p.url(),
+			isCurrent: p === this._currentPage
 		}));
 	}
 
@@ -133,7 +137,7 @@ export class PlaywrightDriver {
 	 * @returns Screenshot as a Buffer
 	 */
 	async screenshotBuffer(fullPage: boolean = false): Promise<Buffer> {
-		return await this._currentPage.screenshot({
+		return await this.page.screenshot({
 			type: 'png',
 			fullPage
 		});
@@ -143,14 +147,14 @@ export class PlaywrightDriver {
 	 * Get the accessibility snapshot of the current window.
 	 */
 	async getAccessibilitySnapshot(): Promise<playwright.Accessibility['snapshot'] extends () => Promise<infer T> ? T : never> {
-		return await this._currentPage.accessibility.snapshot();
+		return await this.page.accessibility.snapshot();
 	}
 
 	/**
 	 * Click on an element using CSS selector with options.
 	 */
 	async clickSelector(selector: string, options?: { button?: 'left' | 'right' | 'middle'; clickCount?: number }): Promise<void> {
-		await this._currentPage.click(selector, {
+		await this.page.click(selector, {
 			button: options?.button ?? 'left',
 			clickCount: options?.clickCount ?? 1
 		});
@@ -164,9 +168,9 @@ export class PlaywrightDriver {
 	 */
 	async typeText(selector: string, text: string, slowly: boolean = false): Promise<void> {
 		if (slowly) {
-			await this._currentPage.type(selector, text, { delay: 50 });
+			await this.page.type(selector, text, { delay: 50 });
 		} else {
-			await this._currentPage.fill(selector, text);
+			await this.page.fill(selector, text);
 		}
 	}
 
@@ -174,7 +178,7 @@ export class PlaywrightDriver {
 	 * Evaluate a JavaScript expression in the current window.
 	 */
 	async evaluateExpression<T = unknown>(expression: string): Promise<T> {
-		return await this._currentPage.evaluate(expression) as T;
+		return await this.page.evaluate(expression) as T;
 	}
 
 	/**
@@ -183,7 +187,7 @@ export class PlaywrightDriver {
 	async getLocatorInfo(selector: string, action?: 'count' | 'textContent' | 'innerHTML' | 'boundingBox' | 'isVisible'): Promise<
 		number | string[] | { x: number; y: number; width: number; height: number } | null | boolean | { count: number; firstVisible: boolean }
 	> {
-		const locator = this._currentPage.locator(selector);
+		const locator = this.page.locator(selector);
 
 		switch (action) {
 			case 'count':
@@ -208,7 +212,7 @@ export class PlaywrightDriver {
 	 * Wait for an element to reach a specific state.
 	 */
 	async waitForElement(selector: string, options?: { state?: 'attached' | 'detached' | 'visible' | 'hidden'; timeout?: number }): Promise<void> {
-		await this._currentPage.waitForSelector(selector, {
+		await this.page.waitForSelector(selector, {
 			state: options?.state ?? 'visible',
 			timeout: options?.timeout ?? 30000
 		});
@@ -263,7 +267,7 @@ export class PlaywrightDriver {
 			return;
 		}
 
-		this._cdpSession = await this._currentPage.context().newCDPSession(this._currentPage);
+		this._cdpSession = await this.page.context().newCDPSession(this.page);
 	}
 
 	async collectGarbage() {
@@ -337,14 +341,14 @@ export class PlaywrightDriver {
 			const nameSuffix = name ? `-${name.replace(/\s+/g, '-')}` : '';
 			const persistPath = join(this.options.logsPath, `playwright-screenshot-${PlaywrightDriver.screenShotCounter++}${nameSuffix}.png`);
 
-			await measureAndLog(() => this._currentPage.screenshot({ path: persistPath, type: 'png' }), 'takeScreenshot', this.options.logger);
+			await measureAndLog(() => this.page.screenshot({ path: persistPath, type: 'png' }), 'takeScreenshot', this.options.logger);
 		} catch (error) {
 			// Ignore
 		}
 	}
 
 	async reload() {
-		await this._currentPage.reload();
+		await this.page.reload();
 	}
 
 	async close() {
@@ -400,7 +404,7 @@ export class PlaywrightDriver {
 			}
 
 			if (keybinding.startsWith('Alt') || keybinding.startsWith('Control') || keybinding.startsWith('Backspace')) {
-				await this._currentPage.keyboard.press(keybinding);
+				await this.page.keyboard.press(keybinding);
 				return;
 			}
 
@@ -410,11 +414,11 @@ export class PlaywrightDriver {
 				if (keys[i] in PlaywrightDriver.vscodeToPlaywrightKey) {
 					keys[i] = PlaywrightDriver.vscodeToPlaywrightKey[keys[i]];
 				}
-				await this._currentPage.keyboard.down(keys[i]);
+				await this.page.keyboard.down(keys[i]);
 				keysDown.push(keys[i]);
 			}
 			while (keysDown.length > 0) {
-				await this._currentPage.keyboard.up(keysDown.pop()!);
+				await this.page.keyboard.up(keysDown.pop()!);
 			}
 		}
 
@@ -423,43 +427,43 @@ export class PlaywrightDriver {
 
 	async click(selector: string, xoffset?: number | undefined, yoffset?: number | undefined) {
 		const { x, y } = await this.getElementXY(selector, xoffset, yoffset);
-		await this._currentPage.mouse.click(x + (xoffset ? xoffset : 0), y + (yoffset ? yoffset : 0));
+		await this.page.mouse.click(x + (xoffset ? xoffset : 0), y + (yoffset ? yoffset : 0));
 	}
 
 	async setValue(selector: string, text: string) {
-		return this._currentPage.evaluate(([driver, selector, text]) => driver.setValue(selector, text), [await this.getDriverHandle(), selector, text] as const);
+		return this.page.evaluate(([driver, selector, text]) => driver.setValue(selector, text), [await this.getDriverHandle(), selector, text] as const);
 	}
 
 	async getTitle() {
-		return this._currentPage.title();
+		return this.page.title();
 	}
 
 	async isActiveElement(selector: string) {
-		return this._currentPage.evaluate(([driver, selector]) => driver.isActiveElement(selector), [await this.getDriverHandle(), selector] as const);
+		return this.page.evaluate(([driver, selector]) => driver.isActiveElement(selector), [await this.getDriverHandle(), selector] as const);
 	}
 
 	async getElements(selector: string, recursive: boolean = false) {
-		return this._currentPage.evaluate(([driver, selector, recursive]) => driver.getElements(selector, recursive), [await this.getDriverHandle(), selector, recursive] as const);
+		return this.page.evaluate(([driver, selector, recursive]) => driver.getElements(selector, recursive), [await this.getDriverHandle(), selector, recursive] as const);
 	}
 
 	async getElementXY(selector: string, xoffset?: number, yoffset?: number) {
-		return this._currentPage.evaluate(([driver, selector, xoffset, yoffset]) => driver.getElementXY(selector, xoffset, yoffset), [await this.getDriverHandle(), selector, xoffset, yoffset] as const);
+		return this.page.evaluate(([driver, selector, xoffset, yoffset]) => driver.getElementXY(selector, xoffset, yoffset), [await this.getDriverHandle(), selector, xoffset, yoffset] as const);
 	}
 
 	async typeInEditor(selector: string, text: string) {
-		return this._currentPage.evaluate(([driver, selector, text]) => driver.typeInEditor(selector, text), [await this.getDriverHandle(), selector, text] as const);
+		return this.page.evaluate(([driver, selector, text]) => driver.typeInEditor(selector, text), [await this.getDriverHandle(), selector, text] as const);
 	}
 
 	async getEditorSelection(selector: string) {
-		return this._currentPage.evaluate(([driver, selector]) => driver.getEditorSelection(selector), [await this.getDriverHandle(), selector] as const);
+		return this.page.evaluate(([driver, selector]) => driver.getEditorSelection(selector), [await this.getDriverHandle(), selector] as const);
 	}
 
 	async getTerminalBuffer(selector: string) {
-		return this._currentPage.evaluate(([driver, selector]) => driver.getTerminalBuffer(selector), [await this.getDriverHandle(), selector] as const);
+		return this.page.evaluate(([driver, selector]) => driver.getTerminalBuffer(selector), [await this.getDriverHandle(), selector] as const);
 	}
 
 	async writeInTerminal(selector: string, text: string) {
-		return this._currentPage.evaluate(([driver, selector, text]) => driver.writeInTerminal(selector, text), [await this.getDriverHandle(), selector, text] as const);
+		return this.page.evaluate(([driver, selector, text]) => driver.writeInTerminal(selector, text), [await this.getDriverHandle(), selector, text] as const);
 	}
 
 	async getLocaleInfo() {
@@ -471,11 +475,11 @@ export class PlaywrightDriver {
 	}
 
 	async getLogs() {
-		return this._currentPage.evaluate(([driver]) => driver.getLogs(), [await this.getDriverHandle()] as const);
+		return this.page.evaluate(([driver]) => driver.getLogs(), [await this.getDriverHandle()] as const);
 	}
 
 	private async evaluateWithDriver<T>(pageFunction: PageFunction<IWindowDriver[], T>) {
-		return this._currentPage.evaluate(pageFunction, [await this.getDriverHandle()]);
+		return this.page.evaluate(pageFunction, [await this.getDriverHandle()]);
 	}
 
 	wait(ms: number): Promise<void> {
@@ -487,7 +491,7 @@ export class PlaywrightDriver {
 	}
 
 	private async getDriverHandle(): Promise<playwright.JSHandle<IWindowDriver>> {
-		return this._currentPage.evaluateHandle('window.driver');
+		return this.page.evaluateHandle('window.driver');
 	}
 
 	async isAlive(): Promise<boolean> {
@@ -507,7 +511,7 @@ export class PlaywrightDriver {
 	 */
 	async runAccessibilityScan(options?: AccessibilityScanOptions): Promise<AxeResults> {
 		// Inject axe-core into the page if not already present
-		await this._currentPage.evaluate(axeSource);
+		await this.page.evaluate(axeSource);
 
 		// Build axe-core run options
 		const runOptions: RunOptions = {
@@ -540,7 +544,7 @@ export class PlaywrightDriver {
 
 		// Run axe-core analysis
 		const results = await measureAndLog(
-			() => this._currentPage.evaluate(
+			() => this.page.evaluate(
 				([ctx, opts]) => {
 					// @ts-expect-error axe is injected globally
 					return window.axe.run(ctx, opts);
