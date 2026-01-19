@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as browser from '../../../../base/browser/browser.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { CancelablePromise, createCancelablePromise, DeferredPromise, raceCancellation } from '../../../../base/common/async.js';
@@ -12,7 +13,6 @@ import { isCancellationError } from '../../../../base/common/errors.js';
 import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Mimes } from '../../../../base/common/mime.js';
-import * as platform from '../../../../base/common/platform.js';
 import { upcast } from '../../../../base/common/types.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -24,11 +24,10 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
-import { IClipboardCopyEvent, IClipboardPasteEvent, IWritableClipboardData } from '../../../browser/controller/editContext/clipboardUtils.js';
+import { generateDataToCopyAndStoreInMemory, IClipboardCopyEvent, IClipboardPasteEvent, IWritableClipboardData } from '../../../browser/controller/editContext/clipboardUtils.js';
 import { ICodeEditor, PastePayload } from '../../../browser/editorBrowser.js';
 import { IBulkEditService } from '../../../browser/services/bulkEditService.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
-import { IRange, Range } from '../../../common/core/range.js';
 import { Selection } from '../../../common/core/selection.js';
 import { Handler, IEditorContribution } from '../../../common/editorCommon.js';
 import { DocumentPasteContext, DocumentPasteEdit, DocumentPasteEditProvider, DocumentPasteTriggerKind } from '../../../common/languages.js';
@@ -184,29 +183,17 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		}
 
 		const model = this._editor.getModel();
+		const viewModel = this._editor._getViewModel();
 		const selections = this._editor.getSelections();
-		if (!model || !selections?.length) {
+		if (!model || !viewModel || !selections?.length) {
 			return;
 		}
 
-		const enableEmptySelectionClipboard = this._editor.getOption(EditorOption.emptySelectionClipboard);
-
-		let ranges: readonly IRange[] = selections;
-		const wasFromEmptySelection = selections.length === 1 && selections[0].isEmpty();
-		if (wasFromEmptySelection) {
-			if (!enableEmptySelectionClipboard) {
-				return;
-			}
-
-			ranges = [new Range(ranges[0].startLineNumber, 1, ranges[0].startLineNumber, 1 + model.getLineLength(ranges[0].startLineNumber))];
-		}
-
-		const toCopy = this._editor._getViewModel()?.getPlainTextToCopy(selections, enableEmptySelectionClipboard, platform.isWindows);
-		const multicursorText = Array.isArray(toCopy) ? toCopy : null;
+		const { dataToCopy } = generateDataToCopyAndStoreInMemory(viewModel, undefined, browser.isFirefox);
 
 		const defaultPastePayload = {
-			multicursorText,
-			pasteOnNewLine: wasFromEmptySelection,
+			multicursorText: dataToCopy.multicursorText ?? null,
+			pasteOnNewLine: dataToCopy.isFromEmptySelection,
 			mode: null
 		};
 
@@ -233,7 +220,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			return {
 				providerMimeTypes: provider.copyMimeTypes,
 				operation: createCancelablePromise(token =>
-					provider.prepareDocumentPaste!(model, ranges, dataTransfer, token)
+					provider.prepareDocumentPaste!(model, dataToCopy.sourceRanges, dataTransfer, token)
 						.catch(err => {
 							console.error(err);
 							return undefined;

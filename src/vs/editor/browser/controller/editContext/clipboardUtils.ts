@@ -8,20 +8,19 @@ import { isWindows } from '../../../../base/common/platform.js';
 import { Mimes } from '../../../../base/common/mime.js';
 import { ViewContext } from '../../../common/viewModel/viewContext.js';
 import { ILogService, LogLevel } from '../../../../platform/log/common/log.js';
-import { EditorOption, IComputedEditorOptions } from '../../../common/config/editorOptions.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { VSDataTransfer } from '../../../../base/common/dataTransfer.js';
 import { toExternalVSDataTransfer } from '../../dataTransfer.js';
 
 export function ensureClipboardGetsEditorSelection(e: ClipboardEvent, context: ViewContext, logService: ILogService, isFirefox: boolean): void {
 	const viewModel = context.viewModel;
-	const options = context.configuration.options;
 	let id: string | undefined = undefined;
 	if (logService.getLevel() === LogLevel.Trace) {
 		id = generateUuid();
 	}
 
-	const { dataToCopy, storedMetadata } = generateDataToCopyAndStoreInMemory(viewModel, options, id, isFirefox);
+	const { dataToCopy, storedMetadata } = generateDataToCopyAndStoreInMemory(viewModel, id, isFirefox);
 
 	// !!!!!
 	// This is a workaround for what we think is an Electron bug where
@@ -37,9 +36,9 @@ export function ensureClipboardGetsEditorSelection(e: ClipboardEvent, context: V
 	logService.trace('ensureClipboardGetsEditorSelection with id : ', id, ' with text.length: ', dataToCopy.text.length);
 }
 
-export function generateDataToCopyAndStoreInMemory(viewModel: IViewModel, options: IComputedEditorOptions, id: string | undefined, isFirefox: boolean) {
-	const emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
-	const copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
+export function generateDataToCopyAndStoreInMemory(viewModel: IViewModel, id: string | undefined, isFirefox: boolean) {
+	const emptySelectionClipboard = viewModel.getEditorOption(EditorOption.emptySelectionClipboard);
+	const copyWithSyntaxHighlighting = viewModel.getEditorOption(EditorOption.copyWithSyntaxHighlighting);
 	const selections = viewModel.getCursorStates().map(cursorState => cursorState.modelState.selection);
 	const dataToCopy = getDataToCopy(viewModel, selections, emptySelectionClipboard, copyWithSyntaxHighlighting);
 	const storedMetadata: ClipboardStoredMetadata = {
@@ -59,16 +58,16 @@ export function generateDataToCopyAndStoreInMemory(viewModel: IViewModel, option
 }
 
 function getDataToCopy(viewModel: IViewModel, modelSelections: Range[], emptySelectionClipboard: boolean, copyWithSyntaxHighlighting: boolean): ClipboardDataToCopy {
-	const rawTextToCopy = viewModel.getPlainTextToCopy(modelSelections, emptySelectionClipboard, isWindows);
+	const { sourceRanges, sourceText } = viewModel.getPlainTextToCopy(modelSelections, emptySelectionClipboard, isWindows);
 	const newLineCharacter = viewModel.model.getEOL();
 
 	const isFromEmptySelection = (emptySelectionClipboard && modelSelections.length === 1 && modelSelections[0].isEmpty());
-	const multicursorText = (Array.isArray(rawTextToCopy) ? rawTextToCopy : null);
-	const text = (Array.isArray(rawTextToCopy) ? rawTextToCopy.join(newLineCharacter) : rawTextToCopy);
+	const multicursorText = (Array.isArray(sourceText) ? sourceText : null);
+	const text = (Array.isArray(sourceText) ? sourceText.join(newLineCharacter) : sourceText);
 
 	let html: string | null | undefined = undefined;
 	let mode: string | null = null;
-	if (CopyOptions.forceCopyWithSyntaxHighlighting || (copyWithSyntaxHighlighting && text.length < 65536)) {
+	if (CopyOptions.forceCopyWithSyntaxHighlighting || (copyWithSyntaxHighlighting && sourceText.length < 65536)) {
 		const richText = viewModel.getRichTextToCopy(modelSelections, emptySelectionClipboard);
 		if (richText) {
 			html = richText.html;
@@ -77,6 +76,7 @@ function getDataToCopy(viewModel: IViewModel, modelSelections: Range[], emptySel
 	}
 	const dataToCopy: ClipboardDataToCopy = {
 		isFromEmptySelection,
+		sourceRanges,
 		multicursorText,
 		text,
 		html,
@@ -115,6 +115,7 @@ export class InMemoryClipboardMetadataManager {
 
 export interface ClipboardDataToCopy {
 	isFromEmptySelection: boolean;
+	sourceRanges: Range[];
 	multicursorText: string[] | null | undefined;
 	text: string;
 	html: string | null | undefined;
