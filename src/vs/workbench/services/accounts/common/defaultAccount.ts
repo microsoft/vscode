@@ -16,7 +16,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { Barrier, ThrottledDelayer, timeout } from '../../../../base/common/async.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
-import { IDefaultAccount, IDefaultAccountAuthenticationProvider, IEntitlementsData } from '../../../../base/common/defaultAccount.js';
+import { IDefaultAccount, IDefaultAccountAuthenticationProvider, IEntitlementsData, IPolicyData } from '../../../../base/common/defaultAccount.js';
 import { isString } from '../../../../base/common/types.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { isWeb } from '../../../../base/common/platform.js';
@@ -363,20 +363,20 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 				this.getTokenEntitlements(sessions),
 			]);
 
-			const mcpRegistryProvider = policyData.mcp ? await this.getMcpRegistryProvider(sessions) : undefined;
+			const mcpRegistryProvider = policyData?.mcp ? await this.getMcpRegistryProvider(sessions) : undefined;
 
 			const account: IDefaultAccount = {
 				authenticationProvider,
 				sessionId: sessions[0].id,
 				enterprise: authenticationProvider.enterprise || sessions[0].account.label.includes('_'),
 				entitlementsData,
-				policyData: {
+				policyData: policyData ? {
 					chat_agent_enabled: policyData.chat_agent_enabled,
 					chat_preview_features_enabled: policyData.chat_preview_features_enabled,
 					mcp: policyData.mcp,
 					mcpRegistryUrl: mcpRegistryProvider?.url,
 					mcpAccess: mcpRegistryProvider?.registry_access,
-				}
+				} : undefined,
 			};
 			this.logService.debug('[DefaultAccount] Successfully created default account for provider:', authenticationProvider.id);
 			return account;
@@ -434,22 +434,22 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		return expectedScopes.every(scope => scopes.includes(scope));
 	}
 
-	private async getTokenEntitlements(sessions: AuthenticationSession[]): Promise<{ mcp?: boolean; chat_preview_features_enabled?: boolean; chat_agent_enabled?: boolean }> {
+	private async getTokenEntitlements(sessions: AuthenticationSession[]): Promise<Partial<IPolicyData> | undefined> {
 		const tokenEntitlementsUrl = this.getTokenEntitlementUrl();
 		if (!tokenEntitlementsUrl) {
 			this.logService.debug('[DefaultAccount] No token entitlements URL found');
-			return {};
+			return undefined;
 		}
 
 		this.logService.debug('[DefaultAccount] Fetching token entitlements from:', tokenEntitlementsUrl);
 		const response = await this.request(tokenEntitlementsUrl, 'GET', undefined, sessions, CancellationToken.None);
 		if (!response) {
-			return {};
+			return undefined;
 		}
 
 		if (response.res.statusCode && response.res.statusCode !== 200) {
 			this.logService.trace(`[DefaultAccount] unexpected status code ${response.res.statusCode} while fetching token entitlements`);
-			return {};
+			return undefined;
 		}
 
 		try {
