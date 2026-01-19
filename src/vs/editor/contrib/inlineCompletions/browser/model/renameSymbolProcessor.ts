@@ -297,10 +297,15 @@ class RenameSymbolRunnable {
 	private readonly _promise: Promise<WorkspaceEdit & Rejection>;
 	private _result: WorkspaceEdit & Rejection | undefined = undefined;
 
-	constructor(languageFeaturesService: ILanguageFeaturesService, textModel: ITextModel, position: Position, newName: string, requestUuid: string) {
+	constructor(languageFeaturesService: ILanguageFeaturesService, requestUuid: string, textModel: ITextModel, position: Position, newName: string, lastSymbolRename: IRange | undefined, oldName: string | undefined) {
 		this._requestUuid = requestUuid;
 		this._cancellationTokenSource = new CancellationTokenSource();
-		this._promise = rawRename(languageFeaturesService.renameProvider, textModel, position, newName, this._cancellationTokenSource.token);
+		if (lastSymbolRename === undefined || oldName === undefined) {
+			this._promise = rawRename(languageFeaturesService.renameProvider, textModel, position, newName, this._cancellationTokenSource.token);
+			return;
+		} else {
+			this._promise = this.sendNesRenameRequest();
+		}
 	}
 
 	public get requestUuid(): string {
@@ -338,6 +343,10 @@ class RenameSymbolRunnable {
 			return undefined;
 		}
 		return this._result;
+	}
+
+	private sendNesRenameRequest(): Promise<WorkspaceEdit & Rejection> {
+
 	}
 }
 
