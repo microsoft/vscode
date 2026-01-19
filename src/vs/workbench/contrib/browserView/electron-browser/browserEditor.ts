@@ -380,16 +380,20 @@ export class BrowserEditor extends EditorPane {
 	private updateVisibility(): void {
 		const hasUrl = !!this._model?.url;
 		const hasError = !!this._model?.error;
+		const shouldShowPlaceholder = this._editorVisible && this._overlayVisible && !hasError && hasUrl;
 
 		// Welcome container: shown when no URL is loaded
-		this._welcomeContainer.style.display = hasUrl ? 'none' : 'flex';
+		this._welcomeContainer.style.display = hasUrl ? 'none' : '';
 
 		// Error container: shown when there's a load error
-		this._errorContainer.style.display = hasError ? 'flex' : 'none';
+		this._errorContainer.style.display = hasError ? '' : 'none';
+
+		// Placeholder screenshot: shown when the view is hidden due to overlays
+		this._placeholderScreenshot.style.display = shouldShowPlaceholder ? '' : 'none';
+		this._placeholderScreenshot.classList.toggle('blur', shouldShowPlaceholder);
 
 		if (this._model) {
 			// Blur the background placeholder screenshot if the view is hidden due to an overlay.
-			this._placeholderScreenshot.classList.toggle('blur', this._editorVisible && this._overlayVisible && !hasError);
 			void this._model.setVisible(this.shouldShowView);
 		}
 	}

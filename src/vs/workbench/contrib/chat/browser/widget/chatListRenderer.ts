@@ -25,6 +25,7 @@ import { Iterable } from '../../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, dispose, thenIfNotDisposed, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
+import { ScrollEvent } from '../../../../../base/common/scrollable.js';
 import { FileAccess, Schemas } from '../../../../../base/common/network.js';
 import { clamp } from '../../../../../base/common/numbers.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -151,7 +152,7 @@ export interface IChatRendererDelegate {
 	getListLength(): number;
 	currentChatMode(): ChatModeKind;
 
-	readonly onDidScroll?: Event<void>;
+	readonly onDidScroll?: Event<ScrollEvent>;
 }
 
 const mostRecentResponseClassName = 'chat-most-recent-response';
@@ -440,7 +441,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const detail = dom.append(detailContainer, $('span.detail'));
 		dom.append(detailContainer, $('span.chat-animated-ellipsis'));
 		const value = dom.append(valueParent, $('.value'));
-		const elementDisposables = new DisposableStore();
+		const elementDisposables = templateDisposables.add(new DisposableStore());
 
 		const footerToolbarContainer = dom.append(rowContainer, $('.chat-footer-toolbar'));
 		if (this.rendererOptions.noFooter) {

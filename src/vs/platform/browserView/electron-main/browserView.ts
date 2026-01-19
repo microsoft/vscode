@@ -77,15 +77,19 @@ export class BrowserView extends Disposable {
 	) {
 		super();
 
-		this._view = new WebContentsView({
-			webPreferences: {
-				nodeIntegration: false,
-				contextIsolation: true,
-				sandbox: true,
-				webviewTag: false,
-				session: viewSession
-			}
-		});
+		const webPreferences: Electron.WebPreferences & { type: ReturnType<Electron.WebContents['getType']> } = {
+			nodeIntegration: false,
+			contextIsolation: true,
+			sandbox: true,
+			webviewTag: false,
+			session: viewSession,
+
+			// TODO@kycutler: Remove this once https://github.com/electron/electron/issues/42578 is fixed
+			type: 'browserView'
+		};
+
+		this._view = new WebContentsView({ webPreferences });
+		this._view.setBackgroundColor('#FFFFFF');
 
 		this._view.webContents.setWindowOpenHandler((details) => {
 			// For new tab requests, fire event for workbench to handle

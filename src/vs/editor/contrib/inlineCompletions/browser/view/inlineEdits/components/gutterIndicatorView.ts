@@ -34,6 +34,15 @@ import { localize } from '../../../../../../../nls.js';
 import { InlineCompletionsModel } from '../../../model/inlineCompletionsModel.js';
 import { InlineSuggestAlternativeAction } from '../../../model/InlineSuggestAlternativeAction.js';
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
+import { ThemeIcon } from '../../../../../../../base/common/themables.js';
+
+/**
+ * Customization options for the gutter indicator appearance and behavior.
+ */
+export interface GutterIndicatorCustomization {
+	/** Override the default icon */
+	readonly icon?: ThemeIcon;
+}
 
 export class InlineEditsGutterIndicatorData {
 	constructor(
@@ -41,6 +50,7 @@ export class InlineEditsGutterIndicatorData {
 		readonly originalRange: LineRange,
 		readonly model: SimpleInlineSuggestModel,
 		readonly altAction: InlineSuggestAlternativeAction | undefined,
+		readonly customization?: GutterIndicatorCustomization,
 	) { }
 }
 
@@ -341,18 +351,23 @@ export class InlineEditsGutterIndicator extends Disposable {
 		const pillIsFullyDocked = gutterViewPortWithoutStickyScrollWithoutPaddingTop.containsRect(pillFullyDockedRect);
 
 		// The icon which will be rendered in the pill
-		const iconNoneDocked = this._tabAction.map(action => action === InlineEditTabAction.Accept ? Codicon.keyboardTab : Codicon.arrowRight);
-		const iconDocked = derived(this, reader => {
-			if (this._isHoveredOverIconDebounced.read(reader) || this._isHoveredOverInlineEditDebounced.read(reader)) {
-				return Codicon.check;
-			}
-			if (this._tabAction.read(reader) === InlineEditTabAction.Accept) {
-				return Codicon.keyboardTab;
-			}
-			const cursorLineNumber = this._editorObs.cursorLineNumber.read(reader) ?? 0;
-			const editStartLineNumber = s.range.read(reader).startLineNumber;
-			return cursorLineNumber <= editStartLineNumber ? Codicon.keyboardTabAbove : Codicon.keyboardTabBelow;
-		});
+		const customIcon = this._data.read(reader)?.customization?.icon;
+		const iconNoneDocked = customIcon
+			? constObservable(customIcon)
+			: this._tabAction.map(action => action === InlineEditTabAction.Accept ? Codicon.keyboardTab : Codicon.arrowRight);
+		const iconDocked = customIcon
+			? constObservable(customIcon)
+			: derived(this, reader => {
+				if (this._isHoveredOverIconDebounced.read(reader) || this._isHoveredOverInlineEditDebounced.read(reader)) {
+					return Codicon.check;
+				}
+				if (this._tabAction.read(reader) === InlineEditTabAction.Accept) {
+					return Codicon.keyboardTab;
+				}
+				const cursorLineNumber = this._editorObs.cursorLineNumber.read(reader) ?? 0;
+				const editStartLineNumber = s.range.read(reader).startLineNumber;
+				return cursorLineNumber <= editStartLineNumber ? Codicon.keyboardTabAbove : Codicon.keyboardTabBelow;
+			});
 
 		const idealIconAreaWidth = 22;
 		const iconWidth = (pillRect: Rect) => {
@@ -428,18 +443,18 @@ export class InlineEditsGutterIndicator extends Disposable {
 	});
 
 
-	private readonly _iconRef = n.ref<HTMLDivElement>();
+	protected readonly _iconRef = n.ref<HTMLDivElement>();
 
 	public readonly isVisible = this._layout.map(l => !!l);
 
-	private readonly _hoverVisible = observableValue(this, false);
+	protected readonly _hoverVisible = observableValue(this, false);
 	public readonly isHoverVisible: IObservable<boolean> = this._hoverVisible;
 
 	private readonly _isHoveredOverIcon = observableValue(this, false);
 	private readonly _isHoveredOverIconDebounced: IObservable<boolean> = debouncedObservable(this._isHoveredOverIcon, 100);
 	public readonly isHoveredOverIcon: IObservable<boolean> = this._isHoveredOverIconDebounced;
 
-	private _showHover(): void {
+	protected _showHover(): void {
 		if (this._hoverVisible.get()) {
 			return;
 		}
