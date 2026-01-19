@@ -30,7 +30,6 @@ import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 import { ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION, CHAT_CATEGORY, handleCurrentEditingSession } from './chatActions.js';
 import { clearChatEditor } from './chatClear.js';
 import { AgentSessionsViewerOrientation } from '../agentSessions/agentSessions.js';
-import { IAgentSessionProjectionService } from '../agentSessions/agentSessionProjectionService.js';
 
 export interface INewEditSessionActionContext {
 
@@ -121,13 +120,6 @@ export function registerNewChatActions() {
 
 		async run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const accessibilityService = accessor.get(IAccessibilityService);
-			const projectionService = accessor.get(IAgentSessionProjectionService);
-
-			// Exit projection mode if active (back button behavior)
-			if (projectionService.isActive) {
-				await projectionService.exitProjection();
-				return;
-			}
 			const viewsService = accessor.get(IViewsService);
 
 			const executeCommandContext = args[0] as INewEditSessionActionContext | undefined;

@@ -3,20 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize, localize2 } from '../../../../../nls.js';
-import { Action2 } from '../../../../../platform/actions/common/actions.js';
-import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
-import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { ChatConfiguration } from '../../common/constants.js';
+import { localize, localize2 } from '../../../../../../nls.js';
+import { Action2 } from '../../../../../../platform/actions/common/actions.js';
+import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeyCode } from '../../../../../../base/common/keyCodes.js';
+import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IAgentSessionProjectionService } from './agentSessionProjectionService.js';
-import { IAgentSession, isMarshalledAgentSessionContext, IMarshalledAgentSessionContext } from './agentSessionsModel.js';
-import { IAgentSessionsService } from './agentSessionsService.js';
-import { CHAT_CATEGORY } from '../actions/chatActions.js';
-import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js';
-import { IsCompactTitleBarContext } from '../../../../common/contextkeys.js';
+import { IAgentSession, isMarshalledAgentSessionContext, IMarshalledAgentSessionContext } from '../agentSessionsModel.js';
+import { IAgentSessionsService } from '../agentSessionsService.js';
+import { CHAT_CATEGORY } from '../../actions/chatActions.js';
+import { ToggleTitleBarConfigAction } from '../../../../../browser/parts/titlebar/titlebarActions.js';
+import { IsCompactTitleBarContext } from '../../../../../common/contextkeys.js';
+import { inAgentSessionProjection } from './agentSessionProjection.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 
 //#region Enter Agent Session Projection
 
@@ -32,7 +33,7 @@ export class EnterAgentSessionProjectionAction extends Action2 {
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.enabled,
 				ContextKeyExpr.has(`config.${ChatConfiguration.AgentSessionProjectionEnabled}`),
-				ChatContextKeys.inAgentSessionProjection.negate()
+				inAgentSessionProjection.negate()
 			),
 		});
 	}
@@ -71,12 +72,12 @@ export class ExitAgentSessionProjectionAction extends Action2 {
 			f1: true,
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.enabled,
-				ChatContextKeys.inAgentSessionProjection
+				inAgentSessionProjection
 			),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyCode.Escape,
-				when: ChatContextKeys.inAgentSessionProjection,
+				when: inAgentSessionProjection,
 			},
 		});
 	}
