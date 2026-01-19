@@ -47,7 +47,7 @@ import { IChatModelReference, IChatService } from '../../../common/chatService/c
 import { IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { LocalChatSessionUri, getChatSessionType } from '../../../common/model/chatUri.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
-import { AgentSessionsControl } from '../../agentSessions/agentSessionsControl.js';
+import { AgentSessionsControl, AgentSessionsControlSource } from '../../agentSessions/agentSessionsControl.js';
 import { AgentSessionsListDelegate } from '../../agentSessions/agentSessionsViewer.js';
 import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
 import { ChatWidget } from '../../widget/chatWidget.js';
@@ -394,6 +394,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// Sessions Control
 		this.sessionsControlContainer = append(sessionsContainer, $('.agent-sessions-control-container'));
 		const sessionsControl = this.sessionsControl = this._register(this.instantiationService.createInstance(AgentSessionsControl, this.sessionsControlContainer, {
+			source: AgentSessionsControlSource.ChatViewPane,
 			filter: sessionsFilter,
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			getHoverPosition: () => {
@@ -547,7 +548,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	//#region Chat Control
 
-	private static readonly MIN_CHAT_WIDGET_HEIGHT = 120;
+	private static readonly MIN_CHAT_WIDGET_HEIGHT = 116;
 
 	private _widget!: ChatWidget;
 	get widget(): ChatWidget { return this._widget; }
@@ -649,14 +650,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}));
 
 		// When showing sessions stacked, adjust the height of the sessions list to make room for chat input
-		let lastChatInputHeight: number | undefined;
-		this._register(chatWidget.input.onDidChangeHeight(() => {
+		this._register(autorun(reader => {
+			chatWidget.input.inputPartHeight.read(reader);
 			if (this.sessionsViewerVisible && this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
-				const chatInputHeight = this._widget?.input?.contentHeight;
-				if (chatInputHeight && chatInputHeight !== lastChatInputHeight) { // ensure we only layout on actual height changes
-					lastChatInputHeight = chatInputHeight;
-					this.relayout();
-				}
+				this.relayout();
 			}
 		}));
 	}
@@ -936,7 +933,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		let availableSessionsHeight = height - this.sessionsTitleContainer.offsetHeight;
 		if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
-			availableSessionsHeight -= Math.max(ChatViewPane.MIN_CHAT_WIDGET_HEIGHT, this._widget?.input?.contentHeight ?? 0);
+			availableSessionsHeight -= Math.max(ChatViewPane.MIN_CHAT_WIDGET_HEIGHT, this._widget?.input?.inputPartHeight.get() ?? 0);
 		} else {
 			availableSessionsHeight -= this.sessionsNewButtonContainer?.offsetHeight ?? 0;
 		}

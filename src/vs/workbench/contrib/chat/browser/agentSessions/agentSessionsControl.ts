@@ -37,19 +37,27 @@ import { IMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 export interface IAgentSessionsControlOptions extends IAgentSessionsSorterOptions {
 	readonly overrideStyles: IStyleOverride<IListStyles>;
 	readonly filter: IAgentSessionsFilter;
+	readonly source: AgentSessionsControlSource;
 
 	getHoverPosition(): HoverPosition;
 	trackActiveEditorSession(): boolean;
 }
 
+export const enum AgentSessionsControlSource {
+	ChatViewPane = 'chatViewPane',
+	WelcomeView = 'welcomeView'
+}
+
 type AgentSessionOpenedClassification = {
 	owner: 'bpasero';
 	providerType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider type of the opened agent session.' };
+	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source of the opened agent session.' };
 	comment: 'Event fired when a agent session is opened from the agent sessions control.';
 };
 
 type AgentSessionOpenedEvent = {
 	providerType: string;
+	source: AgentSessionsControlSource;
 };
 
 export class AgentSessionsControl extends Disposable implements IAgentSessionsControl {
@@ -62,6 +70,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 	private focusedAgentSessionArchivedContextKey: IContextKey<boolean>;
 	private focusedAgentSessionReadContextKey: IContextKey<boolean>;
 	private focusedAgentSessionTypeContextKey: IContextKey<string>;
+	private hasMultipleAgentSessionsSelectedContextKey: IContextKey<boolean>;
 
 	constructor(
 		private readonly container: HTMLElement,
@@ -81,6 +90,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		this.focusedAgentSessionArchivedContextKey = ChatContextKeys.isArchivedAgentSession.bindTo(this.contextKeyService);
 		this.focusedAgentSessionReadContextKey = ChatContextKeys.isReadAgentSession.bindTo(this.contextKeyService);
 		this.focusedAgentSessionTypeContextKey = ChatContextKeys.agentSessionType.bindTo(this.contextKeyService);
+		this.hasMultipleAgentSessionsSelectedContextKey = ChatContextKeys.hasMultipleAgentSessionsSelected.bindTo(this.contextKeyService);
 
 		this.createList(this.container);
 
@@ -135,7 +145,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				dnd: this.instantiationService.createInstance(AgentSessionsDragAndDrop),
 				identityProvider: new AgentSessionsIdentityProvider(),
 				horizontalScrolling: false,
-				multipleSelectionSupport: false,
+				multipleSelectionSupport: true,
 				findWidgetEnabled: true,
 				defaultFindMode: TreeFindMode.Filter,
 				keyboardNavigationLabelProvider: new AgentSessionsKeyboardNavigationLabelProvider(),
@@ -175,7 +185,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			}
 		}));
 
-		this._register(Event.any(list.onDidChangeFocus, model.onDidChangeSessions)(() => {
+		this._register(Event.any(list.onDidChangeFocus, list.onDidChangeSelection, model.onDidChangeSessions)(() => {
 			const focused = list.getFocus().at(0);
 			if (focused && isAgentSession(focused)) {
 				this.focusedAgentSessionArchivedContextKey.set(focused.isArchived());
@@ -186,6 +196,9 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				this.focusedAgentSessionReadContextKey.reset();
 				this.focusedAgentSessionTypeContextKey.reset();
 			}
+
+			const selection = list.getSelection().filter(isAgentSession);
+			this.hasMultipleAgentSessionsSelectedContextKey.set(selection.length > 1);
 		}));
 	}
 
@@ -196,10 +209,11 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		}
 
 		this.telemetryService.publicLog2<AgentSessionOpenedEvent, AgentSessionOpenedClassification>('agentSessionOpened', {
-			providerType: element.providerType
+			providerType: element.providerType,
+			source: this.options.source
 		});
 
-		await this.instantiationService.invokeFunction(openSession, element, e);
+		await this.instantiationService.invokeFunction(openSession, element, { ...e, expanded: this.options.source === AgentSessionsControlSource.WelcomeView });
 	}
 
 	private async showContextMenu({ element, anchor, browserEvent }: ITreeContextMenuEvent<AgentSessionListItem>): Promise<void> {
@@ -241,11 +255,17 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 		const menu = this.menuService.createMenu(MenuId.AgentSessionsContext, this.contextKeyService.createOverlay(contextOverlay));
 
-		const marshalledSession: IMarshalledAgentSessionContext = { session, $mid: MarshalledId.AgentSessionContext };
+		const selection = this.sessionsList?.getSelection().filter(isAgentSession) ?? [];
+		const marshalledContext: IMarshalledAgentSessionContext = {
+			session,
+			sessions: selection.length > 1 && selection.includes(session) ? selection : [session],
+			$mid: MarshalledId.AgentSessionContext
+		};
+
 		this.contextMenuService.showContextMenu({
-			getActions: () => Separator.join(...menu.getActions({ arg: marshalledSession, shouldForwardArgs: true }).map(([, actions]) => actions)),
+			getActions: () => Separator.join(...menu.getActions({ arg: marshalledContext, shouldForwardArgs: true }).map(([, actions]) => actions)),
 			getAnchor: () => anchor,
-			getActionsContext: () => marshalledSession,
+			getActionsContext: () => marshalledContext,
 		});
 
 		menu.dispose();

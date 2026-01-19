@@ -553,8 +553,14 @@ export class LanguageModelsService implements ILanguageModelsService {
 					allModels.push(...models);
 					const modelIdentifiers = [];
 					for (const m of models) {
-						// Special case for copilot models - they are all user selectable unless marked otherwise
-						if (vendorId === 'copilot' && (m.metadata.isUserSelectable || this._modelPickerUserPreferences[m.identifier] === true)) {
+						if (vendorId === 'copilot') {
+							// Special case for copilot models - they are all user selectable unless marked otherwise
+							if (m.metadata.isUserSelectable || this._modelPickerUserPreferences[m.identifier] === true) {
+								modelIdentifiers.push(m.identifier);
+							} else {
+								this._logService.trace(`[LM] Skipping model ${m.identifier} from model picker as it is not user selectable.`);
+							}
+						} else {
 							modelIdentifiers.push(m.identifier);
 						}
 					}

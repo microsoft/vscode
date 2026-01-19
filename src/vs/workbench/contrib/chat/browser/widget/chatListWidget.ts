@@ -323,10 +323,17 @@ export class ChatListWidget extends Disposable {
 		}));
 
 		this._register(this._renderer.onDidChangeItemHeight(e => {
-			this._onDidChangeItemHeight.fire(e);
 			if (this._tree.hasElement(e.element) && this._visible) {
 				this._tree.updateElementHeight(e.element, e.height);
 			}
+
+			// If the second-to-last item's height changed, update the last item's min height
+			const secondToLastItem = this._viewModel?.getItems().at(-2);
+			if (e.element.id === secondToLastItem?.id) {
+				this.updateLastItemMinHeight();
+			}
+
+			this._onDidChangeItemHeight.fire(e);
 		}));
 
 		// Handle rerun with agent or command detection internally
@@ -515,7 +522,6 @@ export class ChatListWidget extends Disposable {
 	setViewModel(viewModel: IChatViewModel | undefined): void {
 		this._viewModel = viewModel;
 		this._renderer.updateViewModel(viewModel);
-		this.refresh();
 	}
 
 	/**
@@ -817,16 +823,39 @@ export class ChatListWidget extends Disposable {
 	/**
 	 * Layout the list.
 	 */
-	layout(height: number, width?: number): void {
-		// Set CSS variable for minimum response height
-		if (this._renderStyle === 'compact' || this._renderStyle === 'minimal') {
-			this._container.style.removeProperty('--chat-current-response-min-height');
-		} else {
-			this._container.style.setProperty('--chat-current-response-min-height', height * .75 + 'px');
-		}
+	layout(height: number, width: number): void {
+		this._bodyDimension = new dom.Dimension(width ?? this._container.clientWidth, height);
+		this.updateLastItemMinHeight();
 		this._tree.layout(height, width);
 		this._renderer.layout(width ?? this._container.clientWidth);
 	}
 
+	private _bodyDimension: dom.Dimension | null = null;
+	private _previousLastItemMinHeight: number | null = null;
+
+	private updateLastItemMinHeight(): void {
+		if (!this._bodyDimension) {
+			return;
+		}
+
+		const contentHeight = this._bodyDimension.height;
+		if (this._renderStyle === 'compact' || this._renderStyle === 'minimal') {
+			this._container.style.removeProperty('--chat-current-response-min-height');
+		} else {
+			const secondToLastItem = this._viewModel?.getItems().at(-2);
+			const secondToLastItemHeight = Math.min(secondToLastItem?.currentRenderedHeight ?? 150, 150);
+			const lastItemMinHeight = Math.max(contentHeight - (secondToLastItemHeight + 10), 0);
+			this._container.style.setProperty('--chat-current-response-min-height', lastItemMinHeight + 'px');
+			if (lastItemMinHeight !== this._previousLastItemMinHeight) {
+				this._previousLastItemMinHeight = lastItemMinHeight;
+				const lastItem = this._viewModel?.getItems().at(-1);
+				if (lastItem && this._visible && this._tree.hasElement(lastItem)) {
+					this._tree.updateElementHeight(lastItem, undefined);
+				}
+			}
+		}
+	}
+
 	//#endregion
+
 }

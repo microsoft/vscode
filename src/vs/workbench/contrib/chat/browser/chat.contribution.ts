@@ -195,7 +195,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.AgentStatusEnabled]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.agentsControl.enabled', "Controls whether the Agent Status is shown in the title bar command center, replacing the search box with quick access to chat sessions."),
+			markdownDescription: nls.localize('chat.agentsControl.enabled', "Controls whether the Agent Status is shown in the title bar command center, replacing the search box with quick access to chat sessions. Enabling this setting will automatically enable {0}.", '`#window.commandCenter#`'),
 			default: false,
 			tags: ['experimental']
 		},
@@ -799,24 +799,6 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true,
 			description: nls.localize('chat.tools.todos.showWidget', "Controls whether to show the todo list widget above the chat input. When enabled, the widget displays todo items created by the agent and updates as progress is made."),
-			tags: ['experimental'],
-			experiment: {
-				mode: 'auto'
-			}
-		},
-		'chat.todoListTool.writeOnly': {
-			type: 'boolean',
-			default: false,
-			description: nls.localize('chat.todoListTool.writeOnly', "When enabled, the todo tool operates in write-only mode, requiring the agent to remember todos in context."),
-			tags: ['experimental'],
-			experiment: {
-				mode: 'auto'
-			}
-		},
-		'chat.todoListTool.descriptionField': {
-			type: 'boolean',
-			default: true,
-			description: nls.localize('chat.todoListTool.descriptionField', "When enabled, todo items include detailed descriptions for implementation context. This provides more information but uses additional tokens and may slow down responses."),
 			tags: ['experimental'],
 			experiment: {
 				mode: 'auto'

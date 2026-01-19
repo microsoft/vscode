@@ -584,7 +584,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	get contentHeight(): number {
-		return this.input.contentHeight + this.listWidget.contentHeight + this.chatSuggestNextWidget.height;
+		return this.input.inputPartHeight.get() + this.listWidget.contentHeight + this.chatSuggestNextWidget.height;
 	}
 
 	get attachmentModel(): ChatAttachmentModel {
@@ -1135,10 +1135,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		} else {
 			this.input.renderFollowups(undefined, undefined);
 		}
-
-		if (this.bodyDimension) {
-			this.layout(this.bodyDimension.height, this.bodyDimension.width);
-		}
 	}
 
 	private renderChatSuggestNextWidget(): void {
@@ -1428,6 +1424,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._register(this.listWidget.onDidChangeContentHeight(() => {
 			this._onDidChangeContentHeight.fire();
 		}));
+
 		this._register(this.listWidget.onDidFocus(() => {
 			this._onDidFocus.fire();
 		}));
@@ -1712,7 +1709,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				},
 			});
 		}));
-		this._register(this.input.onDidChangeHeight(() => {
+		this._register(autorun(reader => {
+			this.input.inputPartHeight.read(reader);
+			if (!this.listWidget) {
+				// This is set up before the list/renderer are created
+				return;
+			}
+
 			const editedRequest = this.listWidget.getTemplateDataForRequestId(this.viewModel?.editing?.id);
 			if (isRequestVM(editedRequest?.currentElement) && this.viewModel?.editing) {
 				this.listWidget.updateItemHeightOnRender(editedRequest?.currentElement, editedRequest);
@@ -1799,6 +1802,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// Pass input model reference to input part for state syncing
 		this.inputPart.setInputModel(model.inputModel, model.getRequests().length === 0);
+		this.listWidget.setViewModel(this.viewModel);
 
 		if (this._lockedAgent) {
 			let placeholder = this.chatSessionsService.getInputPlaceholderForSessionType(this._lockedAgent.id);
@@ -1877,7 +1881,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.listWidget.scrollToEnd();
 		}
 
-		this.listWidget.setViewModel(this.viewModel);
 		this.updateChatInputContext();
 		this.input.renderChatTodoListWidget(this.viewModel.sessionResource);
 	}
@@ -2191,27 +2194,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	layout(height: number, width: number): void {
 		width = Math.min(width, this.viewOptions.renderStyle === 'minimal' ? width : 950); // no min width of inline chat
 
-		const heightUpdated = this.bodyDimension && this.bodyDimension.height !== height;
 		this.bodyDimension = new dom.Dimension(width, height);
 
-		const layoutHeight = this._dynamicMessageLayoutData?.enabled ? this._dynamicMessageLayoutData.maxHeight : height;
 		if (this.viewModel?.editing) {
-			this.inlineInputPart?.layout(layoutHeight, width);
+			this.inlineInputPart?.layout(width);
 		}
 
-		this.inputPart.layout(layoutHeight, width);
+		this.inputPart.layout(width);
 
-		const inputHeight = this.inputPart.inputPartHeight;
+		const inputHeight = this.inputPart.inputPartHeight.get();
 		const chatSuggestNextWidgetHeight = this.chatSuggestNextWidget.height;
 		const lastElementVisible = this.listWidget.isScrolledToBottom;
 		const lastItem = this.listWidget.lastItem;
 
 		const contentHeight = Math.max(0, height - inputHeight - chatSuggestNextWidgetHeight);
-		if (this.viewOptions.renderStyle !== 'compact' && this.viewOptions.renderStyle !== 'minimal') {
-			if (heightUpdated && lastItem && this.visible && this.listWidget.hasElement(lastItem)) {
-				this.listWidget.updateElementHeight(lastItem, undefined);
-			}
-		}
 		this.listWidget.layout(contentHeight, width);
 
 		this.welcomeMessageContainer.style.height = `${contentHeight}px`;
@@ -2254,8 +2250,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 				const possibleMaxHeight = (this._dynamicMessageLayoutData?.maxHeight ?? maxHeight);
 				const width = this.bodyDimension?.width ?? this.container.offsetWidth;
-				this.input.layout(possibleMaxHeight, width);
-				const inputPartHeight = this.input.inputPartHeight;
+				this.input.layout(width);
+				const inputPartHeight = this.input.inputPartHeight.get();
 				const chatSuggestNextWidgetHeight = this.chatSuggestNextWidget.height;
 				const newHeight = Math.min(renderHeight + diff, possibleMaxHeight - inputPartHeight - chatSuggestNextWidgetHeight);
 				this.layout(newHeight + inputPartHeight + chatSuggestNextWidgetHeight, width);
@@ -2299,8 +2295,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		const width = this.bodyDimension?.width ?? this.container.offsetWidth;
-		this.input.layout(this._dynamicMessageLayoutData.maxHeight, width);
-		const inputHeight = this.input.inputPartHeight;
+		this.input.layout(width);
+		const inputHeight = this.input.inputPartHeight.get();
 		const chatSuggestNextWidgetHeight = this.chatSuggestNextWidget.height;
 
 		const totalMessages = this.viewModel.getItems();

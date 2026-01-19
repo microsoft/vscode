@@ -282,6 +282,7 @@ export interface IChatAgentMarkdownContentWithVulnerability {
 export interface IChatCommandButton {
 	command: Command;
 	kind: 'command';
+	additionalCommands?: Command[]; // rendered as secondary buttons
 }
 
 export interface IChatMoveMessage {
@@ -776,7 +777,6 @@ export interface IChatTodoListContent {
 	todoList: Array<{
 		id: string;
 		title: string;
-		description: string;
 		status: 'not-started' | 'in-progress' | 'completed';
 	}>;
 }
