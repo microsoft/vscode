@@ -30,6 +30,10 @@
 	display: none !important;
 }
 
+.interactive-list > .chat-scroll-down {
+	padding: 4px;
+}
+
 .interactive-item-container {
 	padding: 12px 16px;
 	display: flex;
@@ -1625,16 +1629,18 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .action-item.chat-mcp {
+	min-width: 22px !important;
 
 	.chat-mcp-state-indicator {
 		position: absolute;
 		bottom: 0;
-		right: 0;
+		left: 12px;
 		font-size: 12px !important;
 		background: var(--vscode-input-background);
 		width: fit-content;
 		height: fit-content;
 		border-radius: 100%;
+		pointer-events: none;
 
 		&.chat-mcp-state-new {
 			color: var(--vscode-button-foreground);
@@ -2130,6 +2136,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-descriptionForeground);
 	user-select: none;
 
+	a {
+		color: var(--vscode-descriptionForeground);
+	}
+
 	code {
 		font-size: var(--vscode-chat-font-size-body-xs);
 	}
@@ -2474,6 +2484,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.hc-black .interactive-item-container.interactive-request .value .rendered-markdown,
 	.hc-light .interactive-item-container.interactive-request .value .rendered-markdown {
 		border: 1px dotted var(--vscode-focusBorder);
+	}
+
+	.interactive-item-container.interactive-request .value .rendered-markdown > :first-child {
+		margin-top: 0px;
 	}
 
 	.interactive-item-container.interactive-request .value .rendered-markdown > :last-child {

@@ -110,6 +110,8 @@ registerAction2(class extends Action2 {
 				ChatContextKeys.Entitlement.planFree,
 				ChatContextKeys.Entitlement.planPro,
 				ChatContextKeys.Entitlement.planProPlus,
+				ChatContextKeys.Entitlement.planBusiness,
+				ChatContextKeys.Entitlement.planEnterprise,
 				ChatContextKeys.Entitlement.internal
 			)),
 			f1: true,

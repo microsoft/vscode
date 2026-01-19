@@ -102,8 +102,8 @@ suite('ChatResponseAccessibleView', () => {
 				kind: 'todoList',
 				sessionId: 'session-1',
 				todoList: [
-					{ id: '1', title: 'Task 1', description: 'Do something', status: 'in-progress' },
-					{ id: '2', title: 'Task 2', description: 'Do something else', status: 'completed' }
+					{ id: '1', title: 'Task 1', status: 'in-progress' },
+					{ id: '2', title: 'Task 2', status: 'completed' }
 				]
 			};
 			const result = getToolSpecificDataDescription(todoData);
