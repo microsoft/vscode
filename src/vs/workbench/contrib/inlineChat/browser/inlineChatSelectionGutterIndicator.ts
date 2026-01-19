@@ -13,12 +13,12 @@ import { autorun, constObservable, debouncedObservable, derived, IObservable, IS
 import { URI } from '../../../../base/common/uri.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { IActiveCodeEditor, ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
+import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
 import { observableCodeEditor, ObservableCodeEditor } from '../../../../editor/browser/observableCodeEditor.js';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { LineRange } from '../../../../editor/common/core/ranges/lineRange.js';
 import { SelectionDirection } from '../../../../editor/common/core/selection.js';
-
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { InlineEditTabAction } from '../../../../editor/contrib/inlineCompletions/browser/view/inlineEdits/inlineEditsViewInterface.js';
 import { InlineEditsGutterIndicator, InlineEditsGutterIndicatorData, InlineSuggestionGutterMenuData, SimpleInlineSuggestModel } from '../../../../editor/contrib/inlineCompletions/browser/view/inlineEdits/components/gutterIndicatorView.js';
@@ -39,6 +39,7 @@ import { PlaceholderTextContribution } from '../../../../editor/contrib/placehol
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { InlineChatRunOptions } from './inlineChatController.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
+import { Position } from '../../../../editor/common/core/position.js';
 
 
 export class InlineChatSelectionIndicator extends Disposable {
@@ -165,6 +166,7 @@ class InlineChatGutterMenuWidget extends Disposable implements IOverlayWidget {
 
 	private readonly _id = `inline-chat-gutter-menu-${InlineChatGutterMenuWidget._idPool++}`;
 	private readonly _domNode: HTMLElement;
+	private readonly _inputContainer: HTMLElement;
 	private readonly _actionBar: ActionBar;
 	private readonly _input: IActiveCodeEditor;
 	private _position: IOverlayWidgetPosition | null = null;
@@ -191,12 +193,12 @@ class InlineChatGutterMenuWidget extends Disposable implements IOverlayWidget {
 		this._domNode = dom.$('.inline-chat-gutter-menu');
 
 		// Create input editor container
-		const inputContainer = dom.append(this._domNode, dom.$('.input'));
-		inputContainer.style.width = '200px';
-		inputContainer.style.height = '26px';
-		inputContainer.style.display = 'flex';
-		inputContainer.style.alignItems = 'center';
-		inputContainer.style.justifyContent = 'center';
+		this._inputContainer = dom.append(this._domNode, dom.$('.input'));
+		this._inputContainer.style.width = '200px';
+		this._inputContainer.style.height = '26px';
+		this._inputContainer.style.display = 'flex';
+		this._inputContainer.style.alignItems = 'center';
+		this._inputContainer.style.justifyContent = 'center';
 
 		// Create editor options
 		const options = getSimpleEditorOptions(configurationService);
@@ -207,7 +209,7 @@ class InlineChatGutterMenuWidget extends Disposable implements IOverlayWidget {
 		options.lineNumbersMinChars = 0;
 		options.folding = false;
 		options.minimap = { enabled: false };
-		options.scrollbar = { vertical: 'hidden', horizontal: 'hidden', alwaysConsumeMouseWheel: false };
+		options.scrollbar = { vertical: 'auto', horizontal: 'hidden', alwaysConsumeMouseWheel: true, verticalSliderSize: 6 };
 		options.renderLineHighlight = 'none';
 		options.placeholder = keybindingService.appendKeybinding(localize('placeholderWithSelection', "Edit selection"), ACTION_START);
 
@@ -218,26 +220,44 @@ class InlineChatGutterMenuWidget extends Disposable implements IOverlayWidget {
 			])
 		};
 
-		this._input = this._store.add(instantiationService.createInstance(CodeEditorWidget, inputContainer, options, codeEditorWidgetOptions)) as IActiveCodeEditor;
+		this._input = this._store.add(instantiationService.createInstance(CodeEditorWidget, this._inputContainer, options, codeEditorWidgetOptions)) as IActiveCodeEditor;
 
 		const model = this._store.add(modelService.createModel('', null, URI.parse(`gutter-input:${Date.now()}`), true));
 		this._input.setModel(model);
 		this._input.layout({ width: 200, height: 18 });
 
+		// Listen to content size changes and resize the input editor (max 3 lines)
+		this._store.add(this._input.onDidContentSizeChange(e => {
+			if (e.contentHeightChanged) {
+				this._updateInputHeight(e.contentHeight);
+			}
+		}));
+
 		let inlineStartAction: IAction | undefined;
 
-		// Handle Enter key to submit
+		// Handle Enter key to submit and ArrowDown to focus action bar
 		this._store.add(this._input.onKeyDown(e => {
 			if (e.keyCode === KeyCode.Enter && !e.shiftKey) {
-				e.preventDefault();
-				e.stopPropagation();
-				const value = this._input.getModel()?.getValue() ?? '';
-				if (inlineStartAction) {
-					// TODO this isn't nice
+				const value = this._input.getModel().getValue() ?? '';
+				// TODO@jrieken this isn't nice
+				if (inlineStartAction && value) {
+					e.preventDefault();
+					e.stopPropagation();
 					this._actionBar.actionRunner.run(
 						inlineStartAction,
 						{ message: value, autoSend: true } satisfies InlineChatRunOptions
 					);
+				}
+			} else if (e.keyCode === KeyCode.DownArrow) {
+				// Focus first action bar item when at the end of the input
+				const inputModel = this._input.getModel();
+				const position = this._input.getPosition();
+				const lastLineNumber = inputModel.getLineCount();
+				const lastLineMaxColumn = inputModel.getLineMaxColumn(lastLineNumber);
+				if (Position.equals(position, new Position(lastLineNumber, lastLineMaxColumn))) {
+					e.preventDefault();
+					e.stopPropagation();
+					this._actionBar.focus();
 				}
 			}
 		}));
@@ -293,6 +313,17 @@ class InlineChatGutterMenuWidget extends Disposable implements IOverlayWidget {
 
 	private _hide(): void {
 		this._onDidHide.fire();
+	}
+
+	private _updateInputHeight(contentHeight: number): void {
+		const lineHeight = this._input.getOption(EditorOption.lineHeight);
+		const maxHeight = 3 * lineHeight;
+		const clampedHeight = Math.min(contentHeight, maxHeight);
+		const containerPadding = 8;
+
+		this._inputContainer.style.height = `${clampedHeight + containerPadding}px`;
+		this._input.layout({ width: 200, height: clampedHeight });
+		this._editor.layoutOverlayWidget(this);
 	}
 
 	getId(): string {
