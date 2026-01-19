@@ -30,7 +30,7 @@
 		overflow: hidden;
 
 		.chat-tool-invocation-part {
-			padding: 3px 12px 4px 18px;
+			padding: 4px 12px 4px 18px;
 			position: relative;
 
 			.chat-used-context {
@@ -46,10 +46,40 @@
 			.codicon:not(.chat-thinking-icon) {
 				display: none;
 			}
+
+			.chat-terminal-thinking-content {
+				overflow: hidden;
+				padding: 10px 10px 10px 2px;
+
+				.codicon:not(.codicon-check) {
+						display: inline-flex;
+				}
+			}
+
+			.chat-terminal-thinking-collapsible {
+				display: flex;
+				flex-direction: column;
+				width: 100%;
+				margin: 1px 0 0 4px;
+
+				.chat-used-context-list.chat-terminal-thinking-content {
+					border: none;
+					padding: 0;
+					margin-bottom: 2px;
+
+					.progress-container {
+						margin: 0;
+					}
+				}
+
+				.chat-terminal-thinking-content .rendered-markdown [data-code] {
+					margin-bottom: 0px;
+				}
+			}
 		}
 
 		.chat-thinking-item.markdown-content {
-			padding: 5px 12px 6px 24px;
+			padding: 6px 12px 6px 24px;
 			position: relative;
 			font-size: var(--vscode-chat-font-size-body-s);
 
@@ -65,6 +95,26 @@
 				border: 1px solid var(--vscode-textPreformat-border);
 				white-space: pre-wrap;
 			}
+		}
+
+		.chat-thinking-tool-wrapper .chat-markdown-part.rendered-markdown {
+			padding: 5px 12px 4px 20px;
+
+			.status-icon.codicon-check {
+				display: none;
+			}
+
+			.code:has(.chat-codeblock-pill-container) {
+				margin-bottom: 0px;
+
+				.chat-codeblock-pill-container {
+					margin-bottom: 0px;
+				}
+			}
+		}
+
+		.chat-thinking-tool-wrapper .chat-terminal-thinking-content .chat-markdown-part.rendered-markdown {
+			padding: 0;
 		}
 
 		/* chain of thought lines */
@@ -107,6 +157,11 @@
 				line-height: 12px;
 				text-align: center;
 				color: var(--vscode-descriptionForeground);
+			}
+
+			/* the default book icon has a pixel of space at the bottom */
+			> .chat-thinking-icon .codicon.codicon-book {
+				top: 10px;
 			}
 
 		}

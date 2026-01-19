@@ -5,10 +5,11 @@
 
 import './nativeEditContext.css';
 import { isFirefox } from '../../../../../base/browser/browser.js';
-import { addDisposableListener, getActiveElement, getWindow, getWindowId } from '../../../../../base/browser/dom.js';
+import { addDisposableListener, getActiveElement, getWindow, getWindowId, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { FastDomNode } from '../../../../../base/browser/fastDomNode.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { EndOfLinePreference, IModelDeltaDecoration } from '../../../../common/model.js';
@@ -16,7 +17,7 @@ import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent, ViewDecorat
 import { ViewContext } from '../../../../common/viewModel/viewContext.js';
 import { RestrictedRenderingContext, RenderingContext, HorizontalPosition } from '../../../view/renderingContext.js';
 import { ViewController } from '../../../view/viewController.js';
-import { ensureClipboardGetsEditorSelection, computePasteData } from '../clipboardUtils.js';
+import { ClipboardEventUtils, ensureClipboardGetsEditorSelection, InMemoryClipboardMetadataManager } from '../clipboardUtils.js';
 import { AbstractEditContext } from '../editContext.js';
 import { editContextAddDisposableListener, FocusTracker, ITypeData } from './nativeEditContextUtils.js';
 import { ScreenReaderSupport } from './screenReaderSupport.js';
@@ -68,6 +69,7 @@ export class NativeEditContext extends AbstractEditContext {
 	private _targetWindowId: number = -1;
 	private _scrollTop: number = 0;
 	private _scrollLeft: number = 0;
+	private _selectionAndControlBoundsUpdateDisposable: IDisposable | undefined;
 
 	private readonly _focusTracker: FocusTracker;
 
@@ -141,12 +143,28 @@ export class NativeEditContext extends AbstractEditContext {
 		}));
 		this._register(addDisposableListener(this.domNode.domNode, 'paste', (e) => {
 			this.logService.trace('NativeEditContext#paste');
-			const pasteData = computePasteData(e, this._context, this.logService);
-			if (!pasteData) {
+			e.preventDefault();
+			if (!e.clipboardData) {
 				return;
 			}
+			let [text, metadata] = ClipboardEventUtils.getTextData(e.clipboardData);
+			this.logService.trace('NativeEditContext#paste with id : ', metadata?.id, ' with text.length: ', text.length);
+			if (!text) {
+				return;
+			}
+			metadata = metadata || InMemoryClipboardMetadataManager.INSTANCE.get(text);
+			let pasteOnNewLine = false;
+			let multicursorText: string[] | null = null;
+			let mode: string | null = null;
+			if (metadata) {
+				const options = this._context.configuration.options;
+				const emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
+				pasteOnNewLine = emptySelectionClipboard && !!metadata.isFromEmptySelection;
+				multicursorText = typeof metadata.multicursorText !== 'undefined' ? metadata.multicursorText : null;
+				mode = metadata.mode;
+			}
 			this.logService.trace('NativeEditContext#paste (before viewController.paste)');
-			this._viewController.paste(pasteData.text, pasteData.pasteOnNewLine, pasteData.multicursorText, pasteData.mode);
+			this._viewController.paste(text, pasteOnNewLine, multicursorText, mode);
 		}));
 
 		// Edit context events
@@ -217,6 +235,8 @@ export class NativeEditContext extends AbstractEditContext {
 		this.domNode.domNode.blur();
 		this.domNode.domNode.remove();
 		this._imeTextArea.domNode.remove();
+		this._selectionAndControlBoundsUpdateDisposable?.dispose();
+		this._selectionAndControlBoundsUpdateDisposable = undefined;
 		super.dispose();
 	}
 
@@ -489,7 +509,19 @@ export class NativeEditContext extends AbstractEditContext {
 		}
 	}
 
-	private _updateSelectionAndControlBoundsAfterRender() {
+	private _updateSelectionAndControlBoundsAfterRender(): void {
+		if (this._selectionAndControlBoundsUpdateDisposable) {
+			return;
+		}
+		// Schedule this work after render so we avoid triggering a layout while still painting.
+		const targetWindow = getWindow(this.domNode.domNode);
+		this._selectionAndControlBoundsUpdateDisposable = scheduleAtNextAnimationFrame(targetWindow, () => {
+			this._selectionAndControlBoundsUpdateDisposable = undefined;
+			this._applySelectionAndControlBounds();
+		});
+	}
+
+	private _applySelectionAndControlBounds(): void {
 		const options = this._context.configuration.options;
 		const contentLeft = options.get(EditorOption.layoutInfo).contentLeft;
 

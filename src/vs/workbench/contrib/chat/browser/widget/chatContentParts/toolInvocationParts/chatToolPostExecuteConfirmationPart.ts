@@ -72,11 +72,16 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 	protected override additionalPrimaryActions() {
 		const actions = super.additionalPrimaryActions();
 
+		const state = this.toolInvocation.state.get();
+		if (state.type !== IChatToolInvocation.StateKind.WaitingForPostApproval) {
+			return actions;
+		}
+
 		// Get actions from confirmation service
 		const confirmActions = this.confirmationService.getPostConfirmActions({
 			toolId: this.toolInvocation.toolId,
 			source: this.toolInvocation.source,
-			parameters: this.toolInvocation.parameters
+			parameters: state.parameters
 		});
 
 		for (const action of confirmActions) {

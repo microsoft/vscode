@@ -18,7 +18,7 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { IMcpMessageTransport } from './mcpRegistryTypes.js';
 import { IMcpTaskInternal, McpTaskManager } from './mcpTaskManager.js';
 import { IMcpClientMethods, McpConnectionState, McpError, MpcResponseError } from './mcpTypes.js';
-import { isTaskResult } from './mcpTypesUtils.js';
+import { isTaskResult, translateMcpLogMessage } from './mcpTypesUtils.js';
 import { MCP } from './modelContextProtocol.js';
 
 /**
@@ -454,32 +454,7 @@ export class McpServerRequestHandler extends Disposable {
 	}
 
 	private handleLoggingNotification(request: MCP.LoggingMessageNotification): void {
-		let contents = typeof request.params.data === 'string' ? request.params.data : JSON.stringify(request.params.data);
-		if (request.params.logger) {
-			contents = `${request.params.logger}: ${contents}`;
-		}
-
-		switch (request.params?.level) {
-			case 'debug':
-				this.logger.debug(contents);
-				break;
-			case 'info':
-			case 'notice':
-				this.logger.info(contents);
-				break;
-			case 'warning':
-				this.logger.warn(contents);
-				break;
-			case 'error':
-			case 'critical':
-			case 'alert':
-			case 'emergency':
-				this.logger.error(contents);
-				break;
-			default:
-				this.logger.info(contents);
-				break;
-		}
+		translateMcpLogMessage(this.logger, request.params);
 	}
 
 	/**

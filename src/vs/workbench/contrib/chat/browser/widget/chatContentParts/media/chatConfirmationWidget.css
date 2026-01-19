@@ -12,13 +12,6 @@
 	position: relative;
 }
 
-.chat-confirmation-widget .monaco-text-button {
-	padding: 0 12px;
-	min-height: 2em;
-	box-sizing: border-box;
-	font-size: var(--vscode-chat-font-size-body-m);
-}
-
 .chat-confirmation-widget:not(:last-child) {
 	margin-bottom: 16px;
 }
@@ -279,21 +272,15 @@
 .chat-confirmation-widget2 .chat-confirmation-widget-buttons {
 	display: flex;
 	padding: 5px 9px;
-	font-size: var(--vscode-chat-font-size-body-m);
 
 	.chat-buttons {
 		display: flex;
-		column-gap: 10px;
+		column-gap: 4px;
 		align-items: center;
 
 		.monaco-button {
 			overflow-wrap: break-word;
-			padding: 2px 5px;
 			width: inherit;
-		}
-
-		.monaco-text-button {
-			padding: 2px 10px;
 		}
 	}
 }

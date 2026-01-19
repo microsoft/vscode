@@ -388,7 +388,9 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 					value: this.value.value ?? this.name,
 					modelDescription: this.modelDescription,
 					icon: this.value.icon,
-					uri: this.value.uri
+					uri: this.value.uri,
+					handle: this.value.handle,
+					commandId: this.value.commandId
 				}
 			];
 		}

@@ -33,7 +33,7 @@ import { IMcpService } from '../../../mcp/common/mcpTypes.js';
 import { awaitStatsForSession } from '../chat.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../participants/chatAgents.js';
 import { chatEditingSessionIsReady } from '../editing/chatEditingService.js';
-import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData, toChatHistoryContent, updateRanges } from '../model/chatModel.js';
+import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, ISerializedChatDataReference, normalizeSerializableChatData, toChatHistoryContent, updateRanges } from '../model/chatModel.js';
 import { ChatModelStore, IStartSessionProps } from '../model/chatModelStore.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, chatSubcommandLeader, getPromptText, IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { ChatRequestParser } from '../requestParser/chatRequestParser.js';
@@ -48,6 +48,7 @@ import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../constants.js';
 import { ChatMessageRole, IChatMessage } from '../languageModels.js';
 import { ILanguageModelToolsService } from '../tools/languageModelToolsService.js';
+import { ChatSessionOperationLog } from '../model/chatSessionOperationLog.js';
 
 const serializedChatKey = 'interactive.sessions';
 
@@ -85,6 +86,8 @@ export class ChatService extends Disposable implements IChatService {
 
 	private readonly _onDidSubmitRequest = this._register(new Emitter<{ readonly chatSessionResource: URI }>());
 	public readonly onDidSubmitRequest = this._onDidSubmitRequest.event;
+
+	public get onDidCreateModel() { return this._sessionModels.onDidCreateModel; }
 
 	private readonly _onDidPerformUserAction = this._register(new Emitter<IChatUserActionEvent>());
 	public readonly onDidPerformUserAction: Event<IChatUserActionEvent> = this._onDidPerformUserAction.event;
@@ -374,7 +377,11 @@ export class ChatService extends Disposable implements IChatService {
 					...entry,
 					sessionResource,
 					// TODO@roblourens- missing for old data- normalize inside the store
-					timing: entry.timing ?? { startTime: entry.lastMessageDate },
+					timing: entry.timing ?? {
+						created: entry.lastMessageDate,
+						lastRequestStarted: undefined,
+						lastRequestEnded: entry.lastMessageDate,
+					},
 					isActive: this._sessionModels.has(sessionResource),
 					// TODO@roblourens- missing for old data- normalize inside the store
 					lastResponseState: entry.lastResponseState ?? ResponseModelState.Complete,
@@ -390,7 +397,11 @@ export class ChatService extends Disposable implements IChatService {
 				...metadata,
 				sessionResource,
 				// TODO@roblourens- missing for old data- normalize inside the store
-				timing: metadata.timing ?? { startTime: metadata.lastMessageDate },
+				timing: metadata.timing ?? {
+					created: metadata.lastMessageDate,
+					lastRequestStarted: undefined,
+					lastRequestEnded: metadata.lastMessageDate,
+				},
 				isActive: this._sessionModels.has(sessionResource),
 				// TODO@roblourens- missing for old data- normalize inside the store
 				lastResponseState: metadata.lastResponseState ?? ResponseModelState.Complete,
@@ -492,12 +503,12 @@ export class ChatService extends Disposable implements IChatService {
 			throw new Error(`Cannot restore non-local session ${sessionResource}`);
 		}
 
-		let sessionData: ISerializableChatData | undefined;
+		let sessionData: ISerializedChatDataReference | undefined;
 		if (isEqual(this.transferredSessionResource, sessionResource)) {
 			this._transferredSessionResource = undefined;
-			sessionData = revive(await this._chatSessionStore.readTransferredSession(sessionResource));
+			sessionData = await this._chatSessionStore.readTransferredSession(sessionResource);
 		} else {
-			sessionData = revive(await this._chatSessionStore.readSession(sessionId));
+			sessionData = await this._chatSessionStore.readSession(sessionId);
 		}
 
 		if (!sessionData) {
@@ -506,7 +517,7 @@ export class ChatService extends Disposable implements IChatService {
 
 		const sessionRef = this._sessionModels.acquireOrCreate({
 			initialData: sessionData,
-			location: sessionData.initialLocation ?? ChatAgentLocation.Chat,
+			location: sessionData.value.initialLocation ?? ChatAgentLocation.Chat,
 			sessionResource,
 			sessionId,
 			canUseTools: true,
@@ -531,7 +542,7 @@ export class ChatService extends Disposable implements IChatService {
 		const sessionId = (data as ISerializableChatData).sessionId ?? generateUuid();
 		const sessionResource = LocalChatSessionUri.forSession(sessionId);
 		return this._sessionModels.acquireOrCreate({
-			initialData: data,
+			initialData: { value: data, serializer: new ChatSessionOperationLog() },
 			location: data.initialLocation ?? ChatAgentLocation.Chat,
 			sessionResource,
 			sessionId,
