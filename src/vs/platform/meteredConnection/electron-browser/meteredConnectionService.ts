@@ -34,6 +34,9 @@ export class NativeMeteredConnectionService extends Disposable implements IMeter
 			return;
 		}
 
+		this._respectMeteredConnections = this.configurationService.getValue<boolean>(METERED_CONNECTION_SETTING_KEY);
+		this._isConnectionMetered = getIsConnectionMetered();
+
 		const onChange = () => {
 			const value = getIsConnectionMetered();
 			if (this._isConnectionMetered !== value) {
@@ -57,9 +60,6 @@ export class NativeMeteredConnectionService extends Disposable implements IMeter
 				}
 			}
 		}));
-
-		this._respectMeteredConnections = this.configurationService.getValue<boolean>(METERED_CONNECTION_SETTING_KEY);
-		this._isConnectionMetered = getIsConnectionMetered();
 	}
 
 	get isConnectionMetered(): boolean {

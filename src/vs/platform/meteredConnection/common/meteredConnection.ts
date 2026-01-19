@@ -62,5 +62,5 @@ export function getIsConnectionMetered() {
 	}
 
 	const effectiveType = connection.effectiveType;
-	return effectiveType === '3g' || effectiveType === '2g' || effectiveType === 'slow-2g';
+	return effectiveType === '2g' || effectiveType === 'slow-2g';
 }

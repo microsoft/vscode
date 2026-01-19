@@ -48,7 +48,7 @@ export class MeteredConnectionStatusContribution extends Disposable implements I
 			name: localize('status.meteredConnection', "Metered Connection"),
 			text: '$(radio-tower)',
 			ariaLabel: localize('status.meteredConnection.ariaLabel', "Metered Connection Detected"),
-			tooltip: localize('status.meteredConnection.tooltip', "Metered connection detected. Some automatic features like extension updates, Settings Sync, and Git operations are paused to reduce data usage."),
+			tooltip: localize('status.meteredConnection.tooltip', "Metered connection detected. Some automatic features like extension updates, Settings Sync, and automatic Git operations are paused to reduce data usage."),
 			command: {
 				id: 'workbench.action.openSettings',
 				title: localize('status.meteredConnection.configure', "Configure"),
