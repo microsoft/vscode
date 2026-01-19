@@ -19,7 +19,7 @@ import { Range } from '../../../common/core/range.js';
 import { Selection } from '../../../common/core/selection.js';
 import { ScrollType } from '../../../common/editorCommon.js';
 import { ITextModel } from '../../../common/model.js';
-import { DocumentFormattingEditProvider, DocumentRangeFormattingEditProvider, FormattingOptions, TextEdit } from '../../../common/languages.js';
+import { DocumentFormattingEditProvider, DocumentRangeFormattingEditProvider, FormattingOptions, TextEdit, ProviderId } from '../../../common/languages.js';
 import { IEditorWorkerService } from '../../../common/services/editorWorker.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../common/services/resolverService.js';
 import { FormattingEdit } from './formattingEdit.js';
@@ -261,7 +261,7 @@ export async function formatDocumentRangesWithProvider(
 
 	if (isCodeEditor(editorOrModel)) {
 		// use editor to apply edits
-		FormattingEdit.execute(editorOrModel, allEdits, true);
+		FormattingEdit.execute(editorOrModel, allEdits, true, ProviderId.fromExtensionId(provider.extensionId?.value));
 		editorOrModel.revealPositionInCenterIfOutsideViewport(editorOrModel.getPosition(), ScrollType.Immediate);
 
 	} else {
