@@ -446,6 +446,12 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		if (!response) {
 			return {};
 		}
+
+		if (response.res.statusCode && response.res.statusCode !== 200) {
+			this.logService.trace(`[DefaultAccount] unexpected status code ${response.res.statusCode} while fetching token entitlements`);
+			return {};
+		}
+
 		try {
 			const chatData = await asJson<ITokenEntitlementsResponse>(response);
 			if (chatData) {
@@ -509,6 +515,11 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		this.logService.debug('[DefaultAccount] Fetching MCP registry data from:', mcpRegistryDataUrl);
 		const response = await this.request(mcpRegistryDataUrl, 'GET', undefined, sessions, CancellationToken.None);
 		if (!response) {
+			return undefined;
+		}
+
+		if (response.res.statusCode && response.res.statusCode !== 200) {
+			this.logService.trace(`[DefaultAccount] unexpected status code ${response.res.statusCode} while fetching MCP registry data`);
 			return undefined;
 		}
 
