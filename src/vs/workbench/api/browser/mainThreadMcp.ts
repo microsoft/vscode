@@ -8,7 +8,7 @@ import { disposableTimeout } from '../../../base/common/async.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { ISettableObservable, observableValue } from '../../../base/common/observable.js';
+import { autorun, ISettableObservable, observableValue } from '../../../base/common/observable.js';
 import Severity from '../../../base/common/severity.js';
 import { URI } from '../../../base/common/uri.js';
 import * as nls from '../../../nls.js';
@@ -29,7 +29,7 @@ import { ExtensionHostKind, extensionHostKindToString } from '../../services/ext
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostContext, ExtHostMcpShape, IMcpAuthenticationDetails, IMcpAuthenticationOptions, IAuthMetadataSource, MainContext, MainThreadMcpShape } from '../common/extHost.protocol.js';
+import { ExtHostContext, ExtHostMcpShape, IMcpAuthenticationDetails, IMcpAuthenticationOptions, IAuthMetadataSource, MainContext, MainThreadMcpShape, IMcpServerDefinitionDto } from '../common/extHost.protocol.js';
 
 @extHostNamedCustomer(MainContext.MainThreadMcp)
 export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
@@ -98,6 +98,53 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 				return launch;
 			},
 		}));
+
+		// Subscribe to MCP server definition changes and notify ext host
+		this._register(autorun(reader => {
+			const collections = this._mcpRegistry.collections.read(reader);
+			// Read all server definitions to track changes
+			for (const collection of collections) {
+				collection.serverDefinitions.read(reader);
+			}
+			// Notify ext host that definitions changed (it will re-fetch if needed)
+			this._proxy.$onDidChangeMcpServerDefinitions();
+		}));
+	}
+
+	/** Returns all MCP server definitions known to the editor. */
+	$getMcpServerDefinitions(): Promise<IMcpServerDefinitionDto[]> {
+		const collections = this._mcpRegistry.collections.get();
+		const allServers: IMcpServerDefinitionDto[] = [];
+
+		for (const collection of collections) {
+			const servers = collection.serverDefinitions.get();
+			for (const server of servers) {
+				const launch = server.launch;
+				if (launch.type === McpServerTransportType.Stdio) {
+					allServers.push({
+						label: server.label,
+						type: 'stdio',
+						command: launch.command,
+						args: [...launch.args],
+						cwd: launch.cwd ? URI.file(launch.cwd) : undefined,
+						env: Object.fromEntries(
+							Object.entries(launch.env).map(([k, v]) => [k, v === null ? undefined : String(v)])
+						),
+						version: undefined
+					});
+				} else {
+					allServers.push({
+						label: server.label,
+						type: 'http',
+						uri: launch.uri,
+						headers: Object.fromEntries(launch.headers),
+						version: server.cacheNonce === '$$NONE' ? undefined : server.cacheNonce,
+					});
+				}
+			}
+		}
+
+		return Promise.resolve(allServers);
 	}
 
 	$upsertMcpCollection(collection: McpCollectionDefinition.FromExtHost, serversDto: McpServerDefinition.Serialized[]): void {

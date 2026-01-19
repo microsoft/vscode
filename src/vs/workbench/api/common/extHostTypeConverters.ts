@@ -3764,6 +3764,30 @@ export namespace McpServerDefinition {
 				}
 		);
 	}
+
+	/** Converts from the IPC DTO to the API type. */
+	export function to(dto: extHostProtocol.IMcpServerDefinitionDto): vscode.McpServerDefinition {
+		if (dto.type === 'http') {
+			return new types.McpHttpServerDefinition(
+				dto.label,
+				URI.revive(dto.uri),
+				dto.headers,
+				dto.version,
+			);
+		} else {
+			const result = new types.McpStdioServerDefinition(
+				dto.label,
+				dto.command,
+				dto.args,
+				Object.fromEntries(Object.entries(dto.env).filter((entry): entry is [string, string] => entry[1] !== undefined)),
+				dto.version,
+			);
+			if (dto.cwd) {
+				result.cwd = URI.revive(dto.cwd);
+			}
+			return result;
+		}
+	}
 }
 
 export namespace SourceControlInputBoxValidationType {

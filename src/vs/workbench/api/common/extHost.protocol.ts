@@ -3163,6 +3163,30 @@ export interface IStartMcpOptions {
 	errorOnUserInteraction?: boolean;
 }
 
+interface IMcpStdioServerDefinitionDto {
+	readonly label: string;
+	readonly type: 'stdio';
+	readonly command: string;
+	readonly args: string[];
+	readonly cwd: UriComponents | undefined;
+	readonly env: Record<string, string | undefined>;
+	readonly version: string | undefined;
+}
+
+interface IMcpHttpServerDefinitionDto {
+	readonly label: string;
+	readonly type: 'http';
+	readonly uri: UriComponents;
+	readonly headers: Record<string, string>;
+	readonly version: string | undefined;
+}
+
+/**
+ * DTO for MCP server definitions sent from the main thread to the ext host.
+ * Contains only the data needed for the API representation.
+ */
+export type IMcpServerDefinitionDto = IMcpStdioServerDefinitionDto | IMcpHttpServerDefinitionDto;
+
 export interface ExtHostMcpShape {
 	$substituteVariables(workspaceFolder: UriComponents | undefined, value: McpServerLaunch.Serialized): Promise<McpServerLaunch.Serialized>;
 	$resolveMcpLaunch(collectionId: string, label: string): Promise<McpServerLaunch.Serialized | undefined>;
@@ -3170,6 +3194,8 @@ export interface ExtHostMcpShape {
 	$stopMcp(id: number): void;
 	$sendMessage(id: number, message: string): void;
 	$waitForInitialCollectionProviders(): Promise<void>;
+	/** Notification that MCP server definitions have changed. ExtHost should re-fetch. */
+	$onDidChangeMcpServerDefinitions(): void;
 }
 
 export interface IMcpAuthenticationDetails {
@@ -3210,6 +3236,8 @@ export interface MainThreadMcpShape {
 	$getTokenFromServerMetadata(id: number, authDetails: IMcpAuthenticationDetails, options?: IMcpAuthenticationOptions): Promise<string | undefined>;
 	$getTokenForProviderId(id: number, providerId: string, scopes: string[], options?: IMcpAuthenticationOptions): Promise<string | undefined>;
 	$logMcpAuthSetup(data: IAuthMetadataSource): void;
+	/** Returns all MCP server definitions known to the editor. */
+	$getMcpServerDefinitions(): Promise<IMcpServerDefinitionDto[]>;
 }
 
 export interface MainThreadDataChannelsShape extends IDisposable {
