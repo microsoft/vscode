@@ -24,8 +24,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
-import { ClipboardEventUtils, IClipboardCopyEvent, IClipboardPasteEvent, InMemoryClipboardMetadataManager, IWritableClipboardData } from '../../../browser/controller/editContext/clipboardUtils.js';
-import { toExternalVSDataTransfer } from '../../../browser/dataTransfer.js';
+import { IClipboardCopyEvent, IClipboardPasteEvent, IWritableClipboardData } from '../../../browser/controller/editContext/clipboardUtils.js';
 import { ICodeEditor, PastePayload } from '../../../browser/editorBrowser.js';
 import { IBulkEditService } from '../../../browser/services/bulkEditService.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
@@ -247,17 +246,17 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 	}
 
 	private async handlePaste(e: IClipboardPasteEvent) {
-		const clipboardData = e.browserEvent?.clipboardData;
-		if (clipboardData) {
-			const [text, metadata] = ClipboardEventUtils.getTextData(clipboardData);
-			const metadataComputed = metadata || InMemoryClipboardMetadataManager.INSTANCE.get(text);
-			this._logService.trace('CopyPasteController#handlePaste for id : ', metadataComputed?.id);
-		} else {
-			this._logService.trace('CopyPasteController#handlePaste');
-		}
-		if (!clipboardData || !this._editor.hasTextFocus()) {
+		this._logService.trace('CopyPasteController#handlePaste for id : ', e.metadata?.id);
+
+		if (!this._editor.hasTextFocus()) {
 			return;
 		}
+
+		const dataTransfer = e.toExternalVSDataTransfer();
+		if (!dataTransfer) {
+			return;
+		}
+		dataTransfer.delete(vscodeClipboardMime);
 
 		MessageController.get(this._editor)?.closeMessage();
 		this._currentPasteOperation?.cancel();
@@ -276,15 +275,13 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			return;
 		}
 
-		const metadata = this.fetchCopyMetadata(clipboardData);
-		this._logService.trace('CopyPasteController#handlePaste with metadata : ', metadata?.id, ' and text.length : ', clipboardData.getData('text/plain').length);
-		const dataTransfer = toExternalVSDataTransfer(clipboardData);
-		dataTransfer.delete(vscodeClipboardMime);
+		const metadata = this.fetchCopyMetadata(e);
+		this._logService.trace('CopyPasteController#handlePaste with metadata : ', metadata?.id, ' and text.length : ', e.clipboardData.getData('text/plain').length);
 
-		const fileTypes = Array.from(clipboardData.files).map(file => file.type);
+		const fileTypes = Array.from(e.clipboardData.files).map(file => file.type);
 
 		const allPotentialMimeTypes = [
-			...clipboardData.types,
+			...e.clipboardData.types,
 			...fileTypes,
 			...metadata?.providerCopyMimeTypes ?? [],
 			// TODO: always adds `uri-list` because this get set if there are resources in the system clipboard.
@@ -551,11 +548,11 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		clipboardData.setData(vscodeClipboardMime, JSON.stringify(metadata));
 	}
 
-	private fetchCopyMetadata(clipboardData: DataTransfer): CopyMetadata | undefined {
+	private fetchCopyMetadata(e: IClipboardPasteEvent): CopyMetadata | undefined {
 		this._logService.trace('CopyPasteController#fetchCopyMetadata');
 
 		// Prefer using the clipboard data we saved off
-		const rawMetadata = clipboardData.getData(vscodeClipboardMime);
+		const rawMetadata = e.clipboardData.getData(vscodeClipboardMime);
 		if (rawMetadata) {
 			try {
 				return JSON.parse(rawMetadata);
@@ -564,14 +561,12 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			}
 		}
 
-		// Otherwise try to extract the generic text editor metadata
-		const [_, metadata] = ClipboardEventUtils.getTextData(clipboardData);
-		if (metadata) {
+		if (e.metadata) {
 			return {
 				defaultPastePayload: {
-					mode: metadata.mode,
-					multicursorText: metadata.multicursorText ?? null,
-					pasteOnNewLine: !!metadata.isFromEmptySelection,
+					mode: e.metadata.mode,
+					multicursorText: e.metadata.multicursorText ?? null,
+					pasteOnNewLine: !!e.metadata.isFromEmptySelection,
 				},
 			};
 		}
