@@ -12,6 +12,7 @@ import { ACTIVE_GROUP, SIDE_GROUP } from '../../../../services/editor/common/edi
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 
 //#region Session Opener Registry
 
@@ -48,17 +49,18 @@ export const sessionOpenerRegistry = new SessionOpenerRegistry();
 //#endregion
 
 export async function openSession(accessor: ServicesAccessor, session: IAgentSession, openOptions?: ISessionOpenOptions): Promise<IChatWidget | undefined> {
+	const instantiationService = accessor.get(IInstantiationService);
 
 	// First, give registered participants a chance to handle the session
 	for (const participant of sessionOpenerRegistry.getParticipants()) {
-		const handled = await participant.handleOpenSession(accessor, session, openOptions);
+		const handled = await instantiationService.invokeFunction(accessor => participant.handleOpenSession(accessor, session, openOptions));
 		if (handled) {
 			return undefined; // Participant handled the session, skip default opening
 		}
 	}
 
 	// Default session opening logic
-	return openSessionDefault(accessor, session, openOptions);
+	return instantiationService.invokeFunction(accessor => openSessionDefault(accessor, session, openOptions));
 }
 
 async function openSessionDefault(accessor: ServicesAccessor, session: IAgentSession, openOptions?: ISessionOpenOptions): Promise<IChatWidget | undefined> {

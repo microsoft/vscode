@@ -108,22 +108,3 @@ export class ToggleAgentStatusAction extends ToggleTitleBarConfigAction {
 }
 
 //#endregion
-
-//#region Toggle Agent Session Projection
-
-export class ToggleAgentSessionProjectionAction extends ToggleTitleBarConfigAction {
-	constructor() {
-		super(
-			ChatConfiguration.AgentSessionProjectionEnabled,
-			localize('toggle.agentSessionProjection', 'Agent Session Projection'),
-			localize('toggle.agentSessionProjectionDescription', "Toggle Agent Session Projection mode for focused workspace review of agent sessions"), 7,
-			ContextKeyExpr.and(
-				ChatContextKeys.enabled,
-				IsCompactTitleBarContext.negate(),
-				ChatContextKeys.supported
-			)
-		);
-	}
-}
-
-//#endregion
