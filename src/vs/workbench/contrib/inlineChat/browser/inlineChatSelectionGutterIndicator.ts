@@ -32,7 +32,7 @@ import { HoverService } from '../../../../platform/hover/browser/hoverService.js
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { localize } from '../../../../nls.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
-import { ACTION_START, InlineChatConfigKeys } from '../common/inlineChat.js';
+import { ACTION_START, CTX_INLINE_CHAT_GUTTER_VISIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';
 import { ContextMenuHandler } from '../../../../platform/contextview/browser/contextMenuHandler.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -159,7 +159,8 @@ export class InlineChatSelectionIndicator extends Disposable {
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IChatEntitlementService chatEntiteldService: IChatEntitlementService
+		@IChatEntitlementService chatEntiteldService: IChatEntitlementService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super();
 
@@ -173,6 +174,10 @@ export class InlineChatSelectionIndicator extends Disposable {
 
 		// Debounce the selection to add a delay before showing the indicator
 		const debouncedSelection = debouncedObservable(editorObs.cursorSelection, 500);
+
+		// Context key for gutter visibility
+		const gutterVisibleCtxKey = CTX_INLINE_CHAT_GUTTER_VISIBLE.bindTo(contextKeyService);
+		this._store.add({ dispose: () => gutterVisibleCtxKey.reset() });
 
 		// Create data observable based on the primary selection
 		// Use raw selection for immediate hide, debounced for delayed show
@@ -243,6 +248,12 @@ export class InlineChatSelectionIndicator extends Disposable {
 		this._store.add(autorun(reader => {
 			editorObs.cursorSelection.read(reader);
 			suppressGutter.set(false, undefined);
+		}));
+
+		// Update context key when gutter visibility changes
+		this._store.add(autorun(reader => {
+			const isVisible = data.read(reader) !== undefined;
+			gutterVisibleCtxKey.set(isVisible);
 		}));
 	}
 
@@ -338,11 +349,19 @@ class InlineChatGutterIndicator extends InlineEditsGutterIndicator {
 			};
 
 			// Show context menu using ContextMenuHandler
+			const padding = 1;
 			this._contextMenuHandler.showContextMenu({
 				actionRunner,
 				anchorPosition: direction === SelectionDirection.RTL ? AnchorPosition.ABOVE : AnchorPosition.BELOW,
 				getAnchor: () => {
-					return { x, y, height } satisfies IAnchor;
+					// Add 1px padding between gutter indicator and menu
+					if (direction === SelectionDirection.RTL) {
+						// Menu appears above: shift y up by padding
+						return { x, y: y - padding, height } satisfies IAnchor;
+					} else {
+						// Menu appears below: increase height to push menu down
+						return { x, y, height: height + padding } satisfies IAnchor;
+					}
 				},
 				getActions: () => actions,
 				getActionViewItem: (action: IAction, options: IActionViewItemOptions): IActionViewItem | undefined => {
