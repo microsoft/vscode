@@ -118,7 +118,7 @@ variables:
   - name: VSCODE_PUBLISH
     value: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false), eq(parameters.VSCODE_COMPILE_ONLY, false)) }}
   - name: VSCODE_SCHEDULEDBUILD
-    value: ${{ eq(variables['Build.Reason'], 'Schedule') }}
+    value: ${{ in(variables['Build.Reason'], 'BuildCompletion', 'Schedule') }}
   - name: VSCODE_STEP_ON_IT
     value: ${{ eq(parameters.VSCODE_STEP_ON_IT, true) }}
   - name: VSCODE_BUILD_MACOS_UNIVERSAL
