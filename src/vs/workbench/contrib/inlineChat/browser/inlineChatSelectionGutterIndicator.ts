@@ -45,6 +45,7 @@ import { PlaceholderTextContribution } from '../../../../editor/contrib/placehol
 import { AnchorPosition, IAnchor } from '../../../../base/browser/ui/contextview/contextview.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { InlineChatRunOptions } from './inlineChatController.js';
+import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 
 
 class InlineChatInputActionViewItem extends BaseActionViewItem {
@@ -158,11 +159,11 @@ export class InlineChatSelectionIndicator extends Disposable {
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IChatEntitlementService chatEntiteldService: IChatEntitlementService
 	) {
 		super();
 
 		const enabled = observableConfigValue(InlineChatConfigKeys.ShowGutterMenu, false, configurationService);
-		const chatDisabled = observableConfigValue<boolean>('chat.disableAIFeatures', false, configurationService);
 
 		const editorObs = observableCodeEditor(this._editor);
 		const focusIsInMenu = observableValue<boolean>(this, false);
@@ -177,7 +178,7 @@ export class InlineChatSelectionIndicator extends Disposable {
 		// Use raw selection for immediate hide, debounced for delayed show
 		const data = derived(reader => {
 			// Check if feature is enabled or if AI features are disabled
-			if (!enabled.read(reader) || chatDisabled.read(reader)) {
+			if (!enabled.read(reader) || chatEntiteldService.sentiment.hidden) {
 				return undefined;
 			}
 
