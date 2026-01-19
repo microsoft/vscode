@@ -47,7 +47,7 @@ import { IChatModelReference, IChatService } from '../../../common/chatService/c
 import { IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { LocalChatSessionUri, getChatSessionType } from '../../../common/model/chatUri.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
-import { AgentSessionsControl, AgentSessionsControlSource } from '../../agentSessions/agentSessionsControl.js';
+import { AgentSessionsControl } from '../../agentSessions/agentSessionsControl.js';
 import { AgentSessionsListDelegate } from '../../agentSessions/agentSessionsViewer.js';
 import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
 import { ChatWidget } from '../../widget/chatWidget.js';
@@ -394,7 +394,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// Sessions Control
 		this.sessionsControlContainer = append(sessionsContainer, $('.agent-sessions-control-container'));
 		const sessionsControl = this.sessionsControl = this._register(this.instantiationService.createInstance(AgentSessionsControl, this.sessionsControlContainer, {
-			source: AgentSessionsControlSource.ChatViewPane,
+			source: 'chatViewPane',
 			filter: sessionsFilter,
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			getHoverPosition: () => {

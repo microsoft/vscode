@@ -40,7 +40,7 @@ import { AgentSessionsWelcomeEditorOptions, AgentSessionsWelcomeInput } from './
 import { IChatService } from '../../chat/common/chatService/chatService.js';
 import { IChatModel } from '../../chat/common/model/chatModel.js';
 import { ISessionTypePickerDelegate } from '../../chat/browser/chat.js';
-import { AgentSessionsControl, AgentSessionsControlSource, IAgentSessionsControlOptions } from '../../chat/browser/agentSessions/agentSessionsControl.js';
+import { AgentSessionsControl, IAgentSessionsControlOptions } from '../../chat/browser/agentSessions/agentSessionsControl.js';
 import { IAgentSessionsFilter } from '../../chat/browser/agentSessions/agentSessionsViewer.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IResolvedWalkthrough, IWalkthroughsService } from '../../welcomeGettingStarted/browser/gettingStartedService.js';
@@ -280,7 +280,8 @@ export class AgentSessionsWelcomePage extends EditorPane {
 			filter,
 			getHoverPosition: () => HoverPosition.BELOW,
 			trackActiveEditorSession: () => false,
-			source: AgentSessionsControlSource.WelcomeView,
+			source: 'welcomeView',
+			notifySessionOpened: () => this.layoutService.setAuxiliaryBarMaximized(true) // TODO@osortega what if the session did not open in the 2nd sidebar?
 		};
 
 		this.sessionsControl = this.sessionsControlDisposables.add(this.instantiationService.createInstance(

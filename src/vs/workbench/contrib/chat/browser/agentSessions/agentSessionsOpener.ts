@@ -7,7 +7,7 @@ import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { IAgentSession, isLocalAgentSessionItem } from './agentSessionsModel.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
-import { ChatViewPaneTarget, IChatWidgetService } from '../chat.js';
+import { ChatViewPaneTarget, IChatWidget, IChatWidgetService } from '../chat.js';
 import { ACTIVE_GROUP, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
@@ -15,35 +15,19 @@ import { Schemas } from '../../../../../base/common/network.js';
 
 //#region Session Opener Registry
 
-/**
- * A participant that can handle session opening.
- * Return `true` to indicate the session was handled and default opening should be skipped.
- */
 export interface ISessionOpenerParticipant {
-	/**
-	 * Called when a session is about to be opened.
-	 * @param accessor Services accessor for dependency injection
-	 * @param session The session being opened
-	 * @param openOptions Options for opening the session
-	 * @returns `true` if the participant handled the session and default opening should be skipped
-	 */
 	handleOpenSession(accessor: ServicesAccessor, session: IAgentSession, openOptions?: ISessionOpenOptions): Promise<boolean>;
 }
 
 export interface ISessionOpenOptions {
 	readonly sideBySide?: boolean;
 	readonly editorOptions?: IEditorOptions;
-	readonly expanded?: boolean;
 }
 
 class SessionOpenerRegistry {
 
 	private readonly participants = new Set<ISessionOpenerParticipant>();
 
-	/**
-	 * Register a participant that can handle session opening.
-	 * Participants are called in registration order before the default session opening logic.
-	 */
 	registerParticipant(participant: ISessionOpenerParticipant): IDisposable {
 		this.participants.add(participant);
 
@@ -54,9 +38,6 @@ class SessionOpenerRegistry {
 		};
 	}
 
-	/**
-	 * Get all registered participants.
-	 */
 	getParticipants(): readonly ISessionOpenerParticipant[] {
 		return Array.from(this.participants);
 	}
@@ -66,21 +47,21 @@ export const sessionOpenerRegistry = new SessionOpenerRegistry();
 
 //#endregion
 
-export async function openSession(accessor: ServicesAccessor, session: IAgentSession, openOptions?: ISessionOpenOptions): Promise<void> {
+export async function openSession(accessor: ServicesAccessor, session: IAgentSession, openOptions?: ISessionOpenOptions): Promise<IChatWidget | undefined> {
 
 	// First, give registered participants a chance to handle the session
 	for (const participant of sessionOpenerRegistry.getParticipants()) {
 		const handled = await participant.handleOpenSession(accessor, session, openOptions);
 		if (handled) {
-			return; // Participant handled the session, skip default opening
+			return undefined; // Participant handled the session, skip default opening
 		}
 	}
 
 	// Default session opening logic
-	await openSessionDefault(accessor, session, openOptions);
+	return openSessionDefault(accessor, session, openOptions);
 }
 
-async function openSessionDefault(accessor: ServicesAccessor, session: IAgentSession, openOptions?: ISessionOpenOptions): Promise<void> {
+async function openSessionDefault(accessor: ServicesAccessor, session: IAgentSession, openOptions?: ISessionOpenOptions): Promise<IChatWidget | undefined> {
 	const chatSessionsService = accessor.get(IChatSessionsService);
 	const chatWidgetService = accessor.get(IChatWidgetService);
 
@@ -97,7 +78,6 @@ async function openSessionDefault(accessor: ServicesAccessor, session: IAgentSes
 		...sessionOptions,
 		...openOptions?.editorOptions,
 		revealIfOpened: true, // always try to reveal if already opened
-		expanded: openOptions?.expanded
 	};
 
 	await chatSessionsService.activateChatSessionItemProvider(session.providerType); // ensure provider is activated before trying to open
@@ -115,5 +95,5 @@ async function openSessionDefault(accessor: ServicesAccessor, session: IAgentSes
 		options = { ...options, revealIfOpened: true };
 	}
 
-	await chatWidgetService.openSession(session.resource, target, options);
+	return chatWidgetService.openSession(session.resource, target, options);
 }
