@@ -3779,7 +3779,7 @@ export namespace McpServerDefinition {
 				dto.label,
 				dto.command,
 				dto.args,
-				Object.fromEntries(Object.entries(dto.env).filter((entry): entry is [string, string] => entry[1] !== undefined)),
+				Object.fromEntries(Object.entries(dto.env).map(([key, value]) => [key, value === undefined ? null : value])),
 				dto.version,
 			);
 			if (dto.cwd) {
