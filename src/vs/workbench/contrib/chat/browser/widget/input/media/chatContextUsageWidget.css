@@ -111,6 +111,12 @@
 	background-color: var(--vscode-gauge-errorForeground);
 }
 
+.chat-context-usage-hover .quota-indicator .quota-sub-label {
+	font-size: 12px;
+	text-align: right;
+	color: var(--vscode-descriptionForeground);
+}
+
 .chat-context-usage-hover-list {
 	display: flex;
 	flex-direction: column;

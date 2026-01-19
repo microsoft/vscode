@@ -135,11 +135,6 @@ export class ChatContextUsageWidget extends Disposable {
 			return;
 		}
 
-		let promptsTokenCount = 0;
-		let filesTokenCount = 0;
-		let toolsTokenCount = 0;
-		let contextTokenCount = 0;
-
 		const requests = this._currentModel.getRequests();
 
 		if (requests.length === 0) {
@@ -170,22 +165,25 @@ export class ChatContextUsageWidget extends Disposable {
 			return text.length / 4;
 		};
 
-		for (const request of requests) {
+		const requestCounts = await Promise.all(requests.map(async (request) => {
+			let p = 0;
+			let f = 0;
+			let t = 0;
+			let c = 0;
+
 			// Prompts: User message
 			const messageText = typeof request.message === 'string' ? request.message : request.message.text;
-			promptsTokenCount += await countTokens(messageText);
+			p += await countTokens(messageText);
 
 			// Variables (Files, Context)
 			if (request.variableData && request.variableData.variables) {
 				for (const variable of request.variableData.variables) {
-					// Estimate usage for variables as getting full content might be expensive/complex async
-					// Using a safe estimate for now per item type
+					// Estimate usage
 					const defaultEstimate = 500;
-
 					if (variable.kind === 'file') {
-						filesTokenCount += defaultEstimate;
+						f += defaultEstimate;
 					} else {
-						contextTokenCount += defaultEstimate;
+						c += defaultEstimate;
 					}
 				}
 			}
@@ -193,28 +191,43 @@ export class ChatContextUsageWidget extends Disposable {
 			// Tools & Response
 			if (request.response) {
 				const responseString = request.response.response.toString();
-				promptsTokenCount += await countTokens(responseString);
+				p += await countTokens(responseString);
 
-				// Loop through response parts for tool invocations
 				for (const part of request.response.response.value) {
 					if (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') {
-						// Estimate tool invocation cost
-						toolsTokenCount += 200;
+						t += 200;
 					}
 				}
 			}
-		}
 
-		this._promptsTokenCount = promptsTokenCount;
-		this._filesTokenCount = filesTokenCount;
-		this._toolsTokenCount = toolsTokenCount;
-		this._contextTokenCount = contextTokenCount;
+			return { p, f, t, c };
+		}));
+
+		this._promptsTokenCount = 0;
+		this._filesTokenCount = 0;
+		this._toolsTokenCount = 0;
+		this._contextTokenCount = 0;
+
+		for (const count of requestCounts) {
+			this._promptsTokenCount += count.p;
+			this._filesTokenCount += count.f;
+			this._toolsTokenCount += count.t;
+			this._contextTokenCount += count.c;
+		}
 
 		this._totalTokenCount = Math.round(this._promptsTokenCount + this._filesTokenCount + this._toolsTokenCount + this._contextTokenCount);
 		this._usagePercent = Math.min(100, (this._totalTokenCount / this._maxTokenCount) * 100);
 
 		this._updateRing();
 		this._updateHover();
+	}
+
+	private _formatTokens(value: number): string {
+		if (value >= 1000) {
+			const thousands = value / 1000;
+			return `${thousands >= 10 ? Math.round(thousands) : thousands.toFixed(1)}k`;
+		}
+		return `${value}`;
 	}
 
 	private _updateRing() {
@@ -234,14 +247,7 @@ export class ChatContextUsageWidget extends Disposable {
 	private _updateHover() {
 		if (this._hoverQuotaValue) {
 			const percentStr = `${this._usagePercent.toFixed(0)}%`;
-			const formatTokens = (value: number) => {
-				if (value >= 1000) {
-					const thousands = value / 1000;
-					return `${thousands >= 10 ? Math.round(thousands) : thousands.toFixed(1)}k`;
-				}
-				return `${value}`;
-			};
-			const usageStr = `${formatTokens(this._totalTokenCount)} / ${formatTokens(this._maxTokenCount)}`;
+			const usageStr = `${this._formatTokens(this._totalTokenCount)} / ${this._formatTokens(this._maxTokenCount)}`;
 			this._hoverQuotaValue.textContent = `${usageStr} • ${percentStr}`;
 		}
 
@@ -268,14 +274,7 @@ export class ChatContextUsageWidget extends Disposable {
 		const container = $('.chat-context-usage-hover');
 
 		const percentStr = `${this._usagePercent.toFixed(0)}%`;
-		const formatTokens = (value: number) => {
-			if (value >= 1000) {
-				const thousands = value / 1000;
-				return `${thousands >= 10 ? Math.round(thousands) : thousands.toFixed(1)}k`;
-			}
-			return `${value}`;
-		};
-		const usageStr = `${formatTokens(this._totalTokenCount)} / ${formatTokens(this._maxTokenCount)}`;
+		const usageStr = `${this._formatTokens(this._totalTokenCount)} / ${this._formatTokens(this._maxTokenCount)}`;
 
 		// Quota Indicator (Progress Bar)
 		const quotaIndicator = dom.append(container, $('.quota-indicator'));
@@ -299,9 +298,6 @@ export class ChatContextUsageWidget extends Disposable {
 			quotaSubLabel.textContent = this._usagePercent >= 100
 				? localize('contextWindowFull', "Context window full")
 				: localize('approachingLimit', "Approaching limit");
-			quotaSubLabel.style.fontSize = '12px';
-			quotaSubLabel.style.textAlign = 'right';
-			quotaSubLabel.style.color = 'var(--vscode-descriptionForeground)';
 		}
 
 		// List
