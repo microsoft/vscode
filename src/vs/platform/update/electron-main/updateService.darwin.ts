@@ -22,12 +22,6 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 
 	private readonly disposables = new DisposableStore();
 
-	/**
-	 * When checking for a newer update while one is already ready, we store
-	 * the pending update here so we can restore it if no newer update is found.
-	 */
-	private pendingUpdate: IUpdate | undefined;
-
 	@memoize private get onRawError(): Event<string> { return Event.fromNodeEventEmitter(electron.autoUpdater, 'error', (_, message) => message); }
 	@memoize private get onRawUpdateNotAvailable(): Event<void> { return Event.fromNodeEventEmitter<void>(electron.autoUpdater, 'update-not-available'); }
 	@memoize private get onRawUpdateAvailable(): Event<void> { return Event.fromNodeEventEmitter(electron.autoUpdater, 'update-available'); }
@@ -74,15 +68,6 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 		this.telemetryService.publicLog2<{ messageHash: string }, UpdateErrorClassification>('update:error', { messageHash: String(hash(String(err))) });
 		this.logService.error('UpdateService error:', err);
 
-		// If we had a pending update before checking, restore it on error
-		if (this.pendingUpdate) {
-			this.logService.trace('update#onError: restoring pending update');
-			const update = this.pendingUpdate;
-			this.pendingUpdate = undefined;
-			this.setState(State.Ready(update));
-			return;
-		}
-
 		// only show message when explicitly checking for updates
 		const message = (this.state.type === StateType.CheckingForUpdates && this.state.explicit) ? err : undefined;
 		this.setState(State.Idle(UpdateType.Archive, message));
@@ -116,11 +101,6 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 			return;
 		}
 
-		// Store the pending update so we can restore it if no newer update is found
-		if (this.state.type === StateType.Ready) {
-			this.pendingUpdate = this.state.update;
-		}
-
 		this.doCheckForUpdates(explicit);
 	}
 
@@ -141,8 +121,6 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 			return;
 		}
 
-		// A new update is available, clear any pending update
-		this.pendingUpdate = undefined;
 		this.setState(State.Downloading);
 	}
 
@@ -165,15 +143,6 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 
 	private onUpdateNotAvailable(): void {
 		if (this.state.type !== StateType.CheckingForUpdates) {
-			return;
-		}
-
-		// If we had a pending update before checking, restore it
-		if (this.pendingUpdate) {
-			this.logService.trace('update#onUpdateNotAvailable: restoring pending update');
-			const update = this.pendingUpdate;
-			this.pendingUpdate = undefined;
-			this.setState(State.Ready(update));
 			return;
 		}
 
