@@ -32,7 +32,6 @@ import { ObservableEditorSession } from './chatEditingEditorContextKeys.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import * as arrays from '../../../../../base/common/arrays.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 
@@ -73,12 +72,17 @@ class ChatEditorOverlayWidget extends Disposable {
 				return undefined;
 			}
 
-			const response = this._entry.read(r)?.lastModifyingResponse.read(r);
+			// For inline chat (non-global sessions), get progress directly from the chat model's current request/response
+			// This ensures progress messages appear immediately when streaming starts, before lastModifyingResponse is set
+			const response = session.isGlobalEditingSession
+				? this._entry.read(r)?.lastModifyingResponse.read(r)
+				: chatModel.lastRequestObs.read(r)?.response;
+
 			if (!response) {
 				return { message: localize('working', "Working...") };
 			}
 
-			const lastPart = observableFromEventOpts({ equalsFn: arrays.equals }, response.onDidChange, () => response.response.value)
+			const lastPart = observableFromEventOpts({ equalsFn: () => false }, response.onDidChange, () => response.response.value)
 				.read(r)
 				.filter(part => part.kind === 'progressMessage' || part.kind === 'toolInvocation')
 				.at(-1);
