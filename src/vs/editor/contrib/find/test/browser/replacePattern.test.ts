@@ -251,4 +251,81 @@ suite('Replace Pattern test', () => {
 		assertReplace(['foo_Bar'], 'newfoo_newbar', 'newfoo_Newbar');
 		assertReplace(['foo_BAR'], 'newfoo_newbar', 'newfoo_NEWBAR');
 	});
+
+	test('parse replace string with named groups', () => {
+		const testParse = (input: string, expectedPieces: ReplacePiece[]) => {
+			const actual = parseReplaceString(input);
+			const expected = new ReplacePattern(expectedPieces);
+			assert.deepStrictEqual(actual, expected, 'Parsing ' + input);
+		};
+
+		// Valid named groups
+		testParse('hello${name}', [ReplacePiece.staticValue('hello'), ReplacePiece.namedGroup('name', [])]);
+		testParse('${greeting} ${target}!', [ReplacePiece.namedGroup('greeting', []), ReplacePiece.staticValue(' '), ReplacePiece.namedGroup('target', []), ReplacePiece.staticValue('!')]);
+		testParse('${name_with_underscore}', [ReplacePiece.namedGroup('name_with_underscore', [])]);
+		testParse('${_name}', [ReplacePiece.namedGroup('_name', [])]);
+		testParse('${name123}', [ReplacePiece.namedGroup('name123', [])]);
+
+		// Invalid named groups - should be treated as literal
+		testParse('hello${}', [ReplacePiece.staticValue('hello${}')]); // empty name
+		testParse('hello${123}', [ReplacePiece.staticValue('hello${123}')]); // purely numeric
+		testParse('hello${invalid-name}', [ReplacePiece.staticValue('hello${invalid-name}')]); // contains hyphen
+		testParse('hello${name', [ReplacePiece.staticValue('hello${name')]); // unclosed brace
+
+		// Escaped $ before named group - $$ produces literal $, then {name} is literal (consistent with $$1 -> $1)
+		testParse('hello$${name}', [ReplacePiece.staticValue('hello${name}')]);
+	});
+
+	test('replace with named groups', () => {
+		function assertReplace(target: string, search: RegExp, replaceString: string, expected: string): void {
+			const replacePattern = parseReplaceString(replaceString);
+			const m = search.exec(target);
+			const groups = m?.groups ? { ...m.groups } : null;
+			const actual = replacePattern.buildReplaceString(m ? [...m] : null, false, groups);
+
+			assert.strictEqual(actual, expected, `${target}.replace(${search}, ${replaceString}) === ${expected}`);
+		}
+
+		// Basic named group replacement
+		assertReplace('hello world', /(?<greeting>hello) (?<target>world)/, '${greeting}, ${target}!', 'hello, world!');
+
+		// Mixed numbered and named groups
+		assertReplace('hello world', /(?<greeting>hello) (\w+)/, '${greeting} $2', 'hello world');
+
+		// Named group with case modifiers
+		assertReplace('hello world', /(?<greeting>hello) (?<target>world)/, '\\U${greeting}, ${target}!', 'HELLO, world!');
+		assertReplace('hello world', /(?<greeting>hello) (?<target>world)/, '${greeting}, \\U${target}!', 'hello, WORLD!');
+
+		// Non-existent named group returns empty string
+		assertReplace('hello world', /(?<greeting>hello) (?<target>world)/, '${nonexistent}!', '!');
+
+		// Named group with underscore in name
+		assertReplace('hello world', /(?<my_greeting>hello) (?<my_target>world)/, '${my_greeting}, ${my_target}!', 'hello, world!');
+	});
+
+	test('named groups with case modifiers', () => {
+		function assertReplace(target: string, search: RegExp, replaceString: string, expected: string): void {
+			const replacePattern = parseReplaceString(replaceString);
+			const m = search.exec(target);
+			const groups = m?.groups ? { ...m.groups } : null;
+			const actual = replacePattern.buildReplaceString(m ? [...m] : null, false, groups);
+
+			assert.strictEqual(actual, expected, `${target}.replace(${search}, ${replaceString}) === ${expected}`);
+		}
+
+		// \u - uppercase first character
+		assertReplace('hello world', /(?<word>hello)/, '\\u${word}', 'Hello');
+
+		// \U - uppercase all characters
+		assertReplace('hello world', /(?<word>hello)/, '\\U${word}', 'HELLO');
+
+		// \l - lowercase first character
+		assertReplace('HELLO world', /(?<word>HELLO)/, '\\l${word}', 'hELLO');
+
+		// \L - lowercase all characters
+		assertReplace('HELLO world', /(?<word>HELLO)/, '\\L${word}', 'hello');
+
+		// Combined case modifiers
+		assertReplace('hello WORLD', /(?<first>hello) (?<second>WORLD)/, '\\U${first} \\L${second}', 'HELLO world');
+	});
 });

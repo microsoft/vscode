@@ -484,7 +484,7 @@ export class FindModelBoundToEditorModel {
 		if (nextMatch) {
 			if (selection.equalsRange(nextMatch.range)) {
 				// selection sits on a find match => replace it!
-				const replaceString = replacePattern.buildReplaceString(nextMatch.matches, this._state.preserveCase);
+				const replaceString = replacePattern.buildReplaceString(nextMatch.matches, this._state.preserveCase, nextMatch.groups);
 
 				const command = new ReplaceCommand(selection, replaceString);
 
@@ -552,9 +552,21 @@ export class FindModelBoundToEditorModel {
 		const preserveCase = this._state.preserveCase;
 
 		if (replacePattern.hasReplacementPatterns || preserveCase) {
-			resultText = modelText.replace(searchRegex, function () {
-				// eslint-disable-next-line local/code-no-any-casts
-				return replacePattern.buildReplaceString(<string[]><any>arguments, preserveCase);
+			resultText = modelText.replace(searchRegex, function (...args: unknown[]) {
+				// Extract matches array and groups object from arguments
+				// The arguments are: match, p1, p2, ..., offset, string, groups (if named groups exist)
+				// If groups object exists, it's the last argument and is an object (not string/number)
+				const lastArg = args[args.length - 1];
+				let groups: { [key: string]: string } | null = null;
+				let matchesEnd = args.length;
+				if (lastArg !== null && typeof lastArg === 'object' && !(lastArg instanceof String)) {
+					groups = lastArg as { [key: string]: string };
+					matchesEnd -= 3; // Remove groups, string, offset
+				} else {
+					matchesEnd -= 2; // Remove string, offset
+				}
+				const matches = args.slice(0, matchesEnd) as string[];
+				return replacePattern.buildReplaceString(matches, preserveCase, groups);
 			});
 		} else {
 			resultText = modelText.replace(searchRegex, replacePattern.buildReplaceString(null, preserveCase));
@@ -571,7 +583,7 @@ export class FindModelBoundToEditorModel {
 
 		const replaceStrings: string[] = [];
 		for (let i = 0, len = matches.length; i < len; i++) {
-			replaceStrings[i] = replacePattern.buildReplaceString(matches[i].matches, this._state.preserveCase);
+			replaceStrings[i] = replacePattern.buildReplaceString(matches[i].matches, this._state.preserveCase, matches[i].groups);
 		}
 
 		const command = new ReplaceAllCommand(this._editor.getSelection(), matches.map(m => m.range), replaceStrings);
