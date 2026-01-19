@@ -5,6 +5,7 @@
 
 import { $, addDisposableListener, clearNode, hide } from '../../../../../../base/browser/dom.js';
 import { alert } from '../../../../../../base/browser/ui/aria/aria.js';
+import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { IChatMarkdownContent, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import { IChatContentPartRenderContext, IChatContentPart } from './chatContentParts.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
@@ -118,7 +119,8 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private lazyItems: ILazyItem[] = [];
 	private hasExpandedOnce: boolean = false;
 	private isMouseOver: boolean = false;
-	private collapseRequestedWhileHovering: boolean = false;
+	private manualCollapseButton: Button | undefined;
+	private collapseButtonContainer: HTMLElement | undefined;
 
 	constructor(
 		content: IChatThinkingPart,
@@ -171,10 +173,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}));
 		this._register(addDisposableListener(node, 'mouseleave', () => {
 			this.isMouseOver = false;
-			if (this.collapseRequestedWhileHovering) {
-				this.collapseRequestedWhileHovering = false;
-				this.setExpanded(false);
-			}
 		}));
 
 		if (this.fixedScrollingMode) {
@@ -334,12 +332,46 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	public collapseContent(): void {
-		// Defer collapse if user is reading (mouse is over the widget)
+		// If user is reading (mouse is over the widget), show a collapse button instead of auto-collapsing
 		if (this.isMouseOver) {
-			this.collapseRequestedWhileHovering = true;
+			this.showManualCollapseButton();
 			return;
 		}
 		this.setExpanded(false);
+	}
+
+	private showManualCollapseButton(): void {
+		if (this.manualCollapseButton || !this.wrapper) {
+			return;
+		}
+
+		// Create a container for the collapse button at the bottom
+		this.collapseButtonContainer = $('.chat-thinking-collapse-button-container');
+		this.manualCollapseButton = this._register(new Button(this.collapseButtonContainer, {
+			secondary: true,
+			supportIcons: true
+		}));
+		this.manualCollapseButton.label = localize('chat.thinking.collapse', 'Collapse');
+		this.manualCollapseButton.element.classList.add('chat-thinking-collapse-button');
+
+		this._register(this.manualCollapseButton.onDidClick(() => {
+			this.setExpanded(false);
+			this.hideManualCollapseButton();
+		}));
+
+		this.wrapper.appendChild(this.collapseButtonContainer);
+		this._onDidChangeHeight.fire();
+	}
+
+	private hideManualCollapseButton(): void {
+		if (this.collapseButtonContainer) {
+			this.collapseButtonContainer.remove();
+			this.collapseButtonContainer = undefined;
+		}
+		if (this.manualCollapseButton) {
+			this.manualCollapseButton.dispose();
+			this.manualCollapseButton = undefined;
+		}
 	}
 
 	public updateThinking(content: IChatThinkingPart): void {
