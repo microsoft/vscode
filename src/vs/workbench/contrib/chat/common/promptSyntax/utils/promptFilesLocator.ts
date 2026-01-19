@@ -387,9 +387,16 @@ export class PromptFilesLocator {
 	}
 
 	/**
-	 * Uses the search service to find all files at the provided location
+	 * Uses the search service to find all files at the provided location.
+	 * Requires a FileSearchProvider to be available for the folder's scheme.
 	 */
 	private async searchFilesInLocation(folder: URI, filePattern: string | undefined, token: CancellationToken): Promise<URI[]> {
+		// Check if a FileSearchProvider is available for this scheme
+		if (!this.searchService.schemeHasFileSearchProvider(folder.scheme)) {
+			this.logService.warn(`[PromptFilesLocator] No FileSearchProvider available for scheme '${folder.scheme}'. Cannot search for pattern '${filePattern}' in ${folder.toString()}`);
+			return [];
+		}
+
 		const disregardIgnoreFiles = this.configService.getValue<boolean>('explorer.excludeGitIgnore');
 
 		const workspaceRoot = this.workspaceService.getWorkspaceFolder(folder);
