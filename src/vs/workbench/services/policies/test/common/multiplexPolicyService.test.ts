@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Event } from '../../../../../base/common/event.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IDefaultAccountProvider, IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { DefaultAccountService } from '../../../accounts/common/defaultAccount.js';
 import { AccountPolicyService } from '../../common/accountPolicyService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -19,13 +20,40 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
+import { IDefaultAccount, IDefaultAccountAuthenticationProvider } from '../../../../../base/common/defaultAccount.js';
 import { PolicyCategory } from '../../../../../base/common/policy.js';
+import { TestProductService } from '../../../../test/common/workbenchTestServices.js';
 
 const BASE_DEFAULT_ACCOUNT: IDefaultAccount = {
+	authenticationProvider: {
+		id: 'github',
+		name: 'GitHub',
+		enterprise: false,
+	},
 	enterprise: false,
 	sessionId: 'abc123',
 };
+
+class DefaultAccountProvider implements IDefaultAccountProvider {
+
+	readonly onDidChangeDefaultAccount = Event.None;
+
+	constructor(
+		readonly defaultAccount: IDefaultAccount,
+	) { }
+
+	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider {
+		return this.defaultAccount.authenticationProvider;
+	}
+
+	async refresh(): Promise<IDefaultAccount | null> {
+		return this.defaultAccount;
+	}
+
+	async signIn(): Promise<IDefaultAccount | null> {
+		return null;
+	}
+}
 
 suite('MultiplexPolicyService', () => {
 
@@ -62,7 +90,7 @@ suite('MultiplexPolicyService', () => {
 					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
 					localization: { description: { key: '', value: '' } },
-					value: account => account.chat_preview_features_enabled === false ? 'policyValueB' : undefined,
+					value: account => account.policyData?.chat_preview_features_enabled === false ? 'policyValueB' : undefined,
 				}
 			},
 			'setting.C': {
@@ -73,7 +101,7 @@ suite('MultiplexPolicyService', () => {
 					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
 					localization: { description: { key: '', value: '' } },
-					value: account => account.chat_preview_features_enabled === false ? JSON.stringify(['policyValueC1', 'policyValueC2']) : undefined,
+					value: account => account.policyData?.chat_preview_features_enabled === false ? JSON.stringify(['policyValueC1', 'policyValueC2']) : undefined,
 				}
 			},
 			'setting.D': {
@@ -84,7 +112,7 @@ suite('MultiplexPolicyService', () => {
 					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
 					localization: { description: { key: '', value: '' } },
-					value: account => account.chat_preview_features_enabled === false ? false : undefined,
+					value: account => account.policyData?.chat_preview_features_enabled === false ? false : undefined,
 				}
 			},
 			'setting.E': {
@@ -106,7 +134,7 @@ suite('MultiplexPolicyService', () => {
 		const diskFileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
 		disposables.add(fileService.registerProvider(policyFile.scheme, diskFileSystemProvider));
 
-		defaultAccountService = disposables.add(new DefaultAccountService());
+		defaultAccountService = disposables.add(new DefaultAccountService(TestProductService));
 		policyService = disposables.add(new MultiplexPolicyService([
 			disposables.add(new FilePolicyService(policyFile, fileService, new NullLogService())),
 			disposables.add(new AccountPolicyService(logService, defaultAccountService)),
@@ -115,8 +143,6 @@ suite('MultiplexPolicyService', () => {
 	});
 
 	async function clear() {
-		// Reset
-		defaultAccountService.setDefaultAccount({ ...BASE_DEFAULT_ACCOUNT });
 		await fileService.writeFile(policyFile,
 			VSBuffer.fromString(
 				JSON.stringify({})
@@ -161,7 +187,8 @@ suite('MultiplexPolicyService', () => {
 		await clear();
 
 		const defaultAccount = { ...BASE_DEFAULT_ACCOUNT };
-		defaultAccountService.setDefaultAccount(defaultAccount);
+		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(defaultAccount));
+		await defaultAccountService.refresh();
 
 		await fileService.writeFile(policyFile,
 			VSBuffer.fromString(
@@ -201,8 +228,9 @@ suite('MultiplexPolicyService', () => {
 	test('policy from default account only', async () => {
 		await clear();
 
-		const defaultAccount = { ...BASE_DEFAULT_ACCOUNT, chat_preview_features_enabled: false };
-		defaultAccountService.setDefaultAccount(defaultAccount);
+		const defaultAccount = { ...BASE_DEFAULT_ACCOUNT, policyData: { chat_preview_features_enabled: false } };
+		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(defaultAccount));
+		await defaultAccountService.refresh();
 
 		await fileService.writeFile(policyFile,
 			VSBuffer.fromString(
@@ -241,8 +269,9 @@ suite('MultiplexPolicyService', () => {
 	test('policy from file and default account', async () => {
 		await clear();
 
-		const defaultAccount = { ...BASE_DEFAULT_ACCOUNT, chat_preview_features_enabled: false };
-		defaultAccountService.setDefaultAccount(defaultAccount);
+		const defaultAccount = { ...BASE_DEFAULT_ACCOUNT, policyData: { chat_preview_features_enabled: false } };
+		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(defaultAccount));
+		await defaultAccountService.refresh();
 
 		await fileService.writeFile(policyFile,
 			VSBuffer.fromString(

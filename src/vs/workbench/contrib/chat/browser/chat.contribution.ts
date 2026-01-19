@@ -69,7 +69,6 @@ import { ACTION_ID_NEW_CHAT, CopilotTitleBarMenuRendering, ModeOpenChatGlobalAct
 import { CodeBlockActionRendering, registerChatCodeBlockActions, registerChatCodeCompareBlockActions } from './actions/chatCodeblockActions.js';
 import { ChatContextContributions } from './actions/chatContext.js';
 import { registerChatContextActions } from './actions/chatContextActions.js';
-import { ContinueChatInSessionActionRendering } from './actions/chatContinueInAction.js';
 import { registerChatCopyActions } from './actions/chatCopyActions.js';
 import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js';
 import { ChatSubmitAction, registerChatExecuteActions } from './actions/chatExecuteActions.js';
@@ -287,7 +286,7 @@ configurationRegistry.registerConfiguration({
 				name: 'ChatToolsAutoApprove',
 				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.99',
-				value: (account) => account.chat_preview_features_enabled === false ? false : undefined,
+				value: (account) => account.policyData?.chat_preview_features_enabled === false ? false : undefined,
 				localization: {
 					description: {
 						key: 'autoApprove2.description',
@@ -445,10 +444,10 @@ configurationRegistry.registerConfiguration({
 				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.99',
 				value: (account) => {
-					if (account.mcp === false) {
+					if (account.policyData?.mcp === false) {
 						return McpAccessValue.None;
 					}
-					if (account.mcpAccess === 'registry_only') {
+					if (account.policyData?.mcpAccess === 'registry_only') {
 						return McpAccessValue.Registry;
 					}
 					return undefined;
@@ -559,7 +558,7 @@ configurationRegistry.registerConfiguration({
 				name: 'ChatAgentMode',
 				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.99',
-				value: (account) => account.chat_agent_enabled === false ? false : undefined,
+				value: (account) => account.policyData?.chat_agent_enabled === false ? false : undefined,
 				localization: {
 					description: {
 						key: 'chat.agent.enabled.description',
@@ -619,7 +618,7 @@ configurationRegistry.registerConfiguration({
 				name: 'McpGalleryServiceUrl',
 				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.101',
-				value: (account) => account.mcpRegistryUrl,
+				value: (account) => account.policyData?.mcpRegistryUrl,
 				localization: {
 					description: {
 						key: 'mcp.gallery.serviceUrl',
@@ -1214,7 +1213,6 @@ registerWorkbenchContribution2(ChatPromptFilesExtensionPointHandler.ID, ChatProm
 registerWorkbenchContribution2(ChatCompatibilityNotifier.ID, ChatCompatibilityNotifier, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(CopilotTitleBarMenuRendering.ID, CopilotTitleBarMenuRendering, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(CodeBlockActionRendering.ID, CodeBlockActionRendering, WorkbenchPhase.BlockRestore);
-registerWorkbenchContribution2(ContinueChatInSessionActionRendering.ID, ContinueChatInSessionActionRendering, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatImplicitContextContribution.ID, ChatImplicitContextContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatRelatedFilesContribution.ID, ChatRelatedFilesContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatViewsWelcomeHandler.ID, ChatViewsWelcomeHandler, WorkbenchPhase.BlockStartup);

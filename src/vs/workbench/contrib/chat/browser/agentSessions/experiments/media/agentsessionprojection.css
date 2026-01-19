@@ -3,10 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* ========================================
-Agent Session Projection Mode - Tab and Editor styling
-======================================== */
-
 /* Style all tabs with the same background as the agent status */
 .monaco-workbench.agent-session-projection-active .part.editor > .content .editor-group-container > .title .tabs-container > .tab {
 	background-color: color-mix(in srgb, var(--vscode-progressBar-background) 15%, transparent) !important;
