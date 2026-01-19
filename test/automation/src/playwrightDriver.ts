@@ -116,40 +116,15 @@ export class PlaywrightDriver {
 	}
 
 	/**
-	 * Get a human-readable name for the current window based on its URL.
-	 */
-	getWindowName(): string {
-		const url = this._currentPage.url();
-		if (url.includes('agent.html')) {
-			return 'Agent Window';
-		}
-		if (url.includes('workbench')) {
-			return 'Main Workbench';
-		}
-		return 'Window';
-	}
-
-	/**
 	 * Get information about all windows.
 	 */
-	getWindowsInfo(): { index: number; url: string; title: string; isCurrent: boolean }[] {
+	getWindowsInfo(): { index: number; url: string; isCurrent: boolean }[] {
 		const windows = this.getAllWindows();
 		return windows.map((page, index) => ({
 			index,
 			url: page.url(),
-			title: this.getWindowNameForUrl(page.url()),
 			isCurrent: page === this._currentPage
 		}));
-	}
-
-	private getWindowNameForUrl(url: string): string {
-		if (url.includes('agent.html')) {
-			return 'Agent Window';
-		}
-		if (url.includes('workbench')) {
-			return 'Main Workbench';
-		}
-		return 'Window';
 	}
 
 	/**

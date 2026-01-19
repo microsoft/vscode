@@ -25,7 +25,7 @@ export function applyWindowTools(server: McpServer, appService: ApplicationServi
 
 	tools.push(server.tool(
 		'vscode_automation_list_windows',
-		'List all open VS Code windows with their index, URL, and title',
+		'List all open VS Code windows with their index and URL',
 		async () => {
 			const app = await appService.getOrCreateApplication();
 			const windowInfo = app.code.driver.getWindowsInfo();
@@ -35,7 +35,7 @@ export function applyWindowTools(server: McpServer, appService: ApplicationServi
 
 	tools.push(server.tool(
 		'vscode_automation_switch_window',
-		'Switch to a different VS Code window by index or URL pattern (e.g., "agent.html" for Agent Window)',
+		'Switch to a different VS Code window by index or URL pattern (e.g., "agent.html")',
 		{
 			indexOrUrl: z.union([z.number(), z.string()]).describe('Window index (0-based) or URL pattern to match (e.g., "agent.html", "workbench")')
 		},
@@ -44,8 +44,7 @@ export function applyWindowTools(server: McpServer, appService: ApplicationServi
 			const switched = app.code.driver.switchToWindow(indexOrUrl);
 
 			if (switched) {
-				const name = app.code.driver.getWindowName();
-				return textResponse(`Switched to ${name} (URL: ${switched.url()})`);
+				return textResponse(`Switched to window (URL: ${switched.url()})`);
 			}
 
 			const windowInfo = app.code.driver.getWindowsInfo();
@@ -62,7 +61,7 @@ export function applyWindowTools(server: McpServer, appService: ApplicationServi
 			const driver = app.code.driver;
 			const windowInfo = driver.getWindowsInfo();
 			const current = windowInfo.find(w => w.isCurrent);
-			return textResponse(`Current window: ${current?.title ?? 'Unknown'}\nIndex: ${current?.index ?? -1}\nURL: ${current?.url ?? 'Unknown'}`);
+			return textResponse(`Current window:\nIndex: ${current?.index ?? -1}\nURL: ${current?.url ?? 'Unknown'}`);
 		}
 	));
 
@@ -76,12 +75,11 @@ export function applyWindowTools(server: McpServer, appService: ApplicationServi
 			const app = await appService.getOrCreateApplication();
 			const driver = app.code.driver;
 			const screenshotBuffer = await driver.screenshotBuffer(fullPage ?? false);
-			const name = driver.getWindowName();
 			const url = driver.currentPage.url();
 
 			return {
 				content: [
-					{ type: 'text' as const, text: `Screenshot of ${name} (URL: ${url})` },
+					{ type: 'text' as const, text: `Screenshot (URL: ${url})` },
 					{ type: 'image' as const, data: screenshotBuffer.toString('base64'), mimeType: 'image/png' }
 				]
 			};
@@ -95,10 +93,9 @@ export function applyWindowTools(server: McpServer, appService: ApplicationServi
 			const app = await appService.getOrCreateApplication();
 			const driver = app.code.driver;
 			const snapshot = await driver.getAccessibilitySnapshot();
-			const name = driver.getWindowName();
 			const url = driver.currentPage.url();
 
-			return textResponse(`Page snapshot of ${name} (URL: ${url}):\n\n${JSON.stringify(snapshot, null, 2)}`);
+			return textResponse(`Page snapshot (URL: ${url}):\n\n${JSON.stringify(snapshot, null, 2)}`);
 		}
 	));
 
@@ -114,7 +111,7 @@ export function applyWindowTools(server: McpServer, appService: ApplicationServi
 			const app = await appService.getOrCreateApplication();
 			const driver = app.code.driver;
 			await driver.clickSelector(selector, { button, clickCount });
-			return textResponse(`Clicked "${selector}" in ${driver.getWindowName()}`);
+			return textResponse(`Clicked "${selector}"`);
 		}
 	));
 
@@ -130,7 +127,7 @@ export function applyWindowTools(server: McpServer, appService: ApplicationServi
 			const app = await appService.getOrCreateApplication();
 			const driver = app.code.driver;
 			await driver.typeText(selector, text, slowly ?? false);
-			return textResponse(`Typed "${text}" into "${selector}" in ${driver.getWindowName()}`);
+			return textResponse(`Typed "${text}" into "${selector}"`);
 		}
 	));
 
@@ -144,7 +141,7 @@ export function applyWindowTools(server: McpServer, appService: ApplicationServi
 			const app = await appService.getOrCreateApplication();
 			const driver = app.code.driver;
 			const result = await driver.evaluateExpression(expression);
-			return textResponse(`Evaluated in ${driver.getWindowName()}:\n${JSON.stringify(result, null, 2)}`);
+			return textResponse(`Result:\n${JSON.stringify(result, null, 2)}`);
 		}
 	));
 
@@ -159,7 +156,7 @@ export function applyWindowTools(server: McpServer, appService: ApplicationServi
 			const app = await appService.getOrCreateApplication();
 			const driver = app.code.driver;
 			const result = await driver.getLocatorInfo(selector, action);
-			return textResponse(`Locator "${selector}" in ${driver.getWindowName()}:\n${JSON.stringify(result, null, 2)}`);
+			return textResponse(`Locator "${selector}":\n${JSON.stringify(result, null, 2)}`);
 		}
 	));
 
@@ -175,7 +172,7 @@ export function applyWindowTools(server: McpServer, appService: ApplicationServi
 			const app = await appService.getOrCreateApplication();
 			const driver = app.code.driver;
 			await driver.waitForElement(selector, { state, timeout });
-			return textResponse(`Element "${selector}" is now ${state ?? 'visible'} in ${driver.getWindowName()}`);
+			return textResponse(`Element "${selector}" is now ${state ?? 'visible'}`);
 		}
 	));
 
