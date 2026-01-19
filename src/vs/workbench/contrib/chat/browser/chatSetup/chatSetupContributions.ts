@@ -42,6 +42,7 @@ import { IExtension, IExtensionsWorkbenchService } from '../../../extensions/com
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatModeService } from '../../common/chatModes.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
+import { ChatConfiguration } from '../../../../services/chat/common/constants.js';
 import { CHAT_CATEGORY, CHAT_SETUP_ACTION_ID, CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../actions/chatActions.js';
 import { ChatViewContainerId, IChatWidgetService } from '../chat.js';
 import { chatViewsWelcomeRegistry } from '../viewsWelcome/chatViewsWelcome.js';
@@ -204,7 +205,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				const configurationService = accessor.get(IConfigurationService);
 
 				await context.update({ hidden: false });
-				configurationService.updateValue(ChatTeardownContribution.CHAT_DISABLED_CONFIGURATION_KEY, false);
+				configurationService.updateValue(ChatConfiguration.EnableAIFeatures, true);
 
 				if (mode) {
 					const chatWidget = await widgetService.revealWidget();
@@ -632,8 +633,6 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 
 	static readonly ID = 'workbench.contrib.chatTeardown';
 
-	static readonly CHAT_DISABLED_CONFIGURATION_KEY = 'chat.disableAIFeatures';
-
 	constructor(
 		@IChatEntitlementService chatEntitlementService: ChatEntitlementService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -656,14 +655,14 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 	}
 
 	private handleChatDisabled(fromEvent: boolean): void {
-		const chatDisabled = this.configurationService.inspect(ChatTeardownContribution.CHAT_DISABLED_CONFIGURATION_KEY);
-		if (chatDisabled.value === true) {
-			this.maybeEnableOrDisableExtension(typeof chatDisabled.workspaceValue === 'boolean' ? EnablementState.DisabledWorkspace : EnablementState.DisabledGlobally);
+		const chatEnabled = this.configurationService.inspect(ChatConfiguration.EnableAIFeatures);
+		if (chatEnabled.value === false) {
+			this.maybeEnableOrDisableExtension(typeof chatEnabled.workspaceValue === 'boolean' ? EnablementState.DisabledWorkspace : EnablementState.DisabledGlobally);
 			if (fromEvent) {
 				this.maybeHideAuxiliaryBar();
 			}
-		} else if (chatDisabled.value === false && fromEvent /* do not enable extensions unless its an explicit settings change */) {
-			this.maybeEnableOrDisableExtension(typeof chatDisabled.workspaceValue === 'boolean' ? EnablementState.EnabledWorkspace : EnablementState.EnabledGlobally);
+		} else if (chatEnabled.value === true && fromEvent /* do not enable extensions unless its an explicit settings change */) {
+			this.maybeEnableOrDisableExtension(typeof chatEnabled.workspaceValue === 'boolean' ? EnablementState.EnabledWorkspace : EnablementState.EnabledGlobally);
 		}
 	}
 
@@ -671,7 +670,7 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 
 		// Configuration changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (!e.affectsConfiguration(ChatTeardownContribution.CHAT_DISABLED_CONFIGURATION_KEY)) {
+			if (!e.affectsConfiguration(ChatConfiguration.EnableAIFeatures)) {
 				return;
 			}
 
@@ -687,7 +686,7 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 
 			const defaultChatExtension = this.extensionsWorkbenchService.local.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.chatExtensionId));
 			if (defaultChatExtension?.local && this.extensionEnablementService.isEnabled(defaultChatExtension.local)) {
-				this.configurationService.updateValue(ChatTeardownContribution.CHAT_DISABLED_CONFIGURATION_KEY, false);
+				this.configurationService.updateValue(ChatConfiguration.EnableAIFeatures, true);
 			}
 		}));
 	}
@@ -740,7 +739,7 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 			override async run(accessor: ServicesAccessor): Promise<void> {
 				const preferencesService = accessor.get(IPreferencesService);
 
-				preferencesService.openSettings({ jsonEditor: false, query: `@id:${ChatTeardownContribution.CHAT_DISABLED_CONFIGURATION_KEY}` });
+				preferencesService.openSettings({ jsonEditor: false, query: `@id:${ChatConfiguration.EnableAIFeatures}` });
 			}
 		}
 

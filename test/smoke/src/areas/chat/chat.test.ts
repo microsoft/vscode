@@ -15,7 +15,7 @@ export function setup(logger: Logger) {
 		it('can disable AI features', async function () {
 			const app = this.app as Application;
 
-			await app.workbench.settingsEditor.addUserSetting('chat.disableAIFeatures', 'true');
+			await app.workbench.settingsEditor.addUserSetting('chat.enableAIFeatures', 'false');
 
 			// await for setting to apply in the UI
 			await app.code.waitForElements('.noauxiliarybar', true, elements => elements.length === 1);

@@ -15,7 +15,9 @@ import * as nls from '../../../../nls.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationNode, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -107,6 +109,7 @@ import { ChatEditor, IChatEditorOptions } from './widgetHosts/editor/chatEditor.
 import { ChatEditorInput, ChatEditorInputSerializer } from './widgetHosts/editor/chatEditorInput.js';
 import { ChatLayoutService } from './widget/chatLayoutService.js';
 import { ChatLanguageModelsDataContribution, LanguageModelsConfigurationService } from './languageModelsConfigurationService.js';
+import { ChatConfiguration as ChatConfiguration2 } from '../../../services/chat/common/constants.js';
 import './chatManagement/chatManagement.contribution.js';
 import { agentSlashCommandToMarkdown, agentToMarkdown } from './widget/chatContentParts/chatMarkdownDecorationsRenderer.js';
 import { ChatOutputRendererService, IChatOutputRendererService } from './chatOutputItemRenderer.js';
@@ -840,10 +843,10 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('chat.agent.thinking.terminalTools', "When enabled, terminal tool calls are displayed inside the thinking dropdown with a simplified view."),
 			tags: ['experimental'],
 		},
-		'chat.disableAIFeatures': {
+		[ChatConfiguration2.EnableAIFeatures]: {
 			type: 'boolean',
-			description: nls.localize('chat.disableAIFeatures', "Disable and hide built-in AI features provided by GitHub Copilot, including chat and inline suggestions."),
-			default: false,
+			description: nls.localize('chat.enableAIFeatures', "Enable or disable built-in AI features provided by GitHub Copilot, including chat and inline suggestions."),
+			default: true,
 			scope: ConfigurationScope.WINDOW
 		},
 		'chat.allowAnonymousAccess': { // TODO@bpasero remove me eventually
@@ -894,6 +897,13 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	]
 );
 Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration).registerConfigurationMigrations([
+	{
+		key: 'chat.disableAIFeatures',
+		migrateFn: (value, _accessor) => ([
+			['chat.disableAIFeatures', { value: undefined }],
+			[ChatConfiguration2.EnableAIFeatures, { value: value !== true }]
+		])
+	},
 	{
 		key: 'chat.experimental.detectParticipant.enabled',
 		migrateFn: (value, _accessor) => ([
@@ -1203,9 +1213,45 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 		}));
 	}
 }
+
+/**
+ * Maintains backward compatibility for the old `chat.disableAIFeatures` context key.
+ * This ensures that any code or when-clauses that referenced `config.chat.disableAIFeatures`
+ * will continue to work with the new `chat.enableAIFeatures` setting.
+ */
+class ChatEnableAIFeaturesContextKeyBackwardCompatibility extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.chatEnableAIFeaturesContextKeyBackwardCompatibility';
+
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService configurationService: IConfigurationService,
+	) {
+		super();
+
+		// Set the old context key based on the new setting (inverted logic)
+		const updateContextKey = () => {
+			const enableAIFeatures = configurationService.getValue<boolean>(ChatConfiguration2.EnableAIFeatures);
+			const disableAIFeatures = enableAIFeatures === false;
+			contextKeyService.createKey('config.chat.disableAIFeatures', disableAIFeatures);
+		};
+
+		// Initialize immediately
+		updateContextKey();
+
+		// Update whenever the setting changes
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration2.EnableAIFeatures)) {
+				updateContextKey();
+			}
+		}));
+	}
+}
+
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(ChatEditorInput.TypeID, ChatEditorInputSerializer);
 
 registerWorkbenchContribution2(ChatResolverContribution.ID, ChatResolverContribution, WorkbenchPhase.BlockStartup);
+registerWorkbenchContribution2(ChatEnableAIFeaturesContextKeyBackwardCompatibility.ID, ChatEnableAIFeaturesContextKeyBackwardCompatibility, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(ChatLanguageModelsDataContribution.ID, ChatLanguageModelsDataContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatSlashStaticSlashCommandsContribution.ID, ChatSlashStaticSlashCommandsContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatExtensionPointHandler.ID, ChatExtensionPointHandler, WorkbenchPhase.BlockStartup);

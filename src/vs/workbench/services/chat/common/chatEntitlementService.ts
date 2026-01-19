@@ -32,6 +32,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IDefaultAccount, IEntitlementsData } from '../../../../base/common/defaultAccount.js';
+import { ChatConfiguration } from './constants.js';
 
 export namespace ChatEntitlementContextKeys {
 
@@ -958,8 +959,6 @@ export class ChatEntitlementContext extends Disposable {
 
 	private static readonly CHAT_ENTITLEMENT_CONTEXT_STORAGE_KEY = 'chat.setupContext';
 
-	private static readonly CHAT_DISABLED_CONFIGURATION_KEY = 'chat.disableAIFeatures';
-
 	private readonly canSignUpContextKey: IContextKey<boolean>;
 	private readonly signedOutContextKey: IContextKey<boolean>;
 
@@ -1027,14 +1026,14 @@ export class ChatEntitlementContext extends Disposable {
 
 	private registerListeners(): void {
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatEntitlementContext.CHAT_DISABLED_CONFIGURATION_KEY)) {
+			if (e.affectsConfiguration(ChatConfiguration.EnableAIFeatures)) {
 				this.updateContext();
 			}
 		}));
 	}
 
 	private withConfiguration(state: IChatEntitlementContextState): IChatEntitlementContextState {
-		if (this.configurationService.getValue(ChatEntitlementContext.CHAT_DISABLED_CONFIGURATION_KEY) === true) {
+		if (this.configurationService.getValue(ChatConfiguration.EnableAIFeatures) === false) {
 			return {
 				...state,
 				hidden: true // Setting always wins: if AI is disabled, set `hidden: true`
