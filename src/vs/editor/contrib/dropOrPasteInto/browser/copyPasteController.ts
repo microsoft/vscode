@@ -25,7 +25,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { ClipboardEventUtils, IClipboardCopyEvent, IClipboardPasteEvent, InMemoryClipboardMetadataManager } from '../../../browser/controller/editContext/clipboardUtils.js';
-import { toExternalVSDataTransfer, toVSDataTransfer } from '../../../browser/dataTransfer.js';
+import { toExternalVSDataTransfer } from '../../../browser/dataTransfer.js';
 import { ICodeEditor, PastePayload } from '../../../browser/editorBrowser.js';
 import { IBulkEditService } from '../../../browser/services/bulkEditService.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
@@ -171,15 +171,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 	private handleCopy(e: IClipboardCopyEvent) {
 		const clipboardData = e.browserEvent?.clipboardData;
-		let id: string | null = null;
-		if (clipboardData) {
-			const [text, metadata] = ClipboardEventUtils.getTextData(clipboardData);
-			const storedMetadata = metadata || InMemoryClipboardMetadataManager.INSTANCE.get(text);
-			id = storedMetadata?.id || null;
-			this._logService.trace('CopyPasteController#handleCopy for id : ', id, ' with text.length : ', text.length);
-		} else {
-			this._logService.trace('CopyPasteController#handleCopy');
-		}
+		this._logService.trace('CopyPasteController#handleCopy');
 		if (!this._editor.hasTextFocus()) {
 			return;
 		}
@@ -228,11 +220,11 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			return;
 		}
 
-		const dataTransfer = toVSDataTransfer(clipboardData);
+		const dataTransfer = new VSDataTransfer();
 		const providerCopyMimeTypes = providers.flatMap(x => x.copyMimeTypes ?? []);
 
 		// Save off a handle pointing to data that VS Code maintains.
-		const handle = id ?? generateUuid();
+		const handle = generateUuid();
 		this.setCopyMetadata(clipboardData, {
 			id: handle,
 			providerCopyMimeTypes,
