@@ -383,7 +383,7 @@ export class ChatSessionStore extends Disposable {
 	}
 
 	private reportError(reasonForTelemetry: string, message: string, error?: Error): void {
-		this.logService.error(`ChatSessionStore: ` + message, toErrorMessage(error));
+		this.logService.trace(`ChatSessionStore: ` + message, toErrorMessage(error));
 
 		const fileOperationReason = error && toFileOperationResult(error);
 		type ChatSessionStoreErrorData = {
