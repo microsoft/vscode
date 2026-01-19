@@ -382,15 +382,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create archive directory
+      - name: Create archive
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path .build/win32-x64/archive
-
-      - name: Move archive
-        shell: pwsh
-        run: |
-          Move-Item -Path .build/win32-x64/VSCode-win32-x64.zip -Destination .build/win32-x64/archive/VSCode-win32-x64.zip
+          $archivePath = ".build/win32-x64/archive/VSCode-win32-x64.zip"
+          7z.exe a -tzip $archivePath ../VSCode-win32-x64/* "-xr!CodeSignSummary*.md"
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
