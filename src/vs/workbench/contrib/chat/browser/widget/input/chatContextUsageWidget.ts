@@ -24,6 +24,7 @@ export class ChatContextUsageWidget extends Disposable {
 	private _currentModel: IChatModel | undefined;
 
 	private readonly _updateScheduler: RunOnceScheduler;
+	private readonly _hoverDisplayScheduler: RunOnceScheduler;
 
 	// Stats
 	private _totalTokenCount = 0;
@@ -34,6 +35,10 @@ export class ChatContextUsageWidget extends Disposable {
 
 	private _maxTokenCount = 4096; // Default fallback
 	private _usagePercent = 0;
+
+	private _hoverQuotaBit: HTMLElement | undefined;
+	private _hoverQuotaValue: HTMLElement | undefined;
+	private _hoverItemValues: Map<string, HTMLElement> = new Map();
 
 	constructor(
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
@@ -67,17 +72,30 @@ export class ChatContextUsageWidget extends Disposable {
 
 		this.domNode.appendChild(svg);
 
-		this._updateScheduler = this._register(new RunOnceScheduler(() => this._refreshUsage(), 2000));
+		this._updateScheduler = this._register(new RunOnceScheduler(() => this._refreshUsage(), 1000));
+		this._hoverDisplayScheduler = this._register(new RunOnceScheduler(() => {
+			this._updateScheduler.schedule(0);
+			this.hoverService.showInstantHover({
+				content: this._getHoverDomNode(),
+				target: this.domNode,
+				appearance: {
+					showPointer: true,
+					skipFadeInAnimation: true
+				}
+			});
+		}, 600));
 
-		this._register(this.hoverService.setupDelayedHover(this.domNode, () => ({
-			content: this._getHoverDomNode(),
-			appearance: {
-				showPointer: true,
-				skipFadeInAnimation: true
-			}
-		})));
+		this._register(dom.addDisposableListener(this.domNode, 'mouseenter', () => {
+			this._hoverDisplayScheduler.schedule();
+		}));
+
+		this._register(dom.addDisposableListener(this.domNode, 'mouseleave', () => {
+			this._hoverDisplayScheduler.cancel();
+		}));
 
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.CLICK, () => {
+			this._hoverDisplayScheduler.cancel();
+			this._updateScheduler.schedule(0);
 			this.hoverService.showInstantHover({
 				content: this._getHoverDomNode(),
 				target: this.domNode,
@@ -105,7 +123,6 @@ export class ChatContextUsageWidget extends Disposable {
 				this._updateScheduler.schedule();
 			});
 			this._updateScheduler.schedule(0);
-			this.domNode.style.display = '';
 		} else {
 			this.domNode.style.display = 'none';
 		}
@@ -116,12 +133,19 @@ export class ChatContextUsageWidget extends Disposable {
 			return;
 		}
 
-		this._promptsTokenCount = 0;
-		this._filesTokenCount = 0;
-		this._toolsTokenCount = 0;
-		this._contextTokenCount = 0;
+		let promptsTokenCount = 0;
+		let filesTokenCount = 0;
+		let toolsTokenCount = 0;
+		let contextTokenCount = 0;
 
 		const requests = this._currentModel.getRequests();
+
+		if (requests.length === 0) {
+			this.domNode.style.display = 'none';
+			return;
+		}
+
+		this.domNode.style.display = '';
 
 		let modelId: string | undefined;
 
@@ -135,7 +159,11 @@ export class ChatContextUsageWidget extends Disposable {
 
 		const countTokens = async (text: string): Promise<number> => {
 			if (modelId) {
-				return this.languageModelsService.computeTokenLength(modelId, text, CancellationToken.None);
+				try {
+					return await this.languageModelsService.computeTokenLength(modelId, text, CancellationToken.None);
+				} catch (error) {
+					return text.length / 4;
+				}
 			}
 			return text.length / 4;
 		};
@@ -143,7 +171,7 @@ export class ChatContextUsageWidget extends Disposable {
 		for (const request of requests) {
 			// Prompts: User message
 			const messageText = typeof request.message === 'string' ? request.message : request.message.text;
-			this._promptsTokenCount += await countTokens(messageText);
+			promptsTokenCount += await countTokens(messageText);
 
 			// Variables (Files, Context)
 			if (request.variableData && request.variableData.variables) {
@@ -153,9 +181,9 @@ export class ChatContextUsageWidget extends Disposable {
 					const defaultEstimate = 500;
 
 					if (variable.kind === 'file') {
-						this._filesTokenCount += defaultEstimate;
+						filesTokenCount += defaultEstimate;
 					} else {
-						this._contextTokenCount += defaultEstimate;
+						contextTokenCount += defaultEstimate;
 					}
 				}
 			}
@@ -163,22 +191,28 @@ export class ChatContextUsageWidget extends Disposable {
 			// Tools & Response
 			if (request.response) {
 				const responseString = request.response.response.toString();
-				this._promptsTokenCount += await countTokens(responseString);
+				promptsTokenCount += await countTokens(responseString);
 
 				// Loop through response parts for tool invocations
 				for (const part of request.response.response.value) {
 					if (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') {
 						// Estimate tool invocation cost
-						this._toolsTokenCount += 200;
+						toolsTokenCount += 200;
 					}
 				}
 			}
 		}
 
+		this._promptsTokenCount = promptsTokenCount;
+		this._filesTokenCount = filesTokenCount;
+		this._toolsTokenCount = toolsTokenCount;
+		this._contextTokenCount = contextTokenCount;
+
 		this._totalTokenCount = Math.round(this._promptsTokenCount + this._filesTokenCount + this._toolsTokenCount + this._contextTokenCount);
 		this._usagePercent = Math.min(100, (this._totalTokenCount / this._maxTokenCount) * 100);
 
 		this._updateRing();
+		this._updateHover();
 	}
 
 	private _updateRing() {
@@ -195,6 +229,39 @@ export class ChatContextUsageWidget extends Disposable {
 		}
 	}
 
+	private _updateHover() {
+		if (this._hoverQuotaValue) {
+			const percentStr = `${this._usagePercent.toFixed(0)}%`;
+			const formatTokens = (value: number) => {
+				if (value >= 1000) {
+					const thousands = value / 1000;
+					return `${thousands >= 10 ? Math.round(thousands) : thousands.toFixed(1)}k`;
+				}
+				return `${value}`;
+			};
+			const usageStr = `${formatTokens(this._totalTokenCount)} / ${formatTokens(this._maxTokenCount)}`;
+			this._hoverQuotaValue.textContent = `${usageStr} • ${percentStr}`;
+		}
+
+		if (this._hoverQuotaBit) {
+			this._hoverQuotaBit.style.width = `${this._usagePercent}%`;
+		}
+
+		const updateItem = (key: string, value: number) => {
+			const item = this._hoverItemValues.get(key);
+			if (item) {
+				const percent = this._maxTokenCount > 0 ? (value / this._maxTokenCount) * 100 : 0;
+				const displayValue = `${percent.toFixed(0)}%`;
+				item.textContent = displayValue;
+			}
+		};
+
+		updateItem('prompts', this._promptsTokenCount);
+		updateItem('files', this._filesTokenCount);
+		updateItem('tools', this._toolsTokenCount);
+		updateItem('context', this._contextTokenCount);
+	}
+
 	private _getHoverDomNode(): HTMLElement {
 		const container = $('.chat-context-usage-hover');
 
@@ -208,20 +275,16 @@ export class ChatContextUsageWidget extends Disposable {
 		};
 		const usageStr = `${formatTokens(this._totalTokenCount)} / ${formatTokens(this._maxTokenCount)}`;
 
-		// Header
-		// const header = dom.append(container, $('.header'));
-		// dom.append(header, $('span', undefined, localize('contextUsage', "Context Usage")));
-
 		// Quota Indicator (Progress Bar)
 		const quotaIndicator = dom.append(container, $('.quota-indicator'));
-		const quotaBar = dom.append(quotaIndicator, $('.quota-bar'));
-		const quotaBit = dom.append(quotaBar, $('.quota-bit'));
-		quotaBit.style.width = `${this._usagePercent}%`;
 
 		const quotaLabel = dom.append(quotaIndicator, $('.quota-label'));
 		dom.append(quotaLabel, $('span.quota-title', undefined, localize('totalUsageLabel', "Total usage")));
-		dom.append(quotaLabel, $('span.quota-value', undefined, `${usageStr} • ${percentStr}`));
+		this._hoverQuotaValue = dom.append(quotaLabel, $('span.quota-value', undefined, `${usageStr} • ${percentStr}`));
 
+		const quotaBar = dom.append(quotaIndicator, $('.quota-bar'));
+		this._hoverQuotaBit = dom.append(quotaBar, $('.quota-bit'));
+		this._hoverQuotaBit.style.width = `${this._usagePercent}%`;
 
 		if (this._usagePercent > 90) {
 			quotaIndicator.classList.add('error');
@@ -233,21 +296,23 @@ export class ChatContextUsageWidget extends Disposable {
 
 		// List
 		const list = dom.append(container, $('.chat-context-usage-hover-list'));
+		this._hoverItemValues.clear();
 
-		const addItem = (label: string, value: number) => {
+		const addItem = (key: string, label: string, value: number) => {
 			const item = dom.append(list, $('.chat-context-usage-hover-item'));
 			dom.append(item, $('span.label', undefined, label));
 
 			// Calculate percentage for breakdown
 			const percent = this._maxTokenCount > 0 ? (value / this._maxTokenCount) * 100 : 0;
 			const displayValue = `${percent.toFixed(0)}%`;
-			dom.append(item, $('span.value', undefined, displayValue));
+			const valueSpan = dom.append(item, $('span.value', undefined, displayValue));
+			this._hoverItemValues.set(key, valueSpan);
 		};
 
-		addItem(localize('prompts', "Prompts"), Math.round(this._promptsTokenCount));
-		addItem(localize('files', "Files"), Math.round(this._filesTokenCount));
-		addItem(localize('tools', "Tools"), Math.round(this._toolsTokenCount));
-		addItem(localize('context', "Context"), Math.round(this._contextTokenCount));
+		addItem('prompts', localize('prompts', "Prompts"), Math.round(this._promptsTokenCount));
+		addItem('files', localize('files', "Files"), Math.round(this._filesTokenCount));
+		addItem('tools', localize('tools', "Tools"), Math.round(this._toolsTokenCount));
+		addItem('context', localize('context', "Context"), Math.round(this._contextTokenCount));
 
 		if (this._usagePercent > 80) {
 			const remaining = Math.max(0, this._maxTokenCount - this._totalTokenCount);
