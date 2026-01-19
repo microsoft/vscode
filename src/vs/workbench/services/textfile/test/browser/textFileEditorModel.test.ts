@@ -720,6 +720,26 @@ suite('Files - TextFileEditorModel', () => {
 		assert.strictEqual(eventCounter, 0);
 	});
 
+	test('Save Participant - skipFormattingSaveParticipants allows participants to run but passes flag in context', async function () {
+		let eventCounter = 0;
+		let contextSkipFormattingSaveParticipants: boolean | undefined;
+		const model: TextFileEditorModel = disposables.add(instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined));
+
+		disposables.add(accessor.textFileService.files.addSaveParticipant({
+			participate: async (_model, context) => {
+				eventCounter++;
+				contextSkipFormattingSaveParticipants = context.skipFormattingSaveParticipants;
+			}
+		}));
+
+		await model.resolve();
+		model.updateTextEditorModel(createTextBufferFactory('foo'));
+
+		await model.save({ skipFormattingSaveParticipants: true });
+		assert.strictEqual(eventCounter, 1); // participant should still run
+		assert.strictEqual(contextSkipFormattingSaveParticipants, true); // flag should be passed in context
+	});
+
 	test('Save Participant, async participant', async function () {
 		let eventCounter = 0;
 		const model: TextFileEditorModel = disposables.add(instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined));

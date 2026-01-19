@@ -877,7 +877,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					if (!saveCancellation.token.isCancellationRequested) {
 						this.ignoreSaveFromSaveParticipants = true;
 						try {
-							await this.textFileService.files.runSaveParticipants(this, { reason: options.reason ?? SaveReason.EXPLICIT, savedFrom: options.from }, progress, saveCancellation.token);
+							await this.textFileService.files.runSaveParticipants(this, { reason: options.reason ?? SaveReason.EXPLICIT, savedFrom: options.from, skipFormattingSaveParticipants: options.skipFormattingSaveParticipants }, progress, saveCancellation.token);
 						} catch (err) {
 							if (isCancellationError(err) && !saveCancellation.token.isCancellationRequested) {
 								// participant wants to cancel this operation

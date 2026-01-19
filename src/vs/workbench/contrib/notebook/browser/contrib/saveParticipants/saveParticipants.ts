@@ -77,6 +77,10 @@ class FormatOnSaveParticipant implements IStoredFileWorkingCopySaveParticipant {
 			return undefined;
 		}
 
+		if (context.skipFormattingSaveParticipants) {
+			return undefined;
+		}
+
 		const enabled = this.configurationService.getValue<boolean>(NotebookSetting.formatOnSave);
 		if (!enabled) {
 			return undefined;
@@ -359,6 +363,10 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 
 		if (!workingCopy.model || !(workingCopy.model instanceof NotebookFileWorkingCopyModel)) {
 			return;
+		}
+
+		if (context.skipFormattingSaveParticipants) {
+			return undefined;
 		}
 
 		let saveTrigger = '';

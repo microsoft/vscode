@@ -985,7 +985,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 					if (!saveCancellation.token.isCancellationRequested) {
 						this.ignoreSaveFromSaveParticipants = true;
 						try {
-							await this.workingCopyFileService.runSaveParticipants(this, { reason: options.reason ?? SaveReason.EXPLICIT, savedFrom: options.from }, progress, saveCancellation.token);
+							await this.workingCopyFileService.runSaveParticipants(this, { reason: options.reason ?? SaveReason.EXPLICIT, savedFrom: options.from, skipFormattingSaveParticipants: options.skipFormattingSaveParticipants }, progress, saveCancellation.token);
 						} catch (err) {
 							if (isCancellationError(err) && !saveCancellation.token.isCancellationRequested) {
 								// participant wants to cancel this operation

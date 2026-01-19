@@ -230,6 +230,9 @@ class FormatOnSaveParticipant implements ITextFileSaveParticipant {
 		if (context.reason === SaveReason.AUTO) {
 			return undefined;
 		}
+		if (context.skipFormattingSaveParticipants) {
+			return undefined;
+		}
 
 		const textEditorModel = model.textEditorModel;
 		const overrides = { overrideIdentifier: textEditorModel.getLanguageId(), resource: textEditorModel.uri };
@@ -333,6 +336,10 @@ class CodeActionOnSaveParticipant extends Disposable implements ITextFileSavePar
 		}
 
 		if (context.reason === SaveReason.AUTO) {
+			return undefined;
+		}
+
+		if (context.skipFormattingSaveParticipants) {
 			return undefined;
 		}
 

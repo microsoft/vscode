@@ -353,6 +353,13 @@ export interface ITextFileSaveParticipantContext {
 	 * file had before.
 	 */
 	readonly savedFrom?: URI;
+
+	/**
+	 * When true, formatting save participants (formatOnSave, codeActionsOnSave)
+	 * should skip their processing but other participants like trimTrailingWhitespace
+	 * should still run.
+	 */
+	readonly skipFormattingSaveParticipants?: boolean;
 }
 
 export interface ITextFileSaveParticipant {

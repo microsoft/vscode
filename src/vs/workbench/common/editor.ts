@@ -763,6 +763,13 @@ export interface ISaveOptions {
 	readonly skipSaveParticipants?: boolean;
 
 	/**
+	 * Instructs the save operation to skip formatting save participants
+	 * (formatOnSave, codeActionsOnSave) but still run other participants
+	 * like trimTrailingWhitespace, insertFinalNewline, trimFinalNewlines.
+	 */
+	readonly skipFormattingSaveParticipants?: boolean;
+
+	/**
 	 * A hint as to which file systems should be available for saving.
 	 */
 	readonly availableFileSystems?: string[];

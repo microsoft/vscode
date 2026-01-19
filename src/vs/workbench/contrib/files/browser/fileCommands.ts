@@ -478,7 +478,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	win: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyS) },
 	id: SAVE_FILE_WITHOUT_FORMATTING_COMMAND_ID,
 	handler: accessor => {
-		return saveSelectedEditors(accessor, { reason: SaveReason.EXPLICIT, force: true /* force save even when non-dirty */, skipSaveParticipants: true });
+		return saveSelectedEditors(accessor, { reason: SaveReason.EXPLICIT, force: true /* force save even when non-dirty */, skipFormattingSaveParticipants: true });
 	}
 });
 
