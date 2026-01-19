@@ -63,6 +63,8 @@ type AgentSessionOpenedEvent = {
 export class AgentSessionsControl extends Disposable implements IAgentSessionsControl {
 
 	private sessionsContainer: HTMLElement | undefined;
+	get element(): HTMLElement | undefined { return this.sessionsContainer; }
+
 	private sessionsList: WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, AgentSessionListItem, FuzzyScore> | undefined;
 
 	private visible: boolean = true;
@@ -357,11 +359,5 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 		this.sessionsList.setFocus([session]);
 		this.sessionsList.setSelection([session]);
-	}
-
-	setGridMarginOffset(offset: number): void {
-		if (this.sessionsContainer) {
-			this.sessionsContainer.style.marginBottom = `-${offset}px`;
-		}
 	}
 }

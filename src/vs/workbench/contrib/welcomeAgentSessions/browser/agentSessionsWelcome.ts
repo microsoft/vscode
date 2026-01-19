@@ -433,7 +433,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		// Set margin offset for 2-column layout: actual height - visual height
 		// Visual height = ceil(n/2) * 52, so offset = floor(n/2) * 52
 		const marginOffset = Math.floor(visibleSessions / 2) * 52;
-		this.sessionsControl.setGridMarginOffset(marginOffset);
+		this.sessionsControl.element!.style.marginBottom = `-${marginOffset}px`;
 	}
 
 	override focus(): void {
