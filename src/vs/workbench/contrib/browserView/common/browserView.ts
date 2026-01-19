@@ -79,11 +79,11 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly favicon: string | undefined;
 	readonly screenshot: VSBuffer | undefined;
 	readonly loading: boolean;
+	readonly focused: boolean;
 	readonly canGoBack: boolean;
 	readonly isDevToolsOpen: boolean;
 	readonly canGoForward: boolean;
 	readonly error: IBrowserViewLoadError | undefined;
-	readonly focused: boolean;
 
 	readonly storageScope: BrowserViewStorageScope;
 

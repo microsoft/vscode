@@ -128,7 +128,7 @@ export const {
 /**
  * A registry for functions that check if a component outside the normal DOM tree has focus.
  * This is used to extend the concept of "window has focus" to include things like
- * Electron WebContentsViews (browser views) that exist outside the document.
+ * Electron WebContentsViews (browser views) that exist outside the workbench DOM.
  */
 const externalFocusCheckers = new Set<() => boolean>();
 
@@ -164,12 +164,12 @@ export function hasExternalFocus(): boolean {
 }
 
 /**
- * Check if VS Code has focus in any window, either via the normal DOM or via an
+ * Check if the application has focus in any window, either via the normal DOM or via an
  * external component like a browser view (which exists outside the document tree).
  *
- * @returns true if VS Code owns the current focus
+ * @returns true if the application owns the current focus
  */
-export function hasVSCodeFocus(): boolean {
+export function hasAppFocus(): boolean {
 	for (const { window } of getWindows()) {
 		if (window.document.hasFocus()) {
 			return true;
