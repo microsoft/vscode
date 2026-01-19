@@ -804,24 +804,6 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
-		'chat.todoListTool.writeOnly': {
-			type: 'boolean',
-			default: false,
-			description: nls.localize('chat.todoListTool.writeOnly', "When enabled, the todo tool operates in write-only mode, requiring the agent to remember todos in context."),
-			tags: ['experimental'],
-			experiment: {
-				mode: 'auto'
-			}
-		},
-		'chat.todoListTool.descriptionField': {
-			type: 'boolean',
-			default: true,
-			description: nls.localize('chat.todoListTool.descriptionField', "When enabled, todo items include detailed descriptions for implementation context. This provides more information but uses additional tokens and may slow down responses."),
-			tags: ['experimental'],
-			experiment: {
-				mode: 'auto'
-			}
-		},
 		[ChatConfiguration.ThinkingStyle]: {
 			type: 'string',
 			default: 'collapsedPreview',

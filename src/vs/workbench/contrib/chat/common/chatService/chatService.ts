@@ -777,7 +777,6 @@ export interface IChatTodoListContent {
 	todoList: Array<{
 		id: string;
 		title: string;
-		description: string;
 		status: 'not-started' | 'in-progress' | 'completed';
 	}>;
 }
