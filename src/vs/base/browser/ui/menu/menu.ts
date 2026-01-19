@@ -298,9 +298,7 @@ export class Menu extends ActionBar {
 		this.scrollableElement.scanDomNode();
 
 		this.viewItems.filter(item => !(item instanceof MenuSeparatorActionViewItem)).forEach((item, index, array) => {
-			if (item instanceof BaseMenuActionViewItem) {
-				item.updatePositionInSet(index + 1, array.length);
-			}
+			(item as BaseMenuActionViewItem).updatePositionInSet(index + 1, array.length);
 		});
 	}
 
@@ -392,12 +390,6 @@ export class Menu extends ActionBar {
 	}
 
 	private doGetActionViewItem(action: IAction, options: IMenuOptions, parentData: ISubMenuData): BaseActionViewItem {
-
-		const result = options.actionViewItemProvider?.(action, options);
-		if (result instanceof BaseActionViewItem) {
-			return result;
-		}
-
 		if (action instanceof Separator) {
 			return new MenuSeparatorActionViewItem(options.context, action, { icon: true }, this.menuStyles);
 		} else if (action instanceof SubmenuAction) {

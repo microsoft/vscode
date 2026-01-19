@@ -172,7 +172,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 			} else if (this.isTriggerKeyEvent(event)) {
 				// Staying out of the else branch even if not triggered
 				if (this._triggerKeys.keyDown) {
-					eventHandled = this.doTrigger(event);
+					this.doTrigger(event);
 				} else {
 					this.triggerKeyDown = true;
 				}
@@ -190,17 +190,14 @@ export class ActionBar extends Disposable implements IActionRunner {
 			const event = new StandardKeyboardEvent(e);
 
 			// Run action on Enter/Space
-			let eventHandled = true;
 			if (this.isTriggerKeyEvent(event)) {
 				if (!this._triggerKeys.keyDown && this.triggerKeyDown) {
 					this.triggerKeyDown = false;
-					eventHandled = this.doTrigger(event);
+					this.doTrigger(event);
 				}
 
-				if (eventHandled) {
-					event.preventDefault();
-					event.stopPropagation();
-				}
+				event.preventDefault();
+				event.stopPropagation();
 			}
 
 			// Recompute focused item
@@ -601,22 +598,17 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}
 	}
 
-	private doTrigger(event: StandardKeyboardEvent): boolean {
+	private doTrigger(event: StandardKeyboardEvent): void {
 		if (typeof this.focusedItem === 'undefined') {
-			return false; //nothing to focus
+			return; //nothing to focus
 		}
 
 		// trigger action
 		const actionViewItem = this.viewItems[this.focusedItem];
 		if (actionViewItem instanceof BaseActionViewItem) {
-			if (actionViewItem.trapsKeyboardTrigger) {
-				return false; // action view item handles its own keyboard input
-			}
 			const context = (actionViewItem._context === null || actionViewItem._context === undefined) ? event : actionViewItem._context;
 			this.run(actionViewItem._action, context);
-			return true;
 		}
-		return false;
 	}
 
 	async run(action: IAction, context?: unknown): Promise<void> {
