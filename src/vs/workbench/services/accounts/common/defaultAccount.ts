@@ -17,7 +17,8 @@ import { Barrier, ThrottledDelayer, timeout } from '../../../../base/common/asyn
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
 import { IDefaultAccount, IDefaultAccountAuthenticationProvider, IEntitlementsData, IPolicyData } from '../../../../base/common/defaultAccount.js';
-import { isString } from '../../../../base/common/types.js';
+import { isString, Mutable } from '../../../../base/common/types.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { IDefaultAccountProvider, IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -57,6 +58,8 @@ const enum DefaultAccountStatus {
 }
 
 const CONTEXT_DEFAULT_ACCOUNT_STATE = new RawContextKey<string>('defaultAccountStatus', DefaultAccountStatus.Uninitialized);
+
+const CACHED_POLICY_DATA_KEY = 'defaultAccount.cachedPolicyData';
 
 interface ITokenEntitlementsResponse {
 	token: string;
@@ -210,6 +213,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		@ILogService private readonly logService: ILogService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 		this.accountStatusContext = CONTEXT_DEFAULT_ACCOUNT_STATE.bindTo(contextKeyService);
@@ -353,30 +357,39 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 			this.logService.debug('[DefaultAccount] Getting Default Account from authenticated sessions for provider:', authenticationProvider.id);
 			const sessions = await this.findMatchingProviderSession(authenticationProvider.id, scopes);
 
-			if (!sessions) {
+			if (!sessions?.length) {
 				this.logService.debug('[DefaultAccount] No matching session found for provider:', authenticationProvider.id);
 				return null;
 			}
 
-			const [entitlementsData, policyData] = await Promise.all([
+			const accountId = sessions[0].account.id;
+			const [entitlementsData, tokenEntitlementsData] = await Promise.all([
 				this.getEntitlements(sessions),
 				this.getTokenEntitlements(sessions),
 			]);
 
-			const mcpRegistryProvider = policyData?.mcp ? await this.getMcpRegistryProvider(sessions) : undefined;
+			let policyData = this.getCachedPolicyData(accountId);
+			if (tokenEntitlementsData) {
+				policyData = policyData ?? {};
+				policyData.chat_agent_enabled = tokenEntitlementsData.chat_agent_enabled;
+				policyData.chat_preview_features_enabled = tokenEntitlementsData.chat_preview_features_enabled;
+				policyData.mcp = tokenEntitlementsData.mcp;
+				if (policyData.mcp) {
+					const mcpRegistryProvider = await this.getMcpRegistryProvider(sessions);
+					if (mcpRegistryProvider) {
+						policyData.mcpRegistryUrl = mcpRegistryProvider.url;
+						policyData.mcpAccess = mcpRegistryProvider.registry_access;
+					}
+				}
+				this.cachePolicyData(accountId, policyData);
+			}
 
 			const account: IDefaultAccount = {
 				authenticationProvider,
 				sessionId: sessions[0].id,
 				enterprise: authenticationProvider.enterprise || sessions[0].account.label.includes('_'),
 				entitlementsData,
-				policyData: policyData ? {
-					chat_agent_enabled: policyData.chat_agent_enabled,
-					chat_preview_features_enabled: policyData.chat_preview_features_enabled,
-					mcp: policyData.mcp,
-					mcpRegistryUrl: mcpRegistryProvider?.url,
-					mcpAccess: mcpRegistryProvider?.registry_access,
-				} : undefined,
+				policyData,
 			};
 			this.logService.debug('[DefaultAccount] Successfully created default account for provider:', authenticationProvider.id);
 			return account;
@@ -469,7 +482,29 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 			this.logService.error('Failed to fetch token entitlements', getErrorMessage(error));
 		}
 
-		return {};
+		return undefined;
+	}
+
+	private cachePolicyData(accountId: string, policyData: IPolicyData): void {
+		this.logService.debug('[DefaultAccount] Caching policy data for account:', accountId);
+		this.storageService.store(CACHED_POLICY_DATA_KEY, JSON.stringify({ accountId, policyData }), StorageScope.APPLICATION, StorageTarget.MACHINE);
+	}
+
+	private getCachedPolicyData(accountId: string): Mutable<IPolicyData> | undefined {
+		const cached = this.storageService.get(CACHED_POLICY_DATA_KEY, StorageScope.APPLICATION);
+		if (cached) {
+			try {
+				const { accountId: cachedAccountId, policyData } = JSON.parse(cached);
+				if (cachedAccountId === accountId) {
+					this.logService.debug('[DefaultAccount] Using cached policy data for account:', accountId);
+					return policyData;
+				}
+				this.logService.debug('[DefaultAccount] Cached policy data is for different account, ignoring');
+			} catch (error) {
+				this.logService.error('[DefaultAccount] Failed to parse cached policy data', getErrorMessage(error));
+			}
+		}
+		return undefined;
 	}
 
 	private async getEntitlements(sessions: AuthenticationSession[]): Promise<IEntitlementsData | undefined | null> {
