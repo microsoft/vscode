@@ -393,8 +393,10 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 		win.focus();
 
-		// Also focus the webContents to ensure focus is taken from any
-		// child views that may currently have focus
+		// When focusing the window, the workbench should always be the view that receives focus.
+		// However, in scenarios where the window has multiple child views (e.g. browser WebContentsViews),
+		// the last focused view in the window may not be the workbench.
+		// So we explicitly focus the workbench web contents here to ensure it gets focus.
 		win.webContents.focus();
 	}
 
