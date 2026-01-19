@@ -24,8 +24,9 @@ import { PromptsType } from './promptTypes.js';
 import { ParsedPromptFile } from './promptFileParser.js';
 import { ICustomAgent, IPromptPath, IPromptsService } from './service/promptsService.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
-import { ChatConfiguration } from '../constants.js';
+import { ChatConfiguration, ChatModeKind } from '../constants.js';
 import { UserSelectedTools } from '../participants/chatAgents.js';
+import { IChatMode } from '../chatModes.js';
 
 export type InstructionsCollectionEvent = {
 	applyingInstructionsCount: number;
@@ -53,6 +54,7 @@ export class ComputeAutomaticInstructions {
 	private _parseResults: ResourceMap<ParsedPromptFile> = new ResourceMap();
 
 	constructor(
+		private readonly _agent: IChatMode,
 		private readonly _enabledTools: UserSelectedTools | undefined,
 		private readonly _enabledSubagents: (readonly string[]) | undefined,
 		@IPromptsService private readonly _promptsService: IPromptsService,
@@ -116,6 +118,11 @@ export class ComputeAutomaticInstructions {
 
 	/** public for testing */
 	public async addApplyingInstructions(instructionFiles: readonly IPromptPath[], context: { files: ResourceSet; instructions: ResourceSet }, variables: ChatRequestVariableSet, telemetryEvent: InstructionsCollectionEvent, token: CancellationToken): Promise<void> {
+		const includeApplyingInstructions = this._configurationService.getValue(PromptsConfig.INCLUDE_APPLYING_INSTRUCTIONS);
+		if (!includeApplyingInstructions && this._agent.kind !== ChatModeKind.Edit) {
+			this._logService.trace(`[InstructionsContextComputer] includeApplyingInstructions is disabled and agent kind is not Edit. No applying instructions will be added.`);
+			return;
+		}
 
 		for (const { uri } of instructionFiles) {
 			const parsedFile = await this._parseInstructionsFile(uri, token);
@@ -376,6 +383,12 @@ export class ComputeAutomaticInstructions {
 	}
 
 	private async _addReferencedInstructions(attachedContext: ChatRequestVariableSet, telemetryEvent: InstructionsCollectionEvent, token: CancellationToken): Promise<void> {
+		const includeReferencedInstructions = this._configurationService.getValue(PromptsConfig.INCLUDE_REFERENCED_INSTRUCTIONS);
+		if (!includeReferencedInstructions && this._agent.kind !== ChatModeKind.Edit) {
+			this._logService.trace(`[InstructionsContextComputer] includeReferencedInstructions is disabled and agent kind is not Edit. No referenced instructions will be added.`);
+			return;
+		}
+
 		const seen = new ResourceSet();
 		const todo: URI[] = [];
 		for (const variable of attachedContext.asArray()) {

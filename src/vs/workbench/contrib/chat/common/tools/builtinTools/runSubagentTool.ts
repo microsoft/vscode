@@ -16,7 +16,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IChatAgentRequest, IChatAgentService } from '../../participants/chatAgents.js';
 import { ChatModel, IChatRequestModeInstructions } from '../../model/chatModel.js';
-import { IChatModeService } from '../../chatModes.js';
+import { ChatMode, IChatMode, IChatModeService } from '../../chatModes.js';
 import { IChatProgress, IChatService } from '../../chatService/chatService.js';
 import { ChatRequestVariableSet } from '../../attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../constants.js';
@@ -139,9 +139,10 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			let modeModelId = invocation.modelId;
 			let modeTools = invocation.userSelectedTools;
 			let modeInstructions: IChatRequestModeInstructions | undefined;
+			let mode: IChatMode | undefined;
 
 			if (args.agentName) {
-				const mode = this.chatModeService.findModeByName(args.agentName);
+				mode = this.chatModeService.findModeByName(args.agentName);
 				if (mode) {
 					// Use mode-specific model if available
 					const modeModelQualifiedName = mode.model?.get();
@@ -219,7 +220,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			}
 
 			const variableSet = new ChatRequestVariableSet();
-			const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, modeTools, undefined); // agents can not call subagents
+			const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, mode ?? ChatMode.Agent, modeTools, undefined); // agents can not call subagents
 			await computer.collect(variableSet, token);
 
 			// Build the agent request
