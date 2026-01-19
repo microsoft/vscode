@@ -423,7 +423,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 				id: 'update.check',
 				title: nls.localize('checkForUpdates', "Check for Updates...")
 			},
-			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Idle)
+			when: ContextKeyExpr.or(CONTEXT_UPDATE_STATE.isEqualTo(StateType.Idle), CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready)),
 		});
 
 		CommandsRegistry.registerCommand('update.checking', () => { });
