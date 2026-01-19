@@ -130,6 +130,7 @@ export class AgentSessionHoverWidget extends Disposable {
 		listWidget.layout(CHAT_LIST_HEIGHT, CHAT_HOVER_WIDTH);
 		listWidget.setScrollLock(true);
 		listWidget.setViewModel(viewModel);
+		listWidget.refresh();
 
 		const viewModelScheudler = this._register(new RunOnceScheduler(() => listWidget.refresh(), 500));
 		this._register(viewModel.onDidChange(() => {
