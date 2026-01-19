@@ -436,106 +436,99 @@ suite('dom', () => {
 	});
 
 	suite('AnimationFrameScheduler', () => {
-		test('schedules and runs the callback', () => {
-			return runWithFakedTimers({ useFakeTimers: true }, async () => {
-				const node = document.createElement('div');
-				let callCount = 0;
-				const scheduler = new AnimationFrameScheduler(node, () => {
-					callCount++;
-				});
+		// Helper to wait for an animation frame
+		const waitForAnimationFrame = () => new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
 
-				assert.strictEqual(scheduler.isScheduled(), false);
-				scheduler.schedule();
-				assert.strictEqual(scheduler.isScheduled(), true);
-
-				// Wait for the animation frame
-				await timeout(0);
-
-				assert.strictEqual(callCount, 1);
-				assert.strictEqual(scheduler.isScheduled(), false);
-				scheduler.dispose();
+		test('schedules and runs the callback', async () => {
+			const node = document.createElement('div');
+			let callCount = 0;
+			const scheduler = new AnimationFrameScheduler(node, () => {
+				callCount++;
 			});
+
+			assert.strictEqual(scheduler.isScheduled(), false);
+			scheduler.schedule();
+			assert.strictEqual(scheduler.isScheduled(), true);
+
+			// Wait for the animation frame
+			await waitForAnimationFrame();
+
+			assert.strictEqual(callCount, 1);
+			assert.strictEqual(scheduler.isScheduled(), false);
+			scheduler.dispose();
 		});
 
-		test('coalesces multiple schedule calls', () => {
-			return runWithFakedTimers({ useFakeTimers: true }, async () => {
-				const node = document.createElement('div');
-				let callCount = 0;
-				const scheduler = new AnimationFrameScheduler(node, () => {
-					callCount++;
-				});
-
-				scheduler.schedule();
-				scheduler.schedule();
-				scheduler.schedule();
-
-				assert.strictEqual(scheduler.isScheduled(), true);
-
-				// Wait for the animation frame
-				await timeout(0);
-
-				assert.strictEqual(callCount, 1);
-				scheduler.dispose();
+		test('coalesces multiple schedule calls', async () => {
+			const node = document.createElement('div');
+			let callCount = 0;
+			const scheduler = new AnimationFrameScheduler(node, () => {
+				callCount++;
 			});
+
+			scheduler.schedule();
+			scheduler.schedule();
+			scheduler.schedule();
+
+			assert.strictEqual(scheduler.isScheduled(), true);
+
+			// Wait for the animation frame
+			await waitForAnimationFrame();
+
+			assert.strictEqual(callCount, 1);
+			scheduler.dispose();
 		});
 
-		test('cancel prevents execution', () => {
-			return runWithFakedTimers({ useFakeTimers: true }, async () => {
-				const node = document.createElement('div');
-				let callCount = 0;
-				const scheduler = new AnimationFrameScheduler(node, () => {
-					callCount++;
-				});
-
-				scheduler.schedule();
-				assert.strictEqual(scheduler.isScheduled(), true);
-				scheduler.cancel();
-				assert.strictEqual(scheduler.isScheduled(), false);
-
-				// Wait for the animation frame
-				await timeout(0);
-
-				assert.strictEqual(callCount, 0);
-				scheduler.dispose();
+		test('cancel prevents execution', async () => {
+			const node = document.createElement('div');
+			let callCount = 0;
+			const scheduler = new AnimationFrameScheduler(node, () => {
+				callCount++;
 			});
+
+			scheduler.schedule();
+			assert.strictEqual(scheduler.isScheduled(), true);
+			scheduler.cancel();
+			assert.strictEqual(scheduler.isScheduled(), false);
+
+			// Wait for the animation frame
+			await waitForAnimationFrame();
+
+			assert.strictEqual(callCount, 0);
+			scheduler.dispose();
 		});
 
-		test('dispose prevents execution', () => {
-			return runWithFakedTimers({ useFakeTimers: true }, async () => {
-				const node = document.createElement('div');
-				let callCount = 0;
-				const scheduler = new AnimationFrameScheduler(node, () => {
-					callCount++;
-				});
-
-				scheduler.schedule();
-				scheduler.dispose();
-
-				// Wait for the animation frame
-				await timeout(0);
-
-				assert.strictEqual(callCount, 0);
+		test('dispose prevents execution', async () => {
+			const node = document.createElement('div');
+			let callCount = 0;
+			const scheduler = new AnimationFrameScheduler(node, () => {
+				callCount++;
 			});
+
+			scheduler.schedule();
+			scheduler.dispose();
+
+			// Wait for the animation frame
+			await waitForAnimationFrame();
+
+			assert.strictEqual(callCount, 0);
 		});
 
-		test('can schedule again after execution', () => {
-			return runWithFakedTimers({ useFakeTimers: true }, async () => {
-				const node = document.createElement('div');
-				let callCount = 0;
-				const scheduler = new AnimationFrameScheduler(node, () => {
-					callCount++;
-				});
-
-				scheduler.schedule();
-				await timeout(0);
-				assert.strictEqual(callCount, 1);
-
-				scheduler.schedule();
-				await timeout(0);
-				assert.strictEqual(callCount, 2);
-
-				scheduler.dispose();
+		test('can schedule again after execution', async () => {
+			const node = document.createElement('div');
+			let callCount = 0;
+			const scheduler = new AnimationFrameScheduler(node, () => {
+				callCount++;
 			});
+
+			scheduler.schedule();
+			await waitForAnimationFrame();
+			assert.strictEqual(callCount, 1);
+
+			scheduler.schedule();
+			await waitForAnimationFrame();
+			assert.strictEqual(callCount, 2);
+
+			scheduler.dispose();
 		});
 	});
 
