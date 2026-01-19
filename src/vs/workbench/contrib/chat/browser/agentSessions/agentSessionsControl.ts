@@ -298,7 +298,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 			const shouldCollapseArchived =
 				!this.sessionsListFindIsOpen &&				// always expand when find is open
-				this.options.filter.getExcludes().archived;	// always expand when archived are included in filter
+				this.options.filter.getExcludes().archived;	// only collapse when archived are excluded from filter
 
 			if (shouldCollapseArchived && !child.collapsed) {
 				this.sessionsList.collapse(child.element);
