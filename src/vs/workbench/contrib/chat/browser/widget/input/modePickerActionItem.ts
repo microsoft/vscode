@@ -35,8 +35,8 @@ export interface IModePickerDelegate {
 	readonly currentMode: IObservable<IChatMode>;
 	readonly sessionResource: () => URI | undefined;
 	/**
-	 * When set, the mode picker will only show custom agents matching this target.
-	 * If no agents match the target, shows a default "Agent" option.
+	 * When set, the mode picker will show custom agents whose target matches this value.
+	 * Custom agents without a target are always shown in all session types. If no agents match the target, shows a default "Agent" option.
 	 */
 	readonly customAgentTarget?: () => string | undefined;
 }

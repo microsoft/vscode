@@ -126,7 +126,7 @@ export const localChatSessionType = 'local';
 /**
  * The option ID used for selecting the agent in chat sessions.
  */
-export const AgentOptionId = 'agent';
+export const agentOptionId = 'agent';
 
 export interface IChatSession extends IDisposable {
 	readonly onWillDispose: Event<void>;
