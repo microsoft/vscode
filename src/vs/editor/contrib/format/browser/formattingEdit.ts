@@ -7,8 +7,8 @@ import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { EditOperation, ISingleEditOperation } from '../../../common/core/editOperation.js';
 import { Range } from '../../../common/core/range.js';
 import { EndOfLineSequence } from '../../../common/model.js';
-import { TextEdit, ProviderId } from '../../../common/languages.js';
-import { EditSources } from '../../../common/textModelEditSource.js';
+import { TextEdit } from '../../../common/languages.js';
+import { TextModelEditSource } from '../../../common/textModelEditSource.js';
 import { StableEditorScrollState } from '../../../browser/stableEditorScroll.js';
 
 export class FormattingEdit {
@@ -45,13 +45,12 @@ export class FormattingEdit {
 		return fullModelRange.equalsRange(editRange);
 	}
 
-	static execute(editor: ICodeEditor, _edits: TextEdit[], addUndoStops: boolean, providerId?: ProviderId) {
+	static execute(editor: ICodeEditor, _edits: TextEdit[], addUndoStops: boolean, reason?: TextModelEditSource) {
 		if (addUndoStops) {
 			editor.pushUndoStop();
 		}
 		const scrollState = StableEditorScrollState.capture(editor);
 		const edits = FormattingEdit._handleEolEdits(editor, _edits);
-		const reason = EditSources.unknown({ name: 'formatEditsCommand', providerId });
 		if (edits.length === 1 && FormattingEdit._isFullModelReplaceEdit(editor, edits[0])) {
 			// We use replace semantics and hope that markers stay put...
 			editor.executeEdits(reason, edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
