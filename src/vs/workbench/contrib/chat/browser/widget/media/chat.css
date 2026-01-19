@@ -1629,6 +1629,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .action-item.chat-mcp {
+	min-width: 22px !important;
 
 	.chat-mcp-state-indicator {
 		position: absolute;
@@ -1639,6 +1640,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		width: fit-content;
 		height: fit-content;
 		border-radius: 100%;
+		pointer-events: none;
 
 		&.chat-mcp-state-new {
 			color: var(--vscode-button-foreground);
