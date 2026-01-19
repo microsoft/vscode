@@ -17,6 +17,7 @@ import { CharCode } from '../../../../base/common/charCode.js';
 import { Position } from '../../../common/core/position.js';
 import { editorWhitespaces } from '../../../common/core/editorColorRegistry.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 
 /**
  * The whitespace overlay will visual certain whitespace depending on the
@@ -222,18 +223,28 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 					result += `<circle cx="${(visibleRange.left + spaceWidth / 2).toFixed(2)}" cy="${(lineHeight / 2).toFixed(2)}" r="${(spaceWidth / 7).toFixed(2)}" />`;
 				}
 			} else {
-				if (chCode === CharCode.Tab) {
-					result += `<div class="mwh" style="left:${visibleRange.left}px;height:${lineHeight}px;">${canUseHalfwidthRightwardsArrow ? String.fromCharCode(0xFFEB) : String.fromCharCode(0x2192)}</div>`;
+				if (mainWindow.cspNonce) {
+					const className = 'mwh-' + Math.random().toString(36).substring(2);
+					result += `<div class="mwh  ${className}"><style nonce="${mainWindow.cspNonce}">.${className}{left:${visibleRange.left}px;height:${lineHeight}px;}</style>`;
 				} else {
-					result += `<div class="mwh" style="left:${visibleRange.left}px;height:${lineHeight}px;">${String.fromCharCode(renderSpaceCharCode)}</div>`;
+					result += `<div class="mwh" style="left:${visibleRange.left}px;height:${lineHeight}px;">`;
+				}
+				if (chCode === CharCode.Tab) {
+					result += `${canUseHalfwidthRightwardsArrow ? String.fromCharCode(0xFFEB) : String.fromCharCode(0x2192)}</div>`;
+				} else {
+					result += `${String.fromCharCode(renderSpaceCharCode)}</div>`;
 				}
 			}
 		}
 
 		if (USE_SVG) {
 			maxLeft = Math.round(maxLeft + spaceWidth);
+			const className = 'whitespaces-' + lineNumber.toString() + '-' + Math.random().toString(36).substring(36);
 			return (
-				`<svg style="bottom:0;position:absolute;width:${maxLeft}px;height:${lineHeight}px" viewBox="0 0 ${maxLeft} ${lineHeight}" xmlns="http://www.w3.org/2000/svg" fill="${color}">`
+				`<svg`
+				+ (mainWindow.cspNonce ? `class=${className}` : `style="bottom:0;position:absolute;width:${maxLeft}px;height:${lineHeight}px" `)
+				+ `viewBox="0 0 ${maxLeft} ${lineHeight}" xmlns="http://www.w3.org/2000/svg" fill="${color}">`
+				+ (mainWindow.cspNonce ? `<style nonce="${mainWindow.cspNonce}">.${className}{bottom:0;position:absolute;width:${maxLeft}px;height:${lineHeight}px;}</style>` : '')
 				+ result
 				+ `</svg>`
 			);

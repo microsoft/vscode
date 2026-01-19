@@ -17,6 +17,7 @@ import { Color } from '../../../../base/common/color.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { BracketPairGuidesClassNames } from '../../../common/model/guidesTextModelPart.js';
 import { IndentGuide, HorizontalGuidesState } from '../../../common/textModelGuides.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 
 /**
  * Indent guides are vertical lines that help identify the indentation level of
@@ -150,7 +151,12 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 					)?.left ?? (left + this._spaceWidth)) - left
 					: this._spaceWidth;
 
-				result += `<div class="core-guide ${guide.className} ${className}" style="left:${left}px;width:${width}px"></div>`;
+				if (mainWindow.cspNonce) {
+					const layoutClassName = 'core-guide-layout-' + Math.random().toString(36).substring(2);
+					result += `<div class="core-guide ${guide.className} ${className} ${layoutClassName}"><style nonce="${mainWindow.cspNonce}">.${layoutClassName}{left:${left}px;width:${width}px}</style></div>`;
+				} else {
+					result += `<div class="core-guide ${guide.className} ${className}" style="left:${left}px;width:${width}px"></div>`;
+				}
 			}
 			output[lineIndex] = result;
 		}

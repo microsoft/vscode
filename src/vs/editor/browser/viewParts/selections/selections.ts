@@ -12,6 +12,7 @@ import * as viewEvents from '../../../common/viewEvents.js';
 import { editorSelectionForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 
 const enum CornerStyle {
 	EXTERN,
@@ -256,15 +257,28 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 	}
 
 	private _createSelectionPiece(top: number, bottom: number, className: string, left: number, width: number): string {
+		const layoutClassName = 'selection-' + top.toString() + '-' + bottom.toString() + '-' + left.toString() + '-' + width.toString();
 		return (
 			'<div class="cslr '
 			+ className
-			+ '" style="'
+			+ (mainWindow.cspNonce ?
+				' '
+				+ layoutClassName
+				+ '"><style nonce="'
+				+ mainWindow.cspNonce
+				+ '"> .'
+				+ layoutClassName
+				+ '{' :
+				'" style="'
+			)
 			+ 'top:' + top.toString() + 'px;'
 			+ 'bottom:' + bottom.toString() + 'px;'
 			+ 'left:' + left.toString() + 'px;'
 			+ 'width:' + width.toString() + 'px;'
-			+ '"></div>'
+			+ (mainWindow.cspNonce ?
+				'}</style></div>' :
+				'"></div>'
+			)
 		);
 	}
 

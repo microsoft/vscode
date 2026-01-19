@@ -36,6 +36,7 @@ import { InlineCompletionViewData } from '../inlineEdits/inlineEditsViewInterfac
 import { InlineDecorationType } from '../../../../../common/viewModel/inlineDecorations.js';
 import { equals, sum } from '../../../../../../base/common/arrays.js';
 import { equalsIfDefinedC, IEquatable, thisEqualsC } from '../../../../../../base/common/equals.js';
+import { mainWindow } from '../../../../../../base/browser/window.js';
 
 export interface IGhostTextWidgetData {
 	readonly ghostText: GhostText | GhostTextReplacement;
@@ -634,9 +635,26 @@ function renderLines(domNode: HTMLElement, tabSize: number, lines: readonly Line
 		const lineData = lines[i];
 		const lineTokens = lineData.content;
 		sb.appendString('<div class="view-line');
-		sb.appendString('" style="top:');
+		if (mainWindow.cspNonce) {
+			const className = 'ghost-text-line' + i.toString() + Math.random().toString(36).substring(2);
+			sb.appendString(' ');
+			sb.appendString(className);
+			sb.appendString('"><style nonce="');
+			sb.appendString(mainWindow.cspNonce);
+			sb.appendString('">.');
+			sb.appendString(className);
+			sb.appendString('{');
+		} else {
+			sb.appendString('" style="');
+		}
+		sb.appendString('top:');
 		sb.appendString(String(i * lineHeight));
-		sb.appendString('px;width:1000000px;">');
+		sb.appendString('px;width:1000000px;');
+		if (mainWindow.cspNonce) {
+			sb.appendString('}</style>');
+		} else {
+			sb.appendString('">');
+		}
 
 		const line = lineTokens.getLineContent();
 		const isBasicASCII = strings.isBasicASCII(line);
