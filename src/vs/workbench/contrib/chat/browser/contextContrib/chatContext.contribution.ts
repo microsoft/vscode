@@ -66,6 +66,7 @@ export class ChatContextContribution extends Disposable implements IWorkbenchCon
 						continue;
 					}
 					if (!icon) {
+						// Icon is required by schema, but handle defensively
 						continue;
 					}
 
