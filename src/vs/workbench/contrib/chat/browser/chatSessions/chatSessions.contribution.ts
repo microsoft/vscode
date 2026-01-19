@@ -199,7 +199,7 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 					default: false
 				},
 				customAgentTarget: {
-					description: localize('chatSessionsExtPoint.customAgentTarget', 'When set, the chat session will show a filtered mode picker with only custom agents that have a matching target property. This enables the standard agent/mode dropdown with filtered custom agents.'),
+					description: localize('chatSessionsExtPoint.customAgentTarget', 'When set, the chat session will show a filtered mode picker that prefers custom agents whose target property matches this value. Custom agents without a target property are still shown in all session types. This enables the use of standard agent/mode with contributed sessions.'),
 					type: 'string'
 				}
 			},
