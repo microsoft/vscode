@@ -30,18 +30,7 @@ export class UserDataAutoSyncService extends BaseUserDataAutoSyncService {
 		@IStorageService storageService: IStorageService,
 		@IMeteredConnectionService meteredConnectionService: IMeteredConnectionService,
 	) {
-		super(
-			productService,
-			userDataSyncStoreManagementService,
-			userDataSyncStoreService,
-			userDataSyncEnablementService,
-			userDataSyncService,
-			logService,
-			authTokenService,
-			telemetryService,
-			userDataSyncMachinesService,
-			storageService,
-			meteredConnectionService);
+		super(productService, userDataSyncStoreManagementService, userDataSyncStoreService, userDataSyncEnablementService, userDataSyncService, logService, authTokenService, telemetryService, userDataSyncMachinesService, storageService, meteredConnectionService);
 
 		this._register(Event.debounce<string, string[]>(Event.any<string>(
 			Event.map(nativeHostService.onDidFocusMainWindow, () => 'windowFocus'),

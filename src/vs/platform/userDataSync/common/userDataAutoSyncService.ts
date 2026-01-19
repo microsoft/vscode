@@ -131,16 +131,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 		const { enabled, message } = this.isAutoSyncEnabled();
 		if (enabled) {
 			if (this.autoSync.value === undefined) {
-				this.autoSync.value = new AutoSync(
-					this.lastSyncUrl, 1000 * 60 * 5 /* 5 minutes */,
-					this.userDataSyncStoreManagementService,
-					this.userDataSyncStoreService,
-					this.userDataSyncService,
-					this.userDataSyncMachinesService,
-					this.logService,
-					this.telemetryService,
-					this.storageService,
-					this.meteredConnectionService);
+				this.autoSync.value = new AutoSync(this.lastSyncUrl, 1000 * 60 * 5 /* 5 minutes */, this.userDataSyncStoreManagementService, this.userDataSyncStoreService, this.userDataSyncService, this.userDataSyncMachinesService, this.logService, this.telemetryService, this.storageService, this.meteredConnectionService);
 				this.autoSync.value.register(this.autoSync.value.onDidStartSync(() => this.lastSyncTriggerTime = new Date().getTime()));
 				this.autoSync.value.register(this.autoSync.value.onDidFinishSync(e => this.onDidFinishSync(e)));
 				if (this.startAutoSync()) {
