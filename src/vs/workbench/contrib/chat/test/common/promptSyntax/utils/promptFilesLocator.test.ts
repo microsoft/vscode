@@ -25,7 +25,7 @@ import { IPathService } from '../../../../../../services/path/common/pathService
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
 import { PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
 import { isValidGlob, isValidSkillPath, PromptFilesLocator } from '../../../../common/promptSyntax/utils/promptFilesLocator.js';
-import { IMockFolder, MockFilesystem } from '../testUtils/mockFilesystem.js';
+import { IMockFileEntry, IMockFolder, MockFilesystem } from '../testUtils/mockFilesystem.js';
 import { mockService } from './mock.js';
 import { TestUserDataProfileService } from '../../../../../../test/common/workbenchTestServices.js';
 import { PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
@@ -34,23 +34,20 @@ import { runWithFakedTimers } from '../../../../../../../base/test/common/timeTr
 /**
  * Mocked instance of {@link IConfigurationService}.
  */
-function mockConfigService<T>(value: T): IConfigurationService {
+function mockConfigService(configValues: Record<string, unknown>): IConfigurationService {
 	return mockService<IConfigurationService>({
 		getValue(key?: string | IConfigurationOverrides) {
-			assert(
-				typeof key === 'string',
-				`Expected string configuration key, got '${typeof key}'.`,
-			);
-			if ('explorer.excludeGitIgnore' === key) {
-				return false;
+			// Handle object configuration overrides (e.g., for file exclude patterns)
+			if (typeof key === 'object') {
+				return {};
 			}
-
-			assert(
-				[PromptsConfig.PROMPT_LOCATIONS_KEY, PromptsConfig.INSTRUCTIONS_LOCATION_KEY, PromptsConfig.MODE_LOCATION_KEY, PromptsConfig.SKILLS_LOCATION_KEY].includes(key),
-				`Unsupported configuration key '${key}'.`,
-			);
-
-			return value;
+			if (typeof key !== 'string') {
+				assert.fail(`Unsupported configuration key '${key}'.`);
+			}
+			if (configValues.hasOwnProperty(key)) {
+				return configValues[key];
+			}
+			assert.fail(`Unsupported configuration key '${key}'.`);
 		},
 	});
 }
@@ -79,10 +76,6 @@ function testT(name: string, fn: () => Promise<void>): Mocha.Test {
 suite('PromptFilesLocator', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	// if (isWindows) {
-	// 	return;
-	// }
-
 	let instantiationService: TestInstantiationService;
 	setup(async () => {
 		instantiationService = disposables.add(new TestInstantiationService());
@@ -104,7 +97,15 @@ suite('PromptFilesLocator', () => {
 		const mockFs = instantiationService.createInstance(MockFilesystem, filesystem);
 		await mockFs.mock();
 
-		instantiationService.stub(IConfigurationService, mockConfigService(configValue));
+		instantiationService.stub(IConfigurationService, mockConfigService({
+			'explorer.excludeGitIgnore': false,
+			'files.exclude': {},
+			'search.exclude': {},
+			[PromptsConfig.PROMPT_LOCATIONS_KEY]: configValue,
+			[PromptsConfig.INSTRUCTIONS_LOCATION_KEY]: configValue,
+			[PromptsConfig.MODE_LOCATION_KEY]: configValue,
+			[PromptsConfig.SKILLS_LOCATION_KEY]: configValue,
+		}));
 
 		const workspaceFolders = workspaceFolderPaths.map((path, index) => {
 			const uri = URI.file(path);
@@ -119,6 +120,9 @@ suite('PromptFilesLocator', () => {
 		instantiationService.stub(IWorkbenchEnvironmentService, {} as IWorkbenchEnvironmentService);
 		instantiationService.stub(IUserDataProfileService, new TestUserDataProfileService());
 		instantiationService.stub(ISearchService, {
+			schemeHasFileSearchProvider(scheme: string): boolean {
+				return true;
+			},
 			async fileSearch(query: IFileQuery) {
 				// mock the search service
 				const fs = instantiationService.get(IFileService);
@@ -3099,26 +3103,13 @@ suite('PromptFilesLocator', () => {
 				['/Users/legomushroom/repos/workspace'],
 				[
 					{
-						path: '/Users/legomushroom/repos/workspace',
-						type: 'directory',
-						children: [
-							{
-								path: '/Users/legomushroom/repos/workspace/AGENTS.md',
-								type: 'file',
-								content: '# Root agents'
-							},
-							{
-								path: '/Users/legomushroom/repos/workspace/src',
-								type: 'directory',
-								children: [
-									{
-										path: '/Users/legomushroom/repos/workspace/src/AGENTS.md',
-										type: 'file',
-										content: '# Src agents'
-									}
-								]
-							}
-						]
+						path: '/Users/legomushroom/repos/workspace/AGENTS.md',
+						contents: ['# Root agents']
+					},
+					{
+
+						path: '/Users/legomushroom/repos/workspace/src/AGENTS.md',
+						contents: ['# Src agents']
 					}
 				],
 				true // has FileSearchProvider
@@ -3142,38 +3133,18 @@ suite('PromptFilesLocator', () => {
 				['/Users/legomushroom/repos/workspace'],
 				[
 					{
-						path: '/Users/legomushroom/repos/workspace',
-						type: 'directory',
-						children: [
-							{
-								path: '/Users/legomushroom/repos/workspace/AGENTS.md',
-								type: 'file',
-								content: '# Root agents'
-							},
-							{
-								path: '/Users/legomushroom/repos/workspace/src',
-								type: 'directory',
-								children: [
-									{
-										path: '/Users/legomushroom/repos/workspace/src/AGENTS.md',
-										type: 'file',
-										content: '# Src agents'
-									},
-									{
-										path: '/Users/legomushroom/repos/workspace/src/nested',
-										type: 'directory',
-										children: [
-											{
-												path: '/Users/legomushroom/repos/workspace/src/nested/AGENTS.md',
-												type: 'file',
-												content: '# Nested agents'
-											}
-										]
-									}
-								]
-							}
-						]
+						path: '/Users/legomushroom/repos/workspace/AGENTS.md',
+						contents: ['# Root agents']
+					},
+					{
+						path: '/Users/legomushroom/repos/workspace/src/AGENTS.md',
+						contents: ['# Src agents']
+					},
+					{
+						path: '/Users/legomushroom/repos/workspace/src/nested/AGENTS.md',
+						contents: ['# Nested agents']
 					}
+
 				],
 				false // no FileSearchProvider - should use file service fallback
 			);
@@ -3197,15 +3168,8 @@ suite('PromptFilesLocator', () => {
 				['/Users/legomushroom/repos/workspace'],
 				[
 					{
-						path: '/Users/legomushroom/repos/workspace',
-						type: 'directory',
-						children: [
-							{
-								path: '/Users/legomushroom/repos/workspace/AGENTS.md',
-								type: 'file',
-								content: '# Root agents'
-							}
-						]
+						path: '/Users/legomushroom/repos/workspace/AGENTS.md',
+						contents: ['# Root agents']
 					}
 				],
 				false // no FileSearchProvider
@@ -3226,13 +3190,17 @@ suite('PromptFilesLocator', () => {
 		const createPromptsLocatorForAgentMD = async (
 			configValue: unknown,
 			workspaceFolderPaths: string[],
-			filesystem: IMockFolder[],
+			filesystem: IMockFileEntry[],
 			hasFileSearchProvider: boolean
 		) => {
 			const mockFs = instantiationService.createInstance(MockFilesystem, filesystem);
 			await mockFs.mock();
 
-			instantiationService.stub(IConfigurationService, mockConfigService(configValue));
+			instantiationService.stub(IConfigurationService, mockConfigService({
+				'explorer.excludeGitIgnore': false,
+				'files.exclude': {},
+				'search.exclude': {}
+			}));
 
 			const workspaceFolders = workspaceFolderPaths.map((path, index) => {
 				const uri = URI.file(path);
