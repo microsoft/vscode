@@ -130,7 +130,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 						env: Object.fromEntries(
 							Object.entries(launch.env).map(([k, v]) => [k, v === null ? undefined : String(v)])
 						),
-						version: undefined
+						version: server.cacheNonce === '$$NONE' ? undefined : server.cacheNonce,
 					});
 				} else {
 					allServers.push({
