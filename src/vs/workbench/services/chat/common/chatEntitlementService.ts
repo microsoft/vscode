@@ -641,9 +641,6 @@ export class ChatEntitlementRequests extends Disposable {
 			entitlement = ChatEntitlement.Business;
 		} else if (entitlementsData.copilot_plan === 'enterprise') {
 			entitlement = ChatEntitlement.Enterprise;
-		} else if (entitlementsData.chat_enabled) {
-			// This should never happen as we exhaustively list the plans above. But if a new plan is added in the future older clients won't break
-			entitlement = ChatEntitlement.Pro;
 		} else {
 			entitlement = ChatEntitlement.Unavailable;
 		}
