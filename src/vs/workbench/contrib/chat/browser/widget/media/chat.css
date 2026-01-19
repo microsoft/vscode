@@ -563,15 +563,6 @@
 	}
 }
 
-.interactive-item-container .value .from-sub-agent {
-	&.chat-tool-invocation-part,
-	&.chat-confirmation-widget,
-	&.chat-terminal-confirmation-widget,
-	&.chat-codeblock-pill-widget {
-		margin-left: 18px;
-	}
-}
-
 .interactive-item-container .value > .rendered-markdown li > p {
 	margin: 0;
 }
@@ -1029,8 +1020,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button.secondary.monaco-text-button.codicon {
 	cursor: pointer;
-	padding: 0 3px;
-	border-radius: 2px;
+	padding: 3px;
+	border-radius: 4px;
 	display: inline-flex;
 }
 
@@ -1317,7 +1308,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: flex;
 }
 
-.interactive-session .chat-input-toolbars :first-child {
+.interactive-session .chat-input-toolbars :not(.responsive.chat-input-toolbar) .actions-container:first-child {
 	margin-right: auto;
 }
 
@@ -1336,12 +1327,15 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-input-toolbars > .chat-input-toolbar {
 	overflow: hidden;
 	min-width: 0px;
+	width: 100%;
 
 	.chat-input-picker-item {
 		min-width: 0px;
+		overflow: hidden;
 
 		.action-label {
 			min-width: 0px;
+			overflow: hidden;
 
 			.chat-input-picker-label {
 				overflow: hidden;

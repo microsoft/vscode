@@ -37,15 +37,14 @@
 /* Status Bar */
 .monaco-workbench.stealth-shadows-enabled .part.statusbar { box-shadow: 0 0 6px rgba(0, 0, 0, 0.08); z-index: 55; position: relative; }
 
-/* Quick Input (Command Palette) */
-.monaco-workbench.stealth-shadows-enabled .quick-input-widget { box-shadow: 0 0 20px rgba(0, 0, 0, 0.15) !important; border: none !important; border-radius: 12px; overflow: hidden; background: rgba(252, 252, 253, 0.2) !important; backdrop-filter: blur(20px) saturate(100%); -webkit-backdrop-filter: blur(40px) saturate(180%); }
+/* Quick Input (Command Palette) - Plastic Wrap Layer */
+.monaco-workbench.stealth-shadows-enabled .quick-input-widget { box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.9), inset 0 2px 4px rgba(255, 255, 255, 0.4), 0 0 0 6px rgba(255, 255, 255, 0.45), 0 4px 24px rgba(0, 0, 0, 0.06) !important; border: none !important; border-radius: 12px; overflow: hidden; background: rgba(255, 255, 255, 0.6) !important; backdrop-filter: blur(40px) saturate(180%); -webkit-backdrop-filter: blur(40px) saturate(180%); }
 .monaco-workbench.stealth-shadows-enabled.vs-dark .quick-input-widget,
-.monaco-workbench.stealth-shadows-enabled.hc-black .quick-input-widget { background: rgba(10, 10, 11, 0.85) !important; backdrop-filter: blur(40px) saturate(180%); -webkit-backdrop-filter: blur(40px) saturate(180%); box-shadow: 0 0 20px rgba(0, 0, 0, 0.15) !important; }
+.monaco-workbench.stealth-shadows-enabled.hc-black .quick-input-widget { background: rgba(40, 40, 44, 0.6) !important; backdrop-filter: blur(40px) saturate(180%); -webkit-backdrop-filter: blur(40px) saturate(180%); box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.12), inset 0 2px 4px rgba(255, 255, 255, 0.05), 0 0 0 6px rgba(255, 255, 255, 0.08), 0 4px 24px rgba(0, 0, 0, 0.2) !important; }
 .monaco-workbench.stealth-shadows-enabled .quick-input-widget .monaco-list-rows { background-color: transparent !important; }
-.monaco-workbench.stealth-shadows-enabled .quick-input-widget,
-.monaco-workbench.stealth-shadows-enabled .quick-input-widget *,
 .monaco-workbench.stealth-shadows-enabled .quick-input-widget .quick-input-header,
 .monaco-workbench.stealth-shadows-enabled .quick-input-widget .quick-input-list,
+.monaco-workbench.stealth-shadows-enabled .quick-input-widget .quick-input-list-rows,
 .monaco-workbench.stealth-shadows-enabled .quick-input-widget .quick-input-titlebar,
 .monaco-workbench.stealth-shadows-enabled .quick-input-widget .quick-input-title,
 .monaco-workbench.stealth-shadows-enabled .quick-input-widget .quick-input-description,
@@ -54,18 +53,22 @@
 .monaco-workbench.stealth-shadows-enabled .quick-input-widget .quick-input-message,
 .monaco-workbench.stealth-shadows-enabled .quick-input-widget .monaco-inputbox,
 .monaco-workbench.stealth-shadows-enabled .quick-input-widget .monaco-list,
-.monaco-workbench.stealth-shadows-enabled .quick-input-widget .monaco-list-row { border: none !important; border-color: transparent !important; outline: none !important; }
+.monaco-workbench.stealth-shadows-enabled .quick-input-widget .monaco-list-row,
+.monaco-workbench.stealth-shadows-enabled .quick-input-widget .monaco-scrollable-element,
+.monaco-workbench.stealth-shadows-enabled .quick-input-widget .quick-input-list .monaco-list { border: none !important; border-color: transparent !important; outline: none !important; background-color: transparent !important; background: transparent !important; }
 .monaco-workbench.stealth-shadows-enabled .quick-input-widget .monaco-inputbox { box-shadow: none !important; background: transparent !important; }
 .monaco-workbench.stealth-shadows-enabled .quick-input-widget .quick-input-filter .monaco-inputbox { background: rgba(249, 250, 251, 0.4) !important; border-radius: 6px; }
 .monaco-workbench.stealth-shadows-enabled.vs-dark .quick-input-widget .quick-input-filter .monaco-inputbox,
 .monaco-workbench.stealth-shadows-enabled.hc-black .quick-input-widget .quick-input-filter .monaco-inputbox { background: rgba(20, 20, 22, 0.6) !important; }
 
-/* Chat Widget */
-.monaco-workbench.stealth-shadows-enabled .interactive-session .chat-input-container { box-shadow: 0 0 6px rgba(0, 0, 0, 0.10); border: none !important; border-radius: 6px; background-color: var(--vscode-panel-background, var(--vscode-sideBar-background)) !important; }
+/* Chat Widget - Plastic Wrap Layer */
+.monaco-workbench.stealth-shadows-enabled .interactive-session .chat-input-container { box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.85), inset 0 2px 4px rgba(255, 255, 255, 0.35), 0 0 0 6px rgba(255, 255, 255, 0.4), 0 4px 20px rgba(0, 0, 0, 0.05); border: none !important; border-radius: 12px; background-color: var(--vscode-panel-background, var(--vscode-sideBar-background)) !important; }
+.monaco-workbench.stealth-shadows-enabled.vs-dark .interactive-session .chat-input-container,
+.monaco-workbench.stealth-shadows-enabled.hc-black .interactive-session .chat-input-container { box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1), inset 0 2px 4px rgba(255, 255, 255, 0.04), 0 0 0 6px rgba(255, 255, 255, 0.06), 0 4px 20px rgba(0, 0, 0, 0.15); }
 .monaco-workbench.stealth-shadows-enabled .interactive-session .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor,
 .monaco-workbench.stealth-shadows-enabled .interactive-session .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor .monaco-editor-background { background-color: var(--vscode-panel-background, var(--vscode-sideBar-background)) !important; }
 .monaco-workbench.stealth-shadows-enabled .interactive-session .chat-editing-session .chat-editing-session-container { box-shadow: 0 0 6px rgba(0, 0, 0, 0.10); border: none !important; border-radius: 4px 4px 0 0; }
-.monaco-workbench.stealth-shadows-enabled .interactive-input-part:has(.chat-editing-session > .chat-editing-session-container) .chat-input-container { border-radius: 0 0 6px 6px; }
+.monaco-workbench.stealth-shadows-enabled .interactive-input-part:has(.chat-editing-session > .chat-editing-session-container) .chat-input-container { border-radius: 0 0 12px 12px; }
 .monaco-workbench.stealth-shadows-enabled .part.panel .interactive-session,
 .monaco-workbench.stealth-shadows-enabled .part.auxiliarybar .interactive-session { position: relative; }
 .monaco-workbench.stealth-shadows-enabled .chat-attached-context-attachment { box-shadow: 0 0 3px rgba(0, 0, 0, 0.08); border: none !important; }
