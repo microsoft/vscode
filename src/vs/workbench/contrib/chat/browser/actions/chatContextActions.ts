@@ -171,6 +171,11 @@ class AttachFileToChatAction extends AttachResourceAction {
 						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeUserData)
 					)
 				)
+			}, {
+				id: MenuId.ChatEditorInlineGutter,
+				group: '2_context',
+				order: 2,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, EditorContextKeys.hasNonEmptySelection.negate())
 			}]
 		});
 	}
@@ -240,7 +245,7 @@ class AttachSelectionToChatAction extends Action2 {
 			category: CHAT_CATEGORY,
 			f1: true,
 			precondition: ChatContextKeys.enabled,
-			menu: {
+			menu: [{
 				id: MenuId.EditorContext,
 				group: '1_chat',
 				order: 1,
@@ -254,7 +259,12 @@ class AttachSelectionToChatAction extends Action2 {
 						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeUserData)
 					)
 				)
-			}
+			}, {
+				id: MenuId.ChatEditorInlineGutter,
+				group: '2_context',
+				order: 2,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, EditorContextKeys.hasNonEmptySelection)
+			}]
 		});
 	}
 
