@@ -12,6 +12,7 @@ import { IEnvironmentMainService } from '../../environment/electron-main/environ
 import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
 import { AvailableForDownload, IUpdateService, State, StateType, UpdateType } from '../common/update.js';
+import { IMeteredConnectionService } from '../../meteredConnection/common/meteredConnection.js';
 
 abstract class AbstractUpdateService implements IUpdateService {
 
@@ -36,6 +37,7 @@ abstract class AbstractUpdateService implements IUpdateService {
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
 		@ILogService protected logService: ILogService,
+		@IMeteredConnectionService protected readonly meteredConnectionService: IMeteredConnectionService,
 	) {
 		if (environmentMainService.disableUpdates) {
 			this.logService.info('update#ctor - updates are disabled');
@@ -64,13 +66,23 @@ abstract class AbstractUpdateService implements IUpdateService {
 			return;
 		}
 
+		if (!explicit && this.meteredConnectionService.isConnectionMetered) {
+			this.logService.info('update#checkForUpdates - skipping update check because connection is metered');
+			return;
+		}
+
 		this.doCheckForUpdates(explicit);
 	}
 
-	async downloadUpdate(): Promise<void> {
+	async downloadUpdate(explicit: boolean): Promise<void> {
 		this.logService.trace('update#downloadUpdate, state = ', this.state.type);
 
 		if (this.state.type !== StateType.AvailableForDownload) {
+			return;
+		}
+
+		if (!explicit && this.meteredConnectionService.isConnectionMetered) {
+			this.logService.info('update#downloadUpdate - skipping download because connection is metered');
 			return;
 		}
 
@@ -143,8 +155,9 @@ export class SnapUpdateService extends AbstractUpdateService {
 		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
 		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
 		@ILogService logService: ILogService,
+		@IMeteredConnectionService meteredConnectionService: IMeteredConnectionService,
 	) {
-		super(lifecycleMainService, environmentMainService, logService);
+		super(lifecycleMainService, environmentMainService, logService, meteredConnectionService);
 
 		const watcher = watch(path.dirname(this.snap));
 		const onChange = Event.fromNodeEventEmitter(watcher, 'change', (_, fileName: string) => fileName);

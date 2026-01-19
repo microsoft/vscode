@@ -11,6 +11,7 @@ import { escapeRegExpCharacters } from '../../../base/common/strings.js';
 import { localize } from '../../../nls.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
+import { IMeteredConnectionService } from '../../meteredConnection/common/meteredConnection.js';
 import product from '../../product/common/product.js';
 import { IProductService } from '../../product/common/productService.js';
 import { Registry } from '../../registry/common/platform.js';
@@ -28,6 +29,11 @@ export interface ITelemetryServiceConfig {
 	 * (up to 10 seconds) to ensure experiment context is attached to all events.
 	 */
 	waitForExperimentProperties?: boolean;
+	/**
+	 * If provided, telemetry events will be buffered when the connection is metered
+	 * and flushed when the connection becomes non-metered.
+	 */
+	meteredConnectionService?: IMeteredConnectionService;
 }
 
 interface IPendingEvent {
@@ -63,6 +69,9 @@ export class TelemetryService implements ITelemetryService {
 	private _pendingEvents: IPendingEvent[] = [];
 	private _isExperimentPropertySet = false;
 	private _flushTimeout: ReturnType<typeof setTimeout> | undefined;
+
+	private readonly _meteredConnectionService: IMeteredConnectionService | undefined;
+	private _meteredBufferedEvents: IPendingEvent[] = [];
 
 	private readonly _disposables = new DisposableStore();
 	private _cleanupPatterns: RegExp[] = [];
@@ -115,6 +124,16 @@ export class TelemetryService implements ITelemetryService {
 			this._flushTimeout = setTimeout(() => this._flushPendingEvents(), TelemetryService.BUFFER_FLUSH_TIMEOUT);
 		} else {
 			this._isExperimentPropertySet = true;
+		}
+
+		// Set up metered connection handling - buffer events when metered, flush when recovered
+		this._meteredConnectionService = config.meteredConnectionService;
+		if (this._meteredConnectionService) {
+			this._disposables.add(this._meteredConnectionService.onDidChangeIsConnectionMetered(() => {
+				if (!this._meteredConnectionService!.isConnectionMetered) {
+					this._flushMeteredBufferedEvents();
+				}
+			}));
 		}
 	}
 
@@ -171,6 +190,7 @@ export class TelemetryService implements ITelemetryService {
 	dispose(): void {
 		// Flush any remaining pending events before disposing
 		this._flushPendingEvents();
+		this._flushMeteredBufferedEvents();
 		this._disposables.dispose();
 	}
 
@@ -188,7 +208,27 @@ export class TelemetryService implements ITelemetryService {
 			return;
 		}
 
+		// Buffer events when connection is metered
+		if (this._meteredConnectionService?.isConnectionMetered) {
+			if (this._meteredBufferedEvents.length < TelemetryService.MAX_BUFFER_SIZE) {
+				this._meteredBufferedEvents.push({ eventName, eventLevel, data });
+			}
+			return;
+		}
+
 		this._doLog(eventName, eventLevel, data);
+	}
+
+	private _flushMeteredBufferedEvents(): void {
+		if (this._meteredBufferedEvents.length === 0) {
+			return;
+		}
+
+		// Send all buffered events now that connection is no longer metered
+		for (const event of this._meteredBufferedEvents) {
+			this._doLog(event.eventName, event.eventLevel, event.data);
+		}
+		this._meteredBufferedEvents = [];
 	}
 
 	private _doLog(eventName: string, eventLevel: TelemetryLevel, data?: ITelemetryData) {

@@ -1870,7 +1870,7 @@ export class ExtensionRuntimeStateAction extends ExtensionAction {
 		}
 
 		else if (runtimeState?.action === ExtensionRuntimeActionType.DownloadUpdate) {
-			return this.updateService.downloadUpdate();
+			return this.updateService.downloadUpdate(true);
 		}
 
 		else if (runtimeState?.action === ExtensionRuntimeActionType.ApplyUpdate) {

@@ -474,7 +474,7 @@ export class CustomMenubarControl extends MenubarControl {
 			case StateType.AvailableForDownload:
 				return toAction({
 					id: 'update.downloadNow', label: localize({ key: 'download now', comment: ['&& denotes a mnemonic'] }, "D&&ownload Update"), enabled: true, run: () =>
-						this.updateService.downloadUpdate()
+						this.updateService.downloadUpdate(true)
 				});
 
 			case StateType.Downloading:

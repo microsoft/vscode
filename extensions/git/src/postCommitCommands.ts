@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Command, commands, Disposable, Event, EventEmitter, Memento, Uri, workspace, l10n } from 'vscode';
+import { Command, commands, Disposable, env, Event, EventEmitter, LogOutputChannel, Memento, Uri, workspace, l10n } from 'vscode';
 import { PostCommitCommandsProvider } from './api/git';
 import { IRepositoryResolver, Repository } from './repository';
 import { ApiRepository } from './api/api1';
@@ -94,7 +94,8 @@ export class CommitCommandsCenter {
 	constructor(
 		private readonly globalState: Memento,
 		private readonly repository: Repository,
-		private readonly postCommitCommandsProviderRegistry: IPostCommitCommandsProviderRegistry
+		private readonly postCommitCommandsProviderRegistry: IPostCommitCommandsProviderRegistry,
+		private readonly logger: LogOutputChannel
 	) {
 		const root = Uri.file(repository.root);
 
@@ -153,6 +154,13 @@ export class CommitCommandsCenter {
 			if (command === undefined) {
 				// Commit WAS NOT initiated using the action button (ex: keybinding, toolbar action,
 				// command palette) so we have to honour the default post commit command (memento/setting).
+
+				// Skip automatic post-commit network operations on metered connections
+				if (env.isConnectionMetered) {
+					this.logger.info('Skipping automatic post-commit command due to metered connection');
+					return;
+				}
+
 				const primaryCommand = this.getPrimaryCommand();
 				command = primaryCommand.arguments?.length === 2 ? primaryCommand.arguments[1] : null;
 			}

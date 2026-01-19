@@ -60,6 +60,8 @@ import { ILifecycleMainService, LifecycleMainPhase, ShutdownReason } from '../..
 import { ILoggerService, ILogService } from '../../platform/log/common/log.js';
 import { IMenubarMainService, MenubarMainService } from '../../platform/menubar/electron-main/menubarMainService.js';
 import { INativeHostMainService, NativeHostMainService } from '../../platform/native/electron-main/nativeHostMainService.js';
+import { IMeteredConnectionService, METERED_CONNECTION_CHANGED_CHANNEL } from '../../platform/meteredConnection/common/meteredConnection.js';
+import { MeteredConnectionMainService } from '../../platform/meteredConnection/electron-main/meteredConnectionMainService.js';
 import { IProductService } from '../../platform/product/common/productService.js';
 import { getRemoteAuthority } from '../../platform/remote/common/remoteHosts.js';
 import { SharedProcess } from '../../platform/sharedProcess/electron-main/sharedProcess.js';
@@ -139,6 +141,7 @@ export class CodeApplication extends Disposable {
 	private windowsMainService: IWindowsMainService | undefined;
 	private auxiliaryWindowsMainService: IAuxiliaryWindowsMainService | undefined;
 	private nativeHostMainService: INativeHostMainService | undefined;
+	private meteredConnectionMainService: MeteredConnectionMainService | undefined;
 
 	constructor(
 		private readonly mainProcessNodeIpcServer: NodeIPCServer,
@@ -526,6 +529,10 @@ export class CodeApplication extends Disposable {
 			}
 		});
 
+		validatedIpcMain.on(METERED_CONNECTION_CHANGED_CHANNEL, (_event, isMetered: boolean) => {
+			this.meteredConnectionMainService?.updateIsConnectionMetered(isMetered);
+		});
+
 		//#endregion
 	}
 
@@ -631,6 +638,7 @@ export class CodeApplication extends Disposable {
 		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
 		const urlService = accessor.get(IURLService);
 		const nativeHostMainService = this.nativeHostMainService = accessor.get(INativeHostMainService);
+		this.meteredConnectionMainService = accessor.get(IMeteredConnectionService) as MeteredConnectionMainService;
 		const dialogMainService = accessor.get(IDialogMainService);
 
 		// Install URL handlers that deal with protocl URLs either
@@ -1036,6 +1044,9 @@ export class CodeApplication extends Disposable {
 		// Native Host
 		services.set(INativeHostMainService, new SyncDescriptor(NativeHostMainService, undefined, false /* proxied to other processes */));
 
+		// Metered Connection
+		services.set(IMeteredConnectionService, new SyncDescriptor(MeteredConnectionMainService, undefined, true));
+
 		// Web Contents Extractor
 		services.set(IWebContentExtractorService, new SyncDescriptor(NativeWebContentExtractorService, undefined, false /* proxied to other processes */));
 
@@ -1191,6 +1202,7 @@ export class CodeApplication extends Disposable {
 
 		// Native host (main & shared process)
 		this.nativeHostMainService = accessor.get(INativeHostMainService);
+		this.meteredConnectionMainService = accessor.get(IMeteredConnectionService) as MeteredConnectionMainService;
 		const nativeHostChannel = ProxyChannel.fromService(this.nativeHostMainService, disposables);
 		mainProcessElectronServer.registerChannel('nativeHost', nativeHostChannel);
 		sharedProcessClient.then(client => client.registerChannel('nativeHost', nativeHostChannel));

@@ -747,7 +747,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer<IExtensionsVi
 		await this.updateInstalledExtensionsContexts();
 		this.doSearch(true);
 		if (this.configurationService.getValue(AutoCheckUpdatesConfigurationKey)) {
-			this.extensionsWorkbenchService.checkForUpdates();
+			this.extensionsWorkbenchService.checkForUpdates('Viewlet refresh');
 		}
 	}
 

@@ -159,7 +159,7 @@ export interface IExtensionsWorkbenchService {
 	open(extension: IExtension | string, options?: IExtensionEditorOptions): Promise<void>;
 	openSearch(searchValue: string, focus?: boolean): Promise<void>;
 	getAutoUpdateValue(): AutoUpdateConfigurationValue;
-	checkForUpdates(): Promise<void>;
+	checkForUpdates(reason?: string): Promise<void>;
 	getExtensionRuntimeStatus(extension: IExtension): IExtensionRuntimeStatus | undefined;
 	updateAll(): Promise<InstallExtensionResult[]>;
 	updateRunningExtensions(message?: string): Promise<void>;

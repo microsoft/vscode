@@ -74,6 +74,7 @@ import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlCon
 import { ExtensionGalleryResourceType, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { fromNow } from '../../../../base/common/date.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IMeteredConnectionService } from '../../../../platform/meteredConnection/common/meteredConnection.js';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -1037,6 +1038,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IAllowedExtensionsService private readonly allowedExtensionsService: IAllowedExtensionsService,
+		@IMeteredConnectionService private readonly meteredConnectionService: IMeteredConnectionService
 	) {
 		super();
 
@@ -1895,6 +1897,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (!this.galleryService.isEnabled()) {
 			return;
 		}
+		if (reason && this.meteredConnectionService.isConnectionMetered) {
+			this.logService.trace(`[Extensions]: Skipping checking for updates because connection is metered`);
+			return;
+		}
 		const extensions: Extensions[] = [];
 		if (this.localExtensions) {
 			extensions.push(this.localExtensions);
@@ -2080,7 +2086,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		this.updatesCheckDelayer.cancel();
 		this.updatesCheckDelayer.trigger(async () => {
 			if (this.isAutoCheckUpdatesEnabled()) {
-				await this.checkForUpdates();
+				await this.checkForUpdates('Periodic check');
 			}
 			this.eventuallyCheckForUpdates();
 		}, immediate ? 0 : this.getUpdatesCheckInterval()).then(undefined, err => null);
@@ -2120,6 +2126,11 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private async autoUpdateExtensions(): Promise<void> {
+		if (this.meteredConnectionService.isConnectionMetered) {
+			this.logService.trace('[Extensions]: Skipping auto-update because connection is metered');
+			return;
+		}
+
 		const toUpdate: IExtension[] = [];
 		const disabledAutoUpdate = [];
 		const consentRequired = [];
