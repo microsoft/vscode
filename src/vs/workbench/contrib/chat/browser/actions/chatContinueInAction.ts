@@ -36,7 +36,7 @@ import { IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/
 import { ChatAgentLocation } from '../../common/constants.js';
 import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/promptTypes.js';
 import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
-import { IChatWidgetService } from '../chat.js';
+import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { ctxHasEditorModification } from '../chatEditing/chatEditingEditorContextKeys.js';
 import { CHAT_SETUP_ACTION_ID } from './chatActions.js';
 import { PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
@@ -202,14 +202,14 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 
 const NEW_CHAT_SESSION_ACTION_ID = 'workbench.action.chat.openNewSessionEditor';
 
-class CreateRemoteAgentJobAction {
+export class CreateRemoteAgentJobAction {
 	constructor() { }
 
 	private openUntitledEditor(commandService: ICommandService, continuationTarget: IChatSessionsExtensionPoint) {
 		commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${continuationTarget.type}`);
 	}
 
-	async run(accessor: ServicesAccessor, continuationTarget: IChatSessionsExtensionPoint) {
+	async run(accessor: ServicesAccessor, continuationTarget: IChatSessionsExtensionPoint, _widget?: IChatWidget) {
 		const contextKeyService = accessor.get(IContextKeyService);
 		const commandService = accessor.get(ICommandService);
 		const widgetService = accessor.get(IChatWidgetService);
@@ -222,7 +222,7 @@ class CreateRemoteAgentJobAction {
 		try {
 			remoteJobCreatingKey.set(true);
 
-			const widget = widgetService.lastFocusedWidget;
+			const widget = _widget ?? widgetService.lastFocusedWidget;
 			if (!widget || !widget.viewModel) {
 				return this.openUntitledEditor(commandService, continuationTarget);
 			}

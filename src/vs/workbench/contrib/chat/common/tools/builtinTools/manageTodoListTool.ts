@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { IJSONSchema, IJSONSchemaMap } from '../../../../../../base/common/jsonSchema.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import {
 	IToolData,
@@ -24,59 +25,38 @@ import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { chatSessionResourceToId, LocalChatSessionUri } from '../../model/chatUri.js';
 
-export const TodoListToolWriteOnlySettingId = 'chat.todoListTool.writeOnly';
-export const TodoListToolDescriptionFieldSettingId = 'chat.todoListTool.descriptionField';
-
 export const ManageTodoListToolToolId = 'manage_todo_list';
 
-export function createManageTodoListToolData(writeOnly: boolean, includeDescription: boolean = true): IToolData {
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	const baseProperties: any = {
-		todoList: {
-			type: 'array',
-			description: writeOnly
-				? 'Complete array of all todo items. Must include ALL items - both existing and new.'
-				: 'Complete array of all todo items (required for write operation, ignored for read). Must include ALL items - both existing and new.',
-			items: {
-				type: 'object',
-				properties: {
-					id: {
-						type: 'number',
-						description: 'Unique identifier for the todo. Use sequential numbers starting from 1.'
-					},
-					title: {
-						type: 'string',
-						description: 'Concise action-oriented todo label (3-7 words). Displayed in UI.'
-					},
-					...(includeDescription && {
-						description: {
+export function createManageTodoListToolData(): IToolData {
+	const inputSchema: IJSONSchema & { properties: IJSONSchemaMap } = {
+		type: 'object',
+		properties: {
+			todoList: {
+				type: 'array',
+				description: 'Complete array of all todo items. Must include ALL items - both existing and new.',
+				items: {
+					type: 'object',
+					properties: {
+						id: {
+							type: 'number',
+							description: 'Unique identifier for the todo. Use sequential numbers starting from 1.'
+						},
+						title: {
 							type: 'string',
-							description: 'Detailed context, requirements, or implementation notes. Include file paths, specific methods, or acceptance criteria.'
-						}
-					}),
-					status: {
-						type: 'string',
-						enum: ['not-started', 'in-progress', 'completed'],
-						description: 'not-started: Not begun | in-progress: Currently working (max 1) | completed: Fully finished with no blockers'
+							description: 'Concise action-oriented todo label (3-7 words). Displayed in UI.'
+						},
+						status: {
+							type: 'string',
+							enum: ['not-started', 'in-progress', 'completed'],
+							description: 'not-started: Not begun | in-progress: Currently working (max 1) | completed: Fully finished with no blockers'
+						},
 					},
-				},
-				required: includeDescription ? ['id', 'title', 'description', 'status'] : ['id', 'title', 'status']
+					required: ['id', 'title', 'status']
+				}
 			}
-		}
+		},
+		required: ['todoList']
 	};
-
-	// Only require the full todoList when operating in write-only mode.
-	// In read/write mode, the write path validates todoList at runtime, so it's not schema-required.
-	const requiredFields = writeOnly ? ['todoList'] : [] as string[];
-
-	if (!writeOnly) {
-		baseProperties.operation = {
-			type: 'string',
-			enum: ['write', 'read'],
-			description: 'write: Replace entire todo list with new content. read: Retrieve current todo list. ALWAYS provide complete list when writing - partial updates not supported.'
-		};
-		requiredFields.unshift('operation');
-	}
 
 	return {
 		id: ManageTodoListToolToolId,
@@ -88,22 +68,17 @@ export function createManageTodoListToolData(writeOnly: boolean, includeDescript
 		userDescription: localize('tool.manageTodoList.userDescription', 'Manage and track todo items for task planning'),
 		modelDescription: 'Manage a structured todo list to track progress and plan tasks throughout your coding session. Use this tool VERY frequently to ensure task visibility and proper planning.\n\nWhen to use this tool:\n- Complex multi-step work requiring planning and tracking\n- When user provides multiple tasks or requests (numbered/comma-separated)\n- After receiving new instructions that require multiple steps\n- BEFORE starting work on any todo (mark as in-progress)\n- IMMEDIATELY after completing each todo (mark completed individually)\n- When breaking down larger tasks into smaller actionable steps\n- To give users visibility into your progress and planning\n\nWhen NOT to use:\n- Single, trivial tasks that can be completed in one step\n- Purely conversational/informational requests\n- When just reading files or performing simple searches\n\nCRITICAL workflow:\n1. Plan tasks by writing todo list with specific, actionable items\n2. Mark ONE todo as in-progress before starting work\n3. Complete the work for that specific todo\n4. Mark that todo as completed IMMEDIATELY\n5. Move to next todo and repeat\n\nTodo states:\n- not-started: Todo not yet begun\n- in-progress: Currently working (limit ONE at a time)\n- completed: Finished successfully\n\nIMPORTANT: Mark todos completed as soon as they are done. Do not batch completions.',
 		source: ToolDataSource.Internal,
-		inputSchema: {
-			type: 'object',
-			properties: baseProperties,
-			required: requiredFields
-		}
+		inputSchema: inputSchema
 	};
 }
 
-export const ManageTodoListToolData: IToolData = createManageTodoListToolData(false);
+export const ManageTodoListToolData: IToolData = createManageTodoListToolData();
 
 interface IManageTodoListToolInputParams {
-	operation?: 'write' | 'read'; // Optional in write-only mode
+	operation?: 'write' | 'read'; // Optional, defaults to 'write'
 	todoList: Array<{
 		id: number;
 		title: string;
-		description?: string;
 		status: 'not-started' | 'in-progress' | 'completed';
 	}>;
 	chatSessionId?: string;
@@ -112,8 +87,6 @@ interface IManageTodoListToolInputParams {
 export class ManageTodoListTool extends Disposable implements IToolImpl {
 
 	constructor(
-		private readonly writeOnly: boolean,
-		private readonly includeDescription: boolean,
 		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService,
 		@ILogService private readonly logService: ILogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService
@@ -131,29 +104,10 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 		this.logService.debug(`ManageTodoListTool: Invoking with options ${JSON.stringify(args)}`);
 
 		try {
-			// Determine operation: in writeOnly mode, always write; otherwise use args.operation
-			const operation = this.writeOnly ? 'write' : args.operation;
-
-			if (!operation) {
-				return {
-					content: [{
-						kind: 'text',
-						value: 'Error: operation parameter is required'
-					}]
-				};
-			}
-
-			if (operation === 'read') {
+			if (args.operation === 'read') {
 				return this.handleReadOperation(LocalChatSessionUri.forSession(chatSessionId));
-			} else if (operation === 'write') {
-				return this.handleWriteOperation(args, LocalChatSessionUri.forSession(chatSessionId));
 			} else {
-				return {
-					content: [{
-						kind: 'text',
-						value: 'Error: Unknown operation'
-					}]
-				};
+				return this.handleWriteOperation(args, LocalChatSessionUri.forSession(chatSessionId));
 			}
 
 		} catch (error) {
@@ -176,28 +130,16 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 		const currentTodoItems = this.chatTodoListService.getTodos(LocalChatSessionUri.forSession(chatSessionId));
 		let message: string | undefined;
 
-
-		const operation = this.writeOnly ? 'write' : args.operation;
-		switch (operation) {
-			case 'write': {
-				if (args.todoList) {
-					message = this.generatePastTenseMessage(currentTodoItems, args.todoList);
-				}
-				break;
-			}
-			case 'read': {
-				message = localize('todo.readOperation', "Read todo list");
-				break;
-			}
-			default:
-				break;
+		if (args.operation === 'read') {
+			message = localize('todo.readOperation', "Read todo list");
+		} else if (args.todoList) {
+			message = this.generatePastTenseMessage(currentTodoItems, args.todoList);
 		}
 
 		const items = args.todoList ?? currentTodoItems;
 		const todoList = items.map(todo => ({
 			id: todo.id.toString(),
 			title: todo.title,
-			description: todo.description || '',
 			status: todo.status
 		}));
 
@@ -306,7 +248,6 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 		const todoList: IChatTodo[] = args.todoList.map((parsedTodo) => ({
 			id: parsedTodo.id,
 			title: parsedTodo.title,
-			description: parsedTodo.description || '',
 			status: parsedTodo.status
 		}));
 
@@ -379,9 +320,6 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 			}
 
 			const lines = [`- ${checkbox} ${todo.title}`];
-			if (this.includeDescription && todo.description && todo.description.trim()) {
-				lines.push(`  - ${todo.description.trim()}`);
-			}
 
 			return lines.join('\n');
 		}).join('\n');
@@ -394,7 +332,7 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 		for (let i = 0; i < minLen; i++) {
 			const o = oldList[i];
 			const n = newList[i];
-			if (o.title !== n.title || (o.description ?? '') !== (n.description ?? '') || o.status !== n.status) {
+			if (o.title !== n.title || o.status !== n.status) {
 				modified++;
 			}
 		}

@@ -6,6 +6,7 @@
 import './media/browser.css';
 import { localize } from '../../../../nls.js';
 import { $, addDisposableListener, disposableWindowInterval, EventType, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
+import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { RawContextKey, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
@@ -101,7 +102,7 @@ class BrowserNavigationBar extends Disposable {
 			{
 				hoverDelegate,
 				highlightToggledItems: true,
-				toolbarOptions: { primaryGroup: 'actions' },
+				toolbarOptions: { primaryGroup: (group) => group.startsWith('actions'), useSeparatorsInPrimaryActions: true },
 				menuOptions: { shouldForwardArgs: true }
 			}
 		));
@@ -122,6 +123,11 @@ class BrowserNavigationBar extends Disposable {
 					editor.navigateToUrl(url);
 				}
 			}
+		}));
+
+		// Select all URL bar text when the URL bar receives focus (like in regular browsers)
+		this._register(addDisposableListener(this._urlInput, EventType.FOCUS, () => {
+			this._urlInput.select();
 		}));
 	}
 
@@ -155,7 +161,9 @@ export class BrowserEditor extends EditorPane {
 
 	private _navigationBar!: BrowserNavigationBar;
 	private _browserContainer!: HTMLElement;
+	private _placeholderScreenshot!: HTMLElement;
 	private _errorContainer!: HTMLElement;
+	private _welcomeContainer!: HTMLElement;
 	private _canGoBackContext!: IContextKey<boolean>;
 	private _canGoForwardContext!: IContextKey<boolean>;
 	private _storageScopeContext!: IContextKey<string>;
@@ -218,10 +226,18 @@ export class BrowserEditor extends EditorPane {
 		this._browserContainer.tabIndex = 0; // make focusable
 		root.appendChild(this._browserContainer);
 
+		// Create placeholder screenshot (background placeholder when WebContentsView is hidden)
+		this._placeholderScreenshot = $('.browser-placeholder-screenshot');
+		this._browserContainer.appendChild(this._placeholderScreenshot);
+
 		// Create error container (hidden by default)
 		this._errorContainer = $('.browser-error-container');
 		this._errorContainer.style.display = 'none';
 		this._browserContainer.appendChild(this._errorContainer);
+
+		// Create welcome container (shown when no URL is loaded)
+		this._welcomeContainer = this.createWelcomeContainer();
+		this._browserContainer.appendChild(this._welcomeContainer);
 
 		this._register(addDisposableListener(this._browserContainer, EventType.FOCUS, (event) => {
 			// When the browser container gets focus, make sure the browser view also gets focused.
@@ -362,15 +378,24 @@ export class BrowserEditor extends EditorPane {
 	}
 
 	private updateVisibility(): void {
+		const hasUrl = !!this._model?.url;
+		const hasError = !!this._model?.error;
+
+		// Welcome container: shown when no URL is loaded
+		this._welcomeContainer.style.display = hasUrl ? 'none' : 'flex';
+
+		// Error container: shown when there's a load error
+		this._errorContainer.style.display = hasError ? 'flex' : 'none';
+
 		if (this._model) {
-			// Blur the background image if the view is hidden due to an overlay.
-			this._browserContainer.classList.toggle('blur', this._editorVisible && this._overlayVisible && !this._model?.error);
+			// Blur the background placeholder screenshot if the view is hidden due to an overlay.
+			this._placeholderScreenshot.classList.toggle('blur', this._editorVisible && this._overlayVisible && !hasError);
 			void this._model.setVisible(this.shouldShowView);
 		}
 	}
 
 	private get shouldShowView(): boolean {
-		return this._editorVisible && !this._overlayVisible && !this._model?.error;
+		return this._editorVisible && !this._overlayVisible && !this._model?.error && !!this._model?.url;
 	}
 
 	private checkOverlays(): void {
@@ -391,8 +416,7 @@ export class BrowserEditor extends EditorPane {
 
 		const error: IBrowserViewLoadError | undefined = this._model.error;
 		if (error) {
-			// Show error display
-			this._errorContainer.style.display = 'flex';
+			// Update error content
 
 			while (this._errorContainer.firstChild) {
 				this._errorContainer.removeChild(this._errorContainer.firstChild);
@@ -423,12 +447,14 @@ export class BrowserEditor extends EditorPane {
 
 			this.setBackgroundImage(undefined);
 		} else {
-			// Hide error display
-			this._errorContainer.style.display = 'none';
 			this.setBackgroundImage(this._model.screenshot);
 		}
 
 		this.updateVisibility();
+	}
+
+	getUrl(): string | undefined {
+		return this._model?.url;
 	}
 
 	async navigateToUrl(url: string): Promise<void> {
@@ -564,14 +590,44 @@ export class BrowserEditor extends EditorPane {
 		// Update context keys for command enablement
 		this._canGoBackContext.set(event.canGoBack);
 		this._canGoForwardContext.set(event.canGoForward);
+
+		// Update visibility (welcome screen, error, browser view)
+		this.updateVisibility();
+	}
+
+	/**
+	 * Create the welcome container shown when no URL is loaded
+	 */
+	private createWelcomeContainer(): HTMLElement {
+		const container = $('.browser-welcome-container');
+		const content = $('.browser-welcome-content');
+
+		const iconContainer = $('.browser-welcome-icon');
+		iconContainer.appendChild(renderIcon(Codicon.globe));
+		content.appendChild(iconContainer);
+
+		const title = $('.browser-welcome-title');
+		title.textContent = localize('browser.welcomeTitle', "Browser");
+		content.appendChild(title);
+
+		const subtitle = $('.browser-welcome-subtitle');
+		subtitle.textContent = localize('browser.welcomeSubtitle', "Enter a URL above to get started.");
+		content.appendChild(subtitle);
+
+		const tip = $('.browser-welcome-tip');
+		tip.textContent = localize('browser.welcomeTip', "Tip: Use the Add Element to Chat feature to reference UI elements when asking Copilot for changes.");
+		content.appendChild(tip);
+
+		container.appendChild(content);
+		return container;
 	}
 
 	private setBackgroundImage(buffer: VSBuffer | undefined): void {
 		if (buffer) {
 			const dataUrl = `data:image/jpeg;base64,${encodeBase64(buffer)}`;
-			this._browserContainer.style.backgroundImage = `url('${dataUrl}')`;
+			this._placeholderScreenshot.style.backgroundImage = `url('${dataUrl}')`;
 		} else {
-			this._browserContainer.style.backgroundImage = '';
+			this._placeholderScreenshot.style.backgroundImage = '';
 		}
 	}
 

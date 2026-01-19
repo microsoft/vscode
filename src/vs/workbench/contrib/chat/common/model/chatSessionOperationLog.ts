@@ -6,9 +6,11 @@
 import { assertNever } from '../../../../../base/common/assert.js';
 import { isMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { equals as objectsEqual } from '../../../../../base/common/objects.js';
-import { isEqual as urisEqual } from '../../../../../base/common/resources.js';
+import { isEqual as _urisEqual } from '../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../base/common/types.js';
+import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { IChatMarkdownContent, ResponseModelState } from '../chatService/chatService.js';
+import { ModifiedFileEntryState } from '../editing/chatEditingService.js';
 import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { IChatAgentEditedFileEvent, IChatDataSerializerLog, IChatModel, IChatProgressResponseContent, IChatRequestModel, IChatRequestVariableData, ISerializableChatData, ISerializableChatModelInputState, ISerializableChatRequestData, SerializedChatResponsePart } from './chatModel.js';
 import * as Adapt from './objectMutationLog.js';
@@ -70,7 +72,6 @@ const responsePartSchema = Adapt.v<IChatProgressResponseContent, SerializedChatR
 				case 'inlineReference':
 				case 'markdownVuln':
 				case 'notebookEditGroup':
-				case 'prepareToolInvocation':
 				case 'progressMessage':
 				case 'pullRequest':
 				case 'thinking':
@@ -93,6 +94,10 @@ const responsePartSchema = Adapt.v<IChatProgressResponseContent, SerializedChatR
 		return false;
 	}
 );
+
+const urisEqual = (a: UriComponents, b: UriComponents): boolean => {
+	return _urisEqual(URI.from(a), URI.from(b));
+};
 
 const messageSchema = Adapt.object<IParsedChatRequest, IParsedChatRequest>({
 	text: Adapt.v(m => m.text),
@@ -161,6 +166,8 @@ export const storageSchema = Adapt.object<IChatModel, ISerializableChatData>({
 	responderUsername: Adapt.v(m => m.responderUsername),
 	sessionId: Adapt.v(m => m.sessionId),
 	requests: Adapt.t(m => m.getRequests(), Adapt.array(requestSchema)),
+	hasPendingEdits: Adapt.v(m => m.editingSession?.entries.get().some(e => e.state.get() === ModifiedFileEntryState.Modified)),
+	repoData: Adapt.v(m => m.repoData, objectsEqual),
 });
 
 export class ChatSessionOperationLog extends Adapt.ObjectMutationLog<IChatModel, ISerializableChatData> implements IChatDataSerializerLog {

@@ -3,10 +3,4 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-declare module 'gulp-untar' {
-	import type { Transform } from 'stream';
-
-	function untar(): Transform;
-
-	export = untar;
-}
+// empty placeholder declaration for `contributes.css`
