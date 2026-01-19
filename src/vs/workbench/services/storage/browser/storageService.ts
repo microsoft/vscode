@@ -18,6 +18,8 @@ import { AbstractStorageService, isProfileUsingDefaultStorage, IS_NEW_KEY, Stora
 import { isUserDataProfile, IUserDataProfile } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IAnyWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
 import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
+import { ApplicationStorageDatabaseClient, ProfileStorageDatabaseClient, WorkspaceStorageDatabaseClient } from '../../../../platform/storage/common/storageIpc.js';
+import { IRemoteAgentConnection } from '../../remote/common/remoteAgentService.js';
 
 export class BrowserStorageService extends AbstractStorageService {
 
@@ -453,5 +455,190 @@ export class IndexedDBStorageDatabase extends Disposable implements IIndexedDBSt
 		const db = await this.whenConnected;
 
 		await db.runInTransaction(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE, 'readwrite', objectStore => objectStore.clear());
+	}
+}
+
+/**
+ * Storage service that uses the remote server for persistence via IPC,
+ * instead of browser IndexedDB. Enabled via the `remoteStorageEnabled` option.
+ */
+export class RemoteBrowserStorageService extends AbstractStorageService {
+
+	// private readonly applicationStorageProfile: IUserDataProfile;
+
+	private readonly applicationStorage: IStorage;
+
+	private profileStorageProfile: IUserDataProfile;
+	private readonly profileStorageDisposables = this._register(new DisposableStore());
+	private profileStorage: IStorage;
+
+	private workspaceStorageId: string | undefined;
+	private readonly workspaceStorageDisposables = this._register(new DisposableStore());
+	private workspaceStorage: IStorage | undefined;
+
+	constructor(
+		private readonly workspace: IAnyWorkspaceIdentifier,
+		private readonly userDataProfileService: IUserDataProfileService,
+		private readonly connection: IRemoteAgentConnection,
+		@ILogService private readonly logService: ILogService,
+	) {
+		super();
+
+
+		this.applicationStorage = this.createApplicationStorage();
+
+		this.profileStorageProfile = this.userDataProfileService.currentProfile;
+		this.profileStorage = this.createProfileStorage(this.profileStorageProfile);
+
+		this.workspaceStorageId = this.workspace.id;
+		this.workspaceStorage = this.createWorkspaceStorage(this.workspace);
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this._register(this.userDataProfileService.onDidChangeCurrentProfile(e => e.join(this.switchToProfile(e.profile))));
+	}
+
+	private createApplicationStorage(): IStorage {
+		const storageDataBaseClient = this._register(new ApplicationStorageDatabaseClient(this.connection.getChannel('storage')));
+		const applicationStorage = this._register(new Storage(storageDataBaseClient));
+
+		this._register(applicationStorage.onDidChangeStorage(e => this.emitDidChangeValue(StorageScope.APPLICATION, e)));
+
+		return applicationStorage;
+	}
+
+	private createProfileStorage(profile: IUserDataProfile): IStorage {
+
+		// First clear any previously associated disposables
+		this.profileStorageDisposables.clear();
+
+		// Remember profile associated to profile storage
+		this.profileStorageProfile = profile;
+
+		let profileStorage: IStorage;
+		if (isProfileUsingDefaultStorage(profile)) {
+
+			// If we are using default profile storage, the profile storage is
+			// actually the same as application storage. As such we
+			// avoid creating the storage library a second time on
+			// the same DB.
+
+			profileStorage = this.applicationStorage;
+		} else {
+			const storageDataBaseClient = this.profileStorageDisposables.add(new ProfileStorageDatabaseClient(this.connection.getChannel('storage'), profile));
+			profileStorage = this.profileStorageDisposables.add(new Storage(storageDataBaseClient));
+		}
+
+		this.profileStorageDisposables.add(profileStorage.onDidChangeStorage(e => this.emitDidChangeValue(StorageScope.PROFILE, e)));
+
+		return profileStorage;
+	}
+
+	private createWorkspaceStorage(workspace: IAnyWorkspaceIdentifier): IStorage | undefined {
+
+		// First clear any previously associated disposables
+		this.workspaceStorageDisposables.clear();
+
+		// Remember workspace ID for logging later
+		this.workspaceStorageId = workspace?.id;
+
+		let workspaceStorage: IStorage | undefined = undefined;
+		if (workspace) {
+			const storageDataBaseClient = this.workspaceStorageDisposables.add(new WorkspaceStorageDatabaseClient(this.connection.getChannel('storage'), workspace));
+			workspaceStorage = this.workspaceStorageDisposables.add(new Storage(storageDataBaseClient));
+
+			this.workspaceStorageDisposables.add(workspaceStorage.onDidChangeStorage(e => this.emitDidChangeValue(StorageScope.WORKSPACE, e)));
+		}
+
+		return workspaceStorage;
+	}
+
+	protected async doInitialize(): Promise<void> {
+
+		// Init all storage locations
+		await Promises.settled([
+			this.applicationStorage.init(),
+			this.profileStorage.init(),
+			this.workspaceStorage?.init() ?? Promise.resolve()
+		]);
+	}
+
+	protected getStorage(scope: StorageScope): IStorage | undefined {
+		switch (scope) {
+			case StorageScope.APPLICATION:
+				return this.applicationStorage;
+			case StorageScope.PROFILE:
+				return this.profileStorage;
+			default:
+				return this.workspaceStorage;
+		}
+	}
+
+	protected getLogDetails(scope: StorageScope): string | undefined {
+		switch (scope) {
+			case StorageScope.APPLICATION:
+				return 'Remote Application Storage';
+			case StorageScope.PROFILE:
+				return `Remote Profile Storage (${this.profileStorageProfile.name})`;
+			default:
+				return this.workspaceStorageId ? `Remote Workspace Storage (${this.workspaceStorageId})` : undefined;
+		}
+	}
+
+	protected async switchToProfile(toProfile: IUserDataProfile): Promise<void> {
+		if (!this.canSwitchProfile(this.profileStorageProfile, toProfile)) {
+			return;
+		}
+
+		const oldProfileStorage = this.profileStorage;
+		const oldItems = oldProfileStorage.items;
+
+		// Close old profile storage but only if this is
+		// different from application storage!
+		if (oldProfileStorage !== this.applicationStorage) {
+			await oldProfileStorage.close();
+		}
+
+		// Create new profile storage & init
+		this.profileStorage = this.createProfileStorage(toProfile);
+		await this.profileStorage.init();
+
+		// Handle data switch and eventing
+		this.switchData(oldItems, this.profileStorage, StorageScope.PROFILE);
+	}
+
+	protected async switchToWorkspace(toWorkspace: IAnyWorkspaceIdentifier, preserveData: boolean): Promise<void> {
+		const oldWorkspaceStorage = this.workspaceStorage;
+		const oldItems = oldWorkspaceStorage?.items ?? new Map();
+
+		// Close old workspace storage
+		await oldWorkspaceStorage?.close();
+
+		// Create new workspace storage & init
+		this.workspaceStorage = this.createWorkspaceStorage(toWorkspace);
+		await this.workspaceStorage?.init();
+
+		// Handle data switch and eventing
+		if (this.workspaceStorage) {
+			this.switchData(oldItems, this.workspaceStorage, StorageScope.WORKSPACE);
+		}
+	}
+
+	hasScope(scope: IAnyWorkspaceIdentifier | IUserDataProfile): boolean {
+		if (isUserDataProfile(scope)) {
+			return this.profileStorageProfile.id === scope.id;
+		}
+
+		return this.workspaceStorageId === scope.id;
+	}
+
+	close(): void {
+		this.logService.trace('RemoteBrowserStorageService#close()');
+
+		// Always dispose to ensure that no timeouts or callbacks
+		// get triggered in this phase.
+		this.dispose();
 	}
 }

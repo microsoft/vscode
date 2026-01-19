@@ -382,6 +382,19 @@ export interface IWorkbenchConstructionOptions {
 
 	//#endregion
 
+
+	//#region Storage options
+
+	/**
+	 * When true and connected to a remote authority, persist storage
+	 * (settings, state, etc.) on the remote server instead of browser IndexedDB.
+	 * This enables state portability across browsers/devices.
+	 * @default false
+	 */
+	readonly remoteStorageEnabled?: boolean;
+
+	//#endregion
+
 }
 
 

@@ -57,6 +57,7 @@ export const serverOptions: OptionDescriptions<Required<ServerParsedArgs>> = {
 	'enable-sync': { type: 'boolean' },
 	'github-auth': { type: 'string' },
 	'use-test-resolver': { type: 'boolean' },
+	'enable-remote-storage': { type: 'boolean', cat: 'o', description: nls.localize('enable-remote-storage', 'Persist browser storage (settings, state, etc.) on the server instead of browser IndexedDB. Enables state portability across browsers/devices.') },
 
 	/* ----- extension management ----- */
 
@@ -187,6 +188,7 @@ export interface ServerParsedArgs {
 	'enable-sync'?: boolean;
 	'github-auth'?: string;
 	'use-test-resolver'?: boolean;
+	'enable-remote-storage'?: boolean;
 
 	/* ----- extension management ----- */
 

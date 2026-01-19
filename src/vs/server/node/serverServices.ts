@@ -93,6 +93,8 @@ import { McpManagementChannel } from '../../platform/mcp/common/mcpManagementIpc
 import { AllowedMcpServersService } from '../../platform/mcp/common/allowedMcpServersService.js';
 import { IMcpGalleryManifestService } from '../../platform/mcp/common/mcpGalleryManifest.js';
 import { McpGalleryManifestIPCService } from '../../platform/mcp/common/mcpGalleryManifestServiceIpc.js';
+import { IServerStorageMainService, ServerStorageMainService } from './storageMainService.js';
+import { ServerStorageDatabaseChannel } from './serverStorageIpc.js';
 
 const eventPrefix = 'monacoworkbench';
 
@@ -209,6 +211,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	services.set(IAllowedExtensionsService, new SyncDescriptor(AllowedExtensionsService));
 	services.set(INativeServerExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 	services.set(INativeMcpDiscoveryHelperService, new SyncDescriptor(NativeMcpDiscoveryHelperService));
+	services.set(IServerStorageMainService, new SyncDescriptor(ServerStorageMainService));
 
 	const instantiationService: IInstantiationService = new InstantiationService(services);
 	services.set(ILanguagePackService, instantiationService.createInstance(NativeLanguagePackService));
@@ -257,6 +260,11 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 		socketServer.registerChannel('extensions', channel);
 
 		socketServer.registerChannel('mcpManagement', new McpManagementChannel(mcpManagementService, (ctx: RemoteAgentConnectionContext) => getUriTransformer(ctx.remoteAuthority)));
+
+		// Storage channel for remote storage persistence
+		const serverStorageMainService = accessor.get(IServerStorageMainService);
+		const storageChannel = disposables.add(new ServerStorageDatabaseChannel(logService, serverStorageMainService));
+		socketServer.registerChannel('storage', storageChannel);
 
 		// clean up extensions folder
 		remoteExtensionsScanner.whenExtensionsReady().then(() => extensionManagementService.cleanUp());

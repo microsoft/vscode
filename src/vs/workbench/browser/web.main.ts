@@ -33,7 +33,7 @@ import { ConfigurationCache } from '../services/configuration/common/configurati
 import { ISignService } from '../../platform/sign/common/sign.js';
 import { SignService } from '../../platform/sign/browser/signService.js';
 import { IWorkbenchConstructionOptions, IWorkbench, IWorkspace, ITunnel } from './web.api.js';
-import { BrowserStorageService } from '../services/storage/browser/storageService.js';
+import { BrowserStorageService, RemoteBrowserStorageService } from '../services/storage/browser/storageService.js';
 import { IStorageService } from '../../platform/storage/common/storage.js';
 import { toLocalISOString } from '../../base/common/date.js';
 import { isWorkspaceToOpen, isFolderToOpen } from '../../platform/window/common/window.js';
@@ -369,7 +369,7 @@ export class BrowserMain extends Disposable {
 				return service;
 			}),
 
-			this.createStorageService(workspace, logService, userDataProfileService).then(service => {
+			this.createStorageService(workspace, logService, userDataProfileService, remoteAgentService).then(service => {
 
 				// Storage
 				serviceCollection.set(IStorageService, service);
@@ -544,7 +544,28 @@ export class BrowserMain extends Disposable {
 		}));
 	}
 
-	private async createStorageService(workspace: IAnyWorkspaceIdentifier, logService: ILogService, userDataProfileService: IUserDataProfileService): Promise<IStorageService> {
+	private async createStorageService(workspace: IAnyWorkspaceIdentifier, logService: ILogService, userDataProfileService: IUserDataProfileService, remoteAgentService: IRemoteAgentService): Promise<IStorageService> {
+		// Use remote storage if enabled and connected to a remote server
+		const connection = remoteAgentService.getConnection();
+		if (this.configuration.remoteStorageEnabled && connection) {
+			logService.info('Using remote storage service for browser state persistence');
+			const storageService = new RemoteBrowserStorageService(workspace, userDataProfileService, connection, logService);
+
+			try {
+				await storageService.initialize();
+
+				// Register to close on shutdown
+				this.onWillShutdownDisposables.add(toDisposable(() => storageService.close()));
+
+				return storageService;
+			} catch (error) {
+				onUnexpectedError(error);
+				logService.error('Remote storage service initialization failed, falling back to browser storage', error);
+				// Fall through to browser storage on failure
+			}
+		}
+
+		// Default: Use browser IndexedDB storage
 		const storageService = new BrowserStorageService(workspace, userDataProfileService, logService);
 
 		try {
