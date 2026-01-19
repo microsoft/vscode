@@ -97,7 +97,7 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 			this._proxy.$getMcpServerDefinitions().then(dtos => {
 				this._mcpServerDefinitions = dtos.map(dto => Convert.McpServerDefinition.to(dto));
 				this._onDidChangeMcpServerDefinitions.fire();
-			});
+			}).catch(err => this._logService.error('Failed to fetch MCP server definitions:', err));
 		}
 		return this._mcpServerDefinitions;
 	}
@@ -108,7 +108,7 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 		this._proxy.$getMcpServerDefinitions().then(dtos => {
 			this._mcpServerDefinitions = dtos.map(dto => Convert.McpServerDefinition.to(dto));
 			this._onDidChangeMcpServerDefinitions.fire();
-		});
+		}).catch(err => this._logService.error('Failed to fetch MCP server definitions:', err));
 	}
 
 	$startMcp(id: number, opts: IStartMcpOptions): void {
