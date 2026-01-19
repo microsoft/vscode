@@ -1290,7 +1290,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			reason = source;
 			sourceStr = source.metadata.source;
 		} else {
-			reason = EditSources.unknown({ name: sourceStr });
+			reason = EditSources.unknown({ name: source });
 			sourceStr = source;
 		}
 
