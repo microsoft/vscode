@@ -987,7 +987,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				sessionsHeight = availableSessionsHeight;
 			}
 
-			sessionsHeight = Math.min(availableSessionsHeight, sessionsHeight);
+			const borderBottom = 1;
+			sessionsHeight = Math.min(availableSessionsHeight, sessionsHeight) - borderBottom;
 
 			this.sessionsControlContainer.style.height = `${sessionsHeight}px`;
 			this.sessionsControlContainer.style.width = ``;
