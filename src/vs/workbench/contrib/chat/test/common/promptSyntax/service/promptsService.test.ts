@@ -115,6 +115,7 @@ suite('PromptsService', () => {
 		instaService.stub(IPathService, pathService);
 
 		instaService.stub(ISearchService, {
+			schemeHasFileSearchProvider: () => true,
 			async fileSearch(query: IFileQuery) {
 				// mock the search service - recursively find files matching pattern
 				const findFilesInLocation = async (location: URI, results: URI[] = []): Promise<URI[]> => {
