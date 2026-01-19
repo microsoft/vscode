@@ -5,6 +5,7 @@
 
 /* Subagent-specific styles */
 .interactive-session .interactive-response .value .chat-thinking-fixed-mode.chat-subagent-part {
+
 	/* Collapsed + streaming: show only the last item with max-height */
 	&.chat-used-context-collapsed .chat-used-context-list.chat-thinking-collapsible.chat-thinking-streaming {
 		max-height: var(--chat-subagent-last-item-height, 200px);
@@ -17,29 +18,30 @@
 		max-height: none;
 		overflow: visible;
 	}
-}
 
-/* Subagent result collapsible section */
-.chat-subagent-result {
-	margin-top: 4px;
-	padding: 4px 8px;
+	/* Prompt and result section styling */
+	.chat-subagent-section {
+		padding: 4px 12px 4px 18px;
 
-	.chat-used-context-label {
-		cursor: pointer;
-
-		.monaco-button {
-			color: var(--vscode-descriptionForeground);
-			font-size: var(--vscode-chat-font-size-body-s);
+		.chat-used-context {
+			margin-bottom: 0px;
+			margin-left: 2px;
+			padding-left: 2px;
 		}
 	}
 
-	.chat-subagent-result-content {
-		padding: 4px 8px 4px 20px;
-		font-size: var(--vscode-chat-font-size-body-s);
-		color: var(--vscode-descriptionForeground);
+	.chat-thinking-tool-wrapper {
 
-		p {
-			margin: 0;
+		/* Hide the collapsible button's icon since we use the thinking icon */
+		.codicon:not(.chat-thinking-icon) {
+			display: none;
+		}
+
+		.chat-collapsible-markdown-content {
+			.rendered-markdown {
+				font-size: var(--vscode-chat-font-size-body-s);
+				line-height: 1.5em;
+			}
 		}
 	}
 }
