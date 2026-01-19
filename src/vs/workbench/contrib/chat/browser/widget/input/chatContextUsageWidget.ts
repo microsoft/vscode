@@ -31,8 +31,10 @@ export class ChatContextUsageWidget extends Disposable {
 	private _totalTokenCount = 0;
 	private _promptsTokenCount = 0;
 	private _filesTokenCount = 0;
+	private _imagesTokenCount = 0;
+	private _selectionTokenCount = 0;
 	private _toolsTokenCount = 0;
-	private _contextTokenCount = 0;
+	private _otherTokenCount = 0;
 
 	private _maxTokenCount = 4096; // Default fallback
 	private _usagePercent = 0;
@@ -168,8 +170,10 @@ export class ChatContextUsageWidget extends Disposable {
 		const requestCounts = await Promise.all(requests.map(async (request) => {
 			let p = 0;
 			let f = 0;
+			let i = 0;
+			let s = 0;
 			let t = 0;
-			let c = 0;
+			let o = 0;
 
 			// Prompts: User message
 			const messageText = typeof request.message === 'string' ? request.message : request.message.text;
@@ -182,8 +186,12 @@ export class ChatContextUsageWidget extends Disposable {
 					const defaultEstimate = 500;
 					if (variable.kind === 'file') {
 						f += defaultEstimate;
+					} else if (variable.kind === 'image') {
+						i += defaultEstimate;
+					} else if (variable.kind === 'implicit' && variable.isSelection) {
+						s += defaultEstimate;
 					} else {
-						c += defaultEstimate;
+						o += defaultEstimate;
 					}
 				}
 			}
@@ -200,22 +208,26 @@ export class ChatContextUsageWidget extends Disposable {
 				}
 			}
 
-			return { p, f, t, c };
+			return { p, f, i, s, t, o };
 		}));
 
 		this._promptsTokenCount = 0;
 		this._filesTokenCount = 0;
+		this._imagesTokenCount = 0;
+		this._selectionTokenCount = 0;
 		this._toolsTokenCount = 0;
-		this._contextTokenCount = 0;
+		this._otherTokenCount = 0;
 
 		for (const count of requestCounts) {
 			this._promptsTokenCount += count.p;
 			this._filesTokenCount += count.f;
+			this._imagesTokenCount += count.i;
+			this._selectionTokenCount += count.s;
 			this._toolsTokenCount += count.t;
-			this._contextTokenCount += count.c;
+			this._otherTokenCount += count.o;
 		}
 
-		this._totalTokenCount = Math.round(this._promptsTokenCount + this._filesTokenCount + this._toolsTokenCount + this._contextTokenCount);
+		this._totalTokenCount = Math.round(this._promptsTokenCount + this._filesTokenCount + this._imagesTokenCount + this._selectionTokenCount + this._toolsTokenCount + this._otherTokenCount);
 		this._usagePercent = Math.min(100, (this._totalTokenCount / this._maxTokenCount) * 100);
 
 		this._updateRing();
@@ -266,8 +278,10 @@ export class ChatContextUsageWidget extends Disposable {
 
 		updateItem('prompts', this._promptsTokenCount);
 		updateItem('files', this._filesTokenCount);
+		updateItem('images', this._imagesTokenCount);
+		updateItem('selection', this._selectionTokenCount);
 		updateItem('tools', this._toolsTokenCount);
-		updateItem('context', this._contextTokenCount);
+		updateItem('other', this._otherTokenCount);
 	}
 
 	private _getHoverDomNode(): HTMLElement {
@@ -317,8 +331,10 @@ export class ChatContextUsageWidget extends Disposable {
 
 		addItem('prompts', localize('prompts', "Prompts"), Math.round(this._promptsTokenCount));
 		addItem('files', localize('files', "Files"), Math.round(this._filesTokenCount));
+		addItem('images', localize('images', "Images"), Math.round(this._imagesTokenCount));
+		addItem('selection', localize('selection', "Selection"), Math.round(this._selectionTokenCount));
 		addItem('tools', localize('tools', "Tools"), Math.round(this._toolsTokenCount));
-		addItem('context', localize('context', "Context"), Math.round(this._contextTokenCount));
+		addItem('other', localize('other', "Other"), Math.round(this._otherTokenCount));
 
 		if (this._usagePercent > 75) {
 			const warning = dom.append(container, $('.chat-context-usage-warning'));
