@@ -12,6 +12,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { localize } from '../../../../../../nls.js';
 import { RunOnceScheduler } from '../../../../../../base/common/async.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 
 const $ = dom.$;
 
@@ -43,6 +44,7 @@ export class ChatContextUsageWidget extends Disposable {
 	constructor(
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 
@@ -222,7 +224,7 @@ export class ChatContextUsageWidget extends Disposable {
 		this.ringProgress.style.strokeDashoffset = String(offset);
 
 		this.domNode.classList.remove('warning', 'error');
-		if (this._usagePercent > 90) {
+		if (this._usagePercent > 95) {
 			this.domNode.classList.add('error');
 		} else if (this._usagePercent > 75) {
 			this.domNode.classList.add('warning');
@@ -286,13 +288,23 @@ export class ChatContextUsageWidget extends Disposable {
 		this._hoverQuotaBit = dom.append(quotaBar, $('.quota-bit'));
 		this._hoverQuotaBit.style.width = `${this._usagePercent}%`;
 
-		if (this._usagePercent > 90) {
-			quotaIndicator.classList.add('error');
-		} else if (this._usagePercent > 75) {
-			quotaIndicator.classList.add('warning');
+		if (this._usagePercent > 75) {
+			if (this._usagePercent > 95) {
+				quotaIndicator.classList.add('error');
+			} else {
+				quotaIndicator.classList.add('warning');
+			}
+
+			const quotaSubLabel = dom.append(quotaIndicator, $('div.quota-sub-label'));
+			quotaSubLabel.textContent = this._usagePercent >= 100
+				? localize('contextWindowFull', "Context window full")
+				: localize('approachingLimit', "Approaching limit");
+			quotaSubLabel.style.fontSize = '12px';
+			quotaSubLabel.style.textAlign = 'right';
+			quotaSubLabel.style.color = 'var(--vscode-descriptionForeground)';
 		}
 
-		dom.append(container, $('.chat-context-usage-hover-separator'));
+		// dom.append(container, $('.chat-context-usage-hover-separator'));
 
 		// List
 		const list = dom.append(container, $('.chat-context-usage-hover-list'));
@@ -314,10 +326,23 @@ export class ChatContextUsageWidget extends Disposable {
 		addItem('tools', localize('tools', "Tools"), Math.round(this._toolsTokenCount));
 		addItem('context', localize('context', "Context"), Math.round(this._contextTokenCount));
 
-		if (this._usagePercent > 80) {
-			const remaining = Math.max(0, this._maxTokenCount - this._totalTokenCount);
-			const warning = dom.append(container, $('div', { style: 'margin-top: 8px; color: var(--vscode-editorWarning-foreground);' }));
-			warning.textContent = localize('contextLimitWarning', "Approaching limit. {0} tokens remaining.", remaining);
+		if (this._usagePercent > 75) {
+			const warning = dom.append(container, $('.chat-context-usage-warning'));
+
+			const link = dom.append(warning, $('a', { href: '#', class: 'chat-context-usage-action-link' }, localize('startNewSession', "Start a new session")));
+
+			this._register(dom.addDisposableListener(link, 'click', (e) => {
+				e.preventDefault();
+				this.hoverService.hideHover();
+				this.commandService.executeCommand('workbench.action.chat.newChat');
+			}));
+
+			const suffix = localize('toIncreaseLimit', " to reset context window.");
+			dom.append(warning, document.createTextNode(suffix));
+
+			if (this._usagePercent > 95) {
+				warning.classList.add('error');
+			}
 		}
 
 		return container;

@@ -53,7 +53,7 @@
 	padding: 8px;
 	display: flex;
 	flex-direction: column;
-	gap: 4px;
+	gap: 8px;
 	font-size: 12px;
 }
 
@@ -114,7 +114,6 @@
 .chat-context-usage-hover-separator {
 	height: 1px;
 	background-color: var(--vscode-widget-border);
-	opacity: 0.3;
 }
 
 .chat-context-usage-hover-list {
@@ -135,4 +134,14 @@
 
 .chat-context-usage-hover-item .value {
 	color: var(--vscode-descriptionForeground);
+}
+
+.chat-context-usage-action-link {
+	color: var(--vscode-textLink-foreground);
+	text-decoration: none;
+	cursor: pointer;
+}
+
+.chat-context-usage-action-link:hover {
+	text-decoration: underline;
 }
