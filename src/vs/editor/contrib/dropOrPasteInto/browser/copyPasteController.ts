@@ -203,14 +203,11 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		const enableEmptySelectionClipboard = this._editor.getOption(EditorOption.emptySelectionClipboard);
 
 		let ranges: readonly IRange[] = selections;
-		const wasFromEmptySelection = selections.length === 1 && selections[0].isEmpty();
-		if (wasFromEmptySelection) {
-			if (!enableEmptySelectionClipboard) {
-				return;
-			}
-
-			ranges = [new Range(ranges[0].startLineNumber, 1, ranges[0].startLineNumber, 1 + model.getLineLength(ranges[0].startLineNumber))];
+		const wasFromEmptySelection = selections.map(selection => selection.isEmpty());
+		if (!enableEmptySelectionClipboard && wasFromEmptySelection.every(isEmpty => isEmpty)) {
+			return;
 		}
+		ranges = ranges.map((range, i) => wasFromEmptySelection[i] ? new Range(range.startLineNumber, 1, range.startLineNumber, 1 + model.getLineLength(range.startLineNumber)) : range);
 
 		const toCopy = this._editor._getViewModel()?.getPlainTextToCopy(selections, enableEmptySelectionClipboard, platform.isWindows);
 		const multicursorText = Array.isArray(toCopy) ? toCopy : null;
@@ -585,7 +582,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 				defaultPastePayload: {
 					mode: metadata.mode,
 					multicursorText: metadata.multicursorText ?? null,
-					pasteOnNewLine: !!metadata.isFromEmptySelection,
+					pasteOnNewLine: metadata.isFromEmptySelection ?? null,
 				},
 			};
 		}
@@ -667,7 +664,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		const payload: PastePayload = {
 			clipboardEvent,
 			text,
-			pasteOnNewLine: metadata?.defaultPastePayload.pasteOnNewLine ?? false,
+			pasteOnNewLine: metadata?.defaultPastePayload.pasteOnNewLine ?? null,
 			multicursorText: metadata?.defaultPastePayload.multicursorText ?? null,
 			mode: null,
 		};

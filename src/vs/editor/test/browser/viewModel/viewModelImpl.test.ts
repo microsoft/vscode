@@ -152,7 +152,7 @@ suite('ViewModel', () => {
 				new Range(2, 2, 2, 2)
 			],
 			true,
-			'line2\n'
+			'line2'
 		);
 	});
 
@@ -199,8 +199,8 @@ suite('ViewModel', () => {
 			],
 			true,
 			[
-				'line2\n',
-				'line3\n'
+				'line2',
+				'line3'
 			]
 		);
 	});
@@ -211,6 +211,7 @@ suite('ViewModel', () => {
 		// correctly distributes each line to the corresponding cursor.
 		// Without the fix, this returns 'line2\nline3\n' (a single string).
 		// With the fix, this returns ['line2\n', 'line3\n'] (an array).
+		// New fix: \n is now handled when pasting.
 		assertGetPlainTextToCopy(
 			USUAL_TEXT,
 			[
@@ -218,7 +219,7 @@ suite('ViewModel', () => {
 				new Range(3, 1, 3, 1),
 			],
 			true,
-			['line2\n', 'line3\n']
+			['line2', 'line3']
 		);
 	});
 
@@ -242,7 +243,7 @@ suite('ViewModel', () => {
 				new Range(3, 2, 3, 2),
 			],
 			true,
-			['ine2', 'line3\n']
+			['ine2', 'line3']
 		);
 	});
 
@@ -280,8 +281,8 @@ suite('ViewModel', () => {
 			],
 			true,
 			[
-				'line2\n',
-				'line3\n'
+				'line2',
+				'line3'
 			]
 		);
 	});

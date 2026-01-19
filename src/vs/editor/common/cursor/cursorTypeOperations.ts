@@ -57,7 +57,7 @@ export class TypeOperations {
 		return unshiftIndent(config, indentation, count);
 	}
 
-	public static paste(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], text: string, pasteOnNewLine: boolean, multicursorText: string[]): EditOperationResult {
+	public static paste(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], text: string, pasteOnNewLine: boolean[] | null, multicursorText: string[]): EditOperationResult {
 		return PasteOperation.getEdits(config, model, selections, text, pasteOnNewLine, multicursorText);
 	}
 

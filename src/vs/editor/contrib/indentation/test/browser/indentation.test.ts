@@ -460,7 +460,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 			];
 			disposables.add(registerTokenizationSupport(instantiationService, tokens, languageId));
 			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
-			viewModel.paste(pasteText, true, undefined, 'keyboard');
+			viewModel.paste(pasteText, null, undefined, 'keyboard');
 			autoIndentOnPasteController.trigger(new Range(1, 1, 4, 16));
 			assert.strictEqual(model.getValue(), pasteText);
 		});
@@ -489,7 +489,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 			].join('\n');
 
 			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
-			viewModel.paste(pasteText, true, undefined, 'keyboard');
+			viewModel.paste(pasteText, null, undefined, 'keyboard');
 			autoIndentOnPasteController.trigger(new Range(1, 1, 11, 2));
 			assert.strictEqual(model.getValue(), pasteText);
 		});
@@ -508,7 +508,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel, instantiationService) => {
 			editor.setSelection(new Selection(2, 6, 2, 6));
 			const text = ', null';
-			viewModel.paste(text, true, undefined, 'keyboard');
+			viewModel.paste(text, null, undefined, 'keyboard');
 			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
 			autoIndentOnPasteController.trigger(new Range(2, 6, 2, 11));
 			assert.strictEqual(model.getValue(), [
@@ -535,7 +535,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel, instantiationService) => {
 			editor.setSelection(new Selection(5, 24, 5, 34));
 			const text = 'IMacLinuxKeyMapping';
-			viewModel.paste(text, true, undefined, 'keyboard');
+			viewModel.paste(text, null, undefined, 'keyboard');
 			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
 			autoIndentOnPasteController.trigger(new Range(5, 24, 5, 43));
 			assert.strictEqual(model.getValue(), [
@@ -563,7 +563,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 				' *  Licensed under ...',
 				' *-----------------*/',
 			].join('\n');
-			viewModel.paste(text, true, undefined, 'keyboard');
+			viewModel.paste(text, null, undefined, 'keyboard');
 			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
 			autoIndentOnPasteController.trigger(new Range(1, 1, 4, 22));
 			assert.strictEqual(model.getValue(), text);
@@ -599,7 +599,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 			disposables.add(registerTokenizationSupport(instantiationService, tokens, languageId));
 
 			editor.setSelection(new Selection(2, 10, 2, 15));
-			viewModel.paste('which', true, undefined, 'keyboard');
+			viewModel.paste('which', [true], undefined, 'keyboard');
 			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
 			autoIndentOnPasteController.trigger(new Range(2, 1, 2, 28));
 			assert.strictEqual(model.getValue(), initialText);
@@ -649,7 +649,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 			];
 			disposables.add(registerTokenizationSupport(instantiationService, tokens, languageId));
 			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
-			viewModel.paste(text, true, undefined, 'keyboard');
+			viewModel.paste(text, null, undefined, 'keyboard');
 			autoIndentOnPasteController.trigger(new Range(1, 1, 4, 4));
 			assert.strictEqual(model.getValue(), text);
 		});
@@ -675,7 +675,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 				''
 			].join('\n');
 			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
-			viewModel.paste(text, true, undefined, 'keyboard');
+			viewModel.paste(text, null, undefined, 'keyboard');
 			autoIndentOnPasteController.trigger(new Range(2, 1, 5, 1));
 
 			// notes:
@@ -716,7 +716,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 				' '
 			].join('\n');
 			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
-			viewModel.paste(text, true, undefined, 'keyboard');
+			viewModel.paste(text, null, undefined, 'keyboard');
 			// todo@aiday-mar, make sure range is correct, and make test work as in real life
 			autoIndentOnPasteController.trigger(new Range(2, 5, 5, 6));
 			assert.strictEqual(model.getValue(), [
@@ -746,7 +746,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 				'}',
 			].join('\n');
 			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
-			viewModel.paste(text, true, undefined, 'keyboard');
+			viewModel.paste(text, null, undefined, 'keyboard');
 			// todo@aiday-mar, make sure range is correct, and make test work as in real life
 			autoIndentOnPasteController.trigger(new Range(1, 1, 4, 2));
 			assert.strictEqual(model.getValue(), [
@@ -808,7 +808,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 				'const foo = 42',
 			].join('\n');
 			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
-			viewModel.paste(text, true, undefined, 'keyboard');
+			viewModel.paste(text, null, undefined, 'keyboard');
 			autoIndentOnPasteController.trigger(new Range(2, 1, 3, 15));
 			assert.strictEqual(model.getValue(), [
 				'function bar() {',
@@ -1548,7 +1548,7 @@ suite('Auto Indent On Paste - Go', () => {
 			editor.setSelection(new Selection(3, 1, 3, 1));
 			const text = '  ';
 			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
-			viewModel.paste(text, true, undefined, 'keyboard');
+			viewModel.paste(text, null, undefined, 'keyboard');
 			autoIndentOnPasteController.trigger(new Range(3, 1, 3, 3));
 			assert.strictEqual(model.getValue(), [
 				'var s = `',

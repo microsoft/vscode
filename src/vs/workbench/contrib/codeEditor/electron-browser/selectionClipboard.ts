@@ -133,7 +133,7 @@ class PasteSelectionClipboardAction extends EditorAction {
 
 		editor.trigger('keyboard', Handler.Paste, {
 			text: text,
-			pasteOnNewLine: false,
+			pasteOnNewLine: null,
 			multicursorText: null
 		});
 	}

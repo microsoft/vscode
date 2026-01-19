@@ -598,7 +598,7 @@ export class CursorsController extends Disposable {
 		}, eventsCollector, source);
 	}
 
-	public paste(eventsCollector: ViewModelEventsCollector, text: string, pasteOnNewLine: boolean, multicursorText?: string[] | null | undefined, source?: string | null | undefined): void {
+	public paste(eventsCollector: ViewModelEventsCollector, text: string, pasteOnNewLine: boolean[] | null, multicursorText?: string[] | null | undefined, source?: string | null | undefined): void {
 		const reason = EditSources.cursor({ kind: 'paste', detailedSource: source });
 
 		this._executeEdit(() => {
