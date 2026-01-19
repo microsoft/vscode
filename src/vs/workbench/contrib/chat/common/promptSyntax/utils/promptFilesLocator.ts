@@ -463,6 +463,7 @@ export class PromptFilesLocator {
 				shouldGlobMatchFilePattern: true,
 				excludePattern: getExcludePattern(folder),
 				filePattern: '**/AGENTS.md',
+				ignoreGlobCase: true,
 			};
 
 			try {
@@ -498,7 +499,6 @@ export class PromptFilesLocator {
 
 			try {
 				const stat = await this.fileService.resolve(uri);
-				
 				if (stat.isFile && stat.name.toLowerCase() === agentsMdFileName) {
 					result.push(stat.resource);
 				} else if (stat.isDirectory && stat.children) {

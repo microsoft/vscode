@@ -3107,7 +3107,6 @@ suite('PromptFilesLocator', () => {
 						contents: ['# Root agents']
 					},
 					{
-
 						path: '/Users/legomushroom/repos/workspace/src/AGENTS.md',
 						contents: ['# Src agents']
 					}
@@ -3144,7 +3143,6 @@ suite('PromptFilesLocator', () => {
 						path: '/Users/legomushroom/repos/workspace/src/nested/AGENTS.md',
 						contents: ['# Nested agents']
 					}
-
 				],
 				false // no FileSearchProvider - should use file service fallback
 			);
