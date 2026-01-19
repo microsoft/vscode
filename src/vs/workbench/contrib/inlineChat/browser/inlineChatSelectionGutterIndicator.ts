@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
-import { IAction, IActionRunner } from '../../../../base/common/actions.js';
+import { IAction } from '../../../../base/common/actions.js';
 import { ActionBar, ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, debouncedObservable, derived, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { Event, Emitter } from '../../../../base/common/event.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { IActiveCodeEditor, ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
 import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
 import { observableCodeEditor, ObservableCodeEditor } from '../../../../editor/browser/observableCodeEditor.js';
@@ -159,24 +159,22 @@ export class InlineChatSelectionIndicator extends Disposable {
 /**
  * Overlay widget that displays a vertical action bar menu.
  */
-class InlineChatGutterMenuWidget implements IOverlayWidget {
+class InlineChatGutterMenuWidget extends Disposable implements IOverlayWidget {
 
 	private static _idPool = 0;
 
 	private readonly _id = `inline-chat-gutter-menu-${InlineChatGutterMenuWidget._idPool++}`;
 	private readonly _domNode: HTMLElement;
-	private readonly _store = new DisposableStore();
 	private readonly _actionBar: ActionBar;
 	private readonly _input: IActiveCodeEditor;
 	private _position: IOverlayWidgetPosition | null = null;
-	private readonly _onDidHide = new Emitter<void>();
+	private readonly _onDidHide = this._register(new Emitter<void>());
 	readonly onDidHide = this._onDidHide.event;
 
 	readonly allowEditorOverflow = true;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		actionRunner: IActionRunner,
 		top: number,
 		left: number,
 		anchorAbove: boolean,
@@ -187,6 +185,8 @@ class InlineChatGutterMenuWidget implements IOverlayWidget {
 		@IModelService modelService: IModelService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
+		super();
+
 		// Create container
 		this._domNode = dom.$('.inline-chat-gutter-menu');
 
@@ -234,7 +234,10 @@ class InlineChatGutterMenuWidget implements IOverlayWidget {
 				const value = this._input.getModel()?.getValue() ?? '';
 				if (inlineStartAction) {
 					// TODO this isn't nice
-					actionRunner.run(inlineStartAction, { message: value, autoSend: true } satisfies InlineChatRunOptions);
+					this._actionBar.actionRunner.run(
+						inlineStartAction,
+						{ message: value, autoSend: true } satisfies InlineChatRunOptions
+					);
 				}
 			}
 		}));
@@ -245,7 +248,6 @@ class InlineChatGutterMenuWidget implements IOverlayWidget {
 		// Create vertical action bar
 		this._actionBar = this._store.add(new ActionBar(this._domNode, {
 			orientation: ActionsOrientation.VERTICAL,
-			actionRunner,
 		}));
 
 		// Set actions with keybindings (skip ACTION_START since we have the input editor)
@@ -277,21 +279,19 @@ class InlineChatGutterMenuWidget implements IOverlayWidget {
 
 		// Handle action bar cancel (Escape key)
 		this._store.add(this._actionBar.onDidCancel(() => this._hide()));
+		this._store.add(this._actionBar.onWillRun(() => this._hide()));
 
 		// Add widget to editor
 		this._editor.addOverlayWidget(this);
 
 		// If anchoring above, adjust position after render to account for widget height
 		if (anchorAbove) {
-			// Use setTimeout to allow DOM to render and get actual height
-			setTimeout(() => {
-				const widgetHeight = this._domNode.offsetHeight;
-				this._position = {
-					preference: { top: top - widgetHeight, left },
-					stackOrdinal: 10000,
-				};
-				this._editor.layoutOverlayWidget(this);
-			}, 0);
+			const widgetHeight = this._domNode.offsetHeight;
+			this._position = {
+				preference: { top: top - widgetHeight, left },
+				stackOrdinal: 10000,
+			};
+			this._editor.layoutOverlayWidget(this);
 		}
 
 		// Focus the input editor
@@ -314,9 +314,9 @@ class InlineChatGutterMenuWidget implements IOverlayWidget {
 		return this._position;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._editor.removeOverlayWidget(this);
-		this._store.dispose();
+		super.dispose();
 	}
 }
 
@@ -404,31 +404,21 @@ class InlineChatGutterIndicator extends InlineEditsGutterIndicator {
 			}
 			const left = x - editorRect.left;
 
-			// Action runner that hides the gutter when an action is run
-			const actionRunner: IActionRunner = {
-				onDidRun: Event.None,
-				onWillRun: Event.None,
-				dispose: () => { },
-				run: async (action: IAction, context?: unknown) => {
-					this._suppressGutter.set(true, undefined);
-					this._currentMenuWidget?.dispose();
-					this._currentMenuWidget = undefined;
-					return action.run(context);
-				}
-			};
+			const store = new DisposableStore();
 
 			// Create and show overlay widget
 			this._currentMenuWidget = this._myInstantiationService.createInstance(
 				InlineChatGutterMenuWidget,
 				editor,
-				actionRunner,
 				top,
 				left,
 				anchorAbove,
 			);
 
 			// Handle widget hide
-			this._currentMenuWidget.onDidHide(() => {
+			store.add(this._currentMenuWidget.onDidHide(() => {
+				this._suppressGutter.set(true, undefined);
+				store.dispose();
 				this._currentMenuWidget?.dispose();
 				this._currentMenuWidget = undefined;
 
@@ -436,7 +426,7 @@ class InlineChatGutterIndicator extends InlineEditsGutterIndicator {
 				editor.focus();
 
 				resolve();
-			});
+			}));
 		});
 	}
 }

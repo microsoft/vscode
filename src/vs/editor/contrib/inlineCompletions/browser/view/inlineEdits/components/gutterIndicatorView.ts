@@ -40,8 +40,6 @@ import { ThemeIcon } from '../../../../../../../base/common/themables.js';
  * Customization options for the gutter indicator appearance and behavior.
  */
 export interface GutterIndicatorCustomization {
-	/** Override the default styles (colors) */
-	readonly styles?: { background: string; foreground: string; border: string };
 	/** Override the default icon */
 	readonly icon?: ThemeIcon;
 }
@@ -166,12 +164,6 @@ export class InlineEditsGutterIndicator extends Disposable {
 
 	private readonly _modifierPressed = observableFromEvent(this, ModifierKeyEmitter.getInstance().event, () => ModifierKeyEmitter.getInstance().keyStatus.shiftKey);
 	private readonly _gutterIndicatorStyles = derived(this, reader => {
-		// Check for custom styles first
-		const customStyles = this._data.read(reader)?.customization?.styles;
-		if (customStyles) {
-			return customStyles;
-		}
-
 		let v = this._tabAction.read(reader);
 
 		// TODO: add source of truth for alt action active and key pressed

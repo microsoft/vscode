@@ -102,9 +102,7 @@ MenuRegistry.appendMenuItem(MenuId.ChatEditorInlineGutter, {
 		id: refactorCommandId,
 		title: localize('refactor.label', "Refactor..."),
 	},
-	when: ContextKeyExpr.and(
-		EditorContextKeys.writable,
-		CTX_INLINE_CHAT_GUTTER_VISIBLE),
+	when: ContextKeyExpr.and(EditorContextKeys.writable, CTX_INLINE_CHAT_GUTTER_VISIBLE),
 	group: '3_codeAction',
 	order: 1,
 });
@@ -114,9 +112,7 @@ MenuRegistry.appendMenuItem(MenuId.ChatEditorInlineGutter, {
 		id: sourceActionCommandId,
 		title: localize('source.label', "Source Action..."),
 	},
-	when: ContextKeyExpr.and(
-		EditorContextKeys.writable,
-		CTX_INLINE_CHAT_GUTTER_VISIBLE),
+	when: ContextKeyExpr.and(EditorContextKeys.writable, CTX_INLINE_CHAT_GUTTER_VISIBLE),
 	group: '3_codeAction',
 	order: 2,
 });
