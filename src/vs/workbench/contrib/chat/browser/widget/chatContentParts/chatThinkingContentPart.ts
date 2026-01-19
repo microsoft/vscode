@@ -341,7 +341,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	private showManualCollapseButton(): void {
-		if (this.manualCollapseButton || !this.wrapper) {
+		if (this.manualCollapseButton || !this.wrapper || this._store.isDisposed) {
 			return;
 		}
 
@@ -762,6 +762,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	override dispose(): void {
+		this.hideManualCollapseButton();
 		if (this.markdownResult) {
 			this.markdownResult.dispose();
 			this.markdownResult = undefined;
