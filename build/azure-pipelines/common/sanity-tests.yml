@@ -94,12 +94,6 @@ jobs:
 
       # Container host: Run Sanity Tests
       - bash: |
-          docker run --privileged --rm tonistiigi/binfmt --uninstall '*'
-          docker run --pull always --privileged --rm tonistiigi/binfmt --install all
-        displayName: Setup QEMU for Multi-Architecture Support
-        condition: and(ne('${{ parameters.container }}', ''), contains('${{ parameters.containerPlatform }}', 'arm'))
-
-      - bash: |
           set -e
           docker run --rm --platform ${{ parameters.containerPlatform }} \
             -v "$(Build.SourcesDirectory):/workspace" \
@@ -125,6 +119,11 @@ jobs:
 
                 apt-get install -y libgtk-3-0t64 || apt-get install -y libgtk-3-0
                 apt-get install -y libasound2t64 || apt-get install -y libasound2
+
+                if [ "$(arch)" = "armv7l" ] || [ "$(arch)" = "aarch64" ]; then
+                  echo "Installing libatomic1 for ARM"
+                  apt-get install -y libatomic1
+                fi
 
                 echo "Installing Node.js 22"
                 if [ "$(arch)" = "x86_64" ] || [ "$(arch)" = "aarch64" ]; then
@@ -199,6 +198,7 @@ jobs:
               dbus-daemon --system --fork
 
               # echo "Install Playwright browser"
+              # TODO: install deps manually and remove this step
               /workspace/test/sanity/node_modules/.bin/playwright install --with-deps firefox
 
               echo "Running sanity tests"
