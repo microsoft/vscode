@@ -18,10 +18,10 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { SwitchCompositeViewAction } from '../compositeBarActions.js';
-import { closeIcon as panelCloseIcon } from '../panel/panelActions.js';
 
 const maximizeIcon = registerIcon('auxiliarybar-maximize', Codicon.screenFull, localize('maximizeIcon', 'Icon to maximize the secondary side bar.'));
-const closeIcon = registerIcon('auxiliarybar-close', panelCloseIcon, localize('closeIcon', 'Icon to close the secondary side bar.'));
+const restoreIcon = registerIcon('auxiliarybar-restore', Codicon.screenNormal, localize('restoreIcon', 'Icon to restore the secondary side bar.'));
+const closeIcon = registerIcon('auxiliarybar-close', Codicon.close, localize('closeIcon', 'Icon to close the secondary side bar.'));
 
 const auxiliaryBarRightIcon = registerIcon('auxiliarybar-right-layout-icon', Codicon.layoutSidebarRight, localize('toggleAuxiliaryIconRight', 'Icon to toggle the secondary side bar off in its right position.'));
 const auxiliaryBarRightOffIcon = registerIcon('auxiliarybar-right-off-layout-icon', Codicon.layoutSidebarRightOff, localize('toggleAuxiliaryIconRightOn', 'Icon to toggle the secondary side bar on in its right position.'));
@@ -92,7 +92,10 @@ MenuRegistry.appendMenuItem(MenuId.AuxiliaryBarTitle, {
 	},
 	group: 'navigation',
 	order: 2,
-	when: ContextKeyExpr.equals(`config.${LayoutSettings.ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.DEFAULT)
+	when: ContextKeyExpr.and(
+		ContextKeyExpr.equals(`config.${LayoutSettings.ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.DEFAULT),
+		AuxiliaryBarMaximizedContext.negate() // provided via Alt-action when maximized
+	)
 });
 
 registerAction2(class extends Action2 {
@@ -258,13 +261,17 @@ class RestoreAuxiliaryBar extends Action2 {
 			category: Categories.View,
 			f1: true,
 			precondition: AuxiliaryBarMaximizedContext,
-			toggled: AuxiliaryBarMaximizedContext,
-			icon: maximizeIcon,
+			icon: restoreIcon,
 			menu: {
 				id: MenuId.AuxiliaryBarTitle,
 				group: 'navigation',
 				order: 1,
-				when: AuxiliaryBarMaximizedContext
+				when: AuxiliaryBarMaximizedContext,
+				alt: {
+					id: ToggleAuxiliaryBarAction.ID,
+					title: localize('closeSecondarySideBar', 'Hide Secondary Side Bar'),
+					icon: closeIcon
+				}
 			}
 		});
 	}
