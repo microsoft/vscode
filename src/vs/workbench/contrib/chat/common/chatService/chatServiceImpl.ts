@@ -49,6 +49,7 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../constants
 import { ChatMessageRole, IChatMessage } from '../languageModels.js';
 import { ILanguageModelToolsService } from '../tools/languageModelToolsService.js';
 import { ChatSessionOperationLog } from '../model/chatSessionOperationLog.js';
+import { IAICoreService } from '../../../../services/aiCore/common/aiCoreService.js';
 
 const serializedChatKey = 'interactive.sessions';
 
@@ -138,6 +139,7 @@ export class ChatService extends Disposable implements IChatService {
 		@IChatTransferService private readonly chatTransferService: IChatTransferService,
 		@IChatSessionsService private readonly chatSessionService: IChatSessionsService,
 		@IMcpService private readonly mcpService: IMcpService,
+		@IAICoreService private readonly aiCoreService: IAICoreService,
 	) {
 		super();
 
@@ -737,6 +739,17 @@ export class ChatService extends Disposable implements IChatService {
 		if (!model) {
 			throw new Error(`Unknown session: ${sessionResource}`);
 		}
+
+		void this.aiCoreService.sendRequest({
+			sessionId: model.sessionId,
+			message: request,
+			mode: 'chat',
+			agentId: options?.agentId ?? options?.agentIdSilent,
+			modelId: options?.userSelectedModelId,
+			userContext: { location: 'chat' }
+		}).catch(error => {
+			this.trace('sendRequest', `aiCoreService sendRequest failed: ${toErrorMessage(error)}`);
+		});
 
 		if (this._pendingRequests.has(sessionResource)) {
 			this.trace('sendRequest', `Session ${sessionResource} already has a pending request`);

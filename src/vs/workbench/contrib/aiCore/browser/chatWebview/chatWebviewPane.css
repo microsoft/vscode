@@ -1,0 +1,22 @@
+/*---------------------------------------------------------------------------------------------
+ *  Chat Webview Pane Styles
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-webview-pane {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+}
+
+.chat-webview-container {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.chat-webview-container>* {
+    flex: 1;
+}

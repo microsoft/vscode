@@ -1,25 +1,53 @@
+# OS generated files
 .DS_Store
-.cache
-npm-debug.log
 Thumbs.db
+
+# Logs
+npm-debug.log
+*.log
+
+# Dependencies
 node_modules/
+build/node_modules
+
+# Build output
 .build/
-.vscode/extensions/**/out/
-extensions/**/dist/
+.cache
 /out*/
 /extensions/**/out/
-build/node_modules
+extensions/**/dist/
+
+# Extensions package-lock (auto-generated)
+/extensions/**/package-lock.json
+
+# VSCode specific
+.vscode/extensions/**
+.vscode-test
+vscode-telemetry-docs/
+
+# Test output
 coverage/
 test_data/
 test-results/
 test-results.xml
+*.snap.actual
+
+# LSP/DB files
 vscode.lsif
 vscode.db
+
+# TypeScript
+*.tsbuildinfo
+
+# CLI
 /.profile-oss
 /cli/target
 /cli/openssl
+
+# Local overrides
 product.overrides.json
-*.snap.actual
-*.tsbuildinfo
-.vscode-test
-vscode-telemetry-docs/
+
+# IDE specific
+.idea/
+*.swp
+*.swo

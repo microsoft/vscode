@@ -151,5 +151,9 @@
 		"github-enterprise": [
 			"GitHub.copilot-chat"
 		]
-	}
+	},
+	"extensionRecommendations": [
+		"MS-CEINTL.vscode-language-pack-zh-hans"
+	],
+	"configuredDefaultLocale": "zh-cn"
 }

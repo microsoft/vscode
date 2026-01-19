@@ -322,6 +322,11 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 	readonly entitlementObs: IObservable<ChatEntitlement>;
 
 	get entitlement(): ChatEntitlement {
+		// [AI Core] 使用自定义 GLM 模型时，绕过 GitHub Copilot 认证
+		if (this.configurationService.getValue<boolean>('aiCore.useGLM') === true) {
+			return ChatEntitlement.Pro;
+		}
+
 		if (this.contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.Entitlement.planPro.key) === true) {
 			return ChatEntitlement.Pro;
 		} else if (this.contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.Entitlement.planBusiness.key) === true) {
@@ -458,6 +463,18 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 	readonly sentimentObs: IObservable<IChatSentiment>;
 
 	get sentiment(): IChatSentiment {
+		// [AI Core] 使用自定义 GLM 模型时，模拟已安装状态
+		if (this.configurationService.getValue<boolean>('aiCore.useGLM') === true) {
+			return {
+				installed: true,
+				hidden: false,
+				disabled: false,
+				untrusted: false,
+				later: false,
+				registered: true
+			};
+		}
+
 		return {
 			installed: this.contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.Setup.installed.key) === true,
 			hidden: this.contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.Setup.hidden.key) === true,
@@ -1263,6 +1280,29 @@ export class ChatEntitlementContext extends Disposable {
 	}
 
 	private updateContextSync(): void {
+		// [AI Core] 使用自定义 GLM 模型时，设置 Pro 用户状态
+		if (this.configurationService.getValue<boolean>('aiCore.useGLM') === true) {
+			this.signedOutContextKey.set(false);
+			this.canSignUpContextKey.set(false);
+			this.freeContextKey.set(false);
+			this.proContextKey.set(true);
+			this.proPlusContextKey.set(false);
+			this.businessContextKey.set(false);
+			this.enterpriseContextKey.set(false);
+			this.organisationsContextKey.set(undefined);
+			this.isInternalContextKey.set(false);
+			this.skuContextKey.set('pro');
+			this.hiddenContext.set(false);
+			this.laterContext.set(false);
+			this.installedContext.set(true);
+			this.disabledContext.set(false);
+			this.untrustedContext.set(false);
+			this.registeredContext.set(true);
+			this.logService.trace(`[chat entitlement context] updateContext(): AI Core GLM mode enabled`);
+			this._onDidChange.fire();
+			return;
+		}
+
 		const state = this.withConfiguration(this._state);
 
 		this.signedOutContextKey.set(state.entitlement === ChatEntitlement.Unknown);

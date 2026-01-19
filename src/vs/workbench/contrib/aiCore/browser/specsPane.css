@@ -1,0 +1,278 @@
+/*---------------------------------------------------------------------------------------------
+ *  AI Core Specs Pane Styles
+ *  Kiro 风格的 Specs 面板样式
+ *--------------------------------------------------------------------------------------------*/
+
+.specs-pane {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	overflow: hidden;
+	background: var(--vscode-sideBar-background);
+}
+
+/* Header */
+.specs-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 8px 12px;
+	border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border);
+	background: var(--vscode-sideBarSectionHeader-background);
+}
+
+.specs-title {
+	font-weight: 600;
+	font-size: 13px;
+	color: var(--vscode-sideBarTitle-foreground);
+}
+
+.specs-actions {
+	display: flex;
+	gap: 4px;
+}
+
+.specs-actions .monaco-button {
+	padding: 4px 8px;
+	min-width: auto;
+}
+
+/* Content */
+.specs-content {
+	flex: 1;
+	overflow-y: auto;
+	padding: 8px;
+}
+
+/* Empty State */
+.specs-empty-state {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	height: 100%;
+	text-align: center;
+	padding: 20px;
+}
+
+.specs-empty-icon {
+	font-size: 48px;
+	margin-bottom: 16px;
+	opacity: 0.6;
+}
+
+.specs-empty-message {
+	font-size: 14px;
+	font-weight: 500;
+	color: var(--vscode-foreground);
+	margin-bottom: 8px;
+}
+
+.specs-empty-description {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	margin-bottom: 16px;
+}
+
+.specs-empty-state .monaco-button {
+	min-width: 120px;
+}
+
+/* Session View */
+.specs-session-view {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+/* Progress Section */
+.specs-progress-section {
+	background: var(--vscode-editor-background);
+	border-radius: 6px;
+	padding: 12px;
+}
+
+.specs-section-header {
+	font-weight: 500;
+	font-size: 12px;
+	color: var(--vscode-foreground);
+	margin-bottom: 8px;
+}
+
+.specs-progress-bar {
+	height: 8px;
+	background: var(--vscode-progressBar-background);
+	border-radius: 4px;
+	overflow: hidden;
+}
+
+.specs-progress-fill {
+	height: 100%;
+	background: var(--vscode-progressBar-fill, #0078d4);
+	border-radius: 4px;
+	transition: width 0.3s ease;
+}
+
+/* Phase Indicator */
+.specs-phase-section {
+	background: var(--vscode-editor-background);
+	border-radius: 6px;
+	padding: 12px;
+}
+
+.specs-phases {
+	display: flex;
+	justify-content: space-between;
+	gap: 4px;
+}
+
+.specs-phase-item {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	flex: 1;
+	padding: 8px 4px;
+	border-radius: 4px;
+	opacity: 0.5;
+	transition: all 0.2s ease;
+}
+
+.specs-phase-item.current {
+	opacity: 1;
+	background: var(--vscode-list-activeSelectionBackground);
+}
+
+.specs-phase-item.completed {
+	opacity: 0.8;
+}
+
+.specs-phase-icon {
+	font-size: 16px;
+	margin-bottom: 4px;
+}
+
+.specs-phase-label {
+	font-size: 10px;
+	color: var(--vscode-descriptionForeground);
+	text-align: center;
+}
+
+.specs-phase-item.current .specs-phase-label {
+	color: var(--vscode-list-activeSelectionForeground);
+	font-weight: 500;
+}
+
+/* Stories Section */
+.specs-stories-section {
+	background: var(--vscode-editor-background);
+	border-radius: 6px;
+	padding: 12px;
+}
+
+.specs-stories-list {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.specs-story-item {
+	padding: 8px;
+	background: var(--vscode-input-background);
+	border-radius: 4px;
+	border-left: 3px solid var(--vscode-textLink-foreground);
+}
+
+.specs-story-header {
+	font-size: 12px;
+	font-weight: 500;
+	margin-bottom: 4px;
+}
+
+.specs-story-desc {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	margin-bottom: 4px;
+}
+
+.specs-story-criteria {
+	font-size: 10px;
+	color: var(--vscode-descriptionForeground);
+	opacity: 0.8;
+}
+
+/* Tasks Section */
+.specs-tasks-section {
+	background: var(--vscode-editor-background);
+	border-radius: 6px;
+	padding: 12px;
+}
+
+.specs-tasks-list {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	max-height: 200px;
+	overflow-y: auto;
+}
+
+.specs-task-item {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 8px;
+	background: var(--vscode-input-background);
+	border-radius: 4px;
+	transition: all 0.2s ease;
+}
+
+.specs-task-item.completed {
+	opacity: 0.6;
+}
+
+.specs-task-item.in-progress {
+	border-left: 3px solid var(--vscode-progressBar-fill, #0078d4);
+}
+
+.specs-task-checkbox {
+	font-size: 14px;
+	width: 20px;
+	text-align: center;
+}
+
+.specs-task-content {
+	flex: 1;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
+
+.specs-task-title {
+	font-size: 11px;
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.specs-task-status {
+	font-size: 12px;
+	margin-left: 8px;
+}
+
+.specs-task-item.completed .specs-task-title {
+	text-decoration: line-through;
+}
+
+/* Actions Section */
+.specs-actions-section {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 12px;
+	background: var(--vscode-editor-background);
+	border-radius: 6px;
+}
+
+.specs-actions-section .monaco-button {
+	width: 100%;
+}

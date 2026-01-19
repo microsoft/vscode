@@ -1,0 +1,11 @@
+{
+    "private": true,
+    "name": "chat-webview",
+    "version": "1.0.0",
+    "description": "AI Chat Webview - Kiro Style UI (使用主项目依赖)",
+    "type": "module",
+    "scripts": {
+        "build": "node build.mjs",
+        "watch": "node build.mjs --watch"
+    }
+}
