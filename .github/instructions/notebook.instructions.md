@@ -106,3 +106,5 @@ The hybrid find works by:
 - Uses `document.execCommand('hiliteColor')` to highlight matches
 - Serializes `document.getSelection()` to get match positions
 - Creates ranges for current match highlighting
+
+## Learnings

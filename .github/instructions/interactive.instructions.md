@@ -48,3 +48,5 @@ Restoring the interactive window happens through the editor serializer (`Interac
 - The `IInteractiveHistoryService` manages command history for the input editor
 
 ![Architecture](./resources/interactive/interactive.eh.drawio.svg)
+
+## Learnings

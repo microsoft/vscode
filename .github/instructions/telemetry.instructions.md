@@ -111,3 +111,5 @@ this.telemetryService.publicLogError2<ErrorEvent, ErrorClassification>('myFeatur
 - Minimize data collection to essential insights only
 - Use hashes/categories instead of raw values when possible
 - Document clear purpose for each data point
+
+## Learnings
