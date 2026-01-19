@@ -57,6 +57,17 @@ export function getAgentSessionProviderIcon(provider: AgentSessionProviders): Th
 	}
 }
 
+export function isFirstPartyAgentSessionProvider(provider: AgentSessionProviders): boolean {
+	switch (provider) {
+		case AgentSessionProviders.Local:
+		case AgentSessionProviders.Background:
+		case AgentSessionProviders.Cloud:
+			return true;
+		case AgentSessionProviders.ClaudeCode:
+			return false;
+	}
+}
+
 export enum AgentSessionsViewerOrientation {
 	Stacked = 1,
 	SideBySide,
@@ -68,10 +79,12 @@ export enum AgentSessionsViewerPosition {
 }
 
 export interface IAgentSessionsControl {
+
+	readonly element: HTMLElement | undefined;
+
 	refresh(): void;
 	openFind(): void;
 	reveal(sessionResource: URI): void;
-	setGridMarginOffset(offset: number): void;
 }
 
 export const agentSessionReadIndicatorForeground = registerColor(

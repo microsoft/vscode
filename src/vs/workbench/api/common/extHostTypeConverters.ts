@@ -3126,8 +3126,8 @@ export namespace ChatResponsePart {
 export namespace ChatAgentRequest {
 	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined, model: vscode.LanguageModelChat, diagnostics: readonly [vscode.Uri, readonly vscode.Diagnostic[]][], tools: Map<string, boolean>, extension: IRelaxedExtensionDescription, logService: ILogService): vscode.ChatRequest {
 
-		const toolReferences: typeof request.variables.variables = [];
-		const variableReferences: typeof request.variables.variables = [];
+		const toolReferences: IChatRequestVariableEntry[] = [];
+		const variableReferences: IChatRequestVariableEntry[] = [];
 		for (const v of request.variables.variables) {
 			if (v.kind === 'tool') {
 				toolReferences.push(v);

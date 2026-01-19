@@ -1,5 +1,4 @@
 ---
-applyTo: '**/notebook/**'
 description: Architecture documentation for VS Code notebook and interactive window components
 ---
 

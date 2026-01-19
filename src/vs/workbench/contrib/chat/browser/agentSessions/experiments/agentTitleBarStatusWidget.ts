@@ -3,33 +3,44 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/agentStatusWidget.css';
-
-import { $, addDisposableListener, EventType, reset } from '../../../../../base/browser/dom.js';
-import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
-import { localize } from '../../../../../nls.js';
-import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
-import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { AgentStatusMode, IAgentStatusService } from './agentStatusService.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import './media/agenttitlebarstatuswidget.css';
+import { $, addDisposableListener, EventType, reset } from '../../../../../../base/browser/dom.js';
+import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { localize } from '../../../../../../nls.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { AgentStatusMode, IAgentTitleBarStatusService } from './agentTitleBarStatusService.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ExitAgentSessionProjectionAction } from './agentSessionProjectionActions.js';
-import { IAgentSessionsService } from './agentSessionsService.js';
-import { AgentSessionStatus, IAgentSession, isSessionInProgressStatus } from './agentSessionsModel.js';
-import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { IAction } from '../../../../../base/common/actions.js';
-import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { IBrowserWorkbenchEnvironmentService } from '../../../../services/environment/browser/environmentService.js';
-import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
-import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { Verbosity } from '../../../../common/editor.js';
-import { Schemas } from '../../../../../base/common/network.js';
-import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
-import { openSession } from './agentSessionsOpener.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IAgentSessionsService } from '../agentSessionsService.js';
+import { AgentSessionStatus, IAgentSession, isSessionInProgressStatus } from '../agentSessionsModel.js';
+import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { IAction, SubmenuAction } from '../../../../../../base/common/actions.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IBrowserWorkbenchEnvironmentService } from '../../../../../services/environment/browser/environmentService.js';
+import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { Verbosity } from '../../../../../common/editor.js';
+import { Schemas } from '../../../../../../base/common/network.js';
+import { renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
+import { openSession } from '../agentSessionsOpener.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IMenuService, MenuId, SubmenuItemAction } from '../../../../../../platform/actions/common/actions.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { HiddenItemStrategy, WorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
+import { createActionViewItem } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { FocusAgentSessionsAction } from '../agentSessionsActions.js';
+import { IWorkbenchContribution } from '../../../../../common/contributions.js';
+import { IActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { mainWindow } from '../../../../../../base/browser/window.js';
+import { LayoutSettings } from '../../../../../services/layout/browser/layoutService.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 
 // Action triggered when clicking the main pill - change this to modify the primary action
 const ACTION_ID = 'workbench.action.quickchat.toggle';
@@ -47,7 +58,9 @@ const TITLE_DIRTY = '\u25cf ';
  *
  * The command center search box and navigation controls remain visible alongside this control.
  */
-export class AgentStatusWidget extends BaseActionViewItem {
+export class AgentTitleBarStatusWidget extends BaseActionViewItem {
+
+	private static readonly _quickOpenCommandId = 'workbench.action.quickOpenWithModes';
 
 	private _container: HTMLElement | undefined;
 	private readonly _dynamicDisposables = this._register(new DisposableStore());
@@ -58,11 +71,14 @@ export class AgentStatusWidget extends BaseActionViewItem {
 	/** Cached render state to avoid unnecessary DOM rebuilds */
 	private _lastRenderState: string | undefined;
 
+	/** Reusable menu for CommandCenterCenter items (e.g., debug toolbar) */
+	private readonly _commandCenterMenu;
+
 	constructor(
 		action: IAction,
 		options: IBaseActionViewItemOptions | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IAgentStatusService private readonly agentStatusService: IAgentStatusService,
+		@IAgentTitleBarStatusService private readonly agentTitleBarStatusService: IAgentTitleBarStatusService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
@@ -72,15 +88,21 @@ export class AgentStatusWidget extends BaseActionViewItem {
 		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super(undefined, action, options);
 
+		// Create menu for CommandCenterCenter to get items like debug toolbar
+		this._commandCenterMenu = this._register(this.menuService.createMenu(MenuId.CommandCenterCenter, this.contextKeyService));
+
 		// Re-render when control mode or session info changes
-		this._register(this.agentStatusService.onDidChangeMode(() => {
+		this._register(this.agentTitleBarStatusService.onDidChangeMode(() => {
 			this._render();
 		}));
 
-		this._register(this.agentStatusService.onDidChangeSessionInfo(() => {
+		this._register(this.agentTitleBarStatusService.onDidChangeSessionInfo(() => {
 			this._render();
 		}));
 
@@ -100,6 +122,12 @@ export class AgentStatusWidget extends BaseActionViewItem {
 				this._render();
 			}
 		}));
+
+		// Re-render when command center menu changes (e.g., debug toolbar visibility)
+		this._register(this._commandCenterMenu.onDidChange(() => {
+			this._lastRenderState = undefined; // Force re-render
+			this._render();
+		}));
 	}
 
 	override render(container: HTMLElement): void {
@@ -117,8 +145,8 @@ export class AgentStatusWidget extends BaseActionViewItem {
 		}
 
 		// Compute current render state to avoid unnecessary DOM rebuilds
-		const mode = this.agentStatusService.mode;
-		const sessionInfo = this.agentStatusService.sessionInfo;
+		const mode = this.agentTitleBarStatusService.mode;
+		const sessionInfo = this.agentTitleBarStatusService.sessionInfo;
 		const { activeSessions, unreadSessions, attentionNeededSessions } = this._getSessionStats();
 
 		// Get attention session info for state computation
@@ -161,7 +189,7 @@ export class AgentStatusWidget extends BaseActionViewItem {
 		// Clear previous disposables for dynamic content
 		this._dynamicDisposables.clear();
 
-		if (this.agentStatusService.mode === AgentStatusMode.Session) {
+		if (this.agentTitleBarStatusService.mode === AgentStatusMode.Session) {
 			// Agent Session Projection mode - show session title + close button
 			this._renderSessionMode(this._dynamicDisposables);
 		} else {
@@ -209,6 +237,9 @@ export class AgentStatusWidget extends BaseActionViewItem {
 		}
 
 		const { activeSessions, unreadSessions, attentionNeededSessions, hasAttentionNeeded } = this._getSessionStats();
+
+		// Render command center items (like debug toolbar) FIRST - to the left
+		this._renderCommandCenterToolbar(disposables);
 
 		// Create pill
 		const pill = $('div.agent-status-pill.chat-input-mode');
@@ -315,6 +346,9 @@ export class AgentStatusWidget extends BaseActionViewItem {
 
 		const { activeSessions, unreadSessions } = this._getSessionStats();
 
+		// Render command center items (like debug toolbar) FIRST - to the left
+		this._renderCommandCenterToolbar(disposables);
+
 		const pill = $('div.agent-status-pill.session-mode');
 		this._container.appendChild(pill);
 
@@ -323,7 +357,7 @@ export class AgentStatusWidget extends BaseActionViewItem {
 
 		// Session title (center)
 		const titleLabel = $('span.agent-status-title');
-		const sessionInfo = this.agentStatusService.sessionInfo;
+		const sessionInfo = this.agentTitleBarStatusService.sessionInfo;
 		titleLabel.textContent = sessionInfo?.title ?? localize('agentSessionProjection', "Agent Session Projection");
 		pill.appendChild(titleLabel);
 
@@ -333,7 +367,7 @@ export class AgentStatusWidget extends BaseActionViewItem {
 		// Setup pill hover
 		const hoverDelegate = getDefaultHoverDelegate('mouse');
 		disposables.add(this.hoverService.setupManagedHover(hoverDelegate, pill, () => {
-			const sessionInfo = this.agentStatusService.sessionInfo;
+			const sessionInfo = this.agentTitleBarStatusService.sessionInfo;
 			return sessionInfo ? localize('agentSessionProjectionTooltip', "Agent Session Projection: {0}", sessionInfo.title) : localize('agentSessionProjection', "Agent Session Projection");
 		}));
 
@@ -344,6 +378,59 @@ export class AgentStatusWidget extends BaseActionViewItem {
 	// #endregion
 
 	// #region Reusable Components
+
+	/**
+	 * Render command center toolbar items (like debug toolbar) that are registered to CommandCenter
+	 * Filters out the quick open action since we provide our own search UI.
+	 * Adds a dot separator after the toolbar if content was rendered.
+	 */
+	private _renderCommandCenterToolbar(disposables: DisposableStore): void {
+		if (!this._container) {
+			return;
+		}
+
+		// Get menu actions from CommandCenterCenter (e.g., debug toolbar)
+		const allActions: IAction[] = [];
+		for (const [, actions] of this._commandCenterMenu.getActions({ shouldForwardArgs: true })) {
+			for (const action of actions) {
+				// Filter out the quick open action - we provide our own search UI
+				if (action.id === AgentTitleBarStatusWidget._quickOpenCommandId) {
+					continue;
+				}
+				// For submenus (like debug toolbar), add the submenu actions
+				if (action instanceof SubmenuAction) {
+					allActions.push(...action.actions);
+				} else {
+					allActions.push(action);
+				}
+			}
+		}
+
+		// Only render toolbar if there are actions
+		if (allActions.length === 0) {
+			return;
+		}
+
+		const hoverDelegate = getDefaultHoverDelegate('mouse');
+		const toolbarContainer = $('div.agent-status-command-center-toolbar');
+		this._container.appendChild(toolbarContainer);
+
+		const toolbar = this.instantiationService.createInstance(WorkbenchToolBar, toolbarContainer, {
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			telemetrySource: 'agentStatusCommandCenter',
+			actionViewItemProvider: (action, options) => {
+				return createActionViewItem(this.instantiationService, action, { ...options, hoverDelegate });
+			}
+		});
+		disposables.add(toolbar);
+
+		toolbar.setActions(allActions);
+
+		// Add dot separator after the toolbar (matching command center style)
+		const separator = renderIcon(Codicon.circleSmallFilled);
+		separator.classList.add('agent-status-separator');
+		this._container.appendChild(separator);
+	}
 
 	/**
 	 * Render the search button. If parent is provided, appends to parent; otherwise appends to container.
@@ -389,7 +476,7 @@ export class AgentStatusWidget extends BaseActionViewItem {
 	/**
 	 * Render the status badge showing in-progress and/or unread session counts.
 	 * Shows split UI with both indicators when both types exist.
-	 * Always renders for smooth fade transitions - uses visibility classes.
+	 * When no notifications, shows a chat sparkle icon.
 	 */
 	private _renderStatusBadge(disposables: DisposableStore, activeSessions: IAgentSession[], unreadSessions: IAgentSession[]): void {
 		if (!this._container) {
@@ -400,15 +487,23 @@ export class AgentStatusWidget extends BaseActionViewItem {
 		const hasUnreadSessions = unreadSessions.length > 0;
 		const hasContent = hasActiveSessions || hasUnreadSessions;
 
+		// Auto-clear filter if the filtered category becomes empty
+		this._clearFilterIfCategoryEmpty(hasUnreadSessions, hasActiveSessions);
+
 		const badge = $('div.agent-status-badge');
+		this._container.appendChild(badge);
+
+		// When no notifications, hide the badge
 		if (!hasContent) {
 			badge.classList.add('empty');
+			return;
 		}
-		this._container.appendChild(badge);
 
 		// Unread section (blue dot + count)
 		if (hasUnreadSessions) {
 			const unreadSection = $('span.agent-status-badge-section.unread');
+			unreadSection.setAttribute('role', 'button');
+			unreadSection.tabIndex = 0;
 			const unreadIcon = $('span.agent-status-icon');
 			reset(unreadIcon, renderIcon(Codicon.circleFilled));
 			unreadSection.appendChild(unreadIcon);
@@ -416,11 +511,27 @@ export class AgentStatusWidget extends BaseActionViewItem {
 			unreadCount.textContent = String(unreadSessions.length);
 			unreadSection.appendChild(unreadCount);
 			badge.appendChild(unreadSection);
+
+			// Click handler - filter to unread sessions
+			disposables.add(addDisposableListener(unreadSection, EventType.CLICK, (e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				this._openSessionsWithFilter('unread');
+			}));
+			disposables.add(addDisposableListener(unreadSection, EventType.KEY_DOWN, (e) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault();
+					e.stopPropagation();
+					this._openSessionsWithFilter('unread');
+				}
+			}));
 		}
 
 		// In-progress section (session-in-progress icon + count)
 		if (hasActiveSessions) {
 			const activeSection = $('span.agent-status-badge-section.active');
+			activeSection.setAttribute('role', 'button');
+			activeSection.tabIndex = 0;
 			const runningIcon = $('span.agent-status-icon');
 			reset(runningIcon, renderIcon(Codicon.sessionInProgress));
 			activeSection.appendChild(runningIcon);
@@ -428,6 +539,20 @@ export class AgentStatusWidget extends BaseActionViewItem {
 			runningCount.textContent = String(activeSessions.length);
 			activeSection.appendChild(runningCount);
 			badge.appendChild(activeSection);
+
+			// Click handler - filter to in-progress sessions
+			disposables.add(addDisposableListener(activeSection, EventType.CLICK, (e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				this._openSessionsWithFilter('inProgress');
+			}));
+			disposables.add(addDisposableListener(activeSection, EventType.KEY_DOWN, (e) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault();
+					e.stopPropagation();
+					this._openSessionsWithFilter('inProgress');
+				}
+			}));
 		}
 
 		// Setup hover with combined tooltip
@@ -446,6 +571,116 @@ export class AgentStatusWidget extends BaseActionViewItem {
 			}
 			return parts.join(', ');
 		}));
+	}
+
+	/**
+	 * Clear the filter if the currently filtered category becomes empty.
+	 * For example, if filtered to "unread" but no unread sessions exist, clear the filter.
+	 */
+	private _clearFilterIfCategoryEmpty(hasUnreadSessions: boolean, hasActiveSessions: boolean): void {
+		const FILTER_STORAGE_KEY = 'agentSessions.filterExcludes.agentsessionsviewerfiltersubmenu';
+
+		const currentFilterStr = this.storageService.get(FILTER_STORAGE_KEY, StorageScope.PROFILE);
+		if (!currentFilterStr) {
+			return;
+		}
+
+		let currentFilter: { providers: string[]; states: AgentSessionStatus[]; archived: boolean; read: boolean } | undefined;
+		try {
+			currentFilter = JSON.parse(currentFilterStr);
+		} catch {
+			return;
+		}
+
+		if (!currentFilter) {
+			return;
+		}
+
+		// Detect if filtered to unread (read=true excludes read sessions, leaving only unread)
+		const isFilteredToUnread = currentFilter.read === true && currentFilter.states.length === 0;
+		// Detect if filtered to in-progress (2 excluded states = Completed + Failed)
+		const isFilteredToInProgress = currentFilter.states?.length === 2 && currentFilter.read === false;
+
+		// Clear filter if filtered category is now empty
+		if ((isFilteredToUnread && !hasUnreadSessions) || (isFilteredToInProgress && !hasActiveSessions)) {
+			const clearedFilter = {
+				providers: [],
+				states: [],
+				archived: true,
+				read: false
+			};
+			this.storageService.store(FILTER_STORAGE_KEY, JSON.stringify(clearedFilter), StorageScope.PROFILE, StorageTarget.USER);
+		}
+	}
+
+	/**
+	 * Opens the agent sessions view with a specific filter applied, or clears filter if already applied.
+	 * @param filterType 'unread' to show only unread sessions, 'inProgress' to show only in-progress sessions
+	 */
+	private _openSessionsWithFilter(filterType: 'unread' | 'inProgress'): void {
+		const FILTER_STORAGE_KEY = 'agentSessions.filterExcludes.agentsessionsviewerfiltersubmenu';
+
+		// Check current filter to see if we should toggle off
+		const currentFilterStr = this.storageService.get(FILTER_STORAGE_KEY, StorageScope.PROFILE);
+		let currentFilter: { providers: string[]; states: AgentSessionStatus[]; archived: boolean; read: boolean } | undefined;
+		if (currentFilterStr) {
+			try {
+				currentFilter = JSON.parse(currentFilterStr);
+			} catch {
+				// Ignore parse errors
+			}
+		}
+
+		// Determine if the current filter matches what we're clicking
+		const isCurrentlyFilteredToUnread = currentFilter?.read === true && currentFilter.states.length === 0;
+		const isCurrentlyFilteredToInProgress = currentFilter?.states?.length === 2 && currentFilter.read === false;
+
+		// Build filter excludes based on filter type
+		let excludes: { providers: string[]; states: AgentSessionStatus[]; archived: boolean; read: boolean };
+
+		if (filterType === 'unread') {
+			if (isCurrentlyFilteredToUnread) {
+				// Toggle off - clear all filters
+				excludes = {
+					providers: [],
+					states: [],
+					archived: true,
+					read: false
+				};
+			} else {
+				// Exclude read sessions to show only unread
+				excludes = {
+					providers: [],
+					states: [],
+					archived: true,
+					read: true // exclude read sessions
+				};
+			}
+		} else {
+			if (isCurrentlyFilteredToInProgress) {
+				// Toggle off - clear all filters
+				excludes = {
+					providers: [],
+					states: [],
+					archived: true,
+					read: false
+				};
+			} else {
+				// Exclude Completed and Failed to show InProgress and NeedsInput
+				excludes = {
+					providers: [],
+					states: [AgentSessionStatus.Completed, AgentSessionStatus.Failed],
+					archived: true,
+					read: false
+				};
+			}
+		}
+
+		// Store the filter
+		this.storageService.store(FILTER_STORAGE_KEY, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+
+		// Open the sessions view
+		this.commandService.executeCommand(FocusAgentSessionsAction.id);
 	}
 
 	/**
@@ -593,4 +828,48 @@ export class AgentStatusWidget extends BaseActionViewItem {
 	}
 
 	// #endregion
+}
+
+/**
+ * Provides custom rendering for the agent status in the command center.
+ * Uses IActionViewItemService to render a custom AgentStatusWidget
+ * for the AgentsControlMenu submenu.
+ * Also adds a CSS class to the workbench when agent status is enabled.
+ */
+export class AgentTitleBarStatusRendering extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.agentStatus.rendering';
+
+	constructor(
+		@IActionViewItemService actionViewItemService: IActionViewItemService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IConfigurationService configurationService: IConfigurationService
+	) {
+		super();
+
+		this._register(actionViewItemService.register(MenuId.CommandCenter, MenuId.AgentsTitleBarControlMenu, (action, options) => {
+			if (!(action instanceof SubmenuItemAction)) {
+				return undefined;
+			}
+			return instantiationService.createInstance(AgentTitleBarStatusWidget, action, options);
+		}, undefined));
+
+		// Add/remove CSS class on workbench based on setting
+		// Also force enable command center when agent status is enabled
+		const updateClass = () => {
+			const enabled = configurationService.getValue<boolean>(ChatConfiguration.AgentStatusEnabled) === true;
+			mainWindow.document.body.classList.toggle('agent-status-enabled', enabled);
+
+			// Force enable command center when agent status is enabled
+			if (enabled && configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER) !== true) {
+				configurationService.updateValue(LayoutSettings.COMMAND_CENTER, true);
+			}
+		};
+		updateClass();
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.AgentStatusEnabled)) {
+				updateClass();
+			}
+		}));
+	}
 }
