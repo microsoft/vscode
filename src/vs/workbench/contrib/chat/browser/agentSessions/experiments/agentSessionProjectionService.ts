@@ -22,10 +22,11 @@ import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/
 import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
 import { IChatEditingService, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { IAgentTitleBarStatusService } from './agentTitleBarStatusService.js';
-import { ISessionOpenerParticipant, ISessionOpenOptions, sessionOpenerRegistry } from '../agentSessionsOpener.js';
-import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensions.js';
+import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { inAgentSessionProjection } from './agentSessionProjection.js';
 import { ChatConfiguration } from '../../../common/constants.js';
+import { ISessionOpenOptions, sessionOpenerRegistry } from '../agentSessionsOpener.js';
+import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensions.js';
 
 //#region Configuration
 
@@ -122,26 +123,6 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 
 		// Listen for editor close events to exit projection mode when all editors are closed
 		this._register(this.editorService.onDidCloseEditor(() => this._checkForEmptyEditors()));
-
-		// Register as a session opener participant to enter projection mode when sessions are opened
-		this._register(sessionOpenerRegistry.registerParticipant(this._createSessionOpenerParticipant()));
-	}
-
-	private _createSessionOpenerParticipant(): ISessionOpenerParticipant {
-		return {
-			handleOpenSession: async (_accessor: ServicesAccessor, session: IAgentSession, _openOptions?: ISessionOpenOptions): Promise<boolean> => {
-				// Only handle if projection mode is enabled
-				if (!this._isEnabled()) {
-					return false;
-				}
-
-				// Enter projection mode for the session
-				await this.enterProjection(session);
-
-				// Return true to indicate we handled the session (projection mode opens the chat itself)
-				return true;
-			}
-		};
 	}
 
 	private _isEnabled(): boolean {
@@ -344,6 +325,37 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 
 		// Start a new chat to clear the sidebar
 		await this.commandService.executeCommand(ACTION_ID_NEW_CHAT);
+	}
+}
+
+//#endregion
+
+//#region Agent Session Projection Opener Contribution
+
+export class AgentSessionProjectionOpenerContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.agentSessionProjectionOpener';
+
+	constructor(
+		@IAgentSessionProjectionService private readonly agentSessionProjectionService: IAgentSessionProjectionService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+	) {
+		super();
+
+		this._register(sessionOpenerRegistry.registerParticipant({
+			handleOpenSession: async (_accessor: ServicesAccessor, session: IAgentSession, _openOptions?: ISessionOpenOptions): Promise<boolean> => {
+				// Only handle if projection mode is enabled
+				if (this.configurationService.getValue<boolean>(ChatConfiguration.AgentSessionProjectionEnabled) !== true) {
+					return false;
+				}
+
+				// Enter projection mode for the session
+				await this.agentSessionProjectionService.enterProjection(session);
+
+				// Return true to indicate we handled the session (projection mode opens the chat itself)
+				return true;
+			}
+		}));
 	}
 }
 

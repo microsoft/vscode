@@ -5,7 +5,7 @@
 
 import { registerSingleton, InstantiationType } from '../../../../../../platform/instantiation/common/extensions.js';
 import { MenuId, MenuRegistry, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
-import { IAgentSessionProjectionService, AgentSessionProjectionService } from './agentSessionProjectionService.js';
+import { IAgentSessionProjectionService, AgentSessionProjectionService, AgentSessionProjectionOpenerContribution } from './agentSessionProjectionService.js';
 import { EnterAgentSessionProjectionAction, ExitAgentSessionProjectionAction, ToggleAgentStatusAction, ToggleAgentSessionProjectionAction } from './agentSessionProjectionActions.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
 import { AgentTitleBarStatusRendering } from './agentTitleBarStatusWidget.js';
@@ -25,6 +25,7 @@ registerAction2(ToggleAgentSessionProjectionAction);
 registerSingleton(IAgentSessionProjectionService, AgentSessionProjectionService, InstantiationType.Delayed);
 registerSingleton(IAgentTitleBarStatusService, AgentTitleBarStatusService, InstantiationType.Delayed);
 
+registerWorkbenchContribution2(AgentSessionProjectionOpenerContribution.ID, AgentSessionProjectionOpenerContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentTitleBarStatusRendering.ID, AgentTitleBarStatusRendering, WorkbenchPhase.AfterRestored);
 
 // Register Agent Status as a menu item in the command center (alongside the search box, not replacing it)
