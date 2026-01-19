@@ -847,7 +847,7 @@ export class AgentStatusRendering extends Disposable implements IWorkbenchContri
 	) {
 		super();
 
-		this._register(actionViewItemService.register(MenuId.CommandCenter, MenuId.AgentsControlMenu, (action, options) => {
+		this._register(actionViewItemService.register(MenuId.CommandCenter, MenuId.AgentsTitleBarControlMenu, (action, options) => {
 			if (!(action instanceof SubmenuItemAction)) {
 				return undefined;
 			}

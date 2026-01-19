@@ -29,7 +29,7 @@ registerWorkbenchContribution2(AgentStatusRendering.ID, AgentStatusRendering, Wo
 
 // Register Agent Status as a menu item in the command center (alongside the search box, not replacing it)
 MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
-	submenu: MenuId.AgentsControlMenu,
+	submenu: MenuId.AgentsTitleBarControlMenu,
 	title: localize('agentsControl', "Agents"),
 	icon: Codicon.chatSparkle,
 	when: ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`),
@@ -37,7 +37,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 });
 
 // Register a placeholder action to the submenu so it appears (required for submenus)
-MenuRegistry.appendMenuItem(MenuId.AgentsControlMenu, {
+MenuRegistry.appendMenuItem(MenuId.AgentsTitleBarControlMenu, {
 	command: {
 		id: 'workbench.action.chat.toggle',
 		title: localize('openChat', "Open Chat"),
