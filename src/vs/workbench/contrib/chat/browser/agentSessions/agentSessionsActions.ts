@@ -281,18 +281,30 @@ export class ArchiveAgentSessionSectionAction extends Action2 {
 			return;
 		}
 
+		const chatService = accessor.get(IChatService);
 		const dialogService = accessor.get(IDialogService);
 
-		const confirmed = await dialogService.confirm({
-			message: context.sessions.length === 1
-				? localize('archiveSectionSessions.confirmSingle', "Are you sure you want to archive 1 agent session from '{0}'?", context.label)
-				: localize('archiveSectionSessions.confirm', "Are you sure you want to archive {0} agent sessions from '{1}'?", context.sessions.length, context.label),
-			detail: localize('archiveSectionSessions.detail', "You can unarchive sessions later if needed from the sessions view."),
-			primaryButton: localize('archiveSectionSessions.archive', "Archive All")
-		});
+		// Count sessions with pending changes
+		let sessionsWithPendingChangesCount = 0;
+		for (const session of context.sessions) {
+			const chatModel = chatService.getSession(session.resource);
+			if (chatModel && shouldShowClearEditingSessionConfirmation(chatModel, { isArchiveAction: true })) {
+				sessionsWithPendingChangesCount++;
+			}
+		}
 
-		if (!confirmed.confirmed) {
-			return;
+		// If there are sessions with pending changes, ask for confirmation once
+		if (sessionsWithPendingChangesCount > 0) {
+			const confirmed = await dialogService.confirm({
+				message: sessionsWithPendingChangesCount === 1
+					? localize('archiveSectionWithPendingEdits', "One session has pending edits. Are you sure you want to archive?")
+					: localize('archiveSectionWithPendingEdits.plural', "{0} sessions have pending edits. Are you sure you want to archive?", sessionsWithPendingChangesCount),
+				primaryButton: localize('archiveSectionWithPendingEdits.archive', "Archive")
+			});
+
+			if (!confirmed.confirmed) {
+				return;
+			}
 		}
 
 		for (const session of context.sessions) {
@@ -324,19 +336,6 @@ export class UnarchiveAgentSessionSectionAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, context?: IAgentSessionSection): Promise<void> {
 		if (!context || !isAgentSessionSection(context)) {
-			return;
-		}
-
-		const dialogService = accessor.get(IDialogService);
-
-		const confirmed = await dialogService.confirm({
-			message: context.sessions.length === 1
-				? localize('unarchiveSectionSessions.confirmSingle', "Are you sure you want to unarchive 1 agent session?")
-				: localize('unarchiveSectionSessions.confirm', "Are you sure you want to unarchive {0} agent sessions?", context.sessions.length),
-			primaryButton: localize('unarchiveSectionSessions.unarchive', "Unarchive All")
-		});
-
-		if (!confirmed.confirmed) {
 			return;
 		}
 
