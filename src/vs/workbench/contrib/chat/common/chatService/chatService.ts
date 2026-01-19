@@ -282,6 +282,7 @@ export interface IChatAgentMarkdownContentWithVulnerability {
 export interface IChatCommandButton {
 	command: Command;
 	kind: 'command';
+	additionalCommands?: Command[]; // rendered as secondary buttons
 }
 
 export interface IChatMoveMessage {
@@ -386,6 +387,17 @@ export interface IChatTerminalToolInvocationData {
 		cwdLabel?: string;
 		/** The cd prefix to prepend back when user edits */
 		cdPrefix?: string;
+	};
+	/**
+	 * Overrides to apply to the presentation of the tool call only, but not actually change the
+	 * command that gets run. For example, python -c "print('hello')" can be presented as just
+	 * the Python code with Python syntax highlighting.
+	 */
+	presentationOverrides?: {
+		/** The command line to display in the UI */
+		commandLine: string;
+		/** The language for syntax highlighting */
+		language: string;
 	};
 	/** Message for model recommending the use of an alternative tool */
 	alternativeRecommendation?: string;
@@ -765,7 +777,6 @@ export interface IChatTodoListContent {
 	todoList: Array<{
 		id: string;
 		title: string;
-		description: string;
 		status: 'not-started' | 'in-progress' | 'completed';
 	}>;
 }

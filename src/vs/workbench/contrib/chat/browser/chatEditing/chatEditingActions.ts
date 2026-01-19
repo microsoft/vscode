@@ -58,11 +58,13 @@ export abstract class EditingSessionAction extends Action2 {
 	abstract runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: unknown[]): any;
 }
 
+export type EditingSessionActionContext = { editingSession?: IChatEditingSession; chatWidget: IChatWidget };
+
 /**
  * Resolve view title toolbar context. If none, return context from the lastFocusedWidget.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function getEditingSessionContext(accessor: ServicesAccessor, args: any[]): { editingSession?: IChatEditingSession; chatWidget: IChatWidget } | undefined {
+export function getEditingSessionContext(accessor: ServicesAccessor, args: any[]): EditingSessionActionContext | undefined {
 	const arg0 = args.at(0);
 	const context = isChatViewTitleActionContext(arg0) ? arg0 : undefined;
 
@@ -339,9 +341,10 @@ export class ViewAllSessionChangesAction extends Action2 {
 			return;
 		}
 
-		const resources = changes
-			.filter(d => d.originalUri)
-			.map(d => ({ originalUri: d.originalUri!, modifiedUri: d.modifiedUri }));
+		const resources = changes.map(d => ({
+			originalUri: d.originalUri,
+			modifiedUri: d.modifiedUri
+		}));
 
 		if (resources.length > 0) {
 			await commandService.executeCommand('_workbench.openMultiDiffEditor', {

@@ -1158,7 +1158,11 @@ async function openChatSession(accessor: ServicesAccessor, openOptions: NewChatS
 		switch (openOptions.position) {
 			case ChatSessionPosition.Sidebar: {
 				const view = await viewsService.openView(ChatViewId) as ChatViewPane;
-				await view.loadSession(resource);
+				if (openOptions.type === AgentSessionProviders.Local) {
+					await view.widget.clear();
+				} else {
+					await view.loadSession(resource);
+				}
 				view.focus();
 				break;
 			}

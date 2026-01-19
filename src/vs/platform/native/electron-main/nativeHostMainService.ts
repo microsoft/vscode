@@ -47,6 +47,7 @@ import { zip } from '../../../base/node/zip.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IProxyAuthService } from './auth.js';
 import { AuthInfo, Credentials, IRequestService } from '../../request/common/request.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { randomPath } from '../../../base/common/extpath.js';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
@@ -70,7 +71,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IRequestService private readonly requestService: IRequestService,
 		@IProxyAuthService private readonly proxyAuthService: IProxyAuthService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super();
 
@@ -118,6 +120,34 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			);
 
 			this.onDidResumeOS = Event.fromNodeEventEmitter(powerMonitor, 'resume');
+
+			// Telemetry for power events
+			type PowerEvent = {
+				readonly idleState: string;
+				readonly idleTime: number;
+				readonly thermalState: string;
+				readonly onBattery: boolean;
+			};
+			type PowerEventClassification = {
+				idleState: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The system idle state (active, idle, locked, unknown).' };
+				idleTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The system idle time in seconds.' };
+				thermalState: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The system thermal state (unknown, nominal, fair, serious, critical).' };
+				onBattery: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the system is running on battery power.' };
+				owner: 'chrmarti';
+				comment: 'Tracks OS power suspend and resume events for reliability insights.';
+			};
+			const getPowerEventData = (): PowerEvent => ({
+				idleState: powerMonitor.getSystemIdleState(60),
+				idleTime: powerMonitor.getSystemIdleTime(),
+				thermalState: powerMonitor.getCurrentThermalState(),
+				onBattery: powerMonitor.isOnBatteryPower()
+			});
+			this._register(Event.fromNodeEventEmitter(powerMonitor, 'suspend')(() => {
+				this.telemetryService.publicLog2<PowerEvent, PowerEventClassification>('power.suspend', getPowerEventData());
+			}));
+			this._register(Event.fromNodeEventEmitter(powerMonitor, 'resume')(() => {
+				this.telemetryService.publicLog2<PowerEvent, PowerEventClassification>('power.resume', getPowerEventData());
+			}));
 
 			this.onDidChangeColorScheme = this.themeMainService.onDidChangeColorScheme;
 
