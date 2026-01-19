@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
 import { match } from '../../../../../../../base/common/glob.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { basename, relativePath } from '../../../../../../../base/common/resources.js';
@@ -3090,6 +3090,221 @@ suite('PromptFilesLocator', () => {
 			);
 			await locator.disposeAsync();
 		});
+	});
+
+	suite('findAgentMDsInWorkspace', () => {
+		testT('finds AGENTS.md files using FileSearchProvider', async () => {
+			const locator = await createPromptsLocatorForAgentMD(
+				{},
+				['/Users/legomushroom/repos/workspace'],
+				[
+					{
+						path: '/Users/legomushroom/repos/workspace',
+						type: 'directory',
+						children: [
+							{
+								path: '/Users/legomushroom/repos/workspace/AGENTS.md',
+								type: 'file',
+								content: '# Root agents'
+							},
+							{
+								path: '/Users/legomushroom/repos/workspace/src',
+								type: 'directory',
+								children: [
+									{
+										path: '/Users/legomushroom/repos/workspace/src/AGENTS.md',
+										type: 'file',
+										content: '# Src agents'
+									}
+								]
+							}
+						]
+					}
+				],
+				true // has FileSearchProvider
+			);
+
+			const result = await locator.findAgentMDsInWorkspace(CancellationToken.None);
+			assertOutcome(
+				result,
+				[
+					'/Users/legomushroom/repos/workspace/AGENTS.md',
+					'/Users/legomushroom/repos/workspace/src/AGENTS.md'
+				],
+				'Must find all AGENTS.md files using search service.'
+			);
+			await locator.disposeAsync();
+		});
+
+		testT('finds AGENTS.md files using file service fallback', async () => {
+			const locator = await createPromptsLocatorForAgentMD(
+				{},
+				['/Users/legomushroom/repos/workspace'],
+				[
+					{
+						path: '/Users/legomushroom/repos/workspace',
+						type: 'directory',
+						children: [
+							{
+								path: '/Users/legomushroom/repos/workspace/AGENTS.md',
+								type: 'file',
+								content: '# Root agents'
+							},
+							{
+								path: '/Users/legomushroom/repos/workspace/src',
+								type: 'directory',
+								children: [
+									{
+										path: '/Users/legomushroom/repos/workspace/src/AGENTS.md',
+										type: 'file',
+										content: '# Src agents'
+									},
+									{
+										path: '/Users/legomushroom/repos/workspace/src/nested',
+										type: 'directory',
+										children: [
+											{
+												path: '/Users/legomushroom/repos/workspace/src/nested/AGENTS.md',
+												type: 'file',
+												content: '# Nested agents'
+											}
+										]
+									}
+								]
+							}
+						]
+					}
+				],
+				false // no FileSearchProvider - should use file service fallback
+			);
+
+			const result = await locator.findAgentMDsInWorkspace(CancellationToken.None);
+			assertOutcome(
+				result,
+				[
+					'/Users/legomushroom/repos/workspace/AGENTS.md',
+					'/Users/legomushroom/repos/workspace/src/AGENTS.md',
+					'/Users/legomushroom/repos/workspace/src/nested/AGENTS.md'
+				],
+				'Must find all AGENTS.md files using file service fallback.'
+			);
+			await locator.disposeAsync();
+		});
+
+		testT('handles cancellation token in file service fallback', async () => {
+			const locator = await createPromptsLocatorForAgentMD(
+				{},
+				['/Users/legomushroom/repos/workspace'],
+				[
+					{
+						path: '/Users/legomushroom/repos/workspace',
+						type: 'directory',
+						children: [
+							{
+								path: '/Users/legomushroom/repos/workspace/AGENTS.md',
+								type: 'file',
+								content: '# Root agents'
+							}
+						]
+					}
+				],
+				false // no FileSearchProvider
+			);
+
+			const source = new CancellationTokenSource();
+			// Cancel immediately
+			source.cancel();
+			const result = await locator.findAgentMDsInWorkspace(source.token);
+			assertOutcome(
+				result,
+				[],
+				'Must return empty array when cancelled.'
+			);
+			await locator.disposeAsync();
+		});
+
+		const createPromptsLocatorForAgentMD = async (
+			configValue: unknown,
+			workspaceFolderPaths: string[],
+			filesystem: IMockFolder[],
+			hasFileSearchProvider: boolean
+		) => {
+			const mockFs = instantiationService.createInstance(MockFilesystem, filesystem);
+			await mockFs.mock();
+
+			instantiationService.stub(IConfigurationService, mockConfigService(configValue));
+
+			const workspaceFolders = workspaceFolderPaths.map((path, index) => {
+				const uri = URI.file(path);
+
+				return new class extends mock<IWorkspaceFolder>() {
+					override uri = uri;
+					override name = basename(uri);
+					override index = index;
+				};
+			});
+			instantiationService.stub(IWorkspaceContextService, mockWorkspaceService(workspaceFolders));
+			instantiationService.stub(IWorkbenchEnvironmentService, {} as IWorkbenchEnvironmentService);
+			instantiationService.stub(IUserDataProfileService, new TestUserDataProfileService());
+			instantiationService.stub(ISearchService, {
+				schemeHasFileSearchProvider(scheme: string): boolean {
+					return hasFileSearchProvider;
+				},
+				async fileSearch(query: IFileQuery) {
+					if (!hasFileSearchProvider) {
+						throw new Error('FileSearchProvider not available');
+					}
+					// mock the search service
+					const fs = instantiationService.get(IFileService);
+					const findFilesInLocation = async (location: URI, results: URI[] = []) => {
+						try {
+							const resolve = await fs.resolve(location);
+							if (resolve.isFile) {
+								results.push(resolve.resource);
+							} else if (resolve.isDirectory && resolve.children) {
+								for (const child of resolve.children) {
+									await findFilesInLocation(child.resource, results);
+								}
+							}
+						} catch (error) {
+						}
+						return results;
+					};
+					const results: IFileMatch[] = [];
+					for (const folderQuery of query.folderQueries) {
+						const allFiles = await findFilesInLocation(folderQuery.folder);
+						for (const resource of allFiles) {
+							const pathInFolder = relativePath(folderQuery.folder, resource) ?? '';
+							if (query.filePattern === undefined || match(query.filePattern, pathInFolder)) {
+								results.push({ resource });
+							}
+						}
+
+					}
+					return { results, messages: [] };
+				}
+			});
+			instantiationService.stub(IPathService, {
+				userHome(options?: { preferLocal: boolean }): URI | Promise<URI> {
+					const uri = URI.file('/Users/legomushroom');
+					if (options?.preferLocal) {
+						return uri;
+					}
+					return Promise.resolve(uri);
+				}
+			} as IPathService);
+
+			const locator = instantiationService.createInstance(PromptFilesLocator);
+
+			return {
+				async findAgentMDsInWorkspace(token: CancellationToken): Promise<URI[]> {
+					return locator.findAgentMDsInWorkspace(token);
+				},
+				async disposeAsync(): Promise<void> {
+					await mockFs.delete();
+				}
+			};
+		};
 	});
 });
 
