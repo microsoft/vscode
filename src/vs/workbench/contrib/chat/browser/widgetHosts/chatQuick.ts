@@ -9,7 +9,7 @@ import { disposableTimeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../base/common/observable.js';
+import { autorun, autorunDelta, derived } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Selection } from '../../../../../editor/common/core/selection.js';
 import { localize } from '../../../../../nls.js';
@@ -319,20 +319,17 @@ class QuickChat extends Disposable {
 		}));
 
 		// Mark session as read when a request completes while quick chat is visible
-		let wasInProgress = false;
-		this._register(autorun(reader => {
-			const model = this.modelRef?.object;
-			const inProgress = model?.requestInProgress.read(reader) ?? false;
-
+		const requestInProgressObs = derived(this, reader => {
+			return this.modelRef?.object?.requestInProgress.read(reader) ?? false;
+		});
+		this._register(autorunDelta(requestInProgressObs, ({ lastValue, newValue }) => {
 			// When request transitions from in-progress to completed while visible
-			if (wasInProgress && !inProgress && this.widget.visible) {
+			if (lastValue && !newValue && this.widget.visible) {
 				const sessionResource = this.sessionResource;
 				if (sessionResource) {
 					this.agentSessionsService.model.getSession(sessionResource)?.setRead(true);
 				}
 			}
-
-			wasInProgress = inProgress;
 		}));
 	}
 
