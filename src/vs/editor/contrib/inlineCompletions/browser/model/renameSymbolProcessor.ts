@@ -45,6 +45,26 @@ namespace RenameKind {
 	}
 }
 
+export namespace PrepareNesRenameResult {
+	export type Yes = {
+		canRename: RenameKind.yes;
+		oldName: string;
+		onOldState: boolean;
+	};
+	export type Maybe = {
+		canRename: RenameKind.maybe;
+		oldName: string;
+		onOldState: boolean;
+	};
+	export type No = {
+		canRename: RenameKind.no;
+		timedOut: boolean;
+		reason?: string;
+	};
+}
+
+export type PrepareNesRenameResult = PrepareNesRenameResult.Yes | PrepareNesRenameResult.Maybe | PrepareNesRenameResult.No;
+
 export type RenameEdits = {
 	renames: { edits: TextReplacement[]; position: Position; oldName: string; newName: string };
 	others: { edits: TextReplacement[] };
@@ -383,7 +403,7 @@ export class RenameSymbolProcessor extends Disposable {
 
 		// Check asynchronously if a rename is possible
 		let timedOut = false;
-		const check = await raceTimeout<RenameKind>(this.checkRenamePrecondition(suggestItem, textModel, position, oldName, newName, lastSymbolRename), 100, () => { timedOut = true; });
+		const check = await raceTimeout<PrepareNesRenameResult>(this.checkRenamePrecondition(suggestItem, textModel, position, oldName, newName, lastSymbolRename), 100, () => { timedOut = true; });
 		const renamePossible = this.isRenamePossible(suggestItem, check);
 
 		suggestItem.setRenameProcessingInfo({
@@ -434,21 +454,36 @@ export class RenameSymbolProcessor extends Disposable {
 		return InlineSuggestionItem.create(suggestItem.withAction(renameAction), textModel, false);
 	}
 
-	private async checkRenamePrecondition(suggestItem: InlineSuggestionItem, textModel: ITextModel, position: Position, oldName: string, newName: string, lastSymbolRename: IRange | undefined): Promise<RenameKind> {
+	private async checkRenamePrecondition(suggestItem: InlineSuggestionItem, textModel: ITextModel, position: Position, oldName: string, newName: string, lastSymbolRename: IRange | undefined): Promise<PrepareNesRenameResult> {
+		const no: PrepareNesRenameResult.No = { canRename: RenameKind.no, timedOut: false };
 		try {
-			const result = await this._commandService.executeCommand<RenameKind>('github.copilot.nes.prepareRename', textModel.uri, position, oldName, newName, lastSymbolRename, suggestItem.requestUuid);
+			const result = await this._commandService.executeCommand<RenameKind | PrepareNesRenameResult>('github.copilot.nes.prepareRename', textModel.uri, position, oldName, newName, lastSymbolRename, suggestItem.requestUuid);
 			if (result === undefined) {
-				return RenameKind.no;
+				return no;
+			} else if (typeof result === 'string') {
+				const canRename = RenameKind.fromString(result);
+				if (canRename === RenameKind.yes || canRename === RenameKind.maybe) {
+					return {
+						canRename,
+						oldName,
+						onOldState: false,
+					};
+				} else {
+					return {
+						canRename,
+						timedOut: false,
+					};
+				}
 			} else {
-				return RenameKind.fromString(result);
+				return result;
 			}
 		} catch (error) {
-			return RenameKind.no;
+			return no;
 		}
 	}
 
-	private isRenamePossible(suggestItem: InlineSuggestionItem, check: RenameKind | undefined): boolean {
-		if (check === undefined || check === RenameKind.no) {
+	private isRenamePossible(suggestItem: InlineSuggestionItem, check: PrepareNesRenameResult | undefined): boolean {
+		if (check === undefined || check.canRename === RenameKind.no) {
 			return false;
 		}
 		if (this._renameRunnable === undefined) {
