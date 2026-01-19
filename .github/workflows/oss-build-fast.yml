@@ -9,6 +9,9 @@ name: Code OSS Fast Build
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - copilot/add-github-actions-workflow
 
 permissions: {}
 
