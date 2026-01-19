@@ -6,7 +6,7 @@
 import './media/agentsessionsviewer.css';
 import { h } from '../../../../../base/browser/dom.js';
 import { localize } from '../../../../../nls.js';
-import { IIdentityProvider, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
+import { IIdentityProvider, IListVirtualDelegate, NotSelectableGroupId, NotSelectableGroupIdType } from '../../../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
 import { ITreeCompressionDelegate } from '../../../../../base/browser/ui/tree/asyncDataTree.js';
 import { ICompressedTreeNode } from '../../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
@@ -763,6 +763,13 @@ export class AgentSessionsIdentityProvider implements IIdentityProvider<IAgentSe
 		}
 
 		return 'agent-sessions-id';
+	}
+
+	getGroupId(element: IAgentSessionsModel | AgentSessionListItem): number | NotSelectableGroupIdType {
+		if (isAgentSessionSection(element) || isAgentSessionsModel(element)) {
+			return NotSelectableGroupId;
+		}
+		return 1;
 	}
 }
 

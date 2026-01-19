@@ -47,7 +47,7 @@ import { IChatModelReference, IChatService } from '../../../common/chatService/c
 import { IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { LocalChatSessionUri, getChatSessionType } from '../../../common/model/chatUri.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
-import { AgentSessionsControl, AgentSessionsControlSource } from '../../agentSessions/agentSessionsControl.js';
+import { AgentSessionsControl } from '../../agentSessions/agentSessionsControl.js';
 import { AgentSessionsListDelegate } from '../../agentSessions/agentSessionsViewer.js';
 import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
 import { ChatWidget } from '../../widget/chatWidget.js';
@@ -56,6 +56,7 @@ import { IWorkbenchLayoutService, LayoutSettings, Position } from '../../../../.
 import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from '../../agentSessions/agentSessions.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { ChatViewId } from '../../chat.js';
+import { IActivityService, ProgressBadge } from '../../../../../services/activity/common/activity.js';
 import { disposableTimeout } from '../../../../../../base/common/async.js';
 import { AgentSessionsFilter } from '../../agentSessions/agentSessionsFilter.js';
 import { IAgentSessionsService } from '../../agentSessions/agentSessionsService.js';
@@ -90,6 +91,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private restoringSession: Promise<void> | undefined;
 	private readonly modelRef = this._register(new MutableDisposable<IChatModelReference>());
 
+	private readonly activityBadge = this._register(new MutableDisposable());
+
 	constructor(
 		options: IViewPaneOptions,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -113,6 +116,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IActivityService private readonly activityService: IActivityService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -394,7 +398,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// Sessions Control
 		this.sessionsControlContainer = append(sessionsContainer, $('.agent-sessions-control-container'));
 		const sessionsControl = this.sessionsControl = this._register(this.instantiationService.createInstance(AgentSessionsControl, this.sessionsControlContainer, {
-			source: AgentSessionsControlSource.ChatViewPane,
+			source: 'chatViewPane',
 			filter: sessionsFilter,
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			getHoverPosition: () => {
@@ -656,6 +660,29 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				this.relayout();
 			}
 		}));
+
+		// Show progress badge when the current session is in progress
+		const progressBadgeDisposables = this._register(new MutableDisposable<DisposableStore>());
+		const updateProgressBadge = () => {
+			progressBadgeDisposables.value = new DisposableStore();
+
+			const model = chatWidget.viewModel?.model;
+			if (model) {
+				progressBadgeDisposables.value.add(autorun(reader => {
+					if (model.requestInProgress.read(reader)) {
+						this.activityBadge.value = this.activityService.showViewActivity(this.id, {
+							badge: new ProgressBadge(() => localize('sessionInProgress', "Agent Session in Progress"))
+						});
+					} else {
+						this.activityBadge.clear();
+					}
+				}));
+			} else {
+				this.activityBadge.clear();
+			}
+		};
+		this._register(chatWidget.onDidChangeViewModel(() => updateProgressBadge()));
+		updateProgressBadge();
 	}
 
 	private setupContextMenu(parent: HTMLElement): void {

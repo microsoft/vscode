@@ -42,6 +42,16 @@ export interface ISessionTypePickerDelegate {
 	 */
 	setActiveSessionProvider?(provider: AgentSessionProviders): void;
 	/**
+	 * Optional getter for the pending delegation target - the target that will be used when submit is pressed.
+	 */
+	getPendingDelegationTarget?(): AgentSessionProviders | undefined;
+	/**
+	 * Optional setter for the pending delegation target.
+	 * When a user selects a different session provider in a non-empty chat,
+	 * this stores the target for delegation on the next submit instead of immediately creating a new session.
+	 */
+	setPendingDelegationTarget?(provider: AgentSessionProviders): void;
+	/**
 	 * Optional event that fires when the active session provider changes.
 	 * When provided, listeners (like chatInputPart) can react to session type changes
 	 * and update pickers accordingly.

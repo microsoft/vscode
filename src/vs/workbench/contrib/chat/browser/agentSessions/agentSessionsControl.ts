@@ -33,19 +33,17 @@ import { openSession } from './agentSessionsOpener.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { IMouseEvent } from '../../../../../base/browser/mouseEvent.js';
+import { IChatWidget } from '../chat.js';
 
 export interface IAgentSessionsControlOptions extends IAgentSessionsSorterOptions {
 	readonly overrideStyles: IStyleOverride<IListStyles>;
 	readonly filter: IAgentSessionsFilter;
-	readonly source: AgentSessionsControlSource;
+	readonly source: string;
 
 	getHoverPosition(): HoverPosition;
 	trackActiveEditorSession(): boolean;
-}
 
-export const enum AgentSessionsControlSource {
-	ChatViewPane = 'chatViewPane',
-	WelcomeView = 'welcomeView'
+	notifySessionOpened?(resource: URI, widget: IChatWidget): void;
 }
 
 type AgentSessionOpenedClassification = {
@@ -57,12 +55,14 @@ type AgentSessionOpenedClassification = {
 
 type AgentSessionOpenedEvent = {
 	providerType: string;
-	source: AgentSessionsControlSource;
+	source: string;
 };
 
 export class AgentSessionsControl extends Disposable implements IAgentSessionsControl {
 
 	private sessionsContainer: HTMLElement | undefined;
+	get element(): HTMLElement | undefined { return this.sessionsContainer; }
+
 	private sessionsList: WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, AgentSessionListItem, FuzzyScore> | undefined;
 
 	private visible: boolean = true;
@@ -213,7 +213,10 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			source: this.options.source
 		});
 
-		await this.instantiationService.invokeFunction(openSession, element, { ...e, expanded: this.options.source === AgentSessionsControlSource.WelcomeView });
+		const widget = await this.instantiationService.invokeFunction(openSession, element, e);
+		if (widget) {
+			this.options.notifySessionOpened?.(element.resource, widget);
+		}
 	}
 
 	private async showContextMenu({ element, anchor, browserEvent }: ITreeContextMenuEvent<AgentSessionListItem>): Promise<void> {
@@ -357,11 +360,5 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 		this.sessionsList.setFocus([session]);
 		this.sessionsList.setSelection([session]);
-	}
-
-	setGridMarginOffset(offset: number): void {
-		if (this.sessionsContainer) {
-			this.sessionsContainer.style.marginBottom = `-${offset}px`;
-		}
 	}
 }

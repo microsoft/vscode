@@ -3,10 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* ========================================
-Agent Status Widget - Titlebar control
-======================================== */
-
 /* Hide command center search box when agent status enabled */
 .agent-status-enabled .command-center .action-item.command-center-center {
 	display: none !important;

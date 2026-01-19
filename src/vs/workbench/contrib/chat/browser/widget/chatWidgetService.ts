@@ -19,7 +19,6 @@ import { ChatViewId, ChatViewPaneTarget, IChatWidget, IChatWidgetService, IQuick
 import { ChatEditor, IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
-import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 
 export class ChatWidgetService extends Disposable implements IChatWidgetService {
 
@@ -41,7 +40,6 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 		@ILayoutService private readonly layoutService: ILayoutService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IChatService private readonly chatService: IChatService,
-		@IWorkbenchLayoutService private readonly workbenchLayoutService: IWorkbenchLayoutService,
 	) {
 		super();
 	}
@@ -117,9 +115,6 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 				await chatView.loadSession(sessionResource);
 				if (!options?.preserveFocus) {
 					chatView.focusInput();
-				}
-				if (options?.expanded) {
-					this.workbenchLayoutService.setAuxiliaryBarMaximized(true);
 				}
 			}
 			return chatView?.widget;

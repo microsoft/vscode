@@ -27,7 +27,6 @@ export interface IEntitlementsData extends ILegacyQuotaSnapshotData {
 	readonly access_type_sku: string;
 	readonly assigned_date: string;
 	readonly can_signup_for_limited: boolean;
-	readonly chat_enabled: boolean;
 	readonly copilot_plan: string;
 	readonly organization_login_list: string[];
 	readonly analytics_tracking_id: string;
