@@ -64,6 +64,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 	get element(): HTMLElement | undefined { return this.sessionsContainer; }
 
 	private sessionsList: WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, AgentSessionListItem, FuzzyScore> | undefined;
+	private sessionsListFindIsOpen = false;
 
 	private visible: boolean = true;
 
@@ -200,6 +201,12 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			const selection = list.getSelection().filter(isAgentSession);
 			this.hasMultipleAgentSessionsSelectedContextKey.set(selection.length > 1);
 		}));
+
+		this._register(list.onDidChangeFindOpenState(open => {
+			this.sessionsListFindIsOpen = open;
+
+			this.updateArchivedSectionCollapseState();
+		}));
 	}
 
 	private async openAgentSession(e: IOpenEvent<AgentSessionListItem | undefined>): Promise<void> {
@@ -289,7 +296,10 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				continue;
 			}
 
-			const shouldCollapseArchived = this.options.filter.getExcludes().archived;
+			const shouldCollapseArchived =
+				!this.sessionsListFindIsOpen &&				// always expand when find is open
+				this.options.filter.getExcludes().archived;	// always expand when archived are included in filter
+
 			if (shouldCollapseArchived && !child.collapsed) {
 				this.sessionsList.collapse(child.element);
 			} else if (!shouldCollapseArchived && child.collapsed) {
