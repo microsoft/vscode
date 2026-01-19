@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
+import { Event } from '../../../../../../../base/common/event.js';
 import { match } from '../../../../../../../base/common/glob.js';
 import { ResourceSet } from '../../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
@@ -32,6 +33,7 @@ import { testWorkspace } from '../../../../../../../platform/workspace/test/comm
 import { IWorkbenchEnvironmentService } from '../../../../../../services/environment/common/environmentService.js';
 import { IFilesConfigurationService } from '../../../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { IUserDataProfileService } from '../../../../../../services/userDataProfile/common/userDataProfile.js';
+import { toUserDataProfile } from '../../../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { TestContextService, TestUserDataProfileService } from '../../../../../../test/common/workbenchTestServices.js';
 import { ChatRequestVariableSet, isPromptFileVariableEntry, toFileVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { ComputeAutomaticInstructions, newInstructionsCollectionEvent } from '../../../../common/promptSyntax/computeAutomaticInstructions.js';
@@ -45,8 +47,6 @@ import { InMemoryStorageService, IStorageService } from '../../../../../../../pl
 import { IPathService } from '../../../../../../services/path/common/pathService.js';
 import { IFileMatch, IFileQuery, ISearchService } from '../../../../../../services/search/common/search.js';
 import { IExtensionService } from '../../../../../../services/extensions/common/extensions.js';
-import { IDefaultAccountService } from '../../../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { IDefaultAccount } from '../../../../../../../base/common/defaultAccount.js';
 
 suite('PromptsService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -80,10 +80,6 @@ suite('PromptsService', () => {
 		instaService.stub(IExtensionService, {
 			whenInstalledExtensionsRegistered: () => Promise.resolve(true),
 			activateByEvent: () => Promise.resolve()
-		});
-
-		instaService.stub(IDefaultAccountService, {
-			getDefaultAccount: () => Promise.resolve({ chat_preview_features_enabled: true } as IDefaultAccount)
 		});
 
 		fileService = disposables.add(instaService.createInstance(FileService));
@@ -1100,7 +1096,7 @@ suite('PromptsService', () => {
 			);
 		});
 
-		test('header with agents, skills, and instructions', async () => {
+		test('header with agents', async () => {
 			const rootFolderName = 'custom-agents-with-restrictions';
 			const rootFolder = `/${rootFolderName}`;
 			const rootFolderUri = URI.file(rootFolder);
@@ -1114,8 +1110,6 @@ suite('PromptsService', () => {
 						'---',
 						'description: \'Agent with restricted access.\'',
 						'agents: [ subagent1, subagent2 ]',
-						'skills: [ skill1, skill2, skill3 ]',
-						'instructions: [ instruction1 ]',
 						'tools: [ tool1 ]',
 						'---',
 						'This agent has restricted access.',
@@ -1127,8 +1121,6 @@ suite('PromptsService', () => {
 						'---',
 						'description: \'Agent with no access to subagents, skills, or instructions.\'',
 						'agents: []',
-						'skills: []',
-						'instructions: []',
 						'---',
 						'This agent has no access.',
 					]
@@ -1139,8 +1131,6 @@ suite('PromptsService', () => {
 						'---',
 						'description: \'Agent with full access.\'',
 						'agents: [ "*" ]',
-						'skills: [ "*" ]',
-						'instructions: [ "*" ]',
 						'---',
 						'This agent has full access.',
 					]
@@ -1211,9 +1201,221 @@ suite('PromptsService', () => {
 				'Must get custom agents with agents, skills, and instructions attributes.',
 			);
 		});
+
+		test('agents from user data folder', async () => {
+			const rootFolderName = 'custom-agents-user-data';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			const userPromptsFolder = '/user-data/prompts';
+			const userPromptsFolderUri = URI.file(userPromptsFolder);
+
+			// Override the user data profile service to use a file:// URI that the InMemoryFileSystemProvider supports
+			const customUserDataProfileService = {
+				_serviceBrand: undefined,
+				onDidChangeCurrentProfile: Event.None,
+				currentProfile: {
+					...toUserDataProfile('test', 'test', URI.file(userPromptsFolder).with({ path: '/user-data' }), URI.file('/cache')),
+					promptsHome: userPromptsFolderUri,
+				},
+				updateCurrentProfile: async () => { }
+			};
+			instaService.stub(IUserDataProfileService, customUserDataProfileService);
+
+			// Recreate the service with the new stub
+			const testService = disposables.add(instaService.createInstance(PromptsService));
+
+			// Create agent files in both workspace and user data folder
+			await mockFiles(fileService, [
+				// Workspace agent
+				{
+					path: `${rootFolder}/.github/agents/workspace-agent.agent.md`,
+					contents: [
+						'---',
+						'description: \'Workspace agent.\'',
+						'---',
+						'I am a workspace agent.',
+					]
+				},
+				// User data agent
+				{
+					path: `${userPromptsFolder}/user-agent.agent.md`,
+					contents: [
+						'---',
+						'description: \'User data agent.\'',
+						'tools: [ user-tool ]',
+						'---',
+						'I am a user data agent.',
+					]
+				},
+				// Another user data agent without header
+				{
+					path: `${userPromptsFolder}/simple-user-agent.agent.md`,
+					contents: [
+						'A simple user agent without header.',
+					]
+				}
+			]);
+
+			const result = (await testService.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
+
+			// Should find agents from both workspace and user data
+			assert.strictEqual(result.length, 3, 'Should find 3 agents (1 workspace + 2 user data)');
+
+			const workspaceAgent = result.find(a => a.source.storage === PromptsStorage.local);
+			assert.ok(workspaceAgent, 'Should find workspace agent');
+			assert.strictEqual(workspaceAgent.name, 'workspace-agent');
+			assert.strictEqual(workspaceAgent.description, 'Workspace agent.');
+
+			const userAgents = result.filter(a => a.source.storage === PromptsStorage.user);
+			assert.strictEqual(userAgents.length, 2, 'Should find 2 user data agents');
+
+			const userAgentWithHeader = userAgents.find(a => a.name === 'user-agent');
+			assert.ok(userAgentWithHeader, 'Should find user agent with header');
+			assert.strictEqual(userAgentWithHeader.description, 'User data agent.');
+			assert.deepStrictEqual(userAgentWithHeader.tools, ['user-tool']);
+
+			const simpleUserAgent = userAgents.find(a => a.name === 'simple-user-agent');
+			assert.ok(simpleUserAgent, 'Should find simple user agent');
+			assert.strictEqual(simpleUserAgent.agentInstructions.content, 'A simple user agent without header.');
+		});
 	});
 
-	suite('listPromptFiles - skills', () => {
+	suite('listPromptFiles - prompts', () => {
+		test('prompts from user data folder', async () => {
+			const rootFolderName = 'prompts-user-data';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			const userPromptsFolder = '/user-data/prompts';
+			const userPromptsFolderUri = URI.file(userPromptsFolder);
+
+			// Override the user data profile service
+			const customUserDataProfileService = {
+				_serviceBrand: undefined,
+				onDidChangeCurrentProfile: Event.None,
+				currentProfile: {
+					...toUserDataProfile('test', 'test', URI.file(userPromptsFolder).with({ path: '/user-data' }), URI.file('/cache')),
+					promptsHome: userPromptsFolderUri,
+				},
+				updateCurrentProfile: async () => { }
+			};
+			instaService.stub(IUserDataProfileService, customUserDataProfileService);
+
+			// Recreate the service with the new stub
+			const testService = disposables.add(instaService.createInstance(PromptsService));
+
+			// Create prompt files in both workspace and user data folder
+			await mockFiles(fileService, [
+				// Workspace prompt
+				{
+					path: `${rootFolder}/.github/prompts/workspace-prompt.prompt.md`,
+					contents: [
+						'---',
+						'description: \'Workspace prompt.\'',
+						'---',
+						'I am a workspace prompt.',
+					]
+				},
+				// User data prompt
+				{
+					path: `${userPromptsFolder}/user-prompt.prompt.md`,
+					contents: [
+						'---',
+						'description: \'User data prompt.\'',
+						'---',
+						'I am a user data prompt.',
+					]
+				}
+			]);
+
+			const result = await testService.listPromptFiles(PromptsType.prompt, CancellationToken.None);
+
+			// Should find prompts from both workspace and user data
+			assert.strictEqual(result.length, 2, 'Should find 2 prompts (1 workspace + 1 user data)');
+
+			const workspacePrompt = result.find(p => p.storage === PromptsStorage.local);
+			assert.ok(workspacePrompt, 'Should find workspace prompt');
+			assert.ok(workspacePrompt.uri.path.includes('workspace-prompt.prompt.md'));
+
+			const userPrompt = result.find(p => p.storage === PromptsStorage.user);
+			assert.ok(userPrompt, 'Should find user data prompt');
+			assert.ok(userPrompt.uri.path.includes('user-prompt.prompt.md'));
+		});
+	});
+
+	suite('listPromptFiles - instructions', () => {
+		test('instructions from user data folder', async () => {
+			const rootFolderName = 'instructions-user-data';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			const userPromptsFolder = '/user-data/prompts';
+			const userPromptsFolderUri = URI.file(userPromptsFolder);
+
+			// Override the user data profile service
+			const customUserDataProfileService = {
+				_serviceBrand: undefined,
+				onDidChangeCurrentProfile: Event.None,
+				currentProfile: {
+					...toUserDataProfile('test', 'test', URI.file(userPromptsFolder).with({ path: '/user-data' }), URI.file('/cache')),
+					promptsHome: userPromptsFolderUri,
+				},
+				updateCurrentProfile: async () => { }
+			};
+			instaService.stub(IUserDataProfileService, customUserDataProfileService);
+
+			// Recreate the service with the new stub
+			const testService = disposables.add(instaService.createInstance(PromptsService));
+
+			// Create instructions files in both workspace and user data folder
+			await mockFiles(fileService, [
+				// Workspace instructions
+				{
+					path: `${rootFolder}/.github/instructions/workspace-instructions.instructions.md`,
+					contents: [
+						'---',
+						'description: \'Workspace instructions.\'',
+						'applyTo: "**/*.ts"',
+						'---',
+						'I am workspace instructions.',
+					]
+				},
+				// User data instructions
+				{
+					path: `${userPromptsFolder}/user-instructions.instructions.md`,
+					contents: [
+						'---',
+						'description: \'User data instructions.\'',
+						'applyTo: "**/*.tsx"',
+						'---',
+						'I am user data instructions.',
+					]
+				}
+			]);
+
+			const result = await testService.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+
+			// Should find instructions from both workspace and user data
+			assert.strictEqual(result.length, 2, 'Should find 2 instructions (1 workspace + 1 user data)');
+
+			const workspaceInstructions = result.find(p => p.storage === PromptsStorage.local);
+			assert.ok(workspaceInstructions, 'Should find workspace instructions');
+			assert.ok(workspaceInstructions.uri.path.includes('workspace-instructions.instructions.md'));
+
+			const userInstructions = result.find(p => p.storage === PromptsStorage.user);
+			assert.ok(userInstructions, 'Should find user data instructions');
+			assert.ok(userInstructions.uri.path.includes('user-instructions.instructions.md'));
+		});
+	});
+
+	suite('listPromptFiles - skills ', () => {
 		teardown(() => {
 			sinon.restore();
 		});
@@ -2006,42 +2208,6 @@ suite('PromptsService', () => {
 
 			const result = await service.findAgentSkills(CancellationToken.None);
 			assert.strictEqual(result, undefined);
-		});
-
-		test('should return undefined when chat_preview_features_enabled is false', async () => {
-			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
-			instaService.stub(IDefaultAccountService, {
-				getDefaultAccount: () => Promise.resolve({ chat_preview_features_enabled: false } as IDefaultAccount)
-			});
-
-			// Recreate service with new stub
-			service = disposables.add(instaService.createInstance(PromptsService));
-
-			const result = await service.findAgentSkills(CancellationToken.None);
-			assert.strictEqual(result, undefined);
-
-			// Restore default stub for other tests
-			instaService.stub(IDefaultAccountService, {
-				getDefaultAccount: () => Promise.resolve({ chat_preview_features_enabled: true } as IDefaultAccount)
-			});
-		});
-
-		test('should return undefined when USE_AGENT_SKILLS is enabled but chat_preview_features_enabled is false', async () => {
-			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
-			instaService.stub(IDefaultAccountService, {
-				getDefaultAccount: () => Promise.resolve({ chat_preview_features_enabled: false } as IDefaultAccount)
-			});
-
-			// Recreate service with new stub
-			service = disposables.add(instaService.createInstance(PromptsService));
-
-			const result = await service.findAgentSkills(CancellationToken.None);
-			assert.strictEqual(result, undefined);
-
-			// Restore default stub for other tests
-			instaService.stub(IDefaultAccountService, {
-				getDefaultAccount: () => Promise.resolve({ chat_preview_features_enabled: true } as IDefaultAccount)
-			});
 		});
 
 		test('should find skills in workspace and user home', async () => {

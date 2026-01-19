@@ -1940,6 +1940,28 @@ export class DragAndDropObserver extends Disposable {
 	}
 }
 
+/**
+ * A wrapper around ResizeObserver that is disposable.
+ */
+export class DisposableResizeObserver extends Disposable {
+
+	private readonly observer: ResizeObserver;
+
+	constructor(callback: ResizeObserverCallback) {
+		super();
+		this.observer = new ResizeObserver(callback);
+		this._register(toDisposable(() => this.observer.disconnect()));
+	}
+
+	observe(target: Element, options?: ResizeObserverOptions): void {
+		this.observer.observe(target, options);
+	}
+
+	unobserve(target: Element): void {
+		this.observer.unobserve(target);
+	}
+}
+
 type HTMLElementAttributeKeys<T> = Partial<{ [K in keyof T]: T[K] extends Function ? never : T[K] extends object ? HTMLElementAttributeKeys<T[K]> : T[K] }>;
 type ElementAttributes<T> = HTMLElementAttributeKeys<T> & Record<string, any>;
 type RemoveHTMLElement<T> = T extends HTMLElement ? never : T;
