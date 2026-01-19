@@ -339,9 +339,10 @@ export class ViewAllSessionChangesAction extends Action2 {
 			return;
 		}
 
-		const resources = changes
-			.filter(d => d.originalUri)
-			.map(d => ({ originalUri: d.originalUri!, modifiedUri: d.modifiedUri }));
+		const resources = changes.map(d => ({
+			originalUri: d.originalUri,
+			modifiedUri: d.modifiedUri
+		}));
 
 		if (resources.length > 0) {
 			await commandService.executeCommand('_workbench.openMultiDiffEditor', {
