@@ -79,6 +79,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	readonly vscodeToolSet: ToolSet;
 	readonly executeToolSet: ToolSet;
 	readonly readToolSet: ToolSet;
+	readonly agentToolSet: ToolSet;
 
 	private readonly _onDidChangeTools = this._register(new Emitter<void>());
 	readonly onDidChangeTools = this._onDidChangeTools.event;
@@ -170,6 +171,17 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			{
 				icon: ThemeIcon.fromId(Codicon.book.id),
 				description: localize('copilot.toolSet.read.description', 'Read files in your workspace'),
+			}
+		));
+
+		// Create the internal Agent tool set
+		this.agentToolSet = this._register(this.createToolSet(
+			ToolDataSource.Internal,
+			'agent',
+			SpecedToolAliases.agent,
+			{
+				icon: ThemeIcon.fromId(Codicon.agent.id),
+				description: localize('copilot.toolSet.agent.description', 'Delegate tasks to other agents'),
 			}
 		));
 	}
