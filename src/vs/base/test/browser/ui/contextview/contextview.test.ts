@@ -27,5 +27,11 @@ suite('Contextview', function () {
 		assert.strictEqual(layout(200, 20, { offset: 150, size: 50, position: LayoutAnchorPosition.After }), 130);
 	});
 
+	test('layout large hover', () => {
+		// When the view is large and almost fits on the preferred side, we should prefer to shift it
+		// rather than flip it to the other side which might be far away.
+		assert.strictEqual(layout(1084, 306, { offset: 296, size: 2, position: LayoutAnchorPosition.After }), 0);
+	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 });

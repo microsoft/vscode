@@ -92,7 +92,8 @@ export const enum LayoutAnchorPosition {
 
 export enum LayoutAnchorMode {
 	AVOID,
-	ALIGN
+	ALIGN,
+	OVERLAP_OKAY
 }
 
 export interface ILayoutAnchor {
@@ -116,7 +117,7 @@ export function layout(viewportSize: number, viewSize: number, anchor: ILayoutAn
 			return layoutAfterAnchorBoundary; // happy case, lay it out after the anchor
 		}
 
-		if (viewSize <= layoutBeforeAnchorBoundary) {
+		if (viewSize <= layoutBeforeAnchorBoundary && anchor.mode !== LayoutAnchorMode.OVERLAP_OKAY) {
 			return layoutBeforeAnchorBoundary - viewSize; // ok case, lay it out before the anchor
 		}
 
@@ -126,7 +127,7 @@ export function layout(viewportSize: number, viewSize: number, anchor: ILayoutAn
 			return layoutBeforeAnchorBoundary - viewSize; // happy case, lay it out before the anchor
 		}
 
-		if (viewSize <= viewportSize - layoutAfterAnchorBoundary) {
+		if (viewSize <= viewportSize - layoutAfterAnchorBoundary && anchor.mode !== LayoutAnchorMode.OVERLAP_OKAY) {
 			return layoutAfterAnchorBoundary; // ok case, lay it out after the anchor
 		}
 
@@ -320,7 +321,7 @@ export class ContextView extends Disposable {
 
 		const activeWindow = DOM.getActiveWindow();
 		if (anchorAxisAlignment === AnchorAxisAlignment.VERTICAL) {
-			const verticalAnchor: ILayoutAnchor = { offset: around.top - activeWindow.pageYOffset, size: around.height, position: anchorPosition === AnchorPosition.BELOW ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After };
+			const verticalAnchor: ILayoutAnchor = { offset: around.top - activeWindow.pageYOffset, size: around.height, position: anchorPosition === AnchorPosition.BELOW ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After, mode: LayoutAnchorMode.OVERLAP_OKAY };
 			const horizontalAnchor: ILayoutAnchor = { offset: around.left, size: around.width, position: anchorAlignment === AnchorAlignment.LEFT ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After, mode: LayoutAnchorMode.ALIGN };
 
 			top = layout(activeWindow.innerHeight, viewSizeHeight, verticalAnchor) + activeWindow.pageYOffset;
