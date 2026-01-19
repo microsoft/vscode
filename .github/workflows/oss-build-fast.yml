@@ -116,7 +116,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build package
-        run: npm run gulp vscode-linux-$VSCODE_ARCH-min-ci
+        run: npm run gulp vscode-transpile-linux-$VSCODE_ARCH
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -213,7 +213,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build package
-        run: npm run gulp vscode-darwin-$VSCODE_ARCH-min-ci
+        run: npm run gulp vscode-transpile-darwin-$VSCODE_ARCH
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -322,7 +322,7 @@ jobs:
 
       - name: Build package
         shell: pwsh
-        run: npm run gulp vscode-win32-$env:VSCODE_ARCH-min-ci
+        run: npm run gulp vscode-transpile-win32-$env:VSCODE_ARCH
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

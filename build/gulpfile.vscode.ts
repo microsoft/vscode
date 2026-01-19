@@ -548,6 +548,31 @@ BUILD_TARGETS.forEach(buildTarget => {
 	}
 });
 
+// Transpile-only tasks for fast builds without minification
+BUILD_TARGETS.forEach(buildTarget => {
+	const dashed = (str: string) => (str ? `-${str}` : ``);
+	const platform = buildTarget.platform;
+	const arch = buildTarget.arch;
+	const opts = buildTarget.opts;
+
+	const sourceFolderName = 'out'; // Use transpiled output
+	const destinationFolderName = `VSCode${dashed(platform)}${dashed(arch)}`;
+
+	const tasks = [
+		compileNativeExtensionsBuildTask,
+		util.rimraf(path.join(buildRoot, destinationFolderName)),
+		packageTask(platform, arch, sourceFolderName, destinationFolderName, opts)
+	];
+
+	if (platform === 'win32') {
+		tasks.push(patchWin32DependenciesTask(destinationFolderName));
+	}
+
+	const vscodeTranspileTask = task.define(`vscode-transpile${dashed(platform)}${dashed(arch)}`, task.series(...tasks));
+	gulp.task(vscodeTranspileTask);
+});
+
+
 // #region nls
 
 const innoSetupConfig: Record<string, { codePage: string; defaultInfo?: { name: string; id: string } }> = {
