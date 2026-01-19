@@ -73,10 +73,10 @@ export interface IChatSessionsExtensionPoint {
 	readonly commands?: IChatSessionCommandContribution[];
 	readonly canDelegate?: boolean;
 	/**
-	 * When set, the chat session will show a filtered mode picker with only custom agents
+	 * When set, the chat session will show a filtered mode picker with custom agents
 	 * that have a matching `target` property. This enables contributed chat sessions
 	 * to reuse the standard agent/mode dropdown with filtered custom agents.
-	 * Example: 'github' for background agents.
+	 * Custom agents without a `target` property are also shown in all filtered lists
 	 */
 	readonly customAgentTarget?: string;
 }

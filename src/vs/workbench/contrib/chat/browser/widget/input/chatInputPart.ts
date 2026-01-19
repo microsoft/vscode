@@ -84,7 +84,7 @@ import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from 
 import { IChatModelInputState, IChatRequestModeInfo, IInputModel } from '../../../common/model/chatModel.js';
 import { ChatMode, IChatMode, IChatModeService } from '../../../common/chatModes.js';
 import { IChatFollowup, IChatService, IChatSessionContext } from '../../../common/chatService/chatService.js';
-import { AgentOptionId, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
+import { agentOptionId, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isStringImplicitContextValue, isStringVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { IChatResponseViewModel } from '../../../common/model/chatViewModel.js';
@@ -617,7 +617,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				if (ctx) {
 					this.chatSessionsService.notifySessionOptionsChange(
 						ctx.chatSessionResource,
-						[{ optionId: AgentOptionId, value: mode.isBuiltin ? '' : modeName }]
+						[{ optionId: agentOptionId, value: mode.isBuiltin ? '' : modeName }]
 					).catch(err => this.logService.error('Failed to notify extension of agent change:', err));
 				}
 			}
@@ -1376,7 +1376,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		// Handle agent option from session - set initial mode
 		if (customAgentTarget) {
-			const agentOption = this.chatSessionsService.getSessionOption(ctx.chatSessionResource, AgentOptionId);
+			const agentOption = this.chatSessionsService.getSessionOption(ctx.chatSessionResource, agentOptionId);
 			if (typeof agentOption !== 'undefined') {
 				const agentId = (typeof agentOption === 'string' ? agentOption : agentOption.id) || ChatMode.Agent.id;
 				const currentMode = this._currentModeObservable.get();
