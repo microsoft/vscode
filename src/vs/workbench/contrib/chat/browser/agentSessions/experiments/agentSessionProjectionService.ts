@@ -3,28 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/agentSessionProjection.css';
-
-import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { localize } from '../../../../../nls.js';
-import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IEditorGroupsService, IEditorWorkingSet } from '../../../../services/editor/common/editorGroupsService.js';
-import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { IAgentSession } from './agentSessionsModel.js';
-import { ChatViewPaneTarget, IChatWidgetService } from '../chat.js';
-import { AgentSessionProviders } from './agentSessions.js';
-import { IChatSessionsService } from '../../common/chatSessionsService.js';
-import { ChatConfiguration } from '../../common/constants.js';
-import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
-import { ACTION_ID_NEW_CHAT } from '../actions/chatActions.js';
-import { IChatEditingService, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
-import { IAgentStatusService } from './agentStatusService.js';
+import './media/agentsessionprojection.css';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { localize } from '../../../../../../nls.js';
+import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { IEditorGroupsService, IEditorWorkingSet } from '../../../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IAgentSession } from '../agentSessionsModel.js';
+import { ChatViewPaneTarget, IChatWidgetService } from '../../chat.js';
+import { AgentSessionProviders } from '../agentSessions.js';
+import { IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
+import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
+import { IChatEditingService, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
+import { IAgentTitleBarStatusService } from './agentTitleBarStatusService.js';
+import { ISessionOpenerParticipant, ISessionOpenOptions, sessionOpenerRegistry } from '../agentSessionsOpener.js';
+import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensions.js';
+import { inAgentSessionProjection } from './agentSessionProjection.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 
 //#region Configuration
 
@@ -113,14 +114,34 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
-		@IAgentStatusService private readonly agentStatusService: IAgentStatusService,
+		@IAgentTitleBarStatusService private readonly agentTitleBarStatusService: IAgentTitleBarStatusService,
 	) {
 		super();
 
-		this._inProjectionModeContextKey = ChatContextKeys.inAgentSessionProjection.bindTo(contextKeyService);
+		this._inProjectionModeContextKey = inAgentSessionProjection.bindTo(contextKeyService);
 
 		// Listen for editor close events to exit projection mode when all editors are closed
 		this._register(this.editorService.onDidCloseEditor(() => this._checkForEmptyEditors()));
+
+		// Register as a session opener participant to enter projection mode when sessions are opened
+		this._register(sessionOpenerRegistry.registerParticipant(this._createSessionOpenerParticipant()));
+	}
+
+	private _createSessionOpenerParticipant(): ISessionOpenerParticipant {
+		return {
+			handleOpenSession: async (_accessor: ServicesAccessor, session: IAgentSession, _openOptions?: ISessionOpenOptions): Promise<boolean> => {
+				// Only handle if projection mode is enabled
+				if (!this._isEnabled()) {
+					return false;
+				}
+
+				// Enter projection mode for the session
+				await this.enterProjection(session);
+
+				// Return true to indicate we handled the session (projection mode opens the chat itself)
+				return true;
+			}
+		};
 	}
 
 	private _isEnabled(): boolean {
@@ -260,7 +281,7 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 				this.layoutService.mainContainer.classList.add('agent-session-projection-active');
 
 				// Update the agent status to show session mode
-				this.agentStatusService.enterSessionMode(session.resource.toString(), session.label);
+				this.agentTitleBarStatusService.enterSessionMode(session.resource.toString(), session.label);
 
 				if (!wasActive) {
 					this._onDidChangeProjectionMode.fire(true);
@@ -316,7 +337,7 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 		this.layoutService.mainContainer.classList.remove('agent-session-projection-active');
 
 		// Update the agent status to exit session mode
-		this.agentStatusService.exitSessionMode();
+		this.agentTitleBarStatusService.exitSessionMode();
 
 		this._onDidChangeProjectionMode.fire(false);
 		this._onDidChangeActiveSession.fire(undefined);

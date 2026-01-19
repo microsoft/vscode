@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 
 //#region Agent Status Mode
 
@@ -25,7 +25,7 @@ export interface IAgentStatusSessionInfo {
 
 //#region Agent Status Service Interface
 
-export interface IAgentStatusService {
+export interface IAgentTitleBarStatusService {
 	readonly _serviceBrand: undefined;
 
 	/**
@@ -66,13 +66,13 @@ export interface IAgentStatusService {
 	updateSessionTitle(title: string): void;
 }
 
-export const IAgentStatusService = createDecorator<IAgentStatusService>('agentStatusService');
+export const IAgentTitleBarStatusService = createDecorator<IAgentTitleBarStatusService>('agentTitleBarStatusService');
 
 //#endregion
 
 //#region Agent Status Service Implementation
 
-export class AgentStatusService extends Disposable implements IAgentStatusService {
+export class AgentTitleBarStatusService extends Disposable implements IAgentTitleBarStatusService {
 
 	declare readonly _serviceBrand: undefined;
 
