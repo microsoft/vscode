@@ -304,8 +304,6 @@ export class ChatContextUsageWidget extends Disposable {
 			quotaSubLabel.style.color = 'var(--vscode-descriptionForeground)';
 		}
 
-		// dom.append(container, $('.chat-context-usage-hover-separator'));
-
 		// List
 		const list = dom.append(container, $('.chat-context-usage-hover-list'));
 		this._hoverItemValues.clear();

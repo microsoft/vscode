@@ -111,11 +111,6 @@
 	background-color: var(--vscode-gauge-errorForeground);
 }
 
-.chat-context-usage-hover-separator {
-	height: 1px;
-	background-color: var(--vscode-widget-border);
-}
-
 .chat-context-usage-hover-list {
 	display: flex;
 	flex-direction: column;
