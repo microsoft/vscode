@@ -472,7 +472,7 @@ suite('PromptsService', () => {
 			await contextComputer.addApplyingInstructions(instructionFiles, context, result, newInstructionsCollectionEvent(), CancellationToken.None);
 
 			assert.deepStrictEqual(
-				result.asArray().map(i => isPromptFileVariableEntry(i) ? i.value.path : undefined, undefined),
+				result.asArray().map(i => isPromptFileVariableEntry(i) ? i.value.path : undefined),
 				[
 					// local instructions
 					URI.joinPath(rootFolderUri, '.github/prompts/file1.instructions.md').path,
