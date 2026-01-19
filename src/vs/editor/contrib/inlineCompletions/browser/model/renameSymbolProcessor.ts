@@ -13,7 +13,7 @@ import { ServicesAccessor } from '../../../../browser/editorExtensions.js';
 import { IBulkEditService } from '../../../../browser/services/bulkEditService.js';
 import { TextReplacement } from '../../../../common/core/edits/textEdit.js';
 import { Position } from '../../../../common/core/position.js';
-import { Range } from '../../../../common/core/range.js';
+import { Range, type IRange } from '../../../../common/core/range.js';
 import { StandardTokenType } from '../../../../common/encodedTokenAttributes.js';
 import { Command, type Rejection, type WorkspaceEdit } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
@@ -376,13 +376,14 @@ export class RenameSymbolProcessor extends Disposable {
 		const { oldName, newName, position, edits: renameEdits } = edits.renames;
 
 		const trackedWord = this._renameSymbolTrackerService.trackedWord.get();
+		let lastSymbolRename: IRange | undefined = undefined;
 		if (trackedWord !== undefined && trackedWord.model === textModel && trackedWord.originalWord === oldName && trackedWord.currentWord === newName) {
-			console.log('Skipping rename since the tracked word matches the rename');
+			lastSymbolRename = trackedWord.currentRange;
 		}
 
 		// Check asynchronously if a rename is possible
 		let timedOut = false;
-		const check = await raceTimeout<RenameKind>(this.checkRenamePrecondition(suggestItem, textModel, position, oldName, newName), 100, () => { timedOut = true; });
+		const check = await raceTimeout<RenameKind>(this.checkRenamePrecondition(suggestItem, textModel, position, oldName, newName, lastSymbolRename), 100, () => { timedOut = true; });
 		const renamePossible = this.isRenamePossible(suggestItem, check);
 
 		suggestItem.setRenameProcessingInfo({
@@ -433,9 +434,9 @@ export class RenameSymbolProcessor extends Disposable {
 		return InlineSuggestionItem.create(suggestItem.withAction(renameAction), textModel, false);
 	}
 
-	private async checkRenamePrecondition(suggestItem: InlineSuggestionItem, textModel: ITextModel, position: Position, oldName: string, newName: string): Promise<RenameKind> {
+	private async checkRenamePrecondition(suggestItem: InlineSuggestionItem, textModel: ITextModel, position: Position, oldName: string, newName: string, lastSymbolRename: IRange | undefined): Promise<RenameKind> {
 		try {
-			const result = await this._commandService.executeCommand<RenameKind>('github.copilot.nes.prepareRename', textModel.uri, position, oldName, newName, suggestItem.requestUuid);
+			const result = await this._commandService.executeCommand<RenameKind>('github.copilot.nes.prepareRename', textModel.uri, position, oldName, newName, lastSymbolRename, suggestItem.requestUuid);
 			if (result === undefined) {
 				return RenameKind.no;
 			} else {
