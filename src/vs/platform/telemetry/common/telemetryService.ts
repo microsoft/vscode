@@ -189,8 +189,8 @@ export class TelemetryService implements ITelemetryService {
 
 	dispose(): void {
 		// Flush any remaining pending events before disposing
-		this._flushPendingEvents();
 		this._flushMeteredBufferedEvents();
+		this._flushPendingEvents();
 		this._disposables.dispose();
 	}
 
@@ -224,10 +224,18 @@ export class TelemetryService implements ITelemetryService {
 			return;
 		}
 
-		// Send all buffered events now that connection is no longer metered
-		for (const event of this._meteredBufferedEvents) {
-			this._doLog(event.eventName, event.eventLevel, event.data);
+		if (!this._isExperimentPropertySet) {
+			for (const event of this._meteredBufferedEvents) {
+				if (this._pendingEvents.length < TelemetryService.MAX_BUFFER_SIZE) {
+					this._pendingEvents.push(event);
+				}
+			}
+		} else {
+			for (const event of this._meteredBufferedEvents) {
+				this._doLog(event.eventName, event.eventLevel, event.data);
+			}
 		}
+
 		this._meteredBufferedEvents = [];
 	}
 
