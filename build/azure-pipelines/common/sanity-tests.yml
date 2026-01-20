@@ -104,7 +104,7 @@ jobs:
         displayName: Setup QEMU for Multi-Architecture Support
         condition: and(ne('${{ parameters.container }}', ''), contains('${{ parameters.containerPlatform }}', 'arm'), ne('${{ parameters.poolName }}', '1es-mariner-2.0-arm64'))
 
-      # Ubuntu/Debian
+      # Ubuntu/Debian Linux
       - bash: |
           docker run --rm --platform ${{ parameters.containerPlatform }} \
             -v "$(Build.SourcesDirectory):/workspace" \
@@ -164,7 +164,7 @@ jobs:
         displayName: Run Sanity Tests
         condition: or(contains('${{ parameters.container }}', 'ubuntu'), contains('${{ parameters.container }}', 'debian'))
 
-      # CentOS/Fedora/RHEL
+      # CentOS/Fedora/RedHat Linux
       - bash: |
           docker run --rm --platform ${{ parameters.containerPlatform }} \
             -v "$(Build.SourcesDirectory):/workspace" \
@@ -178,7 +178,6 @@ jobs:
                 atk \
                 dbus \
                 dbus-daemon \
-                dbus-x11 \
                 gtk3 \
                 libdrm \
                 libXcomposite \
@@ -187,11 +186,16 @@ jobs:
                 libXrandr \
                 libXScrnSaver \
                 mesa-libgbm \
-                nss \
-                xdg-utils \
-                xorg-x11-server-Xvfb \
+                nss
 
-              # sudo
+              # Not available on RedHat
+              dnf install -y dbus-x11 || true
+              dnf install -y xdg-utils || true
+              dnf install -y xorg-x11-server-Xvfb || true
+
+              # Needed by CentOS
+              dnf install -y sudo || true
+
               # xorg-x11-utils
 
               echo "Installing Node.js 22"
@@ -211,7 +215,7 @@ jobs:
         displayName: Run Sanity Tests
         condition: or(contains('${{ parameters.container }}', 'centos'), contains('${{ parameters.container }}', 'fedora'), contains('${{ parameters.container }}', 'redhat'))
 
-      # OpenSUSE
+      # OpenSUSE Linux
       - bash: |
           docker run --rm --platform ${{ parameters.containerPlatform }} \
             -v "$(Build.SourcesDirectory):/workspace" \
@@ -261,7 +265,6 @@ jobs:
                 chromium \
                 dbus \
                 dbus-x11 \
-                firefox \
                 freetype \
                 freetype-dev \
                 gtk+3.0 \

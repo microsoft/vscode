@@ -95,25 +95,27 @@ export class TestContext {
 			if (fs.existsSync('/usr/bin/snap')) {
 				this._capabilities.add('snap');
 			}
-			try {
-				let browserPath: string | undefined;
-				switch (os.platform()) {
-					case 'darwin':
-						browserPath = webkit.executablePath();
-						break;
-					case 'linux':
-						browserPath = firefox.executablePath();
-						break;
-					case 'win32':
-						browserPath = chromium.executablePath();
-						break;
-				}
-				if (browserPath && fs.existsSync(browserPath)) {
-					this._capabilities.add('browser');
-				}
-			} catch { }
+			if (this.getBrowserType()) {
+				this._capabilities.add('browser');
+			}
 		}
 		return this._capabilities;
+	}
+
+	/**
+	 * Returns the available browser type for the current platform.
+	 */
+	public getBrowserType(): 'chromium' | 'firefox' | 'webkit' | undefined {
+		switch (os.platform()) {
+			case 'darwin':
+				return fs.existsSync(webkit.executablePath()) ? 'webkit' : undefined;
+			case 'linux':
+				return fs.existsSync(chromium.executablePath()) ? 'chromium' :
+					fs.existsSync(firefox.executablePath()) ? 'firefox' :
+						undefined;
+			case 'win32':
+				return fs.existsSync(chromium.executablePath()) ? 'chromium' : undefined;
+		}
 	}
 
 	/**
@@ -912,7 +914,11 @@ export class TestContext {
 			case 'win32':
 				return await chromium.launch({ channel: 'msedge', headless });
 			default:
-				return await firefox.launch({ headless });
+				if (fs.existsSync(chromium.executablePath())) {
+					return await chromium.launch({ headless });
+				} else {
+					return await firefox.launch({ headless });
+				}
 		}
 	}
 
