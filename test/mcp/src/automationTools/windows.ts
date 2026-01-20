@@ -67,7 +67,7 @@ export function applyWindowTools(server: McpServer, appService: ApplicationServi
 
 	tools.push(server.tool(
 		'vscode_automation_window_screenshot',
-		'Take a screenshot of the current window (respects the window set by switch_window)',
+		'Take a screenshot of the current window (respects the window set by vscode_automation_switch_window)',
 		{
 			fullPage: z.boolean().optional().describe('When true, takes a screenshot of the full scrollable page')
 		},
