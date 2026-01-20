@@ -36,8 +36,8 @@ export class LanguageModelsConfigurationService extends Disposable implements IL
 	private readonly modelsConfigurationFile: URI;
 	get configurationFile(): URI { return this.modelsConfigurationFile; }
 
-	private readonly _onDidChangeLanguageModelGroups = new Emitter<void>();
-	readonly onDidChangeLanguageModelGroups: Event<void> = this._onDidChangeLanguageModelGroups.event;
+	private readonly _onDidChangeLanguageModelGroups = new Emitter<readonly ILanguageModelsProviderGroup[]>();
+	readonly onDidChangeLanguageModelGroups: Event<readonly ILanguageModelsProviderGroup[]> = this._onDidChangeLanguageModelGroups.event;
 
 	private languageModelsProviderGroups: LanguageModelsProviderGroups = [];
 
@@ -62,11 +62,29 @@ export class LanguageModelsConfigurationService extends Disposable implements IL
 	}
 
 	private setLanguageModelsConfiguration(languageModelsConfiguration: LanguageModelsProviderGroups): void {
-		if (equals(this.languageModelsProviderGroups, languageModelsConfiguration)) {
-			return;
+		const changedGroups: ILanguageModelsProviderGroup[] = [];
+		const oldGroupMap = new Map(this.languageModelsProviderGroups.map(g => [`${g.vendor}:${g.name}`, g]));
+		const newGroupMap = new Map(languageModelsConfiguration.map(g => [`${g.vendor}:${g.name}`, g]));
+
+		// Find added or modified groups
+		for (const [key, newGroup] of newGroupMap) {
+			const oldGroup = oldGroupMap.get(key);
+			if (!oldGroup || !equals(oldGroup, newGroup)) {
+				changedGroups.push(newGroup);
+			}
 		}
+
+		// Find removed groups
+		for (const [key, oldGroup] of oldGroupMap) {
+			if (!newGroupMap.has(key)) {
+				changedGroups.push(oldGroup);
+			}
+		}
+
 		this.languageModelsProviderGroups = languageModelsConfiguration;
-		this._onDidChangeLanguageModelGroups.fire();
+		if (changedGroups.length > 0) {
+			this._onDidChangeLanguageModelGroups.fire(changedGroups);
+		}
 	}
 
 	private async updateLanguageModelsConfiguration(): Promise<void> {
