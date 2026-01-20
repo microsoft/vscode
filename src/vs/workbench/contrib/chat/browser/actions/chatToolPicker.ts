@@ -614,7 +614,7 @@ export async function showToolsPicker(
 
 			if (currentEnabled !== previousEnabled) {
 				if (item instanceof ToolSet) {
-					// This is an MCP server toggle (ToolSet represents MCP server)
+					// This is a ToolSet toggle (MCP server or user-defined tool set)
 					if (item.source.type === 'mcp') {
 						sendMcpServerTelemetry(
 							item.id,
@@ -622,6 +622,15 @@ export async function showToolsPicker(
 							currentEnabled,
 							virtualMode
 						);
+					} else {
+						// Non-MCP tool set (user-defined, etc.)
+						telemetryService.publicLog2<ToolSetToggleData, ToolSetToggleClassification>('chat.toolPicker.toolSetToggle', {
+							toolSetId: item.id,
+							toolSetName: item.referenceName,
+							toolSetSource: item.source.type,
+							enabled: currentEnabled,
+							virtualMode
+						});
 					}
 				} else {
 					// This is an individual tool toggle
