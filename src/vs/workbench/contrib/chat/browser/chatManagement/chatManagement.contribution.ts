@@ -117,6 +117,37 @@ function sanitizeOpenManageCopilotEditorArgs(input: unknown): IOpenManageCopilot
 	};
 }
 
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: MANAGE_CHAT_COMMAND_ID,
+			title: localize2('openAiManagement', "Manage Language Models"),
+			category: CHAT_CATEGORY,
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(
+				ChatContextKeys.Entitlement.planFree,
+				ChatContextKeys.Entitlement.planPro,
+				ChatContextKeys.Entitlement.planProPlus,
+				ChatContextKeys.Entitlement.internal
+			)),
+			f1: true,
+		});
+	}
+	async run(accessor: ServicesAccessor, args: string | IOpenManageCopilotEditorActionOptions) {
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const editorService = accessor.get(IEditorService);
+		args = sanitizeOpenManageCopilotEditorArgs(args);
+		await editorGroupsService.activeGroup.openEditor(new ModelsManagementEditorInput(), { pinned: true });
+
+		// If a query was provided, search for it in the models widget
+		if (args.query) {
+			const activeEditorPane = editorService.activeEditorPane;
+			if (activeEditorPane instanceof ModelsManagementEditor) {
+				activeEditorPane.search(args.query);
+			}
+		}
+	}
+});
+
 class ChatManagementActionsContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.chatManagementActions';
