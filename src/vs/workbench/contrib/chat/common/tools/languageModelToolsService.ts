@@ -162,7 +162,7 @@ export interface IToolInvocationPreparationContext {
 	chatRequestId?: string;
 	/** @deprecated Use {@link chatSessionResource} instead */
 	chatSessionId?: string;
-	chatSessionResource?: URI;
+	chatSessionResource: URI | undefined;
 	chatInteractionId?: string;
 }
 
