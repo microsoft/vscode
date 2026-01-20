@@ -92,10 +92,7 @@ MenuRegistry.appendMenuItem(MenuId.AuxiliaryBarTitle, {
 	},
 	group: 'navigation',
 	order: 2,
-	when: ContextKeyExpr.and(
-		ContextKeyExpr.equals(`config.${LayoutSettings.ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.DEFAULT),
-		AuxiliaryBarMaximizedContext.negate() // provided via Alt-action when maximized
-	)
+	when: ContextKeyExpr.equals(`config.${LayoutSettings.ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.DEFAULT)
 });
 
 registerAction2(class extends Action2 {
@@ -266,12 +263,7 @@ class RestoreAuxiliaryBar extends Action2 {
 				id: MenuId.AuxiliaryBarTitle,
 				group: 'navigation',
 				order: 1,
-				when: AuxiliaryBarMaximizedContext,
-				alt: {
-					id: ToggleAuxiliaryBarAction.ID,
-					title: localize('closeSecondarySideBar', 'Hide Secondary Side Bar'),
-					icon: closeIcon
-				}
+				when: AuxiliaryBarMaximizedContext
 			}
 		});
 	}
