@@ -96,12 +96,6 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 			collapseButton.icon = this._overrideIcon.read(r) ?? (expanded ? Codicon.chevronDown : Codicon.chevronRight);
 			this._domNode?.classList.toggle('chat-used-context-collapsed', !expanded);
 			this.updateAriaLabel(collapseButton.element, typeof referencesLabel === 'string' ? referencesLabel : referencesLabel.value, expanded);
-
-			if (this._domNode?.isConnected) {
-				queueMicrotask(() => {
-					// ResizeObserver on row will handle height update
-				});
-			}
 		}));
 
 		const content = this.initContent();

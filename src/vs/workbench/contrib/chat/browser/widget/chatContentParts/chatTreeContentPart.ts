@@ -51,9 +51,6 @@ export class ChatTreeContentPart extends Disposable implements IChatContentPart 
 				this.openerService.open(e.element.uri);
 			}
 		}));
-		this._register(this.tree.onDidChangeCollapseState(() => {
-			// ResizeObserver on row will handle height update
-		}));
 		this._register(this.tree.onContextMenu((e) => {
 			e.browserEvent.preventDefault();
 			e.browserEvent.stopPropagation();
