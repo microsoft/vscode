@@ -196,7 +196,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		}
 
 		if (this.supportsUpdateOverwrite) {
-			const didOverwrite = await this.checkForOverwriteUpdates();
+			const didOverwrite = await this.checkForOverwriteUpdates(true);
 
 			if (didOverwrite) {
 				this.logService.info('update#quitAndInstall(): overwrite update detected, postponing quitAndInstall');
@@ -219,26 +219,27 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		return Promise.resolve(undefined);
 	}
 
-	private async checkForOverwriteUpdates(): Promise<boolean> {
+	private async checkForOverwriteUpdates(explicit: boolean = false): Promise<boolean> {
 		if (this._state.type !== StateType.Ready) {
 			return false;
 		}
 
-		const isLatest = await this.isLatestVersion();
+		const pendingUpdateVersion = this._state.update.version;
+		const isLatest = await this.isLatestVersion(pendingUpdateVersion);
 
 		if (isLatest === false && this._state.type === StateType.Ready) {
 			this.logService.info('update#readyStateCheck: newer update available, restarting update machinery');
 			await this.cancelPendingUpdate();
-			this._explicit = false;
+			this._explicit = explicit;
 			this._overwrite = true;
-			this.doCheckForUpdates(false);
+			this.doCheckForUpdates(explicit);
 			return true;
 		}
 
 		return false;
 	}
 
-	async isLatestVersion(): Promise<boolean | undefined> {
+	async isLatestVersion(commit?: string): Promise<boolean | undefined> {
 		if (!this.url) {
 			return undefined;
 		}
@@ -249,8 +250,14 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			return undefined;
 		}
 
+		let url = this.url;
+
+		if (commit) {
+			url = url.replace(new RegExp(`/${this.productService.commit}$`), `/${commit}`);
+		}
+
 		try {
-			const context = await this.requestService.request({ url: this.url }, CancellationToken.None);
+			const context = await this.requestService.request({ url }, CancellationToken.None);
 			// The update server replies with 204 (No Content) when no
 			// update is available - that's all we want to know.
 			return context.res.statusCode === 204;

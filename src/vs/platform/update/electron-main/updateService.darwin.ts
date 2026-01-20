@@ -131,6 +131,7 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 		}
 
 		this.setState(State.Downloaded(update, this._explicit, this._overwrite));
+		this.logService.info(`Update downloaded: ${JSON.stringify(update)}`);
 
 		type UpdateDownloadedClassification = {
 			owner: 'joaomoreno';
