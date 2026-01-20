@@ -43,6 +43,13 @@ export interface IChatSessionProviderOptionGroup {
 	name: string;
 	description?: string;
 	items: IChatSessionProviderOptionItem[];
+	/**
+	 * A context key expression that controls visibility of this option group picker.
+	 * When specified, the picker is only visible when the expression evaluates to true.
+	 * The expression can reference other option group values via `chatSessionOption.<groupId>`.
+	 * Example: `"chatSessionOption.models == 'gpt-4'"`
+	 */
+	when?: string;
 }
 
 export interface IChatSessionsExtensionPoint {
