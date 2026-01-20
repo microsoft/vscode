@@ -221,25 +221,6 @@ export async function showToolsPicker(
 		}
 	}
 
-	// Helper function to check if virtual mode is active based on tool count
-	const isVirtualModeActive = (currentResults: ReadonlyMap<ToolSet | IToolData, boolean>): boolean => {
-		if (!toolLimit) {
-			return false;
-		}
-
-		let enabledToolCount = 0;
-		for (const [item, enabled] of currentResults.entries()) {
-			if (enabled) {
-				if (item instanceof ToolSet) {
-					enabledToolCount += Array.from(item.getTools()).length;
-				} else {
-					enabledToolCount += 1;
-				}
-			}
-		}
-		return enabledToolCount > toolLimit;
-	};
-
 	// Helper function to send telemetry for MCP server toggles
 	const sendMcpServerTelemetry = (serverId: string, serverLabel: string, enabled: boolean, virtualMode: boolean) => {
 		telemetryService.publicLog2<McpServerToggleData, McpServerToggleClassification>('chat.toolPicker.mcpServerToggle', {
@@ -582,7 +563,7 @@ export async function showToolsPicker(
 		}
 	}));
 
-	const updateToolLimitMessage = () => {
+	const updateToolLimitMessage = (): boolean => {
 		if (toolLimit) {
 			let count = 0;
 			const traverse = (items: readonly AnyTreeItem[]) => {
@@ -600,11 +581,14 @@ export async function showToolsPicker(
 			if (count > toolLimit) {
 				treePicker.severity = Severity.Warning;
 				treePicker.validationMessage = localize('toolLimitExceeded', "{0} tools are enabled. You may experience degraded tool calling above {1} tools.", count, createMarkdownCommandLink({ title: String(toolLimit), id: '_chat.toolPicker.closeAndOpenVirtualThreshold' }));
+				return true;
 			} else {
 				treePicker.severity = Severity.Ignore;
 				treePicker.validationMessage = undefined;
+				return false;
 			}
 		}
+		return false;
 	};
 	updateToolLimitMessage();
 
@@ -619,11 +603,10 @@ export async function showToolsPicker(
 
 	// Handle checkbox state changes
 	store.add(treePicker.onDidChangeCheckedLeafItems(() => {
-		updateToolLimitMessage();
+		const virtualMode = updateToolLimitMessage();
 
 		// Track changes for telemetry
 		const currentResults = collectResults();
-		const virtualMode = isVirtualModeActive(currentResults);
 
 		// Track changes by comparing current state with previous state
 		for (const [item, currentEnabled] of currentResults.entries()) {
