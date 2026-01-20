@@ -37,9 +37,7 @@ export class ChatCollapsibleMarkdownContentPart extends ChatCollapsibleContentPa
 
 		if (this.markdownContent) {
 			this.contentElement = $('.chat-collapsible-markdown-body');
-			const rendered = this._register(this.chatContentMarkdownRenderer.render(new MarkdownString(this.markdownContent), {
-				asyncRenderCallback: () => this._onDidChangeHeight.fire(),
-			}));
+			const rendered = this._register(this.chatContentMarkdownRenderer.render(new MarkdownString(this.markdownContent)));
 			this.contentElement.appendChild(rendered.element);
 			wrapper.appendChild(this.contentElement);
 		}

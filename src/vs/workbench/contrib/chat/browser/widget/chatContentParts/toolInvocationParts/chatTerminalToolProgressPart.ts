@@ -298,12 +298,11 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		));
 		this._register(titlePart.onDidChangeHeight(() => {
 			this._decoration.update();
-			this._onDidChangeHeight.fire();
 		}));
 
 		this._outputView = this._register(this._instantiationService.createInstance(
 			ChatTerminalToolOutputSection,
-			() => this._onDidChangeHeight.fire(),
+			() => { },
 			() => this._ensureTerminalInstance(),
 			() => this._getResolvedCommand(),
 			() => this._terminalData.terminalCommandOutput,

@@ -547,9 +547,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					return;
 				}
 
-				template.currentElement.currentRenderedHeight = height;
+				const normalizedHeight = Math.ceil(height);
+				template.currentElement.currentRenderedHeight = normalizedHeight;
 				if (template.currentElement !== this._elementBeingRendered) {
-					this._onDidChangeItemHeight.fire({ element: template.currentElement, height });
+					this._onDidChangeItemHeight.fire({ element: template.currentElement, height: normalizedHeight });
 				}
 			}
 		}));
@@ -1769,10 +1770,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private renderTextEdit(context: IChatContentPartRenderContext, chatTextEdit: IChatTextEditGroup, templateData: IChatListItemTemplate): IChatContentPart {
 		const textEditPart = this.instantiationService.createInstance(ChatTextEditContentPart, chatTextEdit, context, this.rendererOptions, this._diffEditorPool, this._currentLayoutWidth.get());
-		textEditPart.addDisposable(textEditPart.onDidChangeHeight(() => {
-			textEditPart.layout(this._currentLayoutWidth.get());
-		}));
-
 		return textEditPart;
 	}
 
@@ -1830,10 +1827,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				this.hoverHidden(templateData.requestHover);
 			}));
 		}
-
-		markdownPart.addDisposable(markdownPart.onDidChangeHeight(() => {
-			markdownPart.layout(this._currentLayoutWidth.get());
-		}));
 
 		this.handleRenderedCodeblocks(element, markdownPart, codeBlockStartIndex);
 

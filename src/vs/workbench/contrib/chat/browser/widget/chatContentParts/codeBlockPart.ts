@@ -56,7 +56,7 @@ import { ServiceCollection } from '../../../../../../platform/instantiation/comm
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { ResourceLabel } from '../../../../../browser/labels.js';
-import { ResourceContextKey } from '../../../../../common/contextkeys.js';
+import { StaticResourceContextKey } from '../../../../../common/contextkeys.js';
 import { AccessibilityVerbositySettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
 import { InspectEditorTokensController } from '../../../../codeEditor/browser/inspectEditorTokens/inspectEditorTokens.js';
 import { MenuPreventer } from '../../../../codeEditor/browser/menuPreventer.js';
@@ -169,7 +169,7 @@ export class CodeBlockPart extends Disposable {
 
 	private isDisposed = false;
 
-	private resourceContextKey: ResourceContextKey;
+	private resourceContextKey: StaticResourceContextKey;
 
 	private get verticalPadding(): number {
 		return this.currentCodeBlockData?.renderOptions?.verticalPadding ?? defaultCodeblockPadding;
@@ -190,7 +190,7 @@ export class CodeBlockPart extends Disposable {
 		super();
 		this.element = $('.interactive-result-code-block');
 
-		this.resourceContextKey = this._register(instantiationService.createInstance(ResourceContextKey));
+		this.resourceContextKey = instantiationService.createInstance(StaticResourceContextKey);
 		this.contextKeyService = this._register(contextKeyService.createScoped(this.element));
 		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService])));
 		const editorElement = dom.append(this.element, $('.interactive-result-editor'));

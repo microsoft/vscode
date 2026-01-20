@@ -170,7 +170,6 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			textModel: Promise.resolve(model),
 			chatSessionResource: this.context.element.sessionResource
 		}, this.currentWidthDelegate());
-		this._register(thenIfNotDisposed(renderPromise, () => this._onDidChangeHeight.fire()));
 		this.codeblocks.push({
 			codeBlockIndex: this.codeBlockStartIndex,
 			codemapperUri: undefined,
@@ -183,7 +182,6 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		});
 		this._register(editor.object.onDidChangeContentHeight(() => {
 			editor.object.layout(this.currentWidthDelegate());
-			this._onDidChangeHeight.fire();
 		}));
 		this._register(model.onDidChangeContent(e => {
 			const currentValue = model.getValue();
@@ -457,6 +455,5 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			{ codeBlockRenderOptions },
 		));
 		append(container, part.domNode);
-		this._register(part.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 	}
 }

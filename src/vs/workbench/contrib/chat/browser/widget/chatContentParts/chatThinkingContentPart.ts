@@ -190,7 +190,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 				for (const item of this.lazyItems) {
 					this.materializeLazyItem(item);
 				}
-				this._onDidChangeHeight.fire();
 			}
 		}));
 
@@ -267,7 +266,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 		const rendered = this._register(this.chatContentMarkdownRenderer.render(new MarkdownString(contentToRender), {
 			fillInIncompleteTokens: true,
-			asyncRenderCallback: () => this._onDidChangeHeight.fire(),
 			codeBlockRendererSync: (_languageId, text, raw) => {
 				const codeElement = $('code');
 				codeElement.textContent = text;

@@ -8,7 +8,6 @@ import { softAssertNever } from '../../../../../../../base/common/assert.js';
 import { disposableTimeout } from '../../../../../../../base/common/async.js';
 import { decodeBase64 } from '../../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
-import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { autorun, autorunSelfDisposable, derived, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { basename } from '../../../../../../../base/common/resources.js';
@@ -74,10 +73,6 @@ export class ChatMcpAppModel extends Disposable {
 	/** Observable for load state */
 	private readonly _loadState = observableValue<McpAppLoadState>(this, { status: 'loading' });
 	public readonly loadState: IObservable<McpAppLoadState> = this._loadState;
-
-	/** Event fired when height changes */
-	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
-	public readonly onDidChangeHeight: Event<void> = this._onDidChangeHeight.event;
 
 	/** Full host context for the MCP App */
 	public readonly hostContext: IObservable<McpApps.McpUiHostContext>;
@@ -523,7 +518,6 @@ export class ChatMcpAppModel extends Disposable {
 	private _handleSizeChanged(params: McpApps.McpUiSizeChangedNotification['params']): void {
 		if (params.height !== undefined) {
 			this._height = params.height;
-			this._onDidChangeHeight.fire();
 		}
 	}
 

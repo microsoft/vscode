@@ -5,7 +5,6 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { basename, joinPath } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -40,9 +39,6 @@ import { ChatCollapsibleIOPart, IChatCollapsibleIOCodePart, IChatCollapsibleIODa
  * This is used by both ChatCollapsibleInputOutputContentPart and ChatToolPostExecuteConfirmationPart.
  */
 export class ChatToolOutputContentSubPart extends Disposable {
-	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
-	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
-
 	private _currentWidth: number = 0;
 	private readonly _editorReferences: IDisposableReference<CodeBlockPart>[] = [];
 	public readonly domNode: HTMLElement;
@@ -101,7 +97,7 @@ export class ChatToolOutputContentSubPart extends Disposable {
 			dom.h('.chat-collapsible-io-resource-actions@actions'),
 		]);
 
-		this.fillInResourceGroup(parts, el.items, el.actions).then(() => this._onDidChangeHeight.fire());
+		this.fillInResourceGroup(parts, el.items, el.actions);
 
 		container.appendChild(el.root);
 		return el.root;
@@ -177,7 +173,6 @@ export class ChatToolOutputContentSubPart extends Disposable {
 		};
 		const editorReference = this._register(this.context.editorPool.get());
 		editorReference.object.render(data, this._currentWidth || 300);
-		this._register(editorReference.object.onDidChangeContentHeight(() => this._onDidChangeHeight.fire()));
 		container.appendChild(editorReference.object.element);
 		this._editorReferences.push(editorReference);
 		this.codeblocks.push(part.codeBlockInfo);

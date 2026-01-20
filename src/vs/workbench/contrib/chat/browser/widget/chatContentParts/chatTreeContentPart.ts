@@ -9,7 +9,7 @@ import { ITreeCompressionDelegate } from '../../../../../../base/browser/ui/tree
 import { ICompressedTreeNode } from '../../../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
 import { ICompressibleTreeRenderer } from '../../../../../../base/browser/ui/tree/objectTree.js';
 import { IAsyncDataSource, ITreeNode } from '../../../../../../base/browser/ui/tree/tree.js';
-import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -30,9 +30,6 @@ const $ = dom.$;
 
 export class ChatTreeContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
-
-	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
-	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	public readonly onDidFocus: Event<void>;
 
@@ -55,7 +52,7 @@ export class ChatTreeContentPart extends Disposable implements IChatContentPart 
 			}
 		}));
 		this._register(this.tree.onDidChangeCollapseState(() => {
-			this._onDidChangeHeight.fire();
+			// ResizeObserver on row will handle height update
 		}));
 		this._register(this.tree.onContextMenu((e) => {
 			e.browserEvent.preventDefault();
@@ -65,7 +62,6 @@ export class ChatTreeContentPart extends Disposable implements IChatContentPart 
 		this.tree.setInput(data).then(() => {
 			if (!ref.isStale()) {
 				this.tree.layout();
-				this._onDidChangeHeight.fire();
 			}
 		});
 
