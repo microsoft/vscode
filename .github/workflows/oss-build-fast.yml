@@ -111,7 +111,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Transpile client & extensions
-        run: npm run gulp transpile-client-esbuild transpile-extensions
+        run: npm run gulp transpile-client transpile-extensions
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -208,7 +208,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Transpile client & extensions
-        run: npm run gulp transpile-client-esbuild transpile-extensions
+        run: npm run gulp transpile-client transpile-extensions
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -316,7 +316,7 @@ jobs:
 
       - name: Transpile client & extensions
         shell: pwsh
-        run: npm run gulp transpile-client-esbuild transpile-extensions
+        run: npm run gulp transpile-client transpile-extensions
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
