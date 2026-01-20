@@ -1230,6 +1230,11 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	render(forceRedraw?: boolean): void;
 
 	/**
+	 * Render the editor at the next animation frame.
+	 */
+	renderAsync(forceRedraw?: boolean): void;
+
+	/**
 	 * Get the hit test target at coordinates `clientX` and `clientY`.
 	 * The coordinates are relative to the top-left of the viewport.
 	 *

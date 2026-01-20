@@ -1703,6 +1703,15 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		});
 	}
 
+	public renderAsync(forceRedraw: boolean = false): void {
+		if (!this._modelData || !this._modelData.hasRealView) {
+			return;
+		}
+		this._modelData.viewModel.batchEvents(() => {
+			this._modelData!.view.render(false, forceRedraw);
+		});
+	}
+
 	public setAriaOptions(options: editorBrowser.IEditorAriaOptions): void {
 		if (!this._modelData || !this._modelData.hasRealView) {
 			return;
