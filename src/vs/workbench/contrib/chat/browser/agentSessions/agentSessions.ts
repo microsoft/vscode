@@ -15,7 +15,8 @@ export enum AgentSessionProviders {
 	Local = localChatSessionType,
 	Background = 'copilotcli',
 	Cloud = 'copilot-cloud-agent',
-	ClaudeCode = 'claude-code',
+	Claude = 'claude-code',
+	Codex = 'openai-codex',
 }
 
 export function getAgentSessionProvider(sessionResource: URI | string): AgentSessionProviders | undefined {
@@ -24,7 +25,8 @@ export function getAgentSessionProvider(sessionResource: URI | string): AgentSes
 		case AgentSessionProviders.Local:
 		case AgentSessionProviders.Background:
 		case AgentSessionProviders.Cloud:
-		case AgentSessionProviders.ClaudeCode:
+		case AgentSessionProviders.Claude:
+		case AgentSessionProviders.Codex:
 			return type;
 		default:
 			return undefined;
@@ -39,8 +41,10 @@ export function getAgentSessionProviderName(provider: AgentSessionProviders): st
 			return localize('chat.session.providerLabel.background', "Background");
 		case AgentSessionProviders.Cloud:
 			return localize('chat.session.providerLabel.cloud', "Cloud");
-		case AgentSessionProviders.ClaudeCode:
-			return localize('chat.session.providerLabel.claude', "Claude");
+		case AgentSessionProviders.Claude:
+			return 'Claude';
+		case AgentSessionProviders.Codex:
+			return 'Codex';
 	}
 }
 
@@ -52,7 +56,8 @@ export function getAgentSessionProviderIcon(provider: AgentSessionProviders): Th
 			return Codicon.worktree;
 		case AgentSessionProviders.Cloud:
 			return Codicon.cloud;
-		case AgentSessionProviders.ClaudeCode:
+		case AgentSessionProviders.Codex:
+		case AgentSessionProviders.Claude:
 			return Codicon.code;
 	}
 }
@@ -63,7 +68,20 @@ export function isFirstPartyAgentSessionProvider(provider: AgentSessionProviders
 		case AgentSessionProviders.Background:
 		case AgentSessionProviders.Cloud:
 			return true;
-		case AgentSessionProviders.ClaudeCode:
+		case AgentSessionProviders.Claude:
+		case AgentSessionProviders.Codex:
+			return false;
+	}
+}
+
+export function getAgentCanContinueIn(provider: AgentSessionProviders): boolean {
+	switch (provider) {
+		case AgentSessionProviders.Local:
+		case AgentSessionProviders.Background:
+		case AgentSessionProviders.Cloud:
+			return true;
+		case AgentSessionProviders.Claude:
+		case AgentSessionProviders.Codex:
 			return false;
 	}
 }

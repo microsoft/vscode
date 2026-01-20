@@ -943,6 +943,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	flex-direction: row;
 	gap: 4px;
 	margin-top: 6px;
+	margin-right: 20px;
 	flex-wrap: wrap;
 	cursor: default;
 }
