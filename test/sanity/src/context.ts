@@ -394,6 +394,8 @@ export class TestContext {
 
 		this.log(`Validating codesign signature for ${filePath}`);
 
+		// TODO: Use recursive validation of the command
+		// --verbose will print more info
 		const result = this.run('codesign', '--verify', '--deep', '--strict', filePath);
 		if (result.error !== undefined) {
 			this.error(`Failed to run codesign: ${result.error.message}`);
@@ -437,6 +439,8 @@ export class TestContext {
 	 * @param filePath The path to the file to check.
 	 * @returns True if the file is a Mach-O binary.
 	 */
+	// TODO: see if there is existing code
+	// Can we reuse C:\Users\dmitriv\repos\vscode\build\darwin\verify-macho.ts
 	private isMachOBinary(filePath: string): boolean {
 		try {
 			const fd = fs.openSync(filePath, 'r');
