@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { FileAccess } from '../../../../../base/common/network.js';
 import { dirname, join } from '../../../../../base/common/path.js';
 import { isNative, OperatingSystem, OS } from '../../../../../base/common/platform.js';
@@ -19,6 +18,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITerminalSandboxSettings } from './terminalSandbox.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { TerminalChatAgentToolsSettingId } from './terminalChatAgentToolsConfiguration.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 
 export const ITerminalSandboxService = createDecorator<ITerminalSandboxService>('terminalSandboxService');
 
@@ -49,7 +49,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	) {
 		super();
 		const appRoot = dirname(FileAccess.asFileUri('').fsPath);
-		this._srtPath = join(appRoot, 'node_modules', '@anthropic-ai', 'sandbox-runtime', 'dist', 'cli.js');
+		this._srtPath = join(appRoot, 'node_modules', '.bin', 'srt');
 		this._sandboxSettingsId = generateUuid();
 		this._initTempDir();
 		this._remoteAgentService.getEnvironment().then(remoteEnv => this._os = remoteEnv?.os ?? OS);
