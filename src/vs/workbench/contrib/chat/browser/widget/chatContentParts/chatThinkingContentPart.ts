@@ -64,7 +64,7 @@ export function getToolInvocationIcon(toolId: string): ThemeIcon {
 		lowerToolId.includes('edit') ||
 		lowerToolId.includes('create')
 	) {
-		return Codicon.wand;
+		return Codicon.pencil;
 	}
 
 	if (
@@ -634,7 +634,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 		let icon: ThemeIcon;
 		if (isMarkdownEdit) {
-			icon = Codicon.wand;
+			icon = Codicon.pencil;
 		} else if (isTerminalTool) {
 			const terminalData = (toolInvocationOrMarkdown as IChatToolInvocation | IChatToolInvocationSerialized).toolSpecificData as { kind: 'terminal'; terminalCommandState?: { exitCode?: number } };
 			const exitCode = terminalData?.terminalCommandState?.exitCode;
