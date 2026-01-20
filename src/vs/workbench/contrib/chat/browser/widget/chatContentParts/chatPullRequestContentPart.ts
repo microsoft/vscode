@@ -47,7 +47,7 @@ export class ChatPullRequestContentPart extends Disposable implements IChatConte
 
 		const seeMoreContainer = dom.append(descriptionElement, dom.$('.see-more'));
 		const seeMore: HTMLAnchorElement = dom.append(seeMoreContainer, dom.$('a'));
-		seeMore.textContent = localize('chatPullRequest.seeMore', 'See more');
+		seeMore.textContent = localize('chatPullRequest.seeMore', 'Show pull request');
 		this._register(addDisposableListener(seeMore, 'click', (e) => {
 			e.preventDefault();
 			e.stopPropagation();

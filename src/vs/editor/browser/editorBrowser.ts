@@ -27,6 +27,7 @@ import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguag
 import { IEditorWhitespace, IViewModel } from '../common/viewModel.js';
 import { OverviewRulerZone } from '../common/viewModel/overviewZoneManager.js';
 import { IEditorConstructionOptions } from './config/editorConfiguration.js';
+import { IClipboardCopyEvent, IClipboardPasteEvent } from './controller/editContext/clipboardUtils.js';
 
 /**
  * A view zone is a full horizontal rectangle that 'pushes' text down.
@@ -725,6 +726,24 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @event
 	 */
 	readonly onDidPaste: Event<IPasteEvent>;
+	/**
+	 * An event emitted before clipboard copy operation starts.
+	 * @internal
+	 * @event
+	 */
+	readonly onWillCopy: Event<IClipboardCopyEvent>;
+	/**
+	 * An event emitted before clipboard cut operation starts.
+	 * @internal
+	 * @event
+	 */
+	readonly onWillCut: Event<IClipboardCopyEvent>;
+	/**
+	 * An event emitted before clipboard paste operation starts.
+	 * @internal
+	 * @event
+	 */
+	readonly onWillPaste: Event<IClipboardPasteEvent>;
 	/**
 	 * An event emitted on a "mouseup".
 	 * @event

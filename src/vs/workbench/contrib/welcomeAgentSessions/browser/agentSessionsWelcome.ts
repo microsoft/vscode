@@ -222,6 +222,11 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		this.chatWidget.render(chatWidgetContainer);
 		this.chatWidget.setVisible(true);
 
+		// Schedule initial layout at next animation frame to ensure proper input sizing
+		this.contentDisposables.add(scheduleAtNextAnimationFrame(getWindow(chatWidgetContainer), () => {
+			this.layoutChatWidget();
+		}));
+
 		// Start a chat session so the widget has a viewModel
 		// This is necessary for actions like mode switching to work properly
 		this.chatModelRef = this.chatService.startSession(ChatAgentLocation.Chat);
@@ -275,6 +280,8 @@ export class AgentSessionsWelcomePage extends EditorPane {
 			filter,
 			getHoverPosition: () => HoverPosition.BELOW,
 			trackActiveEditorSession: () => false,
+			source: 'welcomeView',
+			notifySessionOpened: () => this.layoutService.setAuxiliaryBarMaximized(true) // TODO@osortega what if the session did not open in the 2nd sidebar?
 		};
 
 		this.sessionsControl = this.sessionsControlDisposables.add(this.instantiationService.createInstance(
@@ -291,7 +298,12 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		// "Open Agent Sessions" link
 		const openButton = append(container, $('button.agentSessionsWelcome-openSessionsButton'));
 		openButton.textContent = localize('openAgentSessions', "Open Agent Sessions");
-		openButton.onclick = () => this.commandService.executeCommand('workbench.action.chat.open');
+		openButton.onclick = () => {
+			this.commandService.executeCommand('workbench.action.chat.open');
+			if (!this.layoutService.isAuxiliaryBarMaximized()) {
+				this.layoutService.toggleMaximizedAuxiliaryBar();
+			}
+		};
 	}
 
 	private buildWalkthroughs(container: HTMLElement): void {
@@ -381,18 +393,24 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		this.container.style.height = `${dimension.height}px`;
 		this.container.style.width = `${dimension.width}px`;
 
-		// Layout chat widget with height for input area
-		if (this.chatWidget) {
-			const chatWidth = Math.min(800, dimension.width - 80);
-			// Use a reasonable height for the input part - the CSS will hide the list area
-			const inputHeight = 150;
-			this.chatWidget.layout(inputHeight, chatWidth);
-		}
+		// Layout chat widget
+		this.layoutChatWidget();
 
 		// Layout sessions control
 		this.layoutSessionsControl();
 
 		this.scrollableElement?.scanDomNode();
+	}
+
+	private layoutChatWidget(): void {
+		if (!this.chatWidget || !this.lastDimension) {
+			return;
+		}
+
+		const chatWidth = Math.min(800, this.lastDimension.width - 80);
+		// Use a reasonable height for the input part - the CSS will hide the list area
+		const inputHeight = 150;
+		this.chatWidget.layout(inputHeight, chatWidth);
 	}
 
 	private layoutSessionsControl(): void {
@@ -416,7 +434,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		// Set margin offset for 2-column layout: actual height - visual height
 		// Visual height = ceil(n/2) * 52, so offset = floor(n/2) * 52
 		const marginOffset = Math.floor(visibleSessions / 2) * 52;
-		this.sessionsControl.setGridMarginOffset(marginOffset);
+		this.sessionsControl.element!.style.marginBottom = `-${marginOffset}px`;
 	}
 
 	override focus(): void {
