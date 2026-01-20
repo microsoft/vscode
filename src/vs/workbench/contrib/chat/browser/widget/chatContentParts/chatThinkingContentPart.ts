@@ -239,7 +239,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.renderMarkdown(this.currentThinkingValue);
 		}
 
-		// In fixed scrolling mode, wrap content in a styled scrollable element
+		// wrap content in scrollable element for fixed scrolling mode
 		if (this.fixedScrollingMode) {
 			this.scrollableElement = this._register(new DomScrollableElement(this.wrapper, {
 				vertical: ScrollbarVisibility.Auto,
@@ -249,7 +249,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			}));
 			this._register(this.scrollableElement.onScroll(e => this.handleScroll(e.scrollTop)));
 
-			// Re-scan scrollable element when height changes (e.g., from async markdown rendering)
 			this._register(this._onDidChangeHeight.event(() => {
 				setTimeout(() => this.scrollToBottomIfEnabled(), 0);
 			}));
