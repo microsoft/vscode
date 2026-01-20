@@ -280,6 +280,17 @@ export async function getShellIntegrationInjection(
 			});
 			return { type, newArgs, envMixin, filesToCopy };
 		}
+		case 'xonsh': {
+			newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Xonsh);
+
+			if (!newArgs) {
+				return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.UnsupportedArgs };
+			}
+
+			newArgs = [...newArgs];
+			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
+			return { type, newArgs, envMixin };
+		}
 	}
 	logService.warn(`Shell integration cannot be enabled for executable "${shellLaunchConfig.executable}" and args`, shellLaunchConfig.args);
 	return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.UnsupportedShell };
@@ -331,6 +342,7 @@ enum ShellIntegrationExecutable {
 	Bash = 'bash',
 	Fish = 'fish',
 	FishLogin = 'fish-login',
+	Xonsh = 'xonsh',
 }
 
 const shellIntegrationArgs: Map<ShellIntegrationExecutable, string[]> = new Map();
@@ -344,6 +356,7 @@ shellIntegrationArgs.set(ShellIntegrationExecutable.ZshLogin, ['-il']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.Bash, ['--init-file', '{0}/out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-bash.sh']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.Fish, ['--init-command', 'source "{0}/out/vs/workbench/contrib/terminal/common/scripts/shellIntegration.fish"']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.FishLogin, ['-l', '--init-command', 'source "{0}/out/vs/workbench/contrib/terminal/common/scripts/shellIntegration.fish"']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.Xonsh, ['-i', '--rc', '{0}/out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-xonsh.xsh']);
 const pwshLoginArgs = ['-login', '-l'];
 const shLoginArgs = ['--login', '-l'];
 const shInteractiveArgs = ['-i', '--interactive'];
