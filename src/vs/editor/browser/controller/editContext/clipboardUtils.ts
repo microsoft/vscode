@@ -10,6 +10,7 @@ import { ViewContext } from '../../../common/viewModel/viewContext.js';
 import { ILogService, LogLevel } from '../../../../platform/log/common/log.js';
 import { EditorOption, IComputedEditorOptions } from '../../../common/config/editorOptions.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { subtractRanges } from './rangeUtils.js';
 
 export function ensureClipboardGetsEditorSelection(e: ClipboardEvent, context: ViewContext, logService: ILogService, isFirefox: boolean): void {
 	const viewModel = context.viewModel;
@@ -38,8 +39,9 @@ export function ensureClipboardGetsEditorSelection(e: ClipboardEvent, context: V
 export function generateDataToCopyAndStoreInMemory(viewModel: IViewModel, options: IComputedEditorOptions, id: string | undefined, isFirefox: boolean) {
 	const emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
 	const copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
+	const copyExcludesHiddenAreas = options.get(EditorOption.copyExcludesHiddenAreas);
 	const selections = viewModel.getCursorStates().map(cursorState => cursorState.modelState.selection);
-	const dataToCopy = getDataToCopy(viewModel, selections, emptySelectionClipboard, copyWithSyntaxHighlighting);
+	const dataToCopy = getDataToCopy(viewModel, selections, emptySelectionClipboard, copyWithSyntaxHighlighting, copyExcludesHiddenAreas);
 	const storedMetadata: ClipboardStoredMetadata = {
 		version: 1,
 		id,
@@ -56,8 +58,13 @@ export function generateDataToCopyAndStoreInMemory(viewModel: IViewModel, option
 	return { dataToCopy, storedMetadata };
 }
 
-function getDataToCopy(viewModel: IViewModel, modelSelections: Range[], emptySelectionClipboard: boolean, copyWithSyntaxHighlighting: boolean): ClipboardDataToCopy {
-	const rawTextToCopy = viewModel.getPlainTextToCopy(modelSelections, emptySelectionClipboard, isWindows);
+function getDataToCopy(viewModel: IViewModel, modelSelections: Range[], emptySelectionClipboard: boolean, copyWithSyntaxHighlighting: boolean, copyExcludesHiddenAreas: boolean): ClipboardDataToCopy {
+	// Filter selections to exclude hidden areas if the option is enabled
+	const filteredSelections = copyExcludesHiddenAreas
+		? filterSelections(modelSelections, viewModel)
+		: modelSelections;
+
+	const rawTextToCopy = viewModel.getPlainTextToCopy(filteredSelections, emptySelectionClipboard, isWindows);
 	const newLineCharacter = viewModel.model.getEOL();
 
 	const isFromEmptySelection = (emptySelectionClipboard && modelSelections.length === 1 && modelSelections[0].isEmpty());
@@ -67,7 +74,7 @@ function getDataToCopy(viewModel: IViewModel, modelSelections: Range[], emptySel
 	let html: string | null | undefined = undefined;
 	let mode: string | null = null;
 	if (CopyOptions.forceCopyWithSyntaxHighlighting || (copyWithSyntaxHighlighting && text.length < 65536)) {
-		const richText = viewModel.getRichTextToCopy(modelSelections, emptySelectionClipboard);
+		const richText = viewModel.getRichTextToCopy(filteredSelections, emptySelectionClipboard);
 		if (richText) {
 			html = richText.html;
 			mode = richText.mode;
@@ -81,6 +88,20 @@ function getDataToCopy(viewModel: IViewModel, modelSelections: Range[], emptySel
 		mode
 	};
 	return dataToCopy;
+}
+
+function filterSelections(selections: Range[], viewModel: IViewModel): Range[] {
+	const excludeRanges = viewModel.getHiddenAreas().map(h => new Range(h.startLineNumber, h.startColumn, h.endLineNumber, viewModel.model.getLineMaxColumn(h.endLineNumber)));
+	if (excludeRanges.length === 0) {
+		return selections;
+	}
+
+	const result: Range[] = [];
+	for (const selection of selections) {
+		const visibleRanges = subtractRanges(selection, excludeRanges, viewModel);
+		result.push(...visibleRanges);
+	}
+	return result;
 }
 
 /**
