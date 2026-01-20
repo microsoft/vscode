@@ -18,7 +18,6 @@ import { ExtensionIdentifier } from '../../../../../platform/extensions/common/e
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ILanguageModelsConfigurationService } from '../../common/languageModelsConfiguration.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -43,7 +42,6 @@ suite('LanguageModels', function () {
 			new NullLogService(),
 			new TestStorageService(),
 			new MockContextKeyService(),
-			new TestConfigurationService(),
 			new class extends mock<ILanguageModelsConfigurationService>() {
 				override getLanguageModelsProviderGroups() {
 					return [];
@@ -257,7 +255,6 @@ suite('LanguageModels - When Clause', function () {
 			new NullLogService(),
 			new TestStorageService(),
 			contextKeyService,
-			new TestConfigurationService(),
 			new class extends mock<ILanguageModelsConfigurationService>() { },
 			new class extends mock<IQuickInputService>() { },
 			new TestSecretStorageService(),
