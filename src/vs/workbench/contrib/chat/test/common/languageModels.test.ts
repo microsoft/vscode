@@ -19,7 +19,6 @@ import { TestStorageService } from '../../../../test/common/workbenchTestService
 import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ILanguageModelsConfigurationService } from '../../common/languageModelsConfiguration.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -44,7 +43,6 @@ suite('LanguageModels', function () {
 			new NullLogService(),
 			new TestStorageService(),
 			new MockContextKeyService(),
-			new TestConfigurationService(),
 			new class extends mock<ILanguageModelsConfigurationService>() {
 				override onDidChangeLanguageModelGroups = Event.None;
 				override getLanguageModelsProviderGroups() {
@@ -259,7 +257,6 @@ suite('LanguageModels - When Clause', function () {
 			new NullLogService(),
 			new TestStorageService(),
 			contextKeyService,
-			new TestConfigurationService(),
 			new class extends mock<ILanguageModelsConfigurationService>() {
 				override onDidChangeLanguageModelGroups = Event.None;
 			},
@@ -327,7 +324,6 @@ suite('LanguageModels - Model Picker Preferences Storage', function () {
 			new NullLogService(),
 			storageService,
 			new MockContextKeyService(),
-			new TestConfigurationService(),
 			new class extends mock<ILanguageModelsConfigurationService>() {
 				override onDidChangeLanguageModelGroups = Event.None;
 				override getLanguageModelsProviderGroups() {
@@ -576,7 +572,6 @@ suite('LanguageModels - Model Change Events', function () {
 			new NullLogService(),
 			storageService,
 			new MockContextKeyService(),
-			new TestConfigurationService(),
 			new class extends mock<ILanguageModelsConfigurationService>() {
 				override onDidChangeLanguageModelGroups = Event.None;
 				override getLanguageModelsProviderGroups() {
