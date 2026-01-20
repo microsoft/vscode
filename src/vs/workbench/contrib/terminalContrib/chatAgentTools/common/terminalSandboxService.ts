@@ -46,7 +46,6 @@ export class TerminalSandboxService implements ITerminalSandboxService {
 		@ILogService private readonly _logService: ILogService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 	) {
-		super();
 		const appRoot = dirname(FileAccess.asFileUri('').fsPath);
 		this._srtPath = join(appRoot, 'node_modules', '.bin', 'srt');
 		this._sandboxSettingsId = generateUuid();
