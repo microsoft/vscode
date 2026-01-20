@@ -324,6 +324,12 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 
 				// No previous state, just add it
 				if (!state) {
+					const isInProgress = isSessionInProgressStatus(status);
+					let inProgressTime: number | undefined;
+					if (isInProgress) {
+						inProgressTime = Date.now();
+						this.logService.trace(`[agent sessions] Setting inProgressTime for session ${session.resource.toString()} to ${inProgressTime} (status: ${status})`);
+					}
 					this.mapSessionToState.set(session.resource, {
 						status,
 						inProgressTime: isSessionInProgressStatus(status) ? Date.now() : undefined, // this is not accurate but best effort
@@ -367,6 +373,8 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 						lastRequestStarted = existing.timing.lastRequestStarted;
 					}
 				}
+
+				this.logService.trace(`[agent sessions] Resolved session ${session.resource.toString()} with timings: created=${created}, lastRequestStarted=${lastRequestStarted}, lastRequestEnded=${lastRequestEnded}`);
 
 				sessions.set(session.resource, this.toAgentSession({
 					providerType: chatSessionType,
