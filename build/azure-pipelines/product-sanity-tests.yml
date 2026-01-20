@@ -30,7 +30,7 @@ parameters:
       - 1es-mariner-2.0-arm64
 
   - name: macOSPool
-    displayName: macOS Pool
+    displayName: MacOS Pool
     type: string
     default: AcesShared
 
@@ -85,22 +85,6 @@ extends:
       - stage: sanity_tests
         displayName: Sanity Tests
         jobs:
-          # Windows
-          - template: build/azure-pipelines/common/sanity-tests.yml@self
-            parameters:
-              name: windows_x64
-              displayName: Windows x64
-              poolName: ${{ parameters.windowsPool }}
-              os: windows
-
-          - template: build/azure-pipelines/common/sanity-tests.yml@self
-            parameters:
-              name: windows_arm64
-              displayName: Windows arm64 (no runtime)
-              poolName: ${{ parameters.windowsPool }}
-              os: windows
-              args: --no-runtime-check --grep "win32-arm64"
-
           # macOS
           - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
@@ -117,62 +101,54 @@ extends:
               poolName: ${{ parameters.macOSPool }}
               os: macOS
 
-          # Native Ubuntu (Snap coverage)
+          # Windows
           - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
-              name: ubuntu_native_x64
-              displayName: Ubuntu 22.04 x64 Native
-              poolName: ${{ parameters.linuxX64Pool }}
-              os: linux
+              name: windows_x64
+              displayName: Windows x64
+              poolName: ${{ parameters.windowsPool }}
+              os: windows
 
-          # Ubuntu 22.04
           - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
-              name: ubuntu_22_04_amd64
-              displayName: Ubuntu 22.04 amd64
+              name: windows_arm64
+              displayName: Windows arm64 (no runtime)
+              poolName: ${{ parameters.windowsPool }}
+              os: windows
+              args: --no-runtime-check --grep "win32-arm64"
+
+          # Alpine 3.23
+          - template: build/azure-pipelines/common/sanity-tests.yml@self
+            parameters:
+              name: alpine_amd64
+              displayName: Alpine 3.23 amd64
               poolName: ${{ parameters.linuxX64Pool }}
-              container: ubuntu:22.04
+              container: alpine:3.23
               containerPlatform: linux/amd64
 
           - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
-              name: ubuntu_22_04_arm32
-              displayName: Ubuntu 22.04 arm32
+              name: alpine_arm64
+              displayName: Alpine 3.23 arm64
               poolName: ${{ parameters.linuxArmPool }}
-              container: ubuntu:22.04
-              containerPlatform: linux/arm
-
-          - template: build/azure-pipelines/common/sanity-tests.yml@self
-            parameters:
-              name: ubuntu_22_04_arm64
-              displayName: Ubuntu 22.04 arm64
-              poolName: ${{ parameters.linuxArmPool }}
-              container: ubuntu:22.04
+              container: alpine:3.23
               containerPlatform: linux/arm64
 
-          # Ubuntu 24.04
+          # CentOS Stream 9
           - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
-              name: ubuntu_24_04_amd64
-              displayName: Ubuntu 24.04 amd64
+              name: centos_stream9_amd64
+              displayName: CentOS Stream 9 amd64
               poolName: ${{ parameters.linuxX64Pool }}
-              container: ubuntu:24.04
+              container: quay.io/centos/centos:stream9
               containerPlatform: linux/amd64
 
           - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
-              name: ubuntu_24_04_arm32
-              displayName: Ubuntu 24.04 arm32
+              name: centos_stream9_arm64
+              displayName: CentOS Stream 9 arm64
               poolName: ${{ parameters.linuxArmPool }}
-              container: ubuntu:24.04
-              containerPlatform: linux/arm
-
-          - template: build/azure-pipelines/common/sanity-tests.yml@self
-            parameters:
-              name: ubuntu_24_04_arm64
-              displayName: Ubuntu 24.04 arm64
-              poolName: ${{ parameters.linuxArmPool }}
-              container: ubuntu:24.04
+              container: quay.io/centos/centos:stream9
               containerPlatform: linux/arm64
 
           # Debian 10
@@ -223,40 +199,6 @@ extends:
               displayName: Debian 12 arm64
               poolName: ${{ parameters.linuxArmPool }}
               container: debian:12
-              containerPlatform: linux/arm64
-
-          # Red Hat UBI 9
-          - template: build/azure-pipelines/common/sanity-tests.yml@self
-            parameters:
-              name: redhat_ubi9_amd64
-              displayName: Red Hat UBI 9 amd64
-              poolName: ${{ parameters.linuxX64Pool }}
-              container: redhat/ubi9:9.7
-              containerPlatform: linux/amd64
-
-          - template: build/azure-pipelines/common/sanity-tests.yml@self
-            parameters:
-              name: redhat_ubi9_arm64
-              displayName: Red Hat UBI 9 arm64
-              poolName: ${{ parameters.linuxArmPool }}
-              container: redhat/ubi9:9.7
-              containerPlatform: linux/arm64
-
-          # CentOS Stream 9
-          - template: build/azure-pipelines/common/sanity-tests.yml@self
-            parameters:
-              name: centos_stream9_amd64
-              displayName: CentOS Stream 9 amd64
-              poolName: ${{ parameters.linuxX64Pool }}
-              container: quay.io/centos/centos:stream9
-              containerPlatform: linux/amd64
-
-          - template: build/azure-pipelines/common/sanity-tests.yml@self
-            parameters:
-              name: centos_stream9_arm64
-              displayName: CentOS Stream 9 arm64
-              poolName: ${{ parameters.linuxArmPool }}
-              container: quay.io/centos/centos:stream9
               containerPlatform: linux/arm64
 
           # Fedora 36
@@ -318,19 +260,77 @@ extends:
               container: opensuse/leap:16.0
               containerPlatform: linux/arm64
 
-          # Alpine 3.23
+          # Red Hat UBI 9
           - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
-              name: alpine_amd64
-              displayName: Alpine 3.23 amd64
+              name: redhat_ubi9_amd64
+              displayName: Red Hat UBI 9 amd64
               poolName: ${{ parameters.linuxX64Pool }}
-              container: alpine:3.23
+              container: redhat/ubi9:9.7
               containerPlatform: linux/amd64
 
           - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
-              name: alpine_arm64
-              displayName: Alpine 3.23 arm64
+              name: redhat_ubi9_arm64
+              displayName: Red Hat UBI 9 arm64
               poolName: ${{ parameters.linuxArmPool }}
-              container: alpine:3.23
+              container: redhat/ubi9:9.7
+              containerPlatform: linux/arm64
+
+          # Ubuntu 22.04 Native (Snap coverage)
+          - template: build/azure-pipelines/common/sanity-tests.yml@self
+            parameters:
+              name: ubuntu_native_x64
+              displayName: Ubuntu 22.04 x64 Native
+              poolName: ${{ parameters.linuxX64Pool }}
+              os: linux
+
+          # Ubuntu 22.04
+          - template: build/azure-pipelines/common/sanity-tests.yml@self
+            parameters:
+              name: ubuntu_22_04_amd64
+              displayName: Ubuntu 22.04 amd64
+              poolName: ${{ parameters.linuxX64Pool }}
+              container: ubuntu:22.04
+              containerPlatform: linux/amd64
+
+          - template: build/azure-pipelines/common/sanity-tests.yml@self
+            parameters:
+              name: ubuntu_22_04_arm32
+              displayName: Ubuntu 22.04 arm32
+              poolName: ${{ parameters.linuxArmPool }}
+              container: ubuntu:22.04
+              containerPlatform: linux/arm
+
+          - template: build/azure-pipelines/common/sanity-tests.yml@self
+            parameters:
+              name: ubuntu_22_04_arm64
+              displayName: Ubuntu 22.04 arm64
+              poolName: ${{ parameters.linuxArmPool }}
+              container: ubuntu:22.04
+              containerPlatform: linux/arm64
+
+          # Ubuntu 24.04
+          - template: build/azure-pipelines/common/sanity-tests.yml@self
+            parameters:
+              name: ubuntu_24_04_amd64
+              displayName: Ubuntu 24.04 amd64
+              poolName: ${{ parameters.linuxX64Pool }}
+              container: ubuntu:24.04
+              containerPlatform: linux/amd64
+
+          - template: build/azure-pipelines/common/sanity-tests.yml@self
+            parameters:
+              name: ubuntu_24_04_arm32
+              displayName: Ubuntu 24.04 arm32
+              poolName: ${{ parameters.linuxArmPool }}
+              container: ubuntu:24.04
+              containerPlatform: linux/arm
+
+          - template: build/azure-pipelines/common/sanity-tests.yml@self
+            parameters:
+              name: ubuntu_24_04_arm64
+              displayName: Ubuntu 24.04 arm64
+              poolName: ${{ parameters.linuxArmPool }}
+              container: ubuntu:24.04
               containerPlatform: linux/arm64
