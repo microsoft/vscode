@@ -36,55 +36,6 @@ type ToolSetPick = IQuickPickItem & { picked: boolean; toolset: ToolSet; parent:
 type ToolPick = IQuickPickItem & { picked: boolean; tool: IToolData; parent: BucketPick };
 type ActionableButton = IQuickInputButton & { action: () => void };
 
-/**
- * Telemetry events for tool picker interactions:
- * - chat.toolPicker.mcpServerToggle: When MCP servers are enabled/disabled
- * - chat.toolPicker.toolToggle: When individual tools are enabled/disabled
- * - chat.toolPicker.action: When action buttons are clicked (add server, configure, etc.)
- * All events include virtualMode flag to indicate if tool count exceeded threshold
- */
-
-// Telemetry event definitions
-type McpServerToggleData = {
-	serverId: string;
-	serverLabel: string;
-	enabled: boolean;
-	virtualMode: boolean;
-};
-type McpServerToggleClassification = {
-	owner: 'digitarald';
-	comment: 'Tracks when MCP servers are enabled/disabled in tool picker';
-	serverId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'MCP server ID' };
-	serverLabel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'MCP server display label' };
-	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the server was enabled or disabled' };
-	virtualMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether virtual mode was active during toggling' };
-};
-
-type ToolToggleData = {
-	toolId: string;
-	toolName: string;
-	toolSource: string;
-	enabled: boolean;
-	virtualMode: boolean;
-};
-type ToolToggleClassification = {
-	owner: 'digitarald';
-	comment: 'Tracks when individual tools are enabled/disabled in tool picker';
-	toolId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Tool ID' };
-	toolName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Tool display name' };
-	toolSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Source type of the tool (mcp, extension, internal, user)' };
-	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the tool was enabled or disabled' };
-	virtualMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether virtual mode was active during toggling' };
-};
-
-type ToolPickerActionData = {
-	action: string;
-};
-type ToolPickerActionClassification = {
-	owner: 'digitarald';
-	comment: 'Tracks when tool picker action buttons are used';
-	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The action that was triggered (addMcpServer, installExtension, configureToolSets, editUserToolSet, showMcpOutput, updateMcpTools, configureMcpServer)' };
-};
 
 // New QuickTree types for tree-based implementation
 
@@ -811,3 +762,71 @@ function sendDidChangeEvent(source: string, telemetryService: ITelemetryService,
 		changed,
 	});
 }
+
+/**
+ * Telemetry events for tool picker interactions:
+ * - chat.toolPicker.mcpServerToggle: When MCP servers are enabled/disabled
+ * - chat.toolPicker.toolSetToggle: When non-MCP tool sets (user-defined, etc.) are enabled/disabled
+ * - chat.toolPicker.toolToggle: When individual tools are enabled/disabled
+ * - chat.toolPicker.action: When action buttons are clicked (add server, configure, etc.)
+ * All events include virtualMode flag to indicate if tool count exceeded threshold
+ */
+
+// Telemetry event definitions
+type McpServerToggleData = {
+	serverId: string;
+	serverLabel: string;
+	enabled: boolean;
+	virtualMode: boolean;
+};
+type McpServerToggleClassification = {
+	owner: 'digitarald';
+	comment: 'Tracks when MCP servers are enabled/disabled in tool picker';
+	serverId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Hashed MCP server ID' };
+	serverLabel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'MCP server display label' };
+	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the server was enabled or disabled' };
+	virtualMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether virtual mode was active during toggling' };
+};
+
+type ToolToggleData = {
+	toolId: string;
+	toolName: string;
+	toolSource: string;
+	enabled: boolean;
+	virtualMode: boolean;
+};
+type ToolToggleClassification = {
+	owner: 'digitarald';
+	comment: 'Tracks when individual tools are enabled/disabled in tool picker';
+	toolId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Hashed tool ID' };
+	toolName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Tool display name' };
+	toolSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Source type of the tool (mcp, extension, internal, user)' };
+	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the tool was enabled or disabled' };
+	virtualMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether virtual mode was active during toggling' };
+};
+
+type ToolSetToggleData = {
+	toolSetId: string;
+	toolSetName: string;
+	toolSetSource: string;
+	enabled: boolean;
+	virtualMode: boolean;
+};
+type ToolSetToggleClassification = {
+	owner: 'digitarald';
+	comment: 'Tracks when non-MCP tool sets are enabled/disabled in tool picker';
+	toolSetId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Tool set ID' };
+	toolSetName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Tool set display name' };
+	toolSetSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Source type of the tool set (user, internal, extension)' };
+	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the tool set was enabled or disabled' };
+	virtualMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether virtual mode was active during toggling' };
+};
+
+type ToolPickerActionData = {
+	action: string;
+};
+type ToolPickerActionClassification = {
+	owner: 'digitarald';
+	comment: 'Tracks when tool picker action buttons are used';
+	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The action that was triggered (addMcpServer, installExtension, configureToolSets, editUserToolSet, showMcpOutput, updateMcpTools, configureMcpServer)' };
+};
