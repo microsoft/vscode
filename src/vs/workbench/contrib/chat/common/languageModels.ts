@@ -285,7 +285,7 @@ export interface ILanguageModelsService {
 
 	readonly _serviceBrand: undefined;
 
-	// TODO @lramos15 - Make this a richer event in the future. Right now it just indicates some change happened, but not what
+	readonly onDidChangeLanguageModelVendors: Event<readonly string[]>;
 	readonly onDidChangeLanguageModels: Event<string>;
 
 	updateModelPickerPreference(modelIdentifier: string, showInModelPicker: boolean): void;
@@ -305,6 +305,8 @@ export interface ILanguageModelsService {
 	selectLanguageModels(selector: ILanguageModelChatSelector): Promise<string[]>;
 
 	registerLanguageModelProvider(vendor: string, provider: ILanguageModelChatProvider): IDisposable;
+
+	deltaLanguageModelChatProviderDescriptors(added: IUserFriendlyLanguageModel[], removed: IUserFriendlyLanguageModel[]): void;
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	sendChatRequest(modelId: string, from: ExtensionIdentifier, messages: IChatMessage[], options: { [name: string]: any }, token: CancellationToken): Promise<ILanguageModelChatResponse>;
@@ -415,6 +417,9 @@ export class LanguageModelsService implements ILanguageModelsService {
 	private readonly _providers = new Map<string, ILanguageModelChatProvider>();
 	private readonly _vendors = new Map<string, IUserFriendlyLanguageModel>();
 
+	private readonly _onDidChangeLanguageModelVendors = this._store.add(new Emitter<string[]>());
+	readonly onDidChangeLanguageModelVendors = this._onDidChangeLanguageModelVendors.event;
+
 	private readonly _modelsGroups = new Map<string, ILanguageModelsGroup[]>();
 	private readonly _modelCache = new Map<string, ILanguageModelChatMetadata>();
 	private readonly _resolveLMSequencer = new SequencerByKey<string>();
@@ -440,11 +445,11 @@ export class LanguageModelsService implements ILanguageModelsService {
 		this._store.add(this.onDidChangeLanguageModels(() => this._hasUserSelectableModels.set(this._modelCache.size > 0 && Array.from(this._modelCache.values()).some(model => model.isUserSelectable))));
 		this._store.add(this._languageModelsConfigurationService.onDidChangeLanguageModelGroups(changedGroups => this._onDidChangeLanguageModelGroups(changedGroups)));
 
-		this._store.add(languageModelChatProviderExtensionPoint.setHandler((extensions) => {
+		this._store.add(languageModelChatProviderExtensionPoint.setHandler((extensions, { added, removed }) => {
+			const addedVendors: IUserFriendlyLanguageModel[] = [];
+			const removedVendors: IUserFriendlyLanguageModel[] = [];
 
-			this._vendors.clear();
-
-			for (const extension of extensions) {
+			for (const extension of added) {
 				for (const item of Iterable.wrap(extension.value)) {
 					if (this._vendors.has(item.vendor)) {
 						extension.collector.error(localize('vscode.extension.contributes.languageModels.vendorAlreadyRegistered', "The vendor '{0}' is already registered and cannot be registered twice", item.vendor));
@@ -458,19 +463,74 @@ export class LanguageModelsService implements ILanguageModelsService {
 						extension.collector.error(localize('vscode.extension.contributes.languageModels.whitespaceVendor', "The vendor field cannot start or end with whitespace."));
 						continue;
 					}
-					this._vendors.set(item.vendor, item);
-					// Have some models we want from this vendor, so activate the extension
-					if (this._hasStoredModelForVendor(item.vendor)) {
-						this._extensionService.activateByEvent(`onLanguageModelChatProvider:${item.vendor}`);
-					}
+					addedVendors.push(item);
 				}
 			}
-			for (const [vendor, _] of this._providers) {
-				if (!this._vendors.has(vendor)) {
-					this._providers.delete(vendor);
+
+			for (const extension of removed) {
+				for (const item of Iterable.wrap(extension.value)) {
+					removedVendors.push(item);
 				}
 			}
+
+			this.deltaLanguageModelChatProviderDescriptors(addedVendors, removedVendors);
 		}));
+	}
+
+	deltaLanguageModelChatProviderDescriptors(added: IUserFriendlyLanguageModel[], removed: IUserFriendlyLanguageModel[]): void {
+		const addedVendorIds: string[] = [];
+		const removedVendorIds: string[] = [];
+
+		for (const item of added) {
+			if (this._vendors.has(item.vendor)) {
+				this._logService.error(`The vendor '${item.vendor}' is already registered and cannot be registered twice`);
+				continue;
+			}
+			if (isFalsyOrWhitespace(item.vendor)) {
+				this._logService.error('The vendor field cannot be empty.');
+				continue;
+			}
+			if (item.vendor.trim() !== item.vendor) {
+				this._logService.error('The vendor field cannot start or end with whitespace.');
+				continue;
+			}
+			// Cast to IUserFriendlyLanguageModel - fill in optional properties with undefined
+			const vendor: IUserFriendlyLanguageModel = {
+				vendor: item.vendor,
+				displayName: item.displayName,
+				configuration: item.configuration,
+				managementCommand: item.managementCommand,
+				when: item.when
+			};
+			this._vendors.set(item.vendor, vendor);
+			addedVendorIds.push(item.vendor);
+			// Have some models we want from this vendor, so activate the extension
+			if (this._hasStoredModelForVendor(item.vendor)) {
+				this._extensionService.activateByEvent(`onLanguageModelChatProvider:${item.vendor}`);
+			}
+		}
+
+		for (const item of removed) {
+			this._vendors.delete(item.vendor);
+			this._providers.delete(item.vendor);
+			this._clearModelCache(item.vendor);
+			removedVendorIds.push(item.vendor);
+		}
+
+		for (const [vendor, _] of this._providers) {
+			if (!this._vendors.has(vendor)) {
+				this._providers.delete(vendor);
+			}
+		}
+
+		if (addedVendorIds.length > 0 || removedVendorIds.length > 0) {
+			this._onDidChangeLanguageModelVendors.fire([...addedVendorIds, ...removedVendorIds]);
+			if (removedVendorIds.length > 0) {
+				for (const vendor of removedVendorIds) {
+					this._onLanguageModelChange.fire(vendor);
+				}
+			}
+		}
 	}
 
 	private async _onDidChangeLanguageModelGroups(changedGroups: readonly ILanguageModelsProviderGroup[]): Promise<void> {
