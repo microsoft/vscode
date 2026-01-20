@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatEditingEditorOverlay.css';
-import { combinedDisposable, Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, derived, derivedOpts, IObservable, observableFromEvent, observableFromEventOpts, observableSignalFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun, constObservable, derived, derivedOpts, IObservable, observableFromEvent, observableFromEventOpts, observableSignalFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
@@ -23,7 +23,7 @@ import { EditorGroupView } from '../../../../browser/parts/editor/editorGroupVie
 import { Event } from '../../../../../base/common/event.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
+import { EditorResourceAccessor, IEditorPane, SideBySideEditor } from '../../../../common/editor.js';
 import { IInlineChatSessionService } from '../../../inlineChat/browser/inlineChatSessionService.js';
 import { InlineChatConfigKeys } from '../../../inlineChat/common/inlineChat.js';
 import { isEqual } from '../../../../../base/common/resources.js';
@@ -34,6 +34,8 @@ import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { observableCodeEditor } from '../../../../../editor/browser/observableCodeEditor.js';
+import { IOverlayWidgetPosition, isCodeEditor, OverlayWidgetPositionPreference } from '../../../../../editor/browser/editorBrowser.js';
 
 class ChatEditorOverlayWidget extends Disposable {
 
@@ -325,26 +327,53 @@ class ChatEditingOverlayController {
 	) {
 
 		this._domNode.classList.add('chat-editing-editor-overlay');
-		this._domNode.style.position = 'absolute';
-		this._domNode.style.bottom = `24px`;
-		this._domNode.style.right = `24px`;
-		this._domNode.style.zIndex = `100`;
 
 		const widget = instaService.createInstance(ChatEditorOverlayWidget, group);
 		this._domNode.appendChild(widget.getDomNode());
 		this._store.add(toDisposable(() => this._domNode.remove()));
 		this._store.add(widget);
 
-		const show = () => {
-			if (!container.contains(this._domNode)) {
-				container.appendChild(this._domNode);
-			}
-		};
+		let overlayWidget: IDisposable | undefined = undefined;
 
-		const hide = () => {
-			if (container.contains(this._domNode)) {
-				widget.hide();
-				this._domNode.remove();
+		let hide = () => { };
+
+		const show = (editor: IEditorPane) => {
+			const ctrl = editor.getControl();
+
+			if (isCodeEditor(ctrl)) {
+				// code editor special case
+				if (!overlayWidget) {
+					const editorObs = observableCodeEditor(ctrl);
+					overlayWidget = editorObs.createOverlayWidget({
+						allowEditorOverflow: false,
+						domNode: this._domNode,
+						minContentWidthInPx: constObservable(0),
+						position: constObservable({
+							preference: OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER,
+							stackOrdinal: 1
+						} satisfies IOverlayWidgetPosition)
+					});
+
+					hide = () => {
+						if (overlayWidget) {
+							widget.hide();
+							overlayWidget.dispose();
+							overlayWidget = undefined;
+						}
+					};
+				}
+			} else {
+				// generic positioning
+				if (!container.contains(this._domNode)) {
+					container.appendChild(this._domNode);
+				}
+
+				hide = () => {
+					if (container.contains(this._domNode)) {
+						widget.hide();
+						this._domNode.remove();
+					}
+				};
 			}
 		};
 
@@ -418,7 +447,7 @@ class ChatEditingOverlayController {
 				);
 
 				widget.show(session, entry, { entryIndex, changeIndex });
-				show();
+				show(editorPane);
 
 			} else {
 				// nothing

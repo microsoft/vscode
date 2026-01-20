@@ -11,7 +11,7 @@ import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/a
 import { IMenuService, MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { ICodeEditor, OverlayWidgetPositionPreference } from '../../../browser/editorBrowser.js';
+import { ICodeEditor, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from '../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../browser/observableCodeEditor.js';
 import { IEditorContribution } from '../../../common/editorCommon.js';
 
@@ -86,8 +86,9 @@ export class FloatingEditorToolbar extends Disposable implements IEditorContribu
 				domNode: container.root,
 				minContentWidthInPx: constObservable(0),
 				position: constObservable({
-					preference: OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER
-				})
+					preference: OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER,
+					stackOrdinal: 2
+				} satisfies IOverlayWidgetPosition)
 			}));
 		}));
 	}
