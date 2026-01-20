@@ -224,6 +224,14 @@ export interface IChatResponseViewModel {
 	readonly shouldBeBlocked: IObservable<boolean>;
 }
 
+export interface IChatViewModelOptions {
+	/**
+	 * Maximum number of items to return from getItems().
+	 * When set, only the last N items are returned (most recent request/response pairs).
+	 */
+	readonly maxVisibleItems?: number;
+}
+
 export class ChatViewModel extends Disposable implements IChatViewModel {
 
 	private readonly _onDidDisposeModel = this._register(new Emitter<void>());
@@ -260,6 +268,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	constructor(
 		private readonly _model: IChatModel,
 		public readonly codeBlockModelCollection: CodeBlockModelCollection,
+		private readonly _options: IChatViewModelOptions | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
@@ -318,7 +327,11 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	}
 
 	getItems(): (IChatRequestViewModel | IChatResponseViewModel)[] {
-		return this._items.filter((item) => !item.shouldBeRemovedOnSend || item.shouldBeRemovedOnSend.afterUndoStop);
+		const items = this._items.filter((item) => !item.shouldBeRemovedOnSend || item.shouldBeRemovedOnSend.afterUndoStop);
+		if (this._options?.maxVisibleItems !== undefined && items.length > this._options.maxVisibleItems) {
+			return items.slice(-this._options.maxVisibleItems);
+		}
+		return items;
 	}
 
 

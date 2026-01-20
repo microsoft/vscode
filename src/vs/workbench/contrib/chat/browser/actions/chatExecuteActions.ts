@@ -31,7 +31,7 @@ import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { getAgentSessionProvider, AgentSessionProviders } from '../agentSessions/agentSessions.js';
 import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
-import { ctxHasEditorModification } from '../chatEditing/chatEditingEditorContextKeys.js';
+import { ctxHasEditorModification, ctxHasRequestInProgress, ctxIsGlobalEditingSession } from '../chatEditing/chatEditingEditorContextKeys.js';
 import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY, handleCurrentEditingSession, handleModeSwitch } from './chatActions.js';
 import { CreateRemoteAgentJobAction } from './chatContinueInAction.js';
 
@@ -782,6 +782,14 @@ export class CancelAction extends Action2 {
 				when: ContextKeyExpr.and(
 					ChatContextKeys.requestInProgress,
 					ChatContextKeys.remoteJobCreating.negate()
+				),
+				order: 4,
+				group: 'navigation',
+			}, {
+				id: MenuId.ChatEditingEditorContent,
+				when: ContextKeyExpr.and(
+					ctxIsGlobalEditingSession.negate(),
+					ctxHasRequestInProgress
 				),
 				order: 4,
 				group: 'navigation',
