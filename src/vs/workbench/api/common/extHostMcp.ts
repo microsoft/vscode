@@ -76,7 +76,6 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 	private readonly _onDidChangeMcpServerDefinitions = this._register(new Emitter<void>());
 	readonly onDidChangeMcpServerDefinitions: Event<void> = this._onDidChangeMcpServerDefinitions.event;
 	private _mcpServerDefinitions: readonly vscode.McpServerDefinition[] = [];
-	private _mcpServerDefinitionsInitialized = false;
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
@@ -91,27 +90,13 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 
 	/** Returns all MCP server definitions known to the editor. */
 	get mcpServerDefinitions(): readonly vscode.McpServerDefinition[] {
-		if (!this._mcpServerDefinitionsInitialized) {
-			this._mcpServerDefinitionsInitialized = true;
-			// Fetch asynchronously in background and update when ready
-			this._proxy.$getMcpServerDefinitions().then(dtos => {
-				this._mcpServerDefinitions = dtos.map(dto => Convert.McpServerDefinition.to(dto));
-				this._onDidChangeMcpServerDefinitions.fire();
-			}).catch(err => this._logService.error('Failed to fetch MCP server definitions:', err));
-		}
 		return this._mcpServerDefinitions;
 	}
 
 	/** Called by main thread to notify that MCP server definitions have changed. */
-	$onDidChangeMcpServerDefinitions(): void {
-		if (!this._mcpServerDefinitionsInitialized) {
-			return;
-		}
-		// Re-fetch from main thread
-		this._proxy.$getMcpServerDefinitions().then(dtos => {
-			this._mcpServerDefinitions = dtos.map(dto => Convert.McpServerDefinition.to(dto));
-			this._onDidChangeMcpServerDefinitions.fire();
-		}).catch(err => this._logService.error('Failed to fetch MCP server definitions:', err));
+	$onDidChangeMcpServerDefinitions(servers: McpServerDefinition.Serialized[]): void {
+		this._mcpServerDefinitions = servers.map(dto => Convert.McpServerDefinition.to(dto));
+		this._onDidChangeMcpServerDefinitions.fire();
 	}
 
 	$startMcp(id: number, opts: IStartMcpOptions): void {
