@@ -118,7 +118,7 @@ AgentsQuickChat (main container)
 
 2. **Quick Access mode (prefix detected)**: Input delegates to Quick Access providers
    - Typing `>` switches to Commands provider
-   - Typing `@` switches to Symbols provider  
+   - Typing `@` switches to Symbols provider
    - Typing `#` switches to Workspace Symbols provider
    - Typing `%` switches to Text Search provider
    - Content area shows Quick Access picks instead of sessions
