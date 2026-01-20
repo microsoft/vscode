@@ -6,7 +6,7 @@
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { FileAccess } from '../../../../../base/common/network.js';
 import { dirname, join } from '../../../../../base/common/path.js';
-import { isNative, OperatingSystem, OS } from '../../../../../base/common/platform.js';
+import { OperatingSystem, OS } from '../../../../../base/common/platform.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -65,7 +65,7 @@ export class TerminalSandboxService implements ITerminalSandboxService {
 		if (!this._sandboxConfigPath || !this._tempDir) {
 			throw new Error('Sandbox config path or temp dir not initialized');
 		}
-		const execPath = isNative ? (this._environmentService as { execPath?: string }).execPath : undefined;
+		const execPath = (this._environmentService as { execPath?: string }).execPath;
 		if (!execPath) {
 			throw new Error('Sandbox runtime requires a native environment with execPath.');
 		}
@@ -121,7 +121,7 @@ export class TerminalSandboxService implements ITerminalSandboxService {
 	}
 
 	private _initTempDir(): void {
-		if (this.isEnabled() && isNative) {
+		if (this.isEnabled()) {
 			this._needsForceUpdateConfigFile = true;
 			const environmentService = this._environmentService as IEnvironmentService & { tmpDir?: URI };
 			this._tempDir = environmentService.tmpDir;
