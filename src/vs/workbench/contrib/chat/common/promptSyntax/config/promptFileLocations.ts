@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../../base/common/uri.js';
-import { basename } from '../../../../../../base/common/path.js';
+import { basename, dirname } from '../../../../../../base/common/path.js';
 import { PromptsType } from '../promptTypes.js';
 import { PromptsStorage } from '../service/promptsService.js';
 
@@ -131,7 +131,13 @@ export const DEFAULT_AGENT_SOURCE_FOLDERS: readonly IPromptSourceFolder[] = [
 	{ path: AGENTS_SOURCE_FOLDER, source: PromptFileSource.GitHubWorkspace, storage: PromptsStorage.local },
 ];
 
-
+/**
+ * Helper function to check if a file is directly in the .github/agents/ folder (not in subfolders).
+ */
+function isInAgentsFolder(fileUri: URI): boolean {
+	const dir = dirname(fileUri.path);
+	return dir.endsWith('/' + AGENTS_SOURCE_FOLDER) || dir === AGENTS_SOURCE_FOLDER;
+}
 
 /**
  * Gets the prompt file type from the provided path.
@@ -153,6 +159,12 @@ export function getPromptFileType(fileUri: URI): PromptsType | undefined {
 
 	if (filename.toLowerCase() === SKILL_FILENAME.toLowerCase()) {
 		return PromptsType.skill;
+	}
+
+	// Check if it's a .md file in the .github/agents/ folder
+	// Exclude README.md to allow documentation files
+	if (filename.endsWith('.md') && filename !== 'README.md' && isInAgentsFolder(fileUri)) {
+		return PromptsType.agent;
 	}
 
 	return undefined;
@@ -221,6 +233,12 @@ export function getCleanPromptName(fileUri: URI): string {
 
 	// For SKILL.md files (case insensitive), return 'SKILL'
 	if (fileName.toLowerCase() === SKILL_FILENAME.toLowerCase()) {
+		return basename(fileUri.path, '.md');
+	}
+
+	// For .md files in .github/agents/ folder, treat them as agent files
+	// Exclude README.md to allow documentation files
+	if (fileName.endsWith('.md') && fileName !== 'README.md' && isInAgentsFolder(fileUri)) {
 		return basename(fileUri.path, '.md');
 	}
 

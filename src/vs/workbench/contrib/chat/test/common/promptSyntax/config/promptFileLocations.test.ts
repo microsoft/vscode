@@ -33,12 +33,12 @@ suite('promptFileLocations', function () {
 			assert.strictEqual(getPromptFileType(uri), PromptsType.agent);
 		});
 
-		test('.md files in .github/agents/ folder should NOT be recognized as agent files', () => {
+		test('.md files in .github/agents/ folder should be recognized as agent files', () => {
 			const uri = URI.file('/workspace/.github/agents/demonstrate.md');
-			assert.strictEqual(getPromptFileType(uri), undefined);
+			assert.strictEqual(getPromptFileType(uri), PromptsType.agent);
 		});
 
-		test('README.md in .github/agents/ should NOT be recognized as agent files', () => {
+		test('README.md in .github/agents/ should NOT be recognized as agent file', () => {
 			const uri = URI.file('/workspace/.github/agents/README.md');
 			assert.strictEqual(getPromptFileType(uri), undefined);
 		});
@@ -105,12 +105,12 @@ suite('promptFileLocations', function () {
 			assert.strictEqual(getCleanPromptName(uri), 'test');
 		});
 
-		test('.md files in .github/agents/ should NOT be treated as agent files', () => {
+		test('removes .md extension for files in .github/agents/', () => {
 			const uri = URI.file('/workspace/.github/agents/demonstrate.md');
-			assert.strictEqual(getCleanPromptName(uri), 'demonstrate.md');
+			assert.strictEqual(getCleanPromptName(uri), 'demonstrate');
 		});
 
-		test('README.md should keep .md extension', () => {
+		test('README.md in .github/agents/ should keep .md extension', () => {
 			const uri = URI.file('/workspace/.github/agents/README.md');
 			assert.strictEqual(getCleanPromptName(uri), 'README.md');
 		});
