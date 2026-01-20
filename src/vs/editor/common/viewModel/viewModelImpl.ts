@@ -10,7 +10,7 @@ import { Event } from '../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 import * as platform from '../../../base/common/platform.js';
 import * as strings from '../../../base/common/strings.js';
-import { ConfigurationChangedEvent, EditorOption, filterValidationDecorations, filterFontDecorations } from '../config/editorOptions.js';
+import { ConfigurationChangedEvent, EditorOption, filterValidationDecorations, filterFontDecorations, FindComputedEditorOptionValueById } from '../config/editorOptions.js';
 import { EDITOR_FONT_DEFAULTS } from '../config/fontInfo.js';
 import { CursorsController } from '../cursor/cursor.js';
 import { CursorConfiguration, CursorState, EditOperationType, IColumnSelectData, PartialCursorState } from '../cursorCommon.js';
@@ -176,6 +176,10 @@ export class ViewModel extends Disposable implements IViewModel {
 		this._lines.dispose();
 		this._viewportStart.dispose();
 		this._eventDispatcher.dispose();
+	}
+
+	public getEditorOption<T extends EditorOption>(id: T): FindComputedEditorOptionValueById<T> {
+		return this._configuration.options.get(id);
 	}
 
 	public createLineBreaksComputer(): ILineBreaksComputer {
@@ -973,7 +977,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		return this.model.getPositionAt(resultOffset);
 	}
 
-	public getPlainTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean, forceCRLF: boolean): string | string[] {
+	public getPlainTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean, forceCRLF: boolean): { sourceRanges: Range[]; sourceText: string | string[] } {
 		const newLineCharacter = forceCRLF ? '\r\n' : this.model.getEOL();
 
 		modelRanges = modelRanges.slice(0);
@@ -991,34 +995,39 @@ export class ViewModel extends Disposable implements IViewModel {
 
 		if (!hasNonEmptyRange && !emptySelectionClipboard) {
 			// all ranges are empty
-			return '';
+			return { sourceRanges: [], sourceText: '' };
 		}
+
+		const ranges: Range[] = [];
+		const result: string[] = [];
+		const pushRange = (modelRange: Range, append: string = '') => {
+			ranges.push(modelRange);
+			result.push(this.model.getValueInRange(modelRange, forceCRLF ? EndOfLinePreference.CRLF : EndOfLinePreference.TextDefined) + append);
+		};
 
 		if (hasEmptyRange && emptySelectionClipboard) {
 			// some (maybe all) empty selections
-			const result: string[] = [];
 			let prevModelLineNumber = 0;
 			for (const modelRange of modelRanges) {
 				const modelLineNumber = modelRange.startLineNumber;
 				if (modelRange.isEmpty()) {
 					if (modelLineNumber !== prevModelLineNumber) {
-						result.push(this.model.getLineContent(modelLineNumber) + newLineCharacter);
+						pushRange(new Range(modelLineNumber, this.model.getLineMinColumn(modelLineNumber), modelLineNumber, this.model.getLineMaxColumn(modelLineNumber)), newLineCharacter);
 					}
 				} else {
-					result.push(this.model.getValueInRange(modelRange, forceCRLF ? EndOfLinePreference.CRLF : EndOfLinePreference.TextDefined));
+					pushRange(modelRange);
 				}
 				prevModelLineNumber = modelLineNumber;
 			}
-			return result.length === 1 ? result[0] : result;
-		}
-
-		const result: string[] = [];
-		for (const modelRange of modelRanges) {
-			if (!modelRange.isEmpty()) {
-				result.push(this.model.getValueInRange(modelRange, forceCRLF ? EndOfLinePreference.CRLF : EndOfLinePreference.TextDefined));
+		} else {
+			for (const modelRange of modelRanges) {
+				if (!modelRange.isEmpty()) {
+					pushRange(modelRange);
+				}
 			}
 		}
-		return result.length === 1 ? result[0] : result;
+
+		return { sourceRanges: ranges, sourceText: result.length === 1 ? result[0] : result };
 	}
 
 	public getRichTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean): { html: string; mode: string } | null {

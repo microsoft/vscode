@@ -17,7 +17,7 @@ import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent, ViewDecorat
 import { ViewContext } from '../../../../common/viewModel/viewContext.js';
 import { RestrictedRenderingContext, RenderingContext, HorizontalPosition } from '../../../view/renderingContext.js';
 import { ViewController } from '../../../view/viewController.js';
-import { ClipboardEventUtils, ensureClipboardGetsEditorSelection, InMemoryClipboardMetadataManager } from '../clipboardUtils.js';
+import { CopyOptions, createClipboardCopyEvent, createClipboardPasteEvent } from '../clipboardUtils.js';
 import { AbstractEditContext } from '../editContext.js';
 import { editContextAddDisposableListener, FocusTracker, ITypeData } from './nativeEditContextUtils.js';
 import { ScreenReaderSupport } from './screenReaderSupport.js';
@@ -116,14 +116,32 @@ export class NativeEditContext extends AbstractEditContext {
 
 		this._register(addDisposableListener(this.domNode.domNode, 'copy', (e) => {
 			this.logService.trace('NativeEditContext#copy');
-			ensureClipboardGetsEditorSelection(e, this._context, this.logService, isFirefox);
+
+			// !!!!!
+			// This is a workaround for what we think is an Electron bug where
+			// execCommand('copy') does not always work (it does not fire a clipboard event)
+			// !!!!!
+			// We signal that we have executed a copy command
+			CopyOptions.electronBugWorkaroundCopyEventHasFired = true;
+
+			const copyEvent = createClipboardCopyEvent(e, /* isCut */ false, this._context, this.logService, isFirefox);
+			this._onWillCopy.fire(copyEvent);
+			if (copyEvent.isHandled) {
+				return;
+			}
+			copyEvent.ensureClipboardGetsEditorData();
 		}));
 		this._register(addDisposableListener(this.domNode.domNode, 'cut', (e) => {
 			this.logService.trace('NativeEditContext#cut');
+			const cutEvent = createClipboardCopyEvent(e, /* isCut */ true, this._context, this.logService, isFirefox);
+			this._onWillCut.fire(cutEvent);
+			if (cutEvent.isHandled) {
+				return;
+			}
 			// Pretend here we touched the text area, as the `cut` event will most likely
 			// result in a `selectionchange` event which we want to ignore
 			this._screenReaderSupport.onWillCut();
-			ensureClipboardGetsEditorSelection(e, this._context, this.logService, isFirefox);
+			cutEvent.ensureClipboardGetsEditorData();
 			this.logService.trace('NativeEditContext#cut (before viewController.cut)');
 			this._viewController.cut();
 		}));
@@ -143,28 +161,32 @@ export class NativeEditContext extends AbstractEditContext {
 		}));
 		this._register(addDisposableListener(this.domNode.domNode, 'paste', (e) => {
 			this.logService.trace('NativeEditContext#paste');
+			const pasteEvent = createClipboardPasteEvent(e);
+			this._onWillPaste.fire(pasteEvent);
+			if (pasteEvent.isHandled) {
+				e.preventDefault();
+				return;
+			}
 			e.preventDefault();
 			if (!e.clipboardData) {
 				return;
 			}
-			let [text, metadata] = ClipboardEventUtils.getTextData(e.clipboardData);
-			this.logService.trace('NativeEditContext#paste with id : ', metadata?.id, ' with text.length: ', text.length);
-			if (!text) {
+			this.logService.trace('NativeEditContext#paste with id : ', pasteEvent.metadata?.id, ' with text.length: ', pasteEvent.text.length);
+			if (!pasteEvent.text) {
 				return;
 			}
-			metadata = metadata || InMemoryClipboardMetadataManager.INSTANCE.get(text);
 			let pasteOnNewLine = false;
 			let multicursorText: string[] | null = null;
 			let mode: string | null = null;
-			if (metadata) {
+			if (pasteEvent.metadata) {
 				const options = this._context.configuration.options;
 				const emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
-				pasteOnNewLine = emptySelectionClipboard && !!metadata.isFromEmptySelection;
-				multicursorText = typeof metadata.multicursorText !== 'undefined' ? metadata.multicursorText : null;
-				mode = metadata.mode;
+				pasteOnNewLine = emptySelectionClipboard && !!pasteEvent.metadata.isFromEmptySelection;
+				multicursorText = typeof pasteEvent.metadata.multicursorText !== 'undefined' ? pasteEvent.metadata.multicursorText : null;
+				mode = pasteEvent.metadata.mode;
 			}
 			this.logService.trace('NativeEditContext#paste (before viewController.paste)');
-			this._viewController.paste(text, pasteOnNewLine, multicursorText, mode);
+			this._viewController.paste(pasteEvent.text, pasteOnNewLine, multicursorText, mode);
 		}));
 
 		// Edit context events
@@ -317,17 +339,17 @@ export class NativeEditContext extends AbstractEditContext {
 		return true;
 	}
 
-	public onWillPaste(): void {
-		this.logService.trace('NativeEditContext#onWillPaste');
-		this._onWillPaste();
+	public handleWillPaste(): void {
+		this.logService.trace('NativeEditContext#handleWillPaste');
+		this._prepareScreenReaderForPaste();
 	}
 
-	private _onWillPaste(): void {
+	private _prepareScreenReaderForPaste(): void {
 		this._screenReaderSupport.onWillPaste();
 	}
 
-	public onWillCopy(): void {
-		this.logService.trace('NativeEditContext#onWillCopy');
+	public handleWillCopy(): void {
+		this.logService.trace('NativeEditContext#handleWillCopy');
 		this.logService.trace('NativeEditContext#isFocused : ', this.domNode.domNode === getActiveElement());
 	}
 
