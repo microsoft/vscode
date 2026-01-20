@@ -305,6 +305,29 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 	}
 
+	/**
+	 * updates scroll dimensions when streaming is complete.
+	 */
+	private updateScrollDimensionsForCompletion(): void {
+		if (!this.scrollableElement || !this.fixedScrollingMode) {
+			return;
+		}
+
+		const contentHeight = this.wrapper.scrollHeight;
+		const viewportHeight = Math.min(contentHeight, THINKING_SCROLL_MAX_HEIGHT);
+
+		this.scrollableElement.setScrollDimensions({
+			width: this.scrollableElement.getDomNode().clientWidth,
+			scrollWidth: this.wrapper.scrollWidth,
+			height: viewportHeight,
+			scrollHeight: contentHeight
+		});
+
+		if (contentHeight <= THINKING_SCROLL_MAX_HEIGHT) {
+			this.scrollableElement.setScrollPosition({ scrollTop: 0 });
+		}
+	}
+
 	private renderMarkdown(content: string, reuseExisting?: boolean): void {
 		// Guard against rendering after disposal to avoid leaking disposables
 		if (this._store.isDisposed) {
@@ -445,6 +468,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		if (this._collapseButton) {
 			this._collapseButton.icon = Codicon.check;
 		}
+
+		// Update scroll dimensions now that streaming is complete
+		// This removes unnecessary scrollbar when content fits
+		this.updateScrollDimensionsForCompletion();
 
 		this.updateDropdownClickability();
 
