@@ -224,6 +224,16 @@ steps:
         DEBUG=electron-osx-sign* node build/darwin/sign.ts $(agent.builddirectory)
       displayName: Set Hardened Entitlements
 
+    # Create DMG installer for arm64 builds only
+    - script: |
+        set -e
+        DMG_OUT="$(Pipeline.Workspace)/vscode_client_darwin_$(VSCODE_ARCH)_dmg"
+        mkdir -p $DMG_OUT
+        node build/darwin/create-dmg.ts $(agent.builddirectory) $DMG_OUT
+        echo "##vso[task.setvariable variable=DMG_PATH]$DMG_OUT/VSCode-darwin-$(VSCODE_ARCH).dmg"
+      condition: and(eq(variables['BUILT_CLIENT'], 'true'), eq(variables['VSCODE_ARCH'], 'arm64'))
+      displayName: Create DMG installer
+
     - script: |
         set -e
         ARCHIVE_PATH="$(Pipeline.Workspace)/vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip"
@@ -291,11 +301,13 @@ steps:
         set -e
 
         mkdir -p $(Build.ArtifactStagingDirectory)/out/vscode_client_darwin_$(VSCODE_ARCH)_archive
+        mkdir -p $(Build.ArtifactStagingDirectory)/out/vscode_client_darwin_$(VSCODE_ARCH)_dmg
         if [ "$VSCODE_ARCH" == "x64" ]; then
           # Use legacy name for x64 builds
           mv $(CLIENT_PATH) $(Build.ArtifactStagingDirectory)/out/vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin.zip
         else
           mv $(CLIENT_PATH) $(Build.ArtifactStagingDirectory)/out/vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip
+          mv $(DMG_PATH) $(Build.ArtifactStagingDirectory)/out/vscode_client_darwin_$(VSCODE_ARCH)_dmg/VSCode-darwin-$(VSCODE_ARCH).dmg
         fi
 
         mkdir -p $(Build.ArtifactStagingDirectory)/out/vscode_server_darwin_$(VSCODE_ARCH)_archive

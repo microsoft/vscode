@@ -12,17 +12,29 @@ async function main() {
 	const pipelineWorkspace = e('PIPELINE_WORKSPACE');
 
 	const folder = `${pipelineWorkspace}/vscode_client_darwin_${arch}_archive`;
+	const dmgFolder = `${pipelineWorkspace}/vscode_client_darwin_${arch}_dmg`;
 	const glob = `VSCode-darwin-${arch}.zip`;
+	const dmgGlob = `VSCode-darwin-${arch}.dmg`;
 
 	// Codesign
-	printBanner('Codesign');
-	const codeSignTask = spawnCodesignProcess(esrpCliDLLPath, 'sign-darwin', folder, glob);
-	await streamProcessOutputAndCheckResult('Codesign', codeSignTask);
+	const archiveCodeSignTask = spawnCodesignProcess(esrpCliDLLPath, 'sign-darwin', folder, glob);
+	const dmgCodeSignTask = arch === 'arm64' ? spawnCodesignProcess(esrpCliDLLPath, 'sign-darwin', dmgFolder, dmgGlob) : undefined;
+	printBanner('Codesign Archive');
+	await streamProcessOutputAndCheckResult('Codesign Archive', archiveCodeSignTask);
+	if (dmgCodeSignTask) {
+		printBanner('Codesign DMG');
+		await streamProcessOutputAndCheckResult('Codesign DMG', dmgCodeSignTask);
+	}
 
 	// Notarize
-	printBanner('Notarize');
-	const notarizeTask = spawnCodesignProcess(esrpCliDLLPath, 'notarize-darwin', folder, glob);
-	await streamProcessOutputAndCheckResult('Notarize', notarizeTask);
+	const archiveNotarizeTask = spawnCodesignProcess(esrpCliDLLPath, 'notarize-darwin', folder, glob);
+	const dmgNotarizeTask = arch === 'arm64' ? spawnCodesignProcess(esrpCliDLLPath, 'notarize-darwin', dmgFolder, dmgGlob) : undefined;
+	printBanner('Notarize Archive');
+	await streamProcessOutputAndCheckResult('Notarize Archive', archiveNotarizeTask);
+	if (dmgNotarizeTask) {
+		printBanner('Notarize DMG');
+		await streamProcessOutputAndCheckResult('Notarize DMG', dmgNotarizeTask);
+	}
 }
 
 main().then(() => {
