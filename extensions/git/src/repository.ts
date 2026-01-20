@@ -23,7 +23,7 @@ import { IPushErrorHandlerRegistry } from './pushError';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { StatusBarCommands } from './statusbar';
 import { toGitUri } from './uri';
-import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, getMinimalCopyPaths, IDisposable, isCopilotWorktree, isDescendant, isLinuxSnap, isRemote, isWindows, Limiter, onceEvent, pathEquals, relativePath } from './util';
+import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isCopilotWorktree, isDescendant, isLinuxSnap, isRemote, isWindows, Limiter, onceEvent, pathEquals, relativePath } from './util';
 import { IFileWatcher, watch } from './watch';
 import { ISourceControlHistoryItemDetailsProviderRegistry } from './historyItemDetailsProvider';
 import { GitArtifactProvider } from './artifactProvider';
@@ -1888,12 +1888,12 @@ export class Repository implements Disposable {
 		});
 	}
 
-	private async _getWorktreeIncludeFiles(): Promise<Set<string>> {
+	private async _getWorktreeIncludeFiles(): Promise<[Set<string>, Set<string>]> {
 		const config = workspace.getConfiguration('git', Uri.file(this.root));
 		const worktreeIncludeFiles = config.get<string[]>('worktreeIncludeFiles', ['**/node_modules/**']);
 
 		if (worktreeIncludeFiles.length === 0) {
-			return new Set<string>();
+			return [new Set<string>(), new Set<string>()];
 		}
 
 		const filePattern = worktreeIncludeFiles
@@ -1917,18 +1917,32 @@ export class Repository implements Disposable {
 			gitIgnoredFiles.delete(uri.fsPath);
 		}
 
-		// Find minimal set of paths (top-most folders that include all
-		// files + individual files) to copy. The goal is to reduce the
-		// number of copy operations needed.
-		const allFilePaths = new Set(allFiles.map(uri => uri.fsPath));
-		const minimalPaths = getMinimalCopyPaths(this.root, allFilePaths, gitIgnoredFiles);
+		// Add the folder paths for git ignored files
+		for (const filePath of gitIgnoredFiles) {
+			let dir = path.dirname(filePath);
+			while (dir !== this.root && !gitIgnoredFiles.has(dir)) {
+				gitIgnoredFiles.add(dir);
+				dir = path.dirname(dir);
+			}
+		}
 
-		return minimalPaths;
+		// Find minimal set of paths (top-most folders and files) to
+		// copy. The goal is to reduce the number of copy operations
+		// needed.
+		const pathsToCopy = new Set<string>();
+
+		for (const filePath of allFiles) {
+			const relativePath = path.relative(this.root, filePath.fsPath);
+			const firstSegment = relativePath.split(path.sep)[0];
+			pathsToCopy.add(path.join(this.root, firstSegment));
+		}
+
+		return [pathsToCopy, gitIgnoredFiles];
 	}
 
 	private async _copyWorktreeIncludeFiles(worktreePath: string): Promise<void> {
-		const ignoredFiles = await this._getWorktreeIncludeFiles();
-		if (ignoredFiles.size === 0) {
+		const [pathsToCopy, gitIgnoredFiles] = await this._getWorktreeIncludeFiles();
+		if (pathsToCopy.size === 0) {
 			return;
 		}
 
@@ -1936,13 +1950,14 @@ export class Repository implements Disposable {
 			// Copy files
 			const startTime = Date.now();
 			const limiter = new Limiter<void>(15);
-			const files = Array.from(ignoredFiles);
+			const files = Array.from(pathsToCopy);
 
 			const results = await Promise.allSettled(files.map(sourceFile =>
 				limiter.queue(async () => {
 					const targetFile = path.join(worktreePath, relativePath(this.root, sourceFile));
 					await fsPromises.mkdir(path.dirname(targetFile), { recursive: true });
 					await fsPromises.cp(sourceFile, targetFile, {
+						filter: src => gitIgnoredFiles.has(src),
 						force: true,
 						mode: fs.constants.COPYFILE_FICLONE,
 						recursive: true,

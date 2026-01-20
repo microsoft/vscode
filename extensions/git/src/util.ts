@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Disposable, EventEmitter, SourceControlHistoryItemRef, l10n, workspace, Uri, DiagnosticSeverity, env, SourceControlHistoryItem } from 'vscode';
-import path, { dirname, normalize, sep, relative } from 'path';
+import { dirname, normalize, sep, relative } from 'path';
 import { Readable } from 'stream';
 import { promises as fs, createReadStream } from 'fs';
 import byline from 'byline';
@@ -849,76 +849,6 @@ export function extractFilePathFromArgs(argv: string[], startIndex: number): str
 	// If no closing quote was found, remove
 	// leading quote and return the path as-is
 	return path.slice(1);
-}
-
-/**
- * Given all files and the subset that are git-ignored, find the minimal set of
- * paths (folders and individual files) needed to copy. A folder can be copied
- * if all files under it (from allFiles) are in files.
- */
-export function getMinimalCopyPaths(rootPath: string, allFiles: Set<string>, filesToCopy: Set<string>): Set<string> {
-	if (filesToCopy.size === 0) {
-		return new Set<string>();
-	}
-
-	// Build a trie with path segments, tracking file counts
-	// Each node stores: [allFiles, filesToCopy, children]
-	type TrieNode = { allFiles: number; filesToCopy: number; children: Map<string, TrieNode> };
-	const root = { allFiles: 0, filesToCopy: 0, children: new Map() } satisfies TrieNode;
-
-	for (const filePath of allFiles) {
-		const fileToCopy = filesToCopy.has(filePath);
-		const segments = path.relative(rootPath, filePath).split(path.sep);
-
-		let node = root;
-		for (const segment of segments) {
-			if (!node.children.has(segment)) {
-				node.children.set(segment, {
-					allFiles: 0,
-					filesToCopy: 0,
-					children: new Map()
-				} satisfies TrieNode);
-			}
-			node = node.children.get(segment)!;
-			node.allFiles++;
-
-			if (fileToCopy) {
-				node.filesToCopy++;
-			}
-		}
-	}
-
-	// Find minimal paths
-	let filesCovered = 0;
-	const result = new Set<string>();
-
-	const traverse = (node: TrieNode, currentPath: string): void => {
-		for (const [segment, child] of node.children) {
-			const fullPath = path.join(currentPath, segment);
-
-			// If all files under this node are ignored and it has children, select this folder
-			if (child.allFiles === child.filesToCopy && child.children.size > 0) {
-				result.add(fullPath);
-				filesCovered += child.allFiles;
-			} else {
-				traverse(child, fullPath);
-			}
-		}
-	};
-
-	// Traverse from root
-	traverse(root, rootPath);
-
-	// Add individual files not covered by selected folders
-	if (filesCovered < filesToCopy.size) {
-		for (const file of filesToCopy) {
-			if (!Array.from(result).some(folder => file.startsWith(folder + path.sep))) {
-				result.add(file);
-			}
-		}
-	}
-
-	return result;
 }
 
 export function getStashDescription(stash: Stash): string | undefined {
