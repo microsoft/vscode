@@ -18,7 +18,11 @@ export class NullLanguageModelsService implements ILanguageModelsService {
 		return Disposable.None;
 	}
 
+	deltaLanguageModelChatProviderDescriptors(added: Array<Pick<IUserFriendlyLanguageModel, 'vendor' | 'displayName'> & Partial<Omit<IUserFriendlyLanguageModel, 'vendor' | 'displayName'>>>, removed: Array<Pick<IUserFriendlyLanguageModel, 'vendor' | 'displayName'> & Partial<Omit<IUserFriendlyLanguageModel, 'vendor' | 'displayName'>>>): void {
+	}
+
 	onDidChangeLanguageModels = Event.None;
+	onDidChangeLanguageModelVendors = Event.None;
 
 	updateModelPickerPreference(modelIdentifier: string, showInModelPicker: boolean): void {
 		return;
