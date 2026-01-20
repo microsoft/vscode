@@ -413,7 +413,6 @@ export class ChatListWidget extends Disposable {
 
 		// Handle content height changes (fires high-level event, internal scroll handling)
 		this._register(this._tree.onDidChangeContentHeight(() => {
-			// this.handleContentHeightChange();
 			this._onDidChangeContentHeight.fire();
 		}));
 
