@@ -29,7 +29,7 @@ import { ExtensionHostKind, extensionHostKindToString } from '../../services/ext
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostContext, ExtHostMcpShape, IMcpAuthenticationDetails, IMcpAuthenticationOptions, IAuthMetadataSource, MainContext, MainThreadMcpShape, IMcpServerDefinitionDto } from '../common/extHost.protocol.js';
+import { ExtHostContext, ExtHostMcpShape, IMcpAuthenticationDetails, IMcpAuthenticationOptions, IAuthMetadataSource, MainContext, MainThreadMcpShape } from '../common/extHost.protocol.js';
 
 @extHostNamedCustomer(MainContext.MainThreadMcp)
 export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
@@ -112,35 +112,14 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 	}
 
 	/** Returns all MCP server definitions known to the editor. */
-	$getMcpServerDefinitions(): Promise<IMcpServerDefinitionDto[]> {
+	$getMcpServerDefinitions(): Promise<McpServerDefinition.Serialized[]> {
 		const collections = this._mcpRegistry.collections.get();
-		const allServers: IMcpServerDefinitionDto[] = [];
+		const allServers: McpServerDefinition.Serialized[] = [];
 
 		for (const collection of collections) {
 			const servers = collection.serverDefinitions.get();
 			for (const server of servers) {
-				const launch = server.launch;
-				if (launch.type === McpServerTransportType.Stdio) {
-					allServers.push({
-						label: server.label,
-						type: 'stdio',
-						command: launch.command,
-						args: [...launch.args],
-						cwd: launch.cwd ? URI.file(launch.cwd) : undefined,
-						env: Object.fromEntries(
-							Object.entries(launch.env).map(([k, v]) => [k, v === null ? undefined : String(v)])
-						),
-						version: server.cacheNonce === '$$NONE' ? undefined : server.cacheNonce,
-					});
-				} else {
-					allServers.push({
-						label: server.label,
-						type: 'http',
-						uri: launch.uri,
-						headers: Object.fromEntries(launch.headers),
-						version: server.cacheNonce === '$$NONE' ? undefined : server.cacheNonce,
-					});
-				}
+				allServers.push(McpServerDefinition.toSerialized(server));
 			}
 		}
 
