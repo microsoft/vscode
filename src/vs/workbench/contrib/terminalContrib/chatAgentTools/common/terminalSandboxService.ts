@@ -33,6 +33,7 @@ export interface ITerminalSandboxService {
 export class TerminalSandboxService implements ITerminalSandboxService {
 	readonly _serviceBrand: undefined;
 	private _srtPath: string;
+	private _execPath?: string;
 	private _sandboxConfigPath: string | undefined;
 	private _needsForceUpdateConfigFile = true;
 	private _tempDir: URI | undefined;
@@ -49,6 +50,9 @@ export class TerminalSandboxService implements ITerminalSandboxService {
 		const appRoot = dirname(FileAccess.asFileUri('').fsPath);
 		// srt path is dist/cli.js inside the sandbox-runtime package.
 		this._srtPath = join(appRoot, 'node_modules', '@anthropic-ai', 'sandbox-runtime', 'dist', 'cli.js');
+		// Get the node executable path from native environment service if available (Electron's execPath with ELECTRON_RUN_AS_NODE)
+		const nativeEnv = this._environmentService as IEnvironmentService & { execPath?: string };
+		this._execPath = nativeEnv.execPath;
 		this._sandboxSettingsId = generateUuid();
 		this._initTempDir();
 		this._remoteAgentService.getEnvironment().then(remoteEnv => this._os = remoteEnv?.os ?? OS);
@@ -65,11 +69,14 @@ export class TerminalSandboxService implements ITerminalSandboxService {
 		if (!this._sandboxConfigPath || !this._tempDir) {
 			throw new Error('Sandbox config path or temp dir not initialized');
 		}
-		const execPath = (this._environmentService as { execPath?: string }).execPath;
-		if (!execPath) {
-			throw new Error('Sandbox runtime requires a native environment with execPath.');
+		if (!this._execPath) {
+			throw new Error('Node executable path not available for sandboxing');
 		}
-		return `"${execPath}" "${this._srtPath}" TMPDIR=${this._tempDir.fsPath} --settings "${this._sandboxConfigPath}" "${command}"`;
+		// Use ELECTRON_RUN_AS_NODE=1 to make Electron executable behave as Node.js
+		// TMPDIR must be set as environment variable before the command
+		// Use -c to pass the command string directly (like sh -c), avoiding argument parsing issues
+		const wrappedCommand = `"${this._execPath}" "${this._srtPath}" TMPDIR=${this._tempDir.fsPath} --settings "${this._sandboxConfigPath}" -c "${command}"`;
+		return `ELECTRON_RUN_AS_NODE=1 ${wrappedCommand}`;
 	}
 
 	public getTempDir(): URI | undefined {
