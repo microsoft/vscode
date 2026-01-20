@@ -5,7 +5,7 @@
 
 import './media/browser.css';
 import { localize } from '../../../../nls.js';
-import { $, addDisposableListener, disposableWindowInterval, EventType, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, Dimension, disposableWindowInterval, EventType, IDomPosition, isHTMLElement, registerExternalFocusChecker } from '../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { RawContextKey, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -29,7 +29,7 @@ import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js
 import { BrowserOverlayManager } from './overlayManager.js';
 import { getZoomFactor, onDidChangeZoomLevel } from '../../../../base/browser/browser.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
@@ -247,13 +247,14 @@ export class BrowserEditor extends EditorPane {
 			}
 		}));
 
-		this._register(addDisposableListener(this._browserContainer, EventType.BLUR, () => {
-			// When focus goes to another part of the workbench, make sure the workbench view becomes focused.
-			const focused = this.window.document.activeElement;
-			if (focused && focused !== this._browserContainer) {
-				this.window.focus();
-			}
-		}));
+		// Register external focus checker so that cross-window focus logic knows when
+		// this browser view has focus (since it's outside the normal DOM tree).
+		this._register(registerExternalFocusChecker(() => this._model?.focused ?? false));
+
+		// Automatically call layoutBrowserContainer() when the browser container changes size
+		const resizeObserver = new ResizeObserver(async () => this.layoutBrowserContainer());
+		resizeObserver.observe(this._browserContainer);
+		this._register(toDisposable(() => resizeObserver.disconnect()));
 	}
 
 	override async setInput(input: BrowserEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
@@ -308,9 +309,13 @@ export class BrowserEditor extends EditorPane {
 		}));
 
 		this._inputDisposables.add(this._model.onDidChangeFocus(({ focused }) => {
-			// When the view gets focused, make sure the container also has focus.
+			// When the view gets focused, make sure the editor reports that it has focus,
+			// but focus is removed from the workbench.
 			if (focused) {
-				this._browserContainer.focus();
+				this._onDidFocus?.fire();
+				if (isHTMLElement(this.window.document.activeElement)) {
+					this.window.document.activeElement.blur();
+				}
 			}
 		}));
 
@@ -354,7 +359,7 @@ export class BrowserEditor extends EditorPane {
 		// Listen for zoom level changes and update browser view zoom factor
 		this._inputDisposables.add(onDidChangeZoomLevel(targetWindowId => {
 			if (targetWindowId === this.window.vscodeWindowId) {
-				this.layout();
+				this.layoutBrowserContainer();
 			}
 		}));
 		// Capture screenshot periodically (once per second) to keep background updated
@@ -365,11 +370,8 @@ export class BrowserEditor extends EditorPane {
 		));
 
 		this.updateErrorDisplay();
-		this.layout();
+		this.layoutBrowserContainer();
 		await this._model.setVisible(this.shouldShowView);
-
-		// Sometimes the element has not been inserted into the DOM yet. Ensure layout after next animation frame.
-		scheduleAtNextAnimationFrame(this.window, () => this.layout());
 	}
 
 	protected override setEditorVisible(visible: boolean): void {
@@ -380,16 +382,20 @@ export class BrowserEditor extends EditorPane {
 	private updateVisibility(): void {
 		const hasUrl = !!this._model?.url;
 		const hasError = !!this._model?.error;
+		const shouldShowPlaceholder = this._editorVisible && this._overlayVisible && !hasError && hasUrl;
 
 		// Welcome container: shown when no URL is loaded
-		this._welcomeContainer.style.display = hasUrl ? 'none' : 'flex';
+		this._welcomeContainer.style.display = hasUrl ? 'none' : '';
 
 		// Error container: shown when there's a load error
-		this._errorContainer.style.display = hasError ? 'flex' : 'none';
+		this._errorContainer.style.display = hasError ? '' : 'none';
+
+		// Placeholder screenshot: shown when the view is hidden due to overlays
+		this._placeholderScreenshot.style.display = shouldShowPlaceholder ? '' : 'none';
+		this._placeholderScreenshot.classList.toggle('blur', shouldShowPlaceholder);
 
 		if (this._model) {
 			// Blur the background placeholder screenshot if the view is hidden due to an overlay.
-			this._placeholderScreenshot.classList.toggle('blur', this._editorVisible && this._overlayVisible && !hasError);
 			void this._model.setVisible(this.shouldShowView);
 		}
 	}
@@ -671,7 +677,20 @@ export class BrowserEditor extends EditorPane {
 		}
 	}
 
-	override layout(): void {
+	override layout(_dimension: Dimension, _position?: IDomPosition): void {
+		// no-op: layout is handled in layoutBrowserContainer()
+	}
+
+	/**
+	 * This should be called whenever .browser-container changes in size, or when
+	 * there could be any elements, such as the command palette, overlapping with it.
+	 *
+	 * Note that we don't call layoutBrowserContainer() from layout() but instead rely on using a ResizeObserver and on
+	 * making direct calls to it. This is because we have seen cases where the getBoundingClientRect() values of
+	 * the .browser-container element are not correct during layout() calls, especially during "Move into New Window"
+	 * and "Copy into New Window" operations into a different monitor.
+	 */
+	layoutBrowserContainer(): void {
 		if (this._model) {
 			this.checkOverlays();
 

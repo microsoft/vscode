@@ -47,7 +47,6 @@ import { zip } from '../../../base/node/zip.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IProxyAuthService } from './auth.js';
 import { AuthInfo, Credentials, IRequestService } from '../../request/common/request.js';
-import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { randomPath } from '../../../base/common/extpath.js';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
@@ -71,8 +70,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IRequestService private readonly requestService: IRequestService,
 		@IProxyAuthService private readonly proxyAuthService: IProxyAuthService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 
@@ -120,18 +118,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			);
 
 			this.onDidResumeOS = Event.fromNodeEventEmitter(powerMonitor, 'resume');
-
-			// Telemetry for power events
-			type PowerEventClassification = {
-				owner: 'chrmarti';
-				comment: 'Tracks OS power suspend and resume events for reliability insights.';
-			};
-			this._register(Event.fromNodeEventEmitter(powerMonitor, 'suspend')(() => {
-				this.telemetryService.publicLog2<{}, PowerEventClassification>('power.suspend', {});
-			}));
-			this._register(Event.fromNodeEventEmitter(powerMonitor, 'resume')(() => {
-				this.telemetryService.publicLog2<{}, PowerEventClassification>('power.resume', {});
-			}));
 
 			this.onDidChangeColorScheme = this.themeMainService.onDidChangeColorScheme;
 

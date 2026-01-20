@@ -3,7 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AgentSessionProviders, getAgentSessionProvider } from '../../agentSessions/agentSessions.js';
+import { IAction } from '../../../../../../base/common/actions.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { localize } from '../../../../../../nls.js';
+import { IActionWidgetDropdownAction } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
+import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
+import { AgentSessionProviders, getAgentCanContinueIn, getAgentSessionProvider, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
 import { ISessionTypeItem, SessionTypePickerActionItem } from './sessionTargetPickerActionItem.js';
 
 /**
@@ -31,9 +37,68 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 	protected override _isSessionTypeEnabled(type: AgentSessionProviders): boolean {
 		const allContributions = this.chatSessionsService.getAllChatSessionContributions();
 		const contribution = allContributions.find(contribution => getAgentSessionProvider(contribution.type) === type);
-		if (contribution !== undefined && !!contribution.canDelegate) {
-			return true; // Session type supports delegation
+
+		if (this.delegate.getActiveSessionProvider() !== AgentSessionProviders.Local) {
+			return false; // Can only delegate when active session is local
 		}
-		return this.delegate.getActiveSessionProvider() === type; // Always allow switching back to active session
+
+		if (contribution && !contribution.canDelegate && this.delegate.getActiveSessionProvider() !== type /* Allow switching back to active type */) {
+			return false;
+		}
+
+		return this._getSelectedSessionType() !== type; // Always allow switching back to active session
+	}
+
+	protected override _isVisible(type: AgentSessionProviders): boolean {
+		if (this.delegate.getActiveSessionProvider() === type) {
+			return true; // Always show active session type
+		}
+
+		return getAgentCanContinueIn(type);
+	}
+
+	protected override _getSessionCategory(sessionTypeItem: ISessionTypeItem) {
+		if (isFirstPartyAgentSessionProvider(sessionTypeItem.type)) {
+			return { label: localize('continueIn', "Continue In"), order: 1, showHeader: true };
+		}
+		return { label: localize('continueInThirdParty', "Continue In (Third Party)"), order: 2, showHeader: false };
+	}
+
+	protected override _getSessionDescription(sessionTypeItem: ISessionTypeItem): string | undefined {
+		const allContributions = this.chatSessionsService.getAllChatSessionContributions();
+		const contribution = allContributions.find(contribution => getAgentSessionProvider(contribution.type) === sessionTypeItem.type);
+
+		return contribution?.name ? `@${contribution.name}` : undefined;
+	}
+
+	protected override _getLearnMore(): IAction {
+		const learnMoreUrl = 'https://aka.ms/vscode-continue-chat-in';
+		return {
+			id: 'workbench.action.chat.agentOverview.learnMoreHandOff',
+			label: localize('chat.learnMoreAgentHandOff', "Learn about agent handoff..."),
+			tooltip: learnMoreUrl,
+			class: undefined,
+			enabled: true,
+			run: async () => {
+				await this.openerService.open(URI.parse(learnMoreUrl));
+			}
+		};
+	}
+
+	protected override _getAdditionalActions(): IActionWidgetDropdownAction[] {
+		return [{
+			id: 'newChatSession',
+			class: undefined,
+			label: localize('chat.newChatSession', "New Chat Session"),
+			tooltip: localize('chat.newChatSession.tooltip', "Create a new chat session"),
+			checked: false,
+			icon: Codicon.plus,
+			enabled: true,
+			category: { label: localize('chat.newChatSession.category', "New Chat Session"), order: 0, showHeader: false },
+			description: this.keybindingService.lookupKeybinding(ACTION_ID_NEW_CHAT)?.getLabel() || undefined,
+			run: async () => {
+				this.commandService.executeCommand(ACTION_ID_NEW_CHAT, this.chatSessionPosition);
+			},
+		}];
 	}
 }
