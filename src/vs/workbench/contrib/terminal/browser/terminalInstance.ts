@@ -853,7 +853,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			await this._handleOnData(data);
 		}));
 		this._register(xterm.raw.onBinary(data => this._processManager.processBinary(data)));
-		// Init winpty compat and link handler after process creation as they rely on the
+		// Init conpty compat and link handler after process creation as they rely on the
 		// underlying process OS
 		this._register(this._processManager.onProcessReady(async (processTraits) => {
 			// Respond to DA1 with basic conformance. Note that including this is required to avoid

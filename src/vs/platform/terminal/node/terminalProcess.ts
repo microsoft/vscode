@@ -517,8 +517,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		if (!isNumber(cols) || !isNumber(rows)) {
 			return;
 		}
-		// Ensure that cols and rows are always >= 1, this prevents a native
-		// exception in winpty.
+		// Ensure that cols and rows are always >= 1, this prevents a native exception in winpty.
+		// TODO: Handle this directly on node-pty instead.
 		if (this._ptyProcess) {
 			cols = Math.max(cols, 1);
 			rows = Math.max(rows, 1);
