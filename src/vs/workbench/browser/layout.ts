@@ -2771,7 +2771,7 @@ interface ILayoutStateChangeEvent<T extends StorageKeyType> {
 
 enum WorkbenchLayoutSettings {
 	AUXILIARYBAR_DEFAULT_VISIBILITY = 'workbench.secondarySideBar.defaultVisibility',
-	AUXILIARYBAR_RESTORE_MAXIMIZED = 'workbench.secondarySideBar.restoreMaximised',
+	AUXILIARYBAR_RESTORE_MAXIMIZED = 'workbench.secondarySideBar.restoreMaximized',
 	ACTIVITY_BAR_VISIBLE = 'workbench.activityBar.visible',
 	PANEL_POSITION = 'workbench.panel.defaultLocation',
 	PANEL_OPENS_MAXIMIZED = 'workbench.panel.opensMaximized',
