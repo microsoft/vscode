@@ -143,7 +143,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		}));
 
 		// Re-render when storage changes (e.g., filter state changes from sessions view)
-		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, 'agentSessions.filterExcludes.agentsessionsviewerfiltersubmenu', this._register(new DisposableStore()))(() => {
+		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, 'agentSessions.filterExcludes.agentsessionsviewerfiltersubmenu', this._store)(() => {
 			this._render();
 		}));
 
