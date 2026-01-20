@@ -478,7 +478,11 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	}
 
 	private getMinColumnOfViewLine(viewLineInfo: ViewLineInfo): number {
-		return this.modelLineProjections[viewLineInfo.modelLineNumber - 1].getViewLineMinColumn(
+		const lineProjection = this.getModelLineProjection(viewLineInfo.modelLineNumber);
+		if (!lineProjection) {
+			return 1;
+		}
+		return lineProjection.getViewLineMinColumn(
 			this.model,
 			viewLineInfo.modelLineNumber,
 			viewLineInfo.modelLineWrappedLineIdx
@@ -486,7 +490,11 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	}
 
 	private getMaxColumnOfViewLine(viewLineInfo: ViewLineInfo): number {
-		return this.modelLineProjections[viewLineInfo.modelLineNumber - 1].getViewLineMaxColumn(
+		const lineProjection = this.getModelLineProjection(viewLineInfo.modelLineNumber);
+		if (!lineProjection) {
+			return 1;
+		}
+		return lineProjection.getViewLineMaxColumn(
 			this.model,
 			viewLineInfo.modelLineNumber,
 			viewLineInfo.modelLineWrappedLineIdx
@@ -494,7 +502,10 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	}
 
 	private getModelStartPositionOfViewLine(viewLineInfo: ViewLineInfo): Position {
-		const line = this.modelLineProjections[viewLineInfo.modelLineNumber - 1];
+		const line = this.getModelLineProjection(viewLineInfo.modelLineNumber);
+		if (!line) {
+			return new Position(viewLineInfo.modelLineNumber, 1);
+		}
 		const minViewColumn = line.getViewLineMinColumn(
 			this.model,
 			viewLineInfo.modelLineNumber,
@@ -508,7 +519,10 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	}
 
 	private getModelEndPositionOfViewLine(viewLineInfo: ViewLineInfo): Position {
-		const line = this.modelLineProjections[viewLineInfo.modelLineNumber - 1];
+		const line = this.getModelLineProjection(viewLineInfo.modelLineNumber);
+		if (!line) {
+			return new Position(viewLineInfo.modelLineNumber, 1);
+		}
 		const maxViewColumn = line.getViewLineMaxColumn(
 			this.model,
 			viewLineInfo.modelLineNumber,
@@ -770,7 +784,9 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		if (!lineProjection) {
 			// Return a fallback empty ViewLineData when the projection is not available
 			// This can happen during race conditions when the model is being updated
-			const lineTokens = this.model.tokenization.getLineTokens(1);
+			const lineCount = this.model.getLineCount();
+			const safeLineNumber = Math.max(1, Math.min(lineCount, 1));
+			const lineTokens = this.model.tokenization.getLineTokens(safeLineNumber);
 			return new ViewLineData('', false, 1, 1, 0, lineTokens.inflate(), null);
 		}
 		return lineProjection.getViewLineData(this.model, info.modelLineNumber, info.modelLineWrappedLineIdx);
