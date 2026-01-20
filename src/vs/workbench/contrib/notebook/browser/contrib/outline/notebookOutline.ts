@@ -33,7 +33,7 @@ import { INotebookCellOutlineDataSource, NotebookCellOutlineDataSource } from '.
 import { CellKind, NotebookCellsChangeType, NotebookSetting } from '../../../common/notebookCommon.js';
 import { IEditorService, SIDE_GROUP } from '../../../../../services/editor/common/editorService.js';
 import { LifecyclePhase } from '../../../../../services/lifecycle/common/lifecycle.js';
-import { IBreadcrumbsDataSource, IOutline, IOutlineComparator, IOutlineCreator, IOutlineListConfig, IOutlineService, IQuickPickDataSource, IQuickPickOutlineElement, OutlineChangeEvent, OutlineConfigCollapseItemsValues, OutlineConfigKeys, OutlineTarget } from '../../../../../services/outline/browser/outline.js';
+import { IBreadcrumbsDataSource, IBreadcrumbsOutlineElement, IOutline, IOutlineComparator, IOutlineCreator, IOutlineListConfig, IOutlineService, IQuickPickDataSource, IQuickPickOutlineElement, OutlineChangeEvent, OutlineConfigCollapseItemsValues, OutlineConfigKeys, OutlineTarget } from '../../../../../services/outline/browser/outline.js';
 import { OutlineEntry } from '../../viewModel/OutlineEntry.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { IModelDeltaDecoration } from '../../../../../../editor/common/model.js';
@@ -466,12 +466,12 @@ export class NotebookBreadcrumbsProvider implements IBreadcrumbsDataSource<Outli
 		}));
 	}
 
-	getBreadcrumbElements(): readonly OutlineEntry[] {
-		const result: OutlineEntry[] = [];
+	getBreadcrumbElements(): readonly IBreadcrumbsOutlineElement<OutlineEntry>[] {
+		const result: IBreadcrumbsOutlineElement<OutlineEntry>[] = [];
 		let candidate = this.outlineDataSourceRef?.object?.activeElement;
 		while (candidate) {
 			if (this.showCodeCells || candidate.cell.cellKind !== CellKind.Code) {
-				result.unshift(candidate);
+				result.unshift({ element: candidate, label: candidate.label });
 			}
 			candidate = candidate.parent;
 		}
@@ -595,7 +595,7 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 			delegate,
 			renderers,
 			comparator,
-			options
+			options,
 		};
 	}
 

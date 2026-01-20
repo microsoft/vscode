@@ -30,6 +30,9 @@ import { CharCode } from '../../../../../../../base/common/charCode.js';
 import { BugIndicatingError } from '../../../../../../../base/common/errors.js';
 import { Size2D } from '../../../../../../common/core/2d/size.js';
 
+/**
+ * Warning: might return 0.
+*/
 export function maxContentWidthInRange(editor: ObservableCodeEditor, range: LineRange, reader: IReader | undefined): number {
 	editor.layoutInfo.read(reader);
 	editor.value.read(reader);

@@ -227,7 +227,7 @@ export const DEFAULT_MAC_FONT_FAMILY = 'Menlo, Monaco, \'Courier New\', monospac
 /**
  * @internal
  */
-export const DEFAULT_LINUX_FONT_FAMILY = '\'Droid Sans Mono\', \'monospace\', monospace';
+export const DEFAULT_LINUX_FONT_FAMILY = '\'Droid Sans Mono\', monospace';
 /**
  * @internal
  */

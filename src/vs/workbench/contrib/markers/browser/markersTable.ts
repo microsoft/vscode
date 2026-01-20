@@ -449,6 +449,11 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 					continue;
 				}
 
+				// Source filters
+				if (!this.filterOptions.matchesSourceFilters(marker.marker.source)) {
+					continue;
+				}
+
 				// Text filter
 				if (this.filterOptions.textFilter.text) {
 					const sourceMatches = marker.marker.source ? FilterOptions._filter(this.filterOptions.textFilter.text, marker.marker.source) ?? undefined : undefined;

@@ -109,7 +109,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	readonly defaultKeybindingsResource = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/keybindings.json' });
-	private readonly defaultSettingsRawResource = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/defaultSettings.json' });
+	private readonly defaultSettingsRawResource = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/defaultSettings.jsonc' });
 
 	get userSettingsResource(): URI {
 		return this.userDataProfileService.currentProfile.settingsResource;
@@ -247,6 +247,21 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			...options,
 			jsonEditor: options.jsonEditor ?? this.shouldOpenJsonByDefault()
 		};
+
+		if (options.jsonEditor && options.query && !options.revealSetting) {
+			const query = options.query.trim();
+			const idMatch = query.match(/^@id:(.+)$/);
+			let key: string | undefined;
+			if (idMatch) {
+				key = idMatch[1].trim();
+			} else if (Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties()[query.trim()]) {
+				key = query.trim();
+			}
+			options.query = undefined;
+			if (key) {
+				options.revealSetting = { key };
+			}
+		}
 
 		return options.jsonEditor ?
 			this.openSettingsJson(settingsResource, options) :

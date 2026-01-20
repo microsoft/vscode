@@ -11,6 +11,7 @@ import { runWithFakedTimers } from '../../../../base/test/common/timeTravelSched
 import { NullLogService } from '../../../log/common/log.js';
 import { AXNode } from '../../electron-main/cdpAccessibilityDomain.js';
 import { WebPageLoader } from '../../electron-main/webPageLoader.js';
+import { IWebContentExtractorOptions } from '../../common/webContentExtractor.js';
 
 interface MockElectronEvent {
 	preventDefault?: sinon.SinonStub;
@@ -21,12 +22,27 @@ class MockWebContents {
 	public readonly debugger: MockDebugger;
 	public loadURL = sinon.stub().resolves();
 	public getTitle = sinon.stub().returns('Test Page Title');
+	public executeJavaScript = sinon.stub().resolves(undefined);
+
+	public session = {
+		webRequest: {
+			onBeforeSendHeaders: sinon.stub()
+		}
+	};
 
 	constructor() {
 		this.debugger = new MockDebugger();
 	}
 
 	once(event: string, listener: (...args: unknown[]) => void): this {
+		if (!this._listeners.has(event)) {
+			this._listeners.set(event, []);
+		}
+		this._listeners.get(event)!.push(listener);
+		return this;
+	}
+
+	on(event: string, listener: (...args: unknown[]) => void): this {
 		if (!this._listeners.has(event)) {
 			this._listeners.set(event, []);
 		}
@@ -89,12 +105,12 @@ suite('WebPageLoader', () => {
 		sinon.restore();
 	});
 
-	function createWebPageLoader(uri: URI, options?: { followRedirects?: boolean }): WebPageLoader {
+	function createWebPageLoader(uri: URI, options?: IWebContentExtractorOptions, isTrustedDomain?: (uri: URI) => boolean): WebPageLoader {
 		const loader = new WebPageLoader((options) => {
 			window = new MockBrowserWindow(options);
 			// eslint-disable-next-line local/code-no-any-casts
 			return window as any;
-		}, new NullLogService(), uri, options);
+		}, new NullLogService(), uri, options, isTrustedDomain ?? (() => false));
 		disposables.add(loader);
 		return loader;
 	}
@@ -116,24 +132,48 @@ suite('WebPageLoader', () => {
 		];
 	}
 
-	//#region Basic Loading Tests
+	interface DebuggerMockOptions {
+		axNodes?: AXNode[] | ((frameId: string) => AXNode[]);
+		frameTree?: { frame: { id: string; url?: string }; childFrames?: unknown[] };
+		accessibilityHang?: boolean;
+	}
 
-	test('successful page load returns ok status with content', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const uri = URI.parse('https://example.com/page');
-		const axNodes = createMockAXNodes();
+	function setupDebuggerMock(options: DebuggerMockOptions = {}): void {
+		const {
+			axNodes = createMockAXNodes(),
+			frameTree = { frame: { id: 'main-frame' }, childFrames: [] },
+			accessibilityHang
+		} = options;
 
-		const loader = createWebPageLoader(uri);
-
-		window.webContents.debugger.sendCommand.callsFake((command: string) => {
+		window.webContents.debugger.sendCommand.callsFake((command: string, params?: { frameId?: string }) => {
 			switch (command) {
 				case 'Network.enable':
 					return Promise.resolve();
+				case 'Page.enable':
+					return Promise.resolve();
+				case 'Page.getFrameTree':
+					return Promise.resolve({ frameTree });
 				case 'Accessibility.getFullAXTree':
-					return Promise.resolve({ nodes: axNodes });
+					if (accessibilityHang) {
+						return new Promise(() => { });
+					} else if (typeof axNodes === 'function') {
+						return Promise.resolve({ nodes: axNodes(params?.frameId ?? '') });
+					} else {
+						return Promise.resolve({ nodes: axNodes });
+					}
 				default:
 					assert.fail(`Unexpected command: ${command}`);
 			}
 		});
+	}
+
+	//#region Basic Loading Tests
+
+	test('successful page load returns ok status with content', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = URI.parse('https://example.com/page');
+
+		const loader = createWebPageLoader(uri);
+		setupDebuggerMock();
 
 		const loadPromise = loader.load();
 
@@ -152,17 +192,7 @@ suite('WebPageLoader', () => {
 		const uri = URI.parse('https://example.com/page');
 
 		const loader = createWebPageLoader(uri);
-
-		window.webContents.debugger.sendCommand.callsFake((command: string) => {
-			switch (command) {
-				case 'Network.enable':
-					return Promise.resolve();
-				case 'Accessibility.getFullAXTree':
-					return Promise.resolve({ nodes: createMockAXNodes() });
-				default:
-					assert.fail(`Unexpected command: ${command}`);
-			}
-		});
+		setupDebuggerMock();
 
 		const loadPromise = loader.load();
 
@@ -178,6 +208,27 @@ suite('WebPageLoader', () => {
 			assert.strictEqual(result.error, 'ERR_CONNECTION_REFUSED');
 		}
 	});
+
+	test('ERR_ABORTED is ignored and content extraction continues', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = URI.parse('https://example.com/page');
+
+		const loader = createWebPageLoader(uri);
+		setupDebuggerMock();
+
+		const loadPromise = loader.load();
+
+		// Simulate ERR_ABORTED (-3) which should be ignored
+		const mockEvent: MockElectronEvent = {};
+		window.webContents.emit('did-fail-load', mockEvent, -3, 'ERR_ABORTED');
+
+		const result = await loadPromise;
+
+		// ERR_ABORTED should not cause an error status, content should be extracted
+		assert.strictEqual(result.status, 'ok');
+		if (result.status === 'ok') {
+			assert.ok(result.result.includes('Test content from page'));
+		}
+	}));
 
 	//#endregion
 
@@ -211,20 +262,9 @@ suite('WebPageLoader', () => {
 	test('redirect to same authority is not treated as redirect', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const uri = URI.parse('https://example.com/page');
 		const redirectUrl = 'https://example.com/other-page';
-		const axNodes = createMockAXNodes();
 
 		const loader = createWebPageLoader(uri, { followRedirects: false });
-
-		window.webContents.debugger.sendCommand.callsFake((command: string) => {
-			switch (command) {
-				case 'Network.enable':
-					return Promise.resolve();
-				case 'Accessibility.getFullAXTree':
-					return Promise.resolve({ nodes: axNodes });
-				default:
-					assert.fail(`Unexpected command: ${command}`);
-			}
-		});
+		setupDebuggerMock();
 
 		const loadPromise = loader.load();
 
@@ -248,20 +288,9 @@ suite('WebPageLoader', () => {
 	test('redirect is followed when followRedirects option is true', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const uri = URI.parse('https://example.com/page');
 		const redirectUrl = 'https://other-domain.com/redirected';
-		const axNodes = createMockAXNodes();
 
 		const loader = createWebPageLoader(uri, { followRedirects: true });
-
-		window.webContents.debugger.sendCommand.callsFake((command: string) => {
-			switch (command) {
-				case 'Network.enable':
-					return Promise.resolve();
-				case 'Accessibility.getFullAXTree':
-					return Promise.resolve({ nodes: axNodes });
-				default:
-					assert.fail(`Unexpected command: ${command}`);
-			}
-		});
+		setupDebuggerMock();
 
 		const loadPromise = loader.load();
 
@@ -282,26 +311,154 @@ suite('WebPageLoader', () => {
 		assert.strictEqual(result.status, 'ok');
 	}));
 
+	test('redirect from www to non-www same domain is allowed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = URI.parse('https://www.example.com/page');
+		const redirectUrl = 'https://example.com/other-page';
+
+		const loader = createWebPageLoader(uri, { followRedirects: false });
+		setupDebuggerMock();
+
+		const loadPromise = loader.load();
+
+		// Simulate redirect from www to non-www
+		const mockEvent: MockElectronEvent = {
+			preventDefault: sinon.stub()
+		};
+		window.webContents.emit('will-redirect', mockEvent, redirectUrl);
+
+		// Should not prevent default for www prefix redirect
+		assert.ok(!(mockEvent.preventDefault!).called);
+
+		// Continue with normal load
+		window.webContents.emit('did-start-loading');
+		window.webContents.emit('did-finish-load');
+
+		const result = await loadPromise;
+		assert.strictEqual(result.status, 'ok');
+	}));
+
+	test('redirect from non-www to www same domain is allowed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = URI.parse('https://example.com/page');
+		const redirectUrl = 'https://www.example.com/other-page';
+
+		const loader = createWebPageLoader(uri, { followRedirects: false });
+		setupDebuggerMock();
+
+		const loadPromise = loader.load();
+
+		// Simulate redirect from non-www to www
+		const mockEvent: MockElectronEvent = {
+			preventDefault: sinon.stub()
+		};
+		window.webContents.emit('will-redirect', mockEvent, redirectUrl);
+
+		// Should not prevent default for www prefix redirect
+		assert.ok(!(mockEvent.preventDefault!).called);
+
+		// Continue with normal load
+		window.webContents.emit('did-start-loading');
+		window.webContents.emit('did-finish-load');
+
+		const result = await loadPromise;
+		assert.strictEqual(result.status, 'ok');
+	}));
+
+	test('redirect to trusted domain is allowed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = URI.parse('https://example.com/page');
+		const redirectUrl = 'https://trusted-domain.com/redirected';
+
+		const loader = createWebPageLoader(uri,
+			{ followRedirects: false },
+			(uri) => uri.authority === 'trusted-domain.com' || uri.authority === 'another-trusted.com'
+		);
+		setupDebuggerMock();
+
+		const loadPromise = loader.load();
+
+		// Simulate redirect to trusted domain
+		const mockEvent: MockElectronEvent = {
+			preventDefault: sinon.stub()
+		};
+		window.webContents.emit('will-redirect', mockEvent, redirectUrl);
+
+		// Should not prevent default for trusted domain redirect
+		assert.ok(!(mockEvent.preventDefault!).called);
+
+		// Continue with normal load
+		window.webContents.emit('did-start-loading');
+		window.webContents.emit('did-finish-load');
+
+		const result = await loadPromise;
+		assert.strictEqual(result.status, 'ok');
+	}));
+
+	test('redirect to non-trusted domain is blocked', async () => {
+		const uri = URI.parse('https://example.com/page');
+		const redirectUrl = 'https://untrusted-domain.com/redirected';
+
+		const loader = createWebPageLoader(uri,
+			{ followRedirects: false },
+			(uri) => uri.authority === 'trusted-domain.com'
+		);
+
+		window.webContents.debugger.sendCommand.resolves({});
+
+		const loadPromise = loader.load();
+
+		// Simulate redirect to non-trusted domain
+		const mockEvent: MockElectronEvent = {
+			preventDefault: sinon.stub()
+		};
+		window.webContents.emit('will-redirect', mockEvent, redirectUrl);
+
+		const result = await loadPromise;
+
+		// Should prevent redirect to non-trusted domain
+		assert.ok((mockEvent.preventDefault!).called);
+		assert.strictEqual(result.status, 'redirect');
+		if (result.status === 'redirect') {
+			assert.strictEqual(result.toURI.authority, 'untrusted-domain.com');
+		}
+	});
+
+	test('redirect to wildcard subdomain trusted domain is allowed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = URI.parse('https://example.com/page');
+		const redirectUrl = 'https://sub.trusted-domain.com/redirected';
+
+		const loader = createWebPageLoader(uri,
+			{ followRedirects: false },
+			(uri) => uri.authority.endsWith('.trusted-domain.com') || uri.authority === 'trusted-domain.com'
+		);
+		setupDebuggerMock();
+
+		const loadPromise = loader.load();
+
+		// Simulate redirect to subdomain of trusted wildcard domain
+		const mockEvent: MockElectronEvent = {
+			preventDefault: sinon.stub()
+		};
+		window.webContents.emit('will-redirect', mockEvent, redirectUrl);
+
+		// Should not prevent default for wildcard subdomain match
+		assert.ok(!(mockEvent.preventDefault!).called);
+
+		// Continue with normal load
+		window.webContents.emit('did-start-loading');
+		window.webContents.emit('did-finish-load');
+
+		const result = await loadPromise;
+		assert.strictEqual(result.status, 'ok');
+	}));
+
 	//#endregion
 
 	//#region HTTP Error Tests
 
 	test('HTTP error status code returns error with content', async () => {
 		const uri = URI.parse('https://example.com/not-found');
-		const axNodes = createMockAXNodes();
 
 		const loader = createWebPageLoader(uri);
-
-		window.webContents.debugger.sendCommand.callsFake((command: string) => {
-			switch (command) {
-				case 'Network.enable':
-					return Promise.resolve();
-				case 'Accessibility.getFullAXTree':
-					return Promise.resolve({ nodes: axNodes });
-				default:
-					assert.fail(`Unexpected command: ${command}`);
-			}
-		});
+		setupDebuggerMock();
 
 		const loadPromise = loader.load();
 
@@ -327,20 +484,9 @@ suite('WebPageLoader', () => {
 
 	test('HTTP 500 error returns server error status', async () => {
 		const uri = URI.parse('https://example.com/server-error');
-		const axNodes = createMockAXNodes();
 
 		const loader = createWebPageLoader(uri);
-
-		window.webContents.debugger.sendCommand.callsFake((command: string) => {
-			switch (command) {
-				case 'Network.enable':
-					return Promise.resolve();
-				case 'Accessibility.getFullAXTree':
-					return Promise.resolve({ nodes: axNodes });
-				default:
-					assert.fail(`Unexpected command: ${command}`);
-			}
-		});
+		setupDebuggerMock();
 
 		const loadPromise = loader.load();
 
@@ -366,20 +512,9 @@ suite('WebPageLoader', () => {
 
 	test('HTTP error without status text uses fallback message', async () => {
 		const uri = URI.parse('https://example.com/error');
-		const axNodes = createMockAXNodes();
 
 		const loader = createWebPageLoader(uri);
-
-		window.webContents.debugger.sendCommand.callsFake((command: string) => {
-			switch (command) {
-				case 'Network.enable':
-					return Promise.resolve();
-				case 'Accessibility.getFullAXTree':
-					return Promise.resolve({ nodes: axNodes });
-				default:
-					assert.fail(`Unexpected command: ${command}`);
-			}
-		});
+		setupDebuggerMock();
 
 		const loadPromise = loader.load();
 
@@ -408,20 +543,9 @@ suite('WebPageLoader', () => {
 
 	test('tracks network requests and waits for completion', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const uri = URI.parse('https://example.com/page');
-		const axNodes = createMockAXNodes();
 
 		const loader = createWebPageLoader(uri);
-
-		window.webContents.debugger.sendCommand.callsFake((command: string) => {
-			switch (command) {
-				case 'Network.enable':
-					return Promise.resolve();
-				case 'Accessibility.getFullAXTree':
-					return Promise.resolve({ nodes: axNodes });
-				default:
-					assert.fail(`Unexpected command: ${command}`);
-			}
-		});
+		setupDebuggerMock();
 
 		const loadPromise = loader.load();
 
@@ -455,20 +579,9 @@ suite('WebPageLoader', () => {
 
 	test('handles network request failures gracefully', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const uri = URI.parse('https://example.com/page');
-		const axNodes = createMockAXNodes();
 
 		const loader = createWebPageLoader(uri);
-
-		window.webContents.debugger.sendCommand.callsFake((command: string) => {
-			switch (command) {
-				case 'Network.enable':
-					return Promise.resolve();
-				case 'Accessibility.getFullAXTree':
-					return Promise.resolve({ nodes: axNodes });
-				default:
-					assert.fail(`Unexpected command: ${command}`);
-			}
-		});
+		setupDebuggerMock();
 
 		const loadPromise = loader.load();
 
@@ -515,17 +628,7 @@ suite('WebPageLoader', () => {
 		];
 
 		const loader = createWebPageLoader(uri);
-
-		window.webContents.debugger.sendCommand.callsFake((command: string) => {
-			switch (command) {
-				case 'Network.enable':
-					return Promise.resolve();
-				case 'Accessibility.getFullAXTree':
-					return Promise.resolve({ nodes: axNodes });
-				default:
-					assert.fail(`Unexpected command: ${command}`);
-			}
-		});
+		setupDebuggerMock({ axNodes });
 
 		const loadPromise = loader.load();
 
@@ -540,19 +643,184 @@ suite('WebPageLoader', () => {
 		}
 	}));
 
-	test('handles empty accessibility tree', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const uri = URI.parse('https://example.com/empty');
+	test('falls back to DOM extraction when accessibility tree yields insufficient content', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = URI.parse('https://example.com/page');
+		// Create AX tree with very short content (less than MIN_CONTENT_LENGTH)
+		const shortAXNodes: AXNode[] = [
+			{
+				nodeId: 'node1',
+				ignored: false,
+				role: { type: 'role', value: 'StaticText' },
+				name: { type: 'string', value: 'Short' }
+			}
+		];
+
+		const loader = createWebPageLoader(uri);
+		setupDebuggerMock({ axNodes: shortAXNodes });
+
+		// Mock DOM extraction returning longer content
+		const domContent = 'This is much longer content extracted from the DOM that exceeds the minimum content length requirement and should be used instead of the short accessibility tree content.';
+		window.webContents.executeJavaScript.resolves(domContent);
+
+		const loadPromise = loader.load();
+
+		window.webContents.emit('did-start-loading');
+		window.webContents.emit('did-finish-load');
+
+		const result = await loadPromise;
+
+		assert.strictEqual(result.status, 'ok');
+		if (result.status === 'ok') {
+			assert.strictEqual(result.result, domContent);
+		}
+		// Verify executeJavaScript was called for DOM extraction
+		assert.ok(window.webContents.executeJavaScript.called);
+	}));
+
+	test('returns error when accessibility tree extraction hangs', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = URI.parse('https://example.com/page');
+		const loader = createWebPageLoader(uri);
+		setupDebuggerMock({ accessibilityHang: true });
+
+		const loadPromise = loader.load();
+		window.webContents.emit('did-start-loading');
+		const result = await loadPromise;
+
+		assert.strictEqual(result.status, 'error');
+		if (result.status === 'error') {
+			assert.ok(result.error.includes('Failed to extract meaningful content'));
+		}
+		// Verify executeJavaScript was NOT called for DOM extraction
+		assert.ok(!window.webContents.executeJavaScript.called);
+	}));
+
+	test('returns error when both accessibility tree and DOM extraction yield no content', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = URI.parse('https://example.com/empty-page');
+
+		const loader = createWebPageLoader(uri);
+		setupDebuggerMock({ axNodes: [] });
+
+		// Mock DOM extraction returning undefined (no content)
+		window.webContents.executeJavaScript.resolves(undefined);
+
+		const loadPromise = loader.load();
+
+		window.webContents.emit('did-start-loading');
+		window.webContents.emit('did-finish-load');
+
+		const result = await loadPromise;
+
+		assert.strictEqual(result.status, 'error');
+		if (result.status === 'error') {
+			assert.ok(result.error.includes('Failed to extract meaningful content'));
+		}
+		// Verify both extraction methods were attempted
+		assert.ok(window.webContents.executeJavaScript.called);
+	}));
+
+	test('extracts content from multiple frames including iframes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = URI.parse('https://example.com/page-with-iframes');
+
+		// Accessibility nodes for the main frame
+		const mainFrameNodes: AXNode[] = [
+			{
+				nodeId: 'main-root',
+				ignored: false,
+				role: { type: 'role', value: 'RootWebArea' },
+				childIds: ['main-heading']
+			},
+			{
+				nodeId: 'main-heading',
+				ignored: false,
+				role: { type: 'role', value: 'heading' },
+				name: { type: 'string', value: 'Main Page Content' },
+				properties: [{ name: 'level', value: { type: 'integer', value: 1 } }],
+				childIds: ['main-text']
+			},
+			{
+				nodeId: 'main-text',
+				ignored: false,
+				role: { type: 'role', value: 'StaticText' },
+				name: { type: 'string', value: 'Main Page Content' }
+			}
+		];
+
+		// Accessibility nodes for an iframe (simulating nested documentation content)
+		const iframeNodes: AXNode[] = [
+			{
+				nodeId: 'iframe-root',
+				ignored: false,
+				role: { type: 'role', value: 'RootWebArea' },
+				childIds: ['iframe-heading']
+			},
+			{
+				nodeId: 'iframe-heading',
+				ignored: false,
+				role: { type: 'role', value: 'heading' },
+				name: { type: 'string', value: 'Iframe Documentation Content' },
+				properties: [{ name: 'level', value: { type: 'integer', value: 2 } }],
+				childIds: ['iframe-text']
+			},
+			{
+				nodeId: 'iframe-text',
+				ignored: false,
+				role: { type: 'role', value: 'StaticText' },
+				name: { type: 'string', value: 'Iframe Documentation Content' }
+			}
+		];
+
+		// Accessibility nodes for a nested iframe
+		const nestedIframeNodes: AXNode[] = [
+			{
+				nodeId: 'nested-root',
+				ignored: false,
+				role: { type: 'role', value: 'RootWebArea' },
+				childIds: ['nested-paragraph']
+			},
+			{
+				nodeId: 'nested-paragraph',
+				ignored: false,
+				role: { type: 'role', value: 'paragraph' },
+				childIds: ['nested-text']
+			},
+			{
+				nodeId: 'nested-text',
+				ignored: false,
+				role: { type: 'role', value: 'StaticText' },
+				name: { type: 'string', value: 'Deeply nested iframe content that should also be extracted' }
+			}
+		];
 
 		const loader = createWebPageLoader(uri);
 
-		window.webContents.debugger.sendCommand.callsFake((command: string) => {
-			switch (command) {
-				case 'Network.enable':
-					return Promise.resolve();
-				case 'Accessibility.getFullAXTree':
-					return Promise.resolve({ nodes: [] });
-				default:
-					assert.fail(`Unexpected command: ${command}`);
+		const frameTree = {
+			frame: { id: 'main-frame', url: 'https://example.com/page-with-iframes' },
+			childFrames: [
+				{
+					frame: { id: 'iframe-1', url: 'https://example.com/iframe-content' },
+					childFrames: [
+						{
+							frame: { id: 'nested-iframe', url: 'https://example.com/nested-content' },
+							childFrames: []
+						}
+					]
+				}
+			]
+		};
+
+		setupDebuggerMock({
+			frameTree,
+			axNodes: (frameId: string) => {
+				switch (frameId) {
+					case 'main-frame':
+						return mainFrameNodes;
+					case 'iframe-1':
+						return iframeNodes;
+					case 'nested-iframe':
+						return nestedIframeNodes;
+					default:
+						return [];
+				}
 			}
 		});
 
@@ -565,37 +833,53 @@ suite('WebPageLoader', () => {
 
 		assert.strictEqual(result.status, 'ok');
 		if (result.status === 'ok') {
-			assert.strictEqual(result.result, '');
+			// Verify content from main frame is included
+			assert.ok(result.result.includes('Main Page Content'), 'Should include main frame content');
+			// Verify content from iframe is included
+			assert.ok(result.result.includes('Iframe Documentation Content'), 'Should include iframe content');
+			// Verify content from nested iframe is included
+			assert.ok(result.result.includes('Deeply nested iframe content'), 'Should include nested iframe content');
 		}
+
+		// Verify Accessibility.getFullAXTree was called for each frame
+		const getFullAXTreeCalls = window.webContents.debugger.sendCommand.getCalls()
+			.filter(call => call.args[0] === 'Accessibility.getFullAXTree');
+		assert.strictEqual(getFullAXTreeCalls.length, 3, 'Should call getFullAXTree for all 3 frames');
 	}));
 
-	test('handles accessibility extraction failure', async () => {
-		const uri = URI.parse('https://example.com/page');
+	//#endregion
 
-		const loader = createWebPageLoader(uri);
+	//#region Header Modification Tests
 
-		window.webContents.debugger.sendCommand.callsFake((command: string) => {
-			switch (command) {
-				case 'Network.enable':
-					return Promise.resolve();
-				case 'Accessibility.getFullAXTree':
-					return Promise.reject(new Error('Debugger detached'));
-				default:
-					assert.fail(`Unexpected command: ${command}`);
-			}
-		});
+	test('onBeforeSendHeaders adds browser headers for navigation', () => {
+		createWebPageLoader(URI.parse('https://example.com/page'));
 
-		const loadPromise = loader.load();
+		// Get the callback passed to onBeforeSendHeaders
+		assert.ok(window.webContents.session.webRequest.onBeforeSendHeaders.called);
+		const callback = window.webContents.session.webRequest.onBeforeSendHeaders.getCall(0).args[0];
 
-		window.webContents.emit('did-start-loading');
-		window.webContents.emit('did-finish-load');
+		// Mock callback function
+		let modifiedHeaders: Record<string, string> | undefined;
+		const mockCallback = (details: { requestHeaders: Record<string, string> }) => {
+			modifiedHeaders = details.requestHeaders;
+		};
 
-		const result = await loadPromise;
+		// Simulate a request to the same domain
+		callback(
+			{
+				url: 'https://example.com/page',
+				requestHeaders: {
+					'TestHeader': 'TestValue'
+				}
+			},
+			mockCallback
+		);
 
-		assert.strictEqual(result.status, 'error');
-		if (result.status === 'error') {
-			assert.ok(result.error.includes('Debugger detached'));
-		}
+		// Verify headers were added
+		assert.ok(modifiedHeaders);
+		assert.strictEqual(modifiedHeaders['DNT'], '1');
+		assert.strictEqual(modifiedHeaders['Sec-GPC'], '1');
+		assert.strictEqual(modifiedHeaders['TestHeader'], 'TestValue');
 	});
 
 	//#endregion
@@ -606,17 +890,7 @@ suite('WebPageLoader', () => {
 		const uri = URI.parse('https://example.com/page');
 
 		const loader = createWebPageLoader(uri);
-
-		window.webContents.debugger.sendCommand.callsFake((command: string) => {
-			switch (command) {
-				case 'Network.enable':
-					return Promise.resolve();
-				case 'Accessibility.getFullAXTree':
-					return Promise.resolve({ nodes: createMockAXNodes() });
-				default:
-					assert.fail(`Unexpected command: ${command}`);
-			}
-		});
+		setupDebuggerMock();
 
 		const loadPromise = loader.load();
 

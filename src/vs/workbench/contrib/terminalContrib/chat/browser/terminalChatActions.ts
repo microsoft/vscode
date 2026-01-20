@@ -4,17 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ChatViewId, IChatWidgetService } from '../../../chat/browser/chat.js';
-import { ChatContextKeys } from '../../../chat/common/chatContextKeys.js';
-import { IChatService } from '../../../chat/common/chatService.js';
-import { LocalChatSessionUri } from '../../../chat/common/chatUri.js';
+import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
+import { IChatService } from '../../../chat/common/chatService/chatService.js';
+import { LocalChatSessionUri } from '../../../chat/common/model/chatUri.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../chat/common/constants.js';
-import { AbstractInline1ChatAction } from '../../../inlineChat/browser/inlineChatActions.js';
+
 import { isDetachedTerminalInstance, ITerminalChatService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../terminal/browser/terminal.js';
 import { registerActiveXtermAction } from '../../../terminal/browser/terminalActions.js';
 import { TerminalContextMenuGroup } from '../../../terminal/browser/terminalMenus.js';
@@ -30,6 +32,8 @@ import { CommandsRegistry } from '../../../../../platform/commands/common/comman
 import { IPreferencesService, IOpenSettingsOptions } from '../../../../services/preferences/common/preferences.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { TerminalChatAgentToolsSettingId } from '../../chatAgentTools/common/terminalChatAgentToolsConfiguration.js';
+import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
+import { AbstractInlineChatAction } from '../../../inlineChat/browser/inlineChatActions.js';
 
 registerActiveXtermAction({
 	id: TerminalChatCommandId.Start,
@@ -84,7 +88,7 @@ registerActiveXtermAction({
 registerActiveXtermAction({
 	id: TerminalChatCommandId.Close,
 	title: localize2('closeChat', 'Close'),
-	category: AbstractInline1ChatAction.category,
+	category: AbstractInlineChatAction.category,
 	keybinding: {
 		primary: KeyCode.Escape,
 		when: ContextKeyExpr.and(
@@ -117,7 +121,7 @@ registerActiveXtermAction({
 	id: TerminalChatCommandId.RunCommand,
 	title: localize2('runCommand', 'Run Chat Command'),
 	shortTitle: localize2('run', 'Run'),
-	category: AbstractInline1ChatAction.category,
+	category: AbstractInlineChatAction.category,
 	precondition: ContextKeyExpr.and(
 		ChatContextKeys.enabled,
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
@@ -150,7 +154,7 @@ registerActiveXtermAction({
 	id: TerminalChatCommandId.RunFirstCommand,
 	title: localize2('runFirstCommand', 'Run First Chat Command'),
 	shortTitle: localize2('runFirst', 'Run First'),
-	category: AbstractInline1ChatAction.category,
+	category: AbstractInlineChatAction.category,
 	precondition: ContextKeyExpr.and(
 		ChatContextKeys.enabled,
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
@@ -182,7 +186,7 @@ registerActiveXtermAction({
 	id: TerminalChatCommandId.InsertCommand,
 	title: localize2('insertCommand', 'Insert Chat Command'),
 	shortTitle: localize2('insert', 'Insert'),
-	category: AbstractInline1ChatAction.category,
+	category: AbstractInlineChatAction.category,
 	icon: Codicon.insert,
 	precondition: ContextKeyExpr.and(
 		ChatContextKeys.enabled,
@@ -216,7 +220,7 @@ registerActiveXtermAction({
 	id: TerminalChatCommandId.InsertFirstCommand,
 	title: localize2('insertFirstCommand', 'Insert First Chat Command'),
 	shortTitle: localize2('insertFirst', 'Insert First'),
-	category: AbstractInline1ChatAction.category,
+	category: AbstractInlineChatAction.category,
 	precondition: ContextKeyExpr.and(
 		ChatContextKeys.enabled,
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
@@ -249,7 +253,7 @@ registerActiveXtermAction({
 	title: localize2('chat.rerun.label', "Rerun Request"),
 	f1: false,
 	icon: Codicon.refresh,
-	category: AbstractInline1ChatAction.category,
+	category: AbstractInlineChatAction.category,
 	precondition: ContextKeyExpr.and(
 		ChatContextKeys.enabled,
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
@@ -291,7 +295,7 @@ registerActiveXtermAction({
 registerActiveXtermAction({
 	id: TerminalChatCommandId.ViewInChat,
 	title: localize2('viewInChat', 'View in Chat'),
-	category: AbstractInline1ChatAction.category,
+	category: AbstractInlineChatAction.category,
 	precondition: ContextKeyExpr.and(
 		ChatContextKeys.enabled,
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
@@ -361,9 +365,11 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 			label: string;
 			description: string | undefined;
 			detail: string | undefined;
+			tooltip: string | IMarkdownString | undefined;
 			id: string;
 		}
 		const lastCommandLocalized = (command: string) => localize2('chatTerminal.lastCommand', 'Last: {0}', command).value;
+		const MAX_DETAIL_LENGTH = 80;
 
 		const metas: IItemMeta[] = [];
 		for (const instance of all.values()) {
@@ -375,20 +381,36 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 			const chatSessionId = terminalChatService.getChatSessionIdForInstance(instance);
 			let chatSessionTitle: string | undefined;
 			if (chatSessionId) {
-				const sessionUri = LocalChatSessionUri.forSession(chatSessionId);
-				// Try to get title from active session first, then fall back to persisted title
-				chatSessionTitle = chatService.getSession(sessionUri)?.title || chatService.getPersistedSessionTitle(sessionUri);
+				chatSessionTitle = chatService.getSessionTitle(LocalChatSessionUri.forSession(chatSessionId));
 			}
 
-			let description: string | undefined;
-			if (chatSessionTitle) {
-				description = `${chatSessionTitle}`;
+			const description = chatSessionTitle;
+			let detail: string | undefined;
+			let tooltip: string | IMarkdownString | undefined;
+			if (lastCommand) {
+				// Take only the first line if the command spans multiple lines
+				const commandLines = lastCommand.split('\n');
+				const firstLine = commandLines[0];
+				const displayCommand = firstLine.length > MAX_DETAIL_LENGTH ? firstLine.substring(0, MAX_DETAIL_LENGTH) + '…' : firstLine;
+				detail = lastCommandLocalized(displayCommand);
+				// If the command was truncated or has multiple lines, provide a tooltip with the full command
+				const wasTruncated = firstLine.length > MAX_DETAIL_LENGTH;
+				const hasMultipleLines = commandLines.length > 1;
+				if (wasTruncated || hasMultipleLines) {
+					// Use markdown code block to preserve formatting for multi-line commands
+					if (hasMultipleLines) {
+						tooltip = { value: `\`\`\`\n${lastCommand}\n\`\`\``, supportThemeIcons: true };
+					} else {
+						tooltip = lastCommandLocalized(lastCommand);
+					}
+				}
 			}
 
 			metas.push({
 				label,
 				description,
-				detail: lastCommand ? lastCommandLocalized(lastCommand) : undefined,
+				detail,
+				tooltip,
 				id: String(instance.instanceId),
 			});
 		}
@@ -398,6 +420,7 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 				label: m.label,
 				description: m.description,
 				detail: m.detail,
+				tooltip: m.tooltip,
 				id: m.id
 			});
 		}
@@ -409,7 +432,9 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 		qp.title = localize2('showChatTerminals.title', 'Chat Terminals').value;
 		qp.matchOnDescription = true;
 		qp.matchOnDetail = true;
-		qp.onDidAccept(async () => {
+		const qpDisposables = new DisposableStore();
+		qpDisposables.add(qp);
+		qpDisposables.add(qp.onDidAccept(async () => {
 			const sel = qp.selectedItems[0];
 			if (sel) {
 				const instance = all.get(Number(sel.id));
@@ -417,15 +442,18 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 					terminalService.setActiveInstance(instance);
 					await terminalService.revealTerminal(instance);
 					qp.hide();
-					terminalService.focusInstance(instance);
+					await terminalService.focusInstance(instance);
 				} else {
 					qp.hide();
 				}
 			} else {
 				qp.hide();
 			}
-		});
-		qp.onDidHide(() => qp.dispose());
+		}));
+		qpDisposables.add(qp.onDidHide(() => {
+			qpDisposables.dispose();
+			qp.dispose();
+		}));
 		qp.show();
 	}
 });
@@ -515,8 +543,7 @@ CommandsRegistry.registerCommand(TerminalChatCommandId.OpenTerminalSettingsLink,
 	}
 });
 
-CommandsRegistry.registerCommand(TerminalChatCommandId.DisableSessionAutoApproval, async (accessor, chatSessionId: string) => {
+CommandsRegistry.registerCommand(TerminalChatCommandId.DisableSessionAutoApproval, async (accessor, chatSessionResource: URI) => {
 	const terminalChatService = accessor.get(ITerminalChatService);
-	terminalChatService.setChatSessionAutoApproval(chatSessionId, false);
+	terminalChatService.setChatSessionAutoApproval(chatSessionResource, false);
 });
-

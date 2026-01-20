@@ -445,8 +445,8 @@ export function sortExtensionVersions(versions: IRawGalleryExtensionVersion[], p
 export function filterLatestExtensionVersionsForTargetPlatform(versions: IRawGalleryExtensionVersion[], targetPlatform: TargetPlatform, allTargetPlatforms: TargetPlatform[]): IRawGalleryExtensionVersion[] {
 	const latestVersions: IRawGalleryExtensionVersion[] = [];
 
-	let preReleaseVersionFoundForTargetPlatform: boolean = false;
-	let releaseVersionFoundForTargetPlatform: boolean = false;
+	let preReleaseVersionIndex: number = -1;
+	let releaseVersionIndex: number = -1;
 	for (const version of versions) {
 		const versionTargetPlatform = getTargetPlatformForExtensionVersion(version);
 		const isCompatibleWithTargetPlatform = isTargetPlatformCompatible(versionTargetPlatform, allTargetPlatforms, targetPlatform);
@@ -458,15 +458,20 @@ export function filterLatestExtensionVersionsForTargetPlatform(versions: IRawGal
 		}
 
 		// For compatible versions, only include the first (latest) of each type
+		// Prefer specific target platform matches over undefined/universal platforms
 		if (isPreReleaseVersion(version)) {
-			if (!preReleaseVersionFoundForTargetPlatform) {
-				preReleaseVersionFoundForTargetPlatform = true;
+			if (preReleaseVersionIndex === -1) {
+				preReleaseVersionIndex = latestVersions.length;
 				latestVersions.push(version);
+			} else if (versionTargetPlatform === targetPlatform) {
+				latestVersions[preReleaseVersionIndex] = version;
 			}
 		} else {
-			if (!releaseVersionFoundForTargetPlatform) {
-				releaseVersionFoundForTargetPlatform = true;
+			if (releaseVersionIndex === -1) {
+				releaseVersionIndex = latestVersions.length;
 				latestVersions.push(version);
+			} else if (versionTargetPlatform === targetPlatform) {
+				latestVersions[releaseVersionIndex] = version;
 			}
 		}
 	}

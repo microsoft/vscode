@@ -51,7 +51,7 @@ import { McpCommandIds } from '../../mcp/common/mcpCommandIds.js';
 
 export interface IPreferencesRenderer extends IDisposable {
 	render(): void;
-	updatePreference(key: string, value: any, source: ISetting): void;
+	updatePreference(key: string, value: unknown, source: ISetting): void;
 	focusPreference(setting: ISetting): void;
 	clearFocus(setting: ISetting): void;
 	editPreference(setting: ISetting): boolean;
@@ -87,7 +87,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 		this.mcpSettingsRenderer.render();
 	}
 
-	updatePreference(key: string, value: any, source: IIndexedSetting): void {
+	updatePreference(key: string, value: unknown, source: IIndexedSetting): void {
 		const overrideIdentifiers = source.overrideOf ? overrideIdentifiersFromKey(source.overrideOf.key) : null;
 		const resource = this.preferencesModel.uri;
 		this.configurationService.updateValue(key, value, { overrideIdentifiers, resource }, this.preferencesModel.configurationTarget)
@@ -181,8 +181,8 @@ class EditSettingRenderer extends Disposable {
 	associatedPreferencesModel!: IPreferencesEditorModel<ISetting>;
 	private toggleEditPreferencesForMouseMoveDelayer: Delayer<void>;
 
-	private readonly _onUpdateSetting: Emitter<{ key: string; value: any; source: IIndexedSetting }> = this._register(new Emitter<{ key: string; value: any; source: IIndexedSetting }>());
-	readonly onUpdateSetting: Event<{ key: string; value: any; source: IIndexedSetting }> = this._onUpdateSetting.event;
+	private readonly _onUpdateSetting: Emitter<{ key: string; value: unknown; source: IIndexedSetting }> = this._register(new Emitter<{ key: string; value: unknown; source: IIndexedSetting }>());
+	readonly onUpdateSetting: Event<{ key: string; value: unknown; source: IIndexedSetting }> = this._onUpdateSetting.event;
 
 	constructor(private editor: ICodeEditor, private primarySettingsModel: ISettingsEditorModel,
 		private settingHighlighter: SettingHighlighter,
@@ -447,7 +447,7 @@ class EditSettingRenderer extends Disposable {
 		return [];
 	}
 
-	private updateSetting(key: string, value: any, source: IIndexedSetting): void {
+	private updateSetting(key: string, value: unknown, source: IIndexedSetting): void {
 		this._onUpdateSetting.fire({ key, value, source });
 	}
 }

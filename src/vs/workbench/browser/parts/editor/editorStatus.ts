@@ -10,7 +10,7 @@ import { format, compare, splitLines } from '../../../../base/common/strings.js'
 import { extname, basename, isEqual } from '../../../../base/common/resources.js';
 import { areFunctions, assertReturnsDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
-import { Action } from '../../../../base/common/actions.js';
+import { IAction, toAction } from '../../../../base/common/actions.js';
 import { Language } from '../../../../base/common/platform.js';
 import { UntitledTextEditorInput } from '../../../services/untitled/common/untitledTextEditorInput.js';
 import { IFileEditorInput, EditorResourceAccessor, IEditorPane, SideBySideEditor } from '../../../common/editor.js';
@@ -1107,25 +1107,6 @@ class ShowCurrentMarkerInStatusbarContribution extends Disposable {
 	}
 }
 
-export class ShowLanguageExtensionsAction extends Action {
-
-	static readonly ID = 'workbench.action.showLanguageExtensions';
-
-	constructor(
-		private fileExtension: string,
-		@ICommandService private readonly commandService: ICommandService,
-		@IExtensionGalleryService galleryService: IExtensionGalleryService
-	) {
-		super(ShowLanguageExtensionsAction.ID, localize('showLanguageExtensions', "Search Marketplace Extensions for '{0}'...", fileExtension));
-
-		this.enabled = galleryService.isEnabled();
-	}
-
-	override async run(): Promise<void> {
-		await this.commandService.executeCommand('workbench.extensions.action.showExtensionsForLanguage', this.fileExtension);
-	}
-}
-
 export class ChangeLanguageAction extends Action2 {
 
 	static readonly ID = 'workbench.action.editor.changeLanguageMode';
@@ -1159,9 +1140,10 @@ export class ChangeLanguageAction extends Action2 {
 		const languageDetectionService = accessor.get(ILanguageDetectionService);
 		const textFileService = accessor.get(ITextFileService);
 		const preferencesService = accessor.get(IPreferencesService);
-		const instantiationService = accessor.get(IInstantiationService);
 		const configurationService = accessor.get(IConfigurationService);
 		const telemetryService = accessor.get(ITelemetryService);
+		const commandService = accessor.get(ICommandService);
+		const galleryService = accessor.get(IExtensionGalleryService);
 
 		const activeTextEditorControl = getCodeEditor(editorService.activeTextEditorControl);
 		if (!activeTextEditorControl) {
@@ -1198,6 +1180,7 @@ export class ChangeLanguageAction extends Action2 {
 				}
 
 				return {
+					id: languageId,
 					label: languageName,
 					meta: extensions,
 					iconClasses: getIconClassesForLanguageId(languageId),
@@ -1210,12 +1193,16 @@ export class ChangeLanguageAction extends Action2 {
 		// Offer action to configure via settings
 		let configureLanguageAssociations: IQuickPickItem | undefined;
 		let configureLanguageSettings: IQuickPickItem | undefined;
-		let galleryAction: Action | undefined;
+		let galleryAction: IAction | undefined;
 		if (hasLanguageSupport && resource) {
 			const ext = extname(resource) || basename(resource);
 
-			galleryAction = instantiationService.createInstance(ShowLanguageExtensionsAction, ext);
-			if (galleryAction.enabled) {
+			if (galleryService.isEnabled()) {
+				galleryAction = toAction({
+					id: 'workbench.action.showLanguageExtensions',
+					label: localize('showLanguageExtensions', "Search Marketplace Extensions for '{0}'...", ext),
+					run: () => commandService.executeCommand('workbench.extensions.action.showExtensionsForLanguage', ext)
+				});
 				picks.unshift(galleryAction);
 			}
 
@@ -1280,8 +1267,7 @@ export class ChangeLanguageAction extends Action2 {
 						}
 					}
 				} else {
-					const languageId = languageService.getLanguageIdByLanguageName(pick.label);
-					languageSelection = languageService.createById(languageId);
+					languageSelection = languageService.createById(pick.id);
 
 					if (resource) {
 						// fire and forget to not slow things down

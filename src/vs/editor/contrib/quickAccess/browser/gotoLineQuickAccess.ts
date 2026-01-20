@@ -3,17 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Toggle } from '../../../../base/browser/ui/toggle/toggle.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
-import { IQuickPick, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputButton, IQuickPick, IQuickPickItem, QuickInputButtonLocation } from '../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from '../../../../platform/theme/common/colors/inputColors.js';
-import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 import { getCodeEditor } from '../../../browser/editorBrowser.js';
 import { EditorOption, RenderLineNumbersType } from '../../../common/config/editorOptions.js';
+import { CursorColumns } from '../../../common/core/cursorColumns.js';
 import { IPosition } from '../../../common/core/position.js';
 import { IRange } from '../../../common/core/range.js';
 import { IEditor, ScrollType } from '../../../common/editorCommon.js';
@@ -77,13 +76,21 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 			}
 		}));
 
+		// Add a toggle to switch between 1- and 0-based offsets.
+		const offsetButton: IQuickInputButton = {
+			iconClass: ThemeIcon.asClassName(Codicon.indexZero),
+			tooltip: localize('gotoLineToggleButton', "Toggle Zero-Based Offset"),
+			location: QuickInputButtonLocation.Input,
+			toggle: { checked: this.useZeroBasedOffset }
+		};
+
 		// React to picker changes
 		const updatePickerAndEditor = () => {
 			const inputText = picker.value.trim().substring(AbstractGotoLineQuickAccessProvider.GO_TO_LINE_PREFIX.length);
 			const { inOffsetMode, lineNumber, column, label } = this.parsePosition(editor, inputText);
 
 			// Show toggle only when input text starts with '::'.
-			toggle.visible = !!inOffsetMode;
+			picker.buttons = inOffsetMode ? [offsetButton] : [];
 
 			// Picker
 			picker.items = [{
@@ -91,16 +98,6 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 				column,
 				label,
 			}];
-
-			// ARIA Label
-			const cursor = editor.getPosition() ?? { lineNumber: 1, column: 1 };
-			picker.ariaLabel = localize(
-				{
-					key: 'gotoLine.ariaLabel',
-					comment: ['{0} is the line number, {1} is the column number, {2} is instructions for typing in the Go To Line picker']
-				},
-				"Current position: line {0}, column {1}. {2}", cursor.lineNumber, cursor.column, label
-			);
 
 			// Clear decorations for invalid range
 			if (!lineNumber) {
@@ -116,23 +113,12 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 			this.addDecorations(editor, range);
 		};
 
-		// Add a toggle to switch between 1- and 0-based offsets.
-		const toggle = new Toggle({
-			title: localize('gotoLineToggle', "Use Zero-Based Offset"),
-			icon: Codicon.indexZero,
-			isChecked: this.useZeroBasedOffset,
-			inputActiveOptionBorder: asCssVariable(inputActiveOptionBorder),
-			inputActiveOptionForeground: asCssVariable(inputActiveOptionForeground),
-			inputActiveOptionBackground: asCssVariable(inputActiveOptionBackground)
-		});
-
-		disposables.add(
-			toggle.onChange(() => {
-				this.useZeroBasedOffset = !this.useZeroBasedOffset;
+		disposables.add(picker.onDidTriggerButton(button => {
+			if (button === offsetButton) {
+				this.useZeroBasedOffset = button.toggle?.checked ?? !this.useZeroBasedOffset;
 				updatePickerAndEditor();
-			}));
-
-		picker.toggles = [toggle];
+			}
+		}));
 
 		updatePickerAndEditor();
 		disposables.add(picker.onDidChangeValue(() => updatePickerAndEditor()));
@@ -187,15 +173,22 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 					// Convert 1-based offset to model's 0-based.
 					offset -= Math.sign(offset);
 				}
+
 				if (reverse) {
 					// Offset from the end of the buffer
 					offset += maxOffset;
 				}
+
 				const pos = model.getPositionAt(offset);
+				const visibleColumn = CursorColumns.visibleColumnFromColumn(
+					model.getLineContent(pos.lineNumber),
+					pos.column,
+					model.getOptions().tabSize) + 1;
+
 				return {
 					...pos,
 					inOffsetMode: true,
-					label: localize('gotoLine.goToPosition', "Press 'Enter' to go to line {0} at column {1}.", pos.lineNumber, pos.column)
+					label: localize('gotoLine.goToPosition', "Press 'Enter' to go to line {0} at column {1}.", pos.lineNumber, visibleColumn)
 				};
 			}
 		} else {
@@ -214,7 +207,11 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 			lineNumber = lineNumber >= 0 ? lineNumber : (maxLine + 1) + lineNumber;
 			lineNumber = Math.min(Math.max(1, lineNumber), maxLine);
 
-			const maxColumn = model.getLineMaxColumn(lineNumber);
+			// Treat column number as visible column
+			const tabSize = model.getOptions().tabSize;
+			const lineContent = model.getLineContent(lineNumber);
+			const maxColumn = CursorColumns.visibleColumnFromColumn(lineContent, model.getLineMaxColumn(lineNumber), tabSize) + 1;
+
 			let column = parseInt(parts[1]?.trim(), 10);
 			if (parts.length < 2 || isNaN(column)) {
 				return {
@@ -230,9 +227,10 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 			column = column >= 0 ? column : maxColumn + column;
 			column = Math.min(Math.max(1, column), maxColumn);
 
+			const realColumn = CursorColumns.columnFromVisibleColumn(lineContent, column - 1, tabSize);
 			return {
 				lineNumber,
-				column,
+				column: realColumn,
 				label: localize('gotoLine.goToPosition', "Press 'Enter' to go to line {0} at column {1}.", lineNumber, column)
 			};
 		}

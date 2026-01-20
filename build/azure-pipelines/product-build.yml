@@ -6,6 +6,11 @@ schedules:
     branches:
       include:
         - main
+  - cron: "0 17 * * Mon-Fri"
+    displayName: Mon-Fri at 19:00
+    branches:
+      include:
+        - main
 
 trigger:
   batch: true
@@ -190,6 +195,9 @@ extends:
         image: onebranch.azurecr.io/linux/ubuntu-2004-arm64:latest
     stages:
       - stage: Compile
+        pool:
+          name: AcesShared
+          os: macOS
         jobs:
           - template: build/azure-pipelines/product-compile.yml@self
 

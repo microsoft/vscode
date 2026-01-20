@@ -19,7 +19,8 @@ export type InlineCompletionEndOfLifeEvent = {
 	typingIntervalCharacterCount: number;
 	selectedSuggestionInfo: boolean;
 	availableProviders: string;
-	sku: string | undefined;
+	skuPlan: string | undefined;
+	skuType: string | undefined;
 	// response
 	correlationId: string | undefined;
 	extensionId: string;
@@ -33,6 +34,7 @@ export type InlineCompletionEndOfLifeEvent = {
 	timeUntilProviderRequest: number | undefined;
 	timeUntilProviderResponse: number | undefined;
 	reason: 'accepted' | 'rejected' | 'ignored' | undefined;
+	acceptedAlternativeAction: boolean | undefined;
 	partiallyAccepted: number | undefined;
 	partiallyAcceptedCountSinceOriginal: number | undefined;
 	partiallyAcceptedRatioSinceOriginal: number | undefined;
@@ -40,9 +42,9 @@ export type InlineCompletionEndOfLifeEvent = {
 	preceeded: boolean | undefined;
 	superseded: boolean | undefined;
 	notShownReason: string | undefined;
-	renameCreated: boolean;
+	renameCreated: boolean | undefined;
 	renameDuration: number | undefined;
-	renameTimedOut: boolean;
+	renameTimedOut: boolean | undefined;
 	renameDroppedOtherEdits: number | undefined;
 	renameDroppedRenameEdits: number | undefined;
 	performanceMarkers: string | undefined;
@@ -73,7 +75,8 @@ type InlineCompletionsEndOfLifeClassification = {
 	extensionVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version of the extension that contributed the inline completion' };
 	groupId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The group ID of the extension that contributed the inline completion' };
 	availableProviders: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The list of available inline completion providers at the time of the request' };
-	sku: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The SKU of the product where the inline completion was shown' };
+	skuPlan: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The the plan the user is subscribed to' };
+	skuType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The sku type of the user' };
 	shown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was shown to the user' };
 	shownDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration for which the inline completion was shown' };
 	shownDurationUncollapsed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration for which the inline completion was shown without collapsing' };
@@ -81,6 +84,7 @@ type InlineCompletionsEndOfLifeClassification = {
 	timeUntilProviderRequest: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The time it took for the inline completion to be requested from the provider' };
 	timeUntilProviderResponse: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The time it took for the inline completion to be shown after the request' };
 	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason for the inline completion ending' };
+	acceptedAlternativeAction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user performed an alternative action when accepting the inline completion' };
 	selectedSuggestionInfo: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was requested with a selected suggestion' };
 	partiallyAccepted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How often the inline completion was partially accepted by the user' };
 	partiallyAcceptedCountSinceOriginal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How often the inline completion was partially accepted since the original request' };

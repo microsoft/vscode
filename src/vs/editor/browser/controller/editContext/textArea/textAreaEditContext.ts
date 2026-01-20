@@ -6,6 +6,7 @@
 import './textAreaEditContext.css';
 import * as nls from '../../../../../nls.js';
 import * as browser from '../../../../../base/browser/browser.js';
+import { scheduleAtNextAnimationFrame, getWindow } from '../../../../../base/browser/dom.js';
 import { FastDomNode, createFastDomNode } from '../../../../../base/browser/fastDomNode.js';
 import { IKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import * as platform from '../../../../../base/common/platform.js';
@@ -31,6 +32,7 @@ import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from '../../../../../base/browser/ui
 import { TokenizationRegistry } from '../../../../common/languages.js';
 import { ColorId, ITokenPresentation } from '../../../../common/encodedTokenAttributes.js';
 import { Color } from '../../../../../base/common/color.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { IME } from '../../../../../base/common/ime.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -39,6 +41,7 @@ import { ICompositionData, IPasteData, ITextAreaInputHost, TextAreaInput, TextAr
 import { ariaLabelForScreenReaderContent, newlinecount, SimplePagedScreenReaderStrategy } from '../screenReaderUtils.js';
 import { _debugComposition, ITypeData, TextAreaState } from './textAreaEditContextState.js';
 import { getMapForWordSeparators, WordCharacterClass } from '../../../../common/core/wordCharacterClassifier.js';
+import { TextAreaEditContextRegistry } from './textAreaEditContextRegistry.js';
 
 export interface IVisibleRangeProvider {
 	visibleRangeForPosition(position: Position): HorizontalPosition | null;
@@ -138,12 +141,14 @@ export class TextAreaEditContext extends AbstractEditContext {
 	 * This is useful for hit-testing and determining the mouse position.
 	 */
 	private _lastRenderPosition: Position | null;
+	private _scheduledRender: IDisposable | null = null;
 
 	public readonly textArea: FastDomNode<HTMLTextAreaElement>;
 	public readonly textAreaCover: FastDomNode<HTMLElement>;
 	private readonly _textAreaInput: TextAreaInput;
 
 	constructor(
+		ownerID: string,
 		context: ViewContext,
 		overflowGuardContainer: FastDomNode<HTMLElement>,
 		viewController: ViewController,
@@ -274,6 +279,11 @@ export class TextAreaEditContext extends AbstractEditContext {
 			isFirefox: browser.isFirefox,
 			isSafari: browser.isSafari,
 		}));
+
+		// Relay clipboard events from TextAreaInput
+		this._register(this._textAreaInput.onWillCopy(e => this._onWillCopy.fire(e)));
+		this._register(this._textAreaInput.onWillCut(e => this._onWillCut.fire(e)));
+		this._register(this._textAreaInput.onWillPaste(e => this._onWillPaste.fire(e)));
 
 		this._register(this._textAreaInput.onKeyDown((e: IKeyboardEvent) => {
 			this._viewController.emitKeyDown(e);
@@ -440,6 +450,8 @@ export class TextAreaEditContext extends AbstractEditContext {
 		this._register(IME.onDidChange(() => {
 			this._ensureReadOnlyAttribute();
 		}));
+
+		this._register(TextAreaEditContextRegistry.register(ownerID, this));
 	}
 
 	public get domNode() {
@@ -455,6 +467,8 @@ export class TextAreaEditContext extends AbstractEditContext {
 	}
 
 	public override dispose(): void {
+		this._scheduledRender?.dispose();
+		this._scheduledRender = null;
 		super.dispose();
 		this.textArea.domNode.remove();
 		this.textAreaCover.domNode.remove();
@@ -678,7 +692,20 @@ export class TextAreaEditContext extends AbstractEditContext {
 
 	public render(ctx: RestrictedRenderingContext): void {
 		this._textAreaInput.writeNativeTextAreaContent('render');
-		this._render();
+		this._scheduleRender();
+	}
+
+	// Delay expensive DOM updates until the next animation frame to reduce reflow pressure.
+	private _scheduleRender(): void {
+		if (this._scheduledRender) {
+			return;
+		}
+
+		const targetWindow = getWindow(this.textArea.domNode);
+		this._scheduledRender = scheduleAtNextAnimationFrame(targetWindow, () => {
+			this._scheduledRender = null;
+			this._render();
+		});
 	}
 
 	private _render(): void {

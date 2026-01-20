@@ -7,7 +7,7 @@ import { Command } from '../../../../common/languages.js';
 
 export type InlineSuggestAlternativeAction = {
 	label: string;
-	icon?: ThemeIcon;
+	icon: ThemeIcon;
 	command: Command;
 	count: Promise<number>;
 };

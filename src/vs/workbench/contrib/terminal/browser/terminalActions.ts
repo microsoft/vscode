@@ -47,7 +47,7 @@ import { IConfigurationResolverService } from '../../../services/configurationRe
 import { ConfigurationResolverExpression } from '../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { editorGroupToColumn } from '../../../services/editor/common/editorGroupColumn.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
-import { AUX_WINDOW_GROUP, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
+import { ACTIVE_GROUP, AUX_WINDOW_GROUP, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
@@ -319,7 +319,7 @@ export function registerTerminalActions() {
 			function isCreateTerminalOptions(obj: unknown): obj is ICreateTerminalOptions {
 				return isObject(obj) && 'location' in obj;
 			}
-			const options = isCreateTerminalOptions(args) ? args : { location: TerminalLocation.Editor };
+			const options = isCreateTerminalOptions(args) ? args : { location: { viewColumn: ACTIVE_GROUP } };
 			const instance = await c.service.createTerminal(options);
 			await instance.focusWhenReady();
 		}
@@ -509,7 +509,7 @@ export function registerTerminalActions() {
 				return;
 			}
 			c.service.setActiveInstance(instance);
-			focusActiveTerminal(instance, c);
+			await focusActiveTerminal(instance, c);
 		}
 	});
 
@@ -1722,13 +1722,17 @@ export function shrinkWorkspaceFolderCwdPairs(pairs: WorkspaceFolderCwdPair[]): 
 }
 
 async function focusActiveTerminal(instance: ITerminalInstance | undefined, c: ITerminalServicesCollection): Promise<void> {
-	// TODO@meganrogge: Is this the right logic for when instance is undefined?
-	if (instance?.target === TerminalLocation.Editor) {
-		await c.editorService.revealActiveEditor();
-		await instance.focusWhenReady(true);
-	} else {
-		await c.groupService.showPanel(true);
+	const target = instance
+		?? c.service.activeInstance
+		?? c.editorService.activeInstance
+		?? c.groupService.activeInstance;
+	if (!target) {
+		if (c.groupService.instances.length > 0) {
+			await c.groupService.showPanel(true);
+		}
+		return;
 	}
+	await c.service.focusInstance(target);
 }
 
 async function renameWithQuickPick(c: ITerminalServicesCollection, accessor: ServicesAccessor, resource?: unknown) {

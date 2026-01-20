@@ -1458,6 +1458,9 @@ export class DebugModel extends Disposable implements IDebugModel {
 	private breakpointsActivated = true;
 	private readonly _onDidChangeBreakpoints = this._register(new Emitter<IBreakpointsChangeEvent | undefined>());
 	private readonly _onDidChangeCallStack = this._register(new Emitter<void>());
+	private _onDidChangeCallStackFire = this._register(new RunOnceScheduler(() => {
+		this._onDidChangeCallStack.fire(undefined);
+	}, 100));
 	private readonly _onDidChangeWatchExpressions = this._register(new Emitter<IExpression | undefined>());
 	private readonly _onDidChangeWatchExpressionValue = this._register(new Emitter<IExpression | undefined>());
 	private readonly _breakpointModes = new Map<string, IBreakpointModeInternal>();
@@ -1575,15 +1578,28 @@ export class DebugModel extends Disposable implements IDebugModel {
 
 	clearThreads(id: string, removeThreads: boolean, reference: number | undefined = undefined): void {
 		const session = this.sessions.find(p => p.getId() === id);
-		this.schedulers.forEach(entry => {
-			entry.scheduler.dispose();
-			entry.completeDeferred.complete();
-		});
-		this.schedulers.clear();
-
 		if (session) {
+			let threads: IThread[];
+			if (reference === undefined) {
+				threads = session.getAllThreads();
+			} else {
+				const thread = session.getThread(reference);
+				threads = thread !== undefined ? [thread] : [];
+			}
+			for (const thread of threads) {
+				const threadId = thread.getId();
+				const entry = this.schedulers.get(threadId);
+				if (entry !== undefined) {
+					entry.scheduler.dispose();
+					entry.completeDeferred.complete();
+					this.schedulers.delete(threadId);
+				}
+			}
+
 			session.clearThreads(removeThreads, reference);
-			this._onDidChangeCallStack.fire(undefined);
+			if (!this._onDidChangeCallStackFire.isScheduled()) {
+				this._onDidChangeCallStackFire.schedule();
+			}
 		}
 	}
 
