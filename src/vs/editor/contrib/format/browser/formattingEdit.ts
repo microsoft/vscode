@@ -51,6 +51,7 @@ export class FormattingEdit {
 		}
 		const scrollState = StableEditorScrollState.capture(editor);
 		const edits = FormattingEdit._handleEolEdits(editor, _edits);
+		reason ??= EditSources.unknown({ name: 'formatEditsCommand' });
 		if (edits.length === 1 && FormattingEdit._isFullModelReplaceEdit(editor, edits[0])) {
 			// We use replace semantics and hope that markers stay put...
 			editor.executeEdits(reason, edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
