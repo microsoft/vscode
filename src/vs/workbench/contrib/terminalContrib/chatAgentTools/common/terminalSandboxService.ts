@@ -18,7 +18,6 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITerminalSandboxSettings } from './terminalSandbox.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { TerminalChatAgentToolsSettingId } from './terminalChatAgentToolsConfiguration.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
 
 export const ITerminalSandboxService = createDecorator<ITerminalSandboxService>('terminalSandboxService');
 
@@ -31,7 +30,7 @@ export interface ITerminalSandboxService {
 	setNeedsForceUpdateConfigFile(): void;
 }
 
-export class TerminalSandboxService extends Disposable implements ITerminalSandboxService {
+export class TerminalSandboxService implements ITerminalSandboxService {
 	readonly _serviceBrand: undefined;
 	private _srtPath: string;
 	private _sandboxConfigPath: string | undefined;
