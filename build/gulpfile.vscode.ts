@@ -555,11 +555,32 @@ BUILD_TARGETS.forEach(buildTarget => {
 	const arch = buildTarget.arch;
 	const opts = buildTarget.opts;
 
-	const sourceFolderName = 'out'; // Use transpiled output
+	// Create a custom bundle task that uses transpiled output (out) instead of compiled output (out-build)
+	const bundleTranspiledVSCodeTask = task.define(`bundle-transpiled-vscode${dashed(platform)}${dashed(arch)}`, task.series(
+		util.rimraf('out-vscode'),
+		optimize.bundleTask(
+			{
+				out: 'out-vscode',
+				esm: {
+					src: 'out', // Use transpiled output instead of compiled
+					entryPoints: [
+						...vscodeEntryPoints,
+						...bootstrapEntryPoints
+					],
+					resources: vscodeResources,
+					skipTSBoilerplateRemoval: entryPoint => entryPoint === 'vs/code/electron-browser/workbench/workbench'
+				}
+			}
+		)
+	));
+
+	const sourceFolderName = 'out-vscode'; // Use bundled output
 	const destinationFolderName = `VSCode${dashed(platform)}${dashed(arch)}`;
 
 	const tasks = [
 		compileNativeExtensionsBuildTask,
+		compileExtensionMediaBuildTask,
+		bundleTranspiledVSCodeTask,
 		util.rimraf(path.join(buildRoot, destinationFolderName)),
 		packageTask(platform, arch, sourceFolderName, destinationFolderName, opts)
 	];
