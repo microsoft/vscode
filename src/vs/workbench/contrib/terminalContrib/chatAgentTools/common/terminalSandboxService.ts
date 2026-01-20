@@ -65,7 +65,11 @@ export class TerminalSandboxService implements ITerminalSandboxService {
 		if (!this._sandboxConfigPath || !this._tempDir) {
 			throw new Error('Sandbox config path or temp dir not initialized');
 		}
-		return `"${this._srtPath}" TMPDIR=${this._tempDir.fsPath} --settings "${this._sandboxConfigPath}" "${command}"`;
+		const execPath = isNative ? (this._environmentService as { execPath?: string }).execPath : undefined;
+		if (!execPath) {
+			throw new Error('Sandbox runtime requires a native environment with execPath.');
+		}
+		return `"${execPath}" "${this._srtPath}" TMPDIR=${this._tempDir.fsPath} --settings "${this._sandboxConfigPath}" "${command}"`;
 	}
 
 	public getTempDir(): URI | undefined {
