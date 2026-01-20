@@ -344,8 +344,17 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 
 		const whenAgentActivated = this.whenAgentActivated(chatService).then(() => agentActivated = true);
 		const whenAgentReady = this.whenAgentReady(chatAgentService, modeInfo?.kind)?.then(() => agentReady = true);
+		if (!whenAgentReady) {
+			agentReady = true;
+		}
 		const whenLanguageModelReady = this.whenLanguageModelReady(languageModelsService, requestModel.modelId)?.then(() => languageModelReady = true);
+		if (!whenLanguageModelReady) {
+			languageModelReady = true;
+		}
 		const whenToolsModelReady = this.whenToolsModelReady(languageModelToolsService, requestModel)?.then(() => toolsModelReady = true);
+		if (!whenToolsModelReady) {
+			toolsModelReady = true;
+		}
 
 		if (whenLanguageModelReady instanceof Promise || whenAgentReady instanceof Promise || whenToolsModelReady instanceof Promise) {
 			const timeoutHandle = setTimeout(() => {
