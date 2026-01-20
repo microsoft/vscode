@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Command, commands, Disposable, env, Event, EventEmitter, LogOutputChannel, Memento, Uri, workspace, l10n } from 'vscode';
+import { Command, commands, Disposable, Event, EventEmitter, Memento, Uri, workspace, l10n } from 'vscode';
 import { PostCommitCommandsProvider } from './api/git';
 import { IRepositoryResolver, Repository } from './repository';
 import { ApiRepository } from './api/api1';
@@ -94,8 +94,7 @@ export class CommitCommandsCenter {
 	constructor(
 		private readonly globalState: Memento,
 		private readonly repository: Repository,
-		private readonly postCommitCommandsProviderRegistry: IPostCommitCommandsProviderRegistry,
-		private readonly logger: LogOutputChannel
+		private readonly postCommitCommandsProviderRegistry: IPostCommitCommandsProviderRegistry
 	) {
 		const root = Uri.file(repository.root);
 
