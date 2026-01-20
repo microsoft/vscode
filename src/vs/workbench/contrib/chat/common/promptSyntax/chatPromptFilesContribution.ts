@@ -3,16 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
+
 import { DisposableMap } from '../../../../../base/common/lifecycle.js';
 import { joinPath, isEqualOrParent } from '../../../../../base/common/resources.js';
-import { UriComponents } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import * as extensionsRegistry from '../../../../services/extensions/common/extensionsRegistry.js';
-import { IPromptsService, PromptsStorage } from './service/promptsService.js';
+import { IPromptsService } from './service/promptsService.js';
 import { PromptsType } from './promptTypes.js';
 
 interface IRawChatFileContribution {
@@ -21,7 +19,12 @@ interface IRawChatFileContribution {
 	readonly description?: string;
 }
 
-type ChatContributionPoint = 'chatPromptFiles' | 'chatInstructions' | 'chatAgents';
+enum ChatContributionPoint {
+	chatInstructions = 'chatInstructions',
+	chatAgents = 'chatAgents',
+	chatPromptFiles = 'chatPromptFiles',
+	chatSkills = 'chatSkills'
+}
 
 function registerChatFilesExtensionPoint(point: ChatContributionPoint) {
 	return extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawChatFileContribution[]>({
@@ -59,15 +62,17 @@ function registerChatFilesExtensionPoint(point: ChatContributionPoint) {
 	});
 }
 
-const epPrompt = registerChatFilesExtensionPoint('chatPromptFiles');
-const epInstructions = registerChatFilesExtensionPoint('chatInstructions');
-const epAgents = registerChatFilesExtensionPoint('chatAgents');
+const epPrompt = registerChatFilesExtensionPoint(ChatContributionPoint.chatPromptFiles);
+const epInstructions = registerChatFilesExtensionPoint(ChatContributionPoint.chatInstructions);
+const epAgents = registerChatFilesExtensionPoint(ChatContributionPoint.chatAgents);
+const epSkills = registerChatFilesExtensionPoint(ChatContributionPoint.chatSkills);
 
 function pointToType(contributionPoint: ChatContributionPoint): PromptsType {
 	switch (contributionPoint) {
-		case 'chatPromptFiles': return PromptsType.prompt;
-		case 'chatInstructions': return PromptsType.instructions;
-		case 'chatAgents': return PromptsType.agent;
+		case ChatContributionPoint.chatPromptFiles: return PromptsType.prompt;
+		case ChatContributionPoint.chatInstructions: return PromptsType.instructions;
+		case ChatContributionPoint.chatAgents: return PromptsType.agent;
+		case ChatContributionPoint.chatSkills: return PromptsType.skill;
 	}
 }
 
@@ -83,9 +88,10 @@ export class ChatPromptFilesExtensionPointHandler implements IWorkbenchContribut
 	constructor(
 		@IPromptsService private readonly promptsService: IPromptsService,
 	) {
-		this.handle(epPrompt, 'chatPromptFiles');
-		this.handle(epInstructions, 'chatInstructions');
-		this.handle(epAgents, 'chatAgents');
+		this.handle(epPrompt, ChatContributionPoint.chatPromptFiles);
+		this.handle(epInstructions, ChatContributionPoint.chatInstructions);
+		this.handle(epAgents, ChatContributionPoint.chatAgents);
+		this.handle(epSkills, ChatContributionPoint.chatSkills);
 	}
 
 	private handle(extensionPoint: extensionsRegistry.IExtensionPoint<IRawChatFileContribution[]>, contributionPoint: ChatContributionPoint) {
@@ -120,35 +126,3 @@ export class ChatPromptFilesExtensionPointHandler implements IWorkbenchContribut
 		});
 	}
 }
-
-/**
- * Result type for the extension prompt file provider command.
- */
-export interface IExtensionPromptFileResult {
-	readonly uri: UriComponents;
-	readonly type: PromptsType;
-}
-
-/**
- * Register the command to list all extension-contributed prompt files.
- */
-CommandsRegistry.registerCommand('_listExtensionPromptFiles', async (accessor): Promise<IExtensionPromptFileResult[]> => {
-	const promptsService = accessor.get(IPromptsService);
-
-	// Get extension prompt files for all prompt types in parallel
-	const [agents, instructions, prompts] = await Promise.all([
-		promptsService.listPromptFiles(PromptsType.agent, CancellationToken.None),
-		promptsService.listPromptFiles(PromptsType.instructions, CancellationToken.None),
-		promptsService.listPromptFiles(PromptsType.prompt, CancellationToken.None),
-	]);
-
-	// Combine all files and collect extension-contributed ones
-	const result: IExtensionPromptFileResult[] = [];
-	for (const file of [...agents, ...instructions, ...prompts]) {
-		if (file.storage === PromptsStorage.extension) {
-			result.push({ uri: file.uri.toJSON(), type: file.type });
-		}
-	}
-
-	return result;
-});

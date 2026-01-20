@@ -13,6 +13,7 @@ import { hash } from '../../../../base/common/hash.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { IJSONSchema, TypeFromJsonSchema } from '../../../../base/common/jsonSchema.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { equals } from '../../../../base/common/objects.js';
 import Severity from '../../../../base/common/severity.js';
 import { format, isFalsyOrWhitespace } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -222,15 +223,13 @@ export interface ILanguageModelChatResponse {
 export interface ILanguageModelChatProvider {
 	readonly onDidChange: Event<void>;
 	provideLanguageModelChatInfo(options: ILanguageModelChatInfoOptions, token: CancellationToken): Promise<ILanguageModelChatMetadataAndIdentifier[]>;
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	sendChatRequest(modelId: string, messages: IChatMessage[], from: ExtensionIdentifier, options: { [name: string]: any }, token: CancellationToken): Promise<ILanguageModelChatResponse>;
+	sendChatRequest(modelId: string, messages: IChatMessage[], from: ExtensionIdentifier, options: { [name: string]: unknown }, token: CancellationToken): Promise<ILanguageModelChatResponse>;
 	provideTokenCount(modelId: string, message: string | IChatMessage, token: CancellationToken): Promise<number>;
 }
 
 export interface ILanguageModelChat {
 	metadata: ILanguageModelChatMetadata;
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	sendChatRequest(messages: IChatMessage[], from: ExtensionIdentifier, options: { [name: string]: any }, token: CancellationToken): Promise<ILanguageModelChatResponse>;
+	sendChatRequest(messages: IChatMessage[], from: ExtensionIdentifier, options: { [name: string]: unknown }, token: CancellationToken): Promise<ILanguageModelChatResponse>;
 	provideTokenCount(message: string | IChatMessage, token: CancellationToken): Promise<number>;
 }
 
@@ -298,7 +297,7 @@ export interface ILanguageModelsService {
 
 	lookupLanguageModel(modelId: string): ILanguageModelChatMetadata | undefined;
 
-	fetchLanguageModelGroups(vendor: string): Promise<ILanguageModelsGroup[]>;
+	getLanguageModelGroups(vendor: string): ILanguageModelsGroup[];
 
 	/**
 	 * Given a selector, returns a list of model identifiers
@@ -403,6 +402,8 @@ export const languageModelChatProviderExtensionPoint = ExtensionsRegistry.regist
 	}
 });
 
+const CHAT_MODEL_PICKER_PREFERENCES_STORAGE_KEY = 'chatModelPickerPreferences';
+
 export class LanguageModelsService implements ILanguageModelsService {
 
 	private static SECRET_KEY_PREFIX = 'chat.lm.secret.';
@@ -435,9 +436,11 @@ export class LanguageModelsService implements ILanguageModelsService {
 		@ISecretStorageService private readonly _secretStorageService: ISecretStorageService,
 	) {
 		this._hasUserSelectableModels = ChatContextKeys.languageModelsAreUserSelectable.bindTo(_contextKeyService);
-		this._modelPickerUserPreferences = this._storageService.getObject<IStringDictionary<boolean>>('chatModelPickerPreferences', StorageScope.PROFILE, this._modelPickerUserPreferences);
+		this._modelPickerUserPreferences = this._readModelPickerPreferences();
+		this._store.add(this._storageService.onDidChangeValue(StorageScope.PROFILE, CHAT_MODEL_PICKER_PREFERENCES_STORAGE_KEY, this._store)(() => this._onDidChangeModelPickerPreferences()));
 
 		this._store.add(this.onDidChangeLanguageModels(() => this._hasUserSelectableModels.set(this._modelCache.size > 0 && Array.from(this._modelCache.values()).some(model => model.isUserSelectable))));
+		this._store.add(this._languageModelsConfigurationService.onDidChangeLanguageModelGroups(changedGroups => this._onDidChangeLanguageModelGroups(changedGroups)));
 
 		this._store.add(languageModelChatProviderExtensionPoint.setHandler((extensions) => {
 
@@ -472,6 +475,54 @@ export class LanguageModelsService implements ILanguageModelsService {
 		}));
 	}
 
+	private async _onDidChangeLanguageModelGroups(changedGroups: readonly ILanguageModelsProviderGroup[]): Promise<void> {
+		const changedVendors = new Set(changedGroups.map(g => g.vendor));
+		await Promise.all(Array.from(changedVendors).map(vendor => this._resolveAllLanguageModels(vendor, true)));
+	}
+
+	private _readModelPickerPreferences(): IStringDictionary<boolean> {
+		return this._storageService.getObject<IStringDictionary<boolean>>(CHAT_MODEL_PICKER_PREFERENCES_STORAGE_KEY, StorageScope.PROFILE, {});
+	}
+
+	private _onDidChangeModelPickerPreferences(): void {
+		const newPreferences = this._readModelPickerPreferences();
+		const oldPreferences = this._modelPickerUserPreferences;
+
+		// Check if there are any changes by computing diff
+		const affectedVendors = new Set<string>();
+		let hasChanges = false;
+
+		// Check for added or updated keys
+		for (const modelId in newPreferences) {
+			if (oldPreferences[modelId] !== newPreferences[modelId]) {
+				hasChanges = true;
+				const model = this._modelCache.get(modelId);
+				if (model) {
+					affectedVendors.add(model.vendor);
+				}
+			}
+		}
+
+		// Check for removed keys
+		for (const modelId in oldPreferences) {
+			if (!newPreferences.hasOwnProperty(modelId)) {
+				hasChanges = true;
+				const model = this._modelCache.get(modelId);
+				if (model) {
+					affectedVendors.add(model.vendor);
+				}
+			}
+		}
+
+		if (hasChanges) {
+			this._logService.trace('[LM] Updated model picker preferences from storage');
+			this._modelPickerUserPreferences = newPreferences;
+			for (const vendor of affectedVendors) {
+				this._onLanguageModelChange.fire(vendor);
+			}
+		}
+	}
+
 	private _hasStoredModelForVendor(vendor: string): boolean {
 		return Object.keys(this._modelPickerUserPreferences).some(modelId => {
 			return modelId.startsWith(vendor);
@@ -479,7 +530,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 	}
 
 	private _saveModelPickerPreferences(): void {
-		this._storageService.store('chatModelPickerPreferences', this._modelPickerUserPreferences, StorageScope.PROFILE, StorageTarget.USER);
+		this._storageService.store(CHAT_MODEL_PICKER_PREFERENCES_STORAGE_KEY, this._modelPickerUserPreferences, StorageScope.PROFILE, StorageTarget.USER);
 	}
 
 	updateModelPickerPreference(modelIdentifier: string, showInModelPicker: boolean): void {
@@ -553,8 +604,14 @@ export class LanguageModelsService implements ILanguageModelsService {
 					allModels.push(...models);
 					const modelIdentifiers = [];
 					for (const m of models) {
-						// Special case for copilot models - they are all user selectable unless marked otherwise
-						if (vendorId === 'copilot' && (m.metadata.isUserSelectable || this._modelPickerUserPreferences[m.identifier] === true)) {
+						if (vendorId === 'copilot') {
+							// Special case for copilot models - they are all user selectable unless marked otherwise
+							if (m.metadata.isUserSelectable || this._modelPickerUserPreferences[m.identifier] === true) {
+								modelIdentifiers.push(m.identifier);
+							} else {
+								this._logService.trace(`[LM] Skipping model ${m.identifier} from model picker as it is not user selectable.`);
+							}
+						} else {
 							modelIdentifiers.push(m.identifier);
 						}
 					}
@@ -597,21 +654,29 @@ export class LanguageModelsService implements ILanguageModelsService {
 			}
 
 			this._modelsGroups.set(vendorId, languageModelsGroups);
-			this._clearModelCache(vendorId);
+			const oldModels = this._clearModelCache(vendorId);
+			let hasChanges = false;
 			for (const model of allModels) {
 				if (this._modelCache.has(model.identifier)) {
 					this._logService.warn(`[LM] Model ${model.identifier} is already registered. Skipping.`);
 					continue;
 				}
 				this._modelCache.set(model.identifier, model.metadata);
+				hasChanges = hasChanges || !equals(oldModels.get(model.identifier), model.metadata);
+				oldModels.delete(model.identifier);
 			}
 			this._logService.trace(`[LM] Resolved language models for vendor ${vendorId}`, allModels);
-			this._onLanguageModelChange.fire(vendorId);
+			hasChanges = hasChanges || oldModels.size > 0;
+
+			if (hasChanges) {
+				this._onLanguageModelChange.fire(vendorId);
+			} else {
+				this._logService.trace(`[LM] No changes in language models for vendor ${vendorId}`);
+			}
 		});
 	}
 
-	async fetchLanguageModelGroups(vendor: string): Promise<ILanguageModelsGroup[]> {
-		await this._resolveAllLanguageModels(vendor, true);
+	getLanguageModelGroups(vendor: string): ILanguageModelsGroup[] {
 		return this._modelsGroups.get(vendor) ?? [];
 	}
 
@@ -986,12 +1051,15 @@ export class LanguageModelsService implements ILanguageModelsService {
 		return secretInput.substring(secretInput.indexOf(':') + 1, secretInput.length - 1);
 	}
 
-	private _clearModelCache(vendor: string): void {
+	private _clearModelCache(vendor: string): Map<string, ILanguageModelChatMetadata> {
+		const removed = new Map<string, ILanguageModelChatMetadata>();
 		for (const [id, model] of this._modelCache.entries()) {
 			if (model.vendor === vendor) {
+				removed.set(id, model);
 				this._modelCache.delete(id);
 			}
 		}
+		return removed;
 	}
 
 	private async _resolveConfiguration(group: ILanguageModelsProviderGroup, schema: IJSONSchema | undefined): Promise<IStringDictionary<unknown>> {

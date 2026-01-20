@@ -49,12 +49,6 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 			for (const annotation of fontChanges.changes.annotations) {
 
 				const startPosition = this.textModel.getPositionAt(annotation.range.start);
-				const endPosition = this.textModel.getPositionAt(annotation.range.endExclusive);
-
-				if (startPosition.lineNumber !== endPosition.lineNumber) {
-					// The token should be always on a single line
-					continue;
-				}
 				const lineNumber = startPosition.lineNumber;
 
 				let fontTokenAnnotation: IAnnotationUpdate<IFontTokenAnnotation>;
@@ -143,6 +137,7 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 				options: {
 					description: 'FontOptionDecoration',
 					inlineClassName: className,
+					lineHeight: anno.fontToken.lineHeightMultiplier,
 					affectsFont
 				},
 				ownerId: 0,
@@ -154,7 +149,7 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 
 	public getAllDecorations(ownerId?: number, filterOutValidation?: boolean): IModelDecoration[] {
 		return this.getDecorationsInRange(
-			new Range(1, 1, this.textModel.getLineCount(), 1),
+			new Range(1, 1, this.textModel.getLineCount(), this.textModel.getLineMaxColumn(this.textModel.getLineCount())),
 			ownerId,
 			filterOutValidation
 		);

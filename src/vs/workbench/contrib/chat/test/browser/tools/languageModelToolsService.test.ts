@@ -543,7 +543,8 @@ suite('LanguageModelToolsService', () => {
 			'internalToolSetRefName/internalToolSetTool1RefName',
 			'vscode',
 			'execute',
-			'read'
+			'read',
+			'agent'
 		];
 		const numOfTools = allFullReferenceNames.length + 1; // +1 for userToolSet which has no full reference name but is a tool set
 
@@ -558,6 +559,7 @@ suite('LanguageModelToolsService', () => {
 		const vscodeToolSet = service.getToolSet('vscode');
 		const executeToolSet = service.getToolSet('execute');
 		const readToolSet = service.getToolSet('read');
+		const agentToolSet = service.getToolSet('agent');
 		assert.ok(tool1);
 		assert.ok(tool2);
 		assert.ok(extTool1);
@@ -569,6 +571,7 @@ suite('LanguageModelToolsService', () => {
 		assert.ok(vscodeToolSet);
 		assert.ok(executeToolSet);
 		assert.ok(readToolSet);
+		assert.ok(agentToolSet);
 		// Test with enabled tool
 		{
 			const fullReferenceNames = ['tool1RefName'];
@@ -599,10 +602,10 @@ suite('LanguageModelToolsService', () => {
 		{
 			const result1 = service.toToolAndToolSetEnablementMap(allFullReferenceNames, undefined);
 			assert.strictEqual(result1.size, numOfTools, `Expected ${numOfTools} tools and tool sets`);
-			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 11, 'Expected 11 tools to be enabled'); // +3 including the vscode, execute, read toolsets
+			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 12, 'Expected 12 tools to be enabled'); // +4 including the vscode, execute, read, agent toolsets
 
 			const fullReferenceNames1 = service.toFullReferenceNames(result1);
-			const expectedFullReferenceNames = ['tool1RefName', 'Tool2 Display Name', 'my.extension/extTool1RefName', 'mcpToolSetRefName/*', 'internalToolSetRefName', 'vscode', 'execute', 'read'];
+			const expectedFullReferenceNames = ['tool1RefName', 'Tool2 Display Name', 'my.extension/extTool1RefName', 'mcpToolSetRefName/*', 'internalToolSetRefName', 'vscode', 'execute', 'read', 'agent'];
 			assert.deepStrictEqual(fullReferenceNames1.sort(), expectedFullReferenceNames.sort(), 'toFullReferenceNames should return the original enabled names');
 		}
 		// Test with no enabled tools
@@ -1005,14 +1008,7 @@ suite('LanguageModelToolsService', () => {
 		};
 
 		store.add(service.registerToolData(runSubagentToolData));
-
-		const agentSet = store.add(service.createToolSet(
-			ToolDataSource.Internal,
-			SpecedToolAliases.agent,
-			SpecedToolAliases.agent,
-			{ description: 'Agent' }
-		));
-		store.add(agentSet.addTool(runSubagentToolData));
+		store.add(service.agentToolSet.addTool(runSubagentToolData));
 
 		const githubMcpDataSource: ToolDataSource = { type: 'mcp', label: 'Github', serverLabel: 'Github MCP Server', instructions: undefined, collectionId: 'githubMCPCollection', definitionId: 'githubMCPDefId' };
 		const githubMcpTool1: IToolData = {
@@ -1067,12 +1063,12 @@ suite('LanguageModelToolsService', () => {
 			const result = service.toToolAndToolSetEnablementMap(toolNames, undefined);
 
 			assert.strictEqual(result.get(service.executeToolSet), true, 'execute should be enabled');
-			assert.strictEqual(result.get(agentSet), true, 'agent should be enabled');
+			assert.strictEqual(result.get(service.agentToolSet), true, 'agent should be enabled');
 
 			const fullReferenceNames = service.toFullReferenceNames(result).sort();
 			assert.deepStrictEqual(fullReferenceNames, [SpecedToolAliases.agent, SpecedToolAliases.execute].sort(), 'toFullReferenceNames should return the VS Code tool names');
 
-			assert.deepStrictEqual(toolNames.map(name => service.getToolByFullReferenceName(name)), [agentSet, service.executeToolSet]);
+			assert.deepStrictEqual(toolNames.map(name => service.getToolByFullReferenceName(name)), [service.agentToolSet, service.executeToolSet]);
 
 			assert.deepStrictEqual(deprecatesTo('custom-agent'), [SpecedToolAliases.agent], 'customAgent should map to agent');
 			assert.deepStrictEqual(deprecatesTo('shell'), [SpecedToolAliases.execute], 'shell is now execute');
@@ -2092,7 +2088,8 @@ suite('LanguageModelToolsService', () => {
 			'internalToolSetRefName/internalToolSetTool1RefName',
 			'vscode',
 			'execute',
-			'read'
+			'read',
+			'agent'
 		].sort();
 
 		assert.deepStrictEqual(fullReferenceNames, expectedNames, 'getFullReferenceNames should return correct full reference names');

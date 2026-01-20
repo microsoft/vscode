@@ -3,10 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* ========================================
-Agent Status Widget - Titlebar control
-======================================== */
-
 /* Hide command center search box when agent status enabled */
 .agent-status-enabled .command-center .action-item.command-center-center {
 	display: none !important;
@@ -76,13 +72,29 @@ Agent Status Widget - Titlebar control
 }
 
 .agent-status-pill.chat-input-mode.has-active .agent-status-label {
-	color: var(--vscode-progressBar-background);
+	color: var(--vscode-foreground);
 	opacity: 1;
 }
 
 /* Unread state - has unread sessions (no background change, just indicator) */
 .agent-status-pill.chat-input-mode.has-unread .agent-status-icon {
 	font-size: 8px;
+}
+
+/* Needs attention state - session requires user approval/confirmation/input */
+.agent-status-pill.chat-input-mode.needs-attention {
+	background-color: color-mix(in srgb, var(--vscode-progressBar-background) 15%, transparent);
+	border: 1px solid color-mix(in srgb, var(--vscode-progressBar-background) 50%, transparent);
+}
+
+.agent-status-pill.chat-input-mode.needs-attention:hover {
+	background-color: color-mix(in srgb, var(--vscode-progressBar-background) 25%, transparent);
+	border-color: color-mix(in srgb, var(--vscode-progressBar-background) 70%, transparent);
+}
+
+.agent-status-pill.chat-input-mode.needs-attention .agent-status-label {
+	color: var(--vscode-foreground);
+	opacity: 1;
 }
 
 /* Session mode (viewing a session) */
@@ -111,7 +123,7 @@ Agent Status Widget - Titlebar control
 /* Progress label - fade in animation when showing session progress */
 .agent-status-label.has-progress {
 	animation: agentStatusFadeIn 0.3s ease-out;
-	color: var(--vscode-progressBar-background);
+	color: var(--vscode-foreground);
 	opacity: 1;
 }
 
@@ -159,11 +171,38 @@ Agent Status Widget - Titlebar control
 	align-items: center;
 	color: var(--vscode-foreground);
 	opacity: 0.7;
+	flex-shrink: 0;
+}
+
+.agent-status-send.hidden {
+	display: none;
 }
 
 .agent-status-pill.has-active .agent-status-send {
 	color: var(--vscode-textLink-foreground);
 	opacity: 1;
+}
+
+/* Left icon (sparkle default, report+count when attention needed, search on hover) */
+.agent-status-left-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 3px;
+	color: var(--vscode-foreground);
+	opacity: 0.7;
+	flex-shrink: 0;
+}
+
+/* Left icon with attention - show report icon + count */
+.agent-status-left-icon.has-attention {
+	color: var(--vscode-foreground);
+	opacity: 1;
+}
+
+.agent-status-left-icon.has-attention .agent-status-attention-count {
+	font-size: 11px;
+	font-weight: 500;
 }
 
 /* Session title */
@@ -208,26 +247,93 @@ Agent Status Widget - Titlebar control
 	outline-offset: 1px;
 }
 
-/* Search button (right of pill) */
+/* Search button (inside pill on left) */
 .agent-status-search {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 22px;
-	height: 22px;
-	border-radius: 4px;
-	cursor: pointer;
 	color: var(--vscode-foreground);
 	opacity: 0.7;
 	-webkit-app-region: no-drag;
+	flex-shrink: 0;
 }
 
 .agent-status-search:hover {
 	opacity: 1;
-	background-color: var(--vscode-commandCenter-activeBackground, rgba(0, 0, 0, 0.1));
 }
 
 .agent-status-search:focus {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: -1px;
+}
+
+/* Command center toolbar (debug toolbar, etc.) */
+.agent-status-command-center-toolbar {
+	display: flex;
+	align-items: center;
+	-webkit-app-region: no-drag;
+}
+
+/* Separator dot between command center toolbar and agent status pill */
+.agent-status-separator {
+	padding: 0 8px;
+	height: 100%;
+	opacity: 0.5;
+	display: flex;
+	align-items: center;
+}
+
+/* Status badge (separate rectangle on right of pill) */
+.agent-status-badge {
+	display: flex;
+	align-items: center;
+	gap: 0;
+	height: 22px;
+	border-radius: 6px;
+	overflow: hidden;
+	background-color: color-mix(in srgb, var(--vscode-progressBar-background) 15%, transparent);
+	border: 1px solid color-mix(in srgb, var(--vscode-progressBar-background) 50%, transparent);
+	flex-shrink: 0;
+	-webkit-app-region: no-drag;
+}
+
+/* Empty badge - completely hidden */
+.agent-status-badge.empty {
+	display: none;
+}
+
+/* Badge section (for split UI) */
+.agent-status-badge-section {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 0 8px;
+	height: 100%;
+	position: relative;
+}
+
+/* Separator between sections */
+.agent-status-badge-section + .agent-status-badge-section::before {
+	content: '';
+	position: absolute;
+	left: 0;
+	top: 4px;
+	bottom: 4px;
+	width: 1px;
+	background-color: color-mix(in srgb, var(--vscode-progressBar-background) 40%, transparent);
+}
+
+/* Unread section styling */
+.agent-status-badge-section.unread {
+	color: var(--vscode-foreground);
+}
+
+.agent-status-badge-section.unread .agent-status-icon {
+	font-size: 8px;
+	color: var(--vscode-notificationsInfoIcon-foreground);
+}
+
+/* Active/in-progress section styling */
+.agent-status-badge-section.active {
+	color: var(--vscode-foreground);
 }
