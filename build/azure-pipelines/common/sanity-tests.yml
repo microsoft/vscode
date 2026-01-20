@@ -181,17 +181,18 @@ jobs:
                 dbus-x11 \
                 gtk3 \
                 libdrm \
-                libxcomposite \
-                libxdamage \
+                libXcomposite \
+                libXdamage \
                 libxkbcommon \
-                libxrandr \
+                libXrandr \
                 libXScrnSaver \
                 mesa-libgbm \
                 nss \
-                sudo \
                 xdg-utils \
                 xorg-x11-server-Xvfb \
-                xorg-x11-utils
+
+              # sudo
+              # xorg-x11-utils
 
               echo "Installing Node.js 22"
               curl -fsSL https://rpm.nodesource.com/setup_22.x | bash -
@@ -260,6 +261,7 @@ jobs:
                 chromium \
                 dbus \
                 dbus-x11 \
+                firefox \
                 freetype \
                 freetype-dev \
                 gtk+3.0 \
