@@ -53,6 +53,12 @@ declare module 'vscode' {
 		 */
 		readonly category?: { label: string; order: number };
 
+		/**
+		 * An optional description of the model's capabilities and best use cases.
+		 * This is used to help users understand what the model excels at.
+		 */
+		readonly description?: string;
+
 		readonly statusIcon?: ThemeIcon;
 	}
 

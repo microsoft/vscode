@@ -24,7 +24,6 @@ import { MANAGE_CHAT_COMMAND_ID } from '../../../common/constants.js';
 import { TelemetryTrustedValue } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IHoverAction, IManagedHoverContent } from '../../../../../../base/browser/ui/hover/hover.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
-import { getModelDescription } from '../../languageModelDescriptions.js';
 
 export interface IModelPickerDelegate {
 	readonly onDidChangeModel: Event<ILanguageModelChatMetadataAndIdentifier>;
@@ -66,7 +65,8 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, te
 				} satisfies IActionWidgetDropdownAction];
 			}
 			return models.map(model => {
-				const description = getModelDescription(model);
+				// Build hover content from description
+				const hoverContent = model.metadata.description;
 				const hoverActions: IHoverAction[] = [{
 					label: localize('chat.modelPicker.showMore', "Show More"),
 					commandId: MANAGE_CHAT_COMMAND_ID,
@@ -82,8 +82,8 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, te
 					category: model.metadata.modelPickerCategory || DEFAULT_MODEL_PICKER_CATEGORY,
 					class: undefined,
 					description: model.metadata.detail,
-					tooltip: model.metadata.tooltip ?? model.metadata.name,
-					hover: { content: description, actions: hoverActions },
+					tooltip: hoverContent ? '' : (model.metadata.tooltip ?? model.metadata.name),
+					hover: hoverContent ? { content: hoverContent, actions: hoverActions } : undefined,
 					label: model.metadata.name,
 					run: () => {
 						const previousModel = delegate.getCurrentModel();
