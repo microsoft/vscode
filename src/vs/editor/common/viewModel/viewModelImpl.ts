@@ -199,6 +199,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		if (!allowVariableLineHeights) {
 			return [];
 		}
+		const defaultLineHeight = this._configuration.options.get(EditorOption.lineHeight);
 		const decorations = this.model.getCustomLineHeightsDecorations(this._editorId);
 		return decorations.map((d) => {
 			const lineNumber = d.range.startLineNumber;
@@ -207,7 +208,7 @@ export class ViewModel extends Disposable implements IViewModel {
 				decorationId: d.id,
 				startLineNumber: viewRange.startLineNumber,
 				endLineNumber: viewRange.endLineNumber,
-				lineHeight: d.options.lineHeight || 0
+				lineHeight: d.options.lineHeight ? d.options.lineHeight * defaultLineHeight : 0
 			};
 		});
 	}
