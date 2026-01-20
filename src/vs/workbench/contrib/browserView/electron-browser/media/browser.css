@@ -130,10 +130,14 @@
 			flex-direction: column;
 			align-items: center;
 			padding: 12px;
+			max-width: 500px;
+			max-height: 100%;
+			width: 100%;
 		}
 
 		.browser-welcome-icon {
 			min-height: 48px;
+			flex-shrink: 0;
 
 			.codicon {
 				font-size: 40px;
@@ -146,6 +150,7 @@
 			text-align: center;
 			line-height: normal;
 			padding: 0 8px;
+			flex-shrink: 0;
 		}
 
 		.browser-welcome-subtitle {
@@ -155,6 +160,7 @@
 			padding: 0 20px;
 			margin: 8px auto 0;
 			color: var(--vscode-foreground);
+			flex-shrink: 0;
 
 			p {
 				margin-top: 8px;
@@ -162,13 +168,154 @@
 			}
 		}
 
+		.browser-welcome-recent-urls {
+			width: 100%;
+			margin: 16px 0;
+			display: flex;
+			flex-direction: column;
+			min-height: 0;
+			flex-shrink: 1;
+			overflow: hidden;
+
+			&.hidden {
+				display: none;
+			}
+
+			.browser-welcome-recent-urls-header {
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+				margin-bottom: 8px;
+				flex-shrink: 0;
+			}
+
+			.browser-welcome-recent-urls-title {
+				font-size: 11px;
+				font-weight: 600;
+				text-transform: uppercase;
+				color: var(--vscode-foreground);
+				letter-spacing: 0.04em;
+			}
+
+			.browser-welcome-recent-urls-toolbar {
+				display: flex;
+				align-items: center;
+				flex-shrink: 0;
+			}
+
+			.browser-welcome-recent-urls-list {
+				min-height: 0;
+				border-radius: 4px;
+
+				.monaco-list {
+					border-radius: 4px;
+				}
+
+				.monaco-list-row {
+					border-radius: 4px;
+					border: 1px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.2));
+
+					> * {
+						height: 100%;
+					}
+				}
+			}
+
+			.browser-welcome-show-more-button {
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				height: 100%;
+				width: 100%;
+				cursor: pointer;
+				font-size: 13px;
+				color: var(--vscode-descriptionForeground);
+				opacity: 0.8;
+				transition: opacity 0.2s ease;
+
+				&:hover {
+					opacity: 1;
+				}
+			}
+
+			.browser-welcome-recent-url-item {
+				display: flex;
+				align-items: center;
+				height: 100%;
+				width: 100%;
+				padding: 0 12px;
+				box-sizing: border-box;
+				cursor: pointer;
+				gap: 8px;
+
+				.browser-welcome-recent-url-content {
+					flex: 1;
+					min-width: 0;
+					display: flex;
+					flex-direction: column;
+					justify-content: center;
+					gap: 2px;
+				}
+
+				.browser-welcome-recent-url-text {
+					font-size: 13px;
+					color: var(--vscode-foreground);
+					white-space: nowrap;
+					overflow: hidden;
+					text-overflow: ellipsis;
+					line-height: 1.4;
+				}
+
+				.browser-welcome-recent-url-time {
+					font-size: 11px;
+					color: var(--vscode-descriptionForeground);
+					line-height: 1.2;
+				}
+
+				.browser-welcome-recent-url-remove {
+					display: flex;
+					align-items: center;
+					justify-content: center;
+					width: 24px;
+					height: 24px;
+					border-radius: 4px;
+					opacity: 0;
+					flex-shrink: 0;
+
+					&:hover {
+						opacity: 1;
+						background-color: var(--vscode-toolbar-hoverBackground);
+					}
+
+					.codicon {
+						font-size: 14px;
+						color: var(--vscode-icon-foreground);
+					}
+				}
+
+				&:hover .browser-welcome-recent-url-remove {
+					opacity: 0.7;
+				}
+			}
+
+			.browser-welcome-recent-urls-toggle {
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				padding-top: 8px;
+				margin-top: 4px;
+				flex-shrink: 0;
+			}
+		}
+
 		.browser-welcome-tip {
 			color: var(--vscode-descriptionForeground);
 			text-align: center;
-			margin: 16px auto 0;
+			margin: 24px auto 0;
 			max-width: 400px;
 			padding: 0 12px;
 			font-style: italic;
+			flex-shrink: 0;
 		}
 	}
 }

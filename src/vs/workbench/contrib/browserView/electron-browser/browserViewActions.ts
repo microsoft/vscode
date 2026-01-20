@@ -311,6 +311,52 @@ class OpenBrowserSettingsAction extends Action2 {
 	}
 }
 
+class ClearRecentUrlsWorkspaceAction extends Action2 {
+	static readonly ID = 'workbench.action.browser.clearRecentUrlsWorkspace';
+
+	constructor() {
+		super({
+			id: ClearRecentUrlsWorkspaceAction.ID,
+			title: localize2('browser.clearRecentUrlsWorkspaceAction', 'Clear Recent URLs (Workspace)'),
+			category: BrowserCategory,
+			f1: false,
+			menu: {
+				id: MenuId.BrowserRecentUrlsTitleMenu,
+				group: 'navigation',
+				order: 1
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const browserViewWorkbenchService = accessor.get(IBrowserViewWorkbenchService);
+		browserViewWorkbenchService.clearRecentUrls();
+	}
+}
+
+class OpenRecentUrlsSettingsAction extends Action2 {
+	static readonly ID = 'workbench.action.browser.openRecentUrlsSettings';
+
+	constructor() {
+		super({
+			id: OpenRecentUrlsSettingsAction.ID,
+			title: localize2('browser.openRecentUrlsSettingsAction', 'Recent URLs Settings...'),
+			category: BrowserCategory,
+			f1: false,
+			menu: {
+				id: MenuId.BrowserRecentUrlsTitleMenu,
+				group: 'settings',
+				order: 1
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const preferencesService = accessor.get(IPreferencesService);
+		await preferencesService.openSettings({ query: '@id:workbench.browser.rememberRecentUrls' });
+	}
+}
+
 // Register actions
 registerAction2(OpenIntegratedBrowserAction);
 registerAction2(GoBackAction);
@@ -322,3 +368,5 @@ registerAction2(OpenInExternalBrowserAction);
 registerAction2(ClearGlobalBrowserStorageAction);
 registerAction2(ClearWorkspaceBrowserStorageAction);
 registerAction2(OpenBrowserSettingsAction);
+registerAction2(ClearRecentUrlsWorkspaceAction);
+registerAction2(OpenRecentUrlsSettingsAction);

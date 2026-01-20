@@ -5,7 +5,7 @@
 
 import './media/browser.css';
 import { localize } from '../../../../nls.js';
-import { $, addDisposableListener, disposableWindowInterval, EventType, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, clearNode, disposableWindowInterval, EventType, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { RawContextKey, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -17,7 +17,7 @@ import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { BrowserEditorInput } from './browserEditorInput.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
-import { IBrowserViewModel } from '../../browserView/common/browserView.js';
+import { IBrowserViewModel, IBrowserViewWorkbenchService, IRecentUrl } from '../../browserView/common/browserView.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
@@ -41,6 +41,11 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { IChatRequestVariableEntry } from '../../chat/common/attachments/chatVariableEntries.js';
 import { IBrowserTargetLocator, getDisplayNameFromOuterHTML } from '../../../../platform/browserElements/common/browserElements.js';
+import { fromNow } from '../../../../base/common/date.js';
+import { IListRenderer, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { IListAccessibilityProvider, List } from '../../../../base/browser/ui/list/listWidget.js';
+import { defaultListStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { Link } from '../../../../platform/opener/browser/link.js';
 
 export const CONTEXT_BROWSER_CAN_GO_BACK = new RawContextKey<boolean>('browserCanGoBack', false, localize('browser.canGoBack', "Whether the browser can go back"));
 export const CONTEXT_BROWSER_CAN_GO_FORWARD = new RawContextKey<boolean>('browserCanGoForward', false, localize('browser.canGoForward', "Whether the browser can go forward"));
@@ -48,6 +53,99 @@ export const CONTEXT_BROWSER_FOCUSED = new RawContextKey<boolean>('browserFocuse
 export const CONTEXT_BROWSER_STORAGE_SCOPE = new RawContextKey<string>('browserStorageScope', '', localize('browser.storageScope', "The storage scope of the current browser view"));
 export const CONTEXT_BROWSER_DEVTOOLS_OPEN = new RawContextKey<boolean>('browserDevToolsOpen', false, localize('browser.devToolsOpen', "Whether developer tools are open for the current browser view"));
 export const CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE = new RawContextKey<boolean>('browserElementSelectionActive', false, localize('browser.elementSelectionActive', "Whether element selection is currently active"));
+
+//#region Recent URL List
+
+interface IRecentUrlTemplateData {
+	readonly container: HTMLElement;
+	readonly content: HTMLElement;
+	readonly urlText: HTMLElement;
+	readonly timeLabel: HTMLElement;
+	readonly removeButton: HTMLElement;
+	readonly disposables: DisposableStore;
+}
+
+class RecentUrlRenderer implements IListRenderer<IRecentUrl, IRecentUrlTemplateData> {
+	static readonly TEMPLATE_ID = 'recentUrl';
+	readonly templateId = RecentUrlRenderer.TEMPLATE_ID;
+
+	constructor(
+		private readonly onRemove: (entry: IRecentUrl) => void
+	) { }
+
+	renderTemplate(container: HTMLElement): IRecentUrlTemplateData {
+		const disposables = new DisposableStore();
+		container.classList.add('browser-welcome-recent-url-item');
+
+		const content = $('.browser-welcome-recent-url-content');
+		const urlText = $('.browser-welcome-recent-url-text');
+		const timeLabel = $('.browser-welcome-recent-url-time');
+		content.appendChild(urlText);
+		content.appendChild(timeLabel);
+		container.appendChild(content);
+
+		const removeButton = $('.browser-welcome-recent-url-remove');
+		removeButton.tabIndex = 0;
+		removeButton.setAttribute('role', 'button');
+		removeButton.setAttribute('aria-label', localize('browser.removeRecentUrl', "Remove from Recent URLs"));
+		removeButton.title = localize('browser.removeRecentUrl', "Remove from Recent URLs");
+		removeButton.appendChild(renderIcon(Codicon.close));
+		container.appendChild(removeButton);
+
+		return { container, content, urlText, timeLabel, removeButton, disposables };
+	}
+
+	renderElement(element: IRecentUrl, _index: number, templateData: IRecentUrlTemplateData): void {
+		templateData.disposables.clear();
+
+		templateData.urlText.textContent = element.url;
+		templateData.urlText.title = element.url;
+		templateData.timeLabel.textContent = fromNow(element.timestamp);
+
+		templateData.disposables.add(addDisposableListener(templateData.removeButton, EventType.CLICK, (e) => {
+			e.stopPropagation();
+			this.onRemove(element);
+		}));
+	}
+
+	disposeTemplate(templateData: IRecentUrlTemplateData): void {
+		templateData.disposables.dispose();
+	}
+}
+
+class RecentUrlListDelegate implements IListVirtualDelegate<IRecentUrl> {
+	getHeight(_element: IRecentUrl): number {
+		return 44; // Fixed height for all items
+	}
+
+	getTemplateId(_element: IRecentUrl): string {
+		return RecentUrlRenderer.TEMPLATE_ID;
+	}
+}
+
+class RecentUrlAccessibilityProvider implements IListAccessibilityProvider<IRecentUrl> {
+	getWidgetAriaLabel(): string {
+		return localize('browser.recentUrlsListLabel', "Recent URLs");
+	}
+
+	getAriaLabel(element: IRecentUrl): string | null {
+		return `${element.url}, ${fromNow(element.timestamp)}`;
+	}
+}
+
+/**
+ * Container for recent URLs UI elements
+ */
+interface IRecentUrlsUI {
+	readonly section: HTMLElement;
+	readonly listContainer: HTMLElement;
+	readonly toggleLinkContainer: HTMLElement;
+	toggleLink: Link | undefined;
+	list: List<IRecentUrl> | undefined;
+	showingAll: boolean;
+}
+
+//#endregion
 
 class BrowserNavigationBar extends Disposable {
 	private readonly _urlInput: HTMLInputElement;
@@ -158,12 +256,15 @@ export class BrowserEditor extends EditorPane {
 	private _overlayVisible = false;
 	private _editorVisible = false;
 	private _currentKeyDownEvent: IBrowserViewKeyDownEvent | undefined;
+	private _pendingUserNavigationUrl: string | undefined;
+	private _originalNavigationUrl: string | undefined;
 
 	private _navigationBar!: BrowserNavigationBar;
 	private _browserContainer!: HTMLElement;
 	private _placeholderScreenshot!: HTMLElement;
 	private _errorContainer!: HTMLElement;
 	private _welcomeContainer!: HTMLElement;
+	private _recentUrls!: IRecentUrlsUI;
 	private _canGoBackContext!: IContextKey<boolean>;
 	private _canGoForwardContext!: IContextKey<boolean>;
 	private _storageScopeContext!: IContextKey<string>;
@@ -174,6 +275,10 @@ export class BrowserEditor extends EditorPane {
 	private readonly _inputDisposables = this._register(new DisposableStore());
 	private overlayManager: BrowserOverlayManager | undefined;
 	private _elementSelectionCts: CancellationTokenSource | undefined;
+
+	private static readonly RECENT_URLS_COLLAPSED_LIMIT = 3;
+	private static readonly RECENT_URL_ITEM_HEIGHT = 44;
+	private static readonly MAX_RECENT_URLS_LIST_HEIGHT = 300;
 
 	constructor(
 		group: IEditorGroup,
@@ -187,7 +292,8 @@ export class BrowserEditor extends EditorPane {
 		@IEditorService private readonly editorService: IEditorService,
 		@IBrowserElementsService private readonly browserElementsService: IBrowserElementsService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IBrowserViewWorkbenchService private readonly browserViewWorkbenchService: IBrowserViewWorkbenchService
 	) {
 		super(BrowserEditor.ID, group, telemetryService, themeService, storageService);
 	}
@@ -264,6 +370,12 @@ export class BrowserEditor extends EditorPane {
 
 		this._inputDisposables.clear();
 
+		// Reset state for recent URLs when switching to a new input
+		this._recentUrls.showingAll = false;
+		this._recentUrls.list = undefined;
+		this._recentUrls.toggleLink = undefined;
+		clearNode(this._recentUrls.toggleLinkContainer);
+
 		// Resolve the browser view model from the input
 		this._model = await input.resolve();
 		if (token.isCancellationRequested || this.input !== input) {
@@ -301,6 +413,18 @@ export class BrowserEditor extends EditorPane {
 
 			// Update navigation bar and context keys from model
 			this.updateNavigationState(navEvent);
+
+			// Record the final URL to recent URLs if this was a user-initiated navigation
+			// (did-navigate fires when HTML is received, after redirects, before all resources load)
+			if (this._pendingUserNavigationUrl !== undefined) {
+				// Remove the original URL if it differs from the final URL (e.g., http -> https redirect)
+				if (this._originalNavigationUrl && this._originalNavigationUrl !== navEvent.url) {
+					this.browserViewWorkbenchService.removeRecentUrl(this._originalNavigationUrl);
+				}
+				this.browserViewWorkbenchService.addRecentUrl(navEvent.url);
+				this._pendingUserNavigationUrl = undefined;
+				this._originalNavigationUrl = undefined;
+			}
 		}));
 
 		this._inputDisposables.add(this._model.onDidChangeLoadingState(() => {
@@ -351,6 +475,11 @@ export class BrowserEditor extends EditorPane {
 			this.checkOverlays();
 		}));
 
+		// Listen for changes to recent URLs
+		this._inputDisposables.add(this.browserViewWorkbenchService.onDidChangeRecentUrls(() => {
+			this.refreshRecentUrlsList();
+		}));
+
 		// Listen for zoom level changes and update browser view zoom factor
 		this._inputDisposables.add(onDidChangeZoomLevel(targetWindowId => {
 			if (targetWindowId === this.window.vscodeWindowId) {
@@ -365,6 +494,7 @@ export class BrowserEditor extends EditorPane {
 		));
 
 		this.updateErrorDisplay();
+		this.refreshRecentUrlsList();
 		this.layout();
 		await this._model.setVisible(this.shouldShowView);
 
@@ -471,7 +601,18 @@ export class BrowserEditor extends EditorPane {
 				url = 'http://' + url;
 			}
 
-			await this._model.loadURL(url);
+			// Mark this as a user-initiated navigation so the final URL is recorded to recent URLs
+			// (will be updated with and recorded using the final URL in onDidNavigate)
+			this._originalNavigationUrl = url;
+			this._pendingUserNavigationUrl = url;
+
+			try {
+				await this._model.loadURL(url);
+			} catch {
+				// Reset the flags if navigation fails
+				this._pendingUserNavigationUrl = undefined;
+				this._originalNavigationUrl = undefined;
+			}
 		}
 	}
 
@@ -622,6 +763,63 @@ export class BrowserEditor extends EditorPane {
 		tip.textContent = localize('browser.welcomeTip', "Tip: Use the Add Element to Chat feature to reference UI elements when asking Copilot for changes.");
 		content.appendChild(tip);
 
+		// Recent URLs section
+		const recentUrlsSection = $('.browser-welcome-recent-urls');
+		recentUrlsSection.classList.add('hidden'); // Hidden by default
+
+		// Create title header with overflow menu
+		const recentUrlsTitleHeader = $('.browser-welcome-recent-urls-header');
+
+		const recentUrlsTitle = $('.browser-welcome-recent-urls-title');
+		recentUrlsTitle.textContent = localize('browser.recentUrlsTitle', "Recent URLs");
+		recentUrlsTitleHeader.appendChild(recentUrlsTitle);
+
+		// Create overflow menu toolbar
+		const recentUrlsToolbarContainer = $('.browser-welcome-recent-urls-toolbar');
+		const hoverDelegate = this._register(
+			this.instantiationService.createInstance(
+				WorkbenchHoverDelegate,
+				'element',
+				undefined,
+				{ position: { hoverPosition: HoverPosition.ABOVE } }
+			)
+		);
+		const recentUrlsToolbar = this._register(this.instantiationService.createInstance(
+			MenuWorkbenchToolBar,
+			recentUrlsToolbarContainer,
+			MenuId.BrowserRecentUrlsTitleMenu,
+			{
+				hoverDelegate,
+				hiddenItemStrategy: -1, // Never show hidden items
+				toolbarOptions: {
+					primaryGroup: () => false, // All items go to overflow
+				},
+			}
+		));
+		recentUrlsToolbar.context = this;
+		recentUrlsTitleHeader.appendChild(recentUrlsToolbarContainer);
+
+		recentUrlsSection.appendChild(recentUrlsTitleHeader);
+
+		const recentUrlsListContainer = $('.browser-welcome-recent-urls-list');
+		recentUrlsSection.appendChild(recentUrlsListContainer);
+
+		// Toggle link for Show More / Show Less (outside the scrollable list)
+		const recentUrlsToggleLinkContainer = $('.browser-welcome-recent-urls-toggle');
+		recentUrlsSection.appendChild(recentUrlsToggleLinkContainer);
+
+		// Initialize the recent URLs container
+		this._recentUrls = {
+			section: recentUrlsSection,
+			listContainer: recentUrlsListContainer,
+			toggleLinkContainer: recentUrlsToggleLinkContainer,
+			toggleLink: undefined,
+			list: undefined,
+			showingAll: false
+		};
+
+		content.appendChild(recentUrlsSection);
+
 		container.appendChild(content);
 		return container;
 	}
@@ -632,6 +830,108 @@ export class BrowserEditor extends EditorPane {
 			this._placeholderScreenshot.style.backgroundImage = `url('${dataUrl}')`;
 		} else {
 			this._placeholderScreenshot.style.backgroundImage = '';
+		}
+	}
+
+	/**
+	 * Refresh the recent URLs list in the welcome container
+	 */
+	private refreshRecentUrlsList(): void {
+		const recentUrls = this.browserViewWorkbenchService.getRecentUrls();
+
+		// Show/hide the section based on whether there are recent URLs
+		if (recentUrls.length === 0) {
+			this._recentUrls.section.classList.add('hidden');
+			this._recentUrls.list?.dispose();
+			this._recentUrls.list = undefined;
+			return;
+		}
+		this._recentUrls.section.classList.remove('hidden');
+
+		// Determine how many items to show
+		const showAll = this._recentUrls.showingAll;
+		const limit = showAll ? recentUrls.length : BrowserEditor.RECENT_URLS_COLLAPSED_LIMIT;
+		const urlsToShow = recentUrls.slice(0, limit);
+
+		// Build list items (only URL entries, no showMore)
+		const items: IRecentUrl[] = [...urlsToShow];
+
+		// Create the list if it doesn't exist
+		if (!this._recentUrls.list) {
+			const delegate = new RecentUrlListDelegate();
+			const renderers: IListRenderer<IRecentUrl, IRecentUrlTemplateData>[] = [
+				new RecentUrlRenderer((entry) => {
+					this.browserViewWorkbenchService.removeRecentUrl(entry.url);
+				})
+			];
+
+			this._recentUrls.list = this._inputDisposables.add(new List<IRecentUrl>(
+				'RecentUrls',
+				this._recentUrls.listContainer,
+				delegate,
+				renderers,
+				{
+					keyboardSupport: true,
+					accessibilityProvider: new RecentUrlAccessibilityProvider(),
+					keyboardNavigationLabelProvider: {
+						getKeyboardNavigationLabel: (element) => element.url
+					},
+					multipleSelectionSupport: false
+				}
+			));
+			this._recentUrls.list.style(defaultListStyles);
+
+			// Handle selection (Enter key or click)
+			this._inputDisposables.add(this._recentUrls.list.onDidChangeSelection(e => {
+				if (e.elements.length === 0) {
+					return;
+				}
+				const element = e.elements[0];
+				// Check for modifier keys
+				const browserEvent = e.browserEvent as MouseEvent | KeyboardEvent | undefined;
+				if (browserEvent && (browserEvent.ctrlKey || browserEvent.metaKey)) {
+					const browserUri = BrowserViewUri.forUrl(element.url);
+					this.editorService.openEditor({
+						resource: browserUri,
+						options: { pinned: true, inactive: true }
+					}, this.group);
+				} else {
+					this.navigateToUrl(element.url);
+				}
+			}));
+		}
+
+		// Update list contents
+		this._recentUrls.list.splice(0, this._recentUrls.list.length, items);
+
+		// Update list height to show all items without scrolling (up to a reasonable limit)
+		const listHeight = Math.min(items.length * BrowserEditor.RECENT_URL_ITEM_HEIGHT, BrowserEditor.MAX_RECENT_URLS_LIST_HEIGHT);
+		this._recentUrls.listContainer.style.height = `${listHeight}px`;
+		this._recentUrls.list.layout(listHeight);
+
+		// Handle Show More / Show Less toggle link (outside the scrollable list)
+		const needsToggle = recentUrls.length > BrowserEditor.RECENT_URLS_COLLAPSED_LIMIT;
+		if (needsToggle) {
+			if (!this._recentUrls.toggleLink) {
+				this._recentUrls.toggleLink = this._inputDisposables.add(this.instantiationService.createInstance(Link, this._recentUrls.toggleLinkContainer, {
+					label: showAll ? localize('browser.showLessUrls', "Show Less") : localize('browser.showMoreUrls', "Show More"),
+					href: '#',
+				}, {
+					opener: () => {
+						this._recentUrls.showingAll = !this._recentUrls.showingAll;
+						this.refreshRecentUrlsList();
+						this._recentUrls.list?.domFocus();
+					}
+				}));
+			} else {
+				this._recentUrls.toggleLink.link = {
+					label: showAll ? localize('browser.showLessUrls', "Show Less") : localize('browser.showMoreUrls', "Show More"),
+					href: '#'
+				};
+			}
+			this._recentUrls.toggleLinkContainer.style.display = '';
+		} else {
+			this._recentUrls.toggleLinkContainer.style.display = 'none';
 		}
 	}
 
@@ -711,6 +1011,7 @@ export class BrowserEditor extends EditorPane {
 
 		this._navigationBar.clear();
 		this.setBackgroundImage(undefined);
+		this._recentUrls.showingAll = false;
 
 		super.clearInput();
 	}

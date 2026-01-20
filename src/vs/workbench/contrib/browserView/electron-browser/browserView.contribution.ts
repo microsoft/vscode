@@ -115,6 +115,16 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			),
 			scope: ConfigurationScope.WINDOW,
 			order: 100
+		},
+		'workbench.browser.rememberRecentUrls': {
+			type: 'boolean',
+			default: true,
+			markdownDescription: localize(
+				{ comment: ['This is the description for a setting.'], key: 'browser.rememberRecentUrls' },
+				'Controls whether recently opened URLs are remembered and shown in the browser welcome page.'
+			),
+			scope: ConfigurationScope.WINDOW,
+			order: 101
 		}
 	}
 });
