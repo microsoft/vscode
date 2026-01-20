@@ -555,9 +555,11 @@ suite('LanguageModels - Model Picker Preferences Storage', function () {
 suite('LanguageModels - Model Change Events', function () {
 
 	let languageModelsService: LanguageModelsService;
+	let storageService: TestStorageService;
 	const disposables = new DisposableStore();
 
 	setup(async function () {
+		storageService = new TestStorageService();
 		const ext = ExtensionsRegistry.getExtensionPoints().find(e => e.name === languageModelChatProviderExtensionPoint.name)!;
 		ext.acceptUsers([{
 			description: { ...nullExtensionDescription },
@@ -572,7 +574,7 @@ suite('LanguageModels - Model Change Events', function () {
 				}
 			},
 			new NullLogService(),
-			new TestStorageService(),
+			storageService,
 			new MockContextKeyService(),
 			new TestConfigurationService(),
 			new class extends mock<ILanguageModelsConfigurationService>() {
@@ -602,7 +604,6 @@ suite('LanguageModels - Model Change Events', function () {
 		});
 
 		// Store a preference to trigger auto-resolution when provider is registered
-		const storageService = languageModelsService['_storageService'] as TestStorageService;
 		storageService.store('chatModelPickerPreferences', JSON.stringify({ 'test-vendor/model1': true }), StorageScope.PROFILE, StorageTarget.USER);
 
 		disposables.add(languageModelsService.registerLanguageModelProvider('test-vendor', {
