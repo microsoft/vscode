@@ -749,7 +749,7 @@ export interface IProcessReadyWindowsPty {
 	/**
 	 * What pty emulation backend is being used.
 	 */
-	backend: 'conpty' | 'winpty';
+	backend: 'conpty';
 	/**
 	 * The Windows build version (eg. 19045)
 	 */
