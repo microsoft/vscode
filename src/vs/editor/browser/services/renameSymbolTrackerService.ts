@@ -48,4 +48,9 @@ export interface IRenameSymbolTrackerService {
 	 * Observable that emits the currently tracked word, or undefined if no word is being tracked.
 	 */
 	readonly trackedWord: IObservable<ITrackedWord | undefined>;
+
+	/**
+	 * Resets the tracked word to undefined.
+	 */
+	reset(): void;
 }

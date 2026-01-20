@@ -8,15 +8,21 @@ import { autorun, derived, IObservable, observableValue } from '../../../../base
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../editor/browser/observableCodeEditor.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
-import { IRenameSymbolTrackerService, ITrackedWord } from '../../../../editor/browser/services/renameSymbolTrackerService.js';
+import { IRenameSymbolTrackerService, type ITrackedWord } from '../../../../editor/browser/services/renameSymbolTrackerService.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { StandardTokenType } from '../../../../editor/common/encodedTokenAttributes.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 
+type WordState = {
+	model: ITextModel;
+	word: string;
+	range: Range;
+	position: Position;
+};
 
-export class RenameSymbolTrackerService extends Disposable implements IRenameSymbolTrackerService {
+class RenameSymbolTrackerService extends Disposable implements IRenameSymbolTrackerService {
 	public _serviceBrand: undefined;
 
 	private readonly _trackedWord = observableValue<ITrackedWord | undefined>(this, undefined);
@@ -25,6 +31,10 @@ export class RenameSymbolTrackerService extends Disposable implements IRenameSym
 	private readonly _activeEditorTracking = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _editorFocusTrackingDisposables = new Map<ICodeEditor, IDisposable>();
 	private _currentTrackedEditor: ICodeEditor | null = null;
+
+	private _capturedWord: WordState | undefined = undefined;
+	private _lastVersionId: number | null = null;
+	private _lastWordBeforeEdit: WordState | undefined = undefined;
 
 	constructor(
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService
@@ -96,17 +106,17 @@ export class RenameSymbolTrackerService extends Disposable implements IRenameSym
 			obsEditor.versionId.read(reader);
 
 			if (!model || !position) {
-				return null;
+				return undefined;
 			}
 
 			const wordAtPosition = model.getWordAtPosition(position);
 			if (!wordAtPosition) {
-				return null;
+				return undefined;
 			}
 
 			// Check if the position is in a comment
 			if (this._isPositionInComment(model, position)) {
-				return null;
+				return undefined;
 			}
 
 			return {
@@ -123,38 +133,42 @@ export class RenameSymbolTrackerService extends Disposable implements IRenameSym
 		});
 
 		// Track the captured word state
-		let capturedWord: { model: ITextModel; word: string; range: Range; position: Position } | null = null;
-		let lastVersionId: number | null = null;
 
 		store.add(autorun(reader => {
 			const currentWord = wordUnderCursor.read(reader);
 			const currentVersionId = obsEditor.versionId.read(reader);
-			const contentChanged = lastVersionId !== null && lastVersionId !== currentVersionId;
-			lastVersionId = currentVersionId;
+			const contentChanged = this._lastVersionId !== null && this._lastVersionId !== currentVersionId;
+			this._lastVersionId = currentVersionId;
 
 			if (!currentWord) {
 				// Cursor moved away from any word - keep existing tracking unchanged
+				// But remember there's no word here for future edits
+				this._lastWordBeforeEdit = undefined;
 				return;
 			}
 
-			if (!capturedWord) {
+			if (!this._capturedWord) {
 				if (!contentChanged) {
-					// Just cursor movement to a word without typing - don't track yet
+					// Just cursor movement to a word without typing - remember this word for later
+					this._lastWordBeforeEdit = currentWord;
 					return;
 				}
-				// First edit on a word - capture it
-				capturedWord = currentWord;
+				// First edit on a word - use the word from before the edit as original
+				const originalWord = this._lastWordBeforeEdit ?? currentWord;
+				this._capturedWord = { ...originalWord };
 				this._trackedWord.set({
 					model: currentWord.model,
-					originalWord: currentWord.word,
-					originalPosition: currentWord.position,
-					originalRange: currentWord.range,
+					originalWord: originalWord.word,
+					originalPosition: originalWord.position,
+					originalRange: originalWord.range,
 					currentWord: currentWord.word,
 					currentRange: currentWord.range,
 				}, undefined);
+				this._lastWordBeforeEdit = currentWord;
 				return;
 			}
 
+			const capturedWord = this._capturedWord;
 			// Check if we're still on the same word (by position overlap or adjacency)
 			const isOnSameWord = capturedWord.model === currentWord.model &&
 				(this._rangesOverlap(capturedWord.range, currentWord.range) ||
@@ -171,17 +185,20 @@ export class RenameSymbolTrackerService extends Disposable implements IRenameSym
 					currentRange: currentWord.range,
 				}, undefined);
 			} else if (contentChanged) {
-				// User started typing in a different word - capture the new word
-				capturedWord = currentWord;
+				// User started typing in a different word - use the word from before the edit as original
+				const originalWord = this._lastWordBeforeEdit ?? currentWord;
+				this._capturedWord = { ...originalWord };
 				this._trackedWord.set({
 					model: currentWord.model,
-					originalWord: currentWord.word,
-					originalPosition: currentWord.position,
-					originalRange: currentWord.range,
+					originalWord: originalWord.word,
+					originalPosition: originalWord.position,
+					originalRange: originalWord.range,
 					currentWord: currentWord.word,
 					currentRange: currentWord.range,
 				}, undefined);
 			}
+			// Update lastWordBeforeEdit for the next iteration
+			this._lastWordBeforeEdit = currentWord;
 			// If just cursor movement to a different word (no content change), keep existing tracking
 		}));
 
@@ -189,6 +206,13 @@ export class RenameSymbolTrackerService extends Disposable implements IRenameSym
 			this._trackedWord.set(undefined, undefined);
 			this._currentTrackedEditor = null;
 		}));
+	}
+
+	public reset(): void {
+		this._trackedWord.set(undefined, undefined);
+		this._capturedWord = undefined;
+		this._lastVersionId = null;
+		this._lastWordBeforeEdit = undefined;
 	}
 
 	private _isPositionInComment(model: ITextModel, position: Position): boolean {

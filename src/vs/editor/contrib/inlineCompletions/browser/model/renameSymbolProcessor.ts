@@ -28,6 +28,8 @@ import { InlineSuggestAlternativeAction } from './InlineSuggestAlternativeAction
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { IRenameSymbolTrackerService } from '../../../../browser/services/renameSymbolTrackerService.js';
 import type { URI } from '../../../../../base/common/uri.js';
+import type { ICodeEditor } from '../../../../browser/editorBrowser.js';
+import { ICodeEditorService } from '../../../../browser/services/codeEditorService.js';
 
 enum RenameKind {
 	no = 'no',
@@ -379,6 +381,34 @@ class RenameSymbolRunnable {
 	}
 }
 
+class EditorState {
+
+	public static create(codeEditorService: ICodeEditorService, textModel: ITextModel): EditorState | undefined {
+		const editor = codeEditorService.getFocusedCodeEditor();
+		if (editor === null) {
+			return undefined;
+		}
+
+		if (editor.getModel() !== textModel) {
+			return undefined;
+		}
+
+		return new EditorState(editor, textModel.getVersionId());
+	}
+
+	private constructor(
+		private readonly editor: ICodeEditor,
+		private readonly versionId: number,
+	) { }
+
+	public equals(other: EditorState | undefined): boolean {
+		if (other === undefined) {
+			return false;
+		}
+		return this.editor === other.editor && this.versionId === other.versionId;
+	}
+}
+
 export class RenameSymbolProcessor extends Disposable {
 
 	private readonly _renameInferenceEngine = new RenameInferenceEngine();
@@ -391,6 +421,7 @@ export class RenameSymbolProcessor extends Disposable {
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
 		@IBulkEditService bulkEditService: IBulkEditService,
 		@IRenameSymbolTrackerService private readonly _renameSymbolTrackerService: IRenameSymbolTrackerService,
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 	) {
 		super();
 		this._register(CommandsRegistry.registerCommand(renameSymbolCommandId, async (_: ServicesAccessor, source: TextModelEditSource, renameRunnable: RenameSymbolRunnable | undefined) => {
@@ -405,6 +436,7 @@ export class RenameSymbolProcessor extends Disposable {
 				}
 				bulkEditService.apply(workspaceEdit, { reason: source });
 			} finally {
+				this._renameSymbolTrackerService.reset();
 				if (this._renameRunnable === renameRunnable) {
 					this._renameRunnable = undefined;
 				}
@@ -418,6 +450,11 @@ export class RenameSymbolProcessor extends Disposable {
 		}
 
 		if (!hasProvider(this._languageFeaturesService.renameProvider, textModel)) {
+			return suggestItem;
+		}
+
+		const state = EditorState.create(this._codeEditorService, textModel);
+		if (state === undefined) {
 			return suggestItem;
 		}
 
@@ -442,7 +479,7 @@ export class RenameSymbolProcessor extends Disposable {
 		// Check asynchronously if a rename is possible
 		let timedOut = false;
 		const check = await raceTimeout<PrepareNesRenameResult>(this.checkRenamePrecondition(suggestItem, textModel, position, oldName, newName, lastSymbolRename), 100, () => { timedOut = true; });
-		const renamePossible = this.isRenamePossible(suggestItem, check);
+		const renamePossible = this.isRenamePossible(suggestItem, check, state, textModel);
 
 		suggestItem.setRenameProcessingInfo({
 			createdRename: renamePossible,
@@ -520,8 +557,11 @@ export class RenameSymbolProcessor extends Disposable {
 		}
 	}
 
-	private isRenamePossible(suggestItem: InlineSuggestionItem, check: PrepareNesRenameResult | undefined): boolean {
+	private isRenamePossible(suggestItem: InlineSuggestionItem, check: PrepareNesRenameResult | undefined, state: EditorState, textModel: ITextModel): boolean {
 		if (check === undefined || check.canRename === RenameKind.no) {
+			return false;
+		}
+		if (!state.equals(EditorState.create(this._codeEditorService, textModel))) {
 			return false;
 		}
 		if (this._renameRunnable === undefined) {
