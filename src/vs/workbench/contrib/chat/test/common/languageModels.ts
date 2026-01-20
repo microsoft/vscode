@@ -48,7 +48,7 @@ export class NullLanguageModelsService implements ILanguageModelsService {
 		return;
 	}
 
-	async fetchLanguageModelGroups(vendor: string): Promise<ILanguageModelsGroup[]> {
+	getLanguageModelGroups(vendor: string): ILanguageModelsGroup[] {
 		return [];
 	}
 

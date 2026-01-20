@@ -123,6 +123,66 @@ export const {
 
 //#endregion
 
+//#region External Focus Tracking
+
+/**
+ * A registry for functions that check if a component outside the normal DOM tree has focus.
+ * This is used to extend the concept of "window has focus" to include things like
+ * Electron WebContentsViews (browser views) that exist outside the workbench DOM.
+ */
+const externalFocusCheckers = new Set<() => boolean>();
+
+/**
+ * Register a function that checks if a component outside the DOM has focus.
+ * This allows `hasExternalFocus` to detect when focus is in components like browser views.
+ *
+ * @param checker A function that returns true if the component has focus
+ * @returns A disposable to unregister the checker
+ */
+export function registerExternalFocusChecker(checker: () => boolean): IDisposable {
+	externalFocusCheckers.add(checker);
+
+	return toDisposable(() => {
+		externalFocusCheckers.delete(checker);
+	});
+}
+
+/**
+ * Check if any registered external component has focus.
+ * This is used to extend focus detection beyond the normal DOM to include
+ * components like Electron WebContentsViews.
+ *
+ * @returns true if any registered external component has focus
+ */
+export function hasExternalFocus(): boolean {
+	for (const checker of externalFocusCheckers) {
+		if (checker()) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/**
+ * Check if the application has focus in any window, either via the normal DOM or via an
+ * external component like a browser view (which exists outside the document tree).
+ *
+ * @returns true if the application owns the current focus
+ */
+export function hasAppFocus(): boolean {
+	for (const { window } of getWindows()) {
+		if (window.document.hasFocus()) {
+			return true;
+		}
+	}
+	if (hasExternalFocus()) {
+		return true;
+	}
+	return false;
+}
+
+//#endregion
+
 export function clearNode(node: HTMLElement): void {
 	while (node.firstChild) {
 		node.firstChild.remove();

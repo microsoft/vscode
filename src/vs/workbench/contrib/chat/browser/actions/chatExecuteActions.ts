@@ -798,6 +798,10 @@ export class CancelAction extends Action2 {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.Escape,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.requestInProgress,
+					ChatContextKeys.remoteJobCreating.negate()
+				),
 				win: { primary: KeyMod.Alt | KeyCode.Backspace },
 			}
 		});
