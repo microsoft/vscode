@@ -81,7 +81,7 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, te
 					checked: model.identifier === delegate.getCurrentModel()?.identifier,
 					category: model.metadata.modelPickerCategory || DEFAULT_MODEL_PICKER_CATEGORY,
 					class: undefined,
-					description: undefined,
+					description: model.metadata.detail,
 					tooltip: hoverContent ? '' : model.metadata.name,
 					hover: hoverContent ? { content: hoverContent } : undefined,
 					label: model.metadata.name,
