@@ -117,6 +117,10 @@ export class ChatToolOutputContentSubPart extends Disposable {
 			}
 		}));
 
+		if (this._store.isDisposed) {
+			return;
+		}
+
 		const attachments = this._register(this._instantiationService.createInstance(
 			ChatAttachmentsContentPart,
 			{

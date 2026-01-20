@@ -799,13 +799,6 @@ export class ChatListWidget extends Disposable {
 	}
 
 	/**
-	 * Update item height after rendering.
-	 */
-	updateItemHeightOnRender(element: ChatTreeItem, template: IChatListItemTemplate): void {
-		this._renderer.updateItemHeightOnRender(element, template);
-	}
-
-	/**
 	 * Update renderer options.
 	 */
 	updateRendererOptions(options: IChatListItemRendererOptions): void {
