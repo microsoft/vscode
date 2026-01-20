@@ -5,16 +5,17 @@
 
 import TelemetryReporter from '@vscode/extension-telemetry';
 import * as fs from 'fs';
+import * as fsPromises from 'fs/promises';
 import * as path from 'path';
 import picomatch from 'picomatch';
-import { CancellationError, CancellationToken, CancellationTokenSource, Command, commands, Disposable, Event, EventEmitter, FileDecoration, FileType, l10n, LogLevel, LogOutputChannel, Memento, ProgressLocation, ProgressOptions, QuickDiffProvider, RelativePattern, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, TabInputNotebookDiff, TabInputTextDiff, TabInputTextMultiDiff, ThemeColor, ThemeIcon, Uri, window, workspace, WorkspaceEdit } from 'vscode';
+import { CancellationError, CancellationToken, CancellationTokenSource, Command, commands, Disposable, Event, EventEmitter, ExcludeSettingOptions, FileDecoration, FileType, l10n, LogLevel, LogOutputChannel, Memento, ProgressLocation, ProgressOptions, QuickDiffProvider, RelativePattern, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, TabInputNotebookDiff, TabInputTextDiff, TabInputTextMultiDiff, ThemeColor, ThemeIcon, Uri, window, workspace, WorkspaceEdit } from 'vscode';
 import { ActionButton } from './actionButton';
 import { ApiRepository } from './api/api1';
-import { Branch, BranchQuery, Change, CommitOptions, DiffChange, FetchOptions, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status } from './api/git';
+import { Branch, BranchQuery, Change, CommitOptions, DiffChange, FetchOptions, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefType, Remote, RepositoryKind, Status } from './api/git';
 import { AutoFetcher } from './autofetch';
 import { GitBranchProtectionProvider, IBranchProtectionProviderRegistry } from './branchProtection';
 import { debounce, memoize, sequentialize, throttle } from './decorators';
-import { Repository as BaseRepository, BlameInformation, Commit, CommitShortStat, GitError, LogFileOptions, LsTreeElement, PullOptions, RefQuery, Stash, Submodule, Worktree } from './git';
+import { Repository as BaseRepository, BlameInformation, Commit, CommitShortStat, GitError, IDotGit, LogFileOptions, LsTreeElement, PullOptions, RefQuery, Stash, Submodule, Worktree } from './git';
 import { GitHistoryProvider } from './historyProvider';
 import { Operation, OperationKind, OperationManager, OperationResult } from './operation';
 import { CommitCommandsCenter, IPostCommitCommandsProviderRegistry } from './postCommitCommands';
@@ -865,11 +866,11 @@ export class Repository implements Disposable {
 		return this.repository.rootRealPath;
 	}
 
-	get dotGit(): { path: string; commonPath?: string } {
+	get dotGit(): IDotGit {
 		return this.repository.dotGit;
 	}
 
-	get kind(): 'repository' | 'submodule' | 'worktree' {
+	get kind(): RepositoryKind {
 		return this.repository.kind;
 	}
 
@@ -1123,6 +1124,12 @@ export class Repository implements Disposable {
 		// Ignore path that is not inside the current repository
 		if (this.repositoryResolver.getRepository(uri) !== this) {
 			this.logger.trace(`[Repository][provideOriginalResource] Resource is not part of the repository: ${uri.toString()}`);
+			return undefined;
+		}
+
+		// Ignore path that is inside a hidden repository
+		if (this.isHidden === true) {
+			this.logger.trace(`[Repository][provideOriginalResource] Repository is hidden: ${uri.toString()}`);
 			return undefined;
 		}
 
@@ -1878,8 +1885,109 @@ export class Repository implements Disposable {
 				this.globalState.update(`${Repository.WORKTREE_ROOT_STORAGE_KEY}:${this.root}`, newWorktreeRoot);
 			}
 
+			// Copy worktree include files. We explicitly do not await this
+			// since we don't want to block the worktree creation on the
+			// copy operation.
+			this._copyWorktreeIncludeFiles(worktreePath!);
+
 			return worktreePath!;
 		});
+	}
+
+	private async _getWorktreeIncludePaths(): Promise<Set<string>> {
+		const config = workspace.getConfiguration('git', Uri.file(this.root));
+		const worktreeIncludeFiles = config.get<string[]>('worktreeIncludeFiles', ['**/node_modules/**']);
+
+		if (worktreeIncludeFiles.length === 0) {
+			return new Set<string>();
+		}
+
+		const filePattern = worktreeIncludeFiles
+			.map(pattern => new RelativePattern(this.root, pattern));
+
+		// Get all files matching the globs (no ignore files applied)
+		const allFiles = await workspace.findFiles2(filePattern, {
+			useExcludeSettings: ExcludeSettingOptions.None,
+			useIgnoreFiles: { local: false, parent: false, global: false }
+		});
+
+		// Get files matching the globs with git ignore files applied
+		const nonIgnoredFiles = await workspace.findFiles2(filePattern, {
+			useExcludeSettings: ExcludeSettingOptions.None,
+			useIgnoreFiles: { local: true, parent: true, global: true }
+		});
+
+		// Files that are git ignored = all files - non-ignored files
+		const gitIgnoredFiles = new Set(allFiles.map(uri => uri.fsPath));
+		for (const uri of nonIgnoredFiles) {
+			gitIgnoredFiles.delete(uri.fsPath);
+		}
+
+		// Add the folder paths for git ignored files
+		const gitIgnoredPaths = new Set(gitIgnoredFiles);
+
+		for (const filePath of gitIgnoredFiles) {
+			let dir = path.dirname(filePath);
+			while (dir !== this.root && !gitIgnoredFiles.has(dir)) {
+				gitIgnoredPaths.add(dir);
+				dir = path.dirname(dir);
+			}
+		}
+
+		return gitIgnoredPaths;
+	}
+
+	private async _copyWorktreeIncludeFiles(worktreePath: string): Promise<void> {
+		const gitIgnoredPaths = await this._getWorktreeIncludePaths();
+		if (gitIgnoredPaths.size === 0) {
+			return;
+		}
+
+		try {
+			// Find minimal set of paths (folders and files) to copy.
+			// The goal is to reduce the number of copy operations
+			// needed.
+			const pathsToCopy = new Set<string>();
+			for (const filePath of gitIgnoredPaths) {
+				const relativePath = path.relative(this.root, filePath);
+				const firstSegment = relativePath.split(path.sep)[0];
+				pathsToCopy.add(path.join(this.root, firstSegment));
+			}
+
+			const startTime = Date.now();
+			const limiter = new Limiter<void>(15);
+			const files = Array.from(pathsToCopy);
+
+			// Copy files
+			const results = await Promise.allSettled(files.map(sourceFile =>
+				limiter.queue(async () => {
+					const targetFile = path.join(worktreePath, relativePath(this.root, sourceFile));
+					await fsPromises.mkdir(path.dirname(targetFile), { recursive: true });
+					await fsPromises.cp(sourceFile, targetFile, {
+						filter: src => gitIgnoredPaths.has(src),
+						force: true,
+						mode: fs.constants.COPYFILE_FICLONE,
+						recursive: true,
+						verbatimSymlinks: true
+					});
+				})
+			));
+
+			// Log any failed operations
+			const failedOperations = results.filter(r => r.status === 'rejected');
+			this.logger.info(`[Repository][_copyWorktreeIncludeFiles] Copied ${files.length - failedOperations.length}/${files.length} folder(s)/file(s) to worktree. [${Date.now() - startTime}ms]`);
+
+			if (failedOperations.length > 0) {
+				window.showWarningMessage(l10n.t('Failed to copy {0} folder(s)/file(s) to the worktree.', failedOperations.length));
+
+				this.logger.warn(`[Repository][_copyWorktreeIncludeFiles] Failed to copy ${failedOperations.length} folder(s)/file(s) to worktree.`);
+				for (const error of failedOperations) {
+					this.logger.warn(`  - ${(error as PromiseRejectedResult).reason}`);
+				}
+			}
+		} catch (err) {
+			this.logger.warn(`[Repository][_copyWorktreeIncludeFiles] Failed to copy folder(s)/file(s) to worktree: ${err}`);
+		}
 	}
 
 	async deleteWorktree(path: string, options?: { force?: boolean }): Promise<void> {
@@ -3183,6 +3291,12 @@ export class StagedResourceQuickDiffProvider implements QuickDiffProvider {
 
 		if (uri.scheme !== 'file') {
 			this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Resource is not a file: ${uri.scheme}`);
+			return undefined;
+		}
+
+		// Ignore path that is inside a hidden repository
+		if (this._repository.isHidden === true) {
+			this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Repository is hidden: ${uri.toString()}`);
 			return undefined;
 		}
 

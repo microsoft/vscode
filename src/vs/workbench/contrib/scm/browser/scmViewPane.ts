@@ -981,6 +981,7 @@ export const ContextKeys = {
 	SCMCurrentHistoryItemRefInFilter: new RawContextKey<boolean>('scmCurrentHistoryItemRefInFilter', false),
 	RepositoryCount: new RawContextKey<number>('scmRepositoryCount', 0),
 	RepositoryVisibilityCount: new RawContextKey<number>('scmRepositoryVisibleCount', 0),
+	SCMInputHasValidationMessage: new RawContextKey<boolean>('scmInputHasValidationMessage', false),
 	RepositoryVisibility(repository: ISCMRepository) {
 		return new RawContextKey<boolean>(`scmRepositoryVisible:${repository.provider.id}`, false);
 	}
@@ -1368,6 +1369,32 @@ class ExpandAllRepositoriesAction extends ViewAction<SCMViewPane> {
 registerAction2(CollapseAllRepositoriesAction);
 registerAction2(ExpandAllRepositoriesAction);
 
+class CollapseAllAction extends ViewAction<SCMViewPane> {
+	constructor() {
+		super({
+			id: `workbench.scm.action.collapseAll`,
+			title: localize('scmCollapseAll', "Collapse All"),
+			viewId: VIEW_PANE_ID,
+			f1: false,
+			icon: Codicon.collapseAll,
+			menu: {
+				id: MenuId.SCMResourceGroupContext,
+				group: 'inline',
+				when: ContextKeys.SCMViewMode.isEqualTo(ViewMode.Tree),
+				order: 10,
+			}
+		});
+	}
+
+	async runInView(_accessor: ServicesAccessor, view: SCMViewPane, context?: ISCMResourceGroup): Promise<void> {
+		if (context) {
+			view.collapseAllResources(context);
+		}
+	}
+}
+
+registerAction2(CollapseAllAction);
+
 const enum SCMInputWidgetCommandId {
 	CancelAction = 'scm.input.cancelAction',
 	SetupAction = 'scm.input.triggerSetup'
@@ -1696,6 +1723,7 @@ class SCMInputWidget {
 
 	private model: { readonly input: ISCMInput; readonly textModel: ITextModel } | undefined;
 	private repositoryIdContextKey: IContextKey<string | undefined>;
+	private validationMessageContextKey: IContextKey<boolean>;
 	private readonly repositoryDisposables = new DisposableStore();
 
 	private validation: IInputValidation | undefined;
@@ -1777,6 +1805,7 @@ class SCMInputWidget {
 		this.repositoryDisposables.add(input.onDidChangeFocus(() => this.focus()));
 		this.repositoryDisposables.add(input.onDidChangeValidationMessage((e) => this.setValidation(e, { focus: true, timeout: true })));
 		this.repositoryDisposables.add(input.onDidChangeValidateInput((e) => triggerValidation()));
+		this.repositoryDisposables.add(input.onDidClearValidation(() => this.clearValidation()));
 
 		// Keep API in sync with model and validate
 		this.repositoryDisposables.add(textModel.onDidChangeContent(() => {
@@ -1906,6 +1935,7 @@ class SCMInputWidget {
 
 		this.contextKeyService = contextKeyService.createScoped(this.element);
 		this.repositoryIdContextKey = this.contextKeyService.createKey('scmRepository', undefined);
+		this.validationMessageContextKey = ContextKeys.SCMInputHasValidationMessage.bindTo(this.contextKeyService);
 
 		this.inputEditorOptions = new SCMInputWidgetEditorOptions(overflowWidgetsDomNode, this.configurationService);
 		this.disposables.add(this.inputEditorOptions.onDidChange(this.onDidChangeEditorOptions, this));
@@ -2069,6 +2099,7 @@ class SCMInputWidget {
 			return;
 		}
 
+		this.validationMessageContextKey.set(true);
 		const disposables = new DisposableStore();
 
 		this.validationContextView = this.contextViewService.showContextView({
@@ -2146,6 +2177,7 @@ class SCMInputWidget {
 		this.validationContextView?.close();
 		this.validationContextView = undefined;
 		this.validationHasFocus = false;
+		this.validationMessageContextKey.set(false);
 	}
 
 	dispose(): void {
@@ -2844,6 +2876,14 @@ export class SCMViewPane extends ViewPane {
 		for (const repository of this.scmViewService.visibleRepositories) {
 			if (this.tree.isCollapsible(repository)) {
 				this.tree.expand(repository);
+			}
+		}
+	}
+
+	collapseAllResources(group: ISCMResourceGroup): void {
+		for (const { element } of this.tree.getNode(group).children) {
+			if (!isSCMViewService(element)) {
+				this.tree.collapse(element, true);
 			}
 		}
 	}

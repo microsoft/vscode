@@ -42,7 +42,7 @@ import { IViewBadge } from '../../common/views.js';
 import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/participants/chatAgents.js';
 import { IChatRequestDraft } from '../../contrib/chat/common/editing/chatEditingService.js';
 import { IChatRequestModeInstructions } from '../../contrib/chat/common/model/chatModel.js';
-import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatMultiDiffDataSerialized, IChatPrepareToolInvocationPart, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatThinkingPart, IChatToolInvocationSerialized, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from '../../contrib/chat/common/chatService/chatService.js';
+import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatMultiDiffDataSerialized, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatThinkingPart, IChatToolInvocationSerialized, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from '../../contrib/chat/common/chatService/chatService.js';
 import { LocalChatSessionUri } from '../../contrib/chat/common/model/chatUri.js';
 import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry, isImageVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
@@ -2813,19 +2813,6 @@ export namespace ChatResponseMovePart {
 	}
 }
 
-export namespace ChatPrepareToolInvocationPart {
-	export function from(part: vscode.ChatPrepareToolInvocationPart): IChatPrepareToolInvocationPart {
-		return {
-			kind: 'prepareToolInvocation',
-			toolName: part.toolName,
-		};
-	}
-
-	export function to(part: IChatPrepareToolInvocationPart): vscode.ChatPrepareToolInvocationPart {
-		return new types.ChatPrepareToolInvocationPart(part.toolName);
-	}
-}
-
 export namespace ChatToolInvocationPart {
 	export function from(part: vscode.ChatToolInvocationPart): IChatToolInvocationSerialized {
 		// Convert extension API ChatToolInvocationPart to internal serialized format
@@ -2846,7 +2833,7 @@ export namespace ChatToolInvocationPart {
 				: part.presentation === 'hiddenAfterComplete'
 					? ToolInvocationPresentation.HiddenAfterComplete
 					: undefined,
-			fromSubAgent: part.fromSubAgent
+			subAgentInvocationId: part.subAgentInvocationId
 		};
 	}
 
@@ -2895,7 +2882,8 @@ export namespace ChatToolInvocationPart {
 		if (part.toolSpecificData) {
 			toolInvocation.toolSpecificData = convertFromInternalToolSpecificData(part.toolSpecificData);
 		}
-		toolInvocation.fromSubAgent = part.fromSubAgent;
+		toolInvocation.subAgentInvocationId = part.subAgentInvocationId;
+		toolInvocation.subAgentName = part.subAgentName;
 
 		return toolInvocation;
 	}
@@ -3098,8 +3086,6 @@ export namespace ChatResponsePart {
 			return ChatResponseMovePart.from(part);
 		} else if (part instanceof types.ChatResponseExtensionsPart) {
 			return ChatResponseExtensionsPart.from(part);
-		} else if (part instanceof types.ChatPrepareToolInvocationPart) {
-			return ChatPrepareToolInvocationPart.from(part);
 		} else if (part instanceof types.ChatResponsePullRequestPart) {
 			return ChatResponsePullRequestPart.from(part);
 		} else if (part instanceof types.ChatToolInvocationPart) {
@@ -3141,8 +3127,8 @@ export namespace ChatResponsePart {
 export namespace ChatAgentRequest {
 	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined, model: vscode.LanguageModelChat, diagnostics: readonly [vscode.Uri, readonly vscode.Diagnostic[]][], tools: Map<string, boolean>, extension: IRelaxedExtensionDescription, logService: ILogService): vscode.ChatRequest {
 
-		const toolReferences: typeof request.variables.variables = [];
-		const variableReferences: typeof request.variables.variables = [];
+		const toolReferences: IChatRequestVariableEntry[] = [];
+		const variableReferences: IChatRequestVariableEntry[] = [];
 		for (const v of request.variables.variables) {
 			if (v.kind === 'tool') {
 				toolReferences.push(v);
@@ -3176,7 +3162,8 @@ export namespace ChatAgentRequest {
 			editedFileEvents: request.editedFileEvents,
 			modeInstructions: request.modeInstructions?.content,
 			modeInstructions2: ChatRequestModeInstructions.to(request.modeInstructions),
-			isSubagent: request.isSubagent,
+			subAgentInvocationId: request.subAgentInvocationId,
+			subAgentName: request.subAgentName,
 		};
 
 		if (!isProposedApiEnabled(extension, 'chatParticipantPrivate')) {
@@ -3197,7 +3184,9 @@ export namespace ChatAgentRequest {
 			// eslint-disable-next-line local/code-no-any-casts
 			delete (requestWithAllProps as any).sessionId;
 			// eslint-disable-next-line local/code-no-any-casts
-			delete (requestWithAllProps as any).isSubagent;
+			delete (requestWithAllProps as any).subAgentInvocationId;
+			// eslint-disable-next-line local/code-no-any-casts
+			delete (requestWithAllProps as any).subAgentName;
 		}
 
 		if (!isProposedApiEnabled(extension, 'chatParticipantAdditions')) {
@@ -3603,74 +3592,6 @@ export namespace LanguageModelToolResult {
 				return new types.LanguageModelPromptTsxPart(item.value);
 			}
 		}));
-	}
-
-	export function from(result: vscode.ExtendedLanguageModelToolResult, extension: IExtensionDescription): Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>> {
-		if (result.toolResultMessage) {
-			checkProposedApiEnabled(extension, 'chatParticipantPrivate');
-		}
-
-		const checkAudienceApi = (item: LanguageModelTextPart | LanguageModelDataPart) => {
-			if (item.audience) {
-				checkProposedApiEnabled(extension, 'languageModelToolResultAudience');
-			}
-		};
-
-		let hasBuffers = false;
-		const dto: Dto<IToolResult> = {
-			content: result.content.map(item => {
-				if (item instanceof types.LanguageModelTextPart) {
-					checkAudienceApi(item);
-					return {
-						kind: 'text',
-						value: item.value,
-						audience: item.audience
-					};
-				} else if (item instanceof types.LanguageModelPromptTsxPart) {
-					return {
-						kind: 'promptTsx',
-						value: item.value,
-					};
-				} else if (item instanceof types.LanguageModelDataPart) {
-					checkAudienceApi(item);
-					hasBuffers = true;
-					return {
-						kind: 'data',
-						value: {
-							mimeType: item.mimeType,
-							data: VSBuffer.wrap(item.data)
-						},
-						audience: item.audience
-					};
-				} else {
-					throw new Error('Unknown LanguageModelToolResult part type');
-				}
-			}),
-			toolResultMessage: MarkdownString.fromStrict(result.toolResultMessage),
-			toolResultDetails: result.toolResultDetails?.map(detail => URI.isUri(detail) ? detail : Location.from(detail as vscode.Location)),
-		};
-
-		return hasBuffers ? new SerializableObjectWithBuffers(dto) : dto;
-	}
-}
-
-export namespace LanguageModelToolResult2 {
-	export function to(result: IToolResult): vscode.LanguageModelToolResult2 {
-		const toolResult = new types.LanguageModelToolResult2(result.content.map(item => {
-			if (item.kind === 'text') {
-				return new types.LanguageModelTextPart(item.value, item.audience);
-			} else if (item.kind === 'data') {
-				return new types.LanguageModelDataPart(item.value.data.buffer, item.value.mimeType, item.audience);
-			} else {
-				return new types.LanguageModelPromptTsxPart(item.value);
-			}
-		}));
-
-		if (result.toolMetadata) {
-			(toolResult as vscode.ExtendedLanguageModelToolResult).toolMetadata = result.toolMetadata;
-		}
-
-		return toolResult;
 	}
 
 	export function from(result: vscode.ExtendedLanguageModelToolResult2, extension: IExtensionDescription): Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>> {

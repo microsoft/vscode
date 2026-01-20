@@ -5,9 +5,10 @@
 
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { isMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IMarkdownString, isMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { stripIcons } from '../../../../../base/common/iconLabels.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
@@ -15,10 +16,11 @@ import { ServicesAccessor } from '../../../../../platform/instantiation/common/i
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../common/chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { IChatToolInvocation } from '../../common/chatService/chatService.js';
+import { IChatExtensionsContent, IChatPullRequestContent, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, ILegacyChatTerminalToolInvocationData, IToolResultOutputDetailsSerialized, isLegacyChatTerminalToolInvocationData } from '../../common/chatService/chatService.js';
 import { isResponseVM } from '../../common/model/chatViewModel.js';
-import { isToolResultInputOutputDetails, isToolResultOutputDetails, toolContentToA11yString } from '../../common/tools/languageModelToolsService.js';
+import { IToolResultInputOutputDetails, IToolResultOutputDetails, isToolResultInputOutputDetails, isToolResultOutputDetails, toolContentToA11yString } from '../../common/tools/languageModelToolsService.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
+import { Location } from '../../../../../editor/common/languages.js';
 
 export class ChatResponseAccessibleView implements IAccessibleViewImplementation {
 	readonly priority = 100;
@@ -44,6 +46,137 @@ export class ChatResponseAccessibleView implements IAccessibleViewImplementation
 
 		return new ChatResponseAccessibleProvider(verifiedWidget, focusedItem, chatInputFocused);
 	}
+}
+
+type ToolSpecificData = IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData;
+type ResultDetails = Array<URI | Location> | IToolResultInputOutputDetails | IToolResultOutputDetails | IToolResultOutputDetailsSerialized;
+
+function isOutputDetailsSerialized(obj: unknown): obj is IToolResultOutputDetailsSerialized {
+	return typeof obj === 'object' && obj !== null && 'output' in obj &&
+		typeof (obj as IToolResultOutputDetailsSerialized).output === 'object' &&
+		(obj as IToolResultOutputDetailsSerialized).output?.type === 'data' &&
+		typeof (obj as IToolResultOutputDetailsSerialized).output?.base64Data === 'string';
+}
+
+export function getToolSpecificDataDescription(toolSpecificData: ToolSpecificData | undefined): string {
+	if (!toolSpecificData) {
+		return '';
+	}
+
+	if (isLegacyChatTerminalToolInvocationData(toolSpecificData) || toolSpecificData.kind === 'terminal') {
+		const terminalData = migrateLegacyTerminalToolSpecificData(toolSpecificData);
+		return terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
+	}
+
+	switch (toolSpecificData.kind) {
+		case 'subagent': {
+			const parts: string[] = [];
+			if (toolSpecificData.agentName) {
+				parts.push(localize('subagentName', "Agent: {0}", toolSpecificData.agentName));
+			}
+			if (toolSpecificData.description) {
+				parts.push(toolSpecificData.description);
+			}
+			if (toolSpecificData.prompt) {
+				parts.push(localize('subagentPrompt', "Task: {0}", toolSpecificData.prompt));
+			}
+			return parts.join('. ') || '';
+		}
+		case 'extensions':
+			return toolSpecificData.extensions.length > 0
+				? localize('extensionsList', "Extensions: {0}", toolSpecificData.extensions.join(', '))
+				: '';
+		case 'todoList': {
+			const todos = toolSpecificData.todoList;
+			if (todos.length === 0) {
+				return '';
+			}
+			const todoDescriptions = todos.map(t =>
+				localize('todoItem', "{0} ({1})", t.title, t.status)
+			);
+			return localize('todoListCount', "{0} items: {1}", todos.length, todoDescriptions.join('; '));
+		}
+		case 'pullRequest':
+			return localize('pullRequestInfo', "PR: {0} by {1}", toolSpecificData.title, toolSpecificData.author);
+		case 'input':
+			return typeof toolSpecificData.rawInput === 'string'
+				? toolSpecificData.rawInput
+				: JSON.stringify(toolSpecificData.rawInput);
+		default:
+			return '';
+	}
+}
+
+export function getResultDetailsDescription(resultDetails: ResultDetails | undefined): { input?: string; files?: string[]; isError?: boolean } {
+	if (!resultDetails) {
+		return {};
+	}
+
+	if (Array.isArray(resultDetails)) {
+		const files = resultDetails.map(ref => {
+			if (URI.isUri(ref)) {
+				return ref.fsPath || ref.path;
+			}
+			return ref.uri.fsPath || ref.uri.path;
+		});
+		return { files };
+	}
+
+	if (isToolResultInputOutputDetails(resultDetails)) {
+		return {
+			input: resultDetails.input,
+			isError: resultDetails.isError
+		};
+	}
+
+	if (isOutputDetailsSerialized(resultDetails)) {
+		return {
+			input: localize('binaryOutput', "{0} data", resultDetails.output.mimeType)
+		};
+	}
+
+	if (isToolResultOutputDetails(resultDetails)) {
+		return {
+			input: localize('binaryOutput', "{0} data", resultDetails.output.mimeType)
+		};
+	}
+
+	return {};
+}
+
+export function getToolInvocationA11yDescription(
+	invocationMessage: string | undefined,
+	pastTenseMessage: string | undefined,
+	toolSpecificData: ToolSpecificData | undefined,
+	resultDetails: ResultDetails | undefined,
+	isComplete: boolean
+): string {
+	const parts: string[] = [];
+
+	const message = isComplete && pastTenseMessage ? pastTenseMessage : invocationMessage;
+	if (message) {
+		parts.push(message);
+	}
+
+	const toolDataDesc = getToolSpecificDataDescription(toolSpecificData);
+	if (toolDataDesc) {
+		parts.push(toolDataDesc);
+	}
+
+	if (isComplete && resultDetails) {
+		const details = getResultDetailsDescription(resultDetails);
+		if (details.isError) {
+			parts.unshift(localize('errored', "Errored"));
+		}
+		if (details.input && !toolDataDesc) {
+			parts.push(localize('input', "Input: {0}", details.input));
+		}
+		if (details.files && details.files.length > 0) {
+			parts.push(localize('files', "Files: {0}", details.files.join(', ')));
+		}
+	}
+
+	return parts.join('. ');
 }
 
 class ChatResponseAccessibleProvider extends Disposable implements IAccessibleViewContentProvider {
@@ -76,6 +209,10 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 		}
 	}
 
+	private _renderMessageAsPlaintext(message: string | IMarkdownString): string {
+		return typeof message === 'string' ? message : stripIcons(renderAsPlaintext(message, { useLinkFormatter: true }));
+	}
+
 	private _getContent(item: ChatTreeItem): string {
 		let responseContent = isResponseVM(item) ? item.response.toString() : '';
 		if (!responseContent && 'errorDetails' in item && item.errorDetails) {
@@ -99,29 +236,18 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 			const toolInvocations = item.response.value.filter(item => item.kind === 'toolInvocation');
 			for (const toolInvocation of toolInvocations) {
 				const state = toolInvocation.state.get();
-				if (toolInvocation.confirmationMessages?.title && state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
-					const title = typeof toolInvocation.confirmationMessages.title === 'string' ? toolInvocation.confirmationMessages.title : toolInvocation.confirmationMessages.title.value;
-					const message = typeof toolInvocation.confirmationMessages.message === 'string' ? toolInvocation.confirmationMessages.message : stripIcons(renderAsPlaintext(toolInvocation.confirmationMessages.message!));
-					let input = '';
-					if (toolInvocation.toolSpecificData) {
-						if (toolInvocation.toolSpecificData?.kind === 'terminal') {
-							const terminalData = migrateLegacyTerminalToolSpecificData(toolInvocation.toolSpecificData);
-							input = terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
-						} else {
-							input = toolInvocation.toolSpecificData?.kind === 'extensions'
-								? JSON.stringify(toolInvocation.toolSpecificData.extensions)
-								: toolInvocation.toolSpecificData?.kind === 'todoList'
-									? JSON.stringify(toolInvocation.toolSpecificData.todoList)
-									: toolInvocation.toolSpecificData?.kind === 'pullRequest'
-										? JSON.stringify(toolInvocation.toolSpecificData)
-										: JSON.stringify(toolInvocation.toolSpecificData.rawInput);
-						}
-					}
+				if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation && state.confirmationMessages?.title) {
+					const title = this._renderMessageAsPlaintext(state.confirmationMessages.title);
+					const message = state.confirmationMessages.message ? this._renderMessageAsPlaintext(state.confirmationMessages.message) : '';
+					const toolDataDesc = getToolSpecificDataDescription(toolInvocation.toolSpecificData);
 					responseContent += `${title}`;
-					if (input) {
-						responseContent += `: ${input}`;
+					if (toolDataDesc) {
+						responseContent += `: ${toolDataDesc}`;
 					}
-					responseContent += `\n${message}\n`;
+					if (message) {
+						responseContent += `\n${message}`;
+					}
+					responseContent += '\n';
 				} else if (state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
 					const postApprovalDetails = isToolResultInputOutputDetails(state.resultDetails)
 						? state.resultDetails.input
@@ -131,23 +257,35 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 					responseContent += localize('toolPostApprovalA11yView', "Approve results of {0}? Result: ", toolInvocation.toolId) + (postApprovalDetails ?? '') + '\n';
 				} else {
 					const resultDetails = IChatToolInvocation.resultDetails(toolInvocation);
-					if (resultDetails && 'input' in resultDetails) {
-						responseContent += '\n' + (resultDetails.isError ? 'Errored ' : 'Completed ');
-						responseContent += `${`${typeof toolInvocation.invocationMessage === 'string' ? toolInvocation.invocationMessage : stripIcons(renderAsPlaintext(toolInvocation.invocationMessage))} with input: ${resultDetails.input}`}\n`;
+					const isComplete = IChatToolInvocation.isComplete(toolInvocation);
+					const description = getToolInvocationA11yDescription(
+						this._renderMessageAsPlaintext(toolInvocation.invocationMessage),
+						toolInvocation.pastTenseMessage ? this._renderMessageAsPlaintext(toolInvocation.pastTenseMessage) : undefined,
+						toolInvocation.toolSpecificData,
+						resultDetails,
+						isComplete
+					);
+					if (description) {
+						responseContent += '\n' + description + '\n';
 					}
 				}
 			}
 
 			const pastConfirmations = item.response.value.filter(item => item.kind === 'toolInvocationSerialized');
 			for (const pastConfirmation of pastConfirmations) {
-				if (pastConfirmation.isComplete && pastConfirmation.resultDetails && 'input' in pastConfirmation.resultDetails) {
-					if (pastConfirmation.pastTenseMessage) {
-						responseContent += `\n${`${typeof pastConfirmation.pastTenseMessage === 'string' ? pastConfirmation.pastTenseMessage : stripIcons(renderAsPlaintext(pastConfirmation.pastTenseMessage))} with input: ${pastConfirmation.resultDetails.input}`}\n`;
-					}
+				const description = getToolInvocationA11yDescription(
+					this._renderMessageAsPlaintext(pastConfirmation.invocationMessage),
+					pastConfirmation.pastTenseMessage ? this._renderMessageAsPlaintext(pastConfirmation.pastTenseMessage) : undefined,
+					pastConfirmation.toolSpecificData,
+					pastConfirmation.resultDetails,
+					pastConfirmation.isComplete
+				);
+				if (description) {
+					responseContent += '\n' + description + '\n';
 				}
 			}
 		}
-		const plainText = renderAsPlaintext(new MarkdownString(responseContent), { includeCodeBlocksFences: true });
+		const plainText = renderAsPlaintext(new MarkdownString(responseContent), { includeCodeBlocksFences: true, useLinkFormatter: true });
 		return this._normalizeWhitespace(plainText);
 	}
 

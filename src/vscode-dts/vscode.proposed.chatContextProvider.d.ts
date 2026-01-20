@@ -16,7 +16,10 @@ declare module 'vscode' {
 		 *   Providers registered without a selector will not be called for resource-based context.
 		 * - Explicitly. These context items are shown as options when the user explicitly attaches context.
 		 *
-		 * To ensure your extension is activated when chat context is requested, make sure to include the `onChatContextProvider:<id>` activation event in your `package.json`.
+		 * To ensure your extension is activated when chat context is requested, make sure to include the following activations events:
+		 * - If your extension implements `provideWorkspaceChatContext` or `provideChatContextForResource`, find an activation event which is a good signal to activate.
+		 *   Ex: `onLanguage:<languageId>`, `onWebviewPanel:<viewType>`, etc.`
+		 * - If your extension implements `provideChatContextExplicit`, your extension will be automatically activated when the user requests explicit context.
 		 *
 		 * @param selector Optional document selector to filter which resources the provider is called for. If omitted, the provider will only be called for explicit context requests.
 		 * @param id Unique identifier for the provider.
@@ -40,9 +43,18 @@ declare module 'vscode' {
 		 */
 		modelDescription?: string;
 		/**
+		 * An optional tooltip to show when hovering over the context item in the UI.
+		 */
+		tooltip?: MarkdownString;
+		/**
 		 * The value of the context item. Can be omitted when returned from one of the `provide` methods if the provider supports `resolveChatContext`.
 		 */
 		value?: string;
+		/**
+		 * An optional command that is executed when the context item is clicked.
+		 * The original context item will be passed as the first argument to the command.
+		 */
+		command?: Command;
 	}
 
 	export interface ChatContextProvider<T extends ChatContextItem = ChatContextItem> {
@@ -53,7 +65,11 @@ declare module 'vscode' {
 		onDidChangeWorkspaceChatContext?: Event<void>;
 
 		/**
-		 * Provide a list of chat context items to be included as workspace context for all chat sessions.
+		 * TODO @API: should this be a separate provider interface?
+		 *
+		 * Provide a list of chat context items to be included as workspace context for all chat requests.
+		 * This should be used very sparingly to avoid providing useless context and to avoid using up the context window.
+		 * A good example use case is to provide information about which branch the user is working on in a source control context.
 		 *
 		 * @param token A cancellation token.
 		 */

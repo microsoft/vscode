@@ -26,7 +26,9 @@ import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIde
 import { IChatWidgetService } from '../../contrib/chat/browser/chat.js';
 import { AddDynamicVariableAction, IAddDynamicVariableContext } from '../../contrib/chat/browser/attachments/chatDynamicVariables.js';
 import { IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../contrib/chat/common/participants/chatAgents.js';
-import { ICustomAgentQueryOptions, IPromptsService } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
+import { IPromptFileContext, IPromptsService } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
+import { isValidPromptType } from '../../contrib/chat/common/promptSyntax/promptTypes.js';
+import { IChatPromptContentStore } from '../../contrib/chat/common/promptSyntax/chatPromptContentStore.js';
 import { IChatEditingService, IChatRelatedFileProviderMetadata } from '../../contrib/chat/common/editing/chatEditingService.js';
 import { IChatModel } from '../../contrib/chat/common/model/chatModel.js';
 import { ChatRequestAgentPart } from '../../contrib/chat/common/requestParser/chatParserTypes.js';
@@ -34,6 +36,7 @@ import { ChatRequestParser } from '../../contrib/chat/common/requestParser/chatR
 import { IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatService, IChatTask, IChatTaskSerialized, IChatWarningMessage } from '../../contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../contrib/chat/common/constants.js';
+import { ILanguageModelToolsService } from '../../contrib/chat/common/tools/languageModelToolsService.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
@@ -96,8 +99,9 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 	private readonly _chatRelatedFilesProviders = this._register(new DisposableMap<number, IDisposable>());
 
-	private readonly _customAgentsProviders = this._register(new DisposableMap<number, IDisposable>());
-	private readonly _customAgentsProviderEmitters = this._register(new DisposableMap<number, Emitter<void>>());
+	private readonly _promptFileProviders = this._register(new DisposableMap<number, IDisposable>());
+	private readonly _promptFileProviderEmitters = this._register(new DisposableMap<number, Emitter<void>>());
+	private readonly _promptFileContentRegistrations = this._register(new DisposableMap<number, DisposableMap<string, IDisposable>>());
 
 	private readonly _pendingProgress = new Map<string, { progress: (parts: IChatProgress[]) => void; chatSession: IChatModel | undefined }>();
 	private readonly _proxy: ExtHostChatAgentsShape2;
@@ -119,6 +123,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IPromptsService private readonly _promptsService: IPromptsService,
+		@IChatPromptContentStore private readonly _chatPromptContentStore: IChatPromptContentStore,
+		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatAgents2);
@@ -275,6 +281,24 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 						: await chatSession.editingSession.stopExternalEdits(response, responsePartHandle);
 					chatProgressParts.push(...parts);
 				}
+				continue;
+			}
+
+			if (progress.kind === 'beginToolInvocation') {
+				// Begin a streaming tool invocation
+				this._languageModelToolsService.beginToolCall({
+					toolCallId: progress.toolCallId,
+					toolId: progress.toolName,
+					chatRequestId: requestId,
+					sessionResource: chatSession?.sessionResource,
+					subagentInvocationId: progress.subagentInvocationId,
+				});
+				continue;
+			}
+
+			if (progress.kind === 'updateToolInvocation') {
+				// Update the streaming data for an existing tool invocation
+				this._languageModelToolsService.updateToolStream(progress.toolCallId, progress.streamData?.partialInput, CancellationToken.None);
 				continue;
 			}
 
@@ -435,41 +459,61 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._chatRelatedFilesProviders.deleteAndDispose(handle);
 	}
 
-	async $registerCustomAgentsProvider(handle: number, extensionId: ExtensionIdentifier): Promise<void> {
+	async $registerPromptFileProvider(handle: number, type: string, extensionId: ExtensionIdentifier): Promise<void> {
 		const extension = await this._extensionService.getExtension(extensionId.value);
 		if (!extension) {
-			this._logService.error(`[MainThreadChatAgents2] Could not find extension for CustomAgentsProvider: ${extensionId.value}`);
+			this._logService.error(`[MainThreadChatAgents2] Could not find extension for prompt file provider: ${extensionId.value}`);
+			return;
+		}
+
+		if (!isValidPromptType(type)) {
+			this._logService.error(`[MainThreadChatAgents2] Invalid contribution type: ${type}`);
 			return;
 		}
 
 		const emitter = new Emitter<void>();
-		this._customAgentsProviderEmitters.set(handle, emitter);
+		this._promptFileProviderEmitters.set(handle, emitter);
 
-		const disposable = this._promptsService.registerCustomAgentsProvider(extension, {
-			onDidChangeCustomAgents: emitter.event,
-			provideCustomAgents: async (options: ICustomAgentQueryOptions, token: CancellationToken) => {
-				const agents = await this._proxy.$provideCustomAgents(handle, options, token);
-				if (!agents) {
+		// Track content registrations for this provider so they can be disposed when provider is unregistered
+		const contentRegistrations = new DisposableMap<string, IDisposable>();
+		this._promptFileContentRegistrations.set(handle, contentRegistrations);
+
+		const disposable = this._promptsService.registerPromptFileProvider(extension, type, {
+			onDidChangePromptFiles: emitter.event,
+			providePromptFiles: async (context: IPromptFileContext, token: CancellationToken) => {
+				const contributions = await this._proxy.$providePromptFiles(handle, type, context, token);
+				if (!contributions) {
 					return undefined;
 				}
-				// Convert UriComponents to URI
-				return agents.map(agent => ({
-					...agent,
-					uri: URI.revive(agent.uri)
-				}));
+				// Convert UriComponents to URI and register any inline content
+				return contributions.map(c => {
+					const uri = URI.revive(c.uri);
+					// If this is a virtual prompt with inline content, register it with the store
+					if (c.content && uri.scheme === Schemas.vscodeChatPrompt) {
+						const uriKey = uri.toString();
+						// Dispose any previous registration for this URI before registering new content
+						contentRegistrations.deleteAndDispose(uriKey);
+						contentRegistrations.set(uriKey, this._chatPromptContentStore.registerContent(uri, c.content));
+					}
+					return {
+						uri,
+						isEditable: c.isEditable
+					};
+				});
 			}
 		});
 
-		this._customAgentsProviders.set(handle, disposable);
+		this._promptFileProviders.set(handle, disposable);
 	}
 
-	$unregisterCustomAgentsProvider(handle: number): void {
-		this._customAgentsProviders.deleteAndDispose(handle);
-		this._customAgentsProviderEmitters.deleteAndDispose(handle);
+	$unregisterPromptFileProvider(handle: number): void {
+		this._promptFileProviders.deleteAndDispose(handle);
+		this._promptFileProviderEmitters.deleteAndDispose(handle);
+		this._promptFileContentRegistrations.deleteAndDispose(handle);
 	}
 
-	$onDidChangeCustomAgents(handle: number): void {
-		const emitter = this._customAgentsProviderEmitters.get(handle);
+	$onDidChangePromptFiles(handle: number): void {
+		const emitter = this._promptFileProviderEmitters.get(handle);
 		if (emitter) {
 			emitter.fire();
 		}

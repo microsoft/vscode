@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+
+import { DisposableMap } from '../../../../../base/common/lifecycle.js';
+import { joinPath, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { localize } from '../../../../../nls.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import * as extensionsRegistry from '../../../../services/extensions/common/extensionsRegistry.js';
-import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
-import { joinPath, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { IPromptsService } from './service/promptsService.js';
 import { PromptsType } from './promptTypes.js';
-import { DisposableMap } from '../../../../../base/common/lifecycle.js';
 
 interface IRawChatFileContribution {
 	readonly path: string;
@@ -18,7 +19,12 @@ interface IRawChatFileContribution {
 	readonly description?: string;
 }
 
-type ChatContributionPoint = 'chatPromptFiles' | 'chatInstructions' | 'chatAgents';
+enum ChatContributionPoint {
+	chatInstructions = 'chatInstructions',
+	chatAgents = 'chatAgents',
+	chatPromptFiles = 'chatPromptFiles',
+	chatSkills = 'chatSkills'
+}
 
 function registerChatFilesExtensionPoint(point: ChatContributionPoint) {
 	return extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawChatFileContribution[]>({
@@ -56,15 +62,17 @@ function registerChatFilesExtensionPoint(point: ChatContributionPoint) {
 	});
 }
 
-const epPrompt = registerChatFilesExtensionPoint('chatPromptFiles');
-const epInstructions = registerChatFilesExtensionPoint('chatInstructions');
-const epAgents = registerChatFilesExtensionPoint('chatAgents');
+const epPrompt = registerChatFilesExtensionPoint(ChatContributionPoint.chatPromptFiles);
+const epInstructions = registerChatFilesExtensionPoint(ChatContributionPoint.chatInstructions);
+const epAgents = registerChatFilesExtensionPoint(ChatContributionPoint.chatAgents);
+const epSkills = registerChatFilesExtensionPoint(ChatContributionPoint.chatSkills);
 
 function pointToType(contributionPoint: ChatContributionPoint): PromptsType {
 	switch (contributionPoint) {
-		case 'chatPromptFiles': return PromptsType.prompt;
-		case 'chatInstructions': return PromptsType.instructions;
-		case 'chatAgents': return PromptsType.agent;
+		case ChatContributionPoint.chatPromptFiles: return PromptsType.prompt;
+		case ChatContributionPoint.chatInstructions: return PromptsType.instructions;
+		case ChatContributionPoint.chatAgents: return PromptsType.agent;
+		case ChatContributionPoint.chatSkills: return PromptsType.skill;
 	}
 }
 
@@ -80,9 +88,10 @@ export class ChatPromptFilesExtensionPointHandler implements IWorkbenchContribut
 	constructor(
 		@IPromptsService private readonly promptsService: IPromptsService,
 	) {
-		this.handle(epPrompt, 'chatPromptFiles');
-		this.handle(epInstructions, 'chatInstructions');
-		this.handle(epAgents, 'chatAgents');
+		this.handle(epPrompt, ChatContributionPoint.chatPromptFiles);
+		this.handle(epInstructions, ChatContributionPoint.chatInstructions);
+		this.handle(epAgents, ChatContributionPoint.chatAgents);
+		this.handle(epSkills, ChatContributionPoint.chatSkills);
 	}
 
 	private handle(extensionPoint: extensionsRegistry.IExtensionPoint<IRawChatFileContribution[]>, contributionPoint: ChatContributionPoint) {
