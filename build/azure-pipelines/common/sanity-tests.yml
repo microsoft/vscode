@@ -119,7 +119,6 @@ jobs:
                 curl \
                 dbus \
                 dbus-x11 \
-                libatk-bridge2.0-0 \
                 libatomic1 \
                 libdrm2 \
                 libgbm1 \
@@ -136,6 +135,7 @@ jobs:
                 xz-utils
 
               # apt-get install -y libgtk-3-0t64 || apt-get install -y libgtk-3-0
+              apt-get install -y libatk-bridge2.0-0t64 || apt-get install -y libatk-bridge2.0-0
               apt-get install -y libasound2t64 || apt-get install -y libasound2
 
               # if [ "$(arch)" = "armv7l" ] || [ "$(arch)" = "aarch64" ]; then
@@ -152,7 +152,8 @@ jobs:
               fi
 
               echo "Starting Xvfb on display :99"
-              Xvfb :99 -screen 0 1280x960x24 -ac +extension GLX +render -noreset && export DISPLAY=:99
+              Xvfb :99 -screen 0 1280x960x24 -ac +extension GLX +render -noreset &
+              export DISPLAY=:99
 
               echo "Starting D-Bus session"
               mkdir -p /run/dbus && dbus-daemon --system --fork
@@ -176,7 +177,7 @@ jobs:
                 at-spi2-atk \
                 atk \
                 dbus \
-                dbus-daemon
+                dbus-daemon \
                 dbus-x11 \
                 gtk3 \
                 libdrm \
@@ -197,7 +198,8 @@ jobs:
               dnf install -y nodejs
 
               echo "Starting Xvfb on display :99"
-              Xvfb :99 -screen 0 1280x960x24 -ac +extension GLX +render -noreset && export DISPLAY=:99
+              Xvfb :99 -screen 0 1280x960x24 -ac +extension GLX +render -noreset &
+              export DISPLAY=:99
 
               echo "Starting D-Bus session"
               mkdir -p /run/dbus && dbus-daemon --system --fork
@@ -206,7 +208,7 @@ jobs:
               node /workspace/test/sanity/out/index.js -c "$(BUILD_COMMIT)" -q "$(BUILD_QUALITY)" -t "/workspace/.build/sanity-test-logs/results.xml" -v
           '
         displayName: Run Sanity Tests
-        condition: or(contains('${{ parameters.container }}', 'centos'), contains('${{ parameters.container }}', 'fedora'), contains('${{ parameters.container }}', 'rhel'))
+        condition: or(contains('${{ parameters.container }}', 'centos'), contains('${{ parameters.container }}', 'fedora'), contains('${{ parameters.container }}', 'redhat'))
 
       # OpenSUSE
       - bash: |
@@ -233,7 +235,8 @@ jobs:
                 xorg-x11-server-Xvfb
 
               echo "Starting Xvfb on display :99"
-              Xvfb :99 -screen 0 1280x960x24 -ac +extension GLX +render -noreset && export DISPLAY=:99
+              Xvfb :99 -screen 0 1280x960x24 -ac +extension GLX +render -noreset &
+              export DISPLAY=:99
 
               echo "Starting D-Bus session"
               mkdir -p /run/dbus && dbus-daemon --system --fork
@@ -270,7 +273,8 @@ jobs:
                 xvfb
 
               echo "Starting Xvfb on display :99"
-              Xvfb :99 -screen 0 1280x960x24 -ac +extension GLX +render -noreset && export DISPLAY=:99
+              Xvfb :99 -screen 0 1280x960x24 -ac +extension GLX +render -noreset &
+              export DISPLAY=:99
 
               echo "Starting D-Bus session"
               mkdir -p /run/dbus && dbus-daemon --system --fork
