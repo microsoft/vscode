@@ -152,7 +152,6 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 			pastTenseMessage: new MarkdownString(message ?? localize('todo.updatedList', "Updated todo list")),
 			toolSpecificData: {
 				kind: 'todoList',
-				sessionResource: chatSessionResource,
 				todoList: todoList
 			}
 		};
