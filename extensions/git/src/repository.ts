@@ -1888,12 +1888,12 @@ export class Repository implements Disposable {
 		});
 	}
 
-	private async _getWorktreeIncludeFiles(): Promise<[Set<string>, Set<string>]> {
+	private async _getWorktreeIncludePaths(): Promise<Set<string>> {
 		const config = workspace.getConfiguration('git', Uri.file(this.root));
 		const worktreeIncludeFiles = config.get<string[]>('worktreeIncludeFiles', ['**/node_modules/**']);
 
 		if (worktreeIncludeFiles.length === 0) {
-			return [new Set<string>(), new Set<string>()];
+			return new Set<string>();
 		}
 
 		const filePattern = worktreeIncludeFiles
@@ -1918,46 +1918,47 @@ export class Repository implements Disposable {
 		}
 
 		// Add the folder paths for git ignored files
+		const gitIgnoredPaths = new Set(gitIgnoredFiles);
+
 		for (const filePath of gitIgnoredFiles) {
 			let dir = path.dirname(filePath);
 			while (dir !== this.root && !gitIgnoredFiles.has(dir)) {
-				gitIgnoredFiles.add(dir);
+				gitIgnoredPaths.add(dir);
 				dir = path.dirname(dir);
 			}
 		}
 
-		// Find minimal set of paths (top-most folders and files) to
-		// copy. The goal is to reduce the number of copy operations
-		// needed.
-		const pathsToCopy = new Set<string>();
-
-		for (const filePath of allFiles) {
-			const relativePath = path.relative(this.root, filePath.fsPath);
-			const firstSegment = relativePath.split(path.sep)[0];
-			pathsToCopy.add(path.join(this.root, firstSegment));
-		}
-
-		return [pathsToCopy, gitIgnoredFiles];
+		return gitIgnoredPaths;
 	}
 
 	private async _copyWorktreeIncludeFiles(worktreePath: string): Promise<void> {
-		const [pathsToCopy, gitIgnoredFiles] = await this._getWorktreeIncludeFiles();
-		if (pathsToCopy.size === 0) {
+		const gitIgnoredPaths = await this._getWorktreeIncludePaths();
+		if (gitIgnoredPaths.size === 0) {
 			return;
 		}
 
 		try {
-			// Copy files
+			// Find minimal set of paths (folders and files) to copy.
+			// The goal is to reduce the number of copy operations
+			// needed.
+			const pathsToCopy = new Set<string>();
+			for (const filePath of gitIgnoredPaths) {
+				const relativePath = path.relative(this.root, filePath);
+				const firstSegment = relativePath.split(path.sep)[0];
+				pathsToCopy.add(path.join(this.root, firstSegment));
+			}
+
 			const startTime = Date.now();
 			const limiter = new Limiter<void>(15);
 			const files = Array.from(pathsToCopy);
 
+			// Copy files
 			const results = await Promise.allSettled(files.map(sourceFile =>
 				limiter.queue(async () => {
 					const targetFile = path.join(worktreePath, relativePath(this.root, sourceFile));
 					await fsPromises.mkdir(path.dirname(targetFile), { recursive: true });
 					await fsPromises.cp(sourceFile, targetFile, {
-						filter: src => gitIgnoredFiles.has(src),
+						filter: src => gitIgnoredPaths.has(src),
 						force: true,
 						mode: fs.constants.COPYFILE_FICLONE,
 						recursive: true,
@@ -1971,15 +1972,15 @@ export class Repository implements Disposable {
 			this.logger.info(`[Repository][_copyWorktreeIncludeFiles] Copied ${files.length - failedOperations.length}/${files.length} folder(s)/file(s) to worktree. [${Date.now() - startTime}ms]`);
 
 			if (failedOperations.length > 0) {
-				window.showWarningMessage(l10n.t('Failed to copy {0} files to the worktree.', failedOperations.length));
+				window.showWarningMessage(l10n.t('Failed to copy {0} folder(s)/file(s) to the worktree.', failedOperations.length));
 
-				this.logger.warn(`[Repository][_copyWorktreeIncludeFiles] Failed to copy ${failedOperations.length} files to worktree.`);
+				this.logger.warn(`[Repository][_copyWorktreeIncludeFiles] Failed to copy ${failedOperations.length} folder(s)/file(s) to worktree.`);
 				for (const error of failedOperations) {
 					this.logger.warn(`  - ${(error as PromiseRejectedResult).reason}`);
 				}
 			}
 		} catch (err) {
-			this.logger.warn(`[Repository][_copyWorktreeIncludeFiles] Failed to copy files to worktree: ${err}`);
+			this.logger.warn(`[Repository][_copyWorktreeIncludeFiles] Failed to copy folder(s)/file(s) to worktree: ${err}`);
 		}
 	}
 
