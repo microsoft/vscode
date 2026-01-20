@@ -316,6 +316,10 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			return undefined;
 		}
 
+		if (elapsed < 30000) {
+			return localize('secondsDuration', "now");
+		}
+
 		return getDurationString(elapsed, useFullTimeWords);
 	}
 
@@ -328,7 +332,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			}
 
 			if (!timeLabel) {
-				timeLabel = fromNow(session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created);
+				timeLabel = fromNow(session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created, true);
 			}
 
 			return timeLabel;
