@@ -57,12 +57,23 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, te
 					checked: true,
 					category: DEFAULT_MODEL_PICKER_CATEGORY,
 					class: undefined,
+					description: localize('chat.modelPicker.auto.detail', "Best for your request based on capacity and performance."),
 					tooltip: localize('chat.modelPicker.auto', "Auto"),
 					label: localize('chat.modelPicker.auto', "Auto"),
+					hover: { content: localize('chat.modelPicker.auto.description', "Automatically selects the best model for your task based on context and complexity.") },
 					run: () => { }
 				} satisfies IActionWidgetDropdownAction];
 			}
 			return models.map(model => {
+				// Build hover content combining tooltip and rate info
+				const hoverParts: string[] = [];
+				if (model.metadata.tooltip) {
+					hoverParts.push(model.metadata.tooltip);
+				}
+				if (model.metadata.detail) {
+					hoverParts.push(localize('chat.modelPicker.rateDescription', "Rate is counted at {0}.", model.metadata.detail));
+				}
+				const hoverContent = hoverParts.length > 0 ? hoverParts.join(' ') : undefined;
 				return {
 					id: model.metadata.id,
 					enabled: true,
@@ -71,7 +82,8 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, te
 					category: model.metadata.modelPickerCategory || DEFAULT_MODEL_PICKER_CATEGORY,
 					class: undefined,
 					description: model.metadata.detail,
-					tooltip: model.metadata.tooltip ?? model.metadata.name,
+					tooltip: hoverContent ? '' : model.metadata.name,
+					hover: hoverContent ? { content: hoverContent } : undefined,
 					label: model.metadata.name,
 					run: () => {
 						const previousModel = delegate.getCurrentModel();
