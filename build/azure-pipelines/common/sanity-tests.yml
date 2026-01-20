@@ -134,14 +134,18 @@ jobs:
                 xvfb \
                 xz-utils
 
-              # apt-get install -y libgtk-3-0t64 || apt-get install -y libgtk-3-0
+              apt-get install -y libcairo2 || true
+              apt-get install -y libpango-1.0-0 || true
+              apt-get install -y libgtk-4-1 || true
+
+              apt-get install -y libgtk-3-0t64 || apt-get install -y libgtk-3-0
               apt-get install -y libatk-bridge2.0-0t64 || apt-get install -y libatk-bridge2.0-0
               apt-get install -y libasound2t64 || apt-get install -y libasound2
 
-              # if [ "$(arch)" = "armv7l" ] || [ "$(arch)" = "aarch64" ]; then
-              #   echo "Installing libatomic1 for ARM"
-              #   apt-get install -y libatomic1
-              # fi
+              if [ "$(arch)" = "armv7l" ] || [ "$(arch)" = "aarch64" ]; then
+                echo "Installing libatomic1 for ARM"
+                apt-get install -y libatomic1
+              fi
 
               echo "Installing Node.js 22"
               if [ "$(arch)" = "x86_64" ] || [ "$(arch)" = "aarch64" ]; then
@@ -225,19 +229,21 @@ jobs:
               set -e
               zypper install -y \
                 alsa \
+                chromium \
                 dbus-1 \
                 dbus-1-daemon \
                 dbus-1-x11 \
                 gzip \
                 libgbm1 \
                 libgtk-3-0 \
-                mozilla-nss \
                 nodejs22 \
                 sudo \
                 tar \
                 xdg-utils \
                 xorg-x11 \
                 xorg-x11-server-Xvfb
+
+              # mozilla-nss \
 
               echo "Starting Xvfb on display :99"
               Xvfb :99 -screen 0 1280x960x24 -ac +extension GLX +render -noreset &

@@ -37,7 +37,7 @@ type Capability =
  */
 export class TestContext {
 	private static readonly authenticodeInclude = /^.+\.(exe|dll|sys|cab|cat|msi|jar|ocx|ps1|psm1|psd1|ps1xml|pssc1)$/i;
-	//private static readonly codesignExclude = /node_modules\/(@parcel\/watcher\/build\/Release\/watcher\.node|@vscode\/deviceid\/build\/Release\/windows\.node|@vscode\/ripgrep\/bin\/rg|@vscode\/spdlog\/build\/Release\/spdlog.node|kerberos\/build\/Release\/kerberos.node|@vscode\/native-watchdog\/build\/Release\/watchdog\.node|node-pty\/build\/Release\/(pty\.node|spawn-helper)|vsda\/build\/Release\/vsda\.node|native-watchdog\/build\/Release\/watchdog\.node)$/;
+	private static readonly codesignExclude = /node_modules\/(@parcel\/watcher\/build\/Release\/watcher\.node|@vscode\/deviceid\/build\/Release\/windows\.node|@vscode\/ripgrep\/bin\/rg|@vscode\/spdlog\/build\/Release\/spdlog.node|kerberos\/build\/Release\/kerberos.node|@vscode\/native-watchdog\/build\/Release\/watchdog\.node|node-pty\/build\/Release\/(pty\.node|spawn-helper)|vsda\/build\/Release\/vsda\.node|native-watchdog\/build\/Release\/watchdog\.node)$/;
 
 	private readonly tempDirs = new Set<string>();
 	private _osTempDir?: string;
@@ -397,8 +397,7 @@ export class TestContext {
 		this.log(`Validating codesign signature for ${filePath}`);
 
 		// TODO: Use recursive validation of the command
-		// --verbose will print more info
-		const result = this.run('codesign', '--verify', '--deep', '--strict', filePath);
+		const result = this.run('codesign', '--verify', '--deep', '--strict', '--verbose', filePath);
 		if (result.error !== undefined) {
 			this.error(`Failed to run codesign: ${result.error.message}`);
 		}
@@ -421,9 +420,9 @@ export class TestContext {
 		const files = fs.readdirSync(dir, { withFileTypes: true });
 		for (const file of files) {
 			const filePath = path.join(dir, file.name);
-			/*if (TestContext.codesignExclude.test(filePath)) {
+			if (TestContext.codesignExclude.test(filePath)) {
 				this.log(`Skipping codesign validation for excluded file: ${filePath}`);
-			} else*/ if (file.isDirectory()) {
+			} else if (file.isDirectory()) {
 				// For .app bundles, validate the bundle itself, not its contents
 				if (file.name.endsWith('.app') || file.name.endsWith('.framework')) {
 					this.validateCodesignSignature(filePath);

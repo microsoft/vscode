@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import minimist from 'minimist';
+import os from 'os';
 import { setup as setupCliTests } from './cli.test.js';
 import { TestContext } from './context.js';
 import { setup as setupDesktopTests } from './desktop.test.js';
@@ -34,6 +35,10 @@ const context = new TestContext({
 	headlessBrowser: options.headless,
 	downloadOnly: !options['runtime-check'],
 });
+
+context.log('Arguments: ' + JSON.stringify(options));
+context.log(`Platform: ${os.platform()}, Arch: ${os.arch()}`);
+context.log('Capabilities: ' + Array.from(context.capabilities).join(', '));
 
 beforeEach(function () {
 	context.consoleOutputs = [];
