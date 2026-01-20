@@ -42,6 +42,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { LayoutSettings } from '../../../../../services/layout/browser/layoutService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
+import { IAgentsQuickChatService } from '../agentsQuickChatService.js';
 
 // Action IDs
 const QUICK_CHAT_ACTION_ID = 'workbench.action.quickchat.toggle';
@@ -101,6 +102,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IAgentsQuickChatService private readonly agentsQuickChatService: IAgentsQuickChatService,
 	) {
 		super(undefined, action, options);
 
@@ -819,10 +821,12 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 	 * Handle pill click - opens the displayed session if showing progress, otherwise executes default action
 	 */
 	private _handlePillClick(): void {
+		console.log('[AgentsQuickChat] _handlePillClick called', { hasDisplayedSession: !!this._displayedSession });
 		if (this._displayedSession) {
 			this.instantiationService.invokeFunction(openSession, this._displayedSession);
 		} else {
-			this.commandService.executeCommand(QUICK_CHAT_ACTION_ID);
+			console.log('[AgentsQuickChat] Calling agentsQuickChatService.toggle()');
+			this.agentsQuickChatService.toggle();
 		}
 	}
 

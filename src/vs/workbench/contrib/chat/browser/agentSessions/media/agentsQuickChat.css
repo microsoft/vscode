@@ -1,0 +1,176 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Main Container */
+.agents-quick-chat {
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+	max-width: 700px;
+	min-width: 500px;
+	background-color: var(--vscode-quickInput-background);
+	color: var(--vscode-quickInput-foreground);
+	border-radius: 6px;
+	overflow: hidden;
+}
+
+/* Header */
+.agents-quick-chat-header {
+	display: flex;
+	align-items: center;
+	padding: 8px 12px;
+	gap: 8px;
+	border-bottom: 1px solid var(--vscode-widget-border);
+}
+
+.agents-quick-chat-header-spacer {
+	flex: 1;
+}
+
+/* Navigation Buttons */
+.agents-quick-chat-nav {
+	display: flex;
+	gap: 4px;
+}
+
+.agents-quick-chat-nav-button {
+	background: transparent;
+	border: none;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	padding: 4px 8px;
+	border-radius: 4px;
+	font-size: 14px;
+	opacity: 0.5;
+}
+
+.agents-quick-chat-nav-button:disabled {
+	opacity: 0.3;
+	cursor: default;
+}
+
+.agents-quick-chat-nav-button:not(:disabled):hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+/* Close Button */
+.agents-quick-chat-close {
+	background: transparent;
+	border: none;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	padding: 4px 8px;
+	border-radius: 4px;
+	font-size: 18px;
+	line-height: 1;
+	opacity: 0.7;
+}
+
+.agents-quick-chat-close:hover {
+	opacity: 1;
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+/* Input Area */
+.agents-quick-chat-input-area {
+	padding: 8px 16px 12px;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+/* Hide ChatWidget conversation/welcome areas - we only want the input */
+.agents-quick-chat .interactive-list {
+	display: none !important;
+}
+
+.agents-quick-chat .interactive-session-welcome {
+	display: none !important;
+}
+
+.agents-quick-chat .chat-welcome-view {
+	display: none !important;
+}
+
+/* Hide Add Context area - not useful in quick overlay */
+.agents-quick-chat .chat-attachedContext,
+.agents-quick-chat .chat-attached-context-editor,
+.agents-quick-chat .chat-implicit-context {
+	display: none !important;
+}
+
+.agents-quick-chat .interactive-session {
+	height: auto !important;
+	min-height: auto !important;
+	padding: 0 !important;
+}
+
+/* Make the input part fill properly */
+.agents-quick-chat .interactive-input-part {
+	position: relative !important;
+	max-height: none !important;
+	padding: 0 !important;
+	margin: 0 !important;
+}
+
+.agents-quick-chat .interactive-input-and-execute-toolbar {
+	border-radius: 6px;
+	margin: 0 !important;
+}
+
+/* Ensure the input editor has proper minimum height */
+.agents-quick-chat .interactive-input-editor {
+	min-height: 24px !important;
+}
+
+/* Style the chat input part toolbar */
+.agents-quick-chat .chat-input-part-toolbar {
+	padding: 4px 0;
+}
+
+/* Content Area */
+.agents-quick-chat-content {
+	flex: 1;
+	overflow: hidden;
+	border-top: 1px solid var(--vscode-widget-border);
+}
+
+/* Sessions Container */
+.agents-quick-chat-sessions {
+	display: flex;
+	flex-direction: column;
+	max-height: 300px;
+	overflow-y: auto;
+}
+
+.agents-quick-chat-section-header {
+	padding: 12px 16px 8px;
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	color: var(--vscode-foreground);
+	opacity: 0.7;
+	letter-spacing: 0.5px;
+}
+
+.agents-quick-chat-sessions-list {
+	padding: 0 8px 8px;
+	color: var(--vscode-descriptionForeground);
+	font-size: 13px;
+	min-height: 100px;
+}
+
+.agents-quick-chat-show-more {
+	padding: 12px;
+	text-align: center;
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+	font-size: 12px;
+	border-top: 1px solid var(--vscode-widget-border);
+}
+
+.agents-quick-chat-show-more:hover {
+	text-decoration: underline;
+}
