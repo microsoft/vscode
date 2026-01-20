@@ -466,6 +466,27 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: CommentCommandId.Hide,
+	weight: KeybindingWeight.EditorContrib,
+	primary: KeyMod.CtrlCmd | KeyCode.Escape,
+	win: { primary: KeyMod.Alt | KeyCode.Backspace },
+	when: ContextKeyExpr.and(EditorContextKeys.focus, CommentContextKeys.commentWidgetVisible),
+	handler: async (accessor, args) => {
+		const activeCodeEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
+		const keybindingService = accessor.get(IKeybindingService);
+		// Unfortunate, but collapsing the comment thread might cause a dialog to show
+		// If we don't wait for the key up here, then the dialog will consume it and immediately close
+		await keybindingService.enableKeybindingHoldMode(CommentCommandId.Hide);
+		if (activeCodeEditor) {
+			const controller = CommentController.get(activeCodeEditor);
+			if (controller) {
+				await controller.collapseVisibleComments();
+			}
+		}
+	}
+});
+
 export function getActiveEditor(accessor: ServicesAccessor): IActiveCodeEditor | null {
 	let activeTextEditorControl = accessor.get(IEditorService).activeTextEditorControl;
 
