@@ -57,6 +57,12 @@ export interface ISessionTypePickerDelegate {
 	 * and update pickers accordingly.
 	 */
 	onDidChangeActiveSessionProvider?: Event<AgentSessionProviders>;
+	/**
+	 * Optional visibility check for session providers.
+	 * When provided, allows the delegate to control which session types are visible in the picker.
+	 * This can be used to hide certain providers in specific contexts (e.g., hide Local in empty workspace).
+	 */
+	isSessionTypeVisible?(provider: AgentSessionProviders): boolean;
 }
 
 export const IChatWidgetService = createDecorator<IChatWidgetService>('chatWidgetService');
