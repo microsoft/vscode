@@ -275,7 +275,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			assert.strictEqual(result.mcpServerConfiguration.config.type, McpServerType.LOCAL);
 			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
 				assert.strictEqual(result.mcpServerConfiguration.config.command, 'uvx');
-				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, ['weather-mcp-server==0.5.0']);
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, ['weather-mcp-server@0.5.0']);
 				assert.deepStrictEqual(result.mcpServerConfiguration.config.env, {
 					'WEATHER_API_KEY': 'test-key',
 					'WEATHER_UNITS': 'celsius'
@@ -301,7 +301,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 				assert.strictEqual(result.mcpServerConfiguration.config.command, 'uvx');
 				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, [
 					'--index-url', 'https://custom-pypi.example.com/simple',
-					'internal-python-server==1.2.3'
+					'internal-python-server@1.2.3'
 				]);
 			}
 		});
@@ -894,7 +894,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			assert.strictEqual(result.mcpServerConfiguration.config.type, McpServerType.LOCAL);
 			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
 				assert.strictEqual(result.mcpServerConfiguration.config.command, 'uvx'); // Python command since that's the package type
-				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, ['python-server==1.0.0']);
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, ['python-server@1.0.0']);
 			}
 		});
 
