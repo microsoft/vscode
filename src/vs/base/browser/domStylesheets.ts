@@ -115,8 +115,16 @@ function getDynamicStyleSheetRules(style: HTMLStyleElement): CSSRuleList {
 	if (style.sheet) {
 		return style.sheet.cssRules;
 	}
-	return { length: 0 } as CSSRuleList;
+
+	const emptyRules: CSSRule[] = [];
+
+	return {
+		length: 0,
+		item: () => null,
+		[Symbol.iterator]: () => emptyRules.values()
+	};
 }
+
 
 
 
