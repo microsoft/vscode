@@ -1127,6 +1127,11 @@ export class Repository implements Disposable {
 			return undefined;
 		}
 
+		// Since we are inspecting the resource groups
+		// we have to ensure that the repository state
+		// is up to date
+		// await this.status();
+
 		// Ignore path that is inside a merge group
 		if (this.mergeGroup.resourceStates.some(r => pathEquals(r.resourceUri.fsPath, uri.fsPath))) {
 			this.logger.trace(`[Repository][provideOriginalResource] Resource is part of a merge group: ${uri.toString()}`);
@@ -3294,6 +3299,11 @@ export class StagedResourceQuickDiffProvider implements QuickDiffProvider {
 			this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Resource is a symbolic link: ${uri.toString()}`);
 			return undefined;
 		}
+
+		// Since we are inspecting the resource groups
+		// we have to ensure that the repository state
+		// is up to date
+		// await this._repository.status();
 
 		// Ignore resources that are not in the index group
 		if (!this._repository.indexGroup.resourceStates.some(r => pathEquals(r.resourceUri.fsPath, uri.fsPath))) {
