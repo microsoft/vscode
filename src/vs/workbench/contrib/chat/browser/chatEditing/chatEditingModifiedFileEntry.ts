@@ -131,12 +131,12 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 		const autoAcceptRaw = observableConfigValue('chat.editing.autoAcceptDelay', 0, configService);
 		this._autoAcceptTimeout = derived(r => {
 			const value = autoAcceptRaw.read(r);
-			return clamp(value, 0, 100);
+			return clamp(value, -1, 100);
 		});
 		this.reviewMode = derived(r => {
 			const configuredValue = this._autoAcceptTimeout.read(r);
 			const tempValue = this._reviewModeTempObs.read(r);
-			return tempValue ?? configuredValue === 0;
+			return tempValue ?? configuredValue === -1;
 		});
 
 		this._store.add(toDisposable(() => this._lastModifyingResponseObs.set(undefined, undefined)));
