@@ -22,6 +22,7 @@ const PORT = parseInt(getArg('port', '8080'), 10);
 let ZIP_PATH = getArg('zip');
 let VERSION = getArg('version', '99.0.0');
 let COMMIT = getArg('commit', crypto.randomBytes(20).toString('hex'));
+let REDIRECT_URL = null; // If set, redirect to this base URL
 
 // Compute SHA256 of ZIP file
 function computeSha256(filePath) {
@@ -36,10 +37,14 @@ let sha256hash = computeSha256(ZIP_PATH);
 
 function printStatus() {
 	console.log('\nCurrent state:');
-	console.log(`  ZIP:     ${ZIP_PATH || '(not set - no update available)'}`);
-	console.log(`  Version: ${VERSION}`);
-	console.log(`  Commit:  ${COMMIT}`);
-	console.log(`  SHA256:  ${sha256hash || '(none)'}`);
+	if (REDIRECT_URL) {
+		console.log(`  Mode:    REDIRECT → ${REDIRECT_URL}`);
+	} else {
+		console.log(`  ZIP:     ${ZIP_PATH || '(not set - no update available)'}`);
+		console.log(`  Version: ${VERSION}`);
+		console.log(`  Commit:  ${COMMIT}`);
+		console.log(`  SHA256:  ${sha256hash || '(none)'}`);
+	}
 	console.log('');
 }
 
@@ -52,6 +57,14 @@ const server = http.createServer((req, res) => {
 	if (updateMatch && req.method === 'GET') {
 		const [, platform, quality, currentCommit] = updateMatch;
 		console.log(`  Platform: ${platform}, Quality: ${quality}, Current commit: ${currentCommit}`);
+
+		if (REDIRECT_URL) {
+			const redirectTo = `${REDIRECT_URL}/api/update/${platform}/${quality}/${currentCommit}`;
+			console.log(`  → 302 Redirect to ${redirectTo}`);
+			res.writeHead(302, { 'Location': redirectTo });
+			res.end();
+			return;
+		}
 
 		if (!ZIP_PATH) {
 			console.log('  → 204 No Content (no ZIP configured)');
@@ -127,7 +140,7 @@ function startRepl() {
 		prompt: '> '
 	});
 
-	console.log('Commands: status, set <zip> <version> [commit], none, quit');
+	console.log('Commands: status, set <zip> <version> [commit], redirect [url], none, quit');
 	rl.prompt();
 
 	rl.on('line', (line) => {
@@ -158,10 +171,19 @@ function startRepl() {
 				}
 				break;
 
+			case 'redirect':
+			case 'r':
+				REDIRECT_URL = parts[1] || 'https://update.code.visualstudio.com';
+				ZIP_PATH = null;
+				sha256hash = null;
+				console.log(`Redirecting to: ${REDIRECT_URL}`);
+				break;
+
 			case 'none':
 			case 'clear':
 				ZIP_PATH = null;
 				sha256hash = null;
+				REDIRECT_URL = null;
 				console.log('Update cleared - no update will be available');
 				break;
 
@@ -176,7 +198,7 @@ function startRepl() {
 				break;
 
 			default:
-				console.log('Commands: status, set <zip> <version> [commit], none, quit');
+				console.log('Commands: status, set <zip> <version> [commit], redirect [url], none, quit');
 		}
 
 		rl.prompt();
