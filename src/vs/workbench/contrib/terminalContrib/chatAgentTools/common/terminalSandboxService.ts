@@ -47,7 +47,8 @@ export class TerminalSandboxService implements ITerminalSandboxService {
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 	) {
 		const appRoot = dirname(FileAccess.asFileUri('').fsPath);
-		this._srtPath = join(appRoot, 'node_modules', '.bin', 'srt');
+		// srt path is dist/cli.js inside the sandbox-runtime package.
+		this._srtPath = join(appRoot, 'node_modules', '@anthropic-ai', 'sandbox-runtime', 'dist', 'cli.js');
 		this._sandboxSettingsId = generateUuid();
 		this._initTempDir();
 		this._remoteAgentService.getEnvironment().then(remoteEnv => this._os = remoteEnv?.os ?? OS);

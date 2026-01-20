@@ -567,6 +567,12 @@ configurationRegistry.registerConfiguration({
 				}
 			}
 		},
+		[ChatConfiguration.EditModeHidden]: {
+			type: 'boolean',
+			description: nls.localize('chat.editMode.hidden', "When enabled, hides the Edit mode from the chat mode picker."),
+			default: false,
+			tags: ['experimental'],
+		},
 		[ChatConfiguration.EnableMath]: {
 			type: 'boolean',
 			description: nls.localize('chat.mathEnabled.description', "Enable math rendering in chat responses using KaTeX."),
@@ -879,6 +885,9 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.subagentTool.customAgents', "Whether the runSubagent tool is able to use custom agents. When enabled, the tool can take the name of a custom agent, but it must be given the exact name of the agent."),
 			default: false,
 			tags: ['experimental'],
+			experiment: {
+				mode: 'auto'
+			}
 		}
 	}
 });

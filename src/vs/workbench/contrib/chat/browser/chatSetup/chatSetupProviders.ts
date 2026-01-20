@@ -52,6 +52,7 @@ import { IOutputService } from '../../../../services/output/common/output.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IWorkbenchIssueService } from '../../../issue/common/issue.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IHostService } from '../../../../services/host/browser/host.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -239,18 +240,13 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 
 		// Retry chat command
 		this._register(CommandsRegistry.registerCommand(SetupAgent.CHAT_RETRY_COMMAND_ID, async (accessor, sessionResource: URI) => {
-			const chatService = accessor.get(IChatService);
+			const hostService = accessor.get(IHostService);
 			const chatWidgetService = accessor.get(IChatWidgetService);
 
 			const widget = chatWidgetService.getWidgetBySessionResource(sessionResource);
-			const lastRequest = widget?.viewModel?.model.getRequests().at(-1);
-			if (lastRequest) {
-				await chatService.resendRequest(lastRequest, {
-					...widget?.getModeRequestOptions(),
-					modeInfo: widget?.input.currentModeInfo,
-					userSelectedModelId: widget?.input.currentLanguageModel
-				});
-			}
+			await widget?.clear();
+
+			hostService.reload();
 		}));
 	}
 
@@ -344,8 +340,17 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 
 		const whenAgentActivated = this.whenAgentActivated(chatService).then(() => agentActivated = true);
 		const whenAgentReady = this.whenAgentReady(chatAgentService, modeInfo?.kind)?.then(() => agentReady = true);
+		if (!whenAgentReady) {
+			agentReady = true;
+		}
 		const whenLanguageModelReady = this.whenLanguageModelReady(languageModelsService, requestModel.modelId)?.then(() => languageModelReady = true);
+		if (!whenLanguageModelReady) {
+			languageModelReady = true;
+		}
 		const whenToolsModelReady = this.whenToolsModelReady(languageModelToolsService, requestModel)?.then(() => toolsModelReady = true);
+		if (!whenToolsModelReady) {
+			toolsModelReady = true;
+		}
 
 		if (whenLanguageModelReady instanceof Promise || whenAgentReady instanceof Promise || whenToolsModelReady instanceof Promise) {
 			const timeoutHandle = setTimeout(() => {
@@ -369,9 +374,9 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 				if (ready === 'timedout') {
 					let warningMessage: string;
 					if (this.chatEntitlementService.anonymous) {
-						warningMessage = localize('chatTookLongWarningAnonymous', "Chat took too long to get ready. Please ensure that the extension `{0}` is installed and enabled.", defaultChat.chatExtensionId);
+						warningMessage = localize('chatTookLongWarningAnonymous', "Chat took too long to get ready. Please ensure that the extension `{0}` is installed and enabled. Click restart to try again if this issue persists.", defaultChat.chatExtensionId);
 					} else {
-						warningMessage = localize('chatTookLongWarning', "Chat took too long to get ready. Please ensure you are signed in to {0} and that the extension `{1}` is installed and enabled.", defaultChat.provider.default.name, defaultChat.chatExtensionId);
+						warningMessage = localize('chatTookLongWarning', "Chat took too long to get ready. Please ensure you are signed in to {0} and that the extension `{1}` is installed and enabled. Click restart to try again if this issue persists.", defaultChat.provider.default.name, defaultChat.chatExtensionId);
 					}
 
 					this.logService.warn(warningMessage, {
@@ -417,7 +422,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 						kind: 'command',
 						command: {
 							id: SetupAgent.CHAT_RETRY_COMMAND_ID,
-							title: localize('retryChat', "Retry"),
+							title: localize('retryChat', "Restart"),
 							arguments: [requestModel.session.sessionResource]
 						},
 						additionalCommands: [{

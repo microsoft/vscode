@@ -1398,7 +1398,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 	}
 
-	private handleSubagentToolGrouping(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, part: ChatToolInvocationPart, subagentId: string, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): ChatSubagentContentPart {
+	private handleSubagentToolGrouping(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, subagentId: string, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate, codeBlockStartIndex: number): ChatSubagentContentPart {
 		// Finalize any active thinking part since subagent tools have their own grouping
 		this.finalizeCurrentThinkingPart(context, templateData);
 
@@ -1407,20 +1407,29 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			// Append to existing subagent part with matching ID
 			// But skip the runSubagent tool itself - we only want child tools
 			if (toolInvocation.toolId !== RunSubagentTool.Id) {
-				lastSubagent.appendItem(part.domNode!, toolInvocation);
+				lastSubagent.appendToolInvocation(toolInvocation, codeBlockStartIndex);
 			}
-			lastSubagent.addDisposable(part);
 			return lastSubagent;
 		}
 
 		// Create a new subagent part - it will extract description/agentName/prompt and watch for completion
-		const subagentPart = this.instantiationService.createInstance(ChatSubagentContentPart, subagentId, toolInvocation, context, this.chatContentMarkdownRenderer);
+		const subagentPart = this.instantiationService.createInstance(
+			ChatSubagentContentPart,
+			subagentId,
+			toolInvocation,
+			context,
+			this.chatContentMarkdownRenderer,
+			this._contentReferencesListPool,
+			this._toolEditorPool,
+			() => this._currentLayoutWidth.get(),
+			this._toolInvocationCodeBlockCollection,
+			this._announcedToolProgressKeys,
+		);
 		// Don't append the runSubagent tool itself - its description is already shown in the title
 		// Only append child tools (those with subAgentInvocationId)
 		if (toolInvocation.toolId !== RunSubagentTool.Id) {
-			subagentPart.appendItem(part.domNode!, toolInvocation);
+			subagentPart.appendToolInvocation(toolInvocation, codeBlockStartIndex);
 		}
-		subagentPart.addDisposable(part);
 		subagentPart.addDisposable(subagentPart.onDidChangeHeight(() => {
 			this.updateItemHeight(templateData);
 		}));
@@ -1678,7 +1687,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		// Factory that creates the tool invocation part with all necessary setup
 		let lazilyCreatedPart: ChatToolInvocationPart | undefined = undefined;
-		const createToolPart = (): { domNode: HTMLElement; disposable: ChatToolInvocationPart } => {
+		const createToolPart = (): { domNode: HTMLElement; part: ChatToolInvocationPart } => {
 			lazilyCreatedPart = this.instantiationService.createInstance(ChatToolInvocationPart, toolInvocation, context, this.chatContentMarkdownRenderer, this._contentReferencesListPool, this._toolEditorPool, () => this._currentLayoutWidth.get(), this._toolInvocationCodeBlockCollection, this._announcedToolProgressKeys, codeBlockStartIndex);
 			lazilyCreatedPart.addDisposable(lazilyCreatedPart.onDidChangeHeight(() => {
 				this.updateItemHeight(templateData);
@@ -1706,7 +1715,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				}));
 			}
 
-			return { domNode: lazilyCreatedPart.domNode, disposable: lazilyCreatedPart };
+			return { domNode: lazilyCreatedPart.domNode, part: lazilyCreatedPart };
 		};
 
 		// handling for when we want to put tool invocations inside a thinking part
@@ -1744,15 +1753,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}
 
-		// For cases not handled above (subagent grouping, no thinking part, etc.), create the part now
-		const { domNode, disposable: part } = createToolPart();
-
+		// Check for subagent grouping before creating tool part - subagent part handles lazy creation
 		const subagentId = toolInvocation.toolId === RunSubagentTool.Id ? toolInvocation.toolCallId : toolInvocation.subAgentInvocationId;
-
-		// Handle subagent tool grouping - group them together similar to thinking blocks
-		if (subagentId && isResponseVM(context.element) && domNode && toolInvocation.presentation !== 'hidden') {
-			return this.handleSubagentToolGrouping(toolInvocation, part, subagentId, context, templateData);
+		if (subagentId && isResponseVM(context.element) && toolInvocation.presentation !== 'hidden') {
+			return this.handleSubagentToolGrouping(toolInvocation, subagentId, context, templateData, codeBlockStartIndex);
 		}
+
+		// For cases not handled above (no thinking part, no subagent, etc.), create the part now
+		const { part } = createToolPart();
 
 		return part;
 	}

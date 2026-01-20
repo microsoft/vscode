@@ -677,6 +677,9 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				// Mark as no longer being modified
 				await entry.acceptStreamingEditsEnd();
 
+				// Accept the changes
+				await entry.accept();
+
 				// Clear external edit mode
 				entry.stopExternalEdit();
 			}

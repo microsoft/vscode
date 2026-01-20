@@ -17,6 +17,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickTreeItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ExtensionEditorTab, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { McpCommandIds } from '../../../mcp/common/mcpCommandIds.js';
@@ -190,6 +191,7 @@ function createToolSetTreeItem(toolset: ToolSet, checked: boolean, editorService
 export async function showToolsPicker(
 	accessor: ServicesAccessor,
 	placeHolder: string,
+	source: string,
 	description?: string,
 	getToolsEntries?: () => ReadonlyMap<ToolSet | IToolData, boolean>,
 	token?: CancellationToken
@@ -203,6 +205,7 @@ export async function showToolsPicker(
 	const editorService = accessor.get(IEditorService);
 	const mcpWorkbenchService = accessor.get(IMcpWorkbenchService);
 	const toolsService = accessor.get(ILanguageModelToolsService);
+	const telemetryService = accessor.get(ITelemetryService);
 	const toolLimit = accessor.get(IContextKeyService).getContextKeyValue<number>(ChatContextKeys.chatToolGroupingThreshold.key);
 
 	const mcpServerByTool = new Map<string, IMcpServer>();
@@ -593,11 +596,45 @@ export async function showToolsPicker(
 		}));
 	}
 
+	// Capture initial state for telemetry comparison
+	const initialStateString = serializeToolsState(collectResults());
+
 	treePicker.show();
 
 	await Promise.race([Event.toPromise(Event.any(treePicker.onDidHide, didAcceptFinalItem.event), store)]);
 
+	// Send telemetry whether the tool selection changed
+	sendDidChangeEvent(source, telemetryService, initialStateString !== serializeToolsState(collectResults()));
+
 	store.dispose();
 
 	return didAccept ? collectResults() : undefined;
+}
+
+function serializeToolsState(state: ReadonlyMap<IToolData | ToolSet, boolean>): string {
+	const entries: [string, boolean][] = [];
+	state.forEach((value, key) => {
+		entries.push([key.id, value]);
+	});
+	entries.sort((a, b) => a[0].localeCompare(b[0]));
+	return JSON.stringify(entries);
+}
+
+function sendDidChangeEvent(source: string, telemetryService: ITelemetryService, changed: boolean): void {
+	type ToolPickerClosedEvent = {
+		changed: boolean;
+		source: string;
+	};
+
+	type ToolPickerClosedClassification = {
+		changed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user changed the tool selection from the initial state.' };
+		source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source of the tool picker event.' };
+		owner: 'benibenj';
+		comment: 'Tracks whether users modify tool selection in the tool picker.';
+	};
+
+	telemetryService.publicLog2<ToolPickerClosedEvent, ToolPickerClosedClassification>('chatToolPickerClosed', {
+		source,
+		changed,
+	});
 }

@@ -98,6 +98,11 @@ declare module 'vscode' {
 		 * Pass this to tool invocations when calling tools from within a subagent context.
 		 */
 		readonly subAgentInvocationId?: string;
+
+		/**
+		 * Display name of the subagent that is invoking this request.
+		 */
+		readonly subAgentName?: string;
 	}
 
 	export enum ChatRequestEditedFileEventKind {

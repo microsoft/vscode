@@ -123,7 +123,7 @@ export class ChatContextUsageWidget extends Disposable {
 		this._currentModel = model;
 		this._modelListener.clear();
 
-		if (model) {
+		if (model && !model.contributedChatSession) {
 			this._modelListener.value = model.onDidChange(() => {
 				this._updateScheduler.schedule();
 			});

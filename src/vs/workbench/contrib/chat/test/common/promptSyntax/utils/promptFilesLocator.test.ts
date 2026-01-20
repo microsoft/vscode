@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
 import { match } from '../../../../../../../base/common/glob.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { basename, relativePath } from '../../../../../../../base/common/resources.js';
@@ -25,7 +25,7 @@ import { IPathService } from '../../../../../../services/path/common/pathService
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
 import { PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
 import { isValidGlob, isValidSkillPath, PromptFilesLocator } from '../../../../common/promptSyntax/utils/promptFilesLocator.js';
-import { IMockFolder, MockFilesystem } from '../testUtils/mockFilesystem.js';
+import { IMockFileEntry, IMockFolder, MockFilesystem } from '../testUtils/mockFilesystem.js';
 import { mockService } from './mock.js';
 import { TestUserDataProfileService } from '../../../../../../test/common/workbenchTestServices.js';
 import { PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
@@ -34,23 +34,20 @@ import { runWithFakedTimers } from '../../../../../../../base/test/common/timeTr
 /**
  * Mocked instance of {@link IConfigurationService}.
  */
-function mockConfigService<T>(value: T): IConfigurationService {
+function mockConfigService(configValues: Record<string, unknown>): IConfigurationService {
 	return mockService<IConfigurationService>({
 		getValue(key?: string | IConfigurationOverrides) {
-			assert(
-				typeof key === 'string',
-				`Expected string configuration key, got '${typeof key}'.`,
-			);
-			if ('explorer.excludeGitIgnore' === key) {
-				return false;
+			// Handle object configuration overrides (e.g., for file exclude patterns)
+			if (typeof key === 'object') {
+				return {};
 			}
-
-			assert(
-				[PromptsConfig.PROMPT_LOCATIONS_KEY, PromptsConfig.INSTRUCTIONS_LOCATION_KEY, PromptsConfig.MODE_LOCATION_KEY, PromptsConfig.SKILLS_LOCATION_KEY].includes(key),
-				`Unsupported configuration key '${key}'.`,
-			);
-
-			return value;
+			if (typeof key !== 'string') {
+				assert.fail(`Unsupported configuration key '${key}'.`);
+			}
+			if (configValues.hasOwnProperty(key)) {
+				return configValues[key];
+			}
+			assert.fail(`Unsupported configuration key '${key}'.`);
 		},
 	});
 }
@@ -79,10 +76,6 @@ function testT(name: string, fn: () => Promise<void>): Mocha.Test {
 suite('PromptFilesLocator', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	// if (isWindows) {
-	// 	return;
-	// }
-
 	let instantiationService: TestInstantiationService;
 	setup(async () => {
 		instantiationService = disposables.add(new TestInstantiationService());
@@ -104,7 +97,15 @@ suite('PromptFilesLocator', () => {
 		const mockFs = instantiationService.createInstance(MockFilesystem, filesystem);
 		await mockFs.mock();
 
-		instantiationService.stub(IConfigurationService, mockConfigService(configValue));
+		instantiationService.stub(IConfigurationService, mockConfigService({
+			'explorer.excludeGitIgnore': false,
+			'files.exclude': {},
+			'search.exclude': {},
+			[PromptsConfig.PROMPT_LOCATIONS_KEY]: configValue,
+			[PromptsConfig.INSTRUCTIONS_LOCATION_KEY]: configValue,
+			[PromptsConfig.MODE_LOCATION_KEY]: configValue,
+			[PromptsConfig.SKILLS_LOCATION_KEY]: configValue,
+		}));
 
 		const workspaceFolders = workspaceFolderPaths.map((path, index) => {
 			const uri = URI.file(path);
@@ -119,6 +120,9 @@ suite('PromptFilesLocator', () => {
 		instantiationService.stub(IWorkbenchEnvironmentService, {} as IWorkbenchEnvironmentService);
 		instantiationService.stub(IUserDataProfileService, new TestUserDataProfileService());
 		instantiationService.stub(ISearchService, {
+			schemeHasFileSearchProvider(scheme: string): boolean {
+				return true;
+			},
 			async fileSearch(query: IFileQuery) {
 				// mock the search service
 				const fs = instantiationService.get(IFileService);
@@ -3090,6 +3094,183 @@ suite('PromptFilesLocator', () => {
 			);
 			await locator.disposeAsync();
 		});
+	});
+
+	suite('findAgentMDsInWorkspace', () => {
+		testT('finds AGENTS.md files using FileSearchProvider', async () => {
+			const locator = await createPromptsLocatorForAgentMD(
+				{},
+				['/Users/legomushroom/repos/workspace'],
+				[
+					{
+						path: '/Users/legomushroom/repos/workspace/AGENTS.md',
+						contents: ['# Root agents']
+					},
+					{
+						path: '/Users/legomushroom/repos/workspace/src/AGENTS.md',
+						contents: ['# Src agents']
+					}
+				],
+				true // has FileSearchProvider
+			);
+
+			const result = await locator.findAgentMDsInWorkspace(CancellationToken.None);
+			assertOutcome(
+				result,
+				[
+					'/Users/legomushroom/repos/workspace/AGENTS.md',
+					'/Users/legomushroom/repos/workspace/src/AGENTS.md'
+				],
+				'Must find all AGENTS.md files using search service.'
+			);
+			await locator.disposeAsync();
+		});
+
+		testT('finds AGENTS.md files using file service fallback', async () => {
+			const locator = await createPromptsLocatorForAgentMD(
+				{},
+				['/Users/legomushroom/repos/workspace'],
+				[
+					{
+						path: '/Users/legomushroom/repos/workspace/AGENTS.md',
+						contents: ['# Root agents']
+					},
+					{
+						path: '/Users/legomushroom/repos/workspace/src/AGENTS.md',
+						contents: ['# Src agents']
+					},
+					{
+						path: '/Users/legomushroom/repos/workspace/src/nested/AGENTS.md',
+						contents: ['# Nested agents']
+					}
+				],
+				false // no FileSearchProvider - should use file service fallback
+			);
+
+			const result = await locator.findAgentMDsInWorkspace(CancellationToken.None);
+			assertOutcome(
+				result,
+				[
+					'/Users/legomushroom/repos/workspace/AGENTS.md',
+					'/Users/legomushroom/repos/workspace/src/AGENTS.md',
+					'/Users/legomushroom/repos/workspace/src/nested/AGENTS.md'
+				],
+				'Must find all AGENTS.md files using file service fallback.'
+			);
+			await locator.disposeAsync();
+		});
+
+		testT('handles cancellation token in file service fallback', async () => {
+			const locator = await createPromptsLocatorForAgentMD(
+				{},
+				['/Users/legomushroom/repos/workspace'],
+				[
+					{
+						path: '/Users/legomushroom/repos/workspace/AGENTS.md',
+						contents: ['# Root agents']
+					}
+				],
+				false // no FileSearchProvider
+			);
+
+			const source = new CancellationTokenSource();
+			// Cancel immediately
+			source.cancel();
+			const result = await locator.findAgentMDsInWorkspace(source.token);
+			assertOutcome(
+				result,
+				[],
+				'Must return empty array when cancelled.'
+			);
+			await locator.disposeAsync();
+		});
+
+		const createPromptsLocatorForAgentMD = async (
+			configValue: unknown,
+			workspaceFolderPaths: string[],
+			filesystem: IMockFileEntry[],
+			hasFileSearchProvider: boolean
+		) => {
+			const mockFs = instantiationService.createInstance(MockFilesystem, filesystem);
+			await mockFs.mock();
+
+			instantiationService.stub(IConfigurationService, mockConfigService({
+				'explorer.excludeGitIgnore': false,
+				'files.exclude': {},
+				'search.exclude': {}
+			}));
+
+			const workspaceFolders = workspaceFolderPaths.map((path, index) => {
+				const uri = URI.file(path);
+
+				return new class extends mock<IWorkspaceFolder>() {
+					override uri = uri;
+					override name = basename(uri);
+					override index = index;
+				};
+			});
+			instantiationService.stub(IWorkspaceContextService, mockWorkspaceService(workspaceFolders));
+			instantiationService.stub(IWorkbenchEnvironmentService, {} as IWorkbenchEnvironmentService);
+			instantiationService.stub(IUserDataProfileService, new TestUserDataProfileService());
+			instantiationService.stub(ISearchService, {
+				schemeHasFileSearchProvider(scheme: string): boolean {
+					return hasFileSearchProvider;
+				},
+				async fileSearch(query: IFileQuery) {
+					if (!hasFileSearchProvider) {
+						throw new Error('FileSearchProvider not available');
+					}
+					// mock the search service
+					const fs = instantiationService.get(IFileService);
+					const findFilesInLocation = async (location: URI, results: URI[] = []) => {
+						try {
+							const resolve = await fs.resolve(location);
+							if (resolve.isFile) {
+								results.push(resolve.resource);
+							} else if (resolve.isDirectory && resolve.children) {
+								for (const child of resolve.children) {
+									await findFilesInLocation(child.resource, results);
+								}
+							}
+						} catch (error) {
+						}
+						return results;
+					};
+					const results: IFileMatch[] = [];
+					for (const folderQuery of query.folderQueries) {
+						const allFiles = await findFilesInLocation(folderQuery.folder);
+						for (const resource of allFiles) {
+							const pathInFolder = relativePath(folderQuery.folder, resource) ?? '';
+							if (query.filePattern === undefined || match(query.filePattern, pathInFolder)) {
+								results.push({ resource });
+							}
+						}
+
+					}
+					return { results, messages: [] };
+				}
+			});
+			instantiationService.stub(IPathService, {
+				userHome(options?: { preferLocal: boolean }): URI | Promise<URI> {
+					const uri = URI.file('/Users/legomushroom');
+					if (options?.preferLocal) {
+						return uri;
+					}
+					return Promise.resolve(uri);
+				}
+			} as IPathService);
+
+			const locator = instantiationService.createInstance(PromptFilesLocator);
+
+			return {
+				async findAgentMDsInWorkspace(token: CancellationToken): Promise<URI[]> {
+					return locator.findAgentMDsInWorkspace(token);
+				},
+				async disposeAsync(): Promise<void> {
+					await mockFs.delete();
+				}
+			};
+		};
 	});
 });
 

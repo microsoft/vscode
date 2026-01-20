@@ -471,6 +471,7 @@ export class CommentController implements IEditorContribution {
 	private _activeCursorHasCommentingRange: IContextKey<boolean>;
 	private _activeCursorHasComment: IContextKey<boolean>;
 	private _activeEditorHasCommentingRange: IContextKey<boolean>;
+	private _commentWidgetVisible: IContextKey<boolean>;
 	private _hasRespondedToEditorChange: boolean = false;
 
 	constructor(
@@ -496,6 +497,7 @@ export class CommentController implements IEditorContribution {
 		this._activeCursorHasCommentingRange = CommentContextKeys.activeCursorHasCommentingRange.bindTo(contextKeyService);
 		this._activeCursorHasComment = CommentContextKeys.activeCursorHasComment.bindTo(contextKeyService);
 		this._activeEditorHasCommentingRange = CommentContextKeys.activeEditorHasCommentingRange.bindTo(contextKeyService);
+		this._commentWidgetVisible = CommentContextKeys.commentWidgetVisible.bindTo(contextKeyService);
 
 		if (editor instanceof EmbeddedCodeEditorWidget) {
 			return;
@@ -738,6 +740,28 @@ export class CommentController implements IEditorContribution {
 		for (const widget of this._commentWidgets) {
 			widget.collapse(true);
 		}
+	}
+
+	public async collapseVisibleComments(): Promise<void> {
+		if (!this.editor) {
+			return;
+		}
+		const visibleRanges = this.editor.getVisibleRanges();
+		for (const widget of this._commentWidgets) {
+			if (widget.expanded && widget.commentThread.range) {
+				const isVisible = visibleRanges.some(visibleRange =>
+					Range.areIntersectingOrTouching(visibleRange, widget.commentThread.range!)
+				);
+				if (isVisible) {
+					await widget.collapse(true);
+				}
+			}
+		}
+	}
+
+	private _updateCommentWidgetVisibleContext(): void {
+		const hasExpanded = this._commentWidgets.some(widget => widget.expanded);
+		this._commentWidgetVisible.set(hasExpanded);
 	}
 
 	public expandAll(): void {
@@ -1074,6 +1098,8 @@ export class CommentController implements IEditorContribution {
 		const zoneWidget = this.instantiationService.createInstance(ReviewZoneWidget, this.editor, uniqueOwner, thread, pendingComment ?? continueOnCommentReply?.comment, pendingEdits);
 		await zoneWidget.display(thread.range, shouldReveal);
 		this._commentWidgets.push(zoneWidget);
+		zoneWidget.onDidChangeExpandedState(() => this._updateCommentWidgetVisibleContext());
+		zoneWidget.onDidClose(() => this._updateCommentWidgetVisibleContext());
 		this.openCommentsView(thread);
 	}
 

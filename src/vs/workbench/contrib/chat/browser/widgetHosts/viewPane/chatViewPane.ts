@@ -408,6 +408,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			trackActiveEditorSession: () => {
 				return !this._widget || this._widget.isEmpty(); // only track and reveal if chat widget is empty
 			},
+			overrideSessionOpenOptions: openEvent => {
+				if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked && !openEvent.sideBySide) {
+					return { ...openEvent, editorOptions: { ...openEvent.editorOptions, preserveFocus: false /* focus the chat widget when opening from stacked sessions viewer since this closes the stacked viewer */ } };
+				}
+				return openEvent;
+			},
 			overrideCompare(sessionA: IAgentSession, sessionB: IAgentSession): number | undefined {
 
 				// When limited where only few sessions show, sort unread sessions to the top
@@ -987,7 +993,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				sessionsHeight = availableSessionsHeight;
 			}
 
-			sessionsHeight = Math.min(availableSessionsHeight, sessionsHeight);
+			const borderBottom = 1;
+			sessionsHeight = Math.min(availableSessionsHeight, sessionsHeight) - borderBottom;
 
 			this.sessionsControlContainer.style.height = `${sessionsHeight}px`;
 			this.sessionsControlContainer.style.width = ``;
