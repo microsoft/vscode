@@ -227,23 +227,69 @@ suite('TerminalToolAutoExpand', () => {
 		onCommandFinished.fire(undefined);
 	}));
 
-	test('data arriving cancels no-data timeout', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		hasRealOutputValue = true; // Would have expanded if no-data timeout fired
+	test('data arriving with real output cancels no-data timeout (DataEvent path succeeds)', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		hasRealOutputValue = true; // Real output exists
 		setupAutoExpandLogic();
 
 		// Command executes
 		onCommandExecuted.fire(undefined);
 
-		// Data arrives (cancels no-data timeout)
+		// Data arrives with real output
 		onWillData.fire('output');
 
-		// Command finishes immediately after data (before data timeout would fire)
+		// Wait for DataEvent timeout to fire (50ms)
+		await timeout(TerminalToolAutoExpandTimeout.DataEvent + 10);
+
+		// Should have expanded via DataEvent path
+		assert.strictEqual(isExpanded, true, 'Should expand via DataEvent path when real output exists');
+
+		// Command finishes later
+		onCommandFinished.fire(undefined);
+	}));
+
+	test('data arriving without real output does NOT cancel no-data timeout (NoData path can still expand)', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		hasRealOutputValue = false; // No real output initially (shell sequences)
+		setupAutoExpandLogic();
+
+		// Command executes
+		onCommandExecuted.fire(undefined);
+
+		// Data arrives (shell integration sequences, not real output)
+		onWillData.fire('shell-sequence');
+
+		// Wait for DataEvent timeout to fire - should NOT expand since no real output
+		await timeout(TerminalToolAutoExpandTimeout.DataEvent + 10);
+		assert.strictEqual(isExpanded, false, 'Should NOT expand when DataEvent fires without real output');
+
+		// Now real output appears before NoData timeout
+		hasRealOutputValue = true;
+
+		// Wait for NoData timeout to fire (500ms from command executed)
+		await timeout(TerminalToolAutoExpandTimeout.NoData - TerminalToolAutoExpandTimeout.DataEvent);
+
+		// Should have expanded via NoData path
+		assert.strictEqual(isExpanded, true, 'NoData path should still expand when real output appears later');
+
+		onCommandFinished.fire(undefined);
+	}));
+
+	test('quick finish after data prevents expansion even with real output', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		hasRealOutputValue = true;
+		setupAutoExpandLogic();
+
+		// Command executes
+		onCommandExecuted.fire(undefined);
+
+		// Data arrives
+		onWillData.fire('output');
+
+		// Command finishes immediately after data (before any timeout fires)
 		onCommandFinished.fire(undefined);
 
-		// Wait past all timeouts (faked timers advance instantly)
+		// Wait past all timeouts
 		await timeout(TerminalToolAutoExpandTimeout.NoData + 100);
 
-		assert.strictEqual(isExpanded, false, 'No-data timeout should be cancelled when data arrives');
+		assert.strictEqual(isExpanded, false, 'Should NOT expand when command finishes before timeouts');
 	}));
 
 	test('multiple data events only trigger one timeout', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
