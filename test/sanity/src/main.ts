@@ -36,7 +36,7 @@ const context = new TestContext({
 	downloadOnly: !options['runtime-check'],
 });
 
-context.log('Arguments: ' + JSON.stringify(options));
+context.log(`Arguments: ${process.argv}`);
 context.log(`Platform: ${os.platform()}, Arch: ${os.arch()}`);
 context.log('Capabilities: ' + Array.from(context.capabilities).join(', '));
 

@@ -52,249 +52,250 @@ jobs:
         displayName: Install NPM Dependencies
 
       # Native host: Install Playwright browser
-      - ${{ if eq(parameters.os, 'windows') }}:
-          script: ./node_modules/.bin/playwright install --with-deps chromium
-        ${{ elseif eq(parameters.os, 'macos') }}:
-          script: ./node_modules/.bin/playwright install --with-deps webkit
-        ${{ else }}:
-          script: ./node_modules/.bin/playwright install --with-deps firefox
-        workingDirectory: $(TEST_DIR)
-        displayName: Install Playwright Browser
-        condition: eq('${{ parameters.container }}', '')
+      - ${{ if eq('${{ parameters.container }}', '') }}:
+          - ${{ if eq(parameters.os, 'windows') }}:
+              script: ./node_modules/.bin/playwright install --with-deps chromium
+          - ${{ elseif eq(parameters.os, 'macos') }}:
+              script: ./node_modules/.bin/playwright install --with-deps webkit
+          - ${{ else }}:
+              script: ./node_modules/.bin/playwright install --with-deps firefox
+            workingDirectory: $(TEST_DIR)
+            displayName: Install Playwright Browser
+            condition: eq('${{ parameters.container }}', '')
 
       - script: npm run compile
         workingDirectory: $(TEST_DIR)
         displayName: Compile Sanity Tests
 
       # Native Linux host: Setup X11 and Snap
-      - bash: |
-          set -e
-          echo "Installing X11 dependencies"
-          sudo apt-get update
-          sudo apt-get install -y \
-            dbus \
-            dbus-x11 \
-            snapd \
-            x11-utils \
-            xvfb
-
-          echo "Starting Xvfb on display :99"
-          sudo Xvfb :99 -screen 0 1280x960x24 -ac +extension GLX +render -noreset &
-          echo "##vso[task.setvariable variable=DISPLAY]:99"
-
-          echo "Starting D-Bus daemon"
-          sudo mkdir -p /var/run/dbus && sudo dbus-daemon --system --fork
-
-          echo "Starting snapd service"
-          sudo systemctl start snapd.socket
-          sudo systemctl start snapd.service
-        displayName: Setup X11 Display
-        condition: and(eq('${{ parameters.container }}', ''), eq('${{ parameters.os }}', 'linux'))
-
-      # Native host
-      - script: node out/index.js -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -v ${{ parameters.args }}
-        workingDirectory: $(TEST_DIR)
-        displayName: Run Sanity Tests
-        condition: eq('${{ parameters.container }}', '')
-
-      # Configure QEMU for ARM containers
-      - bash: |
-          docker run --privileged --rm tonistiigi/binfmt --uninstall '*'
-          docker run --pull always --privileged --rm tonistiigi/binfmt --install all
-        displayName: Setup QEMU for Multi-Architecture Support
-        condition: and(ne('${{ parameters.container }}', ''), contains('${{ parameters.containerPlatform }}', 'arm'), ne('${{ parameters.poolName }}', '1es-mariner-2.0-arm64'))
-
-      # Ubuntu/Debian Linux
-      - bash: |
-          docker run --rm --platform ${{ parameters.containerPlatform }} \
-            -v "$(Build.SourcesDirectory):/workspace" \
-            -w /workspace \
-            ${{ parameters.container }} \
-            /bin/sh -c '
+      - ${{ if and(eq('${{ parameters.container }}', ''), eq('${{ parameters.os }}', 'linux')) }}:
+          - bash: |
               set -e
-              apt-get update
-              DEBIAN_FRONTEND=noninteractive
-              apt-get install -y \
-                ca-certificates \
-                curl \
+              echo "Installing X11 dependencies"
+              sudo apt-get update
+              sudo apt-get install -y \
                 dbus \
                 dbus-x11 \
-                libatomic1 \
-                libdrm2 \
-                libgbm1 \
-                libnss3 \
-                libxcomposite1 \
-                libxdamage1 \
-                libxkbcommon0 \
-                libxrandr2 \
-                libxss1 \
-                sudo \
+                snapd \
                 x11-utils \
-                xdg-utils \
-                xvfb \
-                xz-utils
-
-              apt-get install -y libcairo2 || true
-              apt-get install -y libpango-1.0-0 || true
-              apt-get install -y libgtk-4-1 || true
-
-              apt-get install -y libgtk-3-0t64 || apt-get install -y libgtk-3-0
-              apt-get install -y libatk-bridge2.0-0t64 || apt-get install -y libatk-bridge2.0-0
-              apt-get install -y libasound2t64 || apt-get install -y libasound2
-
-              if [ "$(arch)" = "armv7l" ] || [ "$(arch)" = "aarch64" ]; then
-                echo "Installing libatomic1 for ARM"
-                apt-get install -y libatomic1
-              fi
-
-              echo "Installing Node.js 22"
-              if [ "$(arch)" = "x86_64" ] || [ "$(arch)" = "aarch64" ]; then
-                curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
-                apt-get install -y nodejs
-              else
-                curl -fsSL https://nodejs.org/dist/v22.13.0/node-v22.13.0-linux-armv7l.tar.xz | tar -xJ -C /usr/local --strip-components=1
-              fi
-
-              echo "Starting Xvfb on display :99"
-              Xvfb :99 -screen 0 1280x960x24 -ac +extension GLX +render -noreset &
-              export DISPLAY=:99
-
-              echo "Starting D-Bus session"
-              mkdir -p /run/dbus && dbus-daemon --system --fork
-
-              echo "Running sanity tests"
-              node /workspace/test/sanity/out/index.js -c "$(BUILD_COMMIT)" -q "$(BUILD_QUALITY)" -t "/workspace/.build/sanity-test-logs/results.xml" -v
-          '
-        displayName: Run Sanity Tests
-        condition: or(contains('${{ parameters.container }}', 'ubuntu'), contains('${{ parameters.container }}', 'debian'))
-
-      # CentOS/Fedora/RedHat Linux
-      - bash: |
-          docker run --rm --platform ${{ parameters.containerPlatform }} \
-            -v "$(Build.SourcesDirectory):/workspace" \
-            -w /workspace \
-            ${{ parameters.container }} \
-            /bin/sh -c '
-              set -e
-              dnf install -y \
-                alsa-lib \
-                at-spi2-atk \
-                atk \
-                dbus \
-                dbus-daemon \
-                gtk3 \
-                libdrm \
-                libXcomposite \
-                libXdamage \
-                libxkbcommon \
-                libXrandr \
-                libXScrnSaver \
-                mesa-libgbm \
-                nss
-
-              # Not available on RedHat
-              dnf install -y dbus-x11 || true
-              dnf install -y xdg-utils || true
-              dnf install -y xorg-x11-server-Xvfb || true
-
-              # Needed by CentOS
-              dnf install -y sudo || true
-
-              # xorg-x11-utils
-
-              echo "Installing Node.js 22"
-              curl -fsSL https://rpm.nodesource.com/setup_22.x | bash -
-              dnf install -y nodejs
-
-              echo "Starting Xvfb on display :99"
-              Xvfb :99 -screen 0 1280x960x24 -ac +extension GLX +render -noreset &
-              export DISPLAY=:99
-
-              echo "Starting D-Bus session"
-              mkdir -p /run/dbus && dbus-daemon --system --fork
-
-              echo "Running sanity tests"
-              node /workspace/test/sanity/out/index.js -c "$(BUILD_COMMIT)" -q "$(BUILD_QUALITY)" -t "/workspace/.build/sanity-test-logs/results.xml" -v
-          '
-        displayName: Run Sanity Tests
-        condition: or(contains('${{ parameters.container }}', 'centos'), contains('${{ parameters.container }}', 'fedora'), contains('${{ parameters.container }}', 'redhat'))
-
-      # OpenSUSE Linux
-      - bash: |
-          docker run --rm --platform ${{ parameters.containerPlatform }} \
-            -v "$(Build.SourcesDirectory):/workspace" \
-            -w /workspace \
-            ${{ parameters.container }} \
-            /bin/sh -c '
-              set -e
-              zypper install -y \
-                alsa \
-                chromium \
-                dbus-1 \
-                dbus-1-daemon \
-                dbus-1-x11 \
-                gzip \
-                libgbm1 \
-                libgtk-3-0 \
-                nodejs22 \
-                sudo \
-                tar \
-                xdg-utils \
-                xorg-x11 \
-                xorg-x11-server-Xvfb
-
-              # mozilla-nss \
-
-              echo "Starting Xvfb on display :99"
-              Xvfb :99 -screen 0 1280x960x24 -ac +extension GLX +render -noreset &
-              export DISPLAY=:99
-
-              echo "Starting D-Bus session"
-              mkdir -p /run/dbus && dbus-daemon --system --fork
-
-              echo "Running sanity tests"
-              node /workspace/test/sanity/out/index.js -c "$(BUILD_COMMIT)" -q "$(BUILD_QUALITY)" -t "/workspace/.build/sanity-test-logs/results.xml" -v
-            '
-        displayName: Run Sanity Tests
-        condition: contains('${{ parameters.container }}', 'opensuse')
-
-      # Alpine Linux
-      - bash: |
-          docker run --rm --platform ${{ parameters.containerPlatform }} \
-            -v "$(Build.SourcesDirectory):/workspace" \
-            -w /workspace \
-            ${{ parameters.container }} \
-            /bin/sh -c '
-              set -e
-              apk add --no-cache \
-                ca-certificates \
-                chromium \
-                dbus \
-                dbus-x11 \
-                freetype \
-                freetype-dev \
-                gtk+3.0 \
-                harfbuzz \
-                mesa-gbm \
-                nodejs \
-                nss \
-                sudo \
-                ttf-freefont \
-                xdpyinfo \
                 xvfb
 
               echo "Starting Xvfb on display :99"
-              Xvfb :99 -screen 0 1280x960x24 -ac +extension GLX +render -noreset &
-              export DISPLAY=:99
+              sudo Xvfb :99 -screen 0 1280x960x24 -ac +extension GLX +render -noreset &
+              echo "##vso[task.setvariable variable=DISPLAY]:99"
 
-              echo "Starting D-Bus session"
-              mkdir -p /run/dbus && dbus-daemon --system --fork
+              echo "Starting D-Bus daemon"
+              sudo mkdir -p /var/run/dbus && sudo dbus-daemon --system --fork
 
-              echo "Running sanity tests"
-              node /workspace/test/sanity/out/index.js -c "$(BUILD_COMMIT)" -q "$(BUILD_QUALITY)" -t "/workspace/.build/sanity-test-logs/results.xml" -v
-            '
-        displayName: Run Sanity Tests
-        condition: contains('${{ parameters.container }}', 'alpine')
+              echo "Starting snapd service"
+              sudo systemctl start snapd.socket
+              sudo systemctl start snapd.service
+            displayName: Setup X11 Display
+
+      # Native host
+      - ${{ if eq('${{ parameters.container }}', '') }}:
+          - script: node out/index.js -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -v ${{ parameters.args }}
+            workingDirectory: $(TEST_DIR)
+            displayName: Run Sanity Tests
+
+      # Configure QEMU for ARM containers
+      - ${{ if and(contains('${{ parameters.containerPlatform }}', 'arm'), ne('${{ parameters.poolName }}', '1es-mariner-2.0-arm64')) }}:
+          - bash: |
+              docker run --privileged --rm tonistiigi/binfmt --uninstall '*'
+              docker run --pull always --privileged --rm tonistiigi/binfmt --install all
+            displayName: Setup QEMU for Multi-Architecture Support
+
+      # Ubuntu/Debian Linux
+      - ${{ if or(contains('${{ parameters.container }}', 'ubuntu'), contains('${{ parameters.container }}', 'debian')) }}:
+          - bash: |
+              docker run --rm --platform ${{ parameters.containerPlatform }} \
+                -v "$(Build.SourcesDirectory):/workspace" \
+                -w /workspace \
+                ${{ parameters.container }} \
+                /bin/sh -c '
+                  set -e
+                  apt-get update
+                  DEBIAN_FRONTEND=noninteractive
+                  apt-get install -y \
+                    ca-certificates \
+                    curl \
+                    dbus \
+                    dbus-x11 \
+                    libatomic1 \
+                    libdrm2 \
+                    libgbm1 \
+                    libnss3 \
+                    libxcomposite1 \
+                    libxdamage1 \
+                    libxkbcommon0 \
+                    libxrandr2 \
+                    libxss1 \
+                    sudo \
+                    x11-utils \
+                    xdg-utils \
+                    xvfb \
+                    xz-utils
+
+                  apt-get install -y libcairo2 || true
+                  apt-get install -y libpango-1.0-0 || true
+                  apt-get install -y libgtk-4-1 || true
+
+                  apt-get install -y libgtk-3-0t64 || apt-get install -y libgtk-3-0
+                  apt-get install -y libatk-bridge2.0-0t64 || apt-get install -y libatk-bridge2.0-0
+                  apt-get install -y libasound2t64 || apt-get install -y libasound2
+
+                  if [ "$(arch)" = "armv7l" ] || [ "$(arch)" = "aarch64" ]; then
+                    echo "Installing libatomic1 for ARM"
+                    apt-get install -y libatomic1
+                  fi
+
+                  echo "Installing Node.js 22"
+                  if [ "$(arch)" = "x86_64" ] || [ "$(arch)" = "aarch64" ]; then
+                    curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+                    apt-get install -y nodejs
+                  else
+                    curl -fsSL https://nodejs.org/dist/v22.13.0/node-v22.13.0-linux-armv7l.tar.xz | tar -xJ -C /usr/local --strip-components=1
+                  fi
+
+                  echo "Starting Xvfb on display :99"
+                  Xvfb :99 -screen 0 1280x960x24 -ac +extension GLX +render -noreset &
+                  export DISPLAY=:99
+
+                  echo "Starting D-Bus session"
+                  mkdir -p /run/dbus && dbus-daemon --system --fork
+
+                  echo "Running sanity tests"
+                  node /workspace/test/sanity/out/index.js -c "$(BUILD_COMMIT)" -q "$(BUILD_QUALITY)" -t "/workspace/.build/sanity-test-logs/results.xml" -v
+              '
+            displayName: Run Sanity Tests
+
+      # CentOS/Fedora/RedHat Linux
+      - ${{ if or(contains('${{ parameters.container }}', 'centos'), contains('${{ parameters.container }}', 'fedora'), contains('${{ parameters.container }}', 'redhat')) }}:
+          - bash: |
+              docker run --rm --platform ${{ parameters.containerPlatform }} \
+                -v "$(Build.SourcesDirectory):/workspace" \
+                -w /workspace \
+                ${{ parameters.container }} \
+                /bin/sh -c '
+                  set -e
+                  dnf install -y \
+                    alsa-lib \
+                    at-spi2-atk \
+                    atk \
+                    dbus \
+                    dbus-daemon \
+                    gtk3 \
+                    libdrm \
+                    libXcomposite \
+                    libXdamage \
+                    libxkbcommon \
+                    libXrandr \
+                    libXScrnSaver \
+                    mesa-libgbm \
+                    nss
+
+                  # Not available on RedHat
+                  dnf install -y dbus-x11 || true
+                  dnf install -y xdg-utils || true
+                  dnf install -y xorg-x11-server-Xvfb || true
+
+                  # Needed by CentOS
+                  dnf install -y sudo || true
+
+                  # xorg-x11-utils
+
+                  echo "Installing Node.js 22"
+                  curl -fsSL https://rpm.nodesource.com/setup_22.x | bash -
+                  dnf install -y nodejs
+
+                  echo "Starting Xvfb on display :99"
+                  Xvfb :99 -screen 0 1280x960x24 -ac +extension GLX +render -noreset &
+                  export DISPLAY=:99
+
+                  echo "Starting D-Bus session"
+                  mkdir -p /run/dbus && dbus-daemon --system --fork
+
+                  echo "Running sanity tests"
+                  node /workspace/test/sanity/out/index.js -c "$(BUILD_COMMIT)" -q "$(BUILD_QUALITY)" -t "/workspace/.build/sanity-test-logs/results.xml" -v
+              '
+            displayName: Run Sanity Tests
+
+      # OpenSUSE Linux
+      - ${{ if contains('${{ parameters.container }}', 'opensuse') }}:
+          - bash: |
+              docker run --rm --platform ${{ parameters.containerPlatform }} \
+                -v "$(Build.SourcesDirectory):/workspace" \
+                -w /workspace \
+                ${{ parameters.container }} \
+                /bin/sh -c '
+                  set -e
+                  zypper install -y \
+                    alsa \
+                    chromium \
+                    dbus-1 \
+                    dbus-1-daemon \
+                    dbus-1-x11 \
+                    gzip \
+                    libgbm1 \
+                    libgtk-3-0 \
+                    nodejs22 \
+                    sudo \
+                    tar \
+                    xdg-utils \
+                    xorg-x11 \
+                    xorg-x11-server-Xvfb
+
+                  # mozilla-nss \
+
+                  echo "Starting Xvfb on display :99"
+                  Xvfb :99 -screen 0 1280x960x24 -ac +extension GLX +render -noreset &
+                  export DISPLAY=:99
+
+                  echo "Starting D-Bus session"
+                  mkdir -p /run/dbus && dbus-daemon --system --fork
+
+                  echo "Running sanity tests"
+                  node /workspace/test/sanity/out/index.js -c "$(BUILD_COMMIT)" -q "$(BUILD_QUALITY)" -t "/workspace/.build/sanity-test-logs/results.xml" -v
+                '
+            displayName: Run Sanity Tests
+
+      # Alpine Linux
+      - ${{ if contains('${{ parameters.container }}', 'alpine') }}:
+          - bash: |
+              docker run --rm --platform ${{ parameters.containerPlatform }} \
+                -v "$(Build.SourcesDirectory):/workspace" \
+                -w /workspace \
+                ${{ parameters.container }} \
+                /bin/sh -c '
+                  set -e
+                  apk add --no-cache \
+                    ca-certificates \
+                    chromium \
+                    dbus \
+                    dbus-x11 \
+                    freetype \
+                    freetype-dev \
+                    gtk+3.0 \
+                    harfbuzz \
+                    mesa-gbm \
+                    nodejs \
+                    nss \
+                    sudo \
+                    ttf-freefont \
+                    xdpyinfo \
+                    xvfb
+
+                  echo "Starting Xvfb on display :99"
+                  Xvfb :99 -screen 0 1280x960x24 -ac +extension GLX +render -noreset &
+                  export DISPLAY=:99
+
+                  echo "Starting D-Bus session"
+                  mkdir -p /run/dbus && dbus-daemon --system --fork
+
+                  echo "Running sanity tests"
+                  node /workspace/test/sanity/out/index.js -c "$(BUILD_COMMIT)" -q "$(BUILD_QUALITY)" -t "/workspace/.build/sanity-test-logs/results.xml" -v
+                '
+            displayName: Run Sanity Tests
 
       - task: PublishTestResults@2
         inputs:

@@ -106,15 +106,19 @@ export class TestContext {
 	 * Returns the available browser type for the current platform.
 	 */
 	public getBrowserType(): 'chromium' | 'firefox' | 'webkit' | undefined {
-		switch (os.platform()) {
-			case 'darwin':
-				return fs.existsSync(webkit.executablePath()) ? 'webkit' : undefined;
-			case 'linux':
-				return fs.existsSync(chromium.executablePath()) ? 'chromium' :
-					fs.existsSync(firefox.executablePath()) ? 'firefox' :
-						undefined;
-			case 'win32':
-				return fs.existsSync(chromium.executablePath()) ? 'chromium' : undefined;
+		try {
+			switch (os.platform()) {
+				case 'darwin':
+					return fs.existsSync(webkit.executablePath()) ? 'webkit' : undefined;
+				case 'linux':
+					return fs.existsSync(chromium.executablePath()) ? 'chromium' :
+						fs.existsSync(firefox.executablePath()) ? 'firefox' :
+							undefined;
+				case 'win32':
+					return fs.existsSync(chromium.executablePath()) ? 'chromium' : undefined;
+			}
+		} catch {
+			return undefined;
 		}
 	}
 
