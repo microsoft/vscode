@@ -124,19 +124,25 @@ export class RenameSymbolTrackerService extends Disposable implements IRenameSym
 
 		// Track the captured word state
 		let capturedWord: { model: ITextModel; word: string; range: Range; position: Position } | null = null;
+		let lastVersionId: number | null = null;
 
 		store.add(autorun(reader => {
 			const currentWord = wordUnderCursor.read(reader);
+			const currentVersionId = obsEditor.versionId.read(reader);
+			const contentChanged = lastVersionId !== null && lastVersionId !== currentVersionId;
+			lastVersionId = currentVersionId;
 
 			if (!currentWord) {
-				// Cursor moved away from any word - reset tracking
-				capturedWord = null;
-				this._trackedWord.set(undefined, undefined);
+				// Cursor moved away from any word - keep existing tracking unchanged
 				return;
 			}
 
 			if (!capturedWord) {
-				// First time on a word - capture it
+				if (!contentChanged) {
+					// Just cursor movement to a word without typing - don't track yet
+					return;
+				}
+				// First edit on a word - capture it
 				capturedWord = currentWord;
 				this._trackedWord.set({
 					model: currentWord.model,
@@ -164,8 +170,8 @@ export class RenameSymbolTrackerService extends Disposable implements IRenameSym
 					currentWord: currentWord.word,
 					currentRange: currentWord.range,
 				}, undefined);
-			} else {
-				// Cursor moved to a different word - capture the new word
+			} else if (contentChanged) {
+				// User started typing in a different word - capture the new word
 				capturedWord = currentWord;
 				this._trackedWord.set({
 					model: currentWord.model,
@@ -176,6 +182,7 @@ export class RenameSymbolTrackerService extends Disposable implements IRenameSym
 					currentRange: currentWord.range,
 				}, undefined);
 			}
+			// If just cursor movement to a different word (no content change), keep existing tracking
 		}));
 
 		store.add(toDisposable(() => {
