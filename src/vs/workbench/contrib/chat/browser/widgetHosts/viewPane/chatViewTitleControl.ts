@@ -24,6 +24,7 @@ import { AgentSessionProviders, getAgentSessionProviderIcon } from '../../agentS
 import { ActionViewItem, IActionViewItemOptions } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { AgentSessionsPicker } from '../../agentSessions/agentSessionsPicker.js';
+import { ChatContextUsageWidget } from './chatContextUsageWidget.js';
 
 export interface IChatViewTitleDelegate {
 	focusChat(): void;
@@ -47,6 +48,7 @@ export class ChatViewTitleControl extends Disposable {
 
 	private navigationToolbar?: MenuWorkbenchToolBar;
 	private actionsToolbar?: MenuWorkbenchToolBar;
+	private contextUsageWidget?: ChatContextUsageWidget;
 
 	private lastKnownHeight = 0;
 
@@ -102,6 +104,7 @@ export class ChatViewTitleControl extends Disposable {
 		const elements = h('div.chat-view-title-container', [
 			h('div.chat-view-title-navigation-toolbar@navigationToolbar'),
 			h('span.chat-view-title-icon@icon'),
+			h('div.chat-view-title-context-usage@contextUsage'),
 			h('div.chat-view-title-actions-toolbar@actionsToolbar'),
 		]);
 
@@ -119,6 +122,13 @@ export class ChatViewTitleControl extends Disposable {
 			},
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			menuOptions: { shouldForwardArgs: true }
+		}));
+
+		// Context usage widget
+		this.contextUsageWidget = this._register(this.instantiationService.createInstance(ChatContextUsageWidget));
+		elements.contextUsage.appendChild(this.contextUsageWidget.domNode);
+		this._register(this.contextUsageWidget.onDidChangeVisibility(() => {
+			this.checkHeight();
 		}));
 
 		// Actions toolbar on the right
@@ -146,9 +156,17 @@ export class ChatViewTitleControl extends Disposable {
 			if (e.kind === 'setCustomTitle' || e.kind === 'addRequest') {
 				this.doUpdate();
 			}
+			if (e.kind === 'completedRequest') {
+				this.updateContextUsage();
+			}
 		});
 
 		this.doUpdate();
+		this.updateContextUsage();
+	}
+
+	private updateContextUsage(): void {
+		this.contextUsageWidget?.update(this.model?.lastRequest);
 	}
 
 	private doUpdate(): void {
@@ -168,6 +186,14 @@ export class ChatViewTitleControl extends Disposable {
 
 		if (this.actionsToolbar) {
 			this.actionsToolbar.context = context;
+		}
+	}
+
+	private checkHeight(): void {
+		const currentHeight = this.getHeight();
+		if (currentHeight !== this.lastKnownHeight) {
+			this.lastKnownHeight = currentHeight;
+			this._onDidChangeHeight.fire();
 		}
 	}
 

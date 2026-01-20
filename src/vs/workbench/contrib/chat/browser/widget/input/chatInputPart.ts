@@ -1934,6 +1934,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this.layout(this.cachedDimensions.height, this.cachedDimensions.width);
 			}
 		}));
+
 		if (this.options.menus.inputSideToolbar) {
 			const toolbarSide = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, inputAndSideToolbar, this.options.menus.inputSideToolbar, {
 				telemetrySource: this.options.menus.telemetrySource,
