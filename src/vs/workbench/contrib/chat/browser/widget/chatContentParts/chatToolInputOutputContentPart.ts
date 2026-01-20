@@ -60,6 +60,8 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 	private readonly _titlePart: ChatQueryTitlePart;
 	private _outputSubPart: ChatToolOutputContentSubPart | undefined;
 	public readonly domNode: HTMLElement;
+	private _messageContainer?: HTMLElement;
+	private _contentInitialized = false;
 
 	get codeblocks(): IChatCodeBlockInfo[] {
 		const inputCodeblocks = this._editorReferences.map(ref => {
@@ -144,6 +146,15 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 					? Codicon.check
 					: ThemeIcon.modify(Codicon.loading, 'spin');
 			elements.root.classList.toggle('collapsed', !value);
+
+			// Lazy initialization: render content only when expanded for the first time
+			if (value && !this._contentInitialized) {
+				this._contentInitialized = true;
+				this._messageContainer = dom.h('.chat-confirmation-widget-message');
+				this._messageContainer.root.appendChild(this.createMessageContents());
+				elements.root.appendChild(this._messageContainer.root);
+			}
+
 			this._onDidChangeHeight.fire();
 		}));
 
@@ -156,10 +167,6 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		};
 
 		this._register(btn.onDidClick(toggle));
-
-		const message = dom.h('.chat-confirmation-widget-message');
-		message.root.appendChild(this.createMessageContents());
-		elements.root.appendChild(message.root);
 
 		const topLevelResources = this.output?.parts
 			.filter(p => p.kind === 'data')
