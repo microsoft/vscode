@@ -1648,13 +1648,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.styles,
 				true
 			);
-			this._register(autorun(reader => {
-				this.inlineInputPart.height.read(reader);
-				if (!this.listWidget) {
-					// This is set up before the list/renderer are created
-					return;
-				}
-			}));
 		} else {
 			this.inputPartDisposable.value = this.instantiationService.createInstance(ChatInputPart,
 				this.location,
@@ -1871,6 +1864,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}
 				// Only show if response wasn't canceled
 				this.renderChatSuggestNextWidget();
+
+				// Mark the session as read when the request completes and the widget is visible
+				if (this.visible && this.viewModel?.sessionResource) {
+					this.agentSessionsService.getSession(this.viewModel.sessionResource)?.setRead(true);
+				}
 			}
 		}));
 

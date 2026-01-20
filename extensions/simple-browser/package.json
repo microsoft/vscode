@@ -58,7 +58,8 @@
             "markdownDescription": "%configuration.useIntegratedBrowser.description%",
             "scope": "application",
             "tags": [
-              "experimental"
+              "experimental",
+              "onExP"
             ]
           }
         }

@@ -429,6 +429,14 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		this.mathLayoutParticipants.forEach(layout => layout());
 	}
 
+	onDidRemount(): void {
+		for (const ref of this.allRefs) {
+			if (ref.object instanceof CodeBlockPart) {
+				ref.object.onDidRemount();
+			}
+		}
+	}
+
 	addDisposable(disposable: IDisposable): void {
 		this._register(disposable);
 	}

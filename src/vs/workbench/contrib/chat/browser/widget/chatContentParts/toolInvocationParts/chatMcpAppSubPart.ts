@@ -115,10 +115,6 @@ export class ChatMcpAppSubPart extends BaseChatToolInvocationSubPart {
 				this._model.remount();
 			}
 		}));
-
-		this._register(onDidRemount(() => {
-			this._model.remount();
-		}));
 	}
 
 	private _handleLoadStateChange(container: HTMLElement, loadState: McpAppLoadState): void {

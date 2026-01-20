@@ -9,7 +9,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IActionWidgetDropdownAction } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
-import { AgentSessionProviders, getAgentSessionProvider } from '../../agentSessions/agentSessions.js';
+import { AgentSessionProviders, getAgentCanContinueIn, getAgentSessionProvider, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
 import { ISessionTypeItem, SessionTypePickerActionItem } from './sessionTargetPickerActionItem.js';
 
 /**
@@ -49,8 +49,19 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 		return this._getSelectedSessionType() !== type; // Always allow switching back to active session
 	}
 
+	protected override _isVisible(type: AgentSessionProviders): boolean {
+		if (this.delegate.getActiveSessionProvider() === type) {
+			return true; // Always show active session type
+		}
+
+		return getAgentCanContinueIn(type);
+	}
+
 	protected override _getSessionCategory(sessionTypeItem: ISessionTypeItem) {
-		return { label: localize('continueIn', "Continue In"), order: 1, showHeader: true };
+		if (isFirstPartyAgentSessionProvider(sessionTypeItem.type)) {
+			return { label: localize('continueIn', "Continue In"), order: 1, showHeader: true };
+		}
+		return { label: localize('continueInThirdParty', "Continue In (Third Party)"), order: 2, showHeader: false };
 	}
 
 	protected override _getSessionDescription(sessionTypeItem: ISessionTypeItem): string | undefined {

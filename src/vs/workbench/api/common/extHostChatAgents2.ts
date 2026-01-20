@@ -313,7 +313,7 @@ export class ChatAgentResponseStream {
 						streamData: streamData ? {
 							partialInput: streamData.partialInput
 						} : undefined,
-						subagentInvocationId: streamData?.subagentInvocationId
+						subagentInvocationId: streamData?.subagentInvocationId,
 					};
 					_report(dto);
 					return this;
