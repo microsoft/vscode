@@ -66,6 +66,7 @@ class TestTerminalInstanceService implements Partial<ITerminalInstanceService> {
 				rows: number,
 				unicodeVersion: '6' | '11',
 				env: any,
+				options: any,
 				shouldPersist: boolean
 			) => new TestTerminalChildProcess(shouldPersist),
 			getLatency: () => Promise.resolve([])
