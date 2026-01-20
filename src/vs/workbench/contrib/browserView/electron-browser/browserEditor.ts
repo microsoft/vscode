@@ -5,7 +5,7 @@
 
 import './media/browser.css';
 import { localize } from '../../../../nls.js';
-import { $, addDisposableListener, disposableWindowInterval, EventType, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, disposableWindowInterval, EventType, isHTMLElement, registerExternalFocusChecker, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { RawContextKey, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -247,13 +247,9 @@ export class BrowserEditor extends EditorPane {
 			}
 		}));
 
-		this._register(addDisposableListener(this._browserContainer, EventType.BLUR, () => {
-			// When focus goes to another part of the workbench, make sure the workbench view becomes focused.
-			const focused = this.window.document.activeElement;
-			if (focused && focused !== this._browserContainer) {
-				this.window.focus();
-			}
-		}));
+		// Register external focus checker so that cross-window focus logic knows when
+		// this browser view has focus (since it's outside the normal DOM tree).
+		this._register(registerExternalFocusChecker(() => this._model?.focused ?? false));
 	}
 
 	override async setInput(input: BrowserEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
@@ -308,9 +304,13 @@ export class BrowserEditor extends EditorPane {
 		}));
 
 		this._inputDisposables.add(this._model.onDidChangeFocus(({ focused }) => {
-			// When the view gets focused, make sure the container also has focus.
+			// When the view gets focused, make sure the editor reports that it has focus,
+			// but focus is removed from the workbench.
 			if (focused) {
-				this._browserContainer.focus();
+				this._onDidFocus?.fire();
+				if (isHTMLElement(this.window.document.activeElement)) {
+					this.window.document.activeElement.blur();
+				}
 			}
 		}));
 
