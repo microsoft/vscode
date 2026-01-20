@@ -96,6 +96,7 @@ interface ILazyItem {
 	toolInvocationOrMarkdown?: IChatToolInvocation | IChatToolInvocationSerialized | IChatMarkdownContent;
 	originalParent?: HTMLElement;
 }
+const THINKING_SCROLL_MAX_HEIGHT = 200;
 
 export class ChatThinkingContentPart extends ChatCollapsibleContentPart implements IChatContentPart {
 	public readonly codeblocks: undefined;
@@ -268,10 +269,9 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			return;
 		}
 
-		const scrollState = this.scrollableElement.getScrollPosition();
 		const scrollDimensions = this.scrollableElement.getScrollDimensions();
 		const maxScrollTop = scrollDimensions.scrollHeight - scrollDimensions.height;
-		const isAtBottom = maxScrollTop <= 0 || scrollState.scrollTop >= maxScrollTop - 10;
+		const isAtBottom = maxScrollTop <= 0 || scrollTop >= maxScrollTop - 10;
 
 		if (isAtBottom) {
 			this.autoScrollEnabled = true;
@@ -290,9 +290,8 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			return;
 		}
 
-		const MAX_HEIGHT = 200;
 		const contentHeight = this.wrapper.scrollHeight;
-		const viewportHeight = Math.min(contentHeight, MAX_HEIGHT);
+		const viewportHeight = Math.min(contentHeight, THINKING_SCROLL_MAX_HEIGHT);
 
 		this.scrollableElement.setScrollDimensions({
 			width: this.scrollableElement.getDomNode().clientWidth,
