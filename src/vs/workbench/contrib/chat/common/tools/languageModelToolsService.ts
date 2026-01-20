@@ -390,7 +390,7 @@ export interface ILanguageModelToolsService {
 	readonly readToolSet: ToolSet;
 	readonly agentToolSet: ToolSet;
 	readonly onDidChangeTools: Event<void>;
-	readonly onDidPrepareToolCallBecomeUnresponsive: Event<{ readonly sessionId: string; readonly toolData: IToolData }>;
+	readonly onDidPrepareToolCallBecomeUnresponsive: Event<{ readonly sessionResource: URI; readonly toolData: IToolData }>;
 	registerToolData(toolData: IToolData): IDisposable;
 	registerToolImplementation(id: string, tool: IToolImpl): IDisposable;
 	registerTool(toolData: IToolData, tool: IToolImpl): IDisposable;
