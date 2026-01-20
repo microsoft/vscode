@@ -70,7 +70,7 @@ export class TerminalSandboxService implements ITerminalSandboxService {
 			throw new Error('Sandbox config path or temp dir not initialized');
 		}
 		if (!this._execPath) {
-			throw new Error('Node executable path not available for sandboxing');
+			throw new Error('Executable path not set to run sandbox commands');
 		}
 		// Use ELECTRON_RUN_AS_NODE=1 to make Electron executable behave as Node.js
 		// TMPDIR must be set as environment variable before the command
