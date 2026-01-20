@@ -95,6 +95,7 @@ import { ChatMarkdownAnchorService, IChatMarkdownAnchorService } from './widget/
 import { ChatContextPickService, IChatContextPickService } from './attachments/chatContextPickService.js';
 import { ChatInputBoxContentProvider } from './widget/input/editor/chatEditorInputContentProvider.js';
 import { ChatPromptContentProvider } from './promptSyntax/chatPromptContentProvider.js';
+import './promptSyntax/chatPromptFileSystemProvider.js';
 import { ChatEditingEditorAccessibility } from './chatEditing/chatEditingEditorAccessibility.js';
 import { registerChatEditorActions } from './chatEditing/chatEditingEditorActions.js';
 import { ChatEditingEditorContextKeys } from './chatEditing/chatEditingEditorContextKeys.js';
