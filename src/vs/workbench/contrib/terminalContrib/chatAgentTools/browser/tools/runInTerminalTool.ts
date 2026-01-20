@@ -621,7 +621,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		const chatSessionResource = invocation.context?.sessionResource ?? LocalChatSessionUri.forSession(invocation.context?.sessionId ?? 'no-chat-session');
 		const chatSessionId = chatSessionResourceToId(chatSessionResource);
-		let command = toolSpecificData.commandLine.userEdited ?? toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original;
+		const command = toolSpecificData.commandLine.userEdited ?? toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original;
 		const didUserEditCommand = (
 			toolSpecificData.commandLine.userEdited !== undefined &&
 			toolSpecificData.commandLine.userEdited !== toolSpecificData.commandLine.original
@@ -631,12 +631,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			toolSpecificData.commandLine.toolEdited !== undefined &&
 			toolSpecificData.commandLine.toolEdited !== toolSpecificData.commandLine.original
 		);
-
-		if (this._sandboxService.isEnabled()) {
-			await this._sandboxService.getSandboxConfigPath();
-			this._logService.info(`RunInTerminalTool: Sandboxing is enabled, wrapping command with srt.`);
-			command = this._sandboxService.wrapCommand(command);
-		}
 
 		if (token.isCancellationRequested) {
 			throw new CancellationError();

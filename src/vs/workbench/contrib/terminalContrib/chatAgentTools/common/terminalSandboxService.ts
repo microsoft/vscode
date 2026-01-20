@@ -49,7 +49,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	) {
 		super();
 		const appRoot = dirname(FileAccess.asFileUri('').fsPath);
-		this._srtPath = join(appRoot, 'node_modules', '.bin', 'srt');
+		this._srtPath = join(appRoot, 'node_modules', '@anthropic-ai', 'sandbox-runtime', 'dist', 'cli.js');
 		this._sandboxSettingsId = generateUuid();
 		this._initTempDir();
 		this._remoteAgentService.getEnvironment().then(remoteEnv => this._os = remoteEnv?.os ?? OS);

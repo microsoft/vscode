@@ -108,7 +108,7 @@ suite('TerminalSandboxService', () => {
 
 			const wrappedCommand = sandboxService.wrapCommand('echo hello');
 
-			ok(wrappedCommand.includes('srt'), 'Wrapped command should include srt');
+			ok(wrappedCommand.includes('sandbox-runtime'), 'Wrapped command should include sandbox runtime CLI');
 			ok(wrappedCommand.includes('TMPDIR='), 'Wrapped command should include TMPDIR');
 			ok(wrappedCommand.includes('--settings'), 'Wrapped command should include --settings flag');
 			ok(wrappedCommand.includes('"echo hello"'), 'Wrapped command should include the original command in quotes');
