@@ -579,7 +579,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 	/**
 	 * Creates a virtual URI for a prompt file.
-	 * Format: /${extensionId}/${type}/${id}/<filename>
+	 * Format varies by type:
 	 * - Skills: /${extensionId}/skills/${id}/SKILL.md
 	 * - Agents: /${extensionId}/agents/${id}.agent.md
 	 * - Instructions: /${extensionId}/instructions/${id}.instructions.md
@@ -600,6 +600,8 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			case PromptsType.prompt:
 				path = `/${extensionId}/prompts/${id}.prompt.md`;
 				break;
+			default:
+				throw new Error(`Unsupported PromptsType: ${type}`);
 		}
 		return URI.from({
 			scheme: Schemas.vscodeChatPrompt,
