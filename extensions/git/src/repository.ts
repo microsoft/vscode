@@ -1127,10 +1127,11 @@ export class Repository implements Disposable {
 			return undefined;
 		}
 
-		// Since we are inspecting the resource groups
-		// we have to ensure that the repository state
-		// is up to date
-		// await this.status();
+		// Ignore path that is inside a hidden repository
+		if (this.isHidden === true) {
+			this.logger.trace(`[Repository][provideOriginalResource] Repository is hidden: ${uri.toString()}`);
+			return undefined;
+		}
 
 		// Ignore path that is inside a merge group
 		if (this.mergeGroup.resourceStates.some(r => pathEquals(r.resourceUri.fsPath, uri.fsPath))) {
@@ -3293,17 +3294,18 @@ export class StagedResourceQuickDiffProvider implements QuickDiffProvider {
 			return undefined;
 		}
 
+		// Ignore path that is inside a hidden repository
+		if (this._repository.isHidden === true) {
+			this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Repository is hidden: ${uri.toString()}`);
+			return undefined;
+		}
+
 		// Ignore symbolic links
 		const stat = await workspace.fs.stat(uri);
 		if ((stat.type & FileType.SymbolicLink) !== 0) {
 			this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Resource is a symbolic link: ${uri.toString()}`);
 			return undefined;
 		}
-
-		// Since we are inspecting the resource groups
-		// we have to ensure that the repository state
-		// is up to date
-		// await this._repository.status();
 
 		// Ignore resources that are not in the index group
 		if (!this._repository.indexGroup.resourceStates.some(r => pathEquals(r.resourceUri.fsPath, uri.fsPath))) {
