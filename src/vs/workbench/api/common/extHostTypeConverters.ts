@@ -3148,6 +3148,7 @@ export namespace ChatAgentRequest {
 			enableCommandDetection: request.enableCommandDetection ?? true,
 			isParticipantDetected: request.isParticipantDetected ?? false,
 			sessionId,
+			sessionResource: request.sessionResource,
 			references: variableReferences
 				.map(v => ChatPromptReference.to(v, diagnostics, logService))
 				.filter(isDefined),
