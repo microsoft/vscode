@@ -96,7 +96,7 @@ import { TunnelSource } from '../services/remote/common/tunnelModel.js';
 import { mainWindow } from '../../base/browser/window.js';
 import { INotificationService, Severity } from '../../platform/notification/common/notification.js';
 import { IDefaultAccountService } from '../../platform/defaultAccount/common/defaultAccount.js';
-import { DefaultAccountService } from '../services/accounts/common/defaultAccount.js';
+import { DefaultAccountService } from '../services/accounts/browser/defaultAccount.js';
 import { AccountPolicyService } from '../services/policies/common/accountPolicyService.js';
 
 export class BrowserMain extends Disposable {
@@ -349,7 +349,7 @@ export class BrowserMain extends Disposable {
 		this._register(RemoteFileSystemProviderClient.register(remoteAgentService, fileService, logService));
 
 		// Default Account
-		const defaultAccountService = this._register(new DefaultAccountService());
+		const defaultAccountService = this._register(new DefaultAccountService(productService));
 		serviceCollection.set(IDefaultAccountService, defaultAccountService);
 
 		// Policies

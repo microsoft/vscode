@@ -311,3 +311,43 @@
 .monaco-workbench .inline-chat .chat-attached-context {
 	padding: 2px 0px;
 }
+
+/* Gutter menu overlay widget */
+.inline-chat-gutter-menu {
+	background: var(--vscode-menu-background);
+	border: 1px solid var(--vscode-menu-border, var(--vscode-widget-border));
+	border-radius: 4px;
+	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+	padding: 4px 0;
+	min-width: 160px;
+	z-index: 10000;
+}
+
+.inline-chat-gutter-menu .input {
+	padding: 0 18px;
+}
+
+.inline-chat-gutter-menu .monaco-action-bar.vertical .action-item {
+	display: flex;
+	justify-content: space-between;
+	padding: 0 .8em;
+	border-radius: 3px;
+	margin: 0 4px;
+}
+
+.inline-chat-gutter-menu .monaco-action-bar.vertical .action-item .action-label {
+	font-size: 13px;
+}
+
+.inline-chat-gutter-menu .monaco-action-bar.vertical .action-item:not(.disabled):hover,
+.inline-chat-gutter-menu .monaco-action-bar.vertical .action-item:not(.disabled).focused {
+	background-color: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground);
+	outline: 1px solid var(--vscode-menu-selectionBorder, transparent);
+	outline-offset: -1px;
+}
+
+.inline-chat-gutter-menu .monaco-action-bar.vertical .action-item:not(.disabled):hover .action-label,
+.inline-chat-gutter-menu .monaco-action-bar.vertical .action-item:not(.disabled).focused .action-label {
+	color: var(--vscode-list-activeSelectionForeground);
+}

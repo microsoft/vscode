@@ -253,9 +253,9 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			const idMatch = query.match(/^@id:(.+)$/);
 			let key: string | undefined;
 			if (idMatch) {
-				key = idMatch[1];
-			} else if (Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties()[query]) {
-				key = query;
+				key = idMatch[1].trim();
+			} else if (Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties()[query.trim()]) {
+				key = query.trim();
 			}
 			options.query = undefined;
 			if (key) {

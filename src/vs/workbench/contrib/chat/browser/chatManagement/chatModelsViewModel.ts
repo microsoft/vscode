@@ -7,11 +7,9 @@ import { distinct } from '../../../../../base/common/arrays.js';
 import { IMatch, IFilter, or, matchesCamelCase, matchesWords, matchesBaseContiguousSubString } from '../../../../../base/common/filters.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { ILanguageModelsService, IUserFriendlyLanguageModel, ILanguageModelChatMetadataAndIdentifier } from '../../../chat/common/languageModels.js';
-import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { localize } from '../../../../../nls.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { ILanguageModelsProviderGroup, ILanguageModelsConfigurationService } from '../../common/languageModelsConfiguration.js';
-import { Throttler } from '../../../../../base/common/async.js';
+import { ILanguageModelsProviderGroup } from '../../common/languageModelsConfiguration.js';
 import Severity from '../../../../../base/common/severity.js';
 
 export const MODEL_ENTRY_TEMPLATE_ID = 'model.entry.template';
@@ -143,17 +141,12 @@ export class ChatModelsViewModel extends Disposable {
 		}
 	}
 
-	private readonly refreshThrottler = this._register(new Throttler());
-
 	constructor(
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
-		@ILanguageModelsConfigurationService private readonly languageModelsConfigurationService: ILanguageModelsConfigurationService,
-		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService
 	) {
 		super();
 		this.languageModels = [];
-		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => this.refresh()));
-		this._register(this.languageModelsConfigurationService.onDidChangeLanguageModelGroups(() => this.refresh()));
+		this._register(this.languageModelsService.onDidChangeLanguageModels(vendor => this.refreshVendor(vendor)));
 	}
 
 	private readonly _viewModelEntries: IViewModelEntry[] = [];
@@ -470,52 +463,73 @@ export class ChatModelsViewModel extends Disposable {
 		});
 	}
 
-	refresh(): Promise<void> {
-		return this.refreshThrottler.queue(() => this.doRefresh());
+	async refresh(): Promise<void> {
+		await this.languageModelsService.selectLanguageModels({});
+		await this.refreshAllVendors();
 	}
 
-	private async doRefresh(): Promise<void> {
+	private async refreshAllVendors(): Promise<void> {
 		this.languageModels = [];
 		this.languageModelGroupStatuses = [];
 		for (const vendor of this.getVendors()) {
-			const models: ILanguageModel[] = [];
-			const languageModelsGroups = await this.languageModelsService.fetchLanguageModelGroups(vendor.vendor);
-			for (const group of languageModelsGroups) {
-				const provider: ILanguageModelProvider = {
-					group: group.group ?? {
-						vendor: vendor.vendor,
-						name: vendor.displayName
-					},
-					vendor
-				};
-				if (group.status) {
-					this.languageModelGroupStatuses.push({
-						provider,
-						status: {
-							message: group.status.message,
-							severity: group.status.severity
-						}
-					});
-				}
-				for (const identifier of group.modelIdentifiers) {
-					const metadata = this.languageModelsService.lookupLanguageModel(identifier);
-					if (!metadata) {
-						continue;
-					}
-					if (vendor.vendor === 'copilot' && metadata.id === 'auto') {
-						continue;
-					}
-					models.push({
-						identifier,
-						metadata,
-						provider,
-					});
-				}
-			}
-			this.languageModels.push(...models.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name)));
-			this.languageModelGroups = this.groupModels(this.languageModels);
-			this.doFilter();
+			this.addVendorModels(vendor);
 		}
+		this.languageModelGroups = this.groupModels(this.languageModels);
+		this.doFilter();
+	}
+
+	private refreshVendor(vendorId: string): void {
+		const vendor = this.getVendors().find(v => v.vendor === vendorId);
+		if (!vendor) {
+			return;
+		}
+
+		// Remove existing models for this vendor
+		this.languageModels = this.languageModels.filter(m => m.provider.vendor.vendor !== vendorId);
+		this.languageModelGroupStatuses = this.languageModelGroupStatuses.filter(s => s.provider.vendor.vendor !== vendorId);
+
+		// Add updated models for this vendor
+		this.addVendorModels(vendor);
+		this.languageModelGroups = this.groupModels(this.languageModels);
+		this.doFilter();
+	}
+
+	private addVendorModels(vendor: IUserFriendlyLanguageModel): void {
+		const models: ILanguageModel[] = [];
+		const languageModelsGroups = this.languageModelsService.getLanguageModelGroups(vendor.vendor);
+		for (const group of languageModelsGroups) {
+			const provider: ILanguageModelProvider = {
+				group: group.group ?? {
+					vendor: vendor.vendor,
+					name: vendor.displayName
+				},
+				vendor
+			};
+			if (group.status) {
+				this.languageModelGroupStatuses.push({
+					provider,
+					status: {
+						message: group.status.message,
+						severity: group.status.severity
+					}
+				});
+			}
+			for (const identifier of group.modelIdentifiers) {
+				const metadata = this.languageModelsService.lookupLanguageModel(identifier);
+				if (!metadata) {
+					continue;
+				}
+				if (vendor.vendor === 'copilot' && metadata.id === 'auto') {
+					continue;
+				}
+				models.push({
+					identifier,
+					metadata,
+					provider,
+				});
+			}
+		}
+		this.languageModels.push(...models.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name)));
 	}
 
 	toggleVisibility(model: ILanguageModelEntry): void {
