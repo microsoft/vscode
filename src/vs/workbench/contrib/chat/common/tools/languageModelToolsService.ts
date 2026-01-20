@@ -158,12 +158,12 @@ export function isToolInvocationContext(obj: any): obj is IToolInvocationContext
 
 export interface IToolInvocationPreparationContext {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	parameters: any;
-	chatRequestId?: string;
+	readonly parameters: any;
+	readonly chatRequestId?: string;
 	/** @deprecated Use {@link chatSessionResource} instead */
-	chatSessionId?: string;
-	chatSessionResource: URI | undefined;
-	chatInteractionId?: string;
+	readonly chatSessionId?: string;
+	readonly chatSessionResource: URI | undefined;
+	readonly chatInteractionId?: string;
 }
 
 export type ToolInputOutputBase = {
