@@ -562,6 +562,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			}
 
 			const store = new DisposableStore();
+			let receivedDataCount = 0;
 
 			const hasRealOutput = (): boolean => {
 				// Check for snapshot output
@@ -578,7 +579,13 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 					return false;
 				}
 				const cursorLine = buffer.baseY + buffer.cursorY;
-				return cursorLine > command.executedMarker.line;
+				if (cursorLine > command.executedMarker.line) {
+					return true;
+				}
+				// If we've received multiple data events, treat it as real output even if cursor
+				// hasn't moved past the marker (e.g., progress bars updating on same line)
+				// Shell integration sequences typically fire once, so multiple events indicate real data
+				return receivedDataCount > 1;
 			};
 
 			// Use the extracted auto-expand logic
@@ -593,6 +600,11 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 					this.expandCollapsibleWrapper();
 				}
 				this._toggleOutput(true);
+			}));
+
+			// Track data events to help hasRealOutput detect progress-style output
+			store.add(terminalInstance.onWillData(() => {
+				receivedDataCount++;
 			}));
 
 			store.add(commandDetection.onCommandExecuted(() => {
@@ -876,19 +888,22 @@ class ChatTerminalToolOutputSection extends Disposable {
 			return false;
 		}
 
-		this._setExpanded(expanded);
-
 		if (!expanded) {
+			this._setExpanded(false);
 			this._renderedOutputHeight = undefined;
 			this._isAtBottom = true;
 			this._onDidChangeHeight();
 			return true;
 		}
 
+		// For expanding, prepare content first but don't show until we have something to display
 		if (!this._scrollableContainer) {
 			await this._createScrollableContainer();
 		}
 		await this._updateTerminalContent();
+
+		// Only now show the expanded state (after content is ready)
+		this._setExpanded(true);
 		this._layoutOutput();
 		this._scrollOutputToBottom();
 		this._scheduleOutputRelayout();
@@ -1026,6 +1041,10 @@ class ChatTerminalToolOutputSection extends Disposable {
 		const mirror = this._register(this._instantiationService.createInstance(DetachedTerminalCommandMirror, liveTerminalInstance.xterm, command));
 		this._mirror = mirror;
 		this._register(mirror.onDidUpdate(result => {
+			// Hide empty message as soon as we get output
+			if (result.lineCount && result.lineCount > 0) {
+				this._hideEmptyMessage();
+			}
 			this._layoutOutput(result.lineCount, result.maxColumnWidth);
 			if (this._isAtBottom) {
 				this._scrollOutputToBottom();
@@ -1038,9 +1057,40 @@ class ChatTerminalToolOutputSection extends Disposable {
 			}
 		}));
 		await mirror.attach(this._terminalContainer);
-		const result = await mirror.renderCommand();
-		if (!result || result.lineCount === 0) {
-			this._showEmptyMessage(localize('chat.terminalOutputEmpty', 'No output was produced by the command.'));
+		let result = await mirror.renderCommand();
+		// Only show "No output" message if:
+		// 1. Command has finished (has endMarker), AND
+		// 2. There's no output after retrying
+		// If command is still running, don't show the message - output may come later
+		let commandFinished = !!command.endMarker;
+		let hasOutput = result && result.lineCount && result.lineCount > 0;
+
+		// If we got no output, poll until either output appears or command finishes
+		// This handles cases where:
+		// 1. Command is running but executedMarker isn't set yet (renderCommand returns undefined)
+		// 2. Command finished quickly but buffer isn't ready yet
+		if (!hasOutput) {
+			const maxRetries = 10;
+			for (let retry = 0; retry < maxRetries && !hasOutput; retry++) {
+				await new Promise(resolve => setTimeout(resolve, 100));
+				if (this._store.isDisposed) {
+					return true;
+				}
+				result = await mirror.renderCommand();
+				hasOutput = result && result.lineCount && result.lineCount > 0;
+				commandFinished = !!command.endMarker;
+				// Stop polling if command finished (we'll show "no output" or output)
+				if (commandFinished) {
+					break;
+				}
+			}
+		}
+
+		if (!hasOutput) {
+			if (commandFinished) {
+				this._showEmptyMessage(localize('chat.terminalOutputEmpty', 'No output was produced by the command.'));
+			}
+			// If command is still running, leave content empty but don't show "no output" message
 		} else {
 			this._hideEmptyMessage();
 		}
