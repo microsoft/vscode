@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from '../../../../base/browser/browser.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { CancelablePromise, createCancelablePromise, DeferredPromise, raceCancellation } from '../../../../base/common/async.js';
@@ -24,7 +23,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
-import { generateDataToCopyAndStoreInMemory, IClipboardCopyEvent, IClipboardPasteEvent, IWritableClipboardData } from '../../../browser/controller/editContext/clipboardUtils.js';
+import { IClipboardCopyEvent, IClipboardPasteEvent, IWritableClipboardData } from '../../../browser/controller/editContext/clipboardUtils.js';
 import { ICodeEditor, PastePayload } from '../../../browser/editorBrowser.js';
 import { IBulkEditService } from '../../../browser/services/bulkEditService.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
@@ -189,11 +188,9 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			return;
 		}
 
-		const { dataToCopy } = generateDataToCopyAndStoreInMemory(viewModel, undefined, browser.isFirefox);
-
 		const defaultPastePayload = {
-			multicursorText: dataToCopy.multicursorText ?? null,
-			pasteOnNewLine: dataToCopy.isFromEmptySelection,
+			multicursorText: e.dataToCopy.multicursorText ?? null,
+			pasteOnNewLine: e.dataToCopy.isFromEmptySelection,
 			mode: null
 		};
 
@@ -220,7 +217,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			return {
 				providerMimeTypes: provider.copyMimeTypes,
 				operation: createCancelablePromise(token =>
-					provider.prepareDocumentPaste!(model, dataToCopy.sourceRanges, dataTransfer, token)
+					provider.prepareDocumentPaste!(model, e.dataToCopy.sourceRanges, dataTransfer, token)
 						.catch(err => {
 							console.error(err);
 							return undefined;

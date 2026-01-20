@@ -16,7 +16,7 @@ import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent, ViewDecorat
 import { ViewContext } from '../../../../common/viewModel/viewContext.js';
 import { RestrictedRenderingContext, RenderingContext, HorizontalPosition } from '../../../view/renderingContext.js';
 import { ViewController } from '../../../view/viewController.js';
-import { createClipboardCopyEvent, createClipboardPasteEvent, ensureClipboardGetsEditorSelection } from '../clipboardUtils.js';
+import { CopyOptions, createClipboardCopyEvent, createClipboardPasteEvent } from '../clipboardUtils.js';
 import { AbstractEditContext } from '../editContext.js';
 import { editContextAddDisposableListener, FocusTracker, ITypeData } from './nativeEditContextUtils.js';
 import { ScreenReaderSupport } from './screenReaderSupport.js';
@@ -114,16 +114,24 @@ export class NativeEditContext extends AbstractEditContext {
 
 		this._register(addDisposableListener(this.domNode.domNode, 'copy', (e) => {
 			this.logService.trace('NativeEditContext#copy');
-			const copyEvent = createClipboardCopyEvent(e, /* isCut */ false);
+
+			// !!!!!
+			// This is a workaround for what we think is an Electron bug where
+			// execCommand('copy') does not always work (it does not fire a clipboard event)
+			// !!!!!
+			// We signal that we have executed a copy command
+			CopyOptions.electronBugWorkaroundCopyEventHasFired = true;
+
+			const copyEvent = createClipboardCopyEvent(e, /* isCut */ false, this._context, this.logService, isFirefox);
 			this._onWillCopy.fire(copyEvent);
 			if (copyEvent.isHandled) {
 				return;
 			}
-			ensureClipboardGetsEditorSelection(e, this._context, this.logService, isFirefox);
+			copyEvent.ensureClipboardGetsEditorData();
 		}));
 		this._register(addDisposableListener(this.domNode.domNode, 'cut', (e) => {
 			this.logService.trace('NativeEditContext#cut');
-			const cutEvent = createClipboardCopyEvent(e, /* isCut */ true);
+			const cutEvent = createClipboardCopyEvent(e, /* isCut */ true, this._context, this.logService, isFirefox);
 			this._onWillCut.fire(cutEvent);
 			if (cutEvent.isHandled) {
 				return;
@@ -131,7 +139,7 @@ export class NativeEditContext extends AbstractEditContext {
 			// Pretend here we touched the text area, as the `cut` event will most likely
 			// result in a `selectionchange` event which we want to ignore
 			this._screenReaderSupport.onWillCut();
-			ensureClipboardGetsEditorSelection(e, this._context, this.logService, isFirefox);
+			cutEvent.ensureClipboardGetsEditorData();
 			this.logService.trace('NativeEditContext#cut (before viewController.cut)');
 			this._viewController.cut();
 		}));

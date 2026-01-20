@@ -7,54 +7,40 @@ import { Range } from '../../../common/core/range.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { Mimes } from '../../../../base/common/mime.js';
 import { ViewContext } from '../../../common/viewModel/viewContext.js';
-import { ILogService, LogLevel } from '../../../../platform/log/common/log.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { VSDataTransfer } from '../../../../base/common/dataTransfer.js';
 import { toExternalVSDataTransfer } from '../../dataTransfer.js';
 
-export function ensureClipboardGetsEditorSelection(e: ClipboardEvent, context: ViewContext, logService: ILogService, isFirefox: boolean): void {
-	const viewModel = context.viewModel;
-	let id: string | undefined = undefined;
-	if (logService.getLevel() === LogLevel.Trace) {
-		id = generateUuid();
-	}
-
-	const { dataToCopy, storedMetadata } = generateDataToCopyAndStoreInMemory(viewModel, id, isFirefox);
-
-	// !!!!!
-	// This is a workaround for what we think is an Electron bug where
-	// execCommand('copy') does not always work (it does not fire a clipboard event)
-	// !!!!!
-	// We signal that we have executed a copy command
-	CopyOptions.electronBugWorkaroundCopyEventHasFired = true;
-
-	e.preventDefault();
-	if (e.clipboardData) {
-		ClipboardEventUtils.setTextData(e.clipboardData, dataToCopy.text, dataToCopy.html, storedMetadata);
-	}
-	logService.trace('ensureClipboardGetsEditorSelection with id : ', id, ' with text.length: ', dataToCopy.text.length);
+export function generateDataToCopyAndStoreInMemory(viewModel: IViewModel, id: string | undefined, isFirefox: boolean): { dataToCopy: ClipboardDataToCopy; metadata: ClipboardStoredMetadata } {
+	const { dataToCopy, metadata } = generateDataToCopy(viewModel);
+	storeMetadataInMemory(dataToCopy.text, metadata, isFirefox);
+	return { dataToCopy, metadata };
 }
 
-export function generateDataToCopyAndStoreInMemory(viewModel: IViewModel, id: string | undefined, isFirefox: boolean) {
+function storeMetadataInMemory(textToCopy: string, metadata: ClipboardStoredMetadata, isFirefox: boolean): void {
+	InMemoryClipboardMetadataManager.INSTANCE.set(
+		// When writing "LINE\r\n" to the clipboard and then pasting,
+		// Firefox pastes "LINE\n", so let's work around this quirk
+		(isFirefox ? textToCopy.replace(/\r\n/g, '\n') : textToCopy),
+		metadata
+	);
+}
+
+function generateDataToCopy(viewModel: IViewModel): { dataToCopy: ClipboardDataToCopy; metadata: ClipboardStoredMetadata } {
 	const emptySelectionClipboard = viewModel.getEditorOption(EditorOption.emptySelectionClipboard);
 	const copyWithSyntaxHighlighting = viewModel.getEditorOption(EditorOption.copyWithSyntaxHighlighting);
 	const selections = viewModel.getCursorStates().map(cursorState => cursorState.modelState.selection);
 	const dataToCopy = getDataToCopy(viewModel, selections, emptySelectionClipboard, copyWithSyntaxHighlighting);
-	const storedMetadata: ClipboardStoredMetadata = {
+	const metadata: ClipboardStoredMetadata = {
 		version: 1,
-		id,
+		id: generateUuid(),
 		isFromEmptySelection: dataToCopy.isFromEmptySelection,
 		multicursorText: dataToCopy.multicursorText,
 		mode: dataToCopy.mode
 	};
-	InMemoryClipboardMetadataManager.INSTANCE.set(
-		// When writing "LINE\r\n" to the clipboard and then pasting,
-		// Firefox pastes "LINE\n", so let's work around this quirk
-		(isFirefox ? dataToCopy.text.replace(/\r\n/g, '\n') : dataToCopy.text),
-		storedMetadata
-	);
-	return { dataToCopy, storedMetadata };
+	return { dataToCopy, metadata };
 }
 
 function getDataToCopy(viewModel: IViewModel, modelSelections: Range[], emptySelectionClipboard: boolean, copyWithSyntaxHighlighting: boolean): ClipboardDataToCopy {
@@ -140,7 +126,7 @@ interface InMemoryClipboardMetadata {
 	data: ClipboardStoredMetadata;
 }
 
-export const ClipboardEventUtils = {
+const ClipboardEventUtils = {
 
 	getTextData(clipboardData: IReadableClipboardData | DataTransfer): [string, ClipboardStoredMetadata | null] {
 		const text = clipboardData.getData(Mimes.text);
@@ -218,6 +204,16 @@ export interface IClipboardCopyEvent {
 	readonly clipboardData: IWritableClipboardData;
 
 	/**
+	 * The data to be copied to the clipboard.
+	 */
+	readonly dataToCopy: ClipboardDataToCopy;
+
+	/**
+	 * Ensure that the clipboard gets the editor data.
+	 */
+	ensureClipboardGetsEditorData(): void;
+
+	/**
 	 * Signal that the event has been handled and default processing should be skipped.
 	 */
 	setHandled(): void;
@@ -269,7 +265,8 @@ export interface IClipboardPasteEvent {
 /**
  * Creates an IClipboardCopyEvent from a DOM ClipboardEvent.
  */
-export function createClipboardCopyEvent(e: ClipboardEvent, isCut: boolean): IClipboardCopyEvent {
+export function createClipboardCopyEvent(e: ClipboardEvent, isCut: boolean, context: ViewContext, logService: ILogService, isFirefox: boolean): IClipboardCopyEvent {
+	const { dataToCopy, metadata } = generateDataToCopy(context.viewModel);
 	let handled = false;
 	return {
 		isCut,
@@ -277,6 +274,15 @@ export function createClipboardCopyEvent(e: ClipboardEvent, isCut: boolean): ICl
 			setData: (type: string, value: string) => {
 				e.clipboardData?.setData(type, value);
 			},
+		},
+		dataToCopy,
+		ensureClipboardGetsEditorData: (): void => {
+			e.preventDefault();
+			if (e.clipboardData) {
+				ClipboardEventUtils.setTextData(e.clipboardData, dataToCopy.text, dataToCopy.html, metadata);
+			}
+			storeMetadataInMemory(dataToCopy.text, metadata, isFirefox);
+			logService.trace('ensureClipboardGetsEditorSelection with id : ', metadata.id, ' with text.length: ', dataToCopy.text.length);
 		},
 		setHandled: () => {
 			handled = true;

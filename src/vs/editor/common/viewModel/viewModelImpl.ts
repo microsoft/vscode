@@ -1027,7 +1027,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			}
 		}
 
-		return { sourceRanges: [], sourceText: result.length === 1 ? result[0] : result };
+		return { sourceRanges: ranges, sourceText: result.length === 1 ? result[0] : result };
 	}
 
 	public getRichTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean): { html: string; mode: string } | null {
