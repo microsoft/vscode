@@ -135,7 +135,7 @@ export abstract class AbstractCommonMcpManagementService extends Disposable impl
 				if (serverPackage.registryBaseUrl) {
 					args.push('--index-url', serverPackage.registryBaseUrl);
 				}
-				args.push(serverPackage.version ? `${serverPackage.identifier}==${serverPackage.version}` : serverPackage.identifier);
+				args.push(serverPackage.version ? `${serverPackage.identifier}@${serverPackage.version}` : serverPackage.identifier);
 				break;
 			case RegistryType.DOCKER:
 				{
