@@ -3296,7 +3296,7 @@ export class StagedResourceQuickDiffProvider implements QuickDiffProvider {
 
 		// Ignore path that is inside a hidden repository
 		if (this._repository.isHidden === true) {
-			this.logger.trace(`[Repository][provideOriginalResource] Repository is hidden: ${uri.toString()}`);
+			this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Repository is hidden: ${uri.toString()}`);
 			return undefined;
 		}
 
