@@ -208,7 +208,7 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.agentSessionProjection.enabled', "Controls whether Agent Session Projection mode is enabled for reviewing agent sessions in a focused workspace."),
 			default: false,
-			tags: ['experimental']
+			tags: ['experimental'],
 		},
 		'chat.implicitContext.enabled': {
 			type: 'object',

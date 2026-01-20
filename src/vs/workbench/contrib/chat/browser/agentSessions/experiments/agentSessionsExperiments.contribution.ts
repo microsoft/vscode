@@ -13,6 +13,7 @@ import { AgentTitleBarStatusService, IAgentTitleBarStatusService } from './agent
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { localize } from '../../../../../../nls.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { ProductQualityContext } from '../../../../../../platform/contextkey/common/contextkeys.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 
 // #region Agent Session Projection & Status
@@ -47,14 +48,17 @@ MenuRegistry.appendMenuItem(MenuId.AgentsTitleBarControlMenu, {
 	order: 1
 });
 
-// Toggle for Unified Agents Bar
+// Toggle for Unified Agents Bar (Insiders only)
 MenuRegistry.appendMenuItem(MenuId.AgentsTitleBarControlMenu, {
 	command: {
 		id: `toggle.${ChatConfiguration.UnifiedAgentsBar}`,
 		title: localize('toggleUnifiedAgentsBar', "Unified Agents Bar"),
 		toggled: ContextKeyExpr.has(`config.${ChatConfiguration.UnifiedAgentsBar}`),
 	},
-	when: ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`),
+	when: ContextKeyExpr.and(
+		ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`),
+		ProductQualityContext.notEqualsTo('stable')
+	),
 	order: 10
 });
 
