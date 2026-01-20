@@ -94,6 +94,12 @@ jobs:
 
       # Container host: Run Sanity Tests
       - bash: |
+          docker run --privileged --rm tonistiigi/binfmt --uninstall '*'
+          docker run --pull always --privileged --rm tonistiigi/binfmt --install all
+        displayName: Setup QEMU for Multi-Architecture Support
+        condition: and(ne('${{ parameters.container }}', ''), contains('${{ parameters.containerPlatform }}', 'arm'), ne('${{ parameters.poolName }}', '1es-mariner-2.0-arm64'))
+
+      - bash: |
           set -e
           docker run --rm --platform ${{ parameters.containerPlatform }} \
             -v "$(Build.SourcesDirectory):/workspace" \
@@ -199,7 +205,7 @@ jobs:
 
               # echo "Install Playwright browser"
               # TODO: install deps manually and remove this step
-              /workspace/test/sanity/node_modules/.bin/playwright install --with-deps firefox
+              # /workspace/test/sanity/node_modules/.bin/playwright install --with-deps firefox
 
               echo "Running sanity tests"
               node /workspace/test/sanity/out/index.js -c "$(BUILD_COMMIT)" -q "$(BUILD_QUALITY)" -t "/workspace/.build/sanity-test-logs/results.xml" -v
