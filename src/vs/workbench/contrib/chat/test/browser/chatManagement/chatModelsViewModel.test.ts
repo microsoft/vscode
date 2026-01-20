@@ -25,6 +25,9 @@ class MockLanguageModelsService implements ILanguageModelsService {
 	private readonly _onDidChangeLanguageModels = new Emitter<string>();
 	readonly onDidChangeLanguageModels = this._onDidChangeLanguageModels.event;
 
+	private readonly _onDidChangeLanguageModelVendors = new Emitter<readonly string[]>();
+	readonly onDidChangeLanguageModelVendors = this._onDidChangeLanguageModelVendors.event;
+
 	addVendor(vendor: IUserFriendlyLanguageModel): void {
 		this.vendors.push(vendor);
 		this.modelsByVendor.set(vendor.vendor, []);
@@ -53,6 +56,10 @@ class MockLanguageModelsService implements ILanguageModelsService {
 	}
 
 	registerLanguageModelProvider(vendor: string, provider: ILanguageModelChatProvider): IDisposable {
+		throw new Error('Method not implemented.');
+	}
+
+	deltaLanguageModelChatProviderDescriptors(added: IUserFriendlyLanguageModel[], removed: IUserFriendlyLanguageModel[]): void {
 		throw new Error('Method not implemented.');
 	}
 

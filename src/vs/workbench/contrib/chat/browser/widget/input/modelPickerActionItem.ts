@@ -115,6 +115,8 @@ function getModelPickerActionBarActionProvider(commandService: ICommandService, 
 				chatEntitlementService.entitlement === ChatEntitlement.Free ||
 				chatEntitlementService.entitlement === ChatEntitlement.Pro ||
 				chatEntitlementService.entitlement === ChatEntitlement.ProPlus ||
+				chatEntitlementService.entitlement === ChatEntitlement.Business ||
+				chatEntitlementService.entitlement === ChatEntitlement.Enterprise ||
 				chatEntitlementService.isInternal
 			) {
 				additionalActions.push({
