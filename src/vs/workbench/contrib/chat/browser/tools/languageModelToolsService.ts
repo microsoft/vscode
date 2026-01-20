@@ -43,6 +43,7 @@ import { ChatConfiguration } from '../../common/constants.js';
 import { ILanguageModelToolsConfirmationService } from '../../common/tools/languageModelToolsConfirmationService.js';
 import { CountTokensCallback, createToolSchemaUri, IBeginToolCallOptions, ILanguageModelToolsService, IPreparedToolInvocation, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, SpecedToolAliases, stringifyPromptTsxPart, ToolDataSource, ToolSet, VSCodeToolReference } from '../../common/tools/languageModelToolsService.js';
 import { getToolConfirmationAlert } from '../accessibility/chatAccessibilityProvider.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 const jsonSchemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
 
@@ -83,7 +84,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	private readonly _onDidChangeTools = this._register(new Emitter<void>());
 	readonly onDidChangeTools = this._onDidChangeTools.event;
-	private readonly _onDidPrepareToolCallBecomeUnresponsive = this._register(new Emitter<{ sessionId: string; toolData: IToolData }>());
+	private readonly _onDidPrepareToolCallBecomeUnresponsive = this._register(new Emitter<{ sessionResource: URI; toolData: IToolData }>());
 	readonly onDidPrepareToolCallBecomeUnresponsive = this._onDidPrepareToolCallBecomeUnresponsive.event;
 
 	/** Throttle tools updates because it sends all tools and runs on context key updates */
@@ -542,9 +543,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				timeout(3000, token).then(() => 'timeout'),
 				preparePromise
 			]);
-			if (raceResult === 'timeout') {
+			if (raceResult === 'timeout' && dto.context) {
 				this._onDidPrepareToolCallBecomeUnresponsive.fire({
-					sessionId: dto.context?.sessionId ?? '',
+					sessionResource: dto.context.sessionResource,
 					toolData: tool.data
 				});
 			}
