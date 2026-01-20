@@ -149,7 +149,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 
 		// Re-render when enhanced setting changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.AgentStatusEnhanced)) {
+			if (e.affectsConfiguration(ChatConfiguration.UnifiedAgentsBar)) {
 				this._lastRenderState = undefined; // Force re-render
 				this._render();
 			}
@@ -202,7 +202,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			const { isFilteredToUnread, isFilteredToInProgress } = this._getCurrentFilterState();
 
 			// Check if enhanced mode is enabled
-			const isEnhanced = this.configurationService.getValue<boolean>(ChatConfiguration.AgentStatusEnhanced) === true;
+			const isEnhanced = this.configurationService.getValue<boolean>(ChatConfiguration.UnifiedAgentsBar) === true;
 
 			// Build state key for comparison
 			const stateKey = JSON.stringify({
@@ -948,10 +948,10 @@ export class AgentTitleBarStatusRendering extends Disposable implements IWorkben
 		// Force enable command center and disable chat controls when agent status is enabled
 		const updateClass = () => {
 			const enabled = configurationService.getValue<boolean>(ChatConfiguration.AgentStatusEnabled) === true;
-			const enhanced = configurationService.getValue<boolean>(ChatConfiguration.AgentStatusEnhanced) === true;
+			const enhanced = configurationService.getValue<boolean>(ChatConfiguration.UnifiedAgentsBar) === true;
 
 			mainWindow.document.body.classList.toggle('agent-status-enabled', enabled);
-			mainWindow.document.body.classList.toggle('agent-status-enhanced', enabled && enhanced);
+			mainWindow.document.body.classList.toggle('unified-agents-bar', enabled && enhanced);
 
 			// Force enable command center when agent status is enabled
 			if (enabled && configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER) !== true) {
@@ -965,7 +965,7 @@ export class AgentTitleBarStatusRendering extends Disposable implements IWorkben
 		};
 		updateClass();
 		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.AgentStatusEnabled) || e.affectsConfiguration(ChatConfiguration.AgentStatusEnhanced)) {
+			if (e.affectsConfiguration(ChatConfiguration.AgentStatusEnabled) || e.affectsConfiguration(ChatConfiguration.UnifiedAgentsBar)) {
 				updateClass();
 			}
 		}));

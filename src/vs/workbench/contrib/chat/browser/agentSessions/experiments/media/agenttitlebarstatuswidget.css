@@ -7,7 +7,7 @@
  * Command Center Integration
  * Hide default search box when enhanced agent status replaces it.
  */
-.agent-status-enhanced .command-center .action-item.command-center-center {
+.unified-agents-bar .command-center .action-item.command-center-center {
 	display: none !important;
 }
 
@@ -18,7 +18,7 @@
 /*
  * Enhanced mode layout - full-width pill replacing command center search.
  */
-.agent-status-enhanced .command-center .action-item.agent-status-container {
+.unified-agents-bar .command-center .action-item.agent-status-container {
 	width: 38vw;
 	max-width: 600px;
 	display: flex;
@@ -31,7 +31,7 @@
 /*
  * Badge-only mode layout - compact badge next to command center.
  */
-.agent-status-enabled:not(.agent-status-enhanced) .command-center .action-item.agent-status-container {
+.agent-status-enabled:not(.unified-agents-bar) .command-center .action-item.agent-status-container {
 	display: flex;
 	flex-direction: row;
 	flex-wrap: nowrap;

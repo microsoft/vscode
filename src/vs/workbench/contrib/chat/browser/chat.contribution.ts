@@ -198,9 +198,9 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			tags: ['experimental']
 		},
-		[ChatConfiguration.AgentStatusEnhanced]: {
+		[ChatConfiguration.UnifiedAgentsBar]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.agentsControl.enhanced', "When enabled alongside {0}, replaces the command center search box with a unified search and chat bar.", '`#chat.agentsControl.enabled#`'),
+			markdownDescription: nls.localize('chat.unifiedAgentsBar.enabled', "When enabled alongside {0}, replaces the command center search box with a unified agents bar.", '`#chat.agentsControl.enabled#`'),
 			default: false,
 			tags: ['experimental']
 		},

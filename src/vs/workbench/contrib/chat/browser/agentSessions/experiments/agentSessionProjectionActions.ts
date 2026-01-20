@@ -109,14 +109,14 @@ export class ToggleAgentStatusAction extends ToggleTitleBarConfigAction {
 
 //#endregion
 
-//#region Toggle Unified Search and Chat Bar
+//#region Toggle Unified Agents Bar
 
-export class ToggleAgentStatusEnhancedAction extends ToggleTitleBarConfigAction {
+export class ToggleUnifiedAgentsBarAction extends ToggleTitleBarConfigAction {
 	constructor() {
 		super(
-			ChatConfiguration.AgentStatusEnhanced,
-			localize('toggle.agentStatusEnhanced', 'Unified Search and Chat Bar'),
-			localize('toggle.agentStatusEnhancedDescription', "Toggle Unified Search and Chat Bar (replaces search box)"), 7,
+			ChatConfiguration.UnifiedAgentsBar,
+			localize('toggle.unifiedAgentsBar', 'Unified Agents Bar'),
+			localize('toggle.unifiedAgentsBarDescription', "Toggle Unified Agents Bar (replaces search box)"), 7,
 			ContextKeyExpr.and(
 				ChatContextKeys.enabled,
 				IsCompactTitleBarContext.negate(),
