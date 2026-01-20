@@ -454,6 +454,7 @@ export default tseslint.config(
 			'src/vs/platform/log/common/log.ts',
 			'src/vs/platform/log/common/logIpc.ts',
 			'src/vs/platform/log/electron-main/logIpc.ts',
+			'src/vs/platform/meteredConnection/electron-main/meteredConnectionChannel.ts',
 			'src/vs/platform/observable/common/wrapInHotClass.ts',
 			'src/vs/platform/observable/common/wrapInReloadableClass.ts',
 			'src/vs/platform/policy/common/policyIpc.ts',

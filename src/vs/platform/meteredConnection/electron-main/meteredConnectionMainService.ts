@@ -8,10 +8,10 @@ import { AbstractMeteredConnectionService } from '../common/meteredConnection.js
 
 /**
  * Electron-main implementation of the metered connection service.
- * This implementation receives metered connection updates via IPC from the renderer process.
+ * This implementation receives metered connection updates via IPC channel from the renderer process.
  */
 export class MeteredConnectionMainService extends AbstractMeteredConnectionService {
 	constructor(@IConfigurationService configurationService: IConfigurationService) {
-		super(configurationService);
+		super(configurationService, false);
 	}
 }

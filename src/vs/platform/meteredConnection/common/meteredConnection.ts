@@ -29,7 +29,6 @@ export interface IMeteredConnectionService {
 }
 
 export const METERED_CONNECTION_SETTING_KEY = 'update.respectMeteredConnections';
-export const METERED_CONNECTION_CHANGED_CHANNEL = 'vscode:meteredConnectionChanged';
 
 /**
  * Network Information API
@@ -70,46 +69,62 @@ export function getIsConnectionMetered() {
 /**
  * Abstract base class for metered connection services.
  */
-export class AbstractMeteredConnectionService extends Disposable implements IMeteredConnectionService {
-
+export abstract class AbstractMeteredConnectionService extends Disposable implements IMeteredConnectionService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _onDidChangeIsConnectionMetered = this._register(new Emitter<boolean>());
 	public readonly onDidChangeIsConnectionMetered = this._onDidChangeIsConnectionMetered.event;
 
-	private _isConnectionMetered = false;
+	private _isConnectionMetered: boolean;
+	private _connectionState: boolean;
 	private _respectMeteredConnections: boolean;
 
-	constructor(private readonly configurationService: IConfigurationService) {
+	constructor(configurationService: IConfigurationService, connectionState: boolean) {
 		super();
 
-		this._respectMeteredConnections = this.configurationService.getValue<boolean>(METERED_CONNECTION_SETTING_KEY);
+		this._connectionState = connectionState;
+		this._respectMeteredConnections = configurationService.getValue<boolean>(METERED_CONNECTION_SETTING_KEY);
+		this._isConnectionMetered = this._respectMeteredConnections && this._connectionState;
 
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
+		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(METERED_CONNECTION_SETTING_KEY)) {
-				const value = this.configurationService.getValue<boolean>(METERED_CONNECTION_SETTING_KEY);
-				if (this._respectMeteredConnections !== value) {
-					const oldValue = this.isConnectionMetered;
+				const value = configurationService.getValue<boolean>(METERED_CONNECTION_SETTING_KEY);
+				if (value !== this._respectMeteredConnections) {
 					this._respectMeteredConnections = value;
-					if (oldValue !== this.isConnectionMetered) {
-						this._onDidChangeIsConnectionMetered.fire(this.isConnectionMetered);
-					}
+					this.onUpdated();
 				}
 			}
 		}));
 	}
 
 	public get isConnectionMetered(): boolean {
-		return this._respectMeteredConnections && this._isConnectionMetered;
+		return this._isConnectionMetered;
 	}
 
-	public setIsConnectionMetered(isMetered: boolean): void {
-		if (this._isConnectionMetered !== isMetered) {
-			const oldValue = this.isConnectionMetered;
-			this._isConnectionMetered = isMetered;
-			if (oldValue !== this.isConnectionMetered) {
-				this._onDidChangeIsConnectionMetered.fire(this.isConnectionMetered);
-			}
+	protected get connectionState(): boolean {
+		return this._connectionState;
+	}
+
+	public setConnectionState(value: boolean) {
+		if (value !== this._connectionState) {
+			this._connectionState = value;
+			this.onChangeConnectionState();
 		}
+	}
+
+	protected onChangeConnectionState() {
+		this.onUpdated();
+	}
+
+	protected onUpdated() {
+		const value = this._respectMeteredConnections && this._connectionState;
+		if (value !== this._isConnectionMetered) {
+			this._isConnectionMetered = value;
+			this.onChangeIsConnectionMetered();
+		}
+	}
+
+	protected onChangeIsConnectionMetered() {
+		this._onDidChangeIsConnectionMetered.fire(this._isConnectionMetered);
 	}
 }

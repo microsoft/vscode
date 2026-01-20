@@ -14,14 +14,13 @@ import { AbstractMeteredConnectionService, getIsConnectionMetered, IMeteredConne
  */
 export class MeteredConnectionService extends AbstractMeteredConnectionService {
 	constructor(@IConfigurationService configurationService: IConfigurationService) {
-		super(configurationService);
+		super(configurationService, getIsConnectionMetered());
 
 		const connection = (navigator as NavigatorWithConnection).connection;
 		if (connection) {
-			const onChange = () => this.setIsConnectionMetered(getIsConnectionMetered());
+			const onChange = () => this.setConnectionState(getIsConnectionMetered());
 			connection.addEventListener('change', onChange);
 			this._register(toDisposable(() => connection.removeEventListener('change', onChange)));
-			onChange();
 		}
 	}
 }

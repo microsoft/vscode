@@ -60,7 +60,9 @@ import { ILifecycleMainService, LifecycleMainPhase, ShutdownReason } from '../..
 import { ILoggerService, ILogService } from '../../platform/log/common/log.js';
 import { IMenubarMainService, MenubarMainService } from '../../platform/menubar/electron-main/menubarMainService.js';
 import { INativeHostMainService, NativeHostMainService } from '../../platform/native/electron-main/nativeHostMainService.js';
-import { IMeteredConnectionService, METERED_CONNECTION_CHANGED_CHANNEL } from '../../platform/meteredConnection/common/meteredConnection.js';
+import { IMeteredConnectionService } from '../../platform/meteredConnection/common/meteredConnection.js';
+import { METERED_CONNECTION_CHANNEL } from '../../platform/meteredConnection/common/meteredConnectionIpc.js';
+import { MeteredConnectionChannel } from '../../platform/meteredConnection/electron-main/meteredConnectionChannel.js';
 import { MeteredConnectionMainService } from '../../platform/meteredConnection/electron-main/meteredConnectionMainService.js';
 import { IProductService } from '../../platform/product/common/productService.js';
 import { getRemoteAuthority } from '../../platform/remote/common/remoteHosts.js';
@@ -141,7 +143,6 @@ export class CodeApplication extends Disposable {
 	private windowsMainService: IWindowsMainService | undefined;
 	private auxiliaryWindowsMainService: IAuxiliaryWindowsMainService | undefined;
 	private nativeHostMainService: INativeHostMainService | undefined;
-	private meteredConnectionMainService: MeteredConnectionMainService | undefined;
 
 	constructor(
 		private readonly mainProcessNodeIpcServer: NodeIPCServer,
@@ -529,10 +530,6 @@ export class CodeApplication extends Disposable {
 			}
 		});
 
-		validatedIpcMain.on(METERED_CONNECTION_CHANGED_CHANNEL, (_event, isMetered: boolean) => {
-			this.meteredConnectionMainService?.setIsConnectionMetered(isMetered);
-		});
-
 		//#endregion
 	}
 
@@ -638,7 +635,6 @@ export class CodeApplication extends Disposable {
 		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
 		const urlService = accessor.get(IURLService);
 		const nativeHostMainService = this.nativeHostMainService = accessor.get(INativeHostMainService);
-		this.meteredConnectionMainService = accessor.get(IMeteredConnectionService) as MeteredConnectionMainService;
 		const dialogMainService = accessor.get(IDialogMainService);
 
 		// Install URL handlers that deal with protocl URLs either
@@ -1045,7 +1041,8 @@ export class CodeApplication extends Disposable {
 		services.set(INativeHostMainService, new SyncDescriptor(NativeHostMainService, undefined, false /* proxied to other processes */));
 
 		// Metered Connection
-		services.set(IMeteredConnectionService, new SyncDescriptor(MeteredConnectionMainService, undefined, true));
+		const meteredConnectionService = new MeteredConnectionMainService(this.configurationService);
+		services.set(IMeteredConnectionService, meteredConnectionService);
 
 		// Web Contents Extractor
 		services.set(IWebContentExtractorService, new SyncDescriptor(NativeWebContentExtractorService, undefined, false /* proxied to other processes */));
@@ -1106,7 +1103,7 @@ export class CodeApplication extends Disposable {
 			const appender = new TelemetryAppenderClient(channel);
 			const commonProperties = resolveCommonProperties(release(), hostname(), process.arch, this.productService.commit, this.productService.version, machineId, sqmId, devDeviceId, isInternal, this.productService.date);
 			const piiPaths = getPiiPathsFromEnvironment(this.environmentMainService);
-			const config: ITelemetryServiceConfig = { appenders: [appender], commonProperties, piiPaths, sendErrorTelemetry: true };
+			const config: ITelemetryServiceConfig = { appenders: [appender], commonProperties, piiPaths, sendErrorTelemetry: true, meteredConnectionService };
 
 			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, [config], false));
 		} else {
@@ -1175,6 +1172,11 @@ export class CodeApplication extends Disposable {
 		const updateChannel = new UpdateChannel(accessor.get(IUpdateService));
 		mainProcessElectronServer.registerChannel('update', updateChannel);
 
+		// Metered Connection
+		const meteredConnectionChannel = new MeteredConnectionChannel(accessor.get(IMeteredConnectionService) as MeteredConnectionMainService);
+		mainProcessElectronServer.registerChannel(METERED_CONNECTION_CHANNEL, meteredConnectionChannel);
+		sharedProcessClient.then(client => client.registerChannel(METERED_CONNECTION_CHANNEL, meteredConnectionChannel));
+
 		// Process
 		const processChannel = ProxyChannel.fromService(new ProcessMainService(this.logService, accessor.get(IDiagnosticsService), accessor.get(IDiagnosticsMainService)), disposables);
 		mainProcessElectronServer.registerChannel('process', processChannel);
@@ -1202,7 +1204,6 @@ export class CodeApplication extends Disposable {
 
 		// Native host (main & shared process)
 		this.nativeHostMainService = accessor.get(INativeHostMainService);
-		this.meteredConnectionMainService = accessor.get(IMeteredConnectionService) as MeteredConnectionMainService;
 		const nativeHostChannel = ProxyChannel.fromService(this.nativeHostMainService, disposables);
 		mainProcessElectronServer.registerChannel('nativeHost', nativeHostChannel);
 		sharedProcessClient.then(client => client.registerChannel('nativeHost', nativeHostChannel));
