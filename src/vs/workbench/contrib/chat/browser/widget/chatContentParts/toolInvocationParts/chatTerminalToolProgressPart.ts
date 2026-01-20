@@ -566,40 +566,65 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			const hasRealOutput = (): boolean => {
 				// Check for snapshot output
 				if (this._terminalData.terminalCommandOutput?.text?.trim()) {
+					console.log('[TerminalToolProgress] hasRealOutput: true (snapshot output)');
 					return true;
 				}
 				// Check for live output (cursor moved past executed marker)
 				const command = this._getResolvedCommand(terminalInstance);
 				if (!command?.executedMarker || terminalInstance.isDisposed) {
+					console.log('[TerminalToolProgress] hasRealOutput: false (no executedMarker or disposed)', { hasExecutedMarker: !!command?.executedMarker, isDisposed: terminalInstance.isDisposed });
 					return false;
 				}
 				const buffer = terminalInstance.xterm?.raw.buffer.active;
 				if (!buffer) {
+					console.log('[TerminalToolProgress] hasRealOutput: false (no buffer)');
 					return false;
 				}
 				const cursorLine = buffer.baseY + buffer.cursorY;
-				return cursorLine > command.executedMarker.line;
+				const result = cursorLine > command.executedMarker.line;
+				console.log('[TerminalToolProgress] hasRealOutput:', result, { cursorLine, executedMarkerLine: command.executedMarker.line });
+				return result;
 			};
 
 			// Use the extracted auto-expand logic
+			console.log('[TerminalToolProgress] Creating TerminalToolAutoExpand, isInThinkingContainer:', this._isInThinkingContainer);
 			const autoExpand = store.add(new TerminalToolAutoExpand({
 				commandDetection,
 				onWillData: terminalInstance.onWillData,
-				shouldAutoExpand: () => !this._outputView.isExpanded && !this._userToggledOutput && !this._store.isDisposed,
+				shouldAutoExpand: () => {
+					const result = !this._outputView.isExpanded && !this._userToggledOutput && !this._store.isDisposed;
+					console.log('[TerminalToolProgress] shouldAutoExpand:', result, { isExpanded: this._outputView.isExpanded, userToggledOutput: this._userToggledOutput, isDisposed: this._store.isDisposed, isInThinkingContainer: this._isInThinkingContainer });
+					return result;
+				},
 				hasRealOutput,
 			}));
-			store.add(autoExpand.onDidRequestExpand(() => this._toggleOutput(true)));
+			store.add(autoExpand.onDidRequestExpand(() => {
+				console.log('[TerminalToolProgress] onDidRequestExpand fired, isInThinkingContainer:', this._isInThinkingContainer);
+				if (this._isInThinkingContainer) {
+					console.log('[TerminalToolProgress] Expanding collapsible wrapper');
+					this.expandCollapsibleWrapper();
+				}
+				console.log('[TerminalToolProgress] Toggling output to expanded');
+				this._toggleOutput(true);
+			}));
 
 			store.add(commandDetection.onCommandExecuted(() => {
+				console.log('[TerminalToolProgress] onCommandExecuted, isInThinkingContainer:', this._isInThinkingContainer);
 				this._addActions(terminalInstance, this._terminalData.terminalToolSessionId);
 			}));
 
 			store.add(commandDetection.onCommandFinished(() => {
+				console.log('[TerminalToolProgress] onCommandFinished, isInThinkingContainer:', this._isInThinkingContainer, 'isExpanded:', this._outputView.isExpanded);
 				this._addActions(terminalInstance, this._terminalData.terminalToolSessionId);
 				const resolvedCommand = this._getResolvedCommand(terminalInstance);
 
+				// Auto-expand on completion when in thinking container
+				if (this._isInThinkingContainer && !this._outputView.isExpanded && !this._userToggledOutput) {
+					console.log('[TerminalToolProgress] Auto-expanding on finish in thinking container');
+					this._toggleOutput(true);
+				}
 				// Auto-collapse on success (except for thinking)
-				if (resolvedCommand?.exitCode === 0 && this._outputView.isExpanded && !this._userToggledOutput && !this._isInThinkingContainer) {
+				else if (resolvedCommand?.exitCode === 0 && this._outputView.isExpanded && !this._userToggledOutput && !this._isInThinkingContainer) {
 					this._toggleOutput(false);
 				}
 				// keep outer wrapper expanded on error
@@ -615,8 +640,12 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			const resolvedImmediately = await tryResolveCommand();
 			if (resolvedImmediately?.endMarker) {
 				commandDetectionListener.clear();
+				// Auto-expand on completion when in thinking container
+				if (this._isInThinkingContainer && !this._outputView.isExpanded && !this._userToggledOutput) {
+					this._toggleOutput(true);
+				}
 				// Auto-collapse on success (except for thinking)
-				if (resolvedImmediately.exitCode === 0 && this._outputView.isExpanded && !this._userToggledOutput && !this._isInThinkingContainer) {
+				else if (resolvedImmediately.exitCode === 0 && this._outputView.isExpanded && !this._userToggledOutput && !this._isInThinkingContainer) {
 					this._toggleOutput(false);
 				}
 				// keep outer wrapper expanded on error

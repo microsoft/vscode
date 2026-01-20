@@ -12,8 +12,10 @@ import { disposableTimeout } from '../../../../../../../base/common/async.js';
  * The auto-expand algorithm for terminal tool progress parts.
  *
  * The algorithm is:
- * 1. When command executes, kick off 500ms timeout - if hit without data events, expand only if there's real output
- * 2. On first data event, wait 50ms and expand if command not yet finished
+ * 1. When command executes, kick off 500ms timeout - expand if there's real output (data events
+ *    may fire before onCommandExecuted due to shell integration sequences, so we can't rely on
+ *    receivedData to skip this path)
+ * 2. On first data event, wait 50ms and expand if command not yet finished and has real output
  * 3. Fast commands (finishing quickly) should NOT auto-expand to prevent flickering
  */
 export interface ITerminalToolAutoExpandOptions {
@@ -75,11 +77,20 @@ export class TerminalToolAutoExpand extends Disposable {
 		const commandDetection = this._options.commandDetection;
 
 		store.add(commandDetection.onCommandExecuted(() => {
+			console.log('[TerminalToolAutoExpand] onCommandExecuted, shouldAutoExpand:', this._options.shouldAutoExpand());
 			// Auto-expand for long-running commands:
 			if (this._options.shouldAutoExpand() && !this._noDataTimeout) {
+				console.log('[TerminalToolAutoExpand] Starting NoData timeout (' + TerminalToolAutoExpandTimeout.NoData + 'ms)');
 				this._noDataTimeout = disposableTimeout(() => {
 					this._noDataTimeout = undefined;
-					if (!this._receivedData && this._options.shouldAutoExpand() && this._options.hasRealOutput()) {
+					const shouldExpand = this._options.shouldAutoExpand();
+					const hasOutput = this._options.hasRealOutput();
+					console.log('[TerminalToolAutoExpand] NEW CODE - NoData timeout fired, shouldAutoExpand:', shouldExpand, 'hasRealOutput:', hasOutput);
+					// Don't check receivedData here - data events can fire before onCommandExecuted
+					// (shell integration sequences), and the DataEvent path may not have expanded
+					// if hasRealOutput was false at that time
+					if (shouldExpand && hasOutput) {
+						console.log('[TerminalToolAutoExpand] Firing onDidRequestExpand (NoData path)');
 						this._onDidRequestExpand.fire();
 					}
 				}, TerminalToolAutoExpandTimeout.NoData, store);
@@ -89,17 +100,24 @@ export class TerminalToolAutoExpand extends Disposable {
 		// 2. Wait for first data event - when hit, wait 50ms and expand if command not yet finished
 		// Also checks for real output since shell integration sequences trigger onWillData
 		store.add(this._options.onWillData(() => {
+			console.log('[TerminalToolAutoExpand] onWillData, receivedData before:', this._receivedData);
 			if (this._receivedData) {
 				return;
 			}
 			this._receivedData = true;
 			this._noDataTimeout?.dispose();
 			this._noDataTimeout = undefined;
+			console.log('[TerminalToolAutoExpand] First data event, shouldAutoExpand:', this._options.shouldAutoExpand());
 			// Wait 50ms and expand if command hasn't finished yet and has real output
 			if (this._options.shouldAutoExpand() && !this._dataEventTimeout) {
+				console.log('[TerminalToolAutoExpand] Starting DataEvent timeout (' + TerminalToolAutoExpandTimeout.DataEvent + 'ms)');
 				this._dataEventTimeout = disposableTimeout(() => {
 					this._dataEventTimeout = undefined;
-					if (!this._commandFinished && this._options.shouldAutoExpand() && this._options.hasRealOutput()) {
+					const shouldExpand = this._options.shouldAutoExpand();
+					const hasOutput = this._options.hasRealOutput();
+					console.log('[TerminalToolAutoExpand] DataEvent timeout fired, commandFinished:', this._commandFinished, 'shouldAutoExpand:', shouldExpand, 'hasRealOutput:', hasOutput);
+					if (!this._commandFinished && shouldExpand && hasOutput) {
+						console.log('[TerminalToolAutoExpand] Firing onDidRequestExpand (DataEvent path)');
 						this._onDidRequestExpand.fire();
 					}
 				}, TerminalToolAutoExpandTimeout.DataEvent, store);
@@ -107,6 +125,7 @@ export class TerminalToolAutoExpand extends Disposable {
 		}));
 
 		store.add(commandDetection.onCommandFinished(() => {
+			console.log('[TerminalToolAutoExpand] onCommandFinished, clearing timeouts');
 			this._commandFinished = true;
 			this._clearAutoExpandTimeouts();
 		}));
