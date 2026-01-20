@@ -2333,6 +2333,7 @@ export interface IChatBeginToolInvocationDto {
 		partialInput?: unknown;
 	};
 	subagentInvocationId?: string;
+	subAgentName?: string;
 }
 
 export interface IChatUpdateToolInvocationDto {

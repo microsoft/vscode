@@ -126,6 +126,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				chatRequestId: isProposedApiEnabled(extension, 'chatParticipantPrivate') ? options.chatRequestId : undefined,
 				chatInteractionId: isProposedApiEnabled(extension, 'chatParticipantPrivate') ? options.chatInteractionId : undefined,
 				subAgentInvocationId: isProposedApiEnabled(extension, 'chatParticipantPrivate') ? options.subAgentInvocationId : undefined,
+				subAgentName: isProposedApiEnabled(extension, 'chatParticipantPrivate') ? options.subAgentName : undefined,
 				chatStreamToolCallId: isProposedApiEnabled(extension, 'chatParticipantAdditions') ? options.chatStreamToolCallId : undefined,
 			}, token);
 
@@ -187,6 +188,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			options.chatInteractionId = dto.chatInteractionId;
 			options.chatSessionId = dto.context?.sessionId;
 			options.subAgentInvocationId = dto.subAgentInvocationId;
+			options.subAgentName = dto.subAgentName;
 		}
 
 		if (isProposedApiEnabled(item.extension, 'chatParticipantAdditions') && dto.modelId) {
