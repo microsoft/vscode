@@ -197,7 +197,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		const actionTitle = this._keybindingService.lookupKeybinding(acceptSelectedActionCommand)?.getLabel();
 		const previewTitle = this._keybindingService.lookupKeybinding(previewSelectedActionCommand)?.getLabel();
 		data.container.classList.toggle('option-disabled', element.disabled);
-		if (element.tooltip) {
+		if (element.tooltip !== undefined) {
 			data.container.title = element.tooltip;
 		} else if (element.disabled) {
 			data.container.title = element.label;

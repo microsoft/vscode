@@ -65,10 +65,10 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, te
 				} satisfies IActionWidgetDropdownAction];
 			}
 			return models.map(model => {
-				// Build hover content combining description and rate info
+				// Build hover content combining tooltip and rate info
 				const hoverParts: string[] = [];
-				if (model.metadata.description) {
-					hoverParts.push(model.metadata.description);
+				if (model.metadata.tooltip) {
+					hoverParts.push(model.metadata.tooltip);
 				}
 				if (model.metadata.detail) {
 					hoverParts.push(localize('chat.modelPicker.rateDescription', "Rate is counted at {0}.", model.metadata.detail));
@@ -89,7 +89,7 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, te
 					category: model.metadata.modelPickerCategory || DEFAULT_MODEL_PICKER_CATEGORY,
 					class: undefined,
 					description: undefined,
-					tooltip: hoverContent ? '' : (model.metadata.tooltip ?? model.metadata.name),
+					tooltip: hoverContent ? '' : model.metadata.name,
 					hover: hoverContent ? { content: hoverContent, actions: hoverActions } : undefined,
 					label: model.metadata.name,
 					run: () => {
