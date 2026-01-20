@@ -132,8 +132,10 @@ export abstract class AbstractCommonMcpManagementService extends Disposable impl
 				args.push(serverPackage.version ? `${serverPackage.identifier}==${serverPackage.version}` : serverPackage.identifier);
 				break;
 			case RegistryType.DOCKER:
-				args.push(serverPackage.version ? `${serverPackage.identifier}:${serverPackage.version}` : serverPackage.identifier);
-				break;
+				{
+					args.push(serverPackage.version ? `${serverPackage.identifier}:${serverPackage.version}` : serverPackage.identifier);
+					break;
+				}
 			case RegistryType.NUGET:
 				args.push(serverPackage.version ? `${serverPackage.identifier}@${serverPackage.version}` : serverPackage.identifier);
 				args.push('--yes'); // installation is confirmed by the UI, so --yes is appropriate here
