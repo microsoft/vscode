@@ -194,7 +194,13 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.AgentStatusEnabled]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.agentsControl.enabled', "Controls whether the Agent Status is shown in the title bar command center, replacing the search box with quick access to chat sessions. Enabling this setting will automatically enable {0}.", '`#window.commandCenter#`'),
+			markdownDescription: nls.localize('chat.agentsControl.enabled', "Controls whether the Agent Status indicator is shown in the title bar command center. Enabling this setting will automatically enable {0}.", '`#window.commandCenter#`'),
+			default: false,
+			tags: ['experimental']
+		},
+		[ChatConfiguration.AgentStatusEnhanced]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.agentsControl.enhanced', "When enabled alongside {0}, replaces the command center search box with a unified search and chat bar.", '`#chat.agentsControl.enabled#`'),
 			default: false,
 			tags: ['experimental']
 		},

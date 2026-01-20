@@ -100,6 +100,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super(undefined, action, options);
 
@@ -145,6 +146,14 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, 'agentSessions.filterExcludes.agentsessionsviewerfiltersubmenu', this._register(new DisposableStore()))(() => {
 			this._render();
 		}));
+
+		// Re-render when enhanced setting changes
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.AgentStatusEnhanced)) {
+				this._lastRenderState = undefined; // Force re-render
+				this._render();
+			}
+		}));
 	}
 
 	override render(container: HTMLElement): void {
@@ -161,7 +170,6 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			return;
 		}
 
-		// Guard against re-entrant calls (e.g., storage changes during render)
 		if (this._isRendering) {
 			return;
 		}
@@ -193,6 +201,9 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			// Get current filter state for state key
 			const { isFilteredToUnread, isFilteredToInProgress } = this._getCurrentFilterState();
 
+			// Check if enhanced mode is enabled
+			const isEnhanced = this.configurationService.getValue<boolean>(ChatConfiguration.AgentStatusEnhanced) === true;
+
 			// Build state key for comparison
 			const stateKey = JSON.stringify({
 				mode,
@@ -204,6 +215,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 				label,
 				isFilteredToUnread,
 				isFilteredToInProgress,
+				isEnhanced,
 			});
 
 			// Skip re-render if state hasn't changed
@@ -221,9 +233,12 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			if (this.agentTitleBarStatusService.mode === AgentStatusMode.Session) {
 				// Agent Session Projection mode - show session title + close button
 				this._renderSessionMode(this._dynamicDisposables);
-			} else {
-				// Default mode - show copilot pill with optional in-progress indicator
+			} else if (isEnhanced) {
+				// Enhanced mode - show full pill with label + status badge
 				this._renderChatInputMode(this._dynamicDisposables);
+			} else {
+				// Basic mode - show only the status badge (sparkle + unread/active counts)
+				this._renderBadgeOnlyMode(this._dynamicDisposables);
 			}
 		} finally {
 			this._isRendering = false;
@@ -407,6 +422,21 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		this._renderStatusBadge(disposables, activeSessions, unreadSessions);
 	}
 
+	/**
+	 * Render badge-only mode - just the status badge without the full pill.
+	 * Used when Agent Status is enabled but Enhanced Agent Status is not.
+	 */
+	private _renderBadgeOnlyMode(disposables: DisposableStore): void {
+		if (!this._container) {
+			return;
+		}
+
+		const { activeSessions, unreadSessions } = this._getSessionStats();
+
+		// Status badge only - no pill, no command center toolbar
+		this._renderStatusBadge(disposables, activeSessions, unreadSessions);
+	}
+
 	// #endregion
 
 	// #region Reusable Components
@@ -541,10 +571,10 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			icon: Codicon.chatSparkle,
 		}, undefined, undefined, undefined, undefined);
 
-		// Create dropdown action
+		// Create dropdown action (empty label prevents default tooltip - we have our own hover)
 		const dropdownAction = toAction({
 			id: 'agentStatus.sparkle.dropdown',
-			label: localize('more', "More..."),
+			label: '',
 			run() { }
 		});
 
@@ -894,7 +924,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
  * Provides custom rendering for the agent status in the command center.
  * Uses IActionViewItemService to render a custom AgentStatusWidget
  * for the AgentsControlMenu submenu.
- * Also adds a CSS class to the workbench when agent status is enabled.
+ * Also adds CSS classes to the workbench based on settings.
  */
 export class AgentTitleBarStatusRendering extends Disposable implements IWorkbenchContribution {
 
@@ -914,11 +944,14 @@ export class AgentTitleBarStatusRendering extends Disposable implements IWorkben
 			return instantiationService.createInstance(AgentTitleBarStatusWidget, action, options);
 		}, undefined));
 
-		// Add/remove CSS class on workbench based on setting
-		// Also force enable command center and disable chat controls when agent status is enabled
+		// Add/remove CSS classes on workbench based on settings
+		// Force enable command center and disable chat controls when agent status is enabled
 		const updateClass = () => {
 			const enabled = configurationService.getValue<boolean>(ChatConfiguration.AgentStatusEnabled) === true;
+			const enhanced = configurationService.getValue<boolean>(ChatConfiguration.AgentStatusEnhanced) === true;
+
 			mainWindow.document.body.classList.toggle('agent-status-enabled', enabled);
+			mainWindow.document.body.classList.toggle('agent-status-enhanced', enabled && enhanced);
 
 			// Force enable command center when agent status is enabled
 			if (enabled && configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER) !== true) {
@@ -932,7 +965,7 @@ export class AgentTitleBarStatusRendering extends Disposable implements IWorkben
 		};
 		updateClass();
 		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.AgentStatusEnabled)) {
+			if (e.affectsConfiguration(ChatConfiguration.AgentStatusEnabled) || e.affectsConfiguration(ChatConfiguration.AgentStatusEnhanced)) {
 				updateClass();
 			}
 		}));

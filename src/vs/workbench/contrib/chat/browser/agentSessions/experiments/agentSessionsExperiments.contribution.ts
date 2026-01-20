@@ -6,7 +6,7 @@
 import { registerSingleton, InstantiationType } from '../../../../../../platform/instantiation/common/extensions.js';
 import { MenuId, MenuRegistry, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { IAgentSessionProjectionService, AgentSessionProjectionService, AgentSessionProjectionOpenerContribution } from './agentSessionProjectionService.js';
-import { EnterAgentSessionProjectionAction, ExitAgentSessionProjectionAction, ToggleAgentStatusAction } from './agentSessionProjectionActions.js';
+import { EnterAgentSessionProjectionAction, ExitAgentSessionProjectionAction, ToggleAgentStatusAction, ToggleAgentStatusEnhancedAction } from './agentSessionProjectionActions.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
 import { AgentTitleBarStatusRendering } from './agentTitleBarStatusWidget.js';
 import { AgentTitleBarStatusService, IAgentTitleBarStatusService } from './agentTitleBarStatusService.js';
@@ -20,6 +20,7 @@ import { ChatConfiguration } from '../../../common/constants.js';
 registerAction2(EnterAgentSessionProjectionAction);
 registerAction2(ExitAgentSessionProjectionAction);
 registerAction2(ToggleAgentStatusAction);
+registerAction2(ToggleAgentStatusEnhancedAction);
 
 registerSingleton(IAgentSessionProjectionService, AgentSessionProjectionService, InstantiationType.Delayed);
 registerSingleton(IAgentTitleBarStatusService, AgentTitleBarStatusService, InstantiationType.Delayed);
@@ -43,6 +44,18 @@ MenuRegistry.appendMenuItem(MenuId.AgentsTitleBarControlMenu, {
 		title: localize('openChat', "Open Chat"),
 	},
 	when: ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`),
+	order: 1
+});
+
+// Toggle for Unified Search and Chat Bar
+MenuRegistry.appendMenuItem(MenuId.AgentsTitleBarControlMenu, {
+	command: {
+		id: `toggle.${ChatConfiguration.AgentStatusEnhanced}`,
+		title: localize('toggleUnifiedBar', "Unified Search and Chat Bar"),
+		toggled: ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnhanced}`),
+	},
+	when: ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`),
+	order: 10
 });
 
 //#endregion
