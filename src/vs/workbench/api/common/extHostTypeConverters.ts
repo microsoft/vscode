@@ -50,7 +50,7 @@ import { IToolInvocationContext, IToolResult, IToolResultInputOutputDetails, ITo
 import * as chatProvider from '../../contrib/chat/common/languageModels.js';
 import { IChatMessageDataPart, IChatResponseDataPart, IChatResponsePromptTsxPart, IChatResponseTextPart } from '../../contrib/chat/common/languageModels.js';
 import { DebugTreeItemCollapsibleState, IDebugVisualizationTreeItem } from '../../contrib/debug/common/debug.js';
-import { McpServerLaunch, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
+import { McpServerDefinition as McpServerDefinitionType, McpServerLaunch, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
 import * as notebooks from '../../contrib/notebook/common/notebookCommon.js';
 import { CellEditType } from '../../contrib/notebook/common/notebookCommon.js';
 import { ICellRange } from '../../contrib/notebook/common/notebookRange.js';
@@ -3766,24 +3766,25 @@ export namespace McpServerDefinition {
 	}
 
 	/** Converts from the IPC DTO to the API type. */
-	export function to(dto: extHostProtocol.IMcpServerDefinitionDto): vscode.McpServerDefinition {
-		if (dto.type === 'http') {
+	export function to(dto: McpServerDefinitionType.Serialized): vscode.McpServerDefinition {
+		const launch = McpServerLaunch.fromSerialized(dto.launch);
+		if (launch.type === McpServerTransportType.HTTP) {
 			return new types.McpHttpServerDefinition(
 				dto.label,
-				URI.revive(dto.uri),
-				dto.headers,
-				dto.version,
+				launch.uri,
+				Object.fromEntries(launch.headers),
+				dto.cacheNonce === '$$NONE' ? undefined : dto.cacheNonce,
 			);
 		} else {
 			const result = new types.McpStdioServerDefinition(
 				dto.label,
-				dto.command,
-				dto.args,
-				Object.fromEntries(Object.entries(dto.env).map(([key, value]) => [key, value === undefined ? null : value])),
-				dto.version,
+				launch.command,
+				[...launch.args],
+				Object.fromEntries(Object.entries(launch.env).map(([key, value]) => [key, value === null ? null : String(value)])),
+				dto.cacheNonce === '$$NONE' ? undefined : dto.cacheNonce,
 			);
-			if (dto.cwd) {
-				result.cwd = URI.revive(dto.cwd);
+			if (launch.cwd) {
+				result.cwd = URI.file(launch.cwd);
 			}
 			return result;
 		}
