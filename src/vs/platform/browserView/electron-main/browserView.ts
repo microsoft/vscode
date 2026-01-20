@@ -14,6 +14,9 @@ import { IBaseWindow, ICodeWindow } from '../../window/electron-main/window.js';
 import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-main/auxiliaryWindows.js';
 import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
 import { isMacintosh } from '../../../base/common/platform.js';
+import { IURLService } from '../../url/common/url.js';
+import { URI } from '../../../base/common/uri.js';
+import { matchesSomeScheme, Schemas } from '../../../base/common/network.js';
 
 /** Key combinations that are used in system-level shortcuts. */
 const nativeShortcuts = new Set([
@@ -73,7 +76,8 @@ export class BrowserView extends Disposable {
 		viewSession: Electron.Session,
 		private readonly storageScope: BrowserViewStorageScope,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService
+		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService,
+		@IURLService private readonly urlService: IURLService
 	) {
 		super();
 
@@ -92,6 +96,11 @@ export class BrowserView extends Disposable {
 		this._view.setBackgroundColor('#FFFFFF');
 
 		this._view.webContents.setWindowOpenHandler((details) => {
+			// Check for external URLs first
+			if (this.maybeHandleExternalURL(details.url)) {
+				return { action: 'deny' };
+			}
+
 			// For new tab requests, fire event for workbench to handle
 			if (details.disposition === 'background-tab' || details.disposition === 'foreground-tab') {
 				this._onDidRequestNewPage.fire({
@@ -244,6 +253,27 @@ export class BrowserView extends Disposable {
 		webContents.on('will-prevent-unload', (e) => {
 			e.preventDefault();
 		});
+
+		// Handle opening external URLs
+		webContents.on('will-navigate', (event, url) => {
+			if (this.maybeHandleExternalURL(url)) {
+				event.preventDefault();
+			}
+		});
+	}
+
+	/**
+	 * Check if the URL should be handled externally (and handle it).
+	 * Returns true if the URL is external and navigation should be prevented.
+	 */
+	private maybeHandleExternalURL(url: string): boolean {
+		const uri = URI.parse(url);
+		if (!matchesSomeScheme(uri, Schemas.http, Schemas.https, Schemas.file)) {
+			// Pass to URL service with trusted=false to trigger confirmation dialogs
+			this.urlService.open(uri, { trusted: false });
+			return true;
+		}
+		return false;
 	}
 
 	get webContents(): Electron.WebContents {
