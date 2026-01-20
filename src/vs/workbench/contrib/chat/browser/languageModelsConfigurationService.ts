@@ -34,6 +34,7 @@ export class LanguageModelsConfigurationService extends Disposable implements IL
 	declare _serviceBrand: undefined;
 
 	private readonly modelsConfigurationFile: URI;
+	get configurationFile(): URI { return this.modelsConfigurationFile; }
 
 	private readonly _onDidChangeLanguageModelGroups = new Emitter<void>();
 	readonly onDidChangeLanguageModelGroups: Event<void> = this._onDidChangeLanguageModelGroups.event;
