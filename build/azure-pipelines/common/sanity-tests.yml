@@ -236,7 +236,7 @@ jobs:
               node /workspace/test/sanity/out/index.js -c "$(BUILD_COMMIT)" -q "$(BUILD_QUALITY)" -t "/workspace/.build/sanity-test-logs/results.xml" -v
             '
         displayName: Run Sanity Tests
-        condition: and(contains('${{ parameters.container }}', 'opensuse'))
+        condition: contains('${{ parameters.container }}', 'opensuse')
 
       # Alpine Linux
       - bash: |
@@ -269,7 +269,7 @@ jobs:
               node /workspace/test/sanity/out/index.js -c "$(BUILD_COMMIT)" -q "$(BUILD_QUALITY)" -t "/workspace/.build/sanity-test-logs/results.xml" -v
             '
         displayName: Run Sanity Tests
-        condition: and(contains('${{ parameters.container }}', 'alpine'))
+        condition: contains('${{ parameters.container }}', 'alpine')
 
       - task: PublishTestResults@2
         inputs:
