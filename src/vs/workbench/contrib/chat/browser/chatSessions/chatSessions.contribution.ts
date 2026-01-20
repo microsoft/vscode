@@ -49,6 +49,7 @@ import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { assertNever } from '../../../../../base/common/assert.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 
 const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsExtensionPoint[]>({
 	extensionPoint: 'chatSessions',
@@ -516,12 +517,18 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		const disposables = new DisposableStore();
 
 		// Mirror all create submenu actions into the global Chat New menu
-		for (const action of menuActions) {
+		for (let i = 0; i < menuActions.length; i++) {
+			const action = menuActions[i];
 			if (action instanceof MenuItemAction) {
-				disposables.add(MenuRegistry.appendMenuItem(MenuId.ChatNewMenu, {
-					command: action.item,
-					group: '4_externally_contributed',
-				}));
+				// TODO: This is an odd way to do this, but the best we can do currently
+				if (i === 0 && !contribution.canDelegate) {
+					disposables.add(registerNewSessionExternalAction(contribution.type, contribution.displayName, action.item.id));
+				} else {
+					disposables.add(MenuRegistry.appendMenuItem(MenuId.ChatNewMenu, {
+						command: action.item,
+						group: '4_externally_contributed',
+					}));
+				}
 			}
 		}
 		return {
@@ -1121,6 +1128,24 @@ function registerNewSessionInPlaceAction(type: string, displayName: string): IDi
 			}
 
 			await openChatSession(accessor, { type: type, displayName: localize('chat', "Chat"), position: chatSessionPosition, replaceEditor: true });
+		}
+	});
+}
+
+function registerNewSessionExternalAction(type: string, displayName: string, commandId: string): IDisposable {
+	return registerAction2(class NewChatSessionExternalAction extends Action2 {
+		constructor() {
+			super({
+				id: `workbench.action.chat.openNewChatSessionExternal.${type}`,
+				title: localize2('interactiveSession.openNewChatSessionExternal', "New {0}", displayName),
+				category: CHAT_CATEGORY,
+				f1: false,
+				precondition: ChatContextKeys.enabled,
+			});
+		}
+		async run(accessor: ServicesAccessor): Promise<void> {
+			const commandService = accessor.get(ICommandService);
+			await commandService.executeCommand(commandId);
 		}
 	});
 }

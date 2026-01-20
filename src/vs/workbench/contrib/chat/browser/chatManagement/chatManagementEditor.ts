@@ -94,6 +94,10 @@ export class ModelsManagementEditor extends EditorPane {
 	clearSearch(): void {
 		this.modelsWidget?.clearSearch();
 	}
+
+	search(query: string): void {
+		this.modelsWidget?.search(query);
+	}
 }
 
 export const chatManagementSashBorder = registerColor('chatManagement.sashBorder', PANEL_BORDER, localize('chatManagementSashBorder', "The color of the Chat Management editor splitview sash border."));

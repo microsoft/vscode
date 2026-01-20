@@ -14,6 +14,7 @@ import { IVariableReference } from '../../../common/chatModes.js';
 import { IChatToolInvocation } from '../../../common/chatService/chatService.js';
 import { ChatRequestToolReferenceEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { CountTokensCallback, IBeginToolCallOptions, ILanguageModelToolsService, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolDataSource, ToolSet } from '../../../common/tools/languageModelToolsService.js';
+import { URI } from '../../../../../../base/common/uri.js';
 
 export class MockLanguageModelToolsService implements ILanguageModelToolsService {
 	_serviceBrand: undefined;
@@ -25,7 +26,7 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 	constructor() { }
 
 	readonly onDidChangeTools: Event<void> = Event.None;
-	readonly onDidPrepareToolCallBecomeUnresponsive: Event<{ sessionId: string; toolData: IToolData }> = Event.None;
+	readonly onDidPrepareToolCallBecomeUnresponsive: Event<{ sessionResource: URI; toolData: IToolData }> = Event.None;
 
 	registerToolData(toolData: IToolData): IDisposable {
 		return Disposable.None;
