@@ -246,10 +246,6 @@ declare module 'vscode' {
 		 * Unique ID for the subagent invocation, used to group tool calls from the same subagent run together.
 		 */
 		subAgentInvocationId?: string;
-		/**
-		 * Display name of the subagent that is invoking this tool.
-		 */
-		subAgentName?: string;
 	}
 
 	export interface LanguageModelToolInvocationPrepareOptions<T> {

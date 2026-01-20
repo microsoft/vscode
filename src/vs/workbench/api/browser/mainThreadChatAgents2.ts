@@ -292,7 +292,6 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					chatRequestId: requestId,
 					sessionResource: chatSession?.sessionResource,
 					subagentInvocationId: progress.subagentInvocationId,
-					subAgentName: progress.subAgentName
 				});
 				continue;
 			}

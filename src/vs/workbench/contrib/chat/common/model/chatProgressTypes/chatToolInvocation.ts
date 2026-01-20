@@ -15,7 +15,6 @@ export interface IStreamingToolCallOptions {
 	toolId: string;
 	toolData: IToolData;
 	subagentInvocationId?: string;
-	subAgentName?: string;
 	chatRequestId?: string;
 }
 
@@ -30,7 +29,6 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	public readonly toolId: string;
 	public source: ToolDataSource;
 	public readonly subAgentInvocationId: string | undefined;
-	public readonly subAgentName: string | undefined;
 	public parameters: unknown;
 	public generatedTitle?: string;
 	public readonly chatRequestId?: string;
@@ -53,7 +51,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	 * Use this when the tool call is beginning to stream partial input from the LM.
 	 */
 	public static createStreaming(options: IStreamingToolCallOptions): ChatToolInvocation {
-		return new ChatToolInvocation(undefined, options.toolData, options.toolCallId, options.subagentInvocationId, options.subAgentName, undefined, true, options.chatRequestId);
+		return new ChatToolInvocation(undefined, options.toolData, options.toolCallId, options.subagentInvocationId, undefined, true, options.chatRequestId);
 	}
 
 	constructor(
@@ -61,7 +59,6 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		toolData: IToolData,
 		public readonly toolCallId: string,
 		subAgentInvocationId: string | undefined,
-		subAgentName: string | undefined,
 		parameters: unknown,
 		isStreaming: boolean = false,
 		chatRequestId?: string
@@ -77,7 +74,6 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		this.toolId = toolData.id;
 		this.source = toolData.source;
 		this.subAgentInvocationId = subAgentInvocationId;
-		this.subAgentName = subAgentName;
 		this.parameters = parameters;
 		this.chatRequestId = chatRequestId;
 

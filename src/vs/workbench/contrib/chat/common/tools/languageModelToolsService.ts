@@ -140,10 +140,6 @@ export interface IToolInvocation {
 	 * Lets us add some nicer UI to toolcalls that came from a sub-agent, but in the long run, this should probably just be rendered in a similar way to thinking text + tool call groups
 	 */
 	subAgentInvocationId?: string;
-	/**
-	 * Display name of the subagent that is invoking this tool.
-	 */
-	subAgentName?: string;
 	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData;
 	modelId?: string;
 	userSelectedTools?: UserSelectedTools;
@@ -381,7 +377,6 @@ export interface IBeginToolCallOptions {
 	chatRequestId?: string;
 	sessionResource?: URI;
 	subagentInvocationId?: string;
-	subAgentName?: string;
 }
 
 export const ILanguageModelToolsService = createDecorator<ILanguageModelToolsService>('ILanguageModelToolsService');

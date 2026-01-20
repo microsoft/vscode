@@ -407,7 +407,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					toolInvocation.transitionFromStreaming(preparedInvocation, dto.parameters, autoConfirmed);
 				} else {
 					// Create a new tool invocation (no streaming phase)
-					toolInvocation = new ChatToolInvocation(preparedInvocation, tool.data, dto.callId, dto.subAgentInvocationId, dto.subAgentName, dto.parameters);
+					toolInvocation = new ChatToolInvocation(preparedInvocation, tool.data, dto.callId, dto.subAgentInvocationId, dto.parameters);
 					if (autoConfirmed) {
 						IChatToolInvocation.confirmWith(toolInvocation, autoConfirmed);
 					}
@@ -612,7 +612,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			toolId: options.toolId,
 			toolData: toolEntry.data,
 			subagentInvocationId: options.subagentInvocationId,
-			subAgentName: options.subAgentName,
 			chatRequestId: options.chatRequestId,
 		});
 
