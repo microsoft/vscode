@@ -585,7 +585,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('workbench.secondarySideBar.defaultVisibility.maximized', "The secondary side bar is visible and maximized by default.")
 				]
 			},
-			'workbench.secondarySideBar.restoreMaximised': {
+			'workbench.secondarySideBar.restoreMaximized': {
 				'type': 'boolean',
 				'default': false,
 				'description': localize('secondarySideBarRestoreMaximized', "Controls whether the secondary side bar restores to a maximized state after startup, irrespective of its previous state."),
