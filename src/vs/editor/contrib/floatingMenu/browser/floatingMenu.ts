@@ -46,7 +46,13 @@ export class FloatingEditorToolbar extends Disposable implements IEditorContribu
 			}
 
 			// Fallback to first group/action
-			return menuActions[0][1][0].id;
+			for (const [, actions] of menuActions) {
+				if (actions.length > 0) {
+					return actions[0].id;
+				}
+			}
+
+			return undefined;
 		});
 
 		this._register(autorun(reader => {
