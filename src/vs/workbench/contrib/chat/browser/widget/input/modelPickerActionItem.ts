@@ -65,8 +65,15 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, te
 				} satisfies IActionWidgetDropdownAction];
 			}
 			return models.map(model => {
-				// Build hover content from description
-				const hoverContent = model.metadata.description;
+				// Build hover content combining description and rate info
+				const hoverParts: string[] = [];
+				if (model.metadata.description) {
+					hoverParts.push(model.metadata.description);
+				}
+				if (model.metadata.detail) {
+					hoverParts.push(localize('chat.modelPicker.rateDescription', "Rate is counted at {0}.", model.metadata.detail));
+				}
+				const hoverContent = hoverParts.length > 0 ? hoverParts.join(' ') : undefined;
 				const hoverActions: IHoverAction[] = [{
 					label: localize('chat.modelPicker.showMore', "Show More"),
 					commandId: MANAGE_CHAT_COMMAND_ID,
@@ -81,7 +88,7 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, te
 					checked: model.identifier === delegate.getCurrentModel()?.identifier,
 					category: model.metadata.modelPickerCategory || DEFAULT_MODEL_PICKER_CATEGORY,
 					class: undefined,
-					description: model.metadata.detail,
+					description: undefined,
 					tooltip: hoverContent ? '' : (model.metadata.tooltip ?? model.metadata.name),
 					hover: hoverContent ? { content: hoverContent, actions: hoverActions } : undefined,
 					label: model.metadata.name,
