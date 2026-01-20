@@ -52,44 +52,44 @@ jobs:
         displayName: Install NPM Dependencies
 
       # Native host: Install Playwright browser
-      - ${{ if eq('${{ parameters.container }}', '') }}:
-          - ${{ if eq(parameters.os, 'windows') }}:
-              script: ./node_modules/.bin/playwright install --with-deps chromium
-          - ${{ elseif eq(parameters.os, 'macos') }}:
-              script: ./node_modules/.bin/playwright install --with-deps webkit
-          - ${{ else }}:
-              script: ./node_modules/.bin/playwright install --with-deps firefox
-            workingDirectory: $(TEST_DIR)
-            displayName: Install Playwright Browser
+      - ${{ if eq(parameters.os, 'windows') }}:
+          script: ./node_modules/.bin/playwright install --with-deps chromium
+        ${{ elseif eq(parameters.os, 'macos') }}:
+          script: ./node_modules/.bin/playwright install --with-deps webkit
+        ${{ else }}:
+          script: ./node_modules/.bin/playwright install --with-deps firefox
+        workingDirectory: $(TEST_DIR)
+        displayName: Install Playwright Browser
+        condition: eq('${{ parameters.container }}', '')
 
       - script: npm run compile
         workingDirectory: $(TEST_DIR)
         displayName: Compile Sanity Tests
 
       # Native Linux host: Setup X11 and Snap
-      - ${{ if and(eq('${{ parameters.container }}', ''), eq('${{ parameters.os }}', 'linux')) }}:
-          bash: |
-            set -e
-            echo "Installing X11 dependencies"
-            sudo apt-get update
-            sudo apt-get install -y \
-              dbus \
-              dbus-x11 \
-              snapd \
-              x11-utils \
-              xvfb
+      - bash: |
+          set -e
+          echo "Installing X11 dependencies"
+          sudo apt-get update
+          sudo apt-get install -y \
+            dbus \
+            dbus-x11 \
+            snapd \
+            x11-utils \
+            xvfb
 
-            echo "Starting Xvfb on display :99"
-            sudo Xvfb :99 -screen 0 1280x960x24 -ac +extension GLX +render -noreset &
-            echo "##vso[task.setvariable variable=DISPLAY]:99"
+          echo "Starting Xvfb on display :99"
+          sudo Xvfb :99 -screen 0 1280x960x24 -ac +extension GLX +render -noreset &
+          echo "##vso[task.setvariable variable=DISPLAY]:99"
 
-            echo "Starting D-Bus daemon"
-            sudo mkdir -p /var/run/dbus && sudo dbus-daemon --system --fork
+          echo "Starting D-Bus daemon"
+          sudo mkdir -p /var/run/dbus && sudo dbus-daemon --system --fork
 
-            echo "Starting snapd service"
-            sudo systemctl start snapd.socket
-            sudo systemctl start snapd.service
-          displayName: Setup X11 Display
+          echo "Starting snapd service"
+          sudo systemctl start snapd.socket
+          sudo systemctl start snapd.service
+        displayName: Setup X11 Display
+        condition: and(eq('${{ parameters.container }}', ''), eq('${{ parameters.os }}', 'linux'))
 
       # Native host
       - script: node out/index.js -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -v ${{ parameters.args }}
