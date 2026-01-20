@@ -63,7 +63,7 @@ export class PromptBodyAutocompletion implements CompletionItemProvider {
 				break;
 			case 'tool':
 				if (reference.contentRange.containsPosition(position)) {
-					if (promptsType === PromptsType.agent || promptsType === PromptsType.prompt) {
+					if (promptsType === PromptsType.agent || promptsType === PromptsType.prompt || promptsType === PromptsType.skill) {
 						await this.collectToolCompletions(model, position, reference.contentRange, suggestions);
 					}
 				} else {
